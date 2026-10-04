@@ -22,9 +22,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { chainNodeIds, rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
+import { chainNodeIds, parseDateNodeId, rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
 
-import type { ClientNode, CreateObjectInput } from "@/core/workspace-client.js";
+import type { ClientNode } from "@/core/workspace-client.js";
 import { displayNameForSettings } from "../../dateDisplay.js";
 import { Icon } from "../../Icon.js";
 import { parseDate } from "./dateParser.js";
@@ -32,23 +32,27 @@ import { NodePill } from "./NodePill.js";
 import { NodeResultItem } from "./NodeResultItem.js";
 import { useKeyboardListNav } from "./useKeyboardListNav.js";
 import { useViewportPosition } from "./useViewportPosition.js";
+import { QuickCreateModal } from "../modals/QuickCreateModal.js";
+import type { QuickCreateClient, QuickCreatePlan } from "../modals/quickCreate.js";
+import { resolveQuickCreate } from "../modals/quickCreate.js";
 import { Tabs } from "../ui/Tabs.js";
+import { Checkbox } from "../ui/Checkbox.js";
 import "./NodeSelector.css";
 
 /**
  * The client surface the picker drives — structural, so both full clients
  * (in-process WorkspaceClient, WorkerClient proxy) and the outliner's
- * minimal context client satisfy it.
+ * context client satisfy it. Extends the quick-create surface: the picker's
+ * built-in create row opens the class-aware QuickCreateModal when the class
+ * filter resolves to a family (§34.19 :1172).
  */
-export interface NodeSelectorClient {
+export interface NodeSelectorClient extends QuickCreateClient {
   getNode(id: string): ClientNode | undefined;
   getNodeRaw(id: string): ClientNode | undefined;
-  listClasses(): ClientNode[];
+  /** The document-chrome node pool (filter-prefix listings, §34.19). */
+  listPages(): ClientNode[];
   search(query: string): ClientNode[];
-  getClassMembers(classId: string): ClientNode[];
-  createObject(partial: CreateObjectInput): Promise<string>;
   createClass(name: string, opts?: { icon?: string; color?: string }): Promise<string>;
-  ensureDateChain(isoDate: string): Promise<{ year: string; month: string; day: string }>;
 }
 
 type AnyClient = NodeSelectorClient;
@@ -144,6 +148,14 @@ interface NodeSelectorProps {
   onClose?: (() => void) | undefined;
   /** Custom label for the create row (default: `Create "<query>"`). */
   createLabel?: string | undefined;
+  /**
+   * §34.19 multi-select checkbox mode: row clicks toggle a picked set
+   * (checked rows accumulate at the top), an Apply footer commits them all
+   * through `onApplyMulti`. The picker stays open across toggles.
+   */
+  multiSelect?: boolean | undefined;
+  /** Commits a multi-select session with the picked nodes (pick order). */
+  onApplyMulti?: ((nodes: ClientNode[]) => void | Promise<unknown>) | undefined;
   /** ID for the root element. */
   id?: string;
   /** Hide the pill's remove icon until the pill is hovered or focused. */
@@ -182,6 +194,8 @@ export function NodeSelector({
   anchorRect,
   onClose,
   createLabel,
+  multiSelect = false,
+  onApplyMulti,
   id,
   rightIconHoverReveal = false,
 }: NodeSelectorProps) {
@@ -189,6 +203,8 @@ export function NodeSelector({
   const [isPickerOpen, setIsPickerOpen] = useState(isAnchored);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const [displayLimit, setDisplayLimit] = useState(DEFAULT_DISPLAY_LIMIT);
+  /** Multi-select (§34.19): picked ids in pick order. */
+  const [pickedIds, setPickedIds] = useState<string[]>([]);
   /** Active scope-tab filter (only rendered when scopeTabs is set). */
   const [scope, setScope] = useState<"main" | "blocks">("main");
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -244,6 +260,11 @@ export function NodeSelector({
 
   const handleAdd = (node: ClientNode, withLabel = false): void => {
     if (assignedIds.has(node.id)) return;
+    if (multiSelect) {
+      // Checkbox mode: a pick toggles the set; the picker stays open.
+      togglePicked(node);
+      return;
+    }
     if (onChange) {
       const newValue = Array.isArray(value) ? [...value, node.id] : node.id;
       onChange(newValue);
@@ -269,15 +290,51 @@ export function NodeSelector({
     }
   };
 
+  // Inline filter prefixes (§34.19 suggestion-popup row, the v1 popup's
+  // filter family): `daily:` (bare = daily pages only), `is_daily:`,
+  // `is_page:` and `is_class:` booleans refine any non-classes search. The
+  // tokens are stripped from the search text before FTS/name matching (and
+  // before the create row, so a filter never becomes a page title).
+  const inlineFilters = useMemo(() => {
+    const filters: { daily: boolean | null; page: boolean | null; cls: boolean | null } = {
+      daily: null,
+      page: null,
+      cls: null,
+    };
+    const stripped = searchQuery
+      .replace(/\b(is_daily|is_page|is_class)\s*:\s*(true|false)\b/gi, (_match, prefix: string, value: string) => {
+        const bool = value.toLowerCase() === "true";
+        const which = prefix.toLowerCase();
+        if (which === "is_daily") filters.daily = bool;
+        else if (which === "is_page") filters.page = bool;
+        else filters.cls = bool;
+        return " ";
+      })
+      .replace(/\bdaily\s*:/gi, () => {
+        filters.daily = true;
+        return " ";
+      });
+    return { filters, query: stripped };
+  }, [searchQuery]);
+
+  /** The filter predicates over one candidate node (daily reads the deterministic date id). */
+  const matchesInlineFilters = (node: ClientNode): boolean => {
+    const { daily, page, cls } = inlineFilters.filters;
+    if (daily !== null && (parseDateNodeId(node.id)?.precision === "day") !== daily) return false;
+    if (page !== null && rendersWithDocumentChrome(node) !== page) return false;
+    if (cls !== null && node.isClass !== cls) return false;
+    return true;
+  };
+
   // Class refine (§34.30 M7): a leading `class:<name>` prefix scopes the
   // search to that class's members. The name is resolved greedily over the
   // class list — the LONGEST display-name prefix wins, so spaced names
   // ("class:My Class ada") parse unambiguously; an unknown name leaves the
   // query untouched (the raw text just searches).
   const classRefine = useMemo((): { classId: string | null; query: string } => {
-    if (searchMode === "classes") return { classId: null, query: searchQuery };
-    const raw = searchQuery.trim();
-    if (!/^class:/i.test(raw)) return { classId: null, query: searchQuery };
+    if (searchMode === "classes") return { classId: null, query: inlineFilters.query };
+    const raw = inlineFilters.query.trim();
+    if (!/^class:/i.test(raw)) return { classId: null, query: inlineFilters.query };
     const rest = raw.slice("class:".length).trimStart();
     const restLower = rest.toLowerCase();
     const hit = client
@@ -285,9 +342,9 @@ export function NodeSelector({
       .map((cls) => ({ cls, name: (displayNameForSettings(cls) || "").toLowerCase() }))
       .filter((entry) => entry.name !== "" && (restLower === entry.name || restLower.startsWith(entry.name + " ")))
       .sort((a, b) => b.name.length - a.name.length)[0];
-    if (hit === undefined) return { classId: null, query: searchQuery };
+    if (hit === undefined) return { classId: null, query: inlineFilters.query };
     return { classId: hit.cls.id, query: rest.slice(hit.name.length) };
-  }, [client, searchQuery, searchMode]);
+  }, [client, inlineFilters.query, searchMode]);
 
   // Effective class ids: caller-side classFilters plus the refined class —
   // the create row and the empty-query member listing both honor them.
@@ -297,12 +354,31 @@ export function NodeSelector({
     return [...ids];
   }, [classFilters, classRefine]);
 
+  /**
+   * §34.19 :1172 — the class-aware create request: when the picker's create
+   * row runs under a source/agent family filter, the QuickCreateModal opens
+   * with the citation fields instead of silently creating a plain page. The
+   * modal completes the create and hands the id back through resolveCreateResult.
+   */
+  const [quickCreate, setQuickCreate] = useState<{
+    plan: QuickCreatePlan;
+    name: string;
+  } | null>(null);
+
   // Built-in create: pages pickers create a page (carrying the effective
   // class filters), classes pickers create a class. Callers override via
-  // onCreateNew.
-  const defaultCreateNew = (name: string): Promise<string> => {
+  // onCreateNew. A source/agent family filter reroutes to the quick-create
+  // modal (citation fields up front); every other filter stays plain.
+  const defaultCreateNew = (name: string): Promise<string> | void => {
     if (searchMode === "classes") {
       return client.createClass(name);
+    }
+    if (onCreateNew === undefined && effectiveClassIds.length > 0) {
+      const plan = resolveQuickCreate(client, effectiveClassIds);
+      if (plan !== null) {
+        setQuickCreate({ plan, name });
+        return;
+      }
     }
     return client.createObject({
       presentAsMain: true,
@@ -329,13 +405,34 @@ export function NodeSelector({
   const showCreateOption =
     !!effectiveCreateNew && createEnabled && (alwaysShowCreate || effectiveQuery.length > 0);
 
-  const handleCreateNew = () => {
-    if (!effectiveCreateNew || !effectiveQuery) return;
+  const handleCreateNew = (applyAfter = false) => {
+    if (effectiveCreateNew === undefined) return;
+    // Empty-query create is only meaningful for override flows (upload,
+    // quick-create modals): the built-in create needs a title, so the row
+    // stays inert without a query unless the caller overrode it.
+    if (effectiveQuery === "" && onCreateNew === undefined) return;
     const result = effectiveCreateNew(effectiveQuery);
+    const onCreated = (created: ClientNode | string | void): void => {
+      if (multiSelect) {
+        // The created node joins the picked set; Enter's fast path commits.
+        const node =
+          typeof created === "string"
+            ? client.getNode(created)
+            : created !== undefined && typeof created === "object" && "id" in created
+              ? (created as ClientNode)
+              : undefined;
+        if (node === undefined) return;
+        const next = pickedIds.includes(node.id) ? pickedNodes : [...pickedNodes, node];
+        setPickedIds(next.map((n) => n.id));
+        if (applyAfter) applyMulti(next);
+        return;
+      }
+      resolveCreateResult(created);
+    };
     if (result instanceof Promise) {
-      result.then(resolveCreateResult).catch(() => {});
+      result.then(onCreated).catch(() => {});
     } else {
-      resolveCreateResult(result);
+      onCreated(result);
     }
     if (trigger === "pill-row") {
       setIsPickerOpen(false);
@@ -343,11 +440,12 @@ export function NodeSelector({
     setSearchQuery("");
   };
 
-  // Parse the query for date formats and offer the date-page suggestion.
+  // Parse the query for date formats and offer the date-page suggestion
+  // (hidden in multi-select mode — the v1 boundary).
   const parsedDate = useMemo(() => {
-    if (searchMode === "classes") return null;
-    return parseDate(searchQuery.trim());
-  }, [searchQuery, searchMode]);
+    if (searchMode === "classes" || multiSelect) return null;
+    return parseDate(inlineFilters.query.trim());
+  }, [inlineFilters.query, searchMode, multiSelect]);
 
   // The chain ids are pure (derived from the iso date); existence is read
   // live each render so the suggestion label tracks graph changes under an
@@ -412,6 +510,7 @@ export function NodeSelector({
     const q = classRefine.query.trim().toLowerCase();
     if (searchMode === "classes") {
       const classes = client.listClasses().filter((node) => {
+        if (!matchesInlineFilters(node)) return false;
         if (q === "") return true;
         const name = displayNameForSettings(node) ?? node.id;
         return name.toLowerCase().includes(q);
@@ -422,6 +521,7 @@ export function NodeSelector({
     const filtered = hits.filter((node) => {
       if (searchMode === "pages" && !rendersWithDocumentChrome(node)) return false;
       if (searchMode === "blocks" && !rendersAsInlineBlock(node)) return false;
+      if (!matchesInlineFilters(node)) return false;
       if (!matchesScopeTab(node)) return false;
       if (effectiveClassIds.length > 0) {
         if (!node.classIds.some((id) => effectiveClassIds.includes(id))) return false;
@@ -431,7 +531,17 @@ export function NodeSelector({
     if (q !== "") return filtered;
     // An empty effective query in a class-scoped picker lists the target
     // classes' members (the picker's natural candidate set); unfiltered
-    // pickers wait for input.
+    // pickers wait for input — EXCEPT when an inline filter prefix is live:
+    // `daily:` alone must list the matching pool (the filter IS the query).
+    const inlineActive =
+      inlineFilters.filters.daily !== null ||
+      inlineFilters.filters.page !== null ||
+      inlineFilters.filters.cls !== null;
+    if (inlineActive && searchMode !== "blocks") {
+      const pool =
+        searchMode === "all" ? [...client.listPages(), ...client.listClasses()] : client.listPages();
+      return pool.filter(matchesInlineFilters).filter(matchesScopeTab);
+    }
     if (effectiveClassIds.length > 0) {
       const seen = new Set<string>();
       return effectiveClassIds
@@ -441,21 +551,58 @@ export function NodeSelector({
           seen.add(node.id);
           return true;
         })
+        .filter(matchesInlineFilters)
         .filter(matchesScopeTab)
         .filter((node) => searchMode !== "blocks" || rendersAsInlineBlock(node));
     }
     return [];
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- matchesScopeTab derives from scope/scopeTabs/searchMode.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- matchesInlineFilters derives from inlineFilters (searchQuery); matchesScopeTab derives from scope/scopeTabs/searchMode.
   }, [client, searchQuery, searchMode, classRefine, effectiveClassIds, scopeTabs, scope]);
 
   const filteredResults = useMemo(
     () =>
       searchResults
         .filter((node) => !assignedIds.has(node.id))
+        .filter((node) => !multiSelect || !pickedIds.includes(node.id))
         .filter((node) => node.id !== excludeNodeId)
         .filter((node) => canAdd === undefined || canAdd(node)),
-    [searchResults, assignedIds, excludeNodeId, canAdd],
+    [searchResults, assignedIds, multiSelect, pickedIds, excludeNodeId, canAdd],
   );
+
+  // Multi-select (§34.19): picked nodes resolved in pick order; toggling a
+  // row never closes the picker; Apply commits the whole set at once.
+  const pickedNodes = useMemo(
+    () =>
+      pickedIds
+        .map((pickedId) => client.getNode(pickedId))
+        .filter((node): node is ClientNode => node !== undefined),
+    [client, pickedIds],
+  );
+  const togglePicked = (node: ClientNode): void => {
+    setPickedIds((prev) =>
+      prev.includes(node.id) ? prev.filter((id) => id !== node.id) : [...prev, node.id],
+    );
+  };
+  const resetMulti = (): void => setPickedIds([]);
+  /**
+   * Commit a multi-select session. `explicit` overrides the picked set (the
+   * Enter fast path picks a row AND commits in one gesture). The picker
+   * closes first: the editor's close handler returns the caret to the block,
+   * then the apply strips the trigger and re-places the caret at the splice.
+   */
+  const applyMulti = (explicit?: ClientNode[]): void => {
+    const commit = explicit ?? pickedNodes;
+    if (commit.length === 0) return;
+    if (isAnchored) {
+      onClose?.();
+    } else {
+      setIsPickerOpen(false);
+      setSearchQuery("");
+    }
+    resetMulti();
+    const result = onApplyMulti?.(commit);
+    if (result instanceof Promise) result.catch(() => {});
+  };
 
   const visibleResults = useMemo(
     () => filteredResults.slice(0, displayLimit),
@@ -470,9 +617,12 @@ export function NodeSelector({
     { popupRef: pickerRef, edgePadding: PICKER_EDGE_PADDING },
   );
 
-  // Close picker when clicking outside.
+  // Close picker when clicking outside. While the class-aware quick-create
+  // modal is open it owns the interaction (its backdrop is outside the
+  // picker): the picker's dismissal handlers stand down so a backdrop click
+  // or Escape reaches only the modal's own overlay stack.
   useEffect(() => {
-    if (!isPickerOpen) return;
+    if (!isPickerOpen || quickCreate !== null) return;
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       const pickerElement = pickerRef.current;
@@ -487,6 +637,7 @@ export function NodeSelector({
         setIsPickerOpen(false);
         setSearchQuery("");
       }
+      resetMulti();
     };
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -496,6 +647,7 @@ export function NodeSelector({
           setIsPickerOpen(false);
           setSearchQuery("");
         }
+        resetMulti();
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -504,7 +656,7 @@ export function NodeSelector({
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [isPickerOpen, isAnchored, anchorEl, onClose]);
+  }, [isPickerOpen, isAnchored, anchorEl, onClose, quickCreate]);
 
   // Focus the search input once the open picker is positioned. The popup
   // renders visibility:hidden until measured, and browsers refuse focus
@@ -518,6 +670,7 @@ export function NodeSelector({
   }, [isPickerOpen, position]);
 
   const handleClosePicker = () => {
+    resetMulti();
     if (isAnchored) {
       onClose?.();
     } else {
@@ -526,24 +679,51 @@ export function NodeSelector({
     }
   };
 
-  // Total selectable items (date suggestion offsets the list by one).
+  // Total selectable items (date suggestion offsets the list by one;
+  // multi-select puts the picked rows first).
   const dateOffset = dateSuggestion ? 1 : 0;
-  const createIndex = dateOffset + visibleResults.length;
+  const pickedOffset = multiSelect ? pickedNodes.length : 0;
+  const createIndex = pickedOffset + dateOffset + visibleResults.length;
   const showMoreIndex = createIndex + (showCreateOption ? 1 : 0);
   const totalItems =
-    visibleResults.length + dateOffset + (showCreateOption ? 1 : 0) + (showMoreOption ? 1 : 0);
+    pickedOffset +
+    visibleResults.length +
+    dateOffset +
+    (showCreateOption ? 1 : 0) +
+    (showMoreOption ? 1 : 0);
 
   const handleSelectByIndex = (index: number, modifiers: { ctrlKey: boolean; metaKey: boolean }) => {
+    if (multiSelect) {
+      // Ctrl/Cmd+Enter commits the accumulated set from anywhere.
+      if (modifiers.ctrlKey || modifiers.metaKey) {
+        applyMulti();
+        return;
+      }
+      // Enter on an already-picked row un-picks it (the session stays open).
+      if (index < pickedNodes.length) {
+        togglePicked(pickedNodes[index]!);
+        return;
+      }
+    }
     if (dateSuggestion && index === 0) {
       dateSuggestion.onSelect();
       return;
     }
-    const adjusted = index - dateOffset;
+    const adjusted = index - pickedOffset - dateOffset;
     if (adjusted < visibleResults.length) {
-      handleAdd(visibleResults[adjusted]!, modifiers.ctrlKey || modifiers.metaKey);
+      const node = visibleResults[adjusted]!;
+      if (multiSelect) {
+        // Enter = the fast single-assign path (the pre-multi contract): the
+        // row joins the picked set and the whole set commits at once.
+        // Checkbox clicks accumulate without committing instead.
+        const next = pickedIds.includes(node.id) ? pickedNodes : [...pickedNodes, node];
+        applyMulti(next);
+        return;
+      }
+      handleAdd(node, modifiers.ctrlKey || modifiers.metaKey);
     } else if (showCreateOption && adjusted === visibleResults.length) {
-      handleCreateNew();
-    } else if (showMoreOption && adjusted === showMoreIndex - dateOffset) {
+      handleCreateNew(multiSelect);
+    } else if (showMoreOption && adjusted === showMoreIndex - pickedOffset - dateOffset) {
       setDisplayLimit((prev) => prev + 20);
     }
   };
@@ -631,19 +811,36 @@ export function NodeSelector({
 
   const renderResults = (emptyClassName: string, createIconSize: number) => (
     <>
+      {/* Multi-select (§34.19): picked rows ride the top of the list. */}
+      {multiSelect &&
+        pickedNodes.map((node, index) => (
+          <NodeResultItem
+            key={`picked:${node.id}`}
+            node={node}
+            isHighlighted={index === selectedIndex}
+            isSelected
+            onClick={() => togglePicked(node)}
+            onMouseEnter={() => setSelectedIndex(index)}
+            before={
+              <span className="node-selector__multi-check" aria-hidden="true">
+                <Checkbox size="sm" checked readOnly tabIndex={-1} aria-label="" />
+              </span>
+            }
+          />
+        ))}
       {dateSuggestion && (
         <NodeResultItem
           key={dateSuggestion.key}
           node={{ name: dateSuggestion.label }}
-          isHighlighted={selectedIndex === 0}
+          isHighlighted={selectedIndex === pickedOffset}
           onClick={dateSuggestion.onSelect}
-          onMouseEnter={() => setSelectedIndex(0)}
+          onMouseEnter={() => setSelectedIndex(pickedOffset)}
           className="node-result-item--date"
           iconOverride={<Icon path="mdi-calendar" size={0.7} />}
         />
       )}
       {visibleResults.map((node, index) => {
-        const globalIndex = dateOffset + index;
+        const globalIndex = pickedOffset + dateOffset + index;
         return (
           <NodeResultItem
             key={node.id}
@@ -653,10 +850,17 @@ export function NodeSelector({
             }
             displayClasses={getDisplayClasses(node)}
             isHighlighted={globalIndex === selectedIndex}
-            isSelected={assignedIds.has(node.id)}
+            isSelected={!multiSelect && assignedIds.has(node.id)}
             onClick={() => handleAdd(node)}
             onCtrlClick={() => handleAdd(node, true)}
             onMouseEnter={() => setSelectedIndex(globalIndex)}
+            before={
+              multiSelect ? (
+                <span className="node-selector__multi-check" aria-hidden="true">
+                  <Checkbox size="sm" checked={false} readOnly tabIndex={-1} aria-label="" />
+                </span>
+              ) : undefined
+            }
           />
         );
       })}
@@ -689,6 +893,22 @@ export function NodeSelector({
     </>
   );
 
+  /** Multi-select footer: picked count + Apply + keyboard hints. */
+  const multiFooter = multiSelect ? (
+    <div className="node-selector__multi-footer">
+      <span className="node-selector__multi-count">{pickedNodes.length} picked</span>
+      <button
+        type="button"
+        className="btn btn--primary btn--sm"
+        disabled={pickedNodes.length === 0}
+        onClick={() => applyMulti()}
+      >
+        Apply{pickedNodes.length > 0 ? ` ${pickedNodes.length}` : ""}
+      </button>
+      <span className="node-selector__multi-hint">↵ toggle · ⌃↵ apply</span>
+    </div>
+  ) : null;
+
   /**
    * Search input + results. With scopeTabs the body wraps in a Tabs root:
    * the tablist scopes the results (the shared search input sits between
@@ -717,6 +937,7 @@ export function NodeSelector({
             {renderResults("node-selector__no-results", createIconSize)}
           </div>
         </Tabs.Panel>
+        {multiFooter}
       </Tabs>
     ) : (
       <>
@@ -733,6 +954,7 @@ export function NodeSelector({
         <div className="node-selector__options" ref={listRef}>
           {renderResults("node-selector__no-results", createIconSize)}
         </div>
+        {multiFooter}
       </>
     );
 
@@ -741,6 +963,17 @@ export function NodeSelector({
     return (
       <div id={id} className={`node-selector node-selector--inline ${className}`} data-editor-companion>
         {renderBody(0.7)}
+        {quickCreate !== null && (
+          <QuickCreateModal
+            isOpen
+            client={client}
+            kind={quickCreate.plan.kind}
+            defaultClassId={quickCreate.plan.defaultClassId}
+            initialName={quickCreate.name}
+            onClose={() => setQuickCreate(null)}
+            onCreated={(createdId) => resolveCreateResult(createdId)}
+          />
+        )}
       </div>
     );
   }
@@ -765,6 +998,17 @@ export function NodeSelector({
             {renderBody(0.55)}
           </div>,
           document.body,
+        )}
+        {quickCreate !== null && (
+          <QuickCreateModal
+            isOpen
+            client={client}
+            kind={quickCreate.plan.kind}
+            defaultClassId={quickCreate.plan.defaultClassId}
+            initialName={quickCreate.name}
+            onClose={() => setQuickCreate(null)}
+            onCreated={(createdId) => resolveCreateResult(createdId)}
+          />
         )}
       </>
     );
@@ -822,6 +1066,17 @@ export function NodeSelector({
             </div>
           )}
         </div>
+      )}
+      {quickCreate !== null && (
+        <QuickCreateModal
+          isOpen
+          client={client}
+          kind={quickCreate.plan.kind}
+          defaultClassId={quickCreate.plan.defaultClassId}
+          initialName={quickCreate.name}
+          onClose={() => setQuickCreate(null)}
+          onCreated={(createdId) => resolveCreateResult(createdId)}
+        />
       )}
     </div>
   );
