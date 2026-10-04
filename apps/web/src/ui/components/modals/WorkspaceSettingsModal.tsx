@@ -24,6 +24,7 @@ import { displayNameFromClient } from "../../dateDisplay.js";
 import { Modal } from "../ui/Modal.js";
 import { BooleanToggle } from "../ui/BooleanToggle.js";
 import { Button } from "../ui/Button.js";
+import { ConfirmationModal } from "../ui/ConfirmationModal.js";
 import { Dropdown } from "../ui/Dropdown.js";
 import { Icon } from "../../Icon.js";
 import { Tabs } from "../ui/Tabs.js";
@@ -43,15 +44,12 @@ import {
 import "./settingsModal.css";
 
 /**
- * LOCKSTEP-PENDING (§34.35 protocol batch, part 1): the feature toggles READ
- * through the shipped `workspace.feature.set` op + `workspace_feature`
- * derived table (store applier, canonical fixtures, both web clients), but
- * the WRITE path stays inert until the GTK/Flutter clients ship the op —
- * nothing may author it into a live log while older clients fail loud on
- * unknown opTypes. The tab renders the live state with disabled switches;
- * the write (a `workspace.feature.set` through the normal client op path,
- * with the F3 "N existing objects keep their data" confirmation when
- * instances exist) lands with the lockstep release.
+ * The feature toggles read + write through the shipped `workspace.feature.set`
+ * op + `workspace_feature` derived table (lockstep SHIPPED: GTK/Flutter
+ * v3.0.0). F3's disable confirmation gates the OFF write: turning a family
+ * off with existing instances opens a ConfirmationModal first ("N existing
+ * objects keep their data — the family's surfaces hide"); a family with zero
+ * instances (or an enable) writes immediately.
  */
 const FEATURE_TOGGLE_WRITES_ENABLED = true; // lockstep SHIPPED: GTK/Flutter v3.0.0
 
@@ -140,6 +138,33 @@ export function WorkspaceSettingsModal({
   const [showJournals, setShowJournals] = useDeviceSetting("sidebarShowJournals", true);
   const [showInbox, setShowInbox] = useDeviceSetting("sidebarShowInbox", true);
   const [showCalendar, setShowCalendar] = useDeviceSetting("sidebarShowCalendar", true);
+
+  /**
+   * F3 disable confirmation: the pending OFF write for a family with
+   * instances — the ConfirmationModal gates the `workspace.feature.set`.
+   */
+  const [featureConfirm, setFeatureConfirm] = useState<{
+    feature: WorkspaceFeature;
+    label: string;
+    instances: number;
+  } | null>(null);
+
+  const writeFeature = (feature: WorkspaceFeature, enabled: boolean) => {
+    if (client === null || client === undefined) return;
+    void client.setFeatureEnabled(feature, enabled).catch((error: unknown) => {
+      console.warn(`[features] setFeatureEnabled (${feature}) failed:`, error);
+    });
+  };
+
+  const handleFeatureToggle = (feature: WorkspaceFeature, label: string, instances: number, next: boolean) => {
+    // Turning OFF a family with instances asks first (F3: hide surfaces, keep
+    // data); enables and empty families write straight through.
+    if (next === false && instances > 0) {
+      setFeatureConfirm({ feature, label, instances });
+      return;
+    }
+    writeFeature(feature, next);
+  };
 
   // Rename: edited in a local draft, persisted on blur/Enter when valid.
   const [nameDraft, setNameDraft] = useState<string | null>(null);
@@ -290,12 +315,7 @@ export function WorkspaceSettingsModal({
                           leftLabel="Off"
                           rightLabel="On"
                           checked={enabled}
-                          onChange={(next) => {
-                            if (client === null) return;
-                            void client.setFeatureEnabled(feature, next).catch((error: unknown) => {
-                              console.warn(`[features] setFeatureEnabled (${feature}) failed:`, error);
-                            });
-                          }}
+                          onChange={(next) => handleFeatureToggle(feature, spec.label, instances, next)}
                           disabled={!FEATURE_TOGGLE_WRITES_ENABLED || client === null}
                           size="sm"
                           aria-label={`${spec.label} feature`}
@@ -305,9 +325,8 @@ export function WorkspaceSettingsModal({
                   })}
                   {/* The write issues a workspace.feature.set through the
                       normal client op path (lockstep SHIPPED: GTK/Flutter
-                      v3.0.0). F3's "N existing objects keep their data"
-                      confirmation rides a follow-up; the instance count
-                      shows beside the powers line meanwhile. */}
+                      v3.0.0). F3's disable confirmation gates the OFF write
+                      for families with instances (below). */}
                 </>
               ) : (
                 <p className="settings-item__description">
@@ -316,6 +335,27 @@ export function WorkspaceSettingsModal({
               )}
             </div>
           )}
+
+          {/* F3 disable confirmation: turning a family off with existing
+              instances hides the family's surfaces but keeps the data — the
+              modal states that before the write. */}
+          <ConfirmationModal
+            isOpen={featureConfirm !== null}
+            title={featureConfirm !== null ? `Disable ${featureConfirm.label}?` : "Disable?"}
+            message={
+              featureConfirm !== null
+                ? `${featureConfirm.instances} existing object${featureConfirm.instances === 1 ? "" : "s"} keep their data — the family's surfaces hide.`
+                : ""
+            }
+            confirmLabel="Disable"
+            cancelLabel="Cancel"
+            variant="danger"
+            onConfirm={() => {
+              if (featureConfirm !== null) writeFeature(featureConfirm.feature, false);
+              setFeatureConfirm(null);
+            }}
+            onCancel={() => setFeatureConfirm(null)}
+          />
 
           {activeTab === "plugins" && (
             <PluginsSettingsTab serverUrl={serverUrl} credential={credential} />
