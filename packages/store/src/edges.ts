@@ -36,6 +36,7 @@ import type { ContentAst } from "@notees/protocol";
 
 import { parseContentAst } from "./content.js";
 import { rebuildNodeStats } from "./stats.js";
+import { visiblePropertyValueRows } from "./property-values.js";
 import type { StoreDatabase } from "./types.js";
 
 export interface DesiredEdge {
@@ -110,11 +111,14 @@ export function deriveDesiredEdges(db: StoreDatabase, nodeId: string): DesiredEd
   // content-addressed (domain dates.ts), so a day ref implies the month and
   // year edges, a month ref the year edge. date_range values ({ start, end }
   // of date refs, either side open) project each present end the same way.
-  const propertyRows = db
-    .prepare(
-      "SELECT property_schema_id, value, metadata FROM property_value WHERE node_id = ? ORDER BY property_schema_id, idx",
-    )
-    .all(nodeId) as { property_schema_id: string; value: string; metadata: string | null }[];
+  // PG5: the rows come through the visible-set derivation (property-values.ts)
+  // — a tombstoned element's edges vanish with it (edge rebuild consistency).
+  const propertyRows = visiblePropertyValueRows(db, nodeId).sort(
+    (a, b) =>
+      a.property_schema_id.localeCompare(b.property_schema_id) ||
+      a.idx - b.idx ||
+      (a.id < b.id ? -1 : 1),
+  );
   const pushRefEdge = (
     propertySchemaId: string,
     ref: unknown,

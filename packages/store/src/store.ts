@@ -26,6 +26,7 @@ import { applyEnvelope, validateEnvelope, type ChangeSummary } from "./appliers.
 import type { SqliteDB, StoreBackend } from "./db.js";
 import { betterSqlite3Backend } from "./adapters/better-sqlite3.js";
 import { getEffectiveProperties, type EffectiveProperty } from "./effective.js";
+import { visiblePropertyValueRows } from "./property-values.js";
 import {
   dropSearchIndex,
   isSearchIndexQueryable,
@@ -464,21 +465,45 @@ export class Store {
     node: NodeRow;
     slots: Array<{ idx: number; value: unknown; metadata: Record<string, unknown> | null }>;
   }> {
-    const rows = this.db
-      .prepare(
-        `SELECT n.*, pv.idx AS pv_idx, pv.value AS pv_value, pv.metadata AS pv_metadata
-         FROM property_value pv
-         JOIN node n ON n.id = pv.node_id
-         WHERE pv.property_schema_id = ? AND n.is_active = 1
-         ORDER BY COALESCE((SELECT name FROM class WHERE id = n.id), n.id), n.id, pv.idx`,
-      )
-      .all(schemaId) as Array<NodeRow & { pv_idx: number; pv_value: string; pv_metadata: string | null }>;
+    // PG5: the population read rides the same visible-set derivation as the
+    // effective model — a tombstoned element never lists.
+    type CarrierRow = {
+      node: NodeRow;
+      pv_idx: number;
+      pv_value: string;
+      pv_metadata: string | null;
+    };
+    const rows: CarrierRow[] = visiblePropertyValueRows(this.db)
+      .filter((row) => row.property_schema_id === schemaId)
+      .map((row) => {
+        const node = this.db
+          .prepare("SELECT * FROM node WHERE id = ?")
+          .get(row.node_id) as NodeRow | undefined;
+        return node === undefined || node.is_active !== 1
+          ? null
+          : { node, pv_idx: row.idx, pv_value: row.value, pv_metadata: row.metadata };
+      })
+      .filter((row): row is CarrierRow => row !== null);
+    const displayKeyOf = (node: NodeRow): string => {
+      const className = (
+        this.db.prepare("SELECT name FROM class WHERE id = ?").get(node.id) as
+          | { name: string }
+          | undefined
+      )?.name;
+      return className ?? node.id;
+    };
+    rows.sort(
+      (a, b) =>
+        displayKeyOf(a.node).localeCompare(displayKeyOf(b.node)) ||
+        a.node.id.localeCompare(b.node.id) ||
+        a.pv_idx - b.pv_idx,
+    );
     const byNode = new Map<string, { node: NodeRow; slots: Array<{ idx: number; value: unknown; metadata: Record<string, unknown> | null }> }>();
     for (const row of rows) {
-      const { pv_idx, pv_value, pv_metadata, ...node } = row;
+      const { pv_idx, pv_value, pv_metadata, node } = row;
       let entry = byNode.get(node.id);
       if (entry === undefined) {
-        entry = { node: node as NodeRow, slots: [] };
+        entry = { node, slots: [] };
         byNode.set(node.id, entry);
       }
       entry.slots.push({
@@ -498,14 +523,9 @@ export class Store {
    * names and stay out; null/non-string slots are skipped.
    */
   scalarPropertyValues(nodeId: string, schemaId: string): string[] {
-    const rows = this.db
-      .prepare(
-        `SELECT value FROM property_value
-         WHERE node_id = ? AND property_schema_id = ? ORDER BY idx`,
-      )
-      .all(nodeId, schemaId) as Array<{ value: string }>;
     const values: string[] = [];
-    for (const row of rows) {
+    for (const row of visiblePropertyValueRows(this.db, nodeId)) {
+      if (row.property_schema_id !== schemaId) continue;
       try {
         const parsed: unknown = JSON.parse(row.value);
         if (typeof parsed === "string" && parsed.length > 0) values.push(parsed);

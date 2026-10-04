@@ -24,6 +24,8 @@ import { SelectionButton } from "../components/ui/index.js";
 import { registerView } from "./registry.js";
 import { propertyDisplayText } from "./propertyDisplay.js";
 import { assetImageUrl, cardImageAssetId } from "./assetThumbs.js";
+import { COVER_CLASS_ID } from "../components/coverProperty.js";
+import { Badge } from "../components/ui/Badge.js";
 import { useCardLayoutPreference } from "../viewPrefs.js";
 import type { CardLayout, NodeCollectionItem, NodeCollectionProps } from "./types.js";
 import "./CardsView.css";
@@ -114,6 +116,11 @@ export function NodeCard({
     .filter((prop) => prop !== undefined && propertyDisplayText(client, prop) !== "");
   return (
     <article className={`node-card node-card--${coverLayout}`} data-node-id={item.node.id}>
+      {item.node.classIds.includes(COVER_CLASS_ID) && (
+        <span className="node-card__cover-badge" title="This asset is used as a page cover">
+          <Badge variant="neutral" size="sm">Cover</Badge>
+        </span>
+      )}
       <CardCover item={item} props={props} layout={coverLayout} />
       <div className="node-card__content">
         <button

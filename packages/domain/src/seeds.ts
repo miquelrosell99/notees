@@ -60,6 +60,13 @@ export const SYSTEM_CLASS_UUIDS = {
   // via the birthday binding row seeded in SYSTEM_EXTRA_CLASS_BINDINGS); the
   // family itself is person-typed (birthdayPerson), not a date duplicate.
   birthday: "00000000-0000-0000-0001-000000000041",
+  // §34.56 (owner directive 2026-10-04): `cover` extends `asset` — a node
+  // cover IS an asset with cover identity: the class powers the "Cover"
+  // badge in card views, the asset class's classed-nodes listing, and the
+  // future cover-specific logic (reposition, focal point, …). The class is
+  // assigned by the web client's cover flows through explicit ops (the
+  // property value alone stays the authority — every client derives it).
+  cover: "00000000-0000-0000-0001-000000000042",
 } as const;
 
 export type SystemClassName = keyof typeof SYSTEM_CLASS_UUIDS;
@@ -105,6 +112,7 @@ export const SYSTEM_CLASS_ICONS: Record<SystemClassName, string> = {
   meeting: "mdiCalendarClock",
   event: "mdiCalendar",
   birthday: "mdiCakeVariant",
+  cover: "mdiImageArea",
 };
 
 /** Canonical `extends` edges between system classes (multiple inheritance-ready). */
@@ -127,6 +135,8 @@ export const SYSTEM_CLASS_EXTENDS: Partial<Record<SystemClassName, SystemClassNa
   // §34.36.3: a birthday IS an event (a person's birthday lands on the
   // calendar through the event chain, exactly like a meeting).
   birthday: ["event"],
+  // §34.56: a cover IS an asset (cover identity on top of the asset family).
+  cover: ["asset"],
 };
 
 /**
@@ -443,4 +453,5 @@ export const SEEDED_SYSTEM_CLASSES: SystemClassName[] = [
   "meeting",
   "event",
   "birthday",
+  "cover",
 ];

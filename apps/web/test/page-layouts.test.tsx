@@ -198,9 +198,10 @@ describe("L2 page banner", () => {
     const plainId = await client.createObject({ presentAsMain: true, name: "Plain Page" });
 
     const { container, unmount } = render(<PageView client={client} pageId={coveredId} />);
-    const banner = await screen.findByRole("button", { name: "Collapse cover image" });
-    expect(banner.className).toContain("nt-page-banner");
-    expect(banner.querySelector("img")!.getAttribute("src")).toContain("data:image/png");
+    const toggle = await screen.findByRole("button", { name: "Collapse cover image" });
+    // §34.56: the banner is a wrapper (toolbar chrome) around the toggle.
+    const banner = toggle.closest(".nt-page-banner")!;
+    expect(toggle.querySelector("img")!.getAttribute("src")).toContain("data:image/png");
     // Above the title in the header.
     const header = container.querySelector(".nt-page-header")!;
     expect(header.firstElementChild).toBe(banner);
@@ -218,13 +219,16 @@ describe("L2 page banner", () => {
     const { unmount } = render(<PageView client={client} pageId={pageId} />);
     fireEvent.click(await screen.findByRole("button", { name: "Collapse cover image" }));
     expect(
-      screen.getByRole("button", { name: "Expand cover image" }).className,
+      screen.getByRole("button", { name: "Expand cover image" }).closest(".nt-page-banner")!
+        .className,
     ).toContain("nt-page-banner--collapsed");
     unmount();
 
     render(<PageView client={client} pageId={pageId} />);
     expect(
-      (await screen.findByRole("button", { name: "Expand cover image" })).className,
+      (await screen.findByRole("button", { name: "Expand cover image" })).closest(
+        ".nt-page-banner",
+      )!.className,
     ).toContain("nt-page-banner--collapsed");
   });
 

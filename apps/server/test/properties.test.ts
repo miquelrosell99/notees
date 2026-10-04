@@ -44,6 +44,9 @@ describe("object property writes", () => {
       schemaId: SYSTEM_PROPERTY_UUIDS.citekey,
       schemaName: "citekey",
       schemaType: "text",
+      // PG5: the authored row's stable element id (deterministic composite
+      // for positional writes) rides every property entry.
+      elementId: expect.stringContaining(`:${SYSTEM_PROPERTY_UUIDS.citekey}:0`),
       idx: 0,
       value: "kuhn1962structure",
     });
@@ -86,8 +89,8 @@ describe("object property writes", () => {
       .filter((p) => p.schemaId === multi.id)
       .sort((a, b) => a.idx - b.idx);
     expect(values).toEqual([
-      { schemaId: multi.id, schemaName: "alt-titles", schemaType: "text", idx: 0, value: "978-0-00-1b" },
-      { schemaId: multi.id, schemaName: "alt-titles", schemaType: "text", idx: 1, value: "978-0-00-2" },
+      expect.objectContaining({ schemaId: multi.id, schemaName: "alt-titles", schemaType: "text", idx: 0, value: "978-0-00-1b" }),
+      expect.objectContaining({ schemaId: multi.id, schemaName: "alt-titles", schemaType: "text", idx: 1, value: "978-0-00-2" }),
     ]);
   });
 

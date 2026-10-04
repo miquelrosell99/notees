@@ -71,6 +71,18 @@
   color: var(--color-primary-hover);
 }
 
+/* PC4: an inactive binding dims with a disabled chip (the row is kept — a
+   soft-unbind, not a removal). */
+.nt-propdef--inactive .nt-propdef-name,
+.nt-propdef--inactive .nt-propdef-type {
+  opacity: 0.55;
+}
+
+.nt-propdef-chip--inactive {
+  color: var(--color-on-surface-variant);
+  font-style: italic;
+}
+
 .nt-propdef-flags {
   display: inline-flex;
   align-items: center;

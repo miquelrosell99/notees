@@ -11,7 +11,10 @@
  * Convergence rules (01-knowledge-model.md §12 / SCHEMA.md):
  *  - row-level LWW by (hlc_physical, hlc_logical, actor_id) — higher HLC
  *    wins; equal HLC breaks the tie on actor_id (deterministic);
- *  - property values: LWW per (node, schema, idx), tombstone wins over live;
+ *  - property values: single-value slots stay LWW per (node, schema, idx);
+ *    multi-value slots are an OR-Set of elements (PG5 — per-element id,
+ *    add-wins removes with tombstones; the membership comparator is HLC-only
+ *    so on equal HLC the add wins regardless of actor);
  *  - OR-Sets (class membership, collection membership): add-wins per pair;
  *  - class extends closure is applier-maintained; cycles fail loud.
  *
@@ -48,6 +51,7 @@ import {
   assertValueForSchema,
   isValidDefaultForType,
   nodeRefOfValue,
+  normalizeQualifierMetadata,
   type PropertySchemaValidationRow,
 } from "./property-values.js";
 import {
@@ -169,7 +173,7 @@ function propertySchemaRowOf(
   const row = db
     .prepare(
       `SELECT id, type, multi, options, target_class_filter AS targetClassFilter,
-              date_precision AS datePrecision
+              date_precision AS datePrecision, date_qualified AS dateQualified
        FROM property_schema WHERE id = ?`,
     )
     .get(propertySchemaId) as PropertySchemaValidationRow | undefined;
@@ -595,6 +599,12 @@ function applyObjectDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
   ).run(...ids, ...ids);
   db.prepare(`DELETE FROM property_value WHERE node_id IN (${placeholders})`).run(...ids);
   db.prepare(`DELETE FROM property_value_tombstone WHERE node_id IN (${placeholders})`).run(...ids);
+  // PG5: the subtree's element tombstones die with it (owned rows only —
+  // tombstones of elements on SURVIVING nodes are keyed by globally-unique
+  // element ids and never reference these rows).
+  db.prepare(`DELETE FROM property_value_element_tombstone WHERE node_id IN (${placeholders})`).run(
+    ...ids,
+  );
   db.prepare(`DELETE FROM class_member_set WHERE node_id IN (${placeholders})`).run(...ids);
   db.prepare(`DELETE FROM node_asset WHERE node_id IN (${placeholders})`).run(...ids);
   // PB1 (keep-value + render-broken, SCHEMA.md "Broken references"): rows
@@ -1100,10 +1110,11 @@ function applyClassSetExtends(db: StoreDatabase, env: Envelope): ChangeSummary {
 // --- class.property.* ---------------------------------------------------------
 //
 // Binding rows on `class_property` (SCHEMA.md "Class properties"): pure
-// configuration (sequence, flags, defaultValue). Row-level LWW by envelope
-// HLC; on update the payload PATCHES the row — omitted fields keep their
-// existing values. Defaults are never materialized into property_value; the
-// effective-values read model (effective.ts) derives them at query time.
+// configuration (sequence, flags, defaultValue, active). Row-level LWW by
+// envelope HLC; on update the payload PATCHES the row — omitted fields keep
+// their existing values. Defaults are never materialized into property_value;
+// the effective-values read model (effective.ts) derives them at query time
+// — and skips INACTIVE rows entirely (PC4: soft-unbind, the row survives).
 
 function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "class.property.set";
@@ -1145,13 +1156,15 @@ function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary 
   const readonlyFlag = p.readonly === undefined ? null : p.readonly ? 1 : 0;
   const hideWhenEmpty = p.hideWhenEmpty === undefined ? null : p.hideWhenEmpty ? 1 : 0;
   const defaultValue = p.defaultValue !== undefined ? JSON.stringify(p.defaultValue) : null;
+  // PC4: the soft-unbind flag rides the row LWW (absent payload = keep).
+  const active = p.active === undefined ? null : p.active ? 1 : 0;
 
   if (!existing) {
     db.prepare(
       `INSERT INTO class_property
          (class_id, property_schema_id, sequence, required, readonly, hide_when_empty,
-          default_value, hlc_physical, hlc_logical, actor_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          default_value, active, hlc_physical, hlc_logical, actor_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       p.classId,
       p.propertySchemaId,
@@ -1160,6 +1173,7 @@ function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary 
       readonlyFlag,
       hideWhenEmpty,
       defaultValue,
+      active ?? 1,
       env.hlc.physical,
       env.hlc.logical,
       env.actorId,
@@ -1174,6 +1188,7 @@ function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary 
          readonly = COALESCE(?, readonly),
          hide_when_empty = COALESCE(?, hide_when_empty),
          default_value = COALESCE(?, default_value),
+         active = COALESCE(?, active),
          hlc_physical = ?, hlc_logical = ?, actor_id = ?
        WHERE class_id = ? AND property_schema_id = ?`,
     ).run(
@@ -1182,6 +1197,7 @@ function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary 
       readonlyFlag,
       hideWhenEmpty,
       defaultValue,
+      active,
       env.hlc.physical,
       env.hlc.logical,
       env.actorId,
@@ -1279,8 +1295,12 @@ function applyPropertySchemaDelete(db: StoreDatabase, env: Envelope): ChangeSumm
 
 // --- property.* -----------------------------------------------------------------
 
-/** Deterministic property_value id (v2 payloads carry no propertyValueId). */
-function propertyValueId(nodeId: string, schemaId: string, idx: number): string {
+/**
+ * Deterministic positional-element id (PG5): the property_value row id for
+ * single-value slots and legacy positional writes. Element adds instead use
+ * the writer-minted elementId AS the row id — the row id IS the element id.
+ */
+function positionalPropertyValueId(nodeId: string, schemaId: string, idx: number): string {
   return `${nodeId}:${schemaId}:${idx}`;
 }
 
@@ -1300,6 +1320,9 @@ function applyPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary {
     schema !== null
       ? assertValueForSchema(db, schema, p.value ?? null, opType)
       : (p.value ?? null);
+  // PC6: dateQualified schemas canonicalize the reserved qualifier keys to
+  // date-node refs; everything else rides through untouched.
+  const metadata = normalizeQualifierMetadata(schema, p.metadata);
   // PG6 cardinality: a single-value schema takes idx 0 only. Higher slots
   // would write rows no reader derives (the read model reads slot 0 for a
   // single-value schema's editor), so the write is rejected, not parked.
@@ -1310,6 +1333,112 @@ function applyPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary {
     );
   }
 
+  let dropped = false;
+  if (p.elementId !== undefined) {
+    dropped = applyElementAdd(db, env, p, value, metadata);
+  } else {
+    dropped = applyPositionalSet(db, env, p, value, metadata);
+  }
+
+  // The FTS row carries the node's text-ish property values (§34.30 M5), so
+  // property writes reindex the owner exactly like content writes.
+  reindexNode(db, p.objectId);
+  rebuildEdges(db, p.objectId, env.timestamp);
+  return summary(opType, [p.objectId], dropped);
+}
+
+/**
+ * PG5 OR-Set element ADD (a payload `elementId`): the property_value row id
+ * IS the element id, so adds of distinct elements never conflict and a
+ * re-issued add revives the element unless a strictly-newer (HLC) tombstone
+ * stands — add-wins: on equal HLC the add proceeds regardless of actor (the
+ * classIds `>=` convention generalized to the two-table projection; the
+ * stored tombstone's full (hlc, actor) tuple is otherwise only used for its
+ * own LWW upsert). The value/metadata/idx overwrite per element uses the
+ * full (hlc, actor) tuple, exactly like the pre-PG5 slot LWW.
+ */
+function applyElementAdd(
+  db: StoreDatabase,
+  env: Envelope,
+  p: OpPayload<"property.set">,
+  value: unknown,
+  metadata: Record<string, unknown> | undefined,
+): boolean {
+  const incoming = winnerFromEnvelope(env);
+  const tombstone = db
+    .prepare(
+      "SELECT hlc_physical, hlc_logical FROM property_value_element_tombstone WHERE element_id = ?",
+    )
+    .get(p.elementId!) as { hlc_physical: number; hlc_logical: number } | undefined;
+  if (
+    tombstone !== undefined &&
+    (tombstone.hlc_physical > incoming.physical ||
+      (tombstone.hlc_physical === incoming.physical && tombstone.hlc_logical > incoming.logical))
+  ) {
+    return true; // a strictly-newer remove wins — the add is dropped.
+  }
+
+  const existing = db
+    .prepare("SELECT hlc_physical, hlc_logical, actor_id FROM property_value WHERE id = ?")
+    .get(p.elementId!) as
+    | { hlc_physical: number; hlc_logical: number; actor_id: string | null }
+    | undefined;
+  const encoded = JSON.stringify(value ?? null);
+  const encodedMetadata = metadata !== undefined ? JSON.stringify(metadata) : null;
+  if (!existing) {
+    db.prepare(
+      `INSERT INTO property_value
+         (id, node_id, property_schema_id, value, idx, metadata, hlc_physical, hlc_logical, actor_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      p.elementId!,
+      p.objectId,
+      p.propertySchemaId,
+      encoded,
+      p.idx,
+      encodedMetadata,
+      env.hlc.physical,
+      env.hlc.logical,
+      env.actorId,
+    );
+    return false;
+  }
+  if (compareLww(incoming, rowWinner(existing)) > 0) {
+    db.prepare(
+      `UPDATE property_value SET value = ?, metadata = ?, idx = ?, hlc_physical = ?, hlc_logical = ?, actor_id = ?
+       WHERE id = ?`,
+    ).run(
+      encoded,
+      encodedMetadata,
+      p.idx,
+      env.hlc.physical,
+      env.hlc.logical,
+      env.actorId,
+      p.elementId!,
+    );
+    return false;
+  }
+  // A stale re-add (full tuple <= the live row) leaves the row untouched.
+  return true;
+}
+
+/**
+ * The pre-PG5 positional path (payload WITHOUT elementId): unchanged slot
+ * LWW, keyed by the deterministic positional row id — concurrent element adds
+ * may share the idx, but a positional write addresses ONLY its own
+ * deterministic element, so the address is unambiguous without the retired
+ * UNIQUE(node, schema, idx).
+ */
+function applyPositionalSet(
+  db: StoreDatabase,
+  env: Envelope,
+  p: OpPayload<"property.set">,
+  value: unknown,
+  metadata: Record<string, unknown> | undefined,
+): boolean {
+  const incoming = winnerFromEnvelope(env);
+  const rowId = positionalPropertyValueId(p.objectId, p.propertySchemaId, p.idx);
+
   // A tombstone with a winning (>=) (hlc, actor) blocks the write.
   const tombstone = db
     .prepare(
@@ -1319,61 +1448,145 @@ function applyPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary {
     | { hlc_physical: number; hlc_logical: number; actor_id: string | null }
     | undefined;
   if (tombstone && compareLww(incoming, rowWinner(tombstone)) <= 0) {
-    return summary(opType, [p.objectId], true);
+    return true;
   }
 
   const existing = db
-    .prepare(
-      "SELECT hlc_physical, hlc_logical, actor_id FROM property_value WHERE node_id = ? AND property_schema_id = ? AND idx = ?",
-    )
-    .get(p.objectId, p.propertySchemaId, p.idx) as
+    .prepare("SELECT hlc_physical, hlc_logical, actor_id FROM property_value WHERE id = ?")
+    .get(rowId) as
     | { hlc_physical: number; hlc_logical: number; actor_id: string | null }
     | undefined;
 
+  const encoded = JSON.stringify(value ?? null);
+  const encodedMetadata = metadata !== undefined ? JSON.stringify(metadata) : null;
   if (!existing) {
     db.prepare(
       `INSERT INTO property_value
          (id, node_id, property_schema_id, value, idx, metadata, hlc_physical, hlc_logical, actor_id)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
-      propertyValueId(p.objectId, p.propertySchemaId, p.idx),
+      rowId,
       p.objectId,
       p.propertySchemaId,
-      JSON.stringify(value ?? null),
+      encoded,
       p.idx,
-      p.metadata !== undefined ? JSON.stringify(p.metadata) : null,
+      encodedMetadata,
       env.hlc.physical,
       env.hlc.logical,
       env.actorId,
     );
-  } else if (compareLww(incoming, rowWinner(existing)) > 0) {
+    return false;
+  }
+  if (compareLww(incoming, rowWinner(existing)) > 0) {
     db.prepare(
       `UPDATE property_value SET value = ?, metadata = ?, hlc_physical = ?, hlc_logical = ?, actor_id = ?
-       WHERE node_id = ? AND property_schema_id = ? AND idx = ?`,
+       WHERE id = ?`,
     ).run(
-      JSON.stringify(value ?? null),
-      p.metadata !== undefined ? JSON.stringify(p.metadata) : null,
+      encoded,
+      encodedMetadata,
       env.hlc.physical,
       env.hlc.logical,
       env.actorId,
-      p.objectId,
-      p.propertySchemaId,
-      p.idx,
+      rowId,
     );
-  } else {
-    return summary(opType, [p.objectId], true);
+    return false;
   }
-
-  // The FTS row carries the node's text-ish property values (§34.30 M5), so
-  // property writes reindex the owner exactly like content writes.
-  reindexNode(db, p.objectId);
-  rebuildEdges(db, p.objectId, env.timestamp);
-  return summary(opType, [p.objectId]);
+  // A stale write (full tuple <= the live row) leaves the row untouched.
+  return true;
 }
 
 function applyPropertyUnset(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "property.unset";
   const p = env.payload as OpPayload<"property.unset">;
+  const incoming = winnerFromEnvelope(env);
+
+  if (p.elementId !== undefined) {
+    applyElementRemove(db, env, p);
+  } else {
+    applyPositionalUnset(db, env, p);
+  }
+
+  // M5: the owner's indexed text includes its property values — reindex.
+  reindexNode(db, p.objectId);
+  rebuildEdges(db, p.objectId, env.timestamp);
+  return summary(opType, [p.objectId]);
+}
+
+/**
+ * PG5 OR-Set element REMOVE (a payload `elementId`): records the remove's
+ * causality on the element tombstone (strictly-greater full (hlc, actor)
+ * upsert — on an exact tie the earlier add sticks, add-wins) and deletes the
+ * live row when the remove's HLC is strictly newer than the row's (equal HLC
+ * keeps the row — the add wins ties). An unset addressed at an element that
+ * exists under a DIFFERENT (node, schema) is malformed: ignored, like a
+ * stale write (deterministic on every replica).
+ */
+function applyElementRemove(
+  db: StoreDatabase,
+  env: Envelope,
+  p: OpPayload<"property.unset">,
+): void {
+  const incoming = winnerFromEnvelope(env);
+  const existing = db
+    .prepare(
+      "SELECT node_id, property_schema_id, value, hlc_physical, hlc_logical, actor_id FROM property_value WHERE id = ?",
+    )
+    .get(p.elementId!) as
+    | {
+        node_id: string;
+        property_schema_id: string;
+        value: string;
+        hlc_physical: number;
+        hlc_logical: number;
+        actor_id: string | null;
+      }
+    | undefined;
+  if (
+    existing !== undefined &&
+    (existing.node_id !== p.objectId || existing.property_schema_id !== p.propertySchemaId)
+  ) {
+    return; // malformed addressing — deterministic no-op.
+  }
+
+  db.prepare(
+    `INSERT INTO property_value_element_tombstone
+       (element_id, node_id, property_schema_id, hlc_physical, hlc_logical, actor_id)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(element_id) DO UPDATE SET
+       node_id = excluded.node_id, property_schema_id = excluded.property_schema_id,
+       hlc_physical = excluded.hlc_physical, hlc_logical = excluded.hlc_logical,
+       actor_id = excluded.actor_id
+     WHERE excluded.hlc_physical > hlc_physical
+        OR (excluded.hlc_physical = hlc_physical AND excluded.hlc_logical > hlc_logical)
+        OR (excluded.hlc_physical = hlc_physical AND excluded.hlc_logical = hlc_logical
+            AND excluded.actor_id > COALESCE(actor_id, ''))`,
+  ).run(
+    p.elementId!,
+    p.objectId,
+    p.propertySchemaId,
+    env.hlc.physical,
+    env.hlc.logical,
+    env.actorId,
+  );
+
+  if (existing === undefined) return;
+  const removeWinsByHlc =
+    incoming.physical > existing.hlc_physical ||
+    (incoming.physical === existing.hlc_physical && incoming.logical > existing.hlc_logical);
+  if (!removeWinsByHlc) return; // add-wins ties: the live row stays.
+  db.prepare("DELETE FROM property_value WHERE id = ?").run(p.elementId!);
+  // PB2 (SCHEMA.md "Node-backed text properties"): unsetting a node-backed
+  // text value deletes the carrier block under the same guards as the
+  // positional path (child-of-owner, active, non-class, unreferenced).
+  trashTextCarrierIfOrphaned(db, p.objectId, p.propertySchemaId, existing.value, env.timestamp);
+}
+
+/** The pre-PG5 positional remove (payload WITHOUT elementId) — unchanged. */
+function applyPositionalUnset(
+  db: StoreDatabase,
+  env: Envelope,
+  p: OpPayload<"property.unset">,
+): void {
   const incoming = winnerFromEnvelope(env);
 
   // Upsert the tombstone only when the incoming write wins the slot.
@@ -1389,17 +1602,16 @@ function applyPropertyUnset(db: StoreDatabase, env: Envelope): ChangeSummary {
             AND excluded.actor_id > COALESCE(actor_id, ''))`,
   ).run(p.objectId, p.propertySchemaId, p.idx, env.hlc.physical, env.hlc.logical, env.actorId);
 
+  const rowId = positionalPropertyValueId(p.objectId, p.propertySchemaId, p.idx);
   const existing = db
     .prepare(
-      "SELECT value, hlc_physical, hlc_logical, actor_id FROM property_value WHERE node_id = ? AND property_schema_id = ? AND idx = ?",
+      "SELECT value, hlc_physical, hlc_logical, actor_id FROM property_value WHERE id = ?",
     )
-    .get(p.objectId, p.propertySchemaId, p.idx) as
+    .get(rowId) as
     | { value: string; hlc_physical: number; hlc_logical: number; actor_id: string | null }
     | undefined;
   if (existing && compareLww(incoming, rowWinner(existing)) > 0) {
-    db.prepare(
-      "DELETE FROM property_value WHERE node_id = ? AND property_schema_id = ? AND idx = ?",
-    ).run(p.objectId, p.propertySchemaId, p.idx);
+    db.prepare("DELETE FROM property_value WHERE id = ?").run(rowId);
     // PB2 (SCHEMA.md "Node-backed text properties"): unsetting a node-backed
     // text value deletes the carrier block — trash + retention, consistent
     // with node deletion. Guards: the removed value references a node, the
@@ -1408,11 +1620,6 @@ function applyPropertyUnset(db: StoreDatabase, env: Envelope): ChangeSummary {
     // references it. Scalar text values (citekey-style) carry no carrier.
     trashTextCarrierIfOrphaned(db, p.objectId, p.propertySchemaId, existing.value, env.timestamp);
   }
-
-  // M5: the owner's indexed text includes its property values — reindex.
-  reindexNode(db, p.objectId);
-  rebuildEdges(db, p.objectId, env.timestamp);
-  return summary(opType, [p.objectId]);
 }
 
 /**

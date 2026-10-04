@@ -26,7 +26,7 @@ import {
 } from "@notees/protocol";
 import { deriveDisplayName, rendersWithDocumentChrome, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import { parseQueryAst, runAggregate, runQuery } from "@notees/query";
-import type { NodeRow, Store } from "@notees/store";
+import { visiblePropertyValueRows, type NodeRow, type Store } from "@notees/store";
 
 import type { ServerContext } from "./context.js";
 import { AppError } from "./errors.js";
@@ -344,24 +344,34 @@ export function fullObject(store: Store, row: NodeRow) {
       return { id: classRow.id, name: classNameFromNode(classRow.nodeContent, classRow.nodeClassIds, classRow.name), icon: classRow.icon, color: classRow.color };
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
-  const properties = (
-    store.database
-      .prepare(
-        `SELECT ps.id AS schemaId, ps.name AS schemaName, ps.type AS schemaType,
-                pv.idx, pv.value, pv.metadata
-         FROM property_value pv
-         JOIN property_schema ps ON ps.id = pv.property_schema_id
-         WHERE pv.node_id = ? ORDER BY ps.name, pv.idx`,
-      )
-      .all(row.id) as { schemaId: string; schemaName: string; schemaType: string; idx: number; value: string; metadata: string | null }[]
-  ).map((property) => ({
-    schemaId: property.schemaId,
-    schemaName: property.schemaName,
-    schemaType: property.schemaType,
-    idx: property.idx,
-    value: JSON.parse(property.value) as unknown,
-    ...(property.metadata !== null ? { metadata: JSON.parse(property.metadata) as unknown } : {}),
-  }));
+  // PG5: authored rows ride the visible-set derivation (tombstoned elements
+  // never surface), each carrying its stable element id.
+  const properties = visiblePropertyValueRows(store.database, row.id)
+    .map((property) => {
+      const schema = store.database
+        .prepare("SELECT id, name, type FROM property_schema WHERE id = ?")
+        .get(property.property_schema_id) as
+        | { id: string; name: string; type: string }
+        | undefined;
+      if (schema === undefined) return null;
+      return { property, schema };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+    .sort(
+      (a, b) =>
+        a.schema.name.localeCompare(b.schema.name) ||
+        a.property.idx - b.property.idx ||
+        (a.property.id < b.property.id ? -1 : 1),
+    )
+    .map(({ property, schema }) => ({
+      schemaId: schema.id,
+      schemaName: schema.name,
+      schemaType: schema.type,
+      elementId: property.id,
+      idx: property.idx,
+      value: JSON.parse(property.value) as unknown,
+      ...(property.metadata !== null ? { metadata: JSON.parse(property.metadata) as unknown } : {}),
+    }));
   const contentAst = JSON.parse(row.content) as unknown;
   return { ...base, contentAst, classes, properties };
 }
@@ -829,11 +839,11 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     });
     const row = store.database
       .prepare(
-        `SELECT property_schema_id, sequence, required, readonly, hide_when_empty, default_value
+        `SELECT property_schema_id, sequence, required, readonly, hide_when_empty, default_value, active
          FROM class_property WHERE class_id = ? AND property_schema_id = ?`,
       )
       .get(id, propertySchemaId) as
-      | { property_schema_id: string; sequence: number; required: number | null; readonly: number | null; hide_when_empty: number | null; default_value: string | null }
+      | { property_schema_id: string; sequence: number; required: number | null; readonly: number | null; hide_when_empty: number | null; default_value: string | null; active: number }
       | undefined;
     return {
       classId: id,
@@ -848,6 +858,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
               readonly: row.readonly === null ? null : row.readonly === 1,
               hideWhenEmpty: row.hide_when_empty === null ? null : row.hide_when_empty === 1,
               defaultValue: row.default_value === null ? null : (JSON.parse(row.default_value) as unknown),
+              active: row.active === 1,
             },
     };
   });
@@ -943,6 +954,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
       schemaId: row.propertySchemaId,
       schemaName: row.schema?.name ?? null,
       schemaType: row.schema?.type ?? null,
+      elementId: row.elementId,
       idx: row.idx,
       value: row.value,
       metadata: row.metadata,
@@ -1189,20 +1201,29 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     const workspaceId = workspaceFor(ctx, request);
     await ctx.ensureSeeded(workspaceId);
     const store = ctx.workspaces.storeFor(workspaceId);
-    const values = (
-      store.database
-        .prepare(
-          `SELECT pv.node_id AS objectId, n.name AS objectName, pv.idx, pv.value
-           FROM property_value pv JOIN node n ON n.id = pv.node_id
-           WHERE pv.property_schema_id = ? ORDER BY pv.node_id, pv.idx`,
-        )
-        .all(id) as { objectId: string; objectName: string | null; idx: number; value: string }[]
-    ).map((row) => ({
-      objectId: row.objectId,
-      objectName: row.objectName,
-      idx: row.idx,
-      value: JSON.parse(row.value) as unknown,
-    }));
+    const nameById = new Map(
+      (
+        store.database
+          .prepare("SELECT id, name FROM node")
+          .all() as Array<{ id: string; name: string | null }>
+      ).map((row) => [row.id, row.name]),
+    );
+    // PG5: the values read rides the visible-set derivation.
+    const values = visiblePropertyValueRows(store.database)
+      .filter((row) => row.property_schema_id === id)
+      .sort(
+        (a, b) =>
+          a.node_id.localeCompare(b.node_id) ||
+          a.idx - b.idx ||
+          (a.id < b.id ? -1 : 1),
+      )
+      .map((row) => ({
+        objectId: row.node_id,
+        objectName: nameById.get(row.node_id) ?? null,
+        elementId: row.id,
+        idx: row.idx,
+        value: JSON.parse(row.value) as unknown,
+      }));
     return { propertySchemaId: id, values };
   });
 }

@@ -403,7 +403,16 @@ describe("objects API", () => {
     expect(res.statusCode).toBe(200);
     // The values endpoint still selects the (retired) node.name column, so
     // objectName is null post-title-is-content; the stored value is the point.
-    expect(res.json().values).toEqual([{ objectId: id, objectName: null, idx: 0, value: "978-3-16-148410-0" }]);
+    // PG5: each entry carries the row's stable element id.
+    expect(res.json().values).toEqual([
+      {
+        objectId: id,
+        objectName: null,
+        elementId: `${id}:${isbnSchema}:0`,
+        idx: 0,
+        value: "978-3-16-148410-0",
+      },
+    ]);
   });
 });
 
