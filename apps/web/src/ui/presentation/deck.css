@@ -149,3 +149,22 @@
 .nt-deck-image-solo .nt-deck-image {
   max-height: 85%;
 }
+
+/* §34.75 — the presented page's cover opens the title slide as a hero
+   above the title; section covers ride the split's image column. */
+.nt-deck-cover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-height: 38vh;
+  margin-bottom: var(--spacing-4);
+}
+
+.nt-deck-cover .nt-deck-image {
+  max-height: 38vh;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  border-radius: var(--shape-medium);
+  box-shadow: var(--shadow-elevation-1);
+}

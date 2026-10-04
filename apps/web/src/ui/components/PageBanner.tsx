@@ -24,7 +24,7 @@ import type { WorkspaceClient } from "@/core/workspace-client.js";
 import { assetImageUrl } from "../views/assetThumbs.js";
 import { Icon } from "../Icon.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
-import { Button } from "./ui/Button.js";
+import { Button, ImageModal } from "./ui/index.js";
 import { clearNodeCover, setNodeCover, uploadCoverAsset } from "./coverProperty.js";
 import "./PageBanner.css";
 
@@ -153,6 +153,7 @@ export function CoverCard({
   const [collapsed, setCollapsed] = useState(assetId === null);
   const [pickerAnchor, setPickerAnchor] = useState<HTMLButtonElement | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [zoomOpen, setZoomOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const drop = useCoverDrop(client, pageId);
 
@@ -228,7 +229,29 @@ export function CoverCard({
               <span>Add cover</span>
             </button>
           ) : hasImage ? (
-            <img className="nt-covercard__img" src={url} alt="" />
+            <>
+              <button
+                type="button"
+                className="nt-covercard__zoom"
+                title={`${assetName ?? "Cover"} (click to view full size)`}
+                aria-label={`View ${assetName ?? "cover"} full size`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setZoomOpen(true);
+                }}
+              >
+                <img className="nt-covercard__img" src={url} alt="" draggable="false" />
+              </button>
+              {zoomOpen && (
+                <ImageModal
+                  isOpen
+                  onClose={() => setZoomOpen(false)}
+                  src={url}
+                  filename={assetName ?? undefined}
+                  alt={assetName ?? ""}
+                />
+              )}
+            </>
           ) : (
             <div className="nt-covercard__placeholder" role="status">
               <Icon path="mdi-image-outline" size={0.8} />

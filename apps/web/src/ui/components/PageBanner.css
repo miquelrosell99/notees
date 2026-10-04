@@ -82,6 +82,20 @@
   border: var(--border-width-default, 1px) solid var(--color-outline-variant);
 }
 
+.nt-covercard__zoom {
+  display: block;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: zoom-in;
+  height: 100%;
+}
+
+.nt-covercard__zoom:focus-visible {
+  outline: var(--border-width-focus, 2px) solid var(--color-primary, currentColor);
+  outline-offset: calc(-1 * var(--spacing-1, 2px));
+}
+
 .nt-covercard__img {
   display: block;
   height: 100%;

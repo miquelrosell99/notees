@@ -138,10 +138,12 @@ describe("migrate-cover-to-asset (§34.74)", () => {
   it("--apply converts every member (asset assigned only when missing) and trashes the empty class", async () => {
     const client = await seedClient();
     const surface = surfaceOf(client);
-    const [a, b] = await seedCoverClassed(client, [
+    const ids = await seedCoverClassed(client, [
       { name: "a.png", withAsset: false },
       { name: "b.png", withAsset: true },
     ]);
+    const a = ids[0]!;
+    const b = ids[1]!;
 
     const plan = await buildMigratePlan(surface);
     const result = await runMigration(surface, plan, { apply: true });
@@ -166,7 +168,8 @@ describe("migrate-cover-to-asset (§34.74)", () => {
   it("an already-asset member converts without a duplicate assign (idempotent mid-pass)", async () => {
     const client = await seedClient();
     const surface = surfaceOf(client);
-    const [b] = await seedCoverClassed(client, [{ name: "b.png", withAsset: true }]);
+    const ids = await seedCoverClassed(client, [{ name: "b.png", withAsset: true }]);
+    const b = ids[0]!;
     const assign = vi.spyOn(client, "assignClass");
 
     const result = await runMigration(surface, await buildMigratePlan(surface), { apply: true });
@@ -178,10 +181,12 @@ describe("migrate-cover-to-asset (§34.74)", () => {
   it("a member failure keeps the class node live; the failure is reported", async () => {
     const client = await seedClient();
     const surface = surfaceOf(client);
-    const [a, b] = await seedCoverClassed(client, [
+    const ids = await seedCoverClassed(client, [
       { name: "a.png", withAsset: false },
       { name: "b.png", withAsset: false },
     ]);
+    const a = ids[0]!;
+    const b = ids[1]!;
     // b's unassign blows up mid-pass.
     const original = client.unassignClass.bind(client);
     vi.spyOn(client, "unassignClass").mockImplementation(async (objectId, classId) => {
