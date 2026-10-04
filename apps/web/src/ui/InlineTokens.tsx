@@ -10,8 +10,11 @@
  * when absent); whiteboard renders the live canvas via the optional
  * renderWhiteboard callback (placeholder box when absent); asset_ref renders
  * via the optional renderAsset callback (SCHEMA.md:61 — full-bleed when alone
- * in the stream; placeholder box when absent); other block-scale tokens
- * render as labeled placeholder boxes.
+ * in the stream; placeholder box when absent); embed_ref card views (§34.34
+ * B8) route through the optional renderEmbedCard callback (falling back to
+ * renderEmbed); code_block renders read-only as a mono pre with the language
+ * badge (§34.34 B3) and hr as a horizontal rule (§34.34 B5); other
+ * block-scale tokens render as labeled placeholder boxes.
  */
 
 import { Fragment, type ReactNode } from "react";
@@ -48,6 +51,15 @@ export interface InlineTokensProps {
    * back to the placeholder box.
    */
   renderAsset?: ((token: unknown, index: number, fullBleed: boolean) => ReactNode) | undefined;
+  /**
+   * Card renderer for `embed_ref` tokens carrying a card `view`
+   * (§34.34 B8 — the intermediate reference views between mention and full
+   * transclusion). Injected by the row; when absent, card views fall back
+   * to the default `renderEmbed` (the full live subtree).
+   */
+  renderEmbedCard?:
+    | ((nodeId: string, view: "small_card" | "wide_card") => ReactNode)
+    | undefined;
   /**
    * Navigation for inline node references: when set, mention tokens render
    * as dashed-underline links that open the target (read mode).
@@ -111,6 +123,7 @@ function renderToken(
   key: number,
   resolveName: InlineTokensProps["resolveName"],
   renderEmbed: InlineTokensProps["renderEmbed"],
+  renderEmbedCard: InlineTokensProps["renderEmbedCard"],
   renderQuery: InlineTokensProps["renderQuery"],
   renderWhiteboard: InlineTokensProps["renderWhiteboard"],
   renderAsset: InlineTokensProps["renderAsset"],
@@ -236,11 +249,33 @@ function renderToken(
       return <Placeholder key={key} label="asset" detail={typeof t.assetId === "string" ? t.assetId : undefined} />;
     case "embed_ref": {
       const nodeId = typeof t.nodeId === "string" ? t.nodeId : "";
+      const view = t.view === "small_card" || t.view === "wide_card" ? t.view : null;
+      if (view !== null && renderEmbedCard !== undefined && nodeId !== "") {
+        return <Fragment key={key}>{renderEmbedCard(nodeId, view)}</Fragment>;
+      }
       if (renderEmbed !== undefined && nodeId !== "") {
         return <Fragment key={key}>{renderEmbed(nodeId)}</Fragment>;
       }
       return <Placeholder key={key} label="embed" detail={nodeId || undefined} />;
     }
+    case "code_block": {
+      // Read-only block-scale render (§34.34 B3): the source verbatim in a
+      // mono pre, with the optional language hint as a badge. The editing
+      // surface (CodeTextarea in an editor branch) is designed with the
+      // token but stays unshipped until the protocol lockstep lands.
+      if (typeof t.text !== "string") return null;
+      const language = typeof t.language === "string" ? t.language : null;
+      return (
+        <span key={key} className="nt-code-block">
+          {language !== null && <span className="nt-code-block__lang">{language}</span>}
+          <pre className="nt-code-block__pre">
+            <code>{t.text}</code>
+          </pre>
+        </span>
+      );
+    }
+    case "hr":
+      return <hr key={key} className="nt-hr" />;
     case "query": {
       if (renderQuery !== undefined) {
         return <Fragment key={key}>{renderQuery(token, key)}</Fragment>;
@@ -258,7 +293,7 @@ function renderToken(
   }
 }
 
-export function InlineTokens({ tokens, resolveName, renderEmbed, renderQuery, renderWhiteboard, renderAsset, onOpenNode, resolveColor, onMentionMenu }: InlineTokensProps) {
+export function InlineTokens({ tokens, resolveName, renderEmbed, renderEmbedCard, renderQuery, renderWhiteboard, renderAsset, onOpenNode, resolveColor, onMentionMenu }: InlineTokensProps) {
   // SCHEMA.md:61 — an asset_ref alone in its stream renders full-bleed; the
   // flag reaches only the (single) asset token in that stream.
   const assetAlone =
@@ -269,7 +304,7 @@ export function InlineTokens({ tokens, resolveName, renderEmbed, renderQuery, re
     (tokens[0] as { type?: unknown }).type === "asset_ref";
   return (
     <>
-      {tokens.map((token, index) => renderToken(token, index, resolveName, renderEmbed, renderQuery, renderWhiteboard, renderAsset, assetAlone, onOpenNode, resolveColor, onMentionMenu))}
+      {tokens.map((token, index) => renderToken(token, index, resolveName, renderEmbed, renderEmbedCard, renderQuery, renderWhiteboard, renderAsset, assetAlone, onOpenNode, resolveColor, onMentionMenu))}
     </>
   );
 }
