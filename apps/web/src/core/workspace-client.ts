@@ -1539,6 +1539,20 @@ export class WorkspaceClient {
     return this.store.featureInstanceCount(this.workspaceId, feature);
   }
 
+  /** §34.35/§34.55 — write a feature toggle (workspace.feature.set, LWW by HLC). */
+  async setFeatureEnabled(feature: WorkspaceFeature, enabled: boolean): Promise<void> {
+    const engine = this.requireEngine();
+    engine.enqueue(
+      this.buildEnvelope(
+        "workspace.feature.set",
+        { feature, enabled },
+        [],
+      ),
+    );
+    this.notify();
+    this.kickPush();
+  }
+
   /** Direct main-child count (cheap child-order read) — the child-pages badge. */
   getChildPageCount(id: string): number {
     const row = this.store.database

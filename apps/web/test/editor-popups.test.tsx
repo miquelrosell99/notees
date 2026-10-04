@@ -85,8 +85,8 @@ describe("slash trigger popup", () => {
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "/");
     expect(slashPopup()).not.toBeNull();
-    // All slash commands (§34.25 T3 + §34.28 #9 + §34.31 B1 + §34.34 B4 breadth),
-    // Text first.
+    // All slash commands (§34.25 T3 + §34.28 #9 + §34.31 B1 + §34.34 B4 breadth
+    // + §34.34 B3/B5 post-lockstep), Text first.
     const options = within(slashPopup()!).getAllByRole("option");
     expect(options.map((o) => o.textContent)).toEqual([
       "TextPlain text block",
@@ -98,6 +98,8 @@ describe("slash trigger popup", () => {
       "DateLink to a daily page (e.g. /date feb 14)",
       "TemplateCreate from a template at the caret",
       "TableInsert a table — cells are blocks (e.g. /table 5)",
+      "CodeConvert block to a code block (e.g. /code python)",
+      "DividerInsert a horizontal rule",
     ]);
 
     fireEvent.keyDown(editor, { key: "Enter" });

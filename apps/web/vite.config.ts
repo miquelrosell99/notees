@@ -23,5 +23,10 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./test/setup.ts"],
     include: ["test/**/*.test.{ts,tsx}"],
+    // The serial pnpm-chain run starves the jsdom timers (798 tests, CPU
+    // contention with the sibling packages): the default 5 s timeout flakes
+    // a different timing-sensitive spec on nearly every chain run while the
+    // isolated suite is fully green. 15 s keeps the gate honest under load.
+    testTimeout: 15_000,
   },
 });

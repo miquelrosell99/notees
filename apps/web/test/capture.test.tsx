@@ -491,11 +491,9 @@ describe("capture: verb-on-selection typed link", () => {
 
     const editor = clickIntoBlock(container);
     selectRange(editor, 0, 5);
-    // The toolbar appears after the archived 150 ms show debounce.
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 200));
-    });
-    const toolbar = screen.getByRole("toolbar", { name: "Text formatting" });
+    // The toolbar appears after the archived 150 ms show debounce — waitFor
+    // instead of a fixed sleep (the serial-chain load made 200 ms racy).
+    const toolbar = await screen.findByRole("toolbar", { name: "Text formatting" });
     fireEvent.click(toolbar.querySelector('button[title="Link verb (Cmd+K)"]')!);
     expect(screen.getByLabelText("Verb")).toBeInTheDocument();
 

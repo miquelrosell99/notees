@@ -7,7 +7,7 @@
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { InlineTokens } from "../src/ui/InlineTokens.js";
 import { WorkspaceSettingsModal } from "../src/ui/components/modals/WorkspaceSettingsModal.js";
@@ -111,6 +111,7 @@ describe("InlineTokens protocol-batch tokens (§34.34)", () => {
 function featureClient(overrides: {
   enabled?: Record<string, boolean>;
   instances?: Record<string, number>;
+  setFeatureEnabled?: (feature: string, enabled: boolean) => Promise<void>;
 }): AnyClient {
   const enabled = overrides.enabled ?? {};
   const instances = overrides.instances ?? {};
@@ -124,6 +125,7 @@ function featureClient(overrides: {
     isFeatureEnabled: (feature: string) => enabled[feature] ?? true,
     getFeatureInstanceCount: (feature: string) => instances[feature] ?? 0,
     listFeatureRows: () => [],
+    setFeatureEnabled: overrides.setFeatureEnabled ?? (() => Promise.resolve()),
   } as unknown as AnyClient;
 }
 
@@ -143,8 +145,8 @@ function renderFeaturesTab(client: AnyClient | undefined) {
   fireEvent.click(screen.getByRole("tab", { name: "Features" }));
 }
 
-describe("Workspace Settings Features tab (§34.35/§34.55, LOCKSTEP-PENDING)", () => {
-  it("lists the five core families with icon, powers line, and an inert ToggleSwitch", () => {
+describe("Workspace Settings Features tab (§34.35/§34.55 — lockstep SHIPPED)", () => {
+  it("lists the five core families with icon, powers line, and a LIVE ToggleSwitch", () => {
     renderFeaturesTab(featureClient({}));
     const entries = Object.entries(WORKSPACE_FEATURE_MAP);
     expect(entries).toHaveLength(5);
@@ -155,11 +157,22 @@ describe("Workspace Settings Features tab (§34.35/§34.55, LOCKSTEP-PENDING)", 
     const switches = screen.getAllByRole("switch");
     expect(switches).toHaveLength(5);
     for (const toggle of switches) {
-      expect(toggle).toBeDisabled();
+      // Lockstep shipped (GTK/Flutter v3.0.0): the toggles write.
+      expect(toggle).toBeEnabled();
       expect(toggle).toHaveAttribute("aria-checked", "true");
     }
-    // The lockstep-pending honesty note renders.
-    expect(screen.getByText(/mobile and desktop clients catch up/i)).toBeInTheDocument();
+    // The lockstep-pending note is gone.
+    expect(screen.queryByText(/mobile and desktop clients catch up/i)).toBeNull();
+  });
+
+  it("clicking a toggle writes workspace.feature.set through the client", async () => {
+    const setFeatureEnabled = vi.fn().mockResolvedValue(undefined);
+    renderFeaturesTab(featureClient({ setFeatureEnabled }));
+    const switches = screen.getAllByRole("switch");
+    fireEvent.click(switches[0]!); // Tasks, currently On → Off
+    await waitFor(() => {
+      expect(setFeatureEnabled).toHaveBeenCalledWith("tasks", false);
+    });
   });
 
   it("reads the live toggle state and instance counts from the client", () => {

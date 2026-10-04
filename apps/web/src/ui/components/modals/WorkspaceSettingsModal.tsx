@@ -52,7 +52,7 @@ import "./settingsModal.css";
  * with the F3 "N existing objects keep their data" confirmation when
  * instances exist) lands with the lockstep release.
  */
-const FEATURE_TOGGLE_WRITES_ENABLED = false;
+const FEATURE_TOGGLE_WRITES_ENABLED = true; // lockstep SHIPPED: GTK/Flutter v3.0.0
 
 type DateFormat =
   | "YYYY/MM/DD"
@@ -288,25 +288,24 @@ export function WorkspaceSettingsModal({
                           leftLabel="Off"
                           rightLabel="On"
                           checked={enabled}
-                          onChange={() => undefined}
-                          disabled={!FEATURE_TOGGLE_WRITES_ENABLED}
+                          onChange={(next) => {
+                            if (client === null) return;
+                            void client.setFeatureEnabled(feature, next).catch((error: unknown) => {
+                              console.warn(`[features] setFeatureEnabled (${feature}) failed:`, error);
+                            });
+                          }}
+                          disabled={!FEATURE_TOGGLE_WRITES_ENABLED || client === null}
                           size="sm"
                           aria-label={`${spec.label} feature`}
                         />
                       </div>
                     );
                   })}
-                  {/* LOCKSTEP-PENDING: toggles are inert until the GTK/Flutter
-                      clients ship `workspace.feature.set`; the write issues a
-                      workspace.feature.set through the normal client op path
-                      (F3: confirming "N existing objects keep their data"
-                      when instances > 0). */}
-                  {!FEATURE_TOGGLE_WRITES_ENABLED && (
-                    <p className="settings-item__description">
-                      Feature switches become available once the mobile and desktop clients
-                      catch up — synced toggles need every client to understand them.
-                    </p>
-                  )}
+                  {/* The write issues a workspace.feature.set through the
+                      normal client op path (lockstep SHIPPED: GTK/Flutter
+                      v3.0.0). F3's "N existing objects keep their data"
+                      confirmation rides a follow-up; the instance count
+                      shows beside the powers line meanwhile. */}
                 </>
               ) : (
                 <p className="settings-item__description">

@@ -300,3 +300,46 @@ describe("slash /template (§34.25 T3)", () => {
     expect(created.id).not.toBe(templateId);
   });
 });
+
+describe("slash /hr and /code (§34.34 B3/B5 — lockstep SHIPPED)", () => {
+  it("/hr inserts the divider token at the caret", async () => {
+    const { client, blockId, container } = await setupPageWithBlock();
+    const editor = clickIntoBlock(container);
+    typeSlashCommand(editor, "hr");
+    expect(slashPopup()).not.toBeNull();
+
+    fireEvent.keyDown(editor, { key: "Enter" });
+    await waitFor(() => {
+      const ast = client.getNode(blockId)?.contentAst as ContentAst;
+      expect(ast).toEqual([{ type: "hr" }]);
+    });
+  });
+
+  it("/code python converts the block to a code_block token (language hint + the written text as the code)", async () => {
+    const { client, blockId, container } = await setupPageWithBlock();
+    const editor = clickIntoBlock(container);
+    typeSlashCommand(editor, "code", "python print('hello')");
+    expect(slashPopup()).not.toBeNull();
+
+    fireEvent.keyDown(editor, { key: "Enter" });
+    await waitFor(() => {
+      const ast = client.getNode(blockId)?.contentAst as ContentAst;
+      expect(ast).toHaveLength(1);
+      expect(ast[0]).toMatchObject({ type: "code_block", language: "python" });
+      expect(String((ast[0] as { text?: unknown }).text)).toContain("print('hello')");
+    });
+  });
+
+  it("/code without a language omits the hint", async () => {
+    const { client, blockId, container } = await setupPageWithBlock();
+    const editor = clickIntoBlock(container);
+    typeSlashCommand(editor, "code");
+
+    fireEvent.keyDown(editor, { key: "Enter" });
+    await waitFor(() => {
+      const ast = client.getNode(blockId)?.contentAst as ContentAst;
+      expect(ast[0]).toMatchObject({ type: "code_block" });
+      expect("language" in (ast[0] as object)).toBe(false);
+    });
+  });
+});

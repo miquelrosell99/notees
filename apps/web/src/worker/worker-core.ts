@@ -631,6 +631,11 @@ export class WorkerCore {
         );
       case "setClassExtends":
         return this.client.setClassExtends(args[0] as string, args[1] as string[]);
+      case "setFeatureEnabled":
+        return this.client.setFeatureEnabled(
+          args[0] as Parameters<WorkspaceClient["setFeatureEnabled"]>[0],
+          args[1] as boolean,
+        );
       case "bootstrapWorkspace":
         return this.client.bootstrapWorkspace(args[0] as string);
       case "syncOnce":
