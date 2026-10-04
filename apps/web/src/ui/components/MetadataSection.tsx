@@ -1454,6 +1454,13 @@ export function PropertiesTable({
             const rawNode = rawRef !== null ? client.getNode(rawRef) : undefined;
             const carrier =
               rawNode !== undefined && rendersAsInlineBlock(rawNode) ? rawNode : undefined;
+            // Dead carrier (owner bug report 2026-10-04): the value references
+            // a carrier block that was deleted/trashed from the value cell.
+            // The content is GONE — display EMPTY, never the raw uuid; editing
+            // authors a fresh carrier, and touching it empty cleans the dead
+            // value row (so the uuid does not survive reloads).
+            const deadCarrierRef = rawRef !== null && carrier === undefined;
+            const editableText = deadCarrierRef ? "" : toEditableText(row.value);
             // §34.32 PG14: url/email scalars keep the text editor and gain an
             // external-link affordance (mailto: for email; url values keep
             // their authored scheme, tel: included).
@@ -1478,13 +1485,36 @@ export function PropertiesTable({
                   </span>
                 ) : (
                 <input
-                  key={`${row.propertySchemaId}:${row.idx}:${editable}`}
+                  key={`${row.propertySchemaId}:${row.idx}:${editableText}`}
                   type="text"
                   className="nt-property-value"
-                  defaultValue={editable}
+                  defaultValue={editableText}
                   aria-label={`Property ${label}`}
                   onBlur={(event) => {
-                    const next = fromEditableText(event.target.value);
+                    const text = event.target.value;
+                    if (deadCarrierRef) {
+                      // The old carrier is gone: typing authors a NEW carrier
+                      // (the §34.45 pattern); leaving it empty unsets the dead
+                      // value so the row does not hold a dangling ref.
+                      if (text.trim() === "") {
+                        void client.unsetProperty(nodeId, row.propertySchemaId, row.idx);
+                      } else {
+                        void (async () => {
+                          const carrierId = await client.createObject({
+                            parentId: nodeId,
+                            contentAst: [{ type: "text", text }],
+                          });
+                          await client.setProperty(
+                            nodeId,
+                            row.propertySchemaId,
+                            { nodeId: carrierId },
+                            row.idx,
+                          );
+                        })();
+                      }
+                      return;
+                    }
+                    const next = fromEditableText(text);
                     // Deep-compare so a no-op blur never enqueues a write.
                     if (JSON.stringify(next) !== JSON.stringify(row.value)) {
                       void client.setProperty(nodeId, row.propertySchemaId, next, row.idx);
