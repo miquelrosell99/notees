@@ -1,5 +1,5 @@
 /**
- * Class bindings editor tests: the class page's Property definitions section
+ * Class bindings editor tests: the class page's Class properties section
  * is editable — the search/create add popup writes class.property.set, the
  * expanded row's default editor patches the row (missing fields keep their
  * values), the collapsed-row flag toggles write required, and remove writes
@@ -46,16 +46,16 @@ async function flushWrites(): Promise<void> {
   await act(async () => {});
 }
 
-/** Expand the Property definitions section (collapsed once non-empty). */
+/** Expand the Class properties section (collapsed once non-empty). */
 async function expandDefinitions(): Promise<void> {
-  const header = screen.getByRole("button", { name: /property definitions/i });
+  const header = screen.getByRole("button", { name: /class properties/i });
   if (header.getAttribute("aria-expanded") === "false") {
     fireEvent.click(header);
     await flushWrites();
   }
 }
 
-describe("Class View property definitions editor", () => {
+describe("Class View class properties editor", () => {
   it("adds a binding via the search popup over existing property schemas", async () => {
     const client = await seedClient();
     const classId = await client.createClass("Task");

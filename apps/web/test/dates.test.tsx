@@ -331,7 +331,7 @@ describe("dates (SCHEMA.md)", () => {
     render(<ClassView client={client} classId={classId} />);
 
     // Non-empty schema: expand the section, then each row's config panel.
-    fireEvent.click(screen.getByRole("button", { name: /property definitions/i }));
+    fireEvent.click(screen.getByRole("button", { name: /class properties/i }));
     await flushWrites();
 
     fireEvent.click(screen.getByRole("button", { name: "Configure published" }));

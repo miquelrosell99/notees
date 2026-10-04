@@ -2106,6 +2106,41 @@ export class WorkspaceClient {
     const node = this.getNode(id) ?? this.getNodeRaw(id);
     if (!node) throw new Error(`unassignClass: node ${id} not found`);
     if (!node.classIds.includes(classId)) return;
+    // §34.65 (owner rule): authored values that merely MIRROR the departing
+    // class's binding defaults carry no user data — the user never put
+    // anything in that property. Sweep them (unset envelopes, explicit ops —
+    // every client converges) before the membership remove. Values that
+    // DIFFER from the default survive (marked unbound). The edge — a value
+    // the user explicitly set TO the default — is indistinguishable without
+    // a provenance flag; recorded as a follow-up in the plan.
+    const bindings = this.getClassBindings(classId);
+    if (bindings.length > 0) {
+      const authored = this.getEffectiveProperties(id).filter((row) => row.source === "authored");
+      for (const binding of bindings) {
+        if (binding.defaultValue === null || binding.defaultValue === undefined) continue;
+        const defaultJson = JSON.stringify(binding.defaultValue);
+        for (const row of authored) {
+          if (row.propertySchemaId !== binding.propertySchemaId) continue;
+          if (JSON.stringify(row.value) !== defaultJson) continue;
+          const payload: Record<string, unknown> = {
+            objectId: id,
+            propertySchemaId: binding.propertySchemaId,
+          };
+          // PG5: unset by element id when the row carries a writer-minted
+          // UUID element; the deterministic composite (node:schema:idx) is
+          // not uuid-shaped — those rows unset by idx.
+          if (
+            typeof row.elementId === "string" &&
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.elementId)
+          ) {
+            payload.elementId = row.elementId;
+          } else {
+            payload.idx = row.idx;
+          }
+          this.enqueueLocal(this.buildEnvelope("property.unset", payload, [id]));
+        }
+      }
+    }
     this.enqueueLocal(this.buildEnvelope("class.unassign", { objectId: id, classId }, [id]));
   }
 
