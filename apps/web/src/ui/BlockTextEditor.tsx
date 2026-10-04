@@ -61,7 +61,13 @@
  *   prose (the query text stays).
  * - Verb on selection: FloatingToolbar → link button / Cmd+K opens the
  *   VerbPopover (free-string verb + optional locator); commit wraps the
- *   covered prose in a typed_link mark via spliceTokens.
+ *   covered prose in a typed_link mark via spliceTokens. PG1 schema-at-
+ *   capture (§34.32): the popover live-matches the verb against the
+ *   workspace's property schemas — an exact name hit binds the mark to the
+ *   existing schema (`verb: { propertySchemaId }`), a miss offers "Create
+ *   property '…' and bind" (propertySchema.create typed object/multi, empty
+ *   targetClassFilter). Right-clicking an existing typed-link word opens the
+ *   LinkEditModal's verb field (same create-and-bind row).
  * All capture commits build on the current draft through applyTextEdit (so
  * unflushed typing is preserved), splice tokens through spliceTokens, then
  * write the result directly with client.updateObject and re-sync the DOM.
@@ -164,6 +170,7 @@ import { NodeSelector, type NodePickContext } from "./components/pickers/NodeSel
 import { parseDate } from "./components/pickers/dateParser.js";
 import { NodeLinkContextMenu } from "./components/NodeLinkContextMenu.js";
 import { useLinkEditModalOpener } from "./editor-popups/LinkEditModal.js";
+import { CodeTextarea } from "./components/ui/CodeTextarea.js";
 import { requestQueryBuilderOpen } from "./QueryBlockView.js";
 import { TemplateListPopup } from "./templates/TemplateListPopup.js";
 import { useTemplateInstantiator } from "./templates/useTemplateInstantiator.js";
@@ -174,6 +181,129 @@ export const SAVE_DEBOUNCE_MS = 400;
 
 /** How the caret should land when the editor mounts. */
 export type EditorCaret = CaretPlacement | { x: number; y: number };
+
+/**
+ * True when the block IS one code_block token (the `/code` product): the
+ * editor swaps the prose contentEditable for the code surface (§34.34 B3
+ * owed editor) — the token's `text` is edited verbatim (a textarea, not the
+ * prose projection, which skips code tokens) and the language badge stays.
+ */
+function codeTokenOf(ast: readonly unknown[]): { language?: string; text: string } | null {
+  if (ast.length !== 1) return null;
+  const token = ast[0];
+  if (typeof token !== "object" || token === null) return null;
+  const t = token as { type?: unknown; language?: unknown; text?: unknown };
+  if (t.type !== "code_block" || typeof t.text !== "string") return null;
+  return { ...(typeof t.language === "string" ? { language: t.language } : {}), text: t.text };
+}
+
+/**
+ * The code_block editing surface — §34.34 B3's owed editor branch. A
+ * CodeTextarea-integrated editor (the kit primitive): typing is debounced
+ * and writes the token's `text` through the standard content path
+ * (client.updateObject, one op per debounce window), the language hint
+ * survives untouched, and blur/Esc flushes and hands back to read mode.
+ * Draft state is local (like the whiteboard's CardTextEditor) so client
+ * notify re-renders never clobber the caret; a clean editor re-syncs from
+ * remote edits.
+ */
+function CodeBlockEditor({
+  node,
+  client,
+  onExit,
+}: {
+  node: ClientNode;
+  client: { getNode(id: string): ClientNode | undefined; updateObject(id: string, fields: { contentAst: ContentAst }): Promise<void> };
+  onExit: () => void;
+}) {
+  const initial = codeTokenOf(node.contentAst);
+  const [draft, setDraft] = useState(initial?.text ?? "");
+  // The draft lives in state for the controlled textarea and in a ref for the
+  // debounced flush (the callback must read the freshest text).
+  const draftRefText = useRef(draft);
+  draftRefText.current = draft;
+  const dirtyRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nodeRef = useRef(node);
+  nodeRef.current = node;
+  const language = initial?.language ?? null;
+
+  const write = useCallback(
+    (text: string) => {
+      const current = nodeRef.current;
+      const token = codeTokenOf(current.contentAst);
+      if (token === null || token.text === text) return;
+      const next = [
+        {
+          type: "code_block" as const,
+          ...(token.language !== undefined ? { language: token.language } : {}),
+          text,
+        },
+      ] as ContentAst;
+      if (JSON.stringify(next) !== JSON.stringify(current.contentAst)) {
+        void client.updateObject(current.id, { contentAst: next });
+      }
+    },
+    [client],
+  );
+
+  const flush = useCallback(() => {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    if (!dirtyRef.current) return;
+    dirtyRef.current = false;
+    write(draftRefText.current);
+  }, [write]);
+
+  // Remote edits re-project while the local draft is clean; a dirty draft
+  // (the caret is in the textarea) wins until its flush lands.
+  useEffect(() => {
+    if (dirtyRef.current) return;
+    const token = codeTokenOf(nodeRef.current.contentAst);
+    setDraft(token?.text ?? "");
+  }, [node.contentAst]);
+
+  // Unmount flush (a blurred-away surface never loses its last keystrokes).
+  useEffect(() => () => flush(), [flush]);
+
+  return (
+    <span className="nt-code-editor" data-editor-companion>
+      <span className="nt-code-block">
+        {language !== null && <span className="nt-code-block__lang">{language}</span>}
+        <CodeTextarea
+          value={draft}
+          onChange={(value) => {
+            dirtyRef.current = true;
+            setDraft(value);
+            if (timerRef.current !== null) clearTimeout(timerRef.current);
+            timerRef.current = setTimeout(() => {
+              dirtyRef.current = false;
+              write(value);
+            }, SAVE_DEBOUNCE_MS);
+          }}
+          className="nt-code-editor__area"
+          label="Code"
+          id={`code-editor-${node.id}`}
+          autoFocus
+          onBlur={() => {
+            flush();
+            onExit();
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              event.stopPropagation();
+              flush();
+              onExit();
+            }
+          }}
+        />
+      </span>
+    </span>
+  );
+}
 
 /** Which capture trigger opened the popup. */
 type CaptureKind = "mention" | "tag" | "class" | "slash";
@@ -821,8 +951,8 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       // §34.34 B3 (lockstep SHIPPED): the block becomes a code_block token.
       // The typed remainder is the language hint ("/code python"); the code
       // text is what the block already carries — the sentence you wrote
-      // becomes the code, nothing silently dropped. Editing the code rides
-      // the future editor branch; today it renders read-only mono.
+      // becomes the code, nothing silently dropped. Editing rides the
+      // CodeTextarea surface (CodeBlockEditor — the block's edit mode).
       const trimmed = query.trim();
       const remainder = /^code(\s+|$)/i.test(trimmed)
         ? trimmed.replace(/^code(\s+|$)/i, "").trim()
@@ -1045,20 +1175,52 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
     setVerb({ ...range, ...selectionAnchor() });
   };
 
-  const commitVerb = (verbStr: string, locator: string) => {
+  const commitVerb = (verbValue: string | { propertySchemaId: string }, locator: string) => {
     const state = verb;
     if (state === null) return;
     setVerb(null);
+    writeVerbMark(state.start, state.end, verbValue, locator);
+  };
+
+  /**
+   * Wrap the covered prose range in a typed_link mark (PG1: the verb is a
+   * free string or the bound `{ propertySchemaId }` shape). Shared by the
+   * popover submit and the create-and-bind flow.
+   */
+  const writeVerbMark = (
+    start: number,
+    end: number,
+    verbValue: string | { propertySchemaId: string },
+    locator: string,
+  ) => {
     const base = applyTextEdit(nodeRef.current.contentAst, draftRef.current);
-    const covered = proseFromAst(base).slice(state.start, state.end);
+    const covered = proseFromAst(base).slice(start, end);
     if (covered === "") return;
     const metadata: Record<string, unknown> = {};
     if (locator !== "") metadata.locator = locator;
-    const token = { type: "typed_link", verb: verbStr, text: covered, metadata };
-    const next = withCandidateSpans(spliceTokens(base, state.start, state.end, [token]));
+    const token = { type: "typed_link", verb: verbValue, text: covered, metadata };
+    const next = withCandidateSpans(spliceTokens(base, start, end, [token]));
     const el = spanRef.current;
-    commitAst(next, state.start + covered.length);
+    commitAst(next, start + covered.length);
     el?.focus();
+  };
+
+  /**
+   * PG1 create-and-bind: author the property schema at capture (typed
+   * `object`, multi, empty targetClassFilter — the Tana flagship gesture) and
+   * bind the mark to it. The modal stays open until the schema exists; a
+   * failure surfaces in the popover and leaves the selection untouched.
+   */
+  const createAndBindVerb = async (verbStr: string, locator: string): Promise<void> => {
+    const state = verb;
+    if (state === null) return;
+    const schemaId = await client.createPropertySchema({
+      name: verbStr,
+      type: "object",
+      multi: true,
+      targetClassFilter: [],
+    });
+    writeVerbMark(state.start, state.end, { propertySchemaId: schemaId }, locator);
   };
 
   const cancelVerb = () => {
@@ -1149,6 +1311,41 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       const span = proseSpans(base).find((s) => s.start <= offset && offset < s.end);
       if (span === undefined) return;
       atom = atoms.find((a) => a.tokenIndex === span.tokenIndex) ?? null;
+      // PG1: a right-click on a typed-link word opens the verb editor modal
+      // (the bound-verb / create-and-bind surface) — the LinkEditModal's
+      // verb field, mirroring the mention pill's "Edit link…" flow.
+      if (atom === null) {
+        const token = base[span.tokenIndex];
+        if (
+          typeof token === "object" &&
+          token !== null &&
+          (token as { type?: unknown }).type === "typed_link"
+        ) {
+          const mark = token as { verb?: unknown; metadata?: { locator?: unknown } };
+          const rawVerb =
+            typeof mark.verb === "string"
+              ? mark.verb
+              : typeof mark.verb === "object" && mark.verb !== null && "propertySchemaId" in mark.verb
+                ? (client
+                    .listPropertySchemas()
+                    .find((schema) => schema.id === (mark.verb as { propertySchemaId: string }).propertySchemaId)
+                    ?.name ?? "")
+                : "";
+          const locator =
+            typeof mark.metadata?.locator === "string" ? mark.metadata.locator : "";
+          event.preventDefault();
+          flush(); // push unflushed typing so the modal writes over the current AST
+          openLinkEditor({
+            kind: "verb",
+            blockId: nodeRef.current.id,
+            tokenIndex: span.tokenIndex,
+            insertAt: null,
+            initialVerb: rawVerb,
+            initialLocator: locator,
+          });
+        }
+        return;
+      }
     }
     if (atom === null) return;
     event.preventDefault();
@@ -1633,8 +1830,13 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
     }
   };
 
+  const codeToken = codeTokenOf(node.contentAst);
+
   return (
     <span ref={rootRef} className="nt-editor-root">
+      {codeToken !== null ? (
+        <CodeBlockEditor node={node} client={client} onExit={onExitEdit} />
+      ) : (
       <span
         ref={spanRef}
         className="nt-block-text"
@@ -1675,12 +1877,15 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
           onExitEdit();
         }}
       />
+      )}
+      {codeToken === null && (
       <FloatingToolbar
         rootRef={rootRef}
         activeMarks={new Set(activeMarks)}
         onToggleMark={toggleMark}
         onVerb={openVerb}
       />
+      )}
       {capture !== null &&
         (capture.kind === "slash" ? (
           <TriggerPopup
@@ -1768,6 +1973,12 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
         <VerbPopover
           top={verb.top}
           left={verb.left}
+          schemas={client.listPropertySchemas()}
+          onBind={(schemaId, verbStr, locator) => {
+            setVerb(null);
+            writeVerbMark(verb.start, verb.end, { propertySchemaId: schemaId }, locator);
+          }}
+          onCreateAndBind={createAndBindVerb}
           onSubmit={commitVerb}
           onCancel={cancelVerb}
         />

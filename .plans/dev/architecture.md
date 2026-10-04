@@ -383,7 +383,11 @@ over the **sql.js** backend (local derived state persisted to OPFS via a Web Wor
 in tests — both in `packages/sync/src/transport.ts`). Reads always hit the local store;
 writes build envelopes (`newEnvelope`, deviceId `web`), apply optimistically via
 `enqueue`, then push best-effort (`push()` awaits delivery when it must be
-deterministic). `apps/web/src/ui/` is slice 1: a bootstrap screen (server URL + API key +
+deterministic). Every local write funnels through the `enqueueLocal` seam, which
+captures the op's inverse intent (pre-apply snapshot) into the session-local undo
+journal (`src/core/undo-journal.ts`, §34.64) — undo/redo compose existing ops back
+through the same seam; the journal is in-memory per tab and never touches the wire.
+`apps/web/src/ui/` is slice 1: a bootstrap screen (server URL + API key +
 workspace id, remembered in localStorage), a page-list sidebar, and a PageView with block
 rows and inline token rendering (`App.tsx`, `PageView.tsx`, `BlockRow.tsx`,
 `InlineTokens.tsx`). Display names come from `deriveDisplayName` (`packages/domain/src/node.ts`) —
@@ -443,7 +447,7 @@ cursors; writes are atomic (tmp + rename).
 | `packages/export` | Export projections over the object graph: `ExportDocument` IR + serializers (markdown/html/docx/latex package-side — options bag with per-format gating, escaping, full-closure outline, whiteboard sidecars, id8 filename policy, `linkTarget`/`assetPath` hooks, LaTeX CSL bibliography; pdf renders client-side in the web app), format registry (`SerializedExport` union), bundles + manifest v2, BibTeX/CSL | `src/index.ts`; `document.ts` (IR + context hooks), `markdown.ts`, `html.ts`, `docx.ts`, `latex.ts`, `options.ts`, `formats.ts`, `bundle.ts`, `bibtex.ts`, `csl.ts` |
 | `apps/server` | Fastify relay + object/assets API; the one write path | `src/server.ts` (entry), `src/app.ts` (assembly), `src/config.ts`, `src/context.ts` (`ingestBatch`/`submit`), `src/relay-storage.ts`, `src/workspace-store.ts`, `src/routes-relay.ts`, `src/routes-objects.ts`, `src/assets.ts`, `src/seed.ts`, `src/identity.ts`, `src/validate.ts`, `src/rate-limit.ts`, `src/bus.ts` |
 | `apps/cli` | `notees` command surface over the HTTP API | `src/cli.ts` (`run`), `src/client.ts`, `src/state.ts`, `src/exit-codes.ts` |
-| `apps/web` | Browser client: workspace data path + outliner UI + export delivery (modal, workspace zip, PDF renderer) + presentation mode | `src/core/workspace-client.ts`, `src/main.tsx`, `src/ui/{App,PageView,BlockRow,InlineTokens}.tsx`, `src/ui/presentation/` (deck builder + `DeckView` + session resume, §34.26), `src/ui/export-pdf/` (client-side PDF — `@react-pdf/renderer`, code-split, vendored OFL Gentium), `src/shims/` (node built-ins stubbed for the browser bundle) |
+| `apps/web` | Browser client: workspace data path + outliner UI + export delivery (modal, workspace zip, PDF renderer) + presentation mode + the session undo journal (§34.64) | `src/core/workspace-client.ts`, `src/core/undo-journal.ts` (the op-inverse journal + inversion matrix), `src/main.tsx`, `src/ui/{App,PageView,BlockRow,InlineTokens}.tsx`, `src/ui/presentation/` (deck builder + `DeckView` + session resume, §34.26), `src/ui/export-pdf/` (client-side PDF — `@react-pdf/renderer`, code-split, vendored OFL Gentium), `src/shims/` (node built-ins stubbed for the browser bundle) |
 | `../design/` | Normative model docs (00-INDEX, 01-knowledge-model, 02-model-assessment) | read these before changing the model |
 | `packages/protocol/fixtures` | Canonical op fixtures — the blocking gate | seven JSON files, validated by `packages/protocol/test` and replayed by the store suite |
 

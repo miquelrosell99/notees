@@ -15,13 +15,25 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client.js";
 
 import { displayNameFromClient } from "./dateDisplay.js";
+import { EmbedViewSwitcher } from "./EmbedView.js";
 import { Icon } from "./Icon.js";
 import { classIconMap, nodeIcon } from "./iconFor.js";
 import { useOutliner } from "./outliner-context.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
-export function EmbedCardView({ nodeId, view }: { nodeId: string; view: "small_card" | "wide_card" }) {
+export function EmbedCardView({
+  nodeId,
+  view,
+  hostId,
+  tokenIndex,
+}: {
+  nodeId: string;
+  view: "small_card" | "wide_card";
+  /** Write context for the view switcher — absent in read-only projections. */
+  hostId?: string | undefined;
+  tokenIndex?: number | undefined;
+}) {
   const { client: seamClient, openNode } = useOutliner();
   const client = seamClient as AnyClient;
   const [, setVersion] = useState(0);
@@ -41,19 +53,24 @@ export function EmbedCardView({ nodeId, view }: { nodeId: string; view: "small_c
   const excerpt = view === "wide_card" ? plainExcerpt(node.contentAst) : "";
 
   return (
-    <button
-      type="button"
-      className={`nt-embed-card nt-embed-card--${view}`}
-      title={label}
-      onClick={(event) => {
-        event.stopPropagation();
-        openNode(nodeId);
-      }}
-    >
-      {icon !== null && <Icon path={icon} size={1} className="nt-embed-card__icon" />}
-      <span className="nt-embed-card__label">{label}</span>
-      {excerpt !== "" && <span className="nt-embed-card__excerpt">{excerpt}</span>}
-    </button>
+    <span className="nt-embed-card-wrap">
+      <button
+        type="button"
+        className={`nt-embed-card nt-embed-card--${view}`}
+        title={label}
+        onClick={(event) => {
+          event.stopPropagation();
+          openNode(nodeId);
+        }}
+      >
+        {icon !== null && <Icon path={icon} size={1} className="nt-embed-card__icon" />}
+        <span className="nt-embed-card__label">{label}</span>
+        {excerpt !== "" && <span className="nt-embed-card__excerpt">{excerpt}</span>}
+      </button>
+      {hostId !== undefined && tokenIndex !== undefined && (
+        <EmbedViewSwitcher client={client} hostId={hostId} tokenIndex={tokenIndex} view={view} />
+      )}
+    </span>
   );
 }
 

@@ -9,6 +9,7 @@ import { createContext, useCallback, useContext, useRef, useState } from "react"
 import type { CaretPlacement } from "@/editor/caret.js";
 import type { OutlinePositionMap } from "@/editor/outline.js";
 import { buildOutlinePositions } from "@/editor/outline.js";
+import type { UndoUiState } from "@/core/undo-journal.js";
 import type {
   BlockTreeNode,
   ClassBinding,
@@ -32,6 +33,15 @@ export interface OutlinerClient {
   createObject(partial: CreateObjectInput): Promise<string>;
   updateObject(id: string, fields: UpdateObjectInput): Promise<void>;
   deleteObject(id: string, opts?: DeleteObjectOptions): Promise<void>;
+  /**
+   * §34.64 — the session undo journal (in-memory, per tab): availability +
+   * labels, undo, redo. Every write above is journaled as it applies; undo
+   * composes existing ops through the same write path. View-level surfaces
+   * (menus, chords) reach the journal here without app-shell plumbing.
+   */
+  undoState(): Promise<UndoUiState>;
+  undo(): Promise<boolean>;
+  redo(): Promise<boolean>;
   /**
    * Reparent seam for indent/outdent/Enter placement (`object.move`).
    * `afterId` lands the node immediately after that sibling; `beforeId`

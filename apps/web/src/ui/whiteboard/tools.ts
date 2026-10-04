@@ -1,10 +1,11 @@
 /**
  * Whiteboard tool palette — the §34.19 whiteboard-toolset register row
- * (select/move, card, sticky note, rect/ellipse/line/arrow, freehand stroke,
- * text, connector). Tools are pure interaction modes: they decide what a
- * surface pointer gesture means (place, draw, marquee) and never carry state
- * of their own. Geometry writes still ride the token layout through
- * WhiteboardCanvas (one coalesced `object.update` per gesture).
+ * (select/move, card, sticky note, rect/ellipse/line/arrow, the
+ * pen/highlighter/eraser group, freehand stroke, text, connector). Tools are
+ * pure interaction modes: they decide what a surface pointer gesture means
+ * (place, draw, marquee, erase) and never carry state of their own.
+ * Geometry writes still ride the token layout through WhiteboardCanvas (one
+ * coalesced `object.update` per gesture).
  *
  * Gestures:
  *  - "click"  — pointer-down places something (card/sticky/text).
@@ -24,6 +25,8 @@ export type WhiteboardTool =
   | "line"
   | "arrow"
   | "stroke"
+  | "highlighter"
+  | "eraser"
   | "text"
   | "connector";
 
@@ -50,7 +53,14 @@ export const WHITEBOARD_TOOLS: readonly WhiteboardToolDef[] = [
   { id: "ellipse", label: "Add ellipse", shortLabel: "Ellipse", icon: "circle-outline", gesture: "drag", cursor: "crosshair" },
   { id: "line", label: "Add line", shortLabel: "Line", icon: "minus", gesture: "drag", cursor: "crosshair" },
   { id: "arrow", label: "Add arrow", shortLabel: "Arrow", icon: "arrow-top-right", gesture: "drag", cursor: "crosshair" },
-  { id: "stroke", label: "Draw stroke", shortLabel: "Stroke", icon: "pencil-outline", gesture: "drag", cursor: "crosshair" },
+  // The pen/highlighter/eraser group (§34.19 whiteboard row owed modes):
+  // pen = freehand stroke; highlighter = freehand stroke with the layout
+  // schema's `highlight` flag (translucent wide marker); eraser = drag to
+  // remove strokes/shapes under the pointer. Pen/highlighter are one-shot
+  // (return to select after a stroke); the eraser stays armed until Esc.
+  { id: "stroke", label: "Draw stroke", shortLabel: "Pen", icon: "pencil-outline", gesture: "drag", cursor: "crosshair" },
+  { id: "highlighter", label: "Highlight", shortLabel: "Marker", icon: "marker", gesture: "drag", cursor: "crosshair" },
+  { id: "eraser", label: "Eraser", shortLabel: "Eraser", icon: "eraser", gesture: "drag", cursor: "cell" },
   { id: "text", label: "Add text", shortLabel: "Text", icon: "format-text", gesture: "click", cursor: "text" },
   { id: "connector", label: "Add connector", shortLabel: "Connect", icon: "vector-line", gesture: "drag", cursor: "crosshair" },
 ] as const;
