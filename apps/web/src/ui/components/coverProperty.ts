@@ -114,6 +114,25 @@ export function canHaveCoverOf(
 }
 
 /**
+ * Upload a file and set it as the node's cover: CAS upload → asset node →
+ * cover value + classes. Shared by the picker's upload row and drag-drop.
+ */
+export async function uploadCoverAsset(
+  client: AnyClient,
+  pageId: string,
+  file: File,
+): Promise<void> {
+  const uploaded = await client.uploadAsset(file, file.name);
+  const assetNodeId = await client.createObject({
+    presentAsMain: true,
+    name: uploaded.originalName,
+    classIds: [SYSTEM_CLASS_UUIDS.asset],
+  });
+  await client.attachAsset(assetNodeId, uploaded);
+  await setNodeCover(client, pageId, assetNodeId);
+}
+
+/**
  * Set a node's cover: the cover property value ({nodeId} → the asset) plus
  * the asset's cover+asset classes — explicit ops, so every client converges
  * on the classIds projection (the property value stays the authority; the
