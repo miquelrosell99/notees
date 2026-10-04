@@ -23,7 +23,7 @@
  */
 
 /** PC4 lockstep gate — activation flips this single constant (§34.54 pattern). */
-const BINDING_ACTIVE_WRITES_ENABLED = false;
+const BINDING_ACTIVE_WRITES_ENABLED = true; // lockstep SHIPPED: GTK/Flutter v3.0.0
 const LOCKSTEP_PENDING_NOTE =
   "Available once all clients catch up — the protocol batch (PG5/PC4/PC6) is pending the GTK/Flutter lockstep releases.";
 

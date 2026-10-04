@@ -586,8 +586,9 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
     // ties (the ranking contract the TriggerPopup rows were designed for).
     return SLASH_COMMANDS.map((cmd) => {
       const labelMatch = cmd.label.toLowerCase().includes(q);
+      const idMatch = cmd.id.toLowerCase().includes(q);
       const descMatch = cmd.description.toLowerCase().includes(q);
-      const textScore = (labelMatch ? 2 : 0) + (descMatch ? 1 : 0);
+      const textScore = (labelMatch || idMatch ? 2 : 0) + (descMatch ? 1 : 0);
       return { cmd, textScore, freq: slashUsage[cmd.id] || 0 };
     })
       .filter((s) => s.textScore > 0 || query === "")
@@ -808,6 +809,52 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
         : "";
       applySplice(start, end, [], start);
       openStage({ start, filter: remainder });
+      return;
+    }
+    if (commandId === "hr") {
+      // §34.34 B5 (lockstep SHIPPED): the divider token rides the content
+      // stream like a hard_break — one token, no text.
+      applySplice(start, end, [{ type: "hr" }], start + 1);
+      return;
+    }
+    if (commandId === "code") {
+      // §34.34 B3 (lockstep SHIPPED): the block becomes a code_block token.
+      // The typed remainder is the language hint ("/code python"); the code
+      // text is what the block already carries — the sentence you wrote
+      // becomes the code, nothing silently dropped. Editing the code rides
+      // the future editor branch; today it renders read-only mono.
+      const trimmed = query.trim();
+      const remainder = /^code(\s+|$)/i.test(trimmed)
+        ? trimmed.replace(/^code(\s+|$)/i, "").trim()
+        : "";
+      // The language hint is the remainder's FIRST word ("/code python …");
+      // whatever follows the consumed trigger — typed after the hint or
+      // already in the block — becomes the code text.
+      const langToken = remainder.split(/\s+/)[0] ?? "";
+      const language = /^[a-z0-9+#-]{1,64}$/i.test(langToken) ? langToken.toLowerCase() : undefined;
+      // Text after the language hint is the code body ("/code python print(x)"
+      // → body "print(x)"); text outside the consumed trigger range (written
+      // before the slash) rides in front.
+      const bodyFromHint = remainder.split(/\s+/).slice(1).join(" ").trim();
+      const base = applyTextEdit(nodeRef.current.contentAst, draft);
+      const stripped = spliceTokens(base, start, end, []);
+      const existing = proseFromAst(stripped).trim();
+      const text =
+        bodyFromHint !== ""
+          ? existing !== ""
+            ? `${existing}\n${bodyFromHint}`
+            : bodyFromHint
+          : existing;
+      commitAst(
+        [
+          {
+            type: "code_block",
+            ...(language !== undefined ? { language } : {}),
+            text,
+          } as ContentAst[number],
+        ],
+        start,
+      );
       return;
     }
     if (commandId === "table") {

@@ -481,6 +481,11 @@ export class WorkerClient {
   }
 
   /** Replace a class's full extends parent set (class.setExtends, m2m). */
+  /** §34.35/§34.55 — write a feature toggle (workspace.feature.set, LWW by HLC). */
+  async setFeatureEnabled(feature: WorkspaceFeature, enabled: boolean): Promise<void> {
+    await this.call("setFeatureEnabled", [feature, enabled]);
+  }
+
   async setClassExtends(classId: string, parentClassIds: string[]): Promise<void> {
     await this.call("setClassExtends", [classId, parentClassIds]);
   }
