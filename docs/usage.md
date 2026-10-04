@@ -44,7 +44,7 @@ curl -s localhost:8377/healthz                       # {"ok":true}
 curl -s localhost:8377/api/version                # {"name":"notees-server","version":"2.0.0-m6","protocolVersion":3,...}
 ```
 
-A fresh workspace seeds itself: a starter class catalog (`person`, `organization`, the `source` tree with its `book`/`paper`/`article`/`document`/`movie`/`thesis` children, `task`, `meeting`, `whiteboard`, `collection`, `query`, `template`, `note`, the `day`/`month`/`year` journals, …), plus `scratchpad` and `inbox` pages.
+A fresh workspace seeds itself: a starter class catalog (`person`, `organization`, the `source` tree with its `book`/`paper`/`article`/`document`/`movie`/`thesis` children, `task`, `event`, `meeting` (an event subclass), `whiteboard`, `collection`, `query`, `template`, `note`, the `day`/`month`/`year` journals, …), plus `scratchpad` and `inbox` pages.
 
 ## Configuring the CLI
 
@@ -333,7 +333,7 @@ The sidebar's **Queries** entry is the workspace's saved-views surface. **New qu
 The sidebar's **Calendar** entry (hide it from Workspace Settings → Sidebar Visibility) opens a day view for one date — today by default:
 
 - **Day header** — the weekday, a Today marker when you're on today, the full date in your date-format setting, the ISO week number, and ‹ / › buttons to step one day either side (Today jumps back).
-- **Quick create** — one chip per class that has a date property (the system Meeting class is the example — its date property is set to the selected day). Clicking a chip creates an object of that class with that date set to the selected day and opens it. By default every eligible class appears — on a fresh workspace those are the system Task and Meeting classes (the click sets a task's Scheduled or a meeting's date). To narrow the list, use **Workspace Settings → Calendar Quick-Create** (the workspace switcher's gear): uncheck the classes you don't want. The choice is stored per workspace on this device; "Reset to defaults" returns to the automatic list.
+- **Quick create** — one chip per class that has a date property (the system Event and Meeting classes are the examples — their date property is set to the selected day). Clicking a chip creates an object of that class with that date set to the selected day and opens it. By default every eligible class appears — on a fresh workspace those are the system Task, Event and Meeting classes (the click sets a task's Scheduled, or an event/meeting's date). To narrow the list, use **Workspace Settings → Calendar Quick-Create** (the workspace switcher's gear): uncheck the classes you don't want. The choice is stored per workspace on this device; "Reset to defaults" returns to the automatic list.
 - **Daily note** — the selected day's page embedded inline (edit it where it renders). No page yet? The "+ Daily Note" button creates it in place.
 - **Tasks** — open tasks scheduled for the day, with overdue ones grouped above in muted red. The checkbox closes a task (and reopens it) exactly like the Tasks hub; "New" creates a task scheduled for the selected day. A task appears here when its **Scheduled** property points at this day; Done and Cancelled tasks never list.
 - **Dated** — everything else that references this day through a date property (a meeting held that day, a range ending on it).
@@ -374,6 +374,19 @@ A **table** is a container block carrying the `table` class: its child blocks ar
 - **`/table`** (any block) — scaffolds the table under the current block: one row of three empty cells, caret in the first cell. The typed argument sets the column count: `/table 5`.
 - **+ Row / + Column** — hover the table: **+ Row** appends a full row, **+ Column** appends a cell to every row. The grid's column count follows the first row — a row with fewer cells shows a blank; a row with more spills an extra column.
 - **Read-only projections** (embeds, the Child pages tree) render the same grid; editing stays in the outline.
+
+## Whiteboards
+
+A **whiteboard** is a page (or an embedded block) whose content token carries the spatial canvas — a spatial view of the node's subtree, not a separate kind of content.
+
+- **Cards are blocks.** Double-click empty space (or use the Card tool) to create a card: it is an ordinary child block with a position and size, so it indexes into search, takes classes and properties, and zooms like any block. Dragging a card is a layout update, coalesced into one write per gesture. **×** on a card deletes the block.
+- **The tool palette** — Select/move, Card, Sticky note, Rectangle, Ellipse, Line, Arrow, Stroke, Text, Connector. Draw tools drag to draw (a bare click places a default size); place tools put one item and return to Select. The **connector** snaps its endpoints to the edges and centers of nearby cards and shapes. Sticky notes are cards with a node color (the §34.43 color grammar — recolor them, or any selected shape/stroke, from the color swatch that appears with a selection).
+- **Multi-select** — drag on empty space box-selects; Shift+click adds or removes; dragging any selected card moves the whole selection. With several items selected the toolbar grows alignment/distribution buttons and a stroke-width control.
+- **Keyboard** — Delete/Backspace removes the selection, arrow keys nudge it (Shift = one grid step), Esc exits the active tool.
+- **Navigation** — mouse wheel zooms (fullscreen), middle-drag pans, the corner minimap clicks/drags to a spot, and the zoom cluster offers −, +, Fit, and 1:1. **Snap** quantizes drawing, placement, and drags to the dot grid.
+- **Text that matters gets a card.** Shape labels and the Text tool are chrome — they live in the layout token, never in the graph.
+
+Embedded whiteboards (a `/whiteboard` block inside another page) keep the full toolset; pan and wheel-zoom stay with the surrounding page.
 
 ## Exporting
 

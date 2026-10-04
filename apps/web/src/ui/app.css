@@ -1859,34 +1859,19 @@ mark {
 .nt-wb-toolbar {
   display: flex;
   align-items: center;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 4px;
   padding: 6px 10px;
   border-bottom: 1px solid var(--color-outline-variant);
   background: var(--color-surface);
   font-size: 12px;
 }
 
-.nt-wb-toolbar button {
-  border: 1px solid var(--color-outline-variant);
-  border-radius: 6px;
-  background: var(--color-surface-container-high);
-  padding: 2px 8px;
-  color: var(--color-on-surface-variant);
-}
-
-.nt-wb-toolbar button:hover:not(:disabled) {
-  background: var(--color-surface-container-highest);
-}
-
-.nt-wb-toolbar button:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.nt-wb-tool-active {
-  background: var(--color-primary-container);
-  border-color: var(--color-primary);
-  color: var(--color-primary);
+.nt-wb-toolbar-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 4px;
+  background: var(--color-outline-variant);
 }
 
 .nt-wb-surface {
@@ -1894,8 +1879,11 @@ mark {
   flex: 1;
   overflow: hidden;
   touch-action: none;
-  background-image: radial-gradient(var(--color-outline-variant) 1px, transparent 1px);
-  background-size: 24px 24px;
+}
+
+.nt-wb-surface:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
 }
 
 .nt-wb-embedded .nt-wb-surface {
@@ -1906,6 +1894,8 @@ mark {
   cursor: crosshair;
 }
 
+/* The dot grid is world-anchored: it lives on the transformed world layer so
+   zoom/pan move the dots with the content and the snap step stays honest. */
 .nt-wb-world {
   position: absolute;
   left: 0;
@@ -1913,6 +1903,8 @@ mark {
   width: 0;
   height: 0;
   transform-origin: 0 0;
+  background-image: radial-gradient(var(--color-outline-variant) 1px, transparent 1px);
+  background-size: 24px 24px;
 }
 
 .nt-wb-svg {
@@ -1944,6 +1936,16 @@ mark {
   fill: var(--color-on-surface-variant);
 }
 
+/* Selection is a dashed box under/around the element — it survives inline
+   paint colors, which outrank stylesheet strokes. */
+.nt-wb-selection-box {
+  fill: none;
+  stroke: var(--color-primary);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+  pointer-events: none;
+}
+
 .nt-wb-shape-selected rect,
 .nt-wb-shape-selected ellipse,
 .nt-wb-shape-selected line {
@@ -1958,8 +1960,26 @@ mark {
   stroke-linejoin: round;
 }
 
+.nt-wb-stroke-highlight {
+  opacity: 0.45;
+  stroke-width: 8;
+}
+
 .nt-wb-drawing {
   stroke: var(--color-primary);
+}
+
+.nt-wb-text-placeholder {
+  fill: none !important;
+  stroke: var(--color-outline) !important;
+  stroke-dasharray: 3 3;
+}
+
+.nt-wb-marquee {
+  position: absolute;
+  border: 1px dashed var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  pointer-events: none;
 }
 
 .nt-wb-card {
@@ -1971,6 +1991,17 @@ mark {
   border-radius: 6px;
   box-shadow: 0 1px 2px rgba(31, 41, 51, 0.08);
   overflow: hidden;
+}
+
+.nt-wb-card-selected {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+/* Sticky notes: the node color is the card background; the title bar reads
+   as a tint of the card instead of the plain surface. */
+.nt-wb-card-colored .nt-wb-card-title {
+  background: color-mix(in srgb, var(--color-surface) 35%, transparent);
 }
 
 .nt-wb-card-title {
@@ -2044,6 +2075,56 @@ mark {
 .nt-wb-missing {
   padding: 16px;
   color: var(--color-on-surface-variant);
+}
+
+.nt-wb-zoom {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 6px;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: 0 1px 3px rgba(31, 41, 51, 0.12);
+  font-size: 12px;
+}
+
+.nt-wb-zoom-level {
+  min-width: 44px;
+  text-align: center;
+  color: var(--color-on-surface-variant);
+  font-variant-numeric: tabular-nums;
+}
+
+.nt-wb-minimap {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: 0 1px 3px rgba(31, 41, 51, 0.12);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.nt-wb-minimap-card {
+  fill: var(--color-surface-container-highest);
+  stroke: var(--color-outline);
+}
+
+.nt-wb-minimap-shape {
+  fill: none;
+  stroke: var(--color-outline-variant);
+}
+
+.nt-wb-minimap-viewport {
+  fill: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  stroke: var(--color-primary);
+  stroke-width: 1;
 }
 
 /* --- search box ------------------------------------------------------------- */

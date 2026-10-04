@@ -246,43 +246,74 @@ describe("whiteboard canvas (fullscreen page)", () => {
     expect(screen.getAllByText("fresh idea").length).toBe(2);
   });
 
-  it("toolbar add-card creates a child block with geometry at the view center", async () => {
+  it("card tool + surface click creates a child block with geometry at the click point", async () => {
     const client = await seedClient();
     const host = await seedWhiteboardPage(client);
     const { container } = render(<PageView client={client} pageId={host} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Add card" }));
+    // Tool armed (one-shot): a surface click places the card, then select returns.
+    expect(screen.getByRole("button", { name: "Add card" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.pointerDown(surfaceEl(container), { clientX: 0, clientY: 0, button: 0, pointerId: 1 });
+    fireEvent.pointerUp(surfaceEl(container), { pointerId: 1 });
     await act(async () => {});
 
+    expect(screen.getByRole("button", { name: "Add card" }).getAttribute("aria-pressed")).toBe("false");
     const children = client.getChildren(host);
     expect(children.length).toBe(1);
-    // jsdom surface rect is 0×0 at (0,0) with the default viewport → center (0,0).
+    // The click lands at world (0,0) in jsdom (0×0 surface, default viewport),
+    // so the card centers there.
     expect(storedLayout(client, host).cards[children[0]!.id]).toEqual({
       x: -120, y: -60, w: 240, h: 120,
     });
   });
 
-  it("add shape → token layout; select + delete shape → token layout", async () => {
+  it("drag-draws a rectangle → token layout; select + delete shape → token layout", async () => {
     const client = await seedClient();
     const host = await seedWhiteboardPage(client);
     const { container } = render(<PageView client={client} pageId={host} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Add rectangle" }));
+    expect(screen.getByRole("button", { name: "Add rectangle" }).getAttribute("aria-pressed")).toBe("true");
+    const surface = surfaceEl(container);
+    fireEvent.pointerDown(surface, { clientX: 10, clientY: 10, button: 0, pointerId: 1 });
+    fireEvent.pointerMove(surface, { clientX: 170, clientY: 110, pointerId: 1 });
+    fireEvent.pointerUp(surface, { pointerId: 1 });
     await act(async () => {});
+
+    // The tool is one-shot: back to select, shape committed + selected.
+    expect(screen.getByRole("button", { name: "Add rectangle" }).getAttribute("aria-pressed")).toBe("false");
     let layout = storedLayout(client, host);
     expect(layout.shapes.length).toBe(1);
     expect(layout.shapes[0]!.kind).toBe("rect");
+    expect(layout.shapes[0]).toMatchObject({ x: 10, y: 10, w: 160, h: 100 });
 
     // Select the shape (pointer down on the SVG group), then delete it.
     const shape = container.querySelector<SVGGElement>(".nt-wb-shape")!;
     fireEvent.pointerDown(shape, { clientX: 0, clientY: 0, button: 0, pointerId: 1 });
     const deleteButton = screen.getByRole("button", { name: "Delete selection" }) as HTMLButtonElement;
-    expect(deleteButton.disabled).toBe(false);
     fireEvent.click(deleteButton);
     await act(async () => {});
 
     layout = storedLayout(client, host);
     expect(layout.shapes.length).toBe(0);
+  });
+
+  it("a bare click with a shape tool places a default-sized shape", async () => {
+    const client = await seedClient();
+    const host = await seedWhiteboardPage(client);
+    const { container } = render(<PageView client={client} pageId={host} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add ellipse" }));
+    const surface = surfaceEl(container);
+    fireEvent.pointerDown(surface, { clientX: 200, clientY: 150, button: 0, pointerId: 1 });
+    fireEvent.pointerUp(surface, { pointerId: 1 });
+    await act(async () => {});
+
+    const layout = storedLayout(client, host);
+    expect(layout.shapes.length).toBe(1);
+    expect(layout.shapes[0]!.kind).toBe("ellipse");
+    expect(layout.shapes[0]).toMatchObject({ x: 120, y: 100, w: 160, h: 100 });
   });
 
   it("stroke mode draws a polyline that commits to the token layout", async () => {
@@ -313,6 +344,10 @@ describe("whiteboard canvas (fullscreen page)", () => {
     const { container } = render(<PageView client={client} pageId={host} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Add ellipse" }));
+    const surface = surfaceEl(container);
+    fireEvent.pointerDown(surface, { clientX: 20, clientY: 20, button: 0, pointerId: 1 });
+    fireEvent.pointerMove(surface, { clientX: 180, clientY: 120, pointerId: 1 });
+    fireEvent.pointerUp(surface, { pointerId: 1 });
     await act(async () => {});
     expect(client.getChildren(host).length).toBe(0);
 
@@ -373,7 +408,7 @@ describe("whiteboard canvas (fullscreen page)", () => {
     expect(container.querySelector('[data-card-id="' + cardId + '"]')).toBeNull();
   });
 
-  it("pans the world on background drag; wheel zooms cursor-anchored (fullscreen)", async () => {
+  it("middle-drag pans the world; wheel zooms cursor-anchored (fullscreen)", async () => {
     const client = await seedClient();
     const host = await seedWhiteboardPage(client);
     const { container } = render(<PageView client={client} pageId={host} />);
@@ -382,7 +417,8 @@ describe("whiteboard canvas (fullscreen page)", () => {
 
     expect(world()).toBe("translate(0px, 0px) scale(1)");
 
-    fireEvent.pointerDown(surface, { clientX: 10, clientY: 10, button: 0, pointerId: 1 });
+    // Left-drag is the marquee gesture; panning rides the middle button.
+    fireEvent.pointerDown(surface, { clientX: 10, clientY: 10, button: 1, pointerId: 1 });
     fireEvent.pointerMove(surface, { clientX: 60, clientY: 40, pointerId: 1 });
     fireEvent.pointerUp(surface, { pointerId: 1 });
     expect(world()).toBe("translate(50px, 30px) scale(1)");
@@ -390,6 +426,35 @@ describe("whiteboard canvas (fullscreen page)", () => {
     surface.dispatchEvent(new WheelEvent("wheel", { clientX: 50, clientY: 30, deltaY: -100, bubbles: true, cancelable: true }));
     await act(async () => {});
     expect(world()).toContain("scale(1.16");
+  });
+
+  it("left-drag on the background box-selects; a bare click clears", async () => {
+    const client = await seedClient();
+    const cardId = "0192a000-0000-7000-8000-0000000000c5";
+    const host = await seedWhiteboardPage(client, {
+      cards: { [cardId]: { x: 100, y: 100, w: 200, h: 100 } },
+      shapes: [{ id: "shape-far", kind: "rect", x: 900, y: 900, w: 100, h: 100 }],
+    });
+    await client.createObject({ id: cardId, parentId: host, contentAst: text("pick me") });
+
+    const { container } = render(<PageView client={client} pageId={host} />);
+    const surface = surfaceEl(container);
+
+    // Marquee over the card only — the far shape stays unselected.
+    fireEvent.pointerDown(surface, { clientX: 50, clientY: 50, button: 0, pointerId: 1 });
+    fireEvent.pointerMove(surface, { clientX: 400, clientY: 300, pointerId: 1 });
+    const marquee = container.querySelector<HTMLElement>(".nt-wb-marquee");
+    expect(marquee).not.toBeNull();
+    expect(cardEl(container, cardId).className).toContain("nt-wb-card-selected");
+    fireEvent.pointerUp(surface, { pointerId: 1 });
+    expect(container.querySelector<HTMLElement>(".nt-wb-marquee")).toBeNull();
+
+    // Delete selection removes the card from the graph and its geometry.
+    fireEvent.click(screen.getByRole("button", { name: "Delete selection" }));
+    await act(async () => {});
+    expect(client.getChildren(host).length).toBe(0);
+    expect(storedLayout(client, host).cards[cardId]).toBeUndefined();
+    expect(storedLayout(client, host).shapes.length).toBe(1);
   });
 });
 

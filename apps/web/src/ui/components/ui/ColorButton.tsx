@@ -266,7 +266,9 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
           aria-modal="true"
           aria-label="Color picker"
           className="color-btn-picker"
-          onClickCapture={(e) => e.stopPropagation()}
+          // Mousedown capture keeps host surfaces (modal overlays, rows) from
+          // reacting to picker presses; a CLICK capture would abort React's
+          // capture walk and swallow the swatches' own onClick handlers.
           onMouseDownCapture={(e) => e.stopPropagation()}
           style={{
             position: 'fixed',
