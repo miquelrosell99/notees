@@ -174,6 +174,18 @@ $ notees object property set 01a0dd78-… authors '{"nodeId":"01a1…"}' --idx 1
 $ notees object property delete 01a0dd78-… publicationDate
 ```
 
+**Covers.** A page's banner image is a typed property (`cover`, an image-typed reference to an asset node) plus cover identity on that asset — `notees cover set` is the one gesture that composes the whole invariant (family ensure → asset node → upload + attach → property → classes), mirroring the app's banner flow:
+
+```console
+$ notees cover set 01a0dd78-… ./photo.jpg          # upload + set (replaces by default)
+$ notees cover set 01a0dd78-… --asset 01a1…        # re-point at an existing asset node
+$ notees cover set 01a0dd78-… ./photo.jpg --skip-existing   # re-runnable scripts: no-op when covered
+$ notees cover get 01a0dd78-…                      # the cover's asset node id
+$ notees cover clear 01a0dd78-…                    # unset; the asset node survives
+```
+
+Replacing keeps the old asset node in the graph (its cover class drops once no node covers with it); `--skip-existing` prints the current asset id and writes nothing. Counting covered nodes rides the query language's exists-arm: `notees search "class:Pokemon prop:cover:"`.
+
 **Property schemas.** The schema layer is manageable from the CLI too — `notees property` lists, shows, creates, renames, and deletes schemas, and binds/unbinds them to classes (the class argument is a uuid or a title, the schema argument a uuid or a name). `delete` is a soft-delete (authored values survive; the same UUID can be recreated later — in the app, the settings modal's **Convert…** runs the blessed delete+recreate flow for type changes: it creates the new schema, copies the values that map, lists the ones that don't (dropped only with explicit confirmation), re-points the class bindings, and deletes the old schema); `bind` patches one binding — omitted flags keep their stored values, `--no-<flag>` clears, and a wrong-typed `--default` is rejected:
 
 ```console
@@ -441,7 +453,7 @@ Base URL `http://localhost:8377`, auth header `X-API-Key: nk_…` on every call 
 | `POST /api/assets` (multipart) · `GET /api/assets/:id` · `GET /api/assets/:id/info` | Upload (sniffed), download, metadata |
 | `GET /api/workspaces/:id/export.zip?includeAssets=0|1` | Full-workspace Markdown zip — one file per top-level and child page, manifest, optional `assets/` folder |
 | `GET /api/plugins` · `POST /api/plugins` · `DELETE /api/plugins/:id` · `POST /api/plugins/:id/enabled` | The inert plugin-manifest registry (§34.61): install validates the manifest grammar (idempotent on id+version), the toggle flips a stored bit. Owner/admin only — the first surface enforcing the reserved `admin` scope. The plugin runtime is parked: nothing executes |
-| `POST /api/shares` · `GET /api/shares?nodeId=` · `DELETE /api/shares/:token` | Read-only public page shares (§34.61): mint an unguessable token (`{nodeId, expiresAt?}` → `{share: {token, urlPath, …}}`), list (owner/admin), revoke (immediate). Share state is server coordination, not op-log state |
+| `POST /api/shares` · `GET /api/shares?nodeId=` · `DELETE /api/shares/:token` | Read-only public page shares (§34.62): mint an unguessable token (`{nodeId, expiresAt?}` → `{share: {token, urlPath, …}}`), list (owner/admin), revoke (immediate). Share state is server coordination, not op-log state |
 | `GET /s/:token` | The public share view — unauthenticated BY DESIGN (unguessable tokens): one static, read-only HTML document; unknown/revoked/expired are the same 404 (no enumeration) |
 | `GET /api/meta` | Server self-description: version, wire protocol versions, default workspace, setup state (auth-free) |
 | `GET /api/openapi.json` | The OpenAPI 3.1 contract (auth-free, `cache-control: no-store`) |
