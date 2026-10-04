@@ -123,22 +123,36 @@ export function JournalsView({
     keepVisualRef.current = null;
   }, [extraBefore]);
 
+  /**
+   * The anchor's offset within the list's CONTENT. Rect-based, not
+   * offsetTop: the list is not a positioned ancestor, so offsetTop would
+   * measure from some higher offsetParent and overshoot — scrolling PAST
+   * the entry and hiding the day page's header (owner bug 2026-10-04).
+   */
+  const anchorContentTop = (): number | null => {
+    const el = listRef.current;
+    const anchor = el?.querySelector(".journal-entry[data-anchor='true']");
+    if (el === null || el === undefined || !(anchor instanceof HTMLElement)) return null;
+    return anchor.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
+  };
+
   /** First mount: center today (or the anchor) at the top of the feed. */
   useLayoutEffect(() => {
     if (centeredRef.current || visible.length === 0) return;
     centeredRef.current = true;
     const el = listRef.current;
-    const anchor = el?.querySelector(".journal-entry[data-anchor='true']");
-    if (el !== null && el !== undefined && anchor instanceof HTMLElement) {
-      el.scrollTop = anchor.offsetTop;
+    const top = anchorContentTop();
+    if (el !== null && el !== undefined && top !== null) {
+      el.scrollTop = top;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- centers once on mount
   }, [visible.length]);
 
   const scrollToToday = () => {
     const el = listRef.current;
-    const anchor = el?.querySelector(".journal-entry[data-anchor='true']");
-    if (el !== undefined && el !== null && anchor instanceof HTMLElement) {
-      el.scrollTop = anchor.offsetTop;
+    const top = anchorContentTop();
+    if (el !== undefined && el !== null && top !== null) {
+      el.scrollTop = top;
     }
   };
 
