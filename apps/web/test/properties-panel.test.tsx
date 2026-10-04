@@ -344,3 +344,56 @@ describe("PB2: carrier lifecycle at the client level", () => {
     expect(client.getBlockTree(owner).map((entry) => entry.node.id)).toContain(carrier);
   });
 });
+
+describe("dead carrier in the value cell (owner bug 2026-10-04)", () => {
+  it("a text property whose carrier was deleted renders EMPTY — never the raw uuid — and re-editing authors a fresh carrier", async () => {
+    const client = await seedClient();
+    const schemaId = await client.createPropertySchema({ name: "Description", type: "text" });
+    const owner = await client.createObject({ presentAsMain: true, name: "Inmunocal" });
+    const carrier = await client.createObject({
+      parentId: owner,
+      contentAst: [{ type: "text", text: "described" }],
+    });
+    await client.setProperty(owner, schemaId, { nodeId: carrier }, 0);
+    // Delete the carrier block (the value-cell content), like the owner did.
+    await client.deleteObject(carrier);
+    await flushWrites();
+
+    render(<PageView client={client} pageId={owner} />);
+    expandProperties();
+    const input = screen.getByLabelText("Property Description") as HTMLInputElement;
+    // The dangling ref does not surface as a uuid, here or after reload —
+    // the cell is simply empty (the content is gone).
+    expect(input.value).toBe("");
+    expect(input.value).not.toContain(carrier);
+
+    // Typing + blur authors a NEW carrier and re-points the value.
+    fireEvent.blur(input, { target: { value: "fresh description" } });
+    await flushWrites();
+    const effective = client.getEffectiveProperties(owner);
+    expect(effective).toHaveLength(1);
+    const ref = (effective[0]!.value as { nodeId: string }).nodeId;
+    expect(ref).not.toBe(carrier);
+    expect(client.getNode(ref)?.contentAst).toEqual([{ type: "text", text: "fresh description" }]);
+  });
+
+  it("touching a dead-carrier cell empty unsets the dangling value", async () => {
+    const client = await seedClient();
+    const schemaId = await client.createPropertySchema({ name: "Description", type: "text" });
+    const owner = await client.createObject({ presentAsMain: true, name: "Owner" });
+    const carrier = await client.createObject({
+      parentId: owner,
+      contentAst: [{ type: "text", text: "gone" }],
+    });
+    await client.setProperty(owner, schemaId, { nodeId: carrier }, 0);
+    await client.deleteObject(carrier);
+    await flushWrites();
+
+    render(<PageView client={client} pageId={owner} />);
+    expandProperties();
+    const input = screen.getByLabelText("Property Description");
+    fireEvent.blur(input, { target: { value: "" } });
+    await flushWrites();
+    expect(client.getEffectiveProperties(owner)).toEqual([]);
+  });
+});
