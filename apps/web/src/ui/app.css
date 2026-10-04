@@ -1740,6 +1740,98 @@ select:focus-visible {
   background: var(--color-surface-container-high);
 }
 
+/* --- code_block + hr renderers (§34.34 B3/B5) -----------------------------
+   Block-scale code: mono pre with the optional language hint as a badge.
+   The divider: a hairline rule across the block width. */
+
+.nt-code-block {
+  display: block;
+  margin: 4px 0;
+}
+
+.nt-code-block__lang {
+  display: inline-block;
+  font-size: 0.72em;
+  line-height: 1.4;
+  padding: 0 8px;
+  border-radius: 6px 6px 0 0;
+  background: var(--color-surface-container-highest);
+  color: var(--color-on-surface-variant);
+  border: 1px solid var(--color-outline-variant);
+  border-bottom: none;
+}
+
+.nt-code-block__pre {
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 8px;
+  background: var(--color-surface-container-low);
+  font-family: var(--font-family-mono);
+  font-size: 0.85em;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.nt-hr {
+  border: none;
+  border-top: 1px solid var(--color-outline-variant);
+  margin: 6px 0;
+  width: 100%;
+}
+
+/* --- embed_ref card views (§34.34 B8) --------------------------------------
+   The intermediate reference views: a bounded identity card (icon + name;
+   the wide variant adds the one-line excerpt). Never transcludes. */
+
+.nt-embed-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  margin: 2px 0;
+  padding: 4px 10px;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 8px;
+  background: var(--color-surface-container);
+  color: var(--color-on-surface);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.nt-embed-card--wide_card {
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 2px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.nt-embed-card:hover {
+  background: var(--color-surface-container-high);
+}
+
+.nt-embed-card__label {
+  font-weight: 500;
+}
+
+.nt-embed-card__excerpt {
+  flex-basis: 100%;
+  color: var(--color-on-surface-variant);
+  font-size: 0.88em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nt-embed-card--broken {
+  border-style: dashed;
+  color: var(--color-on-surface-variant);
+  cursor: default;
+}
+
 /* --- asset_ref renderer (SCHEMA.md:61) --------------------------------------
    Inline: an image preview capped at text height, or a filename+size chip.
    Full-bleed (the token alone in its stream): the image spans the block

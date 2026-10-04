@@ -23,7 +23,7 @@
 
 import type { SqliteDB } from "./db.js";
 
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 /** FTS module for the search_index virtual table (backend capability). */
 export type FtsModule = "fts5" | "fts4";
@@ -373,6 +373,23 @@ CREATE TABLE IF NOT EXISTS app_meta (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+-- Per-workspace feature toggles (§34.35, the workspace.feature.set op): the
+-- winning LWW row per (workspace_id, feature); an ABSENT row means enabled
+-- (all features default ON — the empty table is the pre-toggle state, so
+-- existing workspaces need no migration). The applier derives the
+-- membership-preserving archival of the feature's managed system classes
+-- from this row (class registry active bit + the class node's is_active;
+-- class_member_set rows are never touched).
+CREATE TABLE IF NOT EXISTS workspace_feature (
+    workspace_id TEXT NOT NULL,
+    feature TEXT NOT NULL,
+    enabled INTEGER NOT NULL,
+    hlc_physical INTEGER NOT NULL DEFAULT 0,
+    hlc_logical INTEGER NOT NULL DEFAULT 0,
+    actor_id TEXT,
+    PRIMARY KEY (workspace_id, feature)
+);
 `;
 
 const SCHEMA_SQL_FTS4 = SCHEMA_SQL.replace(
@@ -499,6 +516,20 @@ export function migrate(
         error TEXT NOT NULL,
         payload TEXT NOT NULL,
         quarantined_at TEXT NOT NULL
+    );
+  `);
+  // v9 -> v10: per-workspace feature toggles (§34.35). Purely additive —
+  // CREATE IF NOT EXISTS is a no-op for fresh v10 creates; existing
+  // databases gain the empty table (empty = all features enabled).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS workspace_feature (
+        workspace_id TEXT NOT NULL,
+        feature TEXT NOT NULL,
+        enabled INTEGER NOT NULL,
+        hlc_physical INTEGER NOT NULL DEFAULT 0,
+        hlc_logical INTEGER NOT NULL DEFAULT 0,
+        actor_id TEXT,
+        PRIMARY KEY (workspace_id, feature)
     );
   `);
   db.pragma(`user_version = ${SCHEMA_VERSION}`);}
