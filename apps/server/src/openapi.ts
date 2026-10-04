@@ -801,7 +801,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   ["post", "/api/shares", {
     summary: "Mint a public read-only share token for a page (owner/admin only)",
     description:
-      "§34.61 (shares record): share state is server-side coordination (like prefs), NOT operation-log state — no envelope, no op type. Returns the token and the public urlPath (`/s/<token>`; prefix the server origin for the full link). Threat note: possession of the URL IS the capability — the token is 24 random bytes (base64url), there is NO directory listing (unguessable tokens; unknown/revoked/expired all answer the same 404), revocation takes effect on the next request, and an optional expiresAt dies on its own. Classes are not shareable (422); trashed pages stop resolving immediately. Only the object API's default workspace can be shared (the v1 object-authz scope).",
+      "§34.62 (shares record): share state is server-side coordination (like prefs), NOT operation-log state — no envelope, no op type. Returns the token and the public urlPath (`/s/<token>`; prefix the server origin for the full link). Threat note: possession of the URL IS the capability — the token is 24 random bytes (base64url), there is NO directory listing (unguessable tokens; unknown/revoked/expired all answer the same 404), revocation takes effect on the next request, and an optional expiresAt dies on its own. Classes are not shareable (422); trashed pages stop resolving immediately. Only the object API's default workspace can be shared (the v1 object-authz scope).",
     tags: ["Shares"],
     requestBody: {
       type: "object",
@@ -818,7 +818,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   ["get", "/api/shares", {
     summary: "List share tokens (owner/admin only; ?nodeId= filters to one page)",
     description:
-      "§34.61 (shares record): every share of the default workspace, newest first — including revoked rows (revokedAt set), so managers see history. Scoped API keys authenticate as their user; the user must still be owner/admin.",
+      "§34.62 (shares record): every share of the default workspace, newest first — including revoked rows (revokedAt set), so managers see history. Scoped API keys authenticate as their user; the user must still be owner/admin.",
     tags: ["Shares"],
     query: {
       nodeId: { description: "filter to one node's shares", type: "string" },
@@ -827,7 +827,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   ["delete", "/api/shares/:token", {
     summary: "Revoke a share link (owner/admin only; effective immediately)",
     description:
-      "§34.61 (shares record): sets revoked_at — the next GET /s/:token answers 404. The row stays for history; already-revoked or unknown tokens 404.",
+      "§34.62 (shares record): sets revoked_at — the next GET /s/:token answers 404. The row stays for history; already-revoked or unknown tokens 404.",
     tags: ["Shares"],
     params: { token: { description: "the opaque share token (base64url, NOT a uuid)", format: "opaque" } },
     errors: ["not_found"],
@@ -835,7 +835,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   ["get", "/s/:token", {
     summary: "The public share view: one static read-only HTML document (UNAUTHENTICATED BY DESIGN)",
     description:
-      "§34.61 (shares record): GET-only, no credentials, no app — the page title, its block tree as nested lists, and its properties, projected by the export serializer (no JavaScript, no external resource; a strict CSP, no-store caching, nosniff, and no-referrer ride along). Missing, revoked, expired tokens and trashed pages are indistinguishable 404s (no enumeration oracle). The global per-IP rate limit is the only throttle.",
+      "§34.62 (shares record): GET-only, no credentials, no app — the page title, its block tree as nested lists, and its properties, projected by the export serializer (no JavaScript, no external resource; a strict CSP, no-store caching, nosniff, and no-referrer ride along). Missing, revoked, expired tokens and trashed pages are indistinguishable 404s (no enumeration oracle). The global per-IP rate limit is the only throttle.",
     tags: ["Shares"],
     params: { token: { description: "the opaque share token from POST /api/shares", format: "opaque" } },
     success: { description: "text/html — the standalone read-only share document" },
@@ -885,7 +885,7 @@ export function buildOpenApiDocument(serverVersion: string): JsonSchema {
       { name: "Assets", description: "Content-addressed asset storage" },
       { name: "Relay", description: "Sync API — WIRE.md §1–2 is the normative spec" },
       { name: "Plugins", description: "Inert plugin-manifest registry (§34.61 — schema + storage shipped; the runtime is parked, §34.33 AG7)" },
-      { name: "Shares", description: "Read-only public page shares — token management (owner/admin) + the unauthenticated GET /s/:token view (§34.61 shares record)" },
+      { name: "Shares", description: "Read-only public page shares — token management (owner/admin) + the unauthenticated GET /s/:token view (§34.62 shares record)" },
     ],
     paths,
     components: {

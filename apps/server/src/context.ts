@@ -36,7 +36,7 @@ export class ServerContext {
   readonly auth: AuthStorage;
   /** §34.59: the inert plugin-manifest registry (runtime parked — §34.33 AG7). */
   readonly plugins: PluginRegistry;
-  /** §34.59 (shares record): read-only public share tokens (server coordination). */
+  /** §34.62 (shares record): read-only public share tokens (server coordination). */
   readonly shares: ShareStorage;
   readonly lockout: AccountLockout;
   readonly workspaces: WorkspaceManager;
