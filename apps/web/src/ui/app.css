@@ -823,6 +823,87 @@ select:focus-visible {
   color: var(--color-on-surface-variant);
 }
 
+/* ── §34.19 block multi-selection ─────────────────────────────────────────
+   Selected rows wear a soft accent tint on the row chrome (display-only,
+   session-local). The floating action bar rides the bottom of the viewport
+   while a selection is live. */
+.nt-block--selected > .nt-block-row {
+  background: color-mix(in srgb, var(--color-primary-container, var(--color-surface-container-high)) 45%, transparent);
+  border-radius: 6px;
+}
+
+.nt-selection-bar {
+  position: fixed;
+  bottom: var(--spacing-4, 16px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2, 8px);
+  padding: 6px 10px;
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+  border: 1px solid var(--color-outline-variant, var(--color-outline));
+  border-radius: 999px;
+  box-shadow: var(--shadow-2, 0 4px 16px rgb(0 0 0 / 18%));
+  z-index: var(--z-1000);
+}
+
+.nt-selection-bar__count {
+  font: var(--font-label-medium);
+  color: var(--color-on-surface-variant);
+  padding: 0 var(--spacing-1, 4px);
+  white-space: nowrap;
+}
+
+.nt-selection-bar__btn {
+  border: none;
+  background: transparent;
+  color: var(--color-on-surface);
+  font: var(--font-label-medium);
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.nt-selection-bar__btn:hover,
+.nt-selection-bar__btn--active {
+  background: var(--color-surface-container-highest);
+}
+
+.nt-selection-bar__btn--danger {
+  color: var(--color-error);
+}
+
+.nt-selection-bar__btn--icon {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 6px;
+}
+
+/* Ghost trailing block (§34.19): the muted "click to add" affordance after
+   a body whose last child is non-empty. Display-only until the click. */
+.nt-ghost-block {
+  margin-top: 2px;
+  margin-left: 34px;
+  border: none;
+  background: transparent;
+  padding: 3px 8px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-style: italic;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  opacity: 0.65;
+}
+
+.nt-ghost-block:hover {
+  opacity: 1;
+  background: var(--color-surface-container-highest);
+}
+
 .nt-title-editable {
   cursor: text;
   outline: none;
@@ -2323,4 +2404,147 @@ mark {
   font-size: 13px;
   letter-spacing: 0.05em;
   color: var(--color-on-surface-variant);
+}
+
+/* --- responsive pass (§34.19 MobileLayout row) -------------------------------
+   Narrow-width adaptations of the app chrome — additive media queries only,
+   no component changes. Two steps: the tablet boundary (768px, the same
+   breakpoint the modal bottom-sheet reads from --breakpoint-tablet) for the
+   sidebar drawer + touch targets, and the phone step (480px) where the peek
+   card becomes a full-width bottom sheet instead of the 1100px hide. */
+
+@media (max-width: 768px) {
+  /* The drawer floats over content (Sidebar.css positions it fixed) but
+     inherited the desktop transparent canvas — give it a real surface so
+     the nav reads above the page beneath. */
+  .nt-sidebar-open .nt-sidebar {
+    width: min(280px, 85vw);
+    background: var(--color-surface-container-low);
+    border-right: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  }
+
+  /* Touch targets: sidebar rows (28px desktop) and the shell icon buttons
+     (32px) grow to the 44px button token floor. */
+  .nt-side-item {
+    min-height: var(--height-button-lg, 44px);
+  }
+
+  .nt-side-star {
+    /* No hover on touch: the favorite toggle stays visible and tappable. */
+    display: inline-flex;
+    width: var(--height-button-lg, 44px);
+    height: var(--height-button-lg, 44px);
+  }
+
+  .nt-icon-btn {
+    width: var(--height-button-lg, 44px);
+    height: var(--height-button-lg, 44px);
+  }
+
+  /* Collapsible section headers stay comfortable to tap. */
+  .nt-side-header-toggle {
+    min-height: var(--page-icon-placeholder-size, 40px);
+    display: flex;
+    align-items: center;
+  }
+
+  /* The topbar keeps its controls reachable; the wordmark yields. */
+  .nt-wordmark {
+    display: none;
+  }
+
+  /* The content column and card breathe at phone/tablet widths. */
+  .nt-page {
+    padding: var(--spacing-5, 20px) var(--spacing-4, 16px) var(--spacing-8, 32px);
+  }
+
+  .nt-page-card {
+    margin: var(--spacing-2, 8px) var(--spacing-2, 8px) var(--spacing-2, 8px) 0;
+  }
+}
+
+@media (max-width: 480px) {
+  /* The peek card / right rail is hidden below 1100px (PageCard.css); at
+     phone widths an open panel becomes a full-width bottom sheet (the
+     row's "References bottom sheet") instead of unreachable chrome. */
+  .nt-body .nt-right-card {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    width: 100%;
+    max-height: 75vh;
+    margin: 0;
+    padding: var(--spacing-2, 8px);
+    padding-bottom: calc(var(--spacing-2, 8px) + env(safe-area-inset-bottom, 0px));
+    background: var(--color-surface-container-low);
+    border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
+    border-radius: var(--shape-large, 16px) var(--shape-large, 16px) 0 0;
+    box-shadow: var(--shadow-elevation-2, 0 -4px 16px rgba(0, 0, 0, 0.22));
+    z-index: 40;
+  }
+}
+
+/* --- tables (§34.34 B4) -----------------------------------------------------------
+   A table is a container block carrying the `table` class; its children are
+   the rows, each row's children are the cells — and a cell IS an ordinary
+   block (the BlockRow machinery applies: editable inline, mentionable,
+   zoomable via its bullet). The container's children render as a CSS grid
+   whose column template comes from the FIRST row's cell count; each row is
+   a subgrid row so cells align across ragged rows (fewer cells = blanks,
+   more = implicit extra columns). Token-only CSS; the dynamic template
+   itself is the one inline style (BlockRow). */
+
+.nt-table {
+  display: grid;
+  /* grid-template-columns is set inline from the first row's cell count. */
+  grid-auto-columns: minmax(0, 1fr);
+  margin: var(--spacing-1, 4px) 0;
+  border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-left: var(--border-width-default, 1px) solid var(--color-outline-variant);
+}
+
+.nt-table-row {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+}
+
+/* A cell: the ordinary block root becomes the grid cell. */
+.nt-table-row > .nt-block {
+  min-width: 0;
+  padding: 2px var(--spacing-2, 8px);
+  border-right: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default, 1px) solid var(--color-outline-variant);
+}
+
+/* Cells keep their usual chrome but the grip only surfaces on hover —
+   a table reads as a grid, not a stack of outliner rows. */
+.nt-table-row .nt-block-grip {
+  opacity: 0;
+}
+
+.nt-table-row .nt-block:hover > .nt-block-row .nt-block-grip,
+.nt-table-row .nt-block:focus-within > .nt-block-row .nt-block-grip {
+  opacity: 1;
+}
+
+/* The container's hover affordance: + Row / + Column, revealed by hovering
+   the container's own row or its grid (not nested tables — the direct-child
+   :has keeps it scoped). */
+.nt-table-toolbar {
+  display: flex;
+  gap: var(--spacing-1, 4px);
+  margin: var(--spacing-1, 4px) 0;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.nt-block:has(> .nt-block-row:hover) > .nt-table-toolbar,
+.nt-block:has(> .nt-table:hover) > .nt-table-toolbar,
+.nt-table-toolbar:hover,
+.nt-table-toolbar:focus-within {
+  opacity: 1;
 }

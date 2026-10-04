@@ -167,6 +167,8 @@ import { useLinkEditModalOpener } from "./editor-popups/LinkEditModal.js";
 import { requestQueryBuilderOpen } from "./QueryBlockView.js";
 import { TemplateListPopup } from "./templates/TemplateListPopup.js";
 import { useTemplateInstantiator } from "./templates/useTemplateInstantiator.js";
+import { ensureTableFamily } from "./components/tableFamily.js";
+import { createTable, DEFAULT_TABLE_COLUMNS, parseTableColumnCount } from "./components/tableGrid.js";
 
 export const SAVE_DEBOUNCE_MS = 400;
 
@@ -808,6 +810,33 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       openStage({ start, filter: remainder });
       return;
     }
+    if (commandId === "table") {
+      // §34.34 B4: a table is a CONTAINER node classed `table` (the class
+      // says what-it-is — the whiteboard pattern; no new wire token). It is
+      // created as a child of this block at the caret with one row of empty
+      // cells; the optional typed remainder is the column count ("/table 5",
+      // default three). The caret then moves into the first cell. The
+      // container's children render as a CSS grid in BlockRow; every cell
+      // is an ordinary block — mentionable, editable, Tab/Enter intact.
+      const trimmed = query.trim();
+      const remainder = /^table(\s+|$)/i.test(trimmed)
+        ? trimmed.replace(/^table(\s+|$)/i, "").trim()
+        : "";
+      const columns = parseTableColumnCount(remainder) ?? DEFAULT_TABLE_COLUMNS;
+      applySplice(start, end, [], start);
+      const parentId = nodeRef.current.id;
+      void (async () => {
+        try {
+          const tableClassId = await ensureTableFamily(client);
+          const { firstCellId } = await createTable(client, parentId, tableClassId, columns);
+          requestFocus(firstCellId, "end");
+        } catch (error) {
+          console.warn("[capture] /table failed:", error);
+        }
+      })();
+      onExitEdit();
+      return;
+    }
     applySplice(start, end, [], start);
   };
 
@@ -898,6 +927,36 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
     void client.assignClass(nodeRef.current.id, picked.id).catch((error: unknown) => {
       console.warn(`[capture] assignClass (${picked.id}) failed:`, error);
     });
+    stripTrigger(state.start, end);
+    el.focus();
+  };
+
+  /**
+   * Multi-select apply from the # / + popup (§34.19): every picked node is
+   * assigned in pick order (tags / classes), the trigger placeholder is
+   * consumed once, and the block refocuses.
+   */
+  const commitNodePicks = (picked: ClientNode[]) => {
+    const state = capture;
+    if (state === null || state.kind === "slash") return;
+    setCapture(null);
+    const el = spanRef.current;
+    if (el === null) return;
+    const caret = caretOffset(el) ?? state.start + 1;
+    const end = state.replaceEnd ?? Math.max(caret, state.start + 1);
+    if (state.kind === "tag") {
+      for (const node of picked) {
+        void client.assignTag(nodeRef.current.id, node.id).catch((error: unknown) => {
+          console.warn(`[capture] assignTag (${node.id}) failed:`, error);
+        });
+      }
+    } else {
+      for (const node of picked) {
+        void client.assignClass(nodeRef.current.id, node.id).catch((error: unknown) => {
+          console.warn(`[capture] assignClass (${node.id}) failed:`, error);
+        });
+      }
+    }
     stripTrigger(state.start, end);
     el.focus();
   };
@@ -1194,6 +1253,31 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       }
     }
     const mod = event.metaKey || event.ctrlKey;
+    // §34.19: Alt+Shift+↑/↓ reorders the block among its siblings without
+    // dragging (the v1 MOVE_UP/MOVE_DOWN chords). The caret stays in the
+    // editor; the write is one object.move per press.
+    if (event.altKey && event.shiftKey && !mod && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+      event.preventDefault();
+      const id = nodeRef.current.id;
+      const position = positions.get(id);
+      if (position === undefined) return;
+      const parentId = position.parentId ?? rootId;
+      const siblings = client.getChildren(parentId);
+      const index = siblings.findIndex((sibling) => sibling.id === id);
+      if (index < 0) return;
+      if (event.key === "ArrowUp") {
+        if (index === 0) return; // already first
+        void client.moveObject(id, parentId, undefined, siblings[index - 1]!.id).catch((error: unknown) => {
+          console.warn(`[outliner] move up (${id}) failed:`, error);
+        });
+      } else {
+        if (index >= siblings.length - 1) return; // already last
+        void client.moveObject(id, parentId, siblings[index + 1]!.id).catch((error: unknown) => {
+          console.warn(`[outliner] move down (${id}) failed:`, error);
+        });
+      }
+      return;
+    }
     // Atomic pill gestures — a selected pill (or a caret adjacent to one)
     // owns Backspace/Delete/arrows before any other branch (v1 parity: the
     // pill is one logical unit). The caret never sits inside a pill, so
@@ -1589,6 +1673,8 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
             }
             onClose={closeNodePicker}
             onAdd={commitNodePick}
+            multiSelect={capture.kind !== "mention"}
+            onApplyMulti={capture.kind !== "mention" ? commitNodePicks : undefined}
           />
         ))}
       {templateStage !== null && (

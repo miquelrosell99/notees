@@ -571,3 +571,33 @@
 .node-result-item--filter-suggestion.node-result-item--highlighted {
   background: var(--color-primary-container);
 }
+
+/* Multi-select checkbox mode (§34.19): the checkbox rides the row's left
+   slot (pointer-transparent — the whole row toggles); the footer carries
+   the picked count, the Apply commit, and the keyboard hints. */
+.node-selector__multi-check {
+  display: inline-flex;
+  align-items: center;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.node-selector__multi-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3, 0.75rem);
+  border-top: 1px solid var(--color-outline-variant);
+  color: var(--color-on-surface-variant);
+  font: var(--font-label-small);
+}
+
+.node-selector__multi-count {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.node-selector__multi-hint {
+  white-space: nowrap;
+  opacity: var(--opacity-70, 0.7);
+}
