@@ -10,10 +10,14 @@
  *
  * Edit gestures (§34.27 L4, v1 parity §34.19 :1134, opt-in via `editable`):
  * hovering a crumb reveals a chevron and right-click opens the same menu —
- * Open / Reassign parent… (node picker) / Remove parent (detach to the
- * workspace root; a root crumb offers Add parent… instead) — acting on the
- * CRUMB's node, plus a trailing "+ Add parent" pill when the leaf itself is
- * parentless. Single-parent tree: every gesture is one object.move.
+ * Open / Reassign parent… / Remove parent — acting on the EDGE BELOW the
+ * crumb: the menu edits the parent relationship between the crumb and the
+ * node directly under it (for the direct parent crumb, that node is the
+ * page itself — the button edits or removes THAT parent). The leaf/self
+ * crumb carries no edit affordance (owner 2026-10-04: editing your own
+ * parent from your own crumb makes no sense); a parentless leaf instead
+ * offers the trailing "+ Add parent" pill. Single-parent tree: every
+ * gesture is one object.move.
  */
 
 import { useEffect, useRef, useState, type MouseEvent } from "react";
@@ -109,9 +113,10 @@ export function Breadcrumbs({
   const [leadPopupOpen, setLeadPopupOpen] = useState(false);
   const navRef = useRef<HTMLElement>(null);
   const [leadClipped, setLeadClipped] = useState(false);
-  /** Edit menu: which node's parentage is being edited + where it opens. */
+  /** Edit menu: the edge being edited (the crumb and the node under it). */
   const [editMenu, setEditMenu] = useState<{
-    node: ClientNode;
+    parent: ClientNode;
+    child: ClientNode;
     position: { x: number; y: number };
   } | null>(null);
   /** Parent picker target (the node whose parent is being reassigned/added). */
@@ -173,56 +178,69 @@ export function Breadcrumbs({
   const withSeparator = (id: string, base: boolean) => base || (showCurrentCrumb && id === lastKey);
 
   /** Open the crumb's edit menu (right-click, or the hover chevron). */
-  const openEditMenu = (event: MouseEvent, node: ClientNode) => {
+  const openEditMenu = (
+    event: MouseEvent,
+    parent: ClientNode,
+    child: ClientNode,
+  ) => {
     event.preventDefault();
     event.stopPropagation();
-    setEditMenu({ node, position: { x: event.clientX, y: event.clientY } });
+    setEditMenu({ parent, child, position: { x: event.clientX, y: event.clientY } });
   };
 
-  /** The parentage menu for one crumb node (also used for the current crumb). */
-  const editMenuItems = (node: ClientNode, position: { x: number; y: number }): ContextMenuItem[] => {
-    const items: ContextMenuItem[] = [
-      {
-        id: "open",
-        label: "Open",
-        icon: "mdi-arrow-top-right",
-        onClick: () => onOpenNode?.(node.id),
-      },
-    ];
-    if (node.parentId !== null) {
-      items.push(
-        {
-          id: "reassign",
-          label: "Reassign parent…",
-          icon: "mdi-file-move-outline",
-          onClick: () => setParentPicker({ nodeId: node.id, position }),
-        },
-        {
-          id: "remove",
-          label: "Remove parent",
-          icon: "mdi-link-variant-off",
-          danger: true,
-          onClick: () => void client.moveObject(node.id, null).catch(() => undefined),
-        },
-      );
-    } else {
-      items.push({
-        id: "add",
-        label: "Add parent…",
-        icon: "mdi-plus",
-        onClick: () => setParentPicker({ nodeId: node.id, position }),
-      });
-    }
-    return items;
+  /** The parentage menu for the edge below one crumb: reassign/remove the
+   *  CHILD's parent (the crumb) — for the direct parent crumb that edits
+   *  the page's own parentage. */
+  const editMenuItems = (
+    parent: ClientNode,
+    child: ClientNode,
+    position: { x: number; y: number },
+  ): ContextMenuItem[] => [
+    {
+      id: "open",
+      label: "Open",
+      icon: "mdi-arrow-top-right",
+      onClick: () => onOpenNode?.(parent.id),
+    },
+    {
+      id: "reassign",
+      label: "Reassign parent…",
+      icon: "mdi-file-move-outline",
+      onClick: () => setParentPicker({ nodeId: child.id, position }),
+    },
+    {
+      id: "remove",
+      label: "Remove parent",
+      icon: "mdi-link-variant-off",
+      danger: true,
+      onClick: () => void client.moveObject(child.id, null).catch(() => undefined),
+    },
+  ];
+
+  /** The node directly under a crumb in the trail (the edge the crumb's
+   *  edit menu acts on): the next trail item, else the current node when it
+   *  follows. Undefined for a trailing crumb with no current node — no edge
+   *  to edit, so the crumb renders without the edit affordance. */
+  const childBelowOf = (item: Crumb): ClientNode | undefined => {
+    const index = items.findIndex((entry) => entry.node.id === item.node.id);
+    const next = items[index + 1];
+    if (next !== undefined) return next.node;
+    return showCurrentCrumb ? currentNode : undefined;
   };
 
-  const crumb = (item: Crumb, key: string, showSeparator: boolean) => (
+  const crumb = (item: Crumb, key: string, showSeparator: boolean) => {
+    const childBelow = childBelowOf(item);
+    return (
     <span key={key} className="node-breadcrumb-item">
       <button
         type="button"
         className="node-breadcrumb-link"
         onClick={() => onOpenNode?.(item.node.id)}
-        onContextMenu={editable ? (event) => openEditMenu(event, item.node) : undefined}
+        onContextMenu={
+          editable && childBelow !== undefined
+            ? (event) => openEditMenu(event, item.node, childBelow)
+            : undefined
+        }
       >
         {client.effectiveNodeIcon(item.node) !== null && (
           <Icon
@@ -233,13 +251,13 @@ export function Breadcrumbs({
         )}
         <span className="node-breadcrumb-name">{item.name}</span>
       </button>
-      {editable && (
+      {editable && childBelow !== undefined && (
         <button
           type="button"
           className="node-breadcrumb-edit"
-          aria-label={`Edit parent of ${item.name}`}
+          aria-label={`Edit parent of ${crumbNameOf(childBelow)}`}
           title="Edit parent"
-          onClick={(event) => openEditMenu(event, item.node)}
+          onClick={(event) => openEditMenu(event, item.node, childBelow)}
         >
           <Icon path="mdi-menu-down" size={0.7} />
         </button>
@@ -248,7 +266,8 @@ export function Breadcrumbs({
         <Icon path="mdi-chevron-right" size={0.7} className="node-breadcrumb-separator" />
       )}
     </span>
-  );
+    );
+  };
 
   return (
     <nav
@@ -369,13 +388,14 @@ export function Breadcrumbs({
         )}
 
       {currentNode !== undefined && showCurrentCrumb && (
+        // The leaf crumb is position-only: no edit affordance on self
+        // (owner 2026-10-04 — the parent edit lives on the parent's crumb).
         <span className="node-breadcrumb-item node-breadcrumb-current">
           <button
             type="button"
             className="node-breadcrumb-link"
             aria-current="page"
             onClick={() => onOpenNode?.(currentNode.id)}
-            onContextMenu={editable ? (event) => openEditMenu(event, currentNode) : undefined}
           >
             {client.effectiveNodeIcon(currentNode) !== null && (
               <Icon
@@ -386,17 +406,6 @@ export function Breadcrumbs({
             )}
             <span className="node-breadcrumb-name">{crumbNameOf(currentNode)}</span>
           </button>
-          {editable && (
-            <button
-              type="button"
-              className="node-breadcrumb-edit"
-              aria-label={`Edit parent of ${crumbNameOf(currentNode)}`}
-              title="Edit parent"
-              onClick={(event) => openEditMenu(event, currentNode)}
-            >
-              <Icon path="mdi-menu-down" size={0.7} />
-            </button>
-          )}
         </span>
       )}
 
@@ -417,7 +426,7 @@ export function Breadcrumbs({
 
       {editable && editMenu !== null && (
         <ContextMenu
-          items={editMenuItems(editMenu.node, editMenu.position)}
+          items={editMenuItems(editMenu.parent, editMenu.child, editMenu.position)}
           position={editMenu.position}
           onClose={() => setEditMenu(null)}
         />
