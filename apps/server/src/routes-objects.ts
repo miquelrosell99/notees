@@ -24,7 +24,7 @@ import {
   propertySetPayload,
   propertyUnsetPayload,
 } from "@notees/protocol";
-import { deriveDisplayName, rendersWithDocumentChrome } from "@notees/domain";
+import { deriveDisplayName, rendersWithDocumentChrome, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import { parseQueryAst, runAggregate, runQuery } from "@notees/query";
 import type { NodeRow, Store } from "@notees/store";
 
@@ -467,7 +467,20 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     }
     const workspaceId = workspaceFor(ctx, request);
     await ctx.ensureSeeded(workspaceId);
+    const callerSuppliedId = parsed.data.id !== undefined;
     const objectId = parsed.data.id ?? uuidv7();
+    // AB3 (owner ruling 2026-10-04, §34.33): a CALLER-SUPPLIED id that is
+    // already taken fails loud with 409 before anything reaches the log.
+    // The id-less path cannot conflict (fresh UUIDv7; retried submits ride
+    // the Idempotency-Key replay, §34.33 AG5) — v1's "a taken id fails
+    // loud" intent is honored for the only path where a conflict is
+    // meaningful. Trashed ids are taken too (restore is the honest path).
+    if (callerSuppliedId) {
+      const store = ctx.workspaces.storeFor(workspaceId);
+      if (store.getNode(objectId) !== undefined) {
+        throw new AppError(409, "conflict", `object ${objectId} already exists`);
+      }
+    }
     // Title-is-content: `name` becomes the node's initial text content (a
     // single text token) when no explicit contentAst is given.
     const initialText =
@@ -505,6 +518,9 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
         client: "api",
       });
       if (outcome.savedIds.length === 0) {
+        // AB3 race net: the pre-submit check passed but a concurrent submit
+        // took the id first — the envelope dedupes, the tree stays with the
+        // first write, and the honest answer is still 409.
         throw new AppError(409, "conflict", `object ${objectId} already exists`);
       }
       const store = ctx.workspaces.storeFor(workspaceId);
@@ -532,6 +548,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
       client: "api",
     });
     if (outcome.savedIds.length === 0) {
+      // AB3 race net (see the class.create branch above).
       throw new AppError(409, "conflict", `object ${objectId} already exists`);
     }
     const store = ctx.workspaces.storeFor(workspaceId);
@@ -983,7 +1000,9 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
    * and filtering exact matches client-side. Title-is-content: the compared
    * name is the derived display name, case-insensitive; the candidate pool is
    * the ranked FTS hit set (blocks included), so resolution follows search
-   * semantics. 404 when no active node carries the exact name.
+   * semantics. PG10: an exact case-insensitive ALIAS value is a
+   * name-equivalent (the alias text already folds into the FTS row via the
+   * M5 text-scalar indexing). 404 when no active node carries the name.
    */
   app.get("/resolve", async (request) => {
     const parsed = resolveQuerySchema.safeParse(request.query);
@@ -999,7 +1018,10 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
       const row = store.getNode(hit.nodeId);
       if (row === undefined || row.is_active !== 1) continue;
       const api = nodeToApi(row);
-      if ((api.name ?? "").toLowerCase() === wanted) {
+      const aliases = store.scalarPropertyValues(hit.nodeId, SYSTEM_PROPERTY_UUIDS.alias);
+      const matchesName = (api.name ?? "").toLowerCase() === wanted;
+      const matchesAlias = aliases.some((alias) => alias.toLowerCase() === wanted);
+      if (matchesName || matchesAlias) {
         return {
           name: api.name,
           id: api.id,

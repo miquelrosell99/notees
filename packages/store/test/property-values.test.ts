@@ -45,6 +45,7 @@ const CARRIER = "0192a000-0000-7000-8000-000000000020";
 const CARRIER_CHILD = "0192a000-0000-7000-8000-000000000021";
 const OTHER_PAGE = "0192a000-0000-7000-8000-000000000030";
 const SCHEMA_TEXT = "0192a000-0000-7000-8000-0000000000a1";
+const SCHEMA_TEXT_MULTI = "0192a000-0000-7000-8000-0000000000a6";
 const SCHEMA_DATE = "0192a000-0000-7000-8000-0000000000a2";
 const SCHEMA_RANGE = "0192a000-0000-7000-8000-0000000000a3";
 const SCHEMA_OBJECT = "0192a000-0000-7000-8000-0000000000a4";
@@ -104,12 +105,17 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     return Store.open(makeBackend());
   }
 
-  /** Owner page + the four schemas the suite writes through. */
+  /** Owner page + the schema menu the suite writes through. */
   function seededStore(): Store {
     const store = makeStore();
     store.apply(env("object.create", { objectId: OWNER, contentAst: text("Owner") }, 1727200000000));
     store.apply(
       env("propertySchema.create", { propertySchemaId: SCHEMA_TEXT, name: "notes", type: "text" }, 1727200000100),
+    );
+    // PG6 cardinality: multi-slot rows need a multi schema — the two-slot
+    // carrier tests below write through this one.
+    store.apply(
+      env("propertySchema.create", { propertySchemaId: SCHEMA_TEXT_MULTI, name: "aliases", type: "text", multi: true }, 1727200000100),
     );
     store.apply(
       env("propertySchema.create", { propertySchemaId: SCHEMA_DATE, name: "when", type: "date" }, 1727200000100),
@@ -278,13 +284,13 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     it("a carrier still referenced from another slot is NOT trashed", () => {
       const store = seededStore();
       createCarrier(store, 1727200001000);
-      store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_TEXT, value: { nodeId: CARRIER } }, 1727200001200));
-      store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_TEXT, value: { nodeId: CARRIER }, idx: 1 }, 1727200001250));
-      store.apply(env("property.unset", { objectId: OWNER, propertySchemaId: SCHEMA_TEXT, idx: 0 }, 1727200001300));
+      store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_TEXT_MULTI, value: { nodeId: CARRIER } }, 1727200001200));
+      store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_TEXT_MULTI, value: { nodeId: CARRIER }, idx: 1 }, 1727200001250));
+      store.apply(env("property.unset", { objectId: OWNER, propertySchemaId: SCHEMA_TEXT_MULTI, idx: 0 }, 1727200001300));
       expect(active(store, CARRIER)).toBe(true);
       expect(trashed(store, CARRIER)).toBe(false);
       // Detaching the remaining reference trashes it.
-      store.apply(env("property.unset", { objectId: OWNER, propertySchemaId: SCHEMA_TEXT, idx: 1 }, 1727200001400));
+      store.apply(env("property.unset", { objectId: OWNER, propertySchemaId: SCHEMA_TEXT_MULTI, idx: 1 }, 1727200001400));
       expect(active(store, CARRIER)).toBe(false);
       expect(trashed(store, CARRIER)).toBe(true);
     });
@@ -508,11 +514,11 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     it("object.restore of a carrier another slot still references is a safe no-op", () => {
       const store = seededStore();
       createCarrier(store, 1727200001000);
-      store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_TEXT, value: { nodeId: CARRIER } }, 1727200001200));
-      store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_TEXT, value: { nodeId: CARRIER }, idx: 1 }, 1727200001250));
+      store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_TEXT_MULTI, value: { nodeId: CARRIER } }, 1727200001200));
+      store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_TEXT_MULTI, value: { nodeId: CARRIER }, idx: 1 }, 1727200001250));
       // The exclusivity guard kept the carrier alive through idx 0's unset;
       // the promote gesture's restore step no-ops on the live carrier.
-      store.apply(env("property.unset", { objectId: OWNER, propertySchemaId: SCHEMA_TEXT, idx: 0 }, 1727200001300));
+      store.apply(env("property.unset", { objectId: OWNER, propertySchemaId: SCHEMA_TEXT_MULTI, idx: 0 }, 1727200001300));
       store.apply(env("object.restore", { objectId: CARRIER }, 1727200001400));
       const carrier = store.getNode(CARRIER);
       expect(carrier?.is_active).toBe(1);
@@ -539,10 +545,10 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
         env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_TEXT, value: "owner-slot" }, 1727200001100),
       );
       store.apply(
-        env("property.set", { objectId: CARRIER, propertySchemaId: SCHEMA_TEXT, value: "carrier-a" }, 1727200001150),
+        env("property.set", { objectId: CARRIER, propertySchemaId: SCHEMA_TEXT_MULTI, value: "carrier-a" }, 1727200001150),
       );
       store.apply(
-        env("property.set", { objectId: CARRIER, propertySchemaId: SCHEMA_TEXT, value: "carrier-b", idx: 1 }, 1727200001160),
+        env("property.set", { objectId: CARRIER, propertySchemaId: SCHEMA_TEXT_MULTI, value: "carrier-b", idx: 1 }, 1727200001160),
       );
       // A different schema never lists.
       store.apply(
@@ -554,8 +560,8 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       );
       store.apply(env("object.delete", { objectId: CARRIER_CHILD, permanent: false }, 1727200001190));
 
-      const carriers = store.propertyValueCarriers(SCHEMA_TEXT);
-      expect(carriers.map((entry) => entry.node.id)).toEqual([OWNER, CARRIER]);
+      const carriers = store.propertyValueCarriers(SCHEMA_TEXT_MULTI);
+      expect(carriers.map((entry) => entry.node.id)).toEqual([CARRIER]);
       const carrierEntry = carriers.find((entry) => entry.node.id === CARRIER);
       expect(carrierEntry?.slots).toEqual([
         { idx: 0, value: "carrier-a", metadata: null },
@@ -575,6 +581,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       // Unknown schema → empty; the other schema's owner never lists.
       expect(store.propertyValueCarriers("0192a000-0000-7000-8000-0000000000ff")).toEqual([]);
       expect(store.propertyValueCarriers(SCHEMA_NUMBER).map((entry) => entry.node.id)).toEqual([OTHER_PAGE]);
+      expect(store.propertyValueCarriers(SCHEMA_TEXT).map((entry) => entry.node.id)).toEqual([OWNER]);
     });
   });
 });

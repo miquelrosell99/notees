@@ -1646,9 +1646,7 @@ function PropertySettingsModal({
                     onColorChange={(color) =>
                       patch({
                         options: (schema.options ?? []).map((o) =>
-                          o.id === option.id
-                            ? { ...o, ...(color !== null ? { color } : {}) }
-                            : o,
+                          o.id === option.id ? { ...o, color } : o,
                         ),
                       })
                     }

@@ -12,6 +12,8 @@ import { join } from "node:path";
 import { unzipSync } from "fflate";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { chainNodeIds, SYSTEM_PAGE_UUIDS } from "@notees/domain";
+
 import { hashPassword } from "../src/auth.js";
 import {
   closeTestServer,
@@ -532,6 +534,88 @@ describe("workspace delete and export", () => {
       headers: { authorization: `Bearer ${stranger}` },
     });
     expect(byStranger.statusCode).toBe(404);
+  });
+
+  it("workspace zip excludes system-seed pages and the date chain (§34.24 zip-roots, owner 2026-10-04)", async () => {
+    server = await makeTestServer();
+    const owner = (await setupAdmin("owner@example.com")).json().token as string;
+    const created = await server.app.inject({
+      method: "POST",
+      url: "/api/workspaces",
+      headers: { authorization: `Bearer ${owner}` },
+      payload: { name: "Zip Roots" },
+    });
+    const workspaceId = created.json().id as string;
+
+    // A real page, a date chain (year → month → day, deterministic ids), a
+    // day-parented user page (rides the chain's exclusion), and a system
+    // page authored like the seed does. Envelopes apply in order — the
+    // chain parents before the pages under them.
+    const pageId = crypto.randomUUID();
+    const underDayId = crypto.randomUUID();
+    const dayParentedPageId = crypto.randomUUID();
+    const chain = chainNodeIds("2026-09-27");
+    const batch = await ingest(server, [
+      testEnvelope({
+        workspaceId,
+        opType: "object.create",
+        payload: { objectId: pageId, presentAsMain: true, contentAst: [{ type: "text", text: "Real Page" }] },
+      }),
+      testEnvelope({
+        workspaceId,
+        opType: "object.create",
+        payload: { objectId: chain.year, presentAsMain: true, contentAst: [{ type: "text", text: "2026" }] },
+      }),
+      testEnvelope({
+        workspaceId,
+        opType: "object.create",
+        payload: { objectId: chain.month, parentId: chain.year, presentAsMain: true, contentAst: [{ type: "text", text: "2026-09" }] },
+      }),
+      testEnvelope({
+        workspaceId,
+        opType: "object.create",
+        payload: { objectId: chain.day, parentId: chain.month, presentAsMain: true, contentAst: [{ type: "text", text: "2026-09-27" }] },
+      }),
+      testEnvelope({
+        workspaceId,
+        opType: "object.create",
+        payload: { objectId: underDayId, parentId: chain.day, presentAsMain: true, contentAst: [{ type: "text", text: "Under A Day" }] },
+      }),
+      testEnvelope({
+        workspaceId,
+        opType: "object.create",
+        payload: { objectId: dayParentedPageId, parentId: underDayId, presentAsMain: true, contentAst: [{ type: "text", text: "Nested Under Day" }] },
+      }),
+      testEnvelope({
+        workspaceId,
+        opType: "object.create",
+        payload: { objectId: SYSTEM_PAGE_UUIDS.inbox, presentAsMain: true, contentAst: [{ type: "text", text: "inbox" }] },
+      }),
+    ]);
+    expect(batch.statusCode).toBe(200);
+
+    const exported = await server.app.inject({
+      method: "GET",
+      url: `/api/workspaces/${workspaceId}/export.zip`,
+      headers: { authorization: `Bearer ${owner}` },
+    });
+    expect(exported.statusCode).toBe(200);
+    const files = unzipSync(new Uint8Array(exported.rawPayload));
+    const names = Object.keys(files);
+    const manifest = JSON.parse(new TextDecoder().decode(files["notees-manifest.json"])) as {
+      nodes: Array<{ id: string }>;
+    };
+    const exportedIds = new Set(manifest.nodes.map((node) => node.id));
+    // Only the real page exports; the date chain, the day-parented pages,
+    // and the system inbox stay out.
+    expect(exportedIds.has(pageId)).toBe(true);
+    expect(exportedIds.has(chain.year)).toBe(false);
+    expect(exportedIds.has(chain.month)).toBe(false);
+    expect(exportedIds.has(chain.day)).toBe(false);
+    expect(exportedIds.has(underDayId)).toBe(false);
+    expect(exportedIds.has(dayParentedPageId)).toBe(false);
+    expect(exportedIds.has(SYSTEM_PAGE_UUIDS.inbox)).toBe(false);
+    expect(names.filter((name) => name.endsWith(".md"))).toHaveLength(1);
   });
 
   it("reassignExportPaths keeps files, manifest, and links agreeing under a filename collision", async () => {

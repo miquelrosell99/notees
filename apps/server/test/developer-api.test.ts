@@ -214,13 +214,11 @@ describe("baseRevision (AG5)", () => {
     expect(response.statusCode).toBe(422);
   });
 
-  it("keeps create idempotent on a taken id: 201 no-op, the first write wins", async () => {
-    // Semantics pin (2026-10-03, §34.33 AB3): the route's 409 branch is
-    // unreachable — the server stamps a fresh envelope id per POST, so the
-    // relay always "saves" and applyObjectCreate's alreadyExists branch
-    // leaves the tree untouched. Re-POSTing a taken id is a 201 no-op that
-    // keeps the FIRST write's content. If the owner decides taken-id should
-    // fail loud (the route comment's intent), change this test with the code.
+  it("taken caller-supplied id fails loud with 409 (AB3 owner ruling 2026-10-04)", async () => {
+    // §34.33 AB3 resolution (b): the pre-submit existence check makes the
+    // v1-parity "a taken id fails loud" contract real. The id-LESS path
+    // cannot conflict (server-stamped UUIDv7; retried submits ride the
+    // Idempotency-Key replay), so 409 is pinned only for caller-chosen ids.
     server = await makeTestServer();
     const chosenId = crypto.randomUUID();
     const first = await server.app.inject({
@@ -236,10 +234,27 @@ describe("baseRevision (AG5)", () => {
       headers: server.authHeaders,
       payload: { id: chosenId, name: "second-write" },
     });
-    expect(again.statusCode).toBe(201);
-    expect(again.json().id).toBe(chosenId);
+    expect(again.statusCode).toBe(409);
+    expect(again.json().error.code).toBe("conflict");
+    // The first write still wins.
     const fetched = await server.app.inject({ method: "GET", url: `${OBJECTS}/${chosenId}`, headers: server.authHeaders });
     expect(fetched.json().object.name).toBe("first-write");
+    // Class declaration through the same route honors the same contract.
+    const classAgain = await server.app.inject({
+      method: "POST",
+      url: OBJECTS,
+      headers: server.authHeaders,
+      payload: { id: chosenId, isClass: true },
+    });
+    expect(classAgain.statusCode).toBe(409);
+    // The id-less path stays a 201 (no conflict is possible there).
+    const idLess = await server.app.inject({
+      method: "POST",
+      url: OBJECTS,
+      headers: server.authHeaders,
+      payload: { name: "server-stamped" },
+    });
+    expect(idLess.statusCode).toBe(201);
   });
 });
 

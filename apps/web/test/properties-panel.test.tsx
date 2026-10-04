@@ -327,7 +327,8 @@ describe("PB2: carrier lifecycle at the client level", () => {
 
   it("promote with a second slot still referencing the carrier keeps it excluded", async () => {
     const client = await seedClient();
-    const schemaId = await client.createPropertySchema({ name: "notes", type: "text" });
+    // PG6 cardinality: a second slot needs a multi schema.
+    const schemaId = await client.createPropertySchema({ name: "notes", type: "text", multi: true });
     const owner = await client.createObject({ presentAsMain: true, name: "Owner" });
     const carrier = await client.createObject({
       parentId: owner,

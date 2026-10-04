@@ -117,6 +117,16 @@ button.property-cell {
   background: var(--color-hover-overlay);
 }
 
+/** PG16 option dot: the §34.43 color tint, hollow when the option is uncolored. */
+.property-cell__picker-dot {
+  flex: none;
+  width: var(--spacing-3);
+  height: var(--spacing-3);
+  border-radius: var(--radius-full);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: transparent;
+}
+
 .property-cell__picker-empty {
   padding: var(--spacing-2) var(--spacing-3);
   color: var(--color-on-surface-variant);

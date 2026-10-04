@@ -85,6 +85,16 @@ describe.each(adapters)("$name: dates (SCHEMA.md)", ({ makeBackend }) => {
       env("propertySchema.create", { propertySchemaId: PUBLISHED, name: "published", type: "date" }, 1727200000100),
       env("propertySchema.create", { propertySchemaId: SPAN, name: "span", type: "date_range" }, 1727200000200),
     ]);
+    // PG6 target-existence: date refs must resolve — materialize the chains
+    // the assertions link to (the ensureDateChain shape: year root, month
+    // under it, day under that).
+    for (const chain of [CHAIN_A, CHAIN_B]) {
+      store.applyMany([
+        env("object.create", { objectId: chain.year }, 1727200000300),
+        env("object.create", { objectId: chain.month, parentId: chain.year }, 1727200000300),
+        env("object.create", { objectId: chain.day, parentId: chain.month }, 1727200000300),
+      ]);
+    }
     return store;
   }
 
@@ -216,6 +226,8 @@ describe.each(adapters)("$name: dates (SCHEMA.md)", ({ makeBackend }) => {
         { propertySchemaId: LINKED, name: "member", type: "object", dateQualified: true },
         1727200000600,
       ),
+      // PG6: the linked node must exist.
+      env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000e1" }, 1727200000900),
       env(
         "property.set",
         {

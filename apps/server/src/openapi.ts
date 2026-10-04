@@ -359,6 +359,8 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   }],
   ["get", "/api/workspaces/:id/export.zip", {
     summary: "Full-workspace Markdown zip (one file per page, manifest, optional assets/)",
+    description:
+      "§34.24 zip-roots exclusion (owner 2026-10-04): the system-seed pages (scratchpad, inbox) and the date chain (year/month/day nodes) are excluded from the bundle — journal scaffolding, not exportable content; links targeting them keep the single-file wikilink convention.",
     tags: ["Workspaces"],
     requiredScope: "export",
     query: {
@@ -414,7 +416,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   ["post", "/api/objects", {
     summary: "Create an object (or declare a class with isClass: true)",
     description:
-      "Every write is an envelope through the one write path. A caller-chosen `id` that is taken fails 409 conflict (idempotent-create, kept distinct from Idempotency-Key replay).",
+      "Every write is an envelope through the one write path. AB3 (owner 2026-10-04): re-POSTing a CALLER-CHOSEN `id` that is already taken — active or trashed — fails 409 `conflict` before anything reaches the log (the first write wins; a concurrent take between the check and the submit hits the same 409). The id-LESS path cannot conflict: the server stamps a fresh UUIDv7, and a retried submit is answered by the Idempotency-Key replay (409 `idempotency_replay` on key reuse with a different body). Relay-level duplicate object.create envelopes (any client) stay first-write-wins no-ops by the applier — that convergence carrier is unchanged.",
     tags: ["Objects"],
     requestBody: createObjectBody,
     success: { status: 201, description: "{ id, object }" },
@@ -740,9 +742,17 @@ export function buildOpenApiDocument(serverVersion: string): JsonSchema {
       title: "Notees server API",
       version: serverVersion,
       description:
-        "The HTTP surface of the Notees sync server: the object/assets machine API under /api (every write is an envelope through the one write path), the relay sync API under /api/relay/v2 (WIRE.md is its normative spec), and account routes. Auth: `X-API-Key` (operator key or per-user API key) or `Authorization: Bearer` (session token) on every route except the public probes; workspace selection via `X-Workspace-Id` (else the server default). This document is served at GET /api/openapi.json and gated by a route-coverage test (every registered route must appear here).",
+        "The HTTP surface of the Notees sync server: the object/assets machine API under /api (every write is an envelope through the one write path), the relay sync API under /api/relay/v2 (WIRE.md is its normative spec), and account routes. Auth: `X-API-Key` (operator key or per-user API key) or `Authorization: Bearer` (session token) on every route except the public probes; workspace selection via `X-Workspace-Id` (else the server default). This document is served at GET /api/openapi.json and gated by a route-coverage test (every registered route must appear here). Versioning policy (AG8, owner 2026-10-04): paths stay UNVERSIONED forever (`/api/*`, no `/api/v2`); the API version IS the server's X.Y.Z semver, self-described at `GET /api/meta` (`version`) and `GET /api/version`; additive changes ship inside a version per the WIRE.md §3 culture (additive-doesn't-bump, fail-loud on a newer `protocolVersion`); wire-affecting changes ride the three-client lockstep (git tags remain the release mechanism).",
     },
     servers: [{ url: "/" }],
+    "x-versioning-policy": {
+      scheme: "server-semver",
+      versionHeader: null,
+      versionProbe: ["GET /api/meta", "GET /api/version"],
+      pathsVersioned: false,
+      additiveCulture: "WIRE.md §3 — additive-doesn't-bump; fail-loud on newer protocolVersion",
+      decided: "AG8 owner ruling 2026-10-04 (X.Y.Z from v3.0.0; the 2.0.0-mN milestone tags retired)",
+    },
     tags: [
       { name: "Meta", description: "Public probes and developer self-description" },
       { name: "Account", description: "Setup, sessions, profile, API keys" },

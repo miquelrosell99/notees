@@ -26,6 +26,14 @@
  *    for empty titles; the id8 suffix — a pure hash of the node id — keeps
  *    names unique for duplicate titles). The server zip (task E5) reuses this policy.
  *
+ * Workspace-zip enumeration (§34.24 zip-roots exclusion, owner 2026-10-04):
+ * the server zip's page set is `Store.roots` + the main-children DFS MINUS
+ * the system-seed pages (scratchpad, inbox) and the date chain
+ * (year/month/day nodes — journal scaffolding, 5,657 files of noise on the
+ * real workspace). This is an enumeration rule, not a serializer option —
+ * serializers never see the excluded rows; links targeting them keep the
+ * single-file `[[name]]`/`![[uuid]]` conventions.
+ *
  * Gating (from §34.24): `includeOutline` — pdf/docx/html (+ markdown:
  * markdown is both a single-file and an outline format, so it supports the
  * option too); `pageFormat` — pdf only; `includeAssets` — the markdown

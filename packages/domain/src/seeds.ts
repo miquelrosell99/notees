@@ -47,6 +47,10 @@ export const SYSTEM_CLASS_UUIDS = {
   song: "00000000-0000-0000-0001-000000000036",
   tv_series: "00000000-0000-0000-0001-000000000037",
   conference: "00000000-0000-0000-0001-000000000038",
+  // §34.36 meeting system (owner ruling 2026-10-04: plain seeds — zero wire
+  // cost, seed convergence only). Standalone: an attended meeting is neither
+  // a bibliography entry nor a person, so it extends nothing.
+  meeting: "00000000-0000-0000-0001-000000000039",
 } as const;
 
 export type SystemClassName = keyof typeof SYSTEM_CLASS_UUIDS;
@@ -89,6 +93,7 @@ export const SYSTEM_CLASS_ICONS: Record<SystemClassName, string> = {
   song: "mdiMusicNote",
   tv_series: "mdiTelevisionClassic",
   conference: "mdiPresentation",
+  meeting: "mdiCalendarClock",
 };
 
 /** Canonical `extends` edges between system classes (multiple inheritance-ready). */
@@ -144,12 +149,27 @@ export const SYSTEM_PROPERTY_UUIDS = {
   // SYSTEM_PROPERTY_SPECS (whose entries always seed a class binding); the
   // web client self-heals the schema (ensureGeneratedFromProperty).
   generatedFrom: "00000000-0000-0000-0000-000000000027",
+  // §34.32 PG10 (owner-via-register-recommendation 2026-10-04) — aliases are
+  // BACK (the register contradiction resolves to the v1-parity side): a
+  // multi-value text schema, GLOBAL scope with no class binding — aliases
+  // are page metadata in v1, and "page" is not a class in the render-state
+  // model, so the schema stays unbound and values are authored per node.
+  // Search treats alias values as name-equivalents (resolve + unlinked
+  // references). New uuid — v1 stored aliases in a table, never a property.
+  alias: "00000000-0000-0000-0000-000000000028",
   taskStatus: "00000000-0000-0000-0003-000000000001",
   taskDeadline: "00000000-0000-0000-0003-000000000002",
   taskScheduled: "00000000-0000-0000-0003-000000000003",
   taskPriority: "00000000-0000-0000-0003-000000000004",
   taskClosedDate: "00000000-0000-0000-0003-000000000005",
   taskRecurrence: "00000000-0000-0000-0003-000000000006",
+  // §34.36 meeting family — the workflow-properties block continues (task
+  // family …001–…006; meeting family …007–…009). meetingDate is DATE-typed
+  // per the whole-day law (SCHEMA.md "Time-of-day on dates"): clock times
+  // would need that law amended first, never a silent extension.
+  meetingDate: "00000000-0000-0000-0003-000000000007",
+  location: "00000000-0000-0000-0003-000000000008",
+  agenda: "00000000-0000-0000-0003-000000000009",
 } as const;
 
 export type SystemPropertyName = keyof typeof SYSTEM_PROPERTY_UUIDS;
@@ -157,7 +177,10 @@ export type SystemPropertyName = keyof typeof SYSTEM_PROPERTY_UUIDS;
 /** Class-scoped system property schemas in canonical seed order (v1 port;
  * v1 `node` type maps to v2 `object`; `classFilter` → `targetClassFilter`).
  * The type union mirrors the wire enum (op-types.ts) — the spec manifest
- * must never outrun it (§34.32 PG14). */
+ * must never outrun it (§34.32 PG14). `bindTo` is optional since PG10
+ * (2026-10-04): a spec WITHOUT it seeds the schema alone at global scope
+ * (the alias property is deliberately class-unbound — "page" is not a
+ * class, and every binding would narrow aliases to one class's members). */
 export interface SystemPropertySpec {
   type:
     | "text"
@@ -172,7 +195,7 @@ export interface SystemPropertySpec {
     | "object"
     | "image";
   multi?: boolean;
-  bindTo: SystemClassName;
+  bindTo?: SystemClassName;
   targetClassFilter?: SystemClassName[];
   defaultValue?: string;
   options?: { id: string; label: string }[];
@@ -210,6 +233,18 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   // §34.25 (D1): templates are ordinary nodes of the seeded `template` class;
   // a class binds its templates by authored values on the class node itself.
   hasTemplate: { type: "object", multi: true, bindTo: "class", targetClassFilter: ["template"] },
+  // §34.32 PG10 (owner 2026-10-04): aliases return (the v1-parity side of
+  // the register contradiction) — multi-value text at GLOBAL scope, no class
+  // binding: aliases are page metadata and "page" is not a class. Search
+  // indexes the values as name-equivalents (SCHEMA.md "Aliases").
+  alias: { type: "text", multi: true },
+  // §34.36 (owner 2026-10-04, plain seeds): the meeting family. meetingDate
+  // is the family's date binding — the one that makes the class calendar
+  // quick-create eligible (any class with a date-typed binding); location
+  // and agenda are plain text per the section's family list.
+  meetingDate: { type: "date", bindTo: "meeting" },
+  location: { type: "text", bindTo: "meeting" },
+  agenda: { type: "text", bindTo: "meeting" },
 };
 
 /** Extra bindings for schemas created outside SYSTEM_PROPERTY_SPECS (global cover). */
@@ -264,4 +299,5 @@ export const SEEDED_SYSTEM_CLASSES: SystemClassName[] = [
   "song",
   "tv_series",
   "conference",
+  "meeting",
 ];

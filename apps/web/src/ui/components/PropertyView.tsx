@@ -12,6 +12,8 @@
  * modal hosts the path here).
  */
 
+import { useState } from "react";
+
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
@@ -22,6 +24,7 @@ import { NodeViewSection } from "./NodeViewSection.js";
 import { NodeCollection } from "../views/index.js";
 import type { TableColumn } from "../views/index.js";
 import { displayNameFromClient } from "../dateDisplay.js";
+import { PropertyConvertModal } from "./PropertyConvertModal.js";
 import "./PropertyView.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -66,6 +69,7 @@ export function PropertyView({
   onOpenPage?: ((pageId: string) => void) | undefined;
 }) {
   const schema = client.listPropertySchemas().find((s) => s.id === propertySchemaId);
+  const [convertOpen, setConvertOpen] = useState(false);
   if (schema === undefined) return null;
 
   const boundClasses = client
@@ -183,11 +187,19 @@ export function PropertyView({
         </NodeViewSection>
 
         <div className="nt-property-view__actions">
+          {/* PG3: the blessed delete+recreate conversion flow (same modal as
+              the settings modal's entry point). */}
+          <Button variant="ghost" size="sm" onClick={() => setConvertOpen(true)}>
+            Convert…
+          </Button>
           <Button variant="ghost" size="sm" onClick={onClose}>
             Close
           </Button>
         </div>
       </div>
+      {convertOpen && (
+        <PropertyConvertModal client={client} schema={schema} onClose={() => setConvertOpen(false)} />
+      )}
     </Modal>
   );
 }

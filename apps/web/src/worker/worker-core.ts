@@ -504,6 +504,11 @@ export class WorkerCore {
         );
       case "resolveNodeByName":
         return this.client.resolveNodeByName(args[0] as string);
+      case "fetchOperationsFor":
+        return this.client.fetchOperationsFor(
+          args[0] as string,
+          args[1] as string,
+        );
       case "getBacklinks":
         return this.getBacklinks(args[0] as string);
       case "getLinkedReferences":
@@ -549,6 +554,8 @@ export class WorkerCore {
           args[0] as string,
           args[1] as UpdatePropertySchemaInput,
         );
+      case "deletePropertySchema":
+        return this.client.deletePropertySchema(args[0] as string);
       case "setProperty":
         return this.client.setProperty(
           args[0] as string,
