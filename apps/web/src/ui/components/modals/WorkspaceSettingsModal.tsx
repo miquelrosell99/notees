@@ -31,6 +31,7 @@ import { TextField } from "../ui/TextField.js";
 import { ToggleSwitch } from "../ui/ToggleSwitch.js";
 import { cssColorFor } from "../ui/colorPresets.js";
 import { renameWorkspace } from "./workspaceApi.js";
+import { PluginsSettingsTab } from "./PluginsSettingsTab.js";
 import { useDeviceSetting } from "./deviceSettings.js";
 import { isClassFamilyEnabled } from "../featureGates.js";
 import { dateChipCandidates } from "../calendarViewUtils.js";
@@ -134,7 +135,7 @@ export function WorkspaceSettingsModal({
   onRenamed,
   client,
 }: WorkspaceSettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<"general" | "features" | "shortcuts">("general");
+  const [activeTab, setActiveTab] = useState<"general" | "features" | "plugins" | "shortcuts">("general");
   const [dateFormat, setDateFormat] = useDeviceSetting<DateFormat>("dateFormat", "YYYY-MM-DD");
   const [showJournals, setShowJournals] = useDeviceSetting("sidebarShowJournals", true);
   const [showInbox, setShowInbox] = useDeviceSetting("sidebarShowInbox", true);
@@ -214,6 +215,7 @@ export function WorkspaceSettingsModal({
   const tabs = [
     { id: "general" as const, label: "General" },
     { id: "features" as const, label: "Features" },
+    { id: "plugins" as const, label: "Plugins" },
     { id: "shortcuts" as const, label: "Shortcuts" },
   ];
 
@@ -313,6 +315,10 @@ export function WorkspaceSettingsModal({
                 </p>
               )}
             </div>
+          )}
+
+          {activeTab === "plugins" && (
+            <PluginsSettingsTab serverUrl={serverUrl} credential={credential} />
           )}
 
           {activeTab === "shortcuts" && (
