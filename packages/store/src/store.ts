@@ -19,6 +19,8 @@
  * clock, so replayed logs converge to byte-identical databases.
  */
 
+import type { Envelope } from "@notees/protocol";
+
 import { applyEnvelope, validateEnvelope, type ChangeSummary } from "./appliers.js";
 import type { SqliteDB, StoreBackend } from "./db.js";
 import { betterSqlite3Backend } from "./adapters/better-sqlite3.js";
@@ -32,6 +34,7 @@ import {
   searchSnippet,
   type SearchSnippet,
 } from "./search.js";
+import { MoveGuardError } from "./errors.js";
 import { migrate, schemaSql } from "./schema.js";
 
 export interface NodeRow {
@@ -147,12 +150,28 @@ export class Store {
     this.db.prepare("DELETE FROM local_op_log WHERE pushed_at IS NOT NULL").run();
   }
 
+  /**
+   * Apply one envelope — the LOCAL authoring path. Fails loud (never
+   * quarantines): a guard violation throws, per the fail-loud law.
+   */
   apply(input: unknown): ChangeSummary {
     return this.applyMany([input])[0]!;
   }
 
-  /** Apply envelopes in one transaction; already-applied ids are skipped. */
-  applyMany(inputs: unknown[]): ChangeSummary[] {
+  /**
+   * Apply envelopes in one transaction; already-applied ids are skipped.
+   * With `quarantineMoveGuards` (the REMOTE replay path used by the sync
+   * engine) an op failing the move guard is quarantined — recorded in
+   * `quarantined_envelope`, marked processed so the cursor advances — so one
+   * poison op in the log history (e.g. a pre-Revision-11 class-parenting
+   * move) never bricks every fresh replay. The default (local authoring,
+   * tests) stays fail-loud; validation errors always throw.
+   */
+  applyMany(
+    inputs: unknown[],
+    options: { quarantineMoveGuards?: boolean } = {},
+  ): ChangeSummary[] {
+    const quarantineGuards = options.quarantineMoveGuards === true;
     const envelopes = inputs.map((input) => validateEnvelope(input));
     const run = this.db.transaction(() => {
       const summaries: ChangeSummary[] = [];
@@ -161,14 +180,69 @@ export class Store {
           summaries.push({ opType: env.opType, affectedNodeIds: [], ignored: true });
           continue;
         }
-        const summary = applyEnvelope(this.db, env);
-        const seq = this.recordEnvelope(env.id, env.timestamp);
-        this.advanceCursor(env.workspaceId, seq);
-        summaries.push(summary);
+        try {
+          const summary = applyEnvelope(this.db, env);
+          const seq = this.recordEnvelope(env.id, env.timestamp);
+          this.advanceCursor(env.workspaceId, seq);
+          summaries.push(summary);
+        } catch (err) {
+          // Quarantine is for HISTORICAL GUARD violations only (ops the log
+          // carries from an older model era — e.g. the pre-Revision-11
+          // class-parenting move — which every fresh replay must survive).
+          // Validation errors (PropertyValueShapeError et al.) still throw:
+          // data-quality failures must stay loud.
+          if (!(err instanceof MoveGuardError) || !quarantineGuards) throw err;
+          const message = err instanceof Error ? err.message : String(err);
+          this.quarantineEnvelope(env, message);
+          const seq = this.recordEnvelope(env.id, env.timestamp);
+          this.advanceCursor(env.workspaceId, seq);
+          summaries.push({
+            opType: env.opType,
+            affectedNodeIds: [],
+            ignored: false,
+            quarantined: true,
+            error: message,
+          });
+        }
       }
       return summaries;
     });
     return run();
+  }
+
+  /** Quarantined remote envelopes (one poison op must never brick replay). */
+  quarantinedEnvelopes(): Array<{
+    id: string;
+    workspaceId: string;
+    opType: string;
+    error: string;
+    payload: string;
+    quarantinedAt: string;
+  }> {
+    return this.db
+      .prepare(
+        `SELECT id, workspace_id AS workspaceId, op_type AS opType, error,
+                payload, quarantined_at AS quarantinedAt
+         FROM quarantined_envelope ORDER BY quarantined_at, id`,
+      )
+      .all() as Array<{
+      id: string;
+      workspaceId: string;
+      opType: string;
+      error: string;
+      payload: string;
+      quarantinedAt: string;
+    }>;
+  }
+
+  private quarantineEnvelope(env: Envelope, error: string): void {
+    this.db
+      .prepare(
+        `INSERT OR IGNORE INTO quarantined_envelope
+           (id, workspace_id, op_type, error, payload, quarantined_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(env.id, env.workspaceId, env.opType, error, JSON.stringify(env.payload), env.timestamp);
   }
 
   private recordEnvelope(envelopeId: string, appliedAt: string): number {
@@ -397,6 +471,32 @@ export class Store {
       });
     }
     return [...byNode.values()];
+  }
+
+  /**
+   * Scalar (plain-string) values of one schema on one node, slot order —
+   * the alias read (§34.32 PG10): alias values are name-equivalents in
+   * search resolution, and this is the cheap per-node read those paths
+   * use. Carrier references ({nodeId} — node-backed rich text) are not
+   * names and stay out; null/non-string slots are skipped.
+   */
+  scalarPropertyValues(nodeId: string, schemaId: string): string[] {
+    const rows = this.db
+      .prepare(
+        `SELECT value FROM property_value
+         WHERE node_id = ? AND property_schema_id = ? ORDER BY idx`,
+      )
+      .all(nodeId, schemaId) as Array<{ value: string }>;
+    const values: string[] = [];
+    for (const row of rows) {
+      try {
+        const parsed: unknown = JSON.parse(row.value);
+        if (typeof parsed === "string" && parsed.length > 0) values.push(parsed);
+      } catch {
+        // Unparseable rows are not names — skip (derived state is trusted).
+      }
+    }
+    return values;
   }
 
   /**
