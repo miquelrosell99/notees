@@ -102,9 +102,12 @@ describe("NodeView render cascade (Revision 11)", () => {
     const { container } = render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
 
     // The class page is a PageView composition: class root, the extends
-    // corner's class-only add affordance, and the Property definitions row.
+    // corner's class-only add affordance, and the Class properties row
+    // (renamed from "Property definitions" in the §34.65 class-page naming
+    // sweep — the class node has its own standard Properties section, the
+    // definitions carry the distinct name).
     expect(screen.getByRole("button", { name: "Add class extension" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: /property definitions/i })).not.toBeNull();
+    expect(screen.getByRole("button", { name: /class properties/i })).not.toBeNull();
     expect(container.querySelector(".nt-class")).not.toBeNull();
     expect(container.querySelector(".nt-focused-block")).toBeNull();
   });

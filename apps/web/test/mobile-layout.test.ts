@@ -59,6 +59,18 @@ describe("mobile layout (app.css responsive pass)", () => {
     expect(block).toContain("bottom: 0");
   });
 
+  it("surfaces the quick-create FAB at narrow widths only (hidden on desktop)", () => {
+    const block = responsiveBlock();
+    // The FAB renders inside the tablet step…
+    expect(block).toContain(".nt-quick-fab");
+    expect(block).toContain("position: fixed");
+    expect(block).toContain("safe-area-inset-bottom");
+    // …and the base (desktop) rule keeps it out of the way.
+    const baseRule = css.match(/\.nt-quick-fab\s*\{[^}]*\}/);
+    expect(baseRule).not.toBeNull();
+    expect(baseRule![0]).toContain("display: none");
+  });
+
   it("uses token-only values inside the block (no hex, no bare px)", () => {
     const block = responsiveBlock();
     expect(block).not.toMatch(/#[0-9a-fA-F]{3,8}/);
