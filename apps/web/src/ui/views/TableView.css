@@ -312,3 +312,18 @@
 .nt-table-row--selected {
   background: var(--color-primary-container, rgba(0, 0, 0, 0.06));
 }
+
+/* §34.69 — the shared selection-export chrome (cards/kanban toolbars use the
+   same classes): count + Export selected…, quiet until a selection exists. */
+.selection-export {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-right: var(--spacing-2);
+}
+
+.selection-export__count {
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+  white-space: nowrap;
+}

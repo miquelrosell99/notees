@@ -15,13 +15,14 @@
  *   reference (ensureDateChain); node cells open the anchored NodeSelector.
  *   Multi-value properties stay read-only.
  * - Name cell: row click opens, shift+click peeks.
- * - CSV export (§34.59): the toolbar's "Export CSV" downloads the CURRENT
- *   view — the visible columns × the full sorted result set (the window is
- *   display-only, never an export cut) — through @notees/export's
- *   renderCsv (RFC-4180 quoting + UTF-8 BOM for Excel). A live selection
- *   additionally offers "Export selected…": the export modal's batch path
- *   over just the checked row ids (the §34.24 parked row
- *   "selection-scoped export").
+ * - CSV export (§34.59, extended §34.69): the toolbar's "Export CSV"
+ *   downloads the CURRENT view — the visible columns × the full sorted
+ *   result set (the window is display-only, never an export cut) — through
+ *   @notees/export's renderCsv (RFC-4180 quoting + UTF-8 BOM for Excel), and
+ *   a live selection additionally offers "Export selected CSV" — the same
+ *   columns scoped to exactly the checked rows. A selection also offers
+ *   "Export selected…": the export modal's batch path over just the checked
+ *   row ids (the §34.24 parked row "selection-scoped export").
  */
 
 import { useMemo, useRef, useState, type ReactNode } from "react";
@@ -620,16 +621,20 @@ export function TableView(props: NodeCollectionProps) {
    * result set (the row window is a display convenience, never an export
    * cut). The package serializer owns quoting/escaping + the UTF-8 BOM;
    * the Blob is typed text/csv so the download carries the encoding.
+   * `rows` scopes the export (§34.69): the whole sorted set, or — from the
+   * selection chrome — exactly the checked rows.
    */
-  const handleExportCsv = () => {
+  const handleExportCsv = (rows: readonly TableRow[], stem: string) => {
     const csv = renderCsv(
       visibleColumns.map((column) => column.label),
-      sorted.map((row) => visibleColumns.map((column) => csvCellText(client, row, column))),
+      rows.map((row) => visibleColumns.map((column) => csvCellText(client, row, column))),
     );
-    const stem = (props.exportFileName ?? "table-export").replace(/[\\/:*?"<>|]/g, "-");
+    const safeStem = stem.replace(/[\\/:*?"<>|]/g, "-");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    downloadBlob(blob, `${stem}.csv`);
+    downloadBlob(blob, `${safeStem}.csv`);
   };
+  const baseStem = (props.exportFileName ?? "table-export").replace(/[\\/:*?"<>|]/g, "-");
+  const selectedRows = sorted.filter((row) => selected.has(row.item.node.id));
 
   if (items.length === 0) return null;
 
@@ -704,13 +709,23 @@ export function TableView(props: NodeCollectionProps) {
             >
               Export selected…
             </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="mdi mdi-file-delimited-outline"
+              aria-label="Export selected as CSV"
+              title="Download the selected rows as CSV"
+              onClick={() => handleExportCsv(selectedRows, `${baseStem}-selected`)}
+            >
+              Export selected CSV
+            </Button>
           </span>
         )}
         <Button
           variant="ghost"
           size="sm"
           icon="mdi mdi-file-delimited-outline"
-          onClick={handleExportCsv}
+          onClick={() => handleExportCsv(sorted, baseStem)}
           aria-label="Export CSV"
           title="Download the current view's rows as CSV"
         >

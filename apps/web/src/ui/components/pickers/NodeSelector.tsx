@@ -37,6 +37,7 @@ import type { QuickCreateClient, QuickCreatePlan } from "../modals/quickCreate.j
 import { resolveQuickCreate } from "../modals/quickCreate.js";
 import { Tabs } from "../ui/Tabs.js";
 import { Checkbox } from "../ui/Checkbox.js";
+import { usePopupDismissal } from "../ui/usePopupDismissal.js";
 import "./NodeSelector.css";
 
 /**
@@ -233,6 +234,10 @@ export function NodeSelector({
   // Latest-value ref assignment during render so the layout-phase position
   // hook measures the current anchor on the same commit that opens the picker.
   anchorRef.current = anchorEl ?? virtualAnchor;
+  // The dismissal layer's anchor exemption takes a real element only (the
+  // virtual rect anchor has none — any outside press closes, its contract).
+  const dismissalAnchorRef = useRef<HTMLElement | null>(null);
+  dismissalAnchorRef.current = anchorEl ?? null;
 
   // Compute value ids for fetching and exclusion.
   const valueIds = useMemo(() => {
@@ -617,46 +622,33 @@ export function NodeSelector({
     { popupRef: pickerRef, edgePadding: PICKER_EDGE_PADDING },
   );
 
-  // Close picker when clicking outside. While the class-aware quick-create
-  // modal is open it owns the interaction (its backdrop is outside the
-  // picker): the picker's dismissal handlers stand down so a backdrop click
-  // or Escape reaches only the modal's own overlay stack.
-  useEffect(() => {
-    if (!isPickerOpen || quickCreate !== null) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      const pickerElement = pickerRef.current;
-      if (pickerElement !== null && pickerElement.contains(target)) return;
-      // Anchored pickers: a real anchor swallows clicks on itself; the
-      // virtual rect anchor has no element, so any outside click closes.
-      const triggerElement = isAnchored ? (anchorEl ?? null) : buttonRef.current;
-      if (triggerElement !== null && triggerElement.contains(target)) return;
-      if (isAnchored) {
-        onClose?.();
-      } else {
-        setIsPickerOpen(false);
-        setSearchQuery("");
-      }
-      resetMulti();
-    };
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        if (isAnchored) {
-          onClose?.();
-        } else {
-          setIsPickerOpen(false);
-          setSearchQuery("");
-        }
-        resetMulti();
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleEscape);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [isPickerOpen, isAnchored, anchorEl, onClose, quickCreate]);
+  const handleClosePicker = () => {
+    resetMulti();
+    if (isAnchored) {
+      onClose?.();
+    } else {
+      setIsPickerOpen(false);
+      setSearchQuery("");
+    }
+  };
+
+  // Dismissal rides the shared §34.67 layer (usePopupDismissal), replacing
+  // the hand-rolled outside-click/Escape pair: Escape closes unless it
+  // originated inside the popup (the search input's own keydown closes via
+  // the list nav), and a pointer-down outside closes with the trigger
+  // exempted — clicking the add button / a real anchor toggles instead of
+  // dismissing. The virtual rect anchor (editor caret popups) has no
+  // element, so any outside press closes, exactly the old contract.
+  // While the class-aware quick-create modal is open it owns the
+  // interaction (its backdrop is outside the picker): the picker's
+  // dismissal stands down so a backdrop press or Escape reaches only the
+  // modal's own overlay stack.
+  usePopupDismissal({
+    popupRef: pickerRef,
+    anchorRefs: isAnchored ? (anchorEl != null ? [dismissalAnchorRef] : []) : [buttonRef],
+    isOpen: isPickerOpen && quickCreate === null,
+    onClose: handleClosePicker,
+  });
 
   // Focus the search input once the open picker is positioned. The popup
   // renders visibility:hidden until measured, and browsers refuse focus
@@ -668,16 +660,6 @@ export function NodeSelector({
       searchInputRef.current.focus();
     }
   }, [isPickerOpen, position]);
-
-  const handleClosePicker = () => {
-    resetMulti();
-    if (isAnchored) {
-      onClose?.();
-    } else {
-      setIsPickerOpen(false);
-      setSearchQuery("");
-    }
-  };
 
   // Total selectable items (date suggestion offsets the list by one;
   // multi-select puts the picked rows first).

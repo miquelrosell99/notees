@@ -124,6 +124,72 @@ export function recurrenceRuleOf(metadata: unknown): RecurrenceRule | null {
   return parseRecurrenceRule(repeat);
 }
 
+/**
+ * Per-occurrence completion (§34.69 — the §34.63 follow-up): the dates of
+ * individually completed occurrences, `metadata.completedOccurrences` on the
+ * recurring date value — additive metadata like `repeat` itself, so no op,
+ * no wire change; occurrences stay virtual (no nodes). Absent/null reads as
+ * the empty list; a PRESENT but malformed value (not an array of local ISO
+ * day strings) throws — corrupt metadata never reads as "nothing completed".
+ */
+const ISO_DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** True for a syntactically valid, real-calendar local ISO day. */
+function isIsoDay(value: unknown): value is string {
+  if (typeof value !== "string" || !ISO_DAY.test(value)) return false;
+  try {
+    parseIsoDate(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function completedOccurrencesOf(metadata: unknown): string[] {
+  if (typeof metadata !== "object" || metadata === null) return [];
+  const raw = (metadata as Record<string, unknown>).completedOccurrences;
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw)) {
+    throw new Error(
+      `invalid completedOccurrences: expected an array of YYYY-MM-DD dates, got ${JSON.stringify(raw)}`,
+    );
+  }
+  const isos: string[] = [];
+  for (const entry of raw) {
+    if (!isIsoDay(entry)) {
+      throw new Error(
+        `invalid completedOccurrences entry: ${JSON.stringify(entry)} (expected a YYYY-MM-DD date)`,
+      );
+    }
+    if (!isos.includes(entry)) isos.push(entry);
+  }
+  return isos.sort();
+}
+
+/**
+ * The metadata for one occurrence-toggle: `iso` joins the list (done) or
+ * leaves it (reopen). Every other key (the `repeat` rule, date qualifiers)
+ * rides through untouched — the write replaces the slot's metadata, so the
+ * helper never drops what it didn't touch. An empty result clears the key
+ * (the grammar's absent-is-default convention).
+ */
+export function withCompletedOccurrence(
+  metadata: unknown,
+  iso: string,
+  done: boolean,
+): Record<string, unknown> {
+  if (!isIsoDay(iso)) {
+    throw new Error(`invalid occurrence date: ${JSON.stringify(iso)} (expected YYYY-MM-DD)`);
+  }
+  const base: Record<string, unknown> =
+    typeof metadata === "object" && metadata !== null ? { ...(metadata as Record<string, unknown>) } : {};
+  const current = completedOccurrencesOf(metadata);
+  const next = done ? [...current, iso].sort() : current.filter((entry) => entry !== iso);
+  if (next.length === 0) delete base.completedOccurrences;
+  else base.completedOccurrences = next;
+  return base;
+}
+
 // --- expansion ------------------------------------------------------------------
 
 function partsIso(parts: DateParts): string {
