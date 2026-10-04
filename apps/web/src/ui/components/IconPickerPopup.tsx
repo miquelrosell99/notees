@@ -268,7 +268,10 @@ export function IconPickerPopup({ value, onSelect, onClose, anchorEl }: IconPick
   const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);
     setSearch("");
-    contentRef.current?.scrollTo({ top: 0 });
+    // jsdom lacks element.scrollTo — guard for the test environment.
+    if (typeof contentRef.current?.scrollTo === "function") {
+      contentRef.current.scrollTo({ top: 0 });
+    }
   };
 
   return createPortal(
