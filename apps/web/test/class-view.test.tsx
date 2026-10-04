@@ -268,3 +268,41 @@ describe("Class View", () => {
     );
   });
 });
+
+describe("the class icon picker (owner directive 2026-10-04: the v1 full picker)", () => {
+  it("the Class icon button opens the full emoji/icon picker — tabs, the entire sets, recents", async () => {
+    const client = await seedClient();
+    const classId = await createTitledClass(client, "pokemon");
+    render(<ClassView client={client} classId={classId} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Class icon" }));
+
+    // The full v1 picker: the dialog with its three tabs…
+    const dialog = screen.getByRole("dialog", { name: "Icon picker" });
+    expect(within(dialog).getByRole("tab", { name: "All" })).not.toBeNull();
+    expect(within(dialog).getByRole("tab", { name: "Emojis" })).not.toBeNull();
+    expect(within(dialog).getByRole("tab", { name: "Icons" })).not.toBeNull();
+    // …the search spanning both vocabularies and the typical emojis on All.
+    expect(within(dialog).getByLabelText(/Search icons and emojis/)).not.toBeNull();
+    expect(within(dialog).getByText("😀")).not.toBeNull();
+
+    // The Emojis tab lists the full categorized set.
+    fireEvent.click(within(dialog).getByRole("tab", { name: "Emojis" }));
+    expect(within(dialog).getByText("Smileys")).not.toBeNull();
+    expect(within(dialog).getByText("Animals")).not.toBeNull();
+    expect(within(dialog).getByText("Flags")).not.toBeNull();
+
+    // Selecting an emoji writes it as the class icon (the v1 contract)…
+    fireEvent.click(within(dialog).getByRole("button", { name: "😀" }));
+    await flushWrites();
+    expect(client.getNode(classId)?.icon).toBe("😀");
+
+    // …and lands in Recents — the section appears on reopen with the pick.
+    fireEvent.click(screen.getByRole("button", { name: "Class icon" }));
+    const again = screen.getByRole("dialog", { name: "Icon picker" });
+    expect(within(again).getByText("Recents")).not.toBeNull();
+    // The pick appears twice — once in Recents, once in the typical set
+    // (now marked active).
+    expect(within(again).getAllByRole("button", { name: "😀" }).length).toBeGreaterThanOrEqual(2);
+  });
+});
