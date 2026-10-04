@@ -44,6 +44,7 @@ import { NodeContextMenu } from "./components/NodeContextMenu.js";
 import { openNodeLinkMenu } from "./components/NodeLinkContextMenu.js";
 import { classIconMap, nodeIcon } from "./iconFor.js";
 import { EmbedView } from "./EmbedView.js";
+import { EmbedCardView } from "./EmbedCardView.js";
 import { QueryBlockView } from "./QueryBlockView.js";
 import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
 import { DropLineContext } from "./block-dnd.js";
@@ -278,6 +279,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
                 return target === undefined ? null : outlinerClient.effectiveNodeColor(target);
               }}
               renderEmbed={(id) => <EmbedView nodeId={id} />}
+              renderEmbedCard={(id, view) => <EmbedCardView nodeId={id} view={view} />}
               renderQuery={(token, index) => (
                 <QueryBlockView
                   client={outlinerClient}

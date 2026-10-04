@@ -113,11 +113,23 @@ export const assetRefTokenSchema = z
  * Embed — RENDER THE LIVE SUBTREE, NEVER A CLONE: live updates and
  * editing-through-the-embed then ride the standard notification/op path.
  * Cycle guard (depth cap + visited set) is a renderer obligation.
+ *
+ * `view` (§34.34 B8, additive 2026-10-04) selects the presentation between
+ * the two-point mention↔embed spectrum: absent (or the default "embed") =
+ * the full live transclusion; "small_card" / "wide_card" = the intermediate
+ * card references (a bounded card with the target's identity; navigation
+ * rides the standard open gesture — cards never transclude). Unknown values
+ * are rejected outright by the strict schema.
  */
+export const EMBED_VIEW_MODES = ["embed", "small_card", "wide_card"] as const;
+export type EmbedViewMode = (typeof EMBED_VIEW_MODES)[number];
+export const embedViewModeSchema = z.enum(EMBED_VIEW_MODES);
+
 export const embedRefTokenSchema = z
   .object({
     type: z.literal("embed_ref"),
     nodeId: uuid,
+    view: embedViewModeSchema.optional(),
   })
   .strict();
 
@@ -145,6 +157,39 @@ export const whiteboardTokenSchema = z
     layout: z.record(z.unknown()),
   })
   .strict();
+
+/**
+ * Block-scale: a code block (§34.34 B3). `text` is the verbatim source (the
+ * grammar stores it plain — no nested tokens inside a code block);
+ * `language` is an OPTIONAL hint tag (free lowercase string — "python",
+ * "typescript", "mermaid", …) for renderers; absent = plain text. A
+ * PROMOTION SURVIVOR alongside whiteboard/query: block→page/class promotion
+ * stringifies rich tokens to text-only content but keeps code_block tokens
+ * (a code page is a real surface — flattening would destroy the source).
+ * Inline marks ("code") remain the inline-scale escape hatch; this token is
+ * the block-scale one (v1 rendered class-`code` blocks; v2 carries the
+ * language metadata the class could not).
+ */
+export const codeBlockTokenSchema = z
+  .object({
+    type: z.literal("code_block"),
+    language: z
+      .string()
+      .min(1)
+      .max(64)
+      .regex(/^[a-z0-9+#-]+$/, "language hint: lowercase letters, digits, +, #, -")
+      .optional(),
+    text: z.string().max(65536),
+  })
+  .strict();
+
+/**
+ * Block-scale: a horizontal rule (§34.34 B5) — the layout divider token.
+ * Carries no payload. NOT a promotion survivor: an hr holds no prose, so
+ * block→page promotion stringifies it away (a rule in a page title is
+ * meaningless).
+ */
+export const hrTokenSchema = z.object({ type: z.literal("hr") }).strict();
 
 /** The only nested token: a quote contains inline tokens (hard breaks allowed). */
 export const quoteTokenSchema = z
@@ -187,6 +232,8 @@ export const contentTokenSchema = z.discriminatedUnion("type", [
   queryTokenSchema,
   whiteboardTokenSchema,
   quoteTokenSchema,
+  codeBlockTokenSchema,
+  hrTokenSchema,
 ]);
 
 export type InlineToken = z.infer<typeof inlineTokenSchema>;

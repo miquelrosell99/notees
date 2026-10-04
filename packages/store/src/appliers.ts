@@ -26,8 +26,18 @@ import {
   type Envelope,
   type OpPayload,
   type OpType,
+  type WorkspaceFeature,
 } from "@notees/protocol";
-import { plainTextExcerpt, stringifyContentAst } from "@notees/domain";
+import {
+  featureForManagedClass,
+  managedClassIds,
+  plainTextExcerpt,
+  stringifyContentAst,
+  SYSTEM_CLASS_ICONS,
+  SYSTEM_CLASS_UUIDS,
+  SYSTEM_PROPERTY_UUIDS,
+  TASK_FAMILY_SEED,
+} from "@notees/domain";
 
 import { reindexNode, removeSearchIndexEntry } from "./search.js";
 import { rebuildEdges } from "./edges.js";
@@ -900,6 +910,21 @@ function applyClassUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
 function applyClassDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "class.delete";
   const p = env.payload as OpPayload<"class.delete">;
+  // F4 (§34.35): a delete addressed at a feature-managed system class is
+  // routed to the toggle — applied as a feature-disable so the Features
+  // setting is the single archive path for managed classes and the lossy
+  // plain delete (membership tombstoning below) never runs on them. The
+  // route decision is a pure function of the class id (fixed vocabulary),
+  // so every replica takes the same branch; the LWW row gate keeps the
+  // derived state convergent under either delivery order.
+  const managedFeature = featureForManagedClass(p.classId);
+  if (managedFeature !== null) {
+    const wrote = lwwWriteFeatureRow(db, env, managedFeature, false);
+    if (wrote) {
+      setManagedClassesActive(db, managedFeature, false);
+    }
+    return summary(opType, wrote ? managedClassIds(managedFeature) : [p.classId], !wrote);
+  }
   db.prepare("UPDATE class SET active = 0, updated_at = ? WHERE id = ?").run(env.timestamp, p.classId);
   db.prepare("UPDATE node SET is_active = 0, updated_at = ? WHERE id = ?").run(env.timestamp, p.classId);
   // The class leaves every node's class_ids: tombstone the membership rows
@@ -1493,6 +1518,162 @@ function applyCollectionMember(
   return summary(opType, [p.collectionId, p.objectId]);
 }
 
+// --- workspace.feature.* ---------------------------------------------------------
+//
+// Per-workspace feature toggles (§34.35): LWW by (workspaceId, feature) on
+// the envelope (hlc, actor) — the winning row lands in `workspace_feature`
+// and the applier derives the membership-preserving archival of the
+// feature's managed system classes from it. Toggle-off is hide-surfaces-
+// keep-data (F3): `class.active` + the class node's `is_active` flip,
+// `class_member_set` rows NEVER touched (constraint 1 — plain class.delete
+// tombstones every membership pair and is lossy; the toggle must not).
+// An absent row means ENABLED (F2): the empty table is the all-ON default,
+// so pre-toggle workspaces converge with zero migration. A class.delete
+// addressed at a managed class is ROUTED here (F4): applied as a
+// feature-disable so the Features setting is the single archive path for
+// managed classes.
+
+/**
+ * LWW-write one feature row. Returns true when the incoming envelope won
+ * (the row was written); false when a newer (hlc, actor) row already stood
+ * (the toggle is dropped, exactly like a stale property.set).
+ */
+function lwwWriteFeatureRow(
+  db: StoreDatabase,
+  env: Envelope,
+  feature: WorkspaceFeature,
+  enabled: boolean,
+): boolean {
+  const existing = db
+    .prepare(
+      "SELECT hlc_physical, hlc_logical, actor_id FROM workspace_feature WHERE workspace_id = ? AND feature = ?",
+    )
+    .get(env.workspaceId, feature) as
+    | { hlc_physical: number; hlc_logical: number; actor_id: string | null }
+    | undefined;
+  if (existing && compareLww(winnerFromEnvelope(env), rowWinner(existing)) <= 0) {
+    return false;
+  }
+  db.prepare(
+    `INSERT INTO workspace_feature (workspace_id, feature, enabled, hlc_physical, hlc_logical, actor_id)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(workspace_id, feature) DO UPDATE SET
+       enabled = excluded.enabled, hlc_physical = excluded.hlc_physical,
+       hlc_logical = excluded.hlc_logical, actor_id = excluded.actor_id`,
+  ).run(env.workspaceId, feature, enabled ? 1 : 0, env.hlc.physical, env.hlc.logical, env.actorId);
+  return true;
+}
+
+/**
+ * Derived flips for one feature's managed classes (idempotent, membership-
+ * preserving). Pure active-bit projection: updated_at is deliberately NOT
+ * bumped — the toggle's HLC lives on the workspace_feature row (the
+ * authority), and a wall-of-envelope timestamp here would diverge under
+ * reversed delivery of racing toggles (the ensure may author the row after
+ * the flip already ran; both orders must converge byte-identical).
+ */
+function setManagedClassesActive(
+  db: StoreDatabase,
+  feature: WorkspaceFeature,
+  enabled: boolean,
+): void {
+  for (const classId of managedClassIds(feature)) {
+    db.prepare("UPDATE class SET active = ? WHERE id = ?").run(enabled ? 1 : 0, classId);
+    // The class NODE flip is what pickers/search/class hubs filter on
+    // (node.is_active = 1). Node-row HLC columns stay untouched — the flip
+    // is a derived projection of the toggle, not a content write.
+    db.prepare("UPDATE node SET is_active = ? WHERE id = ? AND is_class = 1").run(
+      enabled ? 1 : 0,
+      classId,
+    );
+  }
+}
+
+/**
+ * The `tasks` enable path (§34.35 constraint 5 — closes the "task property
+ * schemas never authored in v2" row): author the task class + the six
+ * property schemas + their bindings at the fixed seed ids. Purely additive
+ * (INSERT OR IGNORE everywhere) so a client-authored family (the web
+ * ensureTaskFamily, random option ids) or a server-seeded one is never
+ * clobbered — first writer wins, convergent on the single global log. The
+ * authored rows are a deterministic function of the enable op, so wipe ->
+ * replay stays byte-identical. The rows are inserted ACTIVE; the caller
+ * normalizes the archival bit afterwards (see applyWorkspaceFeatureSet).
+ */
+function ensureTaskFamilyRows(db: StoreDatabase, env: Envelope): void {
+  const classId = SYSTEM_CLASS_UUIDS.task;
+  const title = JSON.stringify([{ type: "text", text: "Task" }]);
+  db.prepare(
+    `INSERT OR IGNORE INTO node (
+       id, workspace_id, is_class, present_as_main, parent_id, class_ids, name, content,
+       icon, color, is_active, created_at, updated_at, created_by, updated_by,
+       hlc_physical, hlc_logical, actor_id
+     ) VALUES (?, ?, 1, 0, NULL, '[]', NULL, ?, ?, NULL, 1, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    classId,
+    env.workspaceId,
+    title,
+    SYSTEM_CLASS_ICONS.task,
+    env.timestamp,
+    env.timestamp,
+    env.actorId,
+    env.actorId,
+    env.hlc.physical,
+    env.hlc.logical,
+    env.actorId,
+  );
+  db.prepare(
+    `INSERT OR IGNORE INTO class (id, workspace_id, name, icon, color, description, active, created_at, updated_at)
+     VALUES (?, ?, 'Task', ?, NULL, NULL, 1, ?, ?)`,
+  ).run(classId, env.workspaceId, SYSTEM_CLASS_ICONS.task, env.timestamp, env.timestamp);
+  db.prepare("INSERT OR IGNORE INTO class_hierarchy (class_id, ancestor_id) VALUES (?, ?)").run(
+    classId,
+    classId,
+  );
+  for (const entry of TASK_FAMILY_SEED) {
+    const schemaId = SYSTEM_PROPERTY_UUIDS[entry.property];
+    db.prepare(
+      `INSERT OR IGNORE INTO property_schema
+         (id, workspace_id, name, type, multi, scope, options, target_class_filter,
+          date_precision, date_qualified, active, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 0, 'class', ?, NULL, NULL, NULL, 1, ?, ?)`,
+    ).run(schemaId, env.workspaceId, entry.name, entry.type, JSON.stringify([...(entry.options ?? [])]), env.timestamp, env.timestamp);
+    db.prepare(
+      `INSERT OR IGNORE INTO class_property
+         (class_id, property_schema_id, sequence, required, readonly, hide_when_empty,
+          default_value, hlc_physical, hlc_logical, actor_id)
+       VALUES (?, ?, ?, NULL, NULL, NULL, NULL, 0, 0, NULL)`,
+    ).run(classId, schemaId, entry.sequence);
+  }
+  reindexNode(db, classId);
+}
+
+/** Read the current (winning) feature row's enabled bit — absent = enabled (F2). */
+function featureEnabledNow(db: StoreDatabase, workspaceId: string, feature: WorkspaceFeature): boolean {
+  const row = db
+    .prepare("SELECT enabled FROM workspace_feature WHERE workspace_id = ? AND feature = ?")
+    .get(workspaceId, feature) as { enabled: number } | undefined;
+  return row === undefined || row.enabled === 1;
+}
+
+function applyWorkspaceFeatureSet(db: StoreDatabase, env: Envelope): ChangeSummary {
+  const opType = "workspace.feature.set";
+  const p = env.payload as OpPayload<"workspace.feature.set">;
+  const wrote = lwwWriteFeatureRow(db, env, p.feature, p.enabled);
+  if (wrote) {
+    setManagedClassesActive(db, p.feature, p.enabled);
+  }
+  // The ensure rides every enable PAYLOAD (not only the LWW winner): both
+  // delivery orders of a racing toggle pair must author the identical row
+  // set — the winner's flip and the loser's ensure normalize to the same
+  // active bits via the CURRENT row state below.
+  if (p.enabled && p.feature === "tasks") {
+    ensureTaskFamilyRows(db, env);
+    setManagedClassesActive(db, p.feature, featureEnabledNow(db, env.workspaceId, p.feature));
+  }
+  return summary(opType, wrote ? managedClassIds(p.feature) : [], !wrote);
+}
+
 // --- dispatch ------------------------------------------------------------------------
 
 const APPLIERS: Record<
@@ -1522,6 +1703,7 @@ const APPLIERS: Record<
   "asset.detach": applyAssetDetach,
   "collection.member.add": (db, env) => applyCollectionMember(db, env, 1),
   "collection.member.remove": (db, env) => applyCollectionMember(db, env, 0),
+  "workspace.feature.set": applyWorkspaceFeatureSet,
 };
 
 /**
