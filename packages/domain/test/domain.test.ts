@@ -156,16 +156,51 @@ describe("system seeds (v1 port)", () => {
     expect(SYSTEM_PROPERTY_SPECS.eventDate).toEqual({ type: "date", bindTo: "event" });
   });
 
-  it("systemClassAncestors encodes the Features-tab gating semantics (§34.36 reshape)", () => {
+  it("birthday family seeds (§34.36.3, owner directive 2026-10-04: birthday extends event, for persons)", () => {
+    // The next reserved class id after event …040; person-typed family, NO
+    // birthdayDate (the date rides eventDate through the extends chain).
+    expect(SYSTEM_CLASS_UUIDS.birthday).toBe("00000000-0000-0000-0001-000000000041");
+    expect(SYSTEM_CLASS_ICONS.birthday).toMatch(/^mdi/);
+    expect(SEEDED_SYSTEM_CLASSES).toContain("birthday");
+    expect(SYSTEM_CLASS_EXTENDS.birthday).toEqual(["event"]);
+    // The family's only own property: the person the birthday is for —
+    // object-typed, filter rooted at person (extends-aware validation accepts
+    // person + person subclasses; an organization is NOT a birthday target).
+    expect(SYSTEM_PROPERTY_UUIDS.birthdayPerson).toBe("00000000-0000-0000-0003-000000000011");
+    expect(SYSTEM_PROPERTY_SPECS.birthdayPerson).toEqual({
+      type: "object",
+      bindTo: "birthday",
+      targetClassFilter: ["person"],
+    });
+    expect(SYSTEM_PROPERTY_UUIDS).not.toHaveProperty("birthdayDate");
+    expect(SYSTEM_PROPERTY_SPECS).not.toHaveProperty("birthdayDate");
+    // The chip-eligibility row: eventDate re-bound on birthday (mirrors the
+    // seed; there must be exactly one such extra binding).
+    const extra = SYSTEM_EXTRA_CLASS_BINDINGS.filter(
+      (binding) => binding.property === "eventDate" && binding.bindTo === "birthday",
+    );
+    expect(extra).toEqual([{ property: "eventDate", bindTo: "birthday", sequence: 0 }]);
+  });
+
+  it("systemClassAncestors encodes the Features-tab gating semantics (§34.36 reshape + §34.36.3 birthday)", () => {
     // Disabling event disables meeting WITH it (child sees the ancestor)…
     expect(systemClassAncestors("meeting").has("event")).toBe(true);
-    // …while disabling meeting alone leaves event live (no reverse edge).
+    // …and birthday disables with event the same way (sibling child)…
+    expect(systemClassAncestors("birthday").has("event")).toBe(true);
+    // …while disabling a child alone leaves event live (no reverse edge), and
+    // the children don't gate each other.
     expect(systemClassAncestors("event").size).toBe(0);
+    expect(systemClassAncestors("meeting").has("birthday")).toBe(false);
+    expect(systemClassAncestors("birthday").has("meeting")).toBe(false);
     // Multi-hop + sibling families unaffected.
     expect(systemClassAncestors("book").has("source")).toBe(true);
     expect(systemClassAncestors("meeting").has("source")).toBe(false);
     expect(systemClassAncestors("meeting").has("task")).toBe(false);
     expect(systemClassAncestors("task").size).toBe(0);
+    // Persons stay always-on: the birthday family's person-typed filter does
+    // NOT make person part of the event hierarchy (no person gating).
+    expect(systemClassAncestors("person").has("event")).toBe(false);
+    expect(systemClassAncestors("birthday").has("person")).toBe(false);
   });
 });
 

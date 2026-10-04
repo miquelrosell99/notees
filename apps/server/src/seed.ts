@@ -11,6 +11,7 @@ import {
   SYSTEM_CLASS_EXTENDS,
   SYSTEM_CLASS_ICONS,
   SYSTEM_CLASS_UUIDS,
+  SYSTEM_EXTRA_CLASS_BINDINGS,
   SYSTEM_PAGE_UUIDS,
   SYSTEM_PROPERTY_SPECS,
   SYSTEM_PROPERTY_UUIDS,
@@ -96,6 +97,27 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
           propertySchemaId,
           sequence,
           ...(spec.defaultValue !== undefined ? { defaultValue: spec.defaultValue } : {}),
+        },
+        affectedNodeIds: [classId],
+        client: "seed",
+      }),
+    );
+  }
+  // The manifest's extra binding rows (SYSTEM_EXTRA_CLASS_BINDINGS): a schema
+  // whose home is elsewhere gaining a second class (cover→source), and an
+  // extends-child re-binding an inherited schema so class-local binding reads
+  // (calendar quick-create eligibility) see it (eventDate→birthday). The web
+  // self-heal authors the same rows idempotently — convergent either way.
+  for (const extra of SYSTEM_EXTRA_CLASS_BINDINGS) {
+    const classId = SYSTEM_CLASS_UUIDS[extra.bindTo];
+    envelopes.push(
+      factory.make({
+        workspaceId,
+        opType: "class.property.set",
+        payload: {
+          classId,
+          propertySchemaId: SYSTEM_PROPERTY_UUIDS[extra.property],
+          sequence: extra.sequence,
         },
         affectedNodeIds: [classId],
         client: "seed",
