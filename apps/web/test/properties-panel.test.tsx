@@ -397,3 +397,67 @@ describe("dead carrier in the value cell (owner bug 2026-10-04)", () => {
     expect(client.getEffectiveProperties(owner)).toEqual([]);
   });
 });
+
+describe("default-mirror sweep on class removal (§34.65, owner rule)", () => {
+  it("unassigning a class removes authored values that merely mirror its defaults; differing values survive", async () => {
+    const client = await seedClient();
+    // A task-like class: status bound with defaultValue "pending".
+    const statusSchema = await client.createPropertySchema({
+      name: "status",
+      type: "select",
+      options: [
+        { id: "opt-pending", label: "Pending" },
+        { id: "opt-done", label: "Done" },
+      ],
+    });
+    const taskClass = await client.createClass("taskish");
+    await client.setClassProperty(taskClass, statusSchema, {
+      sequence: 0,
+      defaultValue: "opt-pending",
+    });
+
+    // Node A: authored value == the default (materialized legacy data).
+    const nodeA = await client.createObject({ presentAsMain: true, name: "A" });
+    await client.assignClass(nodeA, taskClass);
+    await client.setProperty(nodeA, statusSchema, "opt-pending", 0);
+    // Node B: the user actually chose Done.
+    const nodeB = await client.createObject({ presentAsMain: true, name: "B" });
+    await client.assignClass(nodeB, taskClass);
+    await client.setProperty(nodeB, statusSchema, "opt-done", 0);
+
+    await client.unassignClass(nodeA, taskClass);
+    await client.unassignClass(nodeB, taskClass);
+    await flushWrites();
+
+    // A: the default-mirror is gone with the class (no dangling value).
+    expect(client.getEffectiveProperties(nodeA)).toEqual([]);
+    expect(client.getNode(nodeA)?.classIds).toEqual([]);
+    // B: the authored non-default value survives, marked unbound.
+    expect(client.getNode(nodeB)?.classIds).toEqual([]);
+    expect(client.getEffectiveProperties(nodeB)).toEqual([
+      expect.objectContaining({
+        propertySchemaId: statusSchema,
+        value: "opt-done",
+        source: "authored",
+        boundBy: null,
+      }),
+    ]);
+  });
+
+  it("bindings without a defaultValue never sweep", async () => {
+    const client = await seedClient();
+    const notes = await client.createPropertySchema({ name: "notes", type: "text" });
+    const klass = await client.createClass("plainish");
+    await client.setClassProperty(klass, notes, { sequence: 0 });
+    const node = await client.createObject({ presentAsMain: true, name: "N" });
+    await client.assignClass(node, klass);
+    await client.setProperty(node, notes, "user wrote this", 0);
+
+    await client.unassignClass(node, klass);
+    await flushWrites();
+
+    expect(client.getEffectiveProperties(node)).toEqual([
+      expect.objectContaining({ value: "user wrote this", source: "authored", boundBy: null }),
+    ]);
+  });
+});
