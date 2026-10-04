@@ -53,7 +53,11 @@ async function request<T>(
   token?: string,
 ): Promise<T> {
   const headers = new Headers(init.headers);
-  headers.set("Content-Type", "application/json");
+  // Content-Type only when bytes ride along: Fastify rejects an empty body
+  // with a declared JSON type (API-key revoke + workspace delete 400'd).
+  if (init.body !== undefined && init.body !== null) {
+    headers.set("Content-Type", "application/json");
+  }
   if (token) headers.set("Authorization", `Bearer ${token}`);
   const response = await fetch(`${serverUrl.replace(/\/$/, "")}/api${path}`, {
     ...init,
