@@ -32,6 +32,7 @@ import sqlWasmUrl from "sql.js/dist/sql-wasm.wasm?url";
 
 import { WorkspaceClient, type ClientNode, type SyncStatusSnapshot } from "@/core/workspace-client.js";
 import { WorkerClient } from "@/core/worker-client.js";
+import { EMPTY_UNDO_STATE, type UndoUiState } from "@/core/undo-journal.js";
 import {
   createWorkspace,
   fetchMe,
@@ -71,6 +72,7 @@ import { CalendarPopup } from "./components/ui/CalendarPopup.js";
 import { QueriesHub } from "./components/QueriesHub.js";
 import { TopBar } from "./components/TopBar.js";
 import { QuickAddModal } from "./components/modals/QuickAddModal.js";
+import { QuickCreateFab } from "./components/QuickCreateFab.js";
 import { WorkspacesView } from "./components/WorkspacesView.js";
 import { UserSettingsModal } from "./components/modals/UserSettingsModal.js";
 import { applyAppearance, readDeviceSetting, useDeviceSetting } from "./components/modals/deviceSettings.js";
@@ -315,6 +317,49 @@ export function keymapChordHandler(opts: {
 }
 
 /**
+ * Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z (or Ctrl/Cmd+Y) redo — the session
+ * journal chords (§34.64). The editor-interaction rule (docs/ux.md "Undo and
+ * redo"): while a text field or the outliner editor (contentEditable) owns
+ * the focus, the local text behavior keeps the keystroke and the global
+ * journal stays out of the way; every other focus runs the journal. The
+ * guard therefore yields to ALL contenteditables — the outliner editor's
+ * native text undo is text-scoped by design, and structural gestures are
+ * journaled the moment focus leaves the editor. preventDefault fires only
+ * when the journal has something to (re)apply; exported for the keymap tests.
+ */
+export function undoRedoKeyHandler(opts: {
+  undoState: () => UndoUiState;
+  onUndo: () => void;
+  onRedo: () => void;
+}): (event: KeyboardEvent) => void {
+  return (event) => {
+    const mod = event.ctrlKey || event.metaKey;
+    if (!mod || event.altKey) return;
+    const key = event.key.toLowerCase();
+    const isUndo = key === "z" && !event.shiftKey;
+    const isRedo = (key === "z" && event.shiftKey) || (key === "y" && !event.shiftKey);
+    if (!isUndo && !isRedo) return;
+    const target = event.target;
+    if (
+      target instanceof Element &&
+      target.closest("input, textarea, select, [contenteditable]")
+    ) {
+      return;
+    }
+    const state = opts.undoState();
+    if (isUndo) {
+      if (!state.canUndo) return;
+      event.preventDefault();
+      opts.onUndo();
+      return;
+    }
+    if (!state.canRedo) return;
+    event.preventDefault();
+    opts.onRedo();
+  };
+}
+
+/**
  * Initial view: a hub URL in the address bar wins; otherwise the journal
  * feed is the default ("open in journal view") with the device-local
  * "default view" preference overriding it (legacy choices that have no hub
@@ -496,6 +541,27 @@ export function App() {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return true;
     return window.matchMedia("(min-width: 801px)").matches;
   });
+  /**
+   * Tap-outside drawer dismissal (§34.19 MobileLayout owed half): at narrow
+   * widths the sidebar is a floating drawer — a pointer press that lands
+   * outside the drawer AND outside the topbar (the hamburger toggle lives
+   * there) closes it. Desktop layout (drawer docked beside content) never
+   * dismisses.
+   */
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const onPress = (event: PointerEvent) => {
+      if (typeof window.matchMedia !== "function") return;
+      if (!window.matchMedia("(max-width: 768px)").matches) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest(".nt-sidebar") !== null) return;
+      if (target.closest(".nt-topbar") !== null) return;
+      setSidebarOpen(false);
+    };
+    document.addEventListener("pointerdown", onPress);
+    return () => document.removeEventListener("pointerdown", onPress);
+  }, [sidebarOpen]);
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   /**
    * Right-sidebar peek cards (shift+click a block bullet): most recent first.
@@ -526,6 +592,29 @@ export function App() {
     openWorkspaceLanding();
   }
   const [paletteOpen, setPaletteOpen] = useState(false);
+  /**
+   * §34.64 — the session undo journal's chrome state (availability + labels).
+   * Refreshed on a macrotask coalescer off every client notification (the
+   * worker round-trip is cheap; the journal lives worker-side, per tab).
+   */
+  const [undoUi, setUndoUi] = useState<UndoUiState>(EMPTY_UNDO_STATE);
+  /** The sync snapshot the keymap chord reads synchronously (may lag the
+   *  worker by a macrotask — an undo on an empty journal no-ops honestly). */
+  const undoUiRef = useRef<UndoUiState>(EMPTY_UNDO_STATE);
+  const undoRefreshTimer = useRef<number | null>(null);
+  const scheduleUndoRefresh = useCallback(() => {
+    if (undoRefreshTimer.current !== null) return;
+    undoRefreshTimer.current = window.setTimeout(() => {
+      undoRefreshTimer.current = null;
+      const live = clientRef.current;
+      void Promise.resolve(live === null ? EMPTY_UNDO_STATE : live.undoState()).then(
+        (resolved) => {
+          undoUiRef.current = resolved;
+          setUndoUi(resolved);
+        },
+      );
+    }, 0);
+  }, []);
   /** Top-bar calendar popup (the popup needs the client, so it renders here). */
   const [calendarOpen, setCalendarOpen] = useState(false);
   const calendarButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -722,6 +811,34 @@ export function App() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
+  // Ctrl/Cmd+Z undo / Ctrl/Cmd+Shift+Z (or Ctrl/Cmd+Y) redo — the session
+  // journal chords (§34.64). The chord handler reads the coalesced undo
+  // snapshot synchronously; the write itself runs through the normal path
+  // and the worker's "changed" notification re-syncs the snapshot.
+  useEffect(() => {
+    const handler = undoRedoKeyHandler({
+      undoState: () => undoUiRef.current,
+      onUndo: () => {
+        const live = clientRef.current;
+        if (live === null) return;
+        void live.undo().catch((error: unknown) => {
+          console.error("undo failed:", error);
+        });
+        scheduleUndoRefresh();
+      },
+      onRedo: () => {
+        const live = clientRef.current;
+        if (live === null) return;
+        void live.redo().catch((error: unknown) => {
+          console.error("redo failed:", error);
+        });
+        scheduleUndoRefresh();
+      },
+    });
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [scheduleUndoRefresh]);
+
   /**
    * The single owner of the live client for teardown. State (`client`) drives
    * rendering; the ref lets the unmount-only effect below close exactly the
@@ -733,8 +850,14 @@ export function App() {
 
   useEffect(() => {
     if (client === null) return;
-    return client.subscribe(() => setPagesVersion((v) => v + 1));
-  }, [client]);
+    undoUiRef.current = EMPTY_UNDO_STATE;
+    setUndoUi(EMPTY_UNDO_STATE);
+    scheduleUndoRefresh();
+    return client.subscribe(() => {
+      setPagesVersion((v) => v + 1);
+      scheduleUndoRefresh();
+    });
+  }, [client, scheduleUndoRefresh]);
 
   // Poll the (cheap) status snapshot on a cadence and on every worker
   // notification; both fire React state only when the client changes.
@@ -1534,6 +1657,19 @@ export function App() {
         onOpenNode={openPage}
         onNewPage={(title) => void handleNewPage(title)}
         onSignOut={() => void handleSignOut()}
+        undoState={undoUi}
+        onUndo={() => {
+          void client.undo().catch((error: unknown) => {
+            console.error("undo failed:", error);
+          });
+          scheduleUndoRefresh();
+        }}
+        onRedo={() => {
+          void client.redo().catch((error: unknown) => {
+            console.error("redo failed:", error);
+          });
+          scheduleUndoRefresh();
+        }}
         cacheVersion={pagesVersion}
       />
       {settingsOpen && sessionSignedIn && user !== null && !offline && (
@@ -1549,6 +1685,9 @@ export function App() {
       {quickAddOpen && (
         <QuickAddModal isOpen={quickAddOpen} onClose={() => setQuickAddOpen(false)} client={client} />
       )}
+      {/* The mobile quick-create FAB (§34.19 MobileLayout): hosts its own
+          QuickAddModal; CSS surfaces the button only at narrow widths. */}
+      <QuickCreateFab client={client} />
       {presentingId !== null && (
         <DeckView
           client={client}

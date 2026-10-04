@@ -53,6 +53,13 @@ import { sqljsBackend } from "@notees/store/sqljs";
 // runtime cycle).
 import { aliasValuesOf } from "../ui/components/aliasProperty.js";
 
+import {
+  UndoJournal,
+  type UndoCaptureSource,
+  type UndoRecordMode,
+  type UndoUiState,
+} from "./undo-journal.js";
+
 /** Sensible default depth cap for getBlockTree (cycle protection). */
 const DEFAULT_TREE_DEPTH = 64;
 
@@ -724,6 +731,14 @@ export class WorkspaceClient {
   /** Combined teardown for the wired realtime channel + status subscription. */
   private realtimeStop: (() => void) | null = null;
   private closed = false;
+  /**
+   * §34.64 — the session-local op-inverse undo journal (in-memory, per
+   * client = per tab; never cross-tab, never durable). Records every write
+   * this client applies through its outbox path, with the pre-op snapshot
+   * captured at apply time; undo/redo compose existing ops through the same
+   * write path (see undo-journal.ts for the inversion matrix).
+   */
+  private readonly undoJournal: UndoJournal;
 
   private constructor(store: Store, options: WorkspaceClientOptions) {
     this.store = store;
@@ -737,6 +752,7 @@ export class WorkspaceClient {
     this.restServerUrl =
       options.serverUrl !== undefined && options.serverUrl !== "" ? options.serverUrl : null;
     this.restApiKey = options.apiKey !== undefined && options.apiKey !== "" ? options.apiKey : null;
+    this.undoJournal = new UndoJournal({ capture: this.buildUndoCaptureSource() });
   }
 
   /** Open a Store over the sql.js backend and wrap it in a client. */
@@ -812,6 +828,11 @@ export class WorkspaceClient {
    */
   async bootstrapWorkspace(workspaceId: string): Promise<void> {
     this.workspaceId = workspaceId;
+    // A (re)bootstrap starts a fresh session journal: the durable unpushed
+    // backlog replays below through the raw engine path on purpose (those
+    // envelopes already had their session — re-journaling replays would mint
+    // phantom undo entries).
+    this.undoJournal.clear();
     this.engine = new SyncEngine(this.store, this.transport, this.clock, {
       workspaceId,
       callbacks: {
@@ -1629,16 +1650,13 @@ export class WorkspaceClient {
 
   /** §34.35/§34.55 — write a feature toggle (workspace.feature.set, LWW by HLC). */
   async setFeatureEnabled(feature: WorkspaceFeature, enabled: boolean): Promise<void> {
-    const engine = this.requireEngine();
-    engine.enqueue(
+    this.enqueueLocal(
       this.buildEnvelope(
         "workspace.feature.set",
         { feature, enabled },
         [],
       ),
     );
-    this.notify();
-    this.kickPush();
   }
 
   /** Direct main-child count (cheap child-order read) — the child-pages badge. */
@@ -1694,9 +1712,292 @@ export class WorkspaceClient {
     });
   }
 
+  /**
+   * The single local-write seam (§34.64): every envelope this client authors
+   * funnels through here. The inverse intent is captured BEFORE the apply
+   * (the pre-op snapshot), the envelope then applies + enters the outbox
+   * exactly like any write, and only a successful apply is journaled — a
+   * throwing apply never reaches the outbox, so it never reaches the journal.
+   * `mode` journals the application to the opposite stack while undo/redo
+   * runs (the standard model: undoing is itself journaled, on the redo side);
+   * `verbOverride` relabels those entries with the original gesture's verb
+   * ("Redo delete", not "Redo restore").
+   */
+  private enqueueLocal(
+    envelope: Envelope,
+    mode: UndoRecordMode = "normal",
+    verbOverride?: string,
+  ): void {
+    const prepared = this.undoJournal.prepare(envelope);
+    this.requireEngine().enqueue(envelope);
+    this.undoJournal.commit(prepared, mode, verbOverride);
+    this.notify();
+    this.kickPush();
+  }
+
+  // --- undo journal (§34.64) ---------------------------------------------------
+
+  /** The pre-apply read seam behind the journal — pure store reads (see undo-journal.ts). */
+  private buildUndoCaptureSource(): UndoCaptureSource {
+    const db = () => this.store.database;
+    const parseJson = (raw: string | null | undefined): unknown => {
+      if (raw === null || raw === undefined) return null;
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return null;
+      }
+    };
+    const stringList = (raw: string | null | undefined): string[] => {
+      const parsed = parseJson(raw);
+      return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : [];
+    };
+    const nullableBool = (raw: unknown): boolean | null =>
+      raw === null || raw === undefined ? null : raw === 1 || raw === true;
+    return {
+      nodeSnapshot: (id) => {
+        const row = this.store.getNode(id);
+        if (row === undefined) return null;
+        return {
+          presentAsMain: row.present_as_main === 1,
+          icon: row.icon,
+          color: row.color,
+          contentAst: parseContentAst(row.content),
+          classIds: stringList(row.class_ids),
+          tagIds: stringList(row.tag_ids),
+          active: row.is_active === 1,
+        };
+      },
+      nodePlacement: (id) => {
+        const row = this.store.getNode(id);
+        if (row === undefined) return null;
+        if (row.parent_id === null) {
+          return { parentId: null, afterId: null, beforeId: null };
+        }
+        const siblings = db()
+          .prepare(
+            "SELECT child_id FROM node_child_order WHERE parent_id = ? ORDER BY position",
+          )
+          .all(row.parent_id) as Array<{ child_id: string }>;
+        const ids = siblings.map((sibling) => sibling.child_id);
+        const index = ids.indexOf(id);
+        return {
+          parentId: row.parent_id,
+          afterId: index > 0 ? ids[index - 1]! : null,
+          beforeId: index >= 0 && index < ids.length - 1 ? ids[index + 1]! : null,
+        };
+      },
+      classDescription: (classId) => {
+        const row = db()
+          .prepare("SELECT description FROM class WHERE id = ?")
+          .get(classId) as { description: string | null } | undefined;
+        return row?.description ?? null;
+      },
+      propertyValue: (objectId, propertySchemaId, elementId, idx) => {
+        const rowId = elementId ?? `${objectId}:${propertySchemaId}:${idx}`;
+        const row = db()
+          .prepare(
+            "SELECT id, idx, value, metadata FROM property_value WHERE id = ?",
+          )
+          .get(rowId) as
+          | { id: string; idx: number; value: string; metadata: string | null }
+          | undefined;
+        if (row === undefined) return null;
+        const metadata = parseJson(row.metadata);
+        return {
+          elementId: row.id,
+          idx: row.idx,
+          value: parseJson(row.value),
+          metadata:
+            typeof metadata === "object" && metadata !== null
+              ? (metadata as Record<string, unknown>)
+              : null,
+        };
+      },
+      classBinding: (classId, propertySchemaId) => {
+        const row = db()
+          .prepare(
+            `SELECT sequence, required, readonly, hide_when_empty, default_value, active
+             FROM class_property WHERE class_id = ? AND property_schema_id = ?`,
+          )
+          .get(classId, propertySchemaId) as
+          | {
+              sequence: number;
+              required: number | null;
+              readonly: number | null;
+              hide_when_empty: number | null;
+              default_value: string | null;
+              active: number;
+            }
+          | undefined;
+        if (row === undefined) return null;
+        return {
+          sequence: row.sequence,
+          required: nullableBool(row.required),
+          readonly: nullableBool(row.readonly),
+          hideWhenEmpty: nullableBool(row.hide_when_empty),
+          defaultValue: row.default_value === null ? undefined : parseJson(row.default_value),
+          active: row.active !== 0,
+        };
+      },
+      classParents: (classId) =>
+        (
+          db()
+            .prepare(
+              "SELECT parent_class_id FROM class_extends WHERE class_id = ? ORDER BY parent_class_id",
+            )
+            .all(classId) as Array<{ parent_class_id: string }>
+        ).map((row) => row.parent_class_id),
+      schemaSnapshot: (propertySchemaId) => {
+        const row = db()
+          .prepare(
+            `SELECT name, type, multi, scope, options, target_class_filter, date_precision, date_qualified
+             FROM property_schema WHERE id = ?`,
+          )
+          .get(propertySchemaId) as
+          | {
+              name: string;
+              type: string;
+              multi: number;
+              scope: string;
+              options: string;
+              target_class_filter: string | null;
+              date_precision: string | null;
+              date_qualified: number | null;
+            }
+          | undefined;
+        if (row === undefined) return null;
+        const filter = parseJson(row.target_class_filter);
+        return {
+          name: row.name,
+          type: row.type,
+          multi: row.multi === 1,
+          scope: row.scope,
+          options: parseJson(row.options),
+          targetClassFilter: Array.isArray(filter)
+            ? filter.filter((v): v is string => typeof v === "string")
+            : null,
+          datePrecision: row.date_precision,
+          dateQualified: nullableBool(row.date_qualified),
+        };
+      },
+      assetSnapshot: (objectId, assetId) => {
+        const row = db()
+          .prepare(
+            `SELECT asset_id, hash, mime_type, size, original_name FROM node_asset
+             WHERE node_id = ? AND asset_id = ? ORDER BY uploaded_at DESC LIMIT 1`,
+          )
+          .get(objectId, assetId) as
+          | {
+              asset_id: string;
+              hash: string;
+              mime_type: string;
+              size: number;
+              original_name: string;
+            }
+          | undefined;
+        if (row === undefined) return null;
+        return {
+          assetId: row.asset_id,
+          hash: row.hash,
+          mimeType: row.mime_type,
+          size: row.size,
+          originalName: row.original_name,
+        };
+      },
+      collectionMembership: (collectionId, objectId) => {
+        const row = db()
+          .prepare(
+            "SELECT present FROM collection_member WHERE collection_id = ? AND object_id = ?",
+          )
+          .get(collectionId, objectId) as { present: number } | undefined;
+        return row !== undefined && row.present === 1;
+      },
+      featureEnabled: (feature) => {
+        const row = db()
+          .prepare(
+            "SELECT enabled FROM workspace_feature WHERE workspace_id = ? AND feature = ?",
+          )
+          .get(this.workspaceId, feature) as { enabled: number } | undefined;
+        // Absent row = enabled (the F2 empty-table default).
+        return row === undefined || row.enabled === 1;
+      },
+    };
+  }
+
+  /**
+   * §34.64 — the session journal state for chrome (keymap gating, palette
+   * rows): availability plus the "Undo <verb>" / "Redo <verb>" labels. Async
+   * to match the WorkerClient proxy (the union type is what App consumes).
+   */
+  async undoState(): Promise<UndoUiState> {
+    return this.engine === null
+      ? { canUndo: false, canRedo: false, undoLabel: null, redoLabel: null }
+      : this.undoJournal.state();
+  }
+
+  /**
+   * Undo the most recent journaled local write: the captured inverses are
+   * composed into fresh envelopes and applied through the normal write path,
+   * journaled on the redo side (batched into ONE redo entry per gesture, and
+   * relabeled with the original verb so the chrome reads "Redo delete").
+   * Returns false when the journal is empty; a failed apply restores the
+   * entry (unspent) and rethrows — undo never half-consumes a journal entry
+   * silently (the inverses that did apply stay journaled on the redo side).
+   */
+  async undo(): Promise<boolean> {
+    const entry = this.undoJournal.takeUndo();
+    if (entry === null) return false;
+    try {
+      this.undoJournal.batch(() => {
+        for (const spec of entry.inverseSpecs) {
+          this.enqueueLocal(
+            this.buildEnvelope(spec.opType, spec.payload, spec.affected),
+            "undo",
+            entry.verb,
+          );
+        }
+      });
+    } catch (error) {
+      this.undoJournal.restoreUndo(entry);
+      throw error;
+    }
+    return true;
+  }
+
+  /**
+   * Redo the most recently undone entry: the redo entry's inverseSpecs are
+   * the original gesture's ops (captured when the undo applied), so redo —
+   * the mirror of undo — applies the popped entry's inverseSpecs through the
+   * normal write path, journaled on the undo side under the same verb.
+   */
+  async redo(): Promise<boolean> {
+    const entry = this.undoJournal.takeRedo();
+    if (entry === null) return false;
+    try {
+      this.undoJournal.batch(() => {
+        for (const spec of entry.inverseSpecs) {
+          this.enqueueLocal(
+            this.buildEnvelope(spec.opType, spec.payload, spec.affected),
+            "redo",
+            entry.verb,
+          );
+        }
+      });
+    } catch (error) {
+      this.undoJournal.restoreRedo(entry);
+      throw error;
+    }
+    return true;
+  }
+
+  /** Test/dev seam: how many entries the session journal currently holds. */
+  undoDepth(): { undo: number; redo: number } {
+    return { undo: this.undoJournal.undoDepth(), redo: this.undoJournal.redoDepth() };
+  }
+
   /** Create an object; returns its id. Applied locally, push kicked off. */
   async createObject(partial: CreateObjectInput): Promise<string> {
-    const engine = this.requireEngine();
     const id = partial.id ?? uuidv7();
     const payload: Record<string, unknown> = { objectId: id };
     if (partial.presentAsMain !== undefined) payload.presentAsMain = partial.presentAsMain;
@@ -1713,37 +2014,29 @@ export class WorkspaceClient {
     if (partial.parentId !== undefined) payload.parentId = partial.parentId;
     if (partial.afterId !== undefined) payload.afterId = partial.afterId;
     if (partial.beforeId !== undefined) payload.beforeId = partial.beforeId;
-    engine.enqueue(this.buildEnvelope("object.create", payload, [id]));
-    this.notify();
-    this.kickPush();
+    this.enqueueLocal(this.buildEnvelope("object.create", payload, [id]));
     return id;
   }
 
   /** Update object fields (object.update; at least one field required). */
   async updateObject(id: string, fields: UpdateObjectInput): Promise<void> {
-    const engine = this.requireEngine();
     const payload: Record<string, unknown> = { objectId: id };
     if (fields.presentAsMain !== undefined) payload.presentAsMain = fields.presentAsMain;
     if (fields.contentAst !== undefined) payload.contentAst = fields.contentAst;
     if (fields.icon !== undefined) payload.icon = fields.icon;
     if (fields.color !== undefined) payload.color = fields.color;
-    engine.enqueue(this.buildEnvelope("object.update", payload, [id]));
-    this.notify();
-    this.kickPush();
+    this.enqueueLocal(this.buildEnvelope("object.update", payload, [id]));
   }
 
   /** Trash (default) or permanently delete an object and its subtree. */
   async deleteObject(id: string, opts: DeleteObjectOptions = {}): Promise<void> {
-    const engine = this.requireEngine();
-    engine.enqueue(
+    this.enqueueLocal(
       this.buildEnvelope(
         "object.delete",
         { objectId: id, permanent: opts.permanent ?? false },
         [id],
       ),
     );
-    this.notify();
-    this.kickPush();
   }
 
   /**
@@ -1761,13 +2054,10 @@ export class WorkspaceClient {
     afterId?: string,
     beforeId?: string,
   ): Promise<void> {
-    const engine = this.requireEngine();
     const payload: Record<string, unknown> = { objectId: id, parentId };
     if (afterId !== undefined) payload.afterId = afterId;
     if (beforeId !== undefined) payload.beforeId = beforeId;
-    engine.enqueue(this.buildEnvelope("object.move", payload, [id]));
-    this.notify();
-    this.kickPush();
+    this.enqueueLocal(this.buildEnvelope("object.move", payload, [id]));
   }
 
   /**
@@ -1809,20 +2099,14 @@ export class WorkspaceClient {
    * appends any unlisted members sorted by id.
    */
   async reorderClasses(id: string, classIds: string[]): Promise<void> {
-    const engine = this.requireEngine();
-    engine.enqueue(this.buildEnvelope("class.reorder", { objectId: id, classIds }, [id]));
-    this.notify();
-    this.kickPush();
+    this.enqueueLocal(this.buildEnvelope("class.reorder", { objectId: id, classIds }, [id]));
   }
 
   async unassignClass(id: string, classId: string): Promise<void> {
-    const engine = this.requireEngine();
     const node = this.getNode(id) ?? this.getNodeRaw(id);
     if (!node) throw new Error(`unassignClass: node ${id} not found`);
     if (!node.classIds.includes(classId)) return;
-    engine.enqueue(this.buildEnvelope("class.unassign", { objectId: id, classId }, [id]));
-    this.notify();
-    this.kickPush();
+    this.enqueueLocal(this.buildEnvelope("class.unassign", { objectId: id, classId }, [id]));
   }
 
   /**
@@ -1849,10 +2133,7 @@ export class WorkspaceClient {
     const node = this.getNode(id) ?? this.getNodeRaw(id);
     if (!node) throw new Error(`unassignTag: node ${id} not found`);
     if (!node.tagIds.includes(tagId)) return;
-    const engine = this.requireEngine();
-    engine.enqueue(this.buildEnvelope("tag.unassign", { objectId: id, tagId }, [id]));
-    this.notify();
-    this.kickPush();
+    this.enqueueLocal(this.buildEnvelope("tag.unassign", { objectId: id, tagId }, [id]));
   }
 
   /**
@@ -1866,7 +2147,6 @@ export class WorkspaceClient {
     name: string,
     opts?: { icon?: string; color?: string; id?: string },
   ): Promise<string> {
-    const engine = this.requireEngine();
     // Caller-chosen id (the object.create pattern): system authoring
     // (ensureTaskFamily) creates the task class at its reserved seed id.
     const id = opts?.id ?? uuidv7();
@@ -1877,9 +2157,7 @@ export class WorkspaceClient {
     };
     if (opts?.icon !== undefined) payload.icon = opts.icon;
     if (opts?.color !== undefined) payload.color = opts.color;
-    engine.enqueue(this.buildEnvelope("class.create", payload, [id]));
-    this.notify();
-    this.kickPush();
+    this.enqueueLocal(this.buildEnvelope("class.create", payload, [id]));
     return id;
   }
 
@@ -1890,16 +2168,13 @@ export class WorkspaceClient {
    * which callers surface as a transient message.
    */
   async setClassExtends(classId: string, parentClassIds: string[]): Promise<void> {
-    const engine = this.requireEngine();
-    engine.enqueue(
+    this.enqueueLocal(
       this.buildEnvelope(
         "class.setExtends",
         { classId, parentClassIds },
         [classId, ...parentClassIds],
       ),
     );
-    this.notify();
-    this.kickPush();
   }
 
   /**
@@ -1912,7 +2187,6 @@ export class WorkspaceClient {
     propertySchemaId: string,
     fields: SetClassPropertyInput,
   ): Promise<void> {
-    const engine = this.requireEngine();
     const payload: Record<string, unknown> = { classId, propertySchemaId };
     if (fields.sequence !== undefined) payload.sequence = fields.sequence;
     if (fields.required !== undefined) payload.required = fields.required;
@@ -1920,23 +2194,18 @@ export class WorkspaceClient {
     if (fields.hideWhenEmpty !== undefined) payload.hideWhenEmpty = fields.hideWhenEmpty;
     if (fields.defaultValue !== undefined) payload.defaultValue = fields.defaultValue;
     if (fields.active !== undefined) payload.active = fields.active;
-    engine.enqueue(this.buildEnvelope("class.property.set", payload, [classId]));
-    this.notify();
-    this.kickPush();
+    this.enqueueLocal(this.buildEnvelope("class.property.set", payload, [classId]));
   }
 
   /** Remove a class → property-schema binding (class.property.unset). */
   async unsetClassProperty(classId: string, propertySchemaId: string): Promise<void> {
-    const engine = this.requireEngine();
-    engine.enqueue(
+    this.enqueueLocal(
       this.buildEnvelope(
         "class.property.unset",
         { classId, propertySchemaId },
         [classId],
       ),
     );
-    this.notify();
-    this.kickPush();
   }
 
   /**
@@ -1944,7 +2213,6 @@ export class WorkspaceClient {
    * The bindings picker's "+ new schema" path.
    */
   async createPropertySchema(input: CreatePropertySchemaInput): Promise<string> {
-    const engine = this.requireEngine();
     const id = input.id ?? uuidv7();
     const payload: Record<string, unknown> = {
       propertySchemaId: id,
@@ -1957,9 +2225,7 @@ export class WorkspaceClient {
     if (input.targetClassFilter !== undefined) payload.targetClassFilter = input.targetClassFilter;
     if (input.datePrecision !== undefined) payload.datePrecision = input.datePrecision;
     if (input.dateQualified !== undefined) payload.dateQualified = input.dateQualified;
-    engine.enqueue(this.buildEnvelope("propertySchema.create", payload, []));
-    this.notify();
-    this.kickPush();
+    this.enqueueLocal(this.buildEnvelope("propertySchema.create", payload, []));
     return id;
   }
 
@@ -1969,15 +2235,12 @@ export class WorkspaceClient {
    * precision/qualified controls). Omitted fields keep their values.
    */
   async updatePropertySchema(propertySchemaId: string, fields: UpdatePropertySchemaInput): Promise<void> {
-    const engine = this.requireEngine();
     const payload: Record<string, unknown> = { propertySchemaId };
     if (fields.name !== undefined) payload.name = fields.name;
     if (fields.options !== undefined) payload.options = fields.options;
     if (fields.datePrecision !== undefined) payload.datePrecision = fields.datePrecision;
     if (fields.dateQualified !== undefined) payload.dateQualified = fields.dateQualified;
-    engine.enqueue(this.buildEnvelope("propertySchema.update", payload, []));
-    this.notify();
-    this.kickPush();
+    this.enqueueLocal(this.buildEnvelope("propertySchema.update", payload, []));
   }
 
   /**
@@ -1986,12 +2249,9 @@ export class WorkspaceClient {
    * in the log; recreate-under-the-same-id reactivates (the applier upsert).
    */
   async deletePropertySchema(propertySchemaId: string): Promise<void> {
-    const engine = this.requireEngine();
-    engine.enqueue(
+    this.enqueueLocal(
       this.buildEnvelope("propertySchema.delete", { propertySchemaId }, []),
     );
-    this.notify();
-    this.kickPush();
   }
 
   /**
@@ -2007,26 +2267,20 @@ export class WorkspaceClient {
     idx = 0,
     metadata?: Record<string, unknown>,
   ): Promise<void> {
-    const engine = this.requireEngine();
     const payload: Record<string, unknown> = { objectId, propertySchemaId, value, idx };
     if (metadata !== undefined) payload.metadata = metadata;
-    engine.enqueue(this.buildEnvelope("property.set", payload, [objectId]));
-    this.notify();
-    this.kickPush();
+    this.enqueueLocal(this.buildEnvelope("property.set", payload, [objectId]));
   }
 
   /** Clear an authored property value (property.unset) — the default resurfaces. */
   async unsetProperty(objectId: string, propertySchemaId: string, idx = 0): Promise<void> {
-    const engine = this.requireEngine();
-    engine.enqueue(
+    this.enqueueLocal(
       this.buildEnvelope(
         "property.unset",
         { objectId, propertySchemaId, idx },
         [objectId],
       ),
     );
-    this.notify();
-    this.kickPush();
   }
 
   /**
@@ -2042,7 +2296,6 @@ export class WorkspaceClient {
    * a node-backed reference.
    */
   async promotePropertyCarrier(objectId: string, propertySchemaId: string, idx = 0): Promise<void> {
-    const engine = this.requireEngine();
     const row = this.store.database
       .prepare(
         "SELECT value FROM property_value WHERE node_id = ? AND property_schema_id = ? AND idx = ?",
@@ -2070,14 +2323,16 @@ export class WorkspaceClient {
         `promotePropertyCarrier: value at ${propertySchemaId}:${idx} is not a node-backed carrier reference`,
       );
     }
-    engine.enqueue(
-      this.buildEnvelope("property.unset", { objectId, propertySchemaId, idx }, [objectId]),
-    );
-    engine.enqueue(
-      this.buildEnvelope("object.restore", { objectId: carrier }, [objectId, carrier]),
-    );
-    this.notify();
-    this.kickPush();
+    // One gesture, two envelopes: journal them as a single entry (the unset
+    // and the restore undo together, in reverse).
+    this.undoJournal.batch(() => {
+      this.enqueueLocal(
+        this.buildEnvelope("property.unset", { objectId, propertySchemaId, idx }, [objectId]),
+      );
+      this.enqueueLocal(
+        this.buildEnvelope("object.restore", { objectId: carrier }, [objectId, carrier]),
+      );
+    });
   }
 
   // --- dates (SCHEMA.md "Dates" — a date is a node, not a string) --------------
@@ -2279,8 +2534,7 @@ export class WorkspaceClient {
    * pushed with the rest of the outbox.
    */
   async attachAsset(objectId: string, asset: AssetUploadResult): Promise<void> {
-    const engine = this.requireEngine();
-    engine.enqueue(
+    this.enqueueLocal(
       this.buildEnvelope(
         "asset.attach",
         {
@@ -2294,8 +2548,6 @@ export class WorkspaceClient {
         [objectId, asset.assetId],
       ),
     );
-    this.notify();
-    this.kickPush();
   }
 
   /**
