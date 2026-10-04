@@ -346,6 +346,14 @@ export interface ReferenceEntry {
    * always "direct".
    */
   kind: "direct" | "containment";
+  /**
+   * Linked references only (§34.69): the edge's verb — a propertySchemaId
+   * when the referencing edge is a property value over a bound verb schema
+   * (the designed targeted path; typed-link marks stay targetless per the
+   * M2-deferred resolution ruling). The surfaces resolve it to the schema
+   * name. Null for mentions and unlinked references.
+   */
+  verb: string | null;
 }
 
 export interface CreateObjectInput {
@@ -1560,6 +1568,7 @@ export class WorkspaceClient {
       entries.push({
         ...entry,
         kind: row.kind === "containment" ? "containment" : "direct",
+        verb: row.verb === null || row.verb === undefined ? null : String(row.verb),
       });
     }
     return entries;
@@ -1694,6 +1703,8 @@ export class WorkspaceClient {
       containingPageName: deriveDisplayName(current) || current.id,
       // Direct by default; getLinkedReferences overrides for containment rows.
       kind: "direct",
+      // Unlinked references match literal text, not an edge — no verb.
+      verb: null,
     };
   }
 
@@ -2109,19 +2120,30 @@ export class WorkspaceClient {
     // §34.65 (owner rule): authored values that merely MIRROR the departing
     // class's binding defaults carry no user data — the user never put
     // anything in that property. Sweep them (unset envelopes, explicit ops —
-    // every client converges) before the membership remove. Values that
-    // DIFFER from the default survive (marked unbound). The edge — a value
-    // the user explicitly set TO the default — is indistinguishable without
-    // a provenance flag; recorded as a follow-up in the plan.
+    // every client converges) before the membership remove. The provenance
+    // flag (owner directive, §34.69 — value metadata, wire-neutral) makes
+    // the call EXACT where present:
+    //   metadata.provenance === "system" → the system materialized it —
+    //     sweep even when it differs from the default;
+    //   metadata.provenance === "user"   → the user explicitly wrote it —
+    //     NEVER sweep, even when it equals the default;
+    //   absent (legacy data)             → the original mirror heuristic.
     const bindings = this.getClassBindings(classId);
     if (bindings.length > 0) {
       const authored = this.getEffectiveProperties(id).filter((row) => row.source === "authored");
       for (const binding of bindings) {
-        if (binding.defaultValue === null || binding.defaultValue === undefined) continue;
-        const defaultJson = JSON.stringify(binding.defaultValue);
+        const defaultJson = JSON.stringify(binding.defaultValue ?? null);
         for (const row of authored) {
           if (row.propertySchemaId !== binding.propertySchemaId) continue;
-          if (JSON.stringify(row.value) !== defaultJson) continue;
+          const provenance =
+            typeof row.metadata?.provenance === "string" ? row.metadata.provenance : null;
+          const mirrorsDefault =
+            JSON.stringify(row.value) === defaultJson &&
+            binding.defaultValue !== null &&
+            binding.defaultValue !== undefined;
+          const sweep =
+            provenance === "system" ? true : provenance === "user" ? false : mirrorsDefault;
+          if (!sweep) continue;
           const payload: Record<string, unknown> = {
             objectId: id,
             propertySchemaId: binding.propertySchemaId,

@@ -97,21 +97,20 @@ export function coverAssetIdOf(
 }
 
 /**
- * True when the node COULD carry a cover — one of its classes binds the
- * cover schema (the `source` binding by design). The AddCover affordance
- * renders only here; the banner renders when the value is set.
+ * True when the node COULD carry a cover. v1's cover was a GLOBAL property
+ * (any page) — §34.59-era read it as the source binding only, hiding the
+ * cover from every other page (owner bug 2026-10-04: "I don't see the cover
+ * element in page view"). The honest global rule: once the cover schema
+ * exists, ANY document-chrome node can carry the value — authored values
+ * surface in the effective read even without a binding (marked unbound),
+ * the banner reads them directly, and setNodeCover writes them.
  */
 export function canHaveCoverOf(
-  client: Pick<AnyClient, "getNode" | "getClassBindings">,
+  client: Pick<AnyClient, "listPropertySchemas">,
   nodeId: string,
 ): boolean {
-  const node = client.getNode(nodeId);
-  if (node === undefined) return false;
-  return node.classIds.some((classId) =>
-    client
-      .getClassBindings(classId)
-      .some((binding) => binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS.cover),
-  );
+  void nodeId;
+  return client.listPropertySchemas().some((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.cover);
 }
 
 /**

@@ -244,3 +244,32 @@ describe("the dedicated header element (§34.59)", () => {
     expect(container.querySelector(".nt-add-cover")).toBeNull();
   });
 });
+
+describe("the global cover (owner bug 2026-10-04: any page, like v1)", () => {
+  it("a NON-source page offers Add cover and the banner once set", async () => {
+    const client = await seedClient();
+    vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,GLOBAL");
+    await ensureCoverFamily(client);
+    const pageId = await client.createObject({ presentAsMain: true, name: "Wartortle" });
+    const assetId = await client.createObject({ presentAsMain: true, name: "sprite.png" });
+    await client.assignClass(assetId, SYSTEM_CLASS_UUIDS.asset);
+    await flushWrites();
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    fireEvent.click(screen.getByRole("button", { name: "Add cover" }));
+    fireEvent.change(screen.getByLabelText("Search assets…"), { target: { value: "sprite" } });
+    await flushWrites();
+    fireEvent.click(
+      document.querySelector(
+        ".node-result-item:not(.node-result-item--create):not(.node-result-item--date)",
+      )!,
+    );
+    await flushWrites();
+
+    // The value rides unbound (no class binds cover on this page) but the
+    // banner renders — the cover is header chrome for EVERY page, like v1.
+    expect(coverAssetIdOf(client, pageId)).toBe(assetId);
+    await screen.findByRole("button", { name: "Collapse cover image" });
+    expect(container.querySelector(".nt-page-banner")).not.toBeNull();
+  });
+});

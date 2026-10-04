@@ -213,11 +213,11 @@ describe("DeckView", () => {
     // through the BlockRow branch (not a flattened list of rows/cells).
     press("ArrowRight");
     const overlay = document.body.querySelector(".presentation-overlay")!;
-    const grid = overlay.querySelector(".nt-table");
+    const grid = overlay.querySelector(".nt-blocktable");
     expect(grid).not.toBeNull();
-    expect(grid!.querySelectorAll(".nt-table-row")).toHaveLength(2);
-    expect(overlay.querySelector(".nt-table")!.textContent).toContain("alpha");
-    expect(overlay.querySelector(".nt-table")!.textContent).toContain("delta");
+    expect(grid!.querySelectorAll(".nt-blocktable-row")).toHaveLength(2);
+    expect(overlay.querySelector(".nt-blocktable")!.textContent).toContain("alpha");
+    expect(overlay.querySelector(".nt-blocktable")!.textContent).toContain("delta");
     // Read-only: the table toolbar (mutation gestures) stays out of the deck.
     expect(overlay.querySelector(".nt-table-toolbar")).toBeNull();
   });
