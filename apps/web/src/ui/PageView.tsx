@@ -119,7 +119,7 @@ export function PageView({
   sections = undefined,
   /** Replaces the default <SystemSections/> (ClassView: extends-by + system). */
   systemSections = undefined,
-  /** §34.61 shares: server coordinates for the "Share…" item + modal. */
+  /** §34.62 shares: server coordinates for the "Share…" item + modal. */
   shareTarget = undefined,
 }: {
   client: WorkspaceClient | WorkerClient;
