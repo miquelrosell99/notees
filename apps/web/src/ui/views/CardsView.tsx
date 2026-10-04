@@ -17,16 +17,17 @@
 import { useEffect, useState } from "react";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
-import { rendersWithDocumentChrome } from "@notees/domain";
+import { rendersWithDocumentChrome, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import { Icon } from "../Icon.js";
 import { BlockRow } from "../BlockRow.js";
 import { classIconMap, nodeIcon } from "../iconFor.js";
 import { displayNameForSettings, displayNameFromClient } from "../dateDisplay.js";
 import { renderStateLabel } from "../renderStateLabel.js";
-import { SelectionButton, Checkbox } from "../components/ui/index.js";
+import { SelectionButton, Checkbox, ImageModal } from "../components/ui/index.js";
 import { registerView } from "./registry.js";
 import { useWindowed } from "./useWindowed.js";
+import { useLazyInView } from "./useLazyInView.js";
 import { ShowMoreButton } from "./ShowMoreButton.js";
 import { propertyDisplayText } from "./propertyDisplay.js";
 import { assetImageUrl, cardImageAssetId } from "./assetThumbs.js";
@@ -91,23 +92,70 @@ function TreeCards({ items, props }: { items: NodeCollectionItem[]; props: NodeC
   );
 }
 
-/** The cover image (resolved asynchronously; null = text-only card). */
+/**
+ * The card cover image (§34.75): the LIST renders instantly — every card
+ * shows its imagery placeholder; the expensive fetch (full bytes → data
+ * URL → decode) starts only when the card nears the viewport
+ * (useLazyInView), and the loaded image clicks open into the ImageModal
+ * lightbox (the v1 AssetImage pattern: download + fullscreen + Esc).
+ */
 function CardCover({ item, props, layout }: { item: NodeCollectionItem; props: NodeCollectionProps; layout: CardLayout }) {
-  const [url, setUrl] = useState<string | null>(null);
+  const client = props.client;
   const assetId = cardImageAssetId(item.node, props.propertiesOf?.(item.node.id));
+  const [sentinelRef, inView] = useLazyInView<HTMLElement>();
+  const [url, setUrl] = useState<string | null>(null);
+  const [zoomOpen, setZoomOpen] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     setUrl(null);
-    if (assetId === null) return;
-    void assetImageUrl(props.client, assetId).then((resolved) => {
+    if (!inView || assetId === null) return;
+    void assetImageUrl(client, assetId).then((resolved) => {
       if (!cancelled) setUrl(resolved);
     });
     return () => {
       cancelled = true;
     };
-  }, [assetId, props.client]);
-  if (url === null) return null;
-  return <img className="node-card__cover" src={url} alt="" />;
+  }, [inView, assetId, client]);
+
+  if (assetId === null) return null;
+  if (url === null) {
+    // Placeholder keeps the layout slot (same class family, no bytes yet).
+    return (
+      <div
+        ref={sentinelRef as React.RefCallback<HTMLDivElement>}
+        className="node-card__cover node-card__cover--pending"
+        aria-hidden="true"
+      />
+    );
+  }
+  const assetName = client.getAssetInfo(assetId)?.originalName ?? undefined;
+  return (
+    <>
+      <button
+        type="button"
+        ref={sentinelRef as React.RefCallback<HTMLButtonElement>}
+        className="node-card__cover node-card__cover--button"
+        title={assetName !== undefined ? `${assetName} (click to view full size)` : "View full size"}
+        aria-label={assetName !== undefined ? `View ${assetName} full size` : "View image full size"}
+        onClick={(event) => {
+          event.stopPropagation();
+          setZoomOpen(true);
+        }}
+      >
+        <img src={url} alt="" loading="lazy" decoding="async" draggable="false" />
+      </button>
+      {zoomOpen && (
+        <ImageModal
+          isOpen
+          onClose={() => setZoomOpen(false)}
+          src={url}
+          filename={assetName}
+          alt={assetName ?? ""}
+        />
+      )}
+    </>
+  );
 }
 
 /** One flat node card — also the kanban board's card body. */
@@ -151,7 +199,8 @@ export function NodeCard({
           />
         </span>
       )}
-      {isCoverAsset(client, item.node.id) && (
+      {item.node.classIds.includes(SYSTEM_CLASS_UUIDS.asset) &&
+        isCoverAsset(client, item.node.id) && (
         <span className="node-card__cover-badge" title="This asset is used as a page cover">
           <Badge variant="neutral" size="sm">Cover</Badge>
         </span>

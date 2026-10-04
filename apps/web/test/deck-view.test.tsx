@@ -11,11 +11,13 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
+import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { DeckView } from "../src/ui/presentation/DeckView.js";
 import { clearAllResumeIndexes } from "../src/ui/presentation/presentationSession.js";
 import { NodeMenuButton } from "../src/ui/components/NodeMenuButton.js";
+import { ensureCoverProperty } from "../src/ui/components/coverProperty.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -245,5 +247,88 @@ describe("Present entry point", () => {
     render(<NodeMenuButton client={client} node={node} onOpenNode={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: "Node actions" }));
     expect(screen.queryByRole("menuitem", { name: "Present" })).toBeNull();
+  });
+});
+
+describe("DeckView §34.75 — assets, images, and covers in presentation mode", () => {
+  it("an asset token inside a text block renders the live image (click → lightbox)", async () => {
+    const client = await seedClient();
+    const asset = await client.createObject({ presentAsMain: true, name: "slide-art.png" });
+    await client.assignClass(asset, SYSTEM_CLASS_UUIDS.asset);
+    vi.spyOn(client, "getAssetInfo").mockReturnValue({
+      assetId: asset,
+      mimeType: "image/png",
+      originalName: "slide-art.png",
+      size: 10,
+      hash: "hash-slide",
+      uploadedAt: "2026-10-04T00:00:00Z",
+    });
+    vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,SLIDE");
+
+    const pageId = await client.createObject({ presentAsMain: true, name: "Asset Deck" });
+    await client.createObject({
+      parentId: pageId,
+      presentAsMain: false,
+      contentAst: [
+        { type: "text", text: "Look at this" },
+        { type: "asset_ref", assetId: asset },
+      ],
+    });
+
+    render(<DeckView client={client} pageId={pageId} onOpenNode={() => {}} onClose={() => {}} />);
+    press("ArrowRight");
+    // The asset image resolves asynchronously (bytes → data URL).
+    await screen.findByAltText("slide-art.png");
+    const overlay = document.body.querySelector(".presentation-overlay")!;
+    expect(overlay.querySelector(".nt-asset--image img")).not.toBeNull();
+    fireEvent.click(overlay.querySelector(".nt-asset--image")!);
+    expect(document.body.querySelector(".image-modal-image")).not.toBeNull();
+  });
+
+  it("the presented page's cover renders as the title slide's hero", async () => {
+    const client = await seedClient();
+    await ensureCoverProperty(client);
+    const coverAsset = await client.createObject({ presentAsMain: true, name: "hero.png" });
+    await client.assignClass(coverAsset, SYSTEM_CLASS_UUIDS.asset);
+    vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,HERO");
+
+    const pageId = await client.createObject({ presentAsMain: true, name: "Covered Deck" });
+    await client.setProperty(pageId, SYSTEM_PROPERTY_UUIDS.cover, { nodeId: coverAsset }, 0);
+
+    render(<DeckView client={client} pageId={pageId} onOpenNode={() => {}} onClose={() => {}} />);
+    await act(async () => {});
+    const cover = document.body.querySelector(".nt-deck-cover .nt-deck-image");
+    expect(cover).not.toBeNull();
+    expect(document.body.querySelector(".nt-deck-title")?.textContent).toBe("Covered Deck");
+  });
+
+  it("a section with a cover but no image block gets the cover in the right column, text intact", async () => {
+    const client = await seedClient();
+    await ensureCoverProperty(client);
+    const coverAsset = await client.createObject({ presentAsMain: true, name: "section.png" });
+    await client.assignClass(coverAsset, SYSTEM_CLASS_UUIDS.asset);
+    vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,SECTION");
+
+    const pageId = await client.createObject({ presentAsMain: true, name: "Section Cover Deck" });
+    const section = await client.createObject({ parentId: pageId, presentAsMain: true, name: "Covered Section" });
+    await client.setProperty(section, SYSTEM_PROPERTY_UUIDS.cover, { nodeId: coverAsset }, 0);
+    await client.createObject({
+      parentId: section,
+      contentAst: [
+        { type: "text", text: "First paragraph" },
+        { type: "text", text: "Second paragraph" },
+      ],
+    });
+
+    render(<DeckView client={client} pageId={pageId} onOpenNode={() => {}} onClose={() => {}} />);
+    press("ArrowRight");
+    await act(async () => {});
+    const overlay = document.body.querySelector(".presentation-overlay")!;
+    // The cover-split: columns with the image right…
+    expect(overlay.querySelector(".nt-deck-columns .nt-deck-image-column .nt-deck-image")).not.toBeNull();
+    // …and BOTH text paragraphs still in the text column (cover-split drops
+    // nothing — unlike the trailing-image split).
+    expect(overlay.querySelector(".nt-deck-body")!.textContent).toContain("First paragraph");
+    expect(overlay.querySelector(".nt-deck-body")!.textContent).toContain("Second paragraph");
   });
 });
