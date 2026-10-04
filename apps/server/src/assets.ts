@@ -181,8 +181,11 @@ export function registerAssetRoutes(app: FastifyInstance, ctx: ServerContext): v
         // an unsaved attach envelope leaves the node without its node_asset
         // row and the UI without bytes (observed 2026-10-04: 801 of 1,351
         // bulk uploads returned 201 with the attach silently unsaved —
-        // registered in the plan). Mirrors the objects route's empty-save 409.
-        throw new AppError(500, "internal", `asset.attach for ${assetId} was not saved to the log`);
+        // registered in the plan §34.73). The objects route's empty-save
+        // analog answers 409; here the 500 says the write SHOULD have
+        // landed (its own taxonomy code — `internal` is the handler
+        // fallback only, §34.74).
+        throw new AppError(500, "attach_failed", `asset.attach for ${assetId} was not saved to the log`);
       }
       attachedTo = objectId;
     }
