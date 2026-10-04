@@ -31,6 +31,10 @@ import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { displayNameFromClient } from "../src/ui/dateDisplay.js";
 import { dateChipCandidates } from "../src/ui/components/calendarViewUtils.js";
 import {
+  BIRTHDAY_CLASS_ID,
+  BIRTHDAY_FAMILY,
+  birthdayFamilyPresent,
+  ensureBirthdayFamily,
   ensureMeetingFamily,
   EVENT_CLASS_ID,
   EVENT_FAMILY,
@@ -78,7 +82,7 @@ function seedEnvelope(
 function classSeedEnvelopes(
   className: string,
   classId: string,
-  family: ReadonlyArray<{ id: string; name: string; type: string }>,
+  family: ReadonlyArray<{ id: string; name: string; type: string; targetClassFilter?: string[] }>,
 ): Envelope[] {
   const envelopes: Envelope[] = [
     seedEnvelope(
@@ -91,7 +95,16 @@ function classSeedEnvelopes(
     envelopes.push(
       seedEnvelope(
         "propertySchema.create",
-        { propertySchemaId: spec.id, name: spec.name, type: spec.type, multi: false, scope: "class" },
+        {
+          propertySchemaId: spec.id,
+          name: spec.name,
+          type: spec.type,
+          multi: false,
+          scope: "class",
+          ...(spec.targetClassFilter !== undefined
+            ? { targetClassFilter: spec.targetClassFilter }
+            : {}),
+        },
         [],
       ),
       seedEnvelope(
@@ -110,10 +123,23 @@ function serverSeededRelay(): MemoryRelay {
   relay.ingest([
     ...classSeedEnvelopes("event", EVENT_CLASS_ID, EVENT_FAMILY),
     ...classSeedEnvelopes("meeting", MEETING_CLASS_ID, MEETING_FAMILY),
+    ...classSeedEnvelopes("birthday", BIRTHDAY_CLASS_ID, BIRTHDAY_FAMILY),
     seedEnvelope(
       "class.setExtends",
       { classId: MEETING_CLASS_ID, parentClassIds: [EVENT_CLASS_ID] },
       [MEETING_CLASS_ID, EVENT_CLASS_ID],
+    ),
+    seedEnvelope(
+      "class.setExtends",
+      { classId: BIRTHDAY_CLASS_ID, parentClassIds: [EVENT_CLASS_ID] },
+      [BIRTHDAY_CLASS_ID, EVENT_CLASS_ID],
+    ),
+    // The SYSTEM_EXTRA_CLASS_BINDINGS emission: eventDate re-bound on
+    // birthday (the chip-eligibility row).
+    seedEnvelope(
+      "class.property.set",
+      { classId: BIRTHDAY_CLASS_ID, propertySchemaId: SYSTEM_PROPERTY_UUIDS.eventDate, sequence: 0 },
+      [BIRTHDAY_CLASS_ID],
     ),
   ]);
   return relay;
@@ -304,5 +330,182 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
       },
     });
     expect(asEvent.ids).toContain(id);
+  });
+});
+
+describe("ensureBirthdayFamily (birthday extends event, for persons — §34.36.3)", () => {
+  it("self-heals the birthday family at the reserved ids on an unseeded workspace", async () => {
+    const client = await seedClient();
+    expect(await birthdayFamilyPresent(client)).toBe(false);
+
+    await ensureBirthdayFamily(client);
+
+    // The event root exists (the date's home via the extends chain).
+    expect(client.getNodeRaw(EVENT_CLASS_ID)?.isClass).toBe(true);
+    // The birthday class + the person-typed schema…
+    const birthdayClass = client.getNodeRaw(BIRTHDAY_CLASS_ID);
+    expect(birthdayClass?.isClass).toBe(true);
+    expect(deriveDisplayName(birthdayClass!)).toBe("birthday");
+    const schema = client
+      .listPropertySchemas()
+      .find((entry) => entry.id === SYSTEM_PROPERTY_UUIDS.birthdayPerson);
+    expect(schema).toMatchObject({ name: "birthdayPerson", type: "object", scope: "class" });
+    expect(schema?.targetClassFilter).toEqual([SYSTEM_CLASS_UUIDS.person]);
+    // …its binding, the eventDate chip-eligibility row, and the edge.
+    const bound = client
+      .getClassBindings(BIRTHDAY_CLASS_ID)
+      .map((binding) => binding.propertySchemaId);
+    expect(bound).toContain(SYSTEM_PROPERTY_UUIDS.birthdayPerson);
+    expect(bound).toContain(SYSTEM_PROPERTY_UUIDS.eventDate);
+    expect(client.getClassParents(BIRTHDAY_CLASS_ID)).toContain(EVENT_CLASS_ID);
+    expect(await birthdayFamilyPresent(client)).toBe(true);
+  });
+
+  it("is idempotent: repeated calls author nothing (no birthdayDate anywhere)", async () => {
+    const client = await seedClient();
+    await ensureBirthdayFamily(client);
+    const schemas = client.listPropertySchemas().length;
+    const bindings = client.getClassBindings(BIRTHDAY_CLASS_ID).length;
+    const parents = client.getClassParents(BIRTHDAY_CLASS_ID);
+
+    await ensureBirthdayFamily(client);
+    await ensureBirthdayFamily(client);
+
+    expect(client.listPropertySchemas()).toHaveLength(schemas);
+    expect(client.getClassBindings(BIRTHDAY_CLASS_ID)).toHaveLength(bindings);
+    expect(client.getClassParents(BIRTHDAY_CLASS_ID)).toEqual(parents);
+    // The date rides eventDate — a birthdayDate schema must never appear.
+    expect(
+      client.listPropertySchemas().some((entry) => entry.name === "birthdayDate"),
+    ).toBe(false);
+  });
+
+  it("recognizes the server-seed shape and re-authors nothing", async () => {
+    const client = await seedClient(serverSeededRelay());
+    expect(await birthdayFamilyPresent(client)).toBe(true);
+
+    const schemas = client.listPropertySchemas().length;
+    await ensureBirthdayFamily(client);
+
+    expect(client.listPropertySchemas()).toHaveLength(schemas);
+    expect(client.getClassParents(BIRTHDAY_CLASS_ID)).toEqual([EVENT_CLASS_ID]);
+    expect(client.getNodeRaw(BIRTHDAY_CLASS_ID)?.icon).toBe(SYSTEM_CLASS_ICONS.birthday);
+  });
+
+  it("re-heals a dropped extends edge (the present-gate covers the edge)", async () => {
+    const client = await seedClient();
+    await ensureBirthdayFamily(client);
+    client.store.database
+      .prepare("DELETE FROM class_extends WHERE class_id = ?")
+      .run(BIRTHDAY_CLASS_ID);
+    expect(await birthdayFamilyPresent(client)).toBe(false);
+
+    await ensureBirthdayFamily(client);
+
+    expect(client.getClassParents(BIRTHDAY_CLASS_ID)).toEqual([EVENT_CLASS_ID]);
+  });
+
+  it("makes the birthday class calendar quick-create eligible (eventDate drives the chip)", async () => {
+    const client = await seedClient();
+    await ensureBirthdayFamily(client);
+
+    // The Calendar view's exact chip-qualification call (CalendarView.tsx).
+    const classes = client
+      .listClasses()
+      .map((cls) => ({ id: cls.id, name: displayNameFromClient(client, cls.id) }));
+    const chips = dateChipCandidates(classes, (classId) => client.getClassBindings(classId));
+
+    const birthdayChip = chips.find((chip) => chip.classId === BIRTHDAY_CLASS_ID);
+    expect(birthdayChip).toMatchObject({
+      schemaId: SYSTEM_PROPERTY_UUIDS.eventDate,
+      label: "birthday",
+    });
+    expect(chips.filter((chip) => chip.classId === BIRTHDAY_CLASS_ID)).toHaveLength(1);
+  });
+
+  it("a birthday answers BOTH the class:birthday and the class:event queries (extends chain)", async () => {
+    const client = await seedClient();
+    await ensureBirthdayFamily(client);
+
+    const id = await client.createObject({ presentAsMain: true, classIds: [BIRTHDAY_CLASS_ID] });
+    await client.setDateProperty(id, SYSTEM_PROPERTY_UUIDS.eventDate, "2026-10-06");
+
+    const asBirthday = client.runQueryAst({
+      version: 1,
+      scope: { type: "entire_workspace" },
+      root: {
+        type: "group",
+        logic: "and",
+        children: [{ type: "class", classId: BIRTHDAY_CLASS_ID }],
+      },
+    });
+    expect(asBirthday.ids).toContain(id);
+    const asEvent = client.runQueryAst({
+      version: 1,
+      scope: { type: "entire_workspace" },
+      root: {
+        type: "group",
+        logic: "and",
+        children: [{ type: "class", classId: EVENT_CLASS_ID }],
+      },
+    });
+    expect(asEvent.ids).toContain(id);
+  });
+
+  it("birthdayPerson accepts a person and rejects an organization (extends-aware filter)", async () => {
+    const client = await seedClient();
+    await ensureBirthdayFamily(client);
+    const personId = await client.createObject({
+      presentAsMain: true,
+      name: "Ada Lovelace",
+      classIds: [SYSTEM_CLASS_UUIDS.person],
+    });
+    const orgId = await client.createObject({
+      presentAsMain: true,
+      name: "Analytical Engines Inc",
+      classIds: [SYSTEM_CLASS_UUIDS.organization],
+    });
+    const birthday = await client.createObject({
+      presentAsMain: true,
+      classIds: [BIRTHDAY_CLASS_ID],
+    });
+
+    // A person is a valid birthday target…
+    await client.setProperty(birthday, SYSTEM_PROPERTY_UUIDS.birthdayPerson, { nodeId: personId }, 0);
+    expect(
+      client
+        .getEffectiveProperties(birthday)
+        .find((entry) => entry.propertySchemaId === SYSTEM_PROPERTY_UUIDS.birthdayPerson)?.value,
+    ).toEqual({ nodeId: personId });
+
+    // …an organization is NOT (person-rooted filter; org founding days are
+    // ordinary events). The write fails loud per the §34.45/§34.51 rule.
+    await expect(
+      client.setProperty(birthday, SYSTEM_PROPERTY_UUIDS.birthdayPerson, { nodeId: orgId }, 1),
+    ).rejects.toThrow();
+  });
+
+  it("a person's standard backlinks section already renders their birthdays (no bespoke section)", async () => {
+    const client = await seedClient();
+    await ensureBirthdayFamily(client);
+    const personId = await client.createObject({
+      presentAsMain: true,
+      name: "Ada Lovelace",
+      classIds: [SYSTEM_CLASS_UUIDS.person],
+    });
+    const birthday = await client.createObject({
+      presentAsMain: true,
+      name: "Ada's birthday",
+      classIds: [BIRTHDAY_CLASS_ID],
+    });
+    await client.setProperty(birthday, SYSTEM_PROPERTY_UUIDS.birthdayPerson, { nodeId: personId }, 0);
+
+    // The page-bottom references read (SystemSections' linked-references
+    // section) lists the birthday on the PERSON's page — the person-typed
+    // value fans out as a birthday→person edge, so the person's backlinks
+    // render their birthdays with zero bespoke section work. (The edge is
+    // one-directional, like a date's: the birthday links TO the person.)
+    const personRefs = client.getLinkedReferences(personId).map((entry) => entry.source.id);
+    expect(personRefs).toContain(birthday);
   });
 });

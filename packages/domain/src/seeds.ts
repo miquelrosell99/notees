@@ -55,6 +55,11 @@ export const SYSTEM_CLASS_UUIDS = {
   // `meeting` extends it (SYSTEM_CLASS_EXTENDS below), so disabling event
   // disables meetings with it, not vice versa.
   event: "00000000-0000-0000-0001-000000000040",
+  // §34.36.3 (owner directive 2026-10-04): `birthday` extends `event` — a
+  // person's birthday is an event on the calendar (eventDate drives the chip
+  // via the birthday binding row seeded in SYSTEM_EXTRA_CLASS_BINDINGS); the
+  // family itself is person-typed (birthdayPerson), not a date duplicate.
+  birthday: "00000000-0000-0000-0001-000000000041",
 } as const;
 
 export type SystemClassName = keyof typeof SYSTEM_CLASS_UUIDS;
@@ -99,6 +104,7 @@ export const SYSTEM_CLASS_ICONS: Record<SystemClassName, string> = {
   conference: "mdiPresentation",
   meeting: "mdiCalendarClock",
   event: "mdiCalendar",
+  birthday: "mdiCakeVariant",
 };
 
 /** Canonical `extends` edges between system classes (multiple inheritance-ready). */
@@ -118,6 +124,9 @@ export const SYSTEM_CLASS_EXTENDS: Partial<Record<SystemClassName, SystemClassNa
   // calendar family root. meeting's own family (meetingDate/location/agenda)
   // stays meeting-specific on top of the event date.
   meeting: ["event"],
+  // §34.36.3: a birthday IS an event (a person's birthday lands on the
+  // calendar through the event chain, exactly like a meeting).
+  birthday: ["event"],
 };
 
 /**
@@ -204,6 +213,9 @@ export const SYSTEM_PROPERTY_UUIDS = {
   // makes `event` (and, via extends, `meeting`) calendar quick-create
   // eligible. Date-only per the whole-day law, like meetingDate.
   eventDate: "00000000-0000-0000-0003-000000000010",
+  // §34.36.3: the birthday family's ONLY own property — the person the
+  // birthday is for (the date rides eventDate; see the spec comment).
+  birthdayPerson: "00000000-0000-0000-0003-000000000011",
 } as const;
 
 export type SystemPropertyName = keyof typeof SYSTEM_PROPERTY_UUIDS;
@@ -281,11 +293,30 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   agenda: { type: "text", bindTo: "meeting" },
   // §34.36 reshape: the event family's minimal shape — one date binding.
   eventDate: { type: "date", bindTo: "event" },
+  // §34.36.3 (owner directive 2026-10-04): the birthday family is
+  // PERSON-typed, not a date duplicate — the date rides event's eventDate
+  // through the extends chain (effective-properties binding resolution is
+  // extends-aware, store/src/effective.ts). The birthday EVENT links TO the
+  // person: object-typed, filter rooted at `person` (extends-aware
+  // validation, §34.45/§34.51 — accepts person and any future person
+  // subclass; an organization does NOT carry birthdays: its founding day is
+  // an ordinary event. Widening the filter to ["agent"] is a one-line seed
+  // change if the owner wants org anniversaries).
+  birthdayPerson: { type: "object", bindTo: "birthday", targetClassFilter: ["person"] },
 };
 
-/** Extra bindings for schemas created outside SYSTEM_PROPERTY_SPECS (global cover). */
+/**
+ * Extra binding ROWS beyond each spec's single `bindTo` — consumed by the
+ * server seed (apps/server/src/seed.ts) and the web self-heal. Two shapes:
+ * schemas whose home is elsewhere gaining a second class (cover→source), and
+ * an EXTENDS-CHILD re-binding an inherited schema so class-local binding
+ * reads (the calendar quick-create eligibility walk) see it without the
+ * child duplicating the schema (birthday→eventDate: the date value itself
+ * still resolves through the extends chain at read time).
+ */
 export const SYSTEM_EXTRA_CLASS_BINDINGS: { property: SystemPropertyName; bindTo: SystemClassName; sequence: number }[] = [
   { property: "cover", bindTo: "source", sequence: 7 },
+  { property: "eventDate", bindTo: "birthday", sequence: 0 },
 ];
 
 export const TASK_STATUS_OPTIONS = [
@@ -411,4 +442,5 @@ export const SEEDED_SYSTEM_CLASSES: SystemClassName[] = [
   "conference",
   "meeting",
   "event",
+  "birthday",
 ];

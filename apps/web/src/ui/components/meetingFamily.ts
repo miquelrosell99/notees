@@ -7,26 +7,33 @@
  * eligible — any class with a date-typed binding per dateChipCandidates).
  * `meeting` IS-A event (SYSTEM_CLASS_EXTENDS): a meeting is an event with a
  * meeting-specific family on top (meetingDate — still whole-day per the
- * §34.28 law, no clock times — plus text location/agenda). Gating semantics
- * for the future Features tab (the tab is another wave's surface): disabling
- * `event` disables `meeting` WITH it; disabling `meeting` alone leaves
- * `event` live — `systemClassAncestors` in @notees/domain is the shared read.
+ * §34.28 law, no clock times — plus text location/agenda). `birthday` IS-A
+ * event too (§34.36.3, owner directive 2026-10-04): a person's birthday is an
+ * event on the calendar — the date rides eventDate through the extends chain,
+ * and the family is person-typed (birthdayPerson links the event TO the
+ * person; filter rooted at `person`, so orgs don't carry birthdays). Gating
+ * semantics for the future Features tab (the tab is another wave's surface):
+ * disabling `event` disables `meeting` AND `birthday` with it; disabling a
+ * child alone leaves the parent live — `systemClassAncestors` in
+ * @notees/domain is the shared read. Persons stay always-on regardless: a
+ * person without the birthday family simply has no birthdays.
  *
- * Both classes are fixed-UUID domain seeds: NEW workspaces receive the class
- * nodes + schemas + bindings + the extends edge from the server seed, and
+ * All classes are fixed-UUID domain seeds: NEW workspaces receive the class
+ * nodes + schemas + bindings + the extends edges from the server seed, and
  * every replica converges by id — the op set is untouched. Existing
- * workspaces materialize the family idempotently through
- * ensureMeetingFamily — the ensureTaskFamily precedent (it ensures the event
- * ROOT first: the meeting extends edge is unrepresentable without the event
- * class row).
+ * workspaces materialize the families idempotently through
+ * ensureMeetingFamily / ensureBirthdayFamily — the ensureTaskFamily precedent
+ * (both ensure the event ROOT first: the extends edges are unrepresentable
+ * without the event class row).
  *
- * Declaration-first (owner ruling): nothing calls ensureMeetingFamily
+ * Declaration-first (owner ruling): nothing calls these ensures
  * automatically — configure now, wire later. The calendar quick-create needs
  * no code change: dateChipCandidates qualifies ANY class with a date-typed
- * binding, so BOTH the event and meeting chips appear on their own once the
- * family exists in a workspace (server seed for new ones, an ensure call for
- * the rest). scripts/remap-reunion-evento.mts ensures the family across the
- * objects API before assigning members (reunión → meeting, evento → event).
+ * binding, so the event, meeting and birthday chips appear on their own once
+ * the family exists in a workspace (server seed for new ones, an ensure call
+ * for the rest). scripts/remap-reunion-evento.mts ensures the family across
+ * the objects API before assigning members (reunión → meeting, evento →
+ * event); birthdays have no remap source.
  *
  * The surface reads are MaybePromise so the same ensure runs over the sync
  * web clients (WorkspaceClient, WorkerClient — both satisfy the interface
@@ -70,10 +77,33 @@ export interface MeetingFamilySurface {
 /** The family ids — the domain seed's fixed vocabulary. */
 export const MEETING_CLASS_ID = SYSTEM_CLASS_UUIDS.meeting;
 export const EVENT_CLASS_ID = SYSTEM_CLASS_UUIDS.event;
+export const BIRTHDAY_CLASS_ID = SYSTEM_CLASS_UUIDS.birthday;
 
 /** The event root's minimal family: the date binding the calendar rides on. */
 export const EVENT_FAMILY: ReadonlyArray<{ id: string; name: string; type: "date" }> = [
   { id: SYSTEM_PROPERTY_UUIDS.eventDate, name: "eventDate", type: "date" },
+];
+
+/**
+ * The birthday family: ONE own property — the person the birthday is for.
+ * The DATE rides event's eventDate through the extends chain (the store's
+ * binding resolution is extends-aware), so there is deliberately no
+ * birthdayDate; the ensure additionally authors the (birthday, eventDate)
+ * BINDING ROW (mirroring SYSTEM_EXTRA_CLASS_BINDINGS) because the calendar
+ * quick-create eligibility walk reads class-local binding rows.
+ */
+export const BIRTHDAY_FAMILY: ReadonlyArray<{
+  id: string;
+  name: string;
+  type: "object";
+  targetClassFilter: string[];
+}> = [
+  {
+    id: SYSTEM_PROPERTY_UUIDS.birthdayPerson,
+    name: "birthdayPerson",
+    type: "object",
+    targetClassFilter: [SYSTEM_CLASS_UUIDS.person],
+  },
 ];
 
 /**
@@ -124,7 +154,12 @@ export async function meetingFamilyPresent(surface: MeetingFamilySurface): Promi
 async function ensureFamilySchemas(
   surface: MeetingFamilySurface,
   classId: string,
-  family: ReadonlyArray<{ id: string; name: string; type: "date" | "text" }>,
+  family: ReadonlyArray<{
+    id: string;
+    name: string;
+    type: "date" | "text" | "object";
+    targetClassFilter?: string[];
+  }>,
 ): Promise<void> {
   const have = new Set((await surface.listPropertySchemas()).map((schema) => schema.id));
   for (const spec of family) {
@@ -134,6 +169,9 @@ async function ensureFamilySchemas(
       name: spec.name,
       type: spec.type,
       scope: "class",
+      ...(spec.targetClassFilter !== undefined
+        ? { targetClassFilter: spec.targetClassFilter }
+        : {}),
     });
   }
   const bound = new Set(
@@ -143,6 +181,14 @@ async function ensureFamilySchemas(
     if (bound.has(spec.id)) continue;
     await surface.setClassProperty(classId, spec.id, { sequence: index });
   }
+}
+
+/** Author the event root (class node + eventDate schema/binding) when missing. */
+async function ensureEventRoot(surface: MeetingFamilySurface): Promise<void> {
+  if ((await surface.getNodeRaw(EVENT_CLASS_ID)) === undefined) {
+    await surface.createClass("event", { id: EVENT_CLASS_ID, icon: SYSTEM_CLASS_ICONS.event });
+  }
+  await ensureFamilySchemas(surface, EVENT_CLASS_ID, EVENT_FAMILY);
 }
 
 /**
@@ -158,10 +204,7 @@ async function ensureFamilySchemas(
  */
 export async function ensureMeetingFamily(surface: MeetingFamilySurface): Promise<void> {
   if (await meetingFamilyPresent(surface)) return;
-  if ((await surface.getNodeRaw(EVENT_CLASS_ID)) === undefined) {
-    await surface.createClass("event", { id: EVENT_CLASS_ID, icon: SYSTEM_CLASS_ICONS.event });
-  }
-  await ensureFamilySchemas(surface, EVENT_CLASS_ID, EVENT_FAMILY);
+  await ensureEventRoot(surface);
   if ((await surface.getNodeRaw(MEETING_CLASS_ID)) === undefined) {
     await surface.createClass("meeting", { id: MEETING_CLASS_ID, icon: SYSTEM_CLASS_ICONS.meeting });
   }
@@ -169,5 +212,56 @@ export async function ensureMeetingFamily(surface: MeetingFamilySurface): Promis
   const parents = await surface.getClassParents(MEETING_CLASS_ID);
   if (!parents.includes(EVENT_CLASS_ID)) {
     await surface.setClassExtends(MEETING_CLASS_ID, [EVENT_CLASS_ID]);
+  }
+}
+
+/** True when the birthday shape is whole (family + edge + the eventDate row). */
+export async function birthdayFamilyPresent(surface: MeetingFamilySurface): Promise<boolean> {
+  if (!(await familyPresent(surface, EVENT_CLASS_ID, EVENT_FAMILY))) return false;
+  if (!(await familyPresent(surface, BIRTHDAY_CLASS_ID, BIRTHDAY_FAMILY))) return false;
+  const bound = new Set(
+    (await surface.getClassBindings(BIRTHDAY_CLASS_ID)).map(
+      (binding) => binding.propertySchemaId,
+    ),
+  );
+  // The calendar chip rides this class-local row (eventDate re-bound on
+  // birthday, mirroring SYSTEM_EXTRA_CLASS_BINDINGS) — absent means no chip.
+  if (!bound.has(SYSTEM_PROPERTY_UUIDS.eventDate)) return false;
+  const parents = await surface.getClassParents(BIRTHDAY_CLASS_ID);
+  return parents.includes(EVENT_CLASS_ID);
+}
+
+/**
+ * Author the event root + the birthday subclass (node, person-typed schema,
+ * the eventDate binding row, the extends edge) when missing; idempotent no-op
+ * once present, with the same dropped-edge re-heal as the meeting ensure. The
+ * date value itself resolves through the extends chain at read time — this
+ * ensure never authors a birthdayDate schema.
+ */
+export async function ensureBirthdayFamily(surface: MeetingFamilySurface): Promise<void> {
+  if (await birthdayFamilyPresent(surface)) return;
+  await ensureEventRoot(surface);
+  if ((await surface.getNodeRaw(BIRTHDAY_CLASS_ID)) === undefined) {
+    await surface.createClass("birthday", {
+      id: BIRTHDAY_CLASS_ID,
+      icon: SYSTEM_CLASS_ICONS.birthday,
+    });
+  }
+  await ensureFamilySchemas(surface, BIRTHDAY_CLASS_ID, BIRTHDAY_FAMILY);
+  // The chip-eligibility row: eventDate re-bound on birthday, sequence 0
+  // exactly as the server seed emits it (SYSTEM_EXTRA_CLASS_BINDINGS).
+  const bound = new Set(
+    (await surface.getClassBindings(BIRTHDAY_CLASS_ID)).map(
+      (binding) => binding.propertySchemaId,
+    ),
+  );
+  if (!bound.has(SYSTEM_PROPERTY_UUIDS.eventDate)) {
+    await surface.setClassProperty(BIRTHDAY_CLASS_ID, SYSTEM_PROPERTY_UUIDS.eventDate, {
+      sequence: 0,
+    });
+  }
+  const parents = await surface.getClassParents(BIRTHDAY_CLASS_ID);
+  if (!parents.includes(EVENT_CLASS_ID)) {
+    await surface.setClassExtends(BIRTHDAY_CLASS_ID, [EVENT_CLASS_ID]);
   }
 }
