@@ -129,3 +129,6 @@ export type { WeekStripProps } from './calendar/WeekStrip.js';
 
 export { PresentationOverlay, PRESENTATION_CHROME_HIDE_MS } from './PresentationOverlay.js';
 export type { PresentationOverlayProps } from './PresentationOverlay.js';
+
+export { usePopupDismissal } from './usePopupDismissal.js';
+export type { UsePopupDismissalOptions } from './usePopupDismissal.js';

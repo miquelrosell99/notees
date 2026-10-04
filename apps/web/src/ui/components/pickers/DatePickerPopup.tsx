@@ -17,6 +17,7 @@ import { createPortal } from "react-dom";
 
 import { parseDate } from "./dateParser.js";
 import { useViewportPosition } from "./useViewportPosition.js";
+import { usePopupDismissal } from "../ui/usePopupDismissal.js";
 import { useCalendarMode, type CalendarMode } from "./calendar/useCalendarMode.js";
 import { CalendarHeader, DaysGrid, MonthsGrid, YearsGrid } from "./calendar/CalendarGrids.js";
 import "./CalendarPopup.css"; // reuse grid styles from CalendarPopup
@@ -123,6 +124,12 @@ export function DatePickerPopup({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [onClose, anchor]);
 
+  // Dismissal (§34.67): the document-level Escape half of the convention —
+  // the text input and the popup root below still own Escape while focus is
+  // inside (a pick must not be interrupted by a stray close), this hook
+  // closes when focus never entered or left the popup.
+  usePopupDismissal({ popupRef, isOpen: true, onClose });
+
   // ── text input parsing ─────────────────────────────────
 
   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -223,6 +230,12 @@ export function DatePickerPopup({
       ref={popupRef}
       role="dialog"
       aria-label="Date picker"
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          onClose();
+        }
+      }}
       style={
         position
           ? { top: position.top, left: position.left }
