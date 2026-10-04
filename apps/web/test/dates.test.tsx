@@ -24,7 +24,7 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
-import { chainNodeIds, SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { chainNodeIds, dayNodeId, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
