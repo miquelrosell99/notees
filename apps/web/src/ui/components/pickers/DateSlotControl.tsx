@@ -9,6 +9,10 @@
  * picked ISO day (or null when cleared) and the caller decides what the
  * value means — a date-chain node reference for property values
  * (ensureDateChain at the call site), a bare ISO qualifier for metadata.
+ *
+ * §34.63 — an optional RepeatPicker rides the slot (event date cells): the
+ * caller passes the stored `metadata.repeat` grammar string plus an
+ * `onRepeatChange` and owns the write, exactly like `onCommit`.
  */
 
 import { useMemo, useRef, useState, type RefObject } from "react";
@@ -19,6 +23,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client.js";
 
 import { DatePickerPopup } from "./DatePickerPopup.js";
+import { RepeatPicker } from "./RepeatPicker.js";
 import "./DateSlotControl.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -53,6 +58,11 @@ export interface DateSlotControlProps {
   clearable?: boolean;
   clearLabel?: string;
   onCommit: (iso: string | null) => void;
+  /** §34.63 — the stored recurrence grammar string (null = does not repeat). */
+  repeat?: string | null;
+  /** With onRepeatChange, a RepeatPicker rides the slot; the caller writes. */
+  onRepeatChange?: ((rule: string | null) => void) | undefined;
+  repeatLabel?: string;
 }
 
 export function DateSlotControl({
@@ -64,6 +74,9 @@ export function DateSlotControl({
   clearable = true,
   clearLabel,
   onCommit,
+  repeat = null,
+  onRepeatChange,
+  repeatLabel,
 }: DateSlotControlProps) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement | null>(null);
@@ -90,6 +103,14 @@ export function DateSlotControl({
         >
           ×
         </button>
+      )}
+      {onRepeatChange !== undefined && (
+        <RepeatPicker
+          value={repeat}
+          onChange={onRepeatChange}
+          ariaLabel={repeatLabel ?? `Repeat for ${ariaLabel}`}
+          iconOnly
+        />
       )}
       {open && (
         <DateSlotPicker
