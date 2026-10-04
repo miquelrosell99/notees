@@ -1,0 +1,38 @@
+/* RepeatPicker — the minimal recurrence picker (§34.63). Token-only: every
+ * value resolves to a custom property from variables.css. */
+
+.nt-repeat-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1, 4px);
+  color: var(--text-muted, currentColor);
+  cursor: pointer;
+}
+
+.nt-repeat-trigger:hover {
+  color: var(--color-on-surface, currentColor);
+}
+
+.nt-repeat-trigger-label {
+  font-size: var(--font-size-sm, inherit);
+}
+
+.nt-repeat-trigger--icon {
+  padding: 0 2px;
+}
+
+.nt-repeat-trigger--active {
+  color: var(--color-primary, currentColor);
+}
+
+/* The icon-only trigger's accessible name (the Dropdown owns the wrapper
+   button, so the label rides inside as hidden text). Same clip pattern as
+   the global .sr-only, scoped so the picker never depends on TopBar.css. */
+.nt-repeat-trigger .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

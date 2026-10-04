@@ -14,14 +14,17 @@ import {
   SYSTEM_PROPERTY_UUIDS,
   TASK_CLOSED_STATUSES,
   TASK_DEFAULT_STATUS,
+  dayNodeId,
   parseDateNodeId,
+  recurrenceRuleOf,
+  type RecurrenceRule,
 } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, ClientPropertySchema, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { displayNameFromClient } from "../dateDisplay.js";
-import { scheduledIsoOf, type TaskBucketRow } from "./calendarViewUtils.js";
+import { occursOnDay, scheduledIsoOf, type TaskBucketRow } from "./calendarViewUtils.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
@@ -41,9 +44,10 @@ export function taskRowFacts(
   id: string,
 ): TaskBucketRow {
   const props = client.getEffectiveProperties(id);
-  const scheduledIso = scheduledIsoOf(
-    props.find((prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskScheduled)?.value,
+  const scheduledRow = props.find(
+    (prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskScheduled,
   );
+  const scheduledIso = scheduledIsoOf(scheduledRow?.value);
   const deadlineIso = scheduledIsoOf(
     props.find((prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskDeadline)?.value,
   );
@@ -57,6 +61,9 @@ export function taskRowFacts(
     deadlineIso,
     drivingIso: null,
     closed: statusLabel !== null && TASK_CLOSED_STATUSES.has(statusLabel as "Done" | "Cancelled"),
+    // §34.63: recurrence rides the taskScheduled value's metadata (null for
+    // plain tasks; corrupt metadata throws — fail loud, never reads as plain).
+    repeat: scheduledRow === undefined ? null : recurrenceRuleOf(scheduledRow.metadata),
   };
 }
 
@@ -115,4 +122,94 @@ export function datedRowNodes(client: AnyClient, dayId: string): ClientNode[] {
       ) || a.id.localeCompare(b.id),
   );
   return rows;
+}
+
+// --- recurrence (§34.63 — compute-on-read expansion, §34.28 #6) -------------------
+
+/**
+ * One recurring node: the node plus its series (rule + anchor day). The rule
+ * lives on a date value's metadata (`repeat`); the anchor is that value's own
+ * day — occurrences derive at read time, never as nodes.
+ */
+export interface RecurringRow {
+  node: ClientNode;
+  rule: RecurrenceRule;
+  anchorIso: string;
+}
+
+/**
+ * Every recurring series in the workspace: a scan of the document-chrome
+ * nodes' effective date values for an authored `repeat` (the only materialized
+ * hook recurrence has — occurrences are virtual, so the month dots and the
+ * day sections both start from this list). One node contributes at most one
+ * series (its first repeating date value wins). Date-chain nodes are skipped;
+ * a rule on a value without a day-precision anchor is ignored (the picker
+ * only writes day-anchored rules); a present-but-corrupt rule THROWS
+ * (recurrenceRuleOf is fail loud — corrupt metadata never reads as plain).
+ */
+export function recurringRowsOf(client: AnyClient): RecurringRow[] {
+  const rows: RecurringRow[] = [];
+  for (const node of client.listPages()) {
+    if (parseDateNodeId(node.id) !== null) continue;
+    for (const prop of client.getEffectiveProperties(node.id)) {
+      if (prop.source !== "authored") continue;
+      if (prop.schema?.type !== "date") continue;
+      const rule = recurrenceRuleOf(prop.metadata);
+      if (rule === null) continue;
+      const anchorIso = scheduledIsoOf(prop.value);
+      if (anchorIso === null) continue;
+      rows.push({ node, rule, anchorIso });
+      break;
+    }
+  }
+  rows.sort(
+    (a, b) =>
+      (displayNameFromClient(client, a.node.id) ?? a.node.id).localeCompare(
+        displayNameFromClient(client, b.node.id) ?? b.node.id,
+      ) || a.node.id.localeCompare(b.node.id),
+  );
+  return rows;
+}
+
+/** One Dated-section row: the node plus its recurrence rule, null when plain. */
+export interface DatedRow {
+  node: ClientNode;
+  /** The node's series rule when it repeats (started by the viewed day). */
+  rule: RecurrenceRule | null;
+}
+
+/**
+ * The Dated rows for one day (§34.63): the day node's materialized backlink
+ * set (datedRowNodes) UNION the recurring nodes occurring on this day —
+ * occurrences are virtual, so the backlink read alone can't see them. The
+ * anchor day of a recurring node is already in the backlink set; the union
+ * dedupes by id and marks it with the rule. Callers pre-filter
+ * `recurringRows` (e.g. tasks out — they have their own section).
+ */
+export function datedRowsForDay(
+  client: AnyClient,
+  iso: string,
+  recurringRows: readonly RecurringRow[],
+): DatedRow[] {
+  const rows = new Map<string, DatedRow>();
+  for (const node of datedRowNodes(client, dayNodeId(iso))) {
+    rows.set(node.id, { node, rule: null });
+  }
+  for (const entry of recurringRows) {
+    if (entry.anchorIso <= iso && rows.has(entry.node.id)) {
+      rows.get(entry.node.id)!.rule = entry.rule;
+      continue;
+    }
+    if (entry.anchorIso > iso) continue; // series hasn't started
+    if (!occursOnDay(entry.rule, entry.anchorIso, iso)) continue;
+    rows.set(entry.node.id, { node: entry.node, rule: entry.rule });
+  }
+  const merged = [...rows.values()];
+  merged.sort(
+    (a, b) =>
+      (displayNameFromClient(client, a.node.id) ?? a.node.id).localeCompare(
+        displayNameFromClient(client, b.node.id) ?? b.node.id,
+      ) || a.node.id.localeCompare(b.node.id),
+  );
+  return merged;
 }

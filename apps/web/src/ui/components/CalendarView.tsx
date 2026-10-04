@@ -10,6 +10,14 @@
  * deterministic day node) plus the #15 reviewed tint on day cells, the
  * week strip, and the week agenda beneath the grid.
  *
+ * §34.63 (recurrence, the §34.28 #6 compute-on-read ruling): date values
+ * carrying a `repeat` rule (metadata, additive — no wire change) expand
+ * into VIRTUAL occurrences here — the Dated/Tasks sections, the month
+ * dots, and the week agenda consult the expansion; recurring rows wear an
+ * honest repeats marker, never one phantom row per occurrence. Editing the
+ * event edits the series (the rule rides the value; the quick-create bar
+ * and the property panel's date pills author it).
+ *
  * Data flow follows the JournalsView pattern: synchronous reads off the
  * local store plus client.subscribe re-render; the two structured queries
  * (open tasks, created-today) run through runQueryAst per notification and
@@ -21,8 +29,10 @@
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  occurrenceIsosOf,
   SYSTEM_CLASS_UUIDS,
   SYSTEM_PROPERTY_UUIDS,
+  type RecurrenceRule,
 } from "@notees/domain";
 
 import type { ClientNode, QueryRunResult } from "@/core/workspace-client.js";
@@ -47,17 +57,26 @@ import {
   hasDatedRefs,
   isoWeekNumber,
   partitionOpenTasks,
+  repeatLabelOf,
   todayIsoLocal,
   weekDaysOfIso,
   weekdayLabel,
   type OpenTaskRow,
 } from "./calendarViewUtils.js";
-import { datedRowNodes, setTaskDone, taskRowsOf, taskStatusLabel } from "./calendarRows.js";
+import {
+  datedRowsForDay,
+  recurringRowsOf,
+  setTaskDone,
+  taskRowsOf,
+  taskStatusLabel,
+  type DatedRow,
+} from "./calendarRows.js";
 import { dayReviewedOf, ensureDayReviewedProperty } from "./dayReviewedProperty.js";
 import {
   resolveQuickCreateChipClasses,
   useQuickCreateClassesSetting,
 } from "./calendarQuickCreateSettings.js";
+import { RepeatPicker } from "./pickers/RepeatPicker.js";
 import { Button } from "./ui/Button.js";
 import { Checkbox } from "./ui/Checkbox.js";
 import { EmptyState } from "./ui/EmptyState.js";
@@ -91,6 +110,20 @@ function RowClassChips({ client, classIds }: { client: AnyClient; classIds: stri
           {displayNameFromClient(client, cls.id) ?? cls.id}
         </span>
       ))}
+    </span>
+  );
+}
+
+/**
+ * The honest repeats marker (§34.63): ONE row represents the whole series —
+ * the icon + label say "repeats", never N phantom rows for N occurrences.
+ */
+function RepeatMarker({ rule }: { rule: RecurrenceRule }) {
+  const label = repeatLabelOf(rule);
+  return (
+    <span className="calendar-view__repeat" title={`Repeats ${label.toLowerCase()}`}>
+      <Icon path="mdi-repeat" size={0.8} />
+      <span className="calendar-view__repeat-label">{label}</span>
     </span>
   );
 }
@@ -187,8 +220,42 @@ export function CalendarView({
         .find((entry) => entry.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskStatus)?.value,
     );
 
-  // --- dated: the day node's existing backlink set (§34.28 #4a) --------------
-  const datedRows = useMemo(() => datedRowNodes(client, dayId), [client, dayId, version]);
+  // --- recurrence (§34.63 — compute-on-read, §34.28 #6) -----------------------
+  // Every date value carrying a `repeat` rule, scanned once per store change.
+  // Occurrences are virtual — the Dated section, the month dots, and the week
+  // agenda all expand from this list; tasks recur through the same metadata
+  // (a repeating task shows on every occurrence day, never as overdue).
+  const recurringRows = useMemo(() => recurringRowsOf(client), [client, version]);
+  const recurringEvents = useMemo(
+    () => recurringRows.filter((row) => !row.node.classIds.includes(SYSTEM_CLASS_UUIDS.task)),
+    [recurringRows],
+  );
+
+  // The Dated rows for the selected day: materialized backlinks UNION the
+  // recurring events occurring on this day (deduped by id).
+  const datedDayRows = useMemo(
+    () => datedRowsForDay(client, selectedIso, recurringEvents),
+    [client, selectedIso, recurringEvents, version],
+  );
+
+  // Occurrence days around the visible month, for the grid dots + week strip.
+  // The grid follows the selected day across month boundaries, so ±40 days
+  // covers the whole visible month in every steady state.
+  const recurringDayIsos = useMemo(() => {
+    const fromIso = addDaysIso(selectedIso, -40);
+    const toIso = addDaysIso(selectedIso, 40);
+    const isos = new Set<string>();
+    for (const row of recurringRows) {
+      for (const iso of occurrenceIsosOf(
+        { rule: row.rule, anchorIso: row.anchorIso },
+        fromIso,
+        toIso,
+      )) {
+        isos.add(iso);
+      }
+    }
+    return isos;
+  }, [recurringRows, selectedIso]);
 
   // --- created today: createdAt range query, newest first --------------------
   const createdRows = useMemo(() => {
@@ -201,18 +268,21 @@ export function CalendarView({
       .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? "") || a.id.localeCompare(b.id));
   }, [client, createdResult, selectedIso, version]);
 
-  // --- day marks + week breadth (§34.28 #11/#15) ------------------------------
+  // --- day marks + week breadth (§34.28 #11/#15, §34.63) ----------------------
   // Range-aware dots + the reviewed tint read the same materialized state as
   // the sections: one backlink read per day cell (the edge projection fans
   // date refs and date_range ends out to the deterministic day node, so an
-  // existing day page is NOT required for a mark).
+  // existing day page is NOT required for a mark). Recurring events dot
+  // every occurrence day from the virtual expansion (their backlink lands
+  // on the anchor day only).
   const dayExtraMarks = useMemo(
     () =>
       (iso: string): { dated: boolean; reviewed: boolean } => ({
-        dated: hasDatedRefs(client.getBacklinks(dayNodeId(iso))),
+        dated:
+          hasDatedRefs(client.getBacklinks(dayNodeId(iso))) || recurringDayIsos.has(iso),
         reviewed: dayReviewedOf(client, dayNodeId(iso)),
       }),
-    [client, version],
+    [client, recurringDayIsos, version],
   );
 
   // The visible week of the selected day (first-day-of-week aware).
@@ -222,10 +292,15 @@ export function CalendarView({
   );
 
   // The week agenda: each visible day's dated references (non-task — tasks
-  // have their own section), non-empty days only.
+  // have their own section) UNION its recurring occurrences, non-empty days
+  // only.
   const weekAgenda = useMemo(
-    () => weekDays.map((iso) => ({ iso, rows: datedRowNodes(client, dayNodeId(iso)) })),
-    [client, weekDays, version],
+    () =>
+      weekDays.map((iso) => ({
+        iso,
+        rows: datedRowsForDay(client, iso, recurringEvents),
+      })),
+    [client, weekDays, recurringEvents, version],
   );
 
   // --- quick-create chips (§34.28 #10) ---------------------------------------
@@ -251,7 +326,10 @@ export function CalendarView({
 
   // --- create flow (§34.25 T2 — create-with-template) --------------------------
   // A class with bound has-template values opens the picker; a class without
-  // (the common case) creates directly, exactly as before.
+  // (the common case) creates directly, exactly as before. The quick-create
+  // bar's repeat picker (§34.63) stamps the new event's date value with the
+  // chosen rule — device state, never an op; absent = plain event.
+  const [quickRepeat, setQuickRepeat] = useState<string | null>(null);
   const [pendingCreate, setPendingCreate] = useState<{
     classId: string;
     schemaId: string;
@@ -272,7 +350,13 @@ export function CalendarView({
         { templateRootId: templateId, objectId: id },
       );
     }
-    await client.setDateProperty(id, schemaId, selectedIso);
+    await client.setDateProperty(
+      id,
+      schemaId,
+      selectedIso,
+      0,
+      quickRepeat !== null ? { repeat: quickRepeat } : undefined,
+    );
     onOpenPage(id);
   };
 
@@ -326,12 +410,27 @@ export function CalendarView({
       >
         {displayNameFromClient(client, row.id) ?? row.id}
       </button>
+      {row.repeat !== null && <RepeatMarker rule={row.repeat} />}
       {statusSchema !== undefined && statusLabelOf(row.id) !== null && (
         <Pill text={statusLabelOf(row.id)!} />
       )}
       {group === "overdue" && row.scheduledIso !== null && (
         <span className="calendar-view__row-day">{row.scheduledIso}</span>
       )}
+    </li>
+  );
+
+  const renderDatedRow = (row: DatedRow) => (
+    <li key={row.node.id} className="calendar-view__row">
+      <button
+        type="button"
+        className="calendar-view__row-name"
+        onClick={() => onOpenPage(row.node.id)}
+      >
+        {displayNameFromClient(client, row.node.id) ?? row.node.id}
+      </button>
+      {row.rule !== null && <RepeatMarker rule={row.rule} />}
+      <RowClassChips client={client} classIds={row.node.classIds} />
     </li>
   );
 
@@ -384,6 +483,13 @@ export function CalendarView({
                 {chip.label}
               </Button>
             ))}
+            <span className="calendar-view__quick-repeat">
+              <RepeatPicker
+                value={quickRepeat}
+                onChange={setQuickRepeat}
+                ariaLabel="Repeat new events"
+              />
+            </span>
           </div>
         )}
 
@@ -453,23 +559,10 @@ export function CalendarView({
           )}
 
           {show("dated") &&
-            (datedRows.length > 0 ? (
+            (datedDayRows.length > 0 ? (
               <section className="calendar-view__section" aria-label="Dated">
                 <h2 className="calendar-view__section-title">Dated</h2>
-                <ul className="calendar-view__rows">
-                  {datedRows.map((node) => (
-                    <li key={node.id} className="calendar-view__row">
-                      <button
-                        type="button"
-                        className="calendar-view__row-name"
-                        onClick={() => onOpenPage(node.id)}
-                      >
-                        {displayNameFromClient(client, node.id) ?? node.id}
-                      </button>
-                      <RowClassChips client={client} classIds={node.classIds} />
-                    </li>
-                  ))}
-                </ul>
+                <ul className="calendar-view__rows">{datedDayRows.map(renderDatedRow)}</ul>
               </section>
             ) : (
               filter === "dated" && <EmptyState title="Nothing references this day yet." />
@@ -538,18 +631,7 @@ export function CalendarView({
                       })}
                     </button>
                     <ul className="calendar-view__rows">
-                      {rows.map((node) => (
-                        <li key={node.id} className="calendar-view__row">
-                          <button
-                            type="button"
-                            className="calendar-view__row-name"
-                            onClick={() => onOpenPage(node.id)}
-                          >
-                            {displayNameFromClient(client, node.id) ?? node.id}
-                          </button>
-                          <RowClassChips client={client} classIds={node.classIds} />
-                        </li>
-                      ))}
+                      {rows.map(renderDatedRow)}
                     </ul>
                   </div>
                 );
