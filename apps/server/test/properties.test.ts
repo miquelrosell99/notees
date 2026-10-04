@@ -66,23 +66,28 @@ describe("object property writes", () => {
 
   it("re-POST at the same idx overwrites (LWW); idx addresses multi-values", async () => {
     const id = await createObject("prop-multi");
+    // PG6 cardinality: higher slots need a multi schema — create one and
+    // address it at idx 0/1 (isbn is single-value; idx 1 there is a 422 now).
+    const multi = (await api("POST", "/api/property-schemas", {
+      payload: { propertySchemaId: crypto.randomUUID(), name: "alt-titles", type: "text", multi: true },
+    })).json().propertySchema;
     await api("POST", `/api/objects/${id}/properties`, {
-      payload: { propertySchemaId: SYSTEM_PROPERTY_UUIDS.isbn, value: "978-0-00-1", idx: 0 },
+      payload: { propertySchemaId: multi.id, value: "978-0-00-1", idx: 0 },
     });
     await api("POST", `/api/objects/${id}/properties`, {
-      payload: { propertySchemaId: SYSTEM_PROPERTY_UUIDS.isbn, value: "978-0-00-2", idx: 1 },
+      payload: { propertySchemaId: multi.id, value: "978-0-00-2", idx: 1 },
     });
     // LWW overwrite of idx 0.
     await api("POST", `/api/objects/${id}/properties`, {
-      payload: { propertySchemaId: SYSTEM_PROPERTY_UUIDS.isbn, value: "978-0-00-1b", idx: 0 },
+      payload: { propertySchemaId: multi.id, value: "978-0-00-1b", idx: 0 },
     });
     const fetched = await api("GET", `/api/objects/${id}`);
     const values = (fetched.json().object.properties as { schemaId: string; idx: number; value: unknown }[])
-      .filter((p) => p.schemaId === SYSTEM_PROPERTY_UUIDS.isbn)
+      .filter((p) => p.schemaId === multi.id)
       .sort((a, b) => a.idx - b.idx);
     expect(values).toEqual([
-      { schemaId: SYSTEM_PROPERTY_UUIDS.isbn, schemaName: "isbn", schemaType: "text", idx: 0, value: "978-0-00-1b" },
-      { schemaId: SYSTEM_PROPERTY_UUIDS.isbn, schemaName: "isbn", schemaType: "text", idx: 1, value: "978-0-00-2" },
+      { schemaId: multi.id, schemaName: "alt-titles", schemaType: "text", idx: 0, value: "978-0-00-1b" },
+      { schemaId: multi.id, schemaName: "alt-titles", schemaType: "text", idx: 1, value: "978-0-00-2" },
     ]);
   });
 

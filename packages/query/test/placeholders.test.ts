@@ -189,6 +189,13 @@ function worldStore(): Store {
   store.applyMany([
     env("object.create", { objectId: NODE_A, contentAst: text("Alpha") }, -24 * 3600 * 1000),
     env("object.create", { objectId: NODE_B, contentAst: text("Beta") }, -3600 * 1000),
+    // PG6 target-existence: the date chains the values link must exist.
+    env("object.create", { objectId: chainNodeIds(day(0)).year, contentAst: text("y0") }, -3200),
+    env("object.create", { objectId: chainNodeIds(day(0)).month, parentId: chainNodeIds(day(0)).year, contentAst: text("m0") }, -3100),
+    env("object.create", { objectId: todayId, parentId: chainNodeIds(day(0)).month, contentAst: text("d0") }, -3000),
+    env("object.create", { objectId: chainNodeIds(day(-35)).year, contentAst: text("y1") }, -3200),
+    env("object.create", { objectId: chainNodeIds(day(-35)).month, parentId: chainNodeIds(day(-35)).year, contentAst: text("m1") }, -3100),
+    env("object.create", { objectId: lastMonthId, parentId: chainNodeIds(day(-35)).month, contentAst: text("d1") }, -3000),
     env("propertySchema.create", { propertySchemaId: OPENED, name: "opened", type: "date" }, -3000),
     env("property.set", { objectId: NODE_A, propertySchemaId: OPENED, value: { nodeId: todayId } }, -2000),
     env("property.set", { objectId: NODE_B, propertySchemaId: OPENED, value: { nodeId: lastMonthId } }, -1000),

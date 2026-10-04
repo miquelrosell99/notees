@@ -28,7 +28,7 @@
 
 import { timingSafeEqual } from "node:crypto";
 
-import { deriveDisplayName } from "@notees/domain";
+import { deriveDisplayName, parseDateNodeId, SYSTEM_PAGE_UUIDS } from "@notees/domain";
 import type { ExportBundle, ExportContext, ExportNode } from "@notees/export";
 import { bundleMarkdown, exportFileName } from "@notees/export";
 import type { NodeRow } from "@notees/store";
@@ -546,10 +546,21 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     // The page set: workspace roots, then transitive descendants through the
     // main-children zone. Blocks (render bit unset) stay inside their page's
     // file; classes are never exported.
+    //
+    // §34.24 zip-roots exclusion (owner-via-register-recommendation,
+    // 2026-10-04): the system-seed pages (scratchpad, inbox) and the whole
+    // date chain (year/month/day nodes — 5,657 files of journal scaffolding
+    // on the real workspace) stay OUT of the zip. Date-chain rows are
+    // skipped at every level, so a user page parented under a day node is
+    // skipped with the chain (the exclusion is documented in the export
+    // options + SCHEMA.md zip conventions).
+    const SYSTEM_ZIP_PAGE_IDS = new Set<string>(Object.values(SYSTEM_PAGE_UUIDS));
+    const zipExcluded = (row: NodeRow): boolean =>
+      SYSTEM_ZIP_PAGE_IDS.has(row.id) || parseDateNodeId(row.id) !== null;
     const pageRows: NodeRow[] = [];
     const seenPages = new Set<string>();
     const visitPage = (row: NodeRow): void => {
-      if (seenPages.has(row.id)) return;
+      if (seenPages.has(row.id) || zipExcluded(row)) return;
       seenPages.add(row.id);
       pageRows.push(row);
       for (const child of store.children(row.id)) {

@@ -60,6 +60,9 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
   for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
     if (spec === undefined) continue;
     const propertySchemaId = SYSTEM_PROPERTY_UUIDS[name as SystemPropertyName];
+    // PG10: bindTo-less specs (the alias property) seed the schema at
+    // global scope with NO class binding row.
+    const scope = spec.bindTo === undefined ? "global" : "class";
     envelopes.push(
       factory.make({
         workspaceId,
@@ -69,7 +72,7 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
           name,
           type: spec.type,
           multi: spec.multi ?? false,
-          scope: "class",
+          scope,
           ...(spec.options !== undefined ? { options: spec.options } : {}),
           ...(spec.targetClassFilter !== undefined
             ? { targetClassFilter: spec.targetClassFilter.map((c) => SYSTEM_CLASS_UUIDS[c]) }
@@ -78,6 +81,7 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
         client: "seed",
       }),
     );
+    if (spec.bindTo === undefined) continue;
     // The binding is a configuration ROW (class.property.*), not just spec
     // metadata — effective-properties derives boundBy/defaults from rows.
     const classId = SYSTEM_CLASS_UUIDS[spec.bindTo];
