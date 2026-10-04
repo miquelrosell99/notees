@@ -1085,7 +1085,16 @@ describe.each(adapters)("$name", ({ makeStore }) => {
 
     function dateStore(): Store {
       const store = worldStore();
+      const chainText = (s: string): Array<{ type: "text"; text: string }> => [{ type: "text", text: s }];
       store.applyMany([
+        // PG6 target-existence: the date chains the values link must exist.
+        env("object.create", { objectId: DAY_A.year, contentAst: chainText("1937") }, T0 + 48 * STEP),
+        env("object.create", { objectId: DAY_A.month, parentId: DAY_A.year, contentAst: chainText("1937-05") }, T0 + 48 * STEP),
+        env("object.create", { objectId: DAY_A.day, parentId: DAY_A.month, contentAst: chainText("1937-05-06") }, T0 + 48 * STEP),
+        env("object.create", { objectId: DAY_B.year, contentAst: chainText("1900") }, T0 + 48 * STEP),
+        env("object.create", { objectId: DAY_B.month, parentId: DAY_B.year, contentAst: chainText("1900-01") }, T0 + 48 * STEP),
+        env("object.create", { objectId: DAY_B.day, parentId: DAY_B.month, contentAst: chainText("1900-01-15") }, T0 + 48 * STEP),
+        env("object.create", { objectId: YEAR_X.year, contentAst: chainText("1889") }, T0 + 48 * STEP),
         env("propertySchema.create", { propertySchemaId: PUBLISHED, name: "published", type: "date" }, T0 + 50 * STEP),
         env("property.set", { objectId: PARIS, propertySchemaId: PUBLISHED, value: { nodeId: DAY_A.day } }, T0 + 51 * STEP),
         env("property.set", { objectId: FRANCE, propertySchemaId: PUBLISHED, value: { nodeId: DAY_B.day } }, T0 + 52 * STEP),
