@@ -191,45 +191,42 @@ describe("L2 page banner", () => {
     return pageId;
   }
 
-  it("renders the cover above the title; absent when no cover is set", async () => {
+  it("renders the cover as the right-side header card (v1); the empty element shows collapsed", async () => {
     const client = await seedClient();
     vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,BBBB");
     const coveredId = await seedCoveredPage(client);
     const plainId = await client.createObject({ presentAsMain: true, name: "Plain Page" });
 
     const { container, unmount } = render(<PageView client={client} pageId={coveredId} />);
-    const toggle = await screen.findByRole("button", { name: "Collapse cover image" });
-    // §34.56: the banner is a wrapper (toolbar chrome) around the toggle.
-    const banner = toggle.closest(".nt-page-banner")!;
-    expect(toggle.querySelector("img")!.getAttribute("src")).toContain("data:image/png");
-    // Above the title in the header.
-    const header = container.querySelector(".nt-page-header")!;
-    expect(header.firstElementChild).toBe(banner);
+    // A set cover auto-expands the card; the image rides inside.
+    await screen.findByRole("button", { name: "Collapse cover" });
+    const card = container.querySelector(".nt-covercard")!;
+    expect(card.querySelector("img")!.getAttribute("src")).toContain("data:image/png");
+    // The card sits in the header row's right column, beside the header.
+    expect(card.closest(".page-header-section__cover")).not.toBeNull();
     unmount();
 
+    // No cover: the element still renders — collapsed to the chevron.
     render(<PageView client={client} pageId={plainId} />);
-    expect(screen.queryByRole("button", { name: /cover image/i })).toBeNull();
+    expect(screen.getByRole("button", { name: "Expand cover" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Collapse cover" })).toBeNull();
   });
 
-  it("collapse toggles to the slim strip and persists per page", async () => {
+  it("collapse toggles the card away; the toggle is session-local (v1: no persistence)", async () => {
     const client = await seedClient();
     vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,CCCC");
     const pageId = await seedCoveredPage(client);
 
     const { unmount } = render(<PageView client={client} pageId={pageId} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Collapse cover image" }));
-    expect(
-      screen.getByRole("button", { name: "Expand cover image" }).closest(".nt-page-banner")!
-        .className,
-    ).toContain("nt-page-banner--collapsed");
+    fireEvent.click(await screen.findByRole("button", { name: "Collapse cover" }));
+    expect(screen.getByRole("button", { name: "Expand cover" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Collapse cover" })).toBeNull();
     unmount();
 
+    // v1: the collapse derives from whether a cover is SET — remounting
+    // with a cover re-expands (no per-node persistence).
     render(<PageView client={client} pageId={pageId} />);
-    expect(
-      (await screen.findByRole("button", { name: "Expand cover image" })).closest(
-        ".nt-page-banner",
-      )!.className,
-    ).toContain("nt-page-banner--collapsed");
+    expect(await screen.findByRole("button", { name: "Collapse cover" })).not.toBeNull();
   });
 
   it("whiteboard pages and embedded entries render no banner", async () => {

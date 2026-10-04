@@ -1,108 +1,13 @@
-/* PageBanner — the cover strip above the page title (§34.27 L2; §34.56
-   covers-v2 adds the hover toolbar + picker). The full banner spends the
-   --page-cover-height budget; the collapsed state is a slim strip that
-   re-expands on click. Token-only. */
+/* PageBanner.css — the cover PICKER popover + the v1 right-side cover
+   card (§34.72: collapsible, always rendered when the page can carry a
+   cover, drag-and-drop). Token-only. */
 
-.nt-page-banner {
-  position: relative;
-  display: block;
-  width: 100%;
-  height: var(--page-cover-height);
-  padding: 0;
-  margin: 0 0 var(--spacing-3);
-  border: none;
-  border-radius: var(--shape-medium);
-  overflow: hidden;
-  cursor: pointer;
-  background: var(--color-surface-container-low);
-}
+/* --- the picker popover (unchanged §34.59 surface) --------------------- */
 
-.nt-page-banner__toggle {
-  display: block;
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-}
-
-.nt-page-banner__img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.nt-page-banner--collapsed {
-  height: var(--page-cover-height-collapsed);
-}
-
-.nt-page-banner:hover {
-  background: var(--color-surface-container-high);
-}
-
-/* Hover toolbar (§34.56): top-right, revealed with the banner. */
-.nt-page-banner__toolbar {
-  position: absolute;
-  top: var(--spacing-2);
-  right: var(--spacing-2);
-  display: none;
-  gap: var(--spacing-1);
-  padding: var(--spacing-1);
-  border-radius: var(--shape-small);
-  background: var(--color-surface-container-high);
-  box-shadow: var(--shadow-elevation-1);
-}
-
-.nt-page-banner:hover .nt-page-banner__toolbar,
-.nt-page-banner:focus-within .nt-page-banner__toolbar {
-  display: inline-flex;
-}
-
-.nt-page-banner__picker {
-  position: absolute;
-  top: calc(var(--spacing-2) + var(--height-md, 32px));
-  right: var(--spacing-2);
-  z-index: var(--z-dropdown);
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-}
-
-.nt-page-banner__upload {
-  font: inherit;
-  font-size: 12.5px;
-  padding: 6px 10px;
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
-  border-radius: var(--shape-small);
-  background: var(--color-surface);
-  color: var(--color-primary-hover);
-  text-align: left;
-  cursor: pointer;
-}
-
-.nt-page-banner__upload:hover {
-  background: var(--color-hover-overlay);
-}
-
-.nt-page-banner__error {
-  position: absolute;
-  left: var(--spacing-2);
-  bottom: var(--spacing-2);
-  margin: 0;
-  padding: 2px var(--spacing-2);
-  border-radius: var(--shape-small);
-  background: var(--color-error-container);
-  color: var(--color-error);
-  font-size: 12px;
-}
-
-/* §34.59 — the shared cover picker (banner Change + the AddCover strip). */
 .nt-cover-picker {
   position: absolute;
-  top: calc(var(--spacing-2) + var(--height-md, 32px));
-  right: var(--spacing-2);
+  top: calc(100% + 4px);
+  right: 0;
   z-index: var(--z-dropdown);
   display: flex;
   flex-direction: column;
@@ -125,7 +30,8 @@
   background: var(--color-hover-overlay);
 }
 
-.nt-cover-picker__error {
+.nt-cover-picker__error,
+.nt-page-banner__error {
   margin: 0;
   padding: 2px var(--spacing-2);
   border-radius: var(--shape-small);
@@ -134,74 +40,129 @@
   font-size: 12px;
 }
 
-/* AddCover — the v1/Capacities affordance in the banner slot: a slim dashed
-   strip revealed on page hover. */
-.nt-add-cover {
+/* --- the v1 cover card -------------------------------------------------- */
+
+.nt-covercard {
   position: relative;
   display: flex;
-  justify-content: flex-end;
-  margin: 0 0 var(--spacing-1);
-  opacity: 0;
-  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+  flex-direction: row;
+  align-items: stretch;
+  height: var(--page-cover-height);
+  min-width: 0;
 }
 
-.nt-page:hover .nt-add-cover,
-.nt-add-cover:focus-within {
-  opacity: 1;
-}
-
-.nt-add-cover__button {
-  font: inherit;
-  font-size: 12px;
-  padding: 3px 10px;
-  border: var(--border-width-default, 1px) dashed var(--color-outline-variant);
-  border-radius: var(--shape-small);
-  background: transparent;
-  color: var(--color-on-surface-variant);
-  cursor: pointer;
-}
-
-.nt-add-cover__button:hover {
-  background: var(--color-hover-overlay);
-  color: var(--color-on-surface);
-}
-
-/* §34.72 — the v1-parity cover: the shell always renders when a value
-   exists; without bytes it is a dashed placeholder (never a silent void),
-   and both the shell and the Add strip accept a dropped image. */
-
-.nt-page-banner__placeholder {
+.nt-covercard__collapse {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--spacing-2);
+  width: var(--icon-size-lg, 24px);
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: var(--shape-small);
+  color: var(--color-on-surface-variant);
+  opacity: var(--opacity-60, 0.6);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.nt-covercard:hover .nt-covercard__collapse {
+  opacity: 1;
+}
+
+.nt-covercard__card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  min-width: 0;
+  border-radius: var(--shape-medium);
+  overflow: hidden;
+  background: var(--color-surface-container-low);
+  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+}
+
+.nt-covercard__img {
+  display: block;
+  height: 100%;
+  width: auto;
+  max-width: 220px;
+  object-fit: cover;
+}
+
+.nt-covercard__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-1);
   width: 100%;
   height: 100%;
-  padding: var(--spacing-3);
+  min-width: 132px;
+  padding: 0 var(--spacing-3);
+  border: none;
+  background: transparent;
+  color: var(--color-outline);
+  font: var(--font-body-small, inherit);
+  cursor: pointer;
+}
+
+.nt-covercard__empty:hover,
+.nt-covercard__empty:focus-visible {
+  color: var(--color-primary);
+}
+
+.nt-covercard__placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 100%;
+  min-width: 132px;
+  padding: 0 var(--spacing-3);
   border: var(--border-width-default, 1px) dashed var(--color-outline-variant);
-  border-radius: var(--shape-medium);
-  background: var(--color-surface-container-low);
   color: var(--color-on-surface-variant);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
   box-sizing: border-box;
 }
 
-.nt-page-banner__placeholder-name {
+.nt-covercard__placeholder-name {
   font-weight: var(--font-weight-semibold);
   color: var(--color-on-surface);
-  max-width: 40%;
+  max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.nt-page-banner__placeholder-hint {
-  font-size: var(--font-size-xs);
+/* Hover toolbar over the card (Change / Remove). */
+.nt-covercard__toolbar {
+  position: absolute;
+  top: var(--spacing-1);
+  right: var(--spacing-1);
+  display: none;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1);
+  border-radius: var(--shape-small);
+  background: var(--color-surface-container-high);
+  box-shadow: var(--shadow-elevation-1);
 }
 
-.nt-page-banner--dropping,
-.nt-add-cover--dropping .nt-add-cover__button {
+.nt-covercard:hover .nt-covercard__toolbar,
+.nt-covercard:focus-within .nt-covercard__toolbar {
+  display: inline-flex;
+}
+
+.nt-covercard--dropping .nt-covercard__card {
   border-color: var(--color-primary);
   background: var(--color-primary-container);
-  color: var(--color-on-primary-container);
+}
+
+/* Mobile: the card stacks under the header (the v1 breakpoint). */
+@media (width <= 768px) {
+  .nt-covercard {
+    height: var(--page-cover-height);
+    width: 100%;
+  }
 }
