@@ -7,7 +7,8 @@
  *    recordRecent broadcast synced upward, star toggle push;
  *  - Sidebar: Favorites section renders the server copy, the row star toggle
  *    writes through, recents sync on open;
- *  - FavoriteStar: page-header star toggles + syncs;
+ *  - the store toggle: favorites push + sync (the header star retired —
+ *    favorites are set from the sidebar / context menu, owner §34.72);
  *  - worker RPC: getPrefs/patchPrefs through handleMessage (memory fallback).
  */
 
@@ -29,7 +30,6 @@ import {
   useNodePrefs,
 } from "../src/ui/components/nodePrefs.js";
 import { Sidebar, recordRecent, removeRecent } from "../src/ui/components/Sidebar.js";
-import { FavoriteStar } from "../src/ui/components/FavoriteStar.js";
 import type { AnyClient } from "../src/ui/components/Sidebar.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
@@ -345,28 +345,5 @@ describe("Sidebar favorites/recents (§34.61)", () => {
     recordRecent(PAGE_BETA);
     removeRecent(PAGE_ALPHA);
     expect(JSON.parse(localStorage.getItem("notees.recents")!)).toEqual([PAGE_BETA]);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// FavoriteStar (page header)
-// ---------------------------------------------------------------------------
-
-describe("FavoriteStar (page header)", () => {
-  it("toggles from outline to starred and pushes the favorites list", async () => {
-    const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
-    const calls = stubPrefsFetch(({ method, body }) =>
-      method === "PUT" && body !== undefined ? { ...JSON.parse(body), updatedAt: 2 } : { favorites: [], recents: [], updatedAt: 1 },
-    );
-    render(<FavoriteStar client={client} nodeId={PAGE_ALPHA} />);
-    const star = screen.getByRole("button", { name: "Add to favorites" });
-    fireEvent.click(star);
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Remove from favorites" })).toBeTruthy();
-    });
-    await waitFor(() => {
-      const put = calls.find((call) => call.method === "PUT");
-      expect((JSON.parse(put!.body!) as { favorites: string[] }).favorites).toEqual([PAGE_ALPHA]);
-    });
   });
 });
