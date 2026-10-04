@@ -217,7 +217,7 @@ describe("selection action bar group ops", () => {
   it("bulk assign class applies to every selected block", async () => {
     const client = await seedClient();
     const pageId = await seedPage(client, ["one", "two", "three"]);
-    await client.createClass("Project");
+    const projectId = await client.createClass("Project");
     const { container } = render(<PageView client={client} pageId={pageId} />);
     const rows = blockContents(container);
     const ids = rows.map((r) => r.closest("[data-block-id]")!.getAttribute("data-block-id")!);
@@ -228,7 +228,7 @@ describe("selection action bar group ops", () => {
     searchPicker("Proj");
     await pickRowByText("Project");
 
-    const project = client.listClasses().find((c) => c.id)!;
+    const project = client.listClasses().find((c) => c.id === projectId)!;
     expect(client.getNode(ids[0]!)?.classIds).toContain(project.id);
     expect(client.getNode(ids[1]!)?.classIds).toContain(project.id);
     expect(client.getNode(ids[2]!)?.classIds ?? []).not.toContain(project.id);
