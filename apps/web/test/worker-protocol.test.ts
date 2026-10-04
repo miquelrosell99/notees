@@ -7,7 +7,7 @@
  * globals, no real OPFS).
  */
 
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
@@ -54,7 +54,10 @@ function createMemoryOpfs(): { opfs: OpfsStore; files: Map<string, Uint8Array> }
 }
 
 /** A WorkerContext shaped like the worker entry's, but with in-memory wiring. */
-function createTestContext(): { ctx: WorkerContext; files: Map<string, Uint8Array> } {
+function createTestContext(options: { serverUrl?: string; apiKey?: string } = {}): {
+  ctx: WorkerContext;
+  files: Map<string, Uint8Array>;
+} {
   const { opfs, files } = createMemoryOpfs();
   const ctx: WorkerContext = {
     core: null,
@@ -65,6 +68,10 @@ function createTestContext(): { ctx: WorkerContext; files: Map<string, Uint8Arra
         fileName: `${init.workspaceId}.db`,
         workspaceId: init.workspaceId,
         transport: new MemoryTransport(new MemoryRelay()),
+        // Forward the REST config like the real store-worker entry does
+        // (per-user prefs calls need it in the client).
+        ...(options.serverUrl !== undefined ? { serverUrl: options.serverUrl } : {}),
+        ...(options.apiKey !== undefined ? { apiKey: options.apiKey } : {}),
       });
       cores.push(core);
       ctx.core = core;
@@ -192,5 +199,45 @@ describe("worker message protocol (handleMessage)", () => {
     const rows = tree.result as Array<{ node: { isClass: boolean; presentAsMain: boolean } }>;
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ node: { isClass: false, presentAsMain: false } });
+  });
+
+  it("getPrefs/patchPrefs round-trip through the worker (memory fallback, no REST config)", async () => {
+    const { ctx } = createTestContext();
+    await send(ctx, "init", [
+      { sqlWasmUrl: "/x.wasm", workspaceId: WS, serverUrl: "", apiKey: "" },
+    ]);
+    const PAGE = "0192b000-0000-7000-8000-0000000000a1";
+    const patched = await send(ctx, "patchPrefs", [{ favorites: [PAGE] }], 2);
+    expect(patched.error).toBeUndefined();
+    expect(patched.result).toMatchObject({ favorites: [PAGE], source: "local" });
+
+    const prefs = await send(ctx, "getPrefs", [], 3);
+    expect(prefs.error).toBeUndefined();
+    expect(prefs.result).toMatchObject({ favorites: [PAGE], source: "local" });
+  });
+
+  it("worker getPrefs hits the REST config with the init credential", async () => {
+    const calls: Array<{ url: string; key: string | null }> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push({ url: String(url), key: (init?.headers as Record<string, string>)?.["X-API-Key"] ?? null });
+        return new Response(JSON.stringify({ favorites: [], recents: [], updatedAt: 1 }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    );
+    const { ctx } = createTestContext({ serverUrl: "https://notees.example.com", apiKey: "nt_workerkey" });
+    await send(ctx, "init", [
+      { sqlWasmUrl: "/x.wasm", workspaceId: WS, serverUrl: "https://notees.example.com", apiKey: "nt_workerkey" },
+    ]);
+    const prefs = await send(ctx, "getPrefs", [], 2);
+    expect(prefs.error).toBeUndefined();
+    expect(prefs.result).toMatchObject({ source: "server" });
+    expect(calls).toEqual([
+      { url: "https://notees.example.com/api/me/prefs", key: "nt_workerkey" },
+    ]);
+    vi.unstubAllGlobals();
   });
 });

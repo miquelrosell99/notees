@@ -17,7 +17,8 @@
  *    setClassProperty / unsetClassProperty / createPropertySchema /
  *    setProperty / unsetProperty / attachAsset), syncOnce, the realtime
  *    acceleration path (startRealtime / stopRealtime), status, exportBytes,
- *    stats, and flush;
+ *    stats, the per-user UI prefs reads/writes (getPrefs / patchPrefs, §34.61),
+ *    and flush;
  *  - persists db.export() bytes to OPFS debounced (~500 ms, coalesced) after
  *    every mutation, each save awaiting the previous one (serialized chain);
  *    flush() forces the pending write now (close path, tests).
@@ -46,6 +47,7 @@ import {
   type CreatePropertySchemaInput,
   type DeleteObjectOptions,
   type EffectiveProperty,
+  type PrefsPatch,
   type ReferenceEntry,
   type SetClassPropertyInput,
   type SyncStatusSnapshot,
@@ -142,6 +144,12 @@ export interface WorkerCoreOptions {
   transport?: Transport;
   actorId?: string;
   deviceId?: string;
+  /**
+   * REST config for the client (per-user prefs §34.61). The entry forwards
+   * the init message's serverUrl/apiKey; tests omit it (local fallback).
+   */
+  serverUrl?: string;
+  apiKey?: string;
   /** Persist debounce after mutations; defaults to 500 ms. */
   debounceMs?: number;
   /** Fired on local apply and sync completion (the entry posts a "changed" message). */
@@ -199,6 +207,8 @@ export class WorkerCore {
       transport: options.transport ?? new NullTransport(),
       ...(options.actorId !== undefined ? { actorId: options.actorId } : {}),
       ...(options.deviceId !== undefined ? { deviceId: options.deviceId } : {}),
+      ...(options.serverUrl !== undefined ? { serverUrl: options.serverUrl } : {}),
+      ...(options.apiKey !== undefined ? { apiKey: options.apiKey } : {}),
       ...(options.onConflict !== undefined ? { onConflict: options.onConflict } : {}),
       ...(options.onSyncError !== undefined ? { onSyncError: options.onSyncError } : {}),
     });
@@ -650,6 +660,10 @@ export class WorkerCore {
         return this.stopRealtime();
       case "status":
         return this.status();
+      case "getPrefs":
+        return this.client.getPrefs();
+      case "patchPrefs":
+        return this.client.patchPrefs(args[0] as PrefsPatch);
       case "exportBytes":
         return this.exportBytes();
       case "stats":

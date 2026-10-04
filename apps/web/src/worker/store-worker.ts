@@ -41,6 +41,10 @@ const ctx: WorkerContext = {
       fileName: `${workspaceId}.db`,
       workspaceId,
       transport,
+      // §34.61: the per-user prefs calls (getPrefs/patchPrefs) are plain REST
+      // — the worker owns the REST config, so forward it into the client.
+      serverUrl,
+      apiKey,
       onNotify: () => workerScope.postMessage({ type: "changed" }),
     });
   },

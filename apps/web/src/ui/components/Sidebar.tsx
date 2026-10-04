@@ -6,14 +6,17 @@
  * language, results panel overlaying the nav) below it; NAVIGATION rows
  * switch the main view (Journal / Inbox / Pages /
  * Whiteboards / Tasks hubs — never an inline page dump); FAVORITES and
- * RECENTS are device-local; MORE reveals the class list. Favorites/recents
- * live here (moved out of App).
+ * RECENTS are cross-device UI state (§34.61 — the server per-user prefs
+ * store is the authority, device-local cache offline; see nodePrefs.ts);
+ * MORE reveals the class list. Favorites/recents live here (moved out of
+ * App).
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
+import { MAX_SYNCED_RECENTS } from "@/core/workspace-client.js";
 import type { AccountUser } from "@/core/auth-api.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
@@ -23,6 +26,7 @@ import { Icon } from "../Icon.js";
 import { classIconMap, nodeIcon } from "../iconFor.js";
 import { SearchBox } from "../SearchBox.js";
 import { SCRATCHPAD_PAGE_ID } from "./ScratchpadCapture.js";
+import { useNodePrefs, toggleNodeFavorite, removeSyncedRecent } from "./nodePrefs.js";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher.js";
 import { SidebarItemMenu, type SidebarItemMenuState } from "./SidebarItemMenu.js";
 import { ConfirmationModal } from "./ui/ConfirmationModal.js";
@@ -63,7 +67,9 @@ function readStoredJson(key: string): string[] {
  * Record a page open in the device-local Recents list (the sidebar section).
  * Every open surface funnels through App.openPage, which calls this; the
  * write broadcasts `notees:recents` so the sidebar refreshes live (same
- * pattern as the favorites broadcast from the node context menu).
+ * pattern as the favorites broadcast from the node context menu). The
+ * nodePrefs store listens and mirrors the list to the server prefs when
+ * online (§34.61) — this function stays the single device-local write.
  */
 export function recordRecent(id: string): void {
   try {
@@ -71,7 +77,7 @@ export function recordRecent(id: string): void {
     const previous = Array.isArray(parsed)
       ? parsed.filter((entry): entry is string => typeof entry === "string")
       : [];
-    const next = [id, ...previous.filter((entry) => entry !== id)].slice(0, 12);
+    const next = [id, ...previous.filter((entry) => entry !== id)].slice(0, MAX_SYNCED_RECENTS);
     localStorage.setItem(STORAGE_KEYS.recents, JSON.stringify(next));
   } catch {
     // Storage unavailable; the list just won't persist.
@@ -147,30 +153,21 @@ export function Sidebar({
    */
   cacheVersion?: number | undefined;
 }) {
-  const [favorites, setFavorites] = useState<string[]>(() => readStoredJson(STORAGE_KEYS.favorites));
-  const [recents, setRecents] = useState<string[]>(() => readStoredJson(STORAGE_KEYS.recents));
+  /**
+   * Favorites + recents (§34.61): the shared nodePrefs store — server-side
+   * per-user prefs when online, device-local cache offline. The hook
+   * subsumes the old notees:favorites/notees:recents refresh effect (it
+   * listens itself, and every legacy writer's broadcast re-renders us).
+   */
+  const nodePrefs = useNodePrefs(client);
+  const favorites = nodePrefs.favorites;
+  const recents = nodePrefs.recents;
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [accountMenu, setAccountMenu] = useState(false);
   /** Right-click menu over a Favorites/Recents row. */
   const [rowMenu, setRowMenu] = useState<SidebarItemMenuState | null>(null);
   /** Delete confirmation target (lives here so it survives the menu closing). */
   const [deleteTarget, setDeleteTarget] = useState<ClientNode | null>(null);
-
-  // Refresh the device-local lists when any surface writes them: the node
-  // context menu broadcasts notees:favorites; recordRecent broadcasts
-  // notees:recents. (Without this the sections stayed stale until reload.)
-  useEffect(() => {
-    const refresh = () => {
-      setFavorites(readStoredJson(STORAGE_KEYS.favorites));
-      setRecents(readStoredJson(STORAGE_KEYS.recents));
-    };
-    window.addEventListener("notees:favorites", refresh);
-    window.addEventListener("notees:recents", refresh);
-    return () => {
-      window.removeEventListener("notees:favorites", refresh);
-      window.removeEventListener("notees:recents", refresh);
-    };
-  }, []);
 
   const fullName =
     user !== null ? [user.name, user.surnames].filter((part) => part !== null && part !== "").join(" ").trim() : "";
@@ -200,15 +197,9 @@ export function Sidebar({
   };
 
   const toggleFavorite = (id: string): void => {
-    setFavorites((previous) => {
-      const next = previous.includes(id) ? previous.filter((entry) => entry !== id) : [...previous, id];
-      try {
-        localStorage.setItem(STORAGE_KEYS.favorites, JSON.stringify(next));
-      } catch {
-        // Storage unavailable; the list just won't persist.
-      }
-      return next;
-    });
+    // Server-synced through the nodePrefs store (optimistic local write +
+    // upward push when online).
+    toggleNodeFavorite(client, id);
   };
 
   // Asset-class nodes are library objects, not pages — out of every list.
@@ -448,7 +439,7 @@ export function Sidebar({
             toggleFavorite(id);
           }}
           onRemoveFromRecents={(id) => {
-            removeRecent(id);
+            removeSyncedRecent(client, id);
           }}
           onRequestDelete={() => {
             setDeleteTarget(rowMenu.node);

@@ -4,8 +4,8 @@
  * cornerMenu mode; sidebar peek cards opt out). Clicking opens the node's
  * context menu anchored to the button (right edge aligned), giving every
  * node surface a discoverable path to Open / Copy link / Favorites /
- * Export / Delete without right-clicking. The ExportPageModal lives here,
- * mirroring PageView's header-menu wiring.
+ * Export / Share / Delete without right-clicking. The ExportPageModal and
+ * SharePageModal live here, mirroring PageView's header-menu wiring.
  */
 
 import { useRef, useState } from "react";
@@ -17,8 +17,15 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { Icon } from "../Icon.js";
 import { ExportPageModal } from "./modals/ExportPageModal.js";
+import { SharePageModal } from "./modals/SharePageModal.js";
 import { NodeContextMenu, type NodeMenuState } from "./NodeContextMenu.js";
 import "./NodeMenuButton.css";
+
+/** The server coordinates the Share… modal needs (undefined = hide Share…). */
+export interface ShareTarget {
+  serverUrl: string;
+  credential: string;
+}
 
 export function NodeMenuButton({
   client,
@@ -26,6 +33,7 @@ export function NodeMenuButton({
   onOpenNode,
   onPresent,
   onDeleted,
+  shareTarget = undefined,
 }: {
   client: WorkspaceClient | WorkerClient;
   node: ClientNode;
@@ -33,10 +41,13 @@ export function NodeMenuButton({
   /** Presentation mode (§34.26): the "Present" menu item decks the page. */
   onPresent?: ((nodeId: string) => void) | undefined;
   onDeleted?: ((node: ClientNode) => void) | undefined;
+  /** §34.59 shares: when present, pages get the "Share…" menu item + modal. */
+  shareTarget?: ShareTarget | undefined;
 }) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [menu, setMenu] = useState<NodeMenuState>(null);
   const [exporting, setExporting] = useState<{ pageId: string; name: string } | null>(null);
+  const [sharing, setSharing] = useState<{ pageId: string; name: string } | null>(null);
 
   return (
     <>
@@ -75,6 +86,14 @@ export function NodeMenuButton({
           setMenu(null);
           setExporting({ pageId, name });
         }}
+        onShare={
+          shareTarget === undefined
+            ? undefined
+            : (pageId, name) => {
+                setMenu(null);
+                setSharing({ pageId, name });
+              }
+        }
         onDeleted={(deleted) => {
           setMenu(null);
           onDeleted?.(deleted);
@@ -87,6 +106,16 @@ export function NodeMenuButton({
           nodeUuid={exporting.pageId}
           nodeName={exporting.name}
           onClose={() => setExporting(null)}
+        />
+      )}
+      {sharing !== null && shareTarget !== undefined && (
+        <SharePageModal
+          isOpen
+          serverUrl={shareTarget.serverUrl}
+          token={shareTarget.credential}
+          nodeUuid={sharing.pageId}
+          nodeName={sharing.name}
+          onClose={() => setSharing(null)}
         />
       )}
     </>
