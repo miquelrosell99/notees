@@ -38,7 +38,9 @@ import { displayNameForSettings } from "../dateDisplay.js";
 import { useCardLayoutPreference } from "../viewPrefs.js";
 import { registerView } from "./registry.js";
 import { NodeCard, CoverLayoutToggle } from "./CardsView.js";
+import { useViewSelection, SelectionExportControls } from "./selectionExport.js";
 import type { AnyClient, CardLayout, NodeCollectionItem, NodeCollectionProps } from "./types.js";
+import type { ViewSelection } from "./selectionExport.js";
 import "./KanbanView.css";
 
 /** The bucket for items with no (or an unknown) option value. */
@@ -103,10 +105,12 @@ function DraggableCard({
   item,
   props,
   coverLayout,
+  selection,
 }: {
   item: NodeCollectionItem;
   props: NodeCollectionProps;
   coverLayout: CardLayout;
+  selection?: { checked: boolean; onToggle: () => void } | undefined;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useSortable({
     id: item.node.id,
@@ -119,7 +123,7 @@ function DraggableCard({
       {...attributes}
       {...listeners}
     >
-      <NodeCard item={item} props={props} coverLayout={coverLayout} />
+      <NodeCard item={item} props={props} coverLayout={coverLayout} selection={selection} />
     </div>
   );
 }
@@ -133,6 +137,8 @@ function KanbanColumn({
   collapsed,
   onToggleCollapse,
   coverLayout,
+  selectable,
+  selection,
 }: {
   columnId: string;
   label: string;
@@ -142,6 +148,9 @@ function KanbanColumn({
   collapsed: boolean;
   onToggleCollapse: () => void;
   coverLayout: CardLayout;
+  /** §34.69 selection export: card checkboxes + the column's checked set. */
+  selectable: boolean;
+  selection: ViewSelection;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: columnId });
   return (
@@ -167,7 +176,20 @@ function KanbanColumn({
         <div className="kanban-column__body" ref={setNodeRef}>
           <SortableContext items={items.map((item) => item.node.id)} strategy={verticalListSortingStrategy}>
             {items.map((item) => (
-              <DraggableCard key={item.node.id} item={item} props={props} coverLayout={coverLayout} />
+              <DraggableCard
+                key={item.node.id}
+                item={item}
+                props={props}
+                coverLayout={coverLayout}
+                selection={
+                  selectable
+                    ? {
+                        checked: selection.isSelected(item.node.id),
+                        onToggle: () => selection.toggle(item.node.id),
+                      }
+                    : undefined
+                }
+              />
             ))}
           </SortableContext>
           {items.length === 0 && <div className="kanban-column__empty" aria-hidden="true" />}
@@ -186,6 +208,9 @@ export function KanbanView(props: NodeCollectionProps) {
   const [columnOrder, setColumnOrder] = useState<ReadonlyMap<string, readonly string[]>>(new Map());
   /** The cover layout persists device-locally (§34.27 L1) — never an op. */
   const [coverLayout, setCoverLayout] = useCardLayoutPreference("no-cover");
+  /** §34.69 selection export — the same affordance the table toolbar has. */
+  const selection = useViewSelection();
+  const selectable = props.selectable ?? true;
 
   const schema =
     kanbanProperty !== undefined
@@ -288,6 +313,7 @@ export function KanbanView(props: NodeCollectionProps) {
   return (
     <div>
       <div className="kanban-toolbar">
+        <SelectionExportControls client={client} selection={selection} />
         <CoverLayoutToggle value={coverLayout} onChange={setCoverLayout} />
       </div>
       <DndContext
@@ -308,6 +334,8 @@ export function KanbanView(props: NodeCollectionProps) {
               collapsed={collapsedColumns.has(column.id)}
               onToggleCollapse={() => toggleCollapse(column.id)}
               coverLayout={coverLayout}
+              selectable={selectable}
+              selection={selection}
             />
           ))}
         </div>

@@ -50,6 +50,25 @@
   flex-shrink: 0;
 }
 
+/* §34.69 — the journal cluster: undo + history chevron + redo as one unit.
+   The chevron halves the undo button's right radius so the pair reads as a
+   split button. */
+.nt-topbar-undo {
+  display: inline-flex;
+  align-items: center;
+  margin-right: var(--spacing-1);
+}
+
+.nt-topbar-undo .nt-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.nt-topbar-undo__chevron {
+  margin-left: -1px;
+  width: 18px;
+}
+
 .nt-icon-btn-active,
 .nt-icon-btn-active:hover {
   background: var(--color-primary-container);

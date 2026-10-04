@@ -2,12 +2,14 @@
  * TopBar — the slim, transparent shell header in three sections:
  *  LEFT   hamburger (sidebar show/hide at every width), wordmark, sync status
  *  CENTER the current node's breadcrumbs, left-aligned within the section
- *  RIGHT  palette, theme, settings, sign out, right-sidebar show/hide
+ *  RIGHT  undo/redo (the §34.64 journal, §34.69 topbar buttons + the
+ *         history chevron), calendar, right-sidebar show/hide
  */
 
 import { useState, type ReactNode, type RefObject } from "react";
 
 import type { SyncStatusSnapshot } from "@/core/workspace-client.js";
+import type { UndoUiState } from "@/core/undo-journal.js";
 
 import { Icon } from "../Icon.js";
 import "./TopBar.css";
@@ -71,6 +73,12 @@ export function TopBar({
   calendarOpen = false,
   onToggleCalendar,
   calendarButtonRef,
+  /** §34.69 — the session journal's topbar buttons (undo + redo + history). */
+  undoState,
+  onUndo,
+  onRedo,
+  onToggleHistory,
+  historyButtonRef,
   onToggleSidebar,
   onToggleRightPanel,
 }: {
@@ -83,6 +91,17 @@ export function TopBar({
   calendarOpen?: boolean;
   onToggleCalendar?: (() => void) | undefined;
   calendarButtonRef?: RefObject<HTMLButtonElement | null> | undefined;
+  /**
+   * The journal state slice (§34.64): the undo/redo buttons disable when
+   * empty and take the live labels ("Undo edit text") as their titles.
+   * Undefined hides the cluster (the boot screens' TopBar never gets it).
+   */
+  undoState?: UndoUiState | undefined;
+  onUndo?: (() => void) | undefined;
+  onRedo?: (() => void) | undefined;
+  /** Opens/closes the browsable history popup (the undo button's chevron). */
+  onToggleHistory?: (() => void) | undefined;
+  historyButtonRef?: RefObject<HTMLButtonElement | null> | undefined;
   onToggleSidebar: () => void;
   onToggleRightPanel: () => void;
 }) {
@@ -104,6 +123,41 @@ export function TopBar({
       </div>
       <div className="nt-topbar-center">{breadcrumbs}</div>
       <div className="nt-topbar-right">
+        {undoState !== undefined && (
+          <span className="nt-topbar-undo" role="group" aria-label="Undo and redo">
+            <button
+              type="button"
+              className="nt-icon-btn"
+              disabled={!undoState.canUndo}
+              title={undoState.undoLabel ?? "Undo"}
+              aria-label={undoState.undoLabel ?? "Undo"}
+              onClick={onUndo}
+            >
+              <Icon path="mdi-undo-variant" size={1} />
+            </button>
+            <button
+              type="button"
+              ref={historyButtonRef}
+              className="nt-icon-btn nt-topbar-undo__chevron"
+              title="History (Ctrl+Shift+H)"
+              aria-label="Toggle history"
+              aria-haspopup="menu"
+              onClick={onToggleHistory}
+            >
+              <Icon path="mdi-chevron-down" size={0.8} />
+            </button>
+            <button
+              type="button"
+              className="nt-icon-btn"
+              disabled={!undoState.canRedo}
+              title={undoState.redoLabel ?? "Redo"}
+              aria-label={undoState.redoLabel ?? "Redo"}
+              onClick={onRedo}
+            >
+              <Icon path="mdi-redo-variant" size={1} />
+            </button>
+          </span>
+        )}
         {onToggleCalendar !== undefined && (
           <button
             type="button"

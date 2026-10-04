@@ -128,3 +128,21 @@
   background: var(--color-hover-overlay);
   color: var(--color-on-surface);
 }
+
+/* Bound-verb backlink badge (§34.69): the schema name the reference arrived
+   through — a quiet pill riding the breadcrumb line of the reference row. */
+.nt-ref-verb {
+  display: inline-block;
+  margin: 2px 0 0 var(--spacing-2, 8px);
+  padding: 1px var(--spacing-2, 8px);
+  border-radius: var(--radius-full, 999px);
+  background: var(--color-secondary-container, var(--color-hover-overlay));
+  color: var(--color-on-secondary-container, var(--color-on-surface-variant));
+  font-size: 11px;
+  line-height: 1.4;
+  vertical-align: middle;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

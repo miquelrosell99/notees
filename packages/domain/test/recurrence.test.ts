@@ -7,11 +7,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  completedOccurrencesOf,
   formatRecurrenceRule,
   occurrenceIsosOf,
   parseRecurrenceRule,
   RECURRENCE_DEFAULT_CAP,
   recurrenceRuleOf,
+  withCompletedOccurrence,
   type RecurrenceRule,
 } from "../src/index.js";
 
@@ -229,5 +231,59 @@ describe("occurrenceIsosOf", () => {
     expect(() =>
       occurrenceIsosOf({ ...series, anchorIso: "not-a-date" }, "2026-01-01", "2026-01-02"),
     ).toThrow(/invalid ISO date/);
+  });
+});
+
+describe("completedOccurrencesOf / withCompletedOccurrence (§34.69)", () => {
+  it("absent or null metadata reads as no completed occurrences", () => {
+    expect(completedOccurrencesOf(null)).toEqual([]);
+    expect(completedOccurrencesOf(undefined)).toEqual([]);
+    expect(completedOccurrencesOf({ repeat: "weekly" })).toEqual([]);
+    expect(completedOccurrencesOf({ completedOccurrences: null })).toEqual([]);
+  });
+
+  it("reads the list sorted and deduped", () => {
+    expect(
+      completedOccurrencesOf({ completedOccurrences: ["2026-10-10", "2026-10-03", "2026-10-03"] }),
+    ).toEqual(["2026-10-03", "2026-10-10"]);
+  });
+
+  it("fails loud on a corrupt list — never reads as 'nothing completed'", () => {
+    expect(() => completedOccurrencesOf({ completedOccurrences: "2026-10-04" })).toThrow(
+      /invalid completedOccurrences/,
+    );
+    expect(() => completedOccurrencesOf({ completedOccurrences: [42] })).toThrow(
+      /invalid completedOccurrences entry/,
+    );
+    expect(() =>
+      completedOccurrencesOf({ completedOccurrences: ["2026-10-04", "not-a-date"] }),
+    ).toThrow(/invalid completedOccurrences entry/);
+    expect(() => completedOccurrencesOf({ completedOccurrences: ["2026-02-30"] })).toThrow(
+      /invalid completedOccurrences entry/,
+    );
+  });
+
+  it("withCompletedOccurrence records and reopens one occurrence", () => {
+    const meta = { repeat: "weekly" };
+    const done = withCompletedOccurrence(meta, "2026-10-06", true);
+    expect(done).toEqual({ repeat: "weekly", completedOccurrences: ["2026-10-06"] });
+    // Sorted accumulation, other keys untouched.
+    const twice = withCompletedOccurrence(done, "2026-10-13", true);
+    expect(twice).toEqual({ repeat: "weekly", completedOccurrences: ["2026-10-06", "2026-10-13"] });
+    // Reopening removes only that date; clearing the list drops the key.
+    const reopened = withCompletedOccurrence(twice, "2026-10-06", false);
+    expect(reopened).toEqual({ repeat: "weekly", completedOccurrences: ["2026-10-13"] });
+    expect(withCompletedOccurrence(reopened, "2026-10-13", false)).toEqual({ repeat: "weekly" });
+    // The input is never mutated.
+    expect(meta).toEqual({ repeat: "weekly" });
+  });
+
+  it("withCompletedOccurrence fails loud on a garbage date or corrupt prior list", () => {
+    expect(() => withCompletedOccurrence({}, "tomorrow", true)).toThrow(
+      /invalid occurrence date/,
+    );
+    expect(() => withCompletedOccurrence({ completedOccurrences: [1] }, "2026-10-06", true)).toThrow(
+      /invalid completedOccurrences entry/,
+    );
   });
 });

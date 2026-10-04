@@ -671,6 +671,8 @@ export class WorkerCore {
         return this.stats();
       case "undoState":
         return this.client.undoState();
+      case "undoHistory":
+        return this.client.undoHistory();
       case "undo":
         return this.client.undo();
       case "redo":

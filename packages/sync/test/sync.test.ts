@@ -15,6 +15,7 @@ import {
   MemoryRelay,
   MemoryTransport,
   SyncEngine,
+  TransportError,
   detectConflicts,
   type SyncConflict,
 } from "../src/index.js";
@@ -493,5 +494,95 @@ describe("remote poison quarantine", () => {
     expect(quarantined).toHaveLength(1);
     expect(quarantined[0]!.opType).toBe("object.move");
     expect(errors.some((e) => /quarantined remote object\.move/.test(e.message))).toBe(true);
+  });
+});
+
+describe("snapshot upload — the 413 honesty (§34.69)", () => {
+  it("surfaces an over-cap upload once per session, retries silently, and re-arms after a success", async () => {
+    const relay = new MemoryRelay();
+    let nowMs = 100_000;
+    const errors: Error[] = [];
+    const store = new Store();
+    const transport = new MemoryTransport(relay);
+    const engine = new SyncEngine(store, transport, new Clock(DEVICE_A), {
+      workspaceId: WS,
+      now: () => nowMs,
+      callbacks: { onError: (e) => errors.push(e) },
+    });
+
+    // The relay permanently refuses the snapshot PUT: 413, forever — the
+    // §34.49 cliff. Shadow the transport method the way a capped server answers.
+    let failWith413 = true;
+    const realUpload = transport.uploadSnapshot.bind(transport);
+    transport.uploadSnapshot = async (bytes, hlc) => {
+      if (failWith413) {
+        throw new TransportError("entity_too_large", "Request body is too large", 413);
+      }
+      await realUpload(bytes, hlc);
+    };
+
+    for (const envelope of baseEnvelopes(DEVICE_A)) engine.enqueue(envelope);
+    await engine.syncOnce();
+    // First refusal: loud, once, with the honest message.
+    expect(errors).toHaveLength(1);
+    expect(errors[0]!.message).toMatch(/snapshot upload rejected/);
+    expect(errors[0]!.message).toMatch(/413/);
+
+    // Sync again (new local write): the upload is retried (and refused) but
+    // NOT re-reported — once per session, not once per cycle.
+    engine.enqueue(
+      makeEnvelope(DEVICE_A, T0 + 9000, "object.update", {
+        objectId: NODE,
+        contentAst: [{ type: "text", text: "another edit" }],
+      }),
+    );
+    await engine.syncOnce();
+    expect(errors).toHaveLength(1);
+
+    // The server cap is lifted: the upload succeeds and the latch re-arms.
+    failWith413 = false;
+    engine.enqueue(
+      makeEnvelope(DEVICE_A, T0 + 9010, "object.update", {
+        objectId: NODE,
+        contentAst: [{ type: "text", text: "caught up" }],
+      }),
+    );
+    await engine.syncOnce();
+    expect(relay.getSnapshotMeta().hasSnapshot).toBe(true);
+    expect(errors).toHaveLength(1);
+
+    // …and a fresh refusal afterwards reports again (the latch is per
+    // streak, not per session-once-and-never-again).
+    failWith413 = true;
+    engine.enqueue(
+      makeEnvelope(DEVICE_A, T0 + 9020, "object.update", {
+        objectId: NODE,
+        contentAst: [{ type: "text", text: "outgrown again" }],
+      }),
+    );
+    await engine.syncOnce();
+    expect(errors).toHaveLength(2);
+    expect(errors[1]!.message).toMatch(/snapshot upload rejected/);
+
+  });
+
+  it("non-413 upload failures stay best-effort silent", async () => {
+    const relay = new MemoryRelay();
+    let nowMs = 100_000;
+    const errors: Error[] = [];
+    const store = new Store();
+    const transport = new MemoryTransport(relay);
+    const engine = new SyncEngine(store, transport, new Clock(DEVICE_A), {
+      workspaceId: WS,
+      now: () => nowMs,
+      callbacks: { onError: (e) => errors.push(e) },
+    });
+    transport.uploadSnapshot = async () => {
+      throw new TransportError("http_error", "HTTP 500: Internal Server Error", 500);
+    };
+
+    for (const envelope of baseEnvelopes(DEVICE_A)) engine.enqueue(envelope);
+    await engine.syncOnce();
+    expect(errors).toHaveLength(0);
   });
 });

@@ -30,6 +30,7 @@ import {
   buildCreatedTodayAst,
   chainNodeIds,
   partitionOpenTasks,
+  type OpenTaskRow,
   type PartitionedTasks,
 } from "./calendarViewUtils.js";
 import {
@@ -157,7 +158,9 @@ export function DayPageSections({
 
   const [createdExpanded, setCreatedExpanded] = useState(false);
 
-  const openCount = tasksPartition.overdue.length + tasksPartition.scheduled.length;
+  const openCount =
+    tasksPartition.overdue.length +
+    tasksPartition.scheduled.filter((row) => !row.occurrenceDone).length;
 
   const statusLabelOf = (id: string): string | null =>
     taskStatusLabel(
@@ -168,21 +171,27 @@ export function DayPageSections({
     );
 
   const renderTaskRow = (
-    row: { id: string; scheduledIso: string | null; closed: boolean },
+    row: OpenTaskRow,
     group: "overdue" | "scheduled",
-  ): ReactNode => (
+  ): ReactNode => {
+    // §34.69: the done-toggle records the occurrence (recurring) — the
+    // checkbox reflects this day, not the node-level status.
+    const checked = row.closed || row.occurrenceDone;
+    return (
     <li
       key={row.id}
       className={`day-page-sections__row${
         group === "overdue" ? " day-page-sections__row--overdue" : ""
-      }`}
+      }${row.occurrenceDone ? " day-page-sections__row--done" : ""}`}
     >
       <Checkbox
         size="sm"
-        checked={row.closed}
+        checked={checked}
         disabled={statusSchema === undefined}
-        aria-label={row.closed ? "Reopen task" : "Mark task done"}
-        onChange={(event) => void setTaskDone(client, statusSchema, row.id, event.target.checked)}
+        aria-label={checked ? "Reopen task" : "Mark task done"}
+        onChange={(event) =>
+          void setTaskDone(client, statusSchema, row.id, event.target.checked, iso)
+        }
       />
       <button type="button" className="day-page-sections__row-name" onClick={() => onOpenPage?.(row.id)}>
         {displayNameFromClient(client, row.id) ?? row.id}
@@ -194,7 +203,8 @@ export function DayPageSections({
         <span className="day-page-sections__row-day">{row.scheduledIso}</span>
       )}
     </li>
-  );
+    );
+  };
 
   return (
     <div className="day-page-sections">

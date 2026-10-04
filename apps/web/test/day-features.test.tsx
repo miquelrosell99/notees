@@ -254,6 +254,8 @@ describe("calendarViewUtils day helpers", () => {
       closed,
       drivingIso: null,
       repeat: null,
+      completedOccurrences: [],
+      occurrenceDone: false,
     });
     const today = "2026-10-04";
     const buckets = partitionTasksIntoBuckets(
