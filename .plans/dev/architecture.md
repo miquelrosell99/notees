@@ -108,7 +108,13 @@ workspace, restore the newest snapshot if it covers the log tail, then replay re
 envelopes in seq order, one at a time. An envelope that is schema-valid but not yet
 applicable (e.g. a create whose parent has not arrived) is *skipped* and retried on next
 boot — it never poisons the whole replay. A per-workspace promise queue serializes the
-ingest+apply pair across concurrent requests.
+ingest+apply pair across concurrent requests. After the replay, if the workspace's log
+has **no snapshot at all** (post-restore wipe, fresh relay), the server snapshots its own
+converged derived store once — `ensureSnapshotAfterReplay` (§34.48): the log crosses
+`SNAPSHOT_REBUILD_MIN_ENVELOPES` (1,000) and `latestSnapshot` is null. Best-effort (a
+failed write never fails hydration) and once per wipe at most, so the next fresh client —
+and the next boot — restores instead of replaying the whole log. Snapshots stay an
+optimization, never authority: the log is untouched and remains the durability boundary.
 
 ## 4. The axes and the bullet-proof schema
 
