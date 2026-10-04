@@ -7,6 +7,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { IDEMPOTENCY_REPLAY_HEADER } from "../src/idempotency.js";
+import { SERVER_VERSION } from "../src/index.js";
 
 import {
   closeTestServer,
@@ -33,7 +34,7 @@ describe("GET /api/meta", () => {
     expect(response.statusCode).toBe(200);
     const body = response.json();
     expect(body.name).toBe("notees-server");
-    expect(body.version).toMatch(/^2\.0\.0-m/);
+    expect(body.version).toBe(SERVER_VERSION);
     expect(body.protocolVersion).toBe(3);
     expect(body.wsProtocolVersion).toBe(2);
     expect(body.defaultWorkspaceId).toBe(server.ctx.defaultWorkspace);
