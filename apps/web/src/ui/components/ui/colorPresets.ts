@@ -95,3 +95,28 @@ export function resolveCssColor(color: string): string {
   const value = canonicalColor(color).trim();
   return isPresetToken(value) ? PRESET_HEX[value] : value;
 }
+
+/**
+ * A colored pill's inline style (PG16 option colors): the themed background
+ * plus a readable foreground (WCAG-ish relative luminance threshold — the
+ * same convention NodePills uses for class pills). Null when no color is
+ * set, so callers can spread unconditionally.
+ */
+export function coloredPillStyle(
+  stored: string | null | undefined,
+): { background: string; color: string } | undefined {
+  if (stored === null || stored === undefined || stored === "") return undefined;
+  const resolved = resolveCssColor(stored);
+  const match = /^#([0-9a-f]{6})$/i.exec(resolved);
+  const foreground =
+    match === null
+      ? "var(--color-on-primary-container)"
+      : (() => {
+          const rgb = parseInt(match[1]!, 16);
+          const channel = (shift: number) => ((rgb >> shift) & 0xff) / 255;
+          const luminance =
+            0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0);
+          return luminance > 0.45 ? "var(--color-black)" : "var(--color-white)";
+        })();
+  return { background: cssColorFor(stored), color: foreground };
+}

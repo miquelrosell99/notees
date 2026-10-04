@@ -14,6 +14,7 @@ import {
   PRESET_COLOR_ENTRIES,
   PRESET_HEX,
   canonicalColor,
+  coloredPillStyle,
   cssColorFor,
   resolveCssColor,
 } from "../src/ui/components/ui/colorPresets.js";
@@ -70,5 +71,21 @@ describe("colorPresets", () => {
       expect(cssColorFor(token)).toBe(`var(--color-preset-${token})`);
       expect(resolveCssColor(token)).toMatch(/^#[0-9a-f]{6}$/);
     }
+  });
+
+  it("coloredPillStyle (PG16 option colors): themed background + readable foreground; null stays undefined", () => {
+    // Tokens resolve to the themed var; the foreground is picked from the
+    // concrete hex luminance (same convention as the class pills).
+    const sky = coloredPillStyle("sky")!;
+    expect(sky.background).toBe("var(--color-preset-sky)");
+    expect([ "var(--color-black)", "var(--color-white)" ]).toContain(sky.color);
+    // A dark custom hex gets light text and passes the hex through.
+    const dark = coloredPillStyle("#102030")!;
+    expect(dark.background).toBe("#102030");
+    expect(dark.color).toBe("var(--color-white)");
+    // Absence is undefined (callers spread unconditionally).
+    expect(coloredPillStyle(null)).toBeUndefined();
+    expect(coloredPillStyle(undefined)).toBeUndefined();
+    expect(coloredPillStyle("")).toBeUndefined();
   });
 });
