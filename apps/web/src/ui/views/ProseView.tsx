@@ -6,6 +6,9 @@
  * display state, never content). Collapse state is ignored here, not
  * cleared: `ignoreCollapse` renders every subtree and mounts no chevron,
  * leaving the session collapse set untouched for the outline view.
+ * §34.70: like the editable outline tree, the prose surface is the live
+ * editing tree — deliberately NOT windowed (a window could hide a
+ * just-created block).
  */
 
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";

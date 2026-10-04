@@ -139,6 +139,10 @@ function QueryResults({
       <NodeCollection
         viewMode={viewMode === "table" ? "table" : "outline"}
         client={client as unknown as import("../views/index.js").AnyClient}
+        // §34.70: the query result owns ITS pagination — the 200-row window
+        // (QUERY_RESULT_CAP) + the load-more below — so the collection view
+        // must not window again (double-windowing would cut the cap to 100).
+        windowed={false}
         items={queryResultItems(client, result.rows, limit)}
         tableColumns={QUERY_TABLE_COLUMNS}
         onNodeClick={(id) => {
