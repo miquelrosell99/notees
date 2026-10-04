@@ -336,7 +336,10 @@ export function Sidebar({
               (entry) =>
                 (entry.key !== "journal" || showJournals) &&
                 (entry.key !== "inbox" || showInbox) &&
-                (entry.key !== "calendar" || showCalendar),
+                (entry.key !== "calendar" || showCalendar) &&
+                // §34.55: the Tasks hub is task-family chrome — hidden while
+                // the family is off (live read; absent row = enabled).
+                (entry.key !== "tasks" || client.isFeatureEnabled("tasks")),
             ).map((entry) => (
               <li key={entry.key} className="nt-side-row">
                 <button

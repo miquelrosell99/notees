@@ -337,6 +337,8 @@ describe("entry points", () => {
   const client = {
     listClasses: () => [],
     listPages: () => [],
+    // §34.55: the sidebar nav reads the feature surface for the Tasks hub.
+    isFeatureEnabled: () => true,
   } as unknown as AnyClient;
 
   it("account menu gains a Settings item opening the app settings", () => {

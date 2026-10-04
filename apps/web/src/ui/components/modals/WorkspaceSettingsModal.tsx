@@ -13,7 +13,11 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { WorkspaceFeature } from "@notees/protocol";
-import { WORKSPACE_FEATURE_MAP } from "@notees/domain";
+import {
+  SYSTEM_CLASS_ICONS,
+  SYSTEM_CLASS_UUIDS,
+  WORKSPACE_FEATURE_MAP,
+} from "@notees/domain";
 
 import type { AnyClient } from "../Sidebar.js";
 import { displayNameFromClient } from "../../dateDisplay.js";
@@ -21,10 +25,14 @@ import { Modal } from "../ui/Modal.js";
 import { BooleanToggle } from "../ui/BooleanToggle.js";
 import { Button } from "../ui/Button.js";
 import { Dropdown } from "../ui/Dropdown.js";
+import { Icon } from "../../Icon.js";
 import { Tabs } from "../ui/Tabs.js";
 import { TextField } from "../ui/TextField.js";
+import { ToggleSwitch } from "../ui/ToggleSwitch.js";
+import { cssColorFor } from "../ui/colorPresets.js";
 import { renameWorkspace } from "./workspaceApi.js";
 import { useDeviceSetting } from "./deviceSettings.js";
+import { isClassFamilyEnabled } from "../featureGates.js";
 import { dateChipCandidates } from "../calendarViewUtils.js";
 import {
   resolveQuickCreateChipClasses,
@@ -156,7 +164,9 @@ export function WorkspaceSettingsModal({
     const classes = client
       .listClasses()
       .map((cls) => ({ id: cls.id, name: displayNameFromClient(client, cls.id) }));
-    return dateChipCandidates(classes, (classId) => client.getClassBindings(classId));
+    return dateChipCandidates(classes, (classId) => client.getClassBindings(classId)).filter((chip) =>
+      isClassFamilyEnabled(client, chip.classId),
+    );
     // classesVersion keeps the enumeration fresh across store notifications.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, storedChips, setClassesVersion]);
@@ -233,9 +243,10 @@ export function WorkspaceSettingsModal({
             <div className="settings-section">
               <h3 className="settings-section__title">Features</h3>
               <p className="settings-item__description">
-                Per-workspace feature toggles. Turning a feature off hides its classes from
-                pickers, search, and hubs — existing objects keep their data and stay in the
-                graph.
+                Core class families, one toggle each. Turning a family off hides its classes
+                from pickers, search, and hubs — existing objects keep their data and stay in
+                the graph. Family changes cascade to subclasses (events off hides meetings and
+                birthdays too).
               </p>
               {clientMatches ? (
                 <>
@@ -246,19 +257,41 @@ export function WorkspaceSettingsModal({
                   ).map(([feature, spec]) => {
                     const enabled = client!.isFeatureEnabled(feature);
                     const instances = client!.getFeatureInstanceCount(feature);
+                    const classId = SYSTEM_CLASS_UUIDS[spec.baseClass];
+                    const classNode = client!.getNodeRaw(classId);
+                    const icon = classNode?.icon ?? SYSTEM_CLASS_ICONS[spec.baseClass];
+                    const color = client!.effectiveClassColor(classId);
                     return (
-                      <div className="settings-item" key={feature}>
-                        <BooleanToggle
-                          label={spec.label}
-                          description={
-                            instances > 0
-                              ? `${spec.description} — ${instances} existing object${instances === 1 ? "" : "s"} in this workspace`
-                              : spec.description
+                      <div className="settings-item settings-feature-row" key={feature}>
+                        <span
+                          className="settings-feature-row__icon"
+                          style={
+                            color !== null
+                              ? { color: cssColorFor(color), borderColor: cssColorFor(color) }
+                              : undefined
                           }
+                        >
+                          <Icon path={icon} size={1} />
+                        </span>
+                        <span className="settings-feature-row__text">
+                          <span className="settings-feature-row__title">
+                            {classNode ? displayNameFromClient(client!, classId) : spec.label}
+                          </span>
+                          <span className="settings-feature-row__powers">
+                            {spec.powers}
+                            {instances > 0
+                              ? ` — ${instances} existing object${instances === 1 ? "" : "s"}`
+                              : ""}
+                          </span>
+                        </span>
+                        <ToggleSwitch
+                          leftLabel="Off"
+                          rightLabel="On"
                           checked={enabled}
                           onChange={() => undefined}
-                          labelPosition="left"
                           disabled={!FEATURE_TOGGLE_WRITES_ENABLED}
+                          size="sm"
+                          aria-label={`${spec.label} feature`}
                         />
                       </div>
                     );
