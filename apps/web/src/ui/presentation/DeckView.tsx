@@ -29,13 +29,15 @@ import { Icon } from "../Icon.js";
 import { InlineTokens } from "../InlineTokens.js";
 import { QueryBlockView } from "../QueryBlockView.js";
 import { WhiteboardCanvas } from "../WhiteboardCanvas.js";
+import { AssetView } from "../AssetView.js";
 import { displayNameFromClient } from "../dateDisplay.js";
 import { classIconMap, nodeIcon } from "../iconFor.js";
 import { OutlinerContext, useOutliner, useOutlinerValue } from "../outliner-context.js";
 import { assetImageUrl } from "../views/assetThumbs.js";
+import { coverAssetIdOf } from "../components/coverProperty.js";
 import { tableClassIdOf } from "../components/tableFamily.js";
 import { BlockRow } from "../BlockRow.js";
-import { buildDeck, type DeckSlide, type DeckTreeEntry } from "./deck.js";
+import { buildDeck, type DeckSlide, type DeckSlideLayout, type DeckTreeEntry } from "./deck.js";
 import { rememberResumeIndex, resumeIndexOf } from "./presentationSession.js";
 import "./deck.css";
 
@@ -117,6 +119,14 @@ function DeckBlock({ tree }: { tree: BlockTreeNode }) {
           renderWhiteboard={(_token, index) => (
             <WhiteboardCanvas client={client} hostId={node.id} tokenIndex={index} embedded />
           )}
+          renderAsset={(token, _index, fullBleed) => {
+            const assetId = (token as { assetId?: unknown }).assetId;
+            // The outliner context narrows the client type; the underlying
+            // object is the full deck client (the BlockRow precedent).
+            return typeof assetId === "string" ? (
+              <AssetView client={client as DeckClient} assetId={assetId} fullBleed={fullBleed} />
+            ) : null;
+          }}
           onMentionMenu={(info) => openNodeLinkMenu({ blockId: node.id, ...info })}
         />
       </div>
@@ -149,6 +159,8 @@ function DeckBody({
       </div>
     );
   }
+  // split: the trailing block IS the image (dropped from the text column);
+  // cover-split: the node's cover rides the right column, ALL blocks text.
   const textBlocks = layout.type === "split" ? blocks.slice(0, -1) : blocks;
   const body = (
     <div className={`nt-deck-body nt-deck-body--${slide.density}`}>
@@ -157,7 +169,7 @@ function DeckBody({
       ))}
     </div>
   );
-  if (layout.type === "split") {
+  if (layout.type === "split" || layout.type === "cover-split") {
     return (
       <div className="nt-deck-columns">
         {body}
@@ -184,8 +196,16 @@ function DeckSlideView({
     const node = client.getNode(slide.nodeId);
     const icon = node !== undefined ? nodeIcon(node, classIconMap(client.listClasses())) : null;
     const color = node !== undefined ? client.effectiveNodeColor(node) : null;
+    // §34.75: the presented page's cover opens the deck (a hero above the
+    // title) — covers are presentation imagery like any slide image.
+    const coverAssetId = coverAssetIdOf(client, slide.nodeId);
     return (
       <div className="nt-deck-slide nt-deck-slide--title">
+        {coverAssetId !== null && (
+          <div className="nt-deck-cover">
+            <DeckImage client={client} assetId={coverAssetId} />
+          </div>
+        )}
         {icon !== null && (
           <span
             className="nt-deck-title-icon"
@@ -217,6 +237,15 @@ function DeckSlideView({
   const titleColor =
     titleNode !== undefined ? client.effectiveNodeColor(titleNode) : null;
 
+  // §34.75: a section whose body carries no image of its own but has a
+  // cover property gets the cover in the right column (cover-split keeps
+  // ALL body blocks in the text column — unlike split, nothing is dropped).
+  const coverAssetId = titleNode !== undefined ? coverAssetIdOf(client, titleNode.id) : null;
+  const layout: DeckSlideLayout =
+    slide.layout.type === "standard" && coverAssetId !== null
+      ? { type: "cover-split", imageAssetId: coverAssetId }
+      : slide.layout;
+
   return (
     <div className={`nt-deck-slide nt-deck-slide--${slide.kind}`}>
       {titleNode !== undefined && (
@@ -233,7 +262,7 @@ function DeckSlideView({
         </div>
       )}
       <EmbedBoundary rootId={pageId}>
-        <DeckBody client={client} slide={slide} blocks={blocks} />
+        <DeckBody client={client} slide={{ ...slide, layout }} blocks={blocks} />
       </EmbedBoundary>
     </div>
   );
