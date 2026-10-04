@@ -155,6 +155,14 @@ export interface NodeCollectionProps {
    */
   kanbanProperty?: string | undefined;
 
+  /**
+   * §34.70 windowing opt-out: the views window their list by default (the
+   * shared useWindowed + ShowMoreButton convention). A container that owns
+   * its own pagination (query results with their 200-row cap + load-more)
+   * passes false so the list never double-windows. Display state, never an op.
+   */
+  windowed?: boolean | undefined;
+
   className?: string | undefined;
 }
 

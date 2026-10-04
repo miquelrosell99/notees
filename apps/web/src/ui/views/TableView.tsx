@@ -7,8 +7,11 @@
  * - Sort: per-column header click sets a single quick sort; the "Sort"
  *   panel manages the full multi-column SortSpec list (add/remove,
  *   direction toggle, priority reorder).
- * - Rows: windowed ("Show more"); row checkboxes with a tri-state header
- *   box when `selectable` (default on) — selection is session state.
+ * - Rows: windowed (§34.70 — the shared useWindowed convention: "Show more
+ *   (N remaining)" at the list's end, the window resets on every sort
+ *   change); row checkboxes with a tri-state header box when `selectable`
+ *   (default on) — selection is session state. The header box selects the
+ *   LOADED window (labeled so); exports and counts always read the full set.
  * - Cells: boolean + select edit inline; text/url/email and number/integer
  *   commit on blur/Enter (empty unsets); date cells ride the shared
  *   DateSlotControl (the zoom picker, §34.32 PG17) writing a day-node
@@ -38,6 +41,8 @@ import { downloadBlob } from "../components/modals/download.js";
 import { classIconMap, nodeIcon } from "../iconFor.js";
 import { displayNameForSettings, displayNameFromClient } from "../dateDisplay.js";
 import { registerView } from "./registry.js";
+import { useWindowed } from "./useWindowed.js";
+import { ShowMoreButton } from "./ShowMoreButton.js";
 import { isEmptyPropertyValue, propertyDisplayText, propertyLinkHref } from "./propertyDisplay.js";
 import type { ClientNode, EffectiveProperty } from "@/core/workspace-client.js";
 import type {
@@ -538,7 +543,6 @@ export function TableView(props: NodeCollectionProps) {
   const { client, items, tableColumns, propertiesOf, onNodeClick, onNodeShiftClick, defaultSort } = props;
   const columns = tableColumns ?? DEFAULT_COLUMNS;
   const [sort, setSort] = useState<SortSpec[]>(defaultSort !== undefined ? [defaultSort] : []);
-  const [windowEnd, setWindowEnd] = useState(ROW_WINDOW);
   const [hiddenColumns, setHiddenColumns] = useState<ReadonlySet<string>>(new Set());
   const [extraColumns, setExtraColumns] = useState<ReadonlySet<string>>(new Set());
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -573,7 +577,16 @@ export function TableView(props: NodeCollectionProps) {
     return [...rows].sort((rowA, rowB) => compareRows(client, sort, visibleColumns, rowA, rowB));
   }, [rows, sort, client, visibleColumns]);
 
-  const visible = sorted.slice(0, windowEnd);
+  // §34.70: the display window over the FULL sorted set — every sort change
+  // resets it (a resort re-narrows instead of inheriting a grown window).
+  // The CSV export below reads `sorted`, never the window. Containers that
+  // own their own pagination (query results) opt out via `windowed={false}`.
+  const sortKey = JSON.stringify(sort);
+  const { visible, remaining, showMore } = useWindowed(sorted, {
+    size: ROW_WINDOW,
+    resetKey: sortKey,
+    enabled: props.windowed ?? true,
+  });
   const iconMap = classIconMap(client.listClasses());
 
   const cycleSort = (column: TableColumn) => {
@@ -789,7 +802,7 @@ export function TableView(props: NodeCollectionProps) {
                         : new Set(visible.map((row) => row.item.node.id)),
                     );
                   }}
-                  aria-label="Select all rows"
+                  aria-label="Select all loaded rows"
                 />
               </th>
             )}
@@ -837,11 +850,7 @@ export function TableView(props: NodeCollectionProps) {
           ))}
         </tbody>
       </table>
-      {sorted.length > windowEnd && (
-        <button type="button" className="nt-table-more" onClick={() => setWindowEnd((end) => end + ROW_WINDOW)}>
-          Show more ({sorted.length - windowEnd} remaining)
-        </button>
-      )}
+      <ShowMoreButton remaining={remaining} onShowMore={showMore} />
       {exportSelection !== null && (
         <ExportPageModal
           isOpen

@@ -110,6 +110,17 @@ Backlinks list *actual* links — but the backlinks view can be narrowed by face
 
 The **Activity** feed closes the page-bottom stack (§34.19's ActivityLog row): a workspace-level section, honest about what the local projection derives. *Recently created* runs one workspace-wide query (the compiler's `entire_workspace` scope, newest first — blocks included) **only while expanded** — collapsed, the section executes no query at all, and it carries no eager badge (no materialized activity count exists, so like unlinked references it shows none); *Recently edited* lists pages and classes whose updated time postdates their creation, and says so — a block's edit time surfaces on its page, not here. It stays off embedded feed entries, which already sit on aggregation surfaces.
 
+## Long lists — one pagination convention
+
+Every list that can grow without a bound windows the same way (§34.70):
+
+- **A session-local window, grown by an honest affordance.** The first 100 rows render; a **"Show more (N remaining)"** button at the list's end grows the window by another 100. The count names what is hidden — a window never drops data silently, and the button is a real, keyboard-focusable control.
+- **Sorting or filtering resets the window.** A resort re-narrows to the first 100 instead of inheriting a grown window.
+- **Counts, badges, and exports always read the FULL set.** Hub totals, kanban column counts, reference-group counts, and every export (the table's CSV whole-view download among them) cover everything — the window is display-only. The table's header checkbox selects exactly what is loaded, and says so: **"Select all loaded rows."**
+- **Where it applies:** every node-collection view — outline lists and grouped sections, cards, kanban columns (each column its own window), tables, and read-only page trees (the child-pages projection, the reference sections).
+- **Where it deliberately does not:** the **editable outliner tree** — a window could hide the block you just created; the editor's collapse chrome is the existing answer. The **command palette and the pickers** stay bounded-scroll surfaces narrowed by typing: their lists live inside a fixed-height scroller and the keyboard cycles the filtered set, so a Show-more would fight the search idiom.
+- **The feeds keep their own honest patterns.** The journal windows around today with scroll sentinels (prepends compensate your scroll position so the viewport stays put), search pages through a cursor ("Load more results"), saved queries window at 200 rows with "N more — load more", and the Activity feed is a bounded summary by design (20 created / 10 edited — a digest, not an archive).
+
 ## Mentions, chips, and typed links — marks on words
 
 All three are tokens in the same flat content stream ([SCHEMA.md grammar](../packages/protocol/SCHEMA.md)), and all three obey the same rule: **nothing is inserted; the word you wrote is the annotation.**
