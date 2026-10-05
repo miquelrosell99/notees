@@ -36,10 +36,21 @@ import {
   TASK_STATUS_OPTION_UUIDS,
 } from "@notees/domain";
 
-import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientPropertySchema, WorkspaceClient } from "@/core/workspace-client.js";
 
-type AnyClient = WorkspaceClient | WorkerClient;
+/** The composed write/read surface both full clients (and the outliner
+ *  context's `OutlinerClient & OutlinerReader`, which the full client
+ *  satisfies) implement — RPC-mirrored, so the structural pick is safe. */
+export type TaskFamilyClient = Pick<
+  WorkspaceClient,
+  | "listPropertySchemas"
+  | "getClassBindings"
+  | "getNodeRaw"
+  | "createClass"
+  | "createPropertySchema"
+  | "setClassProperty"
+  | "updatePropertySchema"
+>;
 
 /** Deterministic status option ids, keyed by the designed option name (the
  *  applier-side seed-ensure authors the same fixed ids — INSERT-or-ignore
@@ -113,7 +124,7 @@ const TASK_FAMILY: Array<{
 
 /** True when every task schema is present and bound to the task class. */
 export function taskFamilyPresent(
-  client: Pick<AnyClient, "listPropertySchemas" | "getClassBindings">,
+  client: Pick<TaskFamilyClient, "listPropertySchemas" | "getClassBindings">,
 ): boolean {
   const schemas = client.listPropertySchemas();
   const have = new Set<string>(schemas.map((schema: ClientPropertySchema) => schema.id));
@@ -135,7 +146,7 @@ export function taskFamilyPresent(
  * every open would re-author them (op-log noise). Server-seeded workspaces
  * skip the branch (idempotent re-create converges anyway).
  */
-export async function ensureTaskFamily(client: AnyClient): Promise<void> {
+export async function ensureTaskFamily(client: TaskFamilyClient): Promise<void> {
   if (!taskFamilyPresent(client)) {
     if (client.getNodeRaw(SYSTEM_CLASS_UUIDS.task) === undefined) {
       await client.createClass(SYSTEM_CLASS_DISPLAY_NAMES.task, {
@@ -180,7 +191,7 @@ export async function ensureTaskFamily(client: AnyClient): Promise<void> {
   if (status !== undefined) {
     const restyled = status.options != null ? styleTaskStatusOptions(status.options) : null;
     const display = status.display ?? null;
-    const patch: Parameters<AnyClient["updatePropertySchema"]>[1] = {};
+    const patch: Parameters<TaskFamilyClient["updatePropertySchema"]>[1] = {};
     if (restyled !== null) patch.options = restyled;
     if (display === null || display === "panel") patch.display = "bullet";
     if (Object.keys(patch).length > 0) {
