@@ -44,7 +44,7 @@ import type { SelectionOption } from "./components/pickers/SelectionPropertyCont
 import { NodePills } from "./components/NodePills.js";
 import { NodeContextMenu } from "./components/NodeContextMenu.js";
 import { openNodeLinkMenu } from "./components/NodeLinkContextMenu.js";
-import { classIconMap, nodeIcon } from "./iconFor.js";
+import { nodeIcon } from "./iconFor.js";
 import { EmbedView } from "./EmbedView.js";
 import { EmbedCardView } from "./EmbedCardView.js";
 import { QueryBlockView } from "./QueryBlockView.js";
@@ -162,12 +162,13 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
     setEditing(true);
   };
 
-  // §34.92: the class read is revision-cached on the client (stable reference
+  // §34.92: classIcons() is the narrow revision-cached read (stable reference
   // until the store actually changes), so keying on it keeps this memo valid
   // across class-icon changes without re-running on every row re-map; the
-  // old [node, node.classIds] key re-ran the query per row per refresh.
-  const classes = outlinerClient.listClasses();
-  const gripIcon = useMemo(() => nodeIcon(node, classIconMap(classes)), [node, classes]);
+  // pre-fix [node, node.classIds] key re-ran a full listClasses query per row
+  // per refresh.
+  const classIcons = outlinerClient.classIcons();
+  const gripIcon = useMemo(() => nodeIcon(node, classIcons), [node, classIcons]);
 
   const dropClass =
     dropLine !== null && dropLine.targetId === node.id ? ` nt-drop-${dropLine.intent}` : "";
