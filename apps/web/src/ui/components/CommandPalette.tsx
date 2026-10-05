@@ -6,6 +6,13 @@
  *
  *  - Recent     device-local recents (empty query only — the Sidebar's
  *               `notees.recents` contract; no sync per the §34.29 #8 ruling)
+ *  - Random     five pages picked on open via Fisher–Yates over the
+ *               already-loaded page list (asset-classed pages excluded); the
+ *               group label carries a ghost refresh button that re-shuffles
+ *               the SAME cached pool — deliberately no new worker query
+ *               (the v1 ruling: extra projections starve the palette on
+ *               large workspaces). Empty query only; exempt from the
+ *               seen-ids dedupe like Commands (#8)
  *  - Date Pages date pages matching the query: formatted/raw keywords plus a
  *               parsed-date suggestion ("feb 14" → the deterministic date
  *               chain; §34.28 #12). The `is_daily:` prefix scopes the whole
@@ -35,6 +42,7 @@ import type { UndoUiState } from "@/core/undo-journal.js";
 import { displayNameForSettings, isDatePageNode, rawDateKeywordOf } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import { parseDate } from "./pickers/dateParser.js";
+import { Button } from "./ui/Button.js";
 import { SearchField } from "./ui/SearchField.js";
 import "./Modal.css";
 import "./CommandPalette.css";
@@ -44,8 +52,10 @@ type AnyClient = WorkspaceClient | WorkerClient;
 const THEME_KEY = "notees.theme";
 /** The Sidebar's device-local recents key — same contract, read-only here. */
 const RECENTS_KEY = "notees.recents";
+/** The Random section's row count (the v1 section's slice size). */
+const RANDOM_PAGE_COUNT = 5;
 
-type Group = "Recent" | "Date Pages" | "Pages" | "Classes" | "Content" | "Commands";
+type Group = "Recent" | "Random" | "Date Pages" | "Pages" | "Classes" | "Content" | "Commands";
 
 interface PaletteItem {
   key: string;
@@ -158,6 +168,47 @@ function readRecents(): string[] {
   }
 }
 
+/**
+ * Fisher–Yates over a copy (the v1 shufflePages precedent, #8) — pure with
+ * respect to the input so a refresh can re-shuffle the same cached pool.
+ */
+function shuffledIds(ids: readonly string[]): string[] {
+  const out = [...ids];
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
+}
+
+/**
+ * The Random section's five rows (#8): a fresh Fisher–Yates pick over the
+ * open-time pool, display data captured per pick (the handler closes over
+ * the pick-time `onOpenNode`, exactly like the memo-built rows). Rows
+ * resolve through `client.getNode` so a node deleted since the pick drops
+ * out quietly.
+ */
+function pickRandomRows(
+  client: AnyClient,
+  pool: readonly string[],
+  onOpenNode: (nodeId: string) => void,
+): PaletteItem[] {
+  const rows: PaletteItem[] = [];
+  for (const id of shuffledIds(pool).slice(0, RANDOM_PAGE_COUNT)) {
+    const page = client.getNode(id);
+    if (page === undefined) continue;
+    rows.push({
+      key: `random:${page.id}`,
+      group: "Random",
+      label: displayNameForSettings(page) || "Untitled",
+      icon: page.icon ?? "mdi-file-document-outline",
+      keywords: rawDateKeywordOf(page),
+      run: () => onOpenNode(page.id),
+    });
+  }
+  return rows;
+}
+
 function toIsoDate(parsed: { type: "day" | "month" | "year"; year: number; month?: number; day?: number }): string {
   const pad = (value: number) => String(value).padStart(2, "0");
   const month = parsed.month ?? 1;
@@ -201,6 +252,16 @@ export function CommandPalette({
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const [recentIds, setRecentIds] = useState<string[]>(readRecents);
+  /**
+   * Random section (#8): the five rows picked on open, plus the id pool they
+   * came from. The pool is captured once per open (the cached `listPages`
+   * read); refresh re-shuffles THAT list — deliberately no new worker query
+   * (the v1 ruling: extra projections starve the palette on large
+   * workspaces). The rows are display data captured at pick time, so a
+   * refresh never re-runs the sync-sections memo.
+   */
+  const [randomRows, setRandomRows] = useState<PaletteItem[]>([]);
+  const randomPoolRef = useRef<readonly string[]>([]);
   /** Debounced FTS content group (M4): tagged with the query they answer. */
   const [contentItems, setContentItems] = useState<Array<PaletteItem & { queryTag: string }>>([]);
   const [contentLoading, setContentLoading] = useState(false);
@@ -481,33 +542,62 @@ export function CommandPalette({
   // title/date matches skipped.
   const filtered = useMemo(() => {
     const seenIds = new Set<string>();
+    let randomInserted = false;
     const out: PaletteItem[] = [];
     const push = (item: PaletteItem) => {
-      if (item.group !== "Commands") {
+      // Commands carry no node id; Random re-picks per open and always shows
+      // its five — neither participates in the cross-group dedupe.
+      if (item.group !== "Commands" && item.group !== "Random") {
         const id = item.key.slice(item.key.indexOf(":") + 1);
         if (seenIds.has(id)) return;
         seenIds.add(id);
       }
       out.push(item);
     };
-    for (const item of syncItems) push(item);
+    for (const item of syncItems) {
+      // Section registry order: the Random group sits after the node
+      // sections (Recent) and before Commands (#8). Commands is always
+      // present, so the post-loop fallback is defensive only.
+      if (!randomInserted && item.group === "Commands" && text === "" && !dailyOnly) {
+        out.push(...randomRows);
+        randomInserted = true;
+      }
+      push(item);
+    }
+    if (!randomInserted && text === "" && !dailyOnly) out.push(...randomRows);
     for (const item of contentItems) {
       if (item.queryTag !== text) continue;
       push(item);
     }
     return out;
-  }, [syncItems, contentItems, text]);
+  }, [syncItems, contentItems, text, randomRows, dailyOnly]);
 
   const clampedActive = Math.min(activeIndex, Math.max(0, filtered.length - 1));
 
-  // Reset on open; keep the active row visible while arrowing.
+  /**
+   * Random refresh (#8): re-shuffle the open-time pool — the same cached id
+   * list, never a fresh worker query.
+   */
+  const refreshRandomPages = () => {
+    setRandomRows(pickRandomRows(client, randomPoolRef.current, onOpenNode));
+  };
+
+  // Reset on open; keep the active row visible while arrowing. The Random
+  // pool is captured here too — the cached page list, asset-classed pages
+  // excluded (the same read the Pages section uses) — and the section's
+  // display rows are picked from it.
   useEffect(() => {
-    if (open) {
-      setQuery("");
-      setActiveIndex(0);
-      setContentItems([]);
-    }
-  }, [open]);
+    if (!open) return;
+    setQuery("");
+    setActiveIndex(0);
+    setContentItems([]);
+    const classes = client.listClasses();
+    const assetClassId =
+      classes.find((cls) => cls.name === "asset")?.id ?? SYSTEM_CLASS_UUIDS.asset;
+    const pool = client.listPages().filter((page) => !page.classIds.includes(assetClassId));
+    randomPoolRef.current = pool.map((page) => page.id);
+    setRandomRows(pickRandomRows(client, randomPoolRef.current, onOpenNode));
+  }, [open, client, onOpenNode]);
 
   useEffect(() => {
     const active = listRef.current?.querySelector<HTMLElement>("[data-active='true']");
@@ -572,7 +662,23 @@ export function CommandPalette({
             return (
               <div key={item.key} className="nt-palette-group">
                 {groupLabel !== null && (
-                  <div className="nt-palette-group-label">{groupLabel}</div>
+                  <div className="nt-palette-group-label-row">
+                    <span className="nt-palette-group-label">{groupLabel}</span>
+                    {groupLabel === "Random" && (
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        icon="mdiRefresh"
+                        aria-label="Refresh random pages"
+                        title="Refresh random pages"
+                        onClick={(event) => {
+                          // The row select gesture must not fire alongside.
+                          event.stopPropagation();
+                          refreshRandomPages();
+                        }}
+                      />
+                    )}
+                  </div>
                 )}
                 <button
                   type="button"
