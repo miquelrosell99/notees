@@ -53,9 +53,21 @@ export function clipCrumbName(name: string, max: number = CRUMB_NAME_MAX): strin
   return name.length > max ? `${name.slice(0, max - 1)}…` : name;
 }
 
-/** Human crumb label: display name, never a raw uuid; per-crumb capped. */
-function crumbNameOf(node: ClientNode): string {
-  return clipCrumbName(displayNameForSettings(node) || untitledLabelOf(node));
+/** Human crumb label: display name, never a raw uuid; per-crumb capped.
+ *  A title that IS only a class chip excerpts to "" at the domain layer (the
+ *  chip's label is graph state) — fall back to the chip's resolved class
+ *  display name so the crumb never reads "Untitled". */
+function crumbNameOf(client: AnyClient, node: ClientNode): string {
+  const excerpt = displayNameForSettings(node);
+  if (excerpt !== "") return clipCrumbName(excerpt);
+  const chip = node.contentAst.find(
+    (token) => token.type === "class_chip",
+  ) as { classId?: string } | undefined;
+  if (chip !== undefined && typeof chip.classId === "string") {
+    const resolved = client.getDisplayName(chip.classId);
+    if (resolved !== null && resolved !== "") return clipCrumbName(resolved);
+  }
+  return clipCrumbName(untitledLabelOf(node));
 }
 
 function ancestryOf(client: AnyClient, nodeId: string): Crumb[] {
@@ -69,7 +81,7 @@ function ancestryOf(client: AnyClient, nodeId: string): Crumb[] {
     const parent = client.getNode(parentId);
     if (parent === undefined) break;
     // Never render a raw UUID: unnamed pages/blocks get a human label.
-    chain.unshift({ node: parent, name: crumbNameOf(parent) });
+    chain.unshift({ node: parent, name: crumbNameOf(client, parent) });
     current = parent;
   }
   return chain;
@@ -255,7 +267,7 @@ export function Breadcrumbs({
         <button
           type="button"
           className="node-breadcrumb-edit"
-          aria-label={`Edit parent of ${crumbNameOf(childBelow)}`}
+          aria-label={`Edit parent of ${crumbNameOf(client, childBelow)}`}
           title="Edit parent"
           onClick={(event) => openEditMenu(event, item.node, childBelow)}
         >
@@ -297,7 +309,7 @@ export function Breadcrumbs({
               />
               <div className="node-breadcrumb-popup-anchor">
                 <div className="node-breadcrumbs-popup">
-                  {[...items, ...(currentNode !== undefined ? [{ node: currentNode, name: crumbNameOf(currentNode) }] : [])].map(
+                  {[...items, ...(currentNode !== undefined ? [{ node: currentNode, name: crumbNameOf(client, currentNode) }] : [])].map(
                     (item) => (
                       <button
                         key={item.node.id}
@@ -308,9 +320,9 @@ export function Breadcrumbs({
                           onOpenNode?.(item.node.id);
                         }}
                       >
-                        {item.node.icon !== null && (
+                        {client.effectiveNodeIcon(item.node) !== null && (
                           <Icon
-                            path={item.node.icon}
+                            path={client.effectiveNodeIcon(item.node)!}
                             size={0.8}
                             className="node-breadcrumb-popup-icon"
                           />
@@ -404,7 +416,7 @@ export function Breadcrumbs({
                 className="node-breadcrumb-icon"
               />
             )}
-            <span className="node-breadcrumb-name">{crumbNameOf(currentNode)}</span>
+            <span className="node-breadcrumb-name">{crumbNameOf(client, currentNode)}</span>
           </button>
         </span>
       )}

@@ -21,6 +21,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { PageView } from "../src/ui/PageView.js";
+import { Breadcrumbs } from "../src/ui/components/Breadcrumbs.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -486,5 +487,52 @@ describe("PageView system sections", () => {
 
     await within(linked).findAllByText("Remote Source");
     expect(within(screen.getByRole("button", { name: /Linked references/ })).getByText("2")).toBeInTheDocument();
+  });
+});
+
+describe("crumb labels over class chips (issue #2)", () => {
+  it("a page titled only by a class chip crumbs under its resolved class name", async () => {
+    const client = await seedClient();
+    const classId = await client.createClass("task");
+    // The parent's title IS a bare class chip: the domain excerpt is ""
+    // (the label is graph state), so the crumb must fall back to the
+    // resolved class display name — never "Untitled page".
+    // Blocks carry rich content (pages flatten titles to text-only): the
+    // parent block's content IS a bare class chip.
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const parentId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "class_chip", classId }],
+    });
+    const childId = await client.createObject({ parentId, contentAst: [{ type: "text", text: "Child" }] });
+
+    const { container } = render(
+      <Breadcrumbs client={client} nodeId={childId} onOpenNode={() => {}} showCurrent />,
+    );
+    // Trail: Home / <chip-titled block> / Child.
+    const crumbs = container.querySelectorAll(".node-breadcrumb-name");
+    expect(crumbs.length).toBe(3);
+    expect(crumbs[1]!.textContent).toBe("task");
+    expect(container.querySelector(".node-breadcrumbs")!.textContent).not.toContain("Untitled");
+  });
+
+  it("a chip carrying one-off displayText crumbs under that wording", async () => {
+    const client = await seedClient();
+    const classId = await client.createClass("source");
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const parentId = await client.createObject({
+      parentId: pageId,
+      contentAst: [
+        { type: "text", text: "on " },
+        { type: "class_chip", classId, displayText: "the Republic" },
+      ],
+    });
+    const childId = await client.createObject({ parentId, contentAst: [{ type: "text", text: "Child" }] });
+
+    const { container } = render(
+      <Breadcrumbs client={client} nodeId={childId} onOpenNode={() => {}} showCurrent />,
+    );
+    const crumbs = container.querySelectorAll(".node-breadcrumb-name");
+    expect(crumbs[1]!.textContent).toBe("on the Republic");
   });
 });

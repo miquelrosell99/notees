@@ -19,6 +19,10 @@ const CANDIDATE_SPANS_CAP = 8;
  * candidateSpans for every typed_link in the stream, as targetNodeId lists
  * (nearest-first by prose distance, deduped, cap 8). Returns a map from
  * token index to list; empty when there is nothing to record.
+ * NOTE: distances ride the RESOLVER-FREE projection (chips invisible) — this
+ * metadata is stored on every writer's save (editor, CLI, server), so the
+ * computation basis must stay writer-agnostic; only the editor's interactive
+ * offset math resolves chip labels.
  */
 export function computeCandidateSpans(ast: readonly unknown[]): Map<number, string[]> {
   const result = new Map<number, string[]>();
