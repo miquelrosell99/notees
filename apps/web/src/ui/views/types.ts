@@ -21,8 +21,8 @@ import type { ClientNode, EffectiveProperty, WorkspaceClient } from "@/core/work
 
 export type AnyClient = WorkspaceClient | WorkerClient;
 
-/** The collection view modes. (Graph and further modes are future work.) */
-export type ViewMode = "outline" | "prose" | "cards" | "kanban" | "table";
+/** The collection view modes (graph = the §34.80 workspace graph). */
+export type ViewMode = "outline" | "prose" | "cards" | "kanban" | "table" | "graph";
 
 export type SortDirection = "asc" | "desc";
 
@@ -77,7 +77,12 @@ export interface CollectionGroup {
 
 export interface NodeCollectionProps {
   client: AnyClient;
-  items: NodeCollectionItem[];
+  /**
+   * The rows to render. Optional for whole-topology views (graph): absent
+   * means "the full workspace topology", present scopes the view to the
+   * collection. Containers with rows always pass it.
+   */
+  items?: NodeCollectionItem[] | undefined;
   /**
    * Grouped rendering (groupBy): when present, the view renders one
    * collapsible group per entry instead of a single flat list. The container

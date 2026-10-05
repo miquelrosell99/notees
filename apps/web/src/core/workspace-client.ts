@@ -37,7 +37,14 @@ import {
   type WorkspaceFeature,
 } from "@notees/protocol";
 import { parseQueryAst, runAggregate, runQuery, type QueryAst } from "@notees/query";
-import { Store, visiblePropertyValueRows, type NodeRow } from "@notees/store";
+import {
+  Store,
+  graphTopology as computeGraphTopology,
+  visiblePropertyValueRows,
+  type GraphOptions,
+  type GraphTopology,
+  type NodeRow,
+} from "@notees/store";
 import {
   HttpTransport,
   OfflineTransport,
@@ -851,6 +858,16 @@ export class WorkspaceClient {
 
   getWorkspaceId(): string {
     return this.workspaceId;
+  }
+
+  /**
+   * The graph-view topology projection (§34.80): one derived read over the
+   * local store — classes + present-as-main nodes only, every edge rolled up
+   * to that node set, plus the semantic co-occurrence family. Pure read, no
+   * caching here: the graph view debounces its own reloads on subscribe.
+   */
+  graphTopology(options?: GraphOptions): GraphTopology {
+    return computeGraphTopology(this.store, this.workspaceId, options);
   }
 
   private requireEngine(): SyncEngine {

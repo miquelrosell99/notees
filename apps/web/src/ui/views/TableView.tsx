@@ -540,7 +540,7 @@ function SortPanel({
 /** The column selector lives inline in the toolbar's ButtonWithPanel. */
 
 export function TableView(props: NodeCollectionProps) {
-  const { client, items, tableColumns, propertiesOf, onNodeClick, onNodeShiftClick, defaultSort } = props;
+  const { client, items = [], tableColumns, propertiesOf, onNodeClick, onNodeShiftClick, defaultSort } = props;
   const columns = tableColumns ?? DEFAULT_COLUMNS;
   const [sort, setSort] = useState<SortSpec[]>(defaultSort !== undefined ? [defaultSort] : []);
   const [hiddenColumns, setHiddenColumns] = useState<ReadonlySet<string>>(new Set());

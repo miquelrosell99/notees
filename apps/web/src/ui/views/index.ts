@@ -8,6 +8,7 @@ import "./ProseView.js";
 import "./CardsView.js";
 import "./KanbanView.js";
 import "./TableView.js";
+import "./graph/GraphView.js";
 
 export { registerView, unregisterView, getViewDefinition, getRegisteredViewModes, getViewModeOptions } from "./registry.js";
 export type { ViewModeOption } from "./registry.js";

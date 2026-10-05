@@ -214,7 +214,7 @@ function KanbanColumn({
 }
 
 export function KanbanView(props: NodeCollectionProps) {
-  const { client, items, kanbanProperty } = props;
+  const { client, items = [], kanbanProperty } = props;
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
   const [dragging, setDragging] = useState<NodeCollectionItem | null>(null);
   const [collapsedColumns, setCollapsedColumns] = useState<ReadonlySet<string>>(new Set());
