@@ -3089,3 +3089,20 @@ Owner-reported fixes shipped (web 105 files / 1036 tests green; typecheck 0; dep
 - **Sticky card chrome**: the page header + footer pin on scroll (only content + sections travel).
 
 **Registered queue (the remaining owner asks, next pass):** the Extended-by section as a multi-level tree · the blocks view-mode switcher left of the ⋯ menu · the footer at the card's bottom corners · the cover binding removed from the source class (live op) · system class/property renames to normal wording (seeds + a live rename migration) · the table Name-cell click-to-edit with the v1 open-arrow on node/date cells · classed-nodes table columns defaulting to the class-property order · the ISO-content day writer's code path (the heal covers the data; the writer hunt continues).
+
+### 34.87 The queued owner pass — export single-title, the UI queue, and the table gestures (2026-10-05)
+
+Everything §34.86 queued is now shipped except the live migration, which runs as this lands (see below).
+
+- **Export single-title** (the owner's doubled-name screenshot): the markdown/html/docx/latex serializers all emitted the `# <title>` heading AND repeated the title as the body's first line (title-is-content makes them the same string). New `withoutLeadingTitle` helper (document.ts) drops the leading title run from the body when the H1 carries it — exact-equality on the first text span, so prose that merely STARTS with the title keeps the rest. `bundleMarkdown` rides the same path; csv/json-archive stay verbatim. 9 new tests + 9 goldens adjusted; export suite 191 green.
+- **Extended-by is a multi-level tree**: subclass nesting renders as an indented outline tree (episode under TV series under source), cycle-guarded, still opening on click.
+- **Blocks switcher to the title row**: the outline/prose/cards switcher moved out of the body flow into the header title row — directly left of the floating ⋯ menu (owner's placement).
+- **Footer at the card's corners**: the word count / Created / Updated footer breaks out of the centered column (negative insets, the classes-corner pattern) and stays pinned at the card's bottom edge on scroll.
+- **Table gestures (v1 parity)**: every Name cell, single-value node-typed property cell, and date cell gains the v1 **open-arrow** (hover-revealed, navigates — row, link target, day page respectively). The Name cell's click now enters inline rename for simple titles (single text token; rich content keeps click-to-open — editing would flatten it, never silently). Tests updated to the new contract (click edits, arrow opens).
+- **Classed-nodes columns**: default columns = the class properties in the class-properties order (satisfied by the §34.86 extends-aware bindings fix — book now shows source's columns in source's order).
+
+**Live migration (in flight as this record lands):** system class/property renames to normal wording (TV series, Publication date, …) — the domain seeds carry the new names (future workspaces) and a one-off script appends rename envelopes to the live relay log (backup first) so existing workspaces converge; the same wave removes the cover binding from the source class live. Verification: payload validation through the protocol schemas before insert + a scratch-store tail replay with zero throws.
+
+**Verification:** web 105 files / 1036 tests green (query-builder-guard's burst count remains the §34.64-documented load-sensitive flake — green in isolation); export 191; deploy + smoke VERIFY-PASS. Docs: this record; user docs unchanged (no user-visible workflow change beyond the fixes themselves).
+
+**Register cross-checks:** §34.86 (the queue — closed) · §34.80/§34.85 (graph program rows stand) · SCHEMA.md (no wire change) · lockstep law: renames are display metadata (class.update / propertySchema.update), not wire changes.
