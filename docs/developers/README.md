@@ -22,6 +22,9 @@ change it describes.
    already carries: the append-only vs in-place-rewrite decision, the
    snapshot/restore-epoch/restart sequence, and the catalog of every
    `scripts/migrate-*.mts`.
+6. **[workflows.md](workflows.md)** — the server-side workflow-rules engine
+   (issue #13): "when X on nodes matching Y, do Z" as coordination state,
+   the evaluation point, the depth-1 loop policy, and the run audit.
 
 [sdk-publishing.md](sdk-publishing.md) is archived reference for the parked
 npm-distribution program.
