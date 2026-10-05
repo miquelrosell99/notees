@@ -245,6 +245,25 @@ span.pill__text {
   padding: 0;
 }
 
+/* Text property as a blocks list (§34.80): one row, the carrier blocks
+   stack as an editable mini-outline — values are blocks, never repeated
+   label entries. */
+.nt-property-textcell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+
+.nt-property-textcell .nt-refblock-tree {
+  padding: 0;
+}
+
+.nt-property-textcell > .nt-property-value {
+  width: 100%;
+}
+
 /* Properties table look: aligned label column (rows are flex); class-derived
    (not yet realized) rows render muted so provenance is visible. */
 .node-metadata-row > .section-label:first-child {
