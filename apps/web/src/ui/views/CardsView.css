@@ -82,7 +82,7 @@
 }
 
 .node-card__cover--button:focus-visible {
-  outline: var(--border-width-focus, 2px) solid var(--color-primary, currentColor);
+  outline: var(--border-width-thick) solid var(--color-primary, currentColor);
   outline-offset: var(--spacing-1, 2px);
 }
 

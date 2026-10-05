@@ -21,7 +21,7 @@
   background: var(--color-surface);
   border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-extra-large);
-  width: var(--modal-width-md, 480px);
+  width: var(--modal-width-md);
   max-width: 100%;
   max-height: 80vh;
   overflow-y: auto;
