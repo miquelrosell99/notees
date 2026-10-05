@@ -798,6 +798,18 @@ export class WorkspaceClient {
   private realtimeStop: (() => void) | null = null;
   private closed = false;
   /**
+   * §34.92 — revision-keyed memo for the render-path list reads
+   * (listClasses/listPages/roots). Dozens of components call these per
+   * render; uncached, each call re-ran the full-table query + row mapping on
+   * the main thread (the profiled 75%-of-capture jank). `notify()` is the
+   * single funnel for every store mutation and refresh, so it clears this
+   * map: one query per change burst, and no re-query at all for renders that
+   * race no change (e.g. the 2s status poll). Returned arrays are SHARED
+   * across callers until the next notify — callers must treat them as
+   * read-only.
+   */
+  private readonly listReadCache = new Map<string, unknown>();
+  /**
    * §34.64 — the session-local op-inverse undo journal (in-memory, per
    * client = per tab; never cross-tab, never durable). Records every write
    * this client applies through its outbox path, with the pre-op snapshot
@@ -983,14 +995,16 @@ export class WorkspaceClient {
 
   /** All document-chrome nodes (parentless or main children), deterministic order. */
   listPages(): ClientNode[] {
-    const rows = this.store.database
-      .prepare(
-        `SELECT * FROM node
+    return this.cachedListRead("listPages", () => {
+      const rows = this.store.database
+        .prepare(
+          `SELECT * FROM node
          WHERE workspace_id = ? AND is_class = 0 AND (parent_id IS NULL OR present_as_main = 1) AND is_active = 1
          ORDER BY COALESCE(name, id), id`,
-      )
-      .all(this.workspaceId) as NodeRow[];
-    return rows.map(mapNode);
+        )
+        .all(this.workspaceId) as NodeRow[];
+      return rows.map(mapNode);
+    });
   }
 
   /**
@@ -1000,19 +1014,29 @@ export class WorkspaceClient {
    * Pages zone) are NOT included.
    */
   roots(): ClientNode[] {
-    return this.store.roots(this.workspaceId).map(mapNode);
+    return this.cachedListRead("roots", () => this.store.roots(this.workspaceId).map(mapNode));
   }
 
   /** All active classes in the workspace, deterministic order (# capture). */
   listClasses(): ClientNode[] {
-    const rows = this.store.database
-      .prepare(
-        `SELECT * FROM node
+    return this.cachedListRead("listClasses", () => {
+      const rows = this.store.database
+        .prepare(
+          `SELECT * FROM node
          WHERE workspace_id = ? AND is_class = 1 AND is_active = 1
          ORDER BY COALESCE(name, id), id`,
-      )
-      .all(this.workspaceId) as NodeRow[];
-    return rows.map(mapNode);
+        )
+        .all(this.workspaceId) as NodeRow[];
+      return rows.map(mapNode);
+    });
+  }
+
+  /** Compute-once-per-revision list read (see `listReadCache`). */
+  private cachedListRead<T>(key: string, compute: () => T): T {
+    if (this.listReadCache.has(key)) return this.listReadCache.get(key) as T;
+    const value = compute();
+    this.listReadCache.set(key, value);
+    return value;
   }
 
   /** Direct extends parents of a class (m2m), deterministic order. */
@@ -2943,6 +2967,7 @@ export class WorkspaceClient {
 
   private notify(): void {
     if (this.closed) return;
+    this.listReadCache.clear();
     for (const listener of this.listeners) listener();
   }
 
