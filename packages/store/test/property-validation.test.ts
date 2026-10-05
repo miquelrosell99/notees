@@ -287,12 +287,10 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       store.apply(
         env("property.set", { objectId: OWNER2, propertySchemaId: SCHEMA_OBJECT_FILTERED, value: { nodeId: TARGET } }, 1727200005500),
       );
-      expect(
-        store.database
-          .prepare("SELECT value FROM property_value WHERE node_id = ? AND property_schema_id = ? AND idx = ?")
-          .get(OWNER2, SCHEMA_OBJECT_FILTERED, 0) as { value: string } | undefined
-      )?.value,
-      ).toBe(JSON.stringify({ nodeId: TARGET }));
+      const filteredRow = store.database
+        .prepare("SELECT value FROM property_value WHERE node_id = ? AND property_schema_id = ? AND idx = ?")
+        .get(OWNER2, SCHEMA_OBJECT_FILTERED, 0) as { value: string } | undefined;
+      expect(filteredRow?.value).toBe(JSON.stringify({ nodeId: TARGET }));
     });
 
     it("text carrier refs stay existence-lenient (PB2 legacy encodings ride the log)", () => {
