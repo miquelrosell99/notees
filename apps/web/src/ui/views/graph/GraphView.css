@@ -20,8 +20,8 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: var(--spacing-xs, 4px);
-  padding: var(--spacing-xs, 4px) var(--spacing-sm, 8px);
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-sm, 8px);
   border-bottom: 1px solid var(--color-border, var(--color-outline));
 }
 
@@ -53,14 +53,14 @@
   border: 1px solid var(--color-outline);
   background: var(--color-surface);
   color: var(--color-on-surface);
-  padding: 0 var(--spacing-xs, 4px);
+  padding: 0 var(--spacing-1);
 }
 
 .nt-graph__sep {
   width: 1px;
   height: 18px;
   background: var(--color-outline);
-  margin: 0 var(--spacing-xs, 4px);
+  margin: 0 var(--spacing-1);
 }
 
 .nt-graph__chip {
@@ -166,8 +166,8 @@
 }
 
 .nt-graph__tooltip-evidence {
-  margin-top: var(--spacing-xs, 4px);
-  padding-top: var(--spacing-xs, 4px);
+  margin-top: var(--spacing-1);
+  padding-top: var(--spacing-1);
   border-top: 1px solid var(--color-outline);
   font-size: var(--font-size-xs, 12px);
   color: var(--color-on-surface-variant, var(--color-on-surface));
@@ -181,7 +181,7 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-sm, 8px);
-  padding: var(--spacing-xs, 4px) var(--spacing-sm, 8px);
+  padding: var(--spacing-1) var(--spacing-sm, 8px);
   border-radius: var(--radius-md, 10px);
   background: var(--color-surface-container-high, var(--color-surface-variant));
   border: 1px solid var(--color-outline);
@@ -240,7 +240,7 @@
   box-shadow: var(--shadow-md, 0 4px 16px rgb(0 0 0 / 20%));
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs, 4px);
+  gap: var(--spacing-1);
   font-size: var(--font-size-xs, 12px);
   color: var(--color-on-surface);
 }
@@ -261,7 +261,7 @@
   display: grid;
   grid-template-columns: auto 80px 1fr auto;
   align-items: center;
-  gap: var(--spacing-xs, 4px);
+  gap: var(--spacing-1);
 }
 
 .nt-graph__group-label,
@@ -271,7 +271,7 @@
   border: 1px solid var(--color-outline);
   background: var(--color-surface);
   color: var(--color-on-surface);
-  padding: 0 var(--spacing-xs, 4px);
+  padding: 0 var(--spacing-1);
   min-width: 0;
 }
 
