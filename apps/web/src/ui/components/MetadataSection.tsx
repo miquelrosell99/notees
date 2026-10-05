@@ -63,6 +63,7 @@ import { ColorButton } from "./ui/ColorButton.js";
 import { PropertyView } from "./PropertyView.js";
 import { PropertyConvertModal } from "./PropertyConvertModal.js";
 import { PropertyHistoryModal } from "./PropertyHistoryModal.js";
+import { TextPropertyRow } from "./TextPropertyRow.js";
 import "./MetadataSection.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -1203,17 +1204,17 @@ function propertyGroupsOf(client: AnyClient, nodeId: string) {
         row.propertySchemaId !== SYSTEM_PROPERTY_UUIDS.cover,
     );
 
-  // Node-typed / date / date_range / boolean schemas render as one grouped
-  // row per schema; select AND multi_select schemas join them only when they
-  // declare options (without options the minimal text editor is the honest
-  // editor — there is nothing to pick; §34.32 PG14 routes multi_select to
-  // the selection control). Scalar rows keep the minimal text editor.
-  // Grouped rows appear at their first occurrence so the panel order is
-  // unchanged.
+  // Node-typed / date / date_range / boolean / text schemas render as one
+  // grouped row per schema; select AND multi_select schemas join them only
+  // when they declare options (without options the minimal text editor is
+  // the honest editor — there is nothing to pick; §34.32 PG14 routes
+  // multi_select to the selection control). Text groups render as a blocks
+  // list (the carrier blocks themselves, §34.80). Grouped rows appear at
+  // their first occurrence so the panel order is unchanged.
   const optionsOf = (propertySchemaId: string) =>
     client.listPropertySchemas().find((s) => s.id === propertySchemaId)?.options;
   const isGroupedType = (type: string | undefined, propertySchemaId: string): boolean => {
-    if (type === "object" || type === "date" || type === "date_range" || type === "boolean") {
+    if (type === "object" || type === "date" || type === "date_range" || type === "boolean" || type === "text") {
       return true;
     }
     if (type === "select" || type === "multi_select") {
@@ -1413,6 +1414,20 @@ export function PropertiesTable({
           propertySchemaId={propertySchemaId}
           label={label}
           rows={groupRows}
+        />
+      );
+    }
+    if (type === "text") {
+      return (
+        <TextPropertyRow
+          key={propertySchemaId}
+          client={client}
+          nodeId={nodeId}
+          propertySchemaId={propertySchemaId}
+          label={label}
+          multi={multi}
+          rows={groupRows}
+          onOpenPage={onOpenPage}
         />
       );
     }

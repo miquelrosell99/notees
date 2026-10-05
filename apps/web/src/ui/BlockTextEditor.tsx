@@ -123,6 +123,7 @@
 
 import {
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -161,6 +162,7 @@ import type { ClientNode } from "@/core/workspace-client.js";
 import { VerbPopover } from "./VerbPopover.js";
 import { useOutliner } from "./outliner-context.js";
 import { nodeLinkUrl, parseNodeLink } from "./nodeLink.js";
+import { CarrierEnterContext, registerCarrierValue } from "./textCarrier.js";
 import { copyToClipboard } from "./components/modals/clipboard.js";
 import { readDeviceSetting } from "./components/modals/deviceSettings.js";
 import { notificationStore } from "./components/ui/notificationStore.js";
@@ -446,6 +448,9 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
     openInSidebar,
     ensureTemplateFamily,
   } = useOutliner();
+  /** Text-property carrier semantics (§34.80) — provided by the property
+   *  cell hosting this block as a carrier; null in the ordinary outline. */
+  const carrierEnter = useContext(CarrierEnterContext);
   const rootRef = useRef<HTMLSpanElement>(null);
   const spanRef = useRef<HTMLSpanElement>(null);
   const nodeRef = useRef(node);
@@ -1676,11 +1681,20 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       const parentId = nodeRef.current.parentId;
       const currentId = nodeRef.current.id;
       const base = applyTextEdit(nodeRef.current.contentAst, draft);
+      // Text-property carriers (§34.80): multi Enter registers the new
+      // sibling as the next VALUE; single Enter nests the new block as a
+      // CHILD of the carrier (the value's lines). Ordinary blocks: the
+      // default outliner semantics below.
+      const carrier = carrierEnter?.carrierOf(currentId) ?? null;
+      const singleCarrier = carrier !== null && !carrier.multi;
+      const firstChildId = singleCarrier ? client.getChildren(currentId)[0]?.id : undefined;
+      const childAnchor = firstChildId !== undefined ? { beforeId: firstChildId } : {};
       if (caret !== null && caret > 0 && caret < draft.length) {
         // MID-TEXT: split at the caret. The head stays in this block; the
-        // tail moves to a new sibling right after (v1 splitBlock). The head
-        // write supersedes the debounced flush — clear it so the unmount
-        // flush can't overwrite the split.
+        // tail moves to a new block right after (v1 splitBlock) — a SIBLING
+        // normally, a CHILD of a single-value carrier. The head write
+        // supersedes the debounced flush — clear it so the unmount flush
+        // can't overwrite the split.
         if (timerRef.current !== null) {
           clearTimeout(timerRef.current);
           timerRef.current = null;
@@ -1691,36 +1705,52 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
         void client.updateObject(currentId, { contentAst: withCandidateSpans(head) });
         void client
           .createObject({
-            parentId,
+            parentId: singleCarrier ? currentId : parentId,
             contentAst: withCandidateSpans(tail),
-            ...(parentId !== null ? { afterId: currentId } : {}),
+            ...(singleCarrier ? childAnchor : parentId !== null ? { afterId: currentId } : {}),
           })
-          .then((id) => requestFocus(id, "start"));
+          .then((id) => {
+            if (carrier?.multi === true) registerCarrierValue(client, carrier, id);
+            requestFocus(id, "start");
+          });
         return;
       }
       if (caret === 0 && draft.length > 0) {
-        // START: a new empty block BEFORE this one (W1 beforeId — the
-        // placement afterId-only ordering could never express).
+        // START: a new empty block BEFORE this one (W1 beforeId) — or a
+        // first CHILD for a single-value carrier.
         void client
           .createObject({
-            parentId,
+            parentId: singleCarrier ? currentId : parentId,
             contentAst: [],
-            ...(parentId !== null ? { beforeId: currentId } : {}),
+            ...(singleCarrier ? childAnchor : parentId !== null ? { beforeId: currentId } : {}),
           })
-          .then((id) => requestFocus(id, "start"));
+          .then((id) => {
+            if (carrier?.multi === true) registerCarrierValue(client, carrier, id);
+            requestFocus(id, "start");
+          });
         return;
       }
       // END / EMPTY: a sibling after this block — but a block WITH CHILDREN
-      // takes the new block as its FIRST child instead (v1/Roam).
+      // takes the new block as its FIRST child instead (v1/Roam); a
+      // single-value carrier ALWAYS takes the child branch (its value is
+      // one block — Enter adds a line, never a sibling value).
       const children = client.getChildren(currentId);
-      if (children.length > 0) {
+      if (singleCarrier || children.length > 0) {
+        const firstChild = children[0]?.id;
         void client
           .createObject({
             parentId: currentId,
             contentAst: [],
-            beforeId: children[0]!.id,
+            ...(singleCarrier && firstChildId !== undefined
+              ? { beforeId: firstChildId }
+              : firstChild !== undefined
+                ? { beforeId: firstChild }
+                : {}),
           })
-          .then((id) => requestFocus(id, "start"));
+          .then((id) => {
+            if (carrier?.multi === true) registerCarrierValue(client, carrier, id);
+            requestFocus(id, "start");
+          });
         return;
       }
       void client
@@ -1729,7 +1759,10 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
           contentAst: [],
           ...(parentId !== null ? { afterId: currentId } : {}),
         })
-        .then((id) => requestFocus(id, "start"));
+        .then((id) => {
+          if (carrier?.multi === true) registerCarrierValue(client, carrier, id);
+          requestFocus(id, "start");
+        });
       return;
     }
     if (event.key === "Backspace") {
