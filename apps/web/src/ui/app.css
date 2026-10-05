@@ -2536,6 +2536,18 @@ mark {
   border-bottom-color: var(--color-primary);
 }
 
+/* Class chip pill (edit mode) — v1 parity: the inline-class mark wore a
+   wavy underline; the read-mode chip keeps its own chip chrome. */
+.nt-atom--chip {
+  border-bottom: none;
+  text-decoration: underline wavy var(--color-outline);
+  text-underline-offset: 2px;
+}
+
+.nt-atom--chip:hover {
+  text-decoration-color: var(--color-primary);
+}
+
 /* Arrow/click-selected pill — the only focus hint while selected (the DOM
    caret stays at a boundary). Primary text on an 8% primary tint inside a
    focus-ring outline; the dashed underline hides (owner call) so the ring
