@@ -3000,3 +3000,25 @@ Owner directive: the CLI is a first-class client like GTK/Flutter — separate i
 **Verification:** standalone repo build+test+typecheck green (above); monorepo `pnpm -r build` + `pnpm test` gate green after the removal (recorded below). GTK/Flutter untouched by the split. Sync/web repo split stays parked (unchanged ruling, now annotated).
 
 **Follow-ups registered:** none required — the submodule bump ritual is documented in the CLI repo README; the next natural exercise of it is the next protocol lockstep.
+
+### 34.83 The web split — registered decision (owner question 2026-10-05; execution deferred to a quiet tree)
+
+Owner question: "should we do the web split too, when graph view lands?" Ruling recorded here: **the split is wanted, but not tied to the graph view** — it executes as its own deliberate pass when the tree is quiet. This section is the decision register; the analysis below is pre-work to be honored, not redone.
+
+**Why the CLI precedent doesn't generalize:**
+- **Co-evolution.** The CLI is an arm's-length consumer (stable `protocol`/`domain`/`query`/`export` APIs + a dev-only server). The web co-evolves with `packages/store` and `packages/sync` — its local-first engine — its tests read package `src/` directly (dev-condition exports), and most §34 waves land packages + web in one pass. In one tree that is a single atomic commit behind the fixture gate; split out, every protocol/store change becomes a two-repo dance (merge main → bump the submodule pin → fix the web → merge the web).
+- **The blocking gate fragments.** `pnpm test` all-green is the mandated gate and today includes the web's ~1000-test suite against the same tree. Split out, the monorepo can merge a store/protocol change that the reference client's suite only exercises after a pin bump — the fixture gate stops guarding the reference client in the same run. The gate/CI redesign is a precondition, not an afterthought.
+- **Deploy moves.** The `notees-web` image builds from the repo-root context (`docker build -f apps/web/Dockerfile .`); a split means a new build context, Dockerfile home, and compose + `release-docker.yml` rework. The CLI split had zero deploy surface; this one touches the whole release path.
+- **Reference-client authority.** The Flutter AGENTS.md calls the web "the source of truth"; splitting it from the packages leaves the packages as the lonely authority and invites drift in the very place other clients mirror.
+
+**The honest counterpoint (why the split is wanted anyway):**
+- **Fleet symmetry is the coherent endgame:** the monorepo holds packages + the `notees-sync` server; every client (`notees-gtk`, `notees-flutter`, `notees-cli`, `notees-web`) is a sibling repo under `notees-clients/`. The CLI split (§34.82) proved the submodule-workspace mechanism; the parked "repo split" ruling is already half-stale.
+- **Shared-tree contention is real:** the 2026-10-05 session collided with the parallel graph wave over the §34.80 number and needed per-file staging discipline throughout. Sibling repos remove that class of collision for web work.
+
+**Preconditions (all four required before the split executes):**
+1. **A quiet tree** — no in-flight cross-cutting feature. (The graph view is the current counter-example: splitting during it interleaves two big refactors; splitting right after destroys the bisect/revert window.)
+2. **Gate/CI redesign decided and built** — where the web suite runs (its own repo's CI against the pinned submodule), what the monorepo gate then means (packages + server only), and the lockstep-wave ritual across the two repos (main merge → pin bump → web green, recorded like the CLI README's bump ritual).
+3. **Deploy path redesigned** — new build context + Dockerfile home for `notees-web`, compose + `release-docker.yml` reworked, host deploy docs updated.
+4. **Docs in the same pass** — AGENTS.md layout + the parked ruling, `.plans/dev/*`, README, per the standing owner rules.
+
+**Status:** registered, not scheduled. Re-open when the tree is quiet; execution reuses the §34.82 submodule mechanism unless this entry is amended first. The `notees-sync` server split stays parked (unchanged).
