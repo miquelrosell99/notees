@@ -171,6 +171,7 @@ import { TriggerPopup, SLASH_COMMANDS, bumpSlashCommandUsage, readSlashCommandUs
 import { NodeSelector, type NodePickContext } from "./components/pickers/NodeSelector.js";
 import { parseDate } from "./components/pickers/dateParser.js";
 import { NodeLinkContextMenu } from "./components/NodeLinkContextMenu.js";
+import { resolveAliasOpen } from "./components/aliasProperty.js";
 import { useLinkEditModalOpener } from "./editor-popups/LinkEditModal.js";
 import { CodeTextarea } from "./components/ui/CodeTextarea.js";
 import { requestQueryBuilderOpen } from "./QueryBlockView.js";
@@ -448,6 +449,11 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
     openInSidebar,
     ensureTemplateFamily,
   } = useOutliner();
+  // Issue #7 — every mention-open gesture (pill double-click, Enter on a
+  // selected pill, the link context menu's Open) resolves an alias target
+  // to its MAIN page; the alias view stays reachable by opening the alias
+  // as a node (search, child rows, deep links).
+  const openNodeResolved = (targetId: string) => openNode(resolveAliasOpen(client, targetId));
   /** Text-property carrier semantics (§34.80) — provided by the property
    *  cell hosting this block as a carrier; null in the ordinary outline. */
   const carrierEnter = useContext(CarrierEnterContext);
@@ -1293,7 +1299,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
     if (atom === null) return;
     event.preventDefault();
     setSelectedAtomKey(null);
-    openNode(atom.targetNodeId);
+    openNodeResolved(atom.targetNodeId);
   };
 
   /**
@@ -1544,7 +1550,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
         if (key === "Enter" && !event.shiftKey && !mod) {
           event.preventDefault();
           setSelectedAtomKey(null);
-          openNode(selected.targetNodeId);
+          openNodeResolved(selected.targetNodeId);
           return;
         }
         if (key === "ArrowRight") {
@@ -1991,7 +1997,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
           onClose={() => setLinkMenu(null)}
           onOpen={(id) => {
             setLinkMenu(null);
-            openNode(id);
+            openNodeResolved(id);
           }}
           onOpenInSidebar={(id) => {
             setLinkMenu(null);
