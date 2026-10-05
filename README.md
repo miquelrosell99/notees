@@ -46,8 +46,8 @@ export NOTEES_DATA_DIR=$PWD/data          # relay log, assets, and the key file 
 pnpm --filter @notees/server dev &        # 1. start the server (port 8377)
 export NOTEES_SERVER=http://localhost:8377
 export NOTEES_API_KEY=$(cat data/api_key.txt)   # generated on first boot, logged once
-pnpm --filter @notees/cli dev -- doctor   # 2. verify reachability + auth
-pnpm --filter @notees/cli dev -- object create --name "Hello Notees"   # 3. a page exists
+# 2./3. the CLI lives in its own repo (notees-cli): pnpm dev -- doctor, then
+# pnpm dev -- object create --name "Hello Notees"
 ```
 
 The full walkthrough — server env, a real CLI session, the web app, the object API — is in [docs/usage.md](docs/usage.md).
@@ -68,7 +68,7 @@ The full walkthrough — server env, a real CLI session, the web app, the object
 - `packages/store` — SQLite derived state (server: better-sqlite3; web: sql.js)
 - `packages/sync` — SyncEngine: outbox, catch-up, snapshot restore
 - `packages/query`, `packages/search`, `packages/editor`, `packages/api-client`, `packages/plugin-sdk` — per-milestone scope (see plan assessment §34.3)
-- `apps/server`, `apps/web`, `apps/cli` — the three surfaces you can run today
+- `apps/server`, `apps/web` — the two surfaces you can run today (the CLI is its own repo: [notees-cli](https://github.com/miquelrosell99/notees-cli))
 
 ## Development
 
