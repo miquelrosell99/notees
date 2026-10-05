@@ -1877,6 +1877,146 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ]);
     });
   });
+
+  describe("referencesWithRollup (outgoing source-side roll-up, the References tab)", () => {
+    const FRANCE = "0192a000-0000-7000-8000-0000000000e2";
+    const PARIS = "0192a000-0000-7000-8000-0000000000e3";
+    const LONDON = "0192a000-0000-7000-8000-0000000000e6";
+    const BERLIN = "0192a000-0000-7000-8000-0000000000e7";
+    const PROP_REF = "0192a000-0000-7000-8000-0000000000a9";
+
+    interface RefRow {
+      source_id: string;
+      target_id: string;
+      type: string;
+      verb: string | null;
+      kind: string;
+      distance: number;
+    }
+
+    /** France, Paris, London, Berlin as separate roots (Paris/Spain/Notes unused here). */
+    function travelStore(): Store {
+      const store = makeStore();
+      store.apply(env("object.create", { objectId: FRANCE, contentAst: [{ type: "text", text: "France" }] }, 1727200001000));
+      store.apply(env("object.create", { objectId: PARIS, contentAst: [{ type: "text", text: "Paris" }] }, 1727200001100));
+      store.apply(env("object.create", { objectId: LONDON, contentAst: [{ type: "text", text: "London" }] }, 1727200001200));
+      store.apply(env("object.create", { objectId: BERLIN, contentAst: [{ type: "text", text: "Berlin" }] }, 1727200001300));
+      return store;
+    }
+
+    function mention(target: string, text: string) {
+      return { type: "mention", targetNodeId: target, text };
+    }
+
+    const rowsOf = (store: Store, id: string) =>
+      (store.referencesWithRollup(id) as RefRow[]).map((r) => ({
+        source: r.source_id,
+        target: r.target_id,
+        type: r.type,
+        verb: r.verb,
+        kind: r.kind,
+        distance: r.distance,
+      }));
+
+    it("one row per target: direct (own property ref) first, containment (blocks under the page) by depth", () => {
+      const store = travelStore();
+      // France's own node-typed property value → a DIRECT row.
+      store.apply(
+        env("property.set", { objectId: FRANCE, propertySchemaId: PROP_REF, value: { nodeId: PARIS }, idx: 0 }, 1727200002000),
+      );
+      // Blocks under France link London (twice — one row) and Berlin (nested deeper).
+      const b = "0192a000-0000-7000-8000-0000000000f1";
+      store.apply(
+        env("object.create", { objectId: b, parentId: FRANCE, contentAst: [mention(LONDON, "London"), mention(LONDON, "London")] }, 1727200002100),
+      );
+      const b4 = "0192a000-0000-7000-8000-0000000000f2";
+      store.apply(
+        env("object.create", { objectId: b4, parentId: b, contentAst: [mention(BERLIN, "Berlin")] }, 1727200002200),
+      );
+
+      expect(rowsOf(store, FRANCE)).toEqual([
+        { source: FRANCE, target: PARIS, type: "property", verb: PROP_REF, kind: "direct", distance: 0 },
+        { source: b, target: LONDON, type: "mention", verb: null, kind: "containment", distance: 1 },
+        { source: b4, target: BERLIN, type: "mention", verb: null, kind: "containment", distance: 2 },
+      ]);
+      // The mirror holds: Paris/London/Berlin list the SAME edges as backlinks.
+      expect((store.backlinksWithRollup(PARIS) as Array<{ source_id: string; kind: string }>).map((r) => ({ source: r.source_id, kind: r.kind }))).toEqual([
+        { source: FRANCE, kind: "direct" },
+      ]);
+    });
+
+    it("many edges to one target collapse to the most direct occurrence", () => {
+      const store = travelStore();
+      // France's own property ref beats a block's mention of the same target.
+      store.apply(
+        env("property.set", { objectId: FRANCE, propertySchemaId: PROP_REF, value: { nodeId: PARIS }, idx: 0 }, 1727200002000),
+      );
+      const b = "0192a000-0000-7000-8000-0000000000f1";
+      store.apply(
+        env("object.create", { objectId: b, parentId: FRANCE, contentAst: [mention(PARIS, "Paris"), mention(PARIS, "Paris")] }, 1727200002100),
+      );
+      expect(rowsOf(store, FRANCE)).toEqual([
+        { source: FRANCE, target: PARIS, type: "property", verb: PROP_REF, kind: "direct", distance: 0 },
+      ]);
+    });
+
+    it("document-chrome target filter: top-level pages and the page's own child pages in; classes, inline blocks, deeper-nested pages and targetless typed links out", () => {
+      const store = travelStore();
+      const cls = "c0000000-0000-7000-8000-0000000000c1";
+      store.apply(env("class.create", { classId: cls, contentAst: [{ type: "text", text: "Tag" }] }, 1727200001400));
+      // France's own child pages: KID (direct child, renders with document
+      // chrome) and GK (KID's child — nested under another page, not France).
+      const kid = "0192a000-0000-7000-8000-0000000000e8";
+      store.apply(env("object.create", { objectId: kid, parentId: FRANCE, presentAsMain: true, contentAst: [{ type: "text", text: "Kid" }] }, 1727200001500));
+      const gk = "0192a000-0000-7000-8000-0000000000e9";
+      store.apply(env("object.create", { objectId: gk, parentId: kid, presentAsMain: true, contentAst: [{ type: "text", text: "Grandkid" }] }, 1727200001600));
+      // An inline block under France — never document chrome.
+      const inline = "0192a000-0000-7000-8000-0000000000fa";
+      store.apply(env("object.create", { objectId: inline, parentId: FRANCE, contentAst: [{ type: "text", text: "inline" }] }, 1727200001700));
+
+      const b = "0192a000-0000-7000-8000-0000000000f1";
+      store.apply(
+        env("object.create", {
+          objectId: b,
+          parentId: FRANCE,
+          contentAst: [
+            mention(PARIS, "Paris"),
+            mention(cls, "Tag"),
+            mention(kid, "Kid"),
+            mention(gk, "Grandkid"),
+            mention(inline, "inline"),
+            { type: "typed_link", text: "supports" },
+          ],
+        }, 1727200002000),
+      );
+
+      expect(rowsOf(store, FRANCE).map((r) => r.target)).toEqual([PARIS, kid]);
+      // The typed_link edge EXISTS in the raw read (targetless by design) but
+      // never matches the rollup's target-set filter.
+      const rawTypes = (store.references(b) as Array<{ type: string; target_id: string | null }>).map((r) => r.type).sort();
+      expect(rawTypes).toEqual(["mention", "mention", "mention", "mention", "mention", "typed_link"]);
+      expect((store.references(b) as Array<{ type: string; target_id: string | null }>).find((r) => r.type === "typed_link")?.target_id).toBeNull();
+    });
+
+    it("trashed targets and trashed sources stay out", () => {
+      const store = travelStore();
+      const b = "0192a000-0000-7000-8000-0000000000f1";
+      store.apply(
+        env("object.create", { objectId: b, parentId: FRANCE, contentAst: [mention(PARIS, "Paris")] }, 1727200002000),
+      );
+      expect(rowsOf(store, FRANCE).map((r) => r.target)).toEqual([PARIS]);
+
+      // Trash the target: the edge row survives (PB1) but the target filter drops it.
+      store.apply(env("object.delete", { objectId: PARIS }, 1727200003000));
+      expect(rowsOf(store, FRANCE)).toEqual([]);
+
+      // Restore the target, trash the SOURCE block: a trashed node no longer
+      // claims a reference.
+      store.apply(env("object.restore", { objectId: PARIS }, 1727200003100));
+      store.apply(env("object.delete", { objectId: b }, 1727200003200));
+      expect(rowsOf(store, FRANCE)).toEqual([]);
+    });
+  });
 });
 
 // --- sql.js-specific coverage ----------------------------------------------------

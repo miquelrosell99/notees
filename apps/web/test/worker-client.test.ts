@@ -131,4 +131,24 @@ describe("WorkerClient read cache", () => {
       client.close();
     }
   });
+
+  it("serves getReferences / getReferenceCount through the read cache (the References tab mirror)", async () => {
+    const client = await makeClient((method) => {
+      if (method === "init") return null;
+      if (method === "getReferences") return [{ id: "page-9", presentAsMain: true, name: "R" }];
+      if (method === "getReferenceCount") return 1;
+      return null;
+    });
+    try {
+      // Seeds: empty list / 0, converging on the worker result.
+      expect(client.getReferences("page-9")).toEqual([]);
+      expect(client.getReferenceCount("page-9")).toBe(0);
+      await vi.waitFor(() => {
+        expect(client.getReferences("page-9").map((n) => n.id)).toEqual(["page-9"]);
+        expect(client.getReferenceCount("page-9")).toBe(1);
+      });
+    } finally {
+      client.close();
+    }
+  });
 });

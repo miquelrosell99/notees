@@ -10,7 +10,7 @@
  *  - apply / applyMany: validate -> idempotency check (applied_envelope) ->
  *    dispatch -> record; applyMany wraps everything in one transaction;
  *  - query helpers: getNode, children, backlinks, backlinksWithRollup,
- *    search (FTS prefix-AND);
+ *    referencesWithRollup, search (FTS prefix-AND);
  *  - snapshot / restore: full-database bytes; the bytes carry their own
  *    user_version, so restore only re-applies connection-level setup;
  *  - reset: drop and recreate the schema at the same storage location.
@@ -451,6 +451,73 @@ export class Store {
     return this.db
       .prepare("SELECT * FROM edge WHERE source_id = ? ORDER BY type, verb, id")
       .all(nodeId);
+  }
+
+  /**
+   * References with source-side containment roll-up — the OUTGOING mirror of
+   * backlinksWithRollup: for source S the distinct document-chrome pages S's
+   * subtree points at (the page References-tab population).
+   *
+   *  1. **direct** — edges `source_id = S` (mention + node-typed property
+   *     values; typed_link rows are targetless by design and never match);
+   *  2. **containment** — edges whose SOURCE is strictly inside S's subtree
+   *     (recursive `parent_id` walk, distance = depth below S): a mention
+   *     authored in a block under S references S's target by containment —
+   *     the source-side roll-up backlinksWithRollup does on the target side.
+   *
+   * Target filter: the target must RENDER WITH DOCUMENT CHROME — never a
+   * class, and parentless or a present-as-main child page OF S. References
+   * to pages nested under other pages, to inline blocks, or to trashed
+   * nodes stay out (t.is_active = 1 — the same liveness getNode applies).
+   *
+   * One row per TARGET — duplicate edges from many sources collapse to the
+   * most direct, shallowest occurrence (direct beats containment, then
+   * smallest distance, then edge id). Each row carries
+   * `kind: "direct" | "containment"` and `distance` (0 for direct), the
+   * winning edge's type/verb (property rows carry verb = propertySchemaId).
+   * Ordered direct first, then containment by distance.
+   *
+   * Trashed sources roll off with their subtree (the recursive member skips
+   * inactive rows — trash keeps parent_id, so the walk alone would still
+   * reach them); trashed targets drop on the target filter. This mirrors
+   * getLinkedReferences' live-source filter on the incoming side.
+   */
+  referencesWithRollup(nodeId: string) {
+    return this.db
+      .prepare(
+        `WITH RECURSIVE subtree(id, distance) AS (
+           SELECT id, 0 FROM node WHERE id = ?
+           UNION ALL
+           SELECT n.id, s.distance + 1
+           FROM subtree s JOIN node n ON n.parent_id = s.id
+           WHERE n.is_active = 1
+         ),
+         ranked AS (
+           SELECT e.id, e.workspace_id, e.source_id, e.target_id, e.type, e.verb,
+                  e.metadata, e.created_at,
+                  CASE WHEN e.source_id = ? THEN 'direct' ELSE 'containment' END AS kind,
+                  CASE WHEN e.source_id = ? THEN 0 ELSE s.distance END AS distance,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY e.target_id
+                    ORDER BY CASE WHEN e.source_id = ? THEN 0 ELSE 1 END,
+                             s.distance, e.id
+                  ) AS rn
+           FROM edge e
+           JOIN subtree s ON s.id = e.source_id
+           JOIN node t ON t.id = e.target_id
+           WHERE e.type IN ('mention', 'property')
+             AND e.target_id IS NOT NULL
+             AND t.is_active = 1
+             AND t.is_class = 0
+             AND (t.parent_id IS NULL OR (t.parent_id = ? AND t.present_as_main = 1))
+         )
+         SELECT id, workspace_id, source_id, target_id, type, verb, metadata,
+                created_at, kind, distance
+         FROM ranked
+         WHERE rn = 1
+         ORDER BY distance, target_id, kind, id`,
+      )
+      .all(nodeId, nodeId, nodeId, nodeId, nodeId);
   }
 
   /**
