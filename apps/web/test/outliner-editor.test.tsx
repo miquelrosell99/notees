@@ -66,6 +66,39 @@ function typeInto(editor: HTMLElement, text: string): void {
   fireEvent.input(editor);
 }
 
+/** Place a collapsed caret at a PROSE offset (walks runs and pill elements). */
+function setProseCaret(editor: HTMLElement, proseOffset: number): void {
+  let acc = 0;
+  let target: Node | null = null;
+  let inner = 0;
+  for (const child of Array.from(editor.childNodes)) {
+    const len = child.textContent?.length ?? 0;
+    if (acc + len >= proseOffset) {
+      target = child;
+      inner = Math.max(0, proseOffset - acc);
+      break;
+    }
+    acc += len;
+  }
+  const range = document.createRange();
+  if (target === null) {
+    range.selectNodeContents(editor);
+    range.collapse(false);
+  } else {
+    const textNode = target instanceof HTMLElement ? (target.firstChild ?? target) : target;
+    const max = (textNode.textContent ?? "").length;
+    range.setStart(textNode, Math.min(inner, max));
+    range.collapse(true);
+  }
+  const selection = window.getSelection();
+  if (selection === null) throw new Error("no selection");
+  selection.removeAllRanges();
+  selection.addRange(range);
+  act(() => {
+    document.dispatchEvent(new Event("selectionchange"));
+  });
+}
+
 function node(id: string, children: BlockTreeNode[] = []): BlockTreeNode {
   return {
     node: {
@@ -243,6 +276,40 @@ describe("outliner editor", () => {
     expect(active).not.toBeNull();
     expect(active!.classList.contains("nt-block-text")).toBe(true);
     expect(active!.textContent).toBe("");
+  });
+
+  it("Enter's mid-text split keeps a class chip whole in the head or tail", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Split" });
+    const classId = await client.createClass("task");
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [
+        { type: "text", text: "before " },
+        { type: "class_chip", classId },
+        { type: "text", text: " after" },
+      ],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container, 0);
+    // Caret mid-text: "before task after" — offset 12 = start of "after"
+    // (right after the chip's trailing space).
+    setProseCaret(editor, 12);
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Enter" });
+    });
+
+    const tree = client.getBlockTree(pageId);
+    expect(tree).toHaveLength(2);
+    // The chip rides the head (it sits before the caret) — never cut.
+    expect(tree[0]!.node.contentAst).toEqual([
+      { type: "text", text: "before " },
+      { type: "class_chip", classId },
+      { type: "text", text: " " },
+    ]);
+    expect(tree[1]!.node.contentAst).toEqual([{ type: "text", text: "after" }]);
+    expect(tree[0]!.node.id).toBe(blockId);
   });
 
   it("Enter lands the new sibling immediately AFTER the current block, not at the end", async () => {
