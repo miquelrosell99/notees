@@ -1,0 +1,26 @@
+/* AliasOfBanner.css — the node-alias banner (issue #7): the chip naming
+   the main page, rendered at the top of an alias page's view. Token-only. */
+
+.nt-alias-banner {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.nt-alias-banner .pill {
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-alias-banner:hover .pill,
+.nt-alias-banner:focus-visible .pill {
+  background: var(--color-hover-overlay);
+}
+
+.nt-alias-banner:focus-visible {
+  outline: var(--border-width-thick, 2px) solid var(--color-primary);
+  outline-offset: var(--focus-outline-offset);
+  border-radius: var(--shape-small);
+}

@@ -140,6 +140,24 @@ describe("system seeds (v1 port)", () => {
     }
   });
 
+  it("node aliases (issue #7, owner 2026-10-05): aliasOf is the next general-block id, single-value node-typed, global, coexisting with the text alias", () => {
+    // …0029 continues the general block after the §34.32 text alias (…0028);
+    // the domain-wide block/prefix rules above pin the shape.
+    expect(SYSTEM_PROPERTY_UUIDS.aliasOf).toBe("00000000-0000-0000-0000-000000000029");
+    // Single-value node-typed: NO multi, NO bindTo, NO targetClassFilter —
+    // both the carrier and the target are "pages", and page is a render
+    // state, not a class, so no binding/filter can express it (client-side
+    // enforcement; SCHEMA.md "Node aliases").
+    expect(SYSTEM_PROPERTY_SPECS.aliasOf).toEqual({ type: "object" });
+    expect(SYSTEM_PROPERTY_DISPLAY_NAMES.aliasOf).toBe("Alias of");
+    for (const binding of SYSTEM_EXTRA_CLASS_BINDINGS) {
+      expect(binding.property).not.toBe("aliasOf");
+    }
+    // Coexistence with the §34.32 text alias — both stay seeded.
+    expect(SYSTEM_PROPERTY_UUIDS.alias).toBe("00000000-0000-0000-0000-000000000028");
+    expect(SYSTEM_PROPERTY_SPECS.alias).toEqual({ type: "text", multi: true });
+  });
+
   it("meeting/event family seeds (§34.36 + owner reshape directive 2026-10-04: plain seeds — zero wire cost)", () => {
     // The register's reserved class ids (append-only rule): meeting …039
     // (first slice), then `event` …040 — the calendar family root seeded by

@@ -63,7 +63,8 @@ import { PageFooter } from "./components/PageFooter.js";
 import { SelectionBar } from "./components/SelectionBar.js";
 import { SystemSections } from "./components/SystemSections.js";
 import { canHaveCoverOf, coverAssetIdOf, ensureCoverProperty } from "./components/coverProperty.js";
-import { ensureAliasProperty } from "./components/aliasProperty.js";
+import { ensureAliasOfProperty, ensureAliasProperty } from "./components/aliasProperty.js";
+import { AliasOfBanner } from "./components/AliasOfBanner.js";
 import { EmbedBoundary } from "./EmbedView.js";
 import { Icon } from "./Icon.js";
 import { TitleEditor } from "./TitleEditor.js";
@@ -317,14 +318,16 @@ export function PageView({
   }, [client]);
 
   /**
-   * Alias property self-heal (§34.32 PG10): the seeded multi-value `alias`
-   * text schema (global scope, no class binding) is authored idempotently
-   * on first page view — the server seed only runs on an empty workspace,
-   * so existing workspaces would never see it otherwise (the
-   * ensureCoverProperty precedent).
+   * Alias property self-heal (§34.32 PG10 + issue #7): the seeded
+   * multi-value `alias` text schema and the seeded single-value node-typed
+   * `aliasOf` schema (global scope, no class bindings) are authored
+   * idempotently on first page view — the server seed only runs on an
+   * empty workspace, so existing workspaces would never see them otherwise
+   * (the ensureCoverProperty precedent).
    */
   useEffect(() => {
     void ensureAliasProperty(client);
+    void ensureAliasOfProperty(client);
   }, [client]);
 
   /** The cover's asset target, when the page carries the property. */
@@ -611,6 +614,11 @@ export function PageView({
           <div role="alert" className="nt-dnd-error">
             {moveError}
           </div>
+        )}
+        {/* Issue #7 — an alias page names its main page and jumps to it;
+            null for every ordinary page. */}
+        {!embedded && (
+          <AliasOfBanner client={client} aliasPageId={pageId} onOpenPage={onOpenPage} />
         )}
         <PropertiesSection client={client} nodeId={pageId} onOpenPage={onOpenPage} />
         <div className="nt-metadata-divider" />

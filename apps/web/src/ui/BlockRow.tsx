@@ -44,6 +44,7 @@ import type { SelectionOption } from "./components/pickers/SelectionPropertyCont
 import { NodePills } from "./components/NodePills.js";
 import { NodeContextMenu } from "./components/NodeContextMenu.js";
 import { openNodeLinkMenu } from "./components/NodeLinkContextMenu.js";
+import { resolveAliasOpen } from "./components/aliasProperty.js";
 import { nodeIcon } from "./iconFor.js";
 import { EmbedView } from "./EmbedView.js";
 import { EmbedCardView } from "./EmbedCardView.js";
@@ -413,7 +414,10 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
               resolveVerb={(schemaId) =>
                 outlinerClient.listPropertySchemas().find((schema) => schema.id === schemaId)?.name ?? null
               }
-              onOpenNode={openNode}
+              // Issue #7 — a mention whose target is an alias page opens the
+              // MAIN page (the alias view stays reachable by opening the
+              // alias as a node: search, child rows, deep links).
+              onOpenNode={(targetId) => openNode(resolveAliasOpen(outlinerClient, targetId))}
               onMentionMenu={(info) => openNodeLinkMenu({ blockId: node.id, ...info })}
               resolveColor={(id) => {
                 const target = outlinerClient.getNode(id);
