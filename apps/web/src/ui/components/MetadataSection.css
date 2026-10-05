@@ -181,9 +181,10 @@ span.pill__text {
   background: var(--color-hover-overlay, transparent);
 }
 
+.nt-property-value:focus,
 .nt-property-value:focus-visible {
-  outline: 2px solid var(--color-primary, currentColor);
-  outline-offset: -1px;
+  outline: none;
+  background: var(--color-hover-overlay, transparent);
 }
 
 /* url/email rows: the external-link affordance beside the text editor. */
