@@ -842,6 +842,58 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     public: true,
     errors: ["not_found"],
   }],
+
+  // --- workflows (issue #13 — server-side "when X on nodes matching Y, do Z") ----
+  ["get", "/api/workflows", {
+    summary: "List workflow rules of the default workspace (any authenticated principal)",
+    description:
+      "issue #13: rule definitions are server coordination state in relay.db (the prefs/shares/plugins ruling) — no envelope, no op type. Rules are evaluated post-ingest by the server-side engine; their EFFECTS are ordinary op envelopes written by a server actor (client claim \"rules-engine\") through the one write path, so every derived store converges on them. Read: any authenticated principal; writes are owner/admin only.",
+    tags: ["Workflows"],
+  }],
+  ["post", "/api/workflows", {
+    summary: "Create a workflow rule (owner/admin only; criteria + actions validated fail-loud)",
+    description:
+      "issue #13. Body: { name, enabled?, trigger: { opType }, criteria, actions }. trigger opType ∈ object.create | property.set | class.assign — the last is the semantic name for the wire's class-add carrier (a re-issued object.create carrying classIds; there is no class.assign op). criteria is a strict QueryAST v1 node filter (no aggregation — 422) compiled against the derived store and probed for the trigger envelope's affected nodes. actions (1..10): { type: \"property.set\", propertySchemaId, value, idx? } | { type: \"class.assign\", classId } — each translates to an EXISTING wire op at execution time (class.assign → object.create re-issue with classIds), validated against the wire payload schema. 409 at the 100-rules-per-workspace cap.",
+    tags: ["Workflows"],
+    requestBody: {
+      type: "object",
+      additionalProperties: true,
+      description: "{ name, enabled?, trigger: { opType }, criteria: QueryAst v1, actions: [property.set | class.assign] } — strict; unknown keys rejected",
+    },
+    success: { status: 201, description: "{ rule }" },
+    errors: ["validation_failed", "conflict"],
+  }],
+  ["get", "/api/workflows/:id", {
+    summary: "One workflow rule (any authenticated principal)",
+    description: "issue #13: 404 outside the default workspace.",
+    tags: ["Workflows"],
+    errors: ["not_found"],
+  }],
+  ["patch", "/api/workflows/:id", {
+    summary: "Merge-patch a workflow rule (owner/admin only)",
+    description:
+      "issue #13: any of name/enabled/trigger/criteria/actions; present fields are re-validated exactly as on create (criteria: strict QueryAST, no aggregation, trial-compiled).",
+    tags: ["Workflows"],
+    requestBody: {
+      type: "object",
+      additionalProperties: true,
+      description: "subset of the create body; at least one field required",
+    },
+    errors: ["validation_failed", "not_found"],
+  }],
+  ["delete", "/api/workflows/:id", {
+    summary: "Delete a workflow rule (owner/admin only)",
+    description: "issue #13: the run audit is NOT cascade-deleted — the rows stay in relay.db for forensics but become unreachable through the API (runs list 404s with the rule gone).",
+    tags: ["Workflows"],
+    errors: ["not_found"],
+  }],
+  ["get", "/api/workflows/:id/runs", {
+    summary: "The append-only run audit of a rule, newest first (any authenticated principal; capped page)",
+    description:
+      "issue #13: one row per (rule, trigger envelope, matched node) firing attempt. outcome ∈ actions_written | actions_failed | skipped_loop | skipped_depth_cap — the last two are the loop policy made observable: engine envelopes never re-trigger the same rule (skipped_loop), and rule chains beyond depth 1 do not execute (skipped_depth_cap). A failed action ingest is recorded with its error and never blocks the triggering ingest.",
+    tags: ["Workflows"],
+    errors: ["not_found"],
+  }],
 ];
 
 function toOpenApiPath(fastifyPath: string): string {
@@ -886,6 +938,7 @@ export function buildOpenApiDocument(serverVersion: string): JsonSchema {
       { name: "Relay", description: "Sync API — WIRE.md §1–2 is the normative spec" },
       { name: "Plugins", description: "Inert plugin-manifest registry (§34.61 — schema + storage shipped; the runtime is parked, §34.33 AG7)" },
       { name: "Shares", description: "Read-only public page shares — token management (owner/admin) + the unauthenticated GET /s/:token view (§34.62 shares record)" },
+      { name: "Workflows", description: "Server-side workflow rules (issue #13) — \"when X happens to nodes matching Y, do Z\": rule CRUD (read: any authenticated principal; write: owner/admin) + the append-only run audit. Coordination state, not log state; effects are ordinary ops by a server actor" },
     ],
     paths,
     components: {
