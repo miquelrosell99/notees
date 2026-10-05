@@ -1,0 +1,974 @@
+/**
+ * Design System Variables
+ *
+ * Minimal monochrome design tokens for the Notees app.
+ * Clean black/grey/white palette for both light and dark modes.
+ */
+
+:root {
+  /* ==================== Primary (Monochrome) ==================== */
+  --color-primary: #111;
+  --color-on-primary: #fff;
+  --color-primary-container: #f0f0f0;
+  --color-on-primary-container: #111;
+  --color-primary-hover: #1a1a1a;
+  --color-primary-pressed: #333;
+
+  /* Absolute black/white for contrast-math results (e.g. text on user-chosen colors) */
+  --color-black: #000;
+  --color-white: #fff;
+
+  /* ==================== Secondary ==================== */
+  --color-secondary: #333;
+  --color-on-secondary: #fff;
+  --color-secondary-container: #f7f7f7;
+  --color-on-secondary-container: #333;
+  --color-secondary-hover: #555;
+  --color-secondary-pressed: #444;
+
+  /* ==================== Tertiary ==================== */
+  --color-tertiary: #555;
+  --color-on-tertiary: #fff;
+  --color-tertiary-container: #f0f0f0;
+  --color-on-tertiary-container: #333;
+  --color-tertiary-hover: #444;
+  --color-tertiary-pressed: #333;
+
+  /* ==================== Error ==================== */
+  --color-error: #c0392b;
+  --color-on-error: #fff;
+  --color-error-container: #fdecea;
+  --color-on-error-container: #611a15;
+  --color-error-hover: #a83227;
+  --color-error-pressed: #89211f;
+
+  /* ==================== Warning ==================== */
+  --color-warning: #8f6216;
+  --color-on-warning: #fff;
+  --color-warning-container: #fffbeb;
+  --color-on-warning-container: #78350f;
+
+  /* ==================== Success ==================== */
+  --color-success: #3d7253;
+  --color-on-success: #fff;
+  --color-success-container: #d1fae5;
+  --color-on-success-container: #14532d;
+
+  /* ==================== Background & Surface ==================== */
+
+  /* Warm paper workspace — identity foundation for Notees */
+  --color-background: #f5f3ef;
+  --color-on-background: #1a1a1a;
+  --color-surface: #fff;
+  --color-on-surface: #1a1a1a;
+  --color-surface-variant: #f0ede8;
+  --color-on-surface-variant: #5c5c5c;
+  --color-surface-dim: #e5e1d9;
+  --color-surface-bright: #fff;
+  --color-surface-container: #faf8f4;
+  --color-surface-container-active: color-mix(in srgb, var(--color-surface-container) 75%, black);
+  --color-surface-container-low: #f5f3ef;
+  --color-surface-container-high: #eae6df;
+  --color-surface-container-highest: #dad6cf;
+  --color-surface-container-lowest: #fff;
+  --color-inverse-surface: #1a1a1a;
+  --color-inverse-on-surface: #f5f3ef;
+  --color-inverse-primary: #a8a29e;
+
+  /* ==================== Outline & Utility ==================== */
+  --color-outline: #c4bfb6;
+  --color-outline-variant: #e3ded6;
+  --color-shadow: rgb(0 0 0 / 8%);
+  --color-scrim: rgb(0 0 0 / 50%);
+
+  /* ==================== Presentation stage ====================
+     Fullscreen presentation host (PresentationOverlay): a dark stage in
+     EVERY theme (a deck reads like a projector surface, not a page), with
+     its own on-stage text colors. */
+  --color-presentation-stage: #17150f;
+  --color-on-presentation-stage: #ece9e3;
+  --color-on-presentation-stage-muted: #9d968c;
+
+  /* ==================== State ==================== */
+  --color-disabled: #d4d4d4;
+  --color-on-disabled: #8a8a8a;
+  --color-query-accent: #c11574;
+  --color-hover-overlay: rgb(0 0 0 / 4%);
+  --color-focus-overlay: rgb(0 0 0 / 8%);
+  --color-pressed-overlay: rgb(0 0 0 / 12%);
+
+  /* ==================== Accent (monochrome default) ==================== */
+  --color-accent: #404040;
+  --color-on-accent: #fff;
+  --color-accent-hover: color-mix(in srgb, var(--color-accent) 90%, black);
+  --color-accent-active: color-mix(in srgb, var(--color-accent) 80%, black);
+  --color-accent-subtle: #737373;
+  --color-surface-tint: transparent;
+
+  /* ==================== Data-level preset colors ====================
+     Application data colors (node/class/tag colors, selection options):
+     stored on nodes as preset TOKENS (`sky`) or custom `#RRGGBB` hex per
+     the protocol color grammar (packages/protocol/src/colors.ts); the
+     token → hex mapping lives here so themes can remap the palette without
+     touching data (colorPresets.ts bridges token → var at render). */
+  --color-preset-red: #e34d45;
+  --color-preset-orange: #ed822b;
+  --color-preset-yellow: #f3b816;
+  --color-preset-green: #30a66f;
+  --color-preset-teal: #27a59c;
+  --color-preset-sky: #20a9e9;
+  --color-preset-blue: #4072e7;
+  --color-preset-purple: #9662da;
+  --color-preset-pink: #de4996;
+  --color-preset-gray: #8c857d;
+
+  /* ==================== Graph View (light defaults) ==================== */
+  --graph-node-default: #737373;
+  --graph-edge-color: #d4d4d4;
+  --graph-bg: transparent;
+
+  /* Graph semantic colors */
+  --graph-edge-cooccurrence: #8a6cc9;
+  --graph-edge-path: #b4763e;
+  --graph-node-path: #b4763e;
+
+  /* Graph UI surfaces */
+  --graph-btn-bg: rgb(255 255 255 / 80%);
+  --graph-btn-border: rgb(163 163 163 / 50%);
+  --graph-btn-color: rgb(64 64 64 / 80%);
+  --graph-btn-hover-bg: rgb(245 245 245 / 95%);
+  --graph-btn-hover-color: #111;
+  --graph-stats-bg: rgb(0 0 0 / 45%);
+  --graph-stats-color: rgb(82 82 82 / 85%);
+  --graph-tooltip-bg: rgb(255 255 255 / 90%);
+  --graph-tooltip-border: rgb(212 212 212 / 70%);
+  --graph-tooltip-color: rgb(40 40 40 / 90%);
+  --graph-tooltip-edge-color: rgb(180 83 9 / 95%);
+  --graph-fallback-msg-color: rgb(130 130 130 / 65%);
+
+  /* ==================== Component Height Scale ==================== */
+  --height-xs: 24px;
+  --height-sm: 28px;
+  --height-md: 32px;
+  --height-lg: 38px;
+  --height-xl: 46px;
+  --height-2xl: 56px;
+
+  /* Button text heights (slightly taller than the base scale for comfortable vertical padding) */
+  --height-button-xs: 26px;
+  --height-button-sm: 30px;
+  --height-button-md: 36px;
+  --height-button-lg: 44px;
+
+  /* Icon-only button touch targets — the invisible ::after overlay still
+     guarantees a 44×44 px accessible hit area on every icon-only control. */
+  --button-icon-only-xs: 44px;
+  --button-icon-only-sm: 44px;
+  --button-icon-only-md: 48px;
+  --button-icon-only-lg: 48px;
+
+  /* Icon-only button visible sizes. These are smaller than the touch target;
+     the overlay above preserves the 44×44 px hit area. */
+  --button-icon-only-visible-xs: var(--spacing-7);
+  --button-icon-only-visible-sm: var(--spacing-8);
+  --button-icon-only-visible-md: var(--spacing-9);
+  --button-icon-only-visible-lg: var(--spacing-10);
+
+  /* ==================== Border Width ==================== */
+  --border-width-default: 1px;
+  --border-width-focus: 2px;
+  --border-width-thick: 2px;
+  --border-width-medium: 1.5px;
+  --border-width-extra-thick: 3px;
+
+  /* Colored node/page borders — thicker than the standard scale because they
+     serve as a strong identity signal. */
+  --border-width-node-color: 4px;
+  --border-width-node-color-strong: 8px;
+  --focus-outline-offset: 2px;
+
+  /* ==================== Component Sizes ==================== */
+  --button-min-height: 44px;
+  --bullet-size-xs: 4px;
+  --bullet-size-md: 6px;
+  --bullet-ring-size: 16px;
+  --ghost-card-opacity: var(--opacity-55);
+  --tactile-press-scale: 0.88;
+
+  /* Icon sizes (width/height for icon buttons, avatars, etc.) */
+  --icon-size-xs: 14px;
+  --icon-size-sm: 16px;
+  --icon-size-md: 20px;
+  --icon-size-lg: 24px;
+  --icon-size-xl: 32px;
+  --icon-size-2xl: 40px;
+
+  /* ==================== Typography ==================== */
+  --font-family-base: 'Inter', -apple-system, blinkmacsystemfont, 'Segoe UI', roboto, sans-serif;
+  --font-family-display: georgia, 'Times New Roman', serif;
+  --font-family-mono: 'JetBrains Mono', 'Fira Code', consolas, monospace;
+
+/* §34.96 (#6) — Settings → Appearance → Font. The bundled faces above are
+   the default; "system" swaps both families for the platform stack (the
+   data-font attribute is set pre-paint, see deviceSettings.ts). */
+[data-font="system"] {
+  --font-family-base: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-family-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+  /* Font weights */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Display — editorial serif for hero moments */
+  --font-display-large: 400 3.5rem/1.1 var(--font-family-display);
+  --font-display-medium: 400 2.75rem/1.15 var(--font-family-display);
+  --font-display-small: 400 2.25rem/1.2 var(--font-family-display);
+
+  /* Headline — editorial serif for section/page titles */
+  --font-headline-large: 600 2rem/1.25 var(--font-family-display);
+  --font-headline-medium: 600 1.75rem/1.3 var(--font-family-display);
+  --font-headline-small: 600 1.5rem/1.35 var(--font-family-display);
+
+  /* Title — sans for card titles, modal headers, section labels (UI chrome) */
+  --font-title-large: 600 1.25rem/1.4 var(--font-family-base);
+  --font-title-medium: 600 1rem/1.4 var(--font-family-base);
+  --font-title-small: 600 0.875rem/1.4 var(--font-family-base);
+
+  /* Body */
+  --font-body-large: 400 1rem/1.5 var(--font-family-base);
+  --font-body-medium: 400 0.875rem/1.5 var(--font-family-base);
+  --font-body-small: 400 0.75rem/1.5 var(--font-family-base);
+
+  /* Label */
+  --font-label-large: 600 0.875rem/1.4 var(--font-family-base);
+  --font-label-medium: 600 0.75rem/1.4 var(--font-family-base);
+  --font-label-small: 600 0.6875rem/1.4 var(--font-family-base);
+
+  /* Font sizes (standalone, for font-size property) */
+  --font-size-3xs: 0.55rem;    /* 8.8px – tiny badges/counters */
+  --font-size-2xs: 0.625rem;   /* 10px – small badges */
+  --font-size-xs: 0.6875rem;   /* 11px – label-small */
+  --font-size-sm: 0.75rem;     /* 12px – body-small / label-medium */
+  --font-size-button: 0.8125rem; /* 13px – button md (between sm and base) */
+  --font-size-base: 0.875rem;  /* 14px – body-medium / label-large */
+  --font-size-body-lg: 0.9375rem; /* 15px – between base and md */
+  --font-size-body-xl: 0.95rem;   /* 15.2px – slightly larger body */
+  --font-size-title-lg: 1.1rem;   /* 17.6px – between md and lg titles */
+  --font-size-md: 1rem;        /* 16px – body-large / title-medium */
+  --font-size-lead: 1.125rem;  /* 18px – lead/bigger body text */
+  --font-size-lg: 1.25rem;     /* 20px – title-large */
+  --font-size-hero: 1.75rem;   /* 28px – small hero/section titles */
+  --font-size-3xl: 1.5rem;     /* 24px – large icons/headlines */
+  --font-size-4xl: 3rem;       /* 48px – hero logos / empty-state icons */
+
+  /* Letter spacing */
+  --letter-spacing-badge: 0.5px;
+  --letter-spacing-label: 0.05em;
+  --letter-spacing-section: 0.08em;
+
+  /* ==================== Elevation (Box Shadows) ==================== */
+
+  /* Design system: zero visual noise — elevation is always none */
+  --elevation-0: none;
+  --elevation-1: none;
+  --elevation-2: none;
+  --elevation-3: none;
+  --elevation-4: none;
+  --elevation-5: none;
+
+  /* Soft layered elevation. Every elevation
+     to `none`; the current shell lifts one floating content card above the
+     background canvas, which needs a real (soft, layered) shadow to read as
+     floating in both themes. Each level is two shadows: a tight ambient
+     layer + a broad key layer. Dark shadows run stronger (dark surfaces
+     absorb light, so the cast must be darker to register). */
+  --shadow-elevation-1:
+    0 1px 2px rgb(0 0 0 / 5%),
+    0 1px 3px 1px rgb(0 0 0 / 7%);
+  --shadow-elevation-2:
+    0 2px 6px 2px rgb(0 0 0 / 6%),
+    0 8px 24px 4px rgb(0 0 0 / 9%);
+  --shadow-elevation-3:
+    0 4px 10px 2px rgb(0 0 0 / 8%),
+    0 16px 44px 8px rgb(0 0 0 / 13%);
+
+  /* ==================== Shape (Border Radius) - Minimal ==================== */
+  --shape-none: 0;
+  --shape-extra-small: 2px;
+  --shape-small: 4px;
+  --shape-medium: 6px;
+  --shape-large: 8px;
+  --shape-extra-large: 12px;
+  --shape-card: 20px;
+  --shape-layout-card: 12px;
+  --shape-button-large: 16px;
+  --shape-button-small: 12px;
+  --shape-sheet: 28px;
+  --shape-button-compact: 10px;
+  --shape-floating-panel: var(--shape-large);  /* 8px — small floating surfaces (menus, popovers) */
+  --shape-full: 9999px;
+  --shape-hairline: 1px;
+  --shape-tiny: 3px;
+
+  /* Drag handle token */
+  --drag-handle-width: 32px;
+  --drag-handle-height: 4px;
+  --drag-handle-radius: 2px;
+
+  /* ==================== Motion ==================== */
+  --motion-duration-instant: 50ms;
+  --motion-duration-short: 100ms;
+  --motion-duration-shorter: 150ms;
+  --motion-duration-medium: 250ms;
+  --motion-duration-long: 300ms;
+  --motion-duration-extra-long: 500ms;
+  --motion-duration-medium-fast: 200ms;
+
+  /* Caret motion */
+  --motion-duration-caret-move: 80ms;
+  --motion-duration-caret-resize: 120ms;
+  --motion-duration-caret-breathe: 850ms;
+  --motion-duration-caret-breathe-slow: 1400ms;
+  --motion-easing-standard: cubic-bezier(0.645, 0.045, 0.355, 1);
+  --motion-easing-emphasized: cubic-bezier(0.645, 0.045, 0.355, 1);
+  --motion-easing-decelerate: cubic-bezier(0, 0, 1, 1);
+  --motion-easing-accelerate: cubic-bezier(0.3, 0, 1, 1);
+  --motion-easing-linear: linear;
+  --motion-easing-tactile: cubic-bezier(0.34, 1.56, 0.64, 1);  /* spring-like overshoot */
+  --motion-easing-collapse: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ==================== Spacing ==================== */
+  --spacing-0: 0;
+  --spacing-micro: 2px;
+  --spacing-1: 0.25rem;
+  --spacing-2: 0.5rem;
+  --spacing-2-5: 0.625rem; /* 10px */
+  --spacing-3: 0.75rem;
+  --spacing-4: 1rem;
+  --spacing-4-5: 1.125rem; /* 18px */
+  --spacing-5: 1.25rem;
+  --spacing-6: 1.5rem;
+  --spacing-7-5: 1.875rem; /* 30px */
+  --spacing-8: 2rem;
+  --spacing-9: 2.25rem;
+  --spacing-10: 2.5rem;
+  --spacing-12: 3rem;
+  --spacing-16: 4rem;
+  --spacing-24: 6rem;
+  --spacing-hairline: 1px;
+  --spacing-tiny: 3px;
+  --spacing-xxs: 5px;
+
+  /* ==================== Opacity ==================== */
+  --opacity-0: 0;
+  --opacity-5: 0.05;
+  --opacity-6: 0.06;
+  --opacity-7: 0.07;
+  --opacity-10: 0.1;
+  --opacity-15: 0.15;
+  --opacity-25: 0.25;
+  --opacity-30: 0.3;
+  --opacity-35: 0.35;
+  --opacity-40: 0.4;
+  --opacity-45: 0.45;
+  --opacity-48: 0.48;
+  --opacity-50: 0.5;
+  --opacity-55: 0.55;
+  --opacity-60: 0.6;
+  --opacity-65: 0.65;
+  --opacity-70: 0.7;
+  --opacity-75: 0.75;
+  --opacity-80: 0.8;
+  --opacity-85: 0.85;
+  --opacity-90: 0.9;
+  --opacity-95: 0.95;
+  --opacity-100: 1;
+
+  /* ==================== Z-Index ==================== */
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-fixed: 300;
+  --z-popover: 600;
+  --z-node-overlay: 1000;    /* node refs, property cells, whiteboard UI */
+  --z-modal-backdrop: 10000;
+  --z-modal: 10001;
+  --z-floating: 10002;       /* context menus / dropdowns rendered above modals */
+  --z-tooltip: 10003;
+  --z-skip-link: 99999;
+  --z-0: 0;
+  --z-1: 1;
+  --z-2: 2;
+  --z-3: 3;
+  --z-5: 5;
+  --z-10: 10;
+  --z-15: 15;
+  --z-20: 20;
+  --z-30: 30;
+  --z-50: 50;
+  --z-100: 100;
+  --z-1000: 1000;
+  --z-9998: 9998;
+  --z-9999: 9999;
+  --z-10000: 10000;
+  --z-10002: 10002;
+
+  /* ==================== Layout ==================== */
+  --sidebar-width: 240px;
+  --sidebar-collapsed-width: 3.5rem;
+  --right-sidebar-width: 320px;
+  --topbar-height: 44px;
+  --container-gap: 8px;
+  --container-radius: var(--shape-large);
+
+  /* Mobile bottom sheet / FAB clearance */
+  --mobile-bottom-sheet-height: 72px;
+
+  /* ==================== Block Layout ==================== */
+
+  /* Spacing system for the block tree. All block chrome positions are
+     derived from these tokens so that changes require no manual recalculation. */
+  --block-indent-step: 34px;
+  --block-thread-line-align: calc(var(--bullet-wrapper-size) / 2);
+  --thread-line-visual-width: 2px;
+  --thread-line-guide-width: 1px;
+  --thread-line-hit-width: 14px;
+  --thread-line-connector-radius: calc(var(--block-indent-step) / 2);
+  --thread-line-bullet-gap: 16px;
+  --block-thread-line-overhang: calc(var(--spacing-tiny) + var(--spacing-micro) / 2);
+  --bullet-wrapper-size: 22px;
+  --bullet-dot-size: 6px;
+  --collapse-arrow-size: 12px;
+  --collapse-arrow-font-size: 12px;
+  --collapse-arrow-offset: calc((var(--collapse-arrow-size) + 3px) * -1);
+
+  /* ─── Component sizing tokens ──────────────────────────────────── */
+  --avatar-size-lg: 72px;
+  --banner-btn-height: 60px;
+  --block-drag-ghost-line-height: 28px;
+  --block-drag-ghost-multi-line-height: 26px;
+  --block-drag-ghost-row-height: 26px;
+  --color-btn-size-md: 38px;
+  --color-btn-size-lg: 46px;
+  --graph-card-height: 250px;
+  --grid-size: 24px;
+  --minimap-height: 220px;
+  --minimap-width: 300px;
+  --modal-width-md: 480px;
+  --modal-width-lg: 560px;
+  --modal-width-sm: 320px;
+  --modal-width-xl: 1200px;
+  --modal-width-xs: 280px;
+  --modal-width-2xl: 1000px;
+  --page-cover-height: 100px;
+  --page-cover-height-collapsed: 8px;
+  --page-icon-placeholder-size: 40px;
+  --panel-width-md: 200px;
+  --panel-width-sm: 120px;
+  --panel-width-xs: 110px;
+  --presence-avatar-font-size: var(--font-size-3xs);
+  --qr-size: 256px;
+
+  /* QR codes must keep a light mat in every theme or scanners fail;
+     intentionally not themed (like --color-white). */
+  --qr-background: var(--color-white);
+  --selection-btn-size-lg: 42px;
+  --selection-btn-size-md: 34px;
+  --selection-btn-size-sm: 26px;
+  --slider-thumb-size-sm: 12px;
+  --tab-count-radius: 9px;
+  --textarea-height-md: 260px;
+  --textarea-height-sm: 200px;
+  --theme-preview-width: 100px;
+  --toggle-thumb-size-lg: 26px;
+  --toggle-track-height-lg: 30px;
+  --toggle-track-width-lg: 56px;
+  --toggle-track-width-md: 44px;
+  --toolbar-input-width: 160px;
+  --whiteboard-rotation-handle-offset: 30px;
+  --whiteboard-toolbar-min-width: 11.25rem;
+  --whiteboard-shortcuts-max-width: 30rem;
+  --kanban-view-header-offset: 200px;
+
+  /* Loading skeleton */
+  --skeleton-shimmer-duration: 1400ms;
+  --skeleton-text-height: 0.875em;
+  --skeleton-heading-height: 1.25em;
+
+  /* ==================== Additional spacing tokens ==================== */
+  --spacing-0-5: 0.125rem;
+  --spacing-1-5: 0.375rem;
+  --spacing-1-75: 0.4375rem; /* 7px – compact list item padding */
+  --spacing-3-5: 0.875rem;   /* 14px – card headers / tight sections */
+  --spacing-7: 1.75rem;
+
+  /* ==================== Legacy variable aliases ==================== */
+
+  /* These map older/one-off variable names to the canonical design tokens
+     so existing component CSS continues to resolve without undefined tokens. */
+  --primary: var(--color-primary);
+  --primary-color: var(--color-primary);
+  --primary-contrast: var(--color-on-primary);
+  --primary-container: var(--color-primary-container);
+  --secondary-container: var(--color-secondary-container);
+  --tertiary-container: var(--color-tertiary-container);
+  --on-surface: var(--color-on-surface);
+  --on-surface-variant: var(--color-on-surface-variant);
+  --on-secondary-container: var(--color-on-secondary-container);
+  --on-tertiary-container: var(--color-on-tertiary-container);
+  --outline-variant: var(--color-outline-variant);
+  --surface: var(--color-surface);
+  --surface-2: var(--color-surface-container);
+  --surface-bg: var(--color-background);
+  --surface-color: var(--color-surface);
+  --surface-secondary: var(--color-surface-variant);
+  --surface-container: var(--color-surface-container);
+  --surface-container-low: var(--color-surface-container-low);
+  --surface-container-high: var(--color-surface-container-high);
+  --surface-container-highest: var(--color-surface-container-highest);
+  --surface-container-lowest: var(--color-surface-container-lowest);
+  --surface-elevated: var(--color-surface-bright);
+  --background: var(--color-background);
+  --bg-secondary: var(--color-surface-container);
+  --bg-tertiary: var(--color-surface-variant);
+  --hover-bg: var(--color-surface-container-high);
+  --border-color: var(--color-outline-variant);
+  --card-border-color: var(--color-outline-variant);
+  --text-primary: var(--color-on-surface);
+  --text-secondary: var(--color-on-surface-variant);
+  --text-tertiary: var(--color-on-surface-variant);
+  --text-muted: var(--color-on-surface-variant);
+  --color-text: var(--color-on-surface);
+  --color-text-primary: var(--color-on-surface);
+  --color-text-secondary: var(--color-on-surface-variant);
+  --color-text-tertiary: var(--color-on-surface-variant);
+  --color-text-muted: var(--color-on-surface-variant);
+  --color-placeholder: var(--color-on-surface-variant);
+  --color-border: var(--color-outline-variant);
+  --color-border-subtle: var(--color-outline-variant);
+  --color-bg-primary: var(--color-surface);
+  --color-bg-secondary: var(--color-surface-container);
+  --color-bg-tertiary: var(--color-surface-variant);
+  --color-bg-hover: var(--color-surface-container-high);
+  --color-surface-hover: var(--color-surface-container-high);
+  --color-surface-elevated: var(--color-surface-bright);
+  --color-danger: var(--color-error);
+  --accent-color: var(--color-accent);
+  --accent-primary: var(--color-accent);
+  --shadow-2: var(--elevation-2);
+  --shadow-3: var(--elevation-3);
+  --shadow-md: var(--elevation-2);
+  --shadow-lg: var(--elevation-3);
+  --shadow-medium: var(--elevation-2);
+  --shadow-overlay: var(--elevation-2);
+  --radius-full: var(--shape-full);
+  --radius-lg: var(--shape-large);
+  --radius-md: var(--shape-medium);
+  --radius-sm: var(--shape-small);
+  --radius-xs: var(--shape-extra-small);
+  --shape-corner-xs: var(--shape-extra-small);
+  --font-mono: var(--font-family-mono);
+  --font-size: var(--font-size-base);
+  --font-size-2xl: var(--font-size-lg);
+  --page-title-size: var(--font-headline-medium);
+  --z-toast: var(--z-tooltip);
+
+  /* Generic layout dimensions for one-off component sizes */
+  --layout-body-min-width: 320px;
+  --layout-dialog-min-width: 320px;
+  --layout-stat-min-width: 60px;
+  --flashcard-study-card-max-width: 600px;
+  --flashcard-study-card-min-height: 280px;
+  --spacing-tight: 10px;
+
+  /* Friendly aliases used by some component CSS files */
+  --spacing-xs: 4px;
+  --spacing-sm: var(--spacing-3);
+  --spacing-md: var(--spacing-4);
+  --spacing-lg: var(--spacing-5);
+  --spacing-xl: var(--spacing-6);
+  --space-0-5: var(--spacing-1);
+  --space-1: var(--spacing-2);
+  --space-2: var(--spacing-3);
+  --space-3: var(--spacing-4);
+  --space-4: var(--spacing-5);
+
+  /* Generic layout dimension scale */
+  --layout-size-2xs: 80px;
+  --layout-size-xs: 100px;
+  --layout-size-sm: 120px;
+  --layout-size-md: 140px;
+  --layout-size-lg: 150px;
+  --layout-size-xl: 160px;
+  --layout-size-2xl: 200px;
+  --layout-size-3xl: 220px;
+  --layout-size-4xl: 240px;
+  --layout-size-5xl: 260px;
+  --layout-size-6xl: 280px;
+  --layout-size-7xl: 300px;
+  --layout-size-8xl: 320px;
+  --layout-size-9xl: 400px;
+  --layout-size-10xl: 480px;
+  --layout-size-11xl: 560px;
+  --layout-size-12xl: 720px;
+  --layout-size-13xl: 800px;
+  --layout-size-14xl: 900px;
+
+  /* ==================== Responsive Breakpoints ==================== */
+
+  /* CSS custom properties cannot be used in media queries, so breakpoints are
+     hardcoded across the codebase. Keep these tokens in sync with the px values
+     in: features/layout/components/TopBar.css, features/layout/components/Layout.css,
+     features/layout/components/MobileLayout.css, features/content/pages/NodeView.css. */
+  --breakpoint-mobile: 480px;
+  --breakpoint-tablet: 768px;
+  --breakpoint-desktop: 1024px;
+  --breakpoint-wide: 1440px;
+
+  /* === Functional tokens === */
+
+  /* Functional shadows */
+  --shadow-table-row-gutter: 1px 0 0 0 var(--color-outline-variant);
+  --shadow-drop-target: inset 0 -2px 0 var(--color-primary);
+  --shadow-error-underline: inset 0 -2px 0 var(--color-error);
+  --shadow-presence-ring: 0 0 0 1px rgb(0 0 0 / 10%);
+  --shadow-presence-text: 0 1px 2px rgb(0 0 0 / 30%);
+
+  /* Callout semantic colors */
+  --color-callout-warning: #8f6216;
+  --color-callout-warning-bg: rgb(143 98 22 / 8%);
+  --color-callout-tip: #3a756d;
+  --color-callout-tip-bg: rgb(58 117 109 / 8%);
+  --color-callout-danger: #b04a45;
+  --color-callout-danger-bg: rgb(176 74 69 / 8%);
+  --color-callout-success: #3d7253;
+  --color-callout-success-bg: rgb(61 114 83 / 8%);
+
+  /* === Semantic functional tokens === */
+
+  /* Focus / error rings */
+  --shadow-focus-ring: 0 0 0 2px var(--color-accent);
+  --shadow-focus-ring-thick: 0 0 0 3px var(--color-accent);
+  --shadow-focus-ring-primary: 0 0 0 2px var(--color-primary);
+  --shadow-focus-ring-primary-subtle: 0 0 0 2px color-mix(in srgb, var(--color-primary) 20%, transparent);
+  --shadow-focus-ring-primary-container: 0 0 0 2px var(--color-primary-container);
+  --shadow-error-ring: 0 0 0 2px var(--color-error);
+  --shadow-error-ring-thick: 0 0 0 3px color-mix(in srgb, var(--color-error) 10%, transparent);
+  --shadow-error-ring-subtle: 0 0 0 2px color-mix(in srgb, var(--color-error) 20%, transparent);
+  --shadow-error-ring-thin: 0 0 0 1px var(--color-error);
+  --shadow-outline-ring: 0 0 0 1px var(--color-outline);
+  --shadow-inset-outline-ring: inset 0 0 0 2px var(--color-outline);
+  --shadow-inset-primary-ring: inset 0 0 0 2px var(--color-primary);
+  --shadow-inset-accent-ring: inset 0 0 0 2px var(--color-accent);
+  --shadow-focus-ring-primary-thin: 0 0 0 1px var(--color-primary);
+  --shadow-success-ring-subtle: 0 0 0 2px color-mix(in srgb, var(--color-success) 20%, transparent);
+  --shadow-error-ring-ghost: 0 0 0 0 color-mix(in srgb, var(--color-error) 40%, transparent);
+
+  /* Motion easings */
+  --motion-easing-ease: ease;
+  --motion-easing-ease-in: ease-in;
+  --motion-easing-ease-out: ease-out;
+  --motion-easing-ease-in-out: ease-in-out;
+
+  /* Default node color RGB fallback */
+  --color-node-default-rgb: 128, 128, 128;
+
+  /* Runtime-overridden node color border variables.
+     TypeScript sets these dynamically per workspace/accent color;
+     these defaults ensure the properties are never undefined. */
+  --node-border-color: transparent;
+  --node-border-solid: transparent;
+}
+
+/* ==================== Dark Theme ==================== */
+[data-theme="dark"] {
+  /* Primary */
+  --color-primary: #e5e5e5;
+  --color-on-primary: #111;
+  --color-primary-container: #262626;
+  --color-on-primary-container: #e5e5e5;
+  --color-primary-hover: #d4d4d4;
+  --color-primary-pressed: #a3a3a3;
+
+  /* Secondary */
+  --color-secondary: #c0c0c0;
+  --color-on-secondary: #111;
+  --color-secondary-container: #262626;
+  --color-on-secondary-container: #d4d4d4;
+  --color-secondary-hover: #d4d4d4;
+  --color-secondary-pressed: #737373;
+
+  /* Tertiary */
+  --color-tertiary: #9e9e9e;
+  --color-on-tertiary: #111;
+  --color-tertiary-container: #262626;
+  --color-on-tertiary-container: #c0c0c0;
+
+  /* Error */
+  --color-error: #ef5550;
+  --color-on-error: #111;
+  --color-error-container: #611a15;
+  --color-on-error-container: #fdecea;
+
+  /* Warning */
+  --color-warning: #f28b3f;
+  --color-on-warning: #111;
+  --color-warning-container: #78350f;
+  --color-on-warning-container: #fffbeb;
+
+  /* Success */
+  --color-success: #29b672;
+  --color-on-success: #111;
+  --color-success-container: #14532d;
+  --color-on-success-container: #d1fae5;
+
+  /* Background & Surface — warm dark workspace */
+  --color-background: #121211;
+  --color-on-background: #e8e6e1;
+  --color-surface: #1a1a18;
+  --color-on-surface: #e8e6e1;
+  --color-surface-variant: #262623;
+  --color-on-surface-variant: #a8a29e;
+  --color-surface-dim: #0a0a09;
+  --color-surface-bright: #262623;
+  --color-surface-container: #1a1a18;
+  --color-surface-container-low: #121211;
+  --color-surface-container-high: #262623;
+  --color-surface-container-highest: #3d3d39;
+  --color-surface-container-lowest: #121211;
+  --color-inverse-surface: #e8e6e1;
+  --color-inverse-on-surface: #121211;
+  --color-inverse-primary: #52504a;
+
+  /* Outline & Utility */
+  --color-outline: #6b6962;
+  --color-outline-variant: #2a2926;
+  --color-shadow: rgb(0 0 0 / 50%);
+  --color-scrim: rgb(0 0 0 / 70%);
+
+  /* Presentation stage — dark in every theme (see the light block). */
+  --color-presentation-stage: #0a0a09;
+  --color-on-presentation-stage: #e8e6e1;
+  --color-on-presentation-stage-muted: #a8a29e;
+
+  /* Dark-theme elevation: stronger casts so lifted surfaces register
+     against near-black backgrounds. */
+  --shadow-elevation-1:
+    0 1px 2px rgb(0 0 0 / 28%),
+    0 1px 3px 1px rgb(0 0 0 / 36%);
+  --shadow-elevation-2:
+    0 2px 6px 2px rgb(0 0 0 / 32%),
+    0 10px 28px 4px rgb(0 0 0 / 44%);
+  --shadow-elevation-3:
+    0 4px 10px 2px rgb(0 0 0 / 36%),
+    0 18px 48px 8px rgb(0 0 0 / 52%);
+
+  /* State */
+  --color-disabled: #404040;
+  --color-on-disabled: #a8a29e;
+  --color-query-accent: #f06fb0;
+  --color-hover-overlay: rgb(255 255 255 / 5%);
+  --color-focus-overlay: rgb(255 255 255 / 8%);
+  --color-pressed-overlay: rgb(255 255 255 / 12%);
+
+  /* Accent — default to sage in dark mode so primary actions stay readable */
+  --color-accent: #7FB285;
+  --color-accent-subtle: #648868;
+  --color-on-accent: #121211;
+
+  /* Graph view tokens */
+  --graph-node-default: #b8b8b8;
+  --graph-edge-color: #3a3a3a;
+  --graph-bg: transparent;
+
+  /* Graph semantic colors */
+  --graph-edge-cooccurrence: #a78bd4;
+  --graph-edge-path: #d4a24a;
+  --graph-node-path: #d4a24a;
+
+  /* Graph UI surfaces */
+  --graph-btn-bg: rgb(23 23 23 / 75%);
+  --graph-btn-border: rgb(82 82 82 / 50%);
+  --graph-btn-color: rgb(212 212 212 / 80%);
+  --graph-btn-hover-bg: rgb(38 38 38 / 90%);
+  --graph-btn-hover-color: #e5e5e5;
+  --graph-stats-bg: rgb(0 0 0 / 55%);
+  --graph-stats-color: rgb(163 163 163 / 85%);
+  --graph-tooltip-bg: rgb(23 23 23 / 85%);
+  --graph-tooltip-border: rgb(82 82 82 / 50%);
+  --graph-tooltip-color: rgb(212 212 212 / 90%);
+  --graph-tooltip-edge-color: rgb(212 175 55 / 95%);
+  --graph-fallback-msg-color: rgb(163 163 163 / 55%);
+}
+
+/* ==================== OLED Pure-Black Overrides ==================== */
+[data-oled="true"] {
+  --color-background: #000;
+  --color-on-background: #e5e5e5;
+  --color-surface: #000;
+  --color-surface-variant: #0a0a0a;
+  --color-surface-dim: #000;
+  --color-surface-bright: #111;
+  --color-surface-container: #000;
+  --color-surface-container-low: #000;
+  --color-surface-container-high: #0a0a0a;
+  --color-surface-container-highest: #171717;
+  --color-surface-container-lowest: #000;
+  --color-outline-variant: #1a1a1a;
+
+  /* Presentation stage — dark in every theme (see the light block). */
+  --color-presentation-stage: #000;
+  --color-on-presentation-stage: #e8e6e1;
+  --color-on-presentation-stage-muted: #a8a29e;
+}
+
+/* ==================== Functional Accent Colors ==================== */
+
+/* Placed after the dark theme so user-selected accent colors win in both
+   light and dark modes. */
+[data-accent="monochrome"] {
+  --color-accent: #404040;
+  --color-accent-subtle: #737373;
+  --color-on-accent: #fff;
+}
+
+[data-accent="sage"] {
+  --color-accent: #527051;
+  --color-accent-subtle: #6f8a6d;
+  --color-on-accent: #fff;
+}
+
+[data-accent="teal"] {
+  --color-accent: #2D6B5B;
+  --color-accent-subtle: #5A9A8A;
+  --color-on-accent: #fff;
+}
+
+[data-accent="rose"] {
+  --color-accent: #8B5B5B;
+  --color-accent-subtle: #B88B8B;
+  --color-on-accent: #fff;
+}
+
+[data-accent="navy"] {
+  --color-accent: #1E3A5F;
+  --color-accent-subtle: #4E6A8F;
+  --color-on-accent: #fff;
+}
+
+[data-accent="custom"] {
+  --color-accent: var(--color-accent-custom, #404040);
+  --color-on-accent: var(--color-on-accent-custom, #fff);
+  --color-accent-subtle: color-mix(in srgb, var(--color-accent) 72%, var(--color-on-accent));
+}
+
+/* ==================== Dark-mode accent overrides ==================== */
+
+/* Lightened/desaturated accents so primary buttons remain readable on dark surfaces. */
+[data-theme="dark"][data-accent="sage"] {
+  --color-accent: #7FB285;
+  --color-accent-subtle: #648868;
+  --color-on-accent: #000;
+}
+
+[data-theme="dark"][data-accent="teal"] {
+  --color-accent: #5DB5A0;
+  --color-on-accent: #000;
+}
+
+[data-theme="dark"][data-accent="rose"] {
+  --color-accent: #C98A8A;
+  --color-on-accent: #000;
+}
+
+[data-theme="dark"][data-accent="navy"] {
+  --color-accent: #5B7D9E;
+  --color-on-accent: #000;
+}
+
+/* OLED inherits the dark accent values above; accent colors are not dimmed further
+   so primary actions stay legible on pure-black surfaces. */
+
+/* Mobile: shallower block indent so deep trees keep usable text width */
+@media (width <= 768px) {
+  :root {
+    --block-indent-step: 22px;
+  }
+}
+
+/* ==================== Global Keyframes Library ==================== */
+
+/* Fade in */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Slide up + fade */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Slide in from right */
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Continuous rotation — for loading spinners */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Subtle pulse — for dot indicators, progress states */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: var(--opacity-45); }
+}
+
+/* Skeleton shimmer — for loading placeholders */
+@keyframes shimmer {
+  from { background-position: -200% center; }
+  to   { background-position: 200% center; }
+}
+
+/* Spring scale-up — for new item appearance */
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+
+  60%  { transform: scale(1.04); }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+
+/* ---------------------------------------------------------------------------
+   Breakpoint ramp (the chrome media queries read these widths):
+     --bp-compact 480px · --bp-mobile 768px · --bp-tablet 1100px
+   Single source of truth for the responsive pass; grep the CSS for the
+   pixel values to find every consumer.
+--------------------------------------------------------------------------- */
