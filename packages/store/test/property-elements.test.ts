@@ -448,52 +448,119 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     });
   });
 
-  describe("§34.89 — binding display position + option icon", () => {
+  describe("§34.90 — schema-level render contracts (display/readonly/hideWhenEmpty) + option icon", () => {
     const SCHEMA_SELECT = "0192a000-0000-7000-8000-0000000000a6";
 
-    it("display persists on the binding row and rides the effective read (panel default)", () => {
+    it("display persists on the schema and rides the effective read (panel default; unbound values included)", () => {
       const store = seededStore();
       let ts = 1727200030000;
       store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_SELECT, name: "stage", type: "select", options: [{ id: "opt-a", label: "A", icon: "mdiCircle", color: "yellow" }] }, (ts += 100)));
       store.apply(env("object.create", { objectId: PAGE, classIds: [CLASS_A] }, (ts += 100)));
-      // Absent display = the NULL 'panel' default.
       store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT, sequence: 1, defaultValue: "opt-a" }, (ts += 100)));
+      // Absent display = the NULL 'panel' default.
       expect(
-        (store.database.prepare("SELECT display FROM class_property WHERE class_id = ? AND property_schema_id = ?").get(CLASS_A, SCHEMA_SELECT) as { display: string | null }).display,
+        (store.database.prepare("SELECT display FROM property_schema WHERE id = ?").get(SCHEMA_SELECT) as { display: string | null }).display,
       ).toBeNull();
       expect(store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT)?.display).toBeNull();
-      // A display write lands on the row and surfaces on authored + default rows.
-      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT, display: "bullet" }, (ts += 100)));
+      // A display write lands on the SCHEMA and surfaces on authored +
+      // default rows (and on UNBOUND authored rows — the owner's case:
+      // the position is a property characteristic, not a binding one).
+      store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_SELECT, display: "bullet" }, (ts += 100)));
       expect(
-        (store.database.prepare("SELECT display FROM class_property WHERE class_id = ? AND property_schema_id = ?").get(CLASS_A, SCHEMA_SELECT) as { display: string | null }).display,
+        (store.database.prepare("SELECT display FROM property_schema WHERE id = ?").get(SCHEMA_SELECT) as { display: string | null }).display,
       ).toBe("bullet");
       expect(store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT)?.display).toBe("bullet");
       store.apply(env("property.set", { objectId: PAGE, propertySchemaId: SCHEMA_SELECT, value: "opt-a", idx: 0 }, (ts += 100)));
       expect(store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT && r.source === "authored")?.display).toBe("bullet");
-      // Patch semantics: an omitted display keeps the stored position.
-      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT, sequence: 9 }, (ts += 100)));
+      store.apply(env("class.property.unset", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT }, (ts += 100)));
+      expect(store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT && r.source === "authored")?.display).toBe("bullet");
+      // Patch semantics: an omitted display keeps the stored position; a
+      // present null CLEARS it (the §34.90 keep/clear contract).
+      store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_SELECT, name: "stage2" }, (ts += 100)));
       expect(
-        (store.database.prepare("SELECT display, sequence FROM class_property WHERE class_id = ? AND property_schema_id = ?").get(CLASS_A, SCHEMA_SELECT) as { display: string | null; sequence: number }).display,
+        (store.database.prepare("SELECT display FROM property_schema WHERE id = ?").get(SCHEMA_SELECT) as { display: string | null }).display,
       ).toBe("bullet");
-      // "inline" persists too; a stale write loses the row LWW.
-      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT, display: "inline" }, (ts += 100)));
-      expect(store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT)?.display).toBe("inline");
-      const stale = store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT, display: "bullet" }, ts - 50));
-      expect(stale.ignored).toBe(true);
-      expect(store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT)?.display).toBe("inline");
+      store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_SELECT, display: null }, (ts += 100)));
+      expect(store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT)?.display).toBeNull();
     });
 
-    it("an unbound authored value reads display null; an inactive binding contributes nothing", () => {
+    it("the binding carries sequence/required/defaultValue/active only — retired keys fail loud at apply", () => {
+      const store = seededStore();
+      let ts = 1727200030500;
+      store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_SELECT, name: "stage", type: "select" }, (ts += 100)));
+      store.apply(env("object.create", { objectId: PAGE, classIds: [CLASS_A] }, (ts += 100)));
+      // §34.90: display/readonly/hideWhenEmpty are retired on the binding op —
+      // the store validates envelopes at apply and rejects them loud (the
+      // strict-wire law, same as nodeType).
+      expect(() =>
+        store.apply(
+          env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT, sequence: 3, required: true, display: "bullet" } as unknown as Record<string, unknown>, (ts += 100)),
+        ),
+      ).toThrow(/display/);
+      // required stays binding-sourced (per-CLASS, the owner's exception) and
+      // legal on the binding op.
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT, sequence: 3, required: true }, (ts += 100)));
+      store.apply(env("property.set", { objectId: PAGE, propertySchemaId: SCHEMA_SELECT, value: "opt-a", idx: 0 }, (ts += 100)));
+      const row = store.database
+        .prepare("SELECT sequence, required FROM class_property WHERE class_id = ? AND property_schema_id = ?")
+        .get(CLASS_A, SCHEMA_SELECT) as { sequence: number; required: number };
+      expect(row).toEqual({ sequence: 3, required: 1 });
+      expect(store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT)?.required).toBe(true);
+      // The schema-level render contracts read from the schema, not the row.
+      expect(store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT)?.display).toBeNull();
+    });
+
+    it("readonly/hideWhenEmpty persist on the schema and ride every effective row", () => {
       const store = seededStore();
       let ts = 1727200031000;
-      store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_SELECT, name: "stage", type: "select" }, (ts += 100)));
+      store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_SELECT, name: "stage", type: "select", readonly: true, hideWhenEmpty: false }, (ts += 100)));
       store.apply(env("property.set", { objectId: PAGE, propertySchemaId: SCHEMA_SELECT, value: "opt-x", idx: 0 }, (ts += 100)));
-      expect(store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT)?.display).toBeNull();
-      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT, display: "bullet" }, (ts += 100)));
+      const row = store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT);
+      expect(row?.readonly).toBe(true);
+      expect(row?.hideWhenEmpty).toBe(false);
+      // Clear rides the same update path.
+      store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_SELECT, readonly: null, hideWhenEmpty: null }, (ts += 100)));
+      const cleared = store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT);
+      expect(cleared?.readonly).toBeNull();
+      expect(cleared?.hideWhenEmpty).toBeNull();
+    });
+
+    it("a v13 database upgrades to v14: schema gains the columns, the binding rebuild drops the retired ones (required survives)", () => {
+      // A dedicated FILE-backed store: close + reopen exercises migrate()
+      // against the on-disk v13 shape (the sqljs/in-memory adapters cannot).
+      const dir = mkdtempSync(join(tmpdir(), "notees-v14-migration-test-"));
+      tmpDirs.push(dir);
+      const file = join(dir, "store.db");
+      const open = (): Store => Store.open(betterSqlite3Backend(file));
+      const store = open();
+      let ts = 1727200031500;
+      store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_SELECT, name: "stage", type: "select" }, (ts += 100)));
       store.apply(env("object.create", { objectId: PAGE, classIds: [CLASS_A] }, (ts += 100)));
-      expect(store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT)?.display).toBe("bullet");
-      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT, active: false }, (ts += 100)));
-      expect(store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT)?.display).toBeNull();
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT, sequence: 2, required: true }, (ts += 100)));
+      // Downgrade to the v3.3.0 shape: binding carries display, schema lacks
+      // the render columns, user_version back to 13.
+      store.database.exec("ALTER TABLE class_property ADD COLUMN display TEXT;");
+      store.database.prepare("UPDATE class_property SET display = ? WHERE class_id = ? AND property_schema_id = ?").run("bullet", CLASS_A, SCHEMA_SELECT);
+      store.database.exec("PRAGMA user_version = 13;");
+      store.close();
+      const reopened = open();
+      const columns = (reopened.database.prepare("PRAGMA table_info(class_property)").all() as Array<{ name: string }>).map((c) => c.name);
+      expect(columns).not.toContain("display");
+      expect(columns).not.toContain("hide_when_empty");
+      expect(columns).not.toContain("readonly");
+      expect(columns).toContain("required");
+      const schemaCols = (reopened.database.prepare("PRAGMA table_info(property_schema)").all() as Array<{ name: string }>).map((c) => c.name);
+      for (const col of ["display", "readonly", "hide_when_empty"]) expect(schemaCols).toContain(col);
+      // The surviving binding row (sequence + required) is intact across the
+      // rebuild; new writes land on the new shape.
+      const row = reopened.database
+        .prepare("SELECT sequence, required FROM class_property WHERE class_id = ? AND property_schema_id = ?")
+        .get(CLASS_A, SCHEMA_SELECT) as { sequence: number; required: number };
+      expect(row).toEqual({ sequence: 2, required: 1 });
+      reopened.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_SELECT, display: "bullet" }, (ts += 100)));
+      reopened.apply(env("property.set", { objectId: PAGE, propertySchemaId: SCHEMA_SELECT, value: "opt-a", idx: 0 }, (ts += 100)));
+      expect(reopened.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT)?.display).toBe("bullet");
+      reopened.close();
     });
 
     it("option icons ride the options JSON verbatim through create and wholesale update", () => {

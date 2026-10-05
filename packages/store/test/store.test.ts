@@ -727,6 +727,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
             numberPad: null,
             numberDecimals: null,
             numberRounding: null,
+            display: null,
+            readonly: null,
+            hideWhenEmpty: null,
           },
           value: "medium",
           metadata: null,
@@ -2191,8 +2194,8 @@ for (const adapter of adapters) {
         ["mdiCloseCircle", "red"],
       ]);
       const bindings = store.database
-        .prepare("SELECT property_schema_id, display FROM class_property WHERE class_id = ? ORDER BY sequence")
-        .all(TASK_CLASS) as Array<{ property_schema_id: string; display: string | null }>;
+        .prepare("SELECT property_schema_id FROM class_property WHERE class_id = ? ORDER BY sequence")
+        .all(TASK_CLASS) as Array<{ property_schema_id: string }>;
       expect(bindings.map((binding) => binding.property_schema_id)).toEqual([
         "00000000-0000-0000-0003-000000000001",
         "00000000-0000-0000-0003-000000000003",
@@ -2201,16 +2204,19 @@ for (const adapter of adapters) {
         "00000000-0000-0000-0003-000000000005",
         "00000000-0000-0000-0003-000000000006",
       ]);
-      // §34.89: the Status binding defaults to the bullet position; the rest
-      // stay in the properties panel (NULL display).
-      expect(bindings.map((binding) => binding.display)).toEqual([
-        "bullet",
-        null,
-        null,
-        null,
-        null,
-        null,
-      ]);
+      // §34.90: the Status SCHEMA carries display 'bullet' (property-level);
+      // the binding rows stay flag-free (sequence/required/default/active
+      // only — the rebuild dropped the render-contract columns).
+      const statusSchema = store.database
+        .prepare("SELECT display FROM property_schema WHERE id = ?")
+        .get("00000000-0000-0000-0003-000000000001") as { display: string | null };
+      expect(statusSchema.display).toBe("bullet");
+      const bindingColumns = (
+        store.database.prepare("PRAGMA table_info(class_property)").all() as Array<{ name: string }>
+      ).map((c) => c.name);
+      expect(bindingColumns).not.toContain("display");
+      expect(bindingColumns).not.toContain("hide_when_empty");
+      expect(bindingColumns).toContain("required");
       // Idempotent: replaying the SAME envelope is skipped wholesale
       // (applied_envelope), and a stale re-enable loses the LWW row.
       const before = dumpDb(store);

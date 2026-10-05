@@ -215,9 +215,9 @@ export interface ClassBinding {
   /** Bound target class names (seed spec), null when unconstrained. */
   targetClassFilter: string[] | null;
   sequence: number;
+  /** Per-CLASS (§34.90): the binding's required flag — a property may be
+   *  mandatory for one class, optional for another. */
   required: boolean | null;
-  readonly: boolean | null;
-  hideWhenEmpty: boolean | null;
   defaultValue: string | null;
   /** SCHEMA.md "Dates": schema-row date behavior (null = day / not qualified). */
   datePrecision: DatePrecision | null;
@@ -228,24 +228,17 @@ export interface ClassBinding {
   numberRounding?: "round" | "floor" | "ceil" | "truncate" | null;
   /** PC4: the soft-unbind flag (false = the binding stops contributing). */
   active: boolean;
-  /** §34.89: value-display position — "panel" (null) = properties section
-   *  only; "bullet" = icon button next to the block bullet; "inline" = before
-   *  the block content. */
-  display: BindingDisplay | null;
 }
 
-/** §34.89: where a select/multi_select value renders on a block row. */
-export type BindingDisplay = "panel" | "bullet" | "inline";
+/** §34.90: where a select/multi_select (or boolean) value renders on a block row. */
+export type PropertyDisplay = "panel" | "bullet" | "inline";
 
 /** Editable fields of a class.property.set write (all optional — patch). */
 export interface SetClassPropertyInput {
   sequence?: number;
   required?: boolean | null;
-  readonly?: boolean | null;
-  hideWhenEmpty?: boolean | null;
   defaultValue?: unknown;
   active?: boolean;
-  display?: BindingDisplay;
 }
 
 /** A select/multi_select option (PG16 color + §34.89 icon, both optional). */
@@ -283,6 +276,10 @@ export interface UpdatePropertySchemaInput {
   numberPad?: number | null;
   numberDecimals?: number | null;
   numberRounding?: "round" | "floor" | "ceil" | "truncate" | null;
+  /** §34.90 render contracts (PROPERTY-level): absent keeps, null clears. */
+  display?: PropertyDisplay | null;
+  readonly?: boolean | null;
+  hideWhenEmpty?: boolean | null;
 }
 
 /** A property schema row as listed by the bindings picker's candidate set. */
@@ -302,6 +299,10 @@ export interface ClientPropertySchema {
   numberPad?: number | null;
   numberDecimals?: number | null;
   numberRounding?: "round" | "floor" | "ceil" | "truncate" | null;
+  /** §34.90 render contracts (PROPERTY-level; null = panel / unset). */
+  display?: PropertyDisplay | null;
+  readonly?: boolean | null;
+  hideWhenEmpty?: boolean | null;
 }
 
 export interface CreatePropertySchemaInput {
@@ -343,18 +344,24 @@ export interface EffectiveProperty {
     numberPad?: number | null;
     numberDecimals?: number | null;
     numberRounding?: "round" | "floor" | "ceil" | "truncate" | null;
+    /** §34.90 render contracts (PROPERTY-level; null = panel / unset). */
+    display?: PropertyDisplay | null;
+    readonly?: boolean | null;
+    hideWhenEmpty?: boolean | null;
   } | null;
   value: unknown;
   /** Authored qualifiers (PC6: date-node refs or legacy ISO strings). */
   metadata: Record<string, unknown> | null;
   source: "authored" | "default";
   boundBy: string | null;
+  /** Per-CLASS (§34.90): the winning binding's required flag. */
   required: boolean | null;
+  /** PROPERTY-level (§34.90): the schema's render contracts — the same for
+   *  every carrier, class-bound or not. */
   readonly: boolean | null;
   hideWhenEmpty: boolean | null;
   sequence: number | null;
-  /** §34.89: the winning binding's value-display position (null = "panel"). */
-  display: BindingDisplay | null;
+  display: PropertyDisplay | null;
 }
 
 export interface ClientEdge {
@@ -1065,8 +1072,8 @@ export class WorkspaceClient {
     // leaking children's rows into the parent read).
     const rows = this.store.database
       .prepare(
-        `SELECT cp.property_schema_id, cp.sequence, cp.required, cp.readonly, cp.hide_when_empty,
-                cp.default_value, cp.active AS binding_active, cp.display, ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active,
+        `SELECT cp.property_schema_id, cp.sequence, cp.required, cp.default_value,
+                cp.active AS binding_active, ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active,
                 ps.date_precision, ps.date_qualified, ps.number_pad, ps.number_decimals, ps.number_rounding
          FROM class_property cp
          LEFT JOIN property_schema ps ON ps.id = cp.property_schema_id
@@ -1101,11 +1108,6 @@ export class WorkspaceClient {
         targetClassFilter,
         sequence: (row.sequence as number) ?? 0,
         required: row.required === null || row.required === undefined ? null : row.required === 1,
-        readonly: row.readonly === null || row.readonly === undefined ? null : row.readonly === 1,
-        hideWhenEmpty:
-          row.hide_when_empty === null || row.hide_when_empty === undefined
-            ? null
-            : row.hide_when_empty === 1,
         defaultValue: decodeDefault((row.default_value as string | null) ?? null),
         datePrecision: parsePrecision(row.date_precision),
         dateQualified:
@@ -1120,7 +1122,6 @@ export class WorkspaceClient {
             ? null
             : (row.number_rounding as "round" | "floor" | "ceil" | "truncate"),
         active: row.binding_active === 0 ? false : true,
-        display: row.display === "bullet" || row.display === "inline" ? row.display : null,
       };
     });
     const bound = new Set(bindings.map((b) => b.propertySchemaId));
@@ -1159,13 +1160,10 @@ export class WorkspaceClient {
         targetClassFilter: spec.targetClassFilter ?? null,
         sequence: fallbackSeq++,
         required: null,
-        readonly: null,
-        hideWhenEmpty: null,
         defaultValue: spec.defaultValue ?? null,
         datePrecision: null,
         dateQualified: null,
         active: true,
-        display: null,
       });
     }
     return bindings.sort((a, b) => a.sequence - b.sequence || a.name.localeCompare(b.name));
@@ -1275,7 +1273,8 @@ export class WorkspaceClient {
   listPropertySchemas(): ClientPropertySchema[] {
     const rows = this.store.database
       .prepare(
-        `SELECT id, name, type, multi, scope, options, target_class_filter, date_precision, date_qualified
+        `SELECT id, name, type, multi, scope, options, target_class_filter, date_precision, date_qualified,
+                display, readonly, hide_when_empty
          FROM property_schema WHERE workspace_id = ? AND active = 1
          ORDER BY name, id`,
       )
@@ -1338,6 +1337,13 @@ export class WorkspaceClient {
           row.number_rounding === null || row.number_rounding === undefined
             ? null
             : (row.number_rounding as "round" | "floor" | "ceil" | "truncate"),
+        // §34.90 render contracts (PROPERTY-level; null = panel / unset).
+        display: row.display === "bullet" || row.display === "inline" ? row.display : null,
+        readonly: row.readonly === null || row.readonly === undefined ? null : row.readonly === 1,
+        hideWhenEmpty:
+          row.hide_when_empty === null || row.hide_when_empty === undefined
+            ? null
+            : row.hide_when_empty === 1,
       };
     });
   }
@@ -1945,15 +1951,13 @@ export class WorkspaceClient {
       classBinding: (classId, propertySchemaId) => {
         const row = db()
           .prepare(
-            `SELECT sequence, required, readonly, hide_when_empty, default_value, active
+            `SELECT sequence, required, default_value, active
              FROM class_property WHERE class_id = ? AND property_schema_id = ?`,
           )
           .get(classId, propertySchemaId) as
           | {
               sequence: number;
               required: number | null;
-              readonly: number | null;
-              hide_when_empty: number | null;
               default_value: string | null;
               active: number;
             }
@@ -1962,8 +1966,6 @@ export class WorkspaceClient {
         return {
           sequence: row.sequence,
           required: nullableBool(row.required),
-          readonly: nullableBool(row.readonly),
-          hideWhenEmpty: nullableBool(row.hide_when_empty),
           defaultValue: row.default_value === null ? undefined : parseJson(row.default_value),
           active: row.active !== 0,
         };
@@ -1979,7 +1981,8 @@ export class WorkspaceClient {
       schemaSnapshot: (propertySchemaId) => {
         const row = db()
           .prepare(
-            `SELECT name, type, multi, scope, options, target_class_filter, date_precision, date_qualified
+            `SELECT name, type, multi, scope, options, target_class_filter, date_precision, date_qualified,
+                    display, readonly, hide_when_empty
              FROM property_schema WHERE id = ?`,
           )
           .get(propertySchemaId) as
@@ -1992,6 +1995,9 @@ export class WorkspaceClient {
               target_class_filter: string | null;
               date_precision: string | null;
               date_qualified: number | null;
+              display: string | null;
+              readonly: number | null;
+              hide_when_empty: number | null;
             }
           | undefined;
         if (row === undefined) return null;
@@ -2007,6 +2013,9 @@ export class WorkspaceClient {
             : null,
           datePrecision: row.date_precision,
           dateQualified: nullableBool(row.date_qualified),
+          display: row.display === "bullet" || row.display === "inline" ? row.display : null,
+          readonly: nullableBool(row.readonly),
+          hideWhenEmpty: nullableBool(row.hide_when_empty),
         };
       },
       assetSnapshot: (objectId, assetId) => {
@@ -2373,11 +2382,8 @@ export class WorkspaceClient {
     const payload: Record<string, unknown> = { classId, propertySchemaId };
     if (fields.sequence !== undefined) payload.sequence = fields.sequence;
     if (fields.required !== undefined) payload.required = fields.required;
-    if (fields.readonly !== undefined) payload.readonly = fields.readonly;
-    if (fields.hideWhenEmpty !== undefined) payload.hideWhenEmpty = fields.hideWhenEmpty;
     if (fields.defaultValue !== undefined) payload.defaultValue = fields.defaultValue;
     if (fields.active !== undefined) payload.active = fields.active;
-    if (fields.display !== undefined) payload.display = fields.display;
     this.enqueueLocal(this.buildEnvelope("class.property.set", payload, [classId]));
   }
 
@@ -2427,6 +2433,9 @@ export class WorkspaceClient {
     if (fields.numberPad !== undefined) payload.numberPad = fields.numberPad;
     if (fields.numberDecimals !== undefined) payload.numberDecimals = fields.numberDecimals;
     if (fields.numberRounding !== undefined) payload.numberRounding = fields.numberRounding;
+    if (fields.display !== undefined) payload.display = fields.display;
+    if (fields.readonly !== undefined) payload.readonly = fields.readonly;
+    if (fields.hideWhenEmpty !== undefined) payload.hideWhenEmpty = fields.hideWhenEmpty;
     this.enqueueLocal(this.buildEnvelope("propertySchema.update", payload, []));
   }
 

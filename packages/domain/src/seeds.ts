@@ -497,10 +497,11 @@ export const TASK_PRIORITY_OPTION_UUIDS = {
  * bindings, authored idempotently by the store applier when the `tasks`
  * feature enables (§34.35 constraint 5 — closes the "task property schemas
  * never authored in v2" row). Fixed ids end to end (schema + option uuids
- * above); `sequence` is the task-panel display order. `display` (§34.89):
- * the Status binding defaults to "bullet" — the status value rides the
- * block bullet as an icon button (Logseq-DB "beginning of the block"), the
- * rest stay in the properties panel.
+ * above); `sequence` is the task-panel display order. `display` (§34.90:
+ * property-LEVEL after the owner review) rides the SCHEMA entry — the Status
+ * schema defaults to "bullet" (its value rides the block bullet as an icon
+ * button, the Logseq-DB "beginning of the block" behavior); the rest stay in
+ * the properties panel.
  */
 export const TASK_FAMILY_SEED: ReadonlyArray<{
   property: SystemPropertyName;

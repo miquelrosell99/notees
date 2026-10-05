@@ -58,7 +58,7 @@ const STATUS_OPTIONS = [
 ];
 
 /** A page with one block whose class binds "status" (select) at the given
- *  display position. */
+ *  display position (§34.90: display is property-level — set on the schema). */
 async function seedStatusBlock(display: "bullet" | "inline" | "panel") {
   const client = await seedClient();
   const schemaId = await client.createPropertySchema({
@@ -67,10 +67,10 @@ async function seedStatusBlock(display: "bullet" | "inline" | "panel") {
     options: STATUS_OPTIONS,
   });
   const classId = await client.createClass("Taskish");
-  await client.setClassProperty(classId, schemaId, {
-    sequence: 0,
-    ...(display === "panel" ? {} : { display }),
-  });
+  await client.setClassProperty(classId, schemaId, { sequence: 0 });
+  if (display !== "panel") {
+    await client.updatePropertySchema(schemaId, { display });
+  }
   const pageId = await client.createObject({ presentAsMain: true, name: "Tasks" });
   const blockId = await client.createObject({
     parentId: pageId,
@@ -177,7 +177,8 @@ describe("PropertyIconButton", () => {
       ],
     });
     const classId = await client.createClass("Tagged");
-    await client.setClassProperty(classId, schemaId, { sequence: 0, display: "bullet" });
+    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.updatePropertySchema(schemaId, { display: "bullet" });
     const pageId = await client.createObject({ presentAsMain: true, name: "Tags" });
     const blockId = await client.createObject({
       parentId: pageId,
@@ -243,7 +244,8 @@ describe("PropertyIconButton boolean mode (§34.89)", () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "flag", type: "boolean" });
     const classId = await client.createClass("Flagged");
-    await client.setClassProperty(classId, schemaId, { sequence: 0, display: "bullet" });
+    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.updatePropertySchema(schemaId, { display: "bullet" });
     const pageId = await client.createObject({ presentAsMain: true, name: "Flags" });
     const blockId = await client.createObject({
       parentId: pageId,

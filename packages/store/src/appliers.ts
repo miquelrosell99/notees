@@ -1109,12 +1109,14 @@ function applyClassSetExtends(db: StoreDatabase, env: Envelope): ChangeSummary {
 
 // --- class.property.* ---------------------------------------------------------
 //
-// Binding rows on `class_property` (SCHEMA.md "Class properties"): pure
-// configuration (sequence, flags, defaultValue, active). Row-level LWW by
-// envelope HLC; on update the payload PATCHES the row — omitted fields keep
-// their existing values. Defaults are never materialized into property_value;
-// the effective-values read model (effective.ts) derives them at query time
-// — and skips INACTIVE rows entirely (PC4: soft-unbind, the row survives).
+// Binding rows on `class_property` (SCHEMA.md "Class properties"): the
+// genuinely per-class mechanics ONLY (sequence, defaultValue, active) since
+// §34.90 moved the render contracts (required/readonly/hideWhenEmpty/display)
+// to the property schema. Row-level LWW by envelope HLC; on update the
+// payload PATCHES the row — omitted fields keep their existing values.
+// Defaults are never materialized into property_value; the effective-values
+// read model (effective.ts) derives them at query time — and skips INACTIVE
+// rows entirely (PC4: soft-unbind, the row survives).
 
 function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "class.property.set";
@@ -1153,31 +1155,23 @@ function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary 
   }
 
   const required = p.required === undefined ? null : p.required ? 1 : 0;
-  const readonlyFlag = p.readonly === undefined ? null : p.readonly ? 1 : 0;
-  const hideWhenEmpty = p.hideWhenEmpty === undefined ? null : p.hideWhenEmpty ? 1 : 0;
   const defaultValue = p.defaultValue !== undefined ? JSON.stringify(p.defaultValue) : null;
   // PC4: the soft-unbind flag rides the row LWW (absent payload = keep).
   const active = p.active === undefined ? null : p.active ? 1 : 0;
-  // §34.89: value-display position rides the row LWW (absent payload = keep;
-  // a stored NULL/'panel' means the properties section only).
-  const display = p.display === undefined ? null : p.display;
 
   if (!existing) {
     db.prepare(
       `INSERT INTO class_property
-         (class_id, property_schema_id, sequence, required, readonly, hide_when_empty,
-          default_value, active, display, hlc_physical, hlc_logical, actor_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (class_id, property_schema_id, sequence, required, default_value, active,
+          hlc_physical, hlc_logical, actor_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       p.classId,
       p.propertySchemaId,
       p.sequence ?? 0,
       required,
-      readonlyFlag,
-      hideWhenEmpty,
       defaultValue,
       active ?? 1,
-      display,
       env.hlc.physical,
       env.hlc.logical,
       env.actorId,
@@ -1189,21 +1183,15 @@ function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary 
       `UPDATE class_property SET
          sequence = COALESCE(?, sequence),
          required = COALESCE(?, required),
-         readonly = COALESCE(?, readonly),
-         hide_when_empty = COALESCE(?, hide_when_empty),
          default_value = COALESCE(?, default_value),
          active = COALESCE(?, active),
-         display = COALESCE(?, display),
          hlc_physical = ?, hlc_logical = ?, actor_id = ?
        WHERE class_id = ? AND property_schema_id = ?`,
     ).run(
       p.sequence ?? null,
       required,
-      readonlyFlag,
-      hideWhenEmpty,
       defaultValue,
       active,
-      display,
       env.hlc.physical,
       env.hlc.logical,
       env.actorId,
@@ -1238,14 +1226,17 @@ function applyPropertySchemaCreate(db: StoreDatabase, env: Envelope): ChangeSumm
     `INSERT INTO property_schema
        (id, workspace_id, name, type, multi, scope, options, target_class_filter,
         date_precision, date_qualified, number_pad, number_decimals, number_rounding,
+        display, readonly, hide_when_empty,
         active, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        name = excluded.name, type = excluded.type, multi = excluded.multi, scope = excluded.scope,
        options = excluded.options, target_class_filter = excluded.target_class_filter,
        date_precision = excluded.date_precision, date_qualified = excluded.date_qualified,
        number_pad = excluded.number_pad, number_decimals = excluded.number_decimals,
        number_rounding = excluded.number_rounding,
+       display = excluded.display, readonly = excluded.readonly,
+       hide_when_empty = excluded.hide_when_empty,
        active = 1, updated_at = excluded.updated_at`,
   ).run(
     p.propertySchemaId,
@@ -1261,6 +1252,9 @@ function applyPropertySchemaCreate(db: StoreDatabase, env: Envelope): ChangeSumm
     p.numberPad ?? null,
     p.numberDecimals ?? null,
     p.numberRounding ?? null,
+    p.display ?? null,
+    p.readonly !== undefined ? (p.readonly ? 1 : 0) : null,
+    p.hideWhenEmpty !== undefined ? (p.hideWhenEmpty ? 1 : 0) : null,
     env.timestamp,
     env.timestamp,
   );
@@ -1302,6 +1296,21 @@ function applyPropertySchemaUpdate(db: StoreDatabase, env: Envelope): ChangeSumm
   if (p.numberRounding !== undefined) {
     sets.push("number_rounding = ?");
     values.push(p.numberRounding);
+  }
+  // §34.90 render contracts (PROPERTY-level): absent keeps the stored value,
+  // present-null clears (the same keep-vs-clear contract as the number
+  // formats — `required` is NOT here; it stays on the class binding).
+  if (p.display !== undefined) {
+    sets.push("display = ?");
+    values.push(p.display);
+  }
+  if (p.readonly !== undefined) {
+    sets.push("readonly = ?");
+    values.push(p.readonly === null ? null : p.readonly ? 1 : 0);
+  }
+  if (p.hideWhenEmpty !== undefined) {
+    sets.push("hide_when_empty = ?");
+    values.push(p.hideWhenEmpty === null ? null : p.hideWhenEmpty ? 1 : 0);
   }
   if (sets.length === 0) return summary(opType, [], true);
   sets.push("updated_at = ?");
@@ -1876,15 +1885,15 @@ function ensureTaskFamilyRows(db: StoreDatabase, env: Envelope): void {
     db.prepare(
       `INSERT OR IGNORE INTO property_schema
          (id, workspace_id, name, type, multi, scope, options, target_class_filter,
-          date_precision, date_qualified, active, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 0, 'class', ?, NULL, NULL, NULL, 1, ?, ?)`,
-    ).run(schemaId, env.workspaceId, entry.name, entry.type, JSON.stringify([...(entry.options ?? [])]), env.timestamp, env.timestamp);
+          date_precision, date_qualified, display, active, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 0, 'class', ?, NULL, NULL, NULL, ?, 1, ?, ?)`,
+    ).run(schemaId, env.workspaceId, entry.name, entry.type, JSON.stringify([...(entry.options ?? [])]), entry.display ?? null, env.timestamp, env.timestamp);
     db.prepare(
       `INSERT OR IGNORE INTO class_property
-         (class_id, property_schema_id, sequence, required, readonly, hide_when_empty,
-          default_value, display, hlc_physical, hlc_logical, actor_id)
-       VALUES (?, ?, ?, NULL, NULL, NULL, NULL, ?, 0, 0, NULL)`,
-    ).run(classId, schemaId, entry.sequence, entry.display ?? null);
+         (class_id, property_schema_id, sequence, required, default_value,
+          hlc_physical, hlc_logical, actor_id)
+       VALUES (?, ?, ?, NULL, NULL, 0, 0, NULL)`,
+    ).run(classId, schemaId, entry.sequence);
   }
   reindexNode(db, classId);
 }

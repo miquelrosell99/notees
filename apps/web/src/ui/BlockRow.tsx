@@ -56,8 +56,8 @@ import { InlineConfirmButton } from "./components/ui/InlineConfirmButton.js";
 import { tableClassIdOf } from "./components/tableFamily.js";
 import { addTableColumn, addTableRow, deleteTableColumn, deleteTableRow, tableColumnCount } from "./components/tableGrid.js";
 
-/** §34.89 display positions a block row surfaces itself; the collapsed
- *  properties panel below omits them (no duplicated value read). */
+/** §34.90 display positions (schema-level) a block row surfaces itself; the
+ *  collapsed properties panel below omits them (no duplicated value read). */
 const ROW_DISPLAY_POSITIONS = ["bullet", "inline"] as const;
 
 interface BlockRowProps {
@@ -209,16 +209,17 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
     );
   }
 
-  // §34.89: select-typed or boolean bindings carrying a "bullet"/"inline"
-  // display position ride the block row as icon buttons (the Logseq-DB
-  // "beginning of the block" behavior) — one button per property, in
+  // §34.90: select-typed or boolean properties whose SCHEMA carries a
+  // "bullet"/"inline" display position ride the block row as icon buttons
+  // (the Logseq-DB "beginning of the block" behavior; the buttons and the
+  // boolean glyphs are the §34.89 design) — one button per property, in
   // binding-sequence order (the groups sort by sequence across both
-  // sources). Valued properties group from the effective rows; a
-  // bound-but-empty binding still mounts the button — the unset affordance
-  // is how a fresh task gets its status. The properties panel below omits
-  // these positions so the value never reads twice. Reads follow the
-  // PropertiesSection pattern: plain render reads over the client, refreshed
-  // by the surrounding view's client.subscribe re-render.
+  // sources). Valued properties group from the effective rows (row.display
+  // is schema-sourced); a bound-but-empty binding still mounts the button —
+  // the unset affordance is how a fresh task gets its status. The properties
+  // panel below omits these positions so the value never reads twice. Reads
+  // follow the PropertiesSection pattern: plain render reads over the
+  // client, refreshed by the surrounding view's client.subscribe re-render.
   const effectiveRows = client.getEffectiveProperties(node.id);
   const schemasById = new Map(
     client.listPropertySchemas().map((schema) => [schema.id, schema]),
@@ -260,18 +261,20 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
     }
     // Bound-but-empty bindings with a row display position: no effective row
     // exists yet (no value, no default), but the button is how the value
-    // gets set — the panel's empty-bindings pass, same gate (options-bearing
-    // selects only — booleans synthesize their own; hide-when-empty stays
-    // hidden).
+    // gets set — the panel's empty-bindings pass, same gate (§34.90: the
+    // render contracts are property-level — display/hide-when-empty read
+    // from the schema row; options-bearing selects only, booleans synthesize
+    // their own; hide-when-empty stays hidden).
     for (const classId of node.classIds) {
       for (const binding of client.getClassBindings(classId)) {
-        const display = binding.display;
-        if (display !== "bullet" && display !== "inline") continue;
         if (binding.type !== "select" && binding.type !== "multi_select" && binding.type !== "boolean") continue;
         if (seenGroups.has(binding.propertySchemaId)) continue;
-        if (binding.hideWhenEmpty === true) continue;
+        const schemaRow = schemasById.get(binding.propertySchemaId);
+        const display = schemaRow?.display ?? null;
+        if (display !== "bullet" && display !== "inline") continue;
+        if (schemaRow?.hideWhenEmpty === true) continue;
         const isBoolean = binding.type === "boolean";
-        const options = schemasById.get(binding.propertySchemaId)?.options ?? [];
+        const options = schemaRow?.options ?? [];
         if (!isBoolean && options.length === 0) continue;
         seenGroups.add(binding.propertySchemaId);
         selectDisplayGroups.push({
@@ -355,11 +358,11 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
             )}
           </span>
         </span>
-        {/* §34.89 value-display buttons: the bullet group hugs the bullet
-            element, the inline group hugs the content. Siblings of the grip
-            and content — never inside .nt-block-content (the contentEditable
-            DOM must stay untouched). In read-only projections the icons
-            render but open nothing. */}
+        {/* §34.90 value-display buttons (the §34.89 design): the bullet group
+            hugs the bullet element, the inline group hugs the content.
+            Siblings of the grip and content — never inside .nt-block-content
+            (the contentEditable DOM must stay untouched). In read-only
+            projections the icons render but open nothing. */}
         {bulletDisplayGroups.length > 0 && (
           <span className="nt-block-bullet-props">
             {bulletDisplayGroups.map((group) => (
@@ -492,7 +495,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
       )}
       {/* Properties: the same collapsed "Properties N" section the page view
           uses; hidden entirely when the block carries no properties. Rows
-          whose binding display rides the block row (§34.89 bullet/inline)
+          whose schema display rides the block row (§34.90 bullet/inline)
           are omitted — the button above already surfaces the value. */}
       {!readOnly && (
         <PropertiesSection

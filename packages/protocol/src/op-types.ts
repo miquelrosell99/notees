@@ -209,27 +209,26 @@ export const classSetExtendsPayload = z
 
 /**
  * Class → property-schema binding upsert (SCHEMA.md "Class properties"):
- * a configuration row on `class_property` (sequence, flags, defaultValue,
- * active). Row-level LWW by envelope HLC; on update, omitted fields KEEP
- * their existing values (a partial patch, not a replace) — pass `null`
- * explicitly to clear required/readonly/hideWhenEmpty, or
- * `undefined`-absent to leave untouched. `defaultValue` is any JSON value
+ * a configuration row on `class_property` (sequence, defaultValue, active —
+ * the genuinely PER-CLASS mechanics: panel order, the class's own default,
+ * the class's soft-unbind). Row-level LWW by envelope HLC; on update, omitted
+ * fields KEEP their existing values. `defaultValue` is any JSON value
  * (JSON-null is a real default; absent = keep).
+ *
+ * §34.90 (owner review 2026-10-05): the render contracts readonly,
+ * hideWhenEmpty, display are PROPERTY-level characteristics and live on the
+ * property schema (`propertySchema.create/update`) — the strict schema
+ * rejects them here like any retired key. `required` is the exception the
+ * owner kept at the binding: a property may be mandatory for one class and
+ * optional for another. A binding answers "does THIS class use the property,
+ * in what order, required or not, with what default"; a schema answers "what
+ * the property is and how it behaves everywhere" (class-bound or not).
  *
  * `active` (§34.32 PC4, LOCKSTEP-PENDING): the soft-unbind flag — an
  * inactive binding row stops contributing to the effective-properties read
- * (no derived default, no required/readonly/hideWhenEmpty/sequence metadata)
- * while AUTHORED property values always survive (the row is kept, never
- * deleted). Omitted = keep the stored flag.
- *
- * `display` (§34.89, LOCKSTEP-PENDING): the binding's value-display position —
- * where a select/multi_select (or boolean) value renders on a block row.
- * "panel" (the stored NULL default) keeps the value in the properties
- * section only; "bullet" renders it as an icon button next to the block
- * bullet; "inline" renders it before the block content. Omitted = keep the
- * stored value. A render contract only — never read by queries or appliers
- * beyond persistence (the v1 icon_visibility port, boolean values included
- * per the owner 2026-10-05).
+ * (no derived default, no sequence metadata) while AUTHORED property values
+ * always survive (the row is kept, never deleted). Omitted = keep the stored
+ * flag.
  */
 export const classPropertySetPayload = z
   .object({
@@ -237,11 +236,8 @@ export const classPropertySetPayload = z
     propertySchemaId: uuid,
     sequence: z.number().int().optional(),
     required: z.boolean().nullable().optional(),
-    readonly: z.boolean().nullable().optional(),
-    hideWhenEmpty: z.boolean().nullable().optional(),
     defaultValue: z.unknown().optional(),
     active: z.boolean().optional(),
-    display: z.enum(["panel", "bullet", "inline"]).optional(),
   })
   .strict();
 
@@ -319,6 +315,30 @@ export const propertySchemaCreatePayload = z
     numberPad: z.number().int().min(1).max(20).nullable().optional(),
     numberDecimals: z.number().int().min(0).max(10).nullable().optional(),
     numberRounding: z.enum(["round", "floor", "ceil", "truncate"]).nullable().optional(),
+    /**
+     * §34.90 (supersedes the §34.89 binding-level field — owner correction
+     * 2026-10-05: the position is a PROPERTY-level characteristic, like name
+     * and options; bindings come and go, schemas are the surface): where a
+     * select/multi_select (or boolean) value renders on a block row —
+     * "panel" (absent/null) keeps the value in the properties section only;
+     * "bullet" renders it as an icon button next to the block bullet;
+     * "inline" renders it before the block content (the v1 icon_visibility /
+     * Logseq-DB "UI position" port). A render contract only — never read by
+     * queries or appliers beyond persistence.
+     */
+    display: z.enum(["panel", "bullet", "inline"]).nullable().optional(),
+    /**
+     * §34.90 (owner review 2026-10-05): the render contracts are PROPERTY-level
+     * — a property is readonly/hidden-when-empty everywhere it appears,
+     * whatever class binds it (or none). (`required` is the deliberate
+     * exception: it stays on the class binding — a property may be mandatory
+     * for one class, optional for another.) Keep/clear contract like the
+     * number formats: absent keeps, null clears. Clients: readonly
+     * dims/disables the editors (never blocks a write — PC1); hideWhenEmpty
+     * hides the row unless a value or derived default exists.
+     */
+    readonly: z.boolean().nullable().optional(),
+    hideWhenEmpty: z.boolean().nullable().optional(),
   })
   .strict();
 
@@ -336,6 +356,16 @@ export const propertySchemaUpdatePayload = z
     numberPad: z.number().int().min(1).max(20).nullable().optional(),
     numberDecimals: z.number().int().min(0).max(10).nullable().optional(),
     numberRounding: z.enum(["round", "floor", "ceil", "truncate"]).nullable().optional(),
+    /**
+     * §34.90: the value-display position (create-side doc above). Update-side
+     * keep/clear contract like the number formats: absent keeps the stored
+     * value, null clears back to the "panel" default.
+     */
+    display: z.enum(["panel", "bullet", "inline"]).nullable().optional(),
+    /** §34.90: the render contracts (create-side doc above) — same
+     *  absent-keeps / null-clears contract. */
+    readonly: z.boolean().nullable().optional(),
+    hideWhenEmpty: z.boolean().nullable().optional(),
   })
   .strict();
 

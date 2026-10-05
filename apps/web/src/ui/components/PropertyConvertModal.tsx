@@ -255,6 +255,22 @@ export function PropertyConvertModal({
           ? { datePrecision: schema.datePrecision }
           : {}),
       });
+      // §34.90: the render contracts are PROPERTY-level and the create input
+      // carries none — patch the new schema with the old row's contracts.
+      // Value display only rides types the row button renders (select /
+      // multi_select / boolean); read-only and hide-when-empty are
+      // type-agnostic.
+      const carriesDisplay =
+        schema.display !== null &&
+        schema.display !== undefined &&
+        (targetType === "select" || targetType === "multi_select" || targetType === "boolean");
+      if (carriesDisplay || schema.readonly != null || schema.hideWhenEmpty != null) {
+        await client.updatePropertySchema(createdId, {
+          ...(carriesDisplay ? { display: schema.display } : {}),
+          ...(schema.readonly != null ? { readonly: schema.readonly } : {}),
+          ...(schema.hideWhenEmpty != null ? { hideWhenEmpty: schema.hideWhenEmpty } : {}),
+        });
+      }
       // Copy mappable values at their slot idx; a PG6 validation failure
       // lands in the dropped list with the applier's reason.
       let copied = 0;
@@ -283,8 +299,6 @@ export function PropertyConvertModal({
         await client.setClassProperty(klass.id, createdId, {
           sequence: binding.sequence,
           ...(binding.required !== null ? { required: binding.required } : {}),
-          ...(binding.readonly !== null ? { readonly: binding.readonly } : {}),
-          ...(binding.hideWhenEmpty !== null ? { hideWhenEmpty: binding.hideWhenEmpty } : {}),
           ...(binding.defaultValue !== null && binding.defaultValue !== undefined &&
           isValidDefaultForType(targetType, binding.defaultValue)
             ? { defaultValue: binding.defaultValue }
