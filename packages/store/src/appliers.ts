@@ -1231,12 +1231,15 @@ function applyPropertySchemaCreate(db: StoreDatabase, env: Envelope): ChangeSumm
   db.prepare(
     `INSERT INTO property_schema
        (id, workspace_id, name, type, multi, scope, options, target_class_filter,
-        date_precision, date_qualified, active, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+        date_precision, date_qualified, number_pad, number_decimals, number_rounding,
+        active, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        name = excluded.name, type = excluded.type, multi = excluded.multi, scope = excluded.scope,
        options = excluded.options, target_class_filter = excluded.target_class_filter,
        date_precision = excluded.date_precision, date_qualified = excluded.date_qualified,
+       number_pad = excluded.number_pad, number_decimals = excluded.number_decimals,
+       number_rounding = excluded.number_rounding,
        active = 1, updated_at = excluded.updated_at`,
   ).run(
     p.propertySchemaId,
@@ -1249,6 +1252,9 @@ function applyPropertySchemaCreate(db: StoreDatabase, env: Envelope): ChangeSumm
     p.targetClassFilter !== undefined ? JSON.stringify(p.targetClassFilter) : null,
     p.datePrecision ?? null,
     p.dateQualified !== undefined ? (p.dateQualified ? 1 : 0) : null,
+    p.numberPad ?? null,
+    p.numberDecimals ?? null,
+    p.numberRounding ?? null,
     env.timestamp,
     env.timestamp,
   );
@@ -1275,6 +1281,21 @@ function applyPropertySchemaUpdate(db: StoreDatabase, env: Envelope): ChangeSumm
   if (p.dateQualified !== undefined) {
     sets.push("date_qualified = ?");
     values.push(p.dateQualified ? 1 : 0);
+  }
+  // Number display formatting: absent keeps the stored value, null clears it
+  // (the keep-vs-clear contract — a plain `?? undefined` cannot express
+  // "clear" for nullable fields).
+  if (p.numberPad !== undefined) {
+    sets.push("number_pad = ?");
+    values.push(p.numberPad);
+  }
+  if (p.numberDecimals !== undefined) {
+    sets.push("number_decimals = ?");
+    values.push(p.numberDecimals);
+  }
+  if (p.numberRounding !== undefined) {
+    sets.push("number_rounding = ?");
+    values.push(p.numberRounding);
   }
   if (sets.length === 0) return summary(opType, [], true);
   sets.push("updated_at = ?");

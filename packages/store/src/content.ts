@@ -14,7 +14,6 @@ import type { ContentAst } from "@notees/protocol";
 
 import { nodeRefOfValue, visiblePropertyValueRows } from "./property-values.js";
 import type { StoreDatabase } from "./types.js";
-import type { StoreDatabase } from "./types.js";
 
 export function parseContentAst(raw: string | null | undefined): ContentAst {
   if (!raw) return [];

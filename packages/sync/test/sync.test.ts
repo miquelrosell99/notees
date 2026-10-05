@@ -487,7 +487,7 @@ describe("remote poison quarantine", () => {
     // Converged PAST the poison: cursor at the log tail, post-poison op live.
     expect(b.engine.getCursorSeq()).toBe(7);
     expect(titleOf(b.store, NODE)).toBe("post-poison");
-    expect(b.store.getNode(CLASS_X)?.parentId ?? null).toBeNull();
+    expect(b.store.getNode(CLASS_X)?.parent_id ?? null).toBeNull();
 
     // The poison is quarantined (not retried) and surfaced via onError.
     const quarantined = b.store.quarantinedEnvelopes();

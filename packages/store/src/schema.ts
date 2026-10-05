@@ -176,6 +176,13 @@ CREATE TABLE IF NOT EXISTS property_schema (
     -- whether values may carry date qualifiers (metadata startDate/endDate).
     date_precision TEXT,
     date_qualified INTEGER,
+    -- SCHEMA.md "Number formats": display-only formatting for number
+    -- schemas (values stay exact; these shape render only). number_pad:
+    -- zero-pad the integer part to N digits; number_decimals: digits after
+    -- the point; number_rounding: round|floor|ceil|truncate.
+    number_pad INTEGER,
+    number_decimals INTEGER,
+    number_rounding TEXT,
     active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT,
     updated_at TEXT
@@ -531,6 +538,16 @@ export function migrate(
     db.exec(`
       ALTER TABLE property_schema ADD COLUMN date_precision TEXT;
       ALTER TABLE property_schema ADD COLUMN date_qualified INTEGER;
+    `);
+  }
+  // Number display formatting (SCHEMA.md "Number formats"): additive columns,
+  // NULL = unformatted. Idempotent guard so replays of pre-existing
+  // databases converge (fresh creates already carry the columns).
+  if (!schemaColumns.some((c) => c.name === "number_pad")) {
+    db.exec(`
+      ALTER TABLE property_schema ADD COLUMN number_pad INTEGER;
+      ALTER TABLE property_schema ADD COLUMN number_decimals INTEGER;
+      ALTER TABLE property_schema ADD COLUMN number_rounding TEXT;
     `);
   }
   // v8 -> v9: remote-history quarantine table (CREATE IF NOT EXISTS is a

@@ -290,7 +290,8 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(
         store.database
           .prepare("SELECT value FROM property_value WHERE node_id = ? AND property_schema_id = ? AND idx = ?")
-          .get(OWNER2, SCHEMA_OBJECT_FILTERED, 0)?.value,
+          .get(OWNER2, SCHEMA_OBJECT_FILTERED, 0) as { value: string } | undefined
+      )?.value,
       ).toBe(JSON.stringify({ nodeId: TARGET }));
     });
 

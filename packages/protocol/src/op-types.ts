@@ -289,6 +289,18 @@ export const propertySchemaCreatePayload = z
     /** Node-typed schemas: values may carry date qualifiers (metadata
      * startDate/endDate — the panel renders a small range control per chip). */
     dateQualified: z.boolean().optional(),
+    /**
+     * Number schemas: DISPLAY formatting only (SCHEMA.md "Number formats") —
+     * values stay exact in the log; these shape how a client renders them.
+     * `numberPad`: zero-pad the integer part to N digits ("0001"); absent/null
+     * = off. `numberDecimals`: digits after the point (0–10); absent/null =
+     * as stored. `numberRounding`: how a decimals cut rounds — "round" (half
+     * away from zero, the default when only decimals is set), "floor", "ceil",
+     * "truncate"; meaningless without numberDecimals.
+     */
+    numberPad: z.number().int().min(1).max(20).nullable().optional(),
+    numberDecimals: z.number().int().min(0).max(10).nullable().optional(),
+    numberRounding: z.enum(["round", "floor", "ceil", "truncate"]).nullable().optional(),
   })
   .strict();
 
@@ -301,6 +313,11 @@ export const propertySchemaUpdatePayload = z
      * after creation (same optional-fields contract as name/options). */
     datePrecision: z.enum(["year", "month", "day"]).optional(),
     dateQualified: z.boolean().optional(),
+    /** Number display formatting; absent keeps the stored value, null clears
+     * it (the same keep-vs-clear contract as class.property.set flags). */
+    numberPad: z.number().int().min(1).max(20).nullable().optional(),
+    numberDecimals: z.number().int().min(0).max(10).nullable().optional(),
+    numberRounding: z.enum(["round", "floor", "ceil", "truncate"]).nullable().optional(),
   })
   .strict();
 
