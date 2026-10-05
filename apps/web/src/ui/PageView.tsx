@@ -580,6 +580,15 @@ export function PageView({
             )}
               {dayIso !== null && !embedded && <DayFlags iso={dayIso} />}
             </span>
+            {!embedded && blocksMode !== undefined && (
+              <div className="nt-blocks-bar" role="group" aria-label="Blocks view">
+                <ViewToolbar
+                  modes={BLOCKS_VIEW_MODES}
+                  value={blocksMode}
+                  onChange={setBlocksMode}
+                />
+              </div>
+            )}
             {headerActions !== undefined && (
               <div className="nt-page-toolbar">{headerActions}</div>
             )}
@@ -620,13 +629,6 @@ export function PageView({
           )
         ) : (
           <>
-            <div className="nt-blocks-bar">
-              <ViewToolbar
-                modes={BLOCKS_VIEW_MODES}
-                value={blocksMode}
-                onChange={setBlocksMode}
-              />
-            </div>
             <EmbedBoundary rootId={pageId}>
               <DndContext
                 sensors={sensors}

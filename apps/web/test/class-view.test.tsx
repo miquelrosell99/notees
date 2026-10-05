@@ -173,8 +173,10 @@ describe("Class View", () => {
     const onOpenNode = vi.fn();
     render(<ClassView client={client} classId={classId} onOpenPage={onOpenNode} />);
 
-    const memberRow = screen.getByRole("button", { name: "Ada Lovelace" });
-    fireEvent.click(memberRow);
+    // Owner refinement: the name cell click EDITS (inline); the v1
+    // open-arrow navigates.
+    const openArrow = screen.getByRole("button", { name: "Open Ada Lovelace" });
+    fireEvent.click(openArrow);
     expect(onOpenNode).toHaveBeenCalledWith(pageId);
   });
 

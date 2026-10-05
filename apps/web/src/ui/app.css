@@ -965,7 +965,11 @@ select:focus-visible {
   justify-content: flex-end;
   align-items: center;
   min-height: var(--height-sm, 28px);
-  margin-bottom: var(--spacing-1, 4px);
+  margin-bottom: 0;
+  /* Owner refinement: the switcher rides the title row, directly left of
+     the floating ⋯ menu button. */
+  margin-left: auto;
+  padding-right: var(--spacing-4, 16px);
 }
 
 /* --- view transforms: prose mode -------------------------------------------------
