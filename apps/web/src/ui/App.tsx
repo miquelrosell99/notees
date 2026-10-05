@@ -71,6 +71,7 @@ import { todayIsoLocal } from "./components/calendarViewUtils.js";
 import { CalendarPopup } from "./components/ui/CalendarPopup.js";
 import { HistoryMenuPopup } from "./components/HistoryMenuPopup.js";
 import { QueriesHub } from "./components/QueriesHub.js";
+import { GraphView } from "./views/graph/GraphView.js";
 import { TopBar } from "./components/TopBar.js";
 import { QuickAddModal } from "./components/modals/QuickAddModal.js";
 import { QuickCreateFab } from "./components/QuickCreateFab.js";
@@ -198,6 +199,7 @@ const NAV_PATHS: Record<string, NavKey> = {
   tasks: "tasks",
   assets: "assets",
   queries: "queries",
+  graph: "graph",
 };
 
 export function navFromPath(pathname: string): NavKey | null {
@@ -745,7 +747,11 @@ export function App() {
       toHub("journal", "/journals");
       return;
     }
-    // "all-pages" / "graph" / legacy values: the Pages hub.
+    if (view === "graph") {
+      toHub("graph", "/graph");
+      return;
+    }
+    // "all-pages" / legacy values: the Pages hub.
     toHub("pages", "/pages");
   }
 
@@ -1685,6 +1691,8 @@ export function App() {
             <CalendarView client={client} onOpenPage={openPage} />
           ) : activeNav === "queries" ? (
             <QueriesHub client={client} onOpenNode={openPage} onOpenInSidebar={openInSidebar} />
+          ) : activeNav === "graph" ? (
+            <GraphView client={client} onNodeClick={openPage} />
           ) : (
             <HubView client={client} nav={activeNav} onOpenNode={openPage} onOpenInSidebar={openInSidebar} />
           )}

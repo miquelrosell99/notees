@@ -34,7 +34,7 @@ import "./Sidebar.css";
 
 export type AnyClient = WorkspaceClient | WorkerClient;
 
-export type NavKey = "journal" | "calendar" | "inbox" | "pages" | "classes" | "whiteboards" | "tasks" | "assets" | "queries";
+export type NavKey = "journal" | "calendar" | "inbox" | "pages" | "classes" | "whiteboards" | "tasks" | "assets" | "queries" | "graph";
 
 export const NAV_ENTRIES: Array<{ key: NavKey; label: string; icon: string }> = [
   { key: "journal", label: "Journal", icon: "mdi-calendar-clock" },
@@ -46,6 +46,7 @@ export const NAV_ENTRIES: Array<{ key: NavKey; label: string; icon: string }> = 
   { key: "tasks", label: "Tasks", icon: "mdi-format-list-checks" },
   { key: "assets", label: "Assets", icon: "mdi-folder-multiple-image" },
   { key: "queries", label: "Queries", icon: "mdi-database-search-outline" },
+  { key: "graph", label: "Graph", icon: "mdi-graph-outline" },
 ];
 
 const STORAGE_KEYS = {

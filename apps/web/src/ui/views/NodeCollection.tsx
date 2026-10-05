@@ -19,12 +19,14 @@ export function NodeCollection({ viewMode, ...props }: NodeCollectionProps & { v
     return <div className="node-collection node-collection--missing">Unknown view: {viewMode}</div>;
   }
   const View = entry.component;
+  // Whole-topology views (graph) omit `items`; list views always receive [].
+  const viewProps = { ...props, items: props.items ?? [] };
   const body =
-    props.items.length === 0 && props.emptyTitle !== undefined ? (
+    viewProps.items.length === 0 && entry.id !== "graph" && props.emptyTitle !== undefined ? (
       <EmptyState title={props.emptyTitle} description={props.emptyHint} />
     ) : (
       <Suspense fallback={<Spinner />}>
-        <View {...props} />
+        <View {...viewProps} />
       </Suspense>
     );
   const content = entry.capabilities.errorBoundary === true

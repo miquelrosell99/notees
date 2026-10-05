@@ -309,7 +309,7 @@ function FlatCards({
 }
 
 export function CardsView(props: NodeCollectionProps) {
-  const { items, tree = undefined } = props;
+  const { items = [], tree = undefined } = props;
   // The cover layout persists device-locally (§34.27 L1) — one preference
   // per device shared by every cards/kanban surface; never an op.
   const [coverLayout, setCoverLayout] = useCardLayoutPreference("no-cover");
