@@ -48,7 +48,7 @@ A fresh workspace seeds itself: a starter class catalog (`person`, `organization
 
 ## Configuring the CLI
 
-The CLI (`apps/cli`, invoked as `notees` once built, or `npx tsx src/cli.ts` in dev) talks to the server over HTTP. It needs the server URL and a credential, by flag or environment:
+The CLI (the standalone [`notees-cli`](https://github.com/miquelrosell99/notees-cli) repo, invoked as `notees` once built — see its README) talks to the server over HTTP. It needs the server URL and a credential, by flag or environment:
 
 ```bash
 export NOTEES_SERVER=http://localhost:8377

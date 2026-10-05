@@ -19,8 +19,8 @@ write docs, tests, or UI as if they exist.
 
 Layout: pnpm workspaces over `packages/*` and `apps/*` (`pnpm-workspace.yaml`).
 Packages export raw TypeScript (`"exports": {".": "./src/index.ts"}`) and are consumed
-directly by apps and tests; only the deployables bundle (`apps/server`, `apps/cli` via
-tsup, `apps/web` via vite).
+directly by apps and tests; only the deployables bundle (`apps/server` via
+tsup, `apps/web` via vite — the CLI bundles in its own repo since 2026-10-05).
 
 ## 2. Workspace commands
 
@@ -31,12 +31,12 @@ Run from the repo root:
 | `pnpm install` | install all workspace deps |
 | `pnpm test` | `pnpm -r test` — every package/app's vitest suite |
 | `pnpm typecheck` | `pnpm -r typecheck` — `tsc --noEmit` everywhere |
-| `pnpm -r build` | build every package that defines one (`@notees/server`, `@notees/cli`, `@notees/web`). Note: the root has **no** `build` script — use `-r` |
+| `pnpm -r build` | build every package that defines one (`@notees/server`, `@notees/web`). Note: the root has **no** `build` script — use `-r` |
 | `pnpm --filter @notees/store test` | run one package's suite (alias `-F`) |
 | `pnpm --filter @notees/server typecheck` | typecheck one package |
 | `pnpm --filter @notees/server dev` | `tsx watch src/server.ts` — dev server with reload |
 | `pnpm --filter @notees/web dev` | vite dev server (browser client against a running server) |
-| `pnpm --filter @notees/cli dev -- <args>` | run the CLI from source via tsx |
+| the CLI | split into its own repo (`notees-cli`, §34.82) — `pnpm dev -- <args>` runs it from source via tsx there |
 
 Per-package scripts (`packages/*`): `test` (vitest run), `typecheck` (tsc --noEmit). Apps
 add `dev`/`build`/`start` (`apps/server`: `start` = `node dist/server.js`).
@@ -137,7 +137,7 @@ but the data converges, it is a conflict report, not an apply failure.
 | Domain | `packages/domain/test/domain.test.ts` | seeds (fixed UUIDs never drift), name derivation |
 | Sync | `packages/sync/test/sync.test.ts` | two-device convergence over one in-process `MemoryRelay` (dumps compared via ordered full-database dumps), retry/backoff/quarantine, restoreEpoch wipe+park recovery, catch-up idempotency, conflict reporting |
 | Server | `apps/server/test/` (`relay-batch`, `relay-catchup`, `relay-snapshot`, `relay-ws`, `objects`, `assets`, `config`, `e2e`, `helpers.ts`) | `buildServer` against a temp data dir via fastify inject — real HTTP layer, no sockets needed; helpers in `helpers.ts` |
-| CLI e2e | `apps/cli/test/cli.test.ts` | boots the real server on an ephemeral port, drives `run()` with captured IO/stdin, asserts `--json` output and exit codes |
+| CLI e2e | `notees-cli` repo (split 2026-10-05, §34.82), `test/cli.test.ts` | boots the real server on an ephemeral port, drives `run()` with captured IO/stdin, asserts `--json` output and exit codes |
 | Web client | `apps/web/test/` (`workspace-client.test.ts` over `MemoryTransport` + jsdom rendering tests) | the browser data path without a browser; slice-1 rendering |
 
 Convergence is asserted by comparing serialized database dumps, not row samples — the
