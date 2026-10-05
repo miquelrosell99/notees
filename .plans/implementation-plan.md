@@ -3074,3 +3074,18 @@ Owner directives in one wave: "implement the parked followups" (§34.80's deviat
 **Docs same pass:** `docs/usage.md` (graph follow-ups paragraph + the local card sentence; the ghost is the sole add affordance is a ux-level contract) · `docs/ux.md` (the graph section grows temporal/orphans/color-groups/layouts/minimap/local-card; the ghost row and the footer/table date lines rewritten) · SCHEMA.md untouched (no wire change — temporal edges are a projection family, not an op) · AGENTS.md no delta.
 
 **Register cross-checks:** §34.80 (the deviation list — every row closed here) · §34.30 V8 `:1833`/`:1876` (the local side-panel graph — SHIPPED here) · §34.19 `:1179` (parked breadth note — cleared) · §34.50 (the ghost row — owner-refined, tests updated in place) · §34.29 #8-era dateFormat surfaces (the setting now actually applies to stamps everywhere — the §34.28-era gap closed) · lockstep law: no wire change → no fixture gate, no GTK/Flutter round.
+
+### 34.86 The owner-reports batch — class family reads, day-chain heal, reviewed removal, and a register of the queued UI pass (2026-10-05)
+
+Owner-reported fixes shipped (web 105 files / 1036 tests green; typecheck 0; deployed):
+- **Classed nodes now read the family**: `Store.classMembers/classMembersCount` include members of every transitive extends-child (the `class_hierarchy` closure + a direct-membership fallback for classes without a self-row), deduped; count matches. A `source` page lists its whole family. Test: `packages/store/test/class-members.test.ts`.
+- **Class property bindings are extends-aware**: `getClassBindings` walks the closure (own rows first per the §34.32 PG4 resolution order, ancestors' by sequence, first binding per schema wins) — book extends source shows source's properties as class properties.
+- **Day-chain heal**: `ensureDateChain` now heals BOTH parentage and labels — existing chain levels that are parentless or carry ISO-dashed content ("2026-10-05") are moved/rewritten to the compact form ("20261005", the v1 lookup/sort contract), one op per stray, idempotent. Fixes the parentless day pages (the breadcrumb's "+ Add parent") and the ISO labels at once.
+- **Class page order + staleness**: Class properties → Templates → Classed nodes → Extended-by; sections keyed by classId so switching classes remounts the lazy Section readers (the stale classed-nodes report).
+- **Class flag** chips in sidebar Favorites + Recents rows.
+- **Whiteboard class identity**: a node classed `whiteboard` opens in whiteboard mode even without the content token — the token is authored lazily on open (one bare frame, then the canvas mounts).
+- **Reviewed removed** (owner: bad feature): the date-bar checkbox, the calendar day-cell tint, the ensure effect, and `dayReviewedProperty.ts` (deleted); two day-features tests deleted/trimmed. The stored data is untouched (projection-only removal).
+- **Day flags by the title**: the weekday/Today/date chips (`DayFlags`) render in the title row; the bar keeps ‹ Today › navigation.
+- **Sticky card chrome**: the page header + footer pin on scroll (only content + sections travel).
+
+**Registered queue (the remaining owner asks, next pass):** the Extended-by section as a multi-level tree · the blocks view-mode switcher left of the ⋯ menu · the footer at the card's bottom corners · the cover binding removed from the source class (live op) · system class/property renames to normal wording (seeds + a live rename migration) · the table Name-cell click-to-edit with the v1 open-arrow on node/date cells · classed-nodes table columns defaulting to the class-property order · the ISO-content day writer's code path (the heal covers the data; the writer hunt continues).
