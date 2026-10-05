@@ -24,10 +24,10 @@
   "dependencies": {
     "@notees/domain": "workspace:*",
     "@notees/protocol": "workspace:*",
-    "docx": "^9.8.1"
+    "docx": "^9.8.1",
+    "fflate": "^0.8.2"
   },
   "devDependencies": {
-    "fflate": "^0.8.2",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   },
