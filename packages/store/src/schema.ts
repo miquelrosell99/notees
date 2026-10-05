@@ -23,7 +23,7 @@
 
 import type { SqliteDB } from "./db.js";
 
-export const SCHEMA_VERSION = 11;
+export const SCHEMA_VERSION = 12;
 
 /** FTS module for the search_index virtual table (backend capability). */
 export type FtsModule = "fts5" | "fts4";
@@ -540,10 +540,10 @@ export function migrate(
       ALTER TABLE property_schema ADD COLUMN date_qualified INTEGER;
     `);
   }
-  // Number display formatting (SCHEMA.md "Number formats"): additive columns,
-  // NULL = unformatted. Idempotent guard so replays of pre-existing
-  // databases converge (fresh creates already carry the columns).
-  if (!schemaColumns.some((c) => c.name === "number_pad")) {
+  // v11 -> v12: number display formatting (SCHEMA.md "Number formats").
+  // Additive columns, NULL = unformatted; the column guard keeps the ALTER
+  // idempotent for databases that already carry them (a v12 create).
+  if (current < 12 && !schemaColumns.some((c) => c.name === "number_pad")) {
     db.exec(`
       ALTER TABLE property_schema ADD COLUMN number_pad INTEGER;
       ALTER TABLE property_schema ADD COLUMN number_decimals INTEGER;
