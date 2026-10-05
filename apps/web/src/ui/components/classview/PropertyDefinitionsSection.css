@@ -1,1 +1,279 @@
-<REDACTED_BATCH_2_CONTENT>
+/* PropertyDefinitionsSection — the class's schema editor rows. */
+
+.nt-propdefs-empty {
+  color: var(--color-on-surface-variant);
+  font-size: 13px;
+  padding: 4px 8px 4px 20px;
+}
+
+.nt-propdefs-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nt-propdef-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: 3px var(--spacing-2);
+  border-radius: var(--shape-small);
+  font-size: 14px;
+}
+
+.nt-propdef-row:hover {
+  background: var(--color-surface-container-highest);
+}
+
+.nt-propdef--dragging {
+  z-index: var(--z-sticky);
+  box-shadow: var(--shadow-elevation-1);
+}
+
+.nt-propdef-grip {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--color-on-surface-variant);
+  cursor: grab;
+  flex-shrink: 0;
+}
+
+.nt-propdef-type {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-on-surface-variant);
+  flex-shrink: 0;
+}
+
+.nt-propdef-name {
+  font-weight: var(--font-weight-semibold);
+  min-width: 120px;
+}
+
+.nt-propdef-chip {
+  border: none;
+  background: transparent;
+  padding: 1px var(--spacing-2);
+  border-radius: var(--shape-full, 999px);
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface-variant);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.nt-propdef-chip--filter {
+  color: var(--color-primary-hover);
+}
+
+/* PC4: an inactive binding dims with a disabled chip (the row is kept — a
+   soft-unbind, not a removal). */
+.nt-propdef--inactive .nt-propdef-name,
+.nt-propdef--inactive .nt-propdef-type {
+  opacity: 0.55;
+}
+
+.nt-propdef-chip--inactive {
+  color: var(--color-on-surface-variant);
+  font-style: italic;
+}
+
+.nt-propdef-flags {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.nt-propdef-flag {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: none;
+  padding: 2px;
+  border-radius: var(--shape-small);
+  color: var(--color-outline);
+  cursor: pointer;
+}
+
+.nt-propdef-flag:hover {
+  color: var(--color-on-surface-variant);
+  background: var(--color-hover-overlay);
+}
+
+.nt-propdef-flag--on,
+.nt-propdef-flag--on:hover {
+  color: var(--color-primary);
+  background: var(--color-primary-container);
+}
+
+.nt-propdef-more {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: none;
+  padding: 2px;
+  border-radius: var(--shape-small);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+}
+
+.nt-propdef-more:hover {
+  background: var(--color-hover-overlay);
+}
+
+.nt-propdef-remove {
+  border: none;
+  background: transparent;
+  padding: 2px 6px;
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-propdef-remove:hover {
+  color: var(--color-error);
+}
+
+/* The expanded config panel (one row's full editor). */
+
+.nt-propdef-config {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  margin: 2px 0 var(--spacing-3) 44px;
+  padding: var(--spacing-3);
+  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  background: var(--color-surface-container-high);
+}
+
+.nt-propdef-field {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.nt-propdef-label {
+  flex: 0 0 110px;
+  font: var(--font-label-medium);
+  font-size: var(--font-size-xs);
+  color: var(--color-on-surface-variant);
+}
+
+.nt-propdef-input {
+  font: inherit;
+  font-size: 13px;
+  padding: 3px 8px;
+  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  min-width: 200px;
+}
+
+.nt-propdef-meta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-propdef-chips {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+}
+
+.nt-propdef-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  font-size: 13px;
+  color: var(--color-on-surface);
+}
+
+/* The add-property search/create popup. */
+
+.nt-propdefs-add {
+  position: relative;
+}
+
+.nt-propdef-picker {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: var(--z-dropdown);
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--spacing-2);
+  background: var(--color-surface);
+  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  box-shadow: var(--shadow-elevation-2);
+}
+
+.nt-propdef-picker input {
+  padding: 6px 10px;
+  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  font-size: 12.5px;
+}
+
+.nt-propdef-picker ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.nt-propdef-picker li > button {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  border: none;
+  background: transparent;
+  padding: 5px 8px;
+  border-radius: var(--shape-small);
+  font-size: 13px;
+  color: var(--color-on-surface);
+  text-align: left;
+}
+
+.nt-propdef-picker li > button:hover {
+  background: var(--color-hover-overlay);
+}
+
+.nt-propdef-picker-type {
+  color: var(--color-on-surface-variant);
+  font-size: 11px;
+}
+
+.nt-propdef-picker-create {
+  border: none;
+  border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  background: transparent;
+  padding: 6px 8px;
+  font-size: 12.5px;
+  color: var(--color-primary-hover);
+  text-align: left;
+}
+
+.nt-propdef-picker-create:hover {
+  background: var(--color-hover-overlay);
+}
+
+/* The extends corner row (page-view classes-corner analogue). */
+.nt-extends-row {
+  min-height: 0;
+}
