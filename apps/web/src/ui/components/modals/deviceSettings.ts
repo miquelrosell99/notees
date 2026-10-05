@@ -78,10 +78,13 @@ export function useDeviceSetting<T>(
   return [value, set];
 }
 
-// --- Appearance (theme / OLED / accent) -----------------------------------------
+// --- Appearance (theme / OLED / accent / font) ----------------------------------
 
 export type ThemePreference = "light" | "dark" | "system";
 export type AccentColor = "monochrome" | "sage" | "teal" | "rose" | "navy" | "custom";
+/** §34.91 (#6) — the UI font family: bundled (Inter/JetBrains Mono,
+ * self-hosted in fonts.css) or the platform system stack. */
+export type UiFontPreference = "bundled" | "system";
 
 export const ACCENT_COLOR_OPTIONS: { value: AccentColor; label: string; hex: string }[] = [
   { value: "monochrome", label: "Monochrome", hex: "#404040" },
@@ -154,6 +157,10 @@ export function applyAppearance(): void {
 
   const accent = readDeviceSetting<AccentColor>("accentColor", "monochrome");
   document.documentElement.dataset.accent = accent;
+
+  // §34.91 (#6): the UI font rides the same pre-paint data-attribute path.
+  const uiFont = readDeviceSetting<UiFontPreference>("uiFont", "bundled");
+  document.documentElement.dataset.font = uiFont;
   if (accent === "custom") {
     const hex = readDeviceSetting("customAccentHex", "#404040");
     if (isValidHexColor(hex)) {

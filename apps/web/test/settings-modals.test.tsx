@@ -191,6 +191,25 @@ describe("UserSettingsModal", () => {
     expect(localStorage.getItem("notees.settings.theme")).toBe('"light"');
   });
 
+  it("applies the UI font choice to <html> and persists it device-locally", () => {
+    render(
+      <UserSettingsModal
+        isOpen
+        onClose={() => {}}
+        serverUrl="https://notees.example.com"
+        token="session-token"
+        user={USER}
+        onSignOut={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("radio", { name: "System stack" }));
+    expect(document.documentElement.dataset.font).toBe("system");
+    expect(localStorage.getItem("notees.settings.uiFont")).toBe('"system"');
+    fireEvent.click(screen.getByRole("radio", { name: "Bundled (Inter)" }));
+    expect(document.documentElement.dataset.font).toBe("bundled");
+    expect(localStorage.getItem("notees.settings.uiFont")).toBe('"bundled"');
+  });
+
   it("applies the accent color choice to <html>", () => {
     render(
       <UserSettingsModal
@@ -592,8 +611,8 @@ describe("ManageWorkspacesModal", () => {
         serverUrl="https://notees.example.com"
         credential="session-token"
         user={null}
-        onEnter={() => {}}
         activeWorkspaceId="ws1"
+        onEnter={() => {}}
       />,
     );
     fireEvent.click(await screen.findByRole("button", { name: "Actions for Garden" }));
@@ -648,8 +667,8 @@ describe("ManageWorkspacesModal", () => {
         serverUrl="https://notees.example.com"
         credential="session-token"
         user={null}
-        onEnter={() => {}}
         activeWorkspaceId="ws1"
+        onEnter={() => {}}
       />,
     );
     fireEvent.click(await screen.findByRole("button", { name: "Actions for Garden" }));
