@@ -235,6 +235,39 @@ describe("ensureTaskFamily", () => {
       expect(option.icon).toBe(designed.icon);
       expect(option.color).toBe(designed.color);
     }
+    // §34.90: the value display converges on the schema (property-level) —
+    // the status rides the block bullet.
+    expect(status.display).toBe("bullet");
+  });
+
+  it("moves the status value display to the schema when still panel-level", async () => {
+    const client = await seedClient();
+    // Fully converged styles, but the display never moved off the panel
+    // default — ONE upgrade write sets it (options untouched → display-only
+    // patch).
+    await client.createPropertySchema({
+      id: SYSTEM_PROPERTY_UUIDS.taskStatus,
+      name: "Status",
+      type: "select",
+      options: TASK_STATUS_OPTIONS.map((option) => ({
+        id: `old-${option.name}`,
+        label: option.name,
+        icon: option.icon,
+        color: option.color,
+      })),
+    });
+    await client.setClassProperty(SYSTEM_CLASS_UUIDS.task, SYSTEM_PROPERTY_UUIDS.taskStatus, {});
+    // vi.spyOn wraps and CALLS THROUGH — the write lands, the fields are captured.
+    const spy = vi.spyOn(client, "updatePropertySchema");
+
+    await ensureTaskFamily(client);
+
+    expect(spy.mock.calls.map(([, fields]) => fields)).toEqual([{ display: "bullet" }]);
+    const status = client
+      .listPropertySchemas()
+      .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskStatus)!;
+    expect(status.display).toBe("bullet");
+    spy.mockRestore();
   });
 
   it("leaves user-renamed and user-added status options untouched", async () => {

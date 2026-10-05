@@ -167,17 +167,24 @@ export async function ensureTaskFamily(client: AnyClient): Promise<void> {
       await client.setClassProperty(SYSTEM_CLASS_UUIDS.task, spec.id, { sequence: sequence++ });
     }
   }
-  // §34.89 upgrade: restyle the status options with the designed circle
-  // icons/colors (stored ids preserved — authored values reference them).
-  // Runs on every call; styleTaskStatusOptions returns null once converged,
-  // so the steady state is a read-only no-op.
+  // §34.89/§34.90 upgrade: restyle the status options with the designed
+  // circle icons/colors (stored ids preserved — authored values reference
+  // them) and move the value display to the property schema (render
+  // contracts are property-level since §34.90 — "bullet" = the status rides
+  // the block bullet). ONE updatePropertySchema carries both keys when
+  // either needs writing; runs on every call, a read-only no-op once
+  // converged.
   const status = client
     .listPropertySchemas()
     .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskStatus);
-  if (status?.options != null) {
-    const restyled = styleTaskStatusOptions(status.options);
-    if (restyled !== null) {
-      await client.updatePropertySchema(status.id, { options: restyled });
+  if (status !== undefined) {
+    const restyled = status.options != null ? styleTaskStatusOptions(status.options) : null;
+    const display = status.display ?? null;
+    const patch: Parameters<AnyClient["updatePropertySchema"]>[1] = {};
+    if (restyled !== null) patch.options = restyled;
+    if (display === null || display === "panel") patch.display = "bullet";
+    if (Object.keys(patch).length > 0) {
+      await client.updatePropertySchema(status.id, patch);
     }
   }
 }

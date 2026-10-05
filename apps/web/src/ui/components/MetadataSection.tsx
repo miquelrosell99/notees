@@ -31,10 +31,10 @@ import {
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type {
-  BindingDisplay,
   ClassBinding,
   ClientNode,
   EffectiveProperty,
+  PropertyDisplay,
   WorkspaceClient,
 } from "@/core/workspace-client.js";
 
@@ -46,6 +46,8 @@ import { NodeViewSection } from "./NodeViewSection.js";
 import { IconPickerPopup } from "./IconPickerPopup.js";
 import { Checkbox } from "./ui/Checkbox.js";
 import { AddPill } from "./ui/AddPill.js";
+import { SelectionButton } from "./ui/SelectionButton.js";
+import { ToggleSwitch } from "./ui/ToggleSwitch.js";
 import { ColorPickerRow } from "./pickers/ColorPickerRow.js";
 import { NodeContextMenu } from "./NodeContextMenu.js";
 import { ReferenceSubtree } from "./ReferenceSubtree.js";
@@ -1191,18 +1193,18 @@ function AddPropertyRow({
  * Properties section (pages): effective rows grouped per schema, plus the
  * bound-but-empty grouped bindings that still render an add affordance.
  *
- * §34.89: `omitDisplayPositions` filters out rows whose winning binding
- * carries a bullet/inline value-display position (the block row surfaces
- * those values itself — the panel must not duplicate them). The same filter
- * applies to the bound-but-empty bindings, whose add affordance the block
- * row's icon button already covers.
+ * §34.90: `omitDisplayPositions` filters out rows whose SCHEMA carries a
+ * bullet/inline value-display position (the render contracts are
+ * property-level; the block row surfaces those values itself — the panel
+ * must not duplicate them). The same filter applies to the bound-but-empty
+ * bindings, whose add affordance the block row's icon button already covers.
  */
 function propertyGroupsOf(
   client: AnyClient,
   nodeId: string,
   omitDisplayPositions?: ReadonlyArray<"bullet" | "inline">,
 ) {
-  const omittedByDisplay = (display: BindingDisplay | null): boolean =>
+  const omittedByDisplay = (display: PropertyDisplay | null): boolean =>
     (display === "bullet" || display === "inline") &&
     (omitDisplayPositions?.includes(display) ?? false);
   const node = client.getNode(nodeId);
@@ -1258,17 +1260,20 @@ function propertyGroupsOf(
 
   // A bound grouped property with no effective rows still renders: the row
   // hosts the add/set affordance (the scalar editor has no way to author a
-  // first value). hideWhenEmpty bindings are the exception.
+  // first value). hide-when-empty schemas are the exception (§34.90: the
+  // render contracts are property-level — read from the schema row, not the
+  // binding).
   const emptyObjectBindings: ClassBinding[] = [];
   for (const classId of node?.classIds ?? []) {
     for (const binding of client.getClassBindings(classId)) {
       if (!isGroupedType(binding.type, binding.propertySchemaId)) continue;
       if (isClassNode && binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS.hasTemplate) continue;
       if (binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS.cover) continue;
-      if (omittedByDisplay(binding.display)) continue;
+      const schemaRow = client.listPropertySchemas().find((s) => s.id === binding.propertySchemaId);
+      if (omittedByDisplay(schemaRow?.display ?? null)) continue;
       if (renderedGroups.has(binding.propertySchemaId)) continue;
       if (emptyObjectBindings.some((b) => b.propertySchemaId === binding.propertySchemaId)) continue;
-      if (binding.hideWhenEmpty === true) continue;
+      if (schemaRow?.hideWhenEmpty === true) continue;
       emptyObjectBindings.push(binding);
     }
   }
@@ -1302,7 +1307,8 @@ export function PropertiesTable({
   client: AnyClient;
   nodeId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
-  /** §34.89: positions (bullet/inline) the host surfaces itself — filter out. */
+  /** §34.90: schema display positions (bullet/inline) the host surfaces
+   *  itself — filter out. */
   omitDisplayPositions?: ReadonlyArray<"bullet" | "inline"> | undefined;
 }) {
   const { rows, rendered, emptyObjectBindings } = propertyGroupsOf(client, nodeId, omitDisplayPositions);
@@ -1666,7 +1672,7 @@ export function PropertiesSection({
   onOpenPage?: ((pageId: string) => void) | undefined;
   /** Block mode: render nothing when the node carries no properties. */
   hideWhenEmpty?: boolean | undefined;
-  /** §34.89: binding display positions the host renders itself (the block
+  /** §34.90: schema display positions the host renders itself (the block
    *  row's bullet/inline icon buttons) — rows carrying them are filtered
    *  out of this panel so the value never reads twice. */
   omitDisplayPositions?: ReadonlyArray<"bullet" | "inline"> | undefined;
@@ -1697,10 +1703,12 @@ export function PropertiesSection({
  * PropertySettingsModal — the property's "page" for configuration (opened by
  * clicking a property label in the table). v1 had a full PropertyView; v2's
  * schemas are registry rows, so the configuration surface is this modal:
- * rename, per-type behavior (date precision / qualified, select options).
- * Type and multi are create-time contracts and display read-only. The
- * "Open property" footer path surfaces the schema inspector (PropertyView,
- * §34.32 PG12): metadata, bound classes, and the authored-value references.
+ * rename, per-type behavior (date precision / qualified, select options),
+ * and — §34.90 — the property-level render contracts (value display, read-
+ * only, hide when empty), the single home for those. Type and multi are
+ * create-time contracts and display read-only. The "Open property" footer
+ * path surfaces the schema inspector (PropertyView, §34.32 PG12): metadata,
+ * bound classes, and the authored-value references.
  */
 function PropertySettingsModal({
   client,
@@ -1752,6 +1760,49 @@ function PropertySettingsModal({
           Type: {schema.type}
           {schema.multi ? " (multi)" : ""}
         </p>
+        {/* §34.90: the render contracts are PROPERTY-level — the single home
+            for editing them is this settings surface. Value display rides
+            the types the block-row button renders (select / multi_select /
+            boolean); read-only and hide-when-empty are type-agnostic. The
+            wire stores "panel" / null explicitly. */}
+        {(schema.type === "select" || schema.type === "multi_select" || schema.type === "boolean") && (
+          <label className="nt-property-settings__field">
+            <span className="nt-property-settings__label">Value display</span>
+            <SelectionButton
+              size="sm"
+              aria-label="Value display"
+              options={[
+                { value: "panel", icon: "mdi-format-list-bulleted-square", label: "Properties panel" },
+                { value: "bullet", icon: "mdi-circle-medium", label: "Next to bullet" },
+                { value: "inline", icon: "mdi-format-align-left", label: "Before content" },
+              ]}
+              value={schema.display ?? "panel"}
+              onChange={(value) => patch({ display: value as PropertyDisplay })}
+            />
+          </label>
+        )}
+        <label className="nt-property-settings__field">
+          <span className="nt-property-settings__label">Read-only</span>
+          <ToggleSwitch
+            size="sm"
+            leftLabel="Editable"
+            rightLabel="Read-only"
+            checked={schema.readonly === true}
+            onChange={(value) => patch({ readonly: value ? true : null })}
+            aria-label="Read-only"
+          />
+        </label>
+        <label className="nt-property-settings__field">
+          <span className="nt-property-settings__label">Hide when empty</span>
+          <ToggleSwitch
+            size="sm"
+            leftLabel="Always show"
+            rightLabel="Hide when empty"
+            checked={schema.hideWhenEmpty === true}
+            onChange={(value) => patch({ hideWhenEmpty: value ? true : null })}
+            aria-label="Hide when empty"
+          />
+        </label>
         {schema.type === "date" && (
           <>
             <label className="nt-property-settings__field">
