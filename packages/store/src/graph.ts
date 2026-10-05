@@ -24,7 +24,7 @@
 
 import type { Store } from "./store.js";
 
-export type GraphEdgeKind = "mention" | "property" | "parent" | "class" | "semantic";
+export type GraphEdgeKind = "mention" | "property" | "parent" | "class" | "semantic" | "temporal";
 
 export interface GraphNode {
   id: string;
@@ -58,6 +58,10 @@ export interface GraphOptions {
 
 export const SEMANTIC_HUB_GUARD = 10;
 export const SEMANTIC_EVIDENCE_CAP = 5;
+
+/** The `day` system class seed id (SYSTEM_CLASS_UUIDS.day — inlined to keep
+ *  the store package's dependency surface unchanged). */
+const DAY_CLASS_ID = "00000000-0000-0000-0001-000000000005";
 
 interface NodeRow {
   id: string;
@@ -152,7 +156,7 @@ export function graphTopology(store: Store, workspaceId: string, options?: Graph
       target: to,
       kind,
       weight: 1,
-      evidence: kind === "semantic" ? (evidenceId !== undefined ? [evidenceId] : []) : null,
+      evidence: kind === "semantic" || kind === "temporal" ? (evidenceId !== undefined ? [evidenceId] : []) : null,
     };
     edgeIndex.set(key, edge);
     edges.push(edge);
@@ -210,6 +214,48 @@ export function graphTopology(store: Store, workspaceId: string, options?: Graph
     for (let i = 0; i < members.length; i += 1) {
       for (let j = i + 1; j < members.length; j += 1) {
         addEdge(members[i]!, members[j]!, "semantic", contextId);
+      }
+    }
+  }
+
+  // Temporal family: co-occurrence per DAY — targets mentioned anywhere
+  // inside the same day page's subtree link with weight = shared days and
+  // the day node ids as evidence (the parked §34.80 Q3 design, now shipped).
+  const classIdsById = new Map<string, string[]>(nodes.map((n) => [n.id, n.classIds]));
+  const dayAncestorOf = (id: string): string | null => {
+    let current: string | null = id;
+    const seen = new Set<string>();
+    while (current !== null && !seen.has(current)) {
+      seen.add(current);
+      if (inSet.has(current)) {
+        const classIds = classIdsById.get(current);
+        if (classIds !== undefined && classIds.includes(DAY_CLASS_ID)) return current;
+        return null; // reached the node set without passing a day node
+      }
+      current = parentOf.get(current) ?? null;
+    }
+    return null;
+  };
+  const targetsByDay = new Map<string, Set<string>>();
+  for (const [contextId, targets] of targetsByContext) {
+    const day = dayAncestorOf(contextId);
+    if (day === null) continue;
+    let set = targetsByDay.get(day);
+    if (set === undefined) {
+      set = new Set();
+      targetsByDay.set(day, set);
+    }
+    for (const target of targets) {
+      const resolved = resolveToSet(target);
+      if (resolved !== null && resolved !== day) set.add(resolved);
+    }
+  }
+  for (const [dayId, targets] of targetsByDay) {
+    if (targets.size < 2 || targets.size > SEMANTIC_HUB_GUARD) continue;
+    const members = [...targets].sort();
+    for (let i = 0; i < members.length; i += 1) {
+      for (let j = i + 1; j < members.length; j += 1) {
+        addEdge(members[i]!, members[j]!, "temporal", dayId);
       }
     }
   }

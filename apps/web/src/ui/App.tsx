@@ -72,6 +72,7 @@ import { CalendarPopup } from "./components/ui/CalendarPopup.js";
 import { HistoryMenuPopup } from "./components/HistoryMenuPopup.js";
 import { QueriesHub } from "./components/QueriesHub.js";
 import { GraphView } from "./views/graph/GraphView.js";
+import { LocalGraphCard } from "./components/LocalGraphCard.js";
 import { TopBar } from "./components/TopBar.js";
 import { QuickAddModal } from "./components/modals/QuickAddModal.js";
 import { QuickCreateFab } from "./components/QuickCreateFab.js";
@@ -1707,6 +1708,7 @@ export function App() {
                 }
                 return (
                   <div className="nt-right-card-context">
+                    <LocalGraphCard client={client} nodeId={selectedPageId} onOpenNode={openPage} />
                     <TocSection
                       client={client}
                       pageId={selectedPageId}

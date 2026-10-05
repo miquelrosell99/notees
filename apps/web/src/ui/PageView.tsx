@@ -459,24 +459,13 @@ export function PageView({
     return <div className="nt-page-missing">Page not found.</div>;
   }
 
-  const addFirstBlock = async () => {
-    const id = await client.createObject({
-      parentId: pageId,
-      contentAst: [],
-    });
-    outliner.requestFocus(id, "start");
-  };
-
   /**
-   * §34.19 ghost trailing block: rendered while the body's last child is
-   * non-empty (an empty last child already invites clicking into it). The
+   * §34.19 ghost trailing block (owner refinement): rendered ALWAYS in the
+   * child-blocks section (outline, non-embedded) — including an empty body —
+   * as the sole "add" affordance (the dedicated + Add button is gone). The
    * click creates a real empty block at the end and focuses it.
    */
-  const lastChildEmpty =
-    tree.length > 0 &&
-    proseFromAst(tree[tree.length - 1]!.node.contentAst).trim() === "";
-  const ghostVisible =
-    !embedded && tree.length > 0 && !lastChildEmpty && blocksMode === "outline";
+  const ghostVisible = !embedded && blocksMode === "outline";
   const addTrailingBlock = async () => {
     const id = await client.createObject({ parentId: pageId, contentAst: [] });
     outliner.requestFocus(id, "start");
@@ -680,11 +669,6 @@ export function PageView({
                 </DragOverlay>
               </DndContext>
             </EmbedBoundary>
-            {tree.length === 0 && (
-              <button type="button" className="nt-add-block" onClick={() => void addFirstBlock()}>
-                + Add a block
-              </button>
-            )}
           </>
         )}
         {!embedded && (

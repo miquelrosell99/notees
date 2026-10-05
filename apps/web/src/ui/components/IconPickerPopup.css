@@ -75,6 +75,7 @@
 .ep-content {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: var(--spacing-1-5) var(--spacing-2);
   display: flex;
   flex-direction: column;
@@ -112,16 +113,12 @@
   gap: var(--spacing-hairline);
 }
 
-.ep-emoji-grid {
-  grid-template-columns: repeat(8, 1fr);
-}
-
-.ep-icon-grid {
-  grid-template-columns: repeat(8, 1fr);
-}
-
+/* Owner refinement: the grid wraps to the popup width — no horizontal
+   scrolling, ever (a fixed 8 columns overflowed narrow hosts). */
+.ep-emoji-grid,
+.ep-icon-grid,
 .ep-mixed-grid {
-  grid-template-columns: repeat(8, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(var(--button-min-height), 1fr));
 }
 
 /*  Item buttons  */
