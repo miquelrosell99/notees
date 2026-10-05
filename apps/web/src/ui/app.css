@@ -615,6 +615,13 @@ select:focus-visible {
   transform: scale(1.2);
 }
 
+/* v1 row-hover: hovering anywhere on the row brightens the bullet —
+   the block-content hover wash was removed (#4), this is the v1 signal. */
+.nt-block-row:hover .nt-bullet-dot {
+  opacity: 1;
+  background-color: var(--color-on-surface);
+}
+
 .nt-bullet:active .nt-bullet-dot {
   opacity: 1;
 }
@@ -657,6 +664,11 @@ select:focus-visible {
   opacity: 1;
   color: var(--color-accent);
   transform: scale(1.2);
+}
+
+.nt-block-row:hover .nt-bullet-icon {
+  opacity: 1;
+  color: var(--color-on-surface);
 }
 
 .nt-block-chevron {
