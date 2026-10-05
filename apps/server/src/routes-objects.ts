@@ -268,6 +268,10 @@ interface SchemaRow {
   targetClassFilter: string | null;
   datePrecision: string | null;
   dateQualified: number | null;
+  /** §34.90 render contracts (PROPERTY-level; NULL = panel / unset). */
+  display: string | null;
+  readonly: number | null;
+  hideWhenEmpty: number | null;
 }
 
 function readSchemaRow(store: Store, id: string): SchemaRow | undefined {
@@ -275,7 +279,8 @@ function readSchemaRow(store: Store, id: string): SchemaRow | undefined {
     .prepare(
       `SELECT id, name, type, multi, scope, options, target_class_filter AS targetClassFilter,
               date_precision AS datePrecision, date_qualified AS dateQualified,
-              number_pad AS numberPad, number_decimals AS numberDecimals, number_rounding AS numberRounding
+              number_pad AS numberPad, number_decimals AS numberDecimals, number_rounding AS numberRounding,
+              display, readonly, hide_when_empty AS hideWhenEmpty
        FROM property_schema WHERE id = ? AND active = 1`,
     )
     .get(id) as SchemaRow | undefined;
@@ -289,6 +294,9 @@ function schemaView(row: SchemaRow): Record<string, unknown> {
     options: JSON.parse(row.options) as unknown,
     targetClassFilter: row.targetClassFilter !== null ? (JSON.parse(row.targetClassFilter) as unknown) : null,
     datePrecision: row.datePrecision === "year" || row.datePrecision === "month" || row.datePrecision === "day" ? row.datePrecision : null,
+    display: row.display === "bullet" || row.display === "inline" ? row.display : null,
+    readonly: row.readonly === null ? null : row.readonly === 1,
+    hideWhenEmpty: row.hideWhenEmpty === null ? null : row.hideWhenEmpty === 1,
     dateQualified: row.dateQualified === null ? null : row.dateQualified === 1,
   };
 }
