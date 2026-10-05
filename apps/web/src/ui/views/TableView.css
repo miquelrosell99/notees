@@ -115,9 +115,10 @@
   background: var(--color-hover-overlay, transparent);
 }
 
+.nt-table-select:focus,
 .nt-table-select:focus-visible {
-  outline: 2px solid var(--color-primary, currentColor);
-  outline-offset: -1px;
+  outline: none;
+  background: var(--color-hover-overlay, transparent);
 }
 
 .nt-window-more {
@@ -286,9 +287,11 @@
   background: var(--color-hover-overlay, transparent);
 }
 
+.nt-table-input:focus,
 .nt-table-input:focus-visible {
-  outline: 2px solid var(--color-primary, currentColor);
-  outline-offset: -1px;
+  /* Super clean while editing too: no outline, a whisper of surface. */
+  outline: none;
+  background: var(--color-hover-overlay, transparent);
 }
 
 .nt-table-date {
