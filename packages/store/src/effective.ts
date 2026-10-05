@@ -33,6 +33,10 @@ export interface EffectivePropertySchema {
   datePrecision: "year" | "month" | "day" | null;
   /** SCHEMA.md "Dates": node-typed values may carry date qualifiers. */
   dateQualified: boolean | null;
+  /** SCHEMA.md "Number formats": display-only formatting (NULL = unformatted). */
+  numberPad: number | null;
+  numberDecimals: number | null;
+  numberRounding: "round" | "floor" | "ceil" | "truncate" | null;
 }
 
 /**
@@ -197,7 +201,8 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
     const placeholders = [...schemaIds].map(() => "?").join(",");
     const rows = db
       .prepare(
-        `SELECT id, name, type, multi, date_precision, date_qualified
+        `SELECT id, name, type, multi, date_precision, date_qualified,
+                number_pad, number_decimals, number_rounding
          FROM property_schema WHERE id IN (${placeholders})`,
       )
       .all(...schemaIds) as Array<{
@@ -207,6 +212,9 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
       multi: number;
       date_precision: string | null;
       date_qualified: number | null;
+      number_pad: number | null;
+      number_decimals: number | null;
+      number_rounding: string | null;
     }>;
     for (const row of rows) {
       schemas.set(row.id, {
@@ -219,6 +227,13 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
             ? row.date_precision
             : null,
         dateQualified: row.date_qualified === null ? null : row.date_qualified === 1,
+        numberPad: row.number_pad === null || row.number_pad === undefined ? null : Number(row.number_pad),
+        numberDecimals:
+          row.number_decimals === null || row.number_decimals === undefined ? null : Number(row.number_decimals),
+        numberRounding:
+          row.number_rounding === "round" || row.number_rounding === "floor" || row.number_rounding === "ceil" || row.number_rounding === "truncate"
+            ? row.number_rounding
+            : null,
       });
     }
   }

@@ -35,7 +35,7 @@ import { registerPublicShareRoute, registerShareRoutes } from "./routes-shares.j
 import { buildOpenApiDocument, documentedRoutes } from "./openapi.js";
 import { buildRouteScopeMap, enforceRouteScope } from "./scopes.js";
 
-export const SERVER_VERSION = "3.1.4";
+export const SERVER_VERSION = "3.1.5";
 
 export interface BuiltServer {
   app: FastifyInstance;

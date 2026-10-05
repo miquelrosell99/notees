@@ -214,6 +214,10 @@ export interface ClassBinding {
   /** SCHEMA.md "Dates": schema-row date behavior (null = day / not qualified). */
   datePrecision: DatePrecision | null;
   dateQualified: boolean | null;
+  /** SCHEMA.md "Number formats": display-only formatting (null = unformatted). */
+  numberPad?: number | null;
+  numberDecimals?: number | null;
+  numberRounding?: "round" | "floor" | "ceil" | "truncate" | null;
   /** PC4: the soft-unbind flag (false = the binding stops contributing). */
   active: boolean;
 }
@@ -257,6 +261,10 @@ export interface UpdatePropertySchemaInput {
   options?: ClientPropertyOption[];
   datePrecision?: DatePrecision;
   dateQualified?: boolean;
+  /** SCHEMA.md "Number formats": absent keeps, null clears (display only). */
+  numberPad?: number | null;
+  numberDecimals?: number | null;
+  numberRounding?: "round" | "floor" | "ceil" | "truncate" | null;
 }
 
 /** A property schema row as listed by the bindings picker's candidate set. */
@@ -272,6 +280,10 @@ export interface ClientPropertySchema {
   datePrecision: DatePrecision | null;
   /** SCHEMA.md "Dates": node-typed values may carry date qualifiers. */
   dateQualified: boolean | null;
+  /** SCHEMA.md "Number formats": display-only formatting (null = unformatted). */
+  numberPad?: number | null;
+  numberDecimals?: number | null;
+  numberRounding?: "round" | "floor" | "ceil" | "truncate" | null;
 }
 
 export interface CreatePropertySchemaInput {
@@ -310,6 +322,9 @@ export interface EffectiveProperty {
     multi: boolean;
     datePrecision: DatePrecision | null;
     dateQualified: boolean | null;
+    numberPad?: number | null;
+    numberDecimals?: number | null;
+    numberRounding?: "round" | "floor" | "ceil" | "truncate" | null;
   } | null;
   value: unknown;
   /** Authored qualifiers (PC6: date-node refs or legacy ISO strings). */
@@ -1015,7 +1030,7 @@ export class WorkspaceClient {
       .prepare(
         `SELECT cp.property_schema_id, cp.sequence, cp.required, cp.readonly, cp.hide_when_empty,
                 cp.default_value, cp.active AS binding_active, ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active,
-                ps.date_precision, ps.date_qualified
+                ps.date_precision, ps.date_qualified, ps.number_pad, ps.number_decimals, ps.number_rounding
          FROM class_property cp
          LEFT JOIN property_schema ps ON ps.id = cp.property_schema_id
          WHERE cp.class_id = ?
@@ -1053,6 +1068,13 @@ export class WorkspaceClient {
           row.date_qualified === null || row.date_qualified === undefined
             ? null
             : row.date_qualified === 1,
+        numberPad: row.number_pad === null || row.number_pad === undefined ? null : Number(row.number_pad),
+        numberDecimals:
+          row.number_decimals === null || row.number_decimals === undefined ? null : Number(row.number_decimals),
+        numberRounding:
+          row.number_rounding === null || row.number_rounding === undefined
+            ? null
+            : (row.number_rounding as "round" | "floor" | "ceil" | "truncate"),
         active: row.binding_active === 0 ? false : true,
       };
     });
@@ -1237,6 +1259,13 @@ export class WorkspaceClient {
           row.date_qualified === null || row.date_qualified === undefined
             ? null
             : row.date_qualified === 1,
+        numberPad: row.number_pad === null || row.number_pad === undefined ? null : Number(row.number_pad),
+        numberDecimals:
+          row.number_decimals === null || row.number_decimals === undefined ? null : Number(row.number_decimals),
+        numberRounding:
+          row.number_rounding === null || row.number_rounding === undefined
+            ? null
+            : (row.number_rounding as "round" | "floor" | "ceil" | "truncate"),
       };
     });
   }
@@ -2322,6 +2351,9 @@ export class WorkspaceClient {
     if (fields.options !== undefined) payload.options = fields.options;
     if (fields.datePrecision !== undefined) payload.datePrecision = fields.datePrecision;
     if (fields.dateQualified !== undefined) payload.dateQualified = fields.dateQualified;
+    if (fields.numberPad !== undefined) payload.numberPad = fields.numberPad;
+    if (fields.numberDecimals !== undefined) payload.numberDecimals = fields.numberDecimals;
+    if (fields.numberRounding !== undefined) payload.numberRounding = fields.numberRounding;
     this.enqueueLocal(this.buildEnvelope("propertySchema.update", payload, []));
   }
 
