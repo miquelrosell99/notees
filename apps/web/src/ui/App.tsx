@@ -78,10 +78,11 @@ import { GraphView } from "./views/graph/GraphView.js";
 import { LocalGraphCard } from "./components/LocalGraphCard.js";
 import { TopBar } from "./components/TopBar.js";
 import { QuickAddModal } from "./components/modals/QuickAddModal.js";
+import { ClassCreateModal } from "./components/modals/ClassCreateModal.js";
 import { QuickCreateFab } from "./components/QuickCreateFab.js";
 import { WorkspacesView } from "./components/WorkspacesView.js";
 import { UserSettingsModal } from "./components/modals/UserSettingsModal.js";
-import { applyAppearance, readDeviceSetting, useDeviceSetting } from "./components/modals/deviceSettings.js";
+import { applyAppearance, readDeviceSetting, toggleFocusMode, useDeviceSetting } from "./components/modals/deviceSettings.js";
 import { BackendUnavailableOverlay } from "./components/ui/BackendUnavailableOverlay.js";
 import { InProcessStoreBanner } from "./components/ui/InProcessStoreBanner.js";
 import { Button } from "./components/ui/Button.js";
@@ -424,6 +425,55 @@ export function historyKeyHandler(opts: {
 }
 
 /**
+ * Ctrl/Cmd+Alt+F — focus mode toggle (#12). The §34.19 keymap row leaves
+ * Alt+F free (the Shift+F find/replace chord owns the shifted variant; the
+ * browser's plain Alt+F menu focus is a different binding). Same guard as
+ * the other global chords: text fields and the outliner editor keep the
+ * keystroke. Exported for the keymap tests.
+ */
+export function focusModeKeyHandler(opts: {
+  onToggle: () => void;
+}): (event: KeyboardEvent) => void {
+  return (event) => {
+    const mod = event.ctrlKey || event.metaKey;
+    if (!mod || !event.altKey || event.shiftKey) return;
+    if (event.key.toLowerCase() !== "f") return;
+    const target = event.target;
+    if (
+      target instanceof Element &&
+      target.closest("input, textarea, select, [contenteditable]")
+    ) {
+      return;
+    }
+    event.preventDefault();
+    opts.onToggle();
+  };
+}
+
+/**
+ * Esc — exit focus mode (#12). Registered only while focus mode is on;
+ * text fields and the outliner editor keep the keystroke (the guard matches
+ * the other global chords). No preventDefault: outside a text field nothing
+ * else owns Esc, and the dimmed chrome stays interactive.
+ */
+export function focusModeExitHandler(opts: {
+  focusMode: () => boolean;
+  onExit: () => void;
+}): (event: KeyboardEvent) => void {
+  return (event) => {
+    if (event.key !== "Escape" || !opts.focusMode()) return;
+    const target = event.target;
+    if (
+      target instanceof Element &&
+      target.closest("input, textarea, select, [contenteditable]")
+    ) {
+      return;
+    }
+    opts.onExit();
+  };
+}
+
+/**
  * Tap-outside drawer dismissal (§34.19 MobileLayout owed half): at narrow
  * widths the sidebar is a floating drawer — a pointer press that lands
  * outside the drawer AND outside the topbar (the hamburger toggle lives
@@ -673,6 +723,8 @@ export function App() {
     openWorkspaceLanding();
   }
   const [paletteOpen, setPaletteOpen] = useState(false);
+  /** #14 — the palette's "New class…" command opens the creation modal. */
+  const [classCreateOpen, setClassCreateOpen] = useState(false);
   /**
    * §34.64 — the session undo journal's chrome state (availability + labels).
    * Refreshed on a macrotask coalescer off every client notification (the
@@ -703,6 +755,8 @@ export function App() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const historyButtonRef = useRef<HTMLButtonElement | null>(null);
   const [firstDayOfWeek] = useDeviceSetting("firstDayOfWeek", 1);
+  /** Focus mode (#12) — device-local; the data attribute drives the shell dim. */
+  const [focusMode, setFocusMode] = useDeviceSetting("focusMode", false);
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const [client, setClient] = useState<AnyClient | null>(null);
   const [offline, setOffline] = useState(false);
@@ -936,6 +990,26 @@ export function App() {
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, []);
+
+  // Ctrl/Cmd+Alt+F — the focus-mode toggle chord (#12). The shared toggle
+  // persists, applies the data attribute, and broadcasts the change.
+  useEffect(() => {
+    const handler = focusModeKeyHandler({
+      onToggle: () => setFocusMode(toggleFocusMode()),
+    });
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [setFocusMode]);
+
+  // Esc — exit focus mode (#12); registered only while the mode is on.
+  useEffect(() => {
+    const handler = focusModeExitHandler({
+      focusMode: () => focusMode,
+      onExit: () => setFocusMode(false),
+    });
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [focusMode, setFocusMode]);
 
   /**
    * The single owner of the live client for teardown. State (`client`) drives
@@ -1793,6 +1867,7 @@ export function App() {
         onClose={() => setPaletteOpen(false)}
         onOpenNode={openPage}
         onNewPage={(title) => void handleNewPage(title)}
+        onOpenClassCreate={() => setClassCreateOpen(true)}
         onSignOut={() => void handleSignOut()}
         undoState={undoUi}
         onUndo={() => {
@@ -1821,6 +1896,14 @@ export function App() {
       )}
       {quickAddOpen && (
         <QuickAddModal isOpen={quickAddOpen} onClose={() => setQuickAddOpen(false)} client={client} />
+      )}
+      {classCreateOpen && (
+        <ClassCreateModal
+          isOpen
+          client={client}
+          onClose={() => setClassCreateOpen(false)}
+          onCreated={(id) => openPage(id)}
+        />
       )}
       {/* The mobile quick-create FAB (§34.19 MobileLayout): hosts its own
           QuickAddModal; CSS surfaces the button only at narrow widths. */}
@@ -1924,6 +2007,9 @@ export function HubView({
   }, [client, nav]);
   const classes = client.listClasses();
   const assetClassId = classes.find((cls) => cls.name === "asset")?.id ?? SYSTEM_CLASS_UUIDS.asset;
+  // #14 — the Classes hub hosts the class-creation modal (blank + system
+  // deploy); the header button opens it, and a created class opens.
+  const [classCreateOpen, setClassCreateOpen] = useState(false);
   // Top-level pages: subpages render in their parent's Pages zone, so the
   // workspace-level hubs list roots only; the asset class stays excluded.
   const pages = client.roots().filter((page) => !page.classIds.includes(assetClassId));
@@ -2003,18 +2089,40 @@ export function HubView({
         : nav === "inbox"
           ? pages.filter((page) => !sectionIds.has(page.id) && page.classIds.length === 0)
           : pages.filter((page) => !sectionIds.has(page.id));
+  const newClassAction =
+    nav === "classes" ? (
+      <Button
+        size="sm"
+        variant="outline"
+        icon="mdiShapePlus"
+        onClick={() => setClassCreateOpen(true)}
+      >
+        New class
+      </Button>
+    ) : undefined;
   return (
-    <CollectionHub
-      client={client}
-      icon={entry?.icon ?? "mdi-book-open-page-variant"}
-      title={entry?.label ?? "Pages"}
-      items={items.map((node) => ({ node }))}
-      modes={["outline"]}
-      defaultMode="outline"
-      persistKey={`hub.${nav}`}
-      emptyTitle="Nothing here yet."
-      onOpenNode={onOpenNode}
-      onOpenInSidebar={onOpenInSidebar}
-    />
+    <>
+      <CollectionHub
+        client={client}
+        icon={entry?.icon ?? "mdi-book-open-page-variant"}
+        title={entry?.label ?? "Pages"}
+        items={items.map((node) => ({ node }))}
+        modes={["outline"]}
+        defaultMode="outline"
+        persistKey={`hub.${nav}`}
+        emptyTitle="Nothing here yet."
+        headerActions={newClassAction}
+        onOpenNode={onOpenNode}
+        onOpenInSidebar={onOpenInSidebar}
+      />
+      {classCreateOpen && (
+        <ClassCreateModal
+          isOpen
+          client={client}
+          onClose={() => setClassCreateOpen(false)}
+          onCreated={(id) => onOpenNode(id)}
+        />
+      )}
+    </>
   );
 }

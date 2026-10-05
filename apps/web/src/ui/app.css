@@ -2605,6 +2605,18 @@ mark {
   display: inline-flex;
 }
 
+/* Extra hub actions (#14's "New class" button et al.): right-aligned after
+   the switcher (or in its place when no switcher rendered). */
+.nt-hub-actions {
+  margin-left: auto;
+  display: inline-flex;
+  gap: var(--spacing-2, 8px);
+}
+
+.nt-hub-switcher + .nt-hub-actions {
+  margin-left: 0;
+}
+
 .nt-hub-list {
   list-style: none;
   margin: 0;
