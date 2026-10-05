@@ -1,1 +1,218 @@
-<REDACTED_BATCH_2_CONTENT>
+/**
+ * TopBar styles — slim transparent chrome on the background canvas.
+ *
+ * The header carries no surface fill; only a hairline bottom border
+ * separates it from the workspace canvas (owner-approved shell design).
+ * The icon-button primitive (.nt-icon-btn) stays in app.css because the
+ * boot screens (ThemeToggle) use it too.
+ */
+
+.nt-topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  height: var(--topbar-height);
+  padding: 0 var(--spacing-3);
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.nt-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.nt-topbar-center {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 var(--spacing-4);
+  overflow: hidden;
+}
+
+.nt-topbar-center .node-breadcrumbs {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-sm);
+}
+
+.nt-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex-shrink: 0;
+}
+
+/* §34.69 — the journal cluster: undo + history chevron + redo as one unit.
+   The chevron halves the undo button's right radius so the pair reads as a
+   split button. */
+.nt-topbar-undo {
+  display: inline-flex;
+  align-items: center;
+  margin-right: var(--spacing-1);
+}
+
+.nt-topbar-undo .nt-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.nt-topbar-undo__chevron {
+  margin-left: -1px;
+  width: 18px;
+}
+
+.nt-icon-btn-active,
+.nt-icon-btn-active:hover {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+}
+
+.nt-wordmark {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-md);
+  letter-spacing: -0.01em;
+  color: var(--color-on-surface);
+}
+
+.nt-topbar-spacer {
+  flex: 1;
+}
+
+.nt-topbar .nt-sync-status {
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+  white-space: nowrap;
+}
+
+.nt-sync-status {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nt-sync-status-error {
+  color: var(--color-error);
+}
+
+/* Command-palette trigger: a quiet search-shaped pill. */
+.nt-topbar-search {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  height: var(--height-sm);
+  padding: 0 var(--spacing-3);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-full);
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  transition:
+    background var(--motion-duration-short) var(--motion-easing-standard),
+    border-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-topbar-search:hover {
+  background: var(--color-hover-overlay);
+  border-color: var(--color-outline);
+  color: var(--color-on-surface);
+}
+
+@media (max-width: 700px) {
+  .nt-topbar-search-hint {
+    display: none;
+  }
+
+  .nt-topbar-search {
+    padding: 0 var(--spacing-2);
+  }
+}
+
+.nt-sync-status {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-on-surface-variant);
+}
+
+/* Sync dot + hover detail panel. */
+.nt-sync-dot {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 6px;
+}
+
+.nt-sync-dot-disc {
+  width: 9px;
+  height: 9px;
+  border-radius: var(--shape-full, 999px);
+  background: var(--color-success, #29b672);
+}
+
+.nt-sync-dot-syncing .nt-sync-dot-disc {
+  background: var(--color-primary);
+  animation: nt-sync-pulse 1.2s var(--motion-easing-standard, ease) infinite;
+}
+
+.nt-sync-dot-backlog .nt-sync-dot-disc {
+  background: var(--color-warning, #f28b3f);
+}
+
+.nt-sync-dot-error .nt-sync-dot-disc {
+  background: var(--color-error);
+}
+
+@keyframes nt-sync-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.nt-sync-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 70;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
+  background: var(--color-surface-container-high, var(--color-surface));
+  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium, 8px);
+  box-shadow: var(--shadow-medium, 0 8px 24px rgba(0, 0, 0, 0.25));
+  font-size: 12px;
+  color: var(--color-on-surface);
+}
+
+.nt-sync-panel-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-4, 16px);
+  white-space: nowrap;
+}
+
+.nt-sync-panel-row > span:first-child:not(:last-child) {
+  color: var(--color-on-surface-variant);
+}
+
+.nt-sync-panel-error {
+  color: var(--color-error);
+  white-space: normal;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
