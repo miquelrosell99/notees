@@ -188,10 +188,11 @@ describe("CommandPalette Random section (#8)", () => {
 
     expect(await screen.findByText("Random")).not.toBeNull();
     expect(screen.getByLabelText("Refresh random pages")).not.toBeNull();
-    // Five random rows + the three always-on commands (no recents, no
-    // journal rows on the empty query).
-    expect(document.querySelectorAll(".nt-palette-item")).toHaveLength(8);
+    // Five random rows precede the Commands group (the command count is a
+    // moving registry — assert the section's five, not the total).
+    expect(firstLabels()).toHaveLength(5);
     expect(firstLabels().every((label) => /^Page \d$/.test(label ?? ""))).toBe(true);
+    expect(screen.getByText("Commands")).not.toBeNull();
   });
 
   it("the Random section answers no query (empty-query only, like Recent)", async () => {
