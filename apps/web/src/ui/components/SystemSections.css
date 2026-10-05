@@ -141,3 +141,10 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* The references tab strip (#5): the shared Tabs primitive (ghost variant)
+   tightened to the section rhythm — flush tab list, one tab active at a
+   time, its lazy Section beneath. Token-only. */
+.nt-ref-tabs .tabs__list {
+  padding: 0;
+}
