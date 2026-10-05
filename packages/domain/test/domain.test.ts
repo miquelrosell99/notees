@@ -310,6 +310,28 @@ describe("deriveDisplayName", () => {
     ).toBe("");
     expect(deriveDisplayName({ ...page })).toBe("");
   });
+
+  it("class chips contribute their one-off displayText (name-only titles resolve client-side)", () => {
+    // The chip's LABEL is the class's current name — graph state this pure
+    // helper cannot resolve. A chip carrying its own wording contributes it;
+    // a bare chip excerpts to "" (the caller with client access falls back
+    // to the resolved class display name — see Breadcrumbs).
+    expect(
+      plainTextExcerpt([
+        { type: "text", text: "via" },
+        { type: "class_chip", classId: "0192a000-0000-7000-8000-0000000000c1", displayText: "the source" },
+      ]),
+    ).toBe("via the source");
+    expect(
+      deriveDisplayName({
+        id: "b3",
+        isClass: false,
+        presentAsMain: false,
+        parentId: "p1",
+        contentAst: [{ type: "class_chip", classId: "0192a000-0000-7000-8000-0000000000c1" }],
+      }),
+    ).toBe("");
+  });
 });
 
 describe("render-state cascade predicates (Revision 11)", () => {
