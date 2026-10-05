@@ -949,28 +949,6 @@ select:focus-visible {
   padding: 4px 6px;
 }
 
-/* Ghost trailing block (§34.19): the muted "click to add" affordance after
-   a body whose last child is non-empty. Display-only until the click. */
-.nt-ghost-block {
-  margin-top: 2px;
-  margin-left: 34px;
-  border: none;
-  background: transparent;
-  padding: 3px 8px;
-  color: var(--color-text-muted);
-  font-size: 13px;
-  font-style: italic;
-  border-radius: 6px;
-  cursor: pointer;
-  text-align: left;
-  opacity: 0.65;
-}
-
-.nt-ghost-block:hover {
-  opacity: 1;
-  background: var(--color-surface-container-highest);
-}
-
 .nt-title-editable {
   cursor: text;
   outline: none;

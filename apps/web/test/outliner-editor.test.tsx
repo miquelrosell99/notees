@@ -428,7 +428,9 @@ describe("outliner editor", () => {
     const { container } = render(<PageView client={client} pageId={pageId} />);
     expect(client.getBlockTree(pageId)).toHaveLength(0);
 
-    const add = screen.getByRole("button", { name: /click to add a block/i });
+    // The §34.85 ruling: the ghost is the SOLE add affordance and shows even
+    // on an empty body — the page root trails exactly one ghost row.
+    const add = screen.getByRole("button", { name: "Add block" });
     await act(async () => {
       fireEvent.click(add);
     });
@@ -436,11 +438,142 @@ describe("outliner editor", () => {
     const tree = client.getBlockTree(pageId);
     expect(tree).toHaveLength(1);
     expect(tree[0]!.node.parentId).toBe(pageId);
-    // The ghost stays (owner refinement: it is the always-on add affordance)
-    // and the new block takes the focus.
-    expect(screen.queryByRole("button", { name: /click to add a block/i })).not.toBeNull();
+    // The root ghost stays and the new block trails its own ghost — the
+    // affordance is always-on — and the new block takes the focus.
+    expect(screen.getAllByRole("button", { name: "Add block" })).toHaveLength(2);
     const editor = container.querySelector<HTMLElement>(".nt-block-text");
     expect(editor).not.toBeNull();
     expect(document.activeElement).toBe(editor);
+  });
+});
+
+describe("ghost block rows (the v1 add affordance)", () => {
+  /** Page with one root block holding a nested child. */
+  async function seedNestedPage(client: WorkspaceClient): Promise<{
+    pageId: string;
+    parentId: string;
+    childId: string;
+  }> {
+    const pageId = await client.createObject({ presentAsMain: true, name: "Nested" });
+    const parentId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "parent" }],
+    });
+    const childId = await client.createObject({
+      parentId,
+      contentAst: [{ type: "text", text: "child" }],
+    });
+    return { pageId, parentId, childId };
+  }
+
+  it("trails every expanded block at the next depth plus the page root", async () => {
+    const client = await seedClient();
+    const { pageId, parentId, childId } = await seedNestedPage(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const ghosts = container.querySelectorAll<HTMLElement>("[data-ghost]");
+    // One per expanded block (parent + child) plus the page root ghost.
+    expect(ghosts).toHaveLength(3);
+    const ids = [...ghosts].map((g) => g.dataset.ghost);
+    expect(ids).toContain(`__ghost-${pageId}`);
+    expect(ids).toContain(`__ghost-${parentId}`);
+    expect(ids).toContain(`__ghost-${childId}`);
+
+    // The parent's ghost rides INSIDE the parent's block at the child's
+    // depth: the slot is nested within the parent row's subtree, after the
+    // children container.
+    const parentBlock = container.querySelector<HTMLElement>(
+      `[data-block-id="${parentId}"]`,
+    )!;
+    const parentGhost = parentBlock.querySelector<HTMLElement>(
+      `[data-ghost="__ghost-${parentId}"]`,
+    )!;
+    expect(parentGhost.dataset.ghost).toBe(`__ghost-${parentId}`);
+    const slot = parentGhost.parentElement!;
+    expect(slot.classList.contains("nt-ghost-slot")).toBe(true);
+    // The slot follows the .nt-block-children container (ghost AFTER the
+    // real children at the same depth).
+    const childrenContainer = parentBlock.querySelector(".nt-block-children")!;
+    expect(slot.previousElementSibling).toBe(childrenContainer);
+  });
+
+  it("a collapsed block hides its ghost with its subtree", async () => {
+    const client = await seedClient();
+    const { pageId, parentId } = await seedNestedPage(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    expect(container.querySelectorAll("[data-ghost]")).toHaveLength(3);
+
+    // Collapse the parent via its chevron.
+    const chevron = container.querySelector<HTMLElement>(
+      `[data-block-id="${parentId}"] .nt-block-chevron`,
+    )!;
+    fireEvent.click(chevron);
+
+    // Parent ghost + child ghost go with the subtree; the root ghost stays.
+    const ghosts = container.querySelectorAll<HTMLElement>("[data-ghost]");
+    expect(ghosts).toHaveLength(1);
+    expect(ghosts[0]!.dataset.ghost).toBe(`__ghost-${pageId}`);
+  });
+
+  it("clicking a block's ghost creates a focused child after the last real child", async () => {
+    const client = await seedClient();
+    const { pageId, parentId, childId } = await seedNestedPage(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const parentGhost = container.querySelector<HTMLElement>(
+      `[data-ghost="__ghost-${parentId}"]`,
+    )!;
+    await act(async () => {
+      fireEvent.click(parentGhost.querySelector("button")!);
+    });
+
+    const parentChildren = client.getChildren(parentId);
+    expect(parentChildren).toHaveLength(2);
+    expect(parentChildren[0]!.id).toBe(childId);
+    // The new block lands AFTER the last real child (v1 realize semantics).
+    const created = parentChildren[1]!;
+    expect(created.contentAst).toEqual([]);
+    expect(created.parentId).toBe(parentId);
+
+    // The realized block takes edit focus.
+    const editor = container.querySelector<HTMLElement>(".nt-block-text");
+    expect(editor).not.toBeNull();
+    expect(document.activeElement).toBe(editor);
+  });
+
+  it("prose and cards modes render no ghosts", async () => {
+    const client = await seedClient();
+    const { pageId } = await seedNestedPage(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    expect(container.querySelectorAll("[data-ghost]").length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("radio", { name: "Prose" }));
+    expect(container.querySelectorAll("[data-ghost]")).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("radio", { name: "Cards" }));
+    expect(container.querySelectorAll("[data-ghost]")).toHaveLength(0);
+
+    // Back to outline: the affordance returns.
+    fireEvent.click(screen.getByRole("radio", { name: "Outline" }));
+    expect(container.querySelectorAll("[data-ghost]").length).toBeGreaterThan(0);
+  });
+
+  it("ghost ids never enter the sortable row id space", async () => {
+    const client = await seedClient();
+    const { pageId } = await seedNestedPage(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    // Every sortable row carries data-block-id from the real tree; no ghost
+    // id may (the dnd items arrays derive from those ids — a ghost id there
+    // would register a phantom sortable).
+    const blockIds = [...container.querySelectorAll("[data-block-id]")].map(
+      (el) => el.getAttribute("data-block-id")!,
+    );
+    expect(blockIds.some((id) => id.startsWith("__ghost-"))).toBe(false);
+    // And conversely no ghost claims a real block's data-block-id.
+    const ghosts = container.querySelectorAll<HTMLElement>("[data-ghost]");
+    for (const ghost of ghosts) {
+      expect(ghost.getAttribute("data-block-id")).toBeNull();
+    }
   });
 });
