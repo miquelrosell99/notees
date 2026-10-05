@@ -1,0 +1,64 @@
+/* GhostRow — the v1 ghost-block row: normal row chrome (gutter + muted
+   bullet) at the row's depth, the content area a muted "+ Add block" button.
+   The label stays hidden until the row is hovered or focused (v1 parity:
+   the affordance reads as a faint bullet until you reach for it). */
+
+.nt-ghost-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+  padding: 2px 0;
+  /* Mirror .nt-block-row's chevron gutter so the ghost bullet aligns with
+     the real rows' bullets. */
+  padding-left: 14px;
+  opacity: var(--opacity-55);
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-ghost-row:hover,
+.nt-ghost-row:focus-within {
+  opacity: var(--opacity-100);
+}
+
+.nt-ghost-row__gutter {
+  flex: none;
+  width: 14px;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.nt-ghost-row__bullet {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-on-surface-variant);
+  flex: none;
+}
+
+.nt-ghost-row__add {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: text;
+  color: var(--color-on-surface-variant);
+  font: var(--font-body-small);
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-ghost-row:hover .nt-ghost-row__add,
+.nt-ghost-row:focus-within .nt-ghost-row__add,
+.nt-ghost-row__add:focus-visible {
+  opacity: var(--opacity-100);
+}
+
+/* The ghost slot mirrors the children container's indent (margin + padding)
+   so the ghost row sits exactly where a child block would — without drawing
+   the subtree guide line. */
+.nt-ghost-slot {
+  margin-left: 20px;
+  padding-left: 8px;
+}

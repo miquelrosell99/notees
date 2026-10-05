@@ -111,6 +111,12 @@ export interface NodeCollectionProps {
   editable?: boolean | undefined;
   /** Read-only rows: every mutation gesture off, clicking opens the node. */
   readOnly?: boolean | undefined;
+  /**
+   * The trailing "add block" ghost rows (the §34.85 sole add affordance):
+   * on for the editable outline tree, off for embedded renders and any
+   * container that isn't the main editing surface.
+   */
+  ghost?: boolean | undefined;
   /** Tree paths filter children to main children (the Pages zone). */
   pagesOnly?: boolean | undefined;
   /** Depth cap for recursive tree rendering. */
