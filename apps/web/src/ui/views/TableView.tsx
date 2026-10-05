@@ -297,22 +297,109 @@ function DateCell({ row, schemaId, props, schemaName }: { row: TableRow; schemaI
       ? `${String(parsed.year).padStart(4, "0")}-${String(parsed.month).padStart(2, "0")}-${String(parsed.day).padStart(2, "0")}`
       : null;
   return (
-    <DateSlotControl
-      client={client}
-      value={iso}
-      display={iso ?? propertyDisplayText(client, prop)}
-      ariaLabel={schemaName}
-      onCommit={(next) => {
-        if (next === iso) return;
-        if (next === null) {
-          commitCellValue(props, row, schemaId, prop?.idx, null);
-          return;
-        }
-        void client.ensureDateChain(next).then(({ day }) => {
-          commitCellValue(props, row, schemaId, prop?.idx, { nodeId: day });
-        });
+    <span className="nt-table-node">
+      <DateSlotControl
+        client={client}
+        value={iso}
+        display={iso ?? propertyDisplayText(client, prop)}
+        ariaLabel={schemaName}
+        onCommit={(next) => {
+          if (next === iso) return;
+          if (next === null) {
+            commitCellValue(props, row, schemaId, prop?.idx, null);
+            return;
+          }
+          void client.ensureDateChain(next).then(({ day }) => {
+            commitCellValue(props, row, schemaId, prop?.idx, { nodeId: day });
+          });
+        }}
+      />
+      {iso !== null && (
+        <OpenArrow
+          label={`the ${iso} day page`}
+          onOpen={() => {
+            void client.ensureDateChain(iso).then(({ day }) => props.onNodeClick?.(day));
+          }}
+        />
+      )}
+    </span>
+  );
+}
+
+/** The v1 open-arrow — navigates to a node (row, link target, day page). */
+function OpenArrow({ label, onOpen }: { label: string; onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      className="nt-table-open"
+      title={`Open ${label}`}
+      aria-label={`Open ${label}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onOpen();
       }}
-    />
+    >
+      <Icon path="mdi-arrow-top-right" size={0.7} />
+    </button>
+  );
+}
+
+/** Name cell: click enters inline edit for simple titles (single text token);
+    rich content keeps click-to-open (editing flattens it — never silently).
+    The v1 open-arrow always navigates. */
+function NameCell({
+  node,
+  icon,
+  props,
+}: {
+  node: ClientNode;
+  icon: string | null;
+  props: NodeCollectionProps;
+}) {
+  const { client } = props;
+  const [editing, setEditing] = useState(false);
+  const label = displayNameForSettings(node) || "Untitled";
+  const simple =
+    node.contentAst.length === 0 ||
+    (node.contentAst.length === 1 &&
+      (node.contentAst[0] as { type?: unknown }).type === "text");
+  if (editing && simple) {
+    return (
+      <span className="nt-table-name">
+        {icon !== null && <Icon path={icon} size={0.9} className="nt-table-name-icon" />}
+        <InlineInput
+          inputType="text"
+          ariaLabel={`Rename `}
+          value={label === "Untitled" ? "" : label}
+          onCommit={(next) => {
+            setEditing(false);
+            const text = next.trim();
+            if (text !== "" && text !== label) {
+              void client.updateObject(node.id, { contentAst: [{ type: "text", text }] });
+            }
+          }}
+        />
+        <OpenArrow label={label} onOpen={() => props.onNodeClick?.(node.id)} />
+      </span>
+    );
+  }
+  return (
+    <span className="nt-table-name">
+      <button
+        type="button"
+        className="nt-table-name-btn"
+        title={simple ? `${label} (click to edit)` : label}
+        onClick={(event) => {
+          if (event.shiftKey) props.onNodeShiftClick?.(node.id);
+          else if (simple) setEditing(true);
+          else props.onNodeClick?.(node.id);
+        }}
+      >
+        {icon !== null && <Icon path={icon} size={0.9} className="nt-table-name-icon" />}
+        <span className="nt-table-name-label">{label}</span>
+      </button>
+      <OpenArrow label={label} onOpen={() => props.onNodeClick?.(node.id)} />
+    </span>
   );
 }
 
@@ -332,6 +419,12 @@ function NodeCell({ row, schemaId, props, schemaName }: { row: TableRow; schemaI
       >
         {targetId !== null ? (displayNameFromClient(props.client, targetId) ?? targetId) : schemaName}
       </button>
+      {targetId !== null && (
+        <OpenArrow
+          label={displayNameFromClient(props.client, targetId) ?? "target"}
+          onOpen={() => props.onNodeClick?.(targetId)}
+        />
+      )}
       {open && (
         <NodeSelector
           client={props.client}
@@ -653,22 +746,10 @@ export function TableView(props: NodeCollectionProps) {
   const renderCell = (row: TableRow, column: TableColumn): ReactNode => {
     const node = row.item.node;
     if (column.kind === "name") {
-      const label = displayNameForSettings(node) || "Untitled";
       const icon = nodeIcon(node, iconMap);
       return (
         <td key={column.id} className="nt-table-name">
-          <button
-            type="button"
-            className="nt-table-name-btn"
-            title={label}
-            onClick={(event) => {
-              if (event.shiftKey) onNodeShiftClick?.(node.id);
-              else onNodeClick?.(node.id);
-            }}
-          >
-            {icon !== null && <Icon path={icon} size={0.9} className="nt-table-name-icon" />}
-            <span className="nt-table-name-label">{label}</span>
-          </button>
+          <NameCell node={node} icon={icon} props={props} />
         </td>
       );
     }

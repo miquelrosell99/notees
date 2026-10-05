@@ -356,3 +356,32 @@
   color: var(--color-primary, currentColor);
   text-decoration: underline;
 }
+
+/* The v1 open-arrow — a quiet navigate affordance beside cell content. */
+.nt-table-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: 2px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  background: transparent;
+  color: var(--color-on-surface-variant, currentColor);
+  opacity: 0;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.nt-table-name:hover .nt-table-open,
+.nt-table-node:hover .nt-table-open,
+.nt-table-open:focus-visible {
+  opacity: 1;
+}
+
+.nt-table-open:hover {
+  background: var(--color-hover-overlay, transparent);
+  color: var(--color-primary, currentColor);
+}

@@ -106,8 +106,8 @@ describe("PropertyView (§34.32 PG12)", () => {
     expect(table.queryByText("Gamma")).toBeNull();
     expect(table.getByText("value-Alpha")).not.toBeNull();
 
-    // Row click navigates; Close closes.
-    fireEvent.click(table.getByText("Alpha"));
+    // The v1 open-arrow navigates (the name cell click edits now).
+    fireEvent.click(table.getByRole("button", { name: "Open Alpha" }));
     expect(onOpenPage).toHaveBeenCalledWith(carriers[0]);
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(onClose).toHaveBeenCalled();
