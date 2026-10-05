@@ -8,3 +8,4 @@ export * from "./db.js";
 export * from "./effective.js";
 export * from "./property-values.js";
 export * from "./store.js";
+export * from "./graph.js";
