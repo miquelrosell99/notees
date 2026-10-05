@@ -228,7 +228,14 @@ export interface ClassBinding {
   numberRounding?: "round" | "floor" | "ceil" | "truncate" | null;
   /** PC4: the soft-unbind flag (false = the binding stops contributing). */
   active: boolean;
+  /** §34.89: value-display position — "panel" (null) = properties section
+   *  only; "bullet" = icon button next to the block bullet; "inline" = before
+   *  the block content. */
+  display: BindingDisplay | null;
 }
+
+/** §34.89: where a select/multi_select value renders on a block row. */
+export type BindingDisplay = "panel" | "bullet" | "inline";
 
 /** Editable fields of a class.property.set write (all optional — patch). */
 export interface SetClassPropertyInput {
@@ -238,14 +245,17 @@ export interface SetClassPropertyInput {
   hideWhenEmpty?: boolean | null;
   defaultValue?: unknown;
   active?: boolean;
+  display?: BindingDisplay;
 }
 
-/** A select/multi_select option (PG16 adds the optional §34.43 color). */
+/** A select/multi_select option (PG16 color + §34.89 icon, both optional). */
 export interface ClientPropertyOption {
   id: string;
   label: string;
   /** Preset token or `#RRGGBB` hex (§34.43); absent/null = uncolored. */
   color?: string | null;
+  /** MDI icon name (camelCase @mdi/js convention); absent/null = no icon. */
+  icon?: string | null;
 }
 
 /**
@@ -343,6 +353,8 @@ export interface EffectiveProperty {
   readonly: boolean | null;
   hideWhenEmpty: boolean | null;
   sequence: number | null;
+  /** §34.89: the winning binding's value-display position (null = "panel"). */
+  display: BindingDisplay | null;
 }
 
 export interface ClientEdge {
@@ -1054,7 +1066,7 @@ export class WorkspaceClient {
     const rows = this.store.database
       .prepare(
         `SELECT cp.property_schema_id, cp.sequence, cp.required, cp.readonly, cp.hide_when_empty,
-                cp.default_value, cp.active AS binding_active, ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active,
+                cp.default_value, cp.active AS binding_active, cp.display, ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active,
                 ps.date_precision, ps.date_qualified, ps.number_pad, ps.number_decimals, ps.number_rounding
          FROM class_property cp
          LEFT JOIN property_schema ps ON ps.id = cp.property_schema_id
@@ -1108,6 +1120,7 @@ export class WorkspaceClient {
             ? null
             : (row.number_rounding as "round" | "floor" | "ceil" | "truncate"),
         active: row.binding_active === 0 ? false : true,
+        display: row.display === "bullet" || row.display === "inline" ? row.display : null,
       };
     });
     const bound = new Set(bindings.map((b) => b.propertySchemaId));
@@ -1152,6 +1165,7 @@ export class WorkspaceClient {
         datePrecision: null,
         dateQualified: null,
         active: true,
+        display: null,
       });
     }
     return bindings.sort((a, b) => a.sequence - b.sequence || a.name.localeCompare(b.name));
@@ -1291,6 +1305,10 @@ export class WorkspaceClient {
               // PG16 option colors ride the §34.43 grammar; absent/null = none.
               ...("color" in v && (typeof v.color === "string" || v.color === null)
                 ? { color: v.color as string | null }
+                : {}),
+              // §34.89 option icons ride as an MDI name; absent/null = none.
+              ...("icon" in v && (typeof v.icon === "string" || v.icon === null)
+                ? { icon: v.icon as string | null }
                 : {}),
             }));
         }
@@ -2359,6 +2377,7 @@ export class WorkspaceClient {
     if (fields.hideWhenEmpty !== undefined) payload.hideWhenEmpty = fields.hideWhenEmpty;
     if (fields.defaultValue !== undefined) payload.defaultValue = fields.defaultValue;
     if (fields.active !== undefined) payload.active = fields.active;
+    if (fields.display !== undefined) payload.display = fields.display;
     this.enqueueLocal(this.buildEnvelope("class.property.set", payload, [classId]));
   }
 

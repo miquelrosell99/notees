@@ -140,3 +140,95 @@ describe("BlockRow metadata section", () => {
     expect(sections).toHaveLength(1);
   });
 });
+
+describe("BlockRow §34.89 value-display buttons", () => {
+  /** A block whose class binds a select schema at the given display position. */
+  async function seedDisplayBlock(display: "bullet" | "inline" | "panel") {
+    const client = await seedClient();
+    const schemaId = await client.createPropertySchema({
+      name: "status",
+      type: "select",
+      options: [{ id: "opt-1", label: "Doing", icon: "mdiCircleHalfFull", color: "orange" }],
+    });
+    const classId = await client.createClass("Taskish");
+    await client.setClassProperty(classId, schemaId, {
+      sequence: 0,
+      ...(display === "panel" ? {} : { display }),
+    });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Tasks" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "task" }],
+    });
+    await client.assignClass(blockId, classId);
+    return { client, pageId, blockId };
+  }
+
+  it("a bullet-displayed binding renders the icon button and omits the properties section", async () => {
+    const { client, pageId, blockId } = await seedDisplayBlock("bullet");
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const block = container.querySelector(`[data-block-id="${blockId}"]`)!;
+    // The button rides the row between the grip and the content — a sibling
+    // after .nt-block-grip, never inside .nt-block-content.
+    const bulletProps = block.querySelector(":scope > .nt-block-row > .nt-block-bullet-props");
+    expect(bulletProps).not.toBeNull();
+    const row = block.querySelector(":scope > .nt-block-row")!;
+    const grip = row.querySelector(":scope > .nt-block-grip")!;
+    const content = row.querySelector(":scope > .nt-block-content")!;
+    expect(grip.compareDocumentPosition(bulletProps!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(bulletProps!.compareDocumentPosition(content) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(content.querySelector(".nt-propicon")).toBeNull();
+    // The value is set from the unset button, so the collapsed panel would
+    // duplicate nothing — it is omitted entirely here (no other properties).
+    expect(block.querySelector(":scope > .node-metadata-section")).toBeNull();
+  });
+
+  it("an inline-displayed binding renders in the inline group before the content", async () => {
+    const { client, pageId, blockId } = await seedDisplayBlock("inline");
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const block = container.querySelector(`[data-block-id="${blockId}"]`)!;
+    const inlineProps = block.querySelector(":scope > .nt-block-row > .nt-block-inline-props");
+    expect(inlineProps).not.toBeNull();
+    expect(inlineProps!.querySelector(".nt-propicon")).not.toBeNull();
+    expect(block.querySelector(":scope > .node-metadata-section")).toBeNull();
+  });
+
+  it("a panel-displayed (default) binding renders no button and keeps the section", async () => {
+    const { client, pageId, blockId } = await seedDisplayBlock("panel");
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const block = container.querySelector(`[data-block-id="${blockId}"]`)!;
+    expect(block.querySelector(".nt-propicon")).toBeNull();
+    // The panel still carries the bound property's add affordance.
+    const section = blockMetadata(container, blockId);
+    expect(section).not.toBeNull();
+    fireEvent.click(section!.querySelector(".node-view-section__header") as HTMLElement);
+    expect(section!.textContent).toContain("status");
+  });
+
+  it("a bullet-displayed boolean binding renders the button and omits the section", async () => {
+    const client = await seedClient();
+    const schemaId = await client.createPropertySchema({ name: "reviewed", type: "boolean" });
+    const classId = await client.createClass("Reviewable");
+    await client.setClassProperty(classId, schemaId, { sequence: 0, display: "bullet" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Review" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "check me" }],
+    });
+    await client.assignClass(blockId, classId);
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const block = container.querySelector(`[data-block-id="${blockId}"]`)!;
+    // The unset affordance renders for the bound-but-empty boolean…
+    const button = block.querySelector(
+      ":scope > .nt-block-row > .nt-block-bullet-props .nt-propicon",
+    );
+    expect(button).not.toBeNull();
+    expect(button!.getAttribute("title")).toBe("reviewed: none");
+    // …and the panel omits the row-positioned property.
+    expect(block.querySelector(":scope > .node-metadata-section")).toBeNull();
+  });
+});

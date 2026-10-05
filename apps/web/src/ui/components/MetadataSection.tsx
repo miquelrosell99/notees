@@ -31,6 +31,7 @@ import {
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type {
+  BindingDisplay,
   ClassBinding,
   ClientNode,
   EffectiveProperty,
@@ -42,6 +43,7 @@ import { todayIsoLocal } from "./calendarViewUtils.js";
 import { displayNameFromClient } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
+import { IconPickerPopup } from "./IconPickerPopup.js";
 import { Checkbox } from "./ui/Checkbox.js";
 import { AddPill } from "./ui/AddPill.js";
 import { ColorPickerRow } from "./pickers/ColorPickerRow.js";
@@ -1188,8 +1190,21 @@ function AddPropertyRow({
  * The property-rows model shared by the Metadata section (blocks) and the
  * Properties section (pages): effective rows grouped per schema, plus the
  * bound-but-empty grouped bindings that still render an add affordance.
+ *
+ * §34.89: `omitDisplayPositions` filters out rows whose winning binding
+ * carries a bullet/inline value-display position (the block row surfaces
+ * those values itself — the panel must not duplicate them). The same filter
+ * applies to the bound-but-empty bindings, whose add affordance the block
+ * row's icon button already covers.
  */
-function propertyGroupsOf(client: AnyClient, nodeId: string) {
+function propertyGroupsOf(
+  client: AnyClient,
+  nodeId: string,
+  omitDisplayPositions?: ReadonlyArray<"bullet" | "inline">,
+) {
+  const omittedByDisplay = (display: BindingDisplay | null): boolean =>
+    (display === "bullet" || display === "inline") &&
+    (omitDisplayPositions?.includes(display) ?? false);
   const node = client.getNode(nodeId);
   // Class pages: the class's has-template values render in the dedicated
   // Templates section — the generic table suppresses that schema row. The
@@ -1201,7 +1216,8 @@ function propertyGroupsOf(client: AnyClient, nodeId: string) {
     .filter(
       (row) =>
         !(isClassNode && row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.hasTemplate) &&
-        row.propertySchemaId !== SYSTEM_PROPERTY_UUIDS.cover,
+        row.propertySchemaId !== SYSTEM_PROPERTY_UUIDS.cover &&
+        !omittedByDisplay(row.display),
     );
 
   // Node-typed / date / date_range / boolean / text schemas render as one
@@ -1249,6 +1265,7 @@ function propertyGroupsOf(client: AnyClient, nodeId: string) {
       if (!isGroupedType(binding.type, binding.propertySchemaId)) continue;
       if (isClassNode && binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS.hasTemplate) continue;
       if (binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS.cover) continue;
+      if (omittedByDisplay(binding.display)) continue;
       if (renderedGroups.has(binding.propertySchemaId)) continue;
       if (emptyObjectBindings.some((b) => b.propertySchemaId === binding.propertySchemaId)) continue;
       if (binding.hideWhenEmpty === true) continue;
@@ -1280,12 +1297,15 @@ export function PropertiesTable({
   client,
   nodeId,
   onOpenPage,
+  omitDisplayPositions,
 }: {
   client: AnyClient;
   nodeId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
+  /** §34.89: positions (bullet/inline) the host surfaces itself — filter out. */
+  omitDisplayPositions?: ReadonlyArray<"bullet" | "inline"> | undefined;
 }) {
-  const { rows, rendered, emptyObjectBindings } = propertyGroupsOf(client, nodeId);
+  const { rows, rendered, emptyObjectBindings } = propertyGroupsOf(client, nodeId, omitDisplayPositions);
   const labelOf = (row: EffectiveProperty): string => row.schema?.name ?? row.propertySchemaId;
   const [settingsFor, setSettingsFor] = useState<string | null>(null);
   const [viewFor, setViewFor] = useState<string | null>(null);
@@ -1639,14 +1659,19 @@ export function PropertiesSection({
   nodeId,
   onOpenPage,
   hideWhenEmpty = false,
+  omitDisplayPositions,
 }: {
   client: AnyClient;
   nodeId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
   /** Block mode: render nothing when the node carries no properties. */
   hideWhenEmpty?: boolean | undefined;
+  /** §34.89: binding display positions the host renders itself (the block
+   *  row's bullet/inline icon buttons) — rows carrying them are filtered
+   *  out of this panel so the value never reads twice. */
+  omitDisplayPositions?: ReadonlyArray<"bullet" | "inline"> | undefined;
 }) {
-  const count = propertiesCountOf(propertyGroupsOf(client, nodeId));
+  const count = propertiesCountOf(propertyGroupsOf(client, nodeId, omitDisplayPositions));
   if (hideWhenEmpty && count === 0) return null;
   return (
     <NodeViewSection
@@ -1657,7 +1682,12 @@ export function PropertiesSection({
       defaultExpanded={false}
     >
       <div className="node-metadata-content">
-        <PropertiesTable client={client} nodeId={nodeId} onOpenPage={onOpenPage} />
+        <PropertiesTable
+          client={client}
+          nodeId={nodeId}
+          onOpenPage={onOpenPage}
+          omitDisplayPositions={omitDisplayPositions}
+        />
       </div>
     </NodeViewSection>
   );
@@ -1685,6 +1715,11 @@ function PropertySettingsModal({
 }) {
   const schema = client.listPropertySchemas().find((s) => s.id === propertySchemaId);
   const [convertOpen, setConvertOpen] = useState(false);
+  /** §34.89: the option whose icon picker is open (+ its anchor button). */
+  const [iconPickerFor, setIconPickerFor] = useState<{
+    optionId: string;
+    anchor: HTMLElement;
+  } | null>(null);
   if (schema === undefined) return null;
 
   const patch = (fields: Parameters<AnyClient["updatePropertySchema"]>[1]) =>
@@ -1751,6 +1786,28 @@ function PropertySettingsModal({
             <ul className="nt-property-settings__options">
               {(schema.options ?? []).map((option) => (
                 <li key={option.id} className="nt-property-settings__option">
+                  {/* §34.89: per-option MDI icon (the picker's trash action
+                      emits "" = clear; the wholesale options write preserves
+                      ids like the ColorButton path above). */}
+                  <button
+                    type="button"
+                    className="nt-property-settings__option-icon"
+                    title={`Icon for ${option.label}`}
+                    aria-label={`Icon for ${option.label}`}
+                    onClick={(event) =>
+                      setIconPickerFor({ optionId: option.id, anchor: event.currentTarget })
+                    }
+                  >
+                    {option.icon ? (
+                      <Icon
+                        path={option.icon}
+                        size={0.7}
+                        {...(option.color ? { color: cssColorFor(option.color) } : {})}
+                      />
+                    ) : (
+                      <Icon path="mdi-plus-circle-outline" size={0.7} />
+                    )}
+                  </button>
                   {/* PG16: per-option color dot (§34.43 grammar; none = uncolored). */}
                   <ColorButton
                     color={option.color ?? ""}
@@ -1811,6 +1868,25 @@ function PropertySettingsModal({
             >
               + Add option
             </Button>
+            {iconPickerFor !== null && (
+              <IconPickerPopup
+                value={
+                  schema.options?.find((option) => option.id === iconPickerFor.optionId)?.icon ??
+                  ""
+                }
+                anchorEl={iconPickerFor.anchor}
+                onClose={() => setIconPickerFor(null)}
+                onSelect={(value) =>
+                  patch({
+                    options: (schema.options ?? []).map((option) =>
+                      option.id === iconPickerFor.optionId
+                        ? { ...option, icon: value === "" ? null : value }
+                        : option,
+                    ),
+                  })
+                }
+              />
+            )}
           </div>
         )}
       </div>

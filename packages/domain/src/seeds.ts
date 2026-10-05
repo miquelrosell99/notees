@@ -444,13 +444,22 @@ export const SYSTEM_EXTRA_CLASS_BINDINGS: { property: SystemPropertyName; bindTo
   { property: "eventDate", bindTo: "birthday", sequence: 0 },
 ];
 
+/**
+ * The designed task-status glyphs (§34.89) — the v1 icon_visibility-era set
+ * re-translated into the §34.43 color grammar (preset tokens, never the
+ * retired var(--color-preset-*) encoding): circle-family MDI icons with a
+ * distinct color each, so a task's state reads at a glance from the block
+ * bullet (Pending = a solid yellow circle, Reviewing = a blue eye-circle,
+ * Done = a green check-circle, Cancelled = a red close-circle). Owner-mandated
+ * colors: yellow pending, blue review, red cancel, green done.
+ */
 export const TASK_STATUS_OPTIONS = [
-  { name: "Backlog" },
-  { name: "Pending" },
-  { name: "Doing" },
-  { name: "Reviewing" },
-  { name: "Done" },
-  { name: "Cancelled" },
+  { name: "Backlog", icon: "mdiCircleOutline", color: "gray" },
+  { name: "Pending", icon: "mdiCircle", color: "yellow" },
+  { name: "Doing", icon: "mdiCircleHalfFull", color: "orange" },
+  { name: "Reviewing", icon: "mdiEyeCircleOutline", color: "blue" },
+  { name: "Done", icon: "mdiCheckCircle", color: "green" },
+  { name: "Cancelled", icon: "mdiCloseCircle", color: "red" },
 ] as const;
 export const TASK_CLOSED_STATUSES = new Set(["Done", "Cancelled"]);
 export const TASK_DEFAULT_STATUS = "Pending";
@@ -488,13 +497,17 @@ export const TASK_PRIORITY_OPTION_UUIDS = {
  * bindings, authored idempotently by the store applier when the `tasks`
  * feature enables (§34.35 constraint 5 — closes the "task property schemas
  * never authored in v2" row). Fixed ids end to end (schema + option uuids
- * above); `sequence` is the task-panel display order.
+ * above); `sequence` is the task-panel display order. `display` (§34.89):
+ * the Status binding defaults to "bullet" — the status value rides the
+ * block bullet as an icon button (Logseq-DB "beginning of the block"), the
+ * rest stay in the properties panel.
  */
 export const TASK_FAMILY_SEED: ReadonlyArray<{
   property: SystemPropertyName;
   name: string;
   type: "select" | "date";
-  options?: ReadonlyArray<{ id: string; label: string }>;
+  options?: ReadonlyArray<{ id: string; label: string; icon?: string; color?: string }>;
+  display?: "panel" | "bullet" | "inline";
   sequence: number;
 }> = [
   {
@@ -502,13 +515,14 @@ export const TASK_FAMILY_SEED: ReadonlyArray<{
     name: "Status",
     type: "select",
     options: [
-      { id: TASK_STATUS_OPTION_UUIDS.backlog, label: "Backlog" },
-      { id: TASK_STATUS_OPTION_UUIDS.pending, label: "Pending" },
-      { id: TASK_STATUS_OPTION_UUIDS.doing, label: "Doing" },
-      { id: TASK_STATUS_OPTION_UUIDS.reviewing, label: "Reviewing" },
-      { id: TASK_STATUS_OPTION_UUIDS.done, label: "Done" },
-      { id: TASK_STATUS_OPTION_UUIDS.cancelled, label: "Cancelled" },
+      { id: TASK_STATUS_OPTION_UUIDS.backlog, label: "Backlog", icon: "mdiCircleOutline", color: "gray" },
+      { id: TASK_STATUS_OPTION_UUIDS.pending, label: "Pending", icon: "mdiCircle", color: "yellow" },
+      { id: TASK_STATUS_OPTION_UUIDS.doing, label: "Doing", icon: "mdiCircleHalfFull", color: "orange" },
+      { id: TASK_STATUS_OPTION_UUIDS.reviewing, label: "Reviewing", icon: "mdiEyeCircleOutline", color: "blue" },
+      { id: TASK_STATUS_OPTION_UUIDS.done, label: "Done", icon: "mdiCheckCircle", color: "green" },
+      { id: TASK_STATUS_OPTION_UUIDS.cancelled, label: "Cancelled", icon: "mdiCloseCircle", color: "red" },
     ],
+    display: "bullet",
     sequence: 1,
   },
   { property: "taskScheduled", name: "Scheduled", type: "date", sequence: 2 },
@@ -530,6 +544,34 @@ export const TASK_FAMILY_SEED: ReadonlyArray<{
   // #6); authored optionless until the recurrence spec lands.
   { property: "taskRecurrence", name: "Recurrence", type: "select", options: [], sequence: 6 },
 ];
+
+/**
+ * §34.89 convergence helper: restyle a STORED task-status option list with
+ * the designed icons/colors, PRESERVING the stored option ids (authored
+ * property values reference them — a wholesale options replace must keep
+ * ids stable). Matches by label, so self-heals and migration scripts converge
+ * workspaces whose family was authored by either seed path (the applier
+ * ensure at the fixed UUIDs, the web self-heal at random UUIDs); user-renamed
+ * or user-added options pass through untouched. Returns null when nothing
+ * needs writing (already converged, or no stored option matches a designed
+ * label — nothing safe to change).
+ */
+export function styleTaskStatusOptions(
+  stored: ReadonlyArray<{ id: string; label: string; icon?: string | null; color?: string | null }>,
+): Array<{ id: string; label: string; icon?: string | null; color?: string | null }> | null {
+  const designed = new Map<string, (typeof TASK_STATUS_OPTIONS)[number]>(
+    TASK_STATUS_OPTIONS.map((option) => [option.name, option]),
+  );
+  let changed = false;
+  const restyled = stored.map((option) => {
+    const style = designed.get(option.label);
+    if (!style) return option;
+    if (option.icon === style.icon && option.color === style.color) return option;
+    changed = true;
+    return { id: option.id, label: option.label, icon: style.icon, color: style.color };
+  });
+  return changed ? restyled : null;
+}
 
 /** Classes the workspace seed emits (nodes + property schemas + bindings + extends). */
 export const SEEDED_SYSTEM_CLASSES: SystemClassName[] = [

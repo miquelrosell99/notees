@@ -221,6 +221,15 @@ export const classSetExtendsPayload = z
  * (no derived default, no required/readonly/hideWhenEmpty/sequence metadata)
  * while AUTHORED property values always survive (the row is kept, never
  * deleted). Omitted = keep the stored flag.
+ *
+ * `display` (§34.89, LOCKSTEP-PENDING): the binding's value-display position —
+ * where a select/multi_select (or boolean) value renders on a block row.
+ * "panel" (the stored NULL default) keeps the value in the properties
+ * section only; "bullet" renders it as an icon button next to the block
+ * bullet; "inline" renders it before the block content. Omitted = keep the
+ * stored value. A render contract only — never read by queries or appliers
+ * beyond persistence (the v1 icon_visibility port, boolean values included
+ * per the owner 2026-10-05).
  */
 export const classPropertySetPayload = z
   .object({
@@ -232,6 +241,7 @@ export const classPropertySetPayload = z
     hideWhenEmpty: z.boolean().nullable().optional(),
     defaultValue: z.unknown().optional(),
     active: z.boolean().optional(),
+    display: z.enum(["panel", "bullet", "inline"]).optional(),
   })
   .strict();
 
@@ -254,11 +264,19 @@ export const classPropertyUnsetPayload = z
  * token or a custom `#RRGGBB` hex; absent/null = no color (the token
  * palette renders the pill like any uncolored one). Additive JSON inside
  * the existing options array — no op-shape change.
+ *
+ * `icon` (§34.89, additive): an OPTIONAL MDI icon name (camelCase @mdi/js
+ * convention, max 64 chars — the same string shape as node/class icons);
+ * absent/null = no icon. The option record itself intentionally stays
+ * NON-strict: pre-§34.89 parsers strip unknown keys instead of rejecting
+ * the envelope, so icon-carrying options sync through old clients (their
+ * stores drop the icon; wipe → replay restores it).
  */
 export const propertySchemaOptionSchema = z.object({
   id: z.string(),
   label: z.string(),
   color: colorValueSchema.nullish(),
+  icon: z.string().max(64).nullish(),
 });
 
 export const propertySchemaCreatePayload = z
