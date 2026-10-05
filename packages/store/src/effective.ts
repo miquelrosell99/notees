@@ -37,6 +37,10 @@ export interface EffectivePropertySchema {
   numberPad: number | null;
   numberDecimals: number | null;
   numberRounding: "round" | "floor" | "ceil" | "truncate" | null;
+  /** §34.90: PROPERTY-level render contracts (NULL = panel / unset). */
+  display: "panel" | "bullet" | "inline" | null;
+  readonly: boolean | null;
+  hideWhenEmpty: boolean | null;
 }
 
 /**
@@ -59,13 +63,14 @@ export interface EffectiveProperty {
   metadata: Record<string, unknown> | null;
   source: "authored" | "default";
   boundBy: string | null;
+  /** Per-CLASS (§34.90): the winning binding's required flag — a property
+   *  may be mandatory for one class, optional for another. */
   required: boolean | null;
+  /** PROPERTY-level (§34.90): the schema's render contracts — the same for
+   *  every carrier, class-bound or not. */
   readonly: boolean | null;
   hideWhenEmpty: boolean | null;
   sequence: number | null;
-  /** §34.89: the winning binding's value-display position — "panel" (null)
-   *  keeps the value in the properties section only; "bullet" renders it as
-   *  an icon button next to the block bullet; "inline" before the content. */
   display: "panel" | "bullet" | "inline" | null;
 }
 
@@ -128,10 +133,7 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
     property_schema_id: string;
     sequence: number;
     required: number | null;
-    readonly: number | null;
-    hide_when_empty: number | null;
     default_value: string | null;
-    display: string | null;
   }
   interface BindingCandidate {
     distance: number;
@@ -164,7 +166,7 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
     return reach;
   };
   const bindingStmt = db.prepare(
-    `SELECT property_schema_id, sequence, required, readonly, hide_when_empty, default_value, display
+    `SELECT property_schema_id, sequence, required, default_value
      FROM class_property WHERE class_id = ? AND active = 1`,
   );
   const candidatesBySchema = new Map<string, BindingCandidate[]>();
@@ -210,7 +212,8 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
     const rows = db
       .prepare(
         `SELECT id, name, type, multi, date_precision, date_qualified,
-                number_pad, number_decimals, number_rounding
+                number_pad, number_decimals, number_rounding,
+                display, readonly, hide_when_empty
          FROM property_schema WHERE id IN (${placeholders})`,
       )
       .all(...schemaIds) as Array<{
@@ -223,6 +226,9 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
       number_pad: number | null;
       number_decimals: number | null;
       number_rounding: string | null;
+      display: string | null;
+      readonly: number | null;
+      hide_when_empty: number | null;
     }>;
     for (const row of rows) {
       schemas.set(row.id, {
@@ -242,6 +248,9 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
           row.number_rounding === "round" || row.number_rounding === "floor" || row.number_rounding === "ceil" || row.number_rounding === "truncate"
             ? row.number_rounding
             : null,
+        display: displayOf(row.display),
+        readonly: flag(row.readonly),
+        hideWhenEmpty: flag(row.hide_when_empty),
       });
     }
   }
@@ -258,21 +267,25 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
 
   for (const authored of authoredRows) {
     const winner = winnerBySchema.get(authored.property_schema_id);
+    const schema = schemas.get(authored.property_schema_id) ?? null;
     if (authored.idx === 0) shadowedDefaultSchemas.add(authored.property_schema_id);
     push(`${authored.property_schema_id}:${authored.idx}:${authored.id}`, {
       propertySchemaId: authored.property_schema_id,
       idx: authored.idx,
       elementId: authored.id,
-      schema: schemas.get(authored.property_schema_id) ?? null,
+      schema,
       value: parseJson(authored.value),
       metadata: authored.metadata !== null ? (parseJson(authored.metadata) as Record<string, unknown>) : null,
       source: "authored",
       boundBy: winner?.classId ?? null,
+      // §34.90: required is per-CLASS (the winning binding); readonly/
+      // hideWhenEmpty/display are per-PROPERTY (the schema — unbound values
+      // included, the owner's multi-class/unbound cases).
       required: winner ? flag(winner.binding.required) : null,
-      readonly: winner ? flag(winner.binding.readonly) : null,
-      hideWhenEmpty: winner ? flag(winner.binding.hide_when_empty) : null,
+      readonly: schema?.readonly ?? null,
+      hideWhenEmpty: schema?.hideWhenEmpty ?? null,
       sequence: winner ? winner.binding.sequence : null,
-      display: winner ? displayOf(winner.binding.display) : null,
+      display: schema?.display ?? null,
     });
   }
 
@@ -289,16 +302,16 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
       propertySchemaId: schemaId,
       idx: 0,
       elementId: `default:${schemaId}:0`,
-      schema: schemas.get(schemaId) ?? null,
+      schema: schema ?? null,
       value: parseJson(binding.default_value),
       metadata: null,
       source: "default",
       boundBy: classId,
       required: flag(binding.required),
-      readonly: flag(binding.readonly),
-      hideWhenEmpty: flag(binding.hide_when_empty),
+      readonly: schema?.readonly ?? null,
+      hideWhenEmpty: schema?.hideWhenEmpty ?? null,
       sequence: binding.sequence,
-      display: displayOf(binding.display),
+      display: schema?.display ?? null,
     });
   }
 

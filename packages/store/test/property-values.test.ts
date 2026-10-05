@@ -422,11 +422,15 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       });
     });
 
-    it("inherited binding metadata (required/readonly) surfaces on authored rows", () => {
+    it("inherited binding metadata (required from the binding, readonly from the schema) surfaces on authored rows", () => {
       const store = chainStore([BASE]);
-      // Re-bind with flags on BASE.
+      // §34.90: required rides the BINDING (per-class); readonly rides the
+      // SCHEMA (per-property) — both surface on the subclass's authored row.
       store.apply(
-        env("class.property.set", { classId: BASE, propertySchemaId: SCHEMA, required: true, readonly: true }, 1727200001700),
+        env("class.property.set", { classId: BASE, propertySchemaId: SCHEMA, required: true }, 1727200001700),
+      );
+      store.apply(
+        env("propertySchema.update", { propertySchemaId: SCHEMA, readonly: true }, 1727200001750),
       );
       store.apply(env("object.create", { objectId: OWNER, contentAst: text("Owner"), classIds: [LEAF] }, 1727200002000));
       store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA, value: "mine" }, 1727200002100));

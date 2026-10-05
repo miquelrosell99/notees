@@ -14,9 +14,10 @@
  *    reference them; user-renamed/added options pass through untouched).
  *    An optionless status schema (never authored with options) gets the
  *    designed fixed-uuid option set instead;
- *  - class.property.set { classId: task, propertySchemaId: taskStatus,
- *    display: "bullet" } when the binding row exists and carries no position
- *    yet (NULL/'panel'). A user-chosen position is never overwritten.
+ *  - propertySchema.update { propertySchemaId: taskStatus, display: "bullet" }
+ *    (§34.90: the position is a PROPERTY-level field — moved off the class
+ *    binding in the owner review) when the schema carries no position yet
+ *    (NULL/'panel'). A user-chosen position is never overwritten.
  *
  * The plan is read from a SCRATCH derived store (latest snapshot + log tail —
  * the same restore+catch-up shape the sync server hydrates with), so the
@@ -24,11 +25,10 @@
  * validated through the protocol zod schemas BEFORE anything is inserted.
  * Idempotent: a second run plans nothing.
  *
- * LOCKSTEP NOTE: the option-icon envelope syncs through pre-§34.89 clients
- * (the option record is non-strict — unknown keys are stripped, not
- * rejected). The display:"bullet" envelope is STRICT-payload and is rejected
- * by pre-§34.89 GTK/Flutter clients — run this only when those clients are
- * already updated (or accept that they must be before their next sync).
+ * LOCKSTEP NOTE: both envelopes are propertySchema.update — accepted by
+ * any client whose propertySchema.update validator allows additive display
+ * keys (§34.90 TS reference first; GTK/Flutter v3.1.1+). Older strict
+ * validators reject them — update clients before running --apply.
  *
  * DRY RUN BY DEFAULT: without --apply the script prints the full plan and
  * writes nothing. --apply inserts through RelayStorage.ingest and then
@@ -139,8 +139,8 @@ interface Plan {
   styledOptions: OptionRow[] | null;
   /** True when the status schema exists but carries no options at all. */
   optionless: boolean;
-  /** The binding row's current display (NULL/'panel'/'bullet'/'inline'). */
-  bindingDisplay: string | null;
+  /** The SCHEMA row's current display (NULL/'panel'/'bullet'/'inline'). */
+  schemaDisplay: string | null;
   /** True when no stored option matched a designed label (left alone). */
   unmatchedLabels: boolean;
   /** True when the status schema row is missing entirely. */
@@ -158,7 +158,7 @@ function planStyles(store: Store): Plan {
     return {
       styledOptions: null,
       optionless: false,
-      bindingDisplay: null,
+      schemaDisplay: null,
       unmatchedLabels: false,
       schemaMissing: true,
       storedOptionIds: [],
@@ -170,12 +170,12 @@ function planStyles(store: Store): Plan {
   const unmatchedLabels =
     stored.length > 0 && !stored.some((option) => designedLabels.has(option.label));
   const binding = db
-    .prepare("SELECT display FROM class_property WHERE class_id = ? AND property_schema_id = ?")
-    .get(TASK_CLASS_ID, STATUS_SCHEMA_ID) as { display: string | null } | undefined;
+    .prepare("SELECT display FROM property_schema WHERE id = ?")
+    .get(STATUS_SCHEMA_ID) as { display: string | null } | undefined;
   return {
     styledOptions: styled,
     optionless: stored.length === 0,
-    bindingDisplay: binding?.display ?? null,
+    schemaDisplay: binding?.display ?? null,
     unmatchedLabels,
     schemaMissing: false,
     storedOptionIds: stored.map((option) => option.id),
@@ -213,7 +213,7 @@ function buildEnvelopes(workspaceId: string, plan: Plan): Envelope[] {
       }),
     );
   }
-  if (plan.bindingDisplay === null || plan.bindingDisplay === "panel") {
+  if (plan.schemaDisplay === null || plan.schemaDisplay === "panel") {
     envelopes.push(
       newEnvelope({
         workspaceId,
@@ -221,9 +221,9 @@ function buildEnvelopes(workspaceId: string, plan: Plan): Envelope[] {
         deviceId: DEVICE,
         client: CLIENT,
         hlc: { physical, logical: envelopes.length },
-        affectedNodeIds: [TASK_CLASS_ID],
-        opType: "class.property.set",
-        payload: { classId: TASK_CLASS_ID, propertySchemaId: STATUS_SCHEMA_ID, display: "bullet" },
+        affectedNodeIds: [],
+        opType: "propertySchema.update",
+        payload: { propertySchemaId: STATUS_SCHEMA_ID, display: "bullet" },
       }),
     );
   }
@@ -321,13 +321,13 @@ function verify(
       }
     }
     const binding = db
-      .prepare("SELECT display FROM class_property WHERE class_id = ? AND property_schema_id = ?")
-      .get(TASK_CLASS_ID, STATUS_SCHEMA_ID) as { display: string | null } | undefined;
+      .prepare("SELECT display FROM property_schema WHERE id = ?")
+      .get(STATUS_SCHEMA_ID) as { display: string | null } | undefined;
     if (binding === undefined) {
-      throw new Error("verification failed: the task Status binding row is missing");
+      throw new Error("verification failed: the task Status schema row is missing");
     }
     if (binding.display !== "bullet") {
-      throw new Error(`verification failed: binding display ${JSON.stringify(binding.display)} != "bullet"`);
+      throw new Error(`verification failed: schema display ${JSON.stringify(binding.display)} != "bullet"`);
     }
   } finally {
     store.close();
@@ -382,8 +382,8 @@ function main(): void {
         console.log("  status options already carry the designed styles");
       }
       console.log(
-        `  Status binding display: ${plan.bindingDisplay ?? "(null)"} → ` +
-          (plan.bindingDisplay === null || plan.bindingDisplay === "panel"
+        `  Status schema display: ${plan.schemaDisplay ?? "(null)"} → ` +
+          (plan.schemaDisplay === null || plan.schemaDisplay === "panel"
             ? '"bullet"'
             : "kept (user-chosen)"),
       );
