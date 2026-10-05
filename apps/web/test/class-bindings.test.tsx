@@ -76,8 +76,6 @@ describe("Class View class properties editor", () => {
       name: "priority",
       sequence: 0,
       required: null,
-      readonly: null,
-      hideWhenEmpty: null,
       defaultValue: null,
     });
     // The popup no longer lists the bound schema.

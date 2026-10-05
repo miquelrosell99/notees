@@ -376,7 +376,7 @@ describe("class property binding routes (§34.32 PG7)", () => {
     return schemaId;
   }
 
-  it("POST binds sequence/flags/defaultValue and the effective read derives the default", async () => {
+  it("POST binds sequence/required/defaultValue and the effective read derives the default (§34.90: the render contracts are schema-level)", async () => {
     const classId = await createClass("pg7-shelf");
     const schemaId = await createSchema("pg7-code");
 
@@ -384,17 +384,26 @@ describe("class property binding routes (§34.32 PG7)", () => {
       payload: { propertySchemaId: schemaId, sequence: 2, required: true, defaultValue: "n/a" },
     });
     expect(bound.statusCode).toBe(200);
+    // §34.90: the binding echo carries ONLY the per-class mechanics.
     expect(bound.json()).toMatchObject({
       classId,
       propertySchemaId: schemaId,
-      binding: { propertySchemaId: schemaId, sequence: 2, required: true, readonly: null, hideWhenEmpty: null, defaultValue: "n/a" },
+      binding: { propertySchemaId: schemaId, sequence: 2, required: true, defaultValue: "n/a" },
     });
+    expect(bound.json().binding).not.toHaveProperty("readonly");
+    expect(bound.json().binding).not.toHaveProperty("hideWhenEmpty");
 
     // The patch contract: omitted fields keep their values.
     const patched = await api("POST", `/api/classes/${classId}/properties`, {
-      payload: { propertySchemaId: schemaId, readonly: false },
+      payload: { propertySchemaId: schemaId, required: false },
     });
-    expect(patched.json().binding).toMatchObject({ sequence: 2, required: true, readonly: false });
+    expect(patched.json().binding).toMatchObject({ sequence: 2, required: false });
+
+    // The render contracts live on the SCHEMA (required stays per-class).
+    const schemaPatched = await api("PATCH", `/api/property-schemas/${schemaId}`, {
+      payload: { readonly: true, hideWhenEmpty: true },
+    });
+    expect(schemaPatched.statusCode).toBe(200);
 
     const member = (
       await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "pg7-book", classIds: [classId] } })
@@ -403,7 +412,14 @@ describe("class property binding routes (§34.32 PG7)", () => {
     const row = (effective.json().properties as Array<Record<string, unknown>>).find(
       (p) => p.schemaId === schemaId,
     );
-    expect(row).toMatchObject({ value: "n/a", source: "default", boundBy: classId });
+    expect(row).toMatchObject({
+      value: "n/a",
+      source: "default",
+      boundBy: classId,
+      required: false,
+      readonly: true,
+      hideWhenEmpty: true,
+    });
   });
 
   it("POST fails loud on a wrong-typed defaultValue (PC2) and on unknown class/schema", async () => {
