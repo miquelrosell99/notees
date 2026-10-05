@@ -28,7 +28,7 @@ import { rendersWithDocumentChrome } from "@notees/domain";
 
 import { Icon } from "../Icon.js";
 import { BlockRow } from "../BlockRow.js";
-import { classIconMap, nodeIcon } from "../iconFor.js";
+import { nodeIcon } from "../iconFor.js";
 import { displayNameForSettings, displayNameFromClient } from "../dateDisplay.js";
 import { renderStateLabel } from "../renderStateLabel.js";
 import { registerView } from "./registry.js";
@@ -96,7 +96,7 @@ export function OutlineRow({
   props: NodeCollectionProps;
 }) {
   const { client, onNodeClick, onNodeShiftClick, trailingAction, renderItem } = props;
-  const icon = nodeIcon(item.node, classIconMap(client.listClasses()));
+  const icon = nodeIcon(item.node, client.classIcons());
   const label = displayNameForSettings(item.node) || "Untitled";
   const row = (
     <span className="outline-row">

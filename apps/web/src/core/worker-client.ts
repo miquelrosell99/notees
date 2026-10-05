@@ -288,6 +288,11 @@ export class WorkerClient {
     return this.cachedRead<ClientNode[]>("listClasses", [], []);
   }
 
+  /** The narrow id → icon read behind the UI icon maps (§34.92). */
+  classIcons(): ReadonlyMap<string, string | null> {
+    return this.cachedRead<ReadonlyMap<string, string | null>>("classIcons", [], new Map());
+  }
+
   getClassParents(classId: string): string[] {
     return this.cachedRead<string[]>("getClassParents", [classId], []);
   }

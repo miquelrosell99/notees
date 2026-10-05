@@ -36,6 +36,8 @@ export type { Notification, NotificationType } from './notificationStore.js';
 export { BackendUnavailableOverlay } from './BackendUnavailableOverlay.js';
 export type { BackendUnavailableOverlayProps } from './BackendUnavailableOverlay.js';
 
+export { InProcessStoreBanner } from './InProcessStoreBanner.js';
+
 export { Card } from './Card.js';
 export type { CardProps, CardElevation, CardVariant, CardRadius } from './Card.js';
 

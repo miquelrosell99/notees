@@ -133,6 +133,11 @@ export interface OutlinerReader {
   /** Top-level pages only (parentless non-class) — shell hubs + export enumerator. */
   roots(): ClientNode[];
   listClasses(): ClientNode[];
+  /**
+   * The narrow id → icon read behind the UI icon maps (§34.92) — prefer this
+   * over `classIconMap(client.listClasses())`; both client classes satisfy it.
+   */
+  classIcons(): ReadonlyMap<string, string | null>;
   search(query: string): ClientNode[];
   getClassParents(classId: string): string[];
   getClassMembers(classId: string): ClientNode[];

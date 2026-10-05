@@ -355,6 +355,7 @@ describe("SystemSettingsModal", () => {
 describe("entry points", () => {
   const client = {
     listClasses: () => [],
+    classIcons: () => new Map(),
     listPages: () => [],
     // §34.55: the sidebar nav reads the feature surface for the Tasks hub.
     isFeatureEnabled: () => true,

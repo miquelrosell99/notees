@@ -383,10 +383,20 @@ over the **sql.js** backend (local derived state persisted to OPFS via a Web Wor
 (outbox push + seq-cursor pull + snapshot shortcut), and a `Transport`
 (`HttpTransport` against a relay server in the app; `MemoryTransport` over a `MemoryRelay`
 in tests — both in `packages/sync/src/transport.ts`). Reads always hit the local store —
-the render-path list reads (`listClasses`/`listPages`/`roots`) are **revision-cached**
-since §34.92: `notify()` (the single write/refresh funnel) clears the memo, so within
-one store version every caller shares one query result, and callers must treat the
-returned arrays as read-only;
+the render-path list reads (`listClasses`/`listPages`/`roots`/`getBlockTree`/`classIcons`)
+are **revision-cached** since §34.92: `notify()` (the single write/refresh funnel) clears
+the memo, so within one store version every caller shares one query result, and callers
+must treat the returned arrays as read-only. On top of that, a per-row identity cache
+keeps `ClientNode` instances for unchanged rows across revisions (the stamp hashes the
+mapped columns, not hlc/updated_at — membership recomputes touch `class_ids`/`tag_ids`
+without bumping either), so a single keystroke's op doesn't re-map the workspace.
+`classIcons()` is the narrow `id, icon` read the icon maps consume (no content blob, no
+sort). The derived schema is at **v15** — the composite `idx_node_list_reads`
+(`workspace_id, is_class, is_active, name, id`) serves the list WHERE + ORDER BY; it is
+version-gated DDL (pre-v8 node tables can't parse it), re-asserted on the snapshot-repair
+path. When the Web Worker store is unavailable and the app falls back to the in-process
+client, `detectStoreMode()` warns in the console (naming the missing capability) and the
+UI shows the dismissible `InProcessStoreBanner`;
 writes build envelopes (`newEnvelope`, deviceId `web`), apply optimistically via
 `enqueue`, then push best-effort (`push()` awaits delivery when it must be
 deterministic). Every local write funnels through the `enqueueLocal` seam, which

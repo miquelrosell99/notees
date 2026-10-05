@@ -38,7 +38,7 @@ import { NodeSelector } from "../components/pickers/NodeSelector.js";
 import { DateSlotControl } from "../components/pickers/DateSlotControl.js";
 import { ExportPageModal } from "../components/modals/ExportPageModal.js";
 import { downloadBlob } from "../components/modals/download.js";
-import { classIconMap, nodeIcon } from "../iconFor.js";
+import { nodeIcon } from "../iconFor.js";
 import { displayNameForSettings, displayNameFromClient, formatIsoDate } from "../dateDisplay.js";
 import { registerView } from "./registry.js";
 import { useWindowed } from "./useWindowed.js";
@@ -679,7 +679,7 @@ export function TableView(props: NodeCollectionProps) {
     resetKey: sortKey,
     enabled: props.windowed ?? true,
   });
-  const iconMap = classIconMap(client.listClasses());
+  const iconMap = client.classIcons();
 
   const cycleSort = (column: TableColumn) => {
     if (column.sortable === false) return;
