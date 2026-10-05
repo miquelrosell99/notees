@@ -24,6 +24,7 @@ import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspac
 import { PresentationOverlay } from "../components/ui/PresentationOverlay.js";
 import { cssColorFor } from "../components/ui/colorPresets.js";
 import { openNodeLinkMenu } from "../components/NodeLinkContextMenu.js";
+import { resolveAliasOpen } from "../components/aliasProperty.js";
 import { EmbedBoundary, EmbedView } from "../EmbedView.js";
 import { Icon } from "../Icon.js";
 import { InlineTokens } from "../InlineTokens.js";
@@ -97,7 +98,9 @@ function DeckBlock({ tree }: { tree: BlockTreeNode }) {
           resolveVerb={(schemaId) =>
             client.listPropertySchemas().find((schema) => schema.id === schemaId)?.name ?? null
           }
-          onOpenNode={(id) => openNode(id)}
+          // Issue #7 — a mention whose target is an alias page opens the
+          // MAIN page (the alias view stays reachable outside the deck).
+          onOpenNode={(id) => openNode(resolveAliasOpen(client, id))}
           resolveColor={(id) => {
             const target = client.getNode(id);
             return target === undefined ? null : client.effectiveNodeColor(target);
