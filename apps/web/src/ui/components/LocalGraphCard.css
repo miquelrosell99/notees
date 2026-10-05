@@ -1,0 +1,26 @@
+/* LocalGraphCard — the right-rail local graph hosts GraphView at card scale. */
+
+.nt-localgraph-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 260px;
+  max-height: 380px;
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md, 10px);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.nt-localgraph-card .nt-graph {
+  min-height: 0;
+  height: 100%;
+}
+
+.nt-localgraph-card .nt-graph__toolbar {
+  padding: 2px var(--spacing-xs, 4px);
+}
+
+.nt-localgraph-card .nt-graph__search,
+.nt-localgraph-card .nt-graph__counts {
+  display: none;
+}

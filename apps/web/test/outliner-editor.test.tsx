@@ -422,13 +422,13 @@ describe("outliner editor", () => {
     expect(container.querySelector(".nt-page-title")!.textContent).toBe("Committed Via Blur");
   });
 
-  it("an empty page offers an add-block affordance that creates the first block", async () => {
+  it("an empty page offers the ghost add-block affordance that creates the first block", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Blank" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
     expect(client.getBlockTree(pageId)).toHaveLength(0);
 
-    const add = screen.getByRole("button", { name: /add a block/i });
+    const add = screen.getByRole("button", { name: /click to add a block/i });
     await act(async () => {
       fireEvent.click(add);
     });
@@ -436,8 +436,9 @@ describe("outliner editor", () => {
     const tree = client.getBlockTree(pageId);
     expect(tree).toHaveLength(1);
     expect(tree[0]!.node.parentId).toBe(pageId);
-    // The affordance disappears and the new block takes the focus.
-    expect(screen.queryByRole("button", { name: /add a block/i })).toBeNull();
+    // The ghost stays (owner refinement: it is the always-on add affordance)
+    // and the new block takes the focus.
+    expect(screen.queryByRole("button", { name: /click to add a block/i })).not.toBeNull();
     const editor = container.querySelector<HTMLElement>(".nt-block-text");
     expect(editor).not.toBeNull();
     expect(document.activeElement).toBe(editor);

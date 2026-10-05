@@ -410,13 +410,13 @@ describe("ghost trailing block", () => {
     expect(container.querySelector(".nt-block-text")).not.toBeNull();
   });
 
-  it("hides when the last child is already empty", async () => {
+  it("shows even when the last child is already empty (owner refinement: the ghost is always the add affordance)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
     await client.createObject({ parentId: pageId, contentAst: [] });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
-    expect(container.querySelector(".nt-ghost-block")).toBeNull();
+    expect(container.querySelector(".nt-ghost-block")).not.toBeNull();
   });
 
   it("embedded renders skip the ghost", async () => {

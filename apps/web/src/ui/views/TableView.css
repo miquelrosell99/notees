@@ -103,11 +103,21 @@
 .nt-table-select {
   font: inherit;
   color: inherit;
-  background: var(--color-surface-container-low, transparent);
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant, currentColor);
+  /* Owner refinement: fields ride the cell chrome — no border. */
+  background: transparent;
+  border: none;
   border-radius: var(--radius-sm, 6px);
   padding: var(--spacing-micro, 2px) var(--spacing-1, 4px);
   max-width: 100%;
+}
+
+.nt-table-select:hover {
+  background: var(--color-hover-overlay, transparent);
+}
+
+.nt-table-select:focus-visible {
+  outline: 2px solid var(--color-primary, currentColor);
+  outline-offset: -1px;
 }
 
 .nt-window-more {
@@ -262,12 +272,23 @@
 .nt-table-input {
   font: inherit;
   color: inherit;
-  background: var(--color-surface, transparent);
-  border: var(--border-width-default, 1px) solid var(--color-primary, currentColor);
+  /* Owner refinement: super-clean fields — the content sits directly in the
+     cell, no chrome (was: a primary-colored outlined input). */
+  background: transparent;
+  border: none;
   border-radius: var(--radius-sm, 6px);
   padding: var(--spacing-micro, 2px) var(--spacing-1, 4px);
   width: 100%;
   min-width: 80px;
+}
+
+.nt-table-input:hover {
+  background: var(--color-hover-overlay, transparent);
+}
+
+.nt-table-input:focus-visible {
+  outline: 2px solid var(--color-primary, currentColor);
+  outline-offset: -1px;
 }
 
 .nt-table-date {
@@ -315,4 +336,20 @@
   font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
   white-space: nowrap;
+}
+
+/* The Created/Updated day-page link — borderless, rides the cell text. */
+.nt-table-daylink {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: var(--radius-sm, 6px);
+}
+
+.nt-table-daylink:hover {
+  color: var(--color-primary, currentColor);
+  text-decoration: underline;
 }
