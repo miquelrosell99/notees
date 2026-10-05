@@ -13,7 +13,7 @@ import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspac
 
 import { proseFromAst } from "@/editor/prose.js";
 
-import { displayNameForSettings } from "../dateDisplay.js";
+import { displayNameForSettings, formatIsoDate } from "../dateDisplay.js";
 import "./PageFooter.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -76,7 +76,7 @@ function DayLink({
           .finally(() => setPending(false));
       }}
     >
-      {label} {new Date(dayIso + "T12:00:00").toLocaleDateString()}
+      {label} {formatIsoDate(iso) ?? "—"}
     </button>
   );
 }

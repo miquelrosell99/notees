@@ -15,6 +15,8 @@ export interface GraphSettings {
   showClasses: boolean;
   /** The journal chain (year/month/day) renders (default OFF — v1 precedent). */
   showJournal: boolean;
+  /** Orphan nodes (no visible edges) render (default on). */
+  showOrphans: boolean;
   /** Per link-family visibility. */
   families: Record<GraphEdgeKind, boolean>;
   /** Semantic co-occurrence: per-node top-K kept edges (slider). */
@@ -26,7 +28,15 @@ export interface GraphSettings {
 export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
   showClasses: true,
   showJournal: false,
-  families: { mention: true, property: true, parent: true, class: true, semantic: true },
+  showOrphans: true,
+  families: {
+    mention: true,
+    property: true,
+    parent: true,
+    class: true,
+    semantic: true,
+    temporal: true,
+  },
   semanticTopK: 6,
   semanticMinWeight: 1,
 };
@@ -43,12 +53,17 @@ export function isJournalNode(node: { id: string; classIds: string[] }): boolean
 }
 
 /**
- * The semantic sparsification: per-node top-K by weight, min-weight cut,
- * symmetric keep (an edge survives when EITHER endpoint keeps it). The cut
- * is display-only — the projection stays whole.
+ * The semantic/temporal sparsification: per-node top-K by weight, min-weight
+ * cut, symmetric keep (an edge survives when EITHER endpoint keeps it). The
+ * cut is display-only — the projection stays whole.
  */
-export function sparsifySemantic(edges: GraphEdge[], topK: number, minWeight: number): GraphEdge[] {
-  const semantic = edges.filter((e) => e.kind === "semantic" && e.weight >= minWeight);
+export function sparsifySemantic(
+  edges: GraphEdge[],
+  topK: number,
+  minWeight: number,
+  kind: GraphEdgeKind = "semantic",
+): GraphEdge[] {
+  const semantic = edges.filter((e) => e.kind === kind && e.weight >= minWeight);
   if (semantic.length === 0) return [];
   const byNode = new Map<string, GraphEdge[]>();
   const link = (id: string, edge: GraphEdge): void => {
@@ -73,8 +88,9 @@ export function sparsifySemantic(edges: GraphEdge[], topK: number, minWeight: nu
 
 /**
  * Apply the settings to a topology: node-family filters, link-family filters,
- * semantic sparsification, and (optionally) scoping to a collection's items.
- * Returns the display topology — the input is never mutated.
+ * semantic sparsification, the orphan filter, and (optionally) scoping to a
+ * collection's items. Returns the display topology — the input is never
+ * mutated.
  */
 export function applyGraphSettings(
   topology: GraphTopology,
@@ -90,16 +106,30 @@ export function applyGraphSettings(
   const nodeIds = new Set(nodes.map((n) => n.id));
 
   const structural = topology.edges.filter(
-    (e) => e.kind !== "semantic" && settings.families[e.kind] === true,
+    (e) => e.kind !== "semantic" && e.kind !== "temporal" && settings.families[e.kind] === true,
   );
   const semantic = settings.families.semantic === true
-    ? sparsifySemantic(topology.edges, settings.semanticTopK, settings.semanticMinWeight)
+    ? sparsifySemantic(topology.edges, settings.semanticTopK, settings.semanticMinWeight, "semantic")
+    : [];
+  const temporal = settings.families.temporal === true
+    ? sparsifySemantic(topology.edges, settings.semanticTopK, settings.semanticMinWeight, "temporal")
     : [];
 
-  const edges = [...structural, ...semantic].filter(
+  let edges = [...structural, ...semantic, ...temporal].filter(
     (e) => nodeIds.has(e.source) && nodeIds.has(e.target),
   );
-  return { nodes, edges };
+  let finalNodes = nodes;
+  if (!settings.showOrphans) {
+    const degree = new Map<string, number>();
+    for (const e of edges) {
+      degree.set(e.source, (degree.get(e.source) ?? 0) + 1);
+      degree.set(e.target, (degree.get(e.target) ?? 0) + 1);
+    }
+    finalNodes = nodes.filter((node) => (degree.get(node.id) ?? 0) > 0);
+    const kept = new Set(finalNodes.map((n) => n.id));
+    edges = edges.filter((e) => kept.has(e.source) && kept.has(e.target));
+  }
+  return { nodes: finalNodes, edges };
 }
 
 /** Honest counts for the toolbar (the §34.70 rule: counts name the full set). */
@@ -114,16 +144,17 @@ export const LINK_TYPE_IDS: Record<GraphEdgeKind, number> = {
   mention: 2,
   property: 3,
   semantic: 4,
+  temporal: 5,
 };
 
 /**
  * The zoom-dependent edge LOD mask (the v1 convention): parent/class always,
- * mention from 0.30, property from 0.60, semantic from 1.00.
+ * mention from 0.30, property from 0.60, semantic + temporal from 1.00.
  */
 export function edgeMaskForZoom(zoom: number): number {
   let mask = (1 << LINK_TYPE_IDS.parent) | (1 << LINK_TYPE_IDS.class);
   if (zoom >= 0.3) mask |= 1 << LINK_TYPE_IDS.mention;
   if (zoom >= 0.6) mask |= 1 << LINK_TYPE_IDS.property;
-  if (zoom >= 1.0) mask |= 1 << LINK_TYPE_IDS.semantic;
+  if (zoom >= 1.0) mask |= (1 << LINK_TYPE_IDS.semantic) | (1 << LINK_TYPE_IDS.temporal);
   return mask;
 }

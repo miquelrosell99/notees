@@ -14,6 +14,7 @@ import type { WorkspaceClient } from "@/core/workspace-client.js";
 
 import { Icon } from "../../Icon.js";
 import { IconPickerPopup } from "../IconPickerPopup.js";
+import "./ClassIconButton.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 

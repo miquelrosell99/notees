@@ -36,6 +36,25 @@ export function readDateFormat(): DateFormat {
 }
 
 /**
+ * Format an ISO timestamp (created_at/updated_at, UTC on the wire) as a
+ * LOCAL calendar date in the user's display format — the single helper the
+ * Created/Updated stamps ride everywhere (footer, tables). Null when the
+ * timestamp is missing/unparseable.
+ */
+export function formatIsoDate(
+  iso: string | null,
+  format: DateFormat = readDateFormat(),
+): string | null {
+  if (iso === null) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  const year = String(date.getFullYear());
+  const month = pad2(date.getMonth() + 1);
+  const day = pad2(date.getDate());
+  return format.replace(/YYYY/g, year).replace(/MM/g, month).replace(/DD/g, day);
+}
+
+/**
  * Format a stored date-node name for display, honoring the user's format.
  * Day names apply the setting's token layout; month/year names have no
  * setting layout (the options are day-oriented) and keep the canonical

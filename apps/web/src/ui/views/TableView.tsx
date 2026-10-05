@@ -39,7 +39,7 @@ import { DateSlotControl } from "../components/pickers/DateSlotControl.js";
 import { ExportPageModal } from "../components/modals/ExportPageModal.js";
 import { downloadBlob } from "../components/modals/download.js";
 import { classIconMap, nodeIcon } from "../iconFor.js";
-import { displayNameForSettings, displayNameFromClient } from "../dateDisplay.js";
+import { displayNameForSettings, displayNameFromClient, formatIsoDate } from "../dateDisplay.js";
 import { registerView } from "./registry.js";
 import { useWindowed } from "./useWindowed.js";
 import { ShowMoreButton } from "./ShowMoreButton.js";
@@ -64,10 +64,9 @@ const DEFAULT_COLUMNS: TableColumn[] = [
 ];
 
 function formatCreated(createdAt: string | null): string {
-  if (createdAt === null) return "";
-  const date = new Date(createdAt);
-  if (Number.isNaN(date.getTime())) return createdAt;
-  return date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  // The user's display format (the settings dateFormat) — tables, footers,
+  // and exports all ride the same helper.
+  return formatIsoDate(createdAt) ?? (createdAt === null ? "" : createdAt);
 }
 
 /**
@@ -681,9 +680,28 @@ export function TableView(props: NodeCollectionProps) {
       );
     }
     if (column.kind === "created") {
+      const createdIso = formatIsoDate(node.createdAt);
       return (
         <td key={column.id} className="nt-table-created">
-          {formatCreated(node.createdAt)}
+          {createdIso === null ? (
+            "—"
+          ) : (
+            <button
+              type="button"
+              className="nt-table-daylink"
+              title={`Open the ${createdIso} day page`}
+              onClick={(event) => {
+                // The day-page link owns the click — the row's open rides
+                // the rest of the cell (the node-typed property precedent).
+                event.stopPropagation();
+                const dayIso = formatIsoDate(node.createdAt);
+                if (dayIso === null) return;
+                void client.ensureDateChain(dayIso).then(({ day }) => onNodeClick?.(day));
+              }}
+            >
+              {createdIso}
+            </button>
+          )}
         </td>
       );
     }
