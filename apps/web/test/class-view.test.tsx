@@ -76,8 +76,9 @@ describe("Class View", () => {
     expect(screen.getByRole("button", { name: "Add class extension" })).not.toBeNull();
     expect(screen.getByRole("button", { name: /class properties/i })).not.toBeNull();
     expect(classRender.container.querySelector(".nt-class")).not.toBeNull();
-    // The page body chrome: an empty class offers the first-block affordance.
-    expect(screen.getByRole("button", { name: /add a block/i })).not.toBeNull();
+    // The page body chrome: an empty class offers the first-block affordance
+    // (the v1 ghost row, aria-label "Add block").
+    expect(screen.getByRole("button", { name: /add block/i })).not.toBeNull();
     classRender.unmount();
 
     render(<NodeView client={client} nodeId={pageId} onOpenNode={() => {}} />);
