@@ -140,12 +140,12 @@ export interface UndoPropertyValueSnapshot {
   metadata: Record<string, unknown> | null;
 }
 
-/** One class_property binding row, decoded. */
+/** One class_property binding row, decoded. §34.90: the render contracts
+ *  (readonly/hideWhenEmpty/display) left the binding for the property schema
+ *  — a binding snapshot carries only what class.property.set still writes. */
 export interface UndoBindingSnapshot {
   sequence: number;
   required: boolean | null;
-  readonly: boolean | null;
-  hideWhenEmpty: boolean | null;
   /** undefined = the row's default_value SQL NULL (no stored default). */
   defaultValue: unknown;
   active: boolean;
@@ -161,6 +161,10 @@ export interface UndoSchemaSnapshot {
   targetClassFilter: string[] | null;
   datePrecision: string | null;
   dateQualified: boolean | null;
+  /** §34.90 render contracts (PROPERTY-level): null = panel / unset. */
+  display: "panel" | "bullet" | "inline" | null;
+  readonly: boolean | null;
+  hideWhenEmpty: boolean | null;
 }
 
 /** One node_asset row, decoded. */
@@ -426,8 +430,6 @@ export function invertEnvelope(
       const BINDING_FIELDS = [
         "sequence",
         "required",
-        "readonly",
-        "hideWhenEmpty",
         "defaultValue",
         "active",
       ] as const;
@@ -453,10 +455,7 @@ export function invertEnvelope(
         // itself can only ever write).
         const value = prior[field as keyof UndoBindingSnapshot];
         if (field === "defaultValue" && value === undefined) restore[field] = null;
-        else if (
-          (field === "required" || field === "readonly" || field === "hideWhenEmpty") &&
-          value === null
-        ) {
+        else if (field === "required" && value === null) {
           restore[field] = false;
         } else {
           restore[field] = value;
@@ -476,8 +475,6 @@ export function invertEnvelope(
         propertySchemaId,
         sequence: prior.sequence,
         required: nullableFlag(prior.required),
-        readonly: nullableFlag(prior.readonly),
-        hideWhenEmpty: nullableFlag(prior.hideWhenEmpty),
         defaultValue: prior.defaultValue === undefined ? null : prior.defaultValue,
         active: prior.active,
       };
@@ -508,6 +505,9 @@ export function invertEnvelope(
         restore.datePrecision = prior.datePrecision ?? "day";
       }
       if (hasOwn(p, "dateQualified")) restore.dateQualified = prior.dateQualified ?? false;
+      if (hasOwn(p, "display")) restore.display = prior.display;
+      if (hasOwn(p, "readonly")) restore.readonly = prior.readonly;
+      if (hasOwn(p, "hideWhenEmpty")) restore.hideWhenEmpty = prior.hideWhenEmpty;
       if (Object.keys(restore).length === 1) return null;
       return [{ opType: "propertySchema.update", payload: restore, affected: [] }];
     }

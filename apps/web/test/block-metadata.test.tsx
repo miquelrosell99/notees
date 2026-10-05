@@ -141,8 +141,9 @@ describe("BlockRow metadata section", () => {
   });
 });
 
-describe("BlockRow §34.89 value-display buttons", () => {
-  /** A block whose class binds a select schema at the given display position. */
+describe("BlockRow §34.90 value-display buttons", () => {
+  /** A block whose class binds a select schema at the given display
+   *  position (§34.90: display is property-level — set on the schema). */
   async function seedDisplayBlock(display: "bullet" | "inline" | "panel") {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({
@@ -151,10 +152,10 @@ describe("BlockRow §34.89 value-display buttons", () => {
       options: [{ id: "opt-1", label: "Doing", icon: "mdiCircleHalfFull", color: "orange" }],
     });
     const classId = await client.createClass("Taskish");
-    await client.setClassProperty(classId, schemaId, {
-      sequence: 0,
-      ...(display === "panel" ? {} : { display }),
-    });
+    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    if (display !== "panel") {
+      await client.updatePropertySchema(schemaId, { display });
+    }
     const pageId = await client.createObject({ presentAsMain: true, name: "Tasks" });
     const blockId = await client.createObject({
       parentId: pageId,
@@ -212,7 +213,8 @@ describe("BlockRow §34.89 value-display buttons", () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "reviewed", type: "boolean" });
     const classId = await client.createClass("Reviewable");
-    await client.setClassProperty(classId, schemaId, { sequence: 0, display: "bullet" });
+    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    await client.updatePropertySchema(schemaId, { display: "bullet" });
     const pageId = await client.createObject({ presentAsMain: true, name: "Review" });
     const blockId = await client.createObject({
       parentId: pageId,
