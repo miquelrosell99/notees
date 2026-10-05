@@ -32,6 +32,7 @@ import { registerPluginRoutes, requireAdmin } from "./routes-plugins.js";
 import { registerPrefsRoutes } from "./routes-prefs.js";
 import { registerRelayRoutes, authorizeWorkspace } from "./routes-relay.js";
 import { registerPublicShareRoute, registerShareRoutes } from "./routes-shares.js";
+import { registerWorkflowRoutes } from "./routes-workflows.js";
 import { buildOpenApiDocument, documentedRoutes } from "./openapi.js";
 import { buildRouteScopeMap, enforceRouteScope } from "./scopes.js";
 
@@ -229,6 +230,17 @@ export async function buildServer(
     { prefix: "/api" },
   );
   registerPublicShareRoute(app, ctx);
+
+  // Workflow rules (issue #13): server-side "when X on nodes matching Y, do Z"
+  // — coordination state on relay.db (the prefs/shares/plugins ruling); the
+  // engine writes ordinary ops as a server actor through the one write path.
+  // Read: any authenticated principal; write: owner/admin (the shares idiom).
+  await app.register(
+    async (api) => {
+      registerWorkflowRoutes(api, ctx);
+    },
+    { prefix: "/api" },
+  );
 
   app.addHook("onClose", async () => {
     await ctx.close();
