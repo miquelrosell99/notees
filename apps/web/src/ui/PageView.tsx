@@ -65,6 +65,7 @@ import { SystemSections } from "./components/SystemSections.js";
 import { canHaveCoverOf, coverAssetIdOf, ensureCoverProperty } from "./components/coverProperty.js";
 import { ensureAliasOfProperty, ensureAliasProperty } from "./components/aliasProperty.js";
 import { AliasOfBanner } from "./components/AliasOfBanner.js";
+import { useDeviceSetting } from "./components/modals/deviceSettings.js";
 import { EmbedBoundary } from "./EmbedView.js";
 import { Icon } from "./Icon.js";
 import { TitleEditor } from "./TitleEditor.js";
@@ -159,6 +160,12 @@ export function PageView({
     "outline",
     BLOCKS_VIEW_MODES,
   );
+  /**
+   * Focus mode (#12) — device-local: the page keeps its title and editable
+   * body, but the surrounding chrome (classes corner, header icon, tags,
+   * cover, date bar, properties, system sections, footer) steps aside.
+   */
+  const [focusMode] = useDeviceSetting("focusMode", false);
   const [headerMenu, setHeaderMenu] = useState<{ x: number; y: number } | null>(null);
   /** Icon picker popup anchor + open state (clicking the page icon). */
   const pageIconRef = useRef<HTMLElement | null>(null);
@@ -353,6 +360,8 @@ export function PageView({
     // §34.19 block multi-selection: the main page body is a selection
     // surface; embedded feed entries and class composition aren't.
     selection: !embedded && !forClass,
+    // Focus mode (#12): block rows hide their reference/property chrome.
+    focusMode,
   });
   const positions = outliner.positions;
   const outlinerRef = useRef(outliner);
@@ -499,8 +508,10 @@ export function PageView({
         >
           {/* Classes: pinned to the main content card's top-left corner
               (outside the centered content column), with card padding.
-              Class composition swaps in its extends (parent-class) pills. */}
-          {!embedded &&
+              Class composition swaps in its extends (parent-class) pills.
+              Focus mode (#12) hides the corner — the title row is the one
+              landmark that stays. */}
+          {!embedded && !focusMode &&
             (corner !== undefined ? (
               corner
             ) : (
@@ -522,41 +533,42 @@ export function PageView({
           <div className="page-header-section">
           <header className="nt-page-header">
           <div className="page-header__title-row">
-            {iconButton !== undefined ? (
-              iconButton
-            ) : (
-              <>
-                <span
-                  className="page-icon-btn"
-                  title="Page icon (click: change icon)"
-                  ref={pageIconRef}
-                  onClick={() => {
-                    if (!embedded) setIconPickerOpen((open) => !open);
-                  }}
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    setHeaderMenu({ x: event.clientX, y: event.clientY });
-                  }}
-                >
-                  {headerIcon !== null ? (
-                    <Icon path={headerIcon} size={1.4} className="page-icon-large" />
-                  ) : (
-                    <span className="page-icon-placeholder">◈</span>
-                  )}
-                </span>
-                {iconPickerOpen && (
-                  <IconPickerPopup
-                    value={page.icon ?? undefined}
-                    anchorEl={pageIconRef.current}
-                    onSelect={(iconValue) => {
-                      // "" clears (Icon treats empty as no icon).
-                      void client.updateObject(pageId, { icon: iconValue });
+            {!focusMode &&
+              (iconButton !== undefined ? (
+                iconButton
+              ) : (
+                <>
+                  <span
+                    className="page-icon-btn"
+                    title="Page icon (click: change icon)"
+                    ref={pageIconRef}
+                    onClick={() => {
+                      if (!embedded) setIconPickerOpen((open) => !open);
                     }}
-                    onClose={() => setIconPickerOpen(false)}
-                  />
-                )}
-              </>
-            )}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      setHeaderMenu({ x: event.clientX, y: event.clientY });
+                    }}
+                  >
+                    {headerIcon !== null ? (
+                      <Icon path={headerIcon} size={1.4} className="page-icon-large" />
+                    ) : (
+                      <span className="page-icon-placeholder">◈</span>
+                    )}
+                  </span>
+                  {iconPickerOpen && (
+                    <IconPickerPopup
+                      value={page.icon ?? undefined}
+                      anchorEl={pageIconRef.current}
+                      onSelect={(iconValue) => {
+                        // "" clears (Icon treats empty as no icon).
+                        void client.updateObject(pageId, { icon: iconValue });
+                      }}
+                      onClose={() => setIconPickerOpen(false)}
+                    />
+                  )}
+                </>
+              ))}
             {/* Right-click anywhere on the title (not just the icon) opens the
                 page's node context menu — the browser menu is never the
                 honest surface for a node. */}
@@ -590,21 +602,21 @@ export function PageView({
                 />
               </div>
             )}
-            {headerActions !== undefined && (
+            {headerActions !== undefined && !focusMode && (
               <div className="nt-page-toolbar">{headerActions}</div>
             )}
           </div>
-          {!embedded && (
+          {!embedded && !focusMode && (
             <TagsRow client={client} nodeId={pageId} tagIds={page.tagIds} onOpenPage={onOpenPage} />
           )}
         </header>
-        {coverPossible && (
+        {coverPossible && !focusMode && (
           <aside className="page-header-section__cover">
             <CoverCard client={client} pageId={pageId} assetId={coverAssetId} />
           </aside>
         )}
         </div>
-        {dayIso !== null && !embedded && (
+        {dayIso !== null && !embedded && !focusMode && (
           <DayPageDateBar client={client} iso={dayIso} onOpenPage={onOpenPage} />
         )}
         {notice}
@@ -615,18 +627,23 @@ export function PageView({
         )}
         {/* Issue #7 — an alias page names its main page and jumps to it;
             null for every ordinary page. */}
-        {!embedded && (
+        {!embedded && !focusMode && (
           <AliasOfBanner client={client} aliasPageId={pageId} onOpenPage={onOpenPage} />
         )}
-        <PropertiesSection client={client} nodeId={pageId} onOpenPage={onOpenPage} />
-        <div className="nt-metadata-divider" />
+        {!focusMode && (
+          <>
+            <PropertiesSection client={client} nodeId={pageId} onOpenPage={onOpenPage} />
+            <div className="nt-metadata-divider" />
+          </>
+        )}
         {whiteboardTokenIndex >= 0 || (whiteboardClassed && !embedded) ? (
           whiteboardTokenIndex >= 0 ? (
             <>
               <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
-              {systemSections ?? (
-                <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} withActivity={!embedded} />
-              )}
+              {!focusMode &&
+                (systemSections ?? (
+                  <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} withActivity={!embedded} />
+                ))}
             </>
           ) : (
             // Classed whiteboard without the token yet: the open effect is
@@ -693,9 +710,10 @@ export function PageView({
                       onOpenPage={onOpenPage}
                     />
                   )}
-                  {systemSections ?? (
-                    <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} withActivity={!embedded} />
-                  )}
+                  {!focusMode &&
+                    (systemSections ?? (
+                      <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} withActivity={!embedded} />
+                    ))}
                 </DropLineContext.Provider>
                 <DragOverlay dropAnimation={null}>
                   {dragging !== null && <div className="nt-drag-ghost">{dragging.label}</div>}
@@ -704,7 +722,7 @@ export function PageView({
             </EmbedBoundary>
           </>
         )}
-        {!embedded && (
+        {!embedded && !focusMode && (
           <PageFooter client={client} page={page} tree={tree} onOpenNode={onOpenPage} />
         )}
         </div>
