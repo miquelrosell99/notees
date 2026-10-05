@@ -117,6 +117,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
     toggleSelected,
     clearSelection,
     consumeDragClick,
+    focusMode,
   } = useOutliner();
   const dropLine = useContext(DropLineContext);
   const [editing, setEditing] = useState(false);
@@ -375,8 +376,9 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
             hugs the bullet element, the inline group hugs the content.
             Siblings of the grip and content — never inside .nt-block-content
             (the contentEditable DOM must stay untouched). In read-only
-            projections the icons render but open nothing. */}
-        {bulletDisplayGroups.length > 0 && (
+            projections the icons render but open nothing. Focus mode (#12)
+            hides both groups — properties are exactly what it suppresses. */}
+        {!focusMode && bulletDisplayGroups.length > 0 && (
           <span className="nt-block-bullet-props">
             {bulletDisplayGroups.map((group) => (
               <PropertyIconButton
@@ -395,7 +397,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
             ))}
           </span>
         )}
-        {inlineDisplayGroups.length > 0 && (
+        {!focusMode && inlineDisplayGroups.length > 0 && (
           <span className="nt-block-inline-props">
             {inlineDisplayGroups.map((group) => (
               <PropertyIconButton
@@ -486,7 +488,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
                 />
               </div>
             )}
-            {backlinkCount > 0 && (
+            {backlinkCount > 0 && !focusMode && (
               <BlockBacklinkToggle
                 count={backlinkCount}
                 expanded={backlinksExpanded}
@@ -498,8 +500,9 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
       </div>
       {/* Expanded block backlinks: the linked-references system query scoped
           to this block, lazy per the section contract (query on first
-          toggle, cached until an invalidating notification). */}
-      {backlinkCount > 0 && (
+          toggle, cached until an invalidating notification). Hidden in
+          focus mode (#12) with the gutter toggle. */}
+      {backlinkCount > 0 && !focusMode && (
         <BlockBacklinkPanel nodeId={node.id} expanded={backlinksExpanded} client={client} />
       )}
       {/* Tags: dedicated row below the block row, only when set (assignment
@@ -512,8 +515,9 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
       {/* Properties: the same collapsed "Properties N" section the page view
           uses; hidden entirely when the block carries no properties. Rows
           whose schema display rides the block row (§34.90 bullet/inline)
-          are omitted — the button above already surfaces the value. */}
-      {!readOnly && (
+          are omitted — the button above already surfaces the value. Focus
+          mode (#12) hides the whole section. */}
+      {!readOnly && !focusMode && (
         <PropertiesSection
           client={client}
           nodeId={node.id}
