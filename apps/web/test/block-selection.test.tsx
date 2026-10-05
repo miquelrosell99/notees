@@ -395,9 +395,13 @@ describe("ghost trailing block", () => {
     const pageId = await seedPage(client, ["only content"]);
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
-    const ghost = container.querySelector<HTMLButtonElement>(".nt-ghost-block");
+    // The page-root ghost is the trailing "+ Add block" row (v1 parity); the
+    // content block trails its own ghost beneath it.
+    const ghost = container.querySelector<HTMLElement>(
+      `[data-ghost="__ghost-${pageId}"]`,
+    )?.querySelector<HTMLButtonElement>("button");
     expect(ghost).not.toBeNull();
-    expect(ghost!.textContent).toContain("Click to add a block");
+    expect(ghost!.textContent).toContain("Add block");
     const before = client.getChildren(pageId).length;
 
     fireEvent.click(ghost!);
@@ -416,7 +420,7 @@ describe("ghost trailing block", () => {
     await client.createObject({ parentId: pageId, contentAst: [] });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
-    expect(container.querySelector(".nt-ghost-block")).not.toBeNull();
+    expect(container.querySelector(`[data-ghost="__ghost-${pageId}"]`)).not.toBeNull();
   });
 
   it("embedded renders skip the ghost", async () => {
@@ -424,6 +428,6 @@ describe("ghost trailing block", () => {
     const pageId = await seedPage(client, ["feed content"]);
     const { container } = render(<PageView client={client} pageId={pageId} embedded />);
 
-    expect(container.querySelector(".nt-ghost-block")).toBeNull();
+    expect(container.querySelector("[data-ghost]")).toBeNull();
   });
 });

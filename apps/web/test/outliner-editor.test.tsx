@@ -66,6 +66,39 @@ function typeInto(editor: HTMLElement, text: string): void {
   fireEvent.input(editor);
 }
 
+/** Place a collapsed caret at a PROSE offset (walks runs and pill elements). */
+function setProseCaret(editor: HTMLElement, proseOffset: number): void {
+  let acc = 0;
+  let target: Node | null = null;
+  let inner = 0;
+  for (const child of Array.from(editor.childNodes)) {
+    const len = child.textContent?.length ?? 0;
+    if (acc + len >= proseOffset) {
+      target = child;
+      inner = Math.max(0, proseOffset - acc);
+      break;
+    }
+    acc += len;
+  }
+  const range = document.createRange();
+  if (target === null) {
+    range.selectNodeContents(editor);
+    range.collapse(false);
+  } else {
+    const textNode = target instanceof HTMLElement ? (target.firstChild ?? target) : target;
+    const max = (textNode.textContent ?? "").length;
+    range.setStart(textNode, Math.min(inner, max));
+    range.collapse(true);
+  }
+  const selection = window.getSelection();
+  if (selection === null) throw new Error("no selection");
+  selection.removeAllRanges();
+  selection.addRange(range);
+  act(() => {
+    document.dispatchEvent(new Event("selectionchange"));
+  });
+}
+
 function node(id: string, children: BlockTreeNode[] = []): BlockTreeNode {
   return {
     node: {
@@ -243,6 +276,40 @@ describe("outliner editor", () => {
     expect(active).not.toBeNull();
     expect(active!.classList.contains("nt-block-text")).toBe(true);
     expect(active!.textContent).toBe("");
+  });
+
+  it("Enter's mid-text split keeps a class chip whole in the head or tail", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Split" });
+    const classId = await client.createClass("task");
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [
+        { type: "text", text: "before " },
+        { type: "class_chip", classId },
+        { type: "text", text: " after" },
+      ],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container, 0);
+    // Caret mid-text: "before task after" — offset 12 = start of "after"
+    // (right after the chip's trailing space).
+    setProseCaret(editor, 12);
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Enter" });
+    });
+
+    const tree = client.getBlockTree(pageId);
+    expect(tree).toHaveLength(2);
+    // The chip rides the head (it sits before the caret) — never cut.
+    expect(tree[0]!.node.contentAst).toEqual([
+      { type: "text", text: "before " },
+      { type: "class_chip", classId },
+      { type: "text", text: " " },
+    ]);
+    expect(tree[1]!.node.contentAst).toEqual([{ type: "text", text: "after" }]);
+    expect(tree[0]!.node.id).toBe(blockId);
   });
 
   it("Enter lands the new sibling immediately AFTER the current block, not at the end", async () => {
@@ -428,7 +495,9 @@ describe("outliner editor", () => {
     const { container } = render(<PageView client={client} pageId={pageId} />);
     expect(client.getBlockTree(pageId)).toHaveLength(0);
 
-    const add = screen.getByRole("button", { name: /click to add a block/i });
+    // The §34.85 ruling: the ghost is the SOLE add affordance and shows even
+    // on an empty body — the page root trails exactly one ghost row.
+    const add = screen.getByRole("button", { name: "Add block" });
     await act(async () => {
       fireEvent.click(add);
     });
@@ -436,11 +505,142 @@ describe("outliner editor", () => {
     const tree = client.getBlockTree(pageId);
     expect(tree).toHaveLength(1);
     expect(tree[0]!.node.parentId).toBe(pageId);
-    // The ghost stays (owner refinement: it is the always-on add affordance)
-    // and the new block takes the focus.
-    expect(screen.queryByRole("button", { name: /click to add a block/i })).not.toBeNull();
+    // The root ghost stays and the new block trails its own ghost — the
+    // affordance is always-on — and the new block takes the focus.
+    expect(screen.getAllByRole("button", { name: "Add block" })).toHaveLength(2);
     const editor = container.querySelector<HTMLElement>(".nt-block-text");
     expect(editor).not.toBeNull();
     expect(document.activeElement).toBe(editor);
+  });
+});
+
+describe("ghost block rows (the v1 add affordance)", () => {
+  /** Page with one root block holding a nested child. */
+  async function seedNestedPage(client: WorkspaceClient): Promise<{
+    pageId: string;
+    parentId: string;
+    childId: string;
+  }> {
+    const pageId = await client.createObject({ presentAsMain: true, name: "Nested" });
+    const parentId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "parent" }],
+    });
+    const childId = await client.createObject({
+      parentId,
+      contentAst: [{ type: "text", text: "child" }],
+    });
+    return { pageId, parentId, childId };
+  }
+
+  it("trails every expanded block at the next depth plus the page root", async () => {
+    const client = await seedClient();
+    const { pageId, parentId, childId } = await seedNestedPage(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const ghosts = container.querySelectorAll<HTMLElement>("[data-ghost]");
+    // One per expanded block (parent + child) plus the page root ghost.
+    expect(ghosts).toHaveLength(3);
+    const ids = [...ghosts].map((g) => g.dataset.ghost);
+    expect(ids).toContain(`__ghost-${pageId}`);
+    expect(ids).toContain(`__ghost-${parentId}`);
+    expect(ids).toContain(`__ghost-${childId}`);
+
+    // The parent's ghost rides INSIDE the parent's block at the child's
+    // depth: the slot is nested within the parent row's subtree, after the
+    // children container.
+    const parentBlock = container.querySelector<HTMLElement>(
+      `[data-block-id="${parentId}"]`,
+    )!;
+    const parentGhost = parentBlock.querySelector<HTMLElement>(
+      `[data-ghost="__ghost-${parentId}"]`,
+    )!;
+    expect(parentGhost.dataset.ghost).toBe(`__ghost-${parentId}`);
+    const slot = parentGhost.parentElement!;
+    expect(slot.classList.contains("nt-ghost-slot")).toBe(true);
+    // The slot follows the .nt-block-children container (ghost AFTER the
+    // real children at the same depth).
+    const childrenContainer = parentBlock.querySelector(".nt-block-children")!;
+    expect(slot.previousElementSibling).toBe(childrenContainer);
+  });
+
+  it("a collapsed block hides its ghost with its subtree", async () => {
+    const client = await seedClient();
+    const { pageId, parentId } = await seedNestedPage(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    expect(container.querySelectorAll("[data-ghost]")).toHaveLength(3);
+
+    // Collapse the parent via its chevron.
+    const chevron = container.querySelector<HTMLElement>(
+      `[data-block-id="${parentId}"] .nt-block-chevron`,
+    )!;
+    fireEvent.click(chevron);
+
+    // Parent ghost + child ghost go with the subtree; the root ghost stays.
+    const ghosts = container.querySelectorAll<HTMLElement>("[data-ghost]");
+    expect(ghosts).toHaveLength(1);
+    expect(ghosts[0]!.dataset.ghost).toBe(`__ghost-${pageId}`);
+  });
+
+  it("clicking a block's ghost creates a focused child after the last real child", async () => {
+    const client = await seedClient();
+    const { pageId, parentId, childId } = await seedNestedPage(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const parentGhost = container.querySelector<HTMLElement>(
+      `[data-ghost="__ghost-${parentId}"]`,
+    )!;
+    await act(async () => {
+      fireEvent.click(parentGhost.querySelector("button")!);
+    });
+
+    const parentChildren = client.getChildren(parentId);
+    expect(parentChildren).toHaveLength(2);
+    expect(parentChildren[0]!.id).toBe(childId);
+    // The new block lands AFTER the last real child (v1 realize semantics).
+    const created = parentChildren[1]!;
+    expect(created.contentAst).toEqual([]);
+    expect(created.parentId).toBe(parentId);
+
+    // The realized block takes edit focus.
+    const editor = container.querySelector<HTMLElement>(".nt-block-text");
+    expect(editor).not.toBeNull();
+    expect(document.activeElement).toBe(editor);
+  });
+
+  it("prose and cards modes render no ghosts", async () => {
+    const client = await seedClient();
+    const { pageId } = await seedNestedPage(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    expect(container.querySelectorAll("[data-ghost]").length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("radio", { name: "Prose" }));
+    expect(container.querySelectorAll("[data-ghost]")).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("radio", { name: "Cards" }));
+    expect(container.querySelectorAll("[data-ghost]")).toHaveLength(0);
+
+    // Back to outline: the affordance returns.
+    fireEvent.click(screen.getByRole("radio", { name: "Outline" }));
+    expect(container.querySelectorAll("[data-ghost]").length).toBeGreaterThan(0);
+  });
+
+  it("ghost ids never enter the sortable row id space", async () => {
+    const client = await seedClient();
+    const { pageId } = await seedNestedPage(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    // Every sortable row carries data-block-id from the real tree; no ghost
+    // id may (the dnd items arrays derive from those ids — a ghost id there
+    // would register a phantom sortable).
+    const blockIds = [...container.querySelectorAll("[data-block-id]")].map(
+      (el) => el.getAttribute("data-block-id")!,
+    );
+    expect(blockIds.some((id) => id.startsWith("__ghost-"))).toBe(false);
+    // And conversely no ghost claims a real block's data-block-id.
+    const ghosts = container.querySelectorAll<HTMLElement>("[data-ghost]");
+    for (const ghost of ghosts) {
+      expect(ghost.getAttribute("data-block-id")).toBeNull();
+    }
   });
 });

@@ -54,7 +54,7 @@ function isTree(items: NodeCollectionItem[]): boolean {
 }
 
 function TreeRows({ items, props }: { items: NodeCollectionItem[]; props: NodeCollectionProps }) {
-  const { client, editable = false, readOnly = !editable, renderItem } = props;
+  const { client, editable = false, readOnly = !editable, renderItem, ghost = true } = props;
   const resolveName = (id: string) => displayNameFromClient(client, id);
   // §34.70: only the READ-ONLY tree windows its top-level set (the child-
   // pages projection and friends); the editable outliner stays whole — it
@@ -68,7 +68,7 @@ function TreeRows({ items, props }: { items: NodeCollectionItem[]; props: NodeCo
     <SortableContext items={rows.map((row) => row.node.id)} strategy={verticalListSortingStrategy}>
       {rows.map((item) => {
         const row = (
-          <BlockRow key={item.node.id} tree={toBlockTree(item)} client={client} resolveName={resolveName} readOnly={readOnly} />
+          <BlockRow key={item.node.id} tree={toBlockTree(item)} client={client} resolveName={resolveName} readOnly={readOnly} ghost={ghost} />
         );
         if (renderItem === undefined) return row;
         return (

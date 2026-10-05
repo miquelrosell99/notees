@@ -10,12 +10,36 @@
  * projection cannot represent flattens them on save — the caller guards by
  * skipping saves whose draft equals the current prose (BlockTextEditor.flush),
  * so merely touching a mention/chip block without changing its text is free.
+ *
+ * Class chips carry no captured text on the wire (only an optional
+ * displayText): in the editor they render as label-resolved pills
+ * (contenteditable=false), so their LABEL counts toward the prose length to
+ * keep `el.textContent === proseFromAst(ast)` — the single coordinate system
+ * every prose-based operation rides. The label is re-resolved at build time
+ * through `resolveClassName`; without a resolver a chip contributes only its
+ * displayText (usually "" — the chip is prose-invisible, the pre-chip
+ * behavior every non-editor consumer keeps).
  */
 
 import type { ContentAst, Mark } from "@notees/protocol";
 
+/**
+ * Resolves a class chip's display label (the class node's current display
+ * name). Optional everywhere: only the block editor threads it (it has the
+ * client), so non-editor callers see chips as prose-invisible.
+ */
+export type ClassNameResolver = (classId: string) => string;
+
+/** A chip's prose contribution: the one-off wording when set, else the
+ *  re-resolved class display name, else "" (unresolved and unlabeled). */
+function chipLabel(token: Record<string, unknown>, resolveClassName?: ClassNameResolver): string {
+  if (typeof token.displayText === "string") return token.displayText;
+  if (typeof token.classId === "string") return resolveClassName?.(token.classId) ?? "";
+  return "";
+}
+
 /** Flatten a token stream to the editable plain-text projection. */
-export function proseFromAst(ast: readonly unknown[]): string {
+export function proseFromAst(ast: readonly unknown[], resolveClassName?: ClassNameResolver): string {
   const parts: string[] = [];
   const walk = (tokens: readonly unknown[]): void => {
     for (const token of tokens) {
@@ -26,6 +50,9 @@ export function proseFromAst(ast: readonly unknown[]): string {
         case "typed_link":
         case "mention":
           if (typeof t.text === "string") parts.push(t.text);
+          break;
+        case "class_chip":
+          parts.push(chipLabel(t, resolveClassName));
           break;
         case "math":
           if (typeof t.expression === "string") parts.push(t.expression);
@@ -51,8 +78,9 @@ export function proseFromAst(ast: readonly unknown[]): string {
  * `proseFromAst` builds from it. Tokens the projection skips (asset_ref,
  * embed_ref, query, whiteboard, malformed entries) get a zero-length range
  * at the current offset. Length rules mirror `proseFromAst`: text /
- * typed_link / mention count `text.length`, math counts `expression.length`,
- * hard_break counts 1 (its "\n"), quote counts its inline children.
+ * typed_link / mention count `text.length`, a class_chip counts its resolved
+ * label length, math counts `expression.length`, hard_break counts 1 (its
+ * "\n"), quote counts its inline children.
  */
 export interface ProseSpan {
   /** Index of the token in the top-level stream. */
@@ -63,7 +91,7 @@ export interface ProseSpan {
   end: number;
 }
 
-export function proseSpans(ast: readonly unknown[]): ProseSpan[] {
+export function proseSpans(ast: readonly unknown[], resolveClassName?: ClassNameResolver): ProseSpan[] {
   const spans: ProseSpan[] = [];
   let offset = 0;
   ast.forEach((token, index) => {
@@ -75,6 +103,9 @@ export function proseSpans(ast: readonly unknown[]): ProseSpan[] {
         case "typed_link":
         case "mention":
           if (typeof t.text === "string") length = t.text.length;
+          break;
+        case "class_chip":
+          length = chipLabel(t, resolveClassName).length;
           break;
         case "math":
           if (typeof t.expression === "string") length = t.expression.length;
@@ -94,6 +125,8 @@ export function proseSpans(ast: readonly unknown[]): ProseSpan[] {
                 typeof c.text === "string"
               )
                 length += c.text.length;
+              else if (c.type === "class_chip")
+                length += chipLabel(c, resolveClassName).length;
               else if (c.type === "math" && typeof c.expression === "string")
                 length += c.expression.length;
             }

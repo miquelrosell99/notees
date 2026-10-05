@@ -16,7 +16,7 @@
 import type { ContentAst, ContentToken, Mark } from "@notees/protocol";
 import { MARKS } from "@notees/protocol";
 
-import { proseSpans } from "@/editor/prose.js";
+import { proseSpans, type ClassNameResolver } from "@/editor/prose.js";
 
 const markRank = (mark: Mark): number => MARKS.indexOf(mark);
 
@@ -75,9 +75,14 @@ export function applyMarkToRange(
   start: number,
   end: number,
   mark: Mark,
+  resolveClassName?: ClassNameResolver,
 ): ContentAst {
-  return mapRange(ast, start, end, (text, marks) =>
-    textRun(text, marks.includes(mark) ? marks : [...marks, mark]),
+  return mapRange(
+    ast,
+    start,
+    end,
+    (text, marks) => textRun(text, marks.includes(mark) ? marks : [...marks, mark]),
+    resolveClassName,
   );
 }
 
@@ -87,12 +92,14 @@ export function removeMarkFromRange(
   start: number,
   end: number,
   mark: Mark,
+  resolveClassName?: ClassNameResolver,
 ): ContentAst {
-  return mapRange(ast, start, end, (text, marks) =>
-    textRun(
-      text,
-      marks.filter((m) => m !== mark),
-    ),
+  return mapRange(
+    ast,
+    start,
+    end,
+    (text, marks) => textRun(text, marks.filter((m) => m !== mark)),
+    resolveClassName,
   );
 }
 
@@ -101,9 +108,10 @@ function mapRange(
   start: number,
   end: number,
   cover: (text: string, marks: Mark[]) => ContentToken,
+  resolveClassName?: ClassNameResolver,
 ): ContentAst {
   if (start >= end) return ast as ContentAst;
-  const spans = proseSpans(ast);
+  const spans = proseSpans(ast, resolveClassName);
   const out: ContentToken[] = [];
   let changed = false;
   ast.forEach((token, index) => {
@@ -131,13 +139,18 @@ function mapRange(
  * Drives the toolbar/shortcut toggle: all-covered ⇒ remove, otherwise apply;
  * also the buttons' active state.
  */
-export function marksOnRange(ast: readonly unknown[], start: number, end: number): Set<Mark> {
+export function marksOnRange(
+  ast: readonly unknown[],
+  start: number,
+  end: number,
+  resolveClassName?: ClassNameResolver,
+): Set<Mark> {
   const shared = new Set<Mark>(MARKS);
   if (start >= end) {
     shared.clear();
     return shared;
   }
-  const spans = proseSpans(ast);
+  const spans = proseSpans(ast, resolveClassName);
   let coveredAny = false;
   ast.forEach((token, index) => {
     const span = spans[index]!;

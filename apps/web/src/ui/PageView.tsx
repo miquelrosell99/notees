@@ -81,6 +81,7 @@ import {
 } from "./editor-popups/LinkEditModal.js";
 import { replaceRangeInAst } from "./editor-popups/block-find-replace.js";
 import { ensureTemplateFamily } from "./components/templateFamily.js";
+import { GhostRow, realizeGhost } from "./GhostRow.js";
 
 /** The child-blocks triad, in switcher order. */
 const BLOCKS_VIEW_MODES: ViewMode[] = ["outline", "prose", "cards"];
@@ -480,16 +481,13 @@ export function PageView({
   }
 
   /**
-   * §34.19 ghost trailing block (owner refinement): rendered ALWAYS in the
-   * child-blocks section (outline, non-embedded) — including an empty body —
-   * as the sole "add" affordance (the dedicated + Add button is gone). The
-   * click creates a real empty block at the end and focuses it.
+   * §34.85 ghost (owner refinement): the page root trails the same muted
+   * "add block" ghost row every expanded block carries (v1 parity) —
+   * rendered ALWAYS in the child-blocks section (outline, non-embedded),
+   * including an empty body, as the sole "add" affordance. The click
+   * realizes it into a real empty block at the end and focuses it.
    */
   const ghostVisible = !embedded && blocksMode === "outline";
-  const addTrailingBlock = async () => {
-    const id = await client.createObject({ parentId: pageId, contentAst: [] });
-    outliner.requestFocus(id, "start");
-  };
 
   return (
     <OutlinerContext.Provider value={outliner}>
@@ -659,24 +657,25 @@ export function PageView({
                         items={blockItems}
                         tree
                         editable
+                        ghost={!embedded}
                         onNodeClick={(id) => onOpenPage?.(id)}
                         onNodeShiftClick={(id) => onOpenInSidebar?.(id)}
                       />
-                      {/* §34.19 ghost trailing block: a body whose last child
-                          is non-empty offers a muted "click to add" row —
-                          display-only until the click, which creates a real
-                          empty block and focuses it (never an op by itself).
-                          Outline mode only (prose/cards aren't block lists);
-                          an already-empty last child keeps the affordance
-                          redundant, so it hides. */}
+                      {/* §34.85 ghost trailing block: the page root trails the
+                          same "+ Add block" ghost row every expanded block
+                          carries — display-only until the click, which
+                          creates a real empty block after the last child and
+                          focuses it (never an op by itself). Outline mode
+                          only (prose/cards aren't block lists). */}
                       {ghostVisible && (
-                        <button
-                          type="button"
-                          className="nt-ghost-block"
-                          onClick={() => void addTrailingBlock()}
-                        >
-                          Click to add a block
-                        </button>
+                        <GhostRow
+                          parentId={pageId}
+                          onRealize={() => {
+                            void realizeGhost(client, outliner, pageId).catch((error: unknown) => {
+                              console.warn(`[outliner] ghost realize (${pageId}) failed:`, error);
+                            });
+                          }}
+                        />
                       )}
                     </div>
                   </SortableContext>

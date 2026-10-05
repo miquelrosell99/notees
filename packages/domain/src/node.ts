@@ -35,9 +35,11 @@ export const DISPLAY_NAME_MAX = 80;
 /**
  * Plaintext excerpt of a content token stream (display-name and fallback
  * purposes; the search package owns the full FTS extraction spec).
- * Includes: text runs, typed-link text, mention captured text, math
- * expressions; recurses quotes. Skips: asset_ref/embed_ref/query/whiteboard
- * (structural tokens carry no prose).
+ * Includes: text runs, typed-link text, mention captured text, a class
+ * chip's one-off displayText (the chip's class name is graph state — only
+ * the caller that owns resolution can substitute it), math expressions;
+ * recurses quotes. Skips: asset_ref/embed_ref/query/whiteboard (structural
+ * tokens carry no prose).
  */
 export function plainTextExcerpt(ast: ContentAst | null | undefined): string {
   if (!ast) return "";
@@ -51,6 +53,13 @@ export function plainTextExcerpt(ast: ContentAst | null | undefined): string {
           break;
         case "mention":
           parts.push(token.displayText ?? token.text);
+          break;
+        case "class_chip":
+          // RENDER-ONLY reference: the label is the class's CURRENT name
+          // (graph state this pure helper cannot resolve). A chip carrying
+          // its own one-off wording contributes it; otherwise the excerpt
+          // skips it (callers needing the name resolve it client-side).
+          if (token.displayText !== undefined) parts.push(token.displayText);
           break;
         case "math":
           parts.push(token.expression);

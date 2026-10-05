@@ -25,11 +25,19 @@
  * span falls back to the old flatten behavior — plain text / hard_break
  * runs built from the span's prose — while everything outside the span is
  * preserved.
+ *
+ * Class chips are the exception to the cover-flatten rule: the chip is an
+ * ATOMIC display token (its label is re-resolved, never stored), so a chip
+ * the splice touches is never cut and never flattened away — a boundary
+ * landing inside its label expands to the whole chip, and covered chips
+ * ride through the splice in order (their labels excluded from the
+ * flattened replacement prose). Without this, typing anywhere near a chip
+ * would silently destroy it (its zero-length/label span lands in `covered`).
  */
 
 import type { ContentAst, Mark } from "@notees/protocol";
 
-import { proseFromAst, proseSpans } from "@/editor/prose.js";
+import { proseFromAst, proseSpans, type ClassNameResolver } from "@/editor/prose.js";
 
 /** A location in the token stream, from a prose offset. */
 interface StreamLoc {
@@ -51,6 +59,15 @@ function isPlainToken(token: unknown): boolean {
   if (typeof token !== "object" || token === null) return true;
   const type = (token as Record<string, unknown>).type;
   return type === "text" || type === "hard_break";
+}
+
+/** A class_chip token — the atomic display reference (label re-resolved). */
+export function isChipToken(token: unknown): boolean {
+  return (
+    typeof token === "object" &&
+    token !== null &&
+    (token as Record<string, unknown>).type === "class_chip"
+  );
 }
 
 function tokenMarks(token: unknown): Mark[] | undefined {
@@ -135,9 +152,16 @@ function followingMarks(
  * Apply a plain-text draft to the previous token stream, structurally.
  * `draft` is the contentEditable textContent (CRLF normalized like
  * `astFromProse`). Returns `previous` untouched when the prose is identical.
+ * `resolveClassName` keeps chip label lengths consistent with the caller's
+ * prose projection (the editor threads it; omitting it makes chips
+ * prose-invisible).
  */
-export function applyTextEdit(previous: readonly unknown[], draft: string): ContentAst {
-  const prose = proseFromAst(previous);
+export function applyTextEdit(
+  previous: readonly unknown[],
+  draft: string,
+  resolveClassName?: ClassNameResolver,
+): ContentAst {
+  const prose = proseFromAst(previous, resolveClassName);
   const next = draft.replace(/\r\n?/g, "\n");
   if (next === prose) return previous as ContentAst;
 
@@ -156,17 +180,36 @@ export function applyTextEdit(previous: readonly unknown[], draft: string): Cont
     newEnd -= 1;
   }
 
-  const spans = proseSpans(previous);
-  const from = locate(spans, start);
-  const to = locate(spans, oldEnd);
+  const spans = proseSpans(previous, resolveClassName);
+  let from = locate(spans, start);
+  let to = locate(spans, oldEnd);
   const inserted = next.slice(start, newEnd);
+
+  // Chips are atomic: a boundary landing inside a chip's label expands to
+  // the whole chip (a chip is never cut), and covered chips ride through
+  // the splice below — never flattened away.
+  if (from.inner > 0 && isChipToken(previous[from.tokenIndex])) {
+    from = { tokenIndex: from.tokenIndex, inner: 0 };
+  }
+  if (to.inner > 0 && isChipToken(previous[to.tokenIndex])) {
+    to = { tokenIndex: to.tokenIndex + 1, inner: 0 };
+  }
+  const coveredChips: unknown[] = [];
+  const coveredChipRanges: Array<{ start: number; end: number }> = [];
+  for (let i = from.tokenIndex; i < to.tokenIndex; i += 1) {
+    if (!isChipToken(previous[i])) continue;
+    coveredChips.push(previous[i]);
+    const range = spans[i]!;
+    if (range.end > range.start) coveredChipRanges.push(range);
+  }
 
   // A change is ambiguous when it touches a prose-visible token the splice
   // cannot edit structurally (mention / typed_link / quote / ...): fall back
   // to flattening the COVERED SPAN only, preserving everything outside it.
+  // Chips are exempt — they are atomic and ride through (see above).
   const covered = previous.slice(from.tokenIndex, to.tokenIndex);
   const ambiguous =
-    covered.some((token) => !isPlainToken(token)) ||
+    covered.some((token) => !isPlainToken(token) && !isChipToken(token)) ||
     (from.inner > 0 && !isTextToken(previous[from.tokenIndex])) ||
     (to.inner > 0 && !isTextToken(previous[to.tokenIndex]));
 
@@ -174,6 +217,8 @@ export function applyTextEdit(previous: readonly unknown[], draft: string): Cont
   if (ambiguous) {
     // Span prose = old prose of the covered tokens with the change applied;
     // stored back as plain runs (the old flatten behavior, span-local).
+    // Covered chips' labels are display-resolved (never stored): they are
+    // excluded from the flattened prose and the chips re-ride after it.
     const spanStart = spans[from.tokenIndex] !== undefined ? spans[from.tokenIndex]!.start : prose.length;
     const spanEnd =
       to.tokenIndex < previous.length
@@ -181,9 +226,32 @@ export function applyTextEdit(previous: readonly unknown[], draft: string): Cont
           ? spans[to.tokenIndex]!.end
           : spans[to.tokenIndex]!.start
         : prose.length;
-    const spanProse =
-      prose.slice(spanStart, start) + inserted + prose.slice(oldEnd, spanEnd);
+    let spanProse: string;
+    if (coveredChipRanges.length === 0) {
+      spanProse = prose.slice(spanStart, start) + inserted + prose.slice(oldEnd, spanEnd);
+    } else {
+      // Walk the span, skipping covered chip label ranges, splicing the
+      // edit at its offsets.
+      let acc = "";
+      let cursor = spanStart;
+      const advance = (to: number): void => {
+        let c = cursor;
+        for (const range of coveredChipRanges) {
+          if (range.end <= c || range.start >= to) continue;
+          if (range.start > c) acc += prose.slice(c, range.start);
+          c = Math.max(c, range.end);
+        }
+        if (to > c) acc += prose.slice(c, to);
+        cursor = to;
+      };
+      advance(Math.min(start, spanEnd));
+      acc += inserted;
+      cursor = oldEnd;
+      advance(spanEnd);
+      spanProse = acc;
+    }
     out.push(...parseRuns(spanProse));
+    out.push(...coveredChips);
   } else {
     if (from.inner > 0) {
       const head = previous[from.tokenIndex] as { text: string };
@@ -192,6 +260,10 @@ export function applyTextEdit(previous: readonly unknown[], draft: string): Cont
     const firstMarks = precedingMarks(previous, spans, from, start);
     const lastMarks = followingMarks(previous, spans, to, oldEnd);
     const runs = parseRuns(inserted);
+    // Covered chips ride through the splice ahead of the inserted runs
+    // (their labels were part of the covered prose the inserted text
+    // replaces).
+    out.push(...coveredChips);
     if (runs.length > 0) {
       const firstText = runs.findIndex((run) => run.type === "text");
       const lastText = runs.length - 1 - [...runs].reverse().findIndex((run) => run.type === "text");
@@ -216,6 +288,7 @@ export function applyTextEdit(previous: readonly unknown[], draft: string): Cont
 /**
  * The prose-bearing string field of a token (capture-splice boundary trims).
  * text / mention / typed_link carry `text`, math carries `expression`.
+ * Class chips carry neither — their label is display-resolved.
  */
 function tokenProseField(token: unknown): { field: "text" | "expression"; value: string } | null {
   if (typeof token !== "object" || token === null) return null;
@@ -226,8 +299,11 @@ function tokenProseField(token: unknown): { field: "text" | "expression"; value:
   return null;
 }
 
-/** Boundary token sliced to [from, to) of its prose; null when the slice is empty. */
+/** Boundary token sliced to [from, to) of its prose; null when the slice is empty.
+ *  A class chip is atomic: any cover keeps the WHOLE chip (the label cannot
+ *  be partially trimmed — it is re-resolved at render). */
 function sliceBoundaryToken(token: unknown, from: number, to: number | undefined): unknown | null {
+  if (isChipToken(token)) return token;
   const proseField = tokenProseField(token);
   if (proseField === null) return null; // hard_break / prose-less tokens have no partial cover
   const sliced = to === undefined ? proseField.value.slice(from) : proseField.value.slice(from, to);
@@ -242,14 +318,18 @@ function sliceBoundaryToken(token: unknown, from: number, to: number | undefined
  * outside the range keep their marks and identity; boundary text runs are
  * trimmed; boundary rich tokens (a mention the range cuts into) keep their
  * type with their captured text trimmed (it may go stale — display resolves).
+ * A class chip the range touches is kept whole (atomic — see
+ * sliceBoundaryToken). `resolveClassName` keeps chip label lengths consistent
+ * with the caller's prose projection.
  */
 export function spliceTokens(
   previous: readonly unknown[],
   start: number,
   end: number,
   tokens: readonly unknown[],
+  resolveClassName?: ClassNameResolver,
 ): ContentAst {
-  const spans = proseSpans(previous);
+  const spans = proseSpans(previous, resolveClassName);
   const from = locate(spans, start);
   const to = locate(spans, end);
   const out: unknown[] = previous.slice(0, from.tokenIndex);

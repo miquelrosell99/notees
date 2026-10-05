@@ -38,6 +38,7 @@ export function ProseView(props: NodeCollectionProps) {
             resolveName={resolveName}
             readOnly={readOnly}
             ignoreCollapse
+            ghost={false}
           />
         ))}
       </div>
