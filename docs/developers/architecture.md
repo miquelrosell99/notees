@@ -1,12 +1,14 @@
-# Notees v2 — Architecture
+# Notees — Architecture (developer)
 
-M1-alpha developer documentation for the greenfield rewrite. The v2 tree is a TypeScript
-pnpm monorepo (`packages/` = libraries, `apps/` = deployables) living at the repo root.
+How the system works: one operation log as the sole authority, derived SQLite stores on
+every runtime, sync over WebSocket. This repo is a TypeScript pnpm monorepo
+(`packages/` = libraries, `apps/` = deployables). Start with the repo [README](../../README.md)
+if you are new here.
 
-**Maturity.** This document separates *implemented* (code exists in the tree, verified
-against the paths cited) from *designed for M2/M3* (specified in
-`../design/01-knowledge-model.md`, `packages/protocol/SCHEMA.md`, and the evolution plan
-at `../implementation-plan.md`, but not present in
+**Status marking.** This document separates *implemented* (code exists in the tree, verified
+against the paths cited) from *designed for a later phase* (specified in
+`../../.plans/design/01-knowledge-model.md`, `../../packages/protocol/SCHEMA.md`, and the evolution plan
+at `../../.plans/implementation-plan.md`, but not present in
 code). In case of disagreement between a design doc and the code, **the code wins** and the
 discrepancy is flagged in [§11](#11-code-vs-design-discrepancies).
 
@@ -18,14 +20,14 @@ CLI. What is **not** (designed, not shipped): typed-link target resolution, the
 citations pipeline, E2EE, plugins, multi-user auth. Do not document or assume
 those as existing.
 
-Sources: `../design/00-INDEX.md`, `../design/01-knowledge-model.md`,
+Sources: `../../.plans/design/00-INDEX.md`, `../../.plans/design/01-knowledge-model.md`,
 `packages/protocol/SCHEMA.md`, `packages/protocol/WIRE.md`, and the code cited inline.
 
 ---
 
 ## 1. The system in one paragraph
 
-Notees v2 is a local-first personal knowledge environment built around one idea: **an
+Notees is a local-first personal knowledge environment built around one idea: **an
 append-only operation log is the only authority for semantic state**. Every mutation is an
 *envelope* (a versioned, validated op with HLC causality and actor provenance). A
 per-workspace **derived store** (SQLite) is computed from the log by *appliers*; it can be
@@ -448,7 +450,7 @@ cursors; writes are atomic (tmp + rename).
 | `packages/export` | Export projections over the object graph: `ExportDocument` IR + serializers (markdown/html/docx/latex package-side — options bag with per-format gating, escaping, full-closure outline, whiteboard sidecars, id8 filename policy, `linkTarget`/`assetPath` hooks, LaTeX CSL bibliography; pdf renders client-side in the web app), format registry (`SerializedExport` union), bundles + manifest v2, BibTeX/CSL | `src/index.ts`; `document.ts` (IR + context hooks), `markdown.ts`, `html.ts`, `docx.ts`, `latex.ts`, `options.ts`, `formats.ts`, `bundle.ts`, `bibtex.ts`, `csl.ts` |
 | `apps/server` | Fastify relay + object/assets API; the one write path | `src/server.ts` (entry), `src/app.ts` (assembly), `src/config.ts`, `src/context.ts` (`ingestBatch`/`submit`), `src/relay-storage.ts`, `src/workspace-store.ts`, `src/routes-relay.ts`, `src/routes-objects.ts`, `src/assets.ts`, `src/seed.ts`, `src/identity.ts`, `src/validate.ts`, `src/rate-limit.ts`, `src/bus.ts` |
 | `apps/web` | Browser client: workspace data path + outliner UI + export delivery (modal, workspace zip, PDF renderer) + presentation mode + the session undo journal (§34.64) | `src/core/workspace-client.ts`, `src/core/undo-journal.ts` (the op-inverse journal + inversion matrix), `src/main.tsx`, `src/ui/{App,PageView,BlockRow,InlineTokens}.tsx`, `src/ui/presentation/` (deck builder + `DeckView` + session resume, §34.26), `src/ui/export-pdf/` (client-side PDF — `@react-pdf/renderer`, code-split, vendored OFL Gentium), `src/shims/` (node built-ins stubbed for the browser bundle) |
-| `../design/` | Normative model docs (00-INDEX, 01-knowledge-model, 02-model-assessment) | read these before changing the model |
+| `../../.plans/design/` | Normative model docs (00-INDEX, 01-knowledge-model, 02-model-assessment) | read these before changing the model |
 | `packages/protocol/fixtures` | Canonical op fixtures — the blocking gate | seven JSON files, validated by `packages/protocol/test` and replayed by the store suite |
 
 ## 11. Code vs design discrepancies

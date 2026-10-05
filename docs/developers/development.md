@@ -1,13 +1,13 @@
-# Notees v2 — Development
+# Notees — Development (developer)
 
-Contributing and hacking guide for the M1-alpha monorepo. Scope: this monorepo ( the
-greenfield worktree. For the system's architecture see `architecture.md`; for model
-authority see `../design/01-knowledge-model.md` and `packages/protocol/SCHEMA.md`.
+Contributing and hacking guide for this monorepo. For the system's architecture see
+[architecture.md](architecture.md); for model authority see
+`../../.plans/design/01-knowledge-model.md` and `../../packages/protocol/SCHEMA.md`.
 
-**Maturity.** Commands and paths below were verified against the tree at the time of
-writing. Features listed as *designed (M2/M3)* — typed-link target resolution, citations,
-E2EE, plugins, multi-user auth, the interactive outliner editor — have no code; do not
-write docs, tests, or UI as if they exist.
+**Status marking.** Commands and paths below were verified against the tree at the time of
+writing. Where a feature is *designed* rather than implemented, the registers in
+`../../.plans/implementation-plan.md` say so — do not write docs, tests, or UI as if it
+exists. In case of disagreement between a design doc and the code, the code wins.
 
 ## 1. Prerequisites
 
@@ -43,7 +43,7 @@ add `dev`/`build`/`start` (`apps/server`: `start` = `node dist/server.js`).
 
 ## 3. The fixture gate — blocking, at full width
 
-The single most important process rule (`../implementation-plan.md`
+The single most important process rule (`../../.plans/implementation-plan.md`
 fixture-gate lineage; `00-INDEX.md` amendment (b)):
 **an op type is not done until its fixture validates.** Canonical fixtures live in
 `packages/protocol/fixtures/` as JSON files of envelopes (or `{"envelopes": [...]}`
@@ -90,7 +90,7 @@ Update all three repos' fixture copies together (they are the same bytes).
 
 1. **Spec** — write the payload shape and semantics into `packages/protocol/SCHEMA.md`
    (owed-work register) or the relevant normative section. If the model itself changes,
-   `../design/01-knowledge-model.md` is normative — read `00-INDEX.md` first.
+   `../../.plans/design/01-knowledge-model.md` is normative — read `00-INDEX.md` first.
 2. **Payload zod schema** — add `yourOpPayload = z.object({...}).strict()` to
    `packages/protocol/src/op-types.ts` and register it in `OP_PAYLOAD_SCHEMAS`. The
    registry is the single source of truth: the relay's `validateRelayEnvelope`
