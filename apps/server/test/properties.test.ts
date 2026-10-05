@@ -42,7 +42,7 @@ describe("object property writes", () => {
     const properties = res.json().object.properties as { schemaId: string; value: unknown }[];
     expect(properties).toContainEqual({
       schemaId: SYSTEM_PROPERTY_UUIDS.citekey,
-      schemaName: "citekey",
+      schemaName: "Citekey",
       schemaType: "text",
       // PG5: the authored row's stable element id (deterministic composite
       // for positional writes) rides every property entry.
@@ -246,7 +246,7 @@ describe("property schemas", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().propertySchema).toMatchObject({
       id: SYSTEM_PROPERTY_UUIDS.citekey,
-      name: "citekey",
+      name: "Citekey",
       type: "text",
       multi: false,
     });

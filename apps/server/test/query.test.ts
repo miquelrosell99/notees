@@ -189,7 +189,7 @@ describe("GET /api/property-schemas", () => {
     const byName = new Map(schemas.map((schema) => [schema.name, schema]));
     expect(byName.get("year")).toMatchObject({ id: year, type: "number", multi: false });
     // Seeded bibliographic schemas are listed too (citekey is the DSL's
-    // prop:citekey:… target).
-    expect(byName.has("citekey")).toBe(true);
+    // prop:citekey:… target — seeded under its normal-wording name).
+    expect(byName.has("Citekey")).toBe(true);
   });
 });
