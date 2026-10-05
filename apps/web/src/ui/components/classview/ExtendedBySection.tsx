@@ -1,18 +1,40 @@
 /**
  * ExtendedBySection — the classes extending this one (transitive), as a
- * bottom system section (a backlink-class read, like Linked references):
- * read-only outline rows that open the subclass. Hidden when empty (owner
- * rule); expanded by default — the list is identity info, usually short.
+ * bottom system section (a backlink-class read): a multi-level TREE per the
+ * owner refinement — episode nests under TV series under its parent class —
+ * read-only rows that open the subclass. Hidden when empty; expanded by
+ * default (identity info, usually short).
  */
 
+import { useMemo } from "react";
+
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { WorkspaceClient } from "@/core/workspace-client.js";
+import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { Icon } from "../../Icon.js";
 import { Section } from "../../Section.js";
 import { NodeCollection } from "../../views/index.js";
+import type { NodeCollectionItem } from "../../views/index.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
+
+/** Build the nested items: direct extends-children, each with its subtree. */
+function buildTree(
+  client: AnyClient,
+  parentId: string,
+  seen: ReadonlySet<string>,
+): NodeCollectionItem[] {
+  return client
+    .getClassChildren(parentId)
+    .filter((child) => !seen.has(child.id))
+    .map((child) => {
+      const nextSeen = new Set(seen).add(child.id);
+      const grandchildren = buildTree(client, child.id, nextSeen);
+      const item: NodeCollectionItem = { node: child as ClientNode };
+      if (grandchildren.length > 0) item.children = grandchildren;
+      return item;
+    });
+}
 
 export function ExtendedBySection({
   client,
@@ -28,6 +50,8 @@ export function ExtendedBySection({
   const children = client.getClassChildren(classId);
   if (children.length === 0) return null;
 
+  const items = useMemo(() => buildTree(client, classId, new Set([classId])), [client, classId]);
+
   return (
     <Section
       client={client}
@@ -35,13 +59,14 @@ export function ExtendedBySection({
       icon={<Icon path="mdi-file-tree" size={0.9} />}
       badge={children.length}
       defaultCollapsed={false}
-      load={() => client.getClassChildren(classId)}
+      load={() => items}
       emptyText="No subclasses."
-      renderResults={(subclasses) => (
+      renderResults={() => (
         <NodeCollection
           viewMode="outline"
           client={client}
-          items={subclasses.map((node) => ({ node }))}
+          items={items}
+          tree
           readOnly
           onNodeClick={(id) => onOpenClass?.(id)}
         />

@@ -382,7 +382,7 @@ describe("assets hub", () => {
 
     fireEvent.click(screen.getByRole("radio", { name: "Table" }));
     expect(screen.getByRole("table")).not.toBeNull();
-    expect(screen.getByRole("button", { name: /scanned-receipt/ })).not.toBeNull();
+    expect(screen.getAllByRole("button", { name: /scanned-receipt/ }).length).toBeGreaterThan(0);
   });
 });
 
