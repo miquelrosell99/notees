@@ -189,8 +189,10 @@ describe("dates (SCHEMA.md)", () => {
     expandProperties();
 
     // The unvalued date binding renders the add affordance; the popup opens
-    // at the day grid (day precision).
-    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    // at the day grid (day precision). (Scoped to the date row — every page
+    // also carries the unvalued "Alias of" system row since issue #7.)
+    const row = screen.getByText("published").closest("li")!;
+    fireEvent.click(within(row).getByRole("button", { name: "Add" }));
     expect(screen.getByRole("dialog", { name: "Date picker" })).not.toBeNull();
 
     // The typed-date input parses with a preview and commits on Enter.
@@ -234,7 +236,8 @@ describe("dates (SCHEMA.md)", () => {
     render(<PageView client={client} pageId={pageId} />);
     expandProperties();
 
-    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    const foundedRow = screen.getByText("founded").closest("li")!;
+    fireEvent.click(within(foundedRow).getByRole("button", { name: "Add" }));
     // Year precision opens at the YEAR grid; clicking a year resolves the
     // canonical ISO and the data layer links the YEAR node at the schema's
     // precision (the commit ceiling).
@@ -263,7 +266,8 @@ describe("dates (SCHEMA.md)", () => {
     // their text — the aria-label is locale-dependent).
     const now = new Date();
     const expectedIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-28`;
-    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    const spanRow = screen.getByText("span").closest("li")!;
+    fireEvent.click(within(spanRow).getByRole("button", { name: "Add" }));
     fireEvent.click(within(screen.getByRole("dialog", { name: "Date picker" })).getByText("28"));
     await flushWrites();
     expect(valueOf(client, pageId, schemaId)).toEqual({
