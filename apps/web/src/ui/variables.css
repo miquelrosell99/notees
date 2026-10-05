@@ -447,6 +447,7 @@
   --minimap-height: 220px;
   --minimap-width: 300px;
   --modal-width-lg: 560px;
+  --modal-width-md: 480px;
   --modal-width-sm: 320px;
   --modal-width-xl: 1200px;
   --modal-width-xs: 280px;
@@ -621,6 +622,9 @@
   --shadow-error-underline: inset 0 -2px 0 var(--color-error);
   --shadow-presence-ring: 0 0 0 1px rgb(0 0 0 / 10%);
   --shadow-presence-text: 0 1px 2px rgb(0 0 0 / 30%);
+
+  /* Query widget accent (the left border that marks an embedded query) */
+  --color-query-accent: #c11574;
 
   /* Callout semantic colors */
   --color-callout-warning: #8f6216;

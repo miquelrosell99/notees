@@ -96,7 +96,7 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-elevation-3);
 }
 
 .nt-brand {
@@ -162,7 +162,7 @@ select:focus-visible {
 .nt-tab-active:hover {
   background: var(--color-surface);
   color: var(--color-on-surface);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-elevation-1);
 }
 
 .nt-field {
@@ -773,7 +773,7 @@ select:focus-visible {
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
   border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-elevation-2);
   z-index: 50;
 }
 
@@ -1115,7 +1115,7 @@ select:focus-visible {
   display: block;
   margin: 4px 0;
   border: 1px solid var(--color-outline-variant);
-  border-left: 3px solid #c11574;
+  border-left: 3px solid var(--color-query-accent);
   border-radius: 6px;
   padding: 6px 10px;
   background: var(--color-surface-container-high);
@@ -1240,7 +1240,7 @@ select:focus-visible {
 
 .nt-view-tab-default {
   margin-left: 4px;
-  font-size: 8px;
+  font-size: var(--font-size-3xs);
   color: var(--color-primary);
 }
 
@@ -1475,7 +1475,7 @@ select:focus-visible {
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
   border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-elevation-2);
   font-size: 14px;
   max-width: 480px;
   overflow: hidden;
@@ -1591,7 +1591,7 @@ select:focus-visible {
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(15, 30, 45, 0.12);
+  box-shadow: var(--shadow-elevation-2);
   padding: 8px;
 }
 
@@ -1692,7 +1692,7 @@ select:focus-visible {
 
 .nt-datepicker-cell-drill {
   font: inherit;
-  font-size: 9px;
+  font-size: var(--font-size-3xs);
   line-height: 1;
   color: var(--color-on-surface-variant);
   background: none;
@@ -2215,7 +2215,7 @@ mark {
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
   border-radius: 6px;
-  box-shadow: 0 1px 2px rgba(31, 41, 51, 0.08);
+  box-shadow: var(--shadow-elevation-1);
   overflow: hidden;
 }
 
@@ -2314,7 +2314,7 @@ mark {
   border: 1px solid var(--color-outline-variant);
   border-radius: 8px;
   background: var(--color-surface);
-  box-shadow: 0 1px 3px rgba(31, 41, 51, 0.12);
+  box-shadow: var(--shadow-elevation-1);
   font-size: 12px;
 }
 
@@ -2332,7 +2332,7 @@ mark {
   border: 1px solid var(--color-outline-variant);
   border-radius: 8px;
   background: var(--color-surface);
-  box-shadow: 0 1px 3px rgba(31, 41, 51, 0.12);
+  box-shadow: var(--shadow-elevation-1);
   overflow: hidden;
   cursor: pointer;
 }

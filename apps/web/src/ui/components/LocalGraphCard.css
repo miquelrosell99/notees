@@ -17,7 +17,7 @@
 }
 
 .nt-localgraph-card .nt-graph__toolbar {
-  padding: 2px var(--spacing-xs, 4px);
+  padding: 2px var(--spacing-1);
 }
 
 .nt-localgraph-card .nt-graph__search,
