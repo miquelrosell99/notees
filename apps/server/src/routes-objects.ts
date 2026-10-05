@@ -274,7 +274,8 @@ function readSchemaRow(store: Store, id: string): SchemaRow | undefined {
   return store.database
     .prepare(
       `SELECT id, name, type, multi, scope, options, target_class_filter AS targetClassFilter,
-              date_precision AS datePrecision, date_qualified AS dateQualified
+              date_precision AS datePrecision, date_qualified AS dateQualified,
+              number_pad AS numberPad, number_decimals AS numberDecimals, number_rounding AS numberRounding
        FROM property_schema WHERE id = ? AND active = 1`,
     )
     .get(id) as SchemaRow | undefined;
@@ -722,7 +723,8 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     const rows = store.database
       .prepare(
         `SELECT id, name, type, multi, scope, options, target_class_filter AS targetClassFilter,
-                date_precision AS datePrecision, date_qualified AS dateQualified
+                date_precision AS datePrecision, date_qualified AS dateQualified,
+              number_pad AS numberPad, number_decimals AS numberDecimals, number_rounding AS numberRounding
          FROM property_schema WHERE active = 1 ORDER BY name, id`,
       )
       .all() as SchemaRow[];
