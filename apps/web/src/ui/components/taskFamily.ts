@@ -16,6 +16,7 @@
  */
 
 import {
+  SYSTEM_CLASS_DISPLAY_NAMES,
   SYSTEM_CLASS_UUIDS,
   SYSTEM_PROPERTY_UUIDS,
   TASK_PRIORITY_OPTIONS,
@@ -98,7 +99,7 @@ export function taskFamilyPresent(
 export async function ensureTaskFamily(client: AnyClient): Promise<void> {
   if (taskFamilyPresent(client)) return;
   if (client.getNodeRaw(SYSTEM_CLASS_UUIDS.task) === undefined) {
-    await client.createClass("task", {
+    await client.createClass(SYSTEM_CLASS_DISPLAY_NAMES.task, {
       id: SYSTEM_CLASS_UUIDS.task,
       icon: "mdiCheckboxMarkedCircleOutline",
     });

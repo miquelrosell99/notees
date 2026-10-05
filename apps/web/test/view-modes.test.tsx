@@ -77,10 +77,11 @@ async function ensureTaskStatus(
 
 /** WORKAROUND(store applier): class.create's contentAst never lands in the
  *  class node's content — seed the title through object.update instead. */
-async function createTitledClass(client: WorkspaceClient, title: string): Promise<string> {
-  const id = await client.createClass(title);
-  await client.updateObject(id, { contentAst: [{ type: "text", text: title }] });
-  return id;
+async function createTitledClass(client: WorkspaceClient, title: string, id?: string): Promise<string> {
+  const classId =
+    id !== undefined ? await client.createClass(title, { id }) : await client.createClass(title);
+  await client.updateObject(classId, { contentAst: [{ type: "text", text: title }] });
+  return classId;
 }
 
 /** Page with two root blocks, the first holding a nested child. */
@@ -168,7 +169,9 @@ describe("child-blocks triad", () => {
 describe("classed-nodes table", () => {
   it("defaults to table with a column per bound property", async () => {
     const client = await seedClient();
-    const classId = await createTitledClass(client, "source");
+    // The reserved system id: the seed-spec fallback synthesizes the source
+    // family's columns with the manifest's normal-wording names.
+    const classId = await createTitledClass(client, "Source", SYSTEM_CLASS_UUIDS.source);
     const member = await client.createObject({ presentAsMain: true, name: "A book" });
     await client.assignClass(member, classId);
     render(<ClassView client={client} classId={classId} />);
@@ -186,8 +189,8 @@ describe("classed-nodes table", () => {
     // become columns between Name and Created.
     expect(headers[0]).toBe("");
     expect(headers[1]).toBe("Name");
-    expect(headers).toContain("authors");
-    expect(headers).toContain("isbn");
+    expect(headers).toContain("Authors");
+    expect(headers).toContain("ISBN");
     expect(headers[headers.length - 1]).toBe("Created");
   });
 });

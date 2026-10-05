@@ -42,7 +42,13 @@
  * @notees/domain, so node-side consumers (the script under tsx) can import it.
  */
 
-import { SYSTEM_CLASS_ICONS, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import {
+  SYSTEM_CLASS_DISPLAY_NAMES,
+  SYSTEM_CLASS_ICONS,
+  SYSTEM_CLASS_UUIDS,
+  SYSTEM_PROPERTY_DISPLAY_NAMES,
+  SYSTEM_PROPERTY_UUIDS,
+} from "@notees/domain";
 
 import type {
   ClientPropertySchema,
@@ -81,7 +87,7 @@ export const BIRTHDAY_CLASS_ID = SYSTEM_CLASS_UUIDS.birthday;
 
 /** The event root's minimal family: the date binding the calendar rides on. */
 export const EVENT_FAMILY: ReadonlyArray<{ id: string; name: string; type: "date" }> = [
-  { id: SYSTEM_PROPERTY_UUIDS.eventDate, name: "eventDate", type: "date" },
+  { id: SYSTEM_PROPERTY_UUIDS.eventDate, name: SYSTEM_PROPERTY_DISPLAY_NAMES.eventDate, type: "date" },
 ];
 
 /**
@@ -100,7 +106,7 @@ export const BIRTHDAY_FAMILY: ReadonlyArray<{
 }> = [
   {
     id: SYSTEM_PROPERTY_UUIDS.birthdayPerson,
-    name: "birthdayPerson",
+    name: SYSTEM_PROPERTY_DISPLAY_NAMES.birthdayPerson,
     type: "object",
     targetClassFilter: [SYSTEM_CLASS_UUIDS.person],
   },
@@ -109,15 +115,15 @@ export const BIRTHDAY_FAMILY: ReadonlyArray<{
 /**
  * The meeting family in seed order (the binding sequence is the array index,
  * exactly what the server seed's per-class binding counter produces on a
- * fresh class). Schema names are the spec keys verbatim, so an offline-first
- * workspace that self-heals converges name-for-name with a server-seeded one
- * (the ensureCitationFamily precedent — ensureTaskFamily's display-name
- * divergence is deliberately not replicated).
+ * fresh class). Schema names ride SYSTEM_PROPERTY_DISPLAY_NAMES (normal
+ * wording), so an offline-first workspace that self-heals converges
+ * name-for-name with a server-seeded one (the system-names pass,
+ * 2026-10-05).
  */
 export const MEETING_FAMILY: ReadonlyArray<{ id: string; name: string; type: "date" | "text" }> = [
-  { id: SYSTEM_PROPERTY_UUIDS.meetingDate, name: "meetingDate", type: "date" },
-  { id: SYSTEM_PROPERTY_UUIDS.location, name: "location", type: "text" },
-  { id: SYSTEM_PROPERTY_UUIDS.agenda, name: "agenda", type: "text" },
+  { id: SYSTEM_PROPERTY_UUIDS.meetingDate, name: SYSTEM_PROPERTY_DISPLAY_NAMES.meetingDate, type: "date" },
+  { id: SYSTEM_PROPERTY_UUIDS.location, name: SYSTEM_PROPERTY_DISPLAY_NAMES.location, type: "text" },
+  { id: SYSTEM_PROPERTY_UUIDS.agenda, name: SYSTEM_PROPERTY_DISPLAY_NAMES.agenda, type: "text" },
 ];
 
 async function familyPresent(
@@ -186,7 +192,7 @@ async function ensureFamilySchemas(
 /** Author the event root (class node + eventDate schema/binding) when missing. */
 async function ensureEventRoot(surface: MeetingFamilySurface): Promise<void> {
   if ((await surface.getNodeRaw(EVENT_CLASS_ID)) === undefined) {
-    await surface.createClass("event", { id: EVENT_CLASS_ID, icon: SYSTEM_CLASS_ICONS.event });
+    await surface.createClass(SYSTEM_CLASS_DISPLAY_NAMES.event, { id: EVENT_CLASS_ID, icon: SYSTEM_CLASS_ICONS.event });
   }
   await ensureFamilySchemas(surface, EVENT_CLASS_ID, EVENT_FAMILY);
 }
@@ -206,7 +212,7 @@ export async function ensureMeetingFamily(surface: MeetingFamilySurface): Promis
   if (await meetingFamilyPresent(surface)) return;
   await ensureEventRoot(surface);
   if ((await surface.getNodeRaw(MEETING_CLASS_ID)) === undefined) {
-    await surface.createClass("meeting", { id: MEETING_CLASS_ID, icon: SYSTEM_CLASS_ICONS.meeting });
+    await surface.createClass(SYSTEM_CLASS_DISPLAY_NAMES.meeting, { id: MEETING_CLASS_ID, icon: SYSTEM_CLASS_ICONS.meeting });
   }
   await ensureFamilySchemas(surface, MEETING_CLASS_ID, MEETING_FAMILY);
   const parents = await surface.getClassParents(MEETING_CLASS_ID);
@@ -242,7 +248,7 @@ export async function ensureBirthdayFamily(surface: MeetingFamilySurface): Promi
   if (await birthdayFamilyPresent(surface)) return;
   await ensureEventRoot(surface);
   if ((await surface.getNodeRaw(BIRTHDAY_CLASS_ID)) === undefined) {
-    await surface.createClass("birthday", {
+    await surface.createClass(SYSTEM_CLASS_DISPLAY_NAMES.birthday, {
       id: BIRTHDAY_CLASS_ID,
       icon: SYSTEM_CLASS_ICONS.birthday,
     });
