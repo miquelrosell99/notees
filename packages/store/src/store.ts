@@ -37,7 +37,7 @@ import {
   type SearchSnippet,
 } from "./search.js";
 import { MoveGuardError } from "./errors.js";
-import { migrate, schemaSql } from "./schema.js";
+import { LIST_READS_INDEX_DDL, migrate, schemaSql } from "./schema.js";
 
 export interface NodeRow {
   id: string;
@@ -680,6 +680,10 @@ export class Store {
       // Idempotent DDL (not migrate(): the carried user_version already
       // matches, but the rebuilt connection is missing the index tables).
       next.exec(schemaSql(this.backend.ftsModule));
+      // The same caveat for the v15 list-reads index — it lives outside the
+      // canonical DDL (pre-v8 tables can't parse it), so the repair path
+      // re-asserts it explicitly (§34.92).
+      next.exec(LIST_READS_INDEX_DDL);
       reindexAllSearch(next);
     }
     this.db.close?.();

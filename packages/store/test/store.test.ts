@@ -2459,13 +2459,15 @@ describe.each(adapters)("$name: v7 -> v8 migration (node_type -> is_class/presen
     expect(JSON.parse(page.class_ids)).toEqual(["c1"]);
     expect(JSON.parse(page.tag_ids)).toEqual(["t1"]);
     expect(JSON.parse(page.content)).toEqual([{ type: "text", text: "Page" }]);
-    // Both node indexes are recreated on the rebuilt table.
+    // Both node indexes are recreated on the rebuilt table (plus the v15
+    // list-reads index — §34.92).
     const indexes = (
       db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_node%'").all() as
         { name: string }[]
     ).map((r) => r.name);
     expect(indexes).toContain("idx_node_workspace");
     expect(indexes).toContain("idx_node_parent");
+    expect(indexes).toContain("idx_node_list_reads");
     // The new placement CHECK pins classes to roots on the migrated table.
     expect(() =>
       db.prepare("INSERT INTO node (id, workspace_id, is_class, parent_id) VALUES ('x', 'ws', 1, 'pg')").run(),
@@ -2479,6 +2481,40 @@ describe.each(adapters)("$name: v7 -> v8 migration (node_type -> is_class/presen
     migrate(store.database, "fts5");
     expect(store.database.pragma("user_version", { simple: true })).toBe(SCHEMA_VERSION);
     expect(store.getNode(NODE_PAGE)).toMatchObject({ is_class: 0, present_as_main: 1 });
+    store.close();
+  });
+});
+
+
+// --- v15: the render-path list-reads index (§34.92) ---------------------------
+
+describe.each(adapters)("$name: v15 — idx_node_list_reads (§34.92)", ({ makeBackend }) => {
+  const nodeIndexes = (db: { prepare: (sql: string) => { all: (...params: unknown[]) => unknown[] } }): string[] =>
+    (
+      db
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_node%'")
+        .all() as { name: string }[]
+    ).map((r) => r.name);
+
+  it("exists on a fresh database at the current schema version", () => {
+    const store = Store.open(makeBackend());
+    expect(nodeIndexes(store.database)).toContain("idx_node_list_reads");
+    expect(store.database.pragma("user_version", { simple: true })).toBe(SCHEMA_VERSION);
+    store.close();
+  });
+
+  it("is added idempotently when a v14 database migrates", () => {
+    const store = Store.open(makeBackend());
+    store.apply(createPage(NODE_PAGE, 1727200000000));
+    // Simulate a pre-v15 database: drop the index and rewind the version.
+    store.database.exec("DROP INDEX IF EXISTS idx_node_list_reads;");
+    store.database.pragma("user_version = 14");
+    migrate(store.database, "fts5");
+    expect(store.database.pragma("user_version", { simple: true })).toBe(SCHEMA_VERSION);
+    expect(nodeIndexes(store.database)).toContain("idx_node_list_reads");
+    // Idempotent: a second migrate is a no-op that stays current.
+    migrate(store.database, "fts5");
+    expect(nodeIndexes(store.database)).toContain("idx_node_list_reads");
     store.close();
   });
 });
