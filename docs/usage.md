@@ -446,6 +446,34 @@ Sharing is **read-only by design**: you mint an unguessable link, anyone holding
 
 Headless: `POST /api/shares {nodeId, expiresAt?}` → `{share: {token, urlPath, …}}`, `GET /api/shares?nodeId=`, `DELETE /api/shares/:token` (see the quick reference below).
 
+## Workflows
+
+A **workflow** watches everything written to your workspace and reacts: *when X happens to a node that matches Y, do Z* — evaluated on the server, so it runs no matter which client made the change. It is automation for your graph, not a plugin system: the triggers, the criteria language, and the actions are the built-in vocabulary below.
+
+- **X — the trigger.** What happened: a node was created (`object.create`), a property was set (`property.set`), or a class was assigned (`class.assign` — Notees has no separate "assign class" op; this trigger covers the class-add operation however it arrives).
+- **Y — the criteria.** The same query language saved views and query blocks use (class membership, present-as-main, content, property values, links, creation date — combined with and/or/not). The rule only fires if the affected node matches.
+- **Z — the action, v1.** Set a property (`property.set` with a fixed value) or assign a class (`class.assign`). Actions are written as ordinary operations by the server itself, so they sync to every device like your own edits and appear in the operation feed with the `rules-engine` provenance.
+
+V1 limits, honestly: **no rule chains** — an action's effects are evaluated once more, but a match there is recorded (`skipped_depth_cap`) rather than executed, so one batch can fire at most one hop of rules. A rule's own actions can **never re-trigger the same rule** (the loop breaker, recorded as `skipped_loop` when it would have matched). Triggers cover creates and property/class writes — not moves, deletes, or restores yet. Every firing attempt lands in an append-only **run audit** (`GET /api/workflows/:id/runs`) with its outcome; a failing action is audited and never blocks your write. Rule state lives in the server's coordination database (like shares and prefs — not in the operation log); only the server's default workspace is covered, and **only the owner/admin (or the operator key) can create, change, or delete rules** — any signed-in principal can read them. There is no UI yet: rules are managed through the API.
+
+Example — flag every new Paper for review:
+
+```bash
+curl -s -X POST localhost:8377/api/workflows \
+  -H "X-API-Key: $NOTEES_API_KEY" -H 'Content-Type: application/json' \
+  -d '{
+    "name": "Flag new papers",
+    "trigger": {"opType": "object.create"},
+    "criteria": {"version": 1, "scope": {"type": "entire_workspace"},
+      "root": {"type": "group", "logic": "and",
+        "children": [{"type": "class", "classId": "<paper-class-uuid>"}]}},
+    "actions": [{"type": "property.set",
+      "propertySchemaId": "<review-schema-uuid>", "value": "needs review"}]
+  }'
+```
+
+`GET/PATCH/DELETE /api/workflows[/:id]` complete the CRUD (see the quick reference below); the developer runbook ([developers/workflows.md](developers/workflows.md)) has the table shapes, the loop policy, and the audit semantics.
+
 ## Object API quick reference
 
 Base URL `http://localhost:8377`, auth header `X-API-Key: nk_…` on every call except the public probes (`/healthz`, `/api/version`, `/api/meta`, `/api/openapi.json`, `/api/server-info`, `/api/setup`, `/api/auth/login`). Bodies are camelCase JSON; `contentAst` follows the [SCHEMA.md grammar](../packages/protocol/SCHEMA.md).
@@ -478,6 +506,7 @@ Base URL `http://localhost:8377`, auth header `X-API-Key: nk_…` on every call 
 | `GET /api/plugins` · `POST /api/plugins` · `DELETE /api/plugins/:id` · `POST /api/plugins/:id/enabled` | The inert plugin-manifest registry: install validates the manifest grammar (idempotent on id+version), the toggle flips a stored bit. Owner/admin only — the first surface enforcing the reserved `admin` scope. The plugin runtime is parked: nothing executes |
 | `POST /api/shares` · `GET /api/shares?nodeId=` · `DELETE /api/shares/:token` | Read-only public page shares: mint an unguessable token (`{nodeId, expiresAt?}` → `{share: {token, urlPath, …}}`), list (owner/admin), revoke (immediate). Share state is server coordination, not op-log state |
 | `GET /s/:token` | The public share view — unauthenticated BY DESIGN (unguessable tokens): one static, read-only HTML document; unknown/revoked/expired are the same 404 (no enumeration) |
+| `GET /api/workflows` · `POST /api/workflows` · `GET/PATCH/DELETE /api/workflows/:id` · `GET /api/workflows/:id/runs` | Workflow rules (issue #13) — "when X on nodes matching Y, do Z", evaluated server-side post-ingest; effects are ordinary ops by the `rules-engine` actor. Read: any authenticated principal; write: owner/admin. Bodies: `{name, enabled?, trigger: {opType}, criteria: QueryAst, actions: [property.set \| class.assign]}` |
 | `GET /api/meta` | Server self-description: version, wire protocol versions, default workspace, setup state (auth-free) |
 | `GET /api/openapi.json` | The OpenAPI 3.1 contract (auth-free, `cache-control: no-store`) |
 | `GET /api/operations?workspaceId=&afterSeq=&limit=` | Paginated read of the workspace's relay operation log — the audit feed for agents (cursor shape like relay catch-up; entries are envelope-v3 ops) |

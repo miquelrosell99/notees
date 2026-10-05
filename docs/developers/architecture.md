@@ -339,6 +339,16 @@ client hook surface; no WS *client* ships in M1.
   `requiredScope` and rejected on the relay surface with 403 `scope_denied`;
   the error-code taxonomy is pinned in `src/errors.ts` (`ERROR_TAXONOMY`,
   exposed as the doc's `x-error-codes`).
+- **Workflow rules** (issue #13, `src/workflows.ts`, `src/routes-workflows.ts`,
+  runbook: [workflows.md](workflows.md)): server-side "when X on nodes
+  matching Y, do Z". Rule definitions + the append-only run audit are
+  coordination state in relay.db (the prefs/shares/plugins ruling); the
+  engine evaluates every ingest post-apply and writes action envelopes as a
+  server actor (client `rules-engine`) through the same funnel — effects are
+  ordinary ops, no wire change. Read: any authenticated principal; write:
+  owner/admin (the shares idiom). Loop policy: re-entrant ingest capped at
+  depth 1, same-rule re-trigger broken by the `firedRuleIds` chain set, both
+  skips audited.
 - Public, auth-free probes: `GET /healthz`, `GET /api/version`.
 
 **The one-write-path invariant.** Every write — a relay `/batch`, a WS batch frame, an
@@ -357,6 +367,14 @@ key, HLC from the server clock, `client: "api"` or `"seed"`) and pushes it throu
 same funnel. This is the milestone's hard invariant: **server object/asset writes become
 envelopes through the same pipeline as client ops**, so the audit trail, idempotency,
 derived-state updates, and live notifications all hold for API writes too.
+
+**Post-ingest workflow evaluation** (issue #13) extends the funnel without
+leaving it: after a workspace group's apply + broadcast, the workflow engine
+(`src/workflows.ts`) probes the freshly-saved envelopes against the enabled
+rules' QueryAST criteria; matches write action envelopes through a
+re-entrant, depth-capped ingest (client `rules-engine`). Rule definitions and
+the run audit are coordination state in relay.db — never op-log state — and
+rule CRUD stamps no envelope. See [workflows.md](workflows.md).
 
 **Seeding.** First access to an empty workspace seeds system classes, `extends` edges,
 property schemas, and the inbox page through the same envelope pipeline with
