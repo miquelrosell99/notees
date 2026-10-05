@@ -266,6 +266,30 @@ function normalizeInlineName(name: string): string {
   return name.replace(/\s+/g, " ").trim();
 }
 
+/**
+ * Single-title rule (title-is-content): the display name IS the node's own
+ * text content, so an export that emits the title as a document-chrome
+ * heading must not render that same text again as the body's first line.
+ * When the document renders chrome and its first content block is a
+ * paragraph opening with a text span whose whitespace-folded text equals the
+ * title, that span rides in the heading alone — it is dropped here, and the
+ * emptied paragraph drops with it. Everything else passes through
+ * untouched: nodes without chrome (their title never surfaces as a heading),
+ * outline children, and inlined embeds (their hosts render no heading).
+ */
+export function withoutLeadingTitle(document: ExportDocument): readonly ExportBlock[] {
+  if (!document.rendersDocumentChrome) return document.blocks;
+  const title = normalizeInlineName(document.title);
+  if (title.length === 0) return document.blocks;
+  const [first, ...rest] = document.blocks;
+  if (first === undefined || first.kind !== "paragraph") return document.blocks;
+  const [span, ...remainingSpans] = first.spans;
+  if (span === undefined || span.kind !== "text") return document.blocks;
+  if (normalizeInlineName(span.text) !== title) return document.blocks;
+  if (remainingSpans.length === 0) return rest;
+  return [{ ...first, spans: remainingSpans }, ...rest];
+}
+
 interface BuildState {
   /** Per-path cycle guard (the document root seeds its own id). */
   visited: ReadonlySet<string>;

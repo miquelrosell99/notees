@@ -40,6 +40,9 @@ function page(id: string, name: string, contentAst: ContentAst = [], extra: Part
 describe("metacharacter escaping", () => {
   it("escapes inline specials in text runs so emphasis cannot form", () => {
     const node = page("aaaaaaaa-0000-4000-8000-000000000001", "escapes", [
+      // A lead run keeps the payload in the body (single-title rule) — the
+      // assertion below is about the content paragraph, not the `#` heading.
+      { type: "text", text: "run: " },
       { type: "text", text: "a*b_c`d~e[f]g<h>i\\j" },
     ]);
     const md = nodeToMarkdown(node, makeCtx());
@@ -76,6 +79,8 @@ describe("metacharacter escaping", () => {
 
   it("escapes interior newlines of a single text run", () => {
     const node = page("aaaaaaaa-0000-4000-8000-000000000003", "multi", [
+      // A lead run keeps the payload in the body (single-title rule).
+      { type: "text", text: "run: " },
       { type: "text", text: "first\n---\nsecond" },
     ]);
     const md = nodeToMarkdown(node, makeCtx());

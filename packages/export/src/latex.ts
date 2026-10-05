@@ -114,7 +114,7 @@
 import { SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import type { ExportBlock, ExportDocument, ExportDocumentChild, ExportDocumentProperty, ExportSpan } from "./document.js";
-import { isEmptyPropertyValue, qualifierDisplayOf } from "./document.js";
+import { isEmptyPropertyValue, qualifierDisplayOf, withoutLeadingTitle } from "./document.js";
 import type { CslItem } from "./csl.js";
 import { formatAuthors, nodeToCsl, sourceClassOf } from "./csl.js";
 import type { ResolvedExportOptions } from "./options.js";
@@ -433,8 +433,9 @@ function renderBibliography(items: readonly CslItem[]): string {
 /**
  * Serialize a built {@link ExportDocument} to one complete, compilable
  * LaTeX document: class-variant preamble, the `\section*{title}` heading for
- * nodes with document chrome, the properties rows, the content blocks, the
- * nested-`itemize` outline when the IR carries children, and the
+ * nodes with document chrome, the properties rows, the content blocks (minus
+ * the leading title span when it rides in the heading — the single-title
+ * rule), the nested-`itemize` outline when the IR carries children, and the
  * `thebibliography` environment when at least one exported node is a source.
  * Synchronous text render (the registry's text formats stay sync).
  */
@@ -451,7 +452,7 @@ export function renderExportDocumentToLatex(
   }
   const properties = renderProperties(document, options);
   if (properties.length > 0) body.push(properties);
-  const blocks = renderBlocks(document.blocks);
+  const blocks = renderBlocks(withoutLeadingTitle(document));
   if (blocks.length > 0) body.push(blocks);
   if (document.children.length > 0) {
     body.push(`\\section*{Outline}\n\n${renderOutline(document.children)}`);
