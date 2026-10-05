@@ -699,6 +699,23 @@ select:focus-visible {
   background: var(--color-surface);
 }
 
+/* §34.89 value-display button groups: the bullet group rides right after
+   the grip (next to the bullet element), the inline group immediately
+   before the content. Both center against the text line (the row is
+   baseline-aligned) and never wrap. */
+.nt-block-bullet-props,
+.nt-block-inline-props {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex: none;
+  align-self: center;
+}
+
+.nt-block-inline-props {
+  margin-right: var(--spacing-1);
+}
+
 /* The editable fills the block's content column side to side (v1's
    .custom-inline-editor was flex:1 — same contract): clicking anywhere on
    the row places the caret at the nearest position instead of the element

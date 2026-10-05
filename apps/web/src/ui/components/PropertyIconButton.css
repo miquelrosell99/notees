@@ -1,0 +1,126 @@
+/**
+ * PropertyIconButton styles — §34.89. The block-row value button: a compact
+ * icon-only control beside the bullet / hugging the content, with the small
+ * options popover under it. Token-only (variables.css).
+ */
+
+.nt-propicon-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* The icon button itself (20px hit target around a ~14px glyph). */
+.nt-propicon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: var(--shape-small);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-propicon:hover {
+  background: var(--color-hover-overlay);
+}
+
+.nt-propicon:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: calc(var(--spacing-micro) * -1);
+}
+
+/* Unset affordance: the hollow circle reads subdued but still tappable. */
+.nt-propicon--unset {
+  opacity: 0.45;
+}
+
+/* Read-only projection: the icon renders, nothing more. */
+.nt-propicon--static {
+  cursor: default;
+}
+
+.nt-propicon--static:hover {
+  background: transparent;
+}
+
+/* The label-less tinted dot fallback for icon-less options. */
+.nt-propicon__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: var(--color-on-surface-variant);
+}
+
+/* The options popover under the button. */
+.nt-propicon-popover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: var(--z-floating);
+  min-width: var(--layout-size-2xl);
+  margin-top: var(--spacing-1);
+  padding: var(--spacing-1);
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  box-shadow: var(--shadow-elevation-2);
+}
+
+.nt-propicon-popover__empty {
+  padding: var(--spacing-2) var(--spacing-3);
+  color: var(--color-on-surface-variant);
+  font: var(--font-body-small);
+}
+
+.nt-propicon-option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-1-5) var(--spacing-2);
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--color-on-surface);
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--shape-small);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-propicon-option:hover {
+  background: var(--color-hover-overlay);
+}
+
+.nt-propicon-option__glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--icon-size-sm);
+}
+
+.nt-propicon-option__label {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.nt-propicon-option__check {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-accent);
+}
+
+/* The "None" clear row reads subdued like the unset button. */
+.nt-propicon-option--none .nt-propicon-option__label {
+  color: var(--color-on-surface-variant);
+}

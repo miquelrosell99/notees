@@ -14,7 +14,9 @@ import {
   SYSTEM_CLASS_UUIDS,
   SYSTEM_PROPERTY_UUIDS,
   TASK_PRIORITY_OPTIONS,
+  TASK_PRIORITY_OPTION_UUIDS,
   TASK_STATUS_OPTIONS,
+  TASK_STATUS_OPTION_UUIDS,
 } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
@@ -150,7 +152,9 @@ describe("ensureTaskFamily", () => {
   it("is safe on a workspace where the family already exists (v1-migrated shape)", async () => {
     const client = await seedClient();
     // Pre-author with a different option id set (a migrated workspace carries
-    // v1 option ids) — ensureTaskFamily must NOT overwrite the schema.
+    // v1 option ids) — ensureTaskFamily must NOT overwrite the schema rows:
+    // the stored option id is preserved, and the §34.89 restyle pass only
+    // adds the designed icon/color to the label-matching option.
     await client.createPropertySchema({
       id: SYSTEM_PROPERTY_UUIDS.taskStatus,
       name: "Status",
@@ -164,7 +168,107 @@ describe("ensureTaskFamily", () => {
     const status = client
       .listPropertySchemas()
       .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskStatus);
-    expect(status?.options).toEqual([{ id: "v1-option-id", label: "Done" }]);
+    expect(status?.options).toEqual([
+      { id: "v1-option-id", label: "Done", icon: "mdiCheckCircle", color: "green" },
+    ]);
+  });
+
+  it("authors status/priority options at the deterministic designed ids with icons and colors", async () => {
+    const client = await seedClient();
+    await ensureTaskFamily(client);
+
+    const schemas = new Map(client.listPropertySchemas().map((schema) => [schema.id, schema]));
+    const statusByLabel = new Map(
+      schemas.get(SYSTEM_PROPERTY_UUIDS.taskStatus)!.options!.map((option) => [option.label, option]),
+    );
+    const designedStatusIds: Record<string, string> = {
+      Backlog: TASK_STATUS_OPTION_UUIDS.backlog,
+      Pending: TASK_STATUS_OPTION_UUIDS.pending,
+      Doing: TASK_STATUS_OPTION_UUIDS.doing,
+      Reviewing: TASK_STATUS_OPTION_UUIDS.reviewing,
+      Done: TASK_STATUS_OPTION_UUIDS.done,
+      Cancelled: TASK_STATUS_OPTION_UUIDS.cancelled,
+    };
+    for (const designed of TASK_STATUS_OPTIONS) {
+      const option = statusByLabel.get(designed.name)!;
+      // Deterministic ids — the applier-side seed-ensure authors the same.
+      expect(option.id).toBe(designedStatusIds[designed.name]);
+      // The designed circle icon + preset color ride the option (§34.89).
+      expect(option.icon).toBe(designed.icon);
+      expect(option.color).toBe(designed.color);
+    }
+    const priorityByLabel = new Map(
+      schemas.get(SYSTEM_PROPERTY_UUIDS.taskPriority)!.options!.map((option) => [option.label, option]),
+    );
+    const designedPriorityIds: Record<string, string> = {
+      Low: TASK_PRIORITY_OPTION_UUIDS.low,
+      Medium: TASK_PRIORITY_OPTION_UUIDS.medium,
+      High: TASK_PRIORITY_OPTION_UUIDS.high,
+      Urgent: TASK_PRIORITY_OPTION_UUIDS.urgent,
+    };
+    for (const label of TASK_PRIORITY_OPTIONS) {
+      expect(priorityByLabel.get(label)!.id).toBe(designedPriorityIds[label]);
+    }
+  });
+
+  it("restyles stored status options missing the designed styles, preserving stored ids", async () => {
+    const client = await seedClient();
+    // Simulate the pre-§34.89 web-authored shape: random option ids, no
+    // icon/color — authored values reference those ids, so they must survive.
+    await client.createPropertySchema({
+      id: SYSTEM_PROPERTY_UUIDS.taskStatus,
+      name: "Status",
+      type: "select",
+      options: TASK_STATUS_OPTIONS.map((option) => ({ id: `old-${option.name}`, label: option.name })),
+    });
+    await client.setClassProperty(SYSTEM_CLASS_UUIDS.task, SYSTEM_PROPERTY_UUIDS.taskStatus, {});
+
+    await ensureTaskFamily(client);
+
+    const status = client
+      .listPropertySchemas()
+      .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskStatus)!;
+    const byLabel = new Map(status.options!.map((option) => [option.label, option]));
+    for (const designed of TASK_STATUS_OPTIONS) {
+      const option = byLabel.get(designed.name)!;
+      expect(option.id).toBe(`old-${designed.name}`);
+      expect(option.icon).toBe(designed.icon);
+      expect(option.color).toBe(designed.color);
+    }
+  });
+
+  it("leaves user-renamed and user-added status options untouched", async () => {
+    const client = await seedClient();
+    await client.createPropertySchema({
+      id: SYSTEM_PROPERTY_UUIDS.taskStatus,
+      name: "Status",
+      type: "select",
+      options: [
+        { id: "kept-done-id", label: "Done" },
+        { id: "custom-id", label: "Blocked" },
+      ],
+    });
+    await client.setClassProperty(SYSTEM_CLASS_UUIDS.task, SYSTEM_PROPERTY_UUIDS.taskStatus, {});
+
+    await ensureTaskFamily(client);
+
+    const status = client
+      .listPropertySchemas()
+      .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskStatus)!;
+    // The designed label restyles; the user's own option passes through.
+    expect(status.options).toEqual([
+      { id: "kept-done-id", label: "Done", icon: "mdiCheckCircle", color: "green" },
+      { id: "custom-id", label: "Blocked" },
+    ]);
+  });
+
+  it("a converged family issues no updatePropertySchema write on re-run", async () => {
+    const client = await seedClient();
+    await ensureTaskFamily(client);
+    const spy = vi.spyOn(client, "updatePropertySchema");
+    await ensureTaskFamily(client);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 
   it("a task scheduled via the authored family answers the open-task query", async () => {

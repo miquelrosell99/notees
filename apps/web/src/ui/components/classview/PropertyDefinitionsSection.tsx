@@ -41,12 +41,13 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ClassBinding, WorkspaceClient } from "@/core/workspace-client.js";
+import type { BindingDisplay, ClassBinding, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { displayNameFromClient } from "../../dateDisplay.js";
 import { Icon } from "../../Icon.js";
 import { AddPill } from "../ui/AddPill.js";
 import { Checkbox } from "../ui/Checkbox.js";
+import { SelectionButton } from "../ui/SelectionButton.js";
 import { ToggleSwitch } from "../ui/ToggleSwitch.js";
 import { NodeViewSection } from "../NodeViewSection.js";
 import "./PropertyDefinitionsSection.css";
@@ -303,6 +304,31 @@ function BindingRow({
             />
             <span>Enabled {!BINDING_ACTIVE_WRITES_ENABLED && "(pending client lockstep)"}</span>
           </div>
+          {/* §34.89: where the value reads — the properties panel (default),
+              an icon button next to the block bullet, or one before the block
+              content (select/multi_select AND boolean; the Logseq-DB
+              value-position behavior). Booleans render the same button with
+              two synthetic circle options (check-circle true, hollow circle
+              false — the owner-specified glyphs). The wire stores "panel"
+              explicitly for the default. */}
+          {(binding.type === "select" ||
+            binding.type === "multi_select" ||
+            binding.type === "boolean") && (
+            <label className="nt-propdef-field">
+              <span className="nt-propdef-label">Value display</span>
+              <SelectionButton
+                size="sm"
+                aria-label={`Value display for ${name}`}
+                options={[
+                  { value: "panel", icon: "mdi-format-list-bulleted-square", label: "Properties panel" },
+                  { value: "bullet", icon: "mdi-circle-medium", label: "Next to bullet" },
+                  { value: "inline", icon: "mdi-format-align-left", label: "Before content" },
+                ]}
+                value={binding.display ?? "panel"}
+                onChange={(value) => patch({ display: value as BindingDisplay })}
+              />
+            </label>
+          )}
           {isDate && (
             <label className="nt-propdef-field">
               <span className="nt-propdef-label">Precision</span>
