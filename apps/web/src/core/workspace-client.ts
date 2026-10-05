@@ -25,6 +25,7 @@ import {
   parseIsoDate,
   rendersWithDocumentChrome,
   SYSTEM_CLASS_UUIDS,
+  SYSTEM_PROPERTY_DISPLAY_NAMES,
   SYSTEM_PROPERTY_SPECS,
   SYSTEM_PROPERTY_UUIDS,
   type DatePrecision,
@@ -1031,9 +1032,8 @@ export class WorkspaceClient {
     if (node === undefined || !node.isClass) {
       return [];
     }
-    // Title-is-content: the seed-spec lookup keys on the class's derived
-    // title text (its content), not a stored name.
-    const classTitle = deriveDisplayName(node);
+    // Title-is-content: `node.name` is vestigial; reads derive labels from
+    // content where needed.
     const decodeDefault = (raw: string | null): string | null => {
       if (raw === null) return null;
       try {
@@ -1047,6 +1047,10 @@ export class WorkspaceClient {
     // — book extends source, so source's bound properties are book's class
     // properties too. Own rows first (the §34.32 PG4 resolution order), then
     // ancestors' by sequence; the first binding for a schema wins.
+    // class_hierarchy rows are (class_id, ancestor_id): the ancestor set of
+    // `classId` is `SELECT ancestor_id … WHERE class_id = classId` (the
+    // transpose — `class_id … WHERE ancestor_id` — selected the DESCENDANTS,
+    // leaking children's rows into the parent read).
     const rows = this.store.database
       .prepare(
         `SELECT cp.property_schema_id, cp.sequence, cp.required, cp.readonly, cp.hide_when_empty,
@@ -1054,7 +1058,7 @@ export class WorkspaceClient {
                 ps.date_precision, ps.date_qualified, ps.number_pad, ps.number_decimals, ps.number_rounding
          FROM class_property cp
          LEFT JOIN property_schema ps ON ps.id = cp.property_schema_id
-         WHERE cp.class_id IN (SELECT class_id FROM class_hierarchy WHERE ancestor_id = ?)
+         WHERE cp.class_id IN (SELECT ancestor_id FROM class_hierarchy WHERE class_id = ?)
          ORDER BY (cp.class_id = ?) DESC, cp.sequence, cp.property_schema_id`,
       )
       .all(classId, classId) as Array<Record<string, unknown>>;
@@ -1107,14 +1111,36 @@ export class WorkspaceClient {
       };
     });
     const bound = new Set(bindings.map((b) => b.propertySchemaId));
+    // Seed-spec fallback: a system class whose binding rows were never
+    // authored still exposes its spec's schemas (read-synthesized — the
+    // PG14 seed-spec lookup). Keyed on the RESERVED SYSTEM ID, not the
+    // title, so the lookup survives display-wording renames (the system-
+    // names pass) and ad-hoc test fixtures alike. The synthesized label
+    // comes from the property_schema ROW when one exists (the row is the
+    // naming authority — renames and user edits ride it); only a missing
+    // row falls back to the manifest's display name.
+    const systemClassName = (
+      Object.entries(SYSTEM_CLASS_UUIDS) as Array<[string, string]>
+    ).find(([, id]) => id === classId)?.[0];
+    const schemaNameStmt = this.store.database.prepare(
+      "SELECT name FROM property_schema WHERE id = ?",
+    );
     let fallbackSeq = bindings.length;
     for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
-      if (spec === undefined || spec.bindTo !== classTitle) continue;
+      // bindTo-less specs (the global alias schema) are never class-bound —
+      // skip them explicitly (undefined === systemClassName would otherwise
+      // "match" for non-system classes).
+      if (spec === undefined || spec.bindTo === undefined || spec.bindTo !== systemClassName) {
+        continue;
+      }
       const id = SYSTEM_PROPERTY_UUIDS[name as keyof typeof SYSTEM_PROPERTY_UUIDS];
       if (bound.has(id)) continue;
+      const stored = schemaNameStmt.get(id) as { name: string } | undefined;
       bindings.push({
         propertySchemaId: id,
-        name,
+        name:
+          stored?.name ??
+          SYSTEM_PROPERTY_DISPLAY_NAMES[name as keyof typeof SYSTEM_PROPERTY_DISPLAY_NAMES],
         type: spec.type,
         multi: spec.multi ?? false,
         targetClassFilter: spec.targetClassFilter ?? null,

@@ -98,7 +98,7 @@ describe("PG10: aliases (seeded schema + name-equivalence)", () => {
     expect(client.listPropertySchemas().some((s) => s.id === SYSTEM_PROPERTY_UUIDS.alias)).toBe(false);
     await ensureAliasProperty(client);
     const schema = client.listPropertySchemas().find((s) => s.id === SYSTEM_PROPERTY_UUIDS.alias);
-    expect(schema).toMatchObject({ id: SYSTEM_PROPERTY_UUIDS.alias, name: "alias", type: "text", multi: true, scope: "global" });
+    expect(schema).toMatchObject({ id: SYSTEM_PROPERTY_UUIDS.alias, name: "Aliases", type: "text", multi: true, scope: "global" });
     await ensureAliasProperty(client);
     expect(client.listPropertySchemas().filter((s) => s.id === SYSTEM_PROPERTY_UUIDS.alias)).toHaveLength(1);
   });
