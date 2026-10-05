@@ -161,6 +161,11 @@ export function applyAppearance(): void {
   // §34.91 (#6): the UI font rides the same pre-paint data-attribute path.
   const uiFont = readDeviceSetting<UiFontPreference>("uiFont", "bundled");
   document.documentElement.dataset.font = uiFont;
+
+  // Focus mode (#12): dims the shell chrome (topbar / sidebar / right rail)
+  // while the page card stays full strength. Device-local display state.
+  const focusMode = readDeviceSetting("focusMode", false);
+  document.documentElement.dataset.focus = focusMode ? "true" : "false";
   if (accent === "custom") {
     const hex = readDeviceSetting("customAccentHex", "#404040");
     if (isValidHexColor(hex)) {
@@ -171,4 +176,17 @@ export function applyAppearance(): void {
       );
     }
   }
+}
+
+/**
+ * Toggle focus mode (#12) — flips the device setting, re-applies the
+ * data-attribute, and returns the new state. Shared by the command palette
+ * command and the App chord; `writeDeviceSetting`'s broadcast keeps every
+ * `useDeviceSetting` consumer in sync.
+ */
+export function toggleFocusMode(): boolean {
+  const next = !readDeviceSetting("focusMode", false);
+  writeDeviceSetting("focusMode", next);
+  applyAppearance();
+  return next;
 }
