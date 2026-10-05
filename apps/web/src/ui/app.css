@@ -2894,3 +2894,21 @@ mark {
     grid-row: auto;
   }
 }
+
+/* Owner refinement: the card chrome pins on scroll — only the content and
+   sections travel. Header sticks to the top of the scroll container, the
+   footer to the bottom; both carry the card surface so content slides
+   underneath. */
+.nt-page-header {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: var(--color-surface);
+}
+
+.nt-page-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  background: var(--color-surface);
+}

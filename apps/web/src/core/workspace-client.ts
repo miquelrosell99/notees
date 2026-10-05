@@ -1043,6 +1043,10 @@ export class WorkspaceClient {
         return raw;
       }
     };
+    // Extends-aware (owner fix): a class's bindings include its ancestors'
+    // — book extends source, so source's bound properties are book's class
+    // properties too. Own rows first (the §34.32 PG4 resolution order), then
+    // ancestors' by sequence; the first binding for a schema wins.
     const rows = this.store.database
       .prepare(
         `SELECT cp.property_schema_id, cp.sequence, cp.required, cp.readonly, cp.hide_when_empty,
@@ -1050,13 +1054,20 @@ export class WorkspaceClient {
                 ps.date_precision, ps.date_qualified, ps.number_pad, ps.number_decimals, ps.number_rounding
          FROM class_property cp
          LEFT JOIN property_schema ps ON ps.id = cp.property_schema_id
-         WHERE cp.class_id = ?
-         ORDER BY cp.sequence, cp.property_schema_id`,
+         WHERE cp.class_id IN (SELECT class_id FROM class_hierarchy WHERE ancestor_id = ?)
+         ORDER BY (cp.class_id = ?) DESC, cp.sequence, cp.property_schema_id`,
       )
-      .all(classId) as Array<Record<string, unknown>>;
+      .all(classId, classId) as Array<Record<string, unknown>>;
+    const seenSchemas = new Set<string>();
+    const dedupedRows = rows.filter((row) => {
+      const id = String(row.property_schema_id);
+      if (seenSchemas.has(id)) return false;
+      seenSchemas.add(id);
+      return true;
+    });
     const parsePrecision = (raw: unknown): DatePrecision | null =>
       raw === "year" || raw === "month" || raw === "day" ? raw : null;
-    const bindings: ClassBinding[] = rows.map((row) => {
+    const bindings: ClassBinding[] = dedupedRows.map((row) => {
       let targetClassFilter: string[] | null = null;
       try {
         const parsed: unknown = JSON.parse((row.target_class_filter as string | null) ?? "null");
@@ -2514,6 +2525,34 @@ export class WorkspaceClient {
         classIds: [SYSTEM_CLASS_UUIDS.day],
       });
     }
+    // Heal the chain parentage AND labels: older writers created chain nodes
+    // parentless and with ISO-dashed content ("2026-10-05"); the stored label
+    // must be the compact form ("20261005" — the v1 lookup/sort contract), so
+    // an existing-but-wrong level is rewritten, idempotently — one op per
+    // stray, only while it actually differs.
+    const healLevel = async (
+      id: string,
+      parentId: string | null,
+      precision: "year" | "month" | "day",
+    ): Promise<void> => {
+      const node = this.getNodeRaw(id);
+      if (node === undefined) return;
+      if ((node.parentId ?? null) !== parentId) {
+        await this.moveObject(id, parentId);
+      }
+      const label = dateNodeLabel(parts, precision);
+      const first = node.contentAst[0];
+      const text =
+        first !== undefined && (first as { type?: unknown }).type === "text"
+          ? String((first as { text?: unknown }).text ?? "")
+          : "";
+      if (text !== label) {
+        await this.updateObject(id, { contentAst: [{ type: "text", text: label }] });
+      }
+    };
+    await healLevel(ids.year, null, "year");
+    await healLevel(ids.month, ids.year, "month");
+    await healLevel(ids.day, ids.month, "day");
     return ids;
   }
 

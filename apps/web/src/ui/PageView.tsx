@@ -27,7 +27,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, typ
 import { DndContext, DragOverlay, type DragEndEvent, type DragMoveEvent, type DragStartEvent } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
-import { rendersWithDocumentChrome, parseDateNodeId } from "@notees/domain";
+import { rendersWithDocumentChrome, parseDateNodeId, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
@@ -37,7 +37,7 @@ import { ExportPageModal } from "./components/modals/ExportPageModal.js";
 import { SharePageModal } from "./components/modals/SharePageModal.js";
 import type { ShareTarget } from "./components/NodeMenuButton.js";
 import { NodeContextMenu } from "./components/NodeContextMenu.js";
-import { DayPageDateBar } from "./components/DayPageDateBar.js";
+import { DayFlags, DayPageDateBar } from "./components/DayPageDateBar.js";
 import { DayPageSections } from "./components/DayPageSections.js";
 import { isoOfDateParts } from "./components/calendarViewUtils.js";
 import { classIconMap, nodeIcon } from "./iconFor.js";
@@ -280,12 +280,29 @@ export function PageView({
   // Fullscreen whiteboard (SCHEMA.md: a whiteboard page carries a
   // `whiteboard` content token — the whiteboard CLASS, not any node kind,
   // says so): the spatial canvas renders IN PLACE OF the outline tree — the
-  // children are the cards.
+  // children are the cards. The whiteboard CLASS is identity too (owner
+  // ruling): a node classed `whiteboard` whose content carries no token yet
+  // still opens in whiteboard mode — the token is authored lazily on open.
   const whiteboardTokenIndex = page?.contentAst.findIndex(
     (token) =>
       typeof token === "object" && token !== null &&
       (token as { type?: unknown }).type === "whiteboard",
   ) ?? -1;
+  const whiteboardClassed =
+    page !== undefined && page.classIds.includes(SYSTEM_CLASS_UUIDS.whiteboard);
+  useEffect(() => {
+    if (
+      page === undefined ||
+      embedded ||
+      whiteboardTokenIndex >= 0 ||
+      !whiteboardClassed
+    ) {
+      return;
+    }
+    void client.updateObject(page.id, {
+      contentAst: [...page.contentAst, { type: "whiteboard", layout: { cards: {}, shapes: [], strokes: [] } }],
+    });
+  }, [client, page, embedded, whiteboardTokenIndex, whiteboardClassed]);
 
   /**
    * Cover property self-heal (§34.27 L2): the cover schema + source binding
@@ -561,6 +578,7 @@ export function PageView({
             ) : (
               <TitleEditor page={page} />
             )}
+              {dayIso !== null && !embedded && <DayFlags iso={dayIso} />}
             </span>
             {headerActions !== undefined && (
               <div className="nt-page-toolbar">{headerActions}</div>
@@ -577,7 +595,7 @@ export function PageView({
         )}
         </div>
         {dayIso !== null && !embedded && (
-          <DayPageDateBar client={client} pageId={pageId} iso={dayIso} onOpenPage={onOpenPage} />
+          <DayPageDateBar client={client} iso={dayIso} onOpenPage={onOpenPage} />
         )}
         {notice}
         {moveError !== null && (
@@ -587,13 +605,19 @@ export function PageView({
         )}
         <PropertiesSection client={client} nodeId={pageId} onOpenPage={onOpenPage} />
         <div className="nt-metadata-divider" />
-        {whiteboardTokenIndex >= 0 ? (
-          <>
-            <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
-            {systemSections ?? (
-              <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} withActivity={!embedded} />
-            )}
-          </>
+        {whiteboardTokenIndex >= 0 || (whiteboardClassed && !embedded) ? (
+          whiteboardTokenIndex >= 0 ? (
+            <>
+              <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
+              {systemSections ?? (
+                <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} withActivity={!embedded} />
+              )}
+            </>
+          ) : (
+            // Classed whiteboard without the token yet: the open effect is
+            // authoring it — one bare frame, then the canvas mounts.
+            <div className="nt-whiteboard-boot" aria-label="Opening whiteboard…" />
+          )
         ) : (
           <>
             <div className="nt-blocks-bar">

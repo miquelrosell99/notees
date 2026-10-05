@@ -71,7 +71,6 @@ import {
   taskStatusLabel,
   type DatedRow,
 } from "./calendarRows.js";
-import { dayReviewedOf, ensureDayReviewedProperty } from "./dayReviewedProperty.js";
 import {
   resolveQuickCreateChipClasses,
   useQuickCreateClassesSetting,
@@ -144,12 +143,6 @@ export function CalendarView({
   // §34.28 #2 — idempotent no-op once the six schemas + bindings exist.
   useEffect(() => {
     void ensureTaskFamily(client);
-  }, [client]);
-
-  // §34.28 #15 — the reviewed day-cell tint reads the boolean property;
-  // idempotent no-op once the schema + day-class binding exist.
-  useEffect(() => {
-    void ensureDayReviewedProperty(client);
   }, [client]);
 
   const dayId = dayNodeId(selectedIso);
@@ -269,7 +262,7 @@ export function CalendarView({
       .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? "") || a.id.localeCompare(b.id));
   }, [client, createdResult, selectedIso, version]);
 
-  // --- day marks + week breadth (§34.28 #11/#15, §34.63) ----------------------
+  // --- day marks + week breadth (§34.28 #11, §34.63) ----------------------
   // Range-aware dots + the reviewed tint read the same materialized state as
   // the sections: one backlink read per day cell (the edge projection fans
   // date refs and date_range ends out to the deterministic day node, so an
@@ -278,10 +271,9 @@ export function CalendarView({
   // on the anchor day only).
   const dayExtraMarks = useMemo(
     () =>
-      (iso: string): { dated: boolean; reviewed: boolean } => ({
+      (iso: string): { dated: boolean } => ({
         dated:
           hasDatedRefs(client.getBacklinks(dayNodeId(iso))) || recurringDayIsos.has(iso),
-        reviewed: dayReviewedOf(client, dayNodeId(iso)),
       }),
     [client, recurringDayIsos, version],
   );
