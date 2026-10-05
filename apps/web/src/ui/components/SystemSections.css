@@ -87,11 +87,6 @@
   padding: 2px var(--spacing-2, 8px) 2px 0;
 }
 
-.nt-refblock-tree .nt-block-content:hover {
-  background: var(--color-hover-overlay);
-  border-radius: var(--shape-small, 6px);
-}
-
 /* Compact per-reference breadcrumbs above each referencing block. */
 .outline-group__items > li > .node-breadcrumbs {
   display: block;
