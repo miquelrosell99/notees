@@ -724,6 +724,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
             multi: false,
             datePrecision: null,
             dateQualified: null,
+            numberPad: null,
+            numberDecimals: null,
+            numberRounding: null,
           },
           value: "medium",
           metadata: null,
@@ -1246,6 +1249,40 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       // Soft delete drops the root (and its subtree) from the read.
       store.apply(env("object.delete", { objectId: NODE_PAGE }, 1727200007000));
       expect(store.roots(WS).map((row) => row.id)).toEqual([NODE_BOOK]);
+    });
+  });
+
+  describe("property schema number formats", () => {
+    it("create carries the format; update keeps absent, clears null", () => {
+      const store = baseStore();
+      const id = "0192a000-0000-7000-8000-0000000000f8";
+      store.apply(
+        env(
+          "propertySchema.create",
+          {
+            propertySchemaId: id,
+            name: "fmt",
+            type: "number",
+            scope: "global",
+            numberPad: 4,
+            numberDecimals: 1,
+            numberRounding: "floor",
+          },
+          1727200002000,
+        ),
+      );
+      const row = () =>
+        store.database
+          .prepare("SELECT number_pad, number_decimals, number_rounding FROM property_schema WHERE id = ?")
+          .get(id) as { number_pad: number | null; number_decimals: number | null; number_rounding: string | null };
+      expect(row()).toEqual({ number_pad: 4, number_decimals: 1, number_rounding: "floor" });
+      // Absent keeps; null clears (the keep-vs-clear contract).
+      store.apply(env("propertySchema.update", { propertySchemaId: id, name: "fmt2" }, 1727200002100));
+      expect(row()).toEqual({ number_pad: 4, number_decimals: 1, number_rounding: "floor" });
+      store.apply(
+        env("propertySchema.update", { propertySchemaId: id, numberDecimals: null, numberRounding: null }, 1727200002200),
+      );
+      expect(row()).toEqual({ number_pad: 4, number_decimals: null, number_rounding: null });
     });
   });
 

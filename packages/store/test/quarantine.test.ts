@@ -100,7 +100,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
 
     // Both good ops landed; the poison is quarantined, not applied.
     expect(store.getNode(NODE_BLOCK)).not.toBeUndefined();
-    expect(store.getNode(NODE_CLASS)?.parentId ?? null).toBeNull();
+    expect(store.getNode(NODE_CLASS)?.parent_id ?? null).toBeNull();
 
     const quarantined = store.quarantinedEnvelopes();
     expect(quarantined).toHaveLength(1);

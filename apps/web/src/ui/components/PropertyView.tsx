@@ -118,6 +118,16 @@ export function PropertyView({
         {schema.type === "object" && schema.dateQualified === true && (
           <p className="nt-property-view__meta">Qualified — values may carry start/end dates.</p>
         )}
+        {schema.type === "number" && (
+          <p className="nt-property-view__meta">
+            {schema.numberPad !== null && schema.numberPad !== undefined
+              ? `pad ${schema.numberPad} · `
+              : ""}
+            {schema.numberDecimals !== null && schema.numberDecimals !== undefined
+              ? `${schema.numberDecimals} decimals (${schema.numberRounding ?? "round"})`
+              : "unformatted"}
+          </p>
+        )}
         {targetClassIds.length > 0 && (
           <div className="nt-property-view__row">
             <span className="section-label">Targets:</span>
