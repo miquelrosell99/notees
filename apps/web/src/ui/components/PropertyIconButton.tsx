@@ -1,6 +1,7 @@
 /**
- * PropertyIconButton — §34.89: a select-typed or boolean property whose
- * binding display is "bullet"/"inline" rides the block row as an icon button
+ * PropertyIconButton — §34.89 design, §34.90 contracts: a select-typed or
+ * boolean property whose SCHEMA carries a "bullet"/"inline" display position
+ * rides the block row as an icon button
  * (the Logseq-DB "UI position: beginning of the block" behavior; the v1
  * PropertyIconButton port). The button shows the FIRST selected option's MDI
  * icon tinted with its color — the at-a-glance state read; an unset value

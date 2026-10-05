@@ -3,18 +3,20 @@
  * Capacities type-panel analogue): one row per property binding.
  *
  * Collapsed row: drag grip (sequence order), a per-type glyph, the name,
- * only-set chips (target-class filter, default, date precision), the three
- * flag toggles (Required / Readonly / Hide-when-empty) as icon buttons, a
- * "Configure" expander and a remove ×. The expanded row is the full config
- * panel: rename, type (read-only, create-time contract), target-class pills,
- * typed default, checkbox flags, the PC4 Enabled switch, date precision /
- * qualified. Expanded when the class has no bindings (invites setup),
- * collapsed once configured.
+ * only-set chips (target-class filter, default, date precision), the
+ * Required flag toggle as an icon button, a "Configure" expander and a
+ * remove ×. The expanded row is the full config panel: rename, type
+ * (read-only, create-time contract), target-class pills, typed default, the
+ * Required checkbox, the PC4 Enabled switch, date precision / qualified.
+ * Expanded when the class has no bindings (invites setup), collapsed once
+ * configured.
  *
- * Writes: binding fields (sequence/default/required/readonly/hideWhenEmpty)
- * via class.property.set; schema fields (name/targetClassFilter/date
- * precision/dateQualified) via property.schema.update. Add: a search/create
- * popup over existing property schemas.
+ * Writes: binding fields (sequence/default/required) via class.property.set;
+ * schema fields (name/targetClassFilter/date precision/dateQualified and —
+ * §34.90 — the property-level render contracts display/readonly/
+ * hideWhenEmpty) via property.schema.update; the render contracts edit in
+ * the property's settings surface (PropertySettingsModal), not here. Add: a
+ * search/create popup over existing property schemas.
  *
  * PC4 (§34.56): the Enabled switch renders the binding's live `active` flag
  * but stays DISABLED — LOCKSTEP-PENDING (the `active` payload key ships inert
@@ -41,13 +43,12 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-
 import { CSS } from "@dnd-kit/utilities";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { BindingDisplay, ClassBinding, WorkspaceClient } from "@/core/workspace-client.js";
+import type { ClassBinding, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { displayNameFromClient } from "../../dateDisplay.js";
 import { Icon } from "../../Icon.js";
 import { AddPill } from "../ui/AddPill.js";
 import { Checkbox } from "../ui/Checkbox.js";
-import { SelectionButton } from "../ui/SelectionButton.js";
 import { ToggleSwitch } from "../ui/ToggleSwitch.js";
 import { NodeViewSection } from "../NodeViewSection.js";
 import "./PropertyDefinitionsSection.css";
@@ -68,11 +69,10 @@ const TYPE_GLYPHS: Record<string, string> = {
   boolean: "mdi-check-circle-outline",
 };
 
-/** The three per-binding flags, as collapsed-row icon toggles. */
+/** The per-class required flag (§34.90: the only binding-level flag left —
+ *  readonly/hideWhenEmpty/display moved to the property schema). */
 const FLAG_TOGGLES = [
   { field: "required", label: "Required", icon: "mdi-asterisk" },
-  { field: "readonly", label: "Readonly", icon: "mdi-lock-outline" },
-  { field: "hideWhenEmpty", label: "Hide when empty", icon: "mdi-eye-off-outline" },
 ] as const;
 
 /** Display names for a target-class filter's entries (ids or names). */
@@ -304,31 +304,9 @@ function BindingRow({
             />
             <span>Enabled {!BINDING_ACTIVE_WRITES_ENABLED && "(pending client lockstep)"}</span>
           </div>
-          {/* §34.89: where the value reads — the properties panel (default),
-              an icon button next to the block bullet, or one before the block
-              content (select/multi_select AND boolean; the Logseq-DB
-              value-position behavior). Booleans render the same button with
-              two synthetic circle options (check-circle true, hollow circle
-              false — the owner-specified glyphs). The wire stores "panel"
-              explicitly for the default. */}
-          {(binding.type === "select" ||
-            binding.type === "multi_select" ||
-            binding.type === "boolean") && (
-            <label className="nt-propdef-field">
-              <span className="nt-propdef-label">Value display</span>
-              <SelectionButton
-                size="sm"
-                aria-label={`Value display for ${name}`}
-                options={[
-                  { value: "panel", icon: "mdi-format-list-bulleted-square", label: "Properties panel" },
-                  { value: "bullet", icon: "mdi-circle-medium", label: "Next to bullet" },
-                  { value: "inline", icon: "mdi-format-align-left", label: "Before content" },
-                ]}
-                value={binding.display ?? "panel"}
-                onChange={(value) => patch({ display: value as BindingDisplay })}
-              />
-            </label>
-          )}
+          {/* §34.90: the value-display position and the read-only / hide-when-
+              empty contracts are PROPERTY-level now — they edit in the
+              property's settings surface (PropertySettingsModal), not here. */}
           {isDate && (
             <label className="nt-propdef-field">
               <span className="nt-propdef-label">Precision</span>

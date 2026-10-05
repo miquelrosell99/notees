@@ -23,7 +23,7 @@
 
 import type { SqliteDB } from "./db.js";
 
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 14;
 
 /** FTS module for the search_index virtual table (backend capability). */
 export type FtsModule = "fts5" | "fts4";
@@ -183,6 +183,15 @@ CREATE TABLE IF NOT EXISTS property_schema (
     number_pad INTEGER,
     number_decimals INTEGER,
     number_rounding TEXT,
+    -- §34.90: the render contracts are PROPERTY-level (owner review
+    -- 2026-10-05) — display (panel|bullet|inline; NULL = panel) and the
+    -- readonly/hide-when-empty tri-state flags, wherever the property
+    -- appears (class-bound or not). ('required' deliberately stays on the
+    -- class binding — a property may be mandatory for one class, optional
+    -- for another.)
+    display TEXT,
+    readonly INTEGER,
+    hide_when_empty INTEGER,
     active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT,
     updated_at TEXT
@@ -191,27 +200,25 @@ CREATE TABLE IF NOT EXISTS property_schema (
 CREATE INDEX IF NOT EXISTS idx_property_schema_workspace
     ON property_schema (workspace_id);
 
--- Class -> property binding rows (sequence, flags, default), authored by
+-- Class -> property binding rows (sequence, default), authored by
 -- class.property.set / class.property.unset (SCHEMA.md "Class properties").
 -- Row-level LWW by (hlc, actor): the winning write's causality is stored on
 -- the row, so a stale set replayed after a newer one is dropped. Defaults
 -- here are configuration only — the applier never writes property_value rows
 -- for them; the effective-values read model derives them at query time.
+-- §34.90 (owner review 2026-10-05): the row carries ONLY the genuinely
+-- per-class mechanics (sequence, required, default_value, active). The
+-- render contracts (readonly/hide_when_empty/display) are PROPERTY-level
+-- and live on property_schema.
 -- 'active' (PC4): the soft-unbind flag — an inactive row stops contributing
--- to the effective read (no default, no metadata); authored values survive.
--- 'display' (§34.89): value-display position — NULL/'panel' = the properties
--- section only; 'bullet' = an icon button next to the block bullet;
--- 'inline' = before the block content. Render contract only.
+-- to the effective read (no default, no sequence); authored values survive.
 CREATE TABLE IF NOT EXISTS class_property (
     class_id TEXT NOT NULL,
     property_schema_id TEXT NOT NULL,
     sequence INTEGER NOT NULL DEFAULT 0,
     required INTEGER,
-    readonly INTEGER,
-    hide_when_empty INTEGER,
     default_value TEXT,
     active INTEGER NOT NULL DEFAULT 1,
-    display TEXT,
     hlc_physical INTEGER NOT NULL DEFAULT 0,
     hlc_logical INTEGER NOT NULL DEFAULT 0,
     actor_id TEXT,
@@ -591,15 +598,56 @@ export function migrate(
   if (!classPropertyColumns.some((c) => c.name === "active")) {
     db.exec("ALTER TABLE class_property ADD COLUMN active INTEGER NOT NULL DEFAULT 1;");
   }
-  // v12 -> v13 (§34.89): the binding's value-display position (the v1
-  // icon_visibility port). Additive column, NULL = 'panel' (the properties
-  // section only); the column guard keeps the ALTER idempotent for a fresh
-  // v13 create.
-  const classPropertyColumnsV13 = db.prepare("PRAGMA table_info(class_property)").all() as {
+  // v13 -> v14 (§34.90, owner review 2026-10-05 — the render contracts move
+  // from the binding to the property). Two guarded steps, each idempotent
+  // for a fresh v14 create:
+  // (1) property_schema gains display + readonly/hide_when_empty
+  //     (NULL = panel / unset). `required` deliberately stays on the binding.
+  const schemaColumnsV14 = db.prepare("PRAGMA table_info(property_schema)").all() as {
     name: string;
   }[];
-  if (!classPropertyColumnsV13.some((c) => c.name === "display")) {
-    db.exec("ALTER TABLE class_property ADD COLUMN display TEXT;");
+  if (!schemaColumnsV14.some((c) => c.name === "display")) {
+    db.exec(`
+      ALTER TABLE property_schema ADD COLUMN display TEXT;
+      ALTER TABLE property_schema ADD COLUMN readonly INTEGER;
+      ALTER TABLE property_schema ADD COLUMN hide_when_empty INTEGER;
+    `);
+  }
+  // (2) class_property is REBUILT without the retired binding columns
+  //     (readonly/hide_when_empty from the original shape, display from the
+  //     §34.89 v13 experiment — the v11 property_value rebuild precedent:
+  //     same surviving columns, rows copy verbatim, indexes recreated).
+  //     `required` survives on the row (the owner's per-class exception).
+  const classPropertyColumnsV14 = db.prepare("PRAGMA table_info(class_property)").all() as {
+    name: string;
+  }[];
+  if (classPropertyColumnsV14.some((c) => c.name === "display" || c.name === "hide_when_empty")) {
+    db.exec(`
+      PRAGMA foreign_keys = OFF;
+      CREATE TABLE class_property_v14 (
+          class_id TEXT NOT NULL,
+          property_schema_id TEXT NOT NULL,
+          sequence INTEGER NOT NULL DEFAULT 0,
+          required INTEGER,
+          default_value TEXT,
+          active INTEGER NOT NULL DEFAULT 1,
+          hlc_physical INTEGER NOT NULL DEFAULT 0,
+          hlc_logical INTEGER NOT NULL DEFAULT 0,
+          actor_id TEXT,
+          PRIMARY KEY (class_id, property_schema_id)
+      );
+      INSERT INTO class_property_v14 (
+          class_id, property_schema_id, sequence, required, default_value, active,
+          hlc_physical, hlc_logical, actor_id
+      )
+      SELECT class_id, property_schema_id, sequence, required, default_value, active,
+             hlc_physical, hlc_logical, actor_id
+      FROM class_property;
+      DROP TABLE class_property;
+      ALTER TABLE class_property_v14 RENAME TO class_property;
+      CREATE INDEX IF NOT EXISTS idx_class_property_class ON class_property (class_id);
+      PRAGMA foreign_keys = ON;
+    `);
   }
   // (2) PG5 element tombstone table (CREATE IF NOT EXISTS is a no-op for
   //     fresh v11 creates).

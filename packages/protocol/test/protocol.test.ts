@@ -425,21 +425,12 @@ describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
     const fixture = fixtures.find((f) => f.name === "class-property-active.json")!;
     const flips = fixture.envelopes.filter((env) => env.opType === "class.property.set");
     // Binding → enable (lower HLC, race loser) → disable (newer, winner) →
-    // authored value → re-enable → display:"bullet" (§34.89). The active flag
-    // and the display position ride the row LWW.
+    // authored value → re-enable. The active flag rides the row LWW.
     expect(flips.map((env) => (env.payload as { active?: boolean }).active)).toEqual([
       undefined,
       true,
       false,
       true,
-      undefined,
-    ]);
-    expect(flips.map((env) => (env.payload as { display?: string }).display)).toEqual([
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      "bullet",
     ]);
     const hlcA = flips[1]!.hlc as { physical: number; logical: number };
     const hlcB = flips[2]!.hlc as { physical: number; logical: number };
@@ -452,10 +443,41 @@ describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
         active: "yes",
       }).success,
     ).toBe(false);
-    // Strict schema: an unknown display position is rejected outright.
+    // §34.90: display moved OFF the binding — it is a retired key there,
+    // rejected by the strict schema like nodeType.
     expect(
       payloadSchemaFor("class.property.set")!.safeParse({
         classId: "0192a000-0000-7000-8000-000000000742",
+        propertySchemaId: "0192a000-0000-7000-8000-000000000741",
+        display: "bullet",
+      }).success,
+    ).toBe(false);
+    expect(
+      payloadSchemaFor("class.property.set")!.safeParse({
+        classId: "0192a000-0000-7000-8000-000000000742",
+        propertySchemaId: "0192a000-0000-7000-8000-000000000741",
+        hideWhenEmpty: true,
+      }).success,
+    ).toBe(false);
+    // The fixture's display write rides propertySchema.update instead.
+    const displayUpdate = fixture.envelopes.find((env) => env.opType === "propertySchema.update")!;
+    expect(displayUpdate).toBeDefined();
+    expect(displayUpdate.payload).toEqual({
+      propertySchemaId: "0192a000-0000-7000-8000-000000000741",
+      display: "bullet",
+    });
+    // The schema op accepts the three values, rejects the unknown one, and
+    // treats null as clear (the keep/clear contract).
+    for (const value of ["panel", "bullet", "inline", null]) {
+      expect(
+        payloadSchemaFor("propertySchema.update")!.safeParse({
+          propertySchemaId: "0192a000-0000-7000-8000-000000000741",
+          display: value,
+        }).success,
+      ).toBe(true);
+    }
+    expect(
+      payloadSchemaFor("propertySchema.update")!.safeParse({
         propertySchemaId: "0192a000-0000-7000-8000-000000000741",
         display: "hover",
       }).success,
