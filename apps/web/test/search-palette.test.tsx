@@ -17,7 +17,7 @@
  *    labeled with its containing-page path.
  */
 
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
@@ -43,6 +43,7 @@ const clients: WorkspaceClient[] = [];
 afterEach(() => {
   while (clients.length > 0) clients.pop()!.close();
   localStorage.clear();
+  vi.restoreAllMocks();
 });
 
 async function seedClient(): Promise<WorkspaceClient> {
@@ -134,7 +135,9 @@ describe("CommandPalette sections (M6 + §34.28 #12)", () => {
     renderPalette(client);
 
     expect(await screen.findByText("Recent")).not.toBeNull();
-    expect(screen.getByText("Garden")).not.toBeNull();
+    // Garden is both a recent and (this run's) random pick — the Random
+    // section is exempt from the cross-group dedupe by design (#8).
+    expect(screen.getAllByText("Garden").length).toBeGreaterThan(0);
     expect(screen.getByText("Commands")).not.toBeNull();
     expect(screen.getByText("New page")).not.toBeNull();
     expect(screen.getByText("Sign out")).not.toBeNull();
@@ -149,7 +152,7 @@ describe("CommandPalette sections (M6 + §34.28 #12)", () => {
     localStorage.setItem("notees.recents", JSON.stringify([garden]));
     window.dispatchEvent(new Event("notees:recents"));
     expect(await screen.findByText("Recent")).not.toBeNull();
-    expect(screen.getByText("Garden")).not.toBeNull();
+    expect(screen.getAllByText("Garden").length).toBeGreaterThan(0);
   });
 
   it("typed creation: the Commands registry offers 'Create page \"<query>\"'", async () => {
@@ -159,6 +162,73 @@ describe("CommandPalette sections (M6 + §34.28 #12)", () => {
     const row = await screen.findByText('Create page "Shopping List"');
     fireEvent.click(row);
     expect(created).toEqual(["Shopping List"]);
+  });
+});
+
+describe("CommandPalette Random section (#8)", () => {
+  /** A workspace of `count` plain pages, all eligible for the section. */
+  async function seedRandomWorld(count: number): Promise<WorkspaceClient> {
+    const client = await seedClient();
+    for (let i = 0; i < count; i += 1) {
+      await client.createObject({
+        presentAsMain: true,
+        contentAst: [{ type: "text", text: `Page ${i + 1}` }],
+      });
+    }
+    return client;
+  }
+
+  /** The first five palette row labels (the Random rows precede Commands). */
+  const firstLabels = (): Array<string | null> =>
+    [...document.querySelectorAll(".nt-palette-item-label")].map((el) => el.textContent).slice(0, 5);
+
+  it("the empty query shows the Random section with five rows and a refresh button", async () => {
+    const client = await seedRandomWorld(8);
+    renderPalette(client);
+
+    expect(await screen.findByText("Random")).not.toBeNull();
+    expect(screen.getByLabelText("Refresh random pages")).not.toBeNull();
+    // Five random rows precede the Commands group (the command count is a
+    // moving registry — assert the section's five, not the total).
+    expect(firstLabels()).toHaveLength(5);
+    expect(firstLabels().every((label) => /^Page \d$/.test(label ?? ""))).toBe(true);
+    expect(screen.getByText("Commands")).not.toBeNull();
+  });
+
+  it("the Random section answers no query (empty-query only, like Recent)", async () => {
+    const client = await seedRandomWorld(8);
+    renderPalette(client);
+    await screen.findByText("Random");
+    typeInPalette("Page 1");
+    expect(screen.queryByText("Random")).toBeNull();
+    // The fuzzy Pages section owns the query instead.
+    expect(await screen.findByText("Pages")).not.toBeNull();
+  });
+
+  it("refresh re-picks via a seeded Math.random, opening a different five", async () => {
+    const client = await seedRandomWorld(8);
+    // Math.random() === 0 drives Fisher–Yates on [Page 1..8] to
+    // [2,3,4,5,6,7,8,1] (every swap pulls index 0 forward).
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+    renderPalette(client);
+    await screen.findByText("Random");
+    expect(firstLabels()).toEqual(["Page 2", "Page 3", "Page 4", "Page 5", "Page 6"]);
+
+    // Math.random() === 0.99 makes every swap a no-op (identity order).
+    randomSpy.mockReturnValue(0.99);
+    fireEvent.click(screen.getByLabelText("Refresh random pages"));
+    expect(firstLabels()).toEqual(["Page 1", "Page 2", "Page 3", "Page 4", "Page 5"]);
+  });
+
+  it("refresh does NOT re-query the worker (the same cached pool re-shuffles)", async () => {
+    const client = await seedRandomWorld(8);
+    const listSpy = vi.spyOn(client, "listPages");
+    renderPalette(client);
+    await screen.findByText("Random");
+    const callsAfterOpen = listSpy.mock.calls.length;
+    expect(callsAfterOpen).toBeGreaterThan(0);
+    fireEvent.click(screen.getByLabelText("Refresh random pages"));
+    expect(listSpy.mock.calls.length).toBe(callsAfterOpen);
   });
 });
 

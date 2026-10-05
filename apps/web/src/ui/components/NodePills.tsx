@@ -42,6 +42,7 @@ import { AddPill } from "./ui/AddPill.js";
 import { ColorPickerRow } from "./pickers/ColorPickerRow.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
 import { NodeContextMenu } from "./NodeContextMenu.js";
+import { ClassCreateModal } from "./modals/ClassCreateModal.js";
 import { usePopupDismissal } from "./ui/usePopupDismissal.js";
 import { cssColorFor, resolveCssColor } from "./ui/colorPresets.js";
 import { classRemovalRefusal, isClassNonRemovable, refuseClassRemoval } from "./classRemoval.js";
@@ -270,6 +271,15 @@ export function NodePills({
   const [nodeMenu, setNodeMenu] = useState<{ node: ClientNode; x: number; y: number } | null>(null);
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [overflowPos, setOverflowPos] = useState<{ top: number; left: number } | null>(null);
+  /**
+   * #14 — the picker's create-class row opens the ClassCreateModal instead
+   * of a bare createClass: the typed query carries in as the name, and the
+   * created class comes back through the promise the picker handed us.
+   */
+  const [classCreate, setClassCreate] = useState<{
+    initialName: string;
+    resolve: (id: string | undefined) => void;
+  } | null>(null);
   const addButtonRef = useRef<HTMLButtonElement | null>(null);
   const overflowButtonRef = useRef<HTMLButtonElement | null>(null);
   const overflowPopupRef = useRef<HTMLDivElement>(null);
@@ -421,6 +431,30 @@ export function NodePills({
           onAdd={(node) => {
             onAdd(node.id);
             setPickerOpen(false);
+          }}
+          onCreateNew={(name) => {
+            // The modal takes over; the picker closes. The promise resolves
+            // with the created class id (undefined when cancelled) — the
+            // picker's create-result flow then assigns it like any pick.
+            setPickerOpen(false);
+            return new Promise<string | undefined>((resolve) =>
+              setClassCreate({ initialName: name, resolve }),
+            );
+          }}
+        />
+      )}
+      {classCreate !== null && (
+        <ClassCreateModal
+          isOpen
+          client={client}
+          initialName={classCreate.initialName}
+          onClose={() => {
+            classCreate.resolve(undefined);
+            setClassCreate(null);
+          }}
+          onCreated={(id) => {
+            classCreate.resolve(id);
+            setClassCreate(null);
           }}
         />
       )}

@@ -1,0 +1,60 @@
+/**
+ * ClassCreateModal styles (#14) — the two-mode creation dialog. Every value
+ * resolves to a custom property from variables.css (the token-drift gate).
+ */
+
+.class-create {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.class-create__blank {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.class-create__blank-options {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.class-create__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.class-create__deploy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.class-create__catalog {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  max-height: var(--layout-size-7xl, 320px);
+  overflow-y: auto;
+}
+
+.class-create__catalog-row {
+  justify-content: flex-start;
+}
+
+.class-create__all-deployed {
+  margin: 0;
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-sm);
+}
+
+.class-create__error {
+  margin: 0;
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+}

@@ -194,6 +194,13 @@ export interface OutlinerContextValue {
    */
   openInSidebar: (nodeId: string) => void;
   /**
+   * Focus mode (#12): the device-local "only the editor" flag, provided by
+   * the view and read by BlockRow — the row hides its reference/property
+   * chrome (backlink gutter + panel, property icon buttons, the collapsed
+   * properties section). Text editing is unchanged.
+   */
+  focusMode: boolean;
+  /**
    * §34.19 block multi-selection — session-local display state (never an
    * op): the selected block-id set plus the anchor the range gestures
    * extend from. `selectionEnabled` is a view-level opt-in (the main page
@@ -249,6 +256,8 @@ export function useOutlinerValue(
     ensureTemplateFamily?: () => Promise<void>;
     /** Block multi-selection opt-in (the main page body sets it). */
     selection?: boolean;
+    /** Focus mode (#12) — hides block-level reference/property chrome. */
+    focusMode?: boolean;
   },
 ): OutlinerContextValue {
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
@@ -314,6 +323,7 @@ export function useOutlinerValue(
     rootId,
     openNode: options?.openNode ?? (() => {}),
     openInSidebar: options?.openInSidebar ?? (() => {}),
+    focusMode: options?.focusMode ?? false,
     selectionEnabled: options?.selection ?? false,
     selection: selectedIds,
     selectionAnchor,
