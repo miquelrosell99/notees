@@ -841,11 +841,11 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     });
     const row = store.database
       .prepare(
-        `SELECT property_schema_id, sequence, required, readonly, hide_when_empty, default_value, active, display
+        `SELECT property_schema_id, sequence, required, default_value, active
          FROM class_property WHERE class_id = ? AND property_schema_id = ?`,
       )
       .get(id, propertySchemaId) as
-      | { property_schema_id: string; sequence: number; required: number | null; readonly: number | null; hide_when_empty: number | null; default_value: string | null; active: number; display: string | null }
+      | { property_schema_id: string; sequence: number; required: number | null; default_value: string | null; active: number }
       | undefined;
     return {
       classId: id,
@@ -857,11 +857,8 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
               propertySchemaId: row.property_schema_id,
               sequence: row.sequence,
               required: row.required === null ? null : row.required === 1,
-              readonly: row.readonly === null ? null : row.readonly === 1,
-              hideWhenEmpty: row.hide_when_empty === null ? null : row.hide_when_empty === 1,
               defaultValue: row.default_value === null ? null : (JSON.parse(row.default_value) as unknown),
               active: row.active === 1,
-              display: row.display === "bullet" || row.display === "inline" ? row.display : null,
             },
     };
   });

@@ -24,6 +24,7 @@ import {
   UndoJournal,
   type UndoCaptureSource,
   type UndoNodeSnapshot,
+  type UndoSchemaSnapshot,
 } from "../src/core/undo-journal.js";
 
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -62,22 +63,11 @@ function fakeCapture(overrides: {
   binding?: {
     sequence: number;
     required: boolean | null;
-    readonly: boolean | null;
-    hideWhenEmpty: boolean | null;
     defaultValue: unknown;
     active: boolean;
   } | null;
   parents?: string[];
-  schema?: {
-    name: string;
-    type: string;
-    multi: boolean;
-    scope: string;
-    options: unknown;
-    targetClassFilter: string[] | null;
-    datePrecision: string | null;
-    dateQualified: boolean | null;
-  } | null;
+  schema?: Partial<UndoSchemaSnapshot> | null;
   description?: string | null;
   asset?: {
     assetId: string;
@@ -110,6 +100,9 @@ function fakeCapture(overrides: {
     targetClassFilter: null,
     datePrecision: null,
     dateQualified: null,
+    display: null,
+    readonly: null,
+    hideWhenEmpty: null,
   };
   return {
     nodeSnapshot: () => node,
@@ -119,7 +112,8 @@ function fakeCapture(overrides: {
     propertyValue: () => (overrides.property !== undefined ? overrides.property : null),
     classBinding: () => (overrides.binding !== undefined ? overrides.binding : null),
     classParents: () => overrides.parents ?? [CLASS_B],
-    schemaSnapshot: () => (overrides.schema !== undefined ? overrides.schema : defaultSchema),
+    schemaSnapshot: () =>
+      overrides.schema !== undefined ? { ...defaultSchema, ...overrides.schema } : defaultSchema,
     assetSnapshot: () => (overrides.asset !== undefined ? overrides.asset : null),
     collectionMembership: () => overrides.member ?? false,
     featureEnabled: () => overrides.feature ?? true,
@@ -302,8 +296,6 @@ describe("invertEnvelope — the inversion matrix", () => {
     const binding = {
       sequence: 2,
       required: null,
-      readonly: null,
-      hideWhenEmpty: null,
       defaultValue: undefined,
       active: true,
     };
@@ -337,8 +329,6 @@ describe("invertEnvelope — the inversion matrix", () => {
     const binding = {
       sequence: 3,
       required: true,
-      readonly: false,
-      hideWhenEmpty: null,
       defaultValue: "draft",
       active: false,
     };
@@ -355,8 +345,6 @@ describe("invertEnvelope — the inversion matrix", () => {
           propertySchemaId: SCHEMA,
           sequence: 3,
           required: true,
-          readonly: false,
-          hideWhenEmpty: false, // NULL prior — the wire coerces null → false
           defaultValue: "draft",
           active: false,
         },
@@ -451,12 +439,41 @@ describe("invertEnvelope — the inversion matrix", () => {
           targetClassFilter: null,
           datePrecision: null,
           dateQualified: null,
+          display: null,
+          readonly: null,
+          hideWhenEmpty: null,
         },
       })),
     ).toEqual([
       {
         opType: "propertySchema.update",
         payload: { propertySchemaId: SCHEMA, name: "Status", datePrecision: "day" },
+        affected: [],
+      },
+    ]);
+  });
+
+  it("propertySchema.update restores the §34.90 render contracts it touches", () => {
+    expect(
+      invertEnvelope(env("propertySchema.update", { propertySchemaId: SCHEMA, display: "bullet", readonly: true }), fakeCapture({
+        schema: {
+          name: "Status",
+          type: "select",
+          multi: false,
+          scope: "global",
+          options: [],
+          targetClassFilter: null,
+          datePrecision: null,
+          dateQualified: null,
+          display: "inline",
+          readonly: null,
+          hideWhenEmpty: false,
+        },
+      })),
+    ).toEqual([
+      {
+        opType: "propertySchema.update",
+        payload: { propertySchemaId: SCHEMA, display: "inline", readonly: null },
         affected: [],
       },
     ]);

@@ -93,8 +93,8 @@ export const OP_CATALOG: OpCatalogEntry[] = [
   },
   {
     opType: "class.property.set",
-    description: "Upsert a class→property-schema binding (sequence, flags, defaultValue, active, display; omitted fields keep, null clears a flag).",
-    example: { classId: "<uuid>", propertySchemaId: "<schema-uuid>", sequence: 1, active: true, display: "bullet" },
+    description: "Upsert a class→property-schema binding (sequence, flags, defaultValue, active; omitted fields keep, null clears a flag).",
+    example: { classId: "<uuid>", propertySchemaId: "<schema-uuid>", sequence: 1, active: true },
     affected: "classId",
   },
   {
@@ -111,8 +111,8 @@ export const OP_CATALOG: OpCatalogEntry[] = [
   },
   {
     opType: "propertySchema.update",
-    description: "Patch a schema's registry fields (name/type/flags — partial, null clears).",
-    example: { propertySchemaId: "<uuid>", name: "score" },
+    description: "Patch a schema's registry fields (name/options/formats/display — partial, null clears).",
+    example: { propertySchemaId: "<uuid>", name: "score", display: "bullet" },
     affected: "none",
   },
   {
