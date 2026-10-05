@@ -78,6 +78,7 @@ import { GraphView } from "./views/graph/GraphView.js";
 import { LocalGraphCard } from "./components/LocalGraphCard.js";
 import { TopBar } from "./components/TopBar.js";
 import { QuickAddModal } from "./components/modals/QuickAddModal.js";
+import { ClassCreateModal } from "./components/modals/ClassCreateModal.js";
 import { QuickCreateFab } from "./components/QuickCreateFab.js";
 import { WorkspacesView } from "./components/WorkspacesView.js";
 import { UserSettingsModal } from "./components/modals/UserSettingsModal.js";
@@ -722,6 +723,8 @@ export function App() {
     openWorkspaceLanding();
   }
   const [paletteOpen, setPaletteOpen] = useState(false);
+  /** #14 — the palette's "New class…" command opens the creation modal. */
+  const [classCreateOpen, setClassCreateOpen] = useState(false);
   /**
    * §34.64 — the session undo journal's chrome state (availability + labels).
    * Refreshed on a macrotask coalescer off every client notification (the
@@ -1864,6 +1867,7 @@ export function App() {
         onClose={() => setPaletteOpen(false)}
         onOpenNode={openPage}
         onNewPage={(title) => void handleNewPage(title)}
+        onOpenClassCreate={() => setClassCreateOpen(true)}
         onSignOut={() => void handleSignOut()}
         undoState={undoUi}
         onUndo={() => {
@@ -1892,6 +1896,14 @@ export function App() {
       )}
       {quickAddOpen && (
         <QuickAddModal isOpen={quickAddOpen} onClose={() => setQuickAddOpen(false)} client={client} />
+      )}
+      {classCreateOpen && (
+        <ClassCreateModal
+          isOpen
+          client={client}
+          onClose={() => setClassCreateOpen(false)}
+          onCreated={(id) => openPage(id)}
+        />
       )}
       {/* The mobile quick-create FAB (§34.19 MobileLayout): hosts its own
           QuickAddModal; CSS surfaces the button only at narrow widths. */}
@@ -1995,6 +2007,9 @@ export function HubView({
   }, [client, nav]);
   const classes = client.listClasses();
   const assetClassId = classes.find((cls) => cls.name === "asset")?.id ?? SYSTEM_CLASS_UUIDS.asset;
+  // #14 — the Classes hub hosts the class-creation modal (blank + system
+  // deploy); the header button opens it, and a created class opens.
+  const [classCreateOpen, setClassCreateOpen] = useState(false);
   // Top-level pages: subpages render in their parent's Pages zone, so the
   // workspace-level hubs list roots only; the asset class stays excluded.
   const pages = client.roots().filter((page) => !page.classIds.includes(assetClassId));
@@ -2074,18 +2089,40 @@ export function HubView({
         : nav === "inbox"
           ? pages.filter((page) => !sectionIds.has(page.id) && page.classIds.length === 0)
           : pages.filter((page) => !sectionIds.has(page.id));
+  const newClassAction =
+    nav === "classes" ? (
+      <Button
+        size="sm"
+        variant="outline"
+        icon="mdiShapePlus"
+        onClick={() => setClassCreateOpen(true)}
+      >
+        New class
+      </Button>
+    ) : undefined;
   return (
-    <CollectionHub
-      client={client}
-      icon={entry?.icon ?? "mdi-book-open-page-variant"}
-      title={entry?.label ?? "Pages"}
-      items={items.map((node) => ({ node }))}
-      modes={["outline"]}
-      defaultMode="outline"
-      persistKey={`hub.${nav}`}
-      emptyTitle="Nothing here yet."
-      onOpenNode={onOpenNode}
-      onOpenInSidebar={onOpenInSidebar}
-    />
+    <>
+      <CollectionHub
+        client={client}
+        icon={entry?.icon ?? "mdi-book-open-page-variant"}
+        title={entry?.label ?? "Pages"}
+        items={items.map((node) => ({ node }))}
+        modes={["outline"]}
+        defaultMode="outline"
+        persistKey={`hub.${nav}`}
+        emptyTitle="Nothing here yet."
+        headerActions={newClassAction}
+        onOpenNode={onOpenNode}
+        onOpenInSidebar={onOpenInSidebar}
+      />
+      {classCreateOpen && (
+        <ClassCreateModal
+          isOpen
+          client={client}
+          onClose={() => setClassCreateOpen(false)}
+          onCreated={(id) => onOpenNode(id)}
+        />
+      )}
+    </>
   );
 }

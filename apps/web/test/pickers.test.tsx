@@ -111,10 +111,15 @@ describe("metadata pickers (ported popups)", () => {
     expect(screen.queryByRole("dialog", { name: "Select node" })).toBeNull();
     expect(container.querySelectorAll(".nt-classes-row .pill:not(.pill--add)").length).toBe(2);
 
-    // The "Create" row creates a class and assigns it.
+    // The "Create" row routes through the class-creation modal (#14): the
+    // typed query carries in as the blank mode's name, and creating there
+    // creates the class and assigns it like any pick.
     fireEvent.click(screen.getByRole("button", { name: "Add class" }));
     fireEvent.change(screen.getByLabelText("Search classes"), { target: { value: "Essays" } });
     fireEvent.click(screen.getByText('Create "Essays"'));
+    const createDialog = screen.getByRole("dialog", { name: "New class" });
+    expect(within(createDialog).getByLabelText("Name")).toHaveValue("Essays");
+    fireEvent.click(within(createDialog).getByRole("button", { name: /create class/i }));
     await flushWrites();
     const essays = client.listClasses().find((c) => deriveDisplayName(c) === "Essays");
     expect(essays).not.toBeUndefined();

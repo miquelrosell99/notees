@@ -22,8 +22,9 @@
  *  - Content    debounced ranked FTS (client.searchPage) with M3 match
  *               snippets; block hits carry their containing-page label
  *               (M4, label helper shared with M8's picker work)
- *  - Commands   the action registry: New page, a typed "Create page …" row,
- *               Toggle theme, Sign out (M6's contribution point)
+ *  - Commands   the action registry: New page, New class… (#14, where the
+ *               host provides it), a typed "Create page …" row, Focus mode
+ *               (#12), Toggle theme, Sign out (M6's contribution point)
  *
  * Full keyboard navigation: ArrowUp/Down cycles, Enter selects, Esc closes;
  * the mouse hovers and clicks. Theme toggling dispatches the same
@@ -224,6 +225,7 @@ export function CommandPalette({
   onClose,
   onOpenNode,
   onNewPage,
+  onOpenClassCreate = undefined,
   onSignOut,
   undoState,
   onUndo,
@@ -238,6 +240,9 @@ export function CommandPalette({
   onOpenNode: (nodeId: string) => void;
   /** Create (and open) a new page; a title carries the palette query. */
   onNewPage: (title?: string) => void;
+  /** #14 — open the class-creation modal (blank + system deploy); the row
+   *  appears only where the host provides it. */
+  onOpenClassCreate?: (() => void) | undefined;
   onSignOut: () => void;
   /** §34.64 — the session undo journal state; rows appear only when available. */
   undoState: UndoUiState;
@@ -425,6 +430,17 @@ export function CommandPalette({
         keywords: "new create page add",
         run: () => onNewPage(),
       },
+      ...(onOpenClassCreate !== undefined
+        ? [
+            {
+              key: "new-class",
+              label: "New class…",
+              icon: "mdiShapePlus",
+              keywords: "new create class add deploy system",
+              run: () => onOpenClassCreate(),
+            },
+          ]
+        : []),
       ...(text !== ""
         ? [
             {
@@ -500,7 +516,7 @@ export function CommandPalette({
     return items;
     // cacheVersion: the cached reads resolve asynchronously after their seed;
     // re-derive the sections when the worker cache refreshes.
-  }, [client, dailyOnly, text, onOpenNode, onNewPage, onSignOut, onClose, recentIds, cacheVersion, undoState, onUndo, onRedo]);
+  }, [client, dailyOnly, text, onOpenNode, onNewPage, onOpenClassCreate, onSignOut, onClose, recentIds, cacheVersion, undoState, onUndo, onRedo]);
 
   // --- Content section (M4): debounced ranked FTS with snippets -------------
 

@@ -341,6 +341,7 @@ The page's surroundings, and what remembers what:
 - **The footer** shows a word count (title + everything nested under it) and **Created** / **Updated** stamps; each stamp opens that day's page.
 - **Breadcrumbs edit.** Hover a crumb for its chevron (or right-click it): Open, **Reassign parent…**, **Remove parent** — and a parentless page gets a "+ Add parent" pill. All of it is ordinary tree surgery (one move per gesture).
 - **Unlinked references** (the "someone typed the page's name without linking it" tab, in the reference strip below the page) offers two actions per row: **Promote** turns the literal mention into a real link (the row moves to Linked references), **Ignore** hides it on this device.
+- **Creating classes.** The **Classes** hub's **New class** button (or the command palette's **New class…**) opens the creation dialog: a blank class (name, icon, color), or **Deploy system class** — the seeded system classes this workspace doesn't have yet (Person, Meeting, Source, the source family, …). Deploying authors the class at its designed identity, its place in the hierarchy, and its property family in one idempotent step — the same shape a server-seeded workspace starts with, so everything downstream (quick-create, calendar chips, citation fields) just works.
 
 ## Query blocks & saved views
 
