@@ -448,6 +448,70 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     });
   });
 
+  describe("§34.89 — binding display position + option icon", () => {
+    const SCHEMA_SELECT = "0192a000-0000-7000-8000-0000000000a6";
+
+    it("display persists on the binding row and rides the effective read (panel default)", () => {
+      const store = seededStore();
+      let ts = 1727200030000;
+      store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_SELECT, name: "stage", type: "select", options: [{ id: "opt-a", label: "A", icon: "mdiCircle", color: "yellow" }] }, (ts += 100)));
+      store.apply(env("object.create", { objectId: PAGE, classIds: [CLASS_A] }, (ts += 100)));
+      // Absent display = the NULL 'panel' default.
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT, sequence: 1, defaultValue: "opt-a" }, (ts += 100)));
+      expect(
+        (store.database.prepare("SELECT display FROM class_property WHERE class_id = ? AND property_schema_id = ?").get(CLASS_A, SCHEMA_SELECT) as { display: string | null }).display,
+      ).toBeNull();
+      expect(store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT)?.display).toBeNull();
+      // A display write lands on the row and surfaces on authored + default rows.
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT, display: "bullet" }, (ts += 100)));
+      expect(
+        (store.database.prepare("SELECT display FROM class_property WHERE class_id = ? AND property_schema_id = ?").get(CLASS_A, SCHEMA_SELECT) as { display: string | null }).display,
+      ).toBe("bullet");
+      expect(store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT)?.display).toBe("bullet");
+      store.apply(env("property.set", { objectId: PAGE, propertySchemaId: SCHEMA_SELECT, value: "opt-a", idx: 0 }, (ts += 100)));
+      expect(store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT && r.source === "authored")?.display).toBe("bullet");
+      // Patch semantics: an omitted display keeps the stored position.
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT, sequence: 9 }, (ts += 100)));
+      expect(
+        (store.database.prepare("SELECT display, sequence FROM class_property WHERE class_id = ? AND property_schema_id = ?").get(CLASS_A, SCHEMA_SELECT) as { display: string | null; sequence: number }).display,
+      ).toBe("bullet");
+      // "inline" persists too; a stale write loses the row LWW.
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT, display: "inline" }, (ts += 100)));
+      expect(store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT)?.display).toBe("inline");
+      const stale = store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT, display: "bullet" }, ts - 50));
+      expect(stale.ignored).toBe(true);
+      expect(store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT)?.display).toBe("inline");
+    });
+
+    it("an unbound authored value reads display null; an inactive binding contributes nothing", () => {
+      const store = seededStore();
+      let ts = 1727200031000;
+      store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_SELECT, name: "stage", type: "select" }, (ts += 100)));
+      store.apply(env("property.set", { objectId: PAGE, propertySchemaId: SCHEMA_SELECT, value: "opt-x", idx: 0 }, (ts += 100)));
+      expect(store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT)?.display).toBeNull();
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT, display: "bullet" }, (ts += 100)));
+      store.apply(env("object.create", { objectId: PAGE, classIds: [CLASS_A] }, (ts += 100)));
+      expect(store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT)?.display).toBe("bullet");
+      store.apply(env("class.property.set", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT, active: false }, (ts += 100)));
+      expect(store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT)?.display).toBeNull();
+    });
+
+    it("option icons ride the options JSON verbatim through create and wholesale update", () => {
+      const store = seededStore();
+      let ts = 1727200032000;
+      store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_SELECT, name: "stage", type: "select", options: [{ id: "opt-a", label: "A", icon: "mdiCircle", color: "yellow" }] }, (ts += 100)));
+      const stored = (): Array<Record<string, unknown>> =>
+        JSON.parse((store.database.prepare("SELECT options FROM property_schema WHERE id = ?").get(SCHEMA_SELECT) as { options: string }).options) as Array<Record<string, unknown>>;
+      expect(stored()[0]).toEqual({ id: "opt-a", label: "A", icon: "mdiCircle", color: "yellow" });
+      // The settings-freeze contract: options replace wholesale, icons included.
+      store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_SELECT, options: [{ id: "opt-a", label: "A" }, { id: "opt-b", label: "B", icon: "mdiCheckCircle" }] }, (ts += 100)));
+      expect(stored()).toEqual([
+        { id: "opt-a", label: "A" },
+        { id: "opt-b", label: "B", icon: "mdiCheckCircle" },
+      ]);
+    });
+  });
+
   describe("PC6 — date-node-backed qualifiers", () => {
     it("canonical refs ride the metadata verbatim; legacy ISO strings normalize on write", () => {
       const store = seededStore();

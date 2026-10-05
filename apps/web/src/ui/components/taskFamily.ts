@@ -11,16 +11,29 @@
  * (the propertySchema.create upsert is a no-op when the row exists) plus the
  * task-class bindings when missing, and is a complete no-op once present.
  * Safe under both WorkspaceClient and WorkerClient — it composes only the
- * shared write surface (createPropertySchema / setClassProperty) and sync
- * reads (listPropertySchemas / getClassBindings), all RPC-mirrored.
+ * shared write surface (createPropertySchema / setClassProperty /
+ * updatePropertySchema) and sync reads (listPropertySchemas /
+ * getClassBindings), all RPC-mirrored.
+ *
+ * §34.89: the status/priority option ids are the deterministic
+ * TASK_STATUS/PRIORITY_OPTION_UUIDS (the applier-side seed-ensure authors
+ * the same fixed ids, so either seed path converges to identical rows), the
+ * status options carry the designed circle icons + preset colors, and a
+ * restyle pass upgrades workspaces whose family was authored before the
+ * styles existed (styleTaskStatusOptions preserves stored ids and leaves
+ * user-renamed/added options untouched; null once converged — the common
+ * case is a pure read, no write).
  */
 
 import {
+  styleTaskStatusOptions,
   SYSTEM_CLASS_DISPLAY_NAMES,
   SYSTEM_CLASS_UUIDS,
   SYSTEM_PROPERTY_UUIDS,
   TASK_PRIORITY_OPTIONS,
+  TASK_PRIORITY_OPTION_UUIDS,
   TASK_STATUS_OPTIONS,
+  TASK_STATUS_OPTION_UUIDS,
 } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
@@ -28,19 +41,43 @@ import type { ClientPropertySchema, WorkspaceClient } from "@/core/workspace-cli
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
+/** Deterministic status option ids, keyed by the designed option name (the
+ *  applier-side seed-ensure authors the same fixed ids — INSERT-or-ignore
+ *  first-writer-wins converges both seed paths to identical rows). */
+const TASK_STATUS_OPTION_IDS: Record<(typeof TASK_STATUS_OPTIONS)[number]["name"], string> = {
+  Backlog: TASK_STATUS_OPTION_UUIDS.backlog,
+  Pending: TASK_STATUS_OPTION_UUIDS.pending,
+  Doing: TASK_STATUS_OPTION_UUIDS.doing,
+  Reviewing: TASK_STATUS_OPTION_UUIDS.reviewing,
+  Done: TASK_STATUS_OPTION_UUIDS.done,
+  Cancelled: TASK_STATUS_OPTION_UUIDS.cancelled,
+};
+
+const TASK_PRIORITY_OPTION_IDS: Record<(typeof TASK_PRIORITY_OPTIONS)[number], string> = {
+  Low: TASK_PRIORITY_OPTION_UUIDS.low,
+  Medium: TASK_PRIORITY_OPTION_UUIDS.medium,
+  High: TASK_PRIORITY_OPTION_UUIDS.high,
+  Urgent: TASK_PRIORITY_OPTION_UUIDS.urgent,
+};
+
 /** The six schemas in task-panel display order (sequence rides authoring order). */
 const TASK_FAMILY: Array<{
   id: string;
   name: string;
   type: "select" | "date";
-  options?: () => Array<{ id: string; label: string }>;
+  options?: () => Array<{ id: string; label: string; icon?: string; color?: string }>;
 }> = [
   {
     id: SYSTEM_PROPERTY_UUIDS.taskStatus,
     name: "Status",
     type: "select",
     options: () =>
-      TASK_STATUS_OPTIONS.map((option) => ({ id: crypto.randomUUID(), label: option.name })),
+      TASK_STATUS_OPTIONS.map((option) => ({
+        id: TASK_STATUS_OPTION_IDS[option.name],
+        label: option.name,
+        icon: option.icon,
+        color: option.color,
+      })),
   },
   {
     id: SYSTEM_PROPERTY_UUIDS.taskScheduled,
@@ -57,7 +94,7 @@ const TASK_FAMILY: Array<{
     name: "Priority",
     type: "select",
     options: () =>
-      TASK_PRIORITY_OPTIONS.map((label) => ({ id: crypto.randomUUID(), label })),
+      TASK_PRIORITY_OPTIONS.map((label) => ({ id: TASK_PRIORITY_OPTION_IDS[label], label })),
   },
   {
     id: SYSTEM_PROPERTY_UUIDS.taskClosedDate,
@@ -88,7 +125,9 @@ export function taskFamilyPresent(
 
 /**
  * Author the six task property schemas + task-class bindings when missing;
- * a no-op when present (idempotent — safe to call on every open).
+ * a no-op when present (idempotent — safe to call on every open). Also runs
+ * the §34.89 status-restyle upgrade on every call (itself a no-op once the
+ * stored options carry the designed icons/colors).
  *
  * The task class NODE is expected from the server seed; a workspace that
  * never got one (offline-first devices) self-heals it here at the reserved
@@ -97,34 +136,48 @@ export function taskFamilyPresent(
  * skip the branch (idempotent re-create converges anyway).
  */
 export async function ensureTaskFamily(client: AnyClient): Promise<void> {
-  if (taskFamilyPresent(client)) return;
-  if (client.getNodeRaw(SYSTEM_CLASS_UUIDS.task) === undefined) {
-    await client.createClass(SYSTEM_CLASS_DISPLAY_NAMES.task, {
-      id: SYSTEM_CLASS_UUIDS.task,
-      icon: "mdiCheckboxMarkedCircleOutline",
-    });
-  }
-  const have = new Set(client.listPropertySchemas().map((schema) => schema.id));
-  for (const spec of TASK_FAMILY) {
-    if (!have.has(spec.id)) {
-      const options = spec.options?.();
-      await client.createPropertySchema({
-        id: spec.id,
-        name: spec.name,
-        type: spec.type,
-        scope: "class",
-        ...(options !== undefined ? { options } : {}),
+  if (!taskFamilyPresent(client)) {
+    if (client.getNodeRaw(SYSTEM_CLASS_UUIDS.task) === undefined) {
+      await client.createClass(SYSTEM_CLASS_DISPLAY_NAMES.task, {
+        id: SYSTEM_CLASS_UUIDS.task,
+        icon: "mdiCheckboxMarkedCircleOutline",
       });
     }
+    const have = new Set(client.listPropertySchemas().map((schema) => schema.id));
+    for (const spec of TASK_FAMILY) {
+      if (!have.has(spec.id)) {
+        const options = spec.options?.();
+        await client.createPropertySchema({
+          id: spec.id,
+          name: spec.name,
+          type: spec.type,
+          scope: "class",
+          ...(options !== undefined ? { options } : {}),
+        });
+      }
+    }
+    const bound = new Set(
+      client.getClassBindings(SYSTEM_CLASS_UUIDS.task).map((binding) => binding.propertySchemaId),
+    );
+    // Sequences run after any existing rows' authored values; the read model
+    // sorts by (sequence, schema id), so ties order deterministically.
+    let sequence = client.getClassBindings(SYSTEM_CLASS_UUIDS.task).length;
+    for (const spec of TASK_FAMILY) {
+      if (bound.has(spec.id)) continue;
+      await client.setClassProperty(SYSTEM_CLASS_UUIDS.task, spec.id, { sequence: sequence++ });
+    }
   }
-  const bound = new Set(
-    client.getClassBindings(SYSTEM_CLASS_UUIDS.task).map((binding) => binding.propertySchemaId),
-  );
-  // Sequences run after any existing rows' authored values; the read model
-  // sorts by (sequence, schema id), so ties order deterministically.
-  let sequence = client.getClassBindings(SYSTEM_CLASS_UUIDS.task).length;
-  for (const spec of TASK_FAMILY) {
-    if (bound.has(spec.id)) continue;
-    await client.setClassProperty(SYSTEM_CLASS_UUIDS.task, spec.id, { sequence: sequence++ });
+  // §34.89 upgrade: restyle the status options with the designed circle
+  // icons/colors (stored ids preserved — authored values reference them).
+  // Runs on every call; styleTaskStatusOptions returns null once converged,
+  // so the steady state is a read-only no-op.
+  const status = client
+    .listPropertySchemas()
+    .find((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.taskStatus);
+  if (status?.options != null) {
+    const restyled = styleTaskStatusOptions(status.options);
+    if (restyled !== null) {
+      await client.updatePropertySchema(status.id, { options: restyled });
+    }
   }
 }

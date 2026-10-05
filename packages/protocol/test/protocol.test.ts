@@ -425,12 +425,21 @@ describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
     const fixture = fixtures.find((f) => f.name === "class-property-active.json")!;
     const flips = fixture.envelopes.filter((env) => env.opType === "class.property.set");
     // Binding → enable (lower HLC, race loser) → disable (newer, winner) →
-    // authored value → re-enable. The active flag rides the row LWW.
+    // authored value → re-enable → display:"bullet" (§34.89). The active flag
+    // and the display position ride the row LWW.
     expect(flips.map((env) => (env.payload as { active?: boolean }).active)).toEqual([
       undefined,
       true,
       false,
       true,
+      undefined,
+    ]);
+    expect(flips.map((env) => (env.payload as { display?: string }).display)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      "bullet",
     ]);
     const hlcA = flips[1]!.hlc as { physical: number; logical: number };
     const hlcB = flips[2]!.hlc as { physical: number; logical: number };
@@ -443,6 +452,22 @@ describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
         active: "yes",
       }).success,
     ).toBe(false);
+    // Strict schema: an unknown display position is rejected outright.
+    expect(
+      payloadSchemaFor("class.property.set")!.safeParse({
+        classId: "0192a000-0000-7000-8000-000000000742",
+        propertySchemaId: "0192a000-0000-7000-8000-000000000741",
+        display: "hover",
+      }).success,
+    ).toBe(false);
+    // The fixture's options carry the §34.89 icon in the §34.43 color grammar.
+    const create = fixture.envelopes.find((env) => env.opType === "propertySchema.create")!;
+    expect((create.payload as { options: Array<Record<string, unknown>> }).options[0]).toEqual({
+      id: "opt-a",
+      label: "A",
+      icon: "mdiCircle",
+      color: "yellow",
+    });
     const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
     expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
   });

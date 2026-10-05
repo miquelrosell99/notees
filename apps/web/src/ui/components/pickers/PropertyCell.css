@@ -127,6 +127,15 @@ button.property-cell {
   background: transparent;
 }
 
+/** §34.89 option icon: tinted with the option color, leading the row
+    (the color dot stays beside it). */
+.property-cell__picker-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
 .property-cell__picker-empty {
   padding: var(--spacing-2) var(--spacing-3);
   color: var(--color-on-surface-variant);

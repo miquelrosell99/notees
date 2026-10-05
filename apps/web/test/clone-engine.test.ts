@@ -80,6 +80,7 @@ function authoredProp(
     readonly: null,
     hideWhenEmpty: null,
     sequence: null,
+    display: null,
   };
 }
 

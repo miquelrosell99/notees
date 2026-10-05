@@ -23,7 +23,7 @@
 
 import type { SqliteDB } from "./db.js";
 
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 13;
 
 /** FTS module for the search_index virtual table (backend capability). */
 export type FtsModule = "fts5" | "fts4";
@@ -199,6 +199,9 @@ CREATE INDEX IF NOT EXISTS idx_property_schema_workspace
 -- for them; the effective-values read model derives them at query time.
 -- 'active' (PC4): the soft-unbind flag — an inactive row stops contributing
 -- to the effective read (no default, no metadata); authored values survive.
+-- 'display' (§34.89): value-display position — NULL/'panel' = the properties
+-- section only; 'bullet' = an icon button next to the block bullet;
+-- 'inline' = before the block content. Render contract only.
 CREATE TABLE IF NOT EXISTS class_property (
     class_id TEXT NOT NULL,
     property_schema_id TEXT NOT NULL,
@@ -208,6 +211,7 @@ CREATE TABLE IF NOT EXISTS class_property (
     hide_when_empty INTEGER,
     default_value TEXT,
     active INTEGER NOT NULL DEFAULT 1,
+    display TEXT,
     hlc_physical INTEGER NOT NULL DEFAULT 0,
     hlc_logical INTEGER NOT NULL DEFAULT 0,
     actor_id TEXT,
@@ -586,6 +590,16 @@ export function migrate(
   }[];
   if (!classPropertyColumns.some((c) => c.name === "active")) {
     db.exec("ALTER TABLE class_property ADD COLUMN active INTEGER NOT NULL DEFAULT 1;");
+  }
+  // v12 -> v13 (§34.89): the binding's value-display position (the v1
+  // icon_visibility port). Additive column, NULL = 'panel' (the properties
+  // section only); the column guard keeps the ALTER idempotent for a fresh
+  // v13 create.
+  const classPropertyColumnsV13 = db.prepare("PRAGMA table_info(class_property)").all() as {
+    name: string;
+  }[];
+  if (!classPropertyColumnsV13.some((c) => c.name === "display")) {
+    db.exec("ALTER TABLE class_property ADD COLUMN display TEXT;");
   }
   // (2) PG5 element tombstone table (CREATE IF NOT EXISTS is a no-op for
   //     fresh v11 creates).

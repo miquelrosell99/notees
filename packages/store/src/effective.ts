@@ -63,6 +63,10 @@ export interface EffectiveProperty {
   readonly: boolean | null;
   hideWhenEmpty: boolean | null;
   sequence: number | null;
+  /** §34.89: the winning binding's value-display position — "panel" (null)
+   *  keeps the value in the properties section only; "bullet" renders it as
+   *  an icon button next to the block bullet; "inline" before the content. */
+  display: "panel" | "bullet" | "inline" | null;
 }
 
 interface AuthoredRow {
@@ -85,6 +89,9 @@ function parseJson(raw: string): unknown {
 }
 
 const flag = (v: number | null): boolean | null => (v === null || v === undefined ? null : v === 1);
+/** §34.89: sanitize the stored position (NULL/unknown = the "panel" default). */
+const displayOf = (v: string | null): "panel" | "bullet" | "inline" | null =>
+  v === "bullet" || v === "inline" ? v : null;
 
 export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveProperty[] {
   // 1. Authored rows through the PG5 visible-set derivation (property-values.ts):
@@ -124,6 +131,7 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
     readonly: number | null;
     hide_when_empty: number | null;
     default_value: string | null;
+    display: string | null;
   }
   interface BindingCandidate {
     distance: number;
@@ -156,7 +164,7 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
     return reach;
   };
   const bindingStmt = db.prepare(
-    `SELECT property_schema_id, sequence, required, readonly, hide_when_empty, default_value
+    `SELECT property_schema_id, sequence, required, readonly, hide_when_empty, default_value, display
      FROM class_property WHERE class_id = ? AND active = 1`,
   );
   const candidatesBySchema = new Map<string, BindingCandidate[]>();
@@ -264,6 +272,7 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
       readonly: winner ? flag(winner.binding.readonly) : null,
       hideWhenEmpty: winner ? flag(winner.binding.hide_when_empty) : null,
       sequence: winner ? winner.binding.sequence : null,
+      display: winner ? displayOf(winner.binding.display) : null,
     });
   }
 
@@ -289,6 +298,7 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
       readonly: flag(binding.readonly),
       hideWhenEmpty: flag(binding.hide_when_empty),
       sequence: binding.sequence,
+      display: displayOf(binding.display),
     });
   }
 
