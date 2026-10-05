@@ -23,7 +23,7 @@ function toBlockTree(item: NodeCollectionItem): import("@/core/workspace-client.
 }
 
 export function ProseView(props: NodeCollectionProps) {
-  const { client, items, editable = false } = props;
+  const { client, items = [], editable = false } = props;
   const readOnly = !editable;
   const resolveName = (id: string) => displayNameFromClient(client, id);
   if (items.length === 0) return null;

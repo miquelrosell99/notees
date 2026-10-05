@@ -12,6 +12,7 @@
  */
 
 import type { WorkspaceFeature } from "@notees/protocol";
+import type { GraphOptions, GraphTopology } from "@notees/store";
 import type {
   AssetInfo,
   AssetUploadResult,
@@ -643,6 +644,15 @@ export class WorkerClient {
   /** §34.69 — the browsable history (oldest-first) behind the jump-to menu. */
   undoHistory(): Promise<UndoHistoryEntry[]> {
     return this.call("undoHistory", []) as Promise<UndoHistoryEntry[]>;
+  }
+
+  /**
+   * The graph-view topology projection (§34.80). Uncached by design — the
+   * graph view debounces its own reloads on `subscribe` notifications, and a
+   * workspace-scale projection must never ride the key-value cache.
+   */
+  graphTopology(options?: GraphOptions): Promise<GraphTopology> {
+    return this.call("graphTopology", [options ?? null]) as Promise<GraphTopology>;
   }
 
   /** Undo the most recent journaled local write; false when the journal is empty. */

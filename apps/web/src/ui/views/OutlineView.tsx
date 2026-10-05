@@ -128,7 +128,7 @@ export function OutlineRow({
 }
 
 export function OutlineView(props: NodeCollectionProps) {
-  const { items, groups, pagesOnly = false, maxDepth, editable = false, tree = undefined } = props;
+  const { items = [], groups, pagesOnly = false, maxDepth, editable = false, tree = undefined } = props;
   if (items.length === 0) return null;
 
   if (tree === true || isTree(items)) {

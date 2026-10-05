@@ -1,0 +1,214 @@
+/* GraphView — token-only chrome (§34.80). The canvases draw the graph
+   itself; everything here is the surrounding toolbar/tooltip chrome. */
+
+.nt-graph {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  background: var(--graph-bg, transparent);
+}
+
+.nt-graph--loading,
+.nt-graph--error {
+  align-items: center;
+  justify-content: center;
+}
+
+.nt-graph__toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs, 4px);
+  padding: var(--spacing-xs, 4px) var(--spacing-sm, 8px);
+  border-bottom: 1px solid var(--color-border, var(--color-outline));
+}
+
+.nt-graph__tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-on-surface);
+  cursor: pointer;
+}
+
+.nt-graph__tool:hover {
+  background: var(--color-surface-variant);
+}
+
+.nt-graph__tool--on {
+  background: var(--color-surface-variant);
+  border-color: var(--color-outline);
+}
+
+.nt-graph__select {
+  height: 28px;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--color-outline);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  padding: 0 var(--spacing-xs, 4px);
+}
+
+.nt-graph__sep {
+  width: 1px;
+  height: 18px;
+  background: var(--color-outline);
+  margin: 0 var(--spacing-xs, 4px);
+}
+
+.nt-graph__chip {
+  height: 24px;
+  padding: 0 var(--spacing-sm, 8px);
+  border-radius: 12px;
+  border: 1px solid var(--color-outline);
+  background: transparent;
+  color: var(--color-on-surface-variant, var(--color-on-surface));
+  font-size: var(--font-size-xs, 12px);
+  cursor: pointer;
+}
+
+.nt-graph__chip--on {
+  background: var(--color-primary-container, var(--color-surface-variant));
+  color: var(--color-on-primary-container, var(--color-on-surface));
+  border-color: transparent;
+}
+
+.nt-graph__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-size-xs, 12px);
+  color: var(--color-on-surface);
+  cursor: pointer;
+  user-select: none;
+}
+
+.nt-graph__counts {
+  margin-left: var(--spacing-sm, 8px);
+  font-size: var(--font-size-xs, 12px);
+  color: var(--color-on-surface-variant, var(--color-on-surface));
+  font-variant-numeric: tabular-nums;
+}
+
+.nt-graph__toolbar-spacer {
+  flex: 1;
+}
+
+.nt-graph__search {
+  height: 28px;
+  width: 180px;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--color-outline);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  padding: 0 var(--spacing-sm, 8px);
+}
+
+.nt-graph__stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.nt-graph__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+.nt-graph__canvas:active {
+  cursor: grabbing;
+}
+
+.nt-graph__labels {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.nt-graph__tooltip {
+  position: absolute;
+  z-index: 10;
+  max-width: 280px;
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 12px);
+  border-radius: var(--radius-md, 10px);
+  background: var(--color-surface-container-high, var(--color-surface-variant));
+  border: 1px solid var(--color-outline);
+  box-shadow: var(--shadow-md, 0 4px 16px rgb(0 0 0 / 20%));
+  pointer-events: none;
+}
+
+.nt-graph__tooltip-title {
+  font-size: var(--font-size-sm, 13px);
+  font-weight: 600;
+  color: var(--color-on-surface);
+  overflow-wrap: anywhere;
+}
+
+.nt-graph__tooltip-hint {
+  margin-top: 2px;
+  font-size: var(--font-size-xs, 12px);
+  color: var(--color-on-surface-variant, var(--color-on-surface));
+  overflow-wrap: anywhere;
+}
+
+.nt-graph__tooltip-evidence {
+  margin-top: var(--spacing-xs, 4px);
+  padding-top: var(--spacing-xs, 4px);
+  border-top: 1px solid var(--color-outline);
+  font-size: var(--font-size-xs, 12px);
+  color: var(--color-on-surface-variant, var(--color-on-surface));
+}
+
+.nt-graph__selection-bar {
+  position: absolute;
+  left: 50%;
+  bottom: var(--spacing-md, 12px);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm, 8px);
+  padding: var(--spacing-xs, 4px) var(--spacing-sm, 8px);
+  border-radius: var(--radius-md, 10px);
+  background: var(--color-surface-container-high, var(--color-surface-variant));
+  border: 1px solid var(--color-outline);
+  box-shadow: var(--shadow-md, 0 4px 16px rgb(0 0 0 / 20%));
+}
+
+.nt-graph__selection-name {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-sm, 13px);
+  color: var(--color-on-surface);
+}
+
+.nt-graph__semantic-panel {
+  display: flex;
+  gap: var(--spacing-lg, 16px);
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 12px);
+  border-top: 1px solid var(--color-border, var(--color-outline));
+  font-size: var(--font-size-xs, 12px);
+  color: var(--color-on-surface);
+}
+
+.nt-graph__semantic-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 200px;
+}

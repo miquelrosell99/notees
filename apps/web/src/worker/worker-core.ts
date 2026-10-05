@@ -669,6 +669,10 @@ export class WorkerCore {
         return this.exportBytes();
       case "stats":
         return this.stats();
+      case "graphTopology":
+        return this.client.graphTopology(
+          (args[0] as import("@notees/store").GraphOptions | null | undefined) ?? undefined,
+        );
       case "undoState":
         return this.client.undoState();
       case "undoHistory":
