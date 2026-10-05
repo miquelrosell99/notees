@@ -257,13 +257,22 @@ export function Sidebar({
   const section = (
     title: string,
     rows: React.ReactNode[],
-    options: { icon?: string; defaultCollapsed?: boolean; collapsible?: boolean } = {},
+    options: {
+      icon?: string;
+      defaultCollapsed?: boolean;
+      collapsible?: boolean;
+      /** The section's list absorbs the free nav height and scrolls alone —
+       * every other sidebar region stays pinned. */
+      scrollable?: boolean;
+    } = {},
   ) => {
     if (rows.length === 0) return null;
     const collapsible = options.collapsible !== false;
     const collapsed = collapsible && collapsedSections[title] === true;
     return (
-      <section className="nt-side-section">
+      <section
+        className={options.scrollable ? "nt-side-section nt-side-section--scroll" : "nt-side-section"}
+      >
         {collapsible ? (
           <button
             type="button"
@@ -362,6 +371,7 @@ export function Sidebar({
         {section(
           "Recents",
           recentPages.map((node) => renderRow(node, rowIconFor(node), "recents")),
+          { scrollable: true },
         )}
       </nav>
       <div className="nt-sidebar-bottom">
