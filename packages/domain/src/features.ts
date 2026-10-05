@@ -196,3 +196,47 @@ export function gatingFeaturesForClass(name: SystemClassName): WorkspaceFeature[
 export function isAlwaysOnSystemClass(name: SystemClassName): boolean {
   return (ALWAYS_ON_SYSTEM_CLASSES as readonly string[]).includes(name);
 }
+
+/**
+ * The system-class deployment catalog (#14): seeded classes the
+ * ClassCreateModal's "Deploy system class" mode offers for workspaces that
+ * do not have them yet (offline-first devices, or workspaces predating the
+ * seed's addition). The catalog is the FEATURE GATE for that surface — the
+ * modal reads it from here and nothing else mints the list.
+ *
+ * Membership is deliberate: the vocabulary families and the source subtree
+ * are user-facing classes worth deploying on demand; the structural base
+ * (the `class` meta class, the year/month/day journals, the block-type and
+ * admonition classes, cloze, assets, templates, whiteboards) is machinery
+ * other flows own — it never appears here. Task is included: its property
+ * family authors through ensureTaskFamily (the display/options contract
+ * lives outside SYSTEM_PROPERTY_SPECS).
+ */
+export const DEPLOYABLE_SYSTEM_CLASSES: readonly SystemClassName[] = [
+  "person",
+  "organization",
+  "agent",
+  "source",
+  "book",
+  "paper",
+  "article",
+  "thesis",
+  "document",
+  "movie",
+  "song",
+  "tv_series",
+  "conference",
+  "quote",
+  "event",
+  "meeting",
+  "birthday",
+  "task",
+  "collection",
+  "highlight",
+  "weblink",
+];
+
+/** True when `name` ships in the deployment catalog (#14). */
+export function isDeployableSystemClass(name: SystemClassName): boolean {
+  return (DEPLOYABLE_SYSTEM_CLASSES as readonly string[]).includes(name);
+}
