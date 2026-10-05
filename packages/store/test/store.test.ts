@@ -736,6 +736,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
           readonly: null,
           hideWhenEmpty: null,
           sequence: 0,
+          display: null,
         },
       ]);
       // The default is DERIVED: no property_value row was ever written.
@@ -2169,7 +2170,7 @@ for (const adapter of adapters) {
       const status = store.database
         .prepare("SELECT options FROM property_schema WHERE id = ?")
         .get("00000000-0000-0000-0003-000000000001") as { options: string };
-      const options = JSON.parse(status.options) as Array<{ id: string; label: string }>;
+      const options = JSON.parse(status.options) as Array<{ id: string; label: string; icon?: string; color?: string }>;
       expect(options.map((option) => option.label)).toEqual([
         "Backlog",
         "Pending",
@@ -2179,9 +2180,19 @@ for (const adapter of adapters) {
         "Cancelled",
       ]);
       expect(options[1]!.id).toBe("00000000-0000-0000-0004-000000000009");
+      // §34.89: the designed circle-family glyphs + §34.43 colors (yellow
+      // pending, blue review, red cancel, green done — owner-mandated).
+      expect(options.map((option) => [option.icon, option.color])).toEqual([
+        ["mdiCircleOutline", "gray"],
+        ["mdiCircle", "yellow"],
+        ["mdiCircleHalfFull", "orange"],
+        ["mdiEyeCircleOutline", "blue"],
+        ["mdiCheckCircle", "green"],
+        ["mdiCloseCircle", "red"],
+      ]);
       const bindings = store.database
-        .prepare("SELECT property_schema_id FROM class_property WHERE class_id = ? ORDER BY sequence")
-        .all(TASK_CLASS) as Array<{ property_schema_id: string }>;
+        .prepare("SELECT property_schema_id, display FROM class_property WHERE class_id = ? ORDER BY sequence")
+        .all(TASK_CLASS) as Array<{ property_schema_id: string; display: string | null }>;
       expect(bindings.map((binding) => binding.property_schema_id)).toEqual([
         "00000000-0000-0000-0003-000000000001",
         "00000000-0000-0000-0003-000000000003",
@@ -2189,6 +2200,16 @@ for (const adapter of adapters) {
         "00000000-0000-0000-0003-000000000004",
         "00000000-0000-0000-0003-000000000005",
         "00000000-0000-0000-0003-000000000006",
+      ]);
+      // §34.89: the Status binding defaults to the bullet position; the rest
+      // stay in the properties panel (NULL display).
+      expect(bindings.map((binding) => binding.display)).toEqual([
+        "bullet",
+        null,
+        null,
+        null,
+        null,
+        null,
       ]);
       // Idempotent: replaying the SAME envelope is skipped wholesale
       // (applied_envelope), and a stale re-enable loses the LWW row.

@@ -1158,13 +1158,16 @@ function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary 
   const defaultValue = p.defaultValue !== undefined ? JSON.stringify(p.defaultValue) : null;
   // PC4: the soft-unbind flag rides the row LWW (absent payload = keep).
   const active = p.active === undefined ? null : p.active ? 1 : 0;
+  // §34.89: value-display position rides the row LWW (absent payload = keep;
+  // a stored NULL/'panel' means the properties section only).
+  const display = p.display === undefined ? null : p.display;
 
   if (!existing) {
     db.prepare(
       `INSERT INTO class_property
          (class_id, property_schema_id, sequence, required, readonly, hide_when_empty,
-          default_value, active, hlc_physical, hlc_logical, actor_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          default_value, active, display, hlc_physical, hlc_logical, actor_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       p.classId,
       p.propertySchemaId,
@@ -1174,6 +1177,7 @@ function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary 
       hideWhenEmpty,
       defaultValue,
       active ?? 1,
+      display,
       env.hlc.physical,
       env.hlc.logical,
       env.actorId,
@@ -1189,6 +1193,7 @@ function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary 
          hide_when_empty = COALESCE(?, hide_when_empty),
          default_value = COALESCE(?, default_value),
          active = COALESCE(?, active),
+         display = COALESCE(?, display),
          hlc_physical = ?, hlc_logical = ?, actor_id = ?
        WHERE class_id = ? AND property_schema_id = ?`,
     ).run(
@@ -1198,6 +1203,7 @@ function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary 
       hideWhenEmpty,
       defaultValue,
       active,
+      display,
       env.hlc.physical,
       env.hlc.logical,
       env.actorId,
@@ -1876,9 +1882,9 @@ function ensureTaskFamilyRows(db: StoreDatabase, env: Envelope): void {
     db.prepare(
       `INSERT OR IGNORE INTO class_property
          (class_id, property_schema_id, sequence, required, readonly, hide_when_empty,
-          default_value, hlc_physical, hlc_logical, actor_id)
-       VALUES (?, ?, ?, NULL, NULL, NULL, NULL, 0, 0, NULL)`,
-    ).run(classId, schemaId, entry.sequence);
+          default_value, display, hlc_physical, hlc_logical, actor_id)
+       VALUES (?, ?, ?, NULL, NULL, NULL, NULL, ?, 0, 0, NULL)`,
+    ).run(classId, schemaId, entry.sequence, entry.display ?? null);
   }
   reindexNode(db, classId);
 }
