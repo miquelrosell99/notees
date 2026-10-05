@@ -79,6 +79,10 @@ export const LINK_REST_MULT: Record<string, number> = {
   'property-reference': 1.1,
   cooccurrence: 1.6,
   temporal: 2.0,
+  // v2 edge kinds (the graph projection families):
+  mention: 1.0,
+  property: 1.1,
+  semantic: 1.6,
 };
 
 export const LINK_STIFF_MULT: Record<string, number> = {
@@ -89,6 +93,10 @@ export const LINK_STIFF_MULT: Record<string, number> = {
   'property-reference': 0.8,
   cooccurrence: 0.4,
   temporal: 0.3,
+  // v2 edge kinds:
+  mention: 0.9,
+  property: 0.95,
+  semantic: 0.7,
 };
 
 /** Asymmetry factor applied when a link is shorter than its rest length.
@@ -101,4 +109,8 @@ export const LINK_COMPRESS_MULT: Record<string, number> = {
   'property-reference': 1.2,
   cooccurrence: 0.6,
   temporal: 0.5,
+  // v2 edge kinds:
+  mention: 0.6,
+  property: 0.7,
+  semantic: 0.4,
 };
