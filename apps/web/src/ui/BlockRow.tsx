@@ -162,11 +162,12 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
     setEditing(true);
   };
 
-  const gripIcon = useMemo(
-    () => nodeIcon(node, classIconMap(outlinerClient.listClasses())),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [node, node.classIds],
-  );
+  // §34.92: the class read is revision-cached on the client (stable reference
+  // until the store actually changes), so keying on it keeps this memo valid
+  // across class-icon changes without re-running on every row re-map; the
+  // old [node, node.classIds] key re-ran the query per row per refresh.
+  const classes = outlinerClient.listClasses();
+  const gripIcon = useMemo(() => nodeIcon(node, classIconMap(classes)), [node, classes]);
 
   const dropClass =
     dropLine !== null && dropLine.targetId === node.id ? ` nt-drop-${dropLine.intent}` : "";

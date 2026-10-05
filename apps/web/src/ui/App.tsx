@@ -110,6 +110,24 @@ const INITIAL_SYNC_STATUS: SyncStatusSnapshot = {
 /** Poll cadence for the sync status snapshot while mounted. */
 const STATUS_POLL_MS = 2_000;
 
+/**
+ * §34.92 — field-wise snapshot compare. `status()` builds a fresh object every
+ * call, so an unguarded setState re-rendered the whole app (and every
+ * render-time store read under it) every 2s poll even when nothing moved.
+ */
+export function syncStatusEqual(a: SyncStatusSnapshot, b: SyncStatusSnapshot): boolean {
+  return (
+    a.status === b.status &&
+    a.error === b.error &&
+    a.pending === b.pending &&
+    a.failed === b.failed &&
+    a.quarantined === b.quarantined &&
+    a.parked === b.parked &&
+    a.realtime === b.realtime &&
+    a.cursorSeq === b.cursorSeq
+  );
+}
+
 type StoreMode = "worker" | "in-process";
 type AnyClient = WorkspaceClient | WorkerClient;
 
@@ -924,14 +942,18 @@ export function App() {
   }, [client, scheduleUndoRefresh]);
 
   // Poll the (cheap) status snapshot on a cadence and on every worker
-  // notification; both fire React state only when the client changes.
+  // notification; state is only set when a field actually changed (§34.92 —
+  // the field-wise guard keeps the 2s cadence from re-rendering the tree).
   useEffect(() => {
     if (client === null) return;
     let cancelled = false;
     const refresh = async () => {
       try {
         const snapshot = await client.status();
-        if (!cancelled) setSyncStatus(snapshot);
+        // Skip no-op updates: a fresh object every poll would re-render the
+        // whole app twice a second (§34.92 — this used to re-run every
+        // render-time store read in the tree).
+        if (!cancelled) setSyncStatus((prev) => (syncStatusEqual(prev, snapshot) ? prev : snapshot));
       } catch {
         // Client closed mid-poll; the effect teardown disposes the interval.
       }

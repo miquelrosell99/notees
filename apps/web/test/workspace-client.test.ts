@@ -322,3 +322,50 @@ describe("effective icons (display-time defaults)", () => {
     expect(nodeIcon(client.getNode(classedId)!, map)).toBe("mdi-star");
   });
 });
+
+describe("WorkspaceClient render-path list reads — the §34.92 revision cache", () => {
+  it("memoizes listPages/roots/listClasses within a store revision", async () => {
+    const ctx = makeContext();
+    const client = await createClient(ctx);
+    await client.bootstrapWorkspace(WS);
+
+    // No store change between calls → same reference, no re-query: dozens of
+    // components call these per render, and the profile showed the unmemoized
+    // reads were the main-thread jank.
+    const pages = client.listPages();
+    expect(client.listPages()).toBe(pages);
+    expect(client.roots()).toBe(client.roots());
+    expect(client.listClasses()).toBe(client.listClasses());
+  });
+
+  it("invalidates on local writes and on remote syncs", async () => {
+    const ctx = makeContext();
+    const clientA = await createClient(ctx);
+    const clientB = await createClient(ctx);
+    await clientA.bootstrapWorkspace(WS);
+    await clientB.bootstrapWorkspace(WS);
+
+    const classesBefore = clientA.listClasses();
+    const pagesBefore = clientA.listPages();
+
+    const pageId = await clientA.createObject({ presentAsMain: true, name: "Cached" });
+    const classId = await clientA.createClass("CachedClass");
+
+    const pagesAfter = clientA.listPages();
+    expect(pagesAfter).not.toBe(pagesBefore);
+    expect(pagesAfter.map((p) => p.id)).toContain(pageId);
+    const classesAfter = clientA.listClasses();
+    expect(classesAfter).not.toBe(classesBefore);
+    expect(classesAfter.map((c) => c.id)).toContain(classId);
+    expect(clientA.roots().map((p) => p.id)).toContain(pageId);
+
+    // The receiving client re-reads after its pull-driven notify.
+    const bPagesBefore = clientB.listPages();
+    expect(clientB.listPages()).toBe(bPagesBefore);
+    await clientA.sync();
+    await clientB.sync();
+    expect(clientB.listPages()).not.toBe(bPagesBefore);
+    expect(clientB.listPages().map((p) => p.id)).toContain(pageId);
+    expect(clientB.listClasses().map((c) => c.id)).toContain(classId);
+  });
+});
