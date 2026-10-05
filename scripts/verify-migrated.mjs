@@ -170,7 +170,7 @@ check("api: migrated envelope count", stats.envelopeCount > 150_000, `${stats.en
 // the block on that chain is a direct child of the page, guaranteeing >= 1
 // rendered block row. Migrated v1 pages have stored name=null (v1 titles live
 // in contentAst), so "non-empty name" means a non-empty DERIVED display name
-// (stored-name pages like scratchpad/inbox are empty migrator artifacts).
+// (stored-name pages like the inbox are empty migrator artifacts).
 console.log("discovering a real migrated page (block-bearing, derived name)…");
 const DISCOVERY_TERMS = ["de", "que", "el", "ISO", "clasificaciones"];
 let discovered = null;

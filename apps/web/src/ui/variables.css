@@ -463,8 +463,6 @@
   /* QR codes must keep a light mat in every theme or scanners fail;
      intentionally not themed (like --color-white). */
   --qr-background: var(--color-white);
-  --scratchpad-empty-height: 80px;
-  --scratchpad-width: 360px;
   --selection-btn-size-lg: 42px;
   --selection-btn-size-md: 34px;
   --selection-btn-size-sm: 26px;

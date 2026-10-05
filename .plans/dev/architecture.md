@@ -357,7 +357,7 @@ envelopes through the same pipeline as client ops**, so the audit trail, idempot
 derived-state updates, and live notifications all hold for API writes too.
 
 **Seeding.** First access to an empty workspace seeds system classes, `extends` edges,
-property schemas, and inbox/scratchpad pages through the same envelope pipeline with
+property schemas, and the inbox page through the same envelope pipeline with
 fixed UUIDs from `@notees/domain` (`apps/server/src/seed.ts`,
 `packages/domain/src/seeds.ts`). Idempotent: seeding runs only while the workspace is
 completely empty.
