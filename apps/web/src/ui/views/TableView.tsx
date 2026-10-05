@@ -26,17 +26,23 @@
  *   columns scoped to exactly the checked rows. A selection also offers
  *   "Export selected…": the export modal's batch path over just the checked
  *   row ids (the §34.24 parked row "selection-scoped export").
+ * - Excel export + import (issue #9): "Export Excel" writes the same view
+ *   as a minimal .xlsx (a leading uuid column then the visible labels, typed
+ *   number cells) so the sheet round-trips through "Import table…", which
+ *   reads .csv/.xlsx back — uuid rows update properties, rows without one
+ *   create nodes — through the ImportTableModal.
  */
 
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { parseDateNodeId } from "@notees/domain";
-import { renderCsv } from "@notees/export";
+import { renderCsv, renderXlsx, type XlsxCell } from "@notees/export";
 
 import { BooleanToggle, Button, ButtonWithPanel, Checkbox } from "../components/ui/index.js";
 import { Icon } from "../Icon.js";
 import { NodeSelector } from "../components/pickers/NodeSelector.js";
 import { DateSlotControl } from "../components/pickers/DateSlotControl.js";
 import { ExportPageModal } from "../components/modals/ExportPageModal.js";
+import { ImportTableModal } from "../components/modals/ImportTableModal.js";
 import { downloadBlob } from "../components/modals/download.js";
 import { nodeIcon } from "../iconFor.js";
 import { displayNameForSettings, displayNameFromClient, formatIsoDate } from "../dateDisplay.js";
@@ -738,8 +744,46 @@ export function TableView(props: NodeCollectionProps) {
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     downloadBlob(blob, `${safeStem}.csv`);
   };
+
+  /**
+   * "Export Excel" (issue #9) — the same view cut as the CSV export, as a
+   * minimal .xlsx with a LEADING uuid column ("uuid") then the visible
+   * labels, so the sheet round-trips through "Import table…" (uuid rows
+   * update). Number/integer columns emit typed numeric cells where the
+   * display text parses unambiguously; everything else stays display text.
+   */
+  const xlsxCellValue = (row: TableRow, column: TableColumn): XlsxCell => {
+    if (column.kind === "property") {
+      const schema = client.listPropertySchemas().find((s) => s.id === column.propertySchemaId);
+      if (schema?.type === "number" || schema?.type === "integer") {
+        const text = csvCellText(client, row, column).trim();
+        if (text === "") return null;
+        const value = Number(text);
+        return Number.isFinite(value) ? value : text;
+      }
+    }
+    return csvCellText(client, row, column);
+  };
+
+  const handleExportExcel = (rows: readonly TableRow[], stem: string) => {
+    const bytes = renderXlsx(
+      ["uuid", ...visibleColumns.map((column) => column.label)],
+      rows.map((row) => [
+        row.item.node.id,
+        ...visibleColumns.map((column) => xlsxCellValue(row, column)),
+      ]),
+    );
+    // Copy into a fresh ArrayBuffer-backed array: fflate types its result as
+    // Uint8Array<ArrayBufferLike>, which Blob's constructor rejects.
+    const blob = new Blob([new Uint8Array(bytes)], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    downloadBlob(blob, `${stem.replace(/[\\/:*?"<>|]/g, "-")}.xlsx`);
+  };
   const baseStem = (props.exportFileName ?? "table-export").replace(/[\\/:*?"<>|]/g, "-");
   const selectedRows = sorted.filter((row) => selected.has(row.item.node.id));
+  const [importOpen, setImportOpen] = useState(false);
+  const tableEditable = props.tableEditable ?? false;
 
   if (items.length === 0) return null;
 
@@ -843,6 +887,28 @@ export function TableView(props: NodeCollectionProps) {
         >
           Export CSV
         </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="mdi mdi-microsoft-excel"
+          onClick={() => handleExportExcel(sorted, baseStem)}
+          aria-label="Export Excel"
+          title="Download the current view's rows as Excel (.xlsx, uuid column first)"
+        >
+          Export Excel
+        </Button>
+        {tableEditable && (
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="mdi mdi-table-arrow-down"
+            onClick={() => setImportOpen(true)}
+            aria-label="Import table"
+            title="Import rows from a .csv or .xlsx file (uuid column updates existing rows)"
+          >
+            Import table…
+          </Button>
+        )}
         <ButtonWithPanel
           icon="mdi-view-column"
           variant="ghost"
@@ -956,6 +1022,14 @@ export function TableView(props: NodeCollectionProps) {
           onClose={() => setExportSelection(null)}
           client={client}
           nodeUuids={exportSelection}
+        />
+      )}
+      {importOpen && (
+        <ImportTableModal
+          isOpen
+          onClose={() => setImportOpen(false)}
+          client={client}
+          titleHeader={visibleColumns.find((column) => column.kind === "name")?.label}
         />
       )}
     </div>
