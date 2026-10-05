@@ -382,7 +382,11 @@ node→asset assertions in the derived store (`node_asset`).
 over the **sql.js** backend (local derived state persisted to OPFS via a Web Worker since M1b slice 2), a `SyncEngine`
 (outbox push + seq-cursor pull + snapshot shortcut), and a `Transport`
 (`HttpTransport` against a relay server in the app; `MemoryTransport` over a `MemoryRelay`
-in tests — both in `packages/sync/src/transport.ts`). Reads always hit the local store;
+in tests — both in `packages/sync/src/transport.ts`). Reads always hit the local store —
+the render-path list reads (`listClasses`/`listPages`/`roots`) are **revision-cached**
+since §34.92: `notify()` (the single write/refresh funnel) clears the memo, so within
+one store version every caller shares one query result, and callers must treat the
+returned arrays as read-only;
 writes build envelopes (`newEnvelope`, deviceId `web`), apply optimistically via
 `enqueue`, then push best-effort (`push()` awaits delivery when it must be
 deterministic). Every local write funnels through the `enqueueLocal` seam, which
