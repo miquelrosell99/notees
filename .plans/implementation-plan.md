@@ -3246,3 +3246,13 @@ The issue's "aliases is a system property of type node, restricted to pages" shi
 **Verification:** domain 69 (+1), web 1104 (+10 `node-aliases.test.tsx`), whole workspace green post-rebase.
 
 **Register cross-checks:** issue #7 closed · SCHEMA.md "Node aliases" normative section (semantics, enforcement level, coexistence) · `docs/usage.md` item 10 (two kinds, roll-up, the quiet alias view) · no wire change (object-typed property values are existing wire).
+
+### 34.96 Excel table export + import with update-by-uuid (2026-10-05 — SHIPPED, closes #9)
+
+**Export:** `packages/export/src/xlsx.ts` — a hand-rolled SpreadsheetML writer (one worksheet, inlineStr cells, XML by hand, `fflate.zipSync`) beside csv.ts, deliberately outside `EXPORT_FORMATS` (the csv.ts/bundleMarkdown precedent). A **leading uuid column** is always present (the issue's round-trip point); number columns emit typed `<v>` cells, everything else display strings; XML metacharacters escaped. Specs unzip the built xlsx via fflate (the docx-suite pattern) and round-trip through the package's own reader. Web: "Export Excel" beside "Export CSV" in the table toolbar.
+
+**Import:** `packages/export/src/table-import.ts` holds BOTH parsers (csv: RFC-4180 quoting/BOM/CRLF; xlsx: unzipSync + sheet-XML walk over sharedStrings + inlineStr + cell refs) — one package, one suite, both directions; the web modal stays a thin mapping/write layer. `ImportTableModal` (Modal + FileDropZone): header mapping (uuid column case-insensitive = update rows; title column can create new nodes; headers matched to property schemas by display name; class column assigns by name), a preview with creates/updates counts, then per-row writes through the existing client op path — uuid present → `setProperty` per mapped cell (empty unsets); no uuid → `createObject` + `assignClass`. Multi-value columns write the **array-at-idx-0** shape (the pickers/Kanban precedent); select columns match option labels to stored ids; object columns resolve via `resolveNodeByName`; dates route through `ensureDateChain`. Per-cell failures collect into a final report — good cells still import, nothing is guessed. One beyond-the-letter call: a non-empty title cell on a uuid row renames (`updateObject`), since an exported sheet carries the Name column.
+
+**Verification:** export 218 (+27), web 1114 (+10 — preview counts, update-by-uuid write, empty-cell unset, create+class flow, label→id, failure report with good-row survival, xlsx import), whole workspace green post-rebase.
+
+**Register cross-checks:** issue #9 closed · `docs/usage.md` (Exporting section: the round trip + the rename behavior) · no wire change · no new deps (fflate promoted to runtime in @notees/export).
