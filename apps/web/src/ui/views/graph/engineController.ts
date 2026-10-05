@@ -8,7 +8,6 @@
 import {
   GraphEngine,
   buildGraphEngineConfig,
-  type GraphEngineConfig,
   type GraphEngineEdge,
   type GraphEngineNode,
   type GraphEnginePhysicsConfig,
@@ -44,10 +43,11 @@ export class EngineController {
 
   /**
    * Start the engine with an initial topology. Spawns the physics worker;
-   * falls back to a main-thread engine when Worker is unavailable.
+   * falls back to a main-thread engine when Worker is unavailable. The
+   * worker protocol takes the PHYSICS PRESET bag and builds its own numeric
+   * config — a pre-built config would crash it (`preset` is not on it).
    */
   init(nodes: GraphEngineNode[], edges: GraphEngineEdge[], physics: GraphEnginePhysicsConfig): void {
-    const config: GraphEngineConfig = buildGraphEngineConfig(physics);
     if (typeof Worker !== "undefined") {
       try {
         this.worker = new Worker(new URL("./engine/worker.ts", import.meta.url), { type: "module" });
@@ -68,13 +68,13 @@ export class EngineController {
             });
           }
         };
-        this.post({ type: "init", nodes, edges, config });
+        this.post({ type: "init", nodes, edges, config: physics });
         return;
       } catch {
         this.worker = null;
       }
     }
-    this.mainThread = new GraphEngine(nodes, edges, config);
+    this.mainThread = new GraphEngine(nodes, edges, buildGraphEngineConfig(physics));
     this.ready = true;
   }
 
@@ -100,9 +100,8 @@ export class EngineController {
   }
 
   setConfig(physics: GraphEnginePhysicsConfig): void {
-    const config: GraphEngineConfig = buildGraphEngineConfig(physics);
-    if (this.mainThread !== null) this.mainThread.setConfig(config);
-    else this.send({ type: "setConfig", config });
+    if (this.mainThread !== null) this.mainThread.setConfig(buildGraphEngineConfig(physics));
+    else this.send({ type: "setConfig", config: physics });
   }
 
   /** Advance one physics step (main-thread path only; the worker self-ticks). */
