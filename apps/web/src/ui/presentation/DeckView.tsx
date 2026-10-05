@@ -31,7 +31,7 @@ import { QueryBlockView } from "../QueryBlockView.js";
 import { WhiteboardCanvas } from "../WhiteboardCanvas.js";
 import { AssetView } from "../AssetView.js";
 import { displayNameFromClient } from "../dateDisplay.js";
-import { classIconMap, nodeIcon } from "../iconFor.js";
+import { nodeIcon } from "../iconFor.js";
 import { OutlinerContext, useOutliner, useOutlinerValue } from "../outliner-context.js";
 import { assetImageUrl } from "../views/assetThumbs.js";
 import { coverAssetIdOf } from "../components/coverProperty.js";
@@ -194,7 +194,7 @@ function DeckSlideView({
 }) {
   if (slide.kind === "title") {
     const node = client.getNode(slide.nodeId);
-    const icon = node !== undefined ? nodeIcon(node, classIconMap(client.listClasses())) : null;
+    const icon = node !== undefined ? nodeIcon(node, client.classIcons()) : null;
     const color = node !== undefined ? client.effectiveNodeColor(node) : null;
     // §34.75: the presented page's cover opens the deck (a hero above the
     // title) — covers are presentation imagery like any slide image.
@@ -233,7 +233,7 @@ function DeckSlideView({
       .map((node) => ({ node, children: client.getBlockTree(node.id) }));
   }
   const titleIcon =
-    titleNode !== undefined ? nodeIcon(titleNode, classIconMap(client.listClasses())) : null;
+    titleNode !== undefined ? nodeIcon(titleNode, client.classIcons()) : null;
   const titleColor =
     titleNode !== undefined ? client.effectiveNodeColor(titleNode) : null;
 
