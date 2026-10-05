@@ -22,6 +22,8 @@ import { PluginRegistry } from "./routes-plugins.js";
 import { seedWorkspace, type SeedResult } from "./seed.js";
 import { ShareStorage } from "./shares.js";
 import { SubscriptionBus } from "./bus.js";
+import { WorkflowEngine, WorkflowStorage } from "./workflows.js";
+import type { WorkflowEvaluationContext } from "./workflows.js";
 import { WorkspaceManager } from "./workspace-store.js";
 
 export interface IngestOutcome {
@@ -38,6 +40,13 @@ export class ServerContext {
   readonly plugins: PluginRegistry;
   /** §34.62 (shares record): read-only public share tokens (server coordination). */
   readonly shares: ShareStorage;
+  /**
+   * Workflow rules + run audit (issue #13, server coordination state like
+   * prefs/shares/plugins). The engine evaluates every ingest; its action
+   * envelopes are ordinary ops by a server actor (client "rules-engine").
+   */
+  readonly workflows: WorkflowStorage;
+  private readonly workflowEngine: WorkflowEngine;
   readonly lockout: AccountLockout;
   readonly workspaces: WorkspaceManager;
   readonly factory: EnvelopeFactory;
@@ -76,6 +85,12 @@ export class ServerContext {
     this.clock = new Clock("notees-server", this.relay.globalMaxHlc());
     this.workspaces = new WorkspaceManager(this.relay, `${config.dataDir}/derived`);
     this.factory = new EnvelopeFactory(this.clock, this.actorId);
+    this.workflows = new WorkflowStorage(`${config.dataDir}/relay.db`);
+    this.workflowEngine = new WorkflowEngine(this.workflows, {
+      storeFor: (workspaceId) => this.workspaces.storeFor(workspaceId),
+      factory: this.factory,
+      ingest: (envelopes, evalCtx) => this.ingestInternal(envelopes, evalCtx),
+    });
     this.bus = new SubscriptionBus();
     this.limiters = {
       relayBatch: new FixedWindowLimiter(),
@@ -91,10 +106,24 @@ export class ServerContext {
 
   /**
    * The one write path: persist to the relay log, apply to the derived store,
-   * broadcast to WS subscribers. `envelopes` may span workspaces (grouped
-   * here); per-workspace rate accounting is charged per envelope (v1).
+   * broadcast to WS subscribers, then evaluate workflow rules (issue #13).
+   * `envelopes` may span workspaces (grouped here); per-workspace rate
+   * accounting is charged per envelope (v1) on client-authorized ingests only.
    */
   async ingestBatch(envelopes: Envelope[]): Promise<IngestOutcome> {
+    return this.ingestInternal(envelopes, null);
+  }
+
+  /**
+   * `engineCtx` non-null marks a rules-engine re-entrant ingest (the depth-1
+   * action write): it carries the loop-breaker set, is exempt from the
+   * client relay budget (server-authored ops — the seed precedent), and its
+   * own post-ingest evaluation is depth-capped inside the engine.
+   */
+  private async ingestInternal(
+    envelopes: Envelope[],
+    engineCtx: WorkflowEvaluationContext | null,
+  ): Promise<IngestOutcome> {
     const groups = new Map<string, Envelope[]>();
     for (const env of envelopes) {
       const group = groups.get(env.workspaceId);
@@ -104,18 +133,20 @@ export class ServerContext {
     const savedIds: string[] = [];
     const seqs: Record<string, number> = {};
     for (const [workspaceId, group] of groups) {
-      if (
-        !this.limiters.relayBatch.tryAcquire(
-          `relay:batch:${workspaceId}`,
-          group.length,
-          this.config.relayBatchPerMinute,
-        )
-      ) {
-        throw new AppError(
-          429,
-          "rate_limited",
-          `relay batch rate limit exceeded (${this.config.relayBatchPerMinute} envelopes/min/workspace)`,
-        );
+      if (engineCtx === null) {
+        if (
+          !this.limiters.relayBatch.tryAcquire(
+            `relay:batch:${workspaceId}`,
+            group.length,
+            this.config.relayBatchPerMinute,
+          )
+        ) {
+          throw new AppError(
+            429,
+            "rate_limited",
+            `relay batch rate limit exceeded (${this.config.relayBatchPerMinute} envelopes/min/workspace)`,
+          );
+        }
       }
       const outcome = await this.workspaces.apply(workspaceId, group);
       if (outcome.savedIds.length > 0) {
@@ -132,6 +163,17 @@ export class ServerContext {
         );
         savedIds.push(...outcome.savedIds);
         Object.assign(seqs, outcome.seqs);
+        // Post-ingest rule evaluation on the freshly-saved envelopes. A
+        // workflow failure must never fail the triggering ingest.
+        try {
+          await this.workflowEngine.evaluate(
+            workspaceId,
+            committed,
+            engineCtx ?? { depth: 0, firedRuleIds: new Set() },
+          );
+        } catch (error) {
+          console.error("[workflows] post-ingest evaluation failed", error);
+        }
       }
     }
     return { savedIds, seqs };
@@ -184,6 +226,7 @@ export class ServerContext {
     await this.workspaces.close();
     this.plugins.close();
     this.shares.close();
+    this.workflows.close();
     this.auth.close();
     this.relay.close();
   }
