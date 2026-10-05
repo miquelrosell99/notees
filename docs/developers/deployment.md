@@ -1,14 +1,16 @@
-# Notees v2 — Deployment
+# Notees — Deployment (developer)
 
-Self-hosting the Notees v2 server (`@notees/server`) in its M1-alpha state: a
-single-user, single-binary Fastify server with an embedded SQLite relay log and
-per-workspace derived databases. Companion docs: `architecture.md` (system),
-`development.md` (hacking).
+Self-hosting the Notees server (`@notees-sync`): a single-binary Fastify server with an
+embedded SQLite relay log and per-workspace derived databases. Companion docs:
+[architecture.md](architecture.md) (the system), [development.md](development.md)
+(hacking), [releases.md](releases.md) (the deploy runbook used on the fleet host).
 
-**Maturity.** M1 is single-user and plaintext: one API key is the entire auth model, and
-the server operator can read all workspace contents. Multi-user auth and E2EE are M3 and
-do not exist. Everything below was verified against `apps/server/src/config.ts`,
-`relay-storage.ts`, `assets.ts`, and `workspace-store.ts`.
+**Security posture.** The server carries accounts and sessions (the web app signs in;
+the initial setup creates the admin account), an operator API key for headless access,
+and per-user coordination state — but transport and storage are still plaintext: no
+E2EE. The server operator can read all workspace contents. Everything below was verified
+against `apps/server/src/config.ts`, `relay-storage.ts`, `assets.ts`, and
+`workspace-store.ts`.
 
 ## 1. Requirements
 
@@ -185,7 +187,7 @@ there is no `notees export`.
   multi-user authorization (M3), scoped keys. Until M3, "whoever holds the key" is the
   entire threat-model boundary.
 
-## 9. Docker + Compose (shipped 2026-09-26, Komodo-managed since 2026-09-29)
+## 9. Docker + Compose (shipped 2026-09-26; plain-Docker deploy since 2026-10-04)
 
 Two images build from this monorepo (context = the repo root):
 
@@ -207,21 +209,33 @@ Two images build from this monorepo (context = the repo root):
   text/html only); `01-log` disables `access_log` so the 30s container
   healthcheck doesn't write one log line per poll forever.
 
-Deployment is managed by **Komodo** (stack `notees`): files-on-host,
-`run_directory` = this repo, `file_paths = [compose.yaml]`,
-`env_file_path = .env`, `auto_pull = false`. Redeploy from the Komodo UI or
-the Core API (`POST /execute/DeployStack {"stack":"notees"}`). The stack's
-`environment` can pin `NOTEES_WEB_PORT` / `NOTEES_CORS_ORIGIN` (Komodo env
-beats `.env`). The pinned ghcr tags (`2.0.0-m1`) exist on the host only —
-build them from the Dockerfiles above and tag, or fix the parked
-registry-token issue in `AGENTS.md`.
+**Deploy: plain Docker — Komodo is NOT required** (owner ruling 2026-10-04;
+Komodo remains an optional convenience over the same compose file — every
+operation it performs is reproducible with the commands below). From the repo
+root:
+
+```sh
+docker build -f apps/server/Dockerfile -t ghcr.io/miquelrosell99/notees-sync:latest . \
+&& docker build -f apps/web/Dockerfile -t ghcr.io/miquelrosell99/notees-web:latest . \
+&& docker compose up -d
+```
+
+Compose has **no `build:` section by design**: it defaults to `:latest`
+(`NOTEES_SYNC_TAG`/`NOTEES_WEB_TAG` env overrides pin ghcr tags — the host
+docker login is read-only, so `docker pull ghcr.io/…:vX.Y.Z` + the env
+override is the alternative to local builds). After a data migration that
+rewrites the log, `docker compose restart notees-sync` rehydrates the server's
+derived store from snapshot+tail (`RelayStorage.ingest` alone does not apply
+to the running store — see `data-migrations.md` §1.B.7). Smoke:
+`node scripts/screenshots/verify-min.mjs` from `scripts/screenshots/` with
+`NOTEES_ADMIN_PASSWORD` (`config/notees/.admin_password` on the fleet host).
 
 - Ports: `NOTEES_SYNC_PORT` (default 8377), `NOTEES_WEB_PORT` (default 8378).
 - Data: bind mount `./config/notees/sync` → `/data` (relay.db, snapshots,
   derived/, workspaces/, `api_key.txt`).
 - CORS: compose defaults `NOTEES_CORS_ORIGIN=*` (safe: header-based auth, no
   cookies); LAN/domain deployments can pin a comma-separated origin list via
-  `.env` or the stack environment.
+  `.env`.
 - Logging: the sync container sets `NOTEES_LOG=false` (no per-request pino
   lines); nginx `access_log` is off in the web image. Errors still reach
   stderr in both.

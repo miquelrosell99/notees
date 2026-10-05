@@ -2,7 +2,7 @@
 
 How Notees feels to use: the views, the outliner, the sections, the marks, the whiteboards, the decks, and the gestures. The normative spec behind the model lives in [packages/protocol/SCHEMA.md](../packages/protocol/SCHEMA.md); the ideas are in [philosophy.md](philosophy.md); what you can run today is in [usage.md](usage.md).
 
-M1 alpha honesty, up front — every feature below is labeled:
+Honesty, up front — every feature below is labeled:
 
 | Feature | State |
 |---|---|
