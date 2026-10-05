@@ -3256,3 +3256,18 @@ The issue's "aliases is a system property of type node, restricted to pages" shi
 **Verification:** export 218 (+27), web 1114 (+10 — preview counts, update-by-uuid write, empty-cell unset, create+class flow, label→id, failure report with good-row survival, xlsx import), whole workspace green post-rebase.
 
 **Register cross-checks:** issue #9 closed · `docs/usage.md` (Exporting section: the round trip + the rename behavior) · no wire change · no new deps (fflate promoted to runtime in @notees/export).
+
+### 34.97 Workflow rules — when X on nodes matching Y, do Z (2026-10-05 — SHIPPED v1 slice, closes #13)
+
+The first slice of custom workflows is a **server-side rules engine** in coordination state — deliberately NOT a wire change (the prefs/shares/plugins precedent): rules live in relay.db, their effects are ordinary existing ops written by a server actor, so no GTK/Flutter lockstep is implicated and the object log stays the sole authority.
+
+- **Model**: `workflow_rule` (trigger op type, criteria as QueryAST JSON, actions JSON, enabled) + append-only `workflow_run` audit (rule, trigger envelope, matched node, actions written, outcome — `actions_written`/`actions_failed`/`skipped_loop`/`skipped_depth_cap`). Criteria are strict-parsed, aggregation-rejected, and trial-compiled at creation; composed action payloads are validated against the wire schema at creation.
+- **Evaluation**: post-ingest on the freshly-saved envelopes only, batched (criteria compiled once per rule per ingest; envelopes checked only against trippable rules), criteria probed per affected node via the `@notees/query` compiler against the server's derived store.
+- **Actions v1**: `property.set` and `class.assign` — the latter is NOT a wire op (class adds ride a re-issued `object.create` OR-Set carrier); the engine emits that carrier. Rules act as client `"rules-engine"` for auditability; action ingests are re-entrant at depth+1, bypass the relay rate budget (seed precedent), still broadcast, and are evaluated once more.
+- **Loop policy (the correctness crux)**: the `firedRuleIds` chain set breaks same-rule re-trigger (`skipped_loop` — essential because a `class.assign` action re-trips its own trigger); depth-1 cap means **one-hop chains only** (depth-1 matches write nothing, `skipped_depth_cap`) — termination is structural. Corollary documented: rules evaluate in creation order and a later rule can match an earlier rule's fresh effect against the same trigger envelope.
+- **Surface**: REST CRUD + runs (`GET/POST /api/workflows`, `GET/PATCH/DELETE /api/workflows/:id`, `GET …/runs`), read = any authenticated principal, write = owner/admin (shares idiom), OpenAPI-documented. API-only in v1 — no web UI yet.
+- **Known v1 warts (in the runbook)**: a failed action leaves an unapplied envelope in the relay log (hydration retries-and-skips it each boot); rules are live server code with a fixed action vocabulary, explicitly not plugin manifests for the parked runtime.
+
+**Verification:** server 203 (+12 — match→action, non-match→nothing, both trigger types, loop cap, depth cap, disabled no-op, failure audited + ingest unaffected, authz matrix, 422/404 fail-loud, restart persistence), whole workspace green.
+
+**Register cross-checks:** issue #13 closed · `docs/developers/workflows.md` (canonical runbook, indexed from README + architecture) · `docs/usage.md` "Workflows" (honest v1 limits) + API-table row · AGENTS.md server line · follow-ups registered there: scoped-key admin enforcement if rules grow a UI; plugin-provided actions as a future extension point.
