@@ -449,6 +449,40 @@ describe("groupBy: references grouped by containing page", () => {
     expect(onOpenPage).toHaveBeenCalled();
   });
 
+  it("group headers render the containing page's effective icon — own icon and class-chain icon", async () => {
+    const client = await seedClient();
+    const targetId = await client.createObject({ presentAsMain: true, name: "Zebra" });
+    // Source One carries its own authored icon.
+    const sourceOne = await client.createObject({ presentAsMain: true, name: "Source One" });
+    await client.updateObject(sourceOne, { icon: "mdi-star" });
+    await client.createObject({
+      parentId: sourceOne,
+      contentAst: [{ type: "mention", targetNodeId: targetId, text: "Zebra" }],
+    });
+    // Source Two inherits its icon through the class-extends chain (the
+    // daily-page shape: no own icon, the glyph arrives via its class).
+    const glyphParent = await client.createClass("Glyph Parent", { icon: "mdi-heart" });
+    const glyphChild = await client.createClass("Glyph Child");
+    await client.setClassExtends(glyphChild, [glyphParent]);
+    const sourceTwo = await client.createObject({ presentAsMain: true, name: "Source Two" });
+    await client.assignClass(sourceTwo, glyphChild);
+    await client.createObject({
+      parentId: sourceTwo,
+      contentAst: [{ type: "mention", targetNodeId: targetId, text: "Zebra" }],
+    });
+
+    render(<PageView client={client} pageId={targetId} onOpenPage={() => {}} />);
+    const linked = expandLinkedReferences();
+
+    const iconOf = (name: string): string | null =>
+      [...linked.querySelectorAll("button.outline-group__label")]
+        .find((el) => el.textContent?.includes(name))
+        ?.querySelector("use")
+        ?.getAttribute("href") ?? null;
+    expect(iconOf("Source One")).toBe("/mdi-sprite.svg#mdi-star");
+    expect(iconOf("Source Two")).toBe("/mdi-sprite.svg#mdi-heart");
+  });
+
   it("collapses and re-expands a group via its chevron", async () => {
     const client = await seedClient();
     const targetId = await seedReferencedPage(client);
