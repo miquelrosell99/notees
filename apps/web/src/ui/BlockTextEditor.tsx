@@ -134,7 +134,7 @@ import {
 } from "react";
 
 import type { ContentAst, Mark } from "@notees/protocol";
-import { chainNodeIds, rendersAsInlineBlock, SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { chainNodeIds, deriveDisplayName, rendersAsInlineBlock, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import { uuidv7 } from "uuidv7";
 
 import { focusAtPoint, focusWithCaret, type CaretPlacement } from "@/editor/caret.js";
@@ -178,6 +178,7 @@ import { requestQueryBuilderOpen } from "./QueryBlockView.js";
 import { TemplateListPopup } from "./templates/TemplateListPopup.js";
 import { useTemplateInstantiator } from "./templates/useTemplateInstantiator.js";
 import { ensureTableFamily } from "./components/tableFamily.js";
+import { cycleTaskState } from "./components/taskCycle.js";
 import { createTable, DEFAULT_TABLE_COLUMNS, parseTableColumnCount } from "./components/tableGrid.js";
 
 export const SAVE_DEBOUNCE_MS = 400;
@@ -868,8 +869,13 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       applySplice(start, end, [], start);
       // The task system class is this grammar's checkbox: assign it (OR-set
       // add), preferring a live class named "task" over the designed seed id.
+      // Title-is-content: the name lives in the class's content — the
+      // convenience `name` column is null on class nodes, so the probe
+      // compares the derived display name (same rule as taskCycle).
       const taskClassId =
-        captureApi.listClasses().find((cls) => cls.name === "task")?.id ?? SYSTEM_CLASS_UUIDS.task;
+        captureApi
+          .listClasses()
+          .find((cls) => deriveDisplayName(cls) === "task")?.id ?? SYSTEM_CLASS_UUIDS.task;
       void client.assignClass(nodeRef.current.id, taskClassId).catch((error: unknown) => {
         console.warn(`[capture] assignClass (${taskClassId}) failed:`, error);
       });
@@ -1606,6 +1612,20 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
     }
     if (mod && !event.altKey) {
       const key = event.key.toLowerCase();
+      // §34-tracked Cmd/Ctrl+Enter: the task-state cycle (v1 parity — not a
+      // task -> task+Pending -> task+Done -> not a task; see taskCycle.ts).
+      // Shift stays out so Cmd+Shift+Enter keeps Shift+Enter's hard-break
+      // newline semantics. While a slash popup is open, the Enter branch
+      // above already committed the popup and returned — the popup's commit
+      // wins over the cycle by design.
+      if (key === "enter" && !event.shiftKey) {
+        event.preventDefault();
+        const id = nodeRef.current.id;
+        void cycleTaskState(client, id).catch((error: unknown) => {
+          console.warn(`[editor] task cycle (${id}) failed:`, error);
+        });
+        return;
+      }
       if (key === "b" || key === "i" || (key === "x" && event.shiftKey)) {
         event.preventDefault();
         toggleMark(key === "b" ? "bold" : key === "i" ? "italic" : "strike");
