@@ -368,4 +368,70 @@ describe("WorkspaceClient render-path list reads — the §34.92 revision cache"
     expect(clientB.listPages().map((p) => p.id)).toContain(pageId);
     expect(clientB.listClasses().map((c) => c.id)).toContain(classId);
   });
+
+  it("reuses ClientNode identity for unchanged rows across revisions (§34.92 fix 5)", async () => {
+    const ctx = makeContext();
+    const client = await createClient(ctx);
+    await client.bootstrapWorkspace(WS);
+    const pageA = await client.createObject({ presentAsMain: true, name: "A" });
+    const pageB = await client.createObject({ presentAsMain: true, name: "B" });
+    const aBefore = client.listPages().find((p) => p.id === pageA)!;
+    const aBeforeList = client.listPages();
+    expect(client.getNode(pageA)).toBe(aBefore); // single read shares the cache
+
+    // An unrelated write re-reads the list, but A's mapped node is reused
+    // (the per-row identity cache — no re-parse/re-allocate of every row).
+    await client.updateObject(pageB, { contentAst: [{ type: "text", text: "B2" }] });
+    const pagesAfter = client.listPages();
+    expect(pagesAfter).not.toBe(aBeforeList); // new list array for the new revision
+    expect(pagesAfter.find((p) => p.id === pageA)).toBe(aBefore); // row identity reused
+    // B's own change busts exactly B.
+    expect(deriveDisplayName(pagesAfter.find((p) => p.id === pageB)!)).toBe("B2");
+  });
+
+  it("membership recomputes bust the row without an hlc/updated_at bump (§34.92 fix 5)", async () => {
+    // The soundness case: recomputeClassIds changes class_ids but not the
+    // row's hlc/updated_at — the identity stamp must cover the values.
+    const ctx = makeContext();
+    const client = await createClient(ctx);
+    await client.bootstrapWorkspace(WS);
+    const cls = await client.createClass("Member");
+    const page = await client.createObject({ presentAsMain: true, name: "M" });
+    const before = client.listPages().find((p) => p.id === page)!;
+
+    await client.assignClass(page, cls);
+
+    const after = client.listPages().find((p) => p.id === page)!;
+    expect(after).not.toBe(before);
+    expect(after.classIds).toContain(cls);
+  });
+
+  it("classIcons: the narrow id→icon read tracks updates and hides tombstoned classes", async () => {
+    const ctx = makeContext();
+    const client = await createClient(ctx);
+    await client.bootstrapWorkspace(WS);
+    const cls = await client.createClass("Ico", { icon: "mdi-tag" });
+    expect(client.classIcons().get(cls)).toBe("mdi-tag");
+
+    await client.updateObject(cls, { icon: "mdi-star" });
+    expect(client.classIcons().get(cls)).toBe("mdi-star");
+
+    await client.deleteObject(cls);
+    expect(client.classIcons().has(cls)).toBe(false);
+  });
+
+  it("getBlockTree rides the revision cache (the deferred §34.92 follow-up)", async () => {
+    const ctx = makeContext();
+    const client = await createClient(ctx);
+    await client.bootstrapWorkspace(WS);
+    const page = await client.createObject({ presentAsMain: true, name: "T" });
+    await client.createObject({ parentId: page, contentAst: [{ type: "text", text: "b" }] });
+
+    const tree = client.getBlockTree(page);
+    expect(client.getBlockTree(page)).toBe(tree);
+
+    await client.createObject({ parentId: page, contentAst: [{ type: "text", text: "c" }] });
+    expect(client.getBlockTree(page)).not.toBe(tree);
+    expect(client.getBlockTree(page)).toHaveLength(2);
+  });
 });

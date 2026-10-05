@@ -23,7 +23,7 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { displayNameForSettings } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
-import { classIconMap, nodeIcon } from "../iconFor.js";
+import { nodeIcon } from "../iconFor.js";
 import { SearchBox } from "../SearchBox.js";
 import { useNodePrefs, toggleNodeFavorite, removeSyncedRecent } from "./nodePrefs.js";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher.js";
@@ -208,7 +208,7 @@ export function Sidebar({
     classes.find((cls) => cls.name === "asset")?.id ?? SYSTEM_CLASS_UUIDS.asset;
   const pages = client.listPages().filter((page) => !page.classIds.includes(assetClassId));
   const byId = new Map<string, ClientNode>([...pages, ...classes].map((node) => [node.id, node]));
-  const iconsByClass = classIconMap(classes);
+  const iconsByClass = client.classIcons();
   const rowIconFor = (node: ClientNode): string | null => nodeIcon(node, iconsByClass);
   const favoritePages = favorites
     .map((id) => byId.get(id))
