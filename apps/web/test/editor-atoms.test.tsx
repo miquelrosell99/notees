@@ -308,3 +308,147 @@ describe("editor atoms", () => {
     expect(pills()).toEqual([true, false]);
   });
 });
+
+/** Seed a block "this is <chip:task> work" (the chip references a live class). */
+async function seededChip() {
+  const client = await seedClient();
+  const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+  const classId = await client.createClass("task");
+  const blockId = await client.createObject({
+    parentId: pageId,
+    contentAst: [
+      { type: "text", text: "this is " },
+      { type: "class_chip", classId },
+      { type: "text", text: " work" },
+    ],
+  });
+  return { client, pageId, classId, blockId };
+}
+
+function chipPillOf(editor: HTMLElement): HTMLElement {
+  const pill = editor.querySelector<HTMLElement>(".nt-atom--chip");
+  if (pill === null) throw new Error("no class chip pill rendered");
+  return pill;
+}
+
+describe("editor atoms — class chips", () => {
+  it("renders the chip as a contenteditable=false pill with the resolved class name", async () => {
+    const { client, pageId } = await seededChip();
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const editor = clickIntoBlock(container);
+    const pill = chipPillOf(editor);
+    expect(pill.contentEditable).toBe("false");
+    // v1 parity hook: the inline-class mark wore a wavy underline.
+    expect(pill.className).toContain("nt-atom--chip");
+    expect(pill.textContent).toBe("task");
+    // The pill text rides the prose projection (one coordinate system).
+    expect(editor.textContent).toBe("this is task work");
+  });
+
+  it("typing after the chip preserves it (the issue #2 edit-mode drop)", async () => {
+    const { client, pageId, blockId, classId } = await seededChip();
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const editor = clickIntoBlock(container);
+
+    // Emulate the browser appending text at the end (the pill stays a unit).
+    editor.appendChild(document.createTextNode("!"));
+    fireEvent.input(editor);
+    fireEvent.blur(editor);
+    await act(async () => {});
+
+    expect(client.getNode(blockId)?.contentAst).toEqual([
+      { type: "text", text: "this is " },
+      { type: "class_chip", classId },
+      { type: "text", text: " work!" },
+    ]);
+  });
+
+  it("typing before the chip preserves it", async () => {
+    const { client, pageId, blockId, classId } = await seededChip();
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const editor = clickIntoBlock(container);
+
+    editor.insertBefore(document.createTextNode("my "), editor.firstChild);
+    fireEvent.input(editor);
+    fireEvent.blur(editor);
+    await act(async () => {});
+
+    expect(client.getNode(blockId)?.contentAst).toEqual([
+      { type: "text", text: "my this is " },
+      { type: "class_chip", classId },
+      { type: "text", text: " work" },
+    ]);
+  });
+
+  it("replacing text across the whole chip preserves the chip as an atom", async () => {
+    const { client, pageId, blockId, classId } = await seededChip();
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const editor = clickIntoBlock(container);
+
+    // The draft drops the chip's label ("this is  work" — the pill text is
+    // gone): the chip must NOT silently flatten away; it rides through as
+    // the atomic token it is (its label re-resolves at render).
+    editor.textContent = "this is  work";
+    fireEvent.input(editor);
+    fireEvent.blur(editor);
+    await act(async () => {});
+
+    expect(client.getNode(blockId)?.contentAst).toEqual([
+      { type: "text", text: "this is " },
+      { type: "class_chip", classId },
+      { type: "text", text: " work" },
+    ]);
+  });
+
+  it("Backspace with the caret right after the chip deletes the whole chip", async () => {
+    const { client, pageId, blockId } = await seededChip();
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const editor = clickIntoBlock(container);
+
+    setProseCaret(editor, 12); // right after "task"
+    keyDown(editor, "Backspace");
+
+    expect(client.getNode(blockId)?.contentAst).toEqual([{ type: "text", text: "this is  work" }]);
+  });
+
+  it("ArrowRight onto the chip selects it as one unit", async () => {
+    const { client, pageId } = await seededChip();
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const editor = clickIntoBlock(container);
+
+    setProseCaret(editor, 8); // right before the chip
+    keyDown(editor, "ArrowRight");
+    expect(chipPillOf(editor).className).toContain("nt-atom--selected");
+  });
+
+  it("an unresolvable chip (zero prose) survives an edit in the block", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const missing = "0192a000-0000-7000-8000-00000000beef";
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [
+        { type: "text", text: "keep " },
+        { type: "class_chip", classId: missing },
+        { type: "text", text: " typing" },
+      ],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const editor = clickIntoBlock(container);
+    // Nothing renders for the dead chip (consistent: zero prose).
+    expect(editor.querySelector(".nt-atom--chip")).toBeNull();
+    expect(editor.textContent).toBe("keep  typing");
+
+    editor.appendChild(document.createTextNode("!"));
+    fireEvent.input(editor);
+    fireEvent.blur(editor);
+    await act(async () => {});
+
+    // The dead chip token is NOT silently flattened away by the edit.
+    expect(client.getNode(blockId)?.contentAst).toEqual([
+      { type: "text", text: "keep " },
+      { type: "class_chip", classId: missing },
+      { type: "text", text: " typing!" },
+    ]);
+  });
+});
