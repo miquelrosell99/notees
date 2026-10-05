@@ -1,0 +1,93 @@
+/**
+ * ImportTableModal styles (issue #9 — file pick, mapping chips, preview
+ * table, per-cell failure report). Token-only: every value resolves to a
+ * custom property from variables.css.
+ */
+
+.import-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  min-height: 12rem;
+}
+
+.import-modal__hint {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--color-on-surface-variant);
+}
+
+.import-modal__hint code {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+}
+
+.import-modal__error {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--color-error);
+}
+
+.import-modal__mapping {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+}
+
+.import-modal__chip {
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--radius-full);
+  background-color: var(--color-surface-container);
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+}
+
+.import-modal__chip--ignored {
+  opacity: var(--opacity-50);
+  text-decoration: line-through;
+}
+
+.import-modal__table-wrap {
+  overflow-x: auto;
+}
+
+.import-modal__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-xs);
+}
+
+.import-modal__table th,
+.import-modal__table td {
+  padding: var(--spacing-1) var(--spacing-2);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  text-align: left;
+  white-space: nowrap;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.import-modal__table th {
+  color: var(--color-on-surface-variant);
+  font-weight: 500;
+}
+
+.import-modal__failures {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.import-modal__failure-list {
+  margin: 0;
+  padding-left: var(--spacing-5);
+  max-height: 12rem;
+  overflow-y: auto;
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+  color: var(--color-on-surface-variant);
+}
