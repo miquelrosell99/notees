@@ -16,6 +16,7 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { act, fireEvent, render } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
+import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { PageView } from "../src/ui/PageView.js";
@@ -168,5 +169,90 @@ describe("fold chords (Ctrl+. toggle, Ctrl+Alt+←/→)", () => {
     // The parent's subtree is untouched, the child still edits.
     expect(container.querySelector(".nt-block-children")).not.toBeNull();
     expect(container.querySelector(".nt-block-text")).not.toBeNull();
+  });
+});
+
+describe("Cmd/Ctrl+Enter task cycle chord", () => {
+  function statusValue(client: WorkspaceClient, id: string): unknown {
+    return client
+      .getEffectiveProperties(id)
+      .find((row) => row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskStatus)?.value;
+  }
+
+  function statusOptionId(client: WorkspaceClient, label: string): string {
+    const option = client
+      .listPropertySchemas()
+      .find((s) => s.id === SYSTEM_PROPERTY_UUIDS.taskStatus)
+      ?.options?.find((o) => o.label === label);
+    if (option === undefined) throw new Error(`no "${label}" option`);
+    return option.id;
+  }
+
+  it("cycles not-a-task -> task+Pending -> Done -> cleared", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Tasks" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "Buy milk" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container, 0);
+    // 1. not a task -> task + Pending (the family self-heals on first write).
+    fireEvent.keyDown(editor, { key: "Enter", metaKey: true });
+    await act(async () => {});
+    expect(client.getNode(blockId)?.classIds).toContain(SYSTEM_CLASS_UUIDS.task);
+    expect(statusValue(client, blockId)).toBe(statusOptionId(client, "Pending"));
+
+    // 2. open task -> Done.
+    fireEvent.keyDown(editor, { key: "Enter", metaKey: true });
+    await act(async () => {});
+    expect(client.getNode(blockId)?.classIds).toContain(SYSTEM_CLASS_UUIDS.task);
+    expect(statusValue(client, blockId)).toBe(statusOptionId(client, "Done"));
+
+    // 3. Done -> cleared: status unset, class dropped.
+    fireEvent.keyDown(editor, { key: "Enter", metaKey: true });
+    await act(async () => {});
+    expect(client.getNode(blockId)?.classIds).not.toContain(SYSTEM_CLASS_UUIDS.task);
+    expect(statusValue(client, blockId)).toBeUndefined();
+  });
+
+  it("Ctrl+Enter (without meta) cycles too", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Tasks" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "Buy milk" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container, 0);
+    fireEvent.keyDown(editor, { key: "Enter", ctrlKey: true });
+    await act(async () => {});
+    expect(client.getNode(blockId)?.classIds).toContain(SYSTEM_CLASS_UUIDS.task);
+    expect(statusValue(client, blockId)).toBe(statusOptionId(client, "Pending"));
+  });
+
+  it("keeps plain Enter's block split intact after the chord", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Tasks" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "Buy milk" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container, 0);
+    fireEvent.keyDown(editor, { key: "Enter", metaKey: true });
+    await act(async () => {});
+    expect(client.getNode(blockId)?.classIds).toContain(SYSTEM_CLASS_UUIDS.task);
+
+    // Plain Enter (no modifier) still splits: a sibling appears after.
+    fireEvent.keyDown(editor, { key: "Enter" });
+    await act(async () => {});
+    const tree = client.getBlockTree(pageId);
+    expect(tree).toHaveLength(2);
+    expect(tree[0]!.node.id).toBe(blockId);
+    expect(tree[1]!.node.parentId).toBe(pageId);
   });
 });
