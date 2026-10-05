@@ -3231,3 +3231,18 @@ Hovering a node-link mention (the `InlineTokens` registry pattern — zero calle
 **Verification:** web 1094 (+18, fake-timer DOM specs over the in-process client), whole workspace green post-rebase onto §34.93.
 
 **Register cross-checks:** issue #11 closed · `docs/usage.md` item "Node links — open, peek, pin" · no wire change.
+
+### 34.95 Node aliases — alias pages rolling up to the main page (2026-10-05 — SHIPPED, closes #7)
+
+The issue's "aliases is a system property of type node, restricted to pages" ships as the seeded **Alias of** schema (reserved `…000000000029`, single-value `object`, global scope, no `targetClassFilter` — "page" is a render state, not a class, so the filter cannot express it). The alias page points at its **main** (one-way); text aliases (`…0028`, §34.32) are untouched and both kinds coexist.
+
+- **Roll-up**: `getLinkedReferences` unions the inbound edges of every alias page (`aliasPageIdsOf`, query-time over the derived edge index — no derived-schema change; own-subtree excluded relative to both main and alias); `ReferenceEntry.kind` gained `"alias"`. The alias's own view lists only its own edges — the "see only links related to that alias" half is free. `getBacklinkCount` stays materialized/direct (badge-vs-list divergence documented).
+- **Navigation**: mention-open resolves alias→main in BlockRow, BlockTextEditor, DeckView, and the app-wide NodeLinkMenuHost (`resolveAliasOpen` — chain-collapsing, cycle-safe; §34.94's hover/floating hosts resolve at the same seam). Opening the alias *itself* keeps its own view + an **Alias of \<main\>** chip (Pill primitive).
+- **Name equivalence**: alias titles join the main page's names in `resolveNodeByName` + unlinked references (`nameEquivalentsOf`).
+- **Page restriction — client-enforced, documented honestly in SCHEMA.md** (PC1-style convention; the applier polices nothing): the properties row renders for document-chrome carriers only, the Add-property picker hides it for non-pages, the alias picker offers pages only, and `linkNode` rejects a non-page target with a visible error and no write. One deliberate product call: the unvalued Alias-of row is **synthesized for pages** — otherwise a global unbound object schema renders no row and a first alias is unauthorable.
+
+**Known limits (flagged):** server `/api/resolve` folds text-alias values only (node-alias title equivalence is web-client-only — server/CLI parity is a follow-up); the graph's reserved `'alias'` link type still has no producer (follow-up).
+
+**Verification:** domain 69 (+1), web 1104 (+10 `node-aliases.test.tsx`), whole workspace green post-rebase.
+
+**Register cross-checks:** issue #7 closed · SCHEMA.md "Node aliases" normative section (semantics, enforcement level, coexistence) · `docs/usage.md` item 10 (two kinds, roll-up, the quiet alias view) · no wire change (object-typed property values are existing wire).
