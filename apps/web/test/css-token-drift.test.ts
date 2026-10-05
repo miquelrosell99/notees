@@ -29,6 +29,7 @@ const JS_SCOPED = new Map<string, string>([
   ["--color-on-accent-custom", "deviceSettings.ts"],
   ["--sheet-drag-offset", "Modal.tsx"],
   ["--sheet-scrim-opacity", "Modal.tsx"],
+  ["--nt-float-raise", "FloatingEditor.tsx"],
 ]);
 
 function walkFiles(dir: string, out: string[] = []): string[] {
@@ -123,8 +124,12 @@ describe("css token drift gate", () => {
         .filter((file) => path.basename(file) === owner)
         .map((file) => fs.readFileSync(file, "utf8"))
         .join("\n");
-      // Tolerate multi-line setProperty( calls: token must be the first argument.
-      const setter = new RegExp(`setProperty\\(\\s*["']${token}["']`);
+      // Tolerate multi-line setProperty( calls: token must be the first
+      // argument; also accept the React inline-style object form
+      // ("--token": value) that FloatingEditor uses for its raise counter.
+      const setter = new RegExp(
+        `setProperty\\(\\s*["']${token}["']|["']${token}["']\\s*:`,
+      );
       expect(setter.test(src), `JS_SCOPED ${token} is no longer set in ${owner} — remove it`).toBe(true);
     }
   });
