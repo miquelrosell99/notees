@@ -5,13 +5,15 @@
  * Selected options render as pills with a remove affordance; a "+"/"Empty"
  * trigger opens the options picker. Value ids reference the schema option
  * ids (single-select: one id; multi: an array). PG16: an option's optional
- * color (§34.43 grammar) tints its pill and shows as a dot in the picker.
+ * color (§34.43 grammar) tints its pill and shows as a dot in the picker;
+ * §34.89: an option's optional MDI icon renders before the label (tinted in
+ * the picker, contrast-colored on the tinted pill).
  */
 
 import { useRef, useState } from "react";
 
 import { Icon } from "../../Icon.js";
-import { coloredPillStyle } from "../ui/colorPresets.js";
+import { coloredPillStyle, cssColorFor } from "../ui/colorPresets.js";
 import { usePopupDismissal } from "../ui/usePopupDismissal.js";
 import "./PropertyCell.css";
 
@@ -20,6 +22,8 @@ export interface SelectionOption {
   label: string;
   /** PG16: preset token / `#RRGGBB` hex; absent/null = uncolored. */
   color?: string | null;
+  /** §34.89: MDI icon name (camelCase); absent/null = no icon. */
+  icon?: string | null;
 }
 
 interface SelectionPropertyControlProps {
@@ -88,6 +92,15 @@ export function SelectionPropertyControl({
                 className="property-cell__picker-option"
                 onClick={() => handleAddOption(option)}
               >
+                {option.icon && (
+                  <span className="property-cell__picker-icon">
+                    <Icon
+                      path={option.icon}
+                      size={0.7}
+                      {...(option.color ? { color: cssColorFor(option.color) } : {})}
+                    />
+                  </span>
+                )}
                 <span
                   className="property-cell__picker-dot"
                   style={coloredPillStyle(option.color) ?? undefined}
@@ -107,6 +120,11 @@ export function SelectionPropertyControl({
     <div ref={cellRef} className="property-cell property-cell--selection">
       {resolvedOptions.map((option) => (
         <div key={option.id} className="pill" style={coloredPillStyle(option.color) ?? undefined}>
+          {option.icon && (
+            <span className="pill__left-icon">
+              <Icon path={option.icon} size={0.7} />
+            </span>
+          )}
           <button
             type="button"
             className="pill__text"
@@ -151,6 +169,15 @@ export function SelectionPropertyControl({
                 className="property-cell__picker-option"
                 onClick={() => handleAddOption(option)}
               >
+                {option.icon && (
+                  <span className="property-cell__picker-icon">
+                    <Icon
+                      path={option.icon}
+                      size={0.7}
+                      {...(option.color ? { color: cssColorFor(option.color) } : {})}
+                    />
+                  </span>
+                )}
                 <span
                   className="property-cell__picker-dot"
                   style={coloredPillStyle(option.color) ?? undefined}
