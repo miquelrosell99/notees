@@ -127,7 +127,9 @@ describe("document shape", () => {
     expect(tex).toBe(
       expectedDocument(
         NOTES_CLASS,
-        ["\\section*{Hello world}", "", "Hello world"].join("\n"),
+        // Single-title rule: the content IS the title (title-is-content), so
+        // the body rides in the \section* heading alone — no second paragraph.
+        "\\section*{Hello world}",
       ),
     );
     expect(tex).not.toContain("thebibliography");
@@ -142,7 +144,7 @@ describe("document shape", () => {
     expect(tex).toBe(
       expectedDocument(
         ACADEMIC_CLASS,
-        ["\\section*{Hello world}", "", "Hello world"].join("\n"),
+        "\\section*{Hello world}",
       ),
     );
   });
@@ -335,7 +337,9 @@ describe("blocks", () => {
     expect(tex).toBe(
       expectedDocument(
         NOTES_CLASS,
-        ["\\section*{Host}", "", "Host", "", "Embedded body"].join("\n"),
+        // The host's own "Host" line rides in the heading (single-title
+        // rule); the inlined embed renders its full content — no heading.
+        ["\\section*{Host}", "", "Embedded body"].join("\n"),
       ),
     );
   });
@@ -381,8 +385,6 @@ describe("properties", () => {
           "\\paragraph*{label} x; y (since 1962)",
           "",
           "\\paragraph*{ref} Embedded target",
-          "",
-          "props",
         ].join("\n"),
       ),
     );
@@ -419,8 +421,6 @@ describe("outline", () => {
         NOTES_CLASS,
         [
           "\\section*{Root}",
-          "",
-          "Root",
           "",
           "\\section*{Outline}",
           "",
@@ -468,8 +468,6 @@ describe("bibliography", () => {
           "",
           "\\paragraph*{authors} Kuhn, Thomas",
           "",
-          "The Structure of Scientific Revolutions",
-          "",
           "\\begin{thebibliography}{99}",
           "\\bibitem{kuhn1962} Kuhn, Thomas (1962). \\emph{The Structure of Scientific Revolutions}.",
           "\\end{thebibliography}",
@@ -514,8 +512,6 @@ describe("bibliography", () => {
         NOTES_CLASS,
         [
           "\\section*{Reading list}",
-          "",
-          "Reading list",
           "",
           "\\section*{Outline}",
           "",
@@ -567,8 +563,6 @@ describe("bibliography", () => {
           "\\paragraph*{publicationDate} 1962",
           "",
           "\\paragraph*{authors} Kuhn, Thomas",
-          "",
-          "The Structure of Scientific Revolutions",
           "",
           "\\begin{thebibliography}{99}",
           "\\bibitem{kuhn1962} Kuhn, Thomas (1962). \\emph{The Structure of Scientific Revolutions}.",

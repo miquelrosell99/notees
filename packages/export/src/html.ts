@@ -76,7 +76,7 @@ import type {
   ExportPropertyValue,
   ExportSpan,
 } from "./document.js";
-import { isEmptyPropertyValue, qualifierDisplayOf } from "./document.js";
+import { isEmptyPropertyValue, qualifierDisplayOf, withoutLeadingTitle } from "./document.js";
 import type { ResolvedExportOptions } from "./options.js";
 
 // --- escaping ----------------------------------------------------------------
@@ -460,9 +460,10 @@ function renderOutlineList(children: readonly ExportDocumentChild[]): string {
 /**
  * Serialize a built {@link ExportDocument} to one complete, standalone HTML
  * document: inlined stylesheet, document header (title + properties), the
- * content blocks, and — unless includeOutline left the IR without children —
- * the nested-<ul> outline. Everything is inlined; no external resource is
- * ever referenced (privacy-first single file).
+ * content blocks (minus the leading title span when it rides in the <h1> —
+ * the single-title rule), and — unless includeOutline left the IR without
+ * children — the nested-<ul> outline. Everything is inlined; no external
+ * resource is ever referenced (privacy-first single file).
  */
 export function renderExportDocumentToHtml(
   document: ExportDocument,
@@ -472,7 +473,7 @@ export function renderExportDocumentToHtml(
   const body: string[] = [];
   const header = renderHeader(document, options);
   if (header.length > 0) body.push(header);
-  body.push(`<main class="content">\n${renderBlocks(document.blocks)}\n</main>`);
+  body.push(`<main class="content">\n${renderBlocks(withoutLeadingTitle(document))}\n</main>`);
   if (document.children.length > 0) {
     body.push(`<section class="outline">\n<h2>Outline</h2>\n${renderOutlineList(document.children)}\n</section>`);
   }
