@@ -28,7 +28,8 @@
  *
  * Workspace-zip enumeration (§34.24 zip-roots exclusion, owner 2026-10-04):
  * the server zip's page set is `Store.roots` + the main-children DFS MINUS
- * the system-seed pages (scratchpad, inbox) and the date chain
+ * the system-seed pages (inbox — the scratchpad was withdrawn §34.81 but
+ * legacy workspaces still carry it) and the date chain
  * (year/month/day nodes — journal scaffolding, 5,657 files of noise on the
  * real workspace). This is an enumeration rule, not a serializer option —
  * serializers never see the excluded rows; links targeting them keep the

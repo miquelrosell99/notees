@@ -154,8 +154,13 @@ export function systemClassAncestors(name: SystemClassName): ReadonlySet<SystemC
   return ancestors;
 }
 
+// §34.81 (owner 2026-10-05): the scratchpad page is WITHDRAWN — "not wanted
+// for notees". It is no longer seeded and its UUID is never reused;
+// workspaces seeded before the withdrawal still carry the page, so the
+// workspace zip keeps excluding it as legacy scaffolding (routes-auth).
+export const LEGACY_SCRATCHPAD_PAGE_ID = "00000000-0000-0000-0002-000000000001";
+
 export const SYSTEM_PAGE_UUIDS = {
-  scratchpad: "00000000-0000-0000-0002-000000000001",
   inbox: "00000000-0000-0000-0002-000000000002",
 } as const;
 

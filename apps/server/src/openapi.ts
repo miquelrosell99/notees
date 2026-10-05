@@ -389,7 +389,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   ["get", "/api/workspaces/:id/export.zip", {
     summary: "Full-workspace Markdown zip (one file per page, manifest, optional assets/)",
     description:
-      "§34.24 zip-roots exclusion (owner 2026-10-04): the system-seed pages (scratchpad, inbox) and the date chain (year/month/day nodes) are excluded from the bundle — journal scaffolding, not exportable content; links targeting them keep the single-file wikilink convention.",
+      "§34.24 zip-roots exclusion (owner 2026-10-04): the system-seed pages (inbox — the scratchpad was withdrawn §34.81 but legacy workspaces still carry it) and the date chain (year/month/day nodes) are excluded from the bundle — journal scaffolding, not exportable content; links targeting them keep the single-file wikilink convention.",
     tags: ["Workspaces"],
     requiredScope: "export",
     query: {

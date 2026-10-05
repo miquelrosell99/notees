@@ -59,7 +59,6 @@ import {
 import { PropertiesSection, ClassesRow, TagsRow } from "./components/MetadataSection.js";
 import { IconPickerPopup } from "./components/IconPickerPopup.js";
 import { CoverCard } from "./components/PageBanner.js";
-import { ScratchpadCapture, SCRATCHPAD_PAGE_ID } from "./components/ScratchpadCapture.js";
 import { PageFooter } from "./components/PageFooter.js";
 import { SelectionBar } from "./components/SelectionBar.js";
 import { SystemSections } from "./components/SystemSections.js";
@@ -591,10 +590,6 @@ export function PageView({
         {dayIso !== null && !embedded && (
           <DayPageDateBar client={client} pageId={pageId} iso={dayIso} onOpenPage={onOpenPage} />
         )}
-        {/* §34.19 :1180 — the seeded scratchpad page is a real page whose top
-            carries the quick-capture input (keyboard-first append); embedded
-            renders (journal feed) skip the chrome. */}
-        {!embedded && pageId === SCRATCHPAD_PAGE_ID && <ScratchpadCapture client={client} />}
         {notice}
         {moveError !== null && (
           <div role="alert" className="nt-dnd-error">

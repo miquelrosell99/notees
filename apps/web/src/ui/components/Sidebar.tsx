@@ -25,7 +25,6 @@ import { displayNameForSettings } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import { classIconMap, nodeIcon } from "../iconFor.js";
 import { SearchBox } from "../SearchBox.js";
-import { SCRATCHPAD_PAGE_ID } from "./ScratchpadCapture.js";
 import { useNodePrefs, toggleNodeFavorite, removeSyncedRecent } from "./nodePrefs.js";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher.js";
 import { SidebarItemMenu, type SidebarItemMenuState } from "./SidebarItemMenu.js";
@@ -347,22 +346,6 @@ export function Sidebar({
                 </button>
               </li>
             )),
-            // §34.19 :1180 — the seeded scratchpad page opens like a hub row
-            // (its quick-capture input renders at the top of the page).
-            <li key="scratchpad" className="nt-side-row">
-              <button
-                type="button"
-                className={
-                  selectedPageId === SCRATCHPAD_PAGE_ID
-                    ? "nt-side-item nt-side-item-active"
-                    : "nt-side-item"
-                }
-                onClick={() => openRow(SCRATCHPAD_PAGE_ID)}
-              >
-                <Icon path="mdi-note-outline" size={1} className="nt-side-item-icon" />
-                <span className="nt-side-item-label">Scratchpad</span>
-              </button>
-            </li>,
           ],
         )}
         {section(

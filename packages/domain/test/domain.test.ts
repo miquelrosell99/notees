@@ -83,6 +83,12 @@ describe("system seeds (v1 port)", () => {
     // property — covers are plain asset-classed nodes. Minted and withdrawn
     // the same day; never reuse.
     expect(allIds).not.toContain("00000000-0000-0000-0001-000000000042");
+    // §34.81 (owner 2026-10-05): the scratchpad page is withdrawn — not
+    // wanted. No longer seeded (SYSTEM_PAGE_UUIDS carries inbox only); the
+    // id lives on as LEGACY_SCRATCHPAD_PAGE_ID for the zip exclusion, never
+    // to be re-seeded.
+    expect(allIds).not.toContain("00000000-0000-0000-0002-000000000001");
+    expect(SYSTEM_PAGE_UUIDS).not.toHaveProperty("scratchpad");
   });
 
   it("citations revision (2026-09-27, FINAL): source family + authorship seeds", () => {
