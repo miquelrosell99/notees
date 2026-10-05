@@ -332,33 +332,45 @@ export class Store {
   }
 
   /**
-   * Active nodes whose OR-set class membership includes the class (present
-   * rows only), in display order. The Class View's members read.
+   * Active nodes whose OR-set class membership includes the class OR any of
+   * its transitive extends-children (the class_hierarchy closure — the
+   * family class set), in display order. The Class View's members read: a
+   * class page shows its own members plus every subclass's (a `source` page
+   * lists its whole family; a subclass member is never double-counted).
    */
   classMembers(classId: string): NodeRow[] {
     return this.db
       .prepare(
-        `SELECT n.* FROM node n
+        `SELECT DISTINCT n.* FROM node n
          JOIN class_member_set m ON m.node_id = n.id
-         WHERE m.class_id = ? AND m.present = 1 AND n.is_active = 1
+         WHERE (m.class_id = ? OR m.class_id IN (
+             SELECT class_id FROM class_hierarchy WHERE ancestor_id = ?
+           ))
+           AND m.present = 1 AND n.is_active = 1
          ORDER BY COALESCE((SELECT name FROM class WHERE id = n.id), n.id), n.id`,
       )
-      .all(classId) as NodeRow[];
+      .all(classId, classId) as NodeRow[];
   }
 
   /**
-   * The members count for section badges — the same membership projection
-   * as classMembers as a COUNT (indexed; the badge renders eagerly like
-   * the child-pages/backlinks counts).
+   * The members count for section badges — the same family-membership
+   * projection as classMembers as a COUNT (indexed; the badge renders
+   * eagerly like the child-pages/backlinks counts).
    */
   classMembersCount(classId: string): number {
     const row = this.db
       .prepare(
-        `SELECT COUNT(*) AS count FROM node n
-         JOIN class_member_set m ON m.node_id = n.id
-         WHERE m.class_id = ? AND m.present = 1 AND n.is_active = 1`,
+        `SELECT COUNT(*) AS count FROM (
+           SELECT n.id FROM node n
+           JOIN class_member_set m ON m.node_id = n.id
+           WHERE (m.class_id = ? OR m.class_id IN (
+               SELECT class_id FROM class_hierarchy WHERE ancestor_id = ?
+             ))
+             AND m.present = 1 AND n.is_active = 1
+           GROUP BY n.id
+         )`,
       )
-      .get(classId) as { count: number };
+      .get(classId, classId) as { count: number };
     return row.count;
   }
 
