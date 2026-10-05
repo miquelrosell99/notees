@@ -94,7 +94,7 @@ describe("ensureTemplateProperty", () => {
       .listPropertySchemas()
       .find((entry) => entry.id === SYSTEM_PROPERTY_UUIDS.hasTemplate);
     expect(schema).toBeDefined();
-    expect(schema?.name).toBe("has-template");
+    expect(schema?.name).toBe("Templates");
     expect(schema?.type).toBe("object");
     expect(schema?.multi).toBe(true);
     expect(schema?.targetClassFilter).toEqual([SYSTEM_CLASS_UUIDS.template]);

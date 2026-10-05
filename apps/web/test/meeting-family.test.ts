@@ -166,10 +166,10 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
     // The event root: class node + eventDate schema/binding.
     const eventClass = client.getNodeRaw(EVENT_CLASS_ID);
     expect(eventClass?.isClass).toBe(true);
-    expect(deriveDisplayName(eventClass!)).toBe("event");
+    expect(deriveDisplayName(eventClass!)).toBe("Event");
     const schemas = new Map(client.listPropertySchemas().map((schema) => [schema.id, schema]));
     expect(schemas.get(SYSTEM_PROPERTY_UUIDS.eventDate)).toMatchObject({
-      name: "eventDate",
+      name: "Event date",
       type: "date",
       scope: "class",
     });
@@ -180,21 +180,24 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
     // The meeting subclass: node + family + the extends edge.
     const meetingClass = client.getNodeRaw(MEETING_CLASS_ID);
     expect(meetingClass?.isClass).toBe(true);
-    expect(deriveDisplayName(meetingClass!)).toBe("meeting");
+    expect(deriveDisplayName(meetingClass!)).toBe("Meeting");
     expect(schemas.get(SYSTEM_PROPERTY_UUIDS.meetingDate)).toMatchObject({
-      name: "meetingDate",
+      name: "Meeting date",
       type: "date",
       scope: "class",
     });
     expect(schemas.get(SYSTEM_PROPERTY_UUIDS.location)).toMatchObject({
-      name: "location",
+      name: "Location",
       type: "text",
     });
     expect(schemas.get(SYSTEM_PROPERTY_UUIDS.agenda)).toMatchObject({
-      name: "agenda",
+      name: "Agenda",
       type: "text",
     });
     const bindings = client.getClassBindings(MEETING_CLASS_ID);
+    // The meeting family rides the seed-spec fallback (read-synthesized at
+    // the reserved ids — the ensure's bound-check sees them and authors no
+    // duplicate rows).
     expect(bindings.map((binding) => binding.propertySchemaId)).toEqual(
       MEETING_FAMILY.map((spec) => spec.id),
     );
@@ -285,12 +288,12 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
     const eventChip = chips.find((chip) => chip.classId === EVENT_CLASS_ID);
     expect(eventChip).toMatchObject({
       schemaId: SYSTEM_PROPERTY_UUIDS.eventDate,
-      label: "event",
+      label: "Event",
     });
     const meetingChip = chips.find((chip) => chip.classId === MEETING_CLASS_ID);
     expect(meetingChip).toMatchObject({
       schemaId: SYSTEM_PROPERTY_UUIDS.meetingDate,
-      label: "meeting",
+      label: "Meeting",
     });
     // Each family contributes exactly one chip (one date binding apiece).
     expect(chips.filter((chip) => chip.classId === EVENT_CLASS_ID)).toHaveLength(1);
@@ -345,11 +348,11 @@ describe("ensureBirthdayFamily (birthday extends event, for persons — §34.36.
     // The birthday class + the person-typed schema…
     const birthdayClass = client.getNodeRaw(BIRTHDAY_CLASS_ID);
     expect(birthdayClass?.isClass).toBe(true);
-    expect(deriveDisplayName(birthdayClass!)).toBe("birthday");
+    expect(deriveDisplayName(birthdayClass!)).toBe("Birthday");
     const schema = client
       .listPropertySchemas()
       .find((entry) => entry.id === SYSTEM_PROPERTY_UUIDS.birthdayPerson);
-    expect(schema).toMatchObject({ name: "birthdayPerson", type: "object", scope: "class" });
+    expect(schema).toMatchObject({ name: "Birthday person", type: "object", scope: "class" });
     expect(schema?.targetClassFilter).toEqual([SYSTEM_CLASS_UUIDS.person]);
     // …its binding, the eventDate chip-eligibility row, and the edge.
     const bound = client
@@ -418,7 +421,7 @@ describe("ensureBirthdayFamily (birthday extends event, for persons — §34.36.
     const birthdayChip = chips.find((chip) => chip.classId === BIRTHDAY_CLASS_ID);
     expect(birthdayChip).toMatchObject({
       schemaId: SYSTEM_PROPERTY_UUIDS.eventDate,
-      label: "birthday",
+      label: "Birthday",
     });
     expect(chips.filter((chip) => chip.classId === BIRTHDAY_CLASS_ID)).toHaveLength(1);
   });

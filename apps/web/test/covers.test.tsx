@@ -68,7 +68,7 @@ async function seedPageAndAsset(client: WorkspaceClient): Promise<[string, strin
 }
 
 describe("covers (§34.74 — asset-classed, no cover class)", () => {
-  it("ensureCoverProperty authors the schema + binding (+ asset/source roots), NO cover class", async () => {
+  it("ensureCoverProperty authors the schema + class roots, NO source binding, NO cover class (owner ruling 2026-10-05: a cover makes no sense on sources)", async () => {
     const client = await seedClient();
     await ensureCoverProperty(client);
     await flushWrites();
@@ -76,11 +76,13 @@ describe("covers (§34.74 — asset-classed, no cover class)", () => {
     expect(
       client.listPropertySchemas().some((s) => s.id === SYSTEM_PROPERTY_UUIDS.cover),
     ).toBe(true);
+    // The cover→source binding row is removed from the seeds and must never
+    // be re-authored here (scripts/migrate-system-names.mts clears it live).
     expect(
       client
         .getClassBindings(SYSTEM_CLASS_UUIDS.source)
         .some((b) => b.propertySchemaId === SYSTEM_PROPERTY_UUIDS.cover),
-    ).toBe(true);
+    ).toBe(false);
     // The withdrawn cover class is never authored (…0042 minted §34.56,
     // withdrawn §34.74 — a cover is a plain asset).
     expect(client.getNode(WITHDRAWN_COVER_CLASS)).toBeUndefined();

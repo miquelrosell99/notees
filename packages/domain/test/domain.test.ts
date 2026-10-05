@@ -9,11 +9,13 @@ import {
   rendersAsInlineBlock,
   rendersWithDocumentChrome,
   SEEDED_SYSTEM_CLASSES,
+  SYSTEM_CLASS_DISPLAY_NAMES,
   SYSTEM_CLASS_EXTENDS,
   SYSTEM_CLASS_ICONS,
   SYSTEM_CLASS_UUIDS,
   SYSTEM_EXTRA_CLASS_BINDINGS,
   SYSTEM_PAGE_UUIDS,
+  SYSTEM_PROPERTY_DISPLAY_NAMES,
   SYSTEM_PROPERTY_SPECS,
   SYSTEM_PROPERTY_UUIDS,
   systemClassAncestors,
@@ -190,6 +192,42 @@ describe("system seeds (v1 port)", () => {
       (binding) => binding.property === "eventDate" && binding.bindTo === "birthday",
     );
     expect(extra).toEqual([{ property: "eventDate", bindTo: "birthday", sequence: 0 }]);
+  });
+
+  it("cover is not bound to source anywhere in the seed manifest (owner ruling 2026-10-05: a cover makes no sense on sources)", () => {
+    for (const binding of SYSTEM_EXTRA_CLASS_BINDINGS) {
+      expect(binding.property === "cover" && binding.bindTo === "source").toBe(false);
+    }
+  });
+
+  it("system display names: normal wording for every system class and property (owner 2026-10-05)", async () => {
+    // Completeness: exactly one display name per seed key — the manifest
+    // must never lag a new seed.
+    expect(Object.keys(SYSTEM_CLASS_DISPLAY_NAMES).sort()).toEqual(
+      Object.keys(SYSTEM_CLASS_UUIDS).sort(),
+    );
+    expect(Object.keys(SYSTEM_PROPERTY_DISPLAY_NAMES).sort()).toEqual(
+      Object.keys(SYSTEM_PROPERTY_UUIDS).sort(),
+    );
+    const classNames = Object.values(SYSTEM_CLASS_DISPLAY_NAMES);
+    const propertyNames = Object.values(SYSTEM_PROPERTY_DISPLAY_NAMES);
+    // Display names are unique (no two seeds collapse into one label).
+    expect(new Set(classNames).size).toBe(classNames.length);
+    expect(new Set(propertyNames).size).toBe(propertyNames.length);
+    for (const label of [...classNames, ...propertyNames]) {
+      expect(label.length).toBeGreaterThan(0);
+      // Normal wording: no camelCase runs, no snake_case, no kebab-case.
+      expect(label).not.toMatch(/[a-z][A-Z]/);
+      expect(label).not.toMatch(/[_-]/);
+    }
+    // The owner's canonical examples.
+    expect(SYSTEM_CLASS_DISPLAY_NAMES.tv_series).toBe("TV series");
+    expect(SYSTEM_PROPERTY_DISPLAY_NAMES.publicationDate).toBe("Publication date");
+    // The task-family entries mirror the applier-side TASK_FAMILY_SEED names.
+    const { TASK_FAMILY_SEED } = await import("../src/index.js");
+    for (const entry of TASK_FAMILY_SEED) {
+      expect(SYSTEM_PROPERTY_DISPLAY_NAMES[entry.property]).toBe(entry.name);
+    }
   });
 
   it("systemClassAncestors encodes the Features-tab gating semantics (§34.36 reshape + §34.36.3 birthday)", () => {

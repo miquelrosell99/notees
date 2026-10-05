@@ -1,16 +1,15 @@
 /**
  * Cover property self-heal (§34.27 L2) — the `cover` system property exists
- * in the seed manifest (SYSTEM_PROPERTY_UUIDS.cover + the source-class
- * binding row in SYSTEM_EXTRA_CLASS_BINDINGS) but nothing authors it: the
- * server seed emits SYSTEM_PROPERTY_SPECS only, and the v1 migration is the
- * only other writer. A fresh workspace therefore has no cover schema and no
- * surface could ever set one — the page banner would be dead chrome.
+ * in the seed manifest (SYSTEM_PROPERTY_UUIDS.cover) but nothing authors it:
+ * the server seed emits SYSTEM_PROPERTY_SPECS only, and the v1 migration is
+ * the only other writer. A fresh workspace therefore has no cover schema and
+ * no surface could ever set one — the page banner would be dead chrome.
  *
  * Following the ensureTaskFamily precedent (§34.28 #2): author the schema
- * idempotently at the reserved id (type `image`, the v1 mapping) plus the
- * source-class binding when missing; a complete no-op once present. Safe
- * under both WorkspaceClient and WorkerClient — it composes only the shared
- * write surface (createPropertySchema / setClassProperty) and sync reads.
+ * idempotently at the reserved id (type `image`, the v1 mapping). A complete
+ * no-op once present. Safe under both WorkspaceClient and WorkerClient —
+ * it composes only the shared write surface (createPropertySchema) and sync
+ * reads.
  *
  * The value shape is the shared node-reference record `{ nodeId }` (the same
  * shape object/date property values carry); for a cover the target is an
@@ -22,59 +21,64 @@
  * is DROPPED — it duplicated the property's meaning. A cover is an ordinary
  * ASSET-classed node; the property value is the only authority and the
  * card-view "Cover" badge derives from it (isCoverAsset below).
+ *
+ * 2026-10-05 (owner ruling): a cover makes no sense on SOURCES — the
+ * cover→source binding row is removed from SYSTEM_EXTRA_CLASS_BINDINGS and
+ * from live workspaces (scripts/migrate-system-names.mts), and this ensure
+ * no longer re-authors it. The cover stays effectively global: once the
+ * schema exists, ANY document-chrome node can carry the value (see
+ * canHaveCoverOf).
  */
 
-import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import {
+  SYSTEM_CLASS_DISPLAY_NAMES,
+  SYSTEM_CLASS_UUIDS,
+  SYSTEM_PROPERTY_DISPLAY_NAMES,
+  SYSTEM_PROPERTY_UUIDS,
+} from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
-/** True when the cover schema exists and the source class binds it. */
+/** True when the cover schema exists. */
 export function coverPropertyPresent(
-  client: Pick<AnyClient, "listPropertySchemas" | "getClassBindings">,
+  client: Pick<AnyClient, "listPropertySchemas">,
 ): boolean {
-  const have = client.listPropertySchemas().some((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.cover);
-  const bound = client
-    .getClassBindings(SYSTEM_CLASS_UUIDS.source)
-    .some((binding) => binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS.cover);
-  return have && bound;
+  return client
+    .listPropertySchemas()
+    .some((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.cover);
 }
 
 /**
  * Author the cover family when missing (idempotent): the image-typed cover
- * schema and the source binding (plus the asset/source class roots on
- * workspaces that do not carry the seed rows yet — the meetingFamily ensure
- * pattern). No cover CLASS (§34.74 — withdrawn the day it shipped; covers
- * are plain asset-classed nodes, the property value is the authority).
+ * schema (plus the asset/source class roots on workspaces that do not carry
+ * the seed rows yet — the meetingFamily ensure pattern). No cover CLASS
+ * (§34.74 — withdrawn the day it shipped; covers are plain asset-classed
+ * nodes, the property value is the authority) and NO source binding
+ * (2026-10-05 owner ruling — a cover makes no sense on sources).
  */
 export async function ensureCoverProperty(client: AnyClient): Promise<void> {
   // Fresh workspaces carry no system-class ROWS (the server seed emits
   // property specs only) — author the class roots first (the meetingFamily
-  // ensure does the same for event): the schema binds to source.
+  // ensure does the same for event); the cover value targets asset nodes.
   for (const [name, id, icon] of [
     ["asset", SYSTEM_CLASS_UUIDS.asset, "mdiPaperclip"],
     ["source", SYSTEM_CLASS_UUIDS.source, "mdiBookshelf"],
   ] as const) {
     if (client.getNode(id) === undefined) {
-      await client.createClass(name, { id, icon });
+      await client.createClass(SYSTEM_CLASS_DISPLAY_NAMES[name], { id, icon });
     }
   }
   if (!client.listPropertySchemas().some((schema) => schema.id === SYSTEM_PROPERTY_UUIDS.cover)) {
     await client.createPropertySchema({
       id: SYSTEM_PROPERTY_UUIDS.cover,
-      name: "cover",
+      name: SYSTEM_PROPERTY_DISPLAY_NAMES.cover,
       type: "image",
       scope: "class",
     });
   }
-  // Binding sequence 7 lands the row after the seeded source specs (the seed
-  // manifest's SYSTEM_EXTRA_CLASS_BINDINGS sequence); the read model sorts
-  // by (sequence, schema id) so any tie still orders deterministically.
-  await client.setClassProperty(SYSTEM_CLASS_UUIDS.source, SYSTEM_PROPERTY_UUIDS.cover, {
-    sequence: 7,
-  });
 }
 
 /** The asset node id a node's cover property points at (null = no cover). */
