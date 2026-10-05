@@ -51,9 +51,29 @@
 
 .nt-sidebar-nav {
   flex: 1;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   padding: var(--spacing-1) 0;
   min-height: 0;
+  /* The nav itself never scrolls — only a section flagged --scroll absorbs
+     the free height and scrolls its list (Recents). */
+  overflow: hidden;
+}
+
+/* The scrollable section (Recents): fills the nav's leftover height, the
+   pinned header sits above, the list is the sole scroller. */
+.nt-side-section--scroll {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0;
+}
+
+.nt-side-section--scroll > .nt-side-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .nt-side-section {
