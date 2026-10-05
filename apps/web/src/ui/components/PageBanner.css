@@ -92,7 +92,7 @@
 }
 
 .nt-covercard__zoom:focus-visible {
-  outline: var(--border-width-focus, 2px) solid var(--color-primary, currentColor);
+  outline: var(--border-width-thick) solid var(--color-primary, currentColor);
   outline-offset: calc(-1 * var(--spacing-1, 2px));
 }
 
