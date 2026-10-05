@@ -65,6 +65,7 @@ import { NAV_ENTRIES, Sidebar, recordRecent, type NavKey } from "./components/Si
 import { NodeLinkMenuHost } from "./components/NodeLinkContextMenu.js";
 import { FloatingEditorHost } from "./components/FloatingEditor.js";
 import { NodeHoverPreviewHost } from "./components/NodeHoverPreview.js";
+import { resolveAliasOpen } from "./components/aliasProperty.js";
 import { JournalsView } from "./components/JournalsView.js";
 import { CalendarView } from "./components/CalendarView.js";
 import { ensureTaskFamily } from "./components/taskFamily.js";
@@ -1663,9 +1664,13 @@ export function App() {
         />
       )}
       <div className="nt-body">
-        <NodeLinkMenuHost client={client} openNode={openPage} openInSidebar={openInSidebar}>
-        <NodeHoverPreviewHost client={client} openNode={openPage}>
-        <FloatingEditorHost client={client} openNode={openPage}>
+        <NodeLinkMenuHost
+          client={client}
+          openNode={(id) => openPage(resolveAliasOpen(client, id))}
+          openInSidebar={openInSidebar}
+        >
+        <NodeHoverPreviewHost client={client} openNode={(id) => openPage(resolveAliasOpen(client, id))}>
+        <FloatingEditorHost client={client} openNode={(id) => openPage(resolveAliasOpen(client, id))}>
         <Sidebar
           client={client}
           workspaceName={workspaceName}
