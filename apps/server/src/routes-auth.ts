@@ -28,7 +28,12 @@
 
 import { timingSafeEqual } from "node:crypto";
 
-import { deriveDisplayName, parseDateNodeId, SYSTEM_PAGE_UUIDS } from "@notees/domain";
+import {
+  deriveDisplayName,
+  LEGACY_SCRATCHPAD_PAGE_ID,
+  parseDateNodeId,
+  SYSTEM_PAGE_UUIDS,
+} from "@notees/domain";
 import type { ExportBundle, ExportContext, ExportNode } from "@notees/export";
 import { bundleMarkdown, exportFileName } from "@notees/export";
 import type { NodeRow } from "@notees/store";
@@ -548,13 +553,17 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     // file; classes are never exported.
     //
     // §34.24 zip-roots exclusion (owner-via-register-recommendation,
-    // 2026-10-04): the system-seed pages (scratchpad, inbox) and the whole
-    // date chain (year/month/day nodes — 5,657 files of journal scaffolding
-    // on the real workspace) stay OUT of the zip. Date-chain rows are
-    // skipped at every level, so a user page parented under a day node is
-    // skipped with the chain (the exclusion is documented in the export
-    // options + SCHEMA.md zip conventions).
-    const SYSTEM_ZIP_PAGE_IDS = new Set<string>(Object.values(SYSTEM_PAGE_UUIDS));
+    // 2026-10-04): the system-seed pages (inbox; the scratchpad was withdrawn
+    // §34.81 but legacy workspaces still carry it) and the whole date chain
+    // (year/month/day nodes — 5,657 files of journal scaffolding on the real
+    // workspace) stay OUT of the zip. Date-chain rows are skipped at every
+    // level, so a user page parented under a day node is skipped with the
+    // chain (the exclusion is documented in the export options + SCHEMA.md
+    // zip conventions).
+    const SYSTEM_ZIP_PAGE_IDS = new Set<string>([
+      ...Object.values(SYSTEM_PAGE_UUIDS),
+      LEGACY_SCRATCHPAD_PAGE_ID,
+    ]);
     const zipExcluded = (row: NodeRow): boolean =>
       SYSTEM_ZIP_PAGE_IDS.has(row.id) || parseDateNodeId(row.id) !== null;
     const pageRows: NodeRow[] = [];
