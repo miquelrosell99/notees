@@ -7,7 +7,7 @@
  * to cards (owner rules).
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { Icon } from "../Icon.js";
 import { useViewModePreference } from "../viewPrefs.js";
@@ -35,6 +35,8 @@ export interface CollectionHubProps {
   /** Kanban: the select property whose options seed the board columns. */
   kanbanProperty?: string | undefined;
   emptyTitle?: string | undefined;
+  /** Right-aligned header extras (#14's "New class" button et al.). */
+  headerActions?: ReactNode;
   onOpenNode: (nodeId: string) => void;
   onOpenInSidebar?: ((nodeId: string) => void) | undefined;
 }
@@ -52,6 +54,7 @@ export function CollectionHub({
   tableEditable = false,
   kanbanProperty,
   emptyTitle,
+  headerActions,
   onOpenNode,
   onOpenInSidebar,
 }: CollectionHubProps) {
@@ -73,6 +76,7 @@ export function CollectionHub({
             <ViewToolbar modes={modes} value={mode} onChange={setMode} />
           </span>
         )}
+        {headerActions !== undefined && <span className="nt-hub-actions">{headerActions}</span>}
       </header>
       <NodeCollection
         viewMode={mode}
