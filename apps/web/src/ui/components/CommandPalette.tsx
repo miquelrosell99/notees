@@ -41,6 +41,7 @@ import type { UndoUiState } from "@/core/undo-journal.js";
 
 import { displayNameForSettings, isDatePageNode, rawDateKeywordOf } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
+import { toggleFocusMode } from "./modals/deviceSettings.js";
 import { parseDate } from "./pickers/dateParser.js";
 import { Button } from "./ui/Button.js";
 import { SearchField } from "./ui/SearchField.js";
@@ -304,6 +305,7 @@ export function CommandPalette({
       .listPages()
       .filter((page) => !page.classIds.includes(assetClassId));
     const themeIsDark = document.documentElement.dataset.theme !== "light";
+    const focusIsOn = document.documentElement.dataset.focus === "true";
     const items: PaletteItem[] = [];
     /** Fuzzy-pass one candidate pool into a group; `always` keeps rows on an empty query. */
     const addFuzzy = (
@@ -456,6 +458,15 @@ export function CommandPalette({
             },
           ]
         : []),
+      {
+        key: "toggle-focus",
+        label: focusIsOn ? "Focus mode: exit" : "Focus mode: enter",
+        icon: focusIsOn ? "mdiFullscreenExit" : "mdiEyeOutline",
+        keywords: "focus mode distraction minimal writing dim",
+        run: () => {
+          toggleFocusMode();
+        },
+      },
       {
         key: "toggle-theme",
         label: themeIsDark ? "Toggle theme: switch to light" : "Toggle theme: switch to dark",

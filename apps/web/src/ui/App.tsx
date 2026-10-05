@@ -81,7 +81,7 @@ import { QuickAddModal } from "./components/modals/QuickAddModal.js";
 import { QuickCreateFab } from "./components/QuickCreateFab.js";
 import { WorkspacesView } from "./components/WorkspacesView.js";
 import { UserSettingsModal } from "./components/modals/UserSettingsModal.js";
-import { applyAppearance, readDeviceSetting, useDeviceSetting } from "./components/modals/deviceSettings.js";
+import { applyAppearance, readDeviceSetting, toggleFocusMode, useDeviceSetting } from "./components/modals/deviceSettings.js";
 import { BackendUnavailableOverlay } from "./components/ui/BackendUnavailableOverlay.js";
 import { InProcessStoreBanner } from "./components/ui/InProcessStoreBanner.js";
 import { Button } from "./components/ui/Button.js";
@@ -424,6 +424,55 @@ export function historyKeyHandler(opts: {
 }
 
 /**
+ * Ctrl/Cmd+Alt+F — focus mode toggle (#12). The §34.19 keymap row leaves
+ * Alt+F free (the Shift+F find/replace chord owns the shifted variant; the
+ * browser's plain Alt+F menu focus is a different binding). Same guard as
+ * the other global chords: text fields and the outliner editor keep the
+ * keystroke. Exported for the keymap tests.
+ */
+export function focusModeKeyHandler(opts: {
+  onToggle: () => void;
+}): (event: KeyboardEvent) => void {
+  return (event) => {
+    const mod = event.ctrlKey || event.metaKey;
+    if (!mod || !event.altKey || event.shiftKey) return;
+    if (event.key.toLowerCase() !== "f") return;
+    const target = event.target;
+    if (
+      target instanceof Element &&
+      target.closest("input, textarea, select, [contenteditable]")
+    ) {
+      return;
+    }
+    event.preventDefault();
+    opts.onToggle();
+  };
+}
+
+/**
+ * Esc — exit focus mode (#12). Registered only while focus mode is on;
+ * text fields and the outliner editor keep the keystroke (the guard matches
+ * the other global chords). No preventDefault: outside a text field nothing
+ * else owns Esc, and the dimmed chrome stays interactive.
+ */
+export function focusModeExitHandler(opts: {
+  focusMode: () => boolean;
+  onExit: () => void;
+}): (event: KeyboardEvent) => void {
+  return (event) => {
+    if (event.key !== "Escape" || !opts.focusMode()) return;
+    const target = event.target;
+    if (
+      target instanceof Element &&
+      target.closest("input, textarea, select, [contenteditable]")
+    ) {
+      return;
+    }
+    opts.onExit();
+  };
+}
+
+/**
  * Tap-outside drawer dismissal (§34.19 MobileLayout owed half): at narrow
  * widths the sidebar is a floating drawer — a pointer press that lands
  * outside the drawer AND outside the topbar (the hamburger toggle lives
@@ -703,6 +752,8 @@ export function App() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const historyButtonRef = useRef<HTMLButtonElement | null>(null);
   const [firstDayOfWeek] = useDeviceSetting("firstDayOfWeek", 1);
+  /** Focus mode (#12) — device-local; the data attribute drives the shell dim. */
+  const [focusMode, setFocusMode] = useDeviceSetting("focusMode", false);
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const [client, setClient] = useState<AnyClient | null>(null);
   const [offline, setOffline] = useState(false);
@@ -936,6 +987,26 @@ export function App() {
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, []);
+
+  // Ctrl/Cmd+Alt+F — the focus-mode toggle chord (#12). The shared toggle
+  // persists, applies the data attribute, and broadcasts the change.
+  useEffect(() => {
+    const handler = focusModeKeyHandler({
+      onToggle: () => setFocusMode(toggleFocusMode()),
+    });
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [setFocusMode]);
+
+  // Esc — exit focus mode (#12); registered only while the mode is on.
+  useEffect(() => {
+    const handler = focusModeExitHandler({
+      focusMode: () => focusMode,
+      onExit: () => setFocusMode(false),
+    });
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [focusMode, setFocusMode]);
 
   /**
    * The single owner of the live client for teardown. State (`client`) drives
