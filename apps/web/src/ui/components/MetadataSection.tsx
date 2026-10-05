@@ -24,6 +24,7 @@ import { createPortal } from "react-dom";
 import {
   parseDateNodeId,
   rendersAsInlineBlock,
+  rendersWithDocumentChrome,
   SYSTEM_CLASS_UUIDS,
   SYSTEM_PROPERTY_UUIDS,
   type DatePrecision,
@@ -68,6 +69,7 @@ import { PropertyView } from "./PropertyView.js";
 import { PropertyConvertModal } from "./PropertyConvertModal.js";
 import { PropertyHistoryModal } from "./PropertyHistoryModal.js";
 import { TextPropertyRow } from "./TextPropertyRow.js";
+import { aliasOfPageTargetError } from "./aliasProperty.js";
 import "./MetadataSection.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -229,6 +231,17 @@ function ObjectPropertyRow({
   };
 
   const linkNode = async (target: string): Promise<void> => {
+    // Node aliases (issue #7): the aliasOf write path validates the target
+    // renders as a PAGE — the picker offers pages only, but the guard is
+    // the enforcement (client-side; SCHEMA.md "Node aliases"), rejecting
+    // with a visible error instead of writing.
+    if (propertySchemaId === SYSTEM_PROPERTY_UUIDS.aliasOf) {
+      const targetError = aliasOfPageTargetError(client, target);
+      if (targetError !== null) {
+        setError(targetError);
+        return;
+      }
+    }
     await client.setProperty(nodeId, propertySchemaId, { nodeId: target }, nextIdx);
     // §34.74: a cover value written through the generic panel still classes
     // the target as an asset (explicit ops — every client converges on
@@ -1087,6 +1100,13 @@ function AddPropertyRow({
   const buttonRef = useRef<HTMLButtonElement | null>(null);
 
   const schemas = client.listPropertySchemas();
+  // Node aliases (issue #7): aliasOf is page-restricted — non-page carriers
+  // don't see it in the add-property picker either.
+  const carrierNode = client.getNode(nodeId);
+  const carrierIsPage = carrierNode !== undefined && rendersWithDocumentChrome(carrierNode);
+  const addableSchemas = schemas.filter(
+    (schema) => schema.id !== SYSTEM_PROPERTY_UUIDS.aliasOf || carrierIsPage,
+  );
 
   async function initializeValue(schemaId: string, type: string): Promise<void> {
     switch (type) {
@@ -1165,7 +1185,7 @@ function AddPropertyRow({
             onChange={(event) => setNewName(event.target.value)}
           />
           <ul>
-            {schemas
+            {addableSchemas
               .filter((schema) => newName.trim() === "" || schema.name.toLowerCase().includes(newName.trim().toLowerCase()))
               .map((schema) => (
                 <li key={schema.id}>
@@ -1213,12 +1233,16 @@ function propertyGroupsOf(
   // cover schema is suppressed EVERYWHERE (§34.59): the cover is header
   // chrome (PageBanner/AddCover), never a property row.
   const isClassNode = node?.isClass === true;
+  // Node aliases (issue #7): aliasOf is restricted to PAGES — the row
+  // renders for document-chrome carriers only (inline blocks never get it).
+  const carrierIsPage = node !== undefined && rendersWithDocumentChrome(node);
   const rows = client
     .getEffectiveProperties(nodeId)
     .filter(
       (row) =>
         !(isClassNode && row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.hasTemplate) &&
         row.propertySchemaId !== SYSTEM_PROPERTY_UUIDS.cover &&
+        !(row.propertySchemaId === SYSTEM_PROPERTY_UUIDS.aliasOf && !carrierIsPage) &&
         !omittedByDisplay(row.display),
     );
 
@@ -1275,6 +1299,36 @@ function propertyGroupsOf(
       if (emptyObjectBindings.some((b) => b.propertySchemaId === binding.propertySchemaId)) continue;
       if (schemaRow?.hideWhenEmpty === true) continue;
       emptyObjectBindings.push(binding);
+    }
+  }
+
+  // Node aliases (issue #7): `aliasOf` is a GLOBAL unbound object schema —
+  // with no authored value and no class binding the two paths above render
+  // no row at all, and a page could never author its first alias. Synthesize
+  // the empty binding (pages only, per the carrier restriction) so the row
+  // hosts its Add affordance.
+  if (carrierIsPage && !renderedGroups.has(SYSTEM_PROPERTY_UUIDS.aliasOf)) {
+    const schemaRow = client
+      .listPropertySchemas()
+      .find((s) => s.id === SYSTEM_PROPERTY_UUIDS.aliasOf);
+    if (
+      schemaRow !== undefined &&
+      schemaRow.hideWhenEmpty !== true &&
+      !emptyObjectBindings.some((b) => b.propertySchemaId === SYSTEM_PROPERTY_UUIDS.aliasOf)
+    ) {
+      emptyObjectBindings.push({
+        propertySchemaId: SYSTEM_PROPERTY_UUIDS.aliasOf,
+        name: schemaRow.name,
+        type: "object",
+        multi: false,
+        targetClassFilter: null,
+        sequence: Number.MAX_SAFE_INTEGER,
+        required: null,
+        defaultValue: null,
+        datePrecision: null,
+        dateQualified: null,
+        active: true,
+      });
     }
   }
 

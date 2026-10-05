@@ -385,10 +385,11 @@ export interface ReferenceEntry {
   /**
    * Linked references only: "direct" = the edge targets the node itself;
    * "containment" = the edge is an outward link from inside the node's
-   * subtree (01 §8 source-side containment roll-up). Unlinked references are
-   * always "direct".
+   * subtree (01 §8 source-side containment roll-up); "alias" = the edge
+   * targets an alias page of the node (issue #7 node-alias roll-up —
+   * SCHEMA.md "Node aliases"). Unlinked references are always "direct".
    */
-  kind: "direct" | "containment";
+  kind: "direct" | "containment" | "alias";
   /**
    * Linked references only (§34.69): the edge's verb — a propertySchemaId
    * when the referencing edge is a property value over a bound verb schema
@@ -1576,7 +1577,9 @@ export class WorkspaceClient {
    * (blocks included). PG10: an exact case-insensitive ALIAS value is a
    * name-equivalent — the candidate pool already folds alias text into the
    * FTS row (M5 text-scalar indexing), so resolution follows search
-   * semantics. Null when no active node carries the name or alias.
+   * semantics. Issue #7: an alias PAGE's title is a name-equivalent of its
+   * MAIN page too (node aliases) — matching either resolves the main node.
+   * Null when no active node carries the name or alias.
    */
   resolveNodeByName(name: string): string | null {
     const wanted = name.toLowerCase();
@@ -1584,7 +1587,7 @@ export class WorkspaceClient {
       const node = this.getNode(hit.nodeId);
       if (node === undefined) continue;
       if ((deriveDisplayName(node) || "").toLowerCase() === wanted) return node.id;
-      if (aliasValuesOf(this, node.id).some((alias) => alias.toLowerCase() === wanted)) {
+      if (this.nameEquivalentsOf(node.id).some((alias) => alias.toLowerCase() === wanted)) {
         return node.id;
       }
     }
@@ -1779,6 +1782,10 @@ export class WorkspaceClient {
    * its containing page (the actual linking block's chain) and a `kind`.
    * The section badge reads getBacklinkCount (direct only) — unchanged, so a
    * containment-heavy page shows a longer list than its badge number.
+   * Issue #7 adds the node-alias roll-up: edges whose target is an alias
+   * page of this node union in as `kind: "alias"` rows after the direct and
+   * containment sets (the alias page's own view is unchanged — it lists only
+   * its own edges; SCHEMA.md "Node aliases").
    */
   getLinkedReferences(id: string): ReferenceEntry[] {
     const seen = new Set<string>();
@@ -1802,6 +1809,29 @@ export class WorkspaceClient {
         kind: row.kind === "containment" ? "containment" : "direct",
         verb: row.verb === null || row.verb === undefined ? null : String(row.verb),
       });
+    }
+    // Node-alias roll-up (issue #7): an edge targeting an alias page of this
+    // node references this node by alias — union the alias pages' DIRECT
+    // backlink sets in (query-time over the derived edge index; no derived
+    // schema change). Sources already claimed by the direct/containment
+    // sets stay single-row (one reference per source).
+    for (const aliasId of this.aliasPageIdsOf(id)) {
+      for (const edge of this.getBacklinks(aliasId)) {
+        const sourceId = edge.sourceId;
+        if (seen.has(sourceId)) continue;
+        const source = this.getNode(sourceId);
+        if (!source) continue;
+        const entry = this.referenceEntry(source);
+        if (entry === null) continue;
+        // Same own-subtree exclusion as the direct set, relative to BOTH
+        // this node and the alias: a link from inside this node's subtree to
+        // its alias, or from inside the alias's subtree to the alias itself,
+        // is content, not a reference.
+        if (entry.containingPageId === id || entry.source.id === id) continue;
+        if (entry.containingPageId === aliasId || entry.source.id === aliasId) continue;
+        seen.add(sourceId);
+        entries.push({ ...entry, kind: "alias", verb: edge.verb });
+      }
     }
     return entries;
   }
@@ -1868,9 +1898,10 @@ export class WorkspaceClient {
     const node = this.getNode(id);
     if (!node || !rendersWithDocumentChrome(node)) return [];
     const linkedSources = new Set(this.getBacklinks(id).map((edge) => edge.sourceId));
-    // PG10 name-equivalents: the display name AND every alias value each
-    // get a literal-text FTS pass (aliases are names for search).
-    const names = [deriveDisplayName(node), ...aliasValuesOf(this, id)].filter(
+    // PG10 + issue #7 name-equivalents: the display name AND every text
+    // alias value AND every alias-page title each get a literal-text FTS
+    // pass (aliases are names for search).
+    const names = [deriveDisplayName(node), ...this.nameEquivalentsOf(id)].filter(
       (name): name is string => typeof name === "string" && name.length > 0,
     );
     const ids: string[] = [];
@@ -1886,6 +1917,45 @@ export class WorkspaceClient {
   }
 
   /**
+   * Alias pages of `id` (issue #7): the pages carrying an authored `aliasOf`
+   * value ({nodeId} of this node) — read off the derived edge index (the
+   * property-edge family, verb = the aliasOf schema), never from
+   * property_value directly, so the read sees exactly what backlink queries
+   * see. Live pages only, id order.
+   */
+  private aliasPageIdsOf(id: string): string[] {
+    const rows = this.store.database
+      .prepare(
+        `SELECT DISTINCT source_id FROM edge
+         WHERE type = 'property' AND verb = ? AND target_id = ? ORDER BY source_id`,
+      )
+      .all(SYSTEM_PROPERTY_UUIDS.aliasOf, id) as Array<{ source_id: string }>;
+    const ids: string[] = [];
+    for (const row of rows) {
+      const alias = this.getNode(row.source_id);
+      if (alias === undefined || !rendersWithDocumentChrome(alias)) continue;
+      ids.push(row.source_id);
+    }
+    return ids;
+  }
+
+  /**
+   * The node's name-equivalents (issue #7): every text alias value (§34.32
+   * PG10) plus the title of every alias page of the node — an alias page's
+   * title names its main page for search (resolve + unlinked references).
+   */
+  private nameEquivalentsOf(id: string): string[] {
+    const names = aliasValuesOf(this, id);
+    for (const aliasId of this.aliasPageIdsOf(id)) {
+      const alias = this.getNode(aliasId);
+      if (alias === undefined) continue;
+      const title = deriveDisplayName(alias);
+      if (title !== null && title.trim() !== "") names.push(title);
+    }
+    return names;
+  }
+
+  /**
    * Direct main children (Revision 11: is_class = 0 AND present_as_main = 1
    * — the parent's main-children zone, the Pages section's rows; inline
    * body blocks and classes never appear here).
@@ -1897,7 +1967,13 @@ export class WorkspaceClient {
       .map((row) => this.mapNodeCached(row));
   }
 
-  /** Materialized backlink count (node_stats) — the linked-references badge. */
+  /**
+   * Materialized backlink count (node_stats) — the linked-references badge.
+   * DIRECT edges only (targeting the node itself): containment roll-up rows
+   * and issue #7 node-alias roll-up rows lengthen the linked-references LIST
+   * without moving this number — the same accepted badge-vs-list divergence
+   * the containment roll-up documented (see getLinkedReferences).
+   */
   getBacklinkCount(id: string): number {
     const row = this.store.database
       .prepare("SELECT backlink_count AS n FROM node_stats WHERE node_id = ?")
