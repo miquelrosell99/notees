@@ -265,6 +265,16 @@ export const SYSTEM_PROPERTY_UUIDS = {
   // Search treats alias values as name-equivalents (resolve + unlinked
   // references). New uuid — v1 stored aliases in a table, never a property.
   alias: "00000000-0000-0000-0000-000000000028",
+  // Node aliases (issue #7, owner 2026-10-05) — the alias PAGE points at its
+  // MAIN page: a single-value node-typed ("object") schema at GLOBAL scope
+  // with NO class binding and NO targetClassFilter — both the carrier and
+  // the target are "pages", and page is a render state, not a class, so no
+  // binding or class filter can express it (the render-state restriction is
+  // enforced client-side; SCHEMA.md "Node aliases"). Coexists with the text
+  // `alias` schema above (§34.32): text aliases give one page extra NAMES;
+  // node aliases link a separate page under a main page and roll their
+  // linked references up to it. Values are the existing {nodeId} wire shape.
+  aliasOf: "00000000-0000-0000-0000-000000000029",
   taskStatus: "00000000-0000-0000-0003-000000000001",
   taskDeadline: "00000000-0000-0000-0003-000000000002",
   taskScheduled: "00000000-0000-0000-0003-000000000003",
@@ -353,6 +363,13 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   // binding: aliases are page metadata and "page" is not a class. Search
   // indexes the values as name-equivalents (SCHEMA.md "Aliases").
   alias: { type: "text", multi: true },
+  // Node aliases (issue #7, owner 2026-10-05): single-value node-typed at
+  // GLOBAL scope — the alias page carries {nodeId} of its main page. No
+  // bindTo (carrier restriction is render-state: pages only) and no
+  // targetClassFilter (targets are pages of any class — page is not a
+  // class). The linked-references roll-up and name-equivalence read paths
+  // live in the clients (SCHEMA.md "Node aliases").
+  aliasOf: { type: "object" },
   // §34.36 (owner 2026-10-04, plain seeds): the meeting family. meetingDate
   // is the family's date binding (quick-create eligibility rides the event
   // root's eventDate too — meeting extends event); location and agenda are
@@ -410,6 +427,7 @@ export const SYSTEM_PROPERTY_DISPLAY_NAMES: Record<SystemPropertyName, string> =
   hasTemplate: "Templates",
   generatedFrom: "Generated from",
   alias: "Aliases",
+  aliasOf: "Alias of",
   taskStatus: "Status",
   taskDeadline: "Deadline",
   taskScheduled: "Scheduled",
