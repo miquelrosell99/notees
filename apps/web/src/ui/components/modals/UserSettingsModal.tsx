@@ -114,6 +114,7 @@ export function UserSettingsModal({
   const [oledMode, setOledMode] = useDeviceSetting("oledMode", false);
   const [accentColor, setAccentColor] = useDeviceSetting<AccentColor>("accentColor", "monochrome");
   const [uiFont, setUiFont] = useDeviceSetting<UiFontPreference>("uiFont", "bundled");
+  const [focusMode, setFocusMode] = useDeviceSetting("focusMode", false);
   const [customAccentHex, setCustomAccentHex] = useDeviceSetting("customAccentHex", "#404040");
   const [customHexInput, setCustomHexInput] = useState(customAccentHex);
 
@@ -167,6 +168,11 @@ export function UserSettingsModal({
 
   const handleUiFontChange = (value: UiFontPreference) => {
     setUiFont(value);
+    applyAppearance();
+  };
+
+  const handleFocusModeChange = (enabled: boolean) => {
+    setFocusMode(enabled);
     applyAppearance();
   };
 
@@ -271,6 +277,24 @@ export function UserSettingsModal({
                     value={uiFont}
                     onChange={(value) => handleUiFontChange(value as UiFontPreference)}
                     size="sm"
+                  />
+                </div>
+
+                <div className="settings-item">
+                  <div className="settings-item__info">
+                    <label htmlFor="user-focus-mode" className="settings-item__label">
+                      Focus mode
+                    </label>
+                    <p className="settings-item__description">
+                      Only the editor stays bright — the rest of the interface dims and the
+                      page chrome (backlinks, icons, properties) hides. Esc exits.
+                    </p>
+                  </div>
+                  <BooleanToggle
+                    id="user-focus-mode"
+                    checked={focusMode}
+                    onChange={() => handleFocusModeChange(!focusMode)}
+                    size="md"
                   />
                 </div>
 

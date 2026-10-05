@@ -36,6 +36,7 @@ afterEach(() => {
   document.documentElement.dataset.theme = "dark";
   document.documentElement.dataset.oled = "false";
   delete document.documentElement.dataset.accent;
+  delete document.documentElement.dataset.focus;
 });
 
 const USER: AccountUser = {
@@ -208,6 +209,25 @@ describe("UserSettingsModal", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Bundled (Inter)" }));
     expect(document.documentElement.dataset.font).toBe("bundled");
     expect(localStorage.getItem("notees.settings.uiFont")).toBe('"bundled"');
+  });
+
+  it("applies the focus mode choice to <html> and persists it device-locally", () => {
+    render(
+      <UserSettingsModal
+        isOpen
+        onClose={() => {}}
+        serverUrl="https://notees.example.com"
+        token="session-token"
+        user={USER}
+        onSignOut={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("switch", { name: /focus mode/i }));
+    expect(document.documentElement.dataset.focus).toBe("true");
+    expect(localStorage.getItem("notees.settings.focusMode")).toBe("true");
+    fireEvent.click(screen.getByRole("switch", { name: /focus mode/i }));
+    expect(document.documentElement.dataset.focus).toBe("false");
+    expect(localStorage.getItem("notees.settings.focusMode")).toBe("false");
   });
 
   it("applies the accent color choice to <html>", () => {
