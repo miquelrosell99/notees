@@ -1,0 +1,97 @@
+/* NodeHoverPreview — the hover preview card over inline node links
+   (issue #11). Token-only: every value resolves to a custom property. */
+
+.nt-hover-preview {
+  position: fixed;
+  z-index: var(--z-tooltip);
+  width: min(21.25rem, calc(100vw - var(--spacing-4)));
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-2);
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-floating-panel);
+  box-shadow: var(--shadow-elevation-3);
+}
+
+.nt-hover-preview__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  margin: calc(-1 * var(--spacing-1)) calc(-1 * var(--spacing-2)) 0;
+  background: none;
+  border: none;
+  border-radius: var(--shape-small);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nt-hover-preview__main:hover {
+  background: var(--color-surface-container-highest);
+}
+
+.nt-hover-preview__head {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.nt-hover-preview__icon {
+  flex: none;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-hover-preview__title {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-hover-preview__kind {
+  flex: none;
+  font-size: var(--font-size-2xs);
+  color: var(--color-on-surface-variant);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-full);
+  padding: 0 var(--spacing-1);
+}
+
+.nt-hover-preview__excerpt {
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.nt-hover-preview__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  padding: 0 var(--spacing-2);
+}
+
+.nt-hover-preview__backlinks {
+  font-size: var(--font-size-xs);
+  color: var(--color-on-surface-variant);
+}
+
+.nt-hover-preview__broken {
+  padding: var(--spacing-1) var(--spacing-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+}
+
+.nt-hover-preview__broken code {
+  font-size: var(--font-size-2xs);
+}

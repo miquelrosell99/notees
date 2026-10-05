@@ -4,7 +4,10 @@
  * unknown tokens render nothing (never crash). Text marks map to
  * <strong>/<em>/<s>/<mark>/<code>; mentions and class chips render as chips
  * (names resolved through the optional resolveName callback, with graceful
- * fallbacks); quote recurses; embed_ref renders the live subtree via the
+ * fallbacks); mentions also notify the app-level hover coordinator
+ * (NodeHoverPreview — dwell raises a bounded preview card; the card's pin
+ * promotes to a floating editor window); quote recurses; embed_ref renders
+ * the live subtree via the
  * optional renderEmbed callback (placeholder box when absent); query renders
  * the live query block via the optional renderQuery callback (placeholder box
  * when absent); whiteboard renders the live canvas via the optional
@@ -22,6 +25,7 @@
 import { Fragment, type ReactNode } from "react";
 
 import { cssColorFor } from "./components/ui/colorPresets.js";
+import { notifyNodeHover } from "./components/NodeHoverPreview.js";
 
 export interface InlineTokensProps {
   tokens: readonly unknown[];
@@ -212,6 +216,8 @@ function renderToken(
               event.stopPropagation();
               onOpenNode(targetNodeId);
             }}
+            onMouseEnter={(event) => notifyNodeHover(targetNodeId, "enter", event.currentTarget, event.buttons)}
+            onMouseLeave={(event) => notifyNodeHover(targetNodeId, "leave", event.currentTarget)}
             {...mentionMenuProps}
           >
             {name}
@@ -219,7 +225,14 @@ function renderToken(
         );
       }
       return (
-        <span key={key} className="nt-chip nt-mention" title={targetNodeId || undefined} {...mentionMenuProps}>
+        <span
+          key={key}
+          className="nt-chip nt-mention"
+          title={targetNodeId || undefined}
+          onMouseEnter={(event) => notifyNodeHover(targetNodeId, "enter", event.currentTarget, event.buttons)}
+          onMouseLeave={(event) => notifyNodeHover(targetNodeId, "leave", event.currentTarget)}
+          {...mentionMenuProps}
+        >
           {name}
         </span>
       );
