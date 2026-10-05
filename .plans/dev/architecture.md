@@ -410,7 +410,8 @@ thread `onPresent` from App through `NodeView` → `NodeMenuButton` / `PageView`
 
 **GTK / Flutter** (sibling repos `notees-gtk`, `notees-flutter`, branches `protocol-v2`). Lockstep clients: strict payload validators + local appliers mirroring `packages/store` (same OR-Set gating, same LWW rules). Current with the TS reference as of the 2026-10-01 batch (tags + `tag.unassign`, title-is-content, `class.reorder`); both tagged `v2.0.0-m1` with CI-published releases. Any new op requires the same three-way lockstep.
 
-**CLI** (`apps/cli`). Commander-based (`src/cli.ts`, exported `run()` for tests). Commands:
+**CLI** (standalone repo `notees-cli` — split from `apps/cli` 2026-10-05, §34.82; consumes
+this repo's packages via a pinned `vendor/notees` git submodule). Commander-based (`src/cli.ts`, exported `run()` for tests). Commands:
 `object get|create|update|delete|restore|list|children|upsert|search` (`create --batch`
 takes a JSON array of bodies on stdin and creates them with per-parent ordering
 preserved; `upsert` is find-or-create by exact title in `--class`/`--parent` scopes;
@@ -446,7 +447,6 @@ cursors; writes are atomic (tmp + rename).
 | `packages/query` | QueryAST model + SQLite compiler over the derived store (live queries) | `src/index.ts` (`ast.ts` zod model, `compiler.ts` `compile(ast)`, `execute.ts` `runQuery`/`countQuery`/`matches`); 7 condition types; deferred set in README |
 | `packages/export` | Export projections over the object graph: `ExportDocument` IR + serializers (markdown/html/docx/latex package-side — options bag with per-format gating, escaping, full-closure outline, whiteboard sidecars, id8 filename policy, `linkTarget`/`assetPath` hooks, LaTeX CSL bibliography; pdf renders client-side in the web app), format registry (`SerializedExport` union), bundles + manifest v2, BibTeX/CSL | `src/index.ts`; `document.ts` (IR + context hooks), `markdown.ts`, `html.ts`, `docx.ts`, `latex.ts`, `options.ts`, `formats.ts`, `bundle.ts`, `bibtex.ts`, `csl.ts` |
 | `apps/server` | Fastify relay + object/assets API; the one write path | `src/server.ts` (entry), `src/app.ts` (assembly), `src/config.ts`, `src/context.ts` (`ingestBatch`/`submit`), `src/relay-storage.ts`, `src/workspace-store.ts`, `src/routes-relay.ts`, `src/routes-objects.ts`, `src/assets.ts`, `src/seed.ts`, `src/identity.ts`, `src/validate.ts`, `src/rate-limit.ts`, `src/bus.ts` |
-| `apps/cli` | `notees` command surface over the HTTP API | `src/cli.ts` (`run`), `src/client.ts`, `src/state.ts`, `src/exit-codes.ts` |
 | `apps/web` | Browser client: workspace data path + outliner UI + export delivery (modal, workspace zip, PDF renderer) + presentation mode + the session undo journal (§34.64) | `src/core/workspace-client.ts`, `src/core/undo-journal.ts` (the op-inverse journal + inversion matrix), `src/main.tsx`, `src/ui/{App,PageView,BlockRow,InlineTokens}.tsx`, `src/ui/presentation/` (deck builder + `DeckView` + session resume, §34.26), `src/ui/export-pdf/` (client-side PDF — `@react-pdf/renderer`, code-split, vendored OFL Gentium), `src/shims/` (node built-ins stubbed for the browser bundle) |
 | `../design/` | Normative model docs (00-INDEX, 01-knowledge-model, 02-model-assessment) | read these before changing the model |
 | `packages/protocol/fixtures` | Canonical op fixtures — the blocking gate | seven JSON files, validated by `packages/protocol/test` and replayed by the store suite |
