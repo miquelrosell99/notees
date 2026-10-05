@@ -1,1 +1,438 @@
-<REDACTED_BATCH_1_CONTENT>
+/**
+ * MetadataSection styles — the metadata panel rows: classes pills (+ the add
+ * ghost pill), the effective-property rows (labels, hints, scalar editor,
+ * grouped pill rows), the hidden asset file input, and the date-range /
+ * link-qualifier controls. The property pickers render their own ported
+ * styles (see ./pickers/*).
+ *
+ * All colors/spacing resolve to design tokens — no raw hex values.
+ */
+
+.node-metadata-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.node-metadata-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: var(--height-sm);
+  font-size: var(--font-size-sm);
+}
+
+.section-label {
+  flex-shrink: 0;
+  width: var(--layout-size-sm);
+  font: var(--font-title-medium);
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface);
+  margin-right: var(--spacing-2);
+  white-space: nowrap;
+}
+
+.node-metadata-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+
+.pill__text {
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  min-width: 0;
+}
+
+span.pill__text {
+  cursor: default;
+}
+
+.pill__right-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* Hover-reveal right icon: the pill only grows horizontally (the text never
+.pill--hover-reveal-right .pill__text {
+  flex-shrink: 0;
+}
+
+.pill--hover-reveal-right .pill__right-button {
+  max-width: 0;
+  opacity: var(--opacity-0);
+  overflow: hidden;
+  transition:
+    opacity var(--motion-duration-short) var(--motion-easing-standard),
+    max-width var(--motion-duration-short) var(--motion-easing-standard),
+    margin var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.pill--hover-reveal-right:hover .pill__right-button,
+.pill--hover-reveal-right:focus-within .pill__right-button {
+  max-width: var(--spacing-6);
+  opacity: var(--opacity-70);
+  margin-inline-start: var(--spacing-1);
+}
+
+.pill--hover-reveal-right .pill__right-button:hover {
+  opacity: var(--opacity-100);
+}
+
+/* The annotations affordance stays visible (it is a primary action on
+   asset pills, not a removal). */
+.pill--hover-reveal-right .pill__right-button.nt-chip-annotations {
+  max-width: var(--spacing-6);
+  opacity: var(--opacity-70);
+  margin-inline-start: var(--spacing-1);
+}
+
+.nt-chip-annotations:hover,
+.nt-chip-annotations[aria-expanded="true"] {
+  opacity: var(--opacity-100);
+}
+
+/* "+ Add class" / "+ Add tag" picker anchor (the pill is the AddPill
+   primitive from components/ui). */
+.nt-class-add-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+/* --- effective-property rows ---------------------------------------------- */
+
+/* Notion-style property table: internal row separators only (top edge +
+   between rows + bottom of last row); no side borders. Classes/tags live
+   above, outside the table. */
+.nt-properties-list {
+  list-style: none;
+  margin: var(--spacing-2, 8px) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
+}
+
+.nt-properties-list > li {
+  border-bottom: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  padding: 6px 0;
+  margin: 0;
+}
+
+.nt-property {
+  position: relative;
+}
+
+.nt-property-hint {
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-2xs);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-full);
+  padding: 0 var(--spacing-2);
+  flex-shrink: 0;
+}
+
+.nt-property-default .nt-property-value {
+  color: var(--color-on-surface-variant);
+}
+
+.nt-property-default .section-label,
+.nt-property-default .nt-property-name {
+  color: var(--color-on-surface-variant);
+}
+
+.nt-property-value {
+  font: inherit;
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-1) var(--spacing-2);
+  /* Owner refinement: super-clean fields — the text rides the row directly,
+     no outlined box (hover/focus surface only). */
+  border: none;
+  border-radius: var(--shape-medium);
+  background: transparent;
+  color: var(--color-on-surface);
+  min-width: var(--layout-size-md);
+  max-width: 100%;
+}
+
+.nt-property-value:hover {
+  background: var(--color-hover-overlay, transparent);
+}
+
+.nt-property-value:focus,
+.nt-property-value:focus-visible {
+  outline: none;
+  background: var(--color-hover-overlay, transparent);
+}
+
+/* url/email rows: the external-link affordance beside the text editor. */
+.nt-property-link {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-on-surface-variant);
+  text-decoration: none;
+  border-radius: var(--shape-full);
+  padding: var(--spacing-1);
+}
+
+.nt-property-link:hover {
+  color: var(--color-on-surface);
+  background: var(--color-surface-variant);
+}
+
+/* The picker popover styles moved with the ported pickers
+ * (./pickers/NodeSelector.css, ./pickers/PropertyCell.css); the asset file
+ * input and picker error stay here with their rows. */
+.nt-file-input {
+  display: none;
+}
+
+.nt-picker-error {
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+/* --- date range rows + link qualifiers ------------------------------------ */
+
+.nt-range {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-full);
+  padding: var(--spacing-1) var(--spacing-3);
+  background: var(--color-surface);
+}
+
+.nt-range-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.nt-range-slot-name {
+  font-size: var(--font-size-2xs);
+  color: var(--color-on-surface-variant);
+}
+
+.nt-chip-qualifier {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin-inline-start: var(--spacing-2);
+}
+
+/* Node-backed text property: editable block inside the value cell. */
+.nt-property-blockcell {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  padding: 2px 0;
+}
+
+.nt-property-blockcell .nt-refblock-tree {
+  padding: 0;
+}
+
+/* Text property as a blocks list (§34.80): one row, the carrier blocks
+   stack as an editable mini-outline — values are blocks, never repeated
+   label entries. */
+.nt-property-textcell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+
+.nt-property-textcell .nt-refblock-tree {
+  padding: 0;
+}
+
+.nt-property-textcell > .nt-property-value {
+  width: 100%;
+}
+
+/* Properties table look: aligned label column (rows are flex); class-derived
+   (not yet realized) rows render muted so provenance is visible. */
+.node-metadata-row > .section-label:first-child {
+  flex: 0 0 140px;
+}
+
+/* Vertical divider between the label column and the value column (Notion /
+   Capacities). The label stretches to the row height so the line is
+   continuous down the table; classes/tags sit above, outside it. */
+.nt-properties-list > li > .section-label:first-child {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  border-right: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  padding-right: var(--spacing-3, 12px);
+  margin-right: var(--spacing-3, 12px);
+}
+
+.nt-property-default {
+  opacity: 0.55;
+}
+
+/* Hairline between the metadata section and the child blocks. */
+.nt-metadata-divider {
+  border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  margin: var(--spacing-3, 12px) 0 var(--spacing-4, 16px);
+}
+
+/* "+ Add property": ghost button under the table + anchored picker popup. */
+.nt-add-property {
+  position: relative;
+  margin-top: var(--spacing-2, 8px);
+}
+
+.nt-add-property-popup {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 70;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--spacing-2, 8px);
+  background: var(--color-surface-container-high, var(--color-surface));
+  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium, 8px);
+  box-shadow: var(--shadow-medium, 0 8px 24px rgba(0, 0, 0, 0.25));
+}
+
+.nt-add-property-popup input {
+  padding: 6px 10px;
+  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  font-size: 12.5px;
+}
+
+.nt-add-property-popup ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.nt-add-property-popup li > button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-2, 8px);
+  padding: 6px var(--spacing-2, 8px);
+  border: none;
+  border-radius: var(--shape-small, 6px);
+  background: transparent;
+  color: var(--color-on-surface);
+  font-size: 13px;
+  text-align: left;
+}
+
+.nt-add-property-popup li > button:hover {
+  background: var(--color-hover-overlay);
+}
+
+.nt-add-property-type {
+  color: var(--color-on-surface-variant);
+  font-size: 11px;
+}
+
+.nt-add-property-create {
+  border: none;
+  border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  padding: 6px var(--spacing-2, 8px);
+  font-size: 12.5px;
+  text-align: left;
+}
+
+.nt-add-property-create:hover {
+  background: var(--color-hover-overlay);
+  color: var(--color-on-surface);
+}
+
+/* PB1 broken property reference: the value survives its target's deletion —
+   the pill shows the raw id in a dashed, muted chip (broken-mention policy). */
+.pill--broken {
+  border: var(--border-width-default) dashed var(--color-outline-variant);
+  background: transparent;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-chip-label--broken code {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-body-small);
+  overflow-wrap: anywhere;
+}
+
+/* PG16 settings-modal option rows: color dot + label input + remove. */
+.nt-property-settings__options {
+  list-style: none;
+  margin: 0 0 var(--spacing-2);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.nt-property-settings__option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.nt-property-settings__option .nt-property-settings__input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* §34.89: the per-option icon trigger — an icon-only button showing the
+   option's current icon (tinted with its color) or an add-glyph placeholder. */
+.nt-property-settings__option-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: var(--shape-small);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-property-settings__option-icon:hover {
+  background: var(--color-hover-overlay);
+}
