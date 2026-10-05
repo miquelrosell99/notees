@@ -179,6 +179,34 @@ describe("graphTopology", () => {
     expect(topology.nodes.some((n) => n.id === PAGE_B)).toBe(false);
   });
 
+  it("temporal co-occurrence: targets mentioned under the same day page link with day evidence", () => {
+    const DAY = "00000000-0000-0000-0001-000000000005";
+    const dayNode = "0192a000-0000-7000-8000-0000000000dd";
+    const store = setup(
+      env("class.create", { classId: DAY }),
+      createPage(PAGE_A),
+      createPage(PAGE_B),
+      createPage(PAGE_C),
+      env("object.create", { objectId: dayNode, presentAsMain: true, classIds: [DAY] }),
+      createBlock(BLOCK_B1, dayNode),
+      createBlock(BLOCK_C1, dayNode),
+      env("object.update", { objectId: BLOCK_B1, contentAst: [mention(PAGE_A, "A"), mention(PAGE_B, "B")] }),
+      env("object.update", { objectId: BLOCK_C1, contentAst: [mention(PAGE_C, "C")] }),
+    );
+    const topology = graphTopology(store, WS);
+    const ab = edge(topology, "temporal", PAGE_A, PAGE_B);
+    const ac = edge(topology, "temporal", PAGE_A, PAGE_C);
+    const bc = edge(topology, "temporal", PAGE_B, PAGE_C);
+    expect(ab).toBeDefined();
+    expect(ab!.weight).toBe(1);
+    expect(ab!.evidence).toEqual([dayNode]);
+    expect(ac).toBeDefined();
+    expect(bc).toBeDefined();
+    // The same-block pair is a SEMANTIC edge; the cross-block pairs are not.
+    expect(edge(topology, "semantic", PAGE_A, PAGE_B)).toBeDefined();
+    expect(edge(topology, "semantic", PAGE_A, PAGE_C)).toBeUndefined();
+  });
+
   it("local scope BFS keeps the depth-limited neighborhood (semantic edges participate)", () => {
     const store = setup(
       createPage(PAGE_A),
