@@ -101,9 +101,13 @@ describe("document structure", () => {
   });
 
   it("renders content blocks inside <main class=\"content\">", () => {
-    const html = toHtml(page("aaaaaaaa-0000-4000-8000-000000000005", "Body"), makeCtx());
+    const node = page("aaaaaaaa-0000-4000-8000-000000000005", "Body", [
+      { type: "text", text: "First" },
+      { type: "text", text: " second" },
+    ]);
+    const html = toHtml(node, makeCtx());
     expect(html).toContain('<main class="content">');
-    expect(html).toContain("<p>Body</p>");
+    expect(html).toContain("<p>First second</p>");
     expect(html).toContain("</main>");
   });
 });
@@ -174,10 +178,13 @@ describe("properties section", () => {
 describe("inline spans", () => {
   it("maps marks to elements in the fixed nesting order (bold outer, code innermost)", () => {
     const node = page("aaaaaaaa-0000-4000-8000-000000000020", "marks", [
+      // A lead run keeps the marked run out of the title (single-title rule)
+      // so the body paragraph carries it.
+      { type: "text", text: "lead " },
       { type: "text", text: "all", marks: ["bold", "italic", "strike", "highlight", "code"] },
     ]);
     const html = toHtml(node, makeCtx());
-    expect(html).toContain("<p><strong><em><del><mark><code>all</code></mark></del></em></strong></p>");
+    expect(html).toContain("<strong><em><del><mark><code>all</code></mark></del></em></strong>");
   });
 
   it("maps each mark to its own element", () => {
@@ -198,12 +205,16 @@ describe("inline spans", () => {
 
   it("escapes special characters in text runs, including inside code", () => {
     const node = page("aaaaaaaa-0000-4000-8000-000000000022", "escape", [
+      // A lead run keeps the payload in the body (single-title rule) — the
+      // assertion below is about the content paragraph, not the <h1>.
+      { type: "text", text: "run: " },
       { type: "text", text: "<script>alert(1)</script> & 'q' \"d\"" },
     ]);
     const html = toHtml(node, makeCtx());
     expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt; &amp; &#39;q&#39; &quot;d&quot;");
     expect(html).not.toContain("<script>");
     const code = toHtml(page("aaaaaaaa-0000-4000-8000-000000000023", "code", [
+      { type: "text", text: "c=" },
       { type: "text", text: "a<b", marks: ["code"] },
     ]), makeCtx());
     expect(code).toContain("<code>a&lt;b</code>");
