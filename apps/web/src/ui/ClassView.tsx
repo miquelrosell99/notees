@@ -99,14 +99,14 @@ export function ClassView({
       }
       sections={
         <>
-          <ClassedNodesSection key="classed-nodes" client={client} classId={classId} onOpenPage={onOpenPage} />
-          <PropertyDefinitionsSection key="property-definitions" client={client} classId={classId} />
-          <TemplatesSection key="templates" client={client} classId={classId} onOpenPage={onOpenPage} />
+          <PropertyDefinitionsSection key={`property-definitions-${classId}`} client={client} classId={classId} />
+          <TemplatesSection key={`templates-${classId}`} client={client} classId={classId} onOpenPage={onOpenPage} />
+          <ClassedNodesSection key={`classed-nodes-${classId}`} client={client} classId={classId} onOpenPage={onOpenPage} />
         </>
       }
       systemSections={
         <>
-          <ExtendedBySection key="extended-by" client={client} classId={classId} onOpenClass={onOpenClass} />
+          <ExtendedBySection key={`extended-by-${classId}`} client={client} classId={classId} onOpenClass={onOpenClass} />
           <SystemSections client={client} pageId={classId} onOpenPage={onOpenPage} />
         </>
       }

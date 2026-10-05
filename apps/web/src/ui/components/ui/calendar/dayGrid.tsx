@@ -119,8 +119,7 @@ export function CalendarDayGrid({
                 className={`calendar-day${isTodayMonth && day === today.getDate() ? " today" : ""}${
                   hasNote?.(iso) === true ? " has-note" : ""
                 }${extra.dated === true ? " dated" : ""}${
-                  extra.reviewed === true ? " reviewed" : ""
-                }${selectedDate === iso ? " selected" : ""}`}
+                  selectedDate === iso ? " selected" : ""}`}
                 onClick={() => onSelectDay(iso)}
               >
                 {day}
