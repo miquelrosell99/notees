@@ -1,0 +1,84 @@
+/* FloatingEditor — the pinned floating editor windows (issue #11).
+   Token-only: every value resolves to a custom property. */
+
+.nt-float-win {
+  position: fixed;
+  width: min(34rem, calc(100vw - var(--spacing-8)));
+  max-height: min(70vh, 42rem);
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-large);
+  box-shadow: var(--shadow-elevation-3);
+  /* Above page content and the top bar, below menus/modals and the hover
+     preview card; the raise counter rides --nt-float-raise (set inline). */
+  z-index: calc(var(--z-node-overlay) + var(--nt-float-raise, 0));
+  overflow: hidden;
+}
+
+.nt-float-win__titlebar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1) var(--spacing-2);
+  background: var(--color-surface-container);
+  border-bottom: 1px solid var(--color-outline-variant);
+  cursor: grab;
+  user-select: none;
+}
+
+.nt-float-win__titlebar:active {
+  cursor: grabbing;
+}
+
+.nt-float-win__title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+  padding: var(--spacing-1);
+  border-radius: var(--shape-small);
+  outline: none;
+}
+
+.nt-float-win__title:focus-visible {
+  box-shadow: var(--shadow-focus-ring);
+}
+
+.nt-float-win__icon {
+  flex: none;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-float-win__title-text {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-float-win__actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-micro);
+}
+
+.nt-float-win__body {
+  flex: 1;
+  min-height: var(--spacing-10);
+  overflow-y: auto;
+  padding: var(--spacing-3) var(--spacing-4);
+}
+
+/* The embedded page renders with its own generous column padding; inside
+   the bounded window the padding collapses to the window's. */
+.nt-float-win__body .nt-page {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
