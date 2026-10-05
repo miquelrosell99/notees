@@ -23,7 +23,19 @@
 
 import type { SqliteDB } from "./db.js";
 
-export const SCHEMA_VERSION = 14;
+export const SCHEMA_VERSION = 15;
+
+/**
+ * §34.92 — the render-path list-reads index: composite for the
+ * listClasses/listPages/roots WHERE (workspace_id, is_class, is_active) +
+ * ORDER BY COALESCE(name, id), id — the profiled full-scan+sort per render
+ * burst. Kept OUT of the canonical schema DDL on purpose: migrate()'s
+ * canonical exec runs before the rebuild ladder, where pre-v8 node tables
+ * don't have is_class/present_as_main yet. Version-gated ladder step +
+ * explicit re-assert on the snapshot-repair path instead (single source here).
+ */
+export const LIST_READS_INDEX_DDL =
+  "CREATE INDEX IF NOT EXISTS idx_node_list_reads ON node (workspace_id, is_class, is_active, name, id);";
 
 /** FTS module for the search_index virtual table (backend capability). */
 export type FtsModule = "fts5" | "fts4";
@@ -527,6 +539,14 @@ export function migrate(
         PRAGMA foreign_keys = ON;
       `);
     }
+  }
+  // v14 -> v15 (§34.92 — the render-path list reads): the composite
+  // list-reads index. Runs after the v8 rebuild block so the node table is
+  // guaranteed v8-shaped here; CREATE IF NOT EXISTS is idempotent (the
+  // rebuild above just created it for pre-v8 databases). Fresh databases
+  // (current 0) arrive here with the v15 table and take the same path.
+  if (current < 15) {
+    db.exec(LIST_READS_INDEX_DDL);
   }
   // v2 -> v3: class_property gained LWW causality columns. Databases created
   // at v2 keep their rows; fresh v3 creates already have the columns, so the
