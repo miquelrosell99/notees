@@ -40,7 +40,7 @@ import { NodeContextMenu } from "./components/NodeContextMenu.js";
 import { DayFlags, DayPageDateBar } from "./components/DayPageDateBar.js";
 import { DayPageSections } from "./components/DayPageSections.js";
 import { isoOfDateParts } from "./components/calendarViewUtils.js";
-import { classIconMap, nodeIcon } from "./iconFor.js";
+import { nodeIcon } from "./iconFor.js";
 import { displayNameForSettings, displayNameFromClient } from "./dateDisplay.js";
 
 import {
@@ -262,7 +262,7 @@ export function PageView({
       ? rawNode
       : undefined;
   const headerIcon =
-    page !== undefined ? nodeIcon(page, classIconMap(client.listClasses())) : null;
+    page !== undefined ? nodeIcon(page, client.classIcons()) : null;
   const tree = page !== undefined ? client.getBlockTree(pageId) : [];
   /** The same tree in the view system's input shape (session view state). */
   const blockItems: NodeCollectionItem[] = tree.map(toCollectionItem);

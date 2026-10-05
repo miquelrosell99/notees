@@ -777,6 +777,47 @@ function mapNode(row: NodeRow): ClientNode {
   };
 }
 
+/**
+ * §34.92 — per-row identity stamp for the `mapNode` cache, hashing exactly
+ * the raw columns `mapNode` consumes. Metadata stamps are UNSOUND here:
+ * membership recomputes touch `class_ids`/`tag_ids` without bumping
+ * `hlc`/`updated_at` (appliers.ts recomputeClassIds/recomputeTagIds), so the
+ * stamp must cover the values themselves. Two FNV-1a-style 32-bit runs with
+ * different constants give a ~64-bit space (per-row-version collision
+ * ~2^-64); a matching pair means every mapped column is byte-identical.
+ * Returns the pair instead of a combined Number — 2^64 exceeds the safe
+ * integer range.
+ */
+function nodeRowStamp(row: NodeRow): { h1: number; h2: number } {
+  let h1 = 0x811c9dc5;
+  let h2 = 0x01000197;
+  const mix = (value: string | number | null): void => {
+    const text = value === null ? "\x00" : String(value);
+    for (let i = 0; i < text.length; i++) {
+      h1 = Math.imul(h1 ^ text.charCodeAt(i), 0x01000193);
+      h2 = Math.imul(h2 ^ (text.charCodeAt(i) + 0x9e37), 0x85ebca6b);
+    }
+    // Column-boundary + length folding (naive concat would alias ab|c / a|bc).
+    h1 = Math.imul(h1 ^ (text.length + 0x1f), 0x01000193);
+    h2 = Math.imul(h2 ^ (text.length + 0x1e), 0x85ebca6b);
+  };
+  mix(row.id);
+  mix(row.workspace_id);
+  mix(row.is_class);
+  mix(row.present_as_main);
+  mix(row.parent_id);
+  mix(row.class_ids);
+  mix(row.tag_ids);
+  mix(row.name);
+  mix(row.content);
+  mix(row.icon);
+  mix(row.color);
+  mix(row.is_active);
+  mix(row.created_at);
+  mix(row.updated_at);
+  return { h1: h1 >>> 0, h2: h2 >>> 0 };
+}
+
 export class WorkspaceClient {
   readonly store: Store;
 
@@ -809,6 +850,25 @@ export class WorkspaceClient {
    * read-only.
    */
   private readonly listReadCache = new Map<string, unknown>();
+  /**
+   * §34.92 — per-row `mapNode` identity cache: unchanged rows reuse their
+   * `ClientNode` across store revisions, so a version bump (one keystroke's
+   * op) doesn't re-parse/re-allocate every node in the workspace (the
+   * profiled allocation churn — 254 minor GCs in a 35s capture). Keyed by
+   * row id, self-invalidating via the column-value stamp (no notify
+   * coupling); membership recomputes that skip hlc/updated_at are still
+   * caught through the class_ids/tag_ids columns in the stamp.
+   */
+  private readonly nodeMapCache = new Map<string, { h1: number; h2: number; node: ClientNode }>();
+
+  private mapNodeCached(row: NodeRow): ClientNode {
+    const { h1, h2 } = nodeRowStamp(row);
+    const hit = this.nodeMapCache.get(row.id);
+    if (hit !== undefined && hit.h1 === h1 && hit.h2 === h2) return hit.node;
+    const node = mapNode(row);
+    this.nodeMapCache.set(row.id, { h1, h2, node });
+    return node;
+  }
   /**
    * §34.64 — the session-local op-inverse undo journal (in-memory, per
    * client = per tab; never cross-tab, never durable). Records every write
@@ -967,13 +1027,13 @@ export class WorkspaceClient {
   getNode(id: string): ClientNode | undefined {
     const row = this.store.getNode(id);
     if (!row || row.is_active !== 1) return undefined;
-    return mapNode(row);
+    return this.mapNodeCached(row);
   }
 
   /** A single node, regardless of active state (backlink sources may be trashed). */
   getNodeRaw(id: string): ClientNode | undefined {
     const row = this.store.getNode(id);
-    return row ? mapNode(row) : undefined;
+    return row ? this.mapNodeCached(row) : undefined;
   }
 
   /** Display name for mentions/chips (SCHEMA.md name derivation); null when unknown. */
@@ -1003,7 +1063,7 @@ export class WorkspaceClient {
          ORDER BY COALESCE(name, id), id`,
         )
         .all(this.workspaceId) as NodeRow[];
-      return rows.map(mapNode);
+      return rows.map((row) => this.mapNodeCached(row));
     });
   }
 
@@ -1014,7 +1074,9 @@ export class WorkspaceClient {
    * Pages zone) are NOT included.
    */
   roots(): ClientNode[] {
-    return this.cachedListRead("roots", () => this.store.roots(this.workspaceId).map(mapNode));
+    return this.cachedListRead("roots", () =>
+      this.store.roots(this.workspaceId).map((row) => this.mapNodeCached(row)),
+    );
   }
 
   /** All active classes in the workspace, deterministic order (# capture). */
@@ -1027,7 +1089,25 @@ export class WorkspaceClient {
          ORDER BY COALESCE(name, id), id`,
         )
         .all(this.workspaceId) as NodeRow[];
-      return rows.map(mapNode);
+      return rows.map((row) => this.mapNodeCached(row));
+    });
+  }
+
+  /**
+   * The class id → icon lookup behind the UI icon maps (§34.92): a narrow
+   * `SELECT id, icon` — no content blob, no sort — revision-cached like the
+   * list reads. Both web clients satisfy this; icon-map call sites should
+   * prefer it over `classIconMap(client.listClasses())`.
+   */
+  classIcons(): ReadonlyMap<string, string | null> {
+    return this.cachedListRead("classIcons", () => {
+      const rows = this.store.database
+        .prepare(
+          `SELECT id, icon FROM node
+         WHERE workspace_id = ? AND is_class = 1 AND is_active = 1`,
+        )
+        .all(this.workspaceId) as Array<{ id: string; icon: string | null }>;
+      return new Map(rows.map((row) => [row.id, row.icon]));
     });
   }
 
@@ -1054,7 +1134,7 @@ export class WorkspaceClient {
 
   /** Nodes with present OR-set membership in the class, display order. */
   getClassMembers(classId: string): ClientNode[] {
-    return this.store.classMembers(classId).map(mapNode);
+    return this.store.classMembers(classId).map((row) => this.mapNodeCached(row));
   }
 
   /** The classed-nodes section badge — the same membership projection as a COUNT. */
@@ -1392,29 +1472,34 @@ export class WorkspaceClient {
    * excluded row are never visited).
    */
   getBlockTree(pageId: string, depth?: number | null): BlockTreeNode[] {
-    const cap = depth ?? DEFAULT_TREE_DEPTH;
-    const build = (id: string, remaining: number): BlockTreeNode[] => {
-      if (remaining <= 0) return [];
-      // Node-backed property values live as children of the owner but render
-      // inside the property cell — exclude them here or they appear twice.
-      // Two shapes: node-typed references ({"nodeId"}) and text properties,
-      // whose scalar value may be the carrier block's uuid (legacy shape).
-      const propertyRefIds = this.propertyCarrierIdsOf(id);
-      return this.store
-        .children(id)
-        .filter(
-          (row) =>
-            row.is_class === 0 &&
-            row.present_as_main === 0 &&
-            row.is_active === 1 &&
-            !propertyRefIds.has(row.id),
-        )
-        .map((row) => ({
-          node: mapNode(row),
-          children: build(row.id, remaining - 1),
-        }));
-    };
-    return build(pageId, cap);
+    // §34.92 — the deferred follow-up: `useOutlinerValue` calls this on every
+    // view render, so it rides the revision cache like the list reads (the
+    // worker client already cachedReads it; now the in-process path matches).
+    return this.cachedListRead(`getBlockTree:${pageId}:${depth ?? "*"}`, () => {
+      const cap = depth ?? DEFAULT_TREE_DEPTH;
+      const build = (id: string, remaining: number): BlockTreeNode[] => {
+        if (remaining <= 0) return [];
+        // Node-backed property values live as children of the owner but render
+        // inside the property cell — exclude them here or they appear twice.
+        // Two shapes: node-typed references ({"nodeId"}) and text properties,
+        // whose scalar value may be the carrier block's uuid (legacy shape).
+        const propertyRefIds = this.propertyCarrierIdsOf(id);
+        return this.store
+          .children(id)
+          .filter(
+            (row) =>
+              row.is_class === 0 &&
+              row.present_as_main === 0 &&
+              row.is_active === 1 &&
+              !propertyRefIds.has(row.id),
+          )
+          .map((row) => ({
+            node: this.mapNodeCached(row),
+            children: build(row.id, remaining - 1),
+          }));
+      };
+      return build(pageId, cap);
+    });
   }
 
   /**
@@ -1585,7 +1670,7 @@ export class WorkspaceClient {
     return this.store
       .children(id)
       .filter((row) => row.is_active === 1)
-      .map(mapNode);
+      .map((row) => this.mapNodeCached(row));
   }
 
   /**
@@ -1778,7 +1863,7 @@ export class WorkspaceClient {
     return this.store
       .children(id)
       .filter((row) => row.is_class === 0 && row.present_as_main === 1 && row.is_active === 1)
-      .map(mapNode);
+      .map((row) => this.mapNodeCached(row));
   }
 
   /** Materialized backlink count (node_stats) — the linked-references badge. */

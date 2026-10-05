@@ -80,6 +80,7 @@ import { WorkspacesView } from "./components/WorkspacesView.js";
 import { UserSettingsModal } from "./components/modals/UserSettingsModal.js";
 import { applyAppearance, readDeviceSetting, useDeviceSetting } from "./components/modals/deviceSettings.js";
 import { BackendUnavailableOverlay } from "./components/ui/BackendUnavailableOverlay.js";
+import { InProcessStoreBanner } from "./components/ui/InProcessStoreBanner.js";
 import { Button } from "./components/ui/Button.js";
 import { NotificationToaster } from "./components/ui/NotificationToaster.js";
 import "./app.css";
@@ -139,12 +140,24 @@ type Phase =
   | { name: "connecting"; label: string }
   | { name: "ready" };
 
+/**
+ * The worker store needs both `Worker` and OPFS (`navigator.storage
+ * getDirectory`). §34.92 fix 3: when the fallback to in-process mode is
+ * taken, say so loudly in the console (naming the missing capability — this
+ * is how the profiled Zen session will be diagnosed) and in the UI
+ * (`InProcessStoreBanner`, rendered off `storeMode`).
+ */
 function detectStoreMode(): StoreMode {
-  return typeof Worker !== "undefined" &&
-    typeof navigator !== "undefined" &&
-    navigator.storage?.getDirectory !== undefined
-    ? "worker"
-    : "in-process";
+  const hasWorker = typeof Worker !== "undefined";
+  const hasOpfs =
+    typeof navigator !== "undefined" && navigator.storage?.getDirectory !== undefined;
+  if (hasWorker && hasOpfs) return "worker";
+  console.warn(
+    `[notees] store mode: in-process (Worker: ${hasWorker ? "ok" : "MISSING"}, ` +
+      "navigator.storage.getDirectory: " +
+      `${hasOpfs ? "ok" : "MISSING"}) — store reads run on the UI thread`,
+  );
+  return "in-process";
 }
 
 function readStored(key: string): string {
@@ -1809,6 +1822,7 @@ export function App() {
           onClose={() => setPresentingId(null)}
         />
       )}
+      {storeMode === "in-process" && <InProcessStoreBanner />}
       <BackendUnavailableOverlay syncStatus={syncStatus} />
       <NotificationToaster />
     </div>

@@ -17,7 +17,7 @@ import type { WorkspaceClient } from "@/core/workspace-client.js";
 import { displayNameFromClient } from "./dateDisplay.js";
 import { EmbedViewSwitcher } from "./EmbedView.js";
 import { Icon } from "./Icon.js";
-import { classIconMap, nodeIcon } from "./iconFor.js";
+import { nodeIcon } from "./iconFor.js";
 import { useOutliner } from "./outliner-context.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -48,7 +48,7 @@ export function EmbedCardView({
     );
   }
 
-  const icon = nodeIcon(node, classIconMap(client.listClasses()));
+  const icon = nodeIcon(node, client.classIcons());
   const label = displayNameFromClient(client, nodeId) ?? nodeId;
   const excerpt = view === "wide_card" ? plainExcerpt(node.contentAst) : "";
 

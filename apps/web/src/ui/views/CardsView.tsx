@@ -21,7 +21,7 @@ import { rendersWithDocumentChrome, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import { Icon } from "../Icon.js";
 import { BlockRow } from "../BlockRow.js";
-import { classIconMap, nodeIcon } from "../iconFor.js";
+import { nodeIcon } from "../iconFor.js";
 import { displayNameForSettings, displayNameFromClient } from "../dateDisplay.js";
 import { renderStateLabel } from "../renderStateLabel.js";
 import { SelectionButton, Checkbox, ImageModal } from "../components/ui/index.js";
@@ -176,7 +176,7 @@ export function NodeCard({
   selection?: { checked: boolean; onToggle: () => void } | undefined;
 }) {
   const { client, onNodeClick, onNodeShiftClick, cardProperties, propertiesOf } = props;
-  const icon = nodeIcon(item.node, classIconMap(client.listClasses()));
+  const icon = nodeIcon(item.node, client.classIcons());
   const label = displayNameForSettings(item.node) || "Untitled";
   const properties = propertiesOf?.(item.node.id) ?? [];
   const cardRows = (cardProperties ?? [])
