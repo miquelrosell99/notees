@@ -34,12 +34,18 @@
   padding: var(--spacing-1);
 }
 
+.nt-palette-group-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-2) var(--spacing-2) var(--spacing-1);
+}
+
 .nt-palette-group-label {
   font: var(--font-label-small);
   letter-spacing: var(--letter-spacing-label);
   text-transform: uppercase;
   color: var(--color-on-surface-variant);
-  padding: var(--spacing-2) var(--spacing-2) var(--spacing-1);
 }
 
 .nt-palette-item {
