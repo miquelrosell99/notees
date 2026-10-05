@@ -46,9 +46,8 @@ node apps/server/dist/server.js
 # or: pnpm --filter @notees/server start
 ```
 
-The CLI builds the same way: `pnpm --filter @notees/cli build` → `apps/cli/dist/cli.js`
-(exposed as the `notees` bin). There is intentionally no root `build` script; use
-`pnpm -r build`.
+The CLI builds the same way in its own repo (`notees-cli`, §34.82):
+`pnpm build` → `dist/cli.js` (exposed as the `notees` bin).
 
 First boot prints the generated API key once to stderr and persists it (see §4).
 
@@ -70,7 +69,7 @@ All server configuration is environment variables (`apps/server/src/config.ts`,
 | `NOTEES_MAX_DOCUMENT_BYTES` | `104857600` (100 MB) | Upload cap, documents (pdf/epub) |
 | `NOTEES_CORS_ORIGIN` | — (no CORS headers) | Comma-separated browser origins allowed to call the API cross-origin (web client served from another origin/port). `*` allows any origin — LAN-trusted deployments only. Absent → no CORS headers: same-origin and CLI clients unaffected, browsers denied |
 
-CLI environment (for clients, `apps/cli/src/cli.ts`): `NOTEES_SERVER` (server URL),
+CLI environment (for clients, `notees-cli`'s `src/cli.ts`): `NOTEES_SERVER` (server URL),
 `NOTEES_API_KEY` (the same `nk_` key; flags `--server`/`--key` override),
 `NOTEES_STATE_FILE` (default `~/.notees/state.json`).
 
