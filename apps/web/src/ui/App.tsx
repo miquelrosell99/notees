@@ -63,6 +63,8 @@ import { TocSection, ReferencesSection } from "./components/sidebarSections.js";
 import { FocusedBlockView } from "./components/FocusedBlockView.js";
 import { NAV_ENTRIES, Sidebar, recordRecent, type NavKey } from "./components/Sidebar.js";
 import { NodeLinkMenuHost } from "./components/NodeLinkContextMenu.js";
+import { FloatingEditorHost } from "./components/FloatingEditor.js";
+import { NodeHoverPreviewHost } from "./components/NodeHoverPreview.js";
 import { JournalsView } from "./components/JournalsView.js";
 import { CalendarView } from "./components/CalendarView.js";
 import { ensureTaskFamily } from "./components/taskFamily.js";
@@ -1662,6 +1664,8 @@ export function App() {
       )}
       <div className="nt-body">
         <NodeLinkMenuHost client={client} openNode={openPage} openInSidebar={openInSidebar}>
+        <NodeHoverPreviewHost client={client} openNode={openPage}>
+        <FloatingEditorHost client={client} openNode={openPage}>
         <Sidebar
           client={client}
           workspaceName={workspaceName}
@@ -1773,6 +1777,8 @@ export function App() {
             )}
           </aside>
         )}
+        </FloatingEditorHost>
+        </NodeHoverPreviewHost>
         </NodeLinkMenuHost>
       </div>
       <CommandPalette
