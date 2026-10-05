@@ -8,7 +8,8 @@
  *  - bootstraps the WorkspaceClient sync engine for the workspace;
  *  - exposes the worker API: applyBatch (remote frames), the read surface
  *    (getPage / listPages / getBlockTree / search / getBacklinks /
- *    getLinkedReferences / getUnlinkedReferences / getChildPages / getChildren
+ *    getLinkedReferences / getReferences / getReferenceCount /
+ *    getUnlinkedReferences / getChildPages / getChildren
  *    / runQueryAst / runAggregateAst / getBacklinkCount / getChildPageCount / getDisplayName /
  *    getNode / getNodeRaw / getEffectiveProperties / getAssetInfo /
  *    getAnnotationsForAsset / listPropertySchemas / isFeatureEnabled /
@@ -344,6 +345,14 @@ export class WorkerCore {
     return this.client.getLinkedReferences(id);
   }
 
+  getReferences(id: string): ClientNode[] {
+    return this.client.getReferences(id);
+  }
+
+  getReferenceCount(id: string): number {
+    return this.client.getReferenceCount(id);
+  }
+
   getUnlinkedReferences(id: string): ReferenceEntry[] {
     return this.client.getUnlinkedReferences(id);
   }
@@ -535,6 +544,10 @@ export class WorkerCore {
         return this.getBacklinks(args[0] as string);
       case "getLinkedReferences":
         return this.getLinkedReferences(args[0] as string);
+      case "getReferences":
+        return this.getReferences(args[0] as string);
+      case "getReferenceCount":
+        return this.getReferenceCount(args[0] as string);
       case "getUnlinkedReferences":
         return this.getUnlinkedReferences(args[0] as string);
       case "getUnlinkedReferenceCount":

@@ -1807,6 +1807,37 @@ export class WorkspaceClient {
   }
 
   /**
+   * References (the page's References tab): the distinct document-chrome
+   * pages this node's subtree points AT — the outgoing mirror of
+   * getLinkedReferences. A mention authored in a block under the node (or a
+   * node-typed property value on it) whose target renders with document
+   * chrome and is top-level or one of the node's own child pages; the store
+   * filter keeps classes, inline blocks, deeper-nested pages and trashed
+   * nodes out. One row per target, direct first (the store contract).
+   */
+  getReferences(id: string): ClientNode[] {
+    const targets: ClientNode[] = [];
+    for (const row of this.store.referencesWithRollup(id) as Array<Record<string, unknown>>) {
+      const target = this.getNode(String(row.target_id));
+      if (!target) continue;
+      targets.push(target);
+    }
+    return targets;
+  }
+
+  /**
+   * Eager References-tab count for the section-visibility rule (hide the
+   * tab at 0). Unlike the linked-references badge — direct-only
+   * node_stats, so that LIST can honestly outrun its number — this count
+   * reads the same roll-up the list renders, one row per target, so the
+   * badge and the rows cannot diverge. Cost: one subtree query per mount,
+   * the accepted price (the unlinked-reference count pays a full FTS pass).
+   */
+  getReferenceCount(id: string): number {
+    return (this.store.referencesWithRollup(id) as Array<Record<string, unknown>>).length;
+  }
+
+  /**
    * Unlinked references (document-chrome nodes only — inline blocks never
    * get this section): literal-text FTS matches of the node's display name
    * across the workspace, excluding the node itself and every node that
