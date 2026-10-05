@@ -97,6 +97,7 @@ import {
   buildExportDocument,
   isEmptyPropertyValue,
   whiteboardSidecarPath,
+  withoutLeadingTitle,
 } from "./document.js";
 import type { ExportContext } from "./document.js";
 import { qualifierDisplayOf } from "./document.js";
@@ -450,8 +451,10 @@ function renderChildBulletLines(
 /**
  * Serialize a built {@link ExportDocument} to a standalone Markdown file:
  * YAML frontmatter, the `# <title>` heading for every node with document
- * chrome (inline blocks carry none), the rendered content, and — unless
- * includeOutline is off — the nested-bullets outline.
+ * chrome (inline blocks carry none), the rendered content — minus the
+ * leading title span when it rides in the heading (the single-title rule,
+ * {@link withoutLeadingTitle}) — and, unless includeOutline is off, the
+ * nested-bullets outline.
  */
 export function renderExportDocumentToMarkdown(
   document: ExportDocument,
@@ -462,7 +465,7 @@ export function renderExportDocumentToMarkdown(
     const heading = document.title.length > 0 ? escapeMarkdownText(document.title) : document.nodeId;
     parts.push(`# ${heading}`);
   }
-  const bodyLines = renderBlocksToLines(document.blocks, document.nodeId, options);
+  const bodyLines = renderBlocksToLines(withoutLeadingTitle(document), document.nodeId, options);
   if (bodyLines.length > 0) parts.push(bodyLines.join("\n"));
   if (document.children.length > 0) {
     const childLines = renderChildBulletLines(document.children, options, 0);

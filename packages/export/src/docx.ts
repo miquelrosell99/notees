@@ -75,7 +75,7 @@ import type {
   ExportPropertyValue,
   ExportSpan,
 } from "./document.js";
-import { isEmptyPropertyValue, qualifierDisplayOf } from "./document.js";
+import { isEmptyPropertyValue, qualifierDisplayOf, withoutLeadingTitle } from "./document.js";
 import type { ResolvedExportOptions } from "./options.js";
 
 // --- layout + page constants ---------------------------------------------------
@@ -352,10 +352,11 @@ function renderOutlineBlocks(
 /**
  * Serialize a built {@link ExportDocument} to a complete .docx package:
  * Title-heading + properties table for nodes with document chrome, the
- * content blocks, and — unless includeOutline left the IR without children —
- * the bullet-paragraph outline. Async because the packer assembles and
- * compresses the zip package off the call stack; resolves to the package
- * bytes (a .docx file is an OOXML zip).
+ * content blocks (minus the leading title span when it rides in the Title
+ * heading — the single-title rule), and — unless includeOutline left the
+ * IR without children — the bullet-paragraph outline. Async because the
+ * packer assembles and compresses the zip package off the call stack;
+ * resolves to the package bytes (a .docx file is an OOXML zip).
  */
 export async function renderExportDocumentToDocx(
   document: ExportDocument,
@@ -373,7 +374,7 @@ export async function renderExportDocumentToDocx(
   }
   const properties = renderPropertiesTable(document, options);
   if (properties !== null) children.push(properties);
-  children.push(...renderBlocks(document.blocks));
+  children.push(...renderBlocks(withoutLeadingTitle(document)));
   if (document.children.length > 0) {
     children.push(...renderOutlineBlocks(document.children, 0));
   }

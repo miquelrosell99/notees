@@ -197,11 +197,14 @@ describe("properties table", () => {
 describe("inline spans", () => {
   it("maps marks to run properties (bold/italics/strike/highlight/code font)", async () => {
     const node = page("aaaaaaaa-0000-4000-8000-000000000020", "marks", [
+      // A lead run keeps the marked run out of the title (single-title rule)
+      // so the body paragraph carries it.
+      { type: "text", text: "lead " },
       { type: "text", text: "all", marks: ["bold", "italic", "strike", "highlight", "code"] },
     ]);
     const { document } = await toDocx(node, makeCtx());
-    // The content-derived Title heading also contains the word "all"; the
-    // marked run is the one carrying run properties.
+    // The content-derived Title heading does not carry the marked run; the
+    // body run is the one carrying run properties.
     const runs = [...document.matchAll(/<w:r>.*?<\/w:r>/g)].map((match) => match[0]);
     const run = runs.find((candidate) => candidate.includes("<w:rPr>") && candidate.includes(">all</w:t>"));
     expect(run).toBeDefined();
