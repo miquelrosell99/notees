@@ -144,8 +144,9 @@ export interface NodeCollectionProps {
    */
   selectable?: boolean | undefined;
   /**
-   * Table: download stem for the "Export CSV" affordance — the current
-   * view's rows as `<exportFileName>.csv` (default "table-export").
+   * Table: download stem for the "Export CSV"/"Export Excel" affordances —
+   * the current view's rows as `<exportFileName>.csv|.xlsx` (default
+   * "table-export").
    */
   exportFileName?: string | undefined;
   /** Optional initial sort (session state; the view owns cycling after). */
