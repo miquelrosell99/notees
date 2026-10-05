@@ -21,7 +21,13 @@
  * getEffectiveProperties / getBacklinks), all RPC-mirrored.
  */
 
-import { SYSTEM_CLASS_ICONS, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import {
+  SYSTEM_CLASS_DISPLAY_NAMES,
+  SYSTEM_CLASS_ICONS,
+  SYSTEM_CLASS_UUIDS,
+  SYSTEM_PROPERTY_DISPLAY_NAMES,
+  SYSTEM_PROPERTY_UUIDS,
+} from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type {
@@ -66,7 +72,7 @@ export function templatePropertyPresent(
 export async function ensureTemplateProperty(client: AnyClient): Promise<void> {
   if (templatePropertyPresent(client)) return;
   if (client.getNodeRaw(SYSTEM_CLASS_UUIDS.class) === undefined) {
-    await client.createClass("class", {
+    await client.createClass(SYSTEM_CLASS_DISPLAY_NAMES.class, {
       id: SYSTEM_CLASS_UUIDS.class,
       icon: SYSTEM_CLASS_ICONS.class,
     });
@@ -75,7 +81,7 @@ export async function ensureTemplateProperty(client: AnyClient): Promise<void> {
   if (!have.has(HAS_TEMPLATE_ID)) {
     await client.createPropertySchema({
       id: HAS_TEMPLATE_ID,
-      name: "has-template",
+      name: SYSTEM_PROPERTY_DISPLAY_NAMES.hasTemplate,
       type: "object",
       multi: true,
       scope: "class",
@@ -166,7 +172,7 @@ export async function ensureGeneratedFromProperty(client: AnyClient): Promise<vo
   if (generatedFromPropertyPresent(client)) return;
   await client.createPropertySchema({
     id: GENERATED_FROM_ID,
-    name: "generated-from",
+    name: SYSTEM_PROPERTY_DISPLAY_NAMES.generatedFrom,
     type: "object",
     multi: false,
     scope: "object",
@@ -183,7 +189,7 @@ export async function ensureGeneratedFromProperty(client: AnyClient): Promise<vo
  */
 export async function ensureTemplateFamily(client: AnyClient): Promise<void> {
   if (client.getNodeRaw(SYSTEM_CLASS_UUIDS.template) === undefined) {
-    await client.createClass("template", {
+    await client.createClass(SYSTEM_CLASS_DISPLAY_NAMES.template, {
       id: SYSTEM_CLASS_UUIDS.template,
       icon: SYSTEM_CLASS_ICONS.template,
     });

@@ -143,8 +143,8 @@ describe("tableFamily (§34.34 B4 self-heal)", () => {
     const cls = client.getNodeRaw(TABLE_CLASS_ID);
     expect(cls).toBeDefined();
     expect(cls?.isClass).toBe(true);
-    // Title-is-content: the class's name IS its text content.
-    expect(client.getDisplayName(TABLE_CLASS_ID)).toBe("table");
+    // Title-is-content: the class's name IS its text content (normal wording).
+    expect(client.getDisplayName(TABLE_CLASS_ID)).toBe("Table");
   });
 
   it("is idempotent: a second call authors nothing", async () => {

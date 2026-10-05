@@ -16,6 +16,7 @@ import {
   SYSTEM_CLASS_EXTENDS,
   SYSTEM_CLASS_ICONS,
   SYSTEM_CLASS_UUIDS,
+  SYSTEM_PROPERTY_DISPLAY_NAMES,
   SYSTEM_PROPERTY_UUIDS,
   deriveDisplayName,
 } from "@notees/domain";
@@ -194,28 +195,28 @@ export async function ensureCitationFamily(client: AnyClient): Promise<void> {
   }> = [
     {
       id: SYSTEM_PROPERTY_UUIDS.authors,
-      name: "authors",
+      name: SYSTEM_PROPERTY_DISPLAY_NAMES.authors,
       type: "object",
       multi: true,
       targetClassFilter: [SYSTEM_CLASS_UUIDS.agent],
       bindTo: SYSTEM_CLASS_UUIDS.source,
     },
-    { id: SYSTEM_PROPERTY_UUIDS.doi, name: "doi", type: "text", bindTo: SYSTEM_CLASS_UUIDS.source },
+    { id: SYSTEM_PROPERTY_UUIDS.doi, name: SYSTEM_PROPERTY_DISPLAY_NAMES.doi, type: "text", bindTo: SYSTEM_CLASS_UUIDS.source },
     {
       id: SYSTEM_PROPERTY_UUIDS.publicationDate,
-      name: "publicationDate",
+      name: SYSTEM_PROPERTY_DISPLAY_NAMES.publicationDate,
       type: "date",
       bindTo: SYSTEM_CLASS_UUIDS.source,
     },
     {
       id: SYSTEM_PROPERTY_UUIDS.givenName,
-      name: "givenName",
+      name: SYSTEM_PROPERTY_DISPLAY_NAMES.givenName,
       type: "text",
       bindTo: SYSTEM_CLASS_UUIDS.person,
     },
     {
       id: SYSTEM_PROPERTY_UUIDS.familyName,
-      name: "familyName",
+      name: SYSTEM_PROPERTY_DISPLAY_NAMES.familyName,
       type: "text",
       bindTo: SYSTEM_CLASS_UUIDS.person,
     },

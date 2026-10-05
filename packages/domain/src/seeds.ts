@@ -111,6 +111,66 @@ export const SYSTEM_CLASS_ICONS: Record<SystemClassName, string> = {
   birthday: "mdiCakeVariant",
 };
 
+/**
+ * System class DISPLAY names (owner directive 2026-10-05: normal wording —
+ * "TV series", not "tv_series"). The seed keys stay camelCase/snake_case
+ * forever (fixed vocabulary, code-facing); these are the human titles the
+ * seeds and self-heals author into class nodes' text content (title-is-
+ * content) so every surface (class picker, quick-create, calendar chips,
+ * Class View) reads normal wording. Title Case for classes; conventional
+ * spellings for acronyms/compounds ("TV series", "Web link"). Live
+ * workspaces seeded with the raw keys are renamed by the one-time
+ * scripts/migrate-system-names.mts pass. One entry per SYSTEM_CLASS_UUIDS
+ * key — the domain test pins completeness.
+ */
+export const SYSTEM_CLASS_DISPLAY_NAMES: Record<SystemClassName, string> = {
+  class: "Class",
+  year: "Year",
+  month: "Month",
+  day: "Day",
+  quote: "Quote",
+  query: "Query",
+  code: "Code",
+  asset: "Asset",
+  whiteboard: "Whiteboard",
+  card: "Card",
+  task: "Task",
+  template: "Template",
+  comment: "Comment",
+  table: "Table",
+  warning: "Warning",
+  note: "Note",
+  tip: "Tip",
+  info: "Info",
+  danger: "Danger",
+  success: "Success",
+  cloze: "Cloze",
+  source: "Source",
+  book: "Book",
+  paper: "Paper",
+  article: "Article",
+  thesis: "Thesis",
+  document: "Document",
+  agent: "Agent",
+  person: "Person",
+  organization: "Organization",
+  collection: "Collection",
+  highlight: "Highlight",
+  weblink: "Web link",
+  movie: "Movie",
+  song: "Song",
+  tv_series: "TV series",
+  conference: "Conference",
+  meeting: "Meeting",
+  event: "Event",
+  birthday: "Birthday",
+};
+
+/** The class title a seed/self-heal authors for `name` (display wording). */
+export function systemClassDisplayName(name: SystemClassName): string {
+  return SYSTEM_CLASS_DISPLAY_NAMES[name];
+}
+
 /** Canonical `extends` edges between system classes (multiple inheritance-ready). */
 export const SYSTEM_CLASS_EXTENDS: Partial<Record<SystemClassName, SystemClassName[]>> = {
   book: ["source"],
@@ -315,16 +375,72 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
 };
 
 /**
+ * System property schema DISPLAY names (owner directive 2026-10-05, the
+ * system-names pass — same law as SYSTEM_CLASS_DISPLAY_NAMES): sentence
+ * case for prose names ("Publication date"), uppercase acronyms ("ISBN",
+ * "DOI", "URL"), and the task-family entries mirror TASK_FAMILY_SEED's
+ * explicit names. The wire keys stay camelCase; these names materialize
+ * into property_schema rows at seed/self-heal time and are the labels every
+ * properties surface renders. Live rows carrying the raw keys are renamed
+ * by scripts/migrate-system-names.mts. One entry per SYSTEM_PROPERTY_UUIDS
+ * key — the domain test pins completeness.
+ */
+export const SYSTEM_PROPERTY_DISPLAY_NAMES: Record<SystemPropertyName, string> = {
+  tags: "Tags",
+  showHierarchy: "Show hierarchy",
+  usedIn: "Used in",
+  cover: "Cover",
+  banner: "Banner",
+  _queryAst: "Query AST",
+  description: "Description",
+  _whiteboardData: "Whiteboard data",
+  attachments: "Attachments",
+  authors: "Authors",
+  isbn: "ISBN",
+  doi: "DOI",
+  publicationDate: "Publication date",
+  publisher: "Publisher",
+  role: "Role",
+  provenance: "Provenance",
+  highlightAsset: "Highlight asset",
+  givenName: "Given name",
+  familyName: "Family name",
+  citekey: "Citekey",
+  url: "URL",
+  hasTemplate: "Templates",
+  generatedFrom: "Generated from",
+  alias: "Aliases",
+  taskStatus: "Status",
+  taskDeadline: "Deadline",
+  taskScheduled: "Scheduled",
+  taskPriority: "Priority",
+  taskClosedDate: "Closed",
+  taskRecurrence: "Recurrence",
+  meetingDate: "Meeting date",
+  location: "Location",
+  agenda: "Agenda",
+  eventDate: "Event date",
+  birthdayPerson: "Birthday person",
+};
+
+/** The schema name a seed/self-heal authors for `name` (display wording). */
+export function systemPropertyDisplayName(name: SystemPropertyName): string {
+  return SYSTEM_PROPERTY_DISPLAY_NAMES[name];
+}
+
+/**
  * Extra binding ROWS beyond each spec's single `bindTo` — consumed by the
- * server seed (apps/server/src/seed.ts) and the web self-heal. Two shapes:
- * schemas whose home is elsewhere gaining a second class (cover→source), and
- * an EXTENDS-CHILD re-binding an inherited schema so class-local binding
- * reads (the calendar quick-create eligibility walk) see it without the
- * child duplicating the schema (birthday→eventDate: the date value itself
- * still resolves through the extends chain at read time).
+ * server seed (apps/server/src/seed.ts) and the web self-heal. The one
+ * remaining shape: an EXTENDS-CHILD re-binding an inherited schema so
+ * class-local binding reads (the calendar quick-create eligibility walk)
+ * see it without the child duplicating the schema (birthday→eventDate: the
+ * date value itself still resolves through the extends chain at read time).
+ * (The cover→source row lived here until 2026-10-05 — owner ruling: a cover
+ * makes no sense on sources; the binding is removed from the seeds and from
+ * live workspaces by the system-names migration,
+ * scripts/migrate-system-names.mts.)
  */
 export const SYSTEM_EXTRA_CLASS_BINDINGS: { property: SystemPropertyName; bindTo: SystemClassName; sequence: number }[] = [
-  { property: "cover", bindTo: "source", sequence: 7 },
   { property: "eventDate", bindTo: "birthday", sequence: 0 },
 ];
 

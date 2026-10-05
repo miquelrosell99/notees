@@ -13,7 +13,7 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
-import { deriveDisplayName } from "@notees/domain";
+import { deriveDisplayName, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { NodeView } from "../src/ui/App.js";
@@ -56,10 +56,11 @@ async function flushWrites(): Promise<void> {
  * envelope's own HLC and the following LWW UPDATE requires a strictly greater
  * HLC, so the title write always loses. object.update takes the later-HLC
  * path and does persist. Seed the title through it; remove once fixed. */
-async function createTitledClass(client: WorkspaceClient, title: string): Promise<string> {
-  const id = await client.createClass(title);
-  await client.updateObject(id, { contentAst: [{ type: "text", text: title }] });
-  return id;
+async function createTitledClass(client: WorkspaceClient, title: string, id?: string): Promise<string> {
+  const classId =
+    id !== undefined ? await client.createClass(title, { id }) : await client.createClass(title);
+  await client.updateObject(classId, { contentAst: [{ type: "text", text: title }] });
+  return classId;
 }
 
 describe("Class View", () => {
@@ -212,7 +213,10 @@ describe("Class View", () => {
 
   it("renders the seeded property definitions in sequence order", async () => {
     const client = await seedClient();
-    const classId = await client.createClass("source");
+    // The reserved system id makes the class a SYSTEM class: the seed-spec
+    // fallback synthesizes the source family (read-side, id-keyed) with the
+    // manifest's normal-wording names.
+    const classId = await createTitledClass(client, "Source", SYSTEM_CLASS_UUIDS.source);
     const { container } = render(<ClassView client={client} classId={classId} />);
 
     // Non-empty schema collapses the section (invites setup, then stays out
@@ -224,16 +228,16 @@ describe("Class View", () => {
       (el) => el.textContent,
     );
     expect(names).toEqual([
-      "attachments",
-      "authors",
-      "isbn",
-      "doi",
-      "publicationDate",
-      "publisher",
-      "citekey",
+      "Attachments",
+      "Authors",
+      "ISBN",
+      "DOI",
+      "Publication date",
+      "Publisher",
+      "Citekey",
     ]);
-    // Sequence order is explicit: authors (seq 2) before isbn (seq 3).
-    expect(names.indexOf("authors")).toBeLessThan(names.indexOf("isbn"));
+    // Sequence order is explicit: Authors (seq 2) before ISBN (seq 3).
+    expect(names.indexOf("Authors")).toBeLessThan(names.indexOf("ISBN"));
 
     const rows = [...container.querySelectorAll(".nt-propdef")];
     // FINAL citations authorship (2026-09-27): authors is the node-typed,

@@ -8,11 +8,13 @@
 
 import {
   SEEDED_SYSTEM_CLASSES,
+  SYSTEM_CLASS_DISPLAY_NAMES,
   SYSTEM_CLASS_EXTENDS,
   SYSTEM_CLASS_ICONS,
   SYSTEM_CLASS_UUIDS,
   SYSTEM_EXTRA_CLASS_BINDINGS,
   SYSTEM_PAGE_UUIDS,
+  SYSTEM_PROPERTY_DISPLAY_NAMES,
   SYSTEM_PROPERTY_SPECS,
   SYSTEM_PROPERTY_UUIDS,
   type SystemClassName,
@@ -32,8 +34,10 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
         opType: "class.create",
         payload: {
           classId,
-          // Title-is-content: the class's name is its (text-only) content.
-          contentAst: [{ type: "text", text: name }],
+          // Title-is-content: the class's name is its (text-only) content —
+          // authored in NORMAL WORDING (SYSTEM_CLASS_DISPLAY_NAMES), not the
+          // camelCase/snake_case seed key.
+          contentAst: [{ type: "text", text: SYSTEM_CLASS_DISPLAY_NAMES[name] }],
           icon: SYSTEM_CLASS_ICONS[name],
         },
         affectedNodeIds: [classId],
@@ -70,7 +74,8 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
         opType: "propertySchema.create",
         payload: {
           propertySchemaId,
-          name,
+          // Normal wording (SYSTEM_PROPERTY_DISPLAY_NAMES), not the raw key.
+          name: SYSTEM_PROPERTY_DISPLAY_NAMES[name as SystemPropertyName],
           type: spec.type,
           multi: spec.multi ?? false,
           scope,
@@ -103,11 +108,12 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
       }),
     );
   }
-  // The manifest's extra binding rows (SYSTEM_EXTRA_CLASS_BINDINGS): a schema
-  // whose home is elsewhere gaining a second class (cover→source), and an
+  // The manifest's extra binding rows (SYSTEM_EXTRA_CLASS_BINDINGS): an
   // extends-child re-binding an inherited schema so class-local binding reads
   // (calendar quick-create eligibility) see it (eventDate→birthday). The web
   // self-heal authors the same rows idempotently — convergent either way.
+  // (The cover→source row was removed 2026-10-05 — owner ruling: a cover
+  // makes no sense on sources.)
   for (const extra of SYSTEM_EXTRA_CLASS_BINDINGS) {
     const classId = SYSTEM_CLASS_UUIDS[extra.bindTo];
     envelopes.push(

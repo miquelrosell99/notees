@@ -18,7 +18,7 @@
  * carrier blocks (an alias is a name, not a document).
  */
 
-import { deriveDisplayName, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import { deriveDisplayName, SYSTEM_PROPERTY_DISPLAY_NAMES, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client.js";
@@ -39,7 +39,7 @@ export async function ensureAliasProperty(client: AnyClient): Promise<void> {
   if (aliasPropertyPresent(client)) return;
   await client.createPropertySchema({
     id: SYSTEM_PROPERTY_UUIDS.alias,
-    name: "alias",
+    name: SYSTEM_PROPERTY_DISPLAY_NAMES.alias,
     type: "text",
     multi: true,
     scope: "global",
