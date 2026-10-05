@@ -42,11 +42,6 @@ import {
   weekdayLabel,
   type TaskBucketRow,
 } from "../src/ui/components/calendarViewUtils.js";
-import {
-  dayReviewedOf,
-  ensureDayReviewedProperty,
-  setDayReviewed,
-} from "../src/ui/components/dayReviewedProperty.js";
 import { ensureTaskFamily } from "../src/ui/components/taskFamily.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000d1";
@@ -448,28 +443,6 @@ describe("PageView day branch", () => {
     await waitFor(() => expect(screen.getByText("Fresh today")).toBeDefined());
   });
 
-  it("writes the reviewed flag the calendar reads", async () => {
-    const client = await seedClient();
-    const iso = "2026-06-15";
-    const { day } = await client.ensureDateChain(iso);
-    await ensureDayReviewedProperty(client); // schema before the direct write
-    await flushWrites();
-
-    render(<PageView client={client} pageId={day} onOpenPage={vi.fn()} />);
-    await flushWrites(); // the bar's idempotent ensure settles
-    const toggle = screen.getByRole("checkbox", { name: /reviewed/i });
-    expect((toggle as HTMLInputElement).checked).toBe(false);
-    expect(dayReviewedOf(client, day)).toBe(false);
-
-    fireEvent.click(toggle);
-    await flushWrites();
-    await waitFor(() => expect(dayReviewedOf(client, day)).toBe(true));
-    // Idempotent ensure: exactly one reviewed schema exists.
-    expect(
-      client.listPropertySchemas().filter((s) => s.name === "Reviewed"),
-    ).toHaveLength(1);
-  });
-
   it("renders neither the bar nor the sections when embedded", async () => {
     const client = await seedClient();
     const iso = "2026-06-15";
@@ -562,8 +535,8 @@ describe("TaskBuckets (tasks hub)", () => {
 
 // --- #11/#15 calendar breadth -------------------------------------------------------
 
-describe("CalendarView breadth (dots, week strip, agenda, reviewed tint)", () => {
-  it("marks days with dated objects (range-aware dots) and reviewed days", async () => {
+describe("CalendarView breadth (dots, week strip, agenda)", () => {
+  it("marks days with dated objects (range-aware dots)", async () => {
     const client = await seedClient();
     const today = todayIsoLocal();
     const future = addDaysIso(today, 2);
@@ -571,16 +544,10 @@ describe("CalendarView breadth (dots, week strip, agenda, reviewed tint)", () =>
     await createDatedMeeting(client, "Range meeting", future);
     const { day: bareDay } = await client.ensureDateChain(bare);
     expect(client.getNodeRaw(bareDay)).toBeDefined();
-    const { day: todayDay } = await client.ensureDateChain(today);
-    await ensureDayReviewedProperty(client); // schema before the direct write
-    await setDayReviewed(client, todayDay, true);
+    const { day: _todayDay } = await client.ensureDateChain(today);
     await flushWrites();
 
     const { container } = render(<CalendarView client={client} onOpenPage={vi.fn()} />);
-    // Today's cell (initially visible) carries the reviewed tint.
-    const todayCell = dayCell(container, String(Number(today.slice(8))));
-    await waitFor(() => expect(todayCell.classList.contains("reviewed")).toBe(true));
-
     // Navigate the month grid when the targets land in the next month.
     if (future.slice(0, 7) !== today.slice(0, 7)) {
       fireEvent.click(screen.getByRole("button", { name: "Next period" }));

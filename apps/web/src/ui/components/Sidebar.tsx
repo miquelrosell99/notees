@@ -237,6 +237,11 @@ export function Sidebar({
           <Icon path={icon} size={1} className="nt-side-item-icon" />
         )}
         <span className="nt-side-item-label">{displayNameForSettings(node) || node.id}</span>
+        {node.isClass && (
+          <span className="nt-side-item-flag" title="Class">
+            class
+          </span>
+        )}
       </button>
       <button
         type="button"

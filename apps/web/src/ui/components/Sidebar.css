@@ -308,3 +308,17 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Class flag on favorites/recents rows (owner): a quiet chip names class
+   nodes in the sidebar lists. */
+.nt-side-item-flag {
+  flex-shrink: 0;
+  padding: 0 var(--spacing-1, 4px);
+  border-radius: var(--radius-full, 999px);
+  background: var(--color-surface-variant, transparent);
+  color: var(--color-on-surface-variant, currentColor);
+  font-size: var(--font-size-xs, 10px);
+  line-height: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
