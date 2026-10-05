@@ -155,7 +155,6 @@ A whiteboard can live fullscreen (a parentless node) or embedded as an inline ch
 The `whiteboard` class is seeded in the catalog, the token is part of the normative grammar, and the web app renders the spatial canvas: a tool palette (select/move with box-select, card, sticky note, rectangle/ellipse/line/arrow, the pen/highlighter/eraser group, text, connector), one-shot draw tools that return to select after each gesture (the eraser stays armed until Esc), colors and stroke-width tiers over the selection, alignment/distribution helpers, a snap-to-grid toggle riding a world-anchored dot grid, a minimap with click-to-navigate, zoom controls (wheel, buttons, fit), and keyboard affordances (Delete removes the selection, arrows nudge, Shift+arrows step a grid, Esc exits the tool). The **pen** draws freehand strokes; the **highlighter** commits the layout schema's `highlight` marker — a translucent wide stroke in the marker color; the **eraser** drag-removes strokes and shapes near the pointer in one coalesced write (cards are graph nodes — they delete through their own chrome, never the eraser). A **right-click context menu** on any canvas object (cards, shapes, strokes) offers delete, bring-to-front/send-to-back (the geometry's z-order), and the color picker. Dragging any selected card moves the whole selection; every gesture coalesces to one content op. Embedded canvases keep the full toolset minus pan/zoom (scroll priority). Not shipped: the remaining v1 breadth (15-shape set, sticky-ended connectors).
 
 ## Tables — cells are nodes
-
 A table is a node classed `table`; the grid is a render projection of its subtree — the whiteboard pattern one level down:
 
 - **Rows are child blocks; cells are each row's child blocks.** Every cell is an ordinary node — own UUID, full content grammar, backlinks, search indexing, classing, properties, the focused view. A cell that matters to the graph can be mentioned, classed, and zoomed via its bullet; the same children render as a grid, an outline, or focused, because they are the same nodes.
@@ -164,6 +163,14 @@ A table is a node classed `table`; the grid is a render projection of its subtre
 - **Structure changes are ordinary creates.** `/table` scaffolds the container with one row of three empty cells (the typed argument is the column count — `/table 5`); hovering the table offers + Row / + Column, which append blocks. No new op, no wire token — every write is an `object.create` on ordinary nodes.
 
 `/table` scaffolds at the caret and focuses the first cell; the container's hover toolbar appends rows/columns (**+ Row / + Column**) and deletes them (**− Row / − Column**, the inline-confirm pattern — the last row and the right-most column are the targets, and a deleted row's cells ride the ordinary subtree trash); cells edit inline through the standard block editor (the usual debounced save); embeds, the presentation deck, and the other read-only projections render the grid (the deck routes table-classed blocks through the same BlockRow grid branch — no flattening).
+
+## The graph view — the workspace as a map
+
+The graph view (the sidebar's Graph row, or the "Graph View" landing preference) renders the whole workspace as one interactive map: pages and classes are nodes, links are edges, a force-directed simulation runs off the main thread, and WebGL draws the result. The design law that keeps it readable: **blocks never render** — a link authored on a block rolls up to the page holding it, so the map shows the workspace's pages-and-classes skeleton (the journal chain hides by default; the toolbar toggles bring it — and class nodes, and each link family — back).
+
+- **Families are honest.** Every edge names its kind — mention, property, parent, class membership — and the toolbar chips toggle each family independently. Counts always read the full filtered set.
+- **Semantic links are content-proximity.** Two pages link semantically when a block mentions both; the weight is the shared-block count, the hover card names the blocks, and the sliders bound it (top-N per node, minimum weight) — display cuts only, nothing deleted. A context that mentions more than ten pages contributes no semantic links (an index page would otherwise spray a clique).
+- **Interaction is the outliner's.** Drag to pin, click to select, double-click to open, find jumps by name; positions persist per workspace, so the map remembers its shape. Reduced motion starts the layout paused.
 
 ## Promotion and demotion
 
@@ -240,6 +247,7 @@ The Properties section lists a node's effective property values: authored values
 - **Types convert honestly.** The settings modal's **Convert…** changes a schema's type the one honest way: create the new schema, copy the values that map, list the ones that don't (dropped only with explicit confirmation), re-point the class bindings, delete the old schema.
 - **Options carry color.** A select option can wear a data-palette color; its pill tints, and the settings modal edits it per option with one color dot.
 - **Aliases are names.** The seeded `alias` property gives a page alternative names — searchable like the title, resolvable by exact match, and matched by unlinked references.
+- **Text values are blocks.** A text property renders its values as editable blocks in the row — never repeated label entries. Enter on a multi-value property starts the next value (a sibling block registered as the next entry); Enter on a single-value property nests a child block under the value, whose children are its lines. The block is the value: it indexes, links, and deletes like any block.
 
 ## Exporting
 
