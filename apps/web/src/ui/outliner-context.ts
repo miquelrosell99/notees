@@ -23,6 +23,7 @@ import type {
   QueryRunResult,
   SetClassPropertyInput,
   UpdateObjectInput,
+  UpdatePropertySchemaInput,
 } from "@/core/workspace-client.js";
 
 import { displayNameFromClient } from "./dateDisplay.js";
@@ -93,6 +94,20 @@ export interface OutlinerClient {
   setClassExtends(classId: string, parentClassIds: string[]): Promise<void>;
   /** Create a class node (`class.create`) — the `+` picker's create row. */
   createClass(name: string, opts?: { icon?: string; color?: string; id?: string }): Promise<string>;
+  /**
+   * Clear an authored property value (`property.set` with a null value) — the
+   * task-cycle chord's Done -> cleared transition unsets the status at its
+   * row idx.
+   */
+  unsetProperty(objectId: string, propertySchemaId: string, idx?: number): Promise<void>;
+  /**
+   * Patch a property schema's metadata (`propertySchema.update`) — the
+   * task-cycle chord's family ensure rides the §34.89 status-restyle pass.
+   */
+  updatePropertySchema(
+    propertySchemaId: string,
+    fields: UpdatePropertySchemaInput,
+  ): Promise<void>;
   /**
    * Declare a property schema (`propertySchema.create`) — the class-aware
    * quick-create's citation self-heal. The context value is always the full
