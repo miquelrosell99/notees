@@ -1,6 +1,6 @@
 /**
  * Workspace seeding: emit the domain seed ops (class nodes, extends edges,
- * property schemas, inbox/scratchpad pages) through the standard envelope
+ * property schemas, inbox page) through the standard envelope
  * pipeline, reusing the fixed system UUIDs from @notees/domain. Idempotent:
  * seeding runs only while the workspace is completely empty, so a second
  * call is a no-op (seededCount 0).
