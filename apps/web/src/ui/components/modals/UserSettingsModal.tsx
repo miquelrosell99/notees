@@ -34,6 +34,7 @@ import {
   useDeviceSetting,
   type AccentColor,
   type ThemePreference,
+  type UiFontPreference,
 } from "./deviceSettings.js";
 
 import "./settingsModal.css";
@@ -112,6 +113,7 @@ export function UserSettingsModal({
   const [theme, setTheme] = useDeviceSetting<ThemePreference>("theme", "system");
   const [oledMode, setOledMode] = useDeviceSetting("oledMode", false);
   const [accentColor, setAccentColor] = useDeviceSetting<AccentColor>("accentColor", "monochrome");
+  const [uiFont, setUiFont] = useDeviceSetting<UiFontPreference>("uiFont", "bundled");
   const [customAccentHex, setCustomAccentHex] = useDeviceSetting("customAccentHex", "#404040");
   const [customHexInput, setCustomHexInput] = useState(customAccentHex);
 
@@ -160,6 +162,11 @@ export function UserSettingsModal({
 
   const handleOledModeChange = (enabled: boolean) => {
     setOledMode(enabled);
+    applyAppearance();
+  };
+
+  const handleUiFontChange = (value: UiFontPreference) => {
+    setUiFont(value);
     applyAppearance();
   };
 
@@ -241,6 +248,28 @@ export function UserSettingsModal({
                     ]}
                     value={theme}
                     onChange={(value) => handleThemeChange(value as ThemePreference)}
+                    size="sm"
+                  />
+                </div>
+
+                <div className="settings-item">
+                  <div className="settings-item__info">
+                    <label htmlFor="user-ui-font" className="settings-item__label">
+                      Font
+                    </label>
+                    <p className="settings-item__description">
+                      Bundled ships Inter and JetBrains Mono with the app; System uses the
+                      platform&apos;s own font stack.
+                    </p>
+                  </div>
+                  <SelectionButton
+                    id="user-ui-font"
+                    options={[
+                      { value: "bundled", icon: "mdi-format-font", label: "Bundled (Inter)" },
+                      { value: "system", icon: "mdi-monitor", label: "System stack" },
+                    ]}
+                    value={uiFont}
+                    onChange={(value) => handleUiFontChange(value as UiFontPreference)}
                     size="sm"
                   />
                 </div>

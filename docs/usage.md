@@ -331,6 +331,7 @@ The deck is a live, read-only read of the note — there are no slide objects:
 The page's surroundings, and what remembers what:
 
 - **View modes stick (this device).** The outline/prose/cards triad on a page, the view mode of every hub (Tasks, Assets, Pages, …), the classed-nodes mode on a class page, and the cards/kanban cover layout — once chosen, they survive reloads. Storage is device-local (`notees.settings.*`): another device does not see them, and none of it ever enters the operation log. If a saved mode no longer applies (e.g. kanban after its grouping property is gone), the surface falls back to its default.
+- **Appearance sticks (this device).** Settings → Appearance holds the theme (light/dark/system), OLED deep-black, the accent color, and the **UI font**: bundled (Inter + JetBrains Mono, shipped with the app — no CDN) or the platform's own system stack. Applied pre-paint via a `data-` attribute, remembered device-locally like the view modes, never in the operation log.
 - **Covers.** ANY page's **cover** (an image-typed reference to an asset-classed node — set it in the page header's right-side cover card, or drop an image file on it) renders as a collapsible card beside the title, never a property row. The card shows even when empty — collapsed to a slim strip by default — and a cover whose asset has no image bytes renders a dashed placeholder naming the asset, never a silent void. The referenced asset wears a **Cover** badge in card views (derived from the property — a cover is a plain asset, no separate cover class). Whiteboard pages and embedded feeds skip the element entirely.
 - **The right panel** (sidebar toggle, or shift+click anything) shows the open page's context above any peek cards: **Contents** — a table of contents derived from the tree itself (its sub-pages and its short one-line blocks, nested one level), the current entry highlighted, click to jump — and **References** — the page's linked references, collapsed until you open them (nothing queries until then).
 - **The footer** shows a word count (title + everything nested under it) and **Created** / **Updated** stamps; each stamp opens that day's page.
@@ -466,7 +467,7 @@ Base URL `http://localhost:8377`, auth header `X-API-Key: nk_…` on every call 
 | `PATCH /api/property-schemas/:id` | Patch a schema (`propertySchema.update`: name, options, datePrecision, dateQualified) |
 | `DELETE /api/property-schemas/:id` | Soft-delete a schema (authored values survive; recreate under the same uuid reactivates) |
 | `POST /api/classes/:id/properties` | Bind a schema to a class (`class.property.set`: sequence/flags/defaultValue patch) |
-| `DELETE /api/classes/:id/properties/:propertySchemaId` | Remove the binding (authored values survive) |
+| `DELETE /api/classes/:id/properties/:propertySchemaId` | Remove the binding (authored property values survive) |
 | `GET /api/properties/:id/values` | Values asserted for a property schema (each entry carries the value's `elementId`) |
 | `POST /api/assets` (multipart) · `GET /api/assets/:id` · `GET /api/assets/:id/info` | Upload (sniffed), download, metadata |
 | `GET /api/workspaces/:id/export.zip?includeAssets=0|1` | Full-workspace Markdown zip — one file per top-level and child page, manifest, optional `assets/` folder |
