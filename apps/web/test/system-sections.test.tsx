@@ -1,12 +1,16 @@
 /**
- * System sections tests (SCHEMA.md lazy-loading contract): collapsed sections
- * execute zero queries; expanding runs the section query once and caches;
- * a mention edge lands its source in linked references; the same literal text
- * without a link lands in unlinked references, while a source that links the
- * page never appears there; unlinked references is blocked for blocks (pages
- * only); child pages render in their own section and never in the body block
- * list; badges come from materialized counts; an expanded section re-runs its
- * query when a remote change notifies.
+ * System sections tests (SCHEMA.md lazy-loading contract): the three
+ * reference sections share one tab strip (#5) — empty tabs hide entirely,
+ * only the active tab's section mounts, and a collapsed section executes
+ * no query (switching tabs mounts the section but still runs nothing until
+ * the section itself expands); expanding runs the section query once and
+ * caches per tab visit; a mention edge lands its source in linked
+ * references; the References tab lists the pages the node points at; the
+ * same literal text without a link lands in unlinked references, while a
+ * source that links the page never appears there; unlinked references is
+ * blocked for blocks (pages only); child pages render in their own section
+ * and never in the body block list; badges come from materialized counts;
+ * an expanded section re-runs its query when a remote change notifies.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -52,11 +56,12 @@ function section(headerName: RegExp): HTMLElement {
 }
 
 describe("PageView system sections", () => {
-  it("renders all reference sections collapsed; collapsed sections execute zero queries", async () => {
+  it("renders the reference tabs; only the active tab's section mounts; collapsed sections execute zero queries", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Zebra" });
-    // One mention backlink (keeps Linked references visible) and one literal
-    // mention (keeps Unlinked references visible) — both sections render.
+    // One mention backlink (keeps the Linked references tab) and one literal
+    // mention (keeps the Unlinked references tab) — no outgoing references,
+    // so the References tab stays hidden.
     const linkedSource = await client.createObject({ presentAsMain: true, name: "Linked Source" });
     await client.createObject({
       parentId: linkedSource,
@@ -70,28 +75,47 @@ describe("PageView system sections", () => {
 
     const linkedSpy = vi.spyOn(client, "getLinkedReferences");
     const unlinkedSpy = vi.spyOn(client, "getUnlinkedReferences");
+    const referencesSpy = vi.spyOn(client, "getReferences");
     const childSpy = vi.spyOn(client, "getChildPages");
 
     render(<PageView client={client} pageId={pageId} />);
 
-    // Every reference section starts collapsed (note layout: identity →
-    // properties → content → references): no query runs on mount. The
-    // fixture page has no child pages, so that section hides entirely.
-    for (const name of [/Linked references/, /Unlinked references/]) {
-      const header = screen.getByRole("button", { name });
-      expect(header.getAttribute("aria-expanded")).toBe("false");
-    }
+    // The strip shows exactly the two non-empty tabs; References (no
+    // outgoing refs) and Child pages (no children) hide entirely.
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "Linked references",
+      "Unlinked references",
+    ]);
+    expect(screen.queryByRole("tab", { name: "References" })).toBeNull();
     expect(screen.queryByRole("button", { name: /Child pages/ })).toBeNull();
+
+    // Only the active tab's section mounts, collapsed (note layout: identity
+    // → properties → content → references): no query runs on mount — not
+    // even the active tab's (the Section lazy contract) — and the inactive
+    // tab's section is not mounted at all.
+    const linkedHeader = screen.getByRole("button", { name: /Linked references/ });
+    expect(linkedHeader.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("button", { name: /Unlinked references/ })).toBeNull();
     expect(linkedSpy).not.toHaveBeenCalled();
     expect(unlinkedSpy).not.toHaveBeenCalled();
+    expect(referencesSpy).not.toHaveBeenCalled();
     expect(childSpy).not.toHaveBeenCalled();
 
-    // Expanding runs the section's lazy query exactly once.
-    fireEvent.click(screen.getByRole("button", { name: /Linked references/ }));
+    // Expanding the active tab's section runs its lazy query exactly once.
+    fireEvent.click(linkedHeader);
     expect(linkedSpy).toHaveBeenCalledTimes(1);
+
+    // Switching tabs mounts the other section — still collapsed, so its
+    // query runs only when the section itself expands.
+    fireEvent.click(screen.getByRole("tab", { name: "Unlinked references" }));
+    const unlinkedHeader = screen.getByRole("button", { name: /Unlinked references/ });
+    expect(unlinkedHeader.getAttribute("aria-expanded")).toBe("false");
+    expect(unlinkedSpy).not.toHaveBeenCalled();
+    fireEvent.click(unlinkedHeader);
+    expect(unlinkedSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("hides linked and unlinked reference sections when their count is 0", async () => {
+  it("hides empty reference tabs (the References tab has no outgoing refs here)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Quiet Page" });
     const plainSource = await client.createObject({ presentAsMain: true, name: "Plain Source" });
@@ -102,23 +126,25 @@ describe("PageView system sections", () => {
 
     render(<PageView client={client} pageId={pageId} />);
 
-    // Zero backlinks: the linked-references section is gone entirely (the
-    // literal "Quiet Page" text keeps the unlinked one alive).
-    expect(screen.queryByRole("button", { name: /Linked references/ })).toBeNull();
-    expect(screen.getByRole("button", { name: /Unlinked references/ })).toBeInTheDocument();
+    // Zero backlinks and zero outgoing references: only the unlinked tab
+    // remains (the literal "Quiet Page" text keeps it alive).
+    expect(screen.queryByRole("tab", { name: "Linked references" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "References" })).toBeNull();
+    expect(screen.getByRole("tab", { name: "Unlinked references" })).toBeInTheDocument();
   });
 
-  it("hides every system section on a page nobody mentions and without children", async () => {
+  it("hides the whole tab strip on a page nobody mentions, references, and without children", async () => {
     const client = await seedClient();
     const lonelyId = await client.createObject({ presentAsMain: true, name: "Xylophone QV" });
 
     render(<PageView client={client} pageId={lonelyId} />);
-    expect(screen.queryByRole("button", { name: /Linked references/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Unlinked references/ })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "Linked references" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "References" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "Unlinked references" })).toBeNull();
     expect(screen.queryByRole("button", { name: /Child pages/ })).toBeNull();
   });
 
-  it("expands linked/unlinked references: mentions link, literal text does not", async () => {
+  it("expands linked/unlinked references: mentions link, literal text does not; switching tabs remounts (cache is per tab visit)", async () => {
     const client = await seedClient();
     const targetId = await client.createObject({ presentAsMain: true, name: "Zebra" });
     const linkedPageId = await client.createObject({ presentAsMain: true, name: "Linked Source" });
@@ -135,25 +161,110 @@ describe("PageView system sections", () => {
     const linkedSpy = vi.spyOn(client, "getLinkedReferences");
     render(<PageView client={client} pageId={targetId} />);
 
-    // Linked references starts collapsed: expanding runs the query once and
-    // lists the mention source (the plain-text source never appears).
+    // Linked references (the active tab) starts collapsed: expanding runs
+    // the query once and lists the mention source (the plain-text source
+    // never appears).
     fireEvent.click(screen.getByRole("button", { name: /Linked references/ }));
     expect(linkedSpy).toHaveBeenCalledTimes(1);
     const linked = section(/Linked references/);
     within(linked).getAllByText("Linked Source");
     expect(within(linked).queryByText("Plain Source")).toBeNull();
 
-    // Unlinked: the plain-text source shows, the already-linked source never does.
+    // Collapse + re-expand within the same tab visit: the cached result
+    // serves, no re-query.
+    fireEvent.click(screen.getByRole("button", { name: /Linked references/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Linked references/ }));
+    expect(linkedSpy).toHaveBeenCalledTimes(1);
+    within(section(/Linked references/)).getAllByText("Linked Source");
+
+    // Unlinked: switching tabs mounts its section (collapsed); expanding
+    // runs its query — the plain-text source shows, the already-linked
+    // source never does.
+    fireEvent.click(screen.getByRole("tab", { name: "Unlinked references" }));
     fireEvent.click(screen.getByRole("button", { name: /Unlinked references/ }));
     const unlinked = section(/Unlinked references/);
     within(unlinked).getAllByText("Plain Source");
     expect(within(unlinked).queryByText("Linked Source")).toBeNull();
 
-    // Collapse + re-expand without any change: the cached result serves, no re-query.
+    // Switching back remounts the linked section (fresh collapsed state) —
+    // expanding re-queries: the result cache lives one tab visit.
+    fireEvent.click(screen.getByRole("tab", { name: "Linked references" }));
     fireEvent.click(screen.getByRole("button", { name: /Linked references/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Linked references/ }));
-    expect(linkedSpy).toHaveBeenCalledTimes(1);
+    expect(linkedSpy).toHaveBeenCalledTimes(2);
     within(section(/Linked references/)).getAllByText("Linked Source");
+  });
+
+  it("the References tab lists the pages this page points at (outgoing); rows open the target", async () => {
+    const client = await seedClient();
+    const franceId = await client.createObject({ presentAsMain: true, name: "France" });
+    const parisId = await client.createObject({ presentAsMain: true, name: "Paris" });
+    const romeId = await client.createObject({ presentAsMain: true, name: "Rome" });
+    // France's body blocks point at Paris and Rome (mentions authored in a
+    // block roll up to the containing page — the source-side roll-up).
+    await client.createObject({
+      parentId: franceId,
+      contentAst: [
+        { type: "mention", targetNodeId: parisId, text: "Paris" },
+        { type: "mention", targetNodeId: romeId, text: "Rome" },
+      ],
+    });
+
+    const referencesSpy = vi.spyOn(client, "getReferences");
+    const onOpenPage = vi.fn();
+    render(<PageView client={client} pageId={franceId} onOpenPage={onOpenPage} />);
+
+    // France has no backlinks, only outgoing references: the Linked
+    // references tab hides and References is the strip's first tab.
+    expect(screen.queryByRole("tab", { name: "Linked references" })).toBeNull();
+    expect(screen.getByRole("tab", { name: "References" })).toBeInTheDocument();
+
+    // Lazy per active tab: nothing queries until the section expands.
+    expect(referencesSpy).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /References/ }));
+    expect(referencesSpy).toHaveBeenCalledTimes(1);
+
+    const references = section(/References/);
+    expect(within(references).getByText("Paris")).not.toBeNull();
+    expect(within(references).getByText("Rome")).not.toBeNull();
+
+    // A row click opens the target page (the read-only outline row path).
+    fireEvent.click(within(references).getByText("Paris").closest("button.outline-row__main")!);
+    expect(onOpenPage).toHaveBeenCalledWith(parisId);
+  });
+
+  it("an emptied active tab disappears and the strip falls back to the first non-empty tab", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Zebra" });
+    const linkedSource = await client.createObject({ presentAsMain: true, name: "Linked Source" });
+    await client.createObject({
+      parentId: linkedSource,
+      contentAst: [{ type: "mention", targetNodeId: pageId, text: "Zebra" }],
+    });
+    const plainSource = await client.createObject({ presentAsMain: true, name: "Plain Source" });
+    await client.createObject({
+      parentId: plainSource,
+      contentAst: [{ type: "text", text: "Zebra" }],
+    });
+
+    render(<PageView client={client} pageId={pageId} />);
+
+    // Activate the Unlinked tab and expand it.
+    fireEvent.click(screen.getByRole("tab", { name: "Unlinked references" }));
+    fireEvent.click(screen.getByRole("button", { name: /Unlinked references/ }));
+    const unlinked = section(/Unlinked references/);
+    within(unlinked).getAllByText("Plain Source");
+
+    // Promote the only unlinked source: its literal text becomes a mention,
+    // the unlinked count drops to 0, the tab disappears, and the strip
+    // falls back to the Linked references tab.
+    fireEvent.click(within(unlinked).getByRole("button", { name: /Promote Zebra to a link/ }));
+
+    expect(screen.queryByRole("tab", { name: "Unlinked references" })).toBeNull();
+    expect(screen.getByRole("tab", { name: "Linked references" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Linked references/ }));
+    const linked = section(/Linked references/);
+    within(linked).getAllByText("Linked Source");
+    within(linked).getAllByText("Plain Source");
   });
 
   it("blocks unlinked references for blocks (pages only)", async () => {
