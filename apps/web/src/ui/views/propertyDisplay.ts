@@ -35,6 +35,46 @@ function nodeRefText(client: AnyClient, value: unknown): string {
   return displayNameFromClient(client, nodeId) ?? nodeId;
 }
 
+/**
+ * SCHEMA.md "Number formats": display-only formatting for number values.
+ * Values stay exact in the log — this shapes render only. `numberDecimals`
+ * cuts the fraction with `numberRounding` (default "round" = half away from
+ * zero, per Intl's default); `numberPad` zero-pads the integer part to N
+ * digits ("0001"). Anything non-finite or non-numeric passes through.
+ */
+export function formatNumberValue(
+  value: number,
+  schema:
+    | { numberPad?: number | null; numberDecimals?: number | null; numberRounding?: string | null }
+    | null
+    | undefined,
+): string {
+  if (schema === undefined || schema === null) return String(value);
+  let v = value;
+  if (schema.numberDecimals !== null && schema.numberDecimals !== undefined) {
+    const factor = 10 ** schema.numberDecimals;
+    const rounding = schema.numberRounding ?? "round";
+    const scaled =
+      rounding === "floor"
+        ? Math.floor(v * factor)
+        : rounding === "ceil"
+          ? Math.ceil(v * factor)
+          : rounding === "truncate"
+            ? Math.trunc(v * factor)
+            : Math.round(v * factor);
+    v = scaled / factor;
+  }
+  let text = String(v);
+  if (schema.numberPad !== null && schema.numberPad !== undefined) {
+    const [intPart = "", fracPart] = text.split(".");
+    const sign = intPart.startsWith("-") ? "-" : "";
+    const digits = sign ? intPart.slice(1) : intPart;
+    const padded = digits.padStart(schema.numberPad, "0");
+    text = sign + padded + (fracPart !== undefined ? `.${fracPart}` : "");
+  }
+  return text;
+}
+
 /** The plain-text display of one property value ("" when unset). */
 export function propertyDisplayText(client: AnyClient, prop: EffectiveProperty | undefined): string {
   if (prop === undefined || isEmptyPropertyValue(prop.value)) return "";
@@ -58,7 +98,8 @@ export function propertyDisplayText(client: AnyClient, prop: EffectiveProperty |
   ) {
     return nodeRefText(client, value);
   }
-  if (typeof value === "string" || typeof value === "number") return String(value);
+  if (typeof value === "number") return formatNumberValue(value, prop.schema);
+  if (typeof value === "string") return value;
   return JSON.stringify(value);
 }
 
