@@ -4,10 +4,12 @@
  * cover card aside), and the footer wrapper. Extracted from PageView so the
  * component stays a chrome composer; the panelled/compact COMPOSITION (the
  * .nt-page-body grid, the .nt-nodeview-body stack, the compact corner)
- * still lives in PageView until S7 reworks the columns. The class
- * composition slots (corner / iconButton / headerActions) pass through
- * these pieces unchanged. The styles stay in app.css — every class hook is
- * exactly the one PageView rendered before the extraction.
+ * still lives in PageView until S7 reworks the columns. The day-header swap
+ * is driven by the variant's `dayIso` (M13 — the page variant is data, see
+ * components/pageVariant.ts); the shared icon button is the single
+ * icon+color edit entry for every node kind (M9). The styles stay in
+ * app.css — every class hook is exactly the one PageView rendered before
+ * the extraction.
  */
 
 import { useRef, useState, type ReactNode } from "react";
@@ -31,8 +33,6 @@ type AnyClient = WorkspaceClient | WorkerClient;
  * column's bar): the sidebar collapse toggle and the classes pills on the
  * left, the host's chromeRight (the blocks view switcher + the "…" node
  * menu) on the right, over a full-width divider border like the sidebar's.
- * Class composition swaps the default classes row for its extends pills
- * via `corner`.
  */
 export function NodeTopbar({
   client,
@@ -40,7 +40,6 @@ export function NodeTopbar({
   classIds,
   sidePanelCollapsed,
   onToggleSidePanel,
-  corner,
   chromeRight,
   onOpenPage,
 }: {
@@ -49,8 +48,6 @@ export function NodeTopbar({
   classIds: string[];
   sidePanelCollapsed: boolean;
   onToggleSidePanel: () => void;
-  /** Replaces the default classes row (ClassView: the extends pills). */
-  corner: ReactNode;
   chromeRight: ReactNode;
   onOpenPage?: ((pageId: string) => void) | undefined;
 }) {
@@ -67,11 +64,7 @@ export function NodeTopbar({
         <Icon path="mdi-page-layout-sidebar-left" size={1} />
       </button>
       <div className="nt-node-topbar__classes">
-        {corner !== undefined ? (
-          corner
-        ) : (
-          <ClassesRow client={client} nodeId={nodeId} classIds={classIds} onOpenPage={onOpenPage} />
-        )}
+        <ClassesRow client={client} nodeId={nodeId} classIds={classIds} onOpenPage={onOpenPage} />
       </div>
       <span className="nt-node-topbar__spacer" aria-hidden="true" />
       {chromeRight !== undefined && (
@@ -84,10 +77,11 @@ export function NodeTopbar({
 /**
  * PageHeaderChrome — the .page-header-section (§34.72): the header proper
  * beside the cover card aside. Day pages render the DayPageHeader as the
- * whole title row; every other page renders the icon button + picker
- * (class composition swaps in its curated `iconButton`), the editable
- * title (an embedded render gets the static "open page" link instead),
- * the `headerActions` slot, and the tags row. Right-click on the icon or
+ * whole title row (driven by the variant's `dayIso`); every other page
+ * renders the shared icon button + picker (M9: the SINGLE icon+color edit
+ * entry for every node kind — the curated class icon button and the color
+ * dot are gone), the editable title (an embedded render gets the static
+ * "open page" link instead), and the tags row. Right-click on the icon or
  * the title reports the pointer position through onHeaderMenu — the host
  * owns the node context menu state. Focus mode suppresses everything but
  * the title; the cover aside renders whenever the page can carry a cover.
@@ -99,8 +93,6 @@ export function PageHeaderChrome({
   focusMode,
   dayIso,
   headerIcon,
-  iconButton,
-  headerActions,
   coverPossible,
   coverAssetId,
   onOpenPage,
@@ -114,10 +106,6 @@ export function PageHeaderChrome({
   dayIso: string | null;
   /** The effective icon (own or its classes'), null = the placeholder. */
   headerIcon: string | null;
-  /** Replaces the default header icon button + picker (ClassView: curated). */
-  iconButton: ReactNode;
-  /** Right-aligned extras in the title row (ClassView: the class color dot). */
-  headerActions: ReactNode;
   coverPossible: boolean;
   coverAssetId: string | null;
   onOpenPage?: ((pageId: string) => void) | undefined;
@@ -149,9 +137,7 @@ export function PageHeaderChrome({
           ) : (
             <>
             {!focusMode &&
-              (iconButton !== undefined ? (
-                iconButton
-              ) : (
+              (
                 <>
                   <span
                     className="page-icon-btn"
@@ -175,15 +161,21 @@ export function PageHeaderChrome({
                     <IconPickerPopup
                       value={page.icon ?? undefined}
                       anchorEl={pageIconRef.current}
+                      color={page.color}
                       onSelect={(iconValue) => {
                         // "" clears (Icon treats empty as no icon).
                         void client.updateObject(pageId, { icon: iconValue });
+                      }}
+                      onColorChange={(color) => {
+                        // M9/M10 — the single icon+color entry: null = "No
+                        // color" (object.update color:null clears, §34.43).
+                        void client.updateObject(pageId, { color });
                       }}
                       onClose={() => setIconPickerOpen(false)}
                     />
                   )}
                 </>
-              ))}
+              )}
             {/* Right-click anywhere on the title (not just the icon) opens the
                 page's node context menu — the browser menu is never the
                 honest surface for a node. */}
@@ -208,9 +200,6 @@ export function PageHeaderChrome({
             )}
             </span>
               </>
-          )}
-          {headerActions !== undefined && !focusMode && (
-            <div className="nt-page-toolbar">{headerActions}</div>
           )}
         </div>
         {!embedded && !focusMode && (

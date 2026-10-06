@@ -1,12 +1,15 @@
 /**
  * NodeView — the mode dispatch over ONE node (the Revision-11 render
- * cascade, SCHEMA.md): a class node renders the Class View; a parented
- * non-class node with the render bit unset renders the focused block view
- * (inline body + block chrome); everything else — parentless or
- * present-as-main — renders the Page View (document chrome). Extracted from
- * App.tsx (the main-content restructure, S1) so every host (the main card,
- * the right-rail cards, the floating editors) renders the same dispatcher
- * instead of re-implementing the cascade.
+ * cascade, SCHEMA.md): a class node renders the page view composed with
+ * the class variant data (M13 — the class page IS a page: the extends
+ * corner's ClassPillsList config + the class section stack, see
+ * components/pageVariant.ts); a parented non-class node with the render
+ * bit unset renders the focused block view (inline body + block chrome);
+ * everything else — parentless or present-as-main — renders the Page View
+ * (document chrome). Extracted from App.tsx (the main-content restructure,
+ * S1) so every host (the main card, the right-rail cards, the floating
+ * editors) renders the same dispatcher instead of re-implementing the
+ * cascade.
  *
  * The shell also owns the card's chrome-right cluster: pages get the blocks
  * view switcher + the "…" node menu (rendered by PageView — in the nodeview
@@ -17,7 +20,9 @@
  * `cornerMenu: false`) · preview and `embedded` (journals feed, calendar
  * embed, floating windows) — `embedded` suppresses the page chrome the host
  * already carries (find/replace chord, top bar) and never shows the corner
- * menu.
+ * menu. (A class node renders full chrome on every surface, the pre-S5
+ * ClassView behavior — the class variant keeps the embedded flag off so
+ * class pages stay visually identical minus the deleted M9/M12 chrome.)
  */
 
 import { rendersAsInlineBlock } from "@notees/domain";
@@ -26,7 +31,6 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { PageView, BLOCKS_VIEW_MODES } from "./PageView.js";
-import { ClassView } from "./ClassView.js";
 import { ReferenceSubtree } from "./components/ReferenceSubtree.js";
 import { NodeMenuButton, type ShareTarget } from "./components/NodeMenuButton.js";
 import { ViewToolbar } from "./views/ViewToolbar.js";
@@ -108,9 +112,7 @@ export function NodeView({
         />
       </>
     ) : undefined;
-  const view = node.isClass ? (
-    <ClassView client={client} classId={nodeId} onOpenClass={onOpenNode} onOpenPage={onOpenNode} />
-  ) : rendersAsInlineBlock(node) ? (
+  const view = rendersAsInlineBlock(node) ? (
     /* Block mode (S4): the body is the plain collection — the node itself as
        the root row with its children under it (ReferenceSubtree builds the
        minimal outliner + SortableContext and renders the real editable
@@ -121,6 +123,11 @@ export function NodeView({
       <ReferenceSubtree client={client} rootId={nodeId} onOpenNode={onOpenNode} />
     </div>
   ) : (
+    /* Page mode — plain, date (day/period), or class: PageView composes the
+       chrome from the variant descriptor (M13). A class node carries the
+       class variant data (extends corner + class sections) and keeps the
+       embedded flag off (the pre-S5 ClassView rendered full chrome on every
+       surface). */
     <PageView
       client={client}
       pageId={nodeId}
@@ -129,7 +136,7 @@ export function NodeView({
       onDeleted={onDeleted}
       onPresent={onPresent}
       shareTarget={shareTarget}
-      embedded={embedded}
+      embedded={node.isClass ? false : embedded}
       layout={cornerMenu ? "default" : "compact"}
       blocksMode={blocksMode}
       onBlocksModeChange={setBlocksMode}
