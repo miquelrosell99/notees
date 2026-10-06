@@ -49,10 +49,6 @@ function renderSidebar(client: AnyClient, extras: Record<string, unknown> = {}) 
   return render(
     <Sidebar
       client={client}
-      workspaceName="Garden"
-      workspaceId="ws1"
-      serverUrl="https://notees.example.com"
-      credential="token"
       user={null}
       offline={false}
       showSettings={false}
@@ -61,9 +57,6 @@ function renderSidebar(client: AnyClient, extras: Record<string, unknown> = {}) 
       activeNav="pages"
       onSelectNav={() => {}}
       onOpenPage={() => {}}
-      onRequestSearch={() => {}}
-      onSwitchWorkspace={() => {}}
-      onManageWorkspaces={() => {}}
       onSignOut={() => {}}
       onOpenInSidebar={vi.fn()}
       {...extras}
