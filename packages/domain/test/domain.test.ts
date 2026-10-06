@@ -452,9 +452,9 @@ describe("workspace feature map (§34.35, reshaped §34.55)", () => {
     expect(managedClassIds("tasks")).toEqual([SYSTEM_CLASS_UUIDS.task]);
   });
 
-  it("the family set cascades through extends-children (events → meeting + birthday; sources → the 9-strong family)", async () => {
+  it("the family set cascades through extends-children (events → meeting + birthday + trip; sources → the 9-strong family)", async () => {
     const { familyClassNames, managedClassIds } = await import("../src/index.js");
-    expect(familyClassNames("events")).toEqual(["event", "birthday", "meeting"]);
+    expect(familyClassNames("events")).toEqual(["event", "birthday", "meeting", "trip"]);
     expect(familyClassNames("meetings")).toEqual(["meeting"]);
     expect(familyClassNames("sources")).toEqual([
       "source",
@@ -469,7 +469,7 @@ describe("workspace feature map (§34.35, reshaped §34.55)", () => {
       "tv_series",
     ]);
     expect(familyClassNames("persons")).toEqual(["person"]);
-    expect(managedClassIds("events")).toHaveLength(3);
+    expect(managedClassIds("events")).toHaveLength(4);
     expect(managedClassIds("sources")).toHaveLength(10);
   });
 

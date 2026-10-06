@@ -234,6 +234,14 @@ export const DEPLOYABLE_SYSTEM_CLASSES: readonly SystemClassName[] = [
   "collection",
   "highlight",
   "weblink",
+  // §34.99 (#14 follow-up): the owner's list — everyday classes that were
+  // missing from the catalog; definition/idea/place/project are standalone,
+  // trip extends event (calendar-bound, events-toggle cascades).
+  "definition",
+  "idea",
+  "place",
+  "project",
+  "trip",
 ];
 
 /** True when `name` ships in the deployment catalog (#14). */
