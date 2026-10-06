@@ -198,6 +198,12 @@ export function buildEditableDom(
     }
   };
   walk(ast);
+  // An empty AST leaves the editable with zero children — no line box, so the
+  // caret renders at an unpredictable height and point-hit caret placement
+  // (focusAtPoint) can resolve outside the editable. A lone <br> is the
+  // standard contentEditable empty state: it contributes no textContent, so
+  // drafts, prose offsets, and rehydration signatures are unaffected.
+  if (el.childNodes.length === 0) el.appendChild(document.createElement("br"));
 }
 
 /** Structural signature: prose text + pill count — for rehydrate comparisons. */

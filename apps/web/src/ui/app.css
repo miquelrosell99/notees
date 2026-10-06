@@ -696,6 +696,10 @@ select:focus-visible {
 .nt-block-content {
   flex: 1;
   min-width: 0;
+  /* An empty block renders no line box, so without this floor the wrapper
+     (the click-to-edit target) collapses to zero height and clicks anywhere
+     along the row miss it. 1lh = one line in the content's own font. */
+  min-height: 1lh;
   white-space: pre-wrap;
   word-break: break-word;
   cursor: text;
