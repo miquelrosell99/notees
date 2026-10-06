@@ -26,6 +26,10 @@ change it describes.
    (issue #13): "when X on nodes matching Y, do Z" as coordination state,
    the evaluation point, the depth-1 loop policy, and the run audit.
 
+[ui-primitives.md](ui-primitives.md) is the web client's component-library
+reference: the compose-from-the-library law, the primitive catalog, and the
+popup-dismissal seam.
+
 [sdk-publishing.md](sdk-publishing.md) is archived reference for the parked
 npm-distribution program.
 

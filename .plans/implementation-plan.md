@@ -3316,3 +3316,26 @@ The first slice of custom workflows is a **server-side rules engine** in coordin
 **Verification:** main gate 262/70/218/401/16/171/204/1158 all green; three client repos green at their new tags.
 
 **Register cross-checks:** releases.md §3 wire state (TS v3.4.0) + §4 batch-history rows · this entry · client repos tagged from clean mains.
+
+### 34.101 AGENTS.md condensation — reference docs extracted (2026-10-06 — SHIPPED, docs-only)
+
+The root AGENTS.md had grown dense enough to slow every session's bootstrap. Condensed to law + pointers; the long-form content moved to canonical homes:
+- **`docs/developers/ui-primitives.md` (new)** — the web component-library reference: the compose-from-`components/ui` law, token-only CSS (with the fallback-must-not-always-fire rule), the no-legacy-names rule, the `usePopupDismissal` seam (§34.67), the full primitive catalog (was a parenthetical list in AGENTS.md, now verified against the directory), the shared `calendar/dayGrid.tsx` note, and the 2026-10-05 UI audit as the drift-check reference.
+- **`.agents/parked-decisions.md` (new, with `.agents/README.md`)** — the owner parked-decisions register: SDK publish archived (2026-10-03), the releases/lockstep runbook pointer, the repo-split state (CLI out §34.82, web split wanted/deferred §34.83, `notees-sync` stays). Internal home per the docs rule.
+- **AGENTS.md (rewritten lean)** — Layout halved (file-map detail → architecture.md §10, model/wire → SCHEMA.md, export bullet trimmed); Invariants are now one-line pointers with the law kept (op-log authority, conflict semantics, title-is-content, render-state/no-backcompat, fixture gate, UUIDv7, coordination-not-database); Commands kept with the pointer set; the two owner working rules (docs-are-part-of-the-change, the-plan-is-the-record) kept.
+
+**Gap fixes in the same pass (content that was AGENTS.md-only now has a canonical home):** architecture.md §10 `packages/export` row names `csv.ts` + `json-archive.ts`; development.md §2 gains the dev-condition dist-rebuild rule (vitest reads `src`, `tsc` reads `dist`); development.md §5 gains the tag-membership tiebreak-asymmetry row (strictly-greater add tiebreak) and the no-CRDT-everywhere clause; docs/developers/README indexes ui-primitives.md. The `.plans/dev/…` → `docs/developers/…` historical note survives in the Layout bullet.
+
+**Verification:** docs-only pass — no code touched; every pointer in the new AGENTS.md grep-resolved against its target (SCHEMA.md headings, development.md §§2–5, architecture.md §§2/10, releases.md, ui-primitives.md, .agents/parked-decisions.md); catalog cross-checked with `ls apps/web/src/ui/components/ui/`.
+
+**Register cross-checks:** this entry · docs/developers/README.md index · AGENTS.md + .agents/ now reference §34.82/§34.83 instead of restating them.
+
+### 34.102 Tailscale HTTPS serving on the fleet host (2026-10-06 — SHIPPED, ops-only)
+
+notees on atlas is served over TLS inside the tailnet via `tailscale serve` (tailscaled terminates TLS; the per-hostname Let's Encrypt cert is issued and renewed by Tailscale itself — no reverse-proxy container, no cert files, no image change): `https://atlas.taila48da.ts.net` (443 → 127.0.0.1:8378, web) and `https://atlas.taila48da.ts.net:8443` (→ 127.0.0.1:8377, sync API). The sync API rides its own HTTPS port by design: its routes are root-level (no `/api` prefix), so path-muxing under the web origin would collide with SPA paths; and an https page may not call an http API/WS (mixed content), so both browser-facing ends must be TLS.
+
+Host config: `.env` gained `NOTEES_SERVER_URL=https://atlas.taila48da.ts.net:8443`; `notees-web` recreated so the entrypoint re-baked `/config.js` (a plain `restart` does not re-run it). Prerequisite was enabling Serve/HTTPS certificates on the tailnet (admin console) — before that, `tailscale cert` failed with "account does not support getting TLS certs" and `tailscale serve` printed the `login.tailscale.com/f/serve` enablement URL.
+
+**Verification:** `tailscale serve status` lists both listeners; over the tailnet name (via `--resolve` — atlas runs `accept-dns=false` and cannot resolve ts.net names locally): web `/` → 200; sync `/healthz` → `{"ok":true}`, `/api/version` → 3.2.0/protocol v3, `/ws/<uuid>` reaches the app (404 = workspace-gated, not a proxy failure); CORS `access-control-allow-origin: *` on the https origin; TLS chain issuer LE YE2, CN=atlas.taila48da.ts.net, exp 2027-01-04. LAN/plain-HTTP paths unchanged (`/config.js` + web 200 on 8378); `verify-min.mjs` smoke → VERIFY-PASS post-recreate (boot 9.1s, no console errors).
+
+**Register cross-checks:** deployment.md §10 (recipe + caveats) · `.env.example` comment · no wire/code change — no lockstep implicated.
