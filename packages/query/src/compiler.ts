@@ -1,12 +1,12 @@
 /**
- * QueryAST -> SQLite compiler over the v2 derived schema.
+ * QueryAST -> SQLite compiler over the derived schema.
  *
- * Port of the v1 `frontend/src/core/query/compileToSqlite.ts` CONCEPTS,
- * adapted to the v2 store (packages/store):
+ * Port of the `frontend/src/core/query/compileToSqlite.ts` CONCEPTS,
+ * adapted to the current store (packages/store):
  *  - the Revision-11 booleans (`node.is_class`, `node.present_as_main`)
  *    replace node_type; `is_active = 1` excludes deleted nodes on every
  *    query (the store's read helpers do the same);
- *  - the v2 reference index is `edge` (never authored) — the linkedTo
+ *  - the reference index is `edge` (never authored) — the linkedTo
  *    condition/scope mirror `Store.backlinksWithRollup` (direct +
  *    containment roll-up, distance in subtree levels);
  *  - class conditions probe `class_hierarchy` (applier-maintained transitive
@@ -24,12 +24,12 @@
  * never reach the SQL string. The compiler assumes a single-workspace store
  * (no workspace filter), matching the store's read helpers.
  *
- * M1 boundaries (fail loud, cleanly extensible):
+ * Compiler boundaries (fail loud, cleanly extensible):
  *  - `aggregation` compiles: the filtered-node set becomes a `filtered` CTE,
  *    dimensions GROUP BY it, measures aggregate over it (see compileAggregate).
  *    Execution goes through runAggregate — runQuery rejects aggregation ASTs;
- *  - scopes/conditions outside the v1 AST subset (style marks, parent/child
- *    paths, regex, flags) are not part of the v2 M1 model.
+ *  - scopes/conditions outside the AST subset (style marks, parent/child
+ *    paths, regex, flags) are not part of the model.
  */
 
 import type {
@@ -63,7 +63,7 @@ export interface CompiledAggregate {
 }
 
 /**
- * The placeholder clock (§34.31 C4): `{today}`-style tokens in
+ * The placeholder clock: `{today}`-style tokens in
  * createdAfter/createdBefore timestamps and comparison-bound property values
  * resolve against this instant. Defaults to the current time on each
  * compile, so a saved view re-evaluates on the day it runs. (The once-
@@ -500,7 +500,7 @@ class Compiler {
       );
     }
     const param = this.push(condition.value);
-    // LIKE is ASCII case-insensitive (SQLite default), matching v1's
+    // LIKE is ASCII case-insensitive (SQLite default), matching the
     // case-insensitive contains; the pattern builds around the parameter.
     return (
       "EXISTS (\n  SELECT 1 FROM search_index_docid d\n" +
@@ -514,17 +514,17 @@ class Compiler {
    * Effective-values read (store effective.ts semantics): tombstone-suppressed
    * authored property_value rows UNION derived binding defaults for nodes with
    * no authored value at idx 0. eq/contains are value-level (any effective row
-   * matches); neq is the v1 not_equals port — "has at least one effective
+   * matches); neq is the not_equals port — "has at least one effective
    * value different from v" — so nodes with NO effective value do not match
    * (pair with `exists` if unset nodes should count). gt/gte/lt/lte are the
-   * v1 GREATER_THAN/LESS_THAN family: json_extract yields JSON numbers as
+   * GREATER_THAN/LESS_THAN family: json_extract yields JSON numbers as
    * numeric values (numeric comparison) and everything else as text
    * (lexicographic — ISO-8601 dates order correctly); the bound value keeps
    * the type the caller gave it.
    *
    * ISO-date bound values (YYYY-MM-DD) gain a second arm for the SCHEMA.md
    * "Dates" value shape: date property values are `{ "nodeId": <deterministic
-   * date-node id> }` and the id embeds the date — layout frozen with v1
+   * date-node id> }` and the id embeds the date — layout frozen
    * (packages/domain/src/dates.ts): id chars 22..23 are the precision marker
    * (dd/aa/bb — the last two of the `00dd`/`00aa`/`00bb` segment), chars
    * 25..36 the zero-padded date payload. eq/contains match when the

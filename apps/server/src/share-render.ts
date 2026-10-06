@@ -1,5 +1,5 @@
 /**
- * The public share render (§34.62) — the body behind `GET /s/<token>`.
+ * The public share render — the body behind `GET /s/<token>`.
  *
  * Deliberately a NO-APP document: no JavaScript, no app chrome, no external
  * resource — a standalone HTML page whose body is the export package's HTML

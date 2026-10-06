@@ -6,7 +6,7 @@
  * search lives in the top-bar button / Ctrl+K palette); NAVIGATION rows
  * switch the main view (Today / Journal / Inbox / Pages /
  * Whiteboards / Tasks hubs — never an inline page dump); FAVORITES and
- * RECENTS are cross-device UI state (§34.61 — the server per-user prefs
+ * RECENTS are cross-device UI state — the server per-user prefs
  * store is the authority, device-local cache offline; see nodePrefs.ts);
  * MORE reveals the class list. Favorites/recents live here (moved out of
  * App).
@@ -68,7 +68,7 @@ function readStoredJson(key: string): string[] {
  * write broadcasts `notees:recents` so the sidebar refreshes live (same
  * pattern as the favorites broadcast from the node context menu). The
  * nodePrefs store listens and mirrors the list to the server prefs when
- * online (§34.61) — this function stays the single device-local write.
+ * online — this function stays the single device-local write.
  */
 export function recordRecent(id: string): void {
   try {
@@ -128,7 +128,7 @@ export function Sidebar({
   onOpenInSidebar?: ((nodeId: string) => void) | undefined;
 }) {
   /**
-   * Favorites + recents (§34.61): the shared nodePrefs store — server-side
+   * Favorites + recents: the shared nodePrefs store — server-side
    * per-user prefs when online, device-local cache offline. The hook
    * subsumes the old notees:favorites/notees:recents refresh effect (it
    * listens itself, and every legacy writer's broadcast re-renders us).
@@ -293,7 +293,7 @@ export function Sidebar({
                 (entry.key !== "journal" || showJournals) &&
                 (entry.key !== "inbox" || showInbox) &&
                 (entry.key !== "calendar" || showCalendar) &&
-                // §34.55: the Tasks hub is task-family chrome — hidden while
+                // The Tasks hub is task-family chrome — hidden while
                 // the family is off (live read; absent row = enabled).
                 (entry.key !== "tasks" || client.isFeatureEnabled("tasks")),
             ).map((entry) => (

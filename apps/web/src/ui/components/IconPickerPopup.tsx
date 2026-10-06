@@ -1,8 +1,8 @@
 /**
- * IconPickerPopup — the v1 EmojiPicker, ported: three tabs (All / Emojis /
+ * IconPickerPopup — three tabs (All / Emojis /
  * Icons), a search across both vocabularies, a device-local recents row, a
  * clear action, and lazy-rendered category grids. Emitted values are the
- * v1 contract: the emoji character or a camelCase MDI key ("mdiCalendar") —
+ * original contract: the emoji character or a camelCase MDI key ("mdiCalendar") —
  * Icon's resolver normalizes both (plus legacy kebab/JSON forms) at render.
  *
  * Anchoring: fixed-position popup at the anchor element (flip above when
@@ -130,7 +130,7 @@ function ItemGrid({
 }
 
 /** Category section that renders a height placeholder until scrolled into
- *  view (v1's lazy rendering — the full emoji/icon vocab is thousands of
+ *  view (lazy rendering — the full emoji/icon vocab is thousands of
  *  cells; only the visible categories mount). */
 function LazyCategory({
   label,
@@ -206,7 +206,7 @@ export function IconPickerPopup({ value, onSelect, onClose, anchorEl }: IconPick
     searchRef.current?.focus();
   }, []);
 
-  // Dismissal (§34.67): pointer-down outside closes; Escape from outside
+  // Dismissal: pointer-down outside closes; Escape from outside
   // closes via the hook, Escape from inside (the search field holds focus)
   // closes at the popup root below.
   usePopupDismissal({ popupRef: pickerRef, isOpen: true, onClose });

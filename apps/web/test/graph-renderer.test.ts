@@ -1,5 +1,5 @@
 /**
- * graph/renderer tests (§34.80): the label overlay contract (zoom caps,
+ * graph/renderer tests: the label overlay contract (zoom caps,
  * truncation, culling, emphasis) and the renderer's honest WebGL2-missing
  * path. Real GL contexts don't exist in jsdom — these tests exercise the
  * pure logic with stubs, per the port's test boundary.

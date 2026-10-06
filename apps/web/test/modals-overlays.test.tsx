@@ -536,7 +536,7 @@ describe("ExportPageModal", () => {
     expect(decode(entries[tripPath]!)).toContain("<!DOCTYPE html>");
     expect(decode(entries[tripPath]!)).toContain("<h1>Trip</h1>");
     expect(decode(entries[packingPath]!)).toContain("<h1>Packing</h1>");
-    // v1 non-markdown batch zips carry no manifest (it is a markdown-bundle
+    // Non-markdown batch zips carry no manifest (it is a markdown-bundle
     // concept) and no assets/ (the serializers have no bytes path).
     expect(Object.keys(entries)).not.toContain("notees-manifest.json");
     expect(Object.keys(entries).some((key) => key.startsWith("assets/"))).toBe(false);
@@ -544,7 +544,7 @@ describe("ExportPageModal", () => {
     download.restore();
   }, 10000);
 
-  it("downloads one JSON archive document for a single node (§34.59: verbatim payloads, children metadata, edges)", async () => {
+  it("downloads one JSON archive document for a single node (verbatim payloads, children metadata, edges)", async () => {
     const client = await makeClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
     const blockId = await client.createObject({
@@ -602,7 +602,7 @@ describe("ExportPageModal", () => {
     download.restore();
   }, 10000);
 
-  it("delivers ONE archive for a batch — no per-root zip (§34.59)", async () => {
+  it("delivers ONE archive for a batch — no per-root zip", async () => {
     const client = await makeClient();
     const tripId = await client.createObject({ presentAsMain: true, name: "Trip" });
     const packingId = await client.createObject({ presentAsMain: true, name: "Packing" });

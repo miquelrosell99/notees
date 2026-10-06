@@ -11,7 +11,7 @@ Production stack = two containers from `compose.yaml`:
 - `notees-web` — image `ghcr.io/miquelrosell99/notees-web:${NOTEES_WEB_TAG:-latest}`, host port 8378 (nginx :80), `depends_on: service_healthy` on sync
 
 Data layout under the bind-mounted data dir (canonical
-`docs/developers/deployment.md` §4): `relay.db` (**THE authority** — envelope
+`docs/developers/deployment.md`): `relay.db` (**THE authority** — envelope
 log, snapshot/compaction metadata, asset index, restore_epoch),
 `api_key.txt` (mode 0600), `snapshots/<id>.db` (optional),
 `derived/<workspaceId>.db` (**cache — deletable, rehydrates from the log**),
@@ -27,11 +27,10 @@ log, snapshot/compaction metadata, asset index, restore_epoch),
    `NOTEES_WEB_TAG`.
 3. **After any log-rewriting migration:** bump the restore epoch **and**
    `docker compose restart notees-sync` — ingest alone does not reapply to the
-   running derived store (learned 2026-10-05, `migrations.md` §1B).
+   running derived store (learned 2026-10-05, `migrations.md`).
 4. **Store downgrade is unsupported** — a derived DB newer than the code is a
    hard error; the way back is a backup restore.
-5. **Never re-tag a release.** Same-day correction = next patch tag
-   (`releases.md` §1).
+5. **Never re-tag a release.** Same-day correction = next patch tag.
 6. **Fleet-agnostic artifacts** — never hardcode host names, IPs, or tailnet
    names; write `<host>`, `<tailnet>`, `<lan-ip>`, "the fleet host". Real
    values live only in gitignored `.env`.
@@ -45,15 +44,15 @@ log, snapshot/compaction metadata, asset index, restore_epoch),
 
 | Topic | Reference | Canonical runbook |
 |---|---|---|
-| Deployment | `references/deployment.md` | `docs/developers/deployment.md` §§3–10, `releases.md` §2 |
-| Health checks | `references/health-checks.md` | `deployment.md` §9 |
-| Logs | `references/logs.md` | `deployment.md` §9 |
-| Rollback | `references/rollback.md` | `releases.md` §1 |
+| Deployment | `references/deployment.md` | `docs/developers/deployment.md`, `releases.md` |
+| Health checks | `references/health-checks.md` | `deployment.md` |
+| Logs | `references/logs.md` | `deployment.md` |
+| Rollback | `references/rollback.md` | `releases.md` |
 | Database migrations | `references/database-migrations.md` | `docs/developers/migrations.md` |
-| Backups | `references/backups.md` | `deployment.md` §6 |
+| Backups | `references/backups.md` | `deployment.md` |
 | Monitoring | `references/monitoring.md` | `releases.md`, `deployment.md` |
-| Incident response | `references/incident-response.md` | `migrations.md` §1B, `deployment.md` §§6–7 |
-| Maintenance | `references/maintenance.md` | `deployment.md` §§5–7 |
+| Incident response | `references/incident-response.md` | `migrations.md`, `deployment.md` |
+| Maintenance | `references/maintenance.md` | `deployment.md` |
 
 The end-to-end smoke after any deploy or restart:
 `cd scripts/screenshots && NOTEES_ADMIN_PASSWORD=$(cat ../../config/notees/.admin_password) node verify-min.mjs` → expect `VERIFY-PASS`.

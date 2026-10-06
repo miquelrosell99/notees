@@ -4,7 +4,7 @@
  *
  * One write path for everything: `apply` persists the envelopes to the relay
  * log FIRST and only then applies the newly-saved ones to the derived store
- * (v1 order; the log is the durability boundary). A simple in-process promise
+ * (the original order; the log is the durability boundary). A simple in-process promise
  * queue per workspace serializes writers (better-sqlite3 is synchronous, but
  * the ingest+apply pair must not interleave across concurrent requests).
  *
@@ -15,7 +15,7 @@
  * boot, instead of poisoning the whole replay). Fast path: an empty store
  * with a snapshot covering the log tail restores the snapshot bytes first.
  * Post-replay, a workspace whose log has no snapshot at all gets one from
- * the freshly converged store (§34.48) so the next fresh client restores
+ * the freshly converged store so the next fresh client restores
  * instead of replaying the whole log.
  */
 
@@ -30,7 +30,7 @@ import { uuidv7 } from "uuidv7";
 import type { RelayStorage } from "./relay-storage.js";
 
 /**
- * §34.48 — post-replay snapshot self-heal threshold. Below one catch-up
+ * Post-replay snapshot self-heal threshold. Below one catch-up
  * page a fresh client converges from seq 0 about as fast as a snapshot
  * restore, so the server-side snapshot write would buy nothing; the client
  * upload path covers those smaller logs in steady state.
@@ -93,8 +93,8 @@ export class WorkspaceManager {
       }
     }
     // Replay remaining log envelopes; applyMany-style idempotency (applied_envelope)
-    // makes the overlap with a restored snapshot harmless. The M3 E2EE slot
-    // ({"$e": …}) rides the log but is not applicable to derived state in M1.
+    // makes the overlap with a restored snapshot harmless. The E2EE slot
+    // ({"$e": …}) rides the log but is not applicable to derived state.
     const log = this.relay.allEnvelopes(workspaceId);
     let pending = 0;
     for (const envelope of log) {
@@ -116,10 +116,10 @@ export class WorkspaceManager {
   }
 
   /**
-   * §34.48 — snapshot self-heal. A workspace whose log has NO snapshot (a
+   * Snapshot self-heal. A workspace whose log has NO snapshot (a
    * post-restore wipe dropped them; a fresh relay never had a client upload
    * one) leaves every fresh client to replay the whole log (~minutes at
-   * live scale — the missing-snapshot gap after the §34.43 migration). The
+   * live scale — the missing-snapshot gap after the log migration). The
    * store was just converged by the replay above, so the server's own
    * derived state is the natural snapshot source: persist it once, covering
    * the log tail. Snapshots are an optimization, never authority — the log

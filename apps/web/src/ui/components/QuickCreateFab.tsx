@@ -1,6 +1,6 @@
 /**
- * QuickCreateFab — the mobile quick-create floating action button
- * (§34.19 MobileLayout row owed half): a fixed-position FAB, visible only at
+ * QuickCreateFab — the mobile quick-create floating action button: a
+ * fixed-position FAB, visible only at
  * narrow widths (the app.css responsive pass shows it inside the tablet
  * breakpoint and hides it on desktop, where Ctrl/Cmd+Shift+N and the shell
  * chrome own quick capture). Tapping it opens the existing QuickAddModal —

@@ -128,7 +128,7 @@ describe("CalendarView", () => {
   it("quick-create chips follow the per-workspace setting", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "When", type: "date" });
-    // A generic user class — "meeting" is system-class vocabulary since §34.36.
+    // A generic user class — "meeting" is system-class vocabulary.
     const classId = await client.createClass("gathering");
     await client.setClassProperty(classId, schemaId, {});
     // Explicit empty list for this workspace: no chips render.
@@ -150,7 +150,7 @@ describe("CalendarView", () => {
   it("quick-create chip authors a classed object with the date property and opens it", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "When", type: "date" });
-    // A generic user class — "meeting" is system-class vocabulary since §34.36.
+    // A generic user class — "meeting" is system-class vocabulary.
     const classId = await client.createClass("gathering");
     await client.setClassProperty(classId, schemaId, {});
 

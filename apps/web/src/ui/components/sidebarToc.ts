@@ -1,12 +1,12 @@
 /**
- * Sidebar TOC derivation (§34.27 L3, decision D4) — the table of contents
+ * Sidebar TOC derivation — the table of contents
  * is tree-derived, never token-derived: the content grammar has no heading
  * token (SCHEMA.md:55-68), so structure comes from the block tree itself.
  *
  * Entries, in true child order:
  *   - every main child (the render bit set — the Pages zone) is an entry;
- *     sub-pages ARE the document's sections (the same call as §34.26's
- *     slide heuristic);
+ *     sub-pages ARE the document's sections (the same call as the deck
+ *     builder's slide heuristic);
  *   - an inline-body child qualifies as a heading when its content is one
  *     short plain text line (single text token, trimmed length within the
  *     budget, no sentence-final punctuation) — outliner convention: a

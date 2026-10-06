@@ -1,5 +1,5 @@
 /**
- * PresentationOverlay — the kit's fullscreen presentation host (§34.26 P1).
+ * PresentationOverlay — the kit's fullscreen presentation host.
  *
  * A consumer-agnostic fullscreen surface: children render centered on a dark
  * stage while the overlay owns the presentation input context

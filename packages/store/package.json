@@ -1,7 +1,7 @@
 {
   "name": "@notees/store",
   "version": "0.1.0-m1",
-  "description": "Notees v2 local store: SQLite-backed derived view with better-sqlite3 and sql.js (WASM) adapters.",
+  "description": "Notees local store: SQLite-backed derived view with better-sqlite3 and sql.js (WASM) adapters.",
   "license": "AGPL-3.0",
   "type": "module",
   "sideEffects": false,

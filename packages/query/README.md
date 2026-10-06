@@ -1,9 +1,9 @@
 # @notees/query
 
-Notees v2 query engine: the versioned **QueryAST** model + a parameterized
-SQLite compiler over the v2 derived store (`@notees/store`). Port of the v1
+Notees query engine: the versioned **QueryAST** model + a parameterized
+SQLite compiler over the derived store (`@notees/store`). Port of the
 concepts (`frontend/src/core/query/compileToSqlite.ts`,
-`app/domain/entities/query_ast.py`), adapted to the v2 schema.
+`app/domain/entities/query_ast.py`), adapted to the current schema.
 
 The package is **standalone** (runtime dependency: zod only). Execution
 helpers take a structural store interface, so there is no import cycle:
@@ -22,8 +22,8 @@ const hit = matches(store, nodeId, ast, opts?);
 const ast = parseQueryAst(token.queryAst);                  // fail-loud validation
 ```
 
-`currentNodeId` is reserved for future current-node-relative scopes; the v1
-AST carries explicit ids. The compiler assumes a single-workspace store (no
+`currentNodeId` is reserved for future current-node-relative scopes; the
+original AST carries explicit ids. The compiler assumes a single-workspace store (no
 workspace filter), matching the store's read helpers. Every query filters
 `n.is_active = 1`.
 
@@ -36,14 +36,14 @@ Group     { logic: and | or, children: (Condition | Group | Not)[] }
 Not       { child: Condition | Group }
 ```
 
-Conditions (M1 subset, cleanly extensible by versioned addition):
+Conditions (the shipped subset, cleanly extensible by versioned addition):
 
 | Condition | Semantics |
 |---|---|
 | `class {classId}` | Members of the class **or any class extending it** (`class_hierarchy`, which includes the self-row). |
 | `isClass {isClass}` | `node.is_class = 0/1` — the class identity bit (Revision 11). |
 | `presentAsMain {presentAsMain}` | `node.present_as_main = 0/1` — the render bit for parented non-class nodes (main-children zone vs inline body). Class rows carry the bit as 0 (inert — ClassView by cascade); compose with `isClass:false` for "inline blocks" exactly. |
-| `content {op, value}` | `contains`: LIKE substring over the derived search plaintext (name + content tokens — the only derived plaintext in v2; it lives in the FTS index). `fts`: prefix-AND `MATCH` over `search_index`. |
+| `content {op, value}` | `contains`: LIKE substring over the derived search plaintext (name + content tokens — the only derived plaintext; it lives in the FTS index). `fts`: prefix-AND `MATCH` over `search_index`. |
 | `property {schemaId, op, value?, includeDefaults?}` | See below. `eq`, `neq`, `contains`, `exists`, `gt`, `gte`, `lt`, `lte`. |
 | `linkedTo {nodeId}` | `backlinksWithRollup` membership: a direct edge to the node, **or** an edge sourced strictly inside its subtree and targeting outside it (containment roll-up). |
 | `createdAfter / createdBefore {timestamp}` | Inclusive bounds on `node.created_at` (ISO-8601, lexicographic). |
@@ -68,15 +68,15 @@ effective(node, schema) = tombstone-suppressed authored property_value
 - `includeDefaults` (default **true**) opts out: `false` tests authored rows
   only (one `property_value` probe, no bindings CTE).
 - Operators are value-level over `json_extract(value, '$')`: `eq`/`contains`
-  match when any effective row matches; `neq` is the v1 `not_equals` port —
+  match when any effective row matches; `neq` is the `not_equals` port —
   "has at least one effective value different from v" — so unset nodes do not
-  match (pair with `exists` if they should). `gt`/`gte`/`lt`/`lte` are the v1
+  match (pair with `exists` if they should). `gt`/`gte`/`lt`/`lte` are the
   GREATER_THAN/LESS_THAN family: JSON numbers compare numerically, everything
   else (ISO-8601 dates) lexicographically.
 
 ## Text query DSL (`parseQueryLanguage`)
 
-The user-facing search grammar — port of v1 `query_language.py`, compiled by
+The user-facing search grammar — port of `query_language.py`, compiled by
 the same AST pipeline so CLI/API/UI share one language:
 
 ```
@@ -176,14 +176,14 @@ ORDER BY "isClass" ASC
 
 ## Deferred (fail loud today, cleanly extensible)
 
-- v1 condition types outside the M1 model: style marks, parent/parent_path,
+- Condition types outside the shipped model: style marks, parent/parent_path,
   child/child_path, page, tag, flag, reference_path, extends (covered by
   `class` via the hierarchy closure), regex (needs a SQLite extension),
   in/not_in.
 - DSL sugar not yet mapped: `collection:` scope, `author:` (relation-based),
   `asset:`/`citekey:` fields (citekey is reachable today as
   `prop:citekey:…`).
-- `content contains` passes `%`/`_` through to LIKE (v1 parity; wildcard
+- `content contains` passes `%`/`_` through to LIKE (parity; wildcard
   escaping is a later concern).
 
 ## Protocol wiring
@@ -193,6 +193,6 @@ wire-adjacent home; this package's `src/ast.ts` re-exports it unchanged, so
 `import { … } from "@notees/query"` keeps working).
 `packages/protocol/src/content-mark.ts` types the `query` content token's
 `queryAst` as `z.union([z.lazy(() => queryAstSchema), z.record(z.unknown())])`:
-known v1 ASTs parse into the typed model; newer/foreign AST versions apply as
+known ASTs parse into the typed model; newer/foreign AST versions apply as
 plain records (the AST evolves by version; the content grammar must not
 reject them).

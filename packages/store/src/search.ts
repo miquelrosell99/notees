@@ -1,5 +1,5 @@
 /**
- * FTS5 maintenance (v1 `derived/search.py` port, FTS4 -> FTS5). Rows are
+ * FTS5 maintenance (port of `derived/search.py`, FTS4 -> FTS5). Rows are
  * addressed by rowid through the search_index_docid map, so reindex and
  * delete are O(log n) instead of a full docstore scan per statement.
  */
@@ -21,7 +21,7 @@ export function reindexNode(db: StoreDatabase, nodeId: string): void {
   if (!row) return;
   // Title-is-content: the indexed text is the content plaintext — a page's
   // title lives in its content, so title search rides the same index; the
-  // node's text-ish property values fold in too (§34.30 M5).
+  // node's text-ish property values fold in too.
   const indexed = extractSearchPlaintext(db, row.content, nodeId);
   if (!indexed) {
     removeSearchIndexEntry(db, nodeId);
@@ -40,7 +40,7 @@ export function reindexNode(db: StoreDatabase, nodeId: string): void {
 
 /**
  * The maximal letter/digit runs of a query — the prefix terms the MATCH
- * query ANDs. Exposed for the snippet helper (M3), which needs the same
+ * query ANDs. Exposed for the snippet helper, which needs the same
  * term splitting without the FTS syntax.
  */
 export function matchTerms(query: string): string[] {
@@ -51,8 +51,8 @@ export function matchTerms(query: string): string[] {
 }
 
 /**
- * Prefix-AND FTS query (v1 client search pattern) with quoted-phrase support
- * (§34.30 C1): each maximal run of letters/digits OUTSIDE double quotes
+ * Prefix-AND FTS query (the client search pattern) with quoted-phrase
+ * support: each maximal run of letters/digits OUTSIDE double quotes
  * becomes a bare prefix token; each double-quoted segment becomes an exact
  * FTS phrase (valid MATCH syntax on FTS4 and FTS5 alike — verified against
  * the shipped sql.js wasm; FTS5's `"term"*` phrase-PREFIX stays off the table
@@ -94,7 +94,7 @@ function parseSearchCursor(cursor: string | null | undefined): number {
   return Number(cursor);
 }
 
-// --- ranked search (§34.30 M2) ---------------------------------------------------
+// --- ranked search ---------------------------------------------------------------
 //
 // FTS5 orders by the hidden `rank` column (bm25 — ascending, most negative
 // first) directly in SQL. The stock sql.js build's FTS4 has NO rank column
@@ -175,7 +175,7 @@ export function searchNodes(db: StoreDatabase, query: string, limit: number): Ra
 }
 
 /**
- * Cursor-paginated ranked search (§34.30 C5): the same deterministic order
+ * Cursor-paginated ranked search: the same deterministic order
  * as searchNodes, sliced one page at a time. The returned cursor is the
  * opaque next-page argument (null = done).
  */
@@ -228,7 +228,7 @@ export function searchNodesPage(
   return { hits, nextCursor: hits.length === limit ? String(offset + limit) : null };
 }
 
-// --- snippets (§34.30 M3) ----------------------------------------------------------
+// --- snippets ---------------------------------------------------------------------
 //
 // The snippet is computed in JS over the node's derived plaintext — the same
 // text extractSearchPlaintext put in the index — rather than through the SQL

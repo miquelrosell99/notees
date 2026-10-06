@@ -1,5 +1,5 @@
 /**
- * Share tests (§34.62 shares record) — READ-ONLY public page shares:
+ * Share tests — READ-ONLY public page shares:
  *
  *  - mint/list/revoke management surface + its owner/admin auth gates
  *    (operator key, admin session, owner membership pass; strangers and

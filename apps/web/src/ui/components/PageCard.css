@@ -146,7 +146,7 @@
   box-shadow: var(--shadow-elevation-1, 0 2px 8px rgba(0, 0, 0, 0.18));
 }
 
-/* The context block (TOC + references of the main-view page, §34.27 L3)
+/* The context block (TOC + references of the main-view page)
    stacks above the peek cards; the sections inside keep their own card
    surfaces, so the wrapper only spaces them. */
 .nt-right-card-context {

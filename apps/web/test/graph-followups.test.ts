@@ -1,5 +1,5 @@
 /**
- * The §34.85 follow-up modules: fixed layouts (deterministic radial
+ * The graph follow-up modules: fixed layouts (deterministic radial
  * placements), the orphan filter, temporal sparsification, the minimap
  * coordinate math, and QueryAST color-group evaluation.
  */

@@ -1,5 +1,5 @@
 /**
- * §34.56 property-wire batch — PG5 (per-element value UUID + OR-Set
+ * Property-wire batch — PG5 (per-element value UUID + OR-Set
  * multi-values), PC4 (class_property.active), PC6 (date-node-backed
  * qualifiers): store semantics asserted on BOTH shipped adapters, plus
  * forward/backward fixture convergence (single global log, both delivery
@@ -7,7 +7,7 @@
  *
  * LOCKSTEP-PENDING: the new payload keys (elementId, active) and the
  * qualifier ref shape ship inert — no TS writer emits them until the GTK
- * m6+/Flutter m16+ releases parse them (§34.54/§34.56 law). These tests
+ * m6+/Flutter m16+ releases parse them. These tests
  * exercise the appliers directly.
  */
 
@@ -448,7 +448,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     });
   });
 
-  describe("§34.90 — schema-level render contracts (display/readonly/hideWhenEmpty) + option icon", () => {
+  describe("schema-level render contracts (display/readonly/hideWhenEmpty) + option icon", () => {
     const SCHEMA_SELECT = "0192a000-0000-7000-8000-0000000000a6";
 
     it("display persists on the schema and rides the effective read (panel default; unbound values included)", () => {
@@ -475,7 +475,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       store.apply(env("class.property.unset", { classId: CLASS_A, propertySchemaId: SCHEMA_SELECT }, (ts += 100)));
       expect(store.getEffectiveProperties(PAGE).find((r) => r.propertySchemaId === SCHEMA_SELECT && r.source === "authored")?.display).toBe("bullet");
       // Patch semantics: an omitted display keeps the stored position; a
-      // present null CLEARS it (the §34.90 keep/clear contract).
+      // present null CLEARS it (the keep/clear contract).
       store.apply(env("propertySchema.update", { propertySchemaId: SCHEMA_SELECT, name: "stage2" }, (ts += 100)));
       expect(
         (store.database.prepare("SELECT display FROM property_schema WHERE id = ?").get(SCHEMA_SELECT) as { display: string | null }).display,
@@ -489,7 +489,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       let ts = 1727200030500;
       store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_SELECT, name: "stage", type: "select" }, (ts += 100)));
       store.apply(env("object.create", { objectId: PAGE, classIds: [CLASS_A] }, (ts += 100)));
-      // §34.90: display/readonly/hideWhenEmpty are retired on the binding op —
+      // Display/readonly/hideWhenEmpty are retired on the binding op —
       // the store validates envelopes at apply and rejects them loud (the
       // strict-wire law, same as nodeType).
       expect(() =>
@@ -632,7 +632,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
   });
 });
 
-describe("fixture convergence (§34.56 batch)", () => {
+describe("fixture convergence (property-wire batch)", () => {
   const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "protocol", "fixtures");
   function loadFixture(name: string): Record<string, unknown>[] {
     const raw = JSON.parse(readFileSync(join(fixturesDir, name), "utf8")) as {

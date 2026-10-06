@@ -1,5 +1,5 @@
 /**
- * Data-level color grammar (implementation-plan §34.43).
+ * Data-level color grammar.
  *
  * A node/class `color` is ONE string field carrying either a preset token
  * or a custom hex color. This replaces the first v3 encoding — CSS variable

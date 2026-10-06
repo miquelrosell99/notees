@@ -1,5 +1,5 @@
 /**
- * EmbedCardView — the intermediate embed reference views (§34.34 B8): a
+ * EmbedCardView — the intermediate embed reference views: a
  * bounded card for an `embed_ref` token carrying `view: "small_card" |
  * "wide_card"`, sitting between the inline `mention` (id-only, resolves at
  * render) and the full `embed_ref` transclusion (EmbedView — the live

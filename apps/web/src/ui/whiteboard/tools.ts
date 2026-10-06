@@ -1,5 +1,5 @@
 /**
- * Whiteboard tool palette — the §34.19 whiteboard-toolset register row
+ * Whiteboard tool palette — the full toolset
  * (select/move, card, sticky note, rect/ellipse/line/arrow, the
  * pen/highlighter/eraser group, freehand stroke, text, connector). Tools are
  * pure interaction modes: they decide what a surface pointer gesture means
@@ -53,7 +53,7 @@ export const WHITEBOARD_TOOLS: readonly WhiteboardToolDef[] = [
   { id: "ellipse", label: "Add ellipse", shortLabel: "Ellipse", icon: "circle-outline", gesture: "drag", cursor: "crosshair" },
   { id: "line", label: "Add line", shortLabel: "Line", icon: "minus", gesture: "drag", cursor: "crosshair" },
   { id: "arrow", label: "Add arrow", shortLabel: "Arrow", icon: "arrow-top-right", gesture: "drag", cursor: "crosshair" },
-  // The pen/highlighter/eraser group (§34.19 whiteboard row owed modes):
+  // The pen/highlighter/eraser group:
   // pen = freehand stroke; highlighter = freehand stroke with the layout
   // schema's `highlight` flag (translucent wide marker); eraser = drag to
   // remove strokes/shapes under the pointer. Pen/highlighter are one-shot

@@ -1,5 +1,6 @@
 /**
- * TextPropertyRow — one text property rendered as a BLOCKS LIST (§34.80): a single property row whose values are the carrier blocks
+ * TextPropertyRow — one text property rendered as a BLOCKS LIST
+ *: a single property row whose values are the carrier blocks
  * themselves (editable, children and all) — never repeated "label: value"
  * entries per value.
  *

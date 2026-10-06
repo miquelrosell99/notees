@@ -62,7 +62,7 @@ function EmbedPlaceholder({ label, detail }: { label: string; detail: string }) 
 }
 
 /**
- * The embed view switcher (§34.34 B8 authoring): Full / Card / Wide write
+ * The embed view switcher: Full / Card / Wide write
  * the token's `view` field through the standard content path — one
  * `object.update` replacing the token (absent view = the full transclusion,
  * the grammar's default). Rendered in the embed chrome only when the write
@@ -131,8 +131,8 @@ function EmbedBlock({
   resolveName: (nodeId: string) => string | null;
   resolveVerb: (propertySchemaId: string) => string | null;
 }) {
-  // §34.34 B4: a table-classed block renders through the BlockRow grid even
-  // read-only (the directive's "same BlockRow path" for projections) — the
+  // A table-classed block renders through the BlockRow grid even
+  // read-only (the "same BlockRow path" for projections) — the
   // embed's own row renderer would flatten the rows/cells into a plain list.
   if (tree.node.classIds.includes(tableClassIdOf(client))) {
     return <BlockRow tree={tree} client={client} resolveName={resolveName} readOnly />;

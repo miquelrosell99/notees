@@ -1,5 +1,5 @@
 /**
- * Template apply orchestration (§34.25 T3/T4) — the thin client-composition
+ * Template apply orchestration — the thin client-composition
  * layer over the clone engine that every instantiation surface shares:
  * the slash flow, the TemplateGallery, and the Class View apply-to-existing
  * gesture. No new ops — everything composes the existing carriers through
@@ -44,11 +44,11 @@ export async function instantiateTemplateToNewPage(
 }
 
 /**
- * Apply-to-existing (§34.25 T4, the D1 amendment path): graft the template
+ * Apply-to-existing: graft the template
  * onto a node that already exists (typically one just assigned the
  * template-bearing class) and record generatedFrom provenance.
  *
- * Merge semantics (A4): the generatedFrom marker IS the applied-template
+ * Merge semantics: the generatedFrom marker IS the applied-template
  * marker — a node already generated from this template is skipped, so a
  * partial earlier apply is never re-applied (the naive-reapply duplication
  * the brief warns about). The generic duplicate gesture never reaches here

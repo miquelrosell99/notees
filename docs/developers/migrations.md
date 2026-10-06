@@ -2,7 +2,7 @@
 
 How to change data the live relay log already carries. Read this before writing
 or running any `scripts/migrate-*.mts`. Companion docs: `architecture.md` (the log/derived split),
-`development.md` §3 (the fixture gate), `releases.md` (client lockstep ordering).
+`development.md` (the fixture gate), `releases.md` (client lockstep ordering).
 
 ## 0. The law that creates migrations
 
@@ -16,7 +16,7 @@ ride a different (cheaper) path — decide which you have first:
 |---|---|---|
 | Additive **inside options/metadata JSON** (option `icon`, option `color`) | No op-shape change; old parsers STRIP unknown keys (the option record is non-strict) — syncs through old clients | None |
 | Additive **optional field on a strict payload** (`display`, number formats, PC4 `active`) | New payload key; pre-batch clients **reject** envelopes carrying it → lockstep first, then append | None |
-| **Retired key / moved field** (`nodeType`, `var(--color-preset-*)`, the §34.90 binding flags) | In-place log rewrite + compensation + epoch bump (below) | One rewrite |
+| **Retired key / moved field** (`nodeType`, `var(--color-preset-*)`, the binding flags) | In-place log rewrite + compensation + epoch bump (below) | One rewrite |
 | **Seed content change** (names, option styles, family shape) | Append-only for live workspaces (self-heal or one-time script); seeds themselves only shape new workspaces | None |
 
 The asymmetry that trips people: **option-record keys strip, payload keys
@@ -83,7 +83,7 @@ The immutable log gains envelopes; every replica applies them in order.
 ## 2. Client lockstep ordering (strict-payload changes)
 
 1. Ship the TS reference (schemas, store, appliers, fixtures, tests).
-2. Port GTK + Flutter, run their suites, tag both (`releases.md` §3).
+2. Port GTK + Flutter, run their suites, tag both (`releases.md`).
 3. Only then run the live migration / flip settings — a pre-batch client
    rejects the new envelopes and its sync stalls until updated.
 4. Option-record additions (strip-safe) may migrate BEFORE the clients — they
@@ -108,8 +108,8 @@ The immutable log gains envelopes; every replica applies them in order.
 | `migrate-text-carriers.mts` | A/B | text-property carrier normalization |
 | `migrate-cover-to-asset.mts` | A | covers became plain assets |
 | `migrate-system-names.mts` | A | display-wording renames via appended `class.update`/`propertySchema.update` |
-| `migrate-task-status-styles.mts` | A | task-status option icons/colors + `display: "bullet"` on the Status **schema** (§34.90 shape) |
-| `migrate-binding-flags-to-schema.mts` | B | `hideWhenEmpty`/`readonly`/`display` off `class.property.set` onto the property schema (§34.90) |
+| `migrate-task-status-styles.mts` | A | task-status option icons/colors + `display: "bullet"` on the Status **schema** |
+| `migrate-binding-flags-to-schema.mts` | B | `hideWhenEmpty`/`readonly`/`display` off `class.property.set` onto the property schema |
 
 All scripts: **dry-run by default**, `--apply` to write, `--data-dir` +
 `--workspace` flags (the owner workspace id is the default). Run via

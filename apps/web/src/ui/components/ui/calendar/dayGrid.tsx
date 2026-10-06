@@ -1,6 +1,6 @@
 /**
  * CalendarDayGrid — the one day-grid implementation behind every calendar
- * surface (§34.28 #3: the top-bar CalendarPopup and the Calendar view's
+ * surface: the top-bar CalendarPopup and the Calendar view's
  * MonthCalendar panel share it — no third calendar family). Renders the
  * Mo–Su weekday header + the visible month's day cells, with the popup's
  * established token treatment: today filled (`calendar-day today`), a
@@ -50,12 +50,12 @@ export function useWeekdayHeader(firstDayOfWeek: number): string[] {
 
 export interface CalendarDayExtraMarks {
   /**
-   * §34.28 #11 range-aware dots: objects reference this day (date refs and
+   * Range-aware dots: objects reference this day (date refs and
    * date_range ends fan out to the deterministic day node) — set when the
    * day has dated activity but no page of its own.
    */
   dated?: boolean;
-  /** §34.28 #15: the day page carries the reviewed flag. */
+  /** The day page carries the reviewed flag. */
   reviewed?: boolean;
 }
 

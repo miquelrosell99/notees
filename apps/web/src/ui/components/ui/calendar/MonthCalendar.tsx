@@ -1,7 +1,7 @@
 /**
  * MonthCalendar — the Calendar view's right-column month panel (and the
  * reusable month-grid primitive, exported through the ui barrel). Built
- * INSIDE the first calendar family (§34.28 #3): it drives the same
+ * INSIDE the first calendar family: it drives the same
  * useCalendarMode navigation as the top-bar CalendarPopup and renders days
  * through the shared CalendarDayGrid — the popup and this panel share one
  * day-grid implementation, and the pickers/ family stays untouched.
@@ -39,7 +39,7 @@ export interface MonthCalendarProps {
   firstDayOfWeek?: number;
   /** Whether the day page for a local YYYY-MM-DD exists in the workspace. */
   hasNote: (isoDate: string) => boolean;
-  /** Secondary marks beyond has-note (§34.28 #11 range-aware dots, #15 reviewed). */
+  /** Secondary marks beyond has-note (range-aware dots, reviewed). */
   extraMarks?: ((isoDate: string) => CalendarDayExtraMarks) | undefined;
 }
 

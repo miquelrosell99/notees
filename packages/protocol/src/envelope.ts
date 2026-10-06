@@ -1,13 +1,13 @@
 /**
  * Operation envelope v3 — the wire format of the Notees protocol.
  *
- * Clean-break properties vs v1 (assessment §34.4):
+ * Clean-break properties (the Revision-11 assessment):
  *  - camelCase everywhere, on the wire and in payloads;
  *  - `protocolVersion: 3` is mandatory (a missing version is rejected, and
  *    only 3 is accepted — Revision 11, 2026-10-02);
  *  - first-class `deviceId` and optional `client` provenance claims;
  *  - `payload` is a plaintext object OR the encryption slot `{"$e": {iv, ct}}`
- *    (reserved for M3 E2EE; defined since envelope v2 so E2EE never breaks
+ *    (reserved for E2EE; defined since envelope v2 so E2EE never breaks
  *    the protocol);
  *  - `seq` is deliberately absent: server-assigned ordering never travels inside
  *    the envelope (it rides on catch-up frames / WS ops frames instead).

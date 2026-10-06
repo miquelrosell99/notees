@@ -1,5 +1,5 @@
 /**
- * useLazyInView — the §34.75 image lazy-loading gate.
+ * useLazyInView — the image lazy-loading gate.
  *
  * Cards render their imagery placeholder immediately; the EXPENSIVE part
  * (the full-bytes fetch + base64 + decode per cover) starts only when the

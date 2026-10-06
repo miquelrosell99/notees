@@ -1,5 +1,5 @@
 /**
- * PropertyView (§34.32 PG12) — web level, jsdom over the in-process
+ * PropertyView — web level, jsdom over the in-process
  * WorkspaceClient:
  *
  *  - the inspector renders the schema's metadata (type/multi/scope line),
@@ -74,7 +74,7 @@ async function seedInspector(client: WorkspaceClient): Promise<{
   return { schemaId, classId, carriers, unvalued };
 }
 
-describe("PropertyView (§34.32 PG12)", () => {
+describe("PropertyView", () => {
   it("shows schema metadata, bound classes, and the authored-value references", async () => {
     const client = await seedClient();
     const { schemaId, carriers } = await seedInspector(client);
@@ -106,7 +106,7 @@ describe("PropertyView (§34.32 PG12)", () => {
     expect(table.queryByText("Gamma")).toBeNull();
     expect(table.getByText("value-Alpha")).not.toBeNull();
 
-    // The v1 open-arrow navigates (the name cell click edits now).
+    // The open-arrow navigates (the name cell click edits now).
     fireEvent.click(table.getByRole("button", { name: "Open Alpha" }));
     expect(onOpenPage).toHaveBeenCalledWith(carriers[0]);
     fireEvent.click(screen.getByRole("button", { name: "Close" }));

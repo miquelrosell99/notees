@@ -1,10 +1,10 @@
 /**
- * §34.74 cover-class retirement — one-shot
+ * Cover-class retirement — one-shot
  * migration converting the withdrawn `cover` system class's members onto
  * the plain `asset` class:
  *
  *   - the `cover` class (…0001-000000000042) was minted and withdrawn the
- *     same day (§34.56 → §34.74): it duplicated the cover PROPERTY's
+ *     same day: it duplicated the cover PROPERTY's
  *     meaning. A cover is an ordinary asset-classed node; the property
  *     value is the only authority.
  *   - per member of the cover class: assign the system `asset` class when

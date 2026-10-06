@@ -1,5 +1,5 @@
 /**
- * Repair mention tokens whose captured `text` is a raw uuid — the v1→v2
+ * Repair mention tokens whose captured `text` is a raw uuid — the
  * migrator wrote the link TARGET id as the text of unlabeled node_links
  * (scripts/migrate-v1/content_ast.py, fixed in the same commit as this
  * script). The uuid leaked into excerpts, breadcrumbs and search.

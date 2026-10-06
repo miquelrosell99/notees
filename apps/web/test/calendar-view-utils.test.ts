@@ -114,7 +114,7 @@ describe("buildOpenTasksAst", () => {
         value: "opt-cancelled",
       },
     });
-    // The §34.28 #4b caveat in code: no neq anywhere in the tree.
+    // The compiler caveat in code: no neq anywhere in the tree.
     expect(JSON.stringify(ast)).not.toContain('"neq"');
   });
 
