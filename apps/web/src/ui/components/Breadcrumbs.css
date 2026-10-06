@@ -144,27 +144,35 @@
 
 /* ─── Parent-edit gestures (§34.27 L4) ─────────────────────────────────── */
 
-/* The chevron rides inside the crumb item, revealed on hover/focus. */
+/* The chevron rides inside the crumb item, revealed on hover/focus.
+   Collapsed to zero width at rest (the negative margin cancels its leading
+   gap, so the crumb keeps the exact footprint of one without the
+   affordance — symmetric trails); hovering the crumb expands it to make
+   room for the button. */
 .node-breadcrumb-edit {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0;
   margin-left: calc(-1 * var(--spacing-1));
-  width: var(--height-xs);
+  width: 0;
   height: var(--height-xs);
   flex-shrink: 0;
+  overflow: hidden;
   border: none;
   border-radius: var(--shape-small);
   background: transparent;
   color: var(--color-on-surface-variant);
   cursor: pointer;
   opacity: var(--opacity-0);
-  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+  transition:
+    width var(--motion-duration-short) var(--motion-easing-standard),
+    opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .node-breadcrumb-item:hover .node-breadcrumb-edit,
 .node-breadcrumb-edit:focus-visible {
+  width: var(--height-xs);
   opacity: var(--opacity-100);
 }
 

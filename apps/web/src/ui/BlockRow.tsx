@@ -302,7 +302,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
 
   return (
     <div
-      className={`nt-block${readOnly ? " nt-block--readonly" : ""}${dropClass}${selectedClass}`}
+      className={`nt-block${readOnly ? " nt-block--readonly" : ""}${editing ? " nt-block--editing" : ""}${dropClass}${selectedClass}`}
       ref={setNodeRef}
       data-block-id={node.id}
       style={{

@@ -3435,3 +3435,26 @@ Owner report: empty blocks were not clickable anywhere along the content width. 
 **Verification:** full @notees/web suite re-run with both slices in the tree — 118/118 files, 1169/1169 tests green (3 reported unhandled errors = the known sql.js "Database closed" teardown flake class the day-features instrumentation is hunting; exit 0) · new editable-dom.test.ts 3/3 · typecheck clean.
 
 **Register cross-checks:** `apps/web/test/editable-dom.test.ts` · `docs/developers/ui-primitives.md` law 5 · AGENTS.md UI-primitives paragraph · no SCHEMA.md/wire change (display-only UI) · ships with the next web image.
+
+### 34.112 polish(web): breadcrumb edit chevron — reserve its space only on hover (2026-10-06 — SHIPPED)
+
+Owner visual directive: the editable breadcrumb trail must be symmetric at rest. Since §34.27 L4 the per-crumb parent-edit chevron (`.node-breadcrumb-edit`) was always in the flex layout at its full `var(--height-xs)` width with `opacity: 0` until hover — so every crumb carrying the affordance permanently reserved ~24px of dead space, shifting its separator and breaking even spacing across the trail (crumbs with/without the affordance, and against the leaf crumb which never carries one).
+
+Fix (`apps/web/src/ui/components/Breadcrumbs.css`, CSS-only): the chevron collapses to `width: 0` + `overflow: hidden` at rest — the existing `margin-left: calc(-1 * var(--spacing-1))` cancels its leading flex gap, so a resting editable crumb measures exactly like a plain link + separator crumb (the icon wipes in from the center as the width animates). The reveal selectors are unchanged (`.node-breadcrumb-item:hover` / `:focus-visible`) and now also expand the width, so hovering a crumb grows it to accommodate the button; keyboard focus expands it the same way (width-0 stays focusable — no display:none, tab order and the a11y tree untouched, the global `button:focus-visible` outline is the element's own and is not clipped by its overflow). Right-anchored trails (sidebar card headers) share the rule — their resting crumbs get symmetric too, and the `leadClipped` ResizeObserver simply measures the now-smaller scrollWidth (a trail near the clip boundary may un-clip; correct). Token-only values, the motion tokens it already used; no TS touched.
+
+**Verification:** full @notees/web suite — 118 files / 1169 tests green · the two suites referencing the component (page-layouts, system-sections: 40 tests) exercise the edit button by role/name/class presence, all unaffected (the button stays in the DOM).
+
+**Register cross-checks:** docs/ux.md "Breadcrumbs edit the tree" sentence gains the at-rest-symmetry clause · no SCHEMA.md/wire change (display-only UI, no client lockstep) · ships with the next web image.
+
+### 34.113 fix(web): block collapse chevron hover-only + the editing block's bullet highlights (2026-10-06 — SHIPPED)
+
+Owner visual directives, the same resting-calm class as §34.112: (1) block collapse arrows show only on hover — every expanded-with-children block wore a permanent ▾ because the reveal rule carried `.nt-block-chevron[aria-expanded="true"]` (aria-state driving visibility, undocumented drift from the comment above it, which always described hover/focus reveal); (2) a block in edit mode must read as engaged — its bullet was indistinguishable from resting rows once the pointer left the grip.
+
+What shipped (`apps/web/src/ui/app.css` + `BlockRow.tsx`, display-only):
+
+- **Chevron at rest is gone.** The reveal selector list drops the `[aria-expanded="true"]` arm; the chevron now shows only on `.nt-block-grip:hover` (hovering the bullet gutter, where the arrow sits) and while the block has focus (`:focus-within` — the keyboard parity). The attribute stays on the button (a11y semantics unchanged); a collapsed block's persistent signal remains the bullet ring, the 14px row gutter keeps reserving the arrow's absolute slot (no layout shift on hover — the indent rail and children margins are untouched).
+- **Editing bullet highlight.** `BlockRow` adds `nt-block--editing` on the block root while the contentEditable mounts; the class mirrors the bullet-hover treatment on both bullet variants (dot + class-icon): full opacity, `--color-accent`, `scale(1.2)`. The class rides React edit state rather than `:focus-within` so the signal is exactly "edit mode", not "any focus inside the row" (the §34.90 property buttons are focusable row children).
+
+**Verification:** full @notees/web suite — 118 files / 1169 tests green · the chevron suites (outliner-editor, view-transforms, block-selection: 45 tests) assert by role/name/DOM presence — all unaffected (the button stays mounted; only the opacity selector changed).
+
+**Register cross-checks:** docs/ux.md editor paragraph (both clauses) · §34.112's breadcrumb slice ships in the same commit · no SCHEMA.md/wire change (display-only UI, no client lockstep) · ships with the next web image (same deploy as §34.112).
