@@ -141,12 +141,23 @@
   color: var(--color-on-surface-variant);
 }
 
-/* Sync dot + hover detail panel. */
+/* Sync dot — the indicator is a button once the client is live (§34.115):
+   plain button chrome, same disc states. */
 .nt-sync-dot {
   position: relative;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   padding: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: var(--shape-medium, 8px);
+}
+
+button.nt-sync-dot:focus-visible {
+  outline: var(--border-width-thick, 2px) solid var(--color-primary);
+  outline-offset: var(--focus-outline-offset, 2px);
 }
 
 .nt-sync-dot-disc {
@@ -172,40 +183,6 @@
 @keyframes nt-sync-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }
-}
-
-.nt-sync-panel {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 70;
-  min-width: 220px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
-  background: var(--color-surface-container-high, var(--color-surface));
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
-  border-radius: var(--shape-medium, 8px);
-  box-shadow: var(--shadow-elevation-2);
-  font-size: 12px;
-  color: var(--color-on-surface);
-}
-
-.nt-sync-panel-row {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--spacing-4, 16px);
-  white-space: nowrap;
-}
-
-.nt-sync-panel-row > span:first-child:not(:last-child) {
-  color: var(--color-on-surface-variant);
-}
-
-.nt-sync-panel-error {
-  color: var(--color-error);
-  white-space: normal;
 }
 
 .sr-only {

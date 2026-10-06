@@ -6,7 +6,7 @@
  *         history chevron), calendar, right-sidebar show/hide
  */
 
-import { useState, type ReactNode, type RefObject } from "react";
+import type { ReactNode, RefObject } from "react";
 
 import type { SyncStatusSnapshot } from "@/core/workspace-client.js";
 import type { UndoUiState } from "@/core/undo-journal.js";
@@ -15,58 +15,44 @@ import { Icon } from "../Icon.js";
 import "./TopBar.css";
 
 /**
- * SyncDot — the overall sync indicator: a colored dot only. Hover opens a
- * small panel with the operational details (state, backlog, cursor,
- * realtime, last error).
+ * SyncDot — the overall sync indicator: a colored dot only. Click opens the
+ * sync details modal in the App layer (it needs the client); when no handler
+ * is wired (boot screens) the dot renders as a plain status span.
  */
-function SyncDot({ snapshot }: { snapshot: SyncStatusSnapshot }) {
-  const [hover, setHover] = useState(false);
+function SyncDot({
+  snapshot,
+  onOpen,
+}: {
+  snapshot: SyncStatusSnapshot;
+  onOpen?: (() => void) | undefined;
+}) {
   const backlog = snapshot.pending + snapshot.failed;
   const state =
     snapshot.status === "error" ? "error" : snapshot.status === "syncing" ? "syncing" : backlog > 0 ? "backlog" : "idle";
-  const close = () => setHover(false);
+  if (onOpen === undefined) {
+    return (
+      <span className={`nt-sync-dot nt-sync-dot-${state}`} role="status">
+        <span className="nt-sync-dot-disc" aria-hidden="true" />
+        <span className="sr-only">{`Sync: ${state}`}</span>
+      </span>
+    );
+  }
   return (
-    <span
+    <button
+      type="button"
       className={`nt-sync-dot nt-sync-dot-${state}`}
-      role="status"
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={close}
-      onFocus={() => setHover(true)}
-      onBlur={close}
+      aria-label={`Sync: ${state}. Open sync details`}
+      title={`Sync: ${state} — open details`}
+      onClick={onOpen}
     >
       <span className="nt-sync-dot-disc" aria-hidden="true" />
-      <span className="sr-only">{`Sync: ${state}`}</span>
-      {hover && (
-        <span className="nt-sync-panel" role="tooltip">
-          <span className="nt-sync-panel-row">
-            <strong>Sync</strong>
-            <span>{snapshot.status}{snapshot.realtime ? " · realtime" : " · realtime off"}</span>
-          </span>
-          <span className="nt-sync-panel-row">
-            <span>Backlog</span>
-            <span>{snapshot.pending} pending · {snapshot.failed} failed</span>
-          </span>
-          {snapshot.quarantined > 0 && (
-            <span className="nt-sync-panel-row">
-              <span>Quarantined</span>
-              <span>{snapshot.quarantined}</span>
-            </span>
-          )}
-          <span className="nt-sync-panel-row">
-            <span>Server seq</span>
-            <span>{snapshot.cursorSeq}</span>
-          </span>
-          {snapshot.error !== null && (
-            <span className="nt-sync-panel-row nt-sync-panel-error">{snapshot.error}</span>
-          )}
-        </span>
-      )}
-    </span>
+    </button>
   );
 }
 
 export function TopBar({
   syncStatus,
+  onOpenSyncDetails,
   breadcrumbs,
   sidebarOpen,
   rightPanelOpen,
@@ -83,6 +69,8 @@ export function TopBar({
   onToggleRightPanel,
 }: {
   syncStatus: SyncStatusSnapshot;
+  /** Opens the sync details modal (§34.115); undefined on boot screens. */
+  onOpenSyncDetails?: (() => void) | undefined;
   /** The current node's breadcrumb trail (center section). */
   breadcrumbs?: ReactNode;
   sidebarOpen: boolean;
@@ -118,8 +106,8 @@ export function TopBar({
           <Icon path="mdi-page-layout-sidebar-left" size={1} />
         </button>
         <span className="nt-wordmark">Notees</span>
-        
-        <SyncDot snapshot={syncStatus} />
+
+        <SyncDot snapshot={syncStatus} onOpen={onOpenSyncDetails} />
       </div>
       <div className="nt-topbar-center">{breadcrumbs}</div>
       <div className="nt-topbar-right">
