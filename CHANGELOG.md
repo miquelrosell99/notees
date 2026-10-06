@@ -40,6 +40,18 @@ predating this file.
   `notees-operations` skills point here. Deliberate exception: the protocol
   fixtures under `packages/protocol/fixtures/` keep their metadata untouched —
   those bytes are sha256-pinned across the TS/GTK/Flutter convergence gate.
+- **refactor(web): S4 of the main-content restructure — the body is the
+  plain collection, fed by `childQuery`.** The body's item resolution
+  becomes `components/childQuery.ts` beside the SectionSpec factories: page
+  mode = children as siblings; block mode (`showRoot`) = the node as the
+  single root item (the M2-verified item shape — no NodeCollectionProps
+  addition). `FocusedBlockView` folds into the NodeView block branch (the
+  `.nt-focused-block` chrome preserved). M19's exclusion lands with it:
+  comment-classed children are cut at every level (whole subtrees) — inert
+  until the Comments section (S7) gives them a home. New unit coverage
+  (test/child-query.test.ts); typecheck clean, 120 tests green across the
+  touched surface. Design:
+  `.plans/2026-10-06-1352-main-content-restructure/`.
 - **refactor(web): S3b of the main-content restructure — the chrome leaves
   move to `PageChrome`.** `ui/PageChrome.tsx` extracted from PageView: the
   `NodeTopbar` (sidebar toggle + classes corner + chromeRight), the

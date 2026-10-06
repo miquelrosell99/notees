@@ -27,7 +27,7 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { PageView, BLOCKS_VIEW_MODES } from "./PageView.js";
 import { ClassView } from "./ClassView.js";
-import { FocusedBlockView } from "./components/FocusedBlockView.js";
+import { ReferenceSubtree } from "./components/ReferenceSubtree.js";
 import { NodeMenuButton, type ShareTarget } from "./components/NodeMenuButton.js";
 import { ViewToolbar } from "./views/ViewToolbar.js";
 import { useViewModePreference } from "./viewPrefs.js";
@@ -111,7 +111,15 @@ export function NodeView({
   const view = node.isClass ? (
     <ClassView client={client} classId={nodeId} onOpenClass={onOpenNode} onOpenPage={onOpenNode} />
   ) : rendersAsInlineBlock(node) ? (
-    <FocusedBlockView client={client} blockId={nodeId} onOpenNode={onOpenNode} />
+    /* Block mode (S4): the body is the plain collection — the node itself as
+       the root row with its children under it (ReferenceSubtree builds the
+       minimal outliner + SortableContext and renders the real editable
+       BlockRow; no drag context here, so rows are editable but not
+       draggable — the context-presence law). The wrapper keeps the
+       FocusedBlockView-era chrome class (nt-page nt-focused-block). */
+    <div className="nt-page nt-focused-block">
+      <ReferenceSubtree client={client} rootId={nodeId} onOpenNode={onOpenNode} />
+    </div>
   ) : (
     <PageView
       client={client}
