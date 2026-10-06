@@ -399,24 +399,18 @@ select:focus-visible {
 
 /* --- the panelled main layout (owner 2026-10-06, Capacities-style) -------- */
 
-/* The page top bar: the side-panel collapse toggle at the content's
-   top-left corner, then the classes pills (the "non-sidebar part" corner). */
-.nt-page-topbar {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  margin-bottom: var(--spacing-3);
-}
-
-.nt-page-classes-inline {
-  min-width: 0;
-}
-
-/* The body row: the left properties panel beside the content column. */
+/* The body row: the hamburger rail (pinned to the top-left corner), the
+   left properties panel, and the content column. */
 .nt-page-body {
   display: flex;
   align-items: flex-start;
-  gap: var(--spacing-6);
+  gap: var(--spacing-3);
+}
+
+.nt-page-panel-rail {
+  flex: none;
+  position: sticky;
+  top: var(--spacing-4);
 }
 
 .nt-page-side-panel {
@@ -435,6 +429,17 @@ select:focus-visible {
 .nt-page-content {
   flex: 1;
   min-width: 0;
+}
+
+/* The classes pills ride the content column's top — opening the side panel
+   pushes them right of the panel divider, the hamburger stays at the
+   corner. Corner convention: pills only, no "Classes:" label. */
+.nt-page-classes-row {
+  margin-bottom: var(--spacing-2);
+}
+
+.nt-page-classes-row .section-label {
+  display: none;
 }
 
 /* The empty child-blocks list: the lone ghost row rides tight — no dead

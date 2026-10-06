@@ -107,7 +107,15 @@ await page.getByRole("button", { name: /^search$/i }).first().click();
 const box = page.getByPlaceholder(/search/i).first();
 await box.waitFor({ timeout: 10_000 });
 await box.fill(term);
-await page.waitForTimeout(1500);
+// Poll for the hit instead of sleeping a fixed delay: a fresh profile
+// replays the whole log in the background, and the early body>500 boot gate
+// passes seconds in — long before the 2018 date pages exist in the store.
+// (The old 1.5 s sleep worked only because boot itself used to take ~5 min.)
+await page.waitForFunction(
+  (t) => document.body.innerText.includes(t) || document.body.innerText.includes("2018/09"),
+  term,
+  { timeout: 300_000 },
+).catch(() => {});
 const body = await page.evaluate(() => document.body.innerText);
 const found = body.includes("20180900") || body.includes("2018/09");
 console.log("ui search found hit:", found);
