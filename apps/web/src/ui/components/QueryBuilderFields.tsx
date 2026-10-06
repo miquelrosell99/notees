@@ -5,7 +5,7 @@
  * the FilterBuilderModal. The representable subset lives in
  * queryBuilder.ts; this module is purely presentational.
  *
- * M35 — the v1 ViewBuilder interaction, chrome-only (the §34.31 AST is the
+ * M35 — the v1 ViewBuilder interaction, chrome-only (the AST is the
  * one grammar; nothing here changes what composes): the fields render as the
  * v1 block list — a scope bar on top, then one card per condition with an
  * uppercase header label and a remove (✕) that clears the row back to its
