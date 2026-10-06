@@ -586,3 +586,61 @@ describe("snapshot upload — the 413 honesty (§34.69)", () => {
     expect(errors).toHaveLength(0);
   });
 });
+
+describe("batch change-info (§34.114)", () => {
+  it("passes scoped info for content batches and structural info for moves", async () => {
+    const relay = new MemoryRelay();
+    const store = new Store();
+    const transport = new MemoryTransport(relay);
+    const infos: Array<{
+      source: string;
+      info: { affectedNodeIds: string[]; structural: boolean } | undefined;
+    }> = [];
+    const engine = new SyncEngine(store, transport, new Clock(DEVICE_A), {
+      workspaceId: WS,
+      callbacks: {
+        onRemoteBatch: (applied, info) => infos.push({ source: "remote", info }),
+        onPull: (count, info) => infos.push({ source: "pull", info }),
+      },
+    });
+
+    // Seed the base workspace locally so the remote batches have real rows.
+    for (const envelope of baseEnvelopes(DEVICE_A)) engine.enqueue(envelope);
+
+    // Content-only batch: scoped, non-structural; the applier reports the
+    // edited node and its placement neighbors.
+    engine.onRemoteBatch(
+      [
+        makeEnvelope(DEVICE_B, T0 + 60, "object.update", {
+          objectId: NODE,
+          contentAst: [{ type: "text", text: "edited remotely" }],
+        }),
+      ],
+      {},
+    );
+    expect(infos.at(-1)?.source).toBe("remote");
+    expect(infos.at(-1)!.info!.structural).toBe(false);
+    expect(infos.at(-1)!.info!.affectedNodeIds).toContain(NODE);
+
+    // Listing-affecting batch: structural.
+    engine.onRemoteBatch(
+      [
+        makeEnvelope(DEVICE_B, T0 + 70, "object.move", {
+          objectId: NODE,
+          parentId: null,
+        }),
+      ],
+      {},
+    );
+    expect(infos.at(-1)?.source).toBe("remote");
+    expect(infos.at(-1)!.info!.structural).toBe(true);
+    expect(infos.at(-1)!.info!.affectedNodeIds).toContain(NODE);
+
+    // A no-op pull applies nothing and reports an empty info.
+    await engine.pull();
+    expect(infos.at(-1)).toEqual({
+      source: "pull",
+      info: { affectedNodeIds: [], structural: false },
+    });
+  });
+});

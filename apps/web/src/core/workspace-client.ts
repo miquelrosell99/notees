@@ -50,6 +50,9 @@ import {
   HttpTransport,
   OfflineTransport,
   SyncEngine,
+  isListingAffectingEnvelope,
+  summarizeEnvelopes,
+  type BatchChangeInfo,
   type SyncConflict,
   type SyncStatus,
   type Transport,
@@ -97,6 +100,16 @@ export interface SyncStatusSnapshot {
   cursorSeq: number;
 }
 
+/**
+ * A semantic conflict the engine reported (see @notees/sync detectConflicts),
+ * with the wall-clock time it was observed. Newest-last, bounded history for
+ * the sync details modal (§34.115) — conflicts are otherwise transient
+ * (emitted, never stored).
+ */
+export interface ConflictHistoryEntry extends SyncConflict {
+  at: number;
+}
+
 const IDLE_SNAPSHOT: SyncStatusSnapshot = {
   status: "idle",
   error: null,
@@ -107,6 +120,37 @@ const IDLE_SNAPSHOT: SyncStatusSnapshot = {
   realtime: false,
   cursorSeq: 0,
 };
+
+/** Conflict-history retention for the sync details modal (§34.115). */
+const CONFLICT_LOG_CAP = 100;
+
+/**
+ * Change notification payload (§34.114): what a `notify()` actually changed,
+ * so the main-thread read cache refetches only impacted keys instead of the
+ * whole cache. Semantics for subscribers:
+ *
+ *  - `structural === true` OR both fields absent → the change set is unknown
+ *    or listing-scale: invalidate EVERY cached read.
+ *  - otherwise → a content-only edit of `affectedNodeIds` (already
+ *    ancestor-expanded): invalidate reads scoped to those ids plus
+ *    content-global reads (search/reference listings embed titles and link
+ *    marks from anywhere).
+ *
+ * `revision` is a per-session monotonic counter — informational (diagnostics,
+ * tests); coalesced notifications carry the merged max.
+ */
+export interface ChangeNotification {
+  revision: number;
+  affectedNodeIds?: string[];
+  structural?: boolean;
+}
+
+/**
+ * Payload beyond this many expanded ids falls back to `structural: true`:
+ * the invalidation message must stay small, and at this scale refetching
+ * everything is cheaper than resolving scopes anyway.
+ */
+const CHANGE_AFFECT_CAP = 256;
 
 export interface ClientNode {
   id: string;
@@ -829,7 +873,7 @@ export class WorkspaceClient {
   private readonly userOnConflict: ((conflicts: SyncConflict[]) => void) | undefined;
   private readonly userOnSyncError: ((error: Error) => void) | undefined;
   private readonly clock: Clock;
-  private readonly listeners = new Set<() => void>();
+  private readonly listeners = new Set<(change: ChangeNotification) => void>();
   /** Server REST access (asset upload/download); null without serverUrl/apiKey. */
   private readonly restServerUrl: string | null;
   private readonly restApiKey: string | null;
@@ -878,6 +922,8 @@ export class WorkspaceClient {
    * write path (see undo-journal.ts for the inversion matrix).
    */
   private readonly undoJournal: UndoJournal;
+  /** Semantic conflict history for the sync details modal (§34.115). */
+  private readonly conflictLog: ConflictHistoryEntry[] = [];
 
   private constructor(store: Store, options: WorkspaceClientOptions) {
     this.store = store;
@@ -985,13 +1031,23 @@ export class WorkspaceClient {
     this.engine = new SyncEngine(this.store, this.transport, this.clock, {
       workspaceId,
       callbacks: {
-        onConflict: (conflicts) => this.userOnConflict?.(conflicts),
+        onConflict: (conflicts) => {
+          // Record before forwarding: the modal reads the log over RPC, and
+          // conflicts are otherwise transient (emitted once, never stored).
+          for (const conflict of conflicts) {
+            this.conflictLog.push({ ...conflict, at: Date.now() });
+          }
+          if (this.conflictLog.length > CONFLICT_LOG_CAP) {
+            this.conflictLog.splice(0, this.conflictLog.length - CONFLICT_LOG_CAP);
+          }
+          this.userOnConflict?.(conflicts);
+        },
         onError: (error) => this.userOnSyncError?.(error),
-        onPush: () => this.notify(),
-        onPull: () => this.notify(),
+        onPush: (_total, info) => this.notifyFromInfo(info),
+        onPull: (_total, info) => this.notifyFromInfo(info),
         // Realtime (WS) frames applied to the store refresh the UI exactly
         // like a pull does.
-        onRemoteBatch: () => this.notify(),
+        onRemoteBatch: (_applied, info) => this.notifyFromInfo(info),
         // Durable local op log: locally-authored envelopes survive reloads
         // (the outbox is memory-only), and acknowledged envelopes are
         // cleared so the log holds only the unpushed backlog.
@@ -1013,13 +1069,19 @@ export class WorkspaceClient {
       }
     }
     await this.engine.sync();
+    // Bootstrap notifies unconditionally (the engine callbacks above also
+    // fired): sync failures reject before the onPull callback runs, and the
+    // initial UI seed must refresh either way.
     this.notify();
   }
 
-  /** One push+pull sync cycle against the relay. */
+  /**
+   * One push+pull sync cycle against the relay. The engine's onPush/onPull/
+   * status callbacks notify with change-info; no wrapper notify here (a
+   * no-op cycle must not invalidate the read cache).
+   */
   async sync(): Promise<void> {
     await this.requireEngine().sync();
-    this.notify();
   }
 
   // --- read API (local store only) -------------------------------------------
@@ -2126,9 +2188,12 @@ export class WorkspaceClient {
     verbOverride?: string,
   ): void {
     const prepared = this.undoJournal.prepare(envelope);
-    this.requireEngine().enqueue(envelope);
+    const summary = this.requireEngine().enqueue(envelope);
     this.undoJournal.commit(prepared, mode, verbOverride);
-    this.notify();
+    this.notify({
+      affectedNodeIds: summary.affectedNodeIds,
+      structural: isListingAffectingEnvelope(envelope),
+    });
     this.kickPush();
   }
 
@@ -3110,17 +3175,17 @@ export class WorkspaceClient {
 
   /**
    * Push pending outbox ops now. Writes only kick a best-effort push; await
-   * this when delivery must be deterministic (tests, "save & close").
+   * this when delivery must be deterministic (tests, "save & close"). The
+   * engine's onPush/onPull callbacks notify with change-info — no wrapper
+   * notify (an empty outbox changes nothing).
    */
   async push(): Promise<void> {
     await this.requireEngine().push();
-    this.notify();
   }
 
   /** Pull now: snapshot shortcut when newer, then seq catch-up. */
   async pull(): Promise<void> {
     await this.requireEngine().pull();
-    this.notify();
   }
 
   // --- realtime (WS acceleration path) ------------------------------------------------
@@ -3136,8 +3201,13 @@ export class WorkspaceClient {
     const engine = this.requireEngine();
     this.stopRealtime();
     const stopChannel = engine.startRealtime();
-    // Engine status transitions (incl. realtime errors) reach subscribers.
-    const stopStatus = engine.subscribeStatus(() => this.notify());
+    // Engine status transitions reach subscribers, but a status flip is not
+    // data churn: notify with an explicitly empty change set so the read
+    // cache invalidates nothing (the footer re-reads status on the same
+    // notification).
+    const stopStatus = engine.subscribeStatus(() =>
+      this.notify({ affectedNodeIds: [], structural: false }),
+    );
     this.realtimeStop = () => {
       stopStatus();
       stopChannel();
@@ -3157,6 +3227,11 @@ export class WorkspaceClient {
   }
 
   // --- status snapshot (sync UI) ---------------------------------------------------------
+
+  /** Recent semantic conflicts (newest last, bounded at CONFLICT_LOG_CAP). */
+  conflictHistory(): ConflictHistoryEntry[] {
+    return [...this.conflictLog];
+  }
 
   /** Engine + outbox + realtime state for the footer status indicator. */
   status(): SyncStatusSnapshot {
@@ -3178,11 +3253,19 @@ export class WorkspaceClient {
    * Apply a batch of remote envelopes (realtime frames / external injection)
    * through the engine: one store transaction, conflict detection against
    * local pending ops, HLC merge. Unknown seqs (null) keep the cursor; the
-   * next pull re-fetches anything the batch covered.
+   * next pull re-fetches anything the batch covered. The notification carries
+   * the batch's own change-info (the engine's onRemoteBatch callback fires
+   * from inside onRemoteBatch only when no pull defers it — this wrapper
+   * notify also covers the deferred and zero-applied paths).
    */
   applyRemoteBatch(envelopes: Envelope[], seqs?: Record<string, number> | null): void {
     this.requireEngine().onRemoteBatch(envelopes, seqs ?? {});
-    this.notify();
+    const info = summarizeEnvelopes(envelopes);
+    // Remote envelopes may carry incomplete affected metadata; when we can
+    // infer nothing, fall back to the scope-unknown notification (full
+    // invalidation) rather than silently refreshing nothing.
+    if (info.affectedNodeIds.length === 0 && !info.structural) this.notify();
+    else this.notifyFromInfo(info);
   }
 
   /** Best-effort background push after a local write; errors go to onSyncError. */
@@ -3196,18 +3279,77 @@ export class WorkspaceClient {
 
   // --- notifications -----------------------------------------------------------
 
-  /** Naive notification: fired on local apply and on sync completion. */
-  subscribe(listener: () => void): () => void {
+  /** Per-session monotonic counter; see ChangeNotification. */
+  private revision = 0;
+
+  subscribe(listener: (change: ChangeNotification) => void): () => void {
     this.listeners.add(listener);
     return () => {
       this.listeners.delete(listener);
     };
   }
 
-  private notify(): void {
+  /**
+   * The single notify funnel (§34.114). Callers pass what they know:
+   *
+   *  - no argument — the change set is unknown (bootstrap, status/realtime
+   *    wiring, manual sync wrappers): subscribers must treat everything as
+   *    stale.
+   *  - `{ affectedNodeIds, structural }` — one applied batch (local write,
+   *    push/pull/remote summary): content-only edits stay scoped; a
+   *    listing-affecting batch (or an oversized affected set) collapses to
+   *    `structural: true`.
+   *
+   * Content scopes are ancestor-expanded here (a page-tree read of P
+   * contains node X iff P is an ancestor of X), bounded by CHANGE_AFFECT_CAP.
+   */
+  private notify(change?: { affectedNodeIds?: string[]; structural?: boolean }): void {
     if (this.closed) return;
     this.listReadCache.clear();
-    for (const listener of this.listeners) listener();
+    this.revision += 1;
+    let payload: ChangeNotification = { revision: this.revision };
+    if (change !== undefined && change.structural === true) {
+      payload = { revision: this.revision, structural: true };
+    } else if (change !== undefined) {
+      const affected = this.expandAffectedAncestors(change.affectedNodeIds ?? []);
+      if (affected.length > CHANGE_AFFECT_CAP) {
+        payload = { revision: this.revision, structural: true };
+      } else {
+        // Explicit empty scope ("nothing is stale") — a bare {revision}
+        // payload means scope-unknown and would invalidate everything.
+        payload = { revision: this.revision, affectedNodeIds: affected, structural: false };
+      }
+    }
+    for (const listener of this.listeners) listener(payload);
+  }
+
+  /**
+   * Union of the given ids with their ancestor chains (parent pointers up to
+   * the workspace root). Content edits invalidate a node and its ancestors;
+   * descendants of the edited node are untouched by definition.
+   */
+  private expandAffectedAncestors(ids: string[]): string[] {
+    const out = new Set<string>();
+    for (const id of ids) {
+      if (out.has(id)) continue;
+      out.add(id);
+      let current = this.store.getNode(id)?.parent_id ?? null;
+      let hops = 0;
+      while (current !== null && !out.has(current) && hops < 64) {
+        out.add(current);
+        hops += 1;
+        current = this.store.getNode(current)?.parent_id ?? null;
+      }
+    }
+    return [...out];
+  }
+
+  private notifyFromInfo(info: BatchChangeInfo | undefined): void {
+    this.notify(
+      info === undefined
+        ? undefined
+        : { affectedNodeIds: info.affectedNodeIds, structural: info.structural },
+    );
   }
 
   close(): void {

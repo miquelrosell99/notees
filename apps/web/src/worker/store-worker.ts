@@ -45,7 +45,9 @@ const ctx: WorkerContext = {
       // — the worker owns the REST config, so forward it into the client.
       serverUrl,
       apiKey,
-      onNotify: () => workerScope.postMessage({ type: "changed" }),
+      // The change payload (revision/affected/structural, §34.114) rides
+      // along so the main-thread cache refreshes incrementally.
+      onNotify: (change) => workerScope.postMessage({ type: "changed", ...change }),
     });
   },
 };

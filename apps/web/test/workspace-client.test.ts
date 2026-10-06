@@ -9,6 +9,7 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 
 import { deriveDisplayName, DEFAULT_CLASS_ICON, DEFAULT_PAGE_ICON } from "@notees/domain";
+import { newEnvelope } from "@notees/protocol";
 import { MemoryRelay, MemoryTransport, type SyncConflict } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
@@ -454,5 +455,80 @@ describe("WorkspaceClient render-path list reads — the §34.92 revision cache"
     await client.createObject({ parentId: page, contentAst: [{ type: "text", text: "c" }] });
     expect(client.getBlockTree(page)).not.toBe(tree);
     expect(client.getBlockTree(page)).toHaveLength(2);
+  });
+});
+
+describe("change notifications (§34.114)", () => {
+  it("classifies local writes: structural for creates, scoped+ancestors for content edits", async () => {
+    const ctx = makeContext();
+    const client = await createClient(ctx);
+    await client.bootstrapWorkspace(WS);
+    const changes: import("../src/core/workspace-client.js").ChangeNotification[] = [];
+    client.subscribe((change) => changes.push(change));
+
+    const pageId = await client.createObject({ presentAsMain: true, name: "Notify Page" });
+    const last = changes.at(-1)!;
+    expect(last.revision).toBeGreaterThan(0);
+    expect(last.structural).toBe(true);
+
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "child" }],
+    });
+    // Drain the fire-and-forget pushes so the only notifications in the
+    // window belong to the content edit itself.
+    await client.push();
+    changes.length = 0;
+    await client.updateObject(blockId, { contentAst: [{ type: "text", text: "edited" }] });
+    await client.push();
+
+    expect(changes.length).toBeGreaterThan(0);
+    for (const change of changes) {
+      expect(change.structural).not.toBe(true);
+    }
+    const affected = changes.flatMap((change) => change.affectedNodeIds ?? []);
+    expect(affected).toContain(blockId);
+    expect(affected).toContain(pageId);
+
+    // A no-op sync cycle leaves nothing stale: empty change sets only.
+    changes.length = 0;
+    await client.sync();
+    expect(changes.length).toBeGreaterThan(0);
+    for (const change of changes) {
+      expect(change).toMatchObject({ affectedNodeIds: [], structural: false });
+    }
+  });
+
+  it("records semantic conflicts for the sync details modal (§34.115)", async () => {
+    const ctx = makeContext();
+    const seen: import("@notees/sync").SyncConflict[] = [];
+    const client = await createClient(ctx, { onConflict: (c) => seen.push(...c) });
+    await client.bootstrapWorkspace(WS);
+    expect(client.conflictHistory()).toEqual([]);
+
+    const schemaId = await client.createPropertySchema({ name: "Status", type: "text" });
+    const nodeId = await client.createObject({ presentAsMain: true, name: "Conflict Page" });
+    await client.setProperty(nodeId, schemaId, "open", 0);
+    await client.sync();
+
+    // Local unset stays UNACKNOWLEDGED; a concurrent remote set on the same
+    // (node, schema, idx) arrives over the realtime path.
+    await client.unsetProperty(nodeId, schemaId, 0);
+    const remoteSet = newEnvelope({
+      workspaceId: WS,
+      actorId: ACTOR,
+      deviceId: "other-device",
+      hlc: { physical: Date.now() + 60_000, logical: 0 },
+      opType: "property.set",
+      payload: { objectId: nodeId, propertySchemaId: schemaId, value: "remote", idx: 0 },
+    });
+    client.applyRemoteBatch([remoteSet], null);
+
+    expect(seen.length).toBeGreaterThan(0);
+    const history = client.conflictHistory();
+    expect(history.length).toBe(seen.length);
+    expect(history[0]!.conflictType).toBe("property_conflict");
+    expect(history[0]!.nodeId).toBe(nodeId);
+    expect(typeof history[0]!.at).toBe("number");
   });
 });
