@@ -191,7 +191,7 @@ describe("dates (SCHEMA.md)", () => {
     // The unvalued date binding renders the add affordance; the popup opens
     // at the day grid (day precision). (Scoped to the date row — every page
     // also carries the unvalued "Alias of" system row since issue #7.)
-    const row = screen.getByText("published").closest("li")!;
+    const row = screen.getByText("published").closest<HTMLElement>(".nt-props-sidebar__prop, li")!;
     fireEvent.click(within(row).getByRole("button", { name: "Add" }));
     expect(screen.getByRole("dialog", { name: "Date picker" })).not.toBeNull();
 
@@ -236,7 +236,7 @@ describe("dates (SCHEMA.md)", () => {
     render(<PageView client={client} pageId={pageId} />);
     expandProperties();
 
-    const foundedRow = screen.getByText("founded").closest("li")!;
+    const foundedRow = screen.getByText("founded").closest<HTMLElement>(".nt-props-sidebar__prop, li")!;
     fireEvent.click(within(foundedRow).getByRole("button", { name: "Add" }));
     // Year precision opens at the YEAR grid; clicking a year resolves the
     // canonical ISO and the data layer links the YEAR node at the schema's
@@ -266,7 +266,7 @@ describe("dates (SCHEMA.md)", () => {
     // their text — the aria-label is locale-dependent).
     const now = new Date();
     const expectedIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-28`;
-    const spanRow = screen.getByText("span").closest("li")!;
+    const spanRow = screen.getByText("span").closest<HTMLElement>(".nt-props-sidebar__prop, li")!;
     fireEvent.click(within(spanRow).getByRole("button", { name: "Add" }));
     fireEvent.click(within(screen.getByRole("dialog", { name: "Date picker" })).getByText("28"));
     await flushWrites();
