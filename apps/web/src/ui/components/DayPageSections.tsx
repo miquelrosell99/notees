@@ -101,8 +101,10 @@ export function DayPageSections({
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
 
   // §34.28 #2 — the open-tasks partition reads the task family; idempotent.
+  // Fire-and-forget: a mid-teardown rejection must not go unhandled (the
+  // next mount re-runs the deploy).
   useEffect(() => {
-    void ensureTaskFamily(client);
+    void ensureTaskFamily(client).catch(() => {});
   }, [client]);
 
   const statusSchema = client
