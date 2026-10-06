@@ -35,7 +35,7 @@ import type { WorkspaceClient } from "@/core/workspace-client.js";
 
 import { ClassView } from "../ClassView.js";
 import { displayNameFromClient } from "../dateDisplay.js";
-import { classIconMap, nodeIcon } from "../iconFor.js";
+import { nodeIcon } from "../iconFor.js";
 import { Icon } from "../Icon.js";
 import { PageView } from "../PageView.js";
 import { Button } from "./ui/Button.js";
@@ -193,7 +193,7 @@ export function FloatingEditorHost({
         const node = client.getNode(win.nodeId);
         const label =
           node === undefined ? win.nodeId : (displayNameFromClient(client, win.nodeId) ?? win.nodeId);
-        const icon = node !== undefined ? nodeIcon(node, classIconMap(client.listClasses())) : null;
+        const icon = node !== undefined ? nodeIcon(node, client.effectiveClassIcons()) : null;
         return createPortal(
           <div
             key={win.nodeId}

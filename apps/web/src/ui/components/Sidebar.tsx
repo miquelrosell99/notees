@@ -208,7 +208,7 @@ export function Sidebar({
     classes.find((cls) => cls.name === "asset")?.id ?? SYSTEM_CLASS_UUIDS.asset;
   const pages = client.listPages().filter((page) => !page.classIds.includes(assetClassId));
   const byId = new Map<string, ClientNode>([...pages, ...classes].map((node) => [node.id, node]));
-  const iconsByClass = client.classIcons();
+  const iconsByClass = client.effectiveClassIcons();
   const rowIconFor = (node: ClientNode): string | null => nodeIcon(node, iconsByClass);
   const favoritePages = favorites
     .map((id) => byId.get(id))

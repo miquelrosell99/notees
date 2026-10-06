@@ -176,7 +176,7 @@ export function NodeCard({
   selection?: { checked: boolean; onToggle: () => void } | undefined;
 }) {
   const { client, onNodeClick, onNodeShiftClick, cardProperties, propertiesOf } = props;
-  const icon = nodeIcon(item.node, client.classIcons());
+  const icon = nodeIcon(item.node, client.effectiveClassIcons());
   const label = displayNameForSettings(item.node) || "Untitled";
   const properties = propertiesOf?.(item.node.id) ?? [];
   const cardRows = (cardProperties ?? [])

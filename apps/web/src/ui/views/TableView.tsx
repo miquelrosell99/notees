@@ -685,7 +685,7 @@ export function TableView(props: NodeCollectionProps) {
     resetKey: sortKey,
     enabled: props.windowed ?? true,
   });
-  const iconMap = client.classIcons();
+  const iconMap = client.effectiveClassIcons();
 
   const cycleSort = (column: TableColumn) => {
     if (column.sortable === false) return;

@@ -293,6 +293,11 @@ export class WorkerClient {
     return this.cachedRead<ReadonlyMap<string, string | null>>("classIcons", [], new Map());
   }
 
+  /** The chain-resolved id → effective icon read (#1 follow-up). */
+  effectiveClassIcons(): ReadonlyMap<string, string | null> {
+    return this.cachedRead<ReadonlyMap<string, string | null>>("effectiveClassIcons", [], new Map());
+  }
+
   getClassParents(classId: string): string[] {
     return this.cachedRead<string[]>("getClassParents", [classId], []);
   }

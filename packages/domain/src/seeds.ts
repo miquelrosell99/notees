@@ -64,6 +64,15 @@ export const SYSTEM_CLASS_UUIDS = {
   // class duplicated the cover PROPERTY's meaning (owner directive — a cover
   // is an ordinary ASSET-classed node; the property value stays the only
   // authority, the card-view badge derives from it). Never reuse.
+  // §34.99 (#14 follow-up): the deploy catalog's missing everyday classes
+  // (owner list: definition, idea, place, project, trip) — plain seeds per
+  // the §34.36 ruling (zero wire cost, seed convergence only). trip extends
+  // event (a trip is calendar-bound; the events toggle cascades to it).
+  definition: "00000000-0000-0000-0001-000000000043",
+  idea: "00000000-0000-0000-0001-000000000044",
+  place: "00000000-0000-0000-0001-000000000045",
+  project: "00000000-0000-0000-0001-000000000046",
+  trip: "00000000-0000-0000-0001-000000000047",
 } as const;
 
 export type SystemClassName = keyof typeof SYSTEM_CLASS_UUIDS;
@@ -109,6 +118,11 @@ export const SYSTEM_CLASS_ICONS: Record<SystemClassName, string> = {
   meeting: "mdiCalendarClock",
   event: "mdiCalendar",
   birthday: "mdiCakeVariant",
+  definition: "mdiBookOpenPageVariant",
+  idea: "mdiThoughtBubbleOutline",
+  place: "mdiMapMarkerOutline",
+  project: "mdiBriefcaseOutline",
+  trip: "mdiAirplane",
 };
 
 /**
@@ -164,6 +178,11 @@ export const SYSTEM_CLASS_DISPLAY_NAMES: Record<SystemClassName, string> = {
   meeting: "Meeting",
   event: "Event",
   birthday: "Birthday",
+  definition: "Definition",
+  idea: "Idea",
+  place: "Place",
+  project: "Project",
+  trip: "Trip",
 };
 
 /** The class title a seed/self-heal authors for `name` (display wording). */
@@ -191,6 +210,10 @@ export const SYSTEM_CLASS_EXTENDS: Partial<Record<SystemClassName, SystemClassNa
   // §34.36.3: a birthday IS an event (a person's birthday lands on the
   // calendar through the event chain, exactly like a meeting).
   birthday: ["event"],
+  // §34.99 (#14 follow-up): a trip IS an event — calendar-bound, so the
+  // events-family toggle cascades to it (SYSTEM_CLASS_EXTENDS is the
+  // cascade authority, §34.55 F1–F4).
+  trip: ["event"],
 };
 
 /**
@@ -629,4 +652,9 @@ export const SEEDED_SYSTEM_CLASSES: SystemClassName[] = [
   "meeting",
   "event",
   "birthday",
+  "definition",
+  "idea",
+  "place",
+  "project",
+  "trip",
 ];
