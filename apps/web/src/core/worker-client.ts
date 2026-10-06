@@ -5,11 +5,15 @@
  *
  * The worker owns the only store. Reads are synchronous here, so they are
  * served from a small local cache keyed by method+args; the worker posts a
- * {type:"changed"} notification after every local apply and sync completion,
- * and the proxy then re-fetches every cached key and notifies its own
+ * {type:"changed"} notification after every local apply and sync completion
+ * (coalesced worker-side, §34.114), and the proxy then re-fetches the
+ * impacted cache keys — in ONE multiRead round-trip per drain, and only the
+ * keys the change payload actually invalidates — and notifies its own
  * subscribers. A first read of an unseen key returns the empty default and
  * kicks a refresh, so the UI converges on the next notification.
  */
+
+import { startTransition } from "react";
 
 import type { WorkspaceFeature } from "@notees/protocol";
 import type { GraphOptions, GraphTopology } from "@notees/store";
@@ -21,6 +25,8 @@ import type {
   ClientEdge,
   ClientNode,
   ClientPropertySchema,
+  ChangeNotification,
+  ConflictHistoryEntry,
   CreateAnnotationInput,
   CreateObjectInput,
   CreatePropertySchemaInput,
@@ -52,6 +58,66 @@ import type {
   WorkerRequestMessage,
   WorkerResponseMessage,
 } from "../worker/worker-core.js";
+
+/**
+ * Invalidation class for a cached read key (§34.114), consulted only for
+ * content-only changes with a known affected set (`structural` or unknown
+ * scope invalidates everything and never reaches this table):
+ *
+ *  - "change": read embeds titles/link marks from anywhere (search,
+ *    reference edges, the page listings) — any content edit may alter it.
+ *  - "structure": read resolves definitions/membership (class chains, pure
+ *    node-snapshot functions like effectiveNodeIcon) — only
+ *    listing-affecting ops invalidate it.
+ *  - "scope": read is parameterized by a node/class id — invalidated when
+ *    the id is in the (ancestor-expanded) affected set. args[0] is the id.
+ *  - absent (default): invalidate on any change — the conservative fallback.
+ */
+const READ_INVALIDATION: Record<string, "change" | "structure" | "scope"> = {
+  // Node-scoped reads (args[0] = the node/class id).
+  getNode: "scope",
+  getNodeRaw: "scope",
+  getDisplayName: "scope",
+  getPage: "scope",
+  getChildren: "scope",
+  getChildPages: "scope",
+  getBacklinkCount: "scope",
+  getChildPageCount: "scope",
+  getEffectiveProperties: "scope",
+  getAssetInfo: "scope",
+  getAnnotationsForAsset: "scope",
+  getClassParents: "scope",
+  getClassChildren: "scope",
+  getClassMembers: "scope",
+  getClassMemberCount: "scope",
+  getClassBindings: "scope",
+  getBlockTree: "scope",
+  // Content-global reads: titles and typed link marks flow in from anywhere.
+  search: "change",
+  getSearchSnippet: "change",
+  resolveNodeByName: "change",
+  getBacklinks: "change",
+  getLinkedReferences: "change",
+  getReferences: "change",
+  getReferenceCount: "change",
+  getUnlinkedReferences: "change",
+  getUnlinkedReferenceCount: "change",
+  getPropertyReferences: "change",
+  listPages: "change",
+  roots: "change",
+  // Structural-global reads: definitions/membership/pure-of-args functions.
+  listClasses: "structure",
+  classIcons: "structure",
+  effectiveClassIcons: "structure",
+  listPropertySchemas: "structure",
+  listFeatureRows: "structure",
+  getFeatureInstanceCount: "structure",
+  isFeatureEnabled: "structure",
+  effectiveNodeIcon: "structure",
+  effectiveNodeColor: "structure",
+  effectiveClassColor: "structure",
+  effectiveClassIcon: "structure",
+};
 
 export interface WorkerClientOptions {
   /** Credential: operator API key or account session token (server accepts both). */
@@ -137,10 +203,11 @@ export class WorkerClient {
   // --- RPC plumbing ------------------------------------------------------------
 
   private handleMessage = (event: MessageEvent): void => {
-    const message = event.data as WorkerResponseMessage | { type: "changed" };
+    const message = event.data as
+      | WorkerResponseMessage
+      | (ChangeNotification & { type: "changed" });
     if ("type" in message && message.type === "changed") {
-      for (const key of this.cache.keys()) this.refreshDirty.add(key);
-      this.scheduleRefresh();
+      this.handleChanged(message);
       return;
     }
     const response = message as WorkerResponseMessage;
@@ -150,6 +217,48 @@ export class WorkerClient {
     if (response.error !== undefined) entry.reject(new Error(response.error));
     else entry.resolve(response.result);
   };
+
+  /**
+   * Incremental cache invalidation (§34.114): a structural or scope-unknown
+   * change dirties every cached key; a content-only change dirties only the
+   * keys its affected set (ancestor-expanded) touches — scoped reads, plus
+   * the content-global class (search/reference listings embed titles and
+   * link marks from anywhere).
+   */
+  private handleChanged(change: ChangeNotification & { type: "changed" }): void {
+    const structural = change.structural === true;
+    const affected = change.affectedNodeIds;
+    const full = structural || affected === undefined;
+    const affectedSet = full ? null : new Set(affected);
+    // A scoped payload with an empty affected set means "nothing is stale"
+    // (status flips, no-op sync cycles): run the notify cycle for
+    // subscribers, but dirty no cache keys.
+    if (affectedSet !== null && affectedSet.size === 0) {
+      this.scheduleRefresh();
+      return;
+    }
+    for (const key of this.cache.keys()) {
+      if (full || this.isKeyInvalidated(key, affectedSet!)) {
+        this.refreshDirty.add(key);
+      }
+    }
+    this.scheduleRefresh();
+  }
+
+  private isKeyInvalidated(key: string, affectedSet: Set<string>): boolean {
+    let method: string;
+    let args: unknown[];
+    try {
+      [method, args] = JSON.parse(key) as [string, unknown[]];
+    } catch {
+      return true; // unparseable key: conservatively invalidate
+    }
+    const kind = READ_INVALIDATION[method] ?? "change";
+    if (kind === "change") return true;
+    if (kind === "structure") return false;
+    const scopeId = args[0];
+    return typeof scopeId === "string" && affectedSet.has(scopeId);
+  }
 
   private call(method: string, args: unknown[]): Promise<unknown> {
     if (this.closed) return Promise.reject(new Error("WorkerClient: closed"));
@@ -188,25 +297,40 @@ export class WorkerClient {
     try {
       // Loop: reads seeded mid-drain mark themselves dirty and are fetched too.
       while (this.refreshDirty.size > 0) {
-        const batch = Array.from(this.refreshDirty);
+        const batch = Array.from(this.refreshDirty).filter((key) => this.cache.has(key));
         this.refreshDirty.clear();
-        for (const key of batch) {
-          if (!this.cache.has(key)) continue;
-          const [method, args] = JSON.parse(key) as [string, unknown[]];
-          try {
-            this.cache.set(key, await this.call(method, args));
-          } catch (error) {
-            // Keep the previous value; the next "changed" retries. Surface the
-            // failure loudly, though: a silent stale cache is how real outages
-            // hid (an FTS5 snapshot restore made every search return [] with
-            // zero console output). The message crosses the worker RPC
-            // boundary, so the original stack stays on the worker — the
-            // engine logs it there.
-            console.error(
-              `WorkerClient: read "${method}" failed; keeping the cached value:`,
-              error instanceof Error ? error.message : error,
+        if (batch.length === 0) continue;
+        // ONE round-trip for the whole batch (§34.114) instead of an awaited
+        // RPC per key: a keystroke used to cost hundreds of postMessage
+        // round-trips through the worker.
+        try {
+          const results = (await this.call("multiRead", [batch])) as unknown[];
+          if (!Array.isArray(results) || results.length !== batch.length) {
+            throw new Error(
+              `multiRead returned ${Array.isArray(results) ? results.length : "a non-array"} results for ${batch.length} keys`,
             );
           }
+          batch.forEach((key, index) => {
+            this.cache.set(key, results[index]);
+          });
+        } catch (error) {
+          // Keep the previous values; the next "changed" retries. Surface the
+          // failure loudly, though: a silent stale cache is how real outages
+          // hid (an FTS5 snapshot restore made every search return [] with
+          // zero console output). The message crosses the worker RPC
+          // boundary, so the original stack stays on the worker — the
+          // engine logs it there.
+          const methods = batch.map((key) => {
+            try {
+              return (JSON.parse(key) as [string])[0];
+            } catch {
+              return key;
+            }
+          });
+          console.error(
+            `WorkerClient: read "${methods.join('", "')}" failed; keeping the cached values:`,
+            error instanceof Error ? error.message : error,
+          );
         }
       }
       this.notify();
@@ -712,6 +836,14 @@ export class WorkerClient {
   }
 
   /**
+   * Recent semantic sync conflicts (§34.115): raw RPC (not cached) — the
+   * sync details modal reads it on open and on worker notifications.
+   */
+  async conflictHistory(): Promise<ConflictHistoryEntry[]> {
+    return (await this.call("conflictHistory", [])) as ConflictHistoryEntry[];
+  }
+
+  /**
    * Per-user UI prefs (§34.61 — favorites/recents, server-side). RPC into
    * the worker (it owns the REST config); resolves the device-local cache
    * when offline, tagged `source`.
@@ -735,7 +867,13 @@ export class WorkerClient {
   }
 
   private notify(): void {
-    for (const listener of this.listeners) listener();
+    // De-prioritize the refresh-driven render (§34.114): the drain completes
+    // on a worker message / macrotask where React would otherwise render
+    // synchronously (performSyncWorkOnRoot) ahead of queued input. Inside a
+    // transition, keystrokes and clicks win the next frame.
+    startTransition(() => {
+      for (const listener of this.listeners) listener();
+    });
   }
 
   /** Terminate the worker; pending calls reject. */

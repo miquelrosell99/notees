@@ -11,6 +11,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 
 import { deriveDisplayName } from "@notees/domain";
+import { newEnvelope } from "@notees/protocol";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import type { OpfsStore } from "../src/worker/opfs.js";
@@ -202,5 +203,148 @@ describe("WorkerCore OPFS persistence", () => {
     expect(deriveDisplayName(coreA2.getPage(pageId)!)).toBe("From A");
     expect(coreA2.getBlockTree(pageId).map((t) => t.node.id)).toContain(blockId);
     await coreA2.close();
+  });
+});
+
+describe("notification coalescing (§34.114)", () => {
+  // The coalescer is leading+trailing with a re-armed window: after ANY
+  // emission the window stays open one more interval, so continuous traffic
+  // caps at one emission per window and a notify arriving mid-window merges
+  // into the next emission. A quiet period disarms only after a full empty
+  // window elapses.
+
+  it("emits leading + one trailing merged notification per burst window", async () => {
+    vi.useFakeTimers();
+    try {
+      const emitted: import("../src/core/workspace-client.js").ChangeNotification[] = [];
+      const core = await createCore({
+        opfs: createMemoryOpfs().opfs,
+        fileName: FILE,
+        workspaceId: WS,
+        transport: new MemoryTransport(new MemoryRelay()),
+        notifyDebounceMs: 50,
+        onNotify: (change) => emitted.push(change),
+      });
+      // Settle the whole bootstrap chain (emissions + re-armed windows).
+      await vi.advanceTimersByTimeAsync(200);
+      emitted.length = 0;
+
+      await core.createObject({ presentAsMain: true, name: "A" });
+      expect(emitted).toHaveLength(1); // leading edge after the quiet period
+      await core.createObject({ presentAsMain: true, name: "B" });
+      await core.createObject({ presentAsMain: true, name: "C" });
+      expect(emitted).toHaveLength(1); // burst merged into the trailing slot
+      await vi.advanceTimersByTimeAsync(50);
+      expect(emitted).toHaveLength(2);
+      expect(emitted[1]!.structural).toBe(true);
+      expect(emitted[1]!.revision).toBeGreaterThan(emitted[0]!.revision);
+      // One empty window disarms: no further trailing emissions.
+      await vi.advanceTimersByTimeAsync(500);
+      expect(emitted).toHaveLength(2);
+      await core.close();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("never loses a structural flag when merging a burst (content + move)", async () => {
+    vi.useFakeTimers();
+    try {
+      const emitted: import("../src/core/workspace-client.js").ChangeNotification[] = [];
+      const core = await createCore({
+        opfs: createMemoryOpfs().opfs,
+        fileName: FILE,
+        workspaceId: WS,
+        transport: new MemoryTransport(new MemoryRelay()),
+        notifyDebounceMs: 50,
+        onNotify: (change) => emitted.push(change),
+      });
+      const pageId = await core.createObject({ presentAsMain: true, name: "P" });
+      const blockId = await core.createObject({
+        parentId: pageId,
+        contentAst: [{ type: "text", text: "b" }],
+      });
+      // Settle bootstrap + the create burst fully.
+      await vi.advanceTimersByTimeAsync(200);
+      emitted.length = 0;
+
+      // Remote-apply batches (applyBatch) do not kick a push, keeping the
+      // window deterministic: content first, then a structural move inside
+      // the same window.
+      const remote = (opType: string, payload: Record<string, unknown>, physical: number) =>
+        newEnvelope({
+          workspaceId: WS,
+          actorId: "0192a000-0000-7000-8000-0000000000b0",
+          deviceId: "other-device",
+          hlc: { physical, logical: 0 },
+          affectedNodeIds: Object.values(payload).filter(
+            (value): value is string => typeof value === "string",
+          ),
+          opType,
+          payload,
+        });
+      core.applyBatch([
+        remote("object.update", { objectId: blockId, contentAst: [{ type: "text", text: "edited" }] }, 1_800_000_000_000),
+      ]);
+      expect(emitted).toHaveLength(1); // leading: content-scoped
+      expect(emitted[0]!.structural).not.toBe(true);
+      expect(emitted[0]!.affectedNodeIds ?? []).toContain(blockId);
+      core.applyBatch([
+        remote("object.move", { objectId: blockId, parentId: null }, 1_800_000_000_010),
+      ]);
+      await vi.advanceTimersByTimeAsync(50);
+      expect(emitted).toHaveLength(2);
+      expect(emitted[1]!.structural).toBe(true);
+      await core.close();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("flush() emits a pending trailing notification", async () => {
+    vi.useFakeTimers();
+    try {
+      const emitted: import("../src/core/workspace-client.js").ChangeNotification[] = [];
+      const core = await createCore({
+        opfs: createMemoryOpfs().opfs,
+        fileName: FILE,
+        workspaceId: WS,
+        transport: new MemoryTransport(new MemoryRelay()),
+        notifyDebounceMs: 50,
+        onNotify: (change) => emitted.push(change),
+      });
+      await vi.advanceTimersByTimeAsync(200); // settle the bootstrap chain
+      emitted.length = 0;
+
+      await core.createObject({ presentAsMain: true, name: "A" });
+      await core.createObject({ presentAsMain: true, name: "B" });
+      await core.flush(); // before the window elapses
+      expect(emitted).toHaveLength(2); // leading + flush-flushed trailing
+      await vi.advanceTimersByTimeAsync(500);
+      expect(emitted).toHaveLength(2); // no duplicate trailing emission
+      await core.close();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("multiRead (§34.114)", () => {
+  it("resolves cached-read keys in one batch and refuses write methods", async () => {
+    const core = await createCore({
+      opfs: createMemoryOpfs().opfs,
+      fileName: FILE,
+      workspaceId: WS,
+      transport: new MemoryTransport(new MemoryRelay()),
+    });
+    const pageId = await core.createObject({ presentAsMain: true, name: "P" });
+    const results = (await core.invoke("multiRead", [
+      [JSON.stringify(["getPage", [pageId]]), JSON.stringify(["roots", []])],
+    ])) as unknown[];
+    expect((results[0] as { id: string }).id).toBe(pageId);
+    expect(Array.isArray(results[1])).toBe(true);
+    await expect(
+      core.invoke("multiRead", [[JSON.stringify(["createObject", [{ name: "x" }]])]]),
+    ).rejects.toThrow(/not a read method/);
   });
 });

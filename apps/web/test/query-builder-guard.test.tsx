@@ -282,9 +282,9 @@ describe("coalesced live re-runs (§34.31 C2)", () => {
     // children each subscribe; the query view's is among them).
     const listeners: Array<() => void> = [];
     const realSubscribe = client.subscribe.bind(client);
-    vi.spyOn(client, "subscribe").mockImplementation((l: () => void) => {
-      listeners.push(l);
-      return realSubscribe(l);
+    vi.spyOn(client, "subscribe").mockImplementation((listener) => {
+      listeners.push(() => listener({ revision: 0 }));
+      return realSubscribe(listener);
     });
     const runSpy = vi.spyOn(client, "runQueryAst");
 

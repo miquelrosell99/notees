@@ -13,7 +13,8 @@
  *    / runQueryAst / runAggregateAst / getBacklinkCount / getChildPageCount / getDisplayName /
  *    getNode / getNodeRaw / getEffectiveProperties / getAssetInfo /
  *    getAnnotationsForAsset / listPropertySchemas / isFeatureEnabled /
- *    listFeatureRows / getFeatureInstanceCount), the write
+ *    listFeatureRows / getFeatureInstanceCount), the batched read surface
+ *    (multiRead — one round-trip per cache refresh, §34.114), the write
  *    surface (createObject / updateObject / deleteObject / moveObject /
  *    setClassProperty / unsetClassProperty / createPropertySchema /
  *    setProperty / unsetProperty / attachAsset), the session undo journal
@@ -42,6 +43,7 @@ import {
   type AssetInfo,
   type AssetUploadResult,
   type BlockTreeNode,
+  type ChangeNotification,
   type ClientEdge,
   type ClientNode,
   type ClientPropertySchema,
@@ -115,6 +117,64 @@ export async function handleMessage(
 // --- core ----------------------------------------------------------------------
 
 const DEFAULT_DEBOUNCE_MS = 500;
+/**
+ * Notification coalescing window (§34.114): the client notifies per applied
+ * batch, and a sync burst (local apply + push + echo + ack) can fire hundreds
+ * of notifications per second — each of which used to make the main thread
+ * refetch its whole read cache. One emission on the leading edge plus at most
+ * one trailing emission per window caps the message rate at ~2/window while
+ * keeping first-paint immediacy and burst convergence; payloads merge
+ * (affected-union, structural-OR).
+ */
+const DEFAULT_NOTIFY_DEBOUNCE_MS = 50;
+
+/**
+ * Read-only methods served through the main thread's read cache (the exact
+ * `cachedRead` surface of WorkerClient). `multiRead` refuses anything else —
+ * a batch refresh must never become a write path.
+ */
+const READ_METHODS: ReadonlySet<string> = new Set([
+  "getNode",
+  "getNodeRaw",
+  "getDisplayName",
+  "effectiveClassColor",
+  "effectiveClassIcon",
+  "effectiveNodeIcon",
+  "effectiveNodeColor",
+  "getPage",
+  "listPages",
+  "roots",
+  "listClasses",
+  "classIcons",
+  "effectiveClassIcons",
+  "getClassParents",
+  "getClassChildren",
+  "getClassMembers",
+  "getClassMemberCount",
+  "getClassBindings",
+  "getEffectiveProperties",
+  "getPropertyReferences",
+  "getAssetInfo",
+  "getAnnotationsForAsset",
+  "listPropertySchemas",
+  "getBlockTree",
+  "search",
+  "getSearchSnippet",
+  "resolveNodeByName",
+  "getChildren",
+  "getBacklinks",
+  "getLinkedReferences",
+  "getReferences",
+  "getReferenceCount",
+  "getUnlinkedReferences",
+  "getUnlinkedReferenceCount",
+  "getChildPages",
+  "getBacklinkCount",
+  "getChildPageCount",
+  "isFeatureEnabled",
+  "listFeatureRows",
+  "getFeatureInstanceCount",
+]);
 
 /** Default when no transport is configured: sync attempts fail without blocking local boot. */
 class NullTransport implements Transport {
@@ -154,8 +214,10 @@ export interface WorkerCoreOptions {
   apiKey?: string;
   /** Persist debounce after mutations; defaults to 500 ms. */
   debounceMs?: number;
-  /** Fired on local apply and sync completion (the entry posts a "changed" message). */
-  onNotify?: () => void;
+  /** Notification coalescing window; defaults to 50 ms (§34.114). */
+  notifyDebounceMs?: number;
+  /** Fired on local apply and sync completion (the payload is coalesced — see scheduleNotify). */
+  onNotify?: (change: ChangeNotification) => void;
   onConflict?: (conflicts: SyncConflict[]) => void;
   onSyncError?: (error: Error) => void;
 }
@@ -177,8 +239,14 @@ export class WorkerCore {
   private readonly debounceMs: number;
   private readonly setTimer: typeof setTimeout;
   private readonly clearTimer: typeof clearTimeout;
+  private readonly onNotify: ((change: ChangeNotification) => void) | undefined;
+  private readonly notifyDebounceMs: number;
 
   private timer: ReturnType<typeof setTimeout> | null = null;
+  /** Coalescing window timer; non-null between the leading and trailing emit. */
+  private notifyTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Payload merged from notifications that arrived inside the current window. */
+  private notifyPending: ChangeNotification | null = null;
   private dirty = false;
   private closed = false;
   private lastPersistError: Error | null = null;
@@ -194,6 +262,8 @@ export class WorkerCore {
     this.opfs = options.opfs;
     this.fileName = options.fileName;
     this.debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS;
+    this.notifyDebounceMs = options.notifyDebounceMs ?? DEFAULT_NOTIFY_DEBOUNCE_MS;
+    this.onNotify = options.onNotify;
     this.setTimer = setTimer;
     this.clearTimer = clearTimer;
   }
@@ -224,9 +294,9 @@ export class WorkerCore {
       setTimeout.bind(globalThis),
       clearTimeout.bind(globalThis),
     );
-    client.subscribe(() => {
+    client.subscribe((change) => {
       core.schedulePersist();
-      options.onNotify?.();
+      core.scheduleNotify(change);
     });
     try {
       await client.bootstrapWorkspace(options.workspaceId);
@@ -284,6 +354,69 @@ export class WorkerCore {
       this.persistNow();
       await this.saveChain;
     }
+    this.flushPendingNotify();
+  }
+
+  // --- notification coalescing (§34.114) ---------------------------------------
+
+  /**
+   * Leading+trailing coalescer over the client's notifications. The first
+   * notification in a quiet period emits immediately; notifications inside
+   * the window merge into `notifyPending` and re-arm one trailing emission,
+   * so a burst of N notifies costs at most 2 messages per window and the
+   * merged payload never loses a structural flag or an affected id.
+   */
+  private scheduleNotify(change: ChangeNotification): void {
+    if (this.closed) return;
+    if (this.notifyTimer !== null) {
+      this.notifyPending = WorkerCore.mergeChangeNotifications(this.notifyPending, change);
+      return;
+    }
+    this.emitNotify(change);
+    this.notifyTimer = this.setTimer(() => {
+      this.notifyTimer = null;
+      const pending = this.notifyPending;
+      this.notifyPending = null;
+      if (pending !== null) this.scheduleNotify(pending);
+    }, this.notifyDebounceMs);
+  }
+
+  /** Emit a notification still sitting in its coalescing window (flush/close). */
+  private flushPendingNotify(): void {
+    if (this.notifyTimer !== null) {
+      this.clearTimer(this.notifyTimer);
+      this.notifyTimer = null;
+    }
+    const pending = this.notifyPending;
+    this.notifyPending = null;
+    if (pending !== null) this.emitNotify(pending);
+  }
+
+  private emitNotify(change: ChangeNotification): void {
+    if (this.closed) return;
+    this.onNotify?.(change);
+  }
+
+  /**
+   * Union of coalesced payloads: unknown scope (neither field) dominates
+   * (a subscriber cannot scope what it cannot see); structural ORs; the
+   * affected sets union; revision takes the max (revisions are monotonic).
+   */
+  private static mergeChangeNotifications(
+    pending: ChangeNotification | null,
+    next: ChangeNotification,
+  ): ChangeNotification {
+    if (pending === null) return next;
+    const pendingUnknown = pending.affectedNodeIds === undefined && pending.structural !== true;
+    const nextUnknown = next.affectedNodeIds === undefined && next.structural !== true;
+    if (pendingUnknown || nextUnknown) return { revision: Math.max(pending.revision, next.revision) };
+    const affected = new Set(pending.affectedNodeIds ?? []);
+    for (const id of next.affectedNodeIds ?? []) affected.add(id);
+    return {
+      revision: Math.max(pending.revision, next.revision),
+      affectedNodeIds: [...affected],
+      structural: pending.structural === true || next.structural === true,
+    };
   }
 
   // --- remote apply ----------------------------------------------------------------
@@ -455,6 +588,24 @@ export class WorkerCore {
     return this.client.store.snapshot();
   }
 
+  /**
+   * Batched read for the main thread's cache refresh (§34.114): N cache keys
+   * (`JSON.stringify([method, args])`) resolved in ONE round-trip instead of
+   * N awaited RPCs. Only READ_METHODS are accepted — a refresh batch must
+   * never become a write path.
+   */
+  private async multiRead(keys: string[]): Promise<unknown[]> {
+    return Promise.all(
+      keys.map(async (key) => {
+        const [method, args] = JSON.parse(key) as [string, unknown[]];
+        if (!READ_METHODS.has(method)) {
+          throw new Error(`multiRead: "${method}" is not a read method`);
+        }
+        return this.invoke(method, args);
+      }),
+    );
+  }
+
   stats(): WorkerCoreStats {
     const db = this.client.store.database;
     const count = (sql: string): number =>
@@ -478,6 +629,8 @@ export class WorkerCore {
   /** Dispatch one protocol method; used by handleMessage (entry + tests). */
   async invoke(method: string, args: unknown[]): Promise<unknown> {
     switch (method) {
+      case "multiRead":
+        return this.multiRead(args[0] as string[]);
       case "applyBatch":
         return this.applyBatch(args[0] as unknown[]);
       case "getNode":
@@ -686,6 +839,8 @@ export class WorkerCore {
         return this.stopRealtime();
       case "status":
         return this.status();
+      case "conflictHistory":
+        return this.client.conflictHistory();
       case "getPrefs":
         return this.client.getPrefs();
       case "patchPrefs":
