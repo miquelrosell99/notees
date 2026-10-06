@@ -227,7 +227,7 @@ describe("frontmatter", () => {
     expect(fm).toContain('"tricky: key": "true"');
   });
 
-  it("§34.32 PG15: date_range values emit start/end maps (open side null), not raw JSON", () => {
+  it("PG15: date_range values emit start/end maps (open side null), not raw JSON", () => {
     const node = page("aaaaaaaa-0000-4000-8000-000000000020", "Range", [
       { type: "text", text: "Range" },
     ], {
@@ -257,7 +257,7 @@ describe("frontmatter", () => {
     expect(fm).not.toContain('{"start"');
   });
 
-  it("§34.32 PG15: multi-select arrays emit label lists; single selects emit a label scalar", () => {
+  it("PG15: multi-select arrays emit label lists; single selects emit a label scalar", () => {
     const node = page("aaaaaaaa-0000-4000-8000-000000000021", "Tags", [
       { type: "text", text: "Tags" },
     ], {
@@ -292,7 +292,7 @@ describe("frontmatter", () => {
     expect(fm).not.toContain('"g1"');
   });
 
-  it("§34.32 PG15: range and array display strings resolve for prose serializers", () => {
+  it("PG15: range and array display strings resolve for prose serializers", () => {
     const document = buildExportDocument(
       page("aaaaaaaa-0000-4000-8000-000000000022", "Doc", [{ type: "text", text: "Doc" }], {
         properties: [

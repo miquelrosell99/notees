@@ -497,7 +497,7 @@ describe("remote poison quarantine", () => {
   });
 });
 
-describe("snapshot upload — the 413 honesty (§34.69)", () => {
+describe("snapshot upload — the 413 honesty", () => {
   it("surfaces an over-cap upload once per session, retries silently, and re-arms after a success", async () => {
     const relay = new MemoryRelay();
     let nowMs = 100_000;
@@ -511,7 +511,7 @@ describe("snapshot upload — the 413 honesty (§34.69)", () => {
     });
 
     // The relay permanently refuses the snapshot PUT: 413, forever — the
-    // §34.49 cliff. Shadow the transport method the way a capped server answers.
+    // size cliff. Shadow the transport method the way a capped server answers.
     let failWith413 = true;
     const realUpload = transport.uploadSnapshot.bind(transport);
     transport.uploadSnapshot = async (bytes, hlc) => {
@@ -587,7 +587,7 @@ describe("snapshot upload — the 413 honesty (§34.69)", () => {
   });
 });
 
-describe("batch change-info (§34.114)", () => {
+describe("batch change-info", () => {
   it("passes scoped info for content batches and structural info for moves", async () => {
     const relay = new MemoryRelay();
     const store = new Store();

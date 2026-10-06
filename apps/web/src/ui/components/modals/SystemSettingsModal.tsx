@@ -2,7 +2,7 @@
  * SystemSettingsModal Component
  *
  * Admin-only modal for system-level settings: user management, metrics.
- * Recovered from the archived system settings modal. The v2 sync server
+ * Recovered from the archived system settings modal. The current sync server
  * exposes no admin user-management or metrics endpoints, so both tabs
  * render their structure with an honest "not available in this build" note
  * instead of the legacy live tables. No entry point mounts this yet — it is

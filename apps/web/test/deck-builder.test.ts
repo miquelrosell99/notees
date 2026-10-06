@@ -1,5 +1,5 @@
 /**
- * Deck builder tests (§34.26 P2/P4/P5) — the pure slide model over synthetic
+ * Deck builder tests — the pure slide model over synthetic
  * trees: the title slide is always first; every present_as_main=1 top-level
  * child is one section slide; present_as_main=0 runs chunk into intro slides
  * by the density rule; trailing image blocks drive the split / image-full

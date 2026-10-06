@@ -1,5 +1,5 @@
 /**
- * Idempotency-Key support for the object/assets API (§34.33 AG5).
+ * Idempotency-Key support for the object/assets API.
  *
  * Agent safety for mutating routes: a caller may send `Idempotency-Key: <key>`
  * on any JSON mutation (POST/PATCH/PUT/DELETE). The first successful (2xx)
@@ -42,7 +42,7 @@ export interface IdempotencyRecord {
   createdAt: number;
 }
 
-/** In-memory, TTL-bounded key→response store (single-process M1). */
+/** In-memory, TTL-bounded key→response store (single-process). */
 export class IdempotencyStore {
   private readonly records = new Map<string, IdempotencyRecord>();
 

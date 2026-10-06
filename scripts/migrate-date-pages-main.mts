@@ -3,9 +3,10 @@
  * present_as_main = 1. Date pages are main nodes by definition — the chain
  * nests (year root → month under year → day under month), so without the
  * render bit a chain node renders as an inline block (and shows up in the
- * node picker's Blocks scope). v2's `ensureDateChain` has always authored
- * the bit, and the v1→v2 migration set it on migrated pages — but clients
- * that build the chain themselves (older GTK/Flutter builds) can leave a
+ * node picker's Blocks scope). The web client's `ensureDateChain` has always
+ * authored the bit, and the original migration set it on migrated pages —
+ * but clients that build the chain themselves (older GTK/Flutter builds)
+ * can leave a
  * parented chain node with the bit unset.
  *
  * For every active node whose id is one of the deterministic date shapes

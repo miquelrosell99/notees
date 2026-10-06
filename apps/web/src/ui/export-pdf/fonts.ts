@@ -1,5 +1,5 @@
 /**
- * PDF font bundle (§34.24 P1) — Gentium, SIL Open Font License v1.1.
+ * PDF font bundle — Gentium, SIL Open Font License v1.1.
  *
  * Privacy law: the fonts are repo assets (src/assets/fonts/, OFL.txt
  * alongside) bundled at build time — the PDF renderer never fetches from a

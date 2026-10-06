@@ -26,13 +26,13 @@ export interface ServerConfig {
   port: number;
   host: string;
   logger: boolean;
-  /** Envelopes per workspace per minute accepted by the relay (v1: 30k). */
+  /** Envelopes per workspace per minute accepted by the relay (30k). */
   relayBatchPerMinute: number;
-  /** Global fallback: requests per minute per IP (WIRE.md §3). */
+  /** Global fallback: requests per minute per IP (WIRE.md). */
   globalRequestsPerMinute: number;
-  /** Media size cap (v1: 50MB). */
+  /** Media size cap (50MB). */
   maxMediaBytes: number;
-  /** Document (pdf/epub) size cap (v1: 100MB). */
+  /** Document (pdf/epub) size cap (100MB). */
   maxDocumentBytes: number;
   /** Login attempts per minute per IP (account routes). */
   loginPerMinute: number;

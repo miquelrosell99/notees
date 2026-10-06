@@ -1,13 +1,13 @@
 /**
- * §34.31 C1 — the builder read-back guard: an AST using constructs the
+ * The builder read-back guard: an AST using constructs the
  * builder can't represent (or-roots, NOT, property conditions, multi-sort,
  * multi-dimension aggregations) opens the popover on a READ-ONLY summary
  * naming what would be lost; the lossy form unlocks only through the
  * explicit "Edit anyway" opt-in, and Apply before that opt-in is impossible.
- * Representable ASTs (incl. the §34.31 V2 created window + single sort) open
+ * Representable ASTs (incl. the created window + single sort) open
  * the editable form directly and round-trip.
  *
- * §34.31 C2 — coalesced live re-runs: a synchronous burst of notifications
+ * Coalesced live re-runs: a synchronous burst of notifications
  * costs exactly one re-run, not one per notification.
  */
 
@@ -74,7 +74,7 @@ function tokenAstOf(client: WorkspaceClient, block: string): QueryAst {
   return token.queryAst;
 }
 
-describe("query builder read-back guard (§34.31 C1)", () => {
+describe("query builder read-back guard", () => {
   it("an OR-rooted AST opens on a read-only summary naming the lost constructs", async () => {
     const client = await seedClient();
     const { city, host } = await seedWorld(client);
@@ -269,7 +269,7 @@ describe("query builder read-back guard (§34.31 C1)", () => {
   });
 });
 
-describe("coalesced live re-runs (§34.31 C2)", () => {
+describe("coalesced live re-runs", () => {
   it("a synchronous notification burst costs exactly one re-run", async () => {
     const client = await seedClient();
     const { city, host } = await seedWorld(client);

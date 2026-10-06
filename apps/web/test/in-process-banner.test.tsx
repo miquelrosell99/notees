@@ -1,5 +1,5 @@
 /**
- * InProcessStoreBanner tests (§34.92 fix 3): the in-process store mode is
+ * InProcessStoreBanner tests: the in-process store mode is
  * loudly warned — the banner renders the explanation and dismisses for the
  * session.
  */
@@ -9,7 +9,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 
 import { InProcessStoreBanner } from "../src/ui/components/ui/InProcessStoreBanner.js";
 
-describe("InProcessStoreBanner (§34.92)", () => {
+describe("InProcessStoreBanner", () => {
   it("renders the warning with a dismiss action", () => {
     render(<InProcessStoreBanner />);
     expect(screen.getByRole("status")).toHaveTextContent(

@@ -1,8 +1,8 @@
 /**
  * Quick-create — the class-aware "create" resolution + creators behind the
- * §34.19 :1172 row (Quick-create modals: Source: authors/year/DOI; Agent:
- * given/family split). Ported from v1's classAwareCreate.ts (Decision 17–19
- * there): when a node picker's create row runs under a class filter of the
+ * quick-create row (Quick-create modals: Source: authors/year/DOI; Agent:
+ * given/family split). Ported from the archived classAwareCreate.ts: when a
+ * node picker's create row runs under a class filter of the
  * source family or the agent family, creating opens the QuickCreateModal
  * with the citation fields up front instead of silently creating a plain
  * page. Title-is-content: the title is the node's initial text content.
@@ -140,7 +140,7 @@ export function collectSelfAndAncestors(client: AnyClient, classId: string): Set
 /**
  * Resolve how the picker's create row should behave under the given class
  * filters. Returns null when no class-aware flow applies (plain create).
- * v1's resolution order preserved: asset first would upload; here only the
+ * The original resolution order preserved: asset first would upload; here only the
  * quick-create families are handled — everything else falls through.
  */
 export function resolveQuickCreate(client: AnyClient, classFilters: string[]): QuickCreatePlan | null {
@@ -303,8 +303,8 @@ export interface AgentCreateInput {
 /**
  * Create a minimal agent node: persons carry given/family name (feeding
  * citekey generation) and their display name is the full natural name;
- * organizations carry just a name. Deliberately not a contact manager
- * (v1 Decision 19). Returns the new node id.
+ * organizations carry just a name. Deliberately not a contact manager.
+ * Returns the new node id.
  */
 export async function createAgentObject(
   client: AnyClient,

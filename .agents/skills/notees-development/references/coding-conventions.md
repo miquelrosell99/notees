@@ -1,6 +1,6 @@
 # Coding conventions
 
-Canonical: `docs/developers/development.md` §7 and
+Canonical: `docs/developers/development.md` and
 `docs/developers/ui-primitives.md`. Package-level TypeScript conventions:
 the fleet `typescript-conventions` skill.
 
@@ -17,11 +17,11 @@ the fleet `typescript-conventions` skill.
 - Naming: camelCase on the wire, snake_case in DB columns/tables.
 - SQL: positional `?` params only; no AUTOINCREMENT in the derived schema —
   derived ids are content hashes (determinism: wipe → replay → identical).
-- Comments cite spec sections (e.g. `// SCHEMA.md §5`).
+- Comments point at the spec they implement (e.g. `// see SCHEMA.md`).
 
 ## Commits
 
-Conventional Commits: `feat(v2/web): …`, `fix(v2/server): …` style.
+Conventional Commits: `feat(web): …`, `fix(server): …` style.
 Never re-tag a release; same-day correction = next patch tag.
 
 ## Web UI primitives law (binding for any apps/web change)
@@ -43,9 +43,9 @@ Full catalog and drift classes: `docs/developers/ui-primitives.md`.
 
 ## Anti-hallucination register
 
-`development.md` §8 lists designed-not-built items (typed-link resolution,
-citations + MD export, asset annotations, property-schema CRUD UX,
-`notees shell` REPL, computed properties, E2EE, plugins, multi-user auth,
-outliner editor program, TreeCrdt port). Do not document, export, or test
-them as existing. `architecture.md` §11 reconciles code-vs-design
-discrepancies — code wins.
+`docs/developers/development.md` lists the designed-not-built items
+(typed-link resolution, citations + MD export, asset annotations,
+property-schema CRUD UX, `notees shell` REPL, computed properties, E2EE,
+plugins, multi-user auth, outliner editor program, TreeCrdt port). Do not
+document, export, or test them as existing. `docs/developers/architecture.md`
+reconciles code-vs-design discrepancies — code wins.

@@ -384,9 +384,8 @@ export class Store {
   }
 
   /**
-   * Backlinks with source-side containment roll-up (`01` §8, traversal at
-   * query time — the 00-INDEX fan-out-vs-traversal decision resolved for
-   * M1). For target T the list is:
+   * Backlinks with source-side containment roll-up (traversal at
+   * query time — the fan-out-vs-traversal decision resolved). For target T the list is:
    *
    *  1. **direct** — edges `target_id = T` (any source);
    *  2. **containment** — edges whose SOURCE is strictly inside T's subtree
@@ -454,7 +453,7 @@ export class Store {
   }
 
   /**
-   * The node's node-alias target (§34.95): the target of its `aliasOf`
+   * The node's node-alias target: the target of its `aliasOf`
    * value (a node-typed property — an edge row, verb = the aliasOf schema),
    * or undefined when the node is not an alias. Server `/resolve` parity:
    * resolving an alias page's title answers the MAIN page.
@@ -546,7 +545,7 @@ export class Store {
   }
 
   /**
-   * Nodes carrying an authored value for the property schema (§34.32 PG12 —
+   * Nodes carrying an authored value for the property schema (PG12 —
    * the PropertyReferencesSection population): every ACTIVE node with at
    * least one property_value row for the schema, each row's slots alongside.
    * Ordered by the same display key as classMembers (COALESCE(name, id), id)
@@ -611,7 +610,7 @@ export class Store {
 
   /**
    * Scalar (plain-string) values of one schema on one node, slot order —
-   * the alias read (§34.32 PG10): alias values are name-equivalents in
+   * the alias read (PG10): alias values are name-equivalents in
    * search resolution, and this is the cheap per-node read those paths
    * use. Carrier references ({nodeId} — node-backed rich text) are not
    * names and stay out; null/non-string slots are skipped.
@@ -631,7 +630,7 @@ export class Store {
   }
 
   /**
-   * FTS prefix-AND search over active nodes (§34.30 M2): relevance-ranked —
+   * FTS prefix-AND search over active nodes: relevance-ranked —
    * FTS5 orders by the hidden rank column, FTS4 by matchinfo hit count
    * (its module has no rank column) — with an updated_at recency tiebreak
    * and node id for full determinism.
@@ -641,7 +640,7 @@ export class Store {
   }
 
   /**
-   * Cursor-paginated ranked search (§34.30 C5): same deterministic order as
+   * Cursor-paginated ranked search: same deterministic order as
    * `search`, one page at a time. `cursor` is the opaque value the previous
    * page returned (`null`/absent for the first page); `nextCursor` is null
    * when the match set is exhausted. A garbage cursor throws (fail loud).
@@ -655,7 +654,7 @@ export class Store {
 
   /**
    * Snippet around the densest query-term cluster in one node's indexed
-   * plaintext (§34.30 M3) — null when the node is unknown or unmatched.
+   * plaintext — null when the node is unknown or unmatched.
    */
   getSearchSnippet(
     nodeId: string,
@@ -665,7 +664,7 @@ export class Store {
     return searchSnippet(this.db, nodeId, query, opts);
   }
 
-  // --- workspace features (§34.35) -------------------------------------------
+  // --- workspace features -------------------------------------------
 
   /**
    * The winning feature-toggle row, or null when the workspace never
@@ -764,7 +763,7 @@ export class Store {
       next.exec(schemaSql(this.backend.ftsModule));
       // The same caveat for the v15 list-reads index — it lives outside the
       // canonical DDL (pre-v8 tables can't parse it), so the repair path
-      // re-asserts it explicitly (§34.92).
+      // re-asserts it explicitly.
       next.exec(LIST_READS_INDEX_DDL);
       reindexAllSearch(next);
     }

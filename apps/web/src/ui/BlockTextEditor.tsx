@@ -53,16 +53,16 @@
  *   Task/checkbox (assign the task class, OR-set add), Line break (insert a
  *   hard_break token), Add URL (strip the trigger, then open the page-level
  *   LinkEditModal to author an external_link token at the trigger offset),
- *   Query (§34.31 B1: insert a query token at the caret and open its builder
- *   popover on exit), Date (§34.28 #9: typed date → mention of the daily
- *   page, chain ensured on demand), Template (§34.25 T3: flat unfiltered
+ *   Query (insert a query token at the caret and open its builder
+ *   popover on exit), Date (typed date → mention of the daily
+ *   page, chain ensured on demand), Template (flat unfiltered
  *   template list — the pick instantiates a fresh page through the clone
  *   engine and links it at the caret). No match + Enter falls back to plain
  *   prose (the query text stays).
  * - Verb on selection: FloatingToolbar → link button / Cmd+K opens the
  *   VerbPopover (free-string verb + optional locator); commit wraps the
- *   covered prose in a typed_link mark via spliceTokens. PG1 schema-at-
- *   capture (§34.32): the popover live-matches the verb against the
+ *   covered prose in a typed_link mark via spliceTokens. Schema-at-
+ *   capture: the popover live-matches the verb against the
  *   workspace's property schemas — an exact name hit binds the mark to the
  *   existing schema (`verb: { propertySchemaId }`), a miss offers "Create
  *   property '…' and bind" (propertySchema.create typed object/multi, empty
@@ -72,7 +72,7 @@
  * unflushed typing is preserved), splice tokens through spliceTokens, then
  * write the result directly with client.updateObject and re-sync the DOM.
  *
- * Keyboard contract (docs/ux.md "The outliner"; v1-level semantics):
+ * Keyboard contract (docs/ux.md "The outliner"):
  * - Enter mid-text → split at the caret: head stays, tail moves to a new
  *                  sibling right after.
  * - Enter at start → new empty block BEFORE this one (object.create with
@@ -83,7 +83,7 @@
  * - Shift+Enter  → allow the contentEditable newline; the flush stores it as
  *                  `hard_break` tokens (the only break token in the grammar).
  * - Backspace at start of text → merge into the previous block (previous
- *                  sibling, or the parent when an only child) past the v1
+ *                  sibling, or the parent when an only child) past the
  *                  guard (same-parent childless / only-child-into-parent);
  *                  otherwise a no-op.
  * - Backspace on an empty block with children → promote the children into
@@ -188,8 +188,8 @@ export type EditorCaret = CaretPlacement | { x: number; y: number };
 
 /**
  * True when the block IS one code_block token (the `/code` product): the
- * editor swaps the prose contentEditable for the code surface (§34.34 B3
- * owed editor) — the token's `text` is edited verbatim (a textarea, not the
+ * editor swaps the prose contentEditable for the code surface (the owed
+ * code editor) — the token's `text` is edited verbatim (a textarea, not the
  * prose projection, which skips code tokens) and the language badge stays.
  */
 function codeTokenOf(ast: readonly unknown[]): { language?: string; text: string } | null {
@@ -202,7 +202,7 @@ function codeTokenOf(ast: readonly unknown[]): { language?: string; text: string
 }
 
 /**
- * The code_block editing surface — §34.34 B3's owed editor branch. A
+ * The code_block editing surface — the owed editor branch. A
  * CodeTextarea-integrated editor (the kit primitive): typing is debounced
  * and writes the token's `text` through the standard content path
  * (client.updateObject, one op per debounce window), the language hint
@@ -326,7 +326,7 @@ const MENTION_LABEL_MAX = 512;
 /**
  * The `/query` slash starter AST — exactly what the query builder composes
  * from its default state, so the token the builder opens on matches one
- * clean Apply cycle (§34.31 B1).
+ * clean Apply cycle.
  */
 const STARTER_QUERY_AST: Record<string, unknown> = {
   version: 1,
@@ -455,7 +455,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
   // to its MAIN page; the alias view stays reachable by opening the alias
   // as a node (search, child rows, deep links).
   const openNodeResolved = (targetId: string) => openNode(resolveAliasOpen(client, targetId));
-  /** Text-property carrier semantics (§34.80) — provided by the property
+  /** Text-property carrier semantics — provided by the property
    *  cell hosting this block as a carrier; null in the ordinary outline. */
   const carrierEnter = useContext(CarrierEnterContext);
   const rootRef = useRef<HTMLSpanElement>(null);
@@ -514,7 +514,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
     setTemplateStage(null);
   };
   /**
-   * Shared create-with-template flow (§34.25 T3/T4): family self-heal through
+   * Shared create-with-template flow: family self-heal through
    * the outliner seam (shells without it skip the heal — the graft itself is
    * schema-independent), variables dialog when the template carries
    * {{variables}}, then a fresh page; the mention link lands at the stage
@@ -576,9 +576,9 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
   };
 
   /**
-   * Backspace-at-start (v1 semantics): merge this block's content into the
+   * Backspace-at-start: merge this block's content into the
    * previous block — the previous SIBLING, or the parent when this block is
-   * an only child — but only past the v1 guard (same-parent childless, or an
+   * an only child — but only past the guard (same-parent childless, or an
    * only-child into its parent). Otherwise the key is a no-op. The source's
    * unflushed draft rides along (applyTextEdit); the caret lands at the
    * merge point in the target block.
@@ -624,7 +624,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
   };
 
   /**
-   * Delete-at-end (v1 semantics): merge the NEXT SIBLING's content into this
+   * Delete-at-end: merge the NEXT SIBLING's content into this
    * block when the guard allows (same parent — by construction — and the
    * next block is childless). The caret stays at the merge point.
    */
@@ -906,7 +906,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       return;
     }
     if (commandId === "query") {
-      // §34.31 B1: insert a live query token at the caret, then hand the
+      // Insert a live query token at the caret, then hand the
       // token's read-mode view an open-builder request (it mounts when this
       // editor exits — see QueryBlockView's module queue).
       const base = applyTextEdit(nodeRef.current.contentAst, draft, resolveClassName);
@@ -919,7 +919,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       return;
     }
     if (commandId === "date") {
-      // §34.28 #9: typed date → link to the daily page (created on demand).
+      // Typed date → link to the daily page (created on demand).
       // Mirrors the @-picker's date row: ensure the chain, then insert a
       // mention at the caret. A bare `/date` means today; an unparseable
       // query falls back like a no-match (only the sigil is stripped — the
@@ -957,7 +957,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       return;
     }
     if (commandId === "template") {
-      // §34.25 T3 (D1 amendment): flat unfiltered template list; the pick
+      // Flat unfiltered template list; the pick
       // instantiates at the caret through the shared instantiator (variables
       // dialog first when the template carries {{variables}}).
       const remainder = query.toLowerCase().startsWith("template")
@@ -968,13 +968,13 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       return;
     }
     if (commandId === "hr") {
-      // §34.34 B5 (lockstep SHIPPED): the divider token rides the content
+      // The divider token rides the content
       // stream like a hard_break — one token, no text.
       applySplice(start, end, [{ type: "hr" }], start + 1);
       return;
     }
     if (commandId === "code") {
-      // §34.34 B3 (lockstep SHIPPED): the block becomes a code_block token.
+      // The block becomes a code_block token.
       // The typed remainder is the language hint ("/code python"); the code
       // text is what the block already carries — the sentence you wrote
       // becomes the code, nothing silently dropped. Editing rides the
@@ -1014,7 +1014,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       return;
     }
     if (commandId === "table") {
-      // §34.34 B4: a table is a CONTAINER node classed `table` (the class
+      // A table is a CONTAINER node classed `table` (the class
       // says what-it-is — the whiteboard pattern; no new wire token). It is
       // created as a child of this block at the caret with one row of empty
       // cells; the optional typed remainder is the column count ("/table 5",
@@ -1135,7 +1135,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
   };
 
   /**
-   * Multi-select apply from the # / + popup (§34.19): every picked node is
+   * Multi-select apply from the # / + popup: every picked node is
    * assigned in pick order (tags / classes), the trigger placeholder is
    * consumed once, and the block refocuses.
    */
@@ -1295,7 +1295,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
   // --- node-link context menu (right-click a mention) -------------------------
 
   /**
-   * Pill mouse gestures (v1 parity): the FIRST click selects the pill — the
+   * Pill mouse gestures: the FIRST click selects the pill — the
    * mousedown only blocks caret placement (the click handler owns selection,
    * so the click of the same gesture can't read as a "second click"); a
    * click on the already-selected pill clears the flash and lets the
@@ -1559,8 +1559,8 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       }
     }
     const mod = event.metaKey || event.ctrlKey;
-    // §34.19: Alt+Shift+↑/↓ reorders the block among its siblings without
-    // dragging (the v1 MOVE_UP/MOVE_DOWN chords). The caret stays in the
+    // Alt+Shift+↑/↓ reorders the block among its siblings without
+    // dragging (the MOVE_UP/MOVE_DOWN chords). The caret stays in the
     // editor; the write is one object.move per press.
     if (event.altKey && event.shiftKey && !mod && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
       event.preventDefault();
@@ -1585,7 +1585,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       return;
     }
     // Atomic pill gestures — a selected pill (or a caret adjacent to one)
-    // owns Backspace/Delete/arrows before any other branch (v1 parity: the
+    // owns Backspace/Delete/arrows before any other branch (the
     // pill is one logical unit). The caret never sits inside a pill, so
     // "adjacent" means: Backspace with the caret at a pill's end, Delete at
     // a pill's start, arrows onto either boundary.
@@ -1657,7 +1657,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
     }
     if (mod && !event.altKey) {
       const key = event.key.toLowerCase();
-      // §34-tracked Cmd/Ctrl+Enter: the task-state cycle (v1 parity — not a
+      // Cmd/Ctrl+Enter: the task-state cycle (not a
       // task -> task+Pending -> task+Done -> not a task; see taskCycle.ts).
       // Shift stays out so Cmd+Shift+Enter keeps Shift+Enter's hard-break
       // newline semantics. While a slash popup is open, the Enter branch
@@ -1738,7 +1738,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       const parentId = nodeRef.current.parentId;
       const currentId = nodeRef.current.id;
       const base = applyTextEdit(nodeRef.current.contentAst, draft, resolveClassName);
-      // Text-property carriers (§34.80): multi Enter registers the new
+      // Text-property carriers: multi Enter registers the new
       // sibling as the next VALUE; single Enter nests the new block as a
       // CHILD of the carrier (the value's lines). Ordinary blocks: the
       // default outliner semantics below.
@@ -1748,7 +1748,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       const childAnchor = firstChildId !== undefined ? { beforeId: firstChildId } : {};
       if (caret !== null && caret > 0 && caret < draft.length) {
         // MID-TEXT: split at the caret. The head stays in this block; the
-        // tail moves to a new block right after (v1 splitBlock) — a SIBLING
+        // tail moves to a new block right after (the classic split) — a SIBLING
         // normally, a CHILD of a single-value carrier. The head write
         // supersedes the debounced flush — clear it so the unmount flush
         // can't overwrite the split.
@@ -1788,7 +1788,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
         return;
       }
       // END / EMPTY: a sibling after this block — but a block WITH CHILDREN
-      // takes the new block as its FIRST child instead (v1/Roam); a
+      // takes the new block as its FIRST child instead (the Roam rule); a
       // single-value carrier ALWAYS takes the child branch (its value is
       // one block — Enter adds a line, never a sibling value).
       const children = client.getChildren(currentId);
@@ -1829,7 +1829,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       const id = nodeRef.current.id;
       if (text !== "") {
         if (caret === 0) {
-          // START OF TEXT (v1): merge this block into the previous one when
+          // START OF TEXT: merge this block into the previous one when
           // the guard allows (same-parent childless, or an only-child into
           // its parent); otherwise the key does nothing.
           event.preventDefault();
@@ -1889,7 +1889,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       }
       // Outdent: to the grandparent, placed right after the current parent.
       // treeEditMode device setting: "logical" (default) additionally moves
-      // the block's subsequent siblings under it (v1 category grouping);
+      // the block's subsequent siblings under it (category grouping);
       // "direct" moves only the block.
       const parentId = position?.parentId;
       const grandParentId = position?.grandParentId;

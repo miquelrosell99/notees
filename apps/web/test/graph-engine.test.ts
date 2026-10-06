@@ -1,5 +1,5 @@
 /**
- * graph/engine tests (§34.80): determinism (same seed + topology → identical
+ * graph/engine tests: determinism (same seed + topology → identical
  * positions), preset sanity, drag/pin behavior, topology-preserving updates,
  * and quiescence after enough ticks. Assertions are on engine STATE, never
  * wall-clock (the render loop owns timing).

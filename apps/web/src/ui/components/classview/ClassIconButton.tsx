@@ -1,9 +1,9 @@
 /**
- * ClassIconButton — the class header's icon picker. The popup IS the v1
+ * ClassIconButton — the class header's icon picker. The popup IS the
  * full picker (IconPickerPopup: All/Emojis/Icons tabs, the entire emoji +
  * mdi sets, recents — the owner's directive 2026-10-04, "it was great");
  * the earlier curated 42-icon grid retired in its favor. Selection writes
- * the v1 value contract through object.update: an emoji character (the
+ * the value contract through object.update: an emoji character (the
  * Icon renderer's text passthrough) or a camelCase mdi key; "" clears.
  */
 

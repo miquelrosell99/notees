@@ -1,7 +1,7 @@
 /**
  * usePopupDismissal — the shared dismissal layer for popup surfaces.
  *
- * One implementation of the platform convention (§34.67): every popup closes
+ * One implementation of the platform convention: every popup closes
  * on Escape and on a pointer-down outside itself. The hook installs both
  * document listeners while the popup is open and removes them on close /
  * unmount, so callers never manage subscription lifecycle themselves.

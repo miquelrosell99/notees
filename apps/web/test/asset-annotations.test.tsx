@@ -335,7 +335,7 @@ describe("Asset annotations (highlight class)", () => {
       [PROVENANCE, "authored", HIGHLIGHT_CLASS],
     ]);
 
-    // The M1 protocol has no class.remove op (membership is add-only via the
+    // The protocol has no class.remove op (membership is add-only via the
     // object.create re-issue); simulate the membership removal at the store
     // level — exactly the rows a future removal op's applier will write.
     client.store.database

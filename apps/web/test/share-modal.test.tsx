@@ -1,5 +1,5 @@
 /**
- * Shares tests (jsdom, §34.62 shares record): the SharePageModal talks to the
+ * Shares tests (jsdom): the SharePageModal talks to the
  * /api/shares surface (list on open, create, revoke via the inline confirm,
  * copy through the clipboard seam) and the node menus surface the "Share…"
  * item only where it belongs — pages with a share target, never classes.

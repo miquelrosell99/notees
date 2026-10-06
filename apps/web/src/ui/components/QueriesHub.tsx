@@ -1,21 +1,20 @@
 /**
- * QueriesHub — §34.31 V4: the shell's ad-hoc query surface + the home of the
- * saved views (V1's tabs). Saved views are `query` content tokens hosted on
- * an ordinary workspace page (the host page is created lazily on first save
+ * QueriesHub — the shell's ad-hoc query surface + the home of the
+ * saved views (tabs). Saved views are `query` content tokens hosted on an
+ * ordinary workspace page (the host page is created lazily on first save
  * — the same client-side lazy-create pattern as the journal date chain; it
  * is a normal page, visible in the Pages hub, whose content IS the saved
  * views). Everything persists through the content update path — no view
  * entity, no new op, sync rides the op log.
  *
- * The surface: ViewTabs over the host's tokens (§34.31 V13 — the default tab
+ * The surface: ViewTabs over the host's tokens (the default tab
  * is the token whose view record carries `isDefault`, i.e. configuration in
  * the record rather than code), a "New query" action opening the
- * FilterBuilderModal (§34.31 V2): Run executes an ad-hoc query session-only;
+ * FilterBuilderModal: Run executes an ad-hoc query session-only;
  * "Save as view" names it and appends a token. The selected view's results
  * render through NodeCollection at section scale (list/table persisted in
  * the token's view record — synced), with the same burst-coalesced live
- * re-run (queryRun.ts) and the 200-row render window + load-more contract
- * (§34.31 C2).
+ * re-run (queryRun.ts) and the 200-row render window + load-more contract.
  */
 
 import { useEffect, useState } from "react";
@@ -139,7 +138,7 @@ function QueryResults({
       <NodeCollection
         viewMode={viewMode === "table" ? "table" : "outline"}
         client={client as unknown as import("../views/index.js").AnyClient}
-        // §34.70: the query result owns ITS pagination — the 200-row window
+        // The query result owns ITS pagination — the 200-row window
         // (QUERY_RESULT_CAP) + the load-more below — so the collection view
         // must not window again (double-windowing would cut the cap to 100).
         windowed={false}
@@ -190,7 +189,7 @@ export function QueriesHub({
   const host = hostId !== null ? client.getNode(hostId) : undefined;
   const tokens = host === undefined ? [] : listQueryTokens(host.contentAst as readonly unknown[]);
 
-  // §34.31 V13: the effective selection is the explicit choice, else the
+  // The effective selection is the explicit choice, else the
   // record-configured default, else the first saved view.
   const selectedToken =
     view?.kind === "saved"

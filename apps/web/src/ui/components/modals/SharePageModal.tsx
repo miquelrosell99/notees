@@ -1,6 +1,6 @@
 /**
  * SharePageModal — create / list / revoke a page's READ-ONLY public share
- * links (§34.62 shares record, the M3 "shares" item's shipped slice).
+ * links (the shipped share slice).
  *
  * Anyone holding a link gets a static, read-only render of the page (the
  * server's `GET /s/<token>` — no app, no account, no write path); revocation

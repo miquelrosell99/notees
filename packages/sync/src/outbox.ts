@@ -1,6 +1,6 @@
 /**
  * Outbox: the local-first write-ahead queue the sync engine pushes from.
- * In-memory port of v1's `sync_outbox` table state machine
+ * In-memory port of the `sync_outbox` table state machine
  * (frontend/src/core/store.ts): pending → in_flight → acknowledged /
  * failed / quarantined, with attempt_count + next_retry_at driving the
  * backoff schedule, plus the `recovery_operation` equivalent (parked
@@ -21,7 +21,7 @@ export type OutboxState = "pending" | "in_flight" | "acknowledged" | "failed" | 
 export interface OutboxEntry {
   envelope: Envelope;
   state: OutboxState;
-  /** Incremented when the entry is marked in_flight (v1 sync_outbox semantics). */
+  /** Incremented when the entry is marked in_flight. */
   attemptCount: number;
   /** ms epoch; null = not scheduled (quarantined waits for an explicit requeue). */
   nextRetryAt: number | null;
@@ -47,8 +47,8 @@ export class Outbox {
 
   /**
    * Pushable entries: pending/in_flight, or failed whose backoff has elapsed,
-   * ordered by (hlc physical, logical) — v1 getPendingPushOperations, minus the
-   * HLC watermark clause (acknowledged envelopes leave the outbox entirely).
+   * ordered by (hlc physical, logical) — getPendingPushOperations semantics,
+   * minus the HLC watermark clause (acknowledged envelopes leave the outbox entirely).
    */
   due(now: number): OutboxEntry[] {
     const due: OutboxEntry[] = [];
@@ -77,7 +77,7 @@ export class Outbox {
     }
   }
 
-  /** Acknowledged envelopes leave the outbox; a whole chunk acks together (v1). */
+  /** Acknowledged envelopes leave the outbox; a whole chunk acks together. */
   markAcknowledged(ids: string[]): void {
     for (const id of ids) {
       this.entries.delete(id);
@@ -85,7 +85,7 @@ export class Outbox {
   }
 
   /**
-   * Backoff per v1: attemptCount (already incremented at in_flight) indexes
+   * Backoff: attemptCount (already incremented at in_flight) indexes
    * the retry schedule; once the schedule is exhausted the entry quarantines
    * (nextRetryAt null) and stops auto-retrying.
    */
@@ -105,7 +105,7 @@ export class Outbox {
     }
   }
 
-  /** Move quarantined entries back to pending with a fresh backoff budget (v1). */
+  /** Move quarantined entries back to pending with a fresh backoff budget. */
   requeueQuarantined(): number {
     let count = 0;
     for (const entry of this.entries.values()) {

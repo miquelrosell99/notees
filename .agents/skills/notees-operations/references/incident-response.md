@@ -1,6 +1,6 @@
 # Incident response
 
-Canonical: `docs/developers/migrations.md` §1B + `deployment.md` §§6–7.
+Canonical: `docs/developers/migrations.md` + `deployment.md`.
 Escalation discipline (when to roll back, postmortem) per the
 `deployment-runbook` skill; these are the Notees-specific failure modes.
 
@@ -20,7 +20,7 @@ Escalation discipline (when to roll back, postmortem) per the
   or re-deploy the newer image. No downgrade path exists.
 - **Live API serves stale state after a log rewrite** — the restore epoch was
   not bumped or the server was not restarted. Fix: `relay.bumpRestoreEpoch` +
-  `docker compose restart notees-sync` (migrations.md §1B steps 6–7).
+  `docker compose restart notees-sync` (migrations.md steps 6–7).
 - **Derived store corrupted / poisoned** — stop sync, delete the affected
   `derived/<workspaceId>.db` (it is a cache), restart; it rehydrates from the
   log (+ newest covering snapshot). Never touch `relay.db` for this.

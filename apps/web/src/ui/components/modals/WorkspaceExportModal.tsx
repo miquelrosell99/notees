@@ -1,6 +1,6 @@
 /**
- * WorkspaceExportModal — the workspace-level export options dialog
- * (§34.24 E6): one zip download, an include-assets toggle, and a short
+ * WorkspaceExportModal — the workspace-level export options dialog:
+ * one zip download, an include-assets toggle, and a short
  * format note. Presentational — the view owns the fetch/download and feeds
  * back isLoading/error (the WorkspaceNameModal convention).
  */

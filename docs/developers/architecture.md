@@ -7,21 +7,19 @@ if you are new here.
 
 **Status marking.** This document separates *implemented* (code exists in the tree, verified
 against the paths cited) from *designed for a later phase* (specified in
-`../../.plans/design/01-knowledge-model.md`, `../../packages/protocol/SCHEMA.md`, and the evolution plan
-at `../../.plans/implementation-plan.md`, but not present in
-code). In case of disagreement between a design doc and the code, **the code wins** and the
-discrepancy is flagged in [§11](#11-code-vs-design-discrepancies).
+`../../packages/protocol/SCHEMA.md` but not present in code). In case of disagreement
+between a design doc and the code, **the code wins** and the discrepancy is flagged in the
+[code-vs-design discrepancies](#11-code-vs-design-discrepancies) list below.
 
 **What is shipped (2026-10-01):** the sync/storage core, the interactive outliner
 editor (blocks, marks, `@`/`#`/`+` node-picker popups, slash commands), the page
 layout (header identity rows, collapsed `Properties N`, linked references),
-first-class tags, class ordering, the v1 icon picker, sidebar peek cards, and the
+first-class tags, class ordering, the icon picker, sidebar peek cards, and the
 CLI. What is **not** (designed, not shipped): typed-link target resolution, the
 citations pipeline, E2EE, plugins, multi-user auth. Do not document or assume
 those as existing.
 
-Sources: `../../.plans/design/00-INDEX.md`, `../../.plans/design/01-knowledge-model.md`,
-`packages/protocol/SCHEMA.md`, `packages/protocol/WIRE.md`, and the code cited inline.
+Sources: `packages/protocol/SCHEMA.md`, `packages/protocol/WIRE.md`, and the code cited inline.
 
 ---
 
@@ -38,7 +36,7 @@ Node, browser WASM worker, CLI) so semantics cannot drift between them.
 
 ## 2. The operation log — the sole authority
 
-*Implemented (M1).*
+*Implemented.*
 
 - **Envelope format** — `packages/protocol/src/envelope.ts`. camelCase JSON, strict zod
   schema, mandatory `protocolVersion: 3` (absent → rejected), fields: `id` (UUIDv7),
@@ -46,20 +44,21 @@ Node, browser WASM worker, CLI) so semantics cannot drift between them.
   (`web`, `cli`, `agent:<id>`), `hlc`, `affectedNodeIds`, `opType`, `timestamp`, `payload`.
   `seq` is deliberately **absent** from envelopes: server-assigned ordering rides on
   catch-up responses and WS frames, never inside the envelope.
-- **Payloads** — `packages/protocol/src/op-types.ts`. Sixteen op types in the M1 registry:
+- **Payloads** — `packages/protocol/src/op-types.ts`. Sixteen op types in the registry:
   `object.create` / `object.update` / `object.delete`, `class.create` / `class.update` /
   `class.delete` / `class.setExtends`, `propertySchema.create` / `propertySchema.update` /
   `propertySchema.delete`, `property.set` / `property.unset`, `asset.attach` /
   `asset.detach`, `collection.member.add` / `collection.member.remove`. Each has a strict
   zod payload schema; `payloadSchemaFor(opType)` is the single lookup. There are **no
-  `relation.*` ops** — relation entities were deleted from the model on 2026-09-25
-  (assessment §34.9); associations are node-typed property values or typed-link marks in
+  `relation.*` ops** — relation entities were deleted from the model on 2026-09-25;
+  associations are node-typed property values or typed-link marks in
   content.
 - **Server log** — `apps/server/src/relay-storage.ts`. One SQLite file per server,
   `<dataDir>/relay.db`, table `envelope` with `seq INTEGER PRIMARY KEY AUTOINCREMENT`
   (the **only ordering authority**) and `id UNIQUE`, so `INSERT OR IGNORE` ingest is
   idempotent and retry-safe. Also in `relay.db`: `restore_epoch`, `snapshot`,
-  `compaction_segment`, `asset`, `asset_ref` (asset metadata only — bytes are files, §8).
+  `compaction_segment`, `asset`, `asset_ref` (asset metadata only — bytes are files; see
+  the server section).
 - **Causality** — `packages/protocol/src/hlc.ts`. Hybrid Logical Clock per device;
   `compareHlc` orders `(physical, logical)`. HLC is the LWW causality watermark and
   snapshot marker, never an ordering mechanism for catch-up. The server's clock is seeded
@@ -71,24 +70,24 @@ Node, browser WASM worker, CLI) so semantics cannot drift between them.
   state, which is exactly what the store's own tests assert
   (`packages/store/test/store.test.ts`).
 
-**Designed (M2/M3):** the M3 E2EE slot. The envelope schema already reserves
+**Designed, not shipped:** the E2EE slot. The envelope schema already reserves
 `payload = {"$e": {iv, ct}}`; the relay passes it through unvalidated and server-side
 derived stores skip it (`isEncryptedPayload` checks in `workspace-store.ts`). Encryption
-itself is M3 and does not exist.
+itself is not shipped.
 
 ## 3. The derived store — wipe, replay, identical
 
-*Implemented (M1).*
+*Implemented.*
 
-`packages/store` is the single semantic-store implementation. Per the five storage
-categories of `01-knowledge-model.md` §3, the derived schema
-(`packages/store/src/schema.ts`, `SCHEMA_VERSION = 8`, DDL mirrored as `SCHEMA_SQL`; additive `PRAGMA user_version` migrations — v2 class_property LWW columns, v3 date columns, v4 FTS4→FTS5, v5 tags `tag_member_set` + `node.tag_ids`, v6 → v7 `node.class_order`, v7 → v8 the render-state model: `is_class` + `present_as_main` replace `node_type`, node table rebuilt in place) holds:
+`packages/store` is the single semantic-store implementation. Across the five storage
+categories, the derived schema
+(`packages/store/src/schema.ts`, `SCHEMA_VERSION = 15`, DDL mirrored as `SCHEMA_SQL`; additive `PRAGMA user_version` migrations — v2 class_property LWW columns, v3 date columns, v4 FTS4→FTS5, v5 tags `tag_member_set` + `node.tag_ids`, v6 → v7 `node.class_order`, v7 → v8 the render-state model: `is_class` + `present_as_main` replace `node_type`, node table rebuilt in place) holds:
 
-| Category | Tables (M1 schema) | Notes |
+| Category | Tables | Notes |
 |---|---|---|
 | ENTITIES | `node`, `node_child_order` | one table for every entity; child order is fractional-position strings |
 | CONFIGURATION | `property_schema`, `class_property`, `class` | the `class` table carries class-only configuration keyed by the class node id; the node row stays the structural authority |
-| ASSERTIONS | `property_value`, `property_value_tombstone`, `node_link`, `node_asset` | typed, LWW, tombstoned; `node_link` = per-link analytics (§5) |
+| ASSERTIONS | `property_value`, `property_value_tombstone`, `node_link`, `node_asset` | typed, LWW, tombstoned; `node_link` = per-link analytics |
 | DERIVED | `edge`, `class_hierarchy`, `class_member_set`, `collection_member`, `search_index` (+`search_index_docid`), `node_stats` | applier-maintained; never authored; wipe → replay → identical |
 | INFRA | `applied_envelope`, `sync_state`, `trash`, `app_meta` | idempotency, retention, client bookkeeping — never ops |
 
@@ -112,7 +111,7 @@ applicable (e.g. a create whose parent has not arrived) is *skipped* and retried
 boot — it never poisons the whole replay. A per-workspace promise queue serializes the
 ingest+apply pair across concurrent requests. After the replay, if the workspace's log
 has **no snapshot at all** (post-restore wipe, fresh relay), the server snapshots its own
-converged derived store once — `ensureSnapshotAfterReplay` (§34.48): the log crosses
+converged derived store once — `ensureSnapshotAfterReplay`: the log crosses
 `SNAPSHOT_REBUILD_MIN_ENVELOPES` (1,000) and `latestSnapshot` is null. Best-effort (a
 failed write never fails hydration) and once per wipe at most, so the next fresh client —
 and the next boot — restores instead of replaying the whole log. Snapshots stay an
@@ -120,7 +119,7 @@ optimization, never authority: the log is untouched and remains the durability b
 
 ## 4. The axes and the bullet-proof schema
 
-*Implemented (M1) — this is the Revision 11 render-state model: `is_class` ×
+*Implemented — this is the Revision 11 render-state model: `is_class` ×
 `present_as_main` replace Revision 10's `node_type` enumeration (and, before it, the
 soft-`kind` design).*
 
@@ -155,9 +154,21 @@ CHECK (is_class = 0 OR parent_id IS NULL)
   (declaration-first).
 - **View resolution = the render cascade:** `is_class` → Class View; parentless →
   document chrome (Page View; the bit is unread); otherwise `present_as_main` decides
-  main-children zone vs inline body (SCHEMA.md). The M1 web UI implements a
-  read-oriented Page View only (§9); Class View / Focused Block View chrome is designed,
+  main-children zone vs inline body (SCHEMA.md). The web UI implements a
+  read-oriented Page View only; Class View / Focused Block View chrome is designed,
   not shipped.
+- **Node fields vs properties (boundary rule, 2026-10-06):** platform-fixed,
+  cardinality-1 node fundamentals that core chrome or navigation reads or
+  writes are **wire node fields** (`object.update`, the icon/color precedent;
+  `coverAssetId`/`bannerAssetId`/`aliasedNodeId` are the first three) — the
+  derived store projects them as plain per-field columns. The property
+  system stays for user-extensible typed attributes (class-bound,
+  multi-value, defaulted, qualified, query-filtered). Never model platform
+  fundamentals as properties; never answer property drift with
+  reserved-schema machinery. Structural invariants (extends DAG, alias-chain
+  acyclicity) are write-time invariants: validated at the operation level
+  with loud failure, never applied; render assumes them. Reasoning:
+  `.plans/2026-10-06-1352-main-content-restructure/`.
 
 ## 5. Content grammar and the edge index
 
@@ -168,14 +179,14 @@ designed, not implemented (see below).*
 **Content.** A block's content is one flat token array (`contentAst: ContentToken[]`) —
 `text` (with `marks`), `class_chip`, `mention`, `typed_link`, `asset_ref`, `embed_ref`,
 `quote`, `query`, `whiteboard`, `external_link`, `math`, `hard_break`. Normative grammar in
-`SCHEMA.md`; executable form in `content-mark.ts`. Key M1 semantics:
+`SCHEMA.md`; executable form in `content-mark.ts`. Key semantics:
 
 - `mention` stores the target id only; display resolves at render (rename-free).
 - `typed_link` is a **mark on the prose word** — verb (property-schema ref or free
   string) plus `metadata{locator?, candidateSpans?}`. **Record, don't resolve:**
   `candidateSpans` is an ordered list of token ids recorded at capture; the resolution
-  *rule* is deferred to M2. `target_id` is NULL in the edge index by design.
-- The M1 wire carrier for content is whole-array `contentAst` on `object.create/update`.
+  *rule* is designed, not implemented. `target_id` is NULL in the edge index by design.
+- The wire carrier for content is whole-array `contentAst` on `object.create/update`.
   `contentDeltaB64` (base64 CRDT delta) is defined in the payload schema as the canonical
   carrier "once the Yjs port lands" (`op-types.ts` header) — the Yjs port and per-node
   `Y.Text` CRDT are designed, not implemented.
@@ -186,7 +197,7 @@ derived `edge` table — never authored directly:
 | type | Derived from | `target_id` | `verb` |
 |---|---|---|---|
 | `mention` | `mention` tokens (one edge per instance) | target node | NULL |
-| `typed_link` | typed-link marks, top-level and inside quotes | **NULL** (unresolved until M2) | the verb string |
+| `typed_link` | typed-link marks, top-level and inside quotes | **NULL** (unresolved until target resolution ships) | the verb string |
 | `property` | node-typed property values (`{"nodeId": …}`) | value node | bound propertySchemaId |
 
 Stale edges are deleted and `node_stats` (child/backlink/reference/descendant counts,
@@ -197,21 +208,21 @@ outgoing ones.
 **`node_link` analytics.** Assertion rows keyed by the mention token's optional `linkId`
 (decided 2026-09-26, SCHEMA.md): `source_id`, `target_id`, `created_at`, `updated_at`,
 `click_count`, `last_navigated_at`. Anonymous mentions (no `linkId`) get no row. Granular
-per-visit history (`link_visit`) is designed as a derived log with the M2 statistics work.
+per-visit history (`link_visit`) is designed as a derived log with the statistics work.
 
 **Containment roll-up is implemented query-time; filter inheritance is not.**
-`Store.backlinksWithRollup(id)` (reconciled 2026-09-26, §11 item 2) adds
+`Store.backlinksWithRollup(id)` (reconciled 2026-09-26) adds
 source-side containment backlinks: direct edges on the node plus outward
 links from inside its subtree (`kind: direct|containment` + subtree depth,
 direct first; a block inside France linking Paris lists on both France and
 Paris; the badge stays direct, so the list can exceed it). `refset` **filter
 inheritance** (`refset(n) = own_links(n) ∪ refset(parent(n))` as a query
-matching rule, `01` §8) remains designed, not implemented — no inherited-link
+matching rule) remains designed, not implemented — no inherited-link
 filtering exists in code.
 
 ## 6. DB adapter interface — better-sqlite3 and sql.js
 
-*Implemented (M1).*
+*Implemented.*
 
 `packages/store/src/db.ts` defines the minimal synchronous surface the store actually
 calls: `SqliteDB` (`exec`, `prepare`, `pragma`, `transaction`, optional `serialize`/
@@ -225,7 +236,7 @@ calls: `SqliteDB` (`exec`, `prepare`, `pragma`, `transaction`, optional `seriali
 | sql.js | `packages/store/src/adapters/sqljs.ts` | browser (WASM, in-memory) | the only synchronous SQLite that runs in the browser; exported via `@notees/store/sqljs` |
 
 **Why both:** the store package must run unchanged in the browser worker and in Node
-(assessment §34.15 — the v1 dual-language tax must not recur), so all SQL goes through the
+(the dual-language tax must not recur), so all SQL goes through the
 narrowest driver-agnostic interface, and the store test suite runs *every* test against
 *both* adapters to keep the surface honest.
 
@@ -242,7 +253,7 @@ database bytes in memory.
 
 ## 7. The sync engine
 
-*Implemented (M1) — port of v1's SyncEngine per WIRE.md, in `packages/sync`.*
+*Implemented — port of the SyncEngine per WIRE.md, in `packages/sync`.*
 
 `packages/sync/src/sync-engine.ts`, `outbox.ts`, `meta.ts`, `conflicts.ts`,
 `transport.ts`. Wire contract: `packages/protocol/WIRE.md`.
@@ -250,14 +261,14 @@ database bytes in memory.
 **Outbox (local-first write path).** `SyncEngine.enqueue` applies the envelope to the
 local store *immediately* and tracks it in the outbox as `pending` until the server acks.
 State machine (`outbox.ts`): `pending → in_flight → acknowledged | failed → quarantined`,
-with `attemptCount`/`nextRetryAt` driving the v1 backoff schedule
+with `attemptCount`/`nextRetryAt` driving the backoff schedule
 (5s, 15s, 1m, 5m, 30m; exhausted → quarantined; `requeueQuarantined` for recovery). Push
 chunks batches of 100 (WIRE cap is 1000) and acks whole-chunk: a 200 means every envelope
 is persisted; duplicate-only chunks leave the outbox because the server omits duplicate
-ids from `savedIds`. Durability note: the M1 outbox is a **session** in-memory structure —
+ids from `savedIds`. Durability note: the outbox is a **session** in-memory structure —
 an embedding client rehydrates by re-`enqueue`-ing from its durable op log
-(`outbox.ts` header); the M1 web client holds its store in memory, so a reload re-syncs
-from the server rather than from local durable state (see §9).
+(`outbox.ts` header); the web client holds its store in memory, so a reload re-syncs
+from the server rather than from local durable state (see the Clients section).
 
 **Seq cursor pull.** Catch-up pages (default 1000, server clamps [1, 10000]); each page is
 validated (`validateEnvelope` fails loud on unknown opTypes/newer protocol versions
@@ -268,19 +279,19 @@ cursor, the received-HLC watermark, and the restoreEpoch persist in the store's
 the schema is a repurposed local-apply watermark, not the client cursor.
 
 **Snapshot shortcut.** If the server's snapshot HLC is newer than the received watermark,
-the client restores the snapshot bytes (a serialized derived-state SQLite database, WIRE
-§1 `GET /snapshot/data`), jumps its cursor to `upToSeq`, then catches up from there;
+the client restores the snapshot bytes (a serialized derived-state SQLite database,
+WIRE.md `GET /snapshot/data`), jumps its cursor to `upToSeq`, then catches up from there;
 envelope-id dedupe makes the overlap harmless. Clients may also *upload* a snapshot when
 theirs is newer (best-effort; failure never fails sync).
 
 **restoreEpoch.** A per-workspace server counter; a change tells clients the server was
 restored/rebuilt: park un-synced ops, wipe local state, resync from seq 0, requeue parked,
-push+pull (`resyncFromEpochChange`). M1 keeps the epoch at 0 by contract, but the full
+push+pull (`resyncFromEpochChange`). The epoch stays at 0 by contract, but the full
 client mechanism is implemented and tested.
 
-**Conflicts — reported, never blocking.** `detectConflicts` (`conflicts.ts`) maps the M1
+**Conflicts — reported, never blocking.** `detectConflicts` (`conflicts.ts`) maps the
 op registry to four kinds: `move_move` (concurrent `object.create` with differing
-`parentId` — in M1 a create on an existing node is the reparent carrier),
+`parentId` — a create on an existing node is the reparent carrier),
 `node_deleted` (`object.delete` vs a mutation), `class_conflict` (concurrent creates
 seeding different `classIds` — the OR-Set unions, intent is ambiguous),
 `property_conflict` (`property.set` vs `property.unset` on the same slot). CRDT-merged
@@ -294,15 +305,15 @@ advance the cursor from the live stream alone; clients send `batch` frames. The 
 an **acceleration path only** — frames buffer while a pull runs, drops are recovered by
 the seq cursor on the next pull, and a `hello`/`ops` with a newer framing version fails
 loud (connection closed with 1002). `SyncEngine.onRemoteBatch`/`startRealtime` are the
-client hook surface; no WS *client* ships in M1.
+client hook surface; no WS *client* ships.
 
 ## 8. The server and the one-write-path invariant
 
-*Implemented (M1).*
+*Implemented.*
 
 `apps/server` is a Fastify 5 app (`src/app.ts`, version `2.0.0-m6`). Route groups:
 
-- **Relay API** — prefix `/api/relay/v2` (`src/routes-relay.ts`), exactly WIRE.md §1–2:
+- **Relay API** — prefix `/api/relay/v2` (`src/routes-relay.ts`), exactly per WIRE.md:
   `POST /batch`, `POST /catch-up`, `GET /snapshot`, `GET|PUT /snapshot/data`,
   `POST /compact` (single-checkpoint snapshot+prune), `GET /stats`, WS
   `/ws/:workspaceId`. Auth: `X-API-Key` header (or `Authorization: Bearer`), socket via
@@ -318,24 +329,24 @@ client hook surface; no WS *client* ships in M1.
   requests. Auth/account routes (`src/routes-auth.ts`, same `/api` prefix): setup,
   login/logout/me, workspaces CRUD + `GET /workspaces/:id/export.zip` (markdown zip via
   `@notees/export`: one file per page, manifest, optional assets), API-key management
-  (`GET/POST/DELETE /api-keys`, optional per-key scope sets — §34.33 AG3),
+  (`GET/POST/DELETE /api-keys`, optional per-key scope sets),
   `GET /nodes/:id/location`, `GET /server-info`.
   Workspace selection via `X-Workspace-Id` header, else a deterministic default
   workspace derived from the API key (`identity.ts`).
-- **Developer self-description** (§34.33 AG4/AG5, `src/routes-meta.ts`, prefix
+- **Developer self-description** (`src/routes-meta.ts`, prefix
   `/api`, per-route auth): `GET /meta` (version, wire protocol versions, default
   workspace, setup state — auth-free), `GET /openapi.json` (the OpenAPI 3.1
   contract built by `src/openapi.ts`, auth-free; CI's `openapi-coverage` job fails
   when the route table drifts from the registered routes), `GET /operations`
   (paginated relay-log read — the agent audit feed; read membership +
   `objects.read` scope for scoped keys).
-- **Agent-safety middleware** (§34.33 AG5, `src/idempotency.ts`): the
+- **Agent-safety middleware** (`src/idempotency.ts`): the
   object/assets group replays the first 2xx response for a replayed
   `Idempotency-Key` (24h window, 409 `idempotency_replay` on key collision;
   multipart excluded — CAS dedupes bytes), and `PATCH /objects/:id` honors an
   optional `baseRevision` (the node row's HLC — the one natural per-node
-  revision; 409 `conflict` when stale). Scoped API keys (§34.33 AG3,
-  `src/scopes.ts`) are enforced per route from the OpenAPI table's
+  revision; 409 `conflict` when stale). Scoped API keys (`src/scopes.ts`)
+  are enforced per route from the OpenAPI table's
   `requiredScope` and rejected on the relay surface with 403 `scope_denied`;
   the error-code taxonomy is pinned in `src/errors.ts` (`ERROR_TAXONOMY`,
   exposed as the doc's `x-error-codes`).
@@ -358,13 +369,13 @@ through a single funnel, `ServerContext.ingestBatch` (`src/context.ts`):
 1. persist to the relay log **first** (`relay.db`, idempotent ingest) — the log is the
    durability boundary;
 2. apply the newly-saved envelopes to the workspace's derived store
-   (`WorkspaceManager.applyNow`, log-first-then-apply order from v1);
+   (`WorkspaceManager.applyNow`, log-first-then-apply order);
 3. broadcast an `ops` frame to that workspace's WS subscribers (`src/bus.ts`).
 
 The object/assets API does not touch the store directly: `ctx.submit` stamps a
 server-side envelope via `EnvelopeFactory` (actor derived deterministically from the API
 key, HLC from the server clock, `client: "api"` or `"seed"`) and pushes it through the
-same funnel. This is the milestone's hard invariant: **server object/asset writes become
+same funnel. This is the hard invariant: **server object/asset writes become
 envelopes through the same pipeline as client ops**, so the audit trail, idempotency,
 derived-state updates, and live notifications all hold for API writes too.
 
@@ -382,7 +393,7 @@ fixed UUIDs from `@notees/domain` (`apps/server/src/seed.ts`,
 `packages/domain/src/seeds.ts`). Idempotent: seeding runs only while the workspace is
 completely empty.
 
-**Limits** (`config.ts`, WIRE §3): relay batch ≤ 1000 envelopes / ≤ 1 MB per payload;
+**Limits** (`config.ts`, WIRE.md): relay batch ≤ 1000 envelopes / ≤ 1 MB per payload;
 relay ingest ≤ 30k envelopes/min/workspace; global fallback 10k req/min/IP; request body
 limit 128 MB. Every failure answer uses the WIRE error envelope
 (`{"error": {code, message, status}}`, stable machine codes).
@@ -397,12 +408,12 @@ node→asset assertions in the derived store (`node_asset`).
 *Implemented — the web client is the full editor; GTK/Flutter are lockstep clients (see below).*
 
 **Web** (`apps/web`). `src/core/workspace-client.ts` is the whole data path: a `Store`
-over the **sql.js** backend (local derived state persisted to OPFS via a Web Worker since M1b slice 2), a `SyncEngine`
+over the **sql.js** backend (local derived state persisted to OPFS via a Web Worker since the slice-2 work), a `SyncEngine`
 (outbox push + seq-cursor pull + snapshot shortcut), and a `Transport`
 (`HttpTransport` against a relay server in the app; `MemoryTransport` over a `MemoryRelay`
 in tests — both in `packages/sync/src/transport.ts`). Reads always hit the local store —
 the render-path list reads (`listClasses`/`listPages`/`roots`/`getBlockTree`/`classIcons`)
-are **revision-cached** since §34.92: `notify()` (the single write/refresh funnel) clears
+are **revision-cached**: `notify()` (the single write/refresh funnel) clears
 the memo, so within one store version every caller shares one query result, and callers
 must treat the returned arrays as read-only. On top of that, a per-row identity cache
 keeps `ClientNode` instances for unchanged rows across revisions (the stamp hashes the
@@ -419,7 +430,7 @@ writes build envelopes (`newEnvelope`, deviceId `web`), apply optimistically via
 `enqueue`, then push best-effort (`push()` awaits delivery when it must be
 deterministic). Every local write funnels through the `enqueueLocal` seam, which
 captures the op's inverse intent (pre-apply snapshot) into the session-local undo
-journal (`src/core/undo-journal.ts`, §34.64) — undo/redo compose existing ops back
+journal (`src/core/undo-journal.ts`) — undo/redo compose existing ops back
 through the same seam; the journal is in-memory per tab and never touches the wire.
 `apps/web/src/ui/` is slice 1: a bootstrap screen (server URL + API key +
 workspace id, remembered in localStorage), a page-list sidebar, and a PageView with block
@@ -429,7 +440,7 @@ rows and inline token rendering (`App.tsx`, `PageView.tsx`, `BlockRow.tsx`,
 blocks AND classes; there is no stored `name`), date labels (`YYYYMMDD…`) formatted
 `YYYY/MM(/DD)`, truncated to 80 chars. Pages/classes carry text-only content
 (`stringifyContentAst`); the appliers flatten rich tokens on create and on
-block→page/class promotion. **Presentation mode (§34.26, 2026-10-03)** rides the same
+block→page/class promotion. **Presentation mode (2026-10-03)** rides the same
 read seam: `ui/presentation/deck.ts` is a pure page-subtree → slide-list builder (title
 slide, one section slide per `present_as_main=1` child, density-chunked intro runs for
 inline-body runs, trailing-image layouts, embed expansion with a visited-set cycle
@@ -444,7 +455,7 @@ thread `onPresent` from App through `NodeView` → `NodeMenuButton` / `PageView`
 
 **GTK / Flutter** (sibling repos `notees-gtk`, `notees-flutter`, branches `protocol-v2`). Lockstep clients: strict payload validators + local appliers mirroring `packages/store` (same OR-Set gating, same LWW rules). Current with the TS reference as of the 2026-10-01 batch (tags + `tag.unassign`, title-is-content, `class.reorder`); both tagged `v2.0.0-m1` with CI-published releases. Any new op requires the same three-way lockstep.
 
-**CLI** (standalone repo `notees-cli` — split from `apps/cli` 2026-10-05, §34.82; consumes
+**CLI** (standalone repo `notees-cli` — split from `apps/cli` 2026-10-05; consumes
 this repo's packages via a pinned `vendor/notees` git submodule). Commander-based (`src/cli.ts`, exported `run()` for tests). Commands:
 `object get|create|update|delete|restore|list|children|upsert|search` (`create --batch`
 takes a JSON array of bodies on stdin and creates them with per-parent ordering
@@ -479,28 +490,27 @@ cursors; writes are atomic (tmp + rename).
 | `packages/store` | Derived store: schema, appliers, edge index, stats, search, adapter interface + both adapters | `src/index.ts`; `src/schema.ts` (DDL + `migrate`), `src/appliers.ts`, `src/edges.ts`, `src/db.ts`, `src/store.ts`, `src/adapters/better-sqlite3.ts`, `src/adapters/sqljs.ts` (export `@notees/store/sqljs`) |
 | `packages/sync` | SyncEngine, outbox, conflicts, watermark persistence, transports | `src/index.ts`; `src/sync-engine.ts`, `src/outbox.ts`, `src/conflicts.ts`, `src/meta.ts`, `src/transport.ts` (`HttpTransport`, `MemoryTransport`, `MemoryRelay`) |
 | `packages/query` | QueryAST model + SQLite compiler over the derived store (live queries) | `src/index.ts` (`ast.ts` zod model, `compiler.ts` `compile(ast)`, `execute.ts` `runQuery`/`countQuery`/`matches`); 7 condition types; deferred set in README |
-| `packages/export` | Export projections over the object graph: `ExportDocument` IR + serializers (markdown/html/docx/latex package-side — options bag with per-format gating, escaping, full-closure outline, whiteboard sidecars, id8 filename policy, `linkTarget`/`assetPath` hooks, LaTeX CSL bibliography; pdf renders client-side in the web app), format registry (`SerializedExport` union), bundles + manifest v2, BibTeX/CSL; plus the two view-shaped serializers beside the IR registry: `csv.ts` (RFC-4180 view export — the web table toolbar downloads the visible columns × current results) and `json-archive.ts` (the §34.12 Tier-1 `notees-json-archive` v1 envelope; `notees export json` + the web modal's JSON card) | `src/index.ts`; `document.ts` (IR + context hooks), `markdown.ts`, `html.ts`, `docx.ts`, `latex.ts`, `options.ts`, `formats.ts`, `bundle.ts`, `bibtex.ts`, `csl.ts` |
+| `packages/export` | Export projections over the object graph: `ExportDocument` IR + serializers (markdown/html/docx/latex package-side — options bag with per-format gating, escaping, full-closure outline, whiteboard sidecars, id8 filename policy, `linkTarget`/`assetPath` hooks, LaTeX CSL bibliography; pdf renders client-side in the web app), format registry (`SerializedExport` union), bundles + manifest v2, BibTeX/CSL; plus the two view-shaped serializers beside the IR registry: `csv.ts` (RFC-4180 view export — the web table toolbar downloads the visible columns × current results) and `json-archive.ts` (the Tier-1 `notees-json-archive` v1 envelope; `notees export json` + the web modal's JSON card) | `src/index.ts`; `document.ts` (IR + context hooks), `markdown.ts`, `html.ts`, `docx.ts`, `latex.ts`, `options.ts`, `formats.ts`, `bundle.ts`, `bibtex.ts`, `csl.ts` |
 | `apps/server` | Fastify relay + object/assets API; the one write path | `src/server.ts` (entry), `src/app.ts` (assembly), `src/config.ts`, `src/context.ts` (`ingestBatch`/`submit`), `src/relay-storage.ts`, `src/workspace-store.ts`, `src/routes-relay.ts`, `src/routes-objects.ts`, `src/assets.ts`, `src/seed.ts`, `src/identity.ts`, `src/validate.ts`, `src/rate-limit.ts`, `src/bus.ts` |
-| `apps/web` | Browser client: workspace data path + outliner UI + export delivery (modal, workspace zip, PDF renderer) + presentation mode + the session undo journal (§34.64) | `src/core/workspace-client.ts`, `src/core/undo-journal.ts` (the op-inverse journal + inversion matrix), `src/main.tsx`, `src/ui/{App,PageView,BlockRow,InlineTokens}.tsx`, `src/ui/presentation/` (deck builder + `DeckView` + session resume, §34.26), `src/ui/export-pdf/` (client-side PDF — `@react-pdf/renderer`, code-split, vendored OFL Gentium), `src/shims/` (node built-ins stubbed for the browser bundle) |
-| `../../.plans/design/` | Normative model docs (00-INDEX, 01-knowledge-model, 02-model-assessment) | read these before changing the model |
+| `apps/web` | Browser client: workspace data path + outliner UI + export delivery (modal, workspace zip, PDF renderer) + presentation mode + the session undo journal | `src/core/workspace-client.ts`, `src/core/undo-journal.ts` (the op-inverse journal + inversion matrix), `src/main.tsx`, `src/ui/{App,PageView,BlockRow,InlineTokens}.tsx`, `src/ui/presentation/` (deck builder + `DeckView` + session resume), `src/ui/export-pdf/` (client-side PDF — `@react-pdf/renderer`, code-split, vendored OFL Gentium), `src/shims/` (node built-ins stubbed for the browser bundle) |
 | `packages/protocol/fixtures` | Canonical op fixtures — the blocking gate | seven JSON files, validated by `packages/protocol/test` and replayed by the store suite |
 
 ## 11. Code vs design discrepancies
 
-Flagged per the code-wins rule; the design docs are not wrong about intent, but the M1
+Flagged per the code-wins rule; the design docs are not wrong about intent, but the
 code is narrower in these places:
 
-1. ~~**`extends` is single-parent in M1.**~~ RECONCILED 2026-09-26: `class.setExtends`
-   takes `parentClassIds: string[]` (replace semantics, m2m per `01` §6); direct edges
+1. ~~**`extends` is single-parent in code.**~~ RECONCILED 2026-09-26: `class.setExtends`
+   takes `parentClassIds: string[]` (replace semantics, m2m); direct edges
    live in `class_extends`, `class_hierarchy` is the m2m transitive closure, and cycles
    (self-parent, multi-hop) fail loud. ~~Binding resolution (own → shortest extends-path →
    earliest HLC) remains owed work — it happens at read time in the bindings read model.~~
-   **DONE 2026-10-03 (§34.45 PG4)**: the diamond rule is implemented read-time in
+   **DONE 2026-10-03**: the diamond rule is implemented read-time in
    `effective.ts` (shortest-path walk over `class_extends`; own binding → shortest
    extends-path → earliest class-assignment HLC; `boundBy` names the supplying
    ancestor).
 2. ~~**Backlinks are direct edges only.**~~ RECONCILED 2026-09-26:
-   `Store.backlinksWithRollup(id)` rolls up at query time (the `00-INDEX`
+   `Store.backlinksWithRollup(id)` rolls up at query time (the
    fan-out-vs-traversal choice resolved as traversal) with **source-side
    containment**: direct edges on the node plus outward links from inside its
    subtree (source ∈ subtree, target outside it — a block inside France
@@ -508,7 +518,7 @@ code is narrower in these places:
    per (source, kind) annotated `kind: direct|containment` + depth, direct
    first. `backlinks(id)` and the `node_stats.backlink_count` badge stay
    DIRECT (a containment-heavy page's list can exceed its badge); `refset`
-   filter inheritance (`01` §8) is still owed.
+   filter inheritance is still owed.
 3. ~~**FTS search misses page titles.**~~ RECONCILED 2026-09-26, SUPERSEDED
    2026-10-01 (title-is-content): the indexed text is the content plaintext —
    the title lives in the content, so title search rides the same index
@@ -516,36 +526,35 @@ code is narrower in these places:
 4. **`contentAst`, not `contentDeltaB64`, is the live carrier.** The CRDT delta field
    exists in the payload schema; the Yjs per-node `Y.Text` port does not exist yet.
 5. **`class_list` read model.** SCHEMA.md describes the class listing as a derived
-   `class_list` read model; M1 lists classes from the `class` registry table joined with
+   `class_list` read model; the code lists classes from the `class` registry table joined with
    `class_member_set` (`routes-objects.ts`), with the node row as structural authority.
 6. **Outbox durability.** The designed local-first flow assumes a durable client op log
-   re-feeding the outbox; the M1 outbox is in-memory and the browser store is in-memory
+   re-feeding the outbox; the outbox is in-memory and the browser store is in-memory
    (sql.js), so recovery after a full page reload is a server re-sync.
 7. **Editor.** The Logseq-style outliner (bullets, indent/outdent reparenting via
-   TreeCrdt, fractional reorder, verb-mark capture UX) is the M1b/M2 program
-   (assessment §34.10); the shipped web UI is a read-oriented slice-1 shell over the
+   TreeCrdt, fractional reorder, verb-mark capture UX) is the designed editor program;
+   the shipped web UI is a read-oriented slice-1 shell over the
    workspace client.
 8. **Property write path is schema-blind** (2026-10-02). The `property.set`
    applier never consults `property_schema` — no type/shape/cardinality/
    `targetClassFilter`/`datePrecision`/target-existence validation; all value
-   conventions are UI-enforced only. Detail: implementation-plan §34.32 PG6.
+   conventions are UI-enforced only.
 9. **Multi-value properties are positional idx slots, not elements** (2026-10-02).
    LWW per (node, schema, idx) + per-slot tombstones; `unset` leaves permanent
    gaps (no reindex, readers don't assume density); the designed element-identity
    / OR-Set semantics (SCHEMA.md owed item "m2m tombstones") are not reached.
-   Detail: §34.32 PG5.
 10. **Broken-target property values** (2026-10-02). No referential rule: values
     referencing a deleted node survive, and the source's next `rebuildEdges`
     re-derives the edge (no target-existence check) — backlinks to nonexistent
-    nodes resurrect. Detail: §34.32 PB1.
+    nodes resurrect.
 11. **Text-carrier convention is client-side only** (2026-10-02). Unset orphans
     the carrier back into the body (spec says trash, SCHEMA.md:134); `text` values
     coexist in three shapes (`{"nodeId": …}` / plain string / bare uuid) depending
-    on which editor wrote them. Detail: §34.32 PB2.
+    on which editor wrote them.
 12. **Spec↔wire arrears** (2026-10-02). `class_property.active` is specced
     (SCHEMA.md:122) but absent from wire+DDL; `scope` semantics are undefined in
     any design doc; `propertySchema.update` converges by relay apply-order, not
-    per-field HLC (SCHEMA.md:19 follow-up). Detail: §34.32 PC3/PC4/PC5.
+    per-field HLC (SCHEMA.md:19 follow-up).
 
 Items 8–12 were surfaced by the 2026-10-02 property-layer audit; like items 1–7
 they are code-narrower-than-design (or design-lagging-code), none touches sync

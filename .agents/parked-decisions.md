@@ -2,7 +2,7 @@
 
 The owner-parked calls, newest context first. Each entry records what is
 parked, the date, and what would un-park it. Referenced from AGENTS.md;
-the decision record lives in `.plans/implementation-plan.md` §34.
+the record of shipped work lives in `CHANGELOG.md`.
 
 ## SDK publish — ARCHIVED (owner, 2026-10-03)
 
@@ -24,18 +24,18 @@ short:
   pre-batch clients fail loud on new envelopes — update clients before
   mixing writers; never run a pre-batch client build against a migrated
   server.
-- The current wire state and batch history (§34.43 → §34.89/90) live in
+- The current wire state and batch history live in
   the runbook, not in AGENTS.md.
 - Live data changes follow `docs/developers/migrations.md` (dry-run
   scripts, backups, snapshot/restore-epoch/restart sequence).
 
 ## Repo split (notees-sync / notees-web)
 
-- **CLI** — split out 2026-10-05 regardless (§34.82): `notees-cli` lives
+- **CLI** — split out 2026-10-05: `notees-cli` lives
   in its own repo (sibling to the GTK/Flutter clients), consuming the
   packages via a pinned `vendor/notees` git submodule as pnpm workspace
   projects — no npm distribution.
 - **Web** — the split is registered as wanted with execution deferred to a
-  quiet tree and four preconditions (§34.83): gate/CI redesign, deploy-path
+  quiet tree and four preconditions: gate/CI redesign, deploy-path
   redesign, quiet tree, same-pass docs.
 - **`notees-sync` stays in the monorepo.**

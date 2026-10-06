@@ -1,6 +1,6 @@
 /**
  * ExportDocument IR — the per-format intermediate representation
- * (§34.24 modelling decision 1: one IR built per node subtree; per-format
+ * (one IR built per node subtree; per-format
  * serializers consume the IR).
  *
  * `buildExportDocument` resolves the Revision-11 node subtree against the
@@ -9,9 +9,9 @@
  * serializers stay pure projections over a resolved model and never touch
  * resolution themselves. The IR is per node subtree: `children` carries the
  * nested outline, `assetRefs` the CAS ids a bundle walker needs for
- * include-assets (E5/E7), and embedded targets arrive as nested documents.
+ * include-assets, and embedded targets arrive as nested documents.
  *
- * Closure semantics (E2 full-closure default): the children tree renders to
+ * Closure semantics (full-closure default): the children tree renders to
  * arbitrary depth by default; the only cuts are VISIBLE — a cycle renders as
  * a `cut: "cycle"` entry (the serializer emits `![[uuid]]`), an explicit
  * `maxDepth` hit as `cut: "depth"`. There is no silent truncation.
@@ -92,7 +92,7 @@ export interface ExportNode {
  * `![[uuid]]` references.
  *
  * The two optional rewriting hooks serve multi-file delivery (the workspace
- * zip, §34.24 E5): `linkTarget` maps a mention/embed TARGET node id to the
+ * zip): `linkTarget` maps a mention/embed TARGET node id to the
  * file that node was exported to, and `assetPath` maps an `asset_ref`'s CAS
  * id to the bundle-relative path of its bytes. When a hook returns, the
  * markdown serializer emits a relative local link instead of the
@@ -428,7 +428,7 @@ function buildBlocks(
       flush();
       out.push({ kind: "whiteboard", layout: token.layout });
     } else if (token.type === "code_block") {
-      // §34.34 B3 interim projection: the export IR has no code block kind
+      // Interim projection: the export IR has no code block kind
       // yet (a fenced kind + the five serializers ride the post-lockstep
       // export slice) — export the source as one inline-code span so no
       // prose is lost and the span stream stays well-formed.
@@ -438,7 +438,7 @@ function buildBlocks(
         spans: [{ kind: "text", text: token.text, marks: ["code"] }],
       });
     } else if (token.type === "hr") {
-      // §34.34 B5: the divider carries no prose — it flushes the paragraph
+      // The divider carries no prose — it flushes the paragraph
       // (a thematic-break export kind rides the same post-lockstep slice).
       flush();
     } else {
@@ -499,7 +499,7 @@ function buildSpan(token: InlineToken, ctx: ExportContext): ExportSpan {
     case "class_chip": {
       const raw = token.displayText ?? ctx.nameOf(token.classId) ?? token.classId;
       // Chip convention: whitespace folds to "-", leading # stripped (kept
-      // from the M1 renderer — the serializer emits `#${name}` verbatim).
+      // from the original renderer — the serializer emits `#${name}` verbatim).
       return { kind: "classChip", classId: token.classId, name: normalizeInlineName(raw).replace(/\s+/g, "-").replace(/^#+/, "") };
     }
     case "typed_link": {

@@ -574,7 +574,7 @@ select:focus-visible {
    row carries no label (the pills are self-evident); Tags: keeps its cue. */
 .nt-page-header .node-metadata-row {
   min-height: var(--height-xs);
-  /* §34.72 (owner): the tags row aligns with the header ICON, not the
+  /* The tags row aligns with the header ICON, not the
      title — the old icon-width indent left a gap. */
   margin-left: 0;
   font-size: var(--font-size-xs);
@@ -704,14 +704,14 @@ select:focus-visible {
 
 /* Collapse chevron: hidden at rest (the resting trail stays clean — a
    collapsed block's ring is the persistent state signal), revealed on
-   bullet/gutter hover (the hover effect lives on the bullet, v1-style),
+   bullet/gutter hover (the hover effect lives on the bullet),
    and while the row has focus. */
 .nt-block-grip:hover > .nt-block-chevron,
 .nt-block:focus-within > .nt-block-row .nt-block-chevron {
   opacity: 1;
 }
 
-/* ── Bullet (v1 port: tactile dot, bolder, ring on collapsed) ─────────────
+/* ── Bullet (tactile dot, bolder, ring on collapsed) ───────────────────────
    The hover effect lives on the BULLET, not the block: hovering grows the
    dot and tints it accent; a block collapsed with children wears a soft
    primary ring (the "ripple"); hover deepens it. */
@@ -747,7 +747,7 @@ select:focus-visible {
     transform var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-/* Hover / press: grow + accent (the v1 tactile feedback). */
+/* Hover / press: grow + accent (the tactile feedback). */
 .nt-bullet:hover .nt-bullet-dot,
 .nt-bullet:focus-visible .nt-bullet-dot {
   opacity: 1;
@@ -755,8 +755,8 @@ select:focus-visible {
   transform: scale(1.2);
 }
 
-/* v1 row-hover: hovering anywhere on the row brightens the bullet —
-   the block-content hover wash was removed (#4), this is the v1 signal. */
+/* Row-hover: hovering anywhere on the row brightens the bullet —
+   the block-content hover wash was removed (#4), this is the signal. */
 .nt-block-row:hover .nt-bullet-dot {
   opacity: 1;
   background-color: var(--color-on-surface);
@@ -766,7 +766,7 @@ select:focus-visible {
   opacity: 1;
 }
 
-/* Soft ring behind a collapsed-with-children bullet (v1 collapse UI). */
+/* Soft ring behind a collapsed-with-children bullet (collapse UI). */
 .nt-bullet-ring {
   position: absolute;
   width: 16px;
@@ -870,7 +870,7 @@ select:focus-visible {
   background: var(--color-surface);
 }
 
-/* §34.89 value-display button groups: the bullet group rides right after
+/* Value-display button groups: the bullet group rides right after
    the grip (next to the bullet element), the inline group immediately
    before the content. Both center against the text line (the row is
    baseline-aligned) and never wrap. */
@@ -887,7 +887,7 @@ select:focus-visible {
   margin-right: var(--spacing-1);
 }
 
-/* The editable fills the block's content column side to side (v1's
+/* The editable fills the block's content column side to side (the archived
    .custom-inline-editor was flex:1 — same contract): clicking anywhere on
    the row places the caret at the nearest position instead of the element
    hugging its text and blurring on an outer click. */
@@ -998,7 +998,7 @@ select:focus-visible {
   background: var(--color-surface-container-highest);
 }
 
-/* PG1 schema-at-capture (§34.32): the bound-verb row under the verb fields —
+/* Schema-at-capture: the bound-verb row under the verb fields —
    "Bind to property …" for an existing schema name, "Create property '…' and
    bind" for a new one. Token-only CSS. */
 .nt-verb-bind-row {
@@ -1048,7 +1048,7 @@ select:focus-visible {
   color: var(--color-on-surface-variant);
 }
 
-/* ── §34.19 block multi-selection ─────────────────────────────────────────
+/* ── Block multi-selection ────────────────────────────────────────────────
    Selected rows wear a soft accent tint on the row chrome (display-only,
    session-local). The floating action bar rides the bottom of the viewport
    while a selection is live. */
@@ -1196,7 +1196,7 @@ select:focus-visible {
   white-space: nowrap;
 }
 
-/* The embed view switcher (§34.34 B8 authoring): Full / Card / Wide pill
+/* The embed view switcher (authoring): Full / Card / Wide pill
    buttons writing the token's `view` field. Token-only CSS. */
 .nt-embed-view-switch {
   display: inline-flex;
@@ -1326,7 +1326,7 @@ select:focus-visible {
   padding: 2px 4px;
 }
 
-/* Load-more widens the render window past the 200-row cap (§34.31 C2). */
+/* Load-more widens the render window past the 200-row cap. */
 .nt-query-more {
   background: none;
   border: none;
@@ -1339,7 +1339,7 @@ select:focus-visible {
   text-decoration: underline;
 }
 
-/* §34.31 C1: the read-only summary + warning shown when the AST uses
+/* The read-only summary + warning shown when the AST uses
    constructs the builder can't represent. */
 .nt-query-guard {
   margin: 0;
@@ -1357,7 +1357,7 @@ select:focus-visible {
   gap: 2px;
 }
 
-/* Queries hub (§34.31 V4): header actions beside the switcher, the saved-
+/* Queries hub: header actions beside the switcher, the saved-
    views tab bar, and the host-page footnote. */
 .nt-hub-actions {
   display: flex;
@@ -1644,7 +1644,7 @@ select:focus-visible {
 }
 
 /* --- class view ------------------------------------------------------------------ */
-/* The class view is a PageView composition (.plans/design/05-class-view-redesign.md):
+/* The class view is a PageView composition:
    its chrome reuses the page rules above; the class sections ship co-located
    CSS in components/classview/. The curated class-icon picker styles live in
    ClassIconButton.css; the retired admin panels (extends/extended-by/templates
@@ -1992,7 +1992,7 @@ select:focus-visible {
   background: var(--color-surface-container-high);
 }
 
-/* --- code_block + hr renderers (§34.34 B3/B5) -----------------------------
+/* --- code_block + hr renderers ---------------------------------------------
    Block-scale code: mono pre with the optional language hint as a badge.
    The divider: a hairline rule across the block width. */
 
@@ -2026,7 +2026,7 @@ select:focus-visible {
   white-space: pre;
 }
 
-/* The code_block editing surface (§34.34 B3 owed editor): the CodeTextarea
+/* The code_block editing surface (the owed editor): the CodeTextarea
    takes the pre's place inside the same chrome — the language badge stays
    above, the textarea itself renders as the mono block (the primitive's own
    class plus the block frame). Token-only CSS. */
@@ -2056,7 +2056,7 @@ select:focus-visible {
   width: 100%;
 }
 
-/* --- embed_ref card views (§34.34 B8) --------------------------------------
+/* --- embed_ref card views ------------------------------------------------------
    The intermediate reference views: a bounded identity card (icon + name;
    the wide variant adds the one-line excerpt). Never transcludes. */
 
@@ -2694,7 +2694,7 @@ mark {
   border-bottom-color: var(--color-primary);
 }
 
-/* Class chip pill (edit mode) — v1 parity: the inline-class mark wore a
+/* Class chip pill (edit mode) — parity: the inline-class mark wore a
    wavy underline; the read-mode chip keeps its own chip chrome. */
 .nt-atom--chip {
   border-bottom: none;
@@ -2726,7 +2726,7 @@ mark {
   padding: var(--spacing-8, 32px) var(--spacing-6, 24px);
 }
 
-/* The tasks hub stacks the §34.28 #5 bucket section above its collection;
+/* The tasks hub stacks the bucket section above its collection;
    both scroll as one hub body. */
 .nt-hub-tasks {
   height: 100%;
@@ -2886,14 +2886,14 @@ mark {
   color: var(--color-on-surface-variant);
 }
 
-/* The quick-create FAB (§34.19 MobileLayout owed half): hidden on desktop
+/* The quick-create FAB: hidden on desktop
    (the shell chrome + Ctrl/Cmd+Shift+N own quick capture there); the
    responsive pass below surfaces it at narrow widths. Token-only CSS. */
 .nt-quick-fab {
   display: none;
 }
 
-/* --- responsive pass (§34.19 MobileLayout row) -------------------------------
+/* --- responsive pass (MobileLayout) --------------------------------------------
    Narrow-width adaptations of the app chrome — additive media queries only,
    no component changes. Two steps: the tablet boundary (768px, the same
    breakpoint the modal bottom-sheet reads from --breakpoint-tablet) for the
@@ -2910,8 +2910,7 @@ mark {
     border-right: var(--border-width-default, 1px) solid var(--color-outline-variant);
   }
 
-  /* The quick-create FAB: a floating action button over the content card
-     (v1's floating quick-add, §34.19 MobileLayout). */
+  /* The quick-create FAB: a floating action button over the content card. */
   .nt-quick-fab {
     display: inline-flex;
     align-items: center;
@@ -2995,7 +2994,7 @@ mark {
   }
 }
 
-/* --- tables (§34.34 B4) -----------------------------------------------------------
+/* --- tables ---------------------------------------------------------------------
    A table is a container block carrying the `table` class; its children are
    the rows, each row's children are the cells — and a cell IS an ordinary
    block (the BlockRow machinery applies: editable inline, mentionable,
@@ -3057,8 +3056,8 @@ mark {
   opacity: 1;
 }
 
-/* §34.72 — the v1 header layout: header left, cover card right (stacks on
-   mobile, the v1 breakpoint). */
+/* The header layout: header left, cover card right (stacks on
+   mobile, the narrow breakpoint). */
 .page-header-section {
   display: grid;
   grid-template-columns: 1fr auto;

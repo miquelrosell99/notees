@@ -1,5 +1,5 @@
 /**
- * Real-render PDF specs (§34.24 P1) — the one harness that drives the actual
+ * Real-render PDF specs — the one harness that drives the actual
  * react-pdf renderer end to end: real layout pass, real fontkit parsing of
  * the bundled Gentium TTFs, real pdfkit byte emission. Style values and font
  * files only surface errors at layout time, so this file is the regression

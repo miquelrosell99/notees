@@ -536,7 +536,7 @@ describe("workspace delete and export", () => {
     expect(byStranger.statusCode).toBe(404);
   });
 
-  it("workspace zip excludes system-seed pages and the date chain (§34.24 zip-roots)", async () => {
+  it("workspace zip excludes system-seed pages and the date chain (zip-roots)", async () => {
     server = await makeTestServer();
     const owner = (await setupAdmin("owner@example.com")).json().token as string;
     const created = await server.app.inject({
