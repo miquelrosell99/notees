@@ -14,6 +14,7 @@ import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspac
 import { proseFromAst } from "@/editor/prose.js";
 
 import { displayNameForSettings, formatIsoDate } from "../dateDisplay.js";
+import { todayIsoLocal } from "./calendarViewUtils.js";
 import "./PageFooter.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -62,6 +63,9 @@ function DayLink({
   if (dayIso === null) {
     return <span className="nt-page-footer__date nt-page-footer__date--empty">{label} —</span>;
   }
+  // Owner 2026-10-06: the Created stamp reads "Created today" when the page
+  // was created today (the Updated stamp keeps the plain date).
+  const text = label === "Created" && dayIso === todayIsoLocal() ? "today" : (formatIsoDate(iso) ?? "—");
   return (
     <button
       type="button"
@@ -76,7 +80,7 @@ function DayLink({
           .finally(() => setPending(false));
       }}
     >
-      {label} {formatIsoDate(iso) ?? "—"}
+      {label} {text}
     </button>
   );
 }

@@ -397,6 +397,66 @@ select:focus-visible {
   flex-direction: column;
 }
 
+/* --- the panelled main layout (owner 2026-10-06, Capacities-style) -------- */
+
+/* The page top bar: the side-panel collapse toggle at the content's
+   top-left corner, then the classes pills (the "non-sidebar part" corner). */
+.nt-page-topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-3);
+}
+
+.nt-page-classes-inline {
+  min-width: 0;
+}
+
+/* The body row: the left properties panel beside the content column. */
+.nt-page-body {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-6);
+}
+
+.nt-page-side-panel {
+  flex: none;
+  width: 12.5rem;
+  min-width: 0;
+  position: sticky;
+  top: var(--spacing-4);
+}
+
+.nt-page-side-panel .nt-properties-list {
+  border-top: none;
+  margin-top: 0;
+}
+
+.nt-page-content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The empty child-blocks list: the lone ghost row rides tight — no dead
+   space below it before the next section. */
+.nt-select-surface--empty {
+  margin-bottom: calc(-1 * var(--spacing-2));
+}
+
+/* The main node view's top-right corner cluster (owner 2026-10-06): the
+   blocks view switcher sits left of the "…" node menu, both pinned to the
+   content card's top-right (the card is the nearest positioned ancestor —
+   the same mechanism as the top-left classes corner). */
+.nt-node-view__corner {
+  position: absolute;
+  top: var(--spacing-4);
+  right: var(--spacing-4);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
 /* Classes pinned to the content card's top-left corner (the card is the
    nearest positioned ancestor; the pills sit outside the centered column). */
 .nt-page-card {

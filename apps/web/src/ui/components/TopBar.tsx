@@ -1,6 +1,10 @@
 /**
  * TopBar — the slim, transparent shell header in three sections:
- *  LEFT   hamburger (sidebar show/hide at every width), wordmark, sync status
+ *  LEFT   hamburger (sidebar show/hide at every width), the workspace
+ *         selector (the wordmark's permanent replacement — owner
+ *         2026-10-06), and — only while the sidebar is COLLAPSED — icon-
+ *         only New + search buttons to the selector's right; sync status
+ *         rides the section's end
  *  CENTER the current node's breadcrumbs, left-aligned within the section
  *  RIGHT  undo/redo (the §34.64 journal, §34.69 topbar buttons + the
  *         history chevron), calendar, right-sidebar show/hide
@@ -67,6 +71,15 @@ export function TopBar({
   historyButtonRef,
   onToggleSidebar,
   onToggleRightPanel,
+  /**
+   * The collapsed-sidebar left cluster (owner 2026-10-06): icon-only New +
+   * search buttons (left of the workspace selector), rendered only while
+   * the sidebar is hidden. `workspaceSwitcher` replaces the wordmark.
+   */
+  onNewNode,
+  onRequestSearch,
+  newButtonRef,
+  workspaceSwitcher,
 }: {
   syncStatus: SyncStatusSnapshot;
   /** Opens the sync details modal (§34.115); undefined on boot screens. */
@@ -92,6 +105,14 @@ export function TopBar({
   historyButtonRef?: RefObject<HTMLButtonElement | null> | undefined;
   onToggleSidebar: () => void;
   onToggleRightPanel: () => void;
+  /** Opens the class-picker "New" popup (App layer); undefined hides the button. */
+  onNewNode?: (() => void) | undefined;
+  /** Opens the search palette (App layer); undefined hides the button. */
+  onRequestSearch?: (() => void) | undefined;
+  /** The New button's anchor for the class-picker popup. */
+  newButtonRef?: RefObject<HTMLButtonElement | null> | undefined;
+  /** The workspace selector element (wordmark replacement, collapsed sidebar). */
+  workspaceSwitcher?: ReactNode;
 }) {
   return (
     <header className="nt-topbar">
@@ -105,7 +126,34 @@ export function TopBar({
         >
           <Icon path="mdi-page-layout-sidebar-left" size={1} />
         </button>
-        <span className="nt-wordmark">Notees</span>
+        {workspaceSwitcher !== undefined ? (
+          workspaceSwitcher
+        ) : (
+          <span className="nt-wordmark">Notees</span>
+        )}
+        {!sidebarOpen && onNewNode !== undefined && (
+          <button
+            ref={newButtonRef}
+            type="button"
+            className="nt-icon-btn"
+            title="New (pick a class)"
+            aria-label="New node"
+            onClick={onNewNode}
+          >
+            <Icon path="mdi-plus" size={1} />
+          </button>
+        )}
+        {!sidebarOpen && onRequestSearch !== undefined && (
+          <button
+            type="button"
+            className="nt-icon-btn"
+            title="Search (Ctrl+K)"
+            aria-label="Search"
+            onClick={onRequestSearch}
+          >
+            <Icon path="mdi-magnify" size={1} />
+          </button>
+        )}
 
         <SyncDot snapshot={syncStatus} onOpen={onOpenSyncDetails} />
       </div>

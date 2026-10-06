@@ -3,17 +3,21 @@
  * Both are display-only transforms per SCHEMA.md — collapse is session-local
  * state that hides a subtree from rendering; prose mode ignores collapse
  * (every subtree renders, no chevrons) while flattening bullets/indents.
- * Neither writes to the store.
+ * Neither writes to the store. The prose/cards modes ride the per-page
+ * device preference (`viewMode.nodeBlocks.<pageId>`) — the switcher moved
+ * to the App-level NodeView chrome (owner 2026-10-06), so a directly
+ * rendered PageView hosts no header switcher to click.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { PageView } from "../src/ui/PageView.js";
+import { writeViewModePref } from "../src/ui/viewPrefs.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -165,9 +169,9 @@ describe("prose mode", () => {
   it("mounts no collapse chevrons", async () => {
     const client = await seedClient();
     const pageId = await seedTreePage(client);
+    // The NodeView switcher's seam: the per-page device preference.
+    writeViewModePref(`nodeBlocks.${pageId}`, "prose");
     const { container } = render(<PageView client={client} pageId={pageId} />);
-
-    fireEvent.click(screen.getByRole("radio", { name: "Prose" }));
 
     expect(blockTreeEl(container).classList.contains("nt-prose")).toBe(true);
     expect(container.querySelectorAll(".nt-block-chevron").length).toBe(0);
@@ -182,14 +186,15 @@ describe("prose mode", () => {
     collapseRootParent();
     expect(screen.queryByText("nested child")).toBeNull();
 
-    fireEvent.click(screen.getByRole("radio", { name: "Prose" }));
+    // Prose: the device preference re-renders the page in place.
+    act(() => writeViewModePref(`nodeBlocks.${pageId}`, "prose"));
 
     // Ignored, not cleared: the hidden subtree renders in prose mode.
     expect(screen.getByText("nested child")).not.toBeNull();
     expect(screen.getByText("grandchild")).not.toBeNull();
     expect(screen.queryByRole("button", { name: /collapse block|expand block/i })).toBeNull();
 
-    fireEvent.click(screen.getByRole("radio", { name: "Outline" }));
+    act(() => writeViewModePref(`nodeBlocks.${pageId}`, "outline"));
 
     // The session collapse set is intact: the subtree is hidden again.
     expect(screen.queryByText("nested child")).toBeNull();

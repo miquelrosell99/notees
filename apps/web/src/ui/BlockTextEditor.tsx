@@ -1192,6 +1192,39 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
 
   // --- typed-link verb gesture --------------------------------------------------
 
+  /**
+   * "@" over a selection (owner 2026-10-06 — the selection toolbar's @
+   * button AND the typed sigil share this): the node picker opens with the
+   * selected text as its search query; the pick replaces the selection with
+   * the mention (Ctrl/Cmd+Enter keeps the text as a custom label). The
+   * typed sigil requires the word-boundary rule (without it the browser
+   * default inserts the char); the toolbar button always opens. False when
+   * there is no selection to ride.
+   */
+  const openMentionFromSelection = (requireBoundary: boolean): boolean => {
+    const el = spanRef.current;
+    const range = el === null ? null : selectionOffsets(el);
+    if (range === null || range.start === range.end) return false;
+    const draft = draftRef.current;
+    const boundary = range.start === 0 || /\s/.test(draft[range.start - 1]!);
+    if (requireBoundary && !boundary) return false;
+    const selectedText = draft
+      .slice(range.start, range.end)
+      .replace(/\s+/g, " ")
+      .trim();
+    const anchor = caretLineAnchor();
+    setSelectedAtomKey(null);
+    setCapture({
+      kind: "mention",
+      start: range.start,
+      query: selectedText,
+      index: 0,
+      replaceEnd: range.end,
+      anchor: { top: anchor.top, left: anchor.left },
+    });
+    return true;
+  };
+
   const openVerb = () => {
     const el = spanRef.current;
     if (el === null) return;
@@ -1665,27 +1698,13 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
     // Same word-boundary rule as the collapsed-caret trigger; without it the
     // default runs unchanged.
     if (event.key === "@" && !mod && !event.altKey) {
-      const el = spanRef.current;
-      const range = el === null ? null : selectionOffsets(el);
+      const range = (() => {
+        const el = spanRef.current;
+        return el === null ? null : selectionOffsets(el);
+      })();
       if (range !== null && range.start !== range.end) {
-        const draft = draftRef.current;
-        const boundary = range.start === 0 || /\s/.test(draft[range.start - 1]!);
-        if (boundary) {
+        if (openMentionFromSelection(true)) {
           event.preventDefault();
-          const selectedText = draft
-            .slice(range.start, range.end)
-            .replace(/\s+/g, " ")
-            .trim();
-          const anchor = caretLineAnchor();
-          setSelectedAtomKey(null);
-          setCapture({
-            kind: "mention",
-            start: range.start,
-            query: selectedText,
-            index: 0,
-            replaceEnd: range.end,
-            anchor: { top: anchor.top, left: anchor.left },
-          });
         }
         return;
       }
@@ -1954,6 +1973,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
         rootRef={rootRef}
         activeMarks={new Set(activeMarks)}
         onToggleMark={toggleMark}
+        onMention={() => openMentionFromSelection(false)}
         onVerb={openVerb}
       />
       )}

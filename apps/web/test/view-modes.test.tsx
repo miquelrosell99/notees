@@ -1,10 +1,16 @@
 /**
- * View-modes tests: the registry + switcher, the child-blocks triad
+ * View-modes tests: the registry, the child-blocks triad
  * (outline/prose/cards) over PageView, the classed-nodes table default,
  * and the Tasks/Assets hub modes. jsdom over the in-process
  * WorkspaceClient + MemoryRelay; view-mode state persists device-locally
- * (§34.27 L1), and the global afterEach clears localStorage — so a fresh
- * render still lands on the surface default here.
+ * (§34.27 L1) under `viewMode.*` keys, and the global afterEach clears
+ * localStorage — so a fresh render still lands on the surface default here.
+ *
+ * The outline/prose/cards switcher moved to the App-level NodeView chrome
+ * (card top-right, owner 2026-10-06): a directly rendered PageView hosts
+ * no header switcher — the triad specs below drive the mode through the
+ * `viewMode.nodeBlocks.<pageId>` device preference (the same seam the
+ * NodeView switcher writes).
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -23,6 +29,7 @@ import { CollectionHub } from "../src/ui/components/CollectionHub.js";
 import { ensureTaskFamily } from "../src/ui/components/taskFamily.js";
 import { getViewDefinition, getViewModeOptions } from "../src/ui/views/index.js";
 import { applyKanbanDrop } from "../src/ui/views/KanbanView.js";
+import { writeViewModePref } from "../src/ui/viewPrefs.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -130,18 +137,20 @@ describe("child-blocks triad", () => {
     expect(tree.classList.contains("nt-prose")).toBe(false);
     expect(screen.getByText("root one")).not.toBeNull();
     expect(screen.getByText("nested under two")).not.toBeNull();
-    // The switcher offers the triad.
+    // The triad switcher moved out to the App-level NodeView chrome (card
+    // top-right): a directly rendered PageView hosts no header switcher.
+    // The mode itself rides the per-page device preference (below).
     for (const label of ["Outline", "Prose", "Cards"]) {
-      expect(screen.getByRole("radio", { name: label })).not.toBeNull();
+      expect(screen.queryByRole("radio", { name: label })).toBeNull();
     }
   });
 
   it("prose mode flattens the same tree via the nt-prose transform", async () => {
     const client = await seedClient();
     const pageId = await seedTreePage(client);
+    // The NodeView switcher's seam: the per-page device preference.
+    writeViewModePref(`nodeBlocks.${pageId}`, "prose");
     const { container } = render(<PageView client={client} pageId={pageId} />);
-
-    fireEvent.click(screen.getByRole("radio", { name: "Prose" }));
 
     const tree = container.querySelector(".nt-block-tree") as HTMLElement;
     expect(tree.classList.contains("nt-prose")).toBe(true);
@@ -153,9 +162,8 @@ describe("child-blocks triad", () => {
   it("cards mode renders first-level blocks as cards with their children inside", async () => {
     const client = await seedClient();
     const pageId = await seedTreePage(client);
+    writeViewModePref(`nodeBlocks.${pageId}`, "cards");
     render(<PageView client={client} pageId={pageId} />);
-
-    fireEvent.click(screen.getByRole("radio", { name: "Cards" }));
 
     const cards = screen.getAllByRole("article");
     expect(cards.length).toBe(2);
@@ -418,9 +426,15 @@ describe("groupBy: references grouped by containing page", () => {
     return targetId;
   }
 
+  /**
+   * The `.nt-backlinks` strip for within() scoping — the selected Backlinks
+   * tab loads its rows on mount (owner 2026-10-06 strip), so the groups
+   * render without any tab click.
+   */
   function expandLinkedReferences(): HTMLElement {
-    fireEvent.click(screen.getByRole("button", { name: /Linked references/ }));
-    return screen.getByRole("button", { name: /Linked references/ }).closest("section") as HTMLElement;
+    const strip = document.querySelector(".nt-backlinks");
+    if (strip === null) throw new Error("no .nt-backlinks strip rendered");
+    return strip as HTMLElement;
   }
 
   it("renders one collapsible group per containing page, headers open the page", async () => {
