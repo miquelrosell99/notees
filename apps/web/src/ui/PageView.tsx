@@ -1,13 +1,20 @@
 /**
- * PageView — a page inside the floating content card: the ancestor
- * breadcrumbs, the page header (icon + editable title + view toggles), the
- * collapsible Metadata section, the recursive block tree of the page's
- * children + the "add block" affordance for an empty page, then (after a
- * divider) the system sections (linked references — expanded, child pages
- * and unlinked references — collapsed) per SCHEMA.md's lazy-loading
- * contract. Reads from a client (in-process WorkspaceClient or the
- * WorkerClient proxy — same surface) and re-renders on its (naive)
+ * PageView — a page inside the floating content card: the page chrome
+ * (top bar, day-aware header + cover aside, compact in-flow properties,
+ * footer) around the recursive block tree of the page's children + the
+ * "add block" affordance for an empty page, then the aggregation sections
+ * (day/month/year) and the system sections (linked references — expanded,
+ * child pages and unlinked references — collapsed) per SCHEMA.md's
+ * lazy-loading contract. Reads from a client (in-process WorkspaceClient or
+ * the WorkerClient proxy — same surface) and re-renders on its (naive)
  * notifications.
+ *
+ * S3b of the main-content restructure: the chrome LEAVES (NodeTopbar,
+ * PageHeaderChrome, PageFooterChrome) live in PageChrome.tsx; the editing
+ * machinery lives in usePageMachinery.ts. What stays here is the composer:
+ * the reads (page/tree/cover/day facts), the body (the block tree inside
+ * the drag context), the notices + compact properties in mainChrome, and
+ * the panelled/compact composition (S7 reworks the columns).
  *
  * PageView also owns the OutlinerContext: the write surface, the per-render
  * outline position map (sibling/parent facts for Tab/Backspace), the focus
@@ -22,7 +29,7 @@
  * opener (see editor-popups/).
  */
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -36,21 +43,16 @@ import { ExportPageModal } from "./components/modals/ExportPageModal.js";
 import { SharePageModal } from "./components/modals/SharePageModal.js";
 import type { ShareTarget } from "./components/NodeMenuButton.js";
 import { NodeContextMenu } from "./components/NodeContextMenu.js";
-import { DayPageHeader } from "./components/DayPageHeader.js";
 import { DayPageSections } from "./components/DayPageSections.js";
 import { CreatedSection } from "./components/CreatedSection.js";
 import { isoOfDateParts, createdPeriodBounds } from "./components/calendarViewUtils.js";
 import { nodeIcon } from "./iconFor.js";
-import { displayNameForSettings, displayNameFromClient } from "./dateDisplay.js";
 
 import {
   DropLineContext,
   blockCollisionDetection,
 } from "./block-dnd.js";
-import { PropertiesSection, PropertiesSidebar, ClassesRow, TagsRow } from "./components/MetadataSection.js";
-import { IconPickerPopup } from "./components/IconPickerPopup.js";
-import { CoverCard } from "./components/PageBanner.js";
-import { PageFooter } from "./components/PageFooter.js";
+import { PropertiesSection, PropertiesSidebar, ClassesRow } from "./components/MetadataSection.js";
 import { SelectionBar } from "./components/SelectionBar.js";
 import { SystemSections } from "./components/SystemSections.js";
 import { canHaveCoverOf, coverAssetIdOf, ensureCoverProperty } from "./components/coverProperty.js";
@@ -58,8 +60,6 @@ import { ensureAliasOfProperty, ensureAliasProperty } from "./components/aliasPr
 import { AliasOfBanner } from "./components/AliasOfBanner.js";
 import { useDeviceSetting } from "./components/modals/deviceSettings.js";
 import { EmbedBoundary } from "./EmbedView.js";
-import { Icon } from "./Icon.js";
-import { TitleEditor } from "./TitleEditor.js";
 import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
 import { OutlinerContext } from "./outliner-context.js";
 import { NodeCollection } from "./views/index.js";
@@ -69,6 +69,7 @@ import { FindReplaceWidget } from "./editor-popups/FindReplaceWidget.js";
 import { LinkEditModalHost } from "./editor-popups/LinkEditModal.js";
 import { GhostRow, realizeGhost } from "./GhostRow.js";
 import { usePageMachinery } from "./usePageMachinery.js";
+import { NodeTopbar, PageHeaderChrome, PageFooterChrome } from "./PageChrome.js";
 
 /** The child-blocks triad, in switcher order. Exported for the NodeView
  *  chrome, which hosts the switcher at the card's top-right. */
@@ -92,7 +93,7 @@ export function PageView({
    * "default" (the main content card) puts the properties in a collapsible
    * LEFT side panel inside the card, the classes pills at the content
    * column's top-left, and moves the blocks view switcher out to the card's
-   * top-right (the NodeView chrome). "compact" keeps the in-flow chrome —
+   * top-right (the NodeView chrome). "compact" keeps the v1 in-flow chrome —
    * the properties as a list section under the header — for secondary
    * surfaces (sidebar peek cards; embedded renders keep their own slim
    * chrome). Focus mode always compacts.
@@ -132,7 +133,7 @@ export function PageView({
   sections = undefined,
   /** Replaces the default <SystemSections/> (ClassView: extends-by + system). */
   systemSections = undefined,
-  /** Shares: server coordinates for the "Share…" item + modal. */
+  /** §34.62 shares: server coordinates for the "Share…" item + modal. */
   shareTarget = undefined,
 }: {
   client: WorkspaceClient | WorkerClient;
@@ -143,7 +144,7 @@ export function PageView({
   onOpenInSidebar?: ((nodeId: string) => void) | undefined;
   /** Post-delete navigation (host routes to the parent / default view). */
   onDeleted?: ((node: ClientNode) => void) | undefined;
-  /** Presentation mode: "Present" decks this page's subtree read-only. */
+  /** Presentation mode (§34.26): "Present" decks this page's subtree read-only. */
   onPresent?: ((pageId: string) => void) | undefined;
   /**
    * Embedded mode (journals feed): the title renders as a static button that
@@ -168,7 +169,7 @@ export function PageView({
 }) {
   /**
    * Child-blocks view mode (the outline/prose/cards triad): durable display
-   * state per page — device-local, never an op. Unset/stale
+   * state per page (§34.27 L1) — device-local, never an op. Unset/stale
    * values fall back to outline, the surface default. The main NodeView owns
    * the switcher (card top-right) and passes the mode down; standalone
    * renders keep the internal preference.
@@ -198,9 +199,6 @@ export function PageView({
   const panelled =
     layout === "default" && !embedded && !focusMode && !forClass;
   const [headerMenu, setHeaderMenu] = useState<{ x: number; y: number } | null>(null);
-  /** Icon picker popup anchor + open state (clicking the page icon). */
-  const pageIconRef = useRef<HTMLElement | null>(null);
-  const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [exporting, setExporting] = useState<{ pageId: string; name: string } | null>(null);
   const [sharing, setSharing] = useState<{ pageId: string; name: string } | null>(null);
   const [, setVersion] = useState(0);
@@ -230,7 +228,7 @@ export function PageView({
   /** The same tree in the view system's input shape (session view state). */
   const blockItems: NodeCollectionItem[] = tree.map(toCollectionItem);
   /**
-   * The day branch: a node whose id parses at day precision
+   * §34.28 #4/#7 — the day branch: a node whose id parses at day precision
    * is a day page and gets the date header (weekday/Today flags + the week
    * flag, owner 2026-10-06) and the three aggregation sections. The month
    * and year pages carry the Created aggregation too (owner 2026-10-06).
@@ -278,9 +276,9 @@ export function PageView({
   }, [client, page, embedded, whiteboardTokenIndex, whiteboardClassed]);
 
   /**
-   * Cover property self-heal: the cover schema + source binding
-   * are seed-manifest entries nothing else authors (the migration import is
-   * the only other writer), so a fresh workspace self-heals them on first page
+   * Cover property self-heal (§34.27 L2): the cover schema + source binding
+   * are seed-manifest entries nothing else authors (the v1 migration is the
+   * only other writer), so a fresh workspace self-heals them on first page
    * view — an idempotent no-op once present. The banner below then reads
    * the effective cover value; pages without one (date pages, whiteboard
    * pages, everything not classed `source`) render no banner at all.
@@ -290,7 +288,7 @@ export function PageView({
   }, [client]);
 
   /**
-   * Alias property self-heal (issue #7): the seeded
+   * Alias property self-heal (§34.32 PG10 + issue #7): the seeded
    * multi-value `alias` text schema and the seeded single-value node-typed
    * `aliasOf` schema (global scope, no class bindings) are authored
    * idempotently on first page view — the server seed only runs on an
@@ -307,7 +305,7 @@ export function PageView({
     page !== undefined && !embedded && whiteboardTokenIndex < 0
       ? coverAssetIdOf(client, pageId)
       : null;
-  /** The cover element renders whenever the page can carry a cover —
+  /** §34.72: the v1 element renders whenever the page can carry a cover —
    *  set or empty (the card shows the Add affordance when empty). */
   const coverPossible =
     page !== undefined && !embedded && whiteboardTokenIndex < 0
@@ -359,7 +357,7 @@ export function PageView({
   }
 
   /**
-   * The ghost row (owner-refined): the page root trails exactly
+   * §34.109 ghost (owner refinement of §34.85): the page root trails exactly
    * ONE muted "add block" ghost row as the last sibling of the main level —
    * rendered ALWAYS in the child-blocks section (outline and prose,
    * non-embedded, focus mode included), including an empty body, as the
@@ -420,9 +418,9 @@ export function PageView({
                       onNodeClick={(id) => onOpenPage?.(id)}
                       onNodeShiftClick={(id) => onOpenInSidebar?.(id)}
                     />
-                    {/* The ghost trailing block (owner-refined): the page
-                        root trails exactly ONE "+ Add block" ghost row as
-                        the last sibling of the main
+                    {/* §34.109 ghost trailing block (owner refinement of
+                        §34.85): the page root trails exactly ONE "+ Add
+                        block" ghost row as the last sibling of the main
                         level — display-only until the click, which creates
                         a real empty block after the last child and focuses
                         it (never an op by itself). Blocks no longer trail
@@ -482,106 +480,25 @@ export function PageView({
   );
 
   /**
-   * The header layout: header left, the collapsible cover CARD
-   * right (always rendered when the page can carry a cover, even empty).
-   * Shared by both layout modes.
+   * §34.72 — the v1 header layout (the PageHeaderChrome leaf): header left,
+   * the collapsible cover CARD right. Shared by both layout modes; the
+   * class composition slots (iconButton / headerActions) pass through.
    */
   const headerChrome = (
-    <>
-          <div className="page-header-section">
-          <header className="nt-page-header">
-          <div className="page-header__title-row">
-            {dayIso !== null && !embedded ? (
-              /* Day pages: the header IS the date header — weekday + Today
-                 flags above the (dateFormat-aware) title, the ISO week flag
-                 after it. Right-click keeps the node context menu. */
-              <span
-                className="nt-page-title-wrap"
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  setHeaderMenu({ x: event.clientX, y: event.clientY });
-                }}
-              >
-                <DayPageHeader iso={dayIso} title={displayNameForSettings(page)} />
-              </span>
-            ) : (
-              <>
-            {!focusMode &&
-              (iconButton !== undefined ? (
-                iconButton
-              ) : (
-                <>
-                  <span
-                    className="page-icon-btn"
-                    title="Page icon (click: change icon)"
-                    ref={pageIconRef}
-                    onClick={() => {
-                      if (!embedded) setIconPickerOpen((open) => !open);
-                    }}
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      setHeaderMenu({ x: event.clientX, y: event.clientY });
-                    }}
-                  >
-                    {headerIcon !== null ? (
-                      <Icon path={headerIcon} size={1.4} className="page-icon-large" />
-                    ) : (
-                      <span className="page-icon-placeholder">◈</span>
-                    )}
-                  </span>
-                  {iconPickerOpen && (
-                    <IconPickerPopup
-                      value={page.icon ?? undefined}
-                      anchorEl={pageIconRef.current}
-                      onSelect={(iconValue) => {
-                        // "" clears (Icon treats empty as no icon).
-                        void client.updateObject(pageId, { icon: iconValue });
-                      }}
-                      onClose={() => setIconPickerOpen(false)}
-                    />
-                  )}
-                </>
-              ))}
-            {/* Right-click anywhere on the title (not just the icon) opens the
-                page's node context menu — the browser menu is never the
-                honest surface for a node. */}
-            <span
-              className="nt-page-title-wrap"
-              onContextMenu={(event) => {
-                event.preventDefault();
-                setHeaderMenu({ x: event.clientX, y: event.clientY });
-              }}
-            >
-            {embedded ? (
-              <button
-                type="button"
-                className="nt-page-title-link"
-                title="Open page"
-                onClick={() => onOpenPage?.(pageId)}
-              >
-                {displayNameForSettings(page)}
-              </button>
-            ) : (
-              <TitleEditor page={page} />
-            )}
-            </span>
-              </>
-            )}
-            {headerActions !== undefined && !focusMode && (
-              <div className="nt-page-toolbar">{headerActions}</div>
-            )}
-          </div>
-          {!embedded && !focusMode && (
-            <TagsRow client={client} nodeId={pageId} tagIds={page.tagIds} onOpenPage={onOpenPage} />
-          )}
-        </header>
-        {coverPossible && !focusMode && (
-          <aside className="page-header-section__cover">
-            <CoverCard client={client} pageId={pageId} assetId={coverAssetId} />
-          </aside>
-        )}
-        </div>
-    </>
+    <PageHeaderChrome
+      client={client}
+      page={page}
+      embedded={embedded}
+      focusMode={focusMode}
+      dayIso={dayIso}
+      headerIcon={headerIcon}
+      iconButton={iconButton}
+      headerActions={headerActions}
+      coverPossible={coverPossible}
+      coverAssetId={coverAssetId}
+      onOpenPage={onOpenPage}
+      onHeaderMenu={(x, y) => setHeaderMenu({ x, y })}
+    />
   );
 
   /** Notices, the alias banner, the compact in-flow properties (compact
@@ -600,7 +517,7 @@ export function PageView({
         {!embedded && !focusMode && (
           <AliasOfBanner client={client} aliasPageId={pageId} onOpenPage={onOpenPage} />
         )}
-        {/* The compact layouts keep the in-flow properties list (the
+        {/* The compact layouts keep the v1 in-flow properties list (the
             panelled main layout moves it into the left side panel). */}
         {!focusMode && !panelled && (
           <>
@@ -612,9 +529,16 @@ export function PageView({
     </>
   );
 
-  const footerChrome = !embedded && !focusMode ? (
-    <PageFooter client={client} page={page} tree={tree} onOpenNode={onOpenPage} />
-  ) : null;
+  const footerChrome = (
+    <PageFooterChrome
+      client={client}
+      page={page}
+      tree={tree}
+      onOpenNode={onOpenPage}
+      embedded={embedded}
+      focusMode={focusMode}
+    />
+  );
 
   /**
    * The page chrome composed per layout mode. The panelled main layout
@@ -631,38 +555,25 @@ export function PageView({
       {panelled ? (
         <div className="nt-page-body">
           {!sidePanelCollapsed && (
-            <aside className="nt-page-side-panel">
+            <aside className="nt-page-side-panel" aria-label="Properties">
               <PropertiesSidebar client={client} nodeId={pageId} onOpenPage={onOpenPage} />
             </aside>
           )}
           <div className="nt-page-content">
-            {/* The nodeview top bar: the sidebar collapse toggle and the
-                classes pills on the left, the view-mode switcher + the node
-                menu on the right, over a divider border like the sidebar's.
-                Pinned to the top of the column. */}
-            <div className="nt-node-topbar">
-              <button
-                type="button"
-                className="nt-icon-btn"
-                aria-label={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
-                aria-pressed={!sidePanelCollapsed}
-                title={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
-                onClick={() => setSidePanelCollapsed(!sidePanelCollapsed)}
-              >
-                <Icon path="mdi-page-layout-sidebar-left" size={1} />
-              </button>
-              <div className="nt-node-topbar__classes">
-                {corner !== undefined ? (
-                  corner
-                ) : (
-                  <ClassesRow client={client} nodeId={pageId} classIds={page.classIds} onOpenPage={onOpenPage} />
-                )}
-              </div>
-              <span className="nt-node-topbar__spacer" aria-hidden="true" />
-              {chromeRight !== undefined && (
-                <div className="nt-node-topbar__right">{chromeRight}</div>
-              )}
-            </div>
+            {/* The nodeview top bar (PageChrome.tsx): the sidebar collapse
+                toggle and the classes pills on the left, the view-mode
+                switcher + the node menu on the right. Pinned to the top of
+                the column. */}
+            <NodeTopbar
+              client={client}
+              nodeId={pageId}
+              classIds={page.classIds}
+              sidePanelCollapsed={sidePanelCollapsed}
+              onToggleSidePanel={() => setSidePanelCollapsed(!sidePanelCollapsed)}
+              corner={corner}
+              chromeRight={chromeRight}
+              onOpenPage={onOpenPage}
+            />
             {/* The nodeview proper: auto height between the pinned top bar
                 and footer — it scrolls when the content outgrows the cell. */}
             <div className="nt-nodeview-body">
@@ -751,7 +662,7 @@ export function PageView({
             onDeleted?.(node);
           }}
         />
-        {/* Block multi-selection: the floating group-ops bar rides
+        {/* §34.19 block multi-selection: the floating group-ops bar rides
             the page chrome while a selection is live. */}
         {outliner.selectionEnabled && <SelectionBar client={client} />}
         {exporting !== null && (

@@ -40,6 +40,21 @@ predating this file.
   `notees-operations` skills point here. Deliberate exception: the protocol
   fixtures under `packages/protocol/fixtures/` keep their metadata untouched —
   those bytes are sha256-pinned across the TS/GTK/Flutter convergence gate.
+- **refactor(web): S3b of the main-content restructure — the chrome leaves
+  move to `PageChrome`.** `ui/PageChrome.tsx` extracted from PageView: the
+  `NodeTopbar` (sidebar toggle + classes corner + chromeRight), the
+  `PageHeaderChrome` (day-aware header: DayPageHeader branch, icon button +
+  IconPickerPopup, TitleEditor / embedded link, headerActions, TagsRow, and
+  the cover aside), and the `PageFooterChrome` (null when embedded/focus
+  mode). PageView keeps the panelled/compact composition (the `.nt-page-body`
+  grid + `.nt-nodeview-body` stack) — S7 reworks the columns; props and
+  behavior unchanged, ClassView's slot composition passes through the
+  extracted pieces verbatim. The Properties column names itself now (owner
+  request): PropertiesSidebar renders a small muted "Properties" header row
+  (icon + label + the effective count) in the nodeview top bar's register.
+  Pure move + the one additive header row: tsc clean, full web suite green
+  (1175 tests, one properties-panel assertion added for the header).
+  Design: `.plans/2026-10-06-1352-main-content-restructure/`.
 - **refactor(web): S2 of the main-content restructure — one lazy-section
   contract behind `useSectionData`.** The four hand-rolled lazy idioms
   collapse into one hook: `components/useSectionData.ts` (first-activation

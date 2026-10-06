@@ -205,6 +205,18 @@ wire/protocol change — pure web view-layer, like `05`.
     stamps entry; Diagram 1's variant boxes, the PageChrome contract, the
     migration map, and S7 revert accordingly.
 
+**Implementation record — S3b landed leaves-only (same day):**
+45. *S3b shipped as the leaf extraction + the Properties column header,
+    not the full chrome split.* `ui/PageChrome.tsx` carries `NodeTopbar`,
+    `PageHeaderChrome`, `PageFooterChrome`; PageView keeps the panelled /
+    compact composition (S7 reworks the columns). The three pieces the slice
+    plan attached to S3b — M10 (the picker's color section), M20 (text rows
+    as locked NodeCollections), M23 (the banner restoration) — are NOT part
+    of the landed slice; they remain pending, each independently landable on
+    top of the extracted leaves. The Properties column header (owner request:
+    the first column names itself — a muted "Properties" label row + the
+    effective count at the panel top) rode S3b as the one additive change.
+
 **Owner pass 13 — the banner returns; cover/banner modeling ruled (same day):**
 35. *M23 — v1's banner restored, following the cover implementation.*
     Verified at `v1-archive`: the banner was a first-class top element
