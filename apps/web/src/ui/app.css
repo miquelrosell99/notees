@@ -563,11 +563,12 @@ select:focus-visible {
   padding-left: 14px;
 }
 
-/* Collapse chevron: revealed on bullet/gutter hover (the hover effect lives
-   on the bullet, v1-style), and while the row has focus. */
+/* Collapse chevron: hidden at rest (the resting trail stays clean — a
+   collapsed block's ring is the persistent state signal), revealed on
+   bullet/gutter hover (the hover effect lives on the bullet, v1-style),
+   and while the row has focus. */
 .nt-block-grip:hover > .nt-block-chevron,
-.nt-block:focus-within > .nt-block-row .nt-block-chevron,
-.nt-block-chevron[aria-expanded="true"] {
+.nt-block:focus-within > .nt-block-row .nt-block-chevron {
   opacity: 1;
 }
 
@@ -669,6 +670,20 @@ select:focus-visible {
 .nt-block-row:hover .nt-bullet-icon {
   opacity: 1;
   color: var(--color-on-surface);
+}
+
+/* Edit mode: the active block's bullet carries the hover highlight — the
+   block is engaged even though the pointer may be far from the grip. */
+.nt-block--editing .nt-bullet-dot {
+  opacity: 1;
+  background-color: var(--color-accent);
+  transform: scale(1.2);
+}
+
+.nt-block--editing .nt-bullet-icon {
+  opacity: 1;
+  color: var(--color-accent);
+  transform: scale(1.2);
 }
 
 .nt-block-chevron {
