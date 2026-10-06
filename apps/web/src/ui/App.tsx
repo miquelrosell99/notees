@@ -47,22 +47,19 @@ import {
 } from "@/core/auth-api.js";
 
 import { Icon } from "./Icon.js";
-import { PageView, BLOCKS_VIEW_MODES } from "./PageView.js";
-import { ViewToolbar } from "./views/ViewToolbar.js";
-import { useViewModePreference } from "./viewPrefs.js";
+import { NodeView } from "./NodeView.js";
+import { SidebarNodeCard } from "./SidebarNodeCard.js";
 import { displayNameForSettings } from "./dateDisplay.js";
-import { ClassView } from "./ClassView.js";
 import { DeckView } from "./presentation/DeckView.js";
 import { ThemeToggle } from "./ThemeToggle.js";
 import { CommandPalette } from "./components/CommandPalette.js";
 import { PageCard } from "./components/PageCard.js";
-import { NodeMenuButton, type ShareTarget } from "./components/NodeMenuButton.js";
+import type { ShareTarget } from "./components/NodeMenuButton.js";
 import { dayNodeId, rendersAsInlineBlock, rendersWithDocumentChrome, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import { CollectionHub } from "./components/CollectionHub.js";
 import type { TableColumn, ViewMode } from "./views/index.js";
 import { Breadcrumbs } from "./components/Breadcrumbs.js";
 import { TocSection, ReferencesSection } from "./components/sidebarSections.js";
-import { FocusedBlockView } from "./components/FocusedBlockView.js";
 import { NAV_ENTRIES, Sidebar, recordRecent, type NavKey } from "./components/Sidebar.js";
 import { NodeLinkMenuHost } from "./components/NodeLinkContextMenu.js";
 import { FloatingEditorHost } from "./components/FloatingEditor.js";
@@ -518,186 +515,7 @@ function initialNav(): NavKey {
   return "pages";
 }
 
-/**
- * View resolution = the Revision-11 render cascade (SCHEMA.md): a class node
- * renders the Class View; a parented non-class node with the render bit unset
- * renders the focused block view (inline body + block chrome); everything
- * else — parentless or present-as-main — renders the Page View (document
- * chrome). Exported for the view-routing tests.
- */
-export function NodeView({
-  client,
-  nodeId,
-  onOpenNode,
-  onOpenInSidebar,
-  onDeleted,
-  onPresent,
-  cornerMenu = false,
-  shareTarget = undefined,
-}: {
-  client: WorkspaceClient | WorkerClient;
-  nodeId: string;
-  onOpenNode?: ((nodeId: string) => void) | undefined;
-  onOpenInSidebar?: ((nodeId: string) => void) | undefined;
-  onDeleted?: ((node: ClientNode) => void) | undefined;
-  /**
-   * Presentation mode: the page's "Present" surfaces (the "…" menu,
-   * the header context menu) request a deck of this node's subtree, routed
-   * to the deck host above.
-   */
-  onPresent?: ((nodeId: string) => void) | undefined;
-  /**
-   * Main-card mode: also render the "…" node menu pinned to the content
-   * card's top-right corner. Only the main view card opts in; sidebar peek
-   * cards keep their own header actions and skip it.
-   */
-  cornerMenu?: boolean | undefined;
-  /** Shares: server coordinates for the "Share…" surface (pages). */
-  shareTarget?: ShareTarget | undefined;
-}) {
-  /**
-   * The child-blocks view mode, owned here because the switcher rides this
-   * view's top-right corner (left of the "…" menu — owner 2026-10-06). The
-   * same per-page device preference PageView falls back to, so the choice
-   * survives the move.
-   */
-  const [blocksMode, setBlocksMode] = useViewModePreference(
-    `nodeBlocks.${nodeId}`,
-    "outline",
-    BLOCKS_VIEW_MODES,
-  );
-  const node = client.getNode(nodeId);
-  if (node === undefined) {
-    return <div className="nt-page-missing">Page not found.</div>;
-  }
-  const pageView = !node.isClass && !rendersAsInlineBlock(node);
-  /**
-   * The card's top-right chrome: pages get the blocks view switcher + the
-   * "…" node menu (rendered by PageView — in the nodeview top bar when
-   * panelled, else the absolute corner); class/block views keep just the
-   * "…" menu in the absolute corner.
-   */
-  const chromeRight =
-    pageView && cornerMenu ? (
-      <>
-        <div className="nt-node-view__modes" role="group" aria-label="Blocks view">
-          <ViewToolbar modes={BLOCKS_VIEW_MODES} value={blocksMode} onChange={setBlocksMode} />
-        </div>
-        <NodeMenuButton
-          client={client}
-          node={node}
-          onOpenNode={(id) => onOpenNode?.(id)}
-          onPresent={onPresent}
-          onDeleted={onDeleted}
-          shareTarget={shareTarget}
-        />
-      </>
-    ) : undefined;
-  const view = node.isClass ? (
-    <ClassView client={client} classId={nodeId} onOpenClass={onOpenNode} onOpenPage={onOpenNode} />
-  ) : rendersAsInlineBlock(node) ? (
-    <FocusedBlockView client={client} blockId={nodeId} onOpenNode={onOpenNode} />
-  ) : (
-    <PageView
-      client={client}
-      pageId={nodeId}
-      onOpenPage={onOpenNode}
-      onOpenInSidebar={onOpenInSidebar}
-      onDeleted={onDeleted}
-      onPresent={onPresent}
-      shareTarget={shareTarget}
-      layout={cornerMenu ? "default" : "compact"}
-      blocksMode={blocksMode}
-      onBlocksModeChange={setBlocksMode}
-      chromeRight={chromeRight}
-    />
-  );
-  if (!cornerMenu) return view;
-  return (
-    <div className="nt-node-view">
-      {view}
-      {!pageView && (
-        <div className="nt-node-view__corner">
-          <NodeMenuButton
-            client={client}
-            node={node}
-            onOpenNode={(id) => onOpenNode?.(id)}
-            onPresent={onPresent}
-            onDeleted={onDeleted}
-            shareTarget={shareTarget}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * SidebarNodeCard — one independent peek card in the right sidebar
- * (shift+click a block bullet): the node's own view (page/class/focused
- * block) with a close button; links inside navigate the main view. The
- * header title IS the breadcrumb trail (right-anchored): for inline blocks
- * it ends at the containing main node, for pages/classes at the node itself.
- */
-function SidebarNodeCard({
-  client,
-  nodeId,
-  onOpenNode,
-  onClose,
-}: {
-  client: WorkspaceClient | WorkerClient;
-  nodeId: string;
-  onOpenNode: (nodeId: string) => void;
-  onClose: () => void;
-}) {
-  const node = client.getNode(nodeId);
-  return (
-    <section className="nt-sidebar-card" aria-label="Node preview">
-      <header className="nt-sidebar-card__header">
-        {node !== undefined && (
-          <Breadcrumbs
-            client={client}
-            nodeId={nodeId}
-            onOpenNode={onOpenNode}
-            showCurrent={!rendersAsInlineBlock(node)}
-            anchor="right"
-            editable
-          />
-        )}
-        <span className="nt-sidebar-card__actions">
-          <button
-            type="button"
-            className="nt-sidebar-card__action"
-            aria-label="Open in main view"
-            title="Open in main view"
-            onClick={() => {
-              onOpenNode(nodeId);
-              onClose();
-            }}
-          >
-            <Icon path="mdi-arrow-right" size={0.8} />
-          </button>
-          <button
-            type="button"
-            className="nt-sidebar-card__action"
-            aria-label="Close card"
-            title="Close"
-            onClick={onClose}
-          >
-            ×
-          </button>
-        </span>
-      </header>
-      <div className="nt-sidebar-card__body">
-        {node === undefined ? (
-          <div className="nt-page-missing">Page not found.</div>
-        ) : (
-          <NodeView client={client} nodeId={nodeId} onOpenNode={onOpenNode} onDeleted={() => onClose()} />
-        )}
-      </div>
-    </section>
-  );
-}
+export { NodeView } from "./NodeView.js";
 
 export function App() {
   const [serverUrl, setServerUrl] = useState(initialServerUrl);

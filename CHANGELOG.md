@@ -40,3 +40,14 @@ predating this file.
   `notees-operations` skills point here. Deliberate exception: the protocol
   fixtures under `packages/protocol/fixtures/` keep their metadata untouched —
   those bytes are sha256-pinned across the TS/GTK/Flutter convergence gate.
+- **refactor(web): S1 of the main-content restructure — the NodeView shell
+  extraction.** `ui/NodeView.tsx` (the mode dispatcher + chrome-right
+  cluster builder + the new `embedded` surface prop) and
+  `ui/SidebarNodeCard.tsx` extracted from App.tsx; App re-exports NodeView
+  for the view-routing tests. FloatingEditor windows now render the shared
+  NodeView (`embedded`) instead of their own copy of the render cascade —
+  the dispatch existed twice (App + FloatingEditor) since the v1 port; one
+  copy remains. Pure move, no behavior change: typecheck clean, full web
+  suite green (1175 tests). Design + the registered deviation
+  (SidebarNodeCard deletion rides S7):
+  `.plans/2026-10-06-1352-main-content-restructure/`.
