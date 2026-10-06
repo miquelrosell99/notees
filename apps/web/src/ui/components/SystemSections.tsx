@@ -1,7 +1,7 @@
 /**
  * SystemSections — the card-bottom system sections. Below the page's own
  * content: the Child pages section (expanded) and the workspace Activity
- * feed (§34.19 :1167, mounted last; off for embedded renders via
+ * feed (1167, mounted last; off for embedded renders via
  * `withActivity`) stay stacked sections as before; only the REFERENCES
  * rework rides the tab strip (owner 2026-10-06, the Capacities-style
  * layout): ONE tab bar in the old references-tab slot — Backlinks and
@@ -15,7 +15,7 @@
  * the tab IS the section header (no duplicated tabs-plus-section-headers
  * chrome).
  *
- * Unlinked mentions carry the v1 action pair (§34.27 L4, §34.19 :1137):
+ * Unlinked mentions carry the v1 action pair:
  * Promote rewrites the source block's literal name match into a mention
  * (./unlinkedRefs.ts — after the write the source moves to Backlinks, the
  * honest place for it); Ignore dismisses the source device-locally, per
@@ -103,7 +103,7 @@ export function ReferenceList({
     [client, unlinkedPageId],
   );
   /**
-   * §34.69 bound-verb backlinks: a linked-reference edge whose verb is a
+   * bound-verb backlinks: a linked-reference edge whose verb is a
    * bound propertySchemaId renders the schema's NAME (never the raw id) —
    * the surfaces the backlink arrived through ("supports", "cites"). Free
    * verbs never produce targeted edges (typed-link marks are targetless per
@@ -184,7 +184,7 @@ export function SystemSections({
   pageId,
   onOpenPage,
   /**
-   * The workspace activity feed (§34.19 :1167). Off for embedded renders —
+   * The workspace activity feed. Off for embedded renders —
    * a journal feed mounts many PageViews and the feed's created-query gate
    * would run once per mounted page per notification.
    */
@@ -201,7 +201,7 @@ export function SystemSections({
   // callback (and the hook's refreshKey below) on the joined value so its
   // identity stays stable between actual ignore-list changes; a churning
   // identity re-runs the effect every render and loops on the fresh-array
-  // state installs (found by the §34.116 test pass).
+  // state installs (found by the test pass).
   const ignoredKey = ignored.join(" ");
   const loadUnlinkedRefs = useCallback(() => {
     const dismissed = new Set(ignoredKey === "" ? [] : ignoredKey.split(" "));

@@ -47,12 +47,12 @@ import "./NodeSelector.css";
  * (in-process WorkspaceClient, WorkerClient proxy) and the outliner's
  * context client satisfy it. Extends the quick-create surface: the picker's
  * built-in create row opens the class-aware QuickCreateModal when the class
- * filter resolves to a family (§34.19 :1172).
+ * filter resolves to a family.
  */
 export interface NodeSelectorClient extends QuickCreateClient {
   getNode(id: string): ClientNode | undefined;
   getNodeRaw(id: string): ClientNode | undefined;
-  /** The document-chrome node pool (filter-prefix listings, §34.19). */
+  /** The document-chrome node pool (filter-prefix listings, ). */
   listPages(): ClientNode[];
   search(query: string): ClientNode[];
   createClass(name: string, opts?: { icon?: string; color?: string }): Promise<string>;
@@ -158,7 +158,7 @@ interface NodeSelectorProps {
   /** Custom label for the create row (default: `Create "<query>"`). */
   createLabel?: string | undefined;
   /**
-   * §34.19 multi-select checkbox mode: row clicks toggle a picked set
+   * multi-select checkbox mode: row clicks toggle a picked set
    * (checked rows accumulate at the top), an Apply footer commits them all
    * through `onApplyMulti`. The picker stays open across toggles.
    */
@@ -213,7 +213,7 @@ export function NodeSelector({
   const [isPickerOpen, setIsPickerOpen] = useState(isAnchored);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const [displayLimit, setDisplayLimit] = useState(DEFAULT_DISPLAY_LIMIT);
-  /** Multi-select (§34.19): picked ids in pick order. */
+  /** Multi-select: picked ids in pick order. */
   const [pickedIds, setPickedIds] = useState<string[]>([]);
   /** Active scope-tab filter (only rendered when scopeTabs is set). */
   const [scope, setScope] = useState<"main" | "blocks">("main");
@@ -304,7 +304,7 @@ export function NodeSelector({
     }
   };
 
-  // Inline filter prefixes (§34.19 suggestion-popup row, the v1 popup's
+  // Inline filter prefixes ( suggestion-popup row, the v1 popup's
   // filter family): `daily:` (bare = daily pages only), `is_daily:`,
   // `is_page:` and `is_class:` booleans refine any non-classes search. The
   // tokens are stripped from the search text before FTS/name matching (and
@@ -340,7 +340,7 @@ export function NodeSelector({
     return true;
   };
 
-  // Class refine (§34.30 M7): a leading `class:<name>` prefix scopes the
+  // Class refine: a leading `class:<name>` prefix scopes the
   // search to that class's members. The name is resolved greedily over the
   // class list — the LONGEST display-name prefix wins, so spaced names
   // ("class:My Class ada") parse unambiguously; an unknown name leaves the
@@ -369,7 +369,7 @@ export function NodeSelector({
   }, [classFilters, classRefine]);
 
   /**
-   * §34.19 :1172 — the class-aware create request: when the picker's create
+   * 1172 — the class-aware create request: when the picker's create
    * row runs under a source/agent family filter, the QuickCreateModal opens
    * with the citation fields instead of silently creating a plain page. The
    * modal completes the create and hands the id back through resolveCreateResult.
@@ -586,7 +586,7 @@ export function NodeSelector({
     [searchResults, assignedIds, multiSelect, pickedIds, excludeNodeId, canAdd],
   );
 
-  // Multi-select (§34.19): picked nodes resolved in pick order; toggling a
+  // Multi-select: picked nodes resolved in pick order; toggling a
   // row never closes the picker; Apply commits the whole set at once.
   const pickedNodes = useMemo(
     () =>
@@ -644,7 +644,7 @@ export function NodeSelector({
     }
   };
 
-  // Dismissal rides the shared §34.67 layer (usePopupDismissal), replacing
+  // Dismissal rides the shared layer (usePopupDismissal), replacing
   // the hand-rolled outside-click/Escape pair: Escape closes unless it
   // originated inside the popup (the search input's own keydown closes via
   // the list nav), and a pointer-down outside closes with the trigger
@@ -757,7 +757,7 @@ export function NodeSelector({
     return ".../ " + (last.length > 26 ? last.slice(0, 23) + "..." : last) + " /";
   };
 
-  // Containing-page breadcrumb for a block hit (§34.30 M8): the nearest
+  // Containing-page breadcrumb for a block hit: the nearest
   // document-chrome ancestor's path plus the page itself — the label that
   // tells a "…" block result apart from same-named pages.
   const buildContainingPagePath = (node: ClientNode): string => {
@@ -805,7 +805,7 @@ export function NodeSelector({
 
   const renderResults = (emptyClassName: string, createIconSize: number) => (
     <>
-      {/* Multi-select (§34.19): picked rows ride the top of the list. */}
+      {/* Multi-select: picked rows ride the top of the list. */}
       {multiSelect &&
         pickedNodes.map((node, index) => (
           <NodeResultItem

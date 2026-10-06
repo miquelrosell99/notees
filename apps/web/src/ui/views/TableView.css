@@ -12,7 +12,7 @@
  * sort register: direction arrows on every sorted column plus the
  * multi-sort priority index. v2 machinery stays: inline editing, the
  * tri-state header checkbox, CSV/Excel export, ImportTableModal, and the
- * §34.70 ROW_WINDOW paging.
+ * ROW_WINDOW paging.
  */
 
 .nt-table-wrap {
