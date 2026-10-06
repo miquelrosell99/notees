@@ -1,14 +1,16 @@
 /**
- * GhostRow — the v1 ghost block recovered: every expanded block (and the
- * page root) trails a muted "+ Add block" row at the next depth; the click
- * realizes it into a real empty block under that parent (created after the
- * last real child) and focuses it. The §34.85 ruling: the ghost is the SOLE
- * add affordance and shows even on empty bodies.
+ * GhostRow — the v1 ghost block recovered, §34.109-refined: the page root
+ * trails exactly ONE muted "+ Add block" row as the last sibling of the main
+ * level; the click realizes it into a real empty block after the last child
+ * and focuses it. Blocks no longer trail their own ghosts at every depth
+ * (owner 2026-10-06: one ghost per page, not one per level). The §34.85
+ * ruling stands in spirit: the ghost is the SOLE add affordance and shows
+ * even on empty bodies — in outline AND prose mode (prose hides bullets,
+ * so the `prose` flag drops this row's gutter to read as plain trailing
+ * text). Cards, read-only projections, and embedded renders mount none.
  *
  * The row is display state only — it never enters a SortableContext items
  * array, carries no sortable/drag wiring, and the click is the single write.
- * Mounts gate it: no ghosts in read-only projections, embedded renders,
- * prose/cards transforms, or table containers.
  */
 
 import type { OutlinerContextValue } from "./outliner-context.js";
@@ -24,14 +26,23 @@ export function ghostIdFor(parentId: string): string {
 interface GhostRowProps {
   parentId: string;
   onRealize: () => void;
+  /**
+   * Prose mode (the view transform hides every bullet): drop the gutter so
+   * the row reads as plain trailing text, flush with the prose paragraphs.
+   */
+  prose?: boolean | undefined;
 }
 
-export function GhostRow({ parentId, onRealize }: GhostRowProps) {
+export function GhostRow({ parentId, onRealize, prose = false }: GhostRowProps) {
   return (
-    <div className="nt-ghost-row" data-ghost={ghostIdFor(parentId)} data-ghost-parent={parentId}>
+    <div
+      className={prose ? "nt-ghost-row nt-ghost-row--prose" : "nt-ghost-row"}
+      data-ghost={ghostIdFor(parentId)}
+      data-ghost-parent={parentId}
+    >
       {/* The gutter/bullet renders the normal row chrome at this depth (a
-          muted dot — no chevron, no drag, no zoom), keeping the affordance
-          aligned with the rows above it. */}
+          faint dot — never a real bullet's weight; no chevron, no drag, no
+          zoom), keeping the affordance aligned with the rows above it. */}
       <span className="nt-ghost-row__gutter" aria-hidden="true">
         <span className="nt-ghost-row__bullet" />
       </span>
