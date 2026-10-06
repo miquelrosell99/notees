@@ -3295,3 +3295,24 @@ The first slice of custom workflows is a **server-side rules engine** in coordin
 **Verification:** web 1157 (+17: focus-mode suite, class-create-modal suite, palette Random specs), whole workspace green post-rebase (PageView/usage.md conflicts resolved: the alias banner joined the focus-suppressed chrome; docs renumbered lists reconciled).
 
 **Register cross-checks:** issues #8 + #12 + #14 closed · `docs/usage.md` (Random + focus chord/paragraph + Creating classes bullet) · no wire change anywhere in the batch · follow-ups: new seed vocabulary for the deploy catalog; literal block-icon hiding in focus mode if wanted.
+
+### 34.100 The owner-flag pass + the v3.4.0 release and client alignment (2026-10-06 — SHIPPED)
+
+**Flag dispositions (assessed, most fixed):**
+- `--motion-easing-decelerate` `(0,0,1,1) → (0,0,0,1)` — the audit-batch value was LINEAR under a decelerate name driving the Modal/NotificationToast entrances; reverted to the true decelerate curve.
+- **Row icons now chain-aware (#1 fully closed)**: `effectiveClassIcons()` — a revision-cached map resolving each class's own icon else its `class_extends` chain (`classIconInChain` semantics), computed once per revision; all ten `nodeIcon` call sites repointed (BlockRow grip, sidebar, outline/cards/table rows, embeds, deck, hover/floating editors). Zero per-row RPC cost — the §34.93 reason for deferring no longer applies.
+- **`GET /api/resolve` node-alias parity (#7)**: new store read `aliasOfTarget(nodeId)`; a name hit on an alias page answers the MAIN page (chain-collapsing, cycle-safe — the web client's `nameEquivalentsOf` semantics, now server-side for CLI/DSL callers).
+- **Focus-mode scope (#12)**: the block bullet renders the plain dot (class-derived icon hidden), row-end class pills and the block tags row hide — the issue's "no icons" read literally. Bullets stay (outliner interaction).
+- **Five new seeds (#14 follow-up)**: definition/idea/place/project/trip at …0043–…0047 (…0042 stays withdrawn), plain seeds per the §34.36 ruling (zero wire cost, NO lockstep); trip extends event (the events toggle cascades — the domain cascade pin now expects 4); the deploy catalog surfaces all five.
+- Kept: `--color-on-disabled #8a8a8a` (plausible a11y darkening), the floating editor's title-as-navigation (embedded-mode contract). Registered follow-ups: graph alias edges with their own render kind (they currently render as property edges), server-side seed-name migration parity for old CLI pins.
+
+**Release:** main tagged **v3.4.0** (store v15; releases.md wire-state + batch history updated — the §34.92 perf batch folded in, noted as no-wire). Host redeployed (both images rebuilt, compose up, **VERIFY-PASS** against the live workspace — the References tab rendering in the smoke output).
+
+**Client alignment (the batch has NO wire change — alignment = pins + gates + tags, no ports):**
+- **CLI v3.2.0** — vendor/notees bumped to v3.4.0 (package dists rebuilt); the bump surfaced real drift the old pin had shielded: seeds author DISPLAY names now (Task/Source/Person, Citekey), so the test suite's raw-key expectations moved to display wording (class-arg resolution is unaffected — case-insensitive); CLI_VERSION 3.2.0 matches the vendored server's self-described version, clearing the doctor drift check. Gates: typecheck + 77 tests + build green.
+- **GTK v3.1.2** — no code changes; gates re-verified (679 pytest + ruff + mypy green); tag pushed (CI publishes wheel/sdist/archpkg + GitHub Release).
+- **Flutter v3.1.2** — no code changes; gates re-verified (flutter analyze clean + 577 tests); tag pushed (CI builds the production-signed APK + GitHub Release).
+
+**Verification:** main gate 262/70/218/401/16/171/204/1158 all green; three client repos green at their new tags.
+
+**Register cross-checks:** releases.md §3 wire state (TS v3.4.0) + §4 batch-history rows · this entry · client repos tagged from clean mains.
