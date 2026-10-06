@@ -37,7 +37,7 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { rendersWithDocumentChrome, parseDateNodeId, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
+import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { ExportPageModal } from "./components/modals/ExportPageModal.js";
 import { SharePageModal } from "./components/modals/SharePageModal.js";
@@ -55,6 +55,7 @@ import {
 import { PropertiesSection, PropertiesSidebar, ClassesRow } from "./components/MetadataSection.js";
 import { SelectionBar } from "./components/SelectionBar.js";
 import { SystemSections } from "./components/SystemSections.js";
+import { childQuery } from "./components/childQuery.js";
 import { canHaveCoverOf, coverAssetIdOf, ensureCoverProperty } from "./components/coverProperty.js";
 import { ensureAliasOfProperty, ensureAliasProperty } from "./components/aliasProperty.js";
 import { AliasOfBanner } from "./components/AliasOfBanner.js";
@@ -63,7 +64,7 @@ import { EmbedBoundary } from "./EmbedView.js";
 import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
 import { OutlinerContext } from "./outliner-context.js";
 import { NodeCollection } from "./views/index.js";
-import type { NodeCollectionItem, ViewMode } from "./views/index.js";
+import type { ViewMode } from "./views/index.js";
 import { useViewModePreference } from "./viewPrefs.js";
 import { FindReplaceWidget } from "./editor-popups/FindReplaceWidget.js";
 import { LinkEditModalHost } from "./editor-popups/LinkEditModal.js";
@@ -75,10 +76,11 @@ import { NodeTopbar, PageHeaderChrome, PageFooterChrome } from "./PageChrome.js"
  *  chrome, which hosts the switcher at the card's top-right. */
 export const BLOCKS_VIEW_MODES: ViewMode[] = ["outline", "prose", "cards"];
 
-/** BlockTreeNode → the collection input shape (recursive). */
-function toCollectionItem(entry: BlockTreeNode): NodeCollectionItem {
-  return { node: entry.node, children: entry.children.map(toCollectionItem) };
-}
+/**
+ * The body items (S4/M1): the childQuery factory — children as siblings,
+ * comment-classed rows cut at every level (M19). The body itself is the
+ * plain NodeCollection dispatcher below.
+ */
 
 export function PageView({
   client,
@@ -226,7 +228,7 @@ export function PageView({
     page !== undefined ? nodeIcon(page, client.effectiveClassIcons()) : null;
   const tree = page !== undefined ? client.getBlockTree(pageId) : [];
   /** The same tree in the view system's input shape (session view state). */
-  const blockItems: NodeCollectionItem[] = tree.map(toCollectionItem);
+  const blockItems = childQuery(client, pageId);
   /**
    * §34.28 #4/#7 — the day branch: a node whose id parses at day precision
    * is a day page and gets the date header (weekday/Today flags + the week
