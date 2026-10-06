@@ -490,13 +490,17 @@ export function PageView({
   }
 
   /**
-   * §34.85 ghost (owner refinement): the page root trails the same muted
-   * "add block" ghost row every expanded block carries (v1 parity) —
-   * rendered ALWAYS in the child-blocks section (outline, non-embedded),
-   * including an empty body, as the sole "add" affordance. The click
-   * realizes it into a real empty block at the end and focuses it.
+   * §34.109 ghost (owner refinement of §34.85): the page root trails exactly
+   * ONE muted "add block" ghost row as the last sibling of the main level —
+   * rendered ALWAYS in the child-blocks section (outline and prose,
+   * non-embedded, focus mode included), including an empty body, as the
+   * sole "add" affordance. Blocks no longer trail their own ghosts at
+   * deeper levels. Prose hides bullets (app.css .nt-prose), so the ghost
+   * mounts there with its gutter dropped (the `prose` flag). Cards is a
+   * card grid, not a block list — no ghost. The click realizes the ghost
+   * into a real empty block at the end and focuses it.
    */
-  const ghostVisible = !embedded && blocksMode === "outline";
+  const ghostVisible = !embedded && blocksMode !== "cards";
 
   return (
     <OutlinerContext.Provider value={outliner}>
@@ -674,19 +678,23 @@ export function PageView({
                         items={blockItems}
                         tree
                         editable
-                        ghost={!embedded}
                         onNodeClick={(id) => onOpenPage?.(id)}
                         onNodeShiftClick={(id) => onOpenInSidebar?.(id)}
                       />
-                      {/* §34.85 ghost trailing block: the page root trails the
-                          same "+ Add block" ghost row every expanded block
-                          carries — display-only until the click, which
-                          creates a real empty block after the last child and
-                          focuses it (never an op by itself). Outline mode
-                          only (prose/cards aren't block lists). */}
+                      {/* §34.109 ghost trailing block (owner refinement of
+                          §34.85): the page root trails exactly ONE "+ Add
+                          block" ghost row as the last sibling of the main
+                          level — display-only until the click, which creates
+                          a real empty block after the last child and focuses
+                          it (never an op by itself). Blocks no longer trail
+                          their own ghosts at deeper levels, and focus mode
+                          keeps the body (hence this ghost) — only chrome
+                          steps aside. Prose mounts it too, gutter dropped
+                          (bullets are hidden in that transform). */}
                       {ghostVisible && (
                         <GhostRow
                           parentId={pageId}
+                          prose={blocksMode === "prose"}
                           onRealize={() => {
                             void realizeGhost(client, outliner, pageId).catch((error: unknown) => {
                               console.warn(`[outliner] ghost realize (${pageId}) failed:`, error);
