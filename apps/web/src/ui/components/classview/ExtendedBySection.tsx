@@ -48,9 +48,14 @@ export function ExtendedBySection({
   // Eager read: the hide-when-empty rule needs the count before the section's
   // lazy contract starts (same pattern as SystemSections' count badges).
   const children = client.getClassChildren(classId);
-  if (children.length === 0) return null;
-
+  // Must run BEFORE the empty early return (rules of hooks): the extends set
+  // can flip 0↔N on this same instance when an edge arrives via sync.
+  // React 19 happens to tolerate this instance's 0↔1-hook flip (a zero-hook
+  // fiber re-mounts), but the shape is the §34.105 crash class — the day a
+  // hook lands above the return it throws #310, as TitleEditor did.
   const items = useMemo(() => buildTree(client, classId, new Set([classId])), [client, classId]);
+
+  if (children.length === 0) return null;
 
   return (
     <Section
