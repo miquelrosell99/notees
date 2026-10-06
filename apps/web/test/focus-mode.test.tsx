@@ -108,12 +108,12 @@ describe("focus mode page chrome (#12)", () => {
     setFocusMode(false);
     const { container } = render(<PageView client={client} pageId={pageId} />);
     await flushSync();
-    // The panelled main layout: a left properties side panel, the hamburger
-    // rail + the classes pills row at the content column's top, tags row,
-    // footer, and the backlinks strip with the eager count on the tab label.
+    // The panelled main layout: a left properties side panel, the nodeview
+    // top bar (sidebar toggle + classes pills), tags row, footer, and the
+    // backlinks strip with the eager count on the tab label.
     expect(container.querySelector(".nt-page-side-panel")).not.toBeNull();
-    expect(container.querySelector(".nt-page-panel-rail")).not.toBeNull();
-    expect(container.querySelector(".nt-page-classes-row")).not.toBeNull();
+    expect(container.querySelector(".nt-node-topbar")).not.toBeNull();
+    expect(container.querySelector(".nt-node-topbar__classes")).not.toBeNull();
     expect(container.querySelector(".nt-tags-row")).not.toBeNull();
     expect(container.querySelector(".nt-page-footer")).not.toBeNull();
     // The backlinks strip rides below the content; the mention here targets
@@ -129,12 +129,12 @@ describe("focus mode page chrome (#12)", () => {
     const { container } = render(<PageView client={client} pageId={pageId} />);
     await flushSync();
 
-    // The suppressed chrome list (no side panel, no hamburger rail, no
-    // classes corner/row, no tags, no footer, no backlinks strip).
+    // The suppressed chrome list (no side panel, no top bar, no classes
+    // corner/topbar, no tags, no footer, no backlinks strip).
     expect(container.querySelector(".nt-page-side-panel")).toBeNull();
-    expect(container.querySelector(".nt-page-panel-rail")).toBeNull();
+    expect(container.querySelector(".nt-node-topbar")).toBeNull();
     expect(container.querySelector(".nt-page-classes-corner")).toBeNull();
-    expect(container.querySelector(".nt-page-classes-row")).toBeNull();
+    expect(container.querySelector(".nt-node-topbar__classes")).toBeNull();
     expect(container.querySelector(".nt-tags-row")).toBeNull();
     expect(container.querySelector(".nt-page-footer")).toBeNull();
     expect(container.querySelector(".nt-backlinks")).toBeNull();
