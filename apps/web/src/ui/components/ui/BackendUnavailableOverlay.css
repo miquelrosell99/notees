@@ -32,6 +32,19 @@
   font: var(--font-body-large);
 }
 
+/* Honest risk statement + escape action on the lock. */
+.backend-unavailable-overlay__warning {
+  margin: 0;
+  color: var(--color-on-surface-variant);
+  font: var(--font-body-medium);
+  max-width: 52ch;
+}
+
+.backend-unavailable-overlay__actions {
+  display: flex;
+  justify-content: center;
+}
+
 /* Dismissible warning banner for short outages. */
 .backend-unavailable-banner {
   display: flex;
