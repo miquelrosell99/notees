@@ -1,0 +1,41 @@
+# Parked decisions (owner)
+
+The owner-parked calls, newest context first. Each entry records what is
+parked, the date, and what would un-park it. Referenced from AGENTS.md;
+the decision record lives in `.plans/implementation-plan.md` §34.
+
+## SDK publish — ARCHIVED (owner, 2026-10-03)
+
+The npmjs token is not being pursued for now. Publish infra stays in the
+tree (`pnpm release`, `docs/developers/sdk-publishing.md` — archived
+reference) and the packages stay versioned, but npm distribution (and the
+repo split that sat behind it) is off the table until the owner re-opens
+it.
+
+## Releases & the client lockstep
+
+Full runbook: `docs/developers/releases.md`. The load-bearing laws in
+short:
+
+- Git tags are the release mechanism — no GitHub Releases on this repo;
+  ghcr images publish via CI on `v*` tags; X.Y.Z versioning forever.
+- **Any new op / strict payload change requires the three-way lockstep**
+  (TS reference with fixtures, GTK, Flutter) before it counts as done, and
+  pre-batch clients fail loud on new envelopes — update clients before
+  mixing writers; never run a pre-batch client build against a migrated
+  server.
+- The current wire state and batch history (§34.43 → §34.89/90) live in
+  the runbook, not in AGENTS.md.
+- Live data changes follow `docs/developers/migrations.md` (dry-run
+  scripts, backups, snapshot/restore-epoch/restart sequence).
+
+## Repo split (notees-sync / notees-web)
+
+- **CLI** — split out 2026-10-05 regardless (§34.82): `notees-cli` lives
+  in its own repo (sibling to the GTK/Flutter clients), consuming the
+  packages via a pinned `vendor/notees` git submodule as pnpm workspace
+  projects — no npm distribution.
+- **Web** — the split is registered as wanted with execution deferred to a
+  quiet tree and four preconditions (§34.83): gate/CI redesign, deploy-path
+  redesign, quiet tree, same-pass docs.
+- **`notees-sync` stays in the monorepo.**

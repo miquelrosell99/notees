@@ -41,6 +41,10 @@ Run from the repo root:
 Per-package scripts (`packages/*`): `test` (vitest run), `typecheck` (tsc --noEmit). Apps
 add `dev`/`build`/`start` (`apps/server`: `start` = `node dist/server.js`).
 
+Dev-condition exports: vitest reads `src`, `tsc` reads `dist`. After changing
+a package's public API, rebuild its dist before typechecking dependents, or
+the typecheck sees stale types.
+
 ## 3. The fixture gate — blocking, at full width
 
 The single most important process rule (`../../.plans/implementation-plan.md`
@@ -120,12 +124,14 @@ normative statements in `01-knowledge-model.md` §12 and `SCHEMA.md`.
 | Property values | `property_value` per `(node_id, property_schema_id, idx)`, same winning-op columns; `property_value_tombstone` per slot | **LWW by HLC** per slot; delete wins by tombstone |
 | Class membership | `class_member_set` OR-Set rows (`present` flag, per-pair HLC + actor) | **OR-Set add-wins**: concurrent adds union; remove vs add resolves LWW per `(node, class)` pair by `(hlc, actor)`; the applier recomputes `node.class_ids` from present rows |
 | Collection membership | `collection_member` — same shape | Same OR-Set add-wins semantics |
+| Tag membership | mirrors the class OR-Set | Add-wins, but the add tiebreak is **strictly greater** (`>` where class membership uses `>=`): exact ties break first-in-log-wins — a deliberate asymmetry, convergent via the single global log |
 | Node deletion | `is_active = 0` + `trash` row; `permanent: true` hard-deletes | Soft-delete + retention; deletes win by tombstone; subtree trashes with the node |
 | Replay | `applied_envelope` (derived) + `envelope.id UNIQUE` + `INSERT OR IGNORE` (relay) | **Idempotent**: same envelope applied twice is a no-op the second time; catch-up overlap with snapshots/WS frames is harmless |
 | Detection-only | `detectConflicts` in `packages/sync/src/conflicts.ts` | Kinds: `move_move`, `node_deleted`, `class_conflict`, `property_conflict`. Reported via callbacks; **never blocks apply** — the merge above is authoritative |
 
 Two deliberate non-conflicts: concurrent text merges (the designed Yjs CRDT carrier —
-whole-`contentAst` LWW until the port) and set-vs-set LWW. If user intent is ambiguous
+whole-`contentAst` LWW until the port) and set-vs-set LWW. CRDT is confined to
+collaborative text/tree — no CRDT-everywhere. If user intent is ambiguous
 but the data converges, it is a conflict report, not an apply failure.
 
 ## 6. Testing strategy
