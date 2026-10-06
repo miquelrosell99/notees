@@ -1,7 +1,7 @@
 /**
- * Protocol batch part 1 — web surface (jsdom): the §34.34 content-token
+ * Protocol batch part 1 — web surface (jsdom): the content-token
  * renderers (code_block read-only pre + language badge, the hr rule, the
- * embed_ref card views with the full-embed fallback) and the §34.35
+ * embed_ref card views with the full-embed fallback) and the
  * Workspace Settings Features tab (live read surface, LOCKSTEP-PENDING
  * inert writes).
  */
@@ -33,7 +33,7 @@ afterEach(() => {
   });
 });
 
-describe("InlineTokens protocol-batch tokens (§34.34)", () => {
+describe("InlineTokens protocol-batch tokens", () => {
   it("renders a code_block as a read-only mono pre with the language badge", () => {
     const { container } = render(
       <InlineTokens
@@ -153,7 +153,7 @@ function renderFeaturesTab(client: AnyClient | undefined) {
   fireEvent.click(screen.getByRole("tab", { name: "Features" }));
 }
 
-describe("Workspace Settings Features tab (§34.35/§34.55 — lockstep SHIPPED)", () => {
+describe("Workspace Settings Features tab (lockstep SHIPPED)", () => {
   it("lists the five core families with icon, powers line, and a LIVE ToggleSwitch", () => {
     renderFeaturesTab(featureClient({}));
     const entries = Object.entries(WORKSPACE_FEATURE_MAP);
@@ -270,7 +270,7 @@ describe("Workspace Settings Features tab (§34.35/§34.55 — lockstep SHIPPED)
   });
 });
 
-describe("feature chrome gates (§34.55)", () => {
+describe("feature chrome gates", () => {
   it("isClassFamilyEnabled: own feature + managed ancestors (event-off hides the meeting chip too)", async () => {
     const { isClassFamilyEnabled } = await import("../src/ui/components/featureGates.js");
     const { SYSTEM_CLASS_UUIDS } = await import("@notees/domain");

@@ -1,5 +1,5 @@
 /**
- * DayPageSections — the §34.28 #4 day-page aggregations: a day page renders
+ * DayPageSections — the day-page aggregations: a day page renders
  * (below its own content, ahead of the generic system sections) its tasks
  * (open, scheduled on or before the day — the Calendar day view's exact
  * partition, done-toggle included), its dated references (the day node's
@@ -99,7 +99,7 @@ export function DayPageSections({
   const [version, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
 
-  // §34.28 #2 — the open-tasks partition reads the task family; idempotent.
+  // The open-tasks partition reads the task family; idempotent.
   // Fire-and-forget: a mid-teardown rejection must not go unhandled (the
   // next mount re-runs the deploy).
   useEffect(() => {
@@ -146,7 +146,7 @@ export function DayPageSections({
     row: OpenTaskRow,
     group: "overdue" | "scheduled",
   ): ReactNode => {
-    // §34.69: the done-toggle records the occurrence (recurring) — the
+    // The done-toggle records the occurrence (recurring) — the
     // checkbox reflects this day, not the node-level status.
     const checked = row.closed || row.occurrenceDone;
     return (

@@ -1,11 +1,11 @@
 /**
- * SelectionBar — the floating action bar for the §34.19 block
+ * SelectionBar — the floating action bar for the block
  * multi-selection: appears while a page-body selection is live and offers
  * the group ops over the selected rows through the existing client batch
  * paths (one write per selected block):
  *
  * - Assign class… / Unassign class… — a class picker; unassign refuses the
- *   non-removable system classes up front (§34.19 register row).
+ *   non-removable system classes up front.
  * - Add tag… — a page picker (tags are pages).
  * - Move to page… — reparents every selected block under the picked page.
  * - Delete… — the reusable danger ConfirmationModal, then per-block trash.

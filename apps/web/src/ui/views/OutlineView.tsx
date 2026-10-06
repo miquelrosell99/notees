@@ -8,7 +8,7 @@
  *   otherwise (child-page trees, reference subtrees). Editable trees render
  *   inside the call site's DndContext; read-only trees bring their own
  *   SortableContext (non-draggable rows, the Child pages precedent).
- *   §34.70: a READ-ONLY tree's top-level set is windowed (the shared
+ *   A READ-ONLY tree's top-level set is windowed (the shared
  *   useWindowed + ShowMoreButton convention) — the editable outliner tree
  *   is deliberately NOT windowed (it is the live CRDT editing surface; a
  *   window could hide a freshly created block).
@@ -16,7 +16,7 @@
  * - FLAT (no children): bullet + icon + label rows for node lists (classed
  *   nodes, tasks, assets, hub lists) — click opens, shift+click peeks, and
  *   the container may append a trailing action (unassign) or replace the row
- *   wholesale via renderItem. §34.70: the flat list (and every group of a
+ *   wholesale via renderItem. The flat list (and every group of a
  *   grouped rendering) is windowed with the shared affordance.
  */
 
@@ -56,7 +56,7 @@ function isTree(items: NodeCollectionItem[]): boolean {
 function TreeRows({ items, props }: { items: NodeCollectionItem[]; props: NodeCollectionProps }) {
   const { client, editable = false, readOnly = !editable, renderItem } = props;
   const resolveName = (id: string) => displayNameFromClient(client, id);
-  // §34.70: only the READ-ONLY tree windows its top-level set (the child-
+  // Only the READ-ONLY tree windows its top-level set (the child-
   // pages projection and friends); the editable outliner stays whole — it
   // is the live editing surface, and a window could hide a just-created
   // block. A BlockRow's own subtree renders whole (collapse chrome bounds it).
@@ -151,7 +151,7 @@ export function OutlineView(props: NodeCollectionProps) {
   return <FlatList props={props} items={items} />;
 }
 
-/** The §34.70-windowed flat list: the loaded rows + the shared affordance. */
+/** The windowed flat list: the loaded rows + the shared affordance. */
 function FlatList({ items, props }: { items: NodeCollectionItem[]; props: NodeCollectionProps }) {
   const { visible, remaining, showMore } = useWindowed(items, {
     enabled: props.windowed ?? true,
@@ -174,7 +174,7 @@ function FlatList({ items, props }: { items: NodeCollectionItem[]; props: NodeCo
  * The grouped flat rendering (groupBy): one collapsible section per group —
  * chevron toggles collapse (session-local), the header label opens the group
  * (e.g. the containing page) when the container wired onHeaderClick. Rows
- * reuse the flat OutlineRow (or the container's renderItem). §34.70: each
+ * reuse the flat OutlineRow (or the container's renderItem). Each
  * group's rows are their own window — the header count names the FULL group
  * while the list renders the loaded slice + the shared affordance.
  */

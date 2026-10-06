@@ -4,9 +4,9 @@
  *
  * Selected options render as pills with a remove affordance; a "+"/"Empty"
  * trigger opens the options picker. Value ids reference the schema option
- * ids (single-select: one id; multi: an array). PG16: an option's optional
- * color (§34.43 grammar) tints its pill and shows as a dot in the picker;
- * §34.89: an option's optional MDI icon renders before the label (tinted in
+ * ids (single-select: one id; multi: an array). An option's optional
+ * color tints its pill and shows as a dot in the picker;
+ * an option's optional MDI icon renders before the label (tinted in
  * the picker, contrast-colored on the tinted pill).
  */
 
@@ -20,9 +20,9 @@ import "./PropertyCell.css";
 export interface SelectionOption {
   id: string;
   label: string;
-  /** PG16: preset token / `#RRGGBB` hex; absent/null = uncolored. */
+  /** Preset token / `#RRGGBB` hex; absent/null = uncolored. */
   color?: string | null;
-  /** §34.89: MDI icon name (camelCase); absent/null = no icon. */
+  /** MDI icon name (camelCase); absent/null = no icon. */
   icon?: string | null;
 }
 
@@ -47,7 +47,7 @@ export function SelectionPropertyControl({
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const cellRef = useRef<HTMLDivElement>(null);
 
-  // Dismissal (§34.67): Escape closes; pointer-down outside the cell (which
+  // Dismissal: Escape closes; pointer-down outside the cell (which
   // hosts both the trigger and the picker) closes too.
   usePopupDismissal({
     popupRef: cellRef,

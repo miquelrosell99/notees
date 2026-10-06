@@ -2,7 +2,7 @@
  * ColorPickerRow — inline color picker row for the pill context menu.
  *
  * Renders the node color palette as swatches; the first entry clears the
- * color (object.update color: null — §34.43 grammar). Extracted as its own
+ * color (object.update color: null). Extracted as its own
  * component so node pickers can offer the color-swatch row without pulling
  * in the full context menu.
  */

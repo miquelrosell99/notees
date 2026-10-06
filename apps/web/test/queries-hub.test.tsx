@@ -1,14 +1,14 @@
 /**
- * Queries hub tests (§34.31 V1/V2/V4/V13) — the shell's saved-views surface:
+ * Queries hub tests — the shell's saved-views surface:
  *
  *  - the FilterBuilderModal ad-hoc composer: Run executes session-only;
- *    "Save as view" persists a query token (view record per V3) on a
- *    lazily-created host page, and the new view appears as a tab (V1);
+ *    "Save as view" persists a query token (view record) on a
+ *    lazily-created host page, and the new view appears as a tab;
  *  - the token round-trip: the persisted queryAst is exactly what the shared
- *    builder composes, including `{today}` placeholders (V2 — resolved at
+ *    builder composes, including `{today}` placeholders (resolved at
  *    compile time, so the live view matches nodes created today);
- *  - ViewTabs ops: rename / duplicate / set-default / delete (V1), with the
- *    default tab driving the initial selection (V13 — the default is config
+ *  - ViewTabs ops: rename / duplicate / set-default / delete, with the
+ *    default tab driving the initial selection (the default is config
  *    in the record, not code);
  *  - the results area renders through NodeCollection and the view-mode
  *    switcher persists into the token's view record (synced state).
@@ -78,7 +78,7 @@ async function saveViewViaModal(name: string, configure?: (dialog: HTMLElement) 
   });
 }
 
-describe("Queries hub (§34.31 V1/V2/V4/V13)", () => {
+describe("Queries hub", () => {
   it("saves an ad-hoc query as a view: token on the lazily-created host page, tab appears, results render", async () => {
     const client = await seedClient();
     const { city } = await seedWorld(client);
@@ -190,7 +190,7 @@ describe("Queries hub (§34.31 V1/V2/V4/V13)", () => {
     expect(parseQueryViewRecord(tokens()[2]!.view).title).toBe("Renamed copy");
 
     // Set as default on the FIRST tab → the record carries the flag and the
-    // hub selects it on reload (V13).
+    // hub selects it on reload.
     fireEvent.click(screen.getByRole("button", { name: /One options/ }));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Set as default" }));
     expect(parseQueryViewRecord(tokens()[0]!.view).isDefault).toBe(true);

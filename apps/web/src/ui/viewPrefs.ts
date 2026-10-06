@@ -1,7 +1,6 @@
 /**
  * View preferences — the durable, device-local persistence seam for view
- * modes and card cover layouts (§34.27 L1, closing §34.23 item 5 and the
- * §34.21 future-register persistence row: the session-only ruling reverses
+ * modes and card cover layouts: the session-only ruling reverses
  * INTO device settings — never the op log; device state is never an op).
  *
  * Three surfaces persist, each keyed honestly:

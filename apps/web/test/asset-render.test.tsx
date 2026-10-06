@@ -1,5 +1,5 @@
 /**
- * Asset renderer tests (§34.34 BB1 — SCHEMA.md:61): an `asset_ref` token
+ * Asset renderer tests (SCHEMA.md:61): an `asset_ref` token
  * renders inline (image preview when the bytes are image-like, filename +
  * size chip otherwise) or full-bleed when it is alone in its stream; the
  * image click opens the ImageModal lightbox; a non-image chip downloads via

@@ -180,7 +180,7 @@ describe("metadata pickers (ported popups)", () => {
     expect(client.getEffectiveProperties(pageId)).toEqual([]);
   });
 
-  it("§34.32 PG14: multi_select schemas route to the selection control and write arrays", async () => {
+  it("multi_select schemas route to the selection control and write arrays", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({
       name: "genres",
@@ -226,7 +226,7 @@ describe("metadata pickers (ported popups)", () => {
     ]);
   });
 
-  it("§34.32 PG14: url/email scalars keep the text editor and gain a link affordance", async () => {
+  it("url/email scalars keep the text editor and gain a link affordance", async () => {
     const client = await seedClient();
     const urlSchema = await client.createPropertySchema({ name: "homepage", type: "url" });
     const emailSchema = await client.createPropertySchema({ name: "contact", type: "email" });

@@ -1,7 +1,7 @@
 /**
- * Template family tests (§34.25 T2): ensureTemplateProperty authors the
+ * Template family tests: ensureTemplateProperty authors the
  * has-template schema + system-class binding at the reserved UUID
- * (§34.28 #2's lesson — a reserved UUID is dead without an author),
+ * (the fixed-UUID lesson — a reserved UUID is dead without an author),
  * self-heals an unseeded workspace, and is a complete no-op once present;
  * listClassTemplates resolves a class's bound templates in authored order,
  * dropping stale/trashed/non-template targets and reading [] before the

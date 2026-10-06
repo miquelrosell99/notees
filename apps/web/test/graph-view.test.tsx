@@ -1,5 +1,5 @@
 /**
- * graph-view tests (§34.80): the display-shaping contract (settings filters,
+ * graph-view tests: the display-shaping contract (settings filters,
  * semantic sparsification, edge LOD masks), the registry slot, and the
  * component's honest WebGL-2-missing fallback (jsdom has no GL — the real
  * canvas path is exercised in the browser, the port boundary per the
@@ -113,7 +113,7 @@ describe("graph display shaping", () => {
     expect(noSemantic.edges.every((e) => e.kind !== "semantic")).toBe(true);
   });
 
-  it("edge LOD masks follow the v1 zoom thresholds", () => {
+  it("edge LOD masks follow the original zoom thresholds", () => {
     expect(edgeMaskForZoom(0.2) & (1 << LINK_TYPE_IDS.mention)).toBe(0);
     expect(edgeMaskForZoom(0.4) & (1 << LINK_TYPE_IDS.mention)).not.toBe(0);
     expect(edgeMaskForZoom(0.4) & (1 << LINK_TYPE_IDS.property)).toBe(0);

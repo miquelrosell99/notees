@@ -1,6 +1,6 @@
 /**
- * ExportPageModal — export one node or a batch of nodes (§34.24 E3,
- * modelling decision 3: the Capacities structure, composed from kit
+ * ExportPageModal — export one node or a batch of nodes
+ * (modelling decision 3: the Capacities structure, composed from kit
  * primitives only).
  *
  * Format cards come from the web-side registry (registerExportFormats),
@@ -27,12 +27,12 @@
  * live preview is the engine's markdown projection, so it stays markdown-
  * only; the other text formats show a short static note instead.
  *
- * JSON archive (§34.59): the registry's sixth card — a node-set format
+ * JSON archive: the registry's sixth card — a node-set format
  * (verbatim contentAst/classIds/properties/child ids/edges in the
  * versioned notees-json-archive envelope), delivered as ONE document for
  * the whole selection (batch included — no per-root zip).
  *
- * PDF (task P1): the card is web-available with `delivery: "client-pdf"` —
+ * PDF: the card is web-available with `delivery: "client-pdf"` —
  * the package serializer stays a throwing skeleton while the web client
  * renders PDFs through the lazily imported ui/export-pdf engine (react-pdf,
  * the OFL Gentium bundle, and the layout themes live in that async chunk;
@@ -278,7 +278,7 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
         return;
       }
       if (format.id === "json") {
-        // JSON archive (§34.59): ONE notees-json-archive document over the
+        // JSON archive: ONE notees-json-archive document over the
         // whole selection (batch included — no per-root zip), verbatim
         // node payloads with contentAst/classIds/properties/child ids/edges.
         const exported = exportSubtreeJsonArchive(client, effectiveNodeUuids, {

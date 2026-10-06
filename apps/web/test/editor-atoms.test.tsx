@@ -338,7 +338,7 @@ describe("editor atoms — class chips", () => {
     const editor = clickIntoBlock(container);
     const pill = chipPillOf(editor);
     expect(pill.contentEditable).toBe("false");
-    // v1 parity hook: the inline-class mark wore a wavy underline.
+    // Parity hook: the inline-class mark wore a wavy underline.
     expect(pill.className).toContain("nt-atom--chip");
     expect(pill.textContent).toBe("task");
     // The pill text rides the prose projection (one coordinate system).

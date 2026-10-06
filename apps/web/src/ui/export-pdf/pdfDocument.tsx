@@ -1,5 +1,5 @@
 /**
- * ExportDocument IR → react-pdf component tree (§34.24 P1).
+ * ExportDocument IR → react-pdf component tree.
  *
  * Pure projection over the resolved IR, mirroring the html serializer's
  * discipline (H1 is the reference rendering): the title block, the

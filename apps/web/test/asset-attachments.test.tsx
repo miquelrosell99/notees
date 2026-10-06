@@ -219,7 +219,7 @@ describe("Asset attachments (node-typed properties)", () => {
     render(<PageView client={client} pageId={sourceId} />);
     expandProperties();
     fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Add" }));
-    // §34.19 :1174 — the upload runs in the AssetUploadModal (drag-drop +
+    // The upload runs in the AssetUploadModal (drag-drop +
     // preview + progress), opened from the picker's "Upload file…" row.
     fireEvent.click(await screen.findByText("Upload file…"));
     const dialog = await screen.findByRole("dialog", { name: /upload file/i });

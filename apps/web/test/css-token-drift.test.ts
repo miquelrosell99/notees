@@ -1,7 +1,7 @@
 /**
  * css-token-drift — the design-token gate.
  *
- * The audit batch (§34.90, findings M5–M7) emptied component CSS of hex/rgb
+ * The audit batch emptied component CSS of hex/rgb
  * color literals, bare box-shadows, and sub-10px px font sizes; everything
  * resolves to a custom property from variables.css. This gate fails the
  * build if a future change drifts any of those classes back in:

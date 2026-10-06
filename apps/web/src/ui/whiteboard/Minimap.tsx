@@ -1,6 +1,6 @@
 /**
  * WhiteboardMinimap — the overview/navigation surface of the fullscreen
- * canvas (§34.19 whiteboard row). Always shows the full element bounding box
+ * canvas. Always shows the full element bounding box
  * plus a rectangle for the visible world region; click or drag navigates by
  * centering the viewport on the pointed world position. Pure view state —
  * the minimap never writes geometry (device state is never an op).

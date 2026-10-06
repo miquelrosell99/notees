@@ -1,7 +1,7 @@
 /**
- * ActivityLogSection — the §34.19 :1167 row's ActivityLog section, honestly
- * scoped to what the local projection derives (v1's per-node op journal had
- * a backend activity table; v2 has no such projection, and the row's gap
+ * ActivityLogSection — the ActivityLog section, honestly
+ * scoped to what the local projection derives (the original per-node op journal had
+ * a backend activity table; the current projection has no such table, and the gap
  * note says "Ops exist; projection+UI missing"). What IS derivable locally:
  *
  *  - Recently created — a workspace-wide query (the query compiler's
@@ -53,7 +53,7 @@ function buildRecentCreatedAst(): QueryAst {
 }
 
 /**
- * Relative stamp (v1's formatActivityMessage convention): "Just now", "Nm
+ * Relative stamp (the formatActivityMessage convention): "Just now", "Nm
  * ago", "Nh ago", "Nd ago", then the locale date. Exported for the unit
  * tests; `now` injects the clock.
  */

@@ -1,9 +1,9 @@
-/* GhostRow — the v1 ghost-block row: row chrome (gutter + bullet) at the
+/* GhostRow — the ghost-block row: row chrome (gutter + bullet) at the
    row's depth, the content area a muted "+ Add block" button. The bullet
-   reads FAINT, never at a real bullet's weight (§34.109): a real block's
+   reads FAINT, never at a real bullet's weight: a real block's
    dot is --color-on-surface-variant at 55% opacity; the ghost's sits at
    30% and brightens only when the row is reached for. The label stays
-   hidden until the row is hovered or focused (v1 parity: the affordance
+   hidden until the row is hovered or focused (the affordance
    reads as a faint bullet until you reach for it). */
 
 .nt-ghost-row {
@@ -47,7 +47,7 @@
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-/* Reaching for the row brightens the bullet and reveals the label (the v1
+/* Reaching for the row brightens the bullet and reveals the label (the
    affordance: faint until hovered or focused). */
 .nt-ghost-row:hover .nt-ghost-row__bullet,
 .nt-ghost-row:focus-within .nt-ghost-row__bullet,

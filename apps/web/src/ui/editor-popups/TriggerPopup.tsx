@@ -17,10 +17,10 @@
  * The command list carries only the block-type actions this editor's content
  * grammar can execute (see BlockTextEditor.runSlashCommand): the block-type
  * converts (text/quote/checkbox), hard_break, the external-URL link editor,
- * and the breadth rows — query (§34.31 B1: insert a query token + open the
- * builder), date (§34.28 #9: typed date → daily-page link), template
- * (§34.25 T3: flat template list instantiated at the caret), table
- * (§34.34 B4: container node classed `table`, one row + three cells; the
+ * and the breadth rows — query (insert a query token + open the
+ * builder), date (typed date → daily-page link), template
+ * (flat template list instantiated at the caret), table
+ * (container node classed `table`, one row + three cells; the
  * typed remainder is the column count).
  */
 
@@ -47,7 +47,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { id: "template", label: "Template", description: "Create from a template at the caret" },
   { id: "table", label: "Table", description: "Insert a table — cells are blocks (e.g. /table 5)" },
   // Lockstep SHIPPED (GTK/Flutter v3.0.0): the `code_block` / `hr` token
-  // parsers are released — authoring is live (§34.34 protocol batch).
+  // parsers are released — authoring is live.
   { id: "code", label: "Code", description: "Convert block to a code block (e.g. /code python)" },
   { id: "hr", label: "Divider", description: "Insert a horizontal rule" },
 ];
@@ -103,7 +103,7 @@ export function TriggerPopup({
   // WORD (the first whitespace-separated token) matches label outranking
   // description; usage frequency breaks ties. Anything after the first word
   // is the picked command's argument (e.g. "/date feb 14", "/template meet")
-  // and does not filter the command list — the v1 slash boundary rule.
+  // and does not filter the command list — the slash boundary rule.
   const commandUsage = useMemo(readSlashCommandUsage, []);
   const commands = useMemo(() => {
     const lower = (query.trim().split(/\s+/)[0] ?? "").toLowerCase();

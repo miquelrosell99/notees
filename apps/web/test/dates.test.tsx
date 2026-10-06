@@ -297,7 +297,7 @@ describe("dates (SCHEMA.md)", () => {
     render(<PageView client={client} pageId={pageId} />);
     expandProperties();
 
-    // §34.32 PG17: the qualifier slots ride the shared zoom-picker control
+    // The qualifier slots ride the shared zoom-picker control
     // (no native date inputs). The picker opens on TODAY's month, so the
     // expected values are computed from the current year/month.
     const now = new Date();
@@ -310,7 +310,7 @@ describe("dates (SCHEMA.md)", () => {
     await flushWrites();
 
     const row = client.getEffectiveProperties(pageId).find((r) => r.propertySchemaId === schemaId);
-    // PC6 (§34.56): the panel still writes legacy ISO strings, and the applier
+    // PC6: the panel still writes legacy ISO strings, and the applier
     // normalizes them on write to deterministic day-node refs — the canonical
     // date-node-backed qualifier shape.
     expect(row?.metadata).toEqual({

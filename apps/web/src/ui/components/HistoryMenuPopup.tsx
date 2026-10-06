@@ -1,13 +1,13 @@
 /**
- * HistoryMenuPopup — v1's history menu with jump-to (§34.69, the §34.64
- * follow-up): a browsable popup over the session undo journal's bounded
+ * HistoryMenuPopup — the history menu with jump-to: a
+ * browsable popup over the session undo journal's bounded
  * stack. Every entry renders its label ("Undo edit text") and timestamp,
  * NEWEST first; clicking an entry JUMPS — it opens the first affected node
  * that still resolves (for text entries that is plain navigation; the
  * journal cannot restore a past caret, and it doesn't pretend to). Entries
  * whose nodes are all gone render disabled, honestly. The popup opens from
  * the topbar undo button's chevron or Ctrl/Cmd+Shift+H, closes on the
- * §34.67 convention (usePopupDismissal), and re-reads the journal on every
+ * standard dismissal convention (usePopupDismissal), and re-reads the journal on every
  * client notification while open — the list is always live.
  */
 

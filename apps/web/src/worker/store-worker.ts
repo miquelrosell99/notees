@@ -41,11 +41,11 @@ const ctx: WorkerContext = {
       fileName: `${workspaceId}.db`,
       workspaceId,
       transport,
-      // §34.61: the per-user prefs calls (getPrefs/patchPrefs) are plain REST
+      // The per-user prefs calls (getPrefs/patchPrefs) are plain REST
       // — the worker owns the REST config, so forward it into the client.
       serverUrl,
       apiKey,
-      // The change payload (revision/affected/structural, §34.114) rides
+      // The change payload (revision/affected/structural) rides
       // along so the main-thread cache refreshes incrementally.
       onNotify: (change) => workerScope.postMessage({ type: "changed", ...change }),
     });

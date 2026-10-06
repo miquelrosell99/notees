@@ -1,7 +1,7 @@
 /**
  * block-dnd — drag-and-drop reordering for the block tree (dnd-kit).
  *
- * Intent model (M1, deliberately simple):
+ * Intent model (deliberately simple):
  *
  * - The row under the pointer is the anchor (closestCenter collision).
  * - POINTER X in the deep zone of the anchor row (≥ CHILD_DROP_OFFSET_PX from

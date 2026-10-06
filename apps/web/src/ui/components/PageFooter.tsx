@@ -1,5 +1,5 @@
 /**
- * PageFooter — the card-bottom chrome (§34.27 L4, §34.19 :1136): a word
+ * PageFooter — the card-bottom chrome: a word
  * count over the page's content and Created/Updated stamps that open the
  * corresponding day pages. Pure chrome — the counts derive from the derived
  * store on render, and the day links go through the ordinary ensure-chain

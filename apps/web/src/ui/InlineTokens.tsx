@@ -13,11 +13,11 @@
  * when absent); whiteboard renders the live canvas via the optional
  * renderWhiteboard callback (placeholder box when absent); asset_ref renders
  * via the optional renderAsset callback (SCHEMA.md:61 — full-bleed when alone
- * in the stream; placeholder box when absent); embed_ref card views (§34.34
- * B8) route through the optional renderEmbedCard callback (falling back to
+ * in the stream; placeholder box when absent); embed_ref card views route
+ * through the optional renderEmbedCard callback (falling back to
  * renderEmbed); code_block renders read-only as a mono pre with the language
- * badge (§34.34 B3) and hr as a horizontal rule (§34.34 B5); typed_link marks
- * show the verb in the tooltip — PG1 bound verbs (`{ propertySchemaId }`)
+ * badge and hr as a horizontal rule; typed_link marks
+ * show the verb in the tooltip — bound verbs (`{ propertySchemaId }`)
  * resolve the schema's name through the optional resolveVerb callback; other
  * block-scale tokens render as labeled placeholder boxes.
  */
@@ -60,7 +60,7 @@ export interface InlineTokensProps {
   renderAsset?: ((token: unknown, index: number, fullBleed: boolean) => ReactNode) | undefined;
   /**
    * Card renderer for `embed_ref` tokens carrying a card `view`
-   * (§34.34 B8 — the intermediate reference views between mention and full
+   * (the intermediate reference views between mention and full
    * transclusion). Injected by the row; when absent, card views fall back
    * to the default `renderEmbed` (the full live subtree). Receives the raw
    * token + its stream index so the renderer can write the token's `view`.
@@ -294,7 +294,7 @@ function renderToken(
       return <Placeholder key={key} label="embed" detail={nodeId || undefined} />;
     }
     case "code_block": {
-      // Read-only block-scale render (§34.34 B3): the source verbatim in a
+      // Read-only block-scale render: the source verbatim in a
       // mono pre, with the optional language hint as a badge. The editing
       // surface (CodeTextarea in an editor branch) is designed with the
       // token but stays unshipped until the protocol lockstep lands.

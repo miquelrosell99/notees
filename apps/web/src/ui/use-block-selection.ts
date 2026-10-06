@@ -1,5 +1,5 @@
 /**
- * useBlockSelectionSurface — the §34.19 block multi-selection gestures for
+ * useBlockSelectionSurface — the block multi-selection gestures for
  * the editable page body (the outline tree).
  *
  * - Plain mousedown on a row + a small vertical drag → drag selection: the

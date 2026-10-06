@@ -1,5 +1,5 @@
 /**
- * TemplateGallery + apply-to-existing tests (§34.25 T3/T4):
+ * TemplateGallery + apply-to-existing tests:
  *
  * - Gallery smoke: the modal lists every template-class node (flat, the
  *   ONE-class surface), the search filters, keyboard Enter on the highlight
@@ -69,7 +69,7 @@ async function createTemplate(client: WorkspaceClient, name: string, childText =
   return templateId;
 }
 
-describe("TemplateGalleryModal (§34.25 T3)", () => {
+describe("TemplateGalleryModal", () => {
   it("lists all templates flat; search filters; Enter uses the highlighted template (keyboard create-with-template)", async () => {
     const client = await seedClient();
     await createTemplate(client, "Meeting template");
@@ -127,7 +127,7 @@ describe("TemplateGalleryModal (§34.25 T3)", () => {
   });
 });
 
-describe("TemplatesSection apply-to-existing (§34.25 T4, D1 amendment)", () => {
+describe("TemplatesSection apply-to-existing (the amendment)", () => {
   async function setupClassWithTemplate() {
     const client = await seedClient();
     const classId = await client.createClass("meeting");

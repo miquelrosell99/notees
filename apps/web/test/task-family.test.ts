@@ -1,5 +1,5 @@
 /**
- * ensureTaskFamily tests (§34.28 #2): a fresh workspace authors the six task
+ * ensureTaskFamily tests: a fresh workspace authors the six task
  * property schemas at their reserved ids plus the task-class bindings on
  * first call, with canonical status/priority options; the call is a complete
  * no-op once present (no extra schemas, no extra bindings, safe to re-run).
@@ -106,7 +106,7 @@ describe("ensureTaskFamily", () => {
     const bound = client
       .getClassBindings(SYSTEM_CLASS_UUIDS.task)
       .map((binding) => binding.propertySchemaId);
-    // The …0003-… workflow block also carries the §34.36 meeting family
+    // The …0003-… workflow block also carries the meeting family
     // (…007–…009) — those bind to the meeting class, not the task class.
     for (const id of [
       SYSTEM_PROPERTY_UUIDS.taskStatus,
@@ -149,11 +149,11 @@ describe("ensureTaskFamily", () => {
     expect(client.listPropertySchemas()).toHaveLength(schemas);
   });
 
-  it("is safe on a workspace where the family already exists (v1-migrated shape)", async () => {
+  it("is safe on a workspace where the family already exists (migrated shape)", async () => {
     const client = await seedClient();
     // Pre-author with a different option id set (a migrated workspace carries
-    // v1 option ids) — ensureTaskFamily must NOT overwrite the schema rows:
-    // the stored option id is preserved, and the §34.89 restyle pass only
+    // legacy option ids) — ensureTaskFamily must NOT overwrite the schema rows:
+    // the stored option id is preserved, and the restyle pass only
     // adds the designed icon/color to the label-matching option.
     await client.createPropertySchema({
       id: SYSTEM_PROPERTY_UUIDS.taskStatus,
@@ -193,7 +193,7 @@ describe("ensureTaskFamily", () => {
       const option = statusByLabel.get(designed.name)!;
       // Deterministic ids — the applier-side seed-ensure authors the same.
       expect(option.id).toBe(designedStatusIds[designed.name]);
-      // The designed circle icon + preset color ride the option (§34.89).
+      // The designed circle icon + preset color ride the option.
       expect(option.icon).toBe(designed.icon);
       expect(option.color).toBe(designed.color);
     }
@@ -213,7 +213,7 @@ describe("ensureTaskFamily", () => {
 
   it("restyles stored status options missing the designed styles, preserving stored ids", async () => {
     const client = await seedClient();
-    // Simulate the pre-§34.89 web-authored shape: random option ids, no
+    // Simulate the earlier web-authored shape: random option ids, no
     // icon/color — authored values reference those ids, so they must survive.
     await client.createPropertySchema({
       id: SYSTEM_PROPERTY_UUIDS.taskStatus,
@@ -235,7 +235,7 @@ describe("ensureTaskFamily", () => {
       expect(option.icon).toBe(designed.icon);
       expect(option.color).toBe(designed.color);
     }
-    // §34.90: the value display converges on the schema (property-level) —
+    // The value display converges on the schema (property-level) —
     // the status rides the block bullet.
     expect(status.display).toBe("bullet");
   });

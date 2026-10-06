@@ -1,16 +1,16 @@
 /**
- * Template apply-time variables (§34.25 T4) — the UI-side half of the
+ * Template apply-time variables — the UI-side half of the
  * variable system. The clone engine (core/clone.ts) owns the syntax
  * (`{{name}}` spans inside text tokens), the subtree-wide extraction, and
  * the substitution at composition; this module classifies the names and
  * computes the dynamic values the variable dialog displays readonly.
  *
- * One syntax for both kinds (the brief's T4 pick): `{{name}}`.
+ * One syntax for both kinds: `{{name}}`.
  * - Static names — anything not in DYNAMIC_TEMPLATE_VARIABLES — are
  *   user-filled in the TemplateVariableDialog at apply time.
  * - Dynamic names are computed at apply time and shown readonly:
- *     today        local date YYYY-MM-DD (the v1 UTC bug stays fixed —
- *                  v1 used toISOString, which is UTC)
+ *     today        local date YYYY-MM-DD (the UTC bug stays fixed —
+ *                  toISOString is UTC)
  *     time         local HH:MM
  *     datetime     local ISO 8601 with offset
  *     current_page the view root's display name (empty when unnamed)
@@ -28,7 +28,7 @@ export function isDynamicTemplateVariable(name: string): boolean {
   return DYNAMIC_TEMPLATE_VARIABLES.has(name);
 }
 
-/** Local YYYY-MM-DD (never UTC — the v1 `toISOString().slice(0, 10)` bug). */
+/** Local YYYY-MM-DD (never UTC — the `toISOString().slice(0, 10)` bug). */
 function localDateIso(now: Date): string {
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");

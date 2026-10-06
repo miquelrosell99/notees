@@ -117,7 +117,7 @@ button.property-cell {
   background: var(--color-hover-overlay);
 }
 
-/** PG16 option dot: the §34.43 color tint, hollow when the option is uncolored. */
+/** Option dot: the color tint, hollow when the option is uncolored. */
 .property-cell__picker-dot {
   flex: none;
   width: var(--spacing-3);
@@ -127,7 +127,7 @@ button.property-cell {
   background: transparent;
 }
 
-/** §34.89 option icon: tinted with the option color, leading the row
+/** Option icon: tinted with the option color, leading the row
     (the color dot stays beside it). */
 .property-cell__picker-icon {
   display: inline-flex;

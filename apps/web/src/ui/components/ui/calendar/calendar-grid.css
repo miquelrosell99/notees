@@ -77,7 +77,7 @@
   box-shadow: var(--shadow-focus-ring-primary);
 }
 
-/* §34.28 #11 range-aware dot: objects (date refs, date_range ends) point at
+/* Range-aware dot: objects (date refs, date_range ends) point at
    this day but no day page exists — a small primary dot under the number,
    composing with the has-note fill and the today fill. */
 .calendar-day.btn.dated::after {
@@ -96,7 +96,7 @@
   background: var(--color-on-primary);
 }
 
-/* §34.28 #15 reviewed tint: a tertiary dot at the top-right corner, on top
+/* Reviewed tint: a tertiary dot at the top-right corner, on top
    of every other treatment. */
 .calendar-day.btn.reviewed::before {
   content: "";

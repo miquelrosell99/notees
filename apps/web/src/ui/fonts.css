@@ -2,7 +2,7 @@
  * Bundled UI fonts — Inter (UI sans) + JetBrains Mono (code), both
  * SIL OFL 1.1 (licenses beside the binaries: OFL-inter.txt,
  * OFL-jetbrains-mono.txt under src/assets/fonts/). Self-hosted so the app
- * never hits a font CDN and the "bundled" font choice is real (§34.91, #6).
+ * never hits a font CDN and the "bundled" font choice is real.
  * Latin subsets cover the UI; non-latin glyphs fall through to the next
  * stack entry, and the "system" font choice swaps the whole stack anyway.
  */

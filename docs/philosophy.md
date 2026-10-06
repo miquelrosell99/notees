@@ -22,11 +22,11 @@ A prediction encoded as a default, when wrong, costs an empty list. The same pre
 
 The model has a natural home for epistemic wiring — typed-link verbs like `supports`, `contradicts`, `refines` (see [ux.md](ux.md) for how typed links work). Early in the design, the proposal was to seed these as protocol-level vocabulary: predefined verb types shipped in the picker.
 
-The proposal was caught before it shipped, and the reasoning is the law in miniature. Seeding `supports`/`contradicts`/`refines` is a usage prediction — "these are the discourse moves our users will make" — hardened into the protocol layer. If the prediction is right, a seed saves the user a one-time gesture. If it is wrong — and v1's own history says it will be, eventually — a protocol seed costs a deprecation cycle at best and a fork of the vocabulary at worst. The cost asymmetry is the whole argument: an unseeded vocabulary that users create as needed costs nothing when the prediction fails; a seeded one costs real structure.
+The proposal was caught before it shipped, and the reasoning is the law in miniature. Seeding `supports`/`contradicts`/`refines` is a usage prediction — "these are the discourse moves our users will make" — hardened into the protocol layer. If the prediction is right, a seed saves the user a one-time gesture. If it is wrong — and our own history says it will be, eventually — a protocol seed costs a deprecation cycle at best and a fork of the vocabulary at worst. The cost asymmetry is the whole argument: an unseeded vocabulary that users create as needed costs nothing when the prediction fails; a seeded one costs real structure.
 
 So the epistemic vocabulary is **documented convention, not protocol seeds**: starter property schemas users may create, listed in the model doc, absent from the picker by decree. Same model power, zero hardening.
 
-v1 supplied the cautionary versions: a `CHECK` constraint enforcing the page/block doctrine, set-only classes, content-less classes — each a reasonable forecast frozen into schema, each expired and paid for. The seeded-vocabulary proposal was the same pattern about to repeat one layer up. The design law exists so the pattern gets caught every time, not just the times someone is paying attention.
+The project's own history supplied the cautionary versions: a `CHECK` constraint enforcing the page/block doctrine, set-only classes, content-less classes — each a reasonable forecast frozen into schema, each expired and paid for. The seeded-vocabulary proposal was the same pattern about to repeat one layer up. The design law exists so the pattern gets caught every time, not just the times someone is paying attention.
 
 The same law, stated as a meta-layer test: **if uniformizing X requires a parallel attribute system for it, X is configuration, not an entity.** Classes pass (their lifecycle happens in your mind); property schemas fail (`isbn` is vocabulary for forms and the query compiler — addressable and user-definable, but not a graph citizen).
 
@@ -44,7 +44,7 @@ Drift between two representations of the same fact is a design smell Notees refu
 
 ## Classes are nodes
 
-A class is a node: addressable, linkable, annotatable, with provenance, in the same table as the things it classifies. It is also *for* configuration — property bindings, inheritance, templates — and nothing about being configuration requires a separate table. v1 had the split and reverted it.
+A class is a node: addressable, linkable, annotatable, with provenance, in the same table as the things it classifies. It is also *for* configuration — property bindings, inheritance, templates — and nothing about being configuration requires a separate table. An earlier design had the split and reverted it.
 
 What this buys you:
 
@@ -100,13 +100,13 @@ Their wounds, our rules:
 |---|---|
 | Logseq's 2-year rewrite split its community | Greenfield once, deliberately; the sync core is ported, proven machinery |
 | Logseq users felt betrayed by DB-as-truth | State the storage truth in the header of every doc: log is truth, export is projection |
-| Logseq sync arrived late and alpha | The ported fixture/convergence corpus is a blocking M1 exit gate, not a nice-to-have |
+| Logseq sync arrived late and alpha | The ported fixture/convergence corpus is a blocking exit gate, not a nice-to-have |
 | Tana community: "vendor lock-in with my second brain" | Local-first op log, E2EE slot, first-class export |
 | Obsidian's plugin tax | Core flows never depend on plugins; plugins are capability-brokered |
 | Obsidian Bases can't reach block granularity | Block identity from day one |
 | Capacities' curated catalog as team bottleneck | User-defined classes and property schemas as runtime registry data |
 
-Where they still beat us, honestly: day-one polish, ecosystem gravity, built-in AI features, mobile, and proven scale. Their advantages are day-one; ours — semantic fidelity of typed discourse, durability and privacy, the agent surface, and migration-free evolution through registry data instead of schema migrations — compound over years. The bet only pays if we survive the day-one gap, which is why M1 is deliberately narrow.
+Where they still beat us, honestly: day-one polish, ecosystem gravity, built-in AI features, mobile, and proven scale. Their advantages are day-one; ours — semantic fidelity of typed discourse, durability and privacy, the agent surface, and migration-free evolution through registry data instead of schema migrations — compound over years. The bet only pays if we survive the day-one gap, which is why the alpha is deliberately narrow.
 
 ## Where to next
 

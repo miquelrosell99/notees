@@ -1,5 +1,5 @@
 /**
- * Mobile layout contract tests (§34.19 :1189): the responsive pass lives in
+ * Mobile layout contract tests: the responsive pass lives in
  * app.css as additive media queries — this file pins the contract so the
  * block cannot silently rot: two breakpoint steps (768px tablet chrome, 480px
  * phone bottom sheet), the drawer-surface + touch-target adaptations, the
@@ -22,7 +22,7 @@ const css = readFile(`${process.cwd()}/src/ui/app.css`, "utf8");
 
 /** The responsive block: from its banner comment to the next top-level rule. */
 function responsiveBlock(): string {
-  const marker = css.indexOf("responsive pass (§34.19 MobileLayout row)");
+  const marker = css.indexOf("responsive pass (MobileLayout)");
   if (marker === -1) throw new Error("responsive pass banner missing from app.css");
   const start = css.lastIndexOf("/*", marker);
   const rest = css.slice(start === -1 ? marker : start);

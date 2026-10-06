@@ -1,5 +1,5 @@
 /**
- * Right-sidebar context sections (§34.27 L3, modelling decision 4): the
+ * Right-sidebar context sections: the
  * table of contents + linked references of the page open in the MAIN view,
  * rendered above the peek-card stack. The rail is chrome — the collapsed
  * system sections at the card bottom stay the small-viewport fallback, and

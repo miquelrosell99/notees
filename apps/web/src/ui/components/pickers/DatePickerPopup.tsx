@@ -124,7 +124,7 @@ export function DatePickerPopup({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [onClose, anchor]);
 
-  // Dismissal (§34.67): the document-level Escape half of the convention —
+  // Dismissal: the document-level Escape half of the convention —
   // the text input and the popup root below still own Escape while focus is
   // inside (a pick must not be interrupted by a stray close), this hook
   // closes when focus never entered or left the popup.

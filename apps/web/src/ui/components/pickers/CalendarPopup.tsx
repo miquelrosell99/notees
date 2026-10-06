@@ -76,7 +76,7 @@ export function CalendarPopup({
     edgePadding: 16,
   });
 
-  // Dismissal (§34.67): pointer-down outside (the anchor trigger counts as
+  // Dismissal: pointer-down outside (the anchor trigger counts as
   // inside) and Escape — the root handler below covers Escape while focus is
   // on a day/month/year button, the hook covers Escape from elsewhere.
   usePopupDismissal({

@@ -1,12 +1,11 @@
 /**
  * Plugins API — the plugin-registry slice of the sync server's admin
- * surface (§34.59). Plain fetch helpers mirroring workspaceApi's request
+ * surface. Plain fetch helpers mirroring workspaceApi's request
  * shape; the routes are owner/admin-scoped server side (operator key,
  * administrator session, or an admin-scoped API key).
  *
  * The registry is INERT: these helpers move manifest data and an enable
- * bit — nothing is loaded, spawned, or executed (the runtime is parked,
- * plan §34.33 AG7).
+ * bit — nothing is loaded, spawned, or executed (the runtime is parked).
  */
 
 import type { PluginManifest } from "@notees/protocol";

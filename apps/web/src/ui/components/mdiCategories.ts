@@ -1,4 +1,4 @@
-/** MDI icon categories — ported verbatim from the v1 EmojiPicker. */
+/** MDI icon categories — ported verbatim from the archived EmojiPicker. */
 export const MDI_CATEGORIES: Record<string, string[]> = {
   'Popular': [
     'mdiFileDocumentOutline', 'mdiCalendarToday', 'mdiBookOpenPageVariant', 'mdiNotebookOutline',

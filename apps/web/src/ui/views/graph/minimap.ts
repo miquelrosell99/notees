@@ -1,5 +1,5 @@
 /**
- * minimap.ts — the floating overview (the parked §34.80 follow-up): a tiny
+ * minimap.ts — the floating overview: a tiny
  * Canvas 2D projection of the SAME positions the main renderer draws, with
  * the camera's viewport rectangle and click/drag navigation. No second
  * physics — the minimap mirrors the live frame, so it can never drift.

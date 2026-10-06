@@ -1,6 +1,6 @@
 /**
- * GraphView — the workspace graph (§34.80, follow-ups shipped §34.85):
- * every page and class as a node, every rolled-up link as an edge,
+ * GraphView — the workspace graph: every page and class
+ * as a node, every rolled-up link as an edge,
  * force-directed in a worker (or on a fixed radial layout), drawn by the
  * WebGL2 renderer with a Canvas 2D label overlay and a minimap.
  *
@@ -11,8 +11,8 @@
  * families; orphan filtering, QueryAST color groups, the circle/tree layout
  * modes, and per-surface settings persistence ride the same toolbar.
  *
- * `local` scopes the topology to a node's neighborhood (the right-rail card,
- * §34.30 V8); `items` scopes it to a node collection (the registry mode).
+ * `local` scopes the topology to a node's neighborhood (the right-rail card);
+ * `items` scopes it to a node collection (the registry mode).
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -213,7 +213,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     };
   }, [client, reload]);
 
-  // Settings persistence (device-local, never an op — the §34.27 L1 seam).
+  // Settings persistence (device-local, never an op).
   useEffect(() => {
     const timer = setTimeout(() => {
       const { paused: _paused, ...persisted } = prefs;

@@ -13,18 +13,18 @@
  *    need columns a list cannot carry. The badge shows the result count
  *    (group count for aggregates); Export (ids-based) stays list-only.
  *
- * The view mode persists in the token's `view` record (the §34.31 V3
+ * The view mode persists in the token's `view` record (the
  * formalized record — see queryViewRecord.ts), written through the normal
  * content update path (`object.update` on the owning node's contentAst,
  * token splice by index) — the same splice the builder uses for `queryAst`.
  *
- * Live re-runs are coalesced by notification burst (§34.31 C2): a re-run in
+ * Live re-runs are coalesced by notification burst: a re-run in
  * flight marks notifications dirty and schedules exactly one trailing run,
  * and a run whose (AST, version) pair is already the latest is skipped.
  *
  * Editing: the gear opens the builder popover (the shared subset from
  * queryBuilder.ts — flat AND of class/isClass/presentAsMain/text/created-
- * window conditions, one sort, one aggregation dimension+measure). §34.31 C1:
+ * window conditions, one sort, one aggregation dimension+measure):
  * when the AST uses constructs outside that subset (or-roots, nested groups,
  * NOT, property/linkedTo conditions, fts, multi-sort, multi-dimension
  * aggregations), the popover renders a READ-ONLY summary plus the list of
@@ -99,7 +99,7 @@ export {
 /** Result list cap: the token is deliberate inline content, but stays cheap. */
 export const QUERY_RESULT_CAP = 200;
 
-// --- slash-created tokens: builder auto-open (§34.31 B1) ----------------------
+// --- slash-created tokens: builder auto-open ------------------------------------
 //
 // The `/query` slash flow (BlockTextEditor, edit mode) inserts a token and
 // wants the builder popover open when the block re-renders in read mode. The
@@ -119,7 +119,7 @@ type QueryBlockClient = OutlinerClient & OutlinerReader;
 // --- view mode (token contract) ---------------------------------------------------
 
 /**
- * The persisted view mode — the §34.31 V3 record's `mode` key
+ * The persisted view mode — the record's `mode` key
  * (queryViewRecord.ts is the disciplined reader; this stays exported for
  * the existing test imports).
  */
@@ -269,19 +269,19 @@ export function QueryBlockView({
 }: QueryBlockViewProps) {
   const [builderOpen, setBuilderOpen] = useState(false);
   const [builderState, setBuilderState] = useState<QueryBuilderState>(DEFAULT_BUILDER_STATE);
-  /** §34.31 C1: constructs the current AST uses that the builder can't represent. */
+  /** Constructs the current AST uses that the builder can't represent. */
   const [builderGuard, setBuilderGuard] = useState<string[]>([]);
   /** The explicit "edit anyway" opt-in that unlocks the lossy builder form. */
   const [builderOverride, setBuilderOverride] = useState(false);
 
   const viewMode = parseQueryViewMode(view);
 
-  // Live coalesced run (§34.31 C2 — the hook shares the burst-coalescing
+  // Live coalesced run (the hook shares the burst-coalescing
   // contract with the Queries hub): re-runs when the token's AST or the
   // store version changes; the last result caches between runs.
   const { result, error } = useQueryRun(client, queryAst);
 
-  // The render window (§34.31 C2): the 200 cap is a per-render window, not a
+  // The render window: the 200 cap is a per-render window, not a
   // hard result ceiling — "Load more" widens it. Reset when the query itself
   // changes (a different query starts back at the default window).
   const astKey = JSON.stringify(queryAst ?? null);
@@ -300,7 +300,7 @@ export function QueryBlockView({
 
   const openBuilder = () => {
     const parsed = safeParseAst(queryAst);
-    // §34.31 C1: when the AST uses constructs the builder can't represent,
+    // When the AST uses constructs the builder can't represent,
     // open on the READ-ONLY summary; the lossy form needs the explicit
     // "edit anyway" opt-in.
     setBuilderGuard(builderUnsupportedConstructs(parsed));
@@ -438,7 +438,7 @@ export function QueryBlockView({
             // The seam type is structural; the runtime object is the full
             // client (both classes satisfy it).
             client={client as unknown as import("./views/index.js").AnyClient}
-            // §34.70: the query result owns ITS pagination — the 200-row
+            // The query result owns ITS pagination — the 200-row
             // render window (QUERY_RESULT_CAP) widened by the "N more — load
             // more" button below — so the collection view must not window
             // again (double-windowing would cut the 200 cap to 100).

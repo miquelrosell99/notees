@@ -1,5 +1,5 @@
 /**
- * DayPageHeader — the day-page header chrome (§34.28 #7 header): the weekday + Today flags ride a small line ABOVE
+ * DayPageHeader — the day-page header chrome: the weekday + Today flags ride a small line ABOVE
  * the title, and the ISO week number rides a small flag AFTER the title. The
  * title itself stays the user's dateFormat-aware display name (the caller
  * passes displayNameForSettings — the stored compact label must stay

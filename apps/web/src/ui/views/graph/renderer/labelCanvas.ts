@@ -37,7 +37,7 @@ export interface LabelFrame {
   colors: LabelColors;
 }
 
-/** The v1 label-cap convention: how many labels may render at a zoom level. */
+/** The label-cap convention: how many labels may render at a zoom level. */
 export function labelCapForZoom(zoom: number): number {
   if (zoom < 0.3) return 40;
   if (zoom < 0.6) return 100;
@@ -45,7 +45,7 @@ export function labelCapForZoom(zoom: number): number {
   return 500;
 }
 
-/** 28-char truncation with an ellipsis (the v1 convention). */
+/** 28-char truncation with an ellipsis (the original convention). */
 export function truncateLabel(name: string, max = 28): string {
   return name.length > max ? `${name.slice(0, max - 1)}…` : name;
 }

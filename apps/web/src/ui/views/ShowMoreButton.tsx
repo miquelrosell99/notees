@@ -1,5 +1,5 @@
 /**
- * ShowMoreButton — the §34.70 window affordance: ONE consistent control at
+ * ShowMoreButton — the window affordance: ONE consistent control at
  * the END of a windowed list. Composes the kit Button (ghost, sm); the
  * hidden count is part of the label AND the accessible name, so the window
  * never drops data silently. Keyboard-accessible by construction (a real

@@ -1,5 +1,5 @@
 /**
- * Clone engine — §34.25 T1: the shared subtree-clone / template-instantiation
+ * Clone engine — the shared subtree-clone / template-instantiation
  * primitive (modelling decision 2, generalized from the createAnnotation
  * composition pattern in workspace-client.ts).
  *
@@ -16,7 +16,7 @@
  * Reference semantics are SCHEMA.md "Templates" (A3 + D3): content tokens
  * keep their targets (mention/class_chip/typed_link), tags are re-issued on
  * the fresh id, class assignments are copied minus the caller's strip set
- * (template instantiation strips the `template` marker class — the v1 rule),
+ * (template instantiation strips the `template` marker class — the original rule),
  * node-typed property values copy the reference, asset_ref re-points at the
  * same CAS asset, embed_ref carries the same live embed (never deep-cloned),
  * and whiteboard card geometry is re-keyed to the cloned cards' fresh ids.
@@ -25,11 +25,11 @@
  * instance's own classes; SCHEMA.md D2).
  *
  * The engine is generic on purpose: cloneSubtree powers a real duplicate
- * gesture later (§34.25 T4) and never writes provenance; instantiateTemplate
- * powers create-with-template (T2) and the T3 surfaces and records the D1-
- * amendment generatedFrom reference on the produced root. T4 apply-time
- * variables (`{{name}}` in text tokens) substitute during composition via the
- * `variables` option — extraction and the value dialog live UI-side.
+ * gesture later and never writes provenance; instantiateTemplate powers
+ * create-with-template and the gallery surfaces and records the amendment's
+ * generatedFrom provenance reference on the produced root. Apply-time
+ * variables (`{{name}}` in text tokens) substitute during composition via
+ * the `variables` option — extraction and the value dialog live UI-side.
  */
 
 import { uuidv7 } from "uuidv7";
@@ -127,7 +127,7 @@ export interface SubtreeCloneOptions {
   /** Fresh-id generator (tests pin ids; production = uuidv7). */
   newId?: () => string;
   /**
-   * T4 apply-time variables: `{{name}}` spans inside text tokens substitute
+   * Apply-time variables: `{{name}}` spans inside text tokens substitute
    * from this map before the ops are composed (unknown names stay verbatim —
    * never silently emptied).
    */
@@ -143,40 +143,40 @@ export interface TemplateGraftOptions {
   stripClassIds?: readonly string[];
   newId?: () => string;
   /**
-   * D1-amendment provenance (default true): record `generatedFrom` →
+   * Provenance (default true): record `generatedFrom` →
    * templateRootId on the produced root. Every instantiation path keeps the
-   * default (create-with-template, gallery Use, slash, T4 apply-to-existing);
+   * default (create-with-template, gallery Use, slash, apply-to-existing);
    * pass false only when a graft must stay provenance-free.
    */
   provenance?: boolean;
-  /** T4 apply-time variables (see SubtreeCloneOptions.variables). */
+  /** Apply-time variables (see SubtreeCloneOptions.variables). */
   variables?: Record<string, string>;
   /**
    * The graft root's contentAst lands on the object by default (the fresh
    * create is empty). Apply-to-existing passes false when the node already
-   * carries content — prefill semantics never overwrite (A4).
+   * carries content — prefill semantics never overwrite.
    */
   includeRootContent?: boolean;
 }
 
 const DEFAULT_STRIP: readonly string[] = [];
-/** Template instantiation's strip rule (v1 port): an instance is not a template. */
+/** Template instantiation's strip rule: an instance is not a template. */
 const TEMPLATE_STRIP: readonly string[] = [SYSTEM_CLASS_UUIDS.template];
 
-// --- apply-time variables (§34.25 T4) ----------------------------------------
+// --- apply-time variables --------------------------------------------------------
 //
-// Variables are `{{name}}` spans inside TEXT tokens only (the v1 whole-AST
+// Variables are `{{name}}` spans inside TEXT tokens only (the whole-AST
 // string substitution is deliberately not ported — tokens are structured;
 // only a text token's own text substitutes). One syntax for both kinds:
 // `{{name}}` — static names are user-filled at apply time, dynamic names
 // (today / time / datetime / current_page, computed UI-side) are readonly in
 // the variable dialog. Unknown names stay verbatim — never silently emptied
-// (the v1 silent-empty gap stays closed).
+// (the silent-empty gap stays closed).
 
 /** The `{{name}}` span pattern (whitespace inside the braces is tolerated). */
 export const TEMPLATE_VARIABLE_PATTERN = /\{\{\s*([^{}]+?)\s*\}\}/g;
 
-/** Variable names used in a text, in first-seen order, deduped (the v1 port). */
+/** Variable names used in a text, in first-seen order, deduped. */
 export function variablesInText(text: string): string[] {
   const found: string[] = [];
   const seen = new Set<string>();

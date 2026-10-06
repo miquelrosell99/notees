@@ -1,6 +1,5 @@
 /**
- * §34.69 — the topbar undo/redo buttons + the history menu with jump-to
- * (the §34.64 follow-ups):
+ * The topbar undo/redo buttons + the history menu with jump-to:
  *
  *  - TopBar renders the journal cluster from the state slice: disabled when
  *    empty, the live labels ("Undo edit text") as titles/aria labels, and
@@ -11,7 +10,7 @@
  *    labels, timestamps, and deduped affected ids (jump targets).
  *  - HistoryMenuPopup: browsable entries newest-first with labels + times,
  *    click jumps by opening the first affected node that still resolves,
- *    entries whose nodes are gone disable, Escape/outside close (§34.67).
+ *    entries whose nodes are gone disable, Escape/outside close.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -73,7 +72,7 @@ function key(init: KeyboardEventInit): KeyboardEvent {
   return new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init });
 }
 
-describe("topbar undo/redo buttons (§34.69)", () => {
+describe("topbar undo/redo buttons", () => {
   it("renders disabled buttons with neutral labels on an empty journal, live labels when available", () => {
     const { rerender } = render(
       <TopBar
@@ -181,7 +180,7 @@ describe("historyKeyHandler — Ctrl/Cmd+Shift+H", () => {
   });
 });
 
-describe("journal history (§34.69)", () => {
+describe("journal history", () => {
   it("lists the bounded stack oldest-first with labels, timestamps, and jump targets", async () => {
     const client = await seedClient();
     expect(await client.undoHistory()).toEqual([]);
@@ -280,7 +279,7 @@ describe("HistoryMenuPopup — browsable history with jump-to", () => {
     expect(row).toHaveProperty("disabled", true);
     expect(row.getAttribute("title")).toMatch(/no longer exists/);
 
-    // Escape closes via the §34.67 dismissal layer.
+    // Escape closes via the dismissal layer.
     const onClose = vi.fn();
     rerender(
       <HistoryMenuPopup

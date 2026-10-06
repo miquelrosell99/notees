@@ -102,7 +102,7 @@ function PillShell({
   const colored = client.effectiveClassColor(classId);
   // Effective icon: the class glyph (display-time default when none is set).
   const icon = client.effectiveClassIcon(classId);
-  // §34.19: system/journal classes refuse ×-removal (lock + honest toast).
+  // System/journal classes refuse ×-removal (lock + honest toast).
   const nonRemovable = isClassNonRemovable(classId);
   return (
     <span
@@ -285,7 +285,7 @@ export function NodePills({
   const overflowPopupRef = useRef<HTMLDivElement>(null);
   const colorMenuRef = useRef<HTMLDivElement>(null);
 
-  // Dismissal (§34.67): Escape closes the two portaled popups; the backdrop
+  // Dismissal: Escape closes the two portaled popups; the backdrop
   // divs keep owning outside-click (pointer-down on them lands outside the
   // popup refs, so the hook agrees).
   usePopupDismissal({
@@ -480,7 +480,7 @@ export function NodePills({
               <ColorPickerRow
                 currentColor={client.getNode(colorMenu.classId)?.color ?? null}
                 onColorChange={(color) => {
-                  // null = "No color" — object.update color:null clears (§34.43).
+                  // null = "No color" — object.update color:null clears.
                   void client.updateObject(colorMenu.classId, { color });
                   setColorMenu(null);
                 }}

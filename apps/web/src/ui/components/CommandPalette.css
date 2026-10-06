@@ -90,7 +90,7 @@
   white-space: nowrap;
 }
 
-/* Containing-page label on block content hits (M4/M8). */
+/* Containing-page label on block content hits. */
 .nt-palette-item-meta {
   flex-shrink: 0;
   max-width: 40%;

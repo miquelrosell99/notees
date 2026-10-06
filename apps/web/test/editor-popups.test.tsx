@@ -85,8 +85,7 @@ describe("slash trigger popup", () => {
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "/");
     expect(slashPopup()).not.toBeNull();
-    // All slash commands (§34.25 T3 + §34.28 #9 + §34.31 B1 + §34.34 B4 breadth
-    // + §34.34 B3/B5 post-lockstep), Text first.
+    // All slash commands (the breadth rows post-lockstep), Text first.
     const options = within(slashPopup()!).getAllByRole("option");
     expect(options.map((o) => o.textContent)).toEqual([
       "TextPlain text block",

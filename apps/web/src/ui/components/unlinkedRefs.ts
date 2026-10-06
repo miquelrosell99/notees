@@ -1,5 +1,5 @@
 /**
- * Unlinked-reference actions (§34.27 L4, §34.19 :1137) — the promote half.
+ * Unlinked-reference actions — the promote half.
  *
  * Promote converts the source block's literal text match into a real
  * mention: the first text run carrying the target's display name splits

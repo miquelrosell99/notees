@@ -1,7 +1,7 @@
 /**
- * PDF export engine tests (§34.24 P1, jsdom).
+ * PDF export engine tests (jsdom).
  *
- * Two harnesses, per task P1's "pick the reliable one":
+ * Two harnesses, per the "pick the reliable one" ruling:
  *
  *  - The document component tree renders with testing-library: react-pdf's
  *    components mount as lowercase custom elements (<document>/<page>/<view>/

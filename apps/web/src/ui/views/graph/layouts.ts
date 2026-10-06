@@ -1,11 +1,11 @@
 /**
- * layouts.ts — the non-force layout modes (the parked §34.80 follow-ups):
- * deterministic radial placements that replace the simulation while active.
+ * layouts.ts — the non-force layout modes: deterministic
+ * radial placements that replace the simulation while active.
  *
  *  - `circle`: every node on one ring, ordered (classes first, then by id).
  *  - `tree`: concentric rings by parent depth — classes on the inner rings,
  *    regular roots after, children always one ring out from their parent,
- *    angular slots allocated bottom-up by subtree size (the v1 radial tree,
+ *    angular slots allocated bottom-up by subtree size (the radial tree,
  *    compacted).
  *
  * Pure functions over the DISPLAY topology (post-filtering), so the orphan

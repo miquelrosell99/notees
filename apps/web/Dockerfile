@@ -1,4 +1,4 @@
-# Notees v2 web client — static vite build served by nginx (context = repo root).
+# Notees web client — static vite build served by nginx (context = repo root).
 #
 # Stage layout:
 #   deps  — `pnpm fetch` warms the store from the lockfile alone (cached until

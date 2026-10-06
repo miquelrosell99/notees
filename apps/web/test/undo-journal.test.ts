@@ -1,6 +1,6 @@
 // @vitest-environment node
 /**
- * The session undo journal (§34.63) — two layers:
+ * The session undo journal — two layers:
  *
  *  1. Unit tests over the pure pieces: invertEnvelope's full inversion
  *     matrix (a fake capture source answers the pre-apply questions), the
@@ -453,7 +453,7 @@ describe("invertEnvelope — the inversion matrix", () => {
     ]);
   });
 
-  it("propertySchema.update restores the §34.90 render contracts it touches", () => {
+  it("propertySchema.update restores the render contracts it touches", () => {
     expect(
       invertEnvelope(env("propertySchema.update", { propertySchemaId: SCHEMA, display: "bullet", readonly: true }), fakeCapture({
         schema: {

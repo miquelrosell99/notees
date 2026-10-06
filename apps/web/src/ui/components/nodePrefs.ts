@@ -1,5 +1,5 @@
 /**
- * nodePrefs — the cross-device favorites/recents store (§34.61).
+ * nodePrefs — the cross-device favorites/recents store.
  *
  * favorites/recents are UI preferences,
  * so the server-side per-user prefs store is the authority

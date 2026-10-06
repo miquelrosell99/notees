@@ -1,5 +1,5 @@
 /**
- * Windowing tests (§34.70): the shared useWindowed engine + the
+ * Windowing tests: the shared useWindowed engine + the
  * ShowMoreButton affordance integrated per surface — the table (window
  * growth, reset-on-sort, the honest select-all label, and the CSV full-set
  * invariant), cards, kanban columns, the flat outline, the grouped outline
@@ -73,7 +73,7 @@ const expandClassedNodes = async (): Promise<void> => {
   }
 };
 
-describe("useWindowed — the §34.70 engine", () => {
+describe("useWindowed engine", () => {
   it("starts at the window size, grows by size, and names the remaining count", () => {
     const items = Array.from({ length: 250 }, (_, i) => i);
     const { result } = renderHook(() => useWindowed(items, { size: 100 }));
@@ -127,7 +127,7 @@ describe("useWindowed — the §34.70 engine", () => {
   });
 });
 
-describe("table windowing (§34.70)", () => {
+describe("table windowing", () => {
   async function seedBigTable(client: WorkspaceClient): Promise<string> {
     // WORKAROUND(store applier): class.create's contentAst never lands —
     // seed the title through object.update instead.
@@ -204,7 +204,7 @@ describe("table windowing (§34.70)", () => {
   });
 });
 
-describe("cards windowing (§34.70)", () => {
+describe("cards windowing", () => {
   it("windows the card grid; Show more grows it", async () => {
     const client = await seedClient();
     const items: NodeCollectionItem[] = [];
@@ -233,7 +233,7 @@ describe("cards windowing (§34.70)", () => {
   });
 });
 
-describe("kanban column windowing (§34.70)", () => {
+describe("kanban column windowing", () => {
   it("windows each column independently; the count badge stays full", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({
@@ -272,7 +272,7 @@ describe("kanban column windowing (§34.70)", () => {
   });
 });
 
-describe("flat outline windowing (§34.70)", () => {
+describe("flat outline windowing", () => {
   it("windows the list; Show more grows it", async () => {
     const client = await seedClient();
     const items: NodeCollectionItem[] = [];
@@ -300,7 +300,7 @@ describe("flat outline windowing (§34.70)", () => {
   });
 });
 
-describe("grouped outline sections — the references grouping (§34.70)", () => {
+describe("grouped outline sections — the references grouping", () => {
   it("windows a huge group per group; the group count names the full set", async () => {
     const client = await seedClient();
     const targetId = await client.createObject({ presentAsMain: true, name: "Zebra" });
@@ -326,7 +326,7 @@ describe("grouped outline sections — the references grouping (§34.70)", () =>
   });
 });
 
-describe("outline tree windowing (§34.70)", () => {
+describe("outline tree windowing", () => {
   it("windows a read-only child-page tree; Show more grows it", async () => {
     const client = await seedClient();
     const parentId = await client.createObject({ presentAsMain: true, name: "Parent" });

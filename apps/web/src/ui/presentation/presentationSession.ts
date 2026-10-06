@@ -1,6 +1,6 @@
 /**
- * Presentation resume state (§34.26 P7, owner decision D3): the last slide
- * index per object, session-local like the collapse set (§34.21's
+ * Presentation resume state (owner decision): the last slide
+ * index per object, session-local like the collapse set (the
  * session-only decision) — held in module memory, never persisted, never on
  * the wire. Closing and reopening a deck within the session resumes where
  * the reader left off; `pagehide` ends the session (the map dies with the

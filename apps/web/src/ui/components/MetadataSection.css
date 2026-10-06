@@ -305,7 +305,7 @@ span.pill__text {
   padding: 0;
 }
 
-/* Text property as a blocks list (§34.80): one row, the carrier blocks
+/* Text property as a blocks list: one row, the carrier blocks
    stack as an editable mini-outline — values are blocks, never repeated
    label entries. */
 .nt-property-textcell {
@@ -463,7 +463,7 @@ span.pill__text {
   min-width: 0;
 }
 
-/* §34.89: the per-option icon trigger — an icon-only button showing the
+/* The per-option icon trigger — an icon-only button showing the
    option's current icon (tinted with its color) or an add-glyph placeholder. */
 .nt-property-settings__option-icon {
   display: inline-flex;

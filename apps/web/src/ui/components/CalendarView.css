@@ -183,7 +183,7 @@
   color: var(--color-on-surface-variant);
 }
 
-/* §34.69 per-occurrence completion: a done occurrence renders checked and
+/* Per-occurrence completion: a done occurrence renders checked and
    quiet — struck through like a finished item, still listed on its day. */
 .calendar-view__row--done .calendar-view__row-name {
   text-decoration: line-through;
@@ -212,7 +212,7 @@
   color: var(--color-on-surface-variant);
 }
 
-/* §34.63 recurrence: the honest repeats marker — one row per series, the
+/* Recurrence: the honest repeats marker — one row per series, the
    icon + small label say "repeats", never N phantom rows. */
 .calendar-view__repeat {
   display: inline-flex;
@@ -248,7 +248,7 @@
   color: var(--color-on-surface-variant);
 }
 
-/* §34.28 #11 week breadth: the agenda under the week strip lists each
+/* Week breadth: the agenda under the week strip lists each
    visible day's dated references (non-task), non-empty days only. */
 .calendar-view__agenda {
   display: flex;

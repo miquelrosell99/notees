@@ -1,6 +1,6 @@
 /**
- * §34.28 dates & daily-notes feature tests (#4 day-page branch, #5 bucketed
- * tasks, #7 date bars, #8 Ctrl+Shift+T, #11 calendar breadth, #15 reviewed):
+ * Dates & daily-notes feature tests (day-page branch, bucketed
+ * tasks, date bars, Ctrl+Shift+T, calendar breadth, reviewed):
  *
  *  - pure helpers: partitionTasksIntoBuckets, weekDaysOfIso, isoOfDateParts,
  *    scheduledIsoOf, hasDatedRefs.

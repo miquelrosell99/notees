@@ -9,21 +9,21 @@
  * display-name read (rename-free: the CURRENT name renders).
  *
  * Single-node delivery keeps the concatenated-document shape (preview +
- * one `.md` download). Batch delivery (§34.24 E3) builds one bundle over
- * every selected root's subtree and zips it the E5 way: `<slug>-<uuid8>.md`
+ * one `.md` download). Batch delivery builds one bundle over
+ * every selected root's subtree and zips it the established way: `<slug>-<uuid8>.md`
  * filenames, sidecar whiteboards, and `notees-manifest.json` — relative
  * link rewriting between pages is deliberately not applied (single-workspace
  * zips from the modal keep the `[[name]]` conventions).
  *
- * Include-assets delivery (§34.24 E7): the exported subtrees are scanned
+ * Include-assets delivery: the exported subtrees are scanned
  * for `asset_ref` tokens, the bytes are fetched concurrency-limited through
  * the client's REST read, and the bundle is zipped with the assets under
  * `assets/<name-slug>-<hash8>.<ext>` — the same naming the server-side
- * workspace zip (E5) uses. The `assetPath` hook then rewrites each Markdown
+ * workspace zip uses. The `assetPath` hook then rewrites each Markdown
  * asset ref to its relative path; assets with missing metadata or
  * unfetchable bytes keep the raw uuid reference and add no file.
  *
- * Format-routed delivery (§34.24 task W): the modal's format cards select a
+ * Format-routed delivery: the modal's format cards select a
  * registry format, and the export dispatches on it — markdown keeps the
  * historical paths above; html/latex/docx build ONE ExportDocument over the
  * root's whole subtree (child pages ride the outline — these formats deliver
@@ -202,7 +202,7 @@ export interface ExportSubtreeBundleOptions extends ExportSubtreeOptions {
   assetPath?: (assetId: string) => string | undefined;
 }
 
-// --- JSON archive delivery (§34.59) ---------------------------------------------
+// --- JSON archive delivery ------------------------------------------------------
 
 /**
  * The archive slice for one root: the root, EVERY inline-body descendant
@@ -238,7 +238,7 @@ function collectSubtreeArchiveNodes(
 }
 
 /**
- * JSON archive delivery (§34.59): ONE `notees-json-archive` document over
+ * JSON archive delivery: ONE `notees-json-archive` document over
  * the union of every root's slice (buildJsonArchive dedups overlapping
  * subtrees) — the batch deliberately does NOT zip per-root files the way
  * the IR formats do: an archive is a single artifact for the whole
@@ -273,7 +273,7 @@ export function exportSubtreeJsonArchive(
 /**
  * Build one bundle over every selected root's subtree — the batch-zip
  * delivery: one `<slug>-<uuid8>.md` per node plus sidecar whiteboards and
- * the v2 manifest, mirroring the E5 server zip conventions.
+ * the manifest, mirroring the server zip conventions.
  */
 export function exportSubtreeBundle(
   client: ExportClient,
@@ -384,7 +384,7 @@ export function exportZipFileName(client: ExportClient, firstRootId: string): st
   return `${slug.length > 0 ? slug : "export"}.zip`;
 }
 
-// --- format-routed delivery (§34.24 task W) -----------------------------------
+// --- format-routed delivery -----------------------------------------------------
 
 /**
  * Every non-class child joins the outline — the one-file formats (html/docx/
@@ -511,7 +511,7 @@ export async function exportSubtreeFile(
  * (`<slug>-<id8>.<ext>` — the bundle's exportFileName with the registry
  * extension swapped for the markdown suffix).
  *
- * Two deliberate v1 simplifications, documented choices:
+ * Two deliberate simplifications, documented choices:
  *  - NO `notees-manifest.json` — the manifest is a markdown-bundle concept
  *    (a uuid↔name↔path map over per-NODE files); these zips hold one file
  *    per ROOT with each root's whole subtree inside its file.
@@ -566,7 +566,7 @@ export async function exportSubtreeBatchFile(
   return { blob, filename: exportZipFileName(client, rootIds[0]!) };
 }
 
-// --- include-assets delivery (§34.24 E7) -------------------------------------
+// --- include-assets delivery ----------------------------------------------------
 
 /**
  * Every `asset_ref` CAS id across the exported subtrees — the root's own

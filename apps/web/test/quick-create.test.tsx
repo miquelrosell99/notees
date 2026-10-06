@@ -1,5 +1,5 @@
 /**
- * Quick-create tests (§34.19 :1172): resolveQuickCreate's family resolution
+ * Quick-create tests: resolveQuickCreate's family resolution
  * over the extends graph (source subclass → source flow with the subclass
  * preselected; bare source → book default; person/organization → agent
  * flow), splitPersonName's Zotero convention, the modal's citation writes

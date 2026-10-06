@@ -1,5 +1,5 @@
 /* DateSlotControl — one date-slot editor shared by the metadata panel and
- * the table cells (§34.32 PG17). Token-only: every value resolves to a
+ * the table cells. Token-only: every value resolves to a
  * custom property from variables.css. */
 
 .nt-dateslot {

@@ -6,7 +6,7 @@
  * The worker owns the only store. Reads are synchronous here, so they are
  * served from a small local cache keyed by method+args; the worker posts a
  * {type:"changed"} notification after every local apply and sync completion
- * (coalesced worker-side, §34.114), and the proxy then re-fetches the
+ * (coalesced worker-side), and the proxy then re-fetches the
  * impacted cache keys — in ONE multiRead round-trip per drain, and only the
  * keys the change payload actually invalidates — and notifies its own
  * subscribers. A first read of an unseen key returns the empty default and
@@ -60,7 +60,7 @@ import type {
 } from "../worker/worker-core.js";
 
 /**
- * Invalidation class for a cached read key (§34.114), consulted only for
+ * Invalidation class for a cached read key, consulted only for
  * content-only changes with a known affected set (`structural` or unknown
  * scope invalidates everything and never reaches this table):
  *
@@ -219,7 +219,7 @@ export class WorkerClient {
   };
 
   /**
-   * Incremental cache invalidation (§34.114): a structural or scope-unknown
+   * Incremental cache invalidation: a structural or scope-unknown
    * change dirties every cached key; a content-only change dirties only the
    * keys its affected set (ancestor-expanded) touches — scoped reads, plus
    * the content-global class (search/reference listings embed titles and
@@ -300,7 +300,7 @@ export class WorkerClient {
         const batch = Array.from(this.refreshDirty).filter((key) => this.cache.has(key));
         this.refreshDirty.clear();
         if (batch.length === 0) continue;
-        // ONE round-trip for the whole batch (§34.114) instead of an awaited
+        // ONE round-trip for the whole batch instead of an awaited
         // RPC per key: a keystroke used to cost hundreds of postMessage
         // round-trips through the worker.
         try {
@@ -412,7 +412,7 @@ export class WorkerClient {
     return this.cachedRead<ClientNode[]>("listClasses", [], []);
   }
 
-  /** The narrow id → icon read behind the UI icon maps (§34.92). */
+  /** The narrow id → icon read behind the UI icon maps. */
   classIcons(): ReadonlyMap<string, string | null> {
     return this.cachedRead<ReadonlyMap<string, string | null>>("classIcons", [], new Map());
   }
@@ -447,7 +447,7 @@ export class WorkerClient {
     return this.cachedRead<EffectiveProperty[]>("getEffectiveProperties", [id], []);
   }
 
-  /** Nodes carrying an authored value for the schema (§34.32 PG12, PropertyView). */
+  /** Nodes carrying an authored value for the schema (the PropertyView references). */
   getPropertyReferences(schemaId: string): ClientNode[] {
     return this.cachedRead<ClientNode[]>("getPropertyReferences", [schemaId], []);
   }
@@ -475,7 +475,7 @@ export class WorkerClient {
   }
 
   /**
-   * Cursor-paginated ranked search (§34.30 C5): raw RPC (not the read cache —
+   * Cursor-paginated ranked search: raw RPC (not the read cache —
    * the cache key would include the cursor, so a load-more could never reuse
    * the first page anyway). `cursor` is the previous page's `nextCursor`.
    */
@@ -484,7 +484,7 @@ export class WorkerClient {
   }
 
   /**
-   * Match-context snippet for one node + query (§34.30 M3). Served from the
+   * Match-context snippet for one node + query. Served from the
    * read cache like `search`: the first read seeds null and converges on the
    * worker's "changed" notification.
    */
@@ -496,13 +496,13 @@ export class WorkerClient {
     return this.cachedRead<SearchSnippetData | null>("getSearchSnippet", [nodeId, query, opts ?? null], null);
   }
 
-  /** Name→id resolution (§34.30 C6): exact display-name match; null when unknown. */
+  /** Name→id resolution: exact display-name match; null when unknown. */
   resolveNodeByName(name: string): string | null {
     return this.cachedRead<string | null>("resolveNodeByName", [name], null);
   }
 
   /**
-   * Property value history feed (§34.32 PG13) — async RPC into the worker's
+   * Property value history feed — async RPC into the worker's
    * WorkspaceClient (the REST call needs no store; the worker owns the REST
    * config). Rejects with the feed error when the server is unreachable.
    */
@@ -563,7 +563,7 @@ export class WorkerClient {
     return this.cachedRead<number>("getChildPageCount", [id], 0);
   }
 
-  /** §34.35 feature-toggle read — absent row means enabled (F2 default). */
+  /** Feature-toggle read — absent row means enabled (default on). */
   isFeatureEnabled(feature: WorkspaceFeature): boolean {
     return this.cachedRead<boolean>("isFeatureEnabled", [feature], true);
   }
@@ -573,7 +573,7 @@ export class WorkerClient {
     return this.cachedRead<Array<{ feature: string; enabled: boolean }>>("listFeatureRows", [], []);
   }
 
-  /** Active instance count across the feature's managed classes (the F3 disable confirmation). */
+  /** Active instance count across the feature's managed classes (the disable confirmation). */
   getFeatureInstanceCount(feature: WorkspaceFeature): number {
     return this.cachedRead<number>("getFeatureInstanceCount", [feature], 0);
   }
@@ -633,7 +633,7 @@ export class WorkerClient {
   }
 
   /** Replace a class's full extends parent set (class.setExtends, m2m). */
-  /** §34.35/§34.55 — write a feature toggle (workspace.feature.set, LWW by HLC). */
+  /** Write a feature toggle (workspace.feature.set, LWW by HLC). */
   async setFeatureEnabled(feature: WorkspaceFeature, enabled: boolean): Promise<void> {
     await this.call("setFeatureEnabled", [feature, enabled]);
   }
@@ -776,20 +776,20 @@ export class WorkerClient {
     await this.call("bootstrapWorkspace", [workspaceId]);
   }
 
-  // --- session undo journal (§34.64; the journal lives worker-side, per tab) ---
+  // --- session undo journal (the journal lives worker-side, per tab) --------------
 
   /** Availability + the "Undo <verb>"/"Redo <verb>" labels for chrome. */
   undoState(): Promise<UndoUiState> {
     return this.call("undoState", []) as Promise<UndoUiState>;
   }
 
-  /** §34.69 — the browsable history (oldest-first) behind the jump-to menu. */
+  /** The browsable history (oldest-first) behind the jump-to menu. */
   undoHistory(): Promise<UndoHistoryEntry[]> {
     return this.call("undoHistory", []) as Promise<UndoHistoryEntry[]>;
   }
 
   /**
-   * The graph-view topology projection (§34.80). Uncached by design — the
+   * The graph-view topology projection. Uncached by design — the
    * graph view debounces its own reloads on `subscribe` notifications, and a
    * workspace-scale projection must never ride the key-value cache.
    */
@@ -836,7 +836,7 @@ export class WorkerClient {
   }
 
   /**
-   * Recent semantic sync conflicts (§34.115): raw RPC (not cached) — the
+   * Recent semantic sync conflicts: raw RPC (not cached) — the
    * sync details modal reads it on open and on worker notifications.
    */
   async conflictHistory(): Promise<ConflictHistoryEntry[]> {
@@ -844,7 +844,7 @@ export class WorkerClient {
   }
 
   /**
-   * Per-user UI prefs (§34.61 — favorites/recents, server-side). RPC into
+   * Per-user UI prefs (favorites/recents, server-side). RPC into
    * the worker (it owns the REST config); resolves the device-local cache
    * when offline, tagged `source`.
    */
@@ -867,7 +867,7 @@ export class WorkerClient {
   }
 
   private notify(): void {
-    // De-prioritize the refresh-driven render (§34.114): the drain completes
+    // De-prioritize the refresh-driven render: the drain completes
     // on a worker message / macrotask where React would otherwise render
     // synchronously (performSyncWorkOnRoot) ahead of queued input. Inside a
     // transition, keystrokes and clicks win the next frame.

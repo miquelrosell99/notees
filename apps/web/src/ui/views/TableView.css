@@ -135,7 +135,7 @@
   margin-bottom: var(--spacing-1, 4px);
 }
 
-/* Live-selection chrome (§34.59 "Export selected"): count + export button
+/* Live-selection chrome ("Export selected"): count + export button
    sit left of the export/columns/sort controls. */
 .nt-table-selection {
   display: inline-flex;
@@ -326,7 +326,7 @@
   background: var(--color-primary-container, rgba(0, 0, 0, 0.06));
 }
 
-/* §34.69 — the shared selection-export chrome (cards/kanban toolbars use the
+/* The shared selection-export chrome (cards/kanban toolbars use the
    same classes): count + Export selected…, quiet until a selection exists. */
 .selection-export {
   display: inline-flex;
@@ -357,7 +357,7 @@
   text-decoration: underline;
 }
 
-/* The v1 open-arrow — a quiet navigate affordance beside cell content. */
+/* The open-arrow — a quiet navigate affordance beside cell content. */
 .nt-table-open {
   display: inline-flex;
   align-items: center;

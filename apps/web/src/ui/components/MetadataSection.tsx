@@ -204,7 +204,7 @@ function ObjectPropertyRow({
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** §34.19 :1174 — the asset upload modal (drag-drop + preview + progress). */
+  /** The asset upload modal (drag-drop + preview + progress). */
   const [uploadOpen, setUploadOpen] = useState(false);
   /** Pill ref whose annotations section is open (one at a time), null = none. */
   const [annotatingRef, setAnnotatingRef] = useState<string | null>(null);
@@ -246,7 +246,7 @@ function ObjectPropertyRow({
       }
     }
     await client.setProperty(nodeId, propertySchemaId, { nodeId: target }, nextIdx);
-    // §34.74: a cover value written through the generic panel still classes
+    // A cover value written through the generic panel still classes
     // the target as an asset (explicit ops — every client converges on
     // classIds; the property value stays the authority).
     if (propertySchemaId === SYSTEM_PROPERTY_UUIDS.cover) {
@@ -262,10 +262,10 @@ function ObjectPropertyRow({
     await client.unsetProperty(nodeId, propertySchemaId, idx);
   };
 
-  /** §34.19 :1174 — the modal's completion: link the uploaded asset node. */
+  /** The modal's completion: link the uploaded asset node. */
   const linkUploadedAsset = async (assetNodeId: string): Promise<void> => {
     await client.setProperty(nodeId, propertySchemaId, { nodeId: assetNodeId }, nextIdx);
-    // §34.74: a cover value written through the generic panel still gives
+    // A cover value written through the generic panel still gives
     // the node its asset identity (explicit ops — convergent).
     if (propertySchemaId === SYSTEM_PROPERTY_UUIDS.cover) {
       const classIds = client.getNode(assetNodeId)?.classIds ?? [];
@@ -414,7 +414,7 @@ function ObjectPropertyRow({
           onCreateNew={
             isAssetTarget
               ? () => {
-                  // §34.19 :1174 — the upload runs in the AssetUploadModal
+                  // The upload runs in the AssetUploadModal
                   // (drag-drop + preview + progress), not a bare file input.
                   setPickerOpen(false);
                   setUploadOpen(true);
@@ -452,7 +452,7 @@ function ObjectPropertyRow({
  * links the node at the schema's precision ({ "nodeId": … }, the shape the
  * edge index projects — the year node backlinks everything dated that year).
  * Editing an existing pill's date overwrites the same slot's ref, preserving
- * the value's metadata (§34.63 — a re-pick keeps the recurrence rule; the
+ * the value's metadata (a re-pick keeps the recurrence rule; the
  * series follows the event). Each authored pill carries the repeat picker
  * (metadata.repeat, the startDate/endDate precedent).
  */
@@ -492,7 +492,7 @@ function DatePropertyRow({
     setPickerFor(null);
   };
 
-  /** The repeat write (§34.63): merge/clear the `repeat` metadata key. */
+  /** The repeat write: merge/clear the `repeat` metadata key. */
   const setRepeat = async (row: EffectiveProperty, rule: string | null): Promise<void> => {
     const metadata: Record<string, unknown> = { ...(row.metadata ?? {}) };
     if (rule === null) delete metadata.repeat;
@@ -767,7 +767,7 @@ function qualifierIsoOf(value: unknown): string {
  * property.set metadata.startDate/endDate (PC6 canonical: date-node refs —
  * the stored legacy ISO strings read back through qualifierIsoOf until the
  * lockstep wave switches the write path). The slots ride the shared
- * DateSlotControl (§34.32 PG17) — the same zoom-picker control the table
+ * DateSlotControl — the same zoom-picker control the table
  * cells use, no native date inputs.
  */
 function QualifierRange({
@@ -1166,7 +1166,7 @@ function AddPropertyRow({
       }
       case "date": {
         // Local midnight, not UTC — the "today" default must match the
-        // user's calendar day (§34.28 #1).
+        // user's calendar day.
         const dayId = await client.ensureDateChain(todayIsoLocal());
         await client.setProperty(nodeId, schemaId, { nodeId: dayId }, 0);
         return;
@@ -1252,7 +1252,7 @@ function AddPropertyRow({
  * Properties section (pages): effective rows grouped per schema, plus the
  * bound-but-empty grouped bindings that still render an add affordance.
  *
- * §34.90: `omitDisplayPositions` filters out rows whose SCHEMA carries a
+ * `omitDisplayPositions` filters out rows whose SCHEMA carries a
  * bullet/inline value-display position (the render contracts are
  * property-level; the block row surfaces those values itself — the panel
  * must not duplicate them). The same filter applies to the bound-but-empty
@@ -1269,7 +1269,7 @@ function propertyGroupsOf(
   const node = client.getNode(nodeId);
   // Class pages: the class's has-template values render in the dedicated
   // Templates section — the generic table suppresses that schema row. The
-  // cover schema is suppressed EVERYWHERE (§34.59): the cover is header
+  // cover schema is suppressed EVERYWHERE: the cover is header
   // chrome (PageBanner/AddCover), never a property row.
   const isClassNode = node?.isClass === true;
   // Node aliases (issue #7): aliasOf is restricted to PAGES — the row
@@ -1288,9 +1288,9 @@ function propertyGroupsOf(
   // Node-typed / date / date_range / boolean / text schemas render as one
   // grouped row per schema; select AND multi_select schemas join them only
   // when they declare options (without options the minimal text editor is
-  // the honest editor — there is nothing to pick; §34.32 PG14 routes
+  // the honest editor — there is nothing to pick; the shape routes
   // multi_select to the selection control). Text groups render as a blocks
-  // list (the carrier blocks themselves, §34.80). Grouped rows appear at
+  // list (the carrier blocks themselves). Grouped rows appear at
   // their first occurrence so the panel order is unchanged.
   const optionsOf = (propertySchemaId: string) =>
     client.listPropertySchemas().find((s) => s.id === propertySchemaId)?.options;
@@ -1323,7 +1323,7 @@ function propertyGroupsOf(
 
   // A bound grouped property with no effective rows still renders: the row
   // hosts the add/set affordance (the scalar editor has no way to author a
-  // first value). hide-when-empty schemas are the exception (§34.90: the
+  // first value). hide-when-empty schemas are the exception: the
   // render contracts are property-level — read from the schema row, not the
   // binding).
   const emptyObjectBindings: ClassBinding[] = [];
@@ -1385,7 +1385,7 @@ function propertiesCountOf(groups: PropertyGroups): number {
  * PropertiesTable — the property rows and the add affordance, shared by the
  * Metadata section (blocks) and the Properties section (pages).
  *
- * Property interactions (v1 port): clicking a property LABEL opens the
+ * Property interactions: clicking a property LABEL opens the
  * property's configuration (PropertySettingsModal); right-clicking it opens
  * the context menu (Open property / Empty property / Remove from node).
  * Both ride event delegation on the list — the label spans carry
@@ -1550,7 +1550,7 @@ function ScalarPropertyValue({
   // the uuid does not survive reloads).
   const deadCarrierRef = rawRef !== null && carrier === undefined;
   const editableText = deadCarrierRef ? "" : toEditableText(row.value);
-  // §34.32 PG14: url/email scalars keep the text editor and gain an
+  // Url/email scalars keep the text editor and gain an
   // external-link affordance (mailto: for email; url values keep their
   // authored scheme, tel: included).
   const linkHref = propertyLinkHref(row.schema?.type, row.value);
@@ -1571,7 +1571,7 @@ function ScalarPropertyValue({
             const text = event.target.value;
             if (deadCarrierRef) {
               // The old carrier is gone: typing authors a NEW carrier
-              // (the §34.45 pattern); leaving it empty unsets the dead
+              // (the established create-carrier pattern); leaving it empty unsets the dead
               // value so the row does not hold a dangling ref.
               if (text.trim() === "") {
                 void client.unsetProperty(nodeId, row.propertySchemaId, row.idx);
@@ -1623,7 +1623,7 @@ export function PropertiesTable({
   client: AnyClient;
   nodeId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
-  /** §34.90: schema display positions (bullet/inline) the host surfaces
+  /** Schema display positions (bullet/inline) the host surfaces
    *  itself — filter out. */
   omitDisplayPositions?: ReadonlyArray<"bullet" | "inline"> | undefined;
 }) {
@@ -1839,7 +1839,7 @@ export function PropertiesSection({
   onOpenPage?: ((pageId: string) => void) | undefined;
   /** Block mode: render nothing when the node carries no properties. */
   hideWhenEmpty?: boolean | undefined;
-  /** §34.90: schema display positions the host renders itself (the block
+  /** Schema display positions the host renders itself (the block
    *  row's bullet/inline icon buttons) — rows carrying them are filtered
    *  out of this panel so the value never reads twice. */
   omitDisplayPositions?: ReadonlyArray<"bullet" | "inline"> | undefined;
@@ -2082,13 +2082,13 @@ export function PropertiesSidebar({
 
 /**
  * PropertySettingsModal — the property's "page" for configuration (opened by
- * clicking a property label in the table). v1 had a full PropertyView; v2's
- * schemas are registry rows, so the configuration surface is this modal:
+ * clicking a property label in the table). The schemas are registry rows,
+ * so the configuration surface is this modal:
  * rename, per-type behavior (date precision / qualified, select options),
- * and — §34.90 — the property-level render contracts (value display, read-
+ * and the property-level render contracts (value display, read-
  * only, hide when empty), the single home for those. Type and multi are
  * create-time contracts and display read-only. The "Open property" footer
- * path surfaces the schema inspector (PropertyView, §34.32 PG12): metadata,
+ * path surfaces the schema inspector (PropertyView): metadata,
  * bound classes, and the authored-value references.
  */
 function PropertySettingsModal({
@@ -2104,7 +2104,7 @@ function PropertySettingsModal({
 }) {
   const schema = client.listPropertySchemas().find((s) => s.id === propertySchemaId);
   const [convertOpen, setConvertOpen] = useState(false);
-  /** §34.89: the option whose icon picker is open (+ its anchor button). */
+  /** The option whose icon picker is open (+ its anchor button). */
   const [iconPickerFor, setIconPickerFor] = useState<{
     optionId: string;
     anchor: HTMLElement;
@@ -2141,7 +2141,7 @@ function PropertySettingsModal({
           Type: {schema.type}
           {schema.multi ? " (multi)" : ""}
         </p>
-        {/* §34.90: the render contracts are PROPERTY-level — the single home
+        {/* The render contracts are PROPERTY-level — the single home
             for editing them is this settings surface. Value display rides
             the types the block-row button renders (select / multi_select /
             boolean); read-only and hide-when-empty are type-agnostic. The
@@ -2218,7 +2218,7 @@ function PropertySettingsModal({
             <ul className="nt-property-settings__options">
               {(schema.options ?? []).map((option) => (
                 <li key={option.id} className="nt-property-settings__option">
-                  {/* §34.89: per-option MDI icon (the picker's trash action
+                  {/* Per-option MDI icon (the picker's trash action
                       emits "" = clear; the wholesale options write preserves
                       ids like the ColorButton path above). */}
                   <button
@@ -2240,7 +2240,7 @@ function PropertySettingsModal({
                       <Icon path="mdi-plus-circle-outline" size={0.7} />
                     )}
                   </button>
-                  {/* PG16: per-option color dot (§34.43 grammar; none = uncolored). */}
+                  {/* Per-option color dot (the color grammar; none = uncolored). */}
                   <ColorButton
                     color={option.color ?? ""}
                     size="xs"

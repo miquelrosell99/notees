@@ -6,7 +6,7 @@
   gap: var(--spacing-3, 12px);
 }
 
-/* The §34.70 affordance spans the grid's full row (a grid item otherwise). */
+/* The window affordance spans the grid's full row (a grid item otherwise). */
 .cards-grid > .nt-window-more {
   grid-column: 1 / -1;
 }
@@ -21,7 +21,7 @@
   border: var(--border-width-default, 1px) solid var(--color-outline-variant, currentColor);
   border-radius: var(--radius-md, 10px);
   background: var(--color-surface-container-low, transparent);
-  /* §34.75 lazy rendering: off-screen cards skip layout/paint entirely;
+  /* Lazy rendering: off-screen cards skip layout/paint entirely;
      the intrinsic size keeps the scrollbar stable while skipped. */
   content-visibility: auto;
   contain-intrinsic-size: auto 180px;
@@ -35,14 +35,14 @@
   flex: 1 1 auto;
 }
 
-/* Cover layouts (the four v1 placements). */
+/* Cover layouts (the four placements). */
 .node-card__cover {
   border-radius: var(--radius-sm, 6px);
   object-fit: cover;
   background: var(--color-surface-container, rgba(0, 0, 0, 0.04));
 }
 
-/* §34.75 — the lazy placeholder: same slot, no bytes, a quiet pulse
+/* The lazy placeholder: same slot, no bytes, a quiet pulse
    until the viewport nears and the real fetch starts. */
 .node-card__cover--pending {
   background:
@@ -222,7 +222,7 @@
   white-space: nowrap;
 }
 
-/* §34.74 — cover assets wear a "Cover" badge, top-right of the card.
+/* Cover assets wear a "Cover" badge, top-right of the card.
    The badge DERIVES from the cover property (no cover class). */
 .node-card__cover-badge {
   position: absolute;
@@ -231,7 +231,7 @@
   z-index: 1;
 }
 
-/* §34.69 selection export: the card checkbox rides the top corner, quiet
+/* Selection export: the card checkbox rides the top corner, quiet
    until checked; a checked card takes the same selected wash as the table
    rows. */
 .node-card__select {

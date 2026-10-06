@@ -1,5 +1,5 @@
 /**
- * DeckView — the presentation-mode slide renderer (§34.26 P3–P5).
+ * DeckView — the presentation-mode slide renderer.
  *
  * A read-only but LIVE projection of one page's subtree (modelling decision
  * 3: collapse/expansion inside a deck never mutates; links click through —
@@ -11,7 +11,7 @@
  * decks render exactly what PageView renders; the slide chrome (title /
  * section / intro, density sizing, trailing-image pull) is token-only CSS.
  *
- * The view hosts a full OutlinerContext (the §34.21 V12 read seam) because
+ * The view hosts a full OutlinerContext (the read seam) because
  * the token renderers consume it; navigation callbacks exit before opening,
  * so nothing inside a slide writes or navigates in place.
  */
@@ -81,8 +81,8 @@ function DeckImage({ client, assetId }: { client: DeckClient; assetId: string })
 function DeckBlock({ tree }: { tree: BlockTreeNode }) {
   const { client, rootId, openNode } = useOutliner();
   const node = tree.node;
-  // §34.34 B4: a table-classed block routes through the BlockRow grid even
-  // in the deck (the directive's "same BlockRow path") — the flat deck
+  // A table-classed block routes through the BlockRow grid even
+  // in the deck (the "same BlockRow path") — the flat deck
   // projection would otherwise flatten rows/cells into a plain list. The
   // seam narrows to the full client for BlockRow's prop surface (the
   // EmbedView precedent).
@@ -199,7 +199,7 @@ function DeckSlideView({
     const node = client.getNode(slide.nodeId);
     const icon = node !== undefined ? nodeIcon(node, client.classIcons()) : null;
     const color = node !== undefined ? client.effectiveNodeColor(node) : null;
-    // §34.75: the presented page's cover opens the deck (a hero above the
+    // The presented page's cover opens the deck (a hero above the
     // title) — covers are presentation imagery like any slide image.
     const coverAssetId = coverAssetIdOf(client, slide.nodeId);
     return (
@@ -240,7 +240,7 @@ function DeckSlideView({
   const titleColor =
     titleNode !== undefined ? client.effectiveNodeColor(titleNode) : null;
 
-  // §34.75: a section whose body carries no image of its own but has a
+  // A section whose body carries no image of its own but has a
   // cover property gets the cover in the right column (cover-split keeps
   // ALL body blocks in the text column — unlike split, nothing is dropped).
   const coverAssetId = titleNode !== undefined ? coverAssetIdOf(client, titleNode.id) : null;

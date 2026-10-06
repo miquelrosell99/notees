@@ -11,7 +11,7 @@
  * workspaces non-breaking. An explicit list may name ids that later become
  * ineligible; renderers intersect with current eligibility and stale ids
  * silently drop out (no scrubbing migration). Cross-device preference sync
- * is a separate product ruling (§34.29 #8 territory) — deliberately NOT
+ * is a separate product ruling (a future prefs-sync decision) — deliberately NOT
  * built here.
  */
 

@@ -1,6 +1,6 @@
 /**
- * taskCycle — the Cmd/Ctrl+Enter task-state toggle (v1 useTaskActions
- * parity): a Roam/Logseq-style three-state cycle
+ * taskCycle — the Cmd/Ctrl+Enter task-state toggle
+ * (useTaskActions parity): a Roam/Logseq-style three-state cycle
  *
  *   not a task  ->  task + Pending  ->  task + Done  ->  not a task
  *
@@ -119,7 +119,7 @@ export async function cycleTaskState(client: CycleClient, id: string): Promise<v
 
   if (statusLabel !== null && TASK_CLOSED_STATUSES.has(statusLabel)) {
     // task + a closed status (Done/Cancelled) -> not a task: unset the status
-    // at its row idx and drop the class (the v1 clearTask pair).
+    // at its row idx and drop the class (the clearTask pair).
     await client.unsetProperty(id, statusSchemaId, row?.idx ?? 0);
     await client.unassignClass(id, taskClassId);
     return;

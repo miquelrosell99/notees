@@ -1,5 +1,5 @@
 /**
- * Plugins settings tab tests (§34.59, jsdom): the Workspace Settings
+ * Plugins settings tab tests (jsdom): the Workspace Settings
  * Plugins tab lists the server's inert plugin registry (name, version,
  * capability summary, enable toggle), toggles and uninstalls through the
  * admin routes, and the "Install manifest" affordance validates pasted JSON
@@ -260,7 +260,7 @@ describe("Workspace Settings → Plugins tab", () => {
               error: {
                 code: "conflict",
                 message:
-                  'plugin "com.example.bibtex" is already installed at another version; versioned updates ship with the plugin runtime (parked, §34.33 AG7)',
+                  'plugin "com.example.bibtex" is already installed at another version; versioned updates ship with the plugin runtime (parked)',
                 status: 409,
               },
             },

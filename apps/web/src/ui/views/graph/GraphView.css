@@ -1,4 +1,4 @@
-/* GraphView — token-only chrome (§34.80). The canvases draw the graph
+/* GraphView — token-only chrome. The canvases draw the graph
    itself; everything here is the surrounding toolbar/tooltip chrome. */
 
 .nt-graph {

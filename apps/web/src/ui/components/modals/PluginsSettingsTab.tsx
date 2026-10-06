@@ -1,5 +1,5 @@
 /**
- * PluginsSettingsTab — the Workspace Settings → Plugins tab (§34.59).
+ * PluginsSettingsTab — the Workspace Settings → Plugins tab.
  *
  * Management surface over the server's inert plugin registry: lists
  * installed manifests (name, version, capability summary, enable toggle),
@@ -7,7 +7,7 @@
  * validation errors from the protocol's strict manifest schema (fail loud
  * before the network round trip).
  *
- * Honest about the parked runtime (plan §34.33 AG7): the toggle flips a bit
+ * Honest about the parked runtime: the toggle flips a bit
  * nothing reads yet, and installing stores a manifest nothing executes.
  */
 

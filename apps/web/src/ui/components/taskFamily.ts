@@ -1,7 +1,7 @@
 /**
- * Task family authoring — the §34.28 #2 fix. The six task property schemas
+ * Task family authoring — the designed fix. The six task property schemas
  * (fixed UUIDs + canonical options in @notees/domain seeds) exist as
- * constants + v1-migration mappings only: nothing in v2 authored them, so a
+ * constants + migration mappings only: nothing authored them, so a
  * fresh workspace's tasks hub silently dropped the Scheduled/Deadline
  * columns and no surface could schedule a task. The register's sanctioned
  * fix: author the six schemas idempotently on first tasks-hub open (and,
@@ -15,7 +15,7 @@
  * updatePropertySchema) and sync reads (listPropertySchemas /
  * getClassBindings), all RPC-mirrored.
  *
- * §34.89: the status/priority option ids are the deterministic
+ * The status/priority option ids are the deterministic
  * TASK_STATUS/PRIORITY_OPTION_UUIDS (the applier-side seed-ensure authors
  * the same fixed ids, so either seed path converges to identical rows), the
  * status options carry the designed circle icons + preset colors, and a
@@ -113,7 +113,7 @@ const TASK_FAMILY: Array<{
     type: "date",
   },
   {
-    // v1 migrated recurrence as a plain select (no engine executes it — §34.28 #6);
+    // The migration imported recurrence as a plain select (no engine executes it);
     // authored optionless until the recurrence spec lands.
     id: SYSTEM_PROPERTY_UUIDS.taskRecurrence,
     name: "Recurrence",
@@ -137,7 +137,7 @@ export function taskFamilyPresent(
 /**
  * Author the six task property schemas + task-class bindings when missing;
  * a no-op when present (idempotent — safe to call on every open). Also runs
- * the §34.89 status-restyle upgrade on every call (itself a no-op once the
+ * the status-restyle upgrade on every call (itself a no-op once the
  * stored options carry the designed icons/colors).
  *
  * The task class NODE is expected from the server seed; a workspace that
@@ -178,10 +178,10 @@ export async function ensureTaskFamily(client: TaskFamilyClient): Promise<void> 
       await client.setClassProperty(SYSTEM_CLASS_UUIDS.task, spec.id, { sequence: sequence++ });
     }
   }
-  // §34.89/§34.90 upgrade: restyle the status options with the designed
+  // Upgrade pass: restyle the status options with the designed
   // circle icons/colors (stored ids preserved — authored values reference
   // them) and move the value display to the property schema (render
-  // contracts are property-level since §34.90 — "bullet" = the status rides
+  // contracts are property-level — "bullet" = the status rides
   // the block bullet). ONE updatePropertySchema carries both keys when
   // either needs writing; runs on every call, a read-only no-op once
   // converged.

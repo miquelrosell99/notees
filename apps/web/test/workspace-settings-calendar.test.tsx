@@ -102,8 +102,8 @@ describe("WorkspaceSettingsModal calendar quick-create", () => {
     const client = await seedClient();
     await ensureTaskFamily(client);
     const schemaId = await client.createPropertySchema({ name: "When", type: "date" });
-    // A generic user class — "meeting" is system-class vocabulary since
-    // §34.36 (a user class with that title absorbs the seed family bindings).
+    // A generic user class — "meeting" is system-class vocabulary (a user
+    // class with that title absorbs the seed family bindings).
     const classId = await client.createClass("gathering");
     await client.setClassProperty(classId, schemaId, {});
 

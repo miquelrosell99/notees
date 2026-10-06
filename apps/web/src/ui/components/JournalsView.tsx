@@ -162,7 +162,7 @@ export function JournalsView({
   };
 
   /**
-   * §34.28 #7 — the journal header date bar: ±1 day over the deterministic
+   * The journal header date bar: ±1 day over the deterministic
    * date-node ids (ensure-chain is idempotent, so stepping into a day with
    * no page materializes it and opens it), anchored on the feed's anchor
    * entry; no pages at all falls back to today.

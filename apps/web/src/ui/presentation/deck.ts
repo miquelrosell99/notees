@@ -1,8 +1,8 @@
 /**
- * Deck builder — the pure slide model behind presentation mode (§34.26 P2).
+ * Deck builder — the pure slide model behind presentation mode.
  *
  * The note is the source: a presentation is a pure read of one page's
- * subtree, split into slides by a tree heuristic (decision D1: no slide-break
+ * subtree, split into slides by a tree heuristic (no slide-break
  * marker token — top-level children ARE the breaks):
  *
  *   - slide 0 is always the title slide (the page's own text content,

@@ -2,7 +2,7 @@
  * prose ⇄ contentAst — the plain-text editing projection of a block's token
  * stream (SCHEMA.md "Content grammar").
  *
- * The M1 editor edits BLOCK PROSE as plain text: the concatenation of the
+ * The editor edits BLOCK PROSE as plain text: the concatenation of the
  * `text` values of text / typed_link / mention tokens, with `hard_break`
  * projected to "\n" (its shift+Enter line jump) so the round trip is lossless
  * for plain blocks. Marks and non-prose tokens are read-only chrome in this

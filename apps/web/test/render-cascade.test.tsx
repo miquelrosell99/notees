@@ -103,7 +103,7 @@ describe("NodeView render cascade (Revision 11)", () => {
 
     // The class page is a PageView composition: class root, the extends
     // corner's class-only add affordance, and the Class properties row
-    // (renamed from "Property definitions" in the §34.65 class-page naming
+    // (renamed from "Property definitions" in the class-page naming
     // sweep — the class node has its own standard Properties section, the
     // definitions carry the distinct name).
     expect(screen.getByRole("button", { name: "Add class extension" })).not.toBeNull();
@@ -228,7 +228,7 @@ describe("NodeContextMenu zone gestures (Move to Pages / Move to content)", () =
     expect(calls).toEqual([{ id: "n4", fields: { presentAsMain: true } }]);
   });
 
-  it("Duplicate clones the subtree through the clone engine, provenance-free, after the source (§34.25 T4/B4)", async () => {
+  it("Duplicate clones the subtree through the clone engine, provenance-free, after the source", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Source" });
     await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "body" }] });

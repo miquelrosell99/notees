@@ -6,7 +6,7 @@
  *
  * Variants:
  * - image-like bytes: a preview image; click opens the ImageModal lightbox
- *   (the primitive library's modal; v1 AssetImage pattern).
+ *   (the primitive library's modal; the AssetImage pattern).
  * - anything else: a filename + size chip; click downloads the bytes.
  * - image whose bytes can't load (REST surface unconfigured, fetch failure):
  *   the chip remains as the honest fallback — it still names the file and

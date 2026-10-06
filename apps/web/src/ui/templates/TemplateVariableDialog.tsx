@@ -1,9 +1,9 @@
 /**
- * TemplateVariableDialog — §34.25 T4 apply-time variable editor (the v1 UX
- * split ported: editable static rows + readonly computed dynamic rows).
+ * TemplateVariableDialog — apply-time variable editor (editable
+ * static rows + readonly computed dynamic rows).
  * Shown at instantiation whenever the template carries `{{variables}}`;
  * every extracted name gets exactly one row, so an unfilled static variable
- * substitutes empty deliberately (never the v1 silent-empty hole).
+ * substitutes empty deliberately (never the silent-empty hole).
  */
 
 import { useEffect, useState } from "react";
@@ -55,7 +55,7 @@ export function TemplateVariableDialog({
   /**
    * Every extracted name lands in the map — untouched static inputs
    * substitute empty deliberately (the dialog presented the row; empty is a
-   * choice, never the v1 silent hole).
+   * choice, never the silent hole).
    */
   const confirm = () => {
     const values: Record<string, string> = { ...dynamicValues };

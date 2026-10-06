@@ -1,6 +1,6 @@
 /**
- * AssetUploadModal — the §34.19 :1174 row's upload surface (drag-drop,
- * preview, explicit progress state). The v2 baseline uploaded through the
+ * AssetUploadModal — the upload surface (drag-drop,
+ * preview, explicit progress state). The earlier baseline uploaded through the
  * property picker's hidden file input with a bare busy flag: no drop zone,
  * no preview, no visible progress. This modal closes the gap over the
  * FileDropZone primitive: pick or drop ONE file, see a category chip +

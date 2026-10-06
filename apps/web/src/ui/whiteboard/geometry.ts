@@ -1,6 +1,6 @@
 /**
  * Whiteboard geometry math — the pure, React-free half of the canvas
- * toolset (§34.19 whiteboard row): world-space bounds, marquee hit-testing,
+ * toolset: world-space bounds, marquee hit-testing,
  * grid snapping, and the alignment/distribution transforms. All functions
  * take and return plain data so the canvas and the tests exercise exactly
  * the same code the gestures run.

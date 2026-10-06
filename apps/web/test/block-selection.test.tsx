@@ -1,5 +1,5 @@
 /**
- * §34.19 block multi-selection — the standalone register rows:
+ * Block multi-selection — the standalone register rows:
  *
  * - shift+click extends a range from the anchor; Ctrl/Cmd+click toggles;
  *   drag-over rows ("arches") extends from the press anchor; the trailing
@@ -395,8 +395,8 @@ describe("ghost trailing block", () => {
     const pageId = await seedPage(client, ["only content"]);
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
-    // The page-root ghost is the trailing "+ Add block" row (v1 parity;
-    // §34.106: exactly one per page — blocks no longer trail their own).
+    // The page-root ghost is the trailing "+ Add block" row (parity:
+    // exactly one per page — blocks no longer trail their own).
     const ghost = container.querySelector<HTMLElement>(
       `[data-ghost="__ghost-${pageId}"]`,
     )?.querySelector<HTMLButtonElement>("button");

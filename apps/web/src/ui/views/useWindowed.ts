@@ -1,5 +1,5 @@
 /**
- * useWindowed — the §34.70 pagination convention's engine: a session-local
+ * useWindowed — the pagination windowing engine: a session-local
  * display window over a list that can grow unbounded. The window is a
  * DISPLAY concern only — the input list stays whole, exports and counts read
  * it directly, and the window never drops data silently: `remaining` names
