@@ -47,4 +47,28 @@ await page.waitForTimeout(1200);
 await page.screenshot({ path: "/tmp/v-collapsed.jpg", type: "jpeg", quality: 85 });
 console.log("collapsed topbar buttons:", await page.evaluate(() =>
   [...document.querySelectorAll(".nt-topbar-left button")].map((b) => b.getAttribute("aria-label")).join(" | ")));
+
+const chain = await page.evaluate(() => {
+  const q = (sel) => {
+    const el = document.querySelector(sel);
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { h: Math.round(r.height), top: Math.round(r.top) };
+  };
+  return {
+    card: q(".nt-page-card"),
+    nodeView: q(".nt-node-view"),
+    page: q(".nt-page--panelled"),
+    body: q(".nt-page-body"),
+    content: q(".nt-page--panelled .nt-page-content"),
+    topbar: q(".nt-node-topbar"),
+    middle: q(".nt-nodeview-body"),
+    footer: q(".nt-page--panelled .nt-page-footer"),
+    sidebar: q(".nt-page-side-panel"),
+    cardScrollH: document.querySelector(".nt-page-card").scrollHeight,
+    cardClientH: document.querySelector(".nt-page-card").clientHeight,
+  };
+});
+console.log("chain:", JSON.stringify(chain));
+
 await browser.close();
