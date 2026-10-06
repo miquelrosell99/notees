@@ -38,8 +38,8 @@ await bulba.click();
 await page.waitForTimeout(6000);
 await page.screenshot({ path: "/tmp/v-page.jpg", type: "jpeg", quality: 85 });
 console.log("panel:", await page.evaluate(() => document.querySelector(".nt-page-side-panel") !== null));
-console.log("topbar classes:", await page.evaluate(() => document.querySelector(".nt-page-topbar") !== null));
-console.log("corner switcher:", await page.evaluate(() => document.querySelector(".nt-node-view__corner .view-toolbar") !== null));
+console.log("node topbar:", await page.evaluate(() => document.querySelector(".nt-node-topbar") !== null));
+console.log("topbar switcher:", await page.evaluate(() => document.querySelector(".nt-node-topbar__right .view-toolbar") !== null));
 
 // 3. Collapse the sidebar → top bar selector + New/Search buttons.
 await page.getByRole("button", { name: /hide sidebar/i }).click();
