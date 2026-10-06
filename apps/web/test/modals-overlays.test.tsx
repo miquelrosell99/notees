@@ -1035,7 +1035,8 @@ describe("BackendUnavailableOverlay", () => {
 
     const lock = screen.getByLabelText(/backend is unavailable/i);
     expect(lock).toHaveClass("backend-unavailable-overlay");
-    expect(within(lock).getByText(/unlock automatically/i)).toBeInTheDocument();
+    expect(within(lock).getByText(/no longer safe/i)).toBeInTheDocument();
+    expect(within(lock).getByRole("button", { name: /continue anyway/i })).toBeInTheDocument();
 
     // Recovery clears the lock again.
     rerender(<BackendUnavailableOverlay syncStatus={OK_STATUS} />);
