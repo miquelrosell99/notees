@@ -1443,29 +1443,6 @@ select:focus-visible {
   gap: 6px;
 }
 
-.nt-query-field {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--color-on-surface-variant);
-}
-
-.nt-query-field > span {
-  width: 96px;
-  flex-shrink: 0;
-}
-
-.nt-query-field select,
-.nt-query-field input {
-  flex: 1;
-  min-width: 0;
-  border: 1px solid var(--color-outline-variant);
-  border-radius: 4px;
-  padding: 2px 6px;
-  font-size: 12px;
-}
-
 .nt-query-builder-actions {
   display: flex;
   gap: 6px;
