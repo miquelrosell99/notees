@@ -144,4 +144,67 @@ describe("TitleEditor", () => {
     const { container } = renderTitle(client, pageId);
     expect(container.querySelector("h1")!.textContent).toBe("27-06-2029");
   });
+
+  /**
+   * The date-page branch is a render-time conditional, so the hook count must
+   * not depend on it: a title whose text merely parses as a compact date
+   * label renders static until its content stops parsing as one (and vice
+   * versa). Same component instance, new page — pre-fix this re-render
+   * crashed the tree with React #310 ("Rendered more hooks than during the
+   * previous render") and unmounted the app.
+   */
+  it("survives the date-shaped → ordinary title transition on the same instance", async () => {
+    localStorage.setItem("notees.settings.dateFormat", JSON.stringify("YYYY-MM-DD"));
+    const client = await makeClient();
+    const pageId = await client.createObject({
+      presentAsMain: true,
+      contentAst: [{ type: "text", text: "20261006" }],
+    });
+    const ctx = { client } as unknown as OutlinerContextValue;
+    const view = render(
+      <OutlinerContext.Provider value={ctx}>
+        <TitleEditor page={client.getNode(pageId)!} />
+      </OutlinerContext.Provider>,
+    );
+    // The date-shaped title renders as the static date title.
+    expect(view.container.querySelector("h1")!.getAttribute("contenteditable")).toBeNull();
+    await client.updateObject(pageId, {
+      contentAst: [{ type: "text", text: "Quarterly plan" }],
+    });
+    view.rerender(
+      <OutlinerContext.Provider value={ctx}>
+        <TitleEditor page={client.getNode(pageId)!} />
+      </OutlinerContext.Provider>,
+    );
+    const heading = view.container.querySelector("h1")!;
+    expect(heading.getAttribute("contenteditable")).not.toBeNull();
+    expect(heading.textContent).toBe("Quarterly plan");
+  });
+
+  it("survives the ordinary → date-shaped title transition on the same instance", async () => {
+    localStorage.setItem("notees.settings.dateFormat", JSON.stringify("YYYY/MM/DD"));
+    const client = await makeClient();
+    const pageId = await client.createObject({
+      presentAsMain: true,
+      contentAst: [{ type: "text", text: "Quarterly plan" }],
+    });
+    const ctx = { client } as unknown as OutlinerContextValue;
+    const view = render(
+      <OutlinerContext.Provider value={ctx}>
+        <TitleEditor page={client.getNode(pageId)!} />
+      </OutlinerContext.Provider>,
+    );
+    expect(view.container.querySelector("h1")!.getAttribute("contenteditable")).not.toBeNull();
+    await client.updateObject(pageId, {
+      contentAst: [{ type: "text", text: "20261006" }],
+    });
+    view.rerender(
+      <OutlinerContext.Provider value={ctx}>
+        <TitleEditor page={client.getNode(pageId)!} />
+      </OutlinerContext.Provider>,
+    );
+    const heading = view.container.querySelector("h1")!;
+    expect(heading.getAttribute("contenteditable")).toBeNull();
+    expect(heading.textContent).toBe("2026/10/06");
+  });
 });

@@ -44,6 +44,29 @@ export function TitleEditor({ page }: { page: ClientNode }) {
   /** Last value WE wrote — guards the Enter→blur double commit. */
   const committedRef = useRef(titleTextOf(page));
 
+  // These effects MUST stay above the date-page early return: that branch
+  // can flip between renders (a title that merely LOOKS like a compact date
+  // label renders static until its text stops parsing as one — typing
+  // "20261006" then adding anything flips it), and hooks after the return
+  // crashed the whole tree with React #310. Both effects no-op while the
+  // static branch renders (headingRef unattached).
+  useEffect(() => {
+    const el = headingRef.current;
+    if (el === null) return;
+    el.textContent = titleTextOf(page);
+    draftRef.current = titleTextOf(page);
+    committedRef.current = titleTextOf(page);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page.id]);
+
+  useEffect(() => {
+    const el = headingRef.current;
+    if (el === null || document.activeElement === el) return;
+    const shown = titleTextOf(page);
+    if (el.textContent !== shown) el.textContent = shown;
+    committedRef.current = titleTextOf(page);
+  }, [page]);
+
   // A date page's title IS its date: display it in the user's dateFormat and
   // don't offer renaming (the compact content label must stay canonical for
   // sorting and date lookups). Identity comes from the deterministic date
@@ -103,23 +126,6 @@ export function TitleEditor({ page }: { page: ClientNode }) {
     placeCaret(el, caret + name.length);
     notificationStore.success("Node link pasted", name);
   };
-
-  useEffect(() => {
-    const el = headingRef.current;
-    if (el === null) return;
-    el.textContent = titleTextOf(page);
-    draftRef.current = titleTextOf(page);
-    committedRef.current = titleTextOf(page);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page.id]);
-
-  useEffect(() => {
-    const el = headingRef.current;
-    if (el === null || document.activeElement === el) return;
-    const shown = titleTextOf(page);
-    if (el.textContent !== shown) el.textContent = shown;
-    committedRef.current = titleTextOf(page);
-  }, [page]);
 
   return (
     <h1
