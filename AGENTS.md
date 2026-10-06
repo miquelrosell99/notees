@@ -4,6 +4,32 @@ Notees — a self-hosted, privacy-first, local-first **personal information envi
 
 This repo is the v2 rewrite promoted to root (2026-09-28). The v1 Python+React codebase is removed; it remains reachable at git tag **`v1-archive`** (runtime data archived outside the repo at `/etc/periphery/stacks/notees-v1-data-archive/`).
 
+## Skills (mandatory)
+
+```
+AGENTS.md
+    │
+    ├── notees-development   (project skill — .agents/skills/notees-development/)
+    │      ├── architecture          → references/architecture.md
+    │      ├── coding conventions    → references/coding-conventions.md
+    │      └── development workflow  → references/development-workflow.md
+    │
+    └── notees-operations    (project skill — .agents/skills/notees-operations/)
+           ├── deployment             → references/deployment.md
+           ├── health checks          → references/health-checks.md
+           ├── logs                   → references/logs.md
+           ├── rollback               → references/rollback.md
+           ├── database migrations    → references/database-migrations.md
+           ├── backups                → references/backups.md
+           ├── monitoring             → references/monitoring.md
+           ├── incident response      → references/incident-response.md
+           └── maintenance            → references/maintenance.md
+```
+
+- **Any code, model, wire, applier, fixture, sync, or UI change → invoke the `notees-development` skill first** and follow its laws (fixture gate + GTK/Flutter lockstep, dev-condition exports, plan-as-record, docs-part-of-change, designed-not-built register).
+- **Any operations task — deploy, health check, logs, rollback, database migration, backup, monitoring, incident response, maintenance → invoke the `notees-operations` skill first.** Deployment and rollback discipline additionally follows the **`deployment-runbook`** skill (pre-deploy checklist, health checks, rollback triggers, postmortem) — if it is not installed in the current environment, fetch and follow it from GitHub: <https://github.com/majiayu000/claude-skill-registry/blob/main/skills/data/deployment-runbook/SKILL.md>
+- The skills summarize and enforce; their references point at the canonical `docs/developers/` runbooks (person-facing, written for people **and** agent sessions). Content is referenced, not duplicated — update skill + runbook in the same pass; on disagreement the runbook wins until the skill is corrected.
+
 ## Layout
 
 - `packages/protocol` — op wire spec, envelopes, fixtures (the convergence gate corpus), `SCHEMA.md` (the normative model)
@@ -16,7 +42,7 @@ This repo is the v2 rewrite promoted to root (2026-09-28). The v1 Python+React c
 - `apps/web` — React/Vite outliner editor + worker (`notees-web` image); carries the session-local op-inverse **undo journal** (§34.64, `src/core/undo-journal.ts` — client convenience only, inverses compose existing ops, per-tab)
 - `apps/cli` — MOVED 2026-10-05: lives in its own repo (`notees-cli`, sibling to the GTK/Flutter clients, consuming the packages via a pinned `vendor/notees` submodule — §34.82)
 - `docs/` — **person-facing only**: `usage.md`, `ux.md`, `philosophy.md` + the `developers/` runbooks (indexed by `docs/developers/README.md`). **Internal notes never go in `docs/`; user docs never go in dot-folders.**
-- `.plans/` — the implementation plan + decision record §34 (the ongoing work record) + `design/` (historical entries saying `.plans/dev/…` read `docs/developers/…` since the 2026-10-05 move) · `.audits/` — internal audit reports · `.agents/` — internal agent reference docs (parked decisions, …)
+- `.plans/` — the implementation plan + decision record §34 (the ongoing work record) + `design/` (historical entries saying `.plans/dev/…` read `docs/developers/…` since the 2026-10-05 move) · `.audits/` — internal audit reports · `.agents/` — internal agent reference: `parked-decisions.md` + the **project skills** (`skills/notees-development`, `skills/notees-operations` — Kimi Code auto-discovers project skills from `.agents/skills/`, Project scope)
 
 Full file map: `docs/developers/architecture.md` §10 · normative model & wire: `packages/protocol/SCHEMA.md` (and `WIRE.md`) · design docs: `.plans/design/`.
 
@@ -24,7 +50,7 @@ Full file map: `docs/developers/architecture.md` §10 · normative model & wire:
 
 - Install: `pnpm install` · Build: `pnpm -r --workspace-concurrency=1 build` · Test: `pnpm test` (all green = blocking gate). Full command table, the fixture gate, and the add-an-op recipe: `docs/developers/development.md`.
 - **Dev-condition exports**: vitest reads `src`, `tsc` reads `dist` — after changing a package's public API, rebuild its dist before typechecking dependents.
-- Deploy: plain Docker, build + `docker compose up -d` from the repo root (web :8378, sync :8377; data under `./config/notees/`), then the `verify-min.mjs` smoke. Full runbook, ghcr/CI publish path, and the client lockstep law: `docs/developers/releases.md` + `deployment.md`.
+- Deploy: plain Docker, build + `docker compose up -d` from the repo root (web :8378, sync :8377; data under `./config/notees/`), then the `verify-min.mjs` smoke — **invoke the `notees-operations` skill first** (plus `deployment-runbook` for the deploy/rollback discipline). Full runbook, ghcr/CI publish path, and the client lockstep law: `docs/developers/releases.md` + `deployment.md`.
 
 ## Invariants (design law — read the linked homes before changing the model, wire, or appliers)
 
