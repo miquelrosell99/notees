@@ -607,6 +607,15 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     // Status asc: Backlog (Alpha), Doing (Beta); empty sinks last (Gamma).
     expect(rowNames()).toEqual(["Alpha", "Beta", "Gamma"]);
 
+    // The v1 header register (M39): every sorted column wears its direction
+    // arrow and a multi-sort shows the priority index badges.
+    expect(document.querySelectorAll(".nt-table-sort--active")).toHaveLength(2);
+    expect(
+      [...document.querySelectorAll(".nt-table-sort-index")]
+        .map((el) => el.textContent)
+        .sort(),
+    ).toEqual(["1", "2"]);
+
     // Toggle Status to desc: Doing first.
     fireEvent.click(screen.getByRole("button", { name: "Status: ascending — toggle" }));
     expect(rowNames()).toEqual(["Beta", "Alpha", "Gamma"]);
@@ -614,6 +623,9 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     // Remove the Status entry: single Name sort remains.
     fireEvent.click(screen.getByRole("button", { name: "Remove Status sort" }));
     expect(rowNames()).toEqual(["Alpha", "Beta", "Gamma"]);
+    // Single sort: the arrow stays, the index badge is gone.
+    expect(document.querySelectorAll(".nt-table-sort--active")).toHaveLength(1);
+    expect(document.querySelector(".nt-table-sort-index")).toBeNull();
   });
 
   it("column selector hides defaults and adds property columns", async () => {

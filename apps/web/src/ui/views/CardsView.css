@@ -1,54 +1,107 @@
-/* CardsView — the card grid and the card chrome (token-only). */
+/**
+ * CardsView — the card grid and the card chrome (token-only).
+ *
+ * M39 — the v1 card look recovery. v1's card mode ("looks great", owner)
+ * registered: an adaptive CSS-columns masonry on a RAISED container panel
+ * (surface-container-high mat, spacing-4 padding, shape-large radius);
+ * surface-level cards with a subtle-but-visible blended border
+ * (outline at 50% over outline-variant), the 20px --shape-card radius, and
+ * ZERO elevation shadow (the design-system mandate — v1's Card elevation
+ * was deliberately "none"); row-based padding (the card itself unpadded —
+ * v1's Card ran padding=false and each row carried spacing-2 spacing-3)
+ * with no interior dividers; the hover-reveal select checkbox riding the
+ * top corner on a surface chip; and the selected wash = surface-container-high
+ * + the primary focus ring. The cover is a matted slot (surface-container-high
+ * background, spacing-2 inset — the image never bleeds to the card edge).
+ * v2 machinery is untouched: useWindowed paging, selection export, the
+ * CoverLayoutToggle, useLazyInView covers (§34.75 — the 16:9 cover slot
+ * stays so the pending placeholder keeps its size before bytes arrive),
+ * content-visibility skipping, and NodeCard shared with the kanban.
+ */
+
+/* ─── The grid — v1's adaptive masonry on a raised panel ─────────── */
 
 .cards-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: var(--spacing-3, 12px);
+  /* v1: column count derives from available space and the card min width —
+     no fixed column counts. */
+  column-width: var(--layout-size-6xl);
+  column-gap: var(--spacing-4);
+  /* v1: the ungrouped grid rides on a raised container panel so the
+     surface-level cards read against the page surface. */
+  background: var(--color-surface-container-high);
+  padding: var(--spacing-4);
+  border-radius: var(--shape-large);
+  width: 100%;
+  box-sizing: border-box;
 }
 
-/* The window affordance spans the grid's full row (a grid item otherwise). */
-.cards-grid > .nt-window-more {
-  grid-column: 1 / -1;
+/* v1: horizontal-cover cards are wider per column. */
+.cards-grid:has(.node-card--cover-left, .node-card--cover-right) {
+  column-width: min(var(--layout-size-9xl), 100%);
 }
+
+/* The §34.70 affordance spans every column (a masonry item otherwise). */
+.cards-grid > .nt-window-more {
+  column-span: all;
+}
+
+/* ─── The card — v1's chrome ─────────────────────────────────────── */
 
 .node-card {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2, 8px);
   min-width: 0;
-  padding: var(--spacing-3, 12px);
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant, currentColor);
-  border-radius: var(--radius-md, 10px);
-  background: var(--color-surface-container-low, transparent);
-  /* Lazy rendering: off-screen cards skip layout/paint entirely;
+  /* v1 Card padding=false: rows pad themselves; the masonry must not split
+     a card across columns. */
+  padding: 0;
+  gap: 0;
+  break-inside: avoid;
+  /* v1: "visible border in card view — the container background matches
+     outline-variant, so blend outline and outline-variant for a subtle but
+     visible edge." */
+  border: var(--border-width-default) solid color-mix(in srgb, var(--color-outline) 50%, var(--color-outline-variant));
+  border-radius: var(--shape-card);
+  background: var(--color-surface);
+  /* §34.75 lazy rendering: off-screen cards skip layout/paint entirely;
      the intrinsic size keeps the scrollbar stable while skipped. */
   content-visibility: auto;
   contain-intrinsic-size: auto 180px;
 }
 
+/* v1: clip (not hidden) so the cover image inside doesn't create a BFC
+   that constrains its sizing. */
+.node-card--cover-top,
+.node-card--cover-left,
+.node-card--cover-right {
+  overflow: clip;
+}
+
 .node-card__content {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2, 8px);
   min-width: 0;
   flex: 1 1 auto;
 }
 
-/* Cover layouts (the four placements). */
+/* ─── Cover — the matted slot ────────────────────────────────────── */
+
 .node-card__cover {
-  border-radius: var(--radius-sm, 6px);
-  object-fit: cover;
-  background: var(--color-surface-container, rgba(0, 0, 0, 0.04));
+  position: relative;
+  box-sizing: border-box;
+  /* v1: the cover is a mat — the image floats on a surface-container-high
+     slot inset by spacing-2, never bleeding to the card edge. */
+  padding: var(--spacing-2);
+  background: var(--color-surface-container-high);
 }
 
-/* The lazy placeholder: same slot, no bytes, a quiet pulse
+/* §34.75 — the lazy placeholder: same slot, no bytes, a quiet pulse
    until the viewport nears and the real fetch starts. */
 .node-card__cover--pending {
   background:
     linear-gradient(
-      var(--color-surface-container-highest, rgba(128, 128, 128, 0.18)),
-      var(--color-surface-container, rgba(128, 128, 128, 0.08))
+      var(--color-surface-container-highest),
+      var(--color-surface-container)
     );
   animation: node-card-cover-pulse 1.6s ease-in-out infinite;
 }
@@ -71,19 +124,18 @@
 }
 
 /* The loaded cover is a button (click → the ImageModal lightbox); the
-   button chrome resets and the img fills the layout slot. */
+   button chrome resets and the img fills the mat slot. */
 .node-card__cover--button {
   display: block;
-  padding: 0;
+  padding: var(--spacing-2);
   border: none;
-  background: none;
   cursor: zoom-in;
   overflow: hidden;
 }
 
 .node-card__cover--button:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-primary, currentColor);
-  outline-offset: var(--spacing-1, 2px);
+  outline: var(--border-width-thick) solid var(--color-primary);
+  outline-offset: calc(var(--spacing-micro) * -1);
 }
 
 .node-card__cover--button img {
@@ -91,14 +143,19 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: inherit;
 }
 
+/* v1: the top cover keeps the image's slot at a stable ratio (v2 keeps the
+   16/9 so the §34.75 pending placeholder holds its size before bytes). */
 .node-card--cover-top .node-card__cover {
   width: 100%;
   aspect-ratio: 16 / 9;
 }
 
+/* v1's horizontal covers: a bounded column (the wide-card grid above gives
+   it room), a minimum height, and a hairline divider on the inner edge
+   (v1 drew the divider on the metadata rows — the full-height cover edge
+   reads the same and never gaps). */
 .node-card--cover-left,
 .node-card--cover-right {
   flex-direction: row;
@@ -107,28 +164,42 @@
 
 .node-card--cover-left .node-card__cover,
 .node-card--cover-right .node-card__cover {
-  width: 96px;
-  min-height: 96px;
-  flex: 0 0 96px;
+  flex: 0 0 clamp(var(--layout-size-xl), 38%, var(--layout-size-2xl));
+  min-height: var(--layout-size-2xl);
+}
+
+.node-card--cover-left .node-card__cover {
+  border-right: var(--border-width-default) solid var(--color-outline-variant);
+}
+
+.node-card--cover-right .node-card__cover {
+  border-left: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .node-card--cover-right {
   flex-direction: row-reverse;
 }
 
+/* ─── Toolbar ────────────────────────────────────────────────────── */
+
 .cards-toolbar {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: var(--spacing-2, 8px);
+  margin-bottom: var(--spacing-2);
 }
 
+/* ─── Tree cards — title + body rows (the v1 header/body register) ── */
+
+/* v1 header padding: spacing-2 spacing-3, typography carries the hierarchy
+   — no background tint, no divider. */
 .node-card__title {
   border: none;
   background: none;
-  padding: 0;
+  padding: var(--spacing-2) var(--spacing-3);
   color: var(--color-on-surface);
-  font-size: var(--font-size-md, 0.95rem);
+  font-size: var(--font-size-body-lg);
   font-weight: 600;
+  line-height: 1.4;
   text-align: left;
   cursor: pointer;
   overflow: hidden;
@@ -138,42 +209,49 @@
 }
 
 .node-card__title:hover {
-  color: var(--color-primary, currentColor);
+  color: var(--color-primary);
 }
 
 .node-card__untitled {
-  color: var(--color-on-surface-variant, currentColor);
+  color: var(--color-on-surface-variant);
   font-weight: 400;
   font-style: italic;
 }
 
+/* v1 body: padded rows, NO divider — the border-top was a v2 invention. */
 .node-card__body {
-  border-top: var(--border-width-default, 1px) solid var(--color-outline-variant, currentColor);
-  padding-top: var(--spacing-2, 8px);
-  font-size: var(--font-size-sm, 0.85rem);
+  padding: var(--spacing-2) var(--spacing-3) var(--spacing-3);
+  font-size: var(--font-size-sm);
+  min-width: 0;
+  overflow: hidden;
 }
+
+/* ─── Flat card head — the v1 header register ────────────────────── */
 
 .node-card__head {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2, 8px);
+  gap: var(--spacing-2);
   min-width: 0;
   border: none;
   background: none;
-  padding: 0;
+  padding: var(--spacing-2) var(--spacing-3);
   color: var(--color-on-surface);
-  font-size: var(--font-size-md, 0.95rem);
+  /* v1 card title: font-weight 600, body-lg, 1.4 line height. */
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+  line-height: 1.4;
   text-align: left;
   cursor: pointer;
 }
 
 .node-card__head:hover .node-card__label {
-  color: var(--color-primary, currentColor);
+  color: var(--color-primary);
 }
 
 .node-card__icon {
   flex-shrink: 0;
-  color: var(--color-on-surface-variant, currentColor);
+  color: var(--color-on-surface-variant);
   display: inline-flex;
 }
 
@@ -187,27 +265,33 @@
 
 .node-card__type {
   flex-shrink: 0;
-  font-size: var(--font-size-xs, 0.75rem);
-  color: var(--color-on-surface-variant, currentColor);
+  font-size: var(--font-size-xs);
+  font-weight: 400;
+  color: var(--color-on-surface-variant);
 }
+
+/* ─── Property rows — the v1 two-column register ─────────────────── */
 
 .node-card__properties {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-1, 4px);
   margin: 0;
-  font-size: var(--font-size-sm, 0.85rem);
+  padding: 0 var(--spacing-3) var(--spacing-2);
+  font-size: var(--font-size-base);
 }
 
 .node-card__property {
   display: flex;
-  gap: var(--spacing-2, 8px);
+  align-items: center;
+  gap: var(--spacing-2);
   min-width: 0;
+  /* v1 property-row: min-height spacing-9, label/value centered. */
+  min-height: var(--spacing-9);
 }
 
 .node-card__property dt {
   flex: 0 0 40%;
-  color: var(--color-on-surface-variant, currentColor);
+  color: var(--color-on-surface-variant);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -222,40 +306,44 @@
   white-space: nowrap;
 }
 
-/* Cover assets wear a "Cover" badge, top-right of the card.
-   The badge DERIVES from the cover property (no cover class). */
+/* ─── Cover badge (§34.74) — v1's cover bullet rode the TOP-LEFT corner
+   (the modal-open bullet), leaving the top-right for the select checkbox. */
 .node-card__cover-badge {
   position: absolute;
-  top: var(--spacing-2, 8px);
-  right: var(--spacing-2, 8px);
-  z-index: 1;
+  top: var(--spacing-2);
+  left: var(--spacing-2);
+  z-index: var(--z-10);
 }
 
-/* Selection export: the card checkbox rides the top corner, quiet
-   until checked; a checked card takes the same selected wash as the table
-   rows. */
+/* ─── Selection (§34.69) — v1's hover-reveal corner checkbox ─────── */
+
 .node-card__select {
   position: absolute;
-  top: var(--spacing-2, 8px);
-  right: var(--spacing-2, 8px);
-  z-index: 1;
+  top: var(--spacing-2);
+  right: var(--spacing-2);
+  z-index: var(--z-10);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 2px;
-  border-radius: var(--shape-small, 6px);
-  background: var(--color-surface-container-high, var(--color-surface));
+  padding: var(--spacing-micro);
+  border-radius: var(--shape-small);
+  background: var(--color-surface);
   opacity: 0;
-  transition: opacity var(--motion-duration-short, 120ms) var(--motion-easing-standard, ease);
+  pointer-events: none;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .node-card:hover .node-card__select,
 .node-card:focus-within .node-card__select,
+.node-card__select:focus-within,
 .node-card--selected .node-card__select {
   opacity: 1;
+  pointer-events: auto;
 }
 
+/* v1 selected wash: the surface-container-high background + the primary
+   focus ring — not the primary-container fill. */
 .node-card--selected {
-  border-color: var(--color-primary);
-  background: var(--color-primary-container, var(--color-surface-container-low));
+  background: var(--color-surface-container-high);
+  box-shadow: var(--shadow-focus-ring-primary);
 }

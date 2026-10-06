@@ -9,7 +9,7 @@
  * - FLAT (tasks/assets/…): one card per node — icon + title + type + the
  *   cardProperties row (resolved per node through propertiesOf).
  *
- * The top-level card set is windowed in both shapes (the shared
+ * §34.70: the top-level card set is windowed in both shapes (the shared
  * useWindowed + ShowMoreButton convention) — the grid renders the loaded
  * window and names the remaining count at its end.
  */
@@ -53,7 +53,7 @@ function TreeCards({ items, props }: { items: NodeCollectionItem[]; props: NodeC
     if (event.shiftKey) onNodeShiftClick?.(item.node.id);
     else onNodeClick?.(item.node.id);
   };
-  // The top-level card set is the windowed collection (a card's own
+  // §34.70: the top-level card set is the windowed collection (a card's own
   // children render whole inside it — they are the block's page, not the set).
   const { visible, remaining, showMore } = useWindowed(items, {
     enabled: props.windowed ?? true,
@@ -93,11 +93,16 @@ function TreeCards({ items, props }: { items: NodeCollectionItem[]; props: NodeC
 }
 
 /**
- * The card cover image: the LIST renders instantly — every card
- * shows its imagery placeholder; the expensive fetch (full bytes → data
- * URL → decode) starts only when the card nears the viewport
- * (useLazyInView), and the loaded image clicks open into the ImageModal
- * lightbox (the AssetImage pattern: download + fullscreen + Esc).
+ * The card cover image (§34.75): the LIST renders instantly — every card
+ * under a cover layout shows its imagery placeholder; the expensive fetch
+ * (full bytes → data URL → decode) starts only when the card nears the
+ * viewport (useLazyInView), and the loaded image clicks open into the
+ * ImageModal lightbox (the v1 AssetImage pattern: download + fullscreen +
+ * Esc).
+ *
+ * The layout prop is the gate, not a cosmetic switch: "no-cover" renders
+ * nothing AND skips the lazy fetch (no placeholder, no observation, no
+ * bytes) — the card is text-only, as the CoverLayoutToggle advertises.
  */
 function CardCover({ item, props, layout }: { item: NodeCollectionItem; props: NodeCollectionProps; layout: CardLayout }) {
   const client = props.client;
@@ -105,20 +110,21 @@ function CardCover({ item, props, layout }: { item: NodeCollectionItem; props: N
   const [sentinelRef, inView] = useLazyInView<HTMLElement>();
   const [url, setUrl] = useState<string | null>(null);
   const [zoomOpen, setZoomOpen] = useState(false);
+  const coverEnabled = layout !== "no-cover";
 
   useEffect(() => {
     let cancelled = false;
     setUrl(null);
-    if (!inView || assetId === null) return;
+    if (!coverEnabled || !inView || assetId === null) return;
     void assetImageUrl(client, assetId).then((resolved) => {
       if (!cancelled) setUrl(resolved);
     });
     return () => {
       cancelled = true;
     };
-  }, [inView, assetId, client]);
+  }, [coverEnabled, inView, assetId, client]);
 
-  if (assetId === null) return null;
+  if (!coverEnabled || assetId === null) return null;
   if (url === null) {
     // Placeholder keeps the layout slot (same class family, no bytes yet).
     return (
@@ -169,7 +175,7 @@ export function NodeCard({
   props: NodeCollectionProps;
   coverLayout?: CardLayout;
   /**
-   * Selection export: when present, a checkbox rides the card's top
+   * §34.69 selection export: when present, a checkbox rides the card's top
    * corner and the card highlights while checked. Absent = no selection
    * chrome (tree cards, surfaces that opt out).
    */
@@ -244,7 +250,7 @@ const COVER_LAYOUT_OPTIONS: Array<{ value: CardLayout; icon: string; label: stri
   { value: "cover-top", icon: "mdi-dock-top", label: "Cover top" },
 ];
 
-/** The cover-layout picker (the four placements); the choice persists per device. */
+/** The cover-layout picker (the four v1 layouts); the choice persists per device. */
 export function CoverLayoutToggle({ value, onChange }: { value: CardLayout; onChange: (layout: CardLayout) => void }) {
   return (
     <SelectionButton
@@ -273,7 +279,7 @@ function FlatCards({
   onCoverLayout: (layout: CardLayout) => void;
   selection: ReturnType<typeof useViewSelection>;
 }) {
-  // The card set is windowed; selection rides the loaded cards
+  // §34.70: the card set is windowed; selection rides the loaded cards
   // (exports scope to the picked ids, never to the window).
   const { visible, remaining, showMore } = useWindowed(items, {
     enabled: props.windowed ?? true,
@@ -310,10 +316,10 @@ function FlatCards({
 
 export function CardsView(props: NodeCollectionProps) {
   const { items = [], tree = undefined } = props;
-  // The cover layout persists device-locally — one preference
+  // The cover layout persists device-locally (§34.27 L1) — one preference
   // per device shared by every cards/kanban surface; never an op.
   const [coverLayout, setCoverLayout] = useCardLayoutPreference("no-cover");
-  // Selection export — flat collections only (tree cards are block
+  // §34.69 selection export — flat collections only (tree cards are block
   // contexts, not a node-set export surface).
   const selection = useViewSelection();
   if (items.length === 0) return null;
