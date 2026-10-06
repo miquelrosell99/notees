@@ -1,11 +1,16 @@
 /**
- * AssetUploadModal tests: the drop zone accepts a picked
- * file, the preview row shows name + size + category chip (image/audio/
- * document), the upload runs the CAS path (uploadAsset → asset node →
- * attachAsset) with an explicit progress state, the caller receives the
- * asset node id, and a failure keeps the file selected with a retryable
- * error. Success path uses a stubbed uploadAsset (the REST POST is outside
- * the suite's scope; the workspace-client's own tests cover the transport).
+ * AssetUploadModal tests (§34.19 :1174 + M33's v1 parity): the drop zone
+ * accepts a picked file, the preview row shows name + size + category chip
+ * (image/audio/document), the upload runs the CAS path (uploadAsset → asset
+ * node → attachAsset) with an explicit progress state, the caller receives
+ * the asset node id, and a failure keeps the file selected with a retryable
+ * error. The M33 additions: the modal-internal paste capture
+ * (clipboardData.items) selects a pasted file, `initialFile` prefills
+ * through the same validation, `acceptedTypes` narrows the accept list and
+ * rejects other categories with the v1 wording, and the v1 size caps reject
+ * oversized files before the upload starts. Success path uses a stubbed
+ * uploadAsset (the REST POST is outside the suite's scope; the
+ * workspace-client's own tests cover the transport).
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -62,6 +67,31 @@ function pickFile(file: File): void {
   const input = document.querySelector<HTMLInputElement>('input[type="file"]');
   if (input === null) throw new Error("file input missing");
   fireEvent.change(input, { target: { files: [file] } });
+}
+
+/** A File whose size is faked without allocating the bytes. */
+function sizedFile(name: string, type: string, size: number): File {
+  const file = new File(["x"], name, { type });
+  Object.defineProperty(file, "size", { value: size });
+  return file;
+}
+
+/** A minimal clipboardData.items stand-in for the paste capture. */
+function pasteData(...files: File[]): { clipboardData: { items: Array<{ kind: string; type: string; getAsFile(): File | null }> } } {
+  return {
+    clipboardData: {
+      items: files.map((file) => ({ kind: "file", type: file.type, getAsFile: () => file })),
+    },
+  };
+}
+
+/** Dispatch a native paste on document with a synthetic clipboardData
+ *  (jsdom's ClipboardEvent has no setter for clipboardData, so the property
+ *  is defined directly on a plain Event). */
+function pasteOnDocument(init: object): void {
+  const event = new Event("paste", { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "clipboardData", { value: (init as { clipboardData: unknown }).clipboardData });
+  document.dispatchEvent(event);
 }
 
 describe("AssetUploadModal", () => {
@@ -192,5 +222,154 @@ describe("AssetUploadModal", () => {
     // The file stays selected; the failure is retryable.
     expect(screen.getAllByText("big.pdf").length).toBeGreaterThanOrEqual(1);
     expect(within(dialog).getByRole("button", { name: /upload/i })).not.toBeNull();
+  });
+
+  it("M33: a clipboard paste inside the modal selects the file", async () => {
+    const client = await seedClient();
+    vi.stubGlobal("URL", {
+      ...URL,
+      createObjectURL: vi.fn(() => "blob:preview"),
+      revokeObjectURL: vi.fn(),
+    });
+    render(
+      <AssetUploadModal
+        isOpen
+        client={client}
+        assetClassId={SYSTEM_CLASS_UUIDS.asset}
+        onUploaded={() => {}}
+        onClose={() => {}}
+      />,
+    );
+    pasteOnDocument(pasteData(new File(["bytes"], "pasted.png", { type: "image/png" })));
+    expect((await screen.findAllByText("pasted.png")).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Image")).not.toBeNull();
+  });
+
+  it("M33: the paste capture ignores clipboard entries without files", async () => {
+    const client = await seedClient();
+    render(
+      <AssetUploadModal
+        isOpen
+        client={client}
+        assetClassId={SYSTEM_CLASS_UUIDS.asset}
+        onUploaded={() => {}}
+        onClose={() => {}}
+      />,
+    );
+    pasteOnDocument({
+      clipboardData: {
+        items: [{ kind: "string", type: "text/plain", getAsFile: () => null }],
+      },
+    });
+    // Nothing selected: still the empty drop zone, no error.
+    expect(screen.getByText("Drop a file here")).not.toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("M33: initialFile prefills the drop zone (invalid files error, no selection)", async () => {
+    const client = await seedClient();
+    const { rerender } = render(
+      <AssetUploadModal
+        isOpen
+        client={client}
+        assetClassId={SYSTEM_CLASS_UUIDS.asset}
+        initialFile={new File(["%PDF-"], "prefill.pdf", { type: "application/pdf" })}
+        onUploaded={() => {}}
+        onClose={() => {}}
+      />,
+    );
+    expect((await screen.findAllByText("prefill.pdf")).length).toBeGreaterThanOrEqual(1);
+
+    // An oversize initialFile is rejected up front with the v1 wording.
+    rerender(
+      <AssetUploadModal
+        isOpen
+        client={client}
+        assetClassId={SYSTEM_CLASS_UUIDS.asset}
+        initialFile={sizedFile("huge.pdf", "application/pdf", 100 * 1024 * 1024 + 1)}
+        onUploaded={() => {}}
+        onClose={() => {}}
+      />,
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "File too large. Maximum size is 100MB.",
+    );
+  });
+
+  it("M33: acceptedTypes narrows the accept list and rejects other categories", async () => {
+    const client = await seedClient();
+    vi.stubGlobal("URL", {
+      ...URL,
+      createObjectURL: vi.fn(() => "blob:preview"),
+      revokeObjectURL: vi.fn(),
+    });
+    render(
+      <AssetUploadModal
+        isOpen
+        client={client}
+        assetClassId={SYSTEM_CLASS_UUIDS.asset}
+        acceptedTypes={["image"]}
+        onUploaded={() => {}}
+        onClose={() => {}}
+      />,
+    );
+    const dialog = screen.getByRole("dialog", { name: "Upload image" });
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    expect(input.accept).toContain("image/jpeg");
+    expect(input.accept).not.toContain("pdf");
+
+    // A document through the image-only modal: rejected, no selection.
+    pickFile(new File(["%PDF-"], "scan.pdf", { type: "application/pdf" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Only image files are accepted.",
+    );
+    expect(screen.queryByText("scan.pdf")).toBeNull();
+
+    // An image still passes.
+    pickFile(new File(["bytes"], "photo.png", { type: "image/png" }));
+    expect((await screen.findAllByText("photo.png")).length).toBeGreaterThanOrEqual(1);
+    expect(within(dialog).queryByRole("alert")).toBeNull();
+  });
+
+  it("M33: the v1 size caps reject oversized files before the upload starts", async () => {
+    const client = await seedClient();
+    const upload = vi.spyOn(client, "uploadAsset").mockResolvedValue(uploadResult("big.jpg"));
+    render(
+      <AssetUploadModal
+        isOpen
+        client={client}
+        assetClassId={SYSTEM_CLASS_UUIDS.asset}
+        onUploaded={() => {}}
+        onClose={() => {}}
+      />,
+    );
+    // Media cap: 50 MB.
+    pickFile(sizedFile("big.jpg", "image/jpeg", 50 * 1024 * 1024 + 1));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "File too large. Maximum size is 50MB.",
+    );
+    expect(upload).not.toHaveBeenCalled();
+
+    // Document cap: 100 MB.
+    pickFile(sizedFile("big.pdf", "application/pdf", 100 * 1024 * 1024 + 1));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "File too large. Maximum size is 100MB.",
+    );
+    expect(upload).not.toHaveBeenCalled();
+  });
+
+  it("M33: unsupported types are rejected with the v1 wording", async () => {
+    const client = await seedClient();
+    render(
+      <AssetUploadModal
+        isOpen
+        client={client}
+        assetClassId={SYSTEM_CLASS_UUIDS.asset}
+        onUploaded={() => {}}
+        onClose={() => {}}
+      />,
+    );
+    pickFile(new File(["plain"], "notes.txt", { type: "text/plain" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unsupported file type.");
   });
 });

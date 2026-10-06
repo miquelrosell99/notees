@@ -15,7 +15,7 @@
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
@@ -194,5 +194,37 @@ describe("class creation triggers (#14)", () => {
     const row = await screen.findByText("New class…");
     fireEvent.click(row);
     expect(openCreate).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("asset creation trigger (M33)", () => {
+  it("the Assets hub header hosts the upload modal; uploading creates + opens the asset", async () => {
+    const client = await seedClient();
+    const opened: string[] = [];
+    render(<HubView client={client} nav="assets" onOpenNode={(id) => opened.push(id)} />);
+    fireEvent.click(await screen.findByRole("button", { name: /new asset/i }));
+    const dialog = await screen.findByRole("dialog", { name: /upload file/i });
+
+    vi.spyOn(client, "uploadAsset").mockResolvedValue({
+      assetId: "asset-hub-1",
+      hash: "hash-hub",
+      originalName: "paper.pdf",
+      mimeType: "application/pdf",
+      size: 5,
+    });
+    vi.spyOn(client, "attachAsset").mockResolvedValue(undefined);
+    fireEvent.change(document.querySelector<HTMLInputElement>('input[type="file"]')!, {
+      target: { files: [new File(["%PDF-"], "paper.pdf", { type: "application/pdf" })] },
+    });
+    await within(dialog).findAllByText("paper.pdf");
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: /upload/i }));
+    });
+
+    await waitFor(() => expect(opened).toHaveLength(1));
+    const asset = client.getNode(opened[0]!);
+    expect(asset?.classIds).toContain(SYSTEM_CLASS_UUIDS.asset);
+    // The new asset is a hub member (cards listing reflects it).
+    expect(client.getClassMembers(SYSTEM_CLASS_UUIDS.asset).map((m) => m.id)).toContain(opened[0]);
   });
 });
