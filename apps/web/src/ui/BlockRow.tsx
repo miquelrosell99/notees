@@ -38,7 +38,6 @@ import { InlineTokens } from "./InlineTokens.js";
 import { AssetView } from "./AssetView.js";
 import { BlockBacklinkPanel, BlockBacklinkToggle } from "./BlockBacklinks.js";
 import { BlockTextEditor, type EditorCaret } from "./BlockTextEditor.js";
-import { GhostRow, realizeGhost } from "./GhostRow.js";
 import { PropertiesSection, TagsRow } from "./components/MetadataSection.js";
 import { PropertyIconButton } from "./components/PropertyIconButton.js";
 import type { SelectionOption } from "./components/pickers/SelectionPropertyControl.js";
@@ -86,16 +85,9 @@ interface BlockRowProps {
    * row chrome of its own.
    */
   tableRow?: boolean | undefined;
-  /**
-   * The trailing "add child" ghost (the §34.85 sole add affordance, v1
-   * parity): one muted row at the next depth on every expanded block.
-   * Off in the prose transform (the flattened display) and every read-only
-   * projection gates it off too; table rows/containers never mount it.
-   */
-  ghost?: boolean | undefined;
 }
 
-export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCollapse = false, tableRow = false, ghost = true }: BlockRowProps) {
+export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCollapse = false, tableRow = false }: BlockRowProps) {
   const [gripMenu, setGripMenu] = useState<{ x: number; y: number } | null>(null);
   const { node, children } = tree;
   const {
@@ -105,7 +97,6 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
     openInSidebar,
     focusRequest,
     acknowledgeFocus,
-    requestFocus,
     collapsed,
     toggleCollapse,
     selectionEnabled,
@@ -216,7 +207,6 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
               resolveName={resolveName}
               readOnly={readOnly}
               ignoreCollapse={ignoreCollapse}
-              ghost={false}
             />
           ))}
         </SortableContext>
@@ -637,28 +627,10 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
                   resolveName={resolveName}
                   readOnly={readOnly}
                   ignoreCollapse={ignoreCollapse}
-                  ghost={ghost}
                 />
               ))}
             </div>
           </SortableContext>
-        )}
-        {/* The ghost block (v1 parity): every expanded editable block
-            trails a muted "+ Add block" row at the next depth — the §34.85
-            sole add affordance, shown even when the block has no children.
-            The slot mirrors the children container's indent; the ghost id
-            never enters a SortableContext items array (no sortable wiring). */}
-        {ghost && !readOnly && !isCollapsed && (
-          <div className="nt-ghost-slot">
-            <GhostRow
-              parentId={node.id}
-              onRealize={() => {
-                void realizeGhost(client, { requestFocus }, node.id).catch((error: unknown) => {
-                  console.warn(`[outliner] ghost realize (${node.id}) failed:`, error);
-                });
-              }}
-            />
-          </div>
         )}
       </>
       )}
