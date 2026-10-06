@@ -52,8 +52,10 @@ export function TaskBuckets({
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
 
   // §34.28 #2 — idempotent no-op once the six schemas + bindings exist.
+  // Fire-and-forget: a mid-teardown rejection must not go unhandled (the
+  // next mount re-runs the deploy).
   useEffect(() => {
-    void ensureTaskFamily(client);
+    void ensureTaskFamily(client).catch(() => {});
   }, [client]);
 
   const [collapsed, setCollapsed] = useDeviceSetting("tasksHubBucketsCollapsed", false);

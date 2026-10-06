@@ -2003,7 +2003,7 @@ export function HubView({
   // tasks-hub open (idempotent no-op once present); before this, a fresh
   // workspace silently dropped the Scheduled/Deadline columns.
   useEffect(() => {
-    if (nav === "tasks") void ensureTaskFamily(client);
+    if (nav === "tasks") void ensureTaskFamily(client).catch(() => {});
   }, [client, nav]);
   const classes = client.listClasses();
   const assetClassId = classes.find((cls) => cls.name === "asset")?.id ?? SYSTEM_CLASS_UUIDS.asset;
