@@ -163,6 +163,41 @@ describe("CommandPalette sections (M6 + §34.28 #12)", () => {
     fireEvent.click(row);
     expect(created).toEqual(["Shopping List"]);
   });
+
+  it("a shell re-render with fresh callback identities does not wipe the typed query (§34.116)", async () => {
+    const { client } = await seedPaletteWorld();
+    // App hands the palette fresh inline arrows every render; during a
+    // background catch-up the shell re-renders constantly. The open-reset
+    // effect must not re-run on callback identity churn — the query and its
+    // results survive (the post-§34.116 smoke caught the wipe live).
+    const props = {
+      client,
+      open: true,
+      onRequestOpen: () => {},
+      onClose: () => {},
+      onOpenNode: () => {},
+      onNewPage: () => {},
+      onSignOut: () => {},
+      undoState: EMPTY_UNDO_STATE,
+      onUndo: () => {},
+      onRedo: () => {},
+      cacheVersion: 0,
+    };
+    const view = render(<CommandPalette {...props} />);
+    typeInPalette("Garden");
+    expect((await screen.findAllByText("Garden")).length).toBeGreaterThan(0);
+    // App-style re-render: every callback a brand-new arrow identity.
+    view.rerender(
+      <CommandPalette
+        {...props}
+        onOpenNode={() => {}}
+        onNewPage={() => {}}
+        onClose={() => {}}
+      />,
+    );
+    expect((screen.getByLabelText("Command palette search") as HTMLInputElement).value).toBe("Garden");
+    expect(screen.getAllByText("Garden").length).toBeGreaterThan(0);
+  });
 });
 
 describe("CommandPalette Random section (#8)", () => {
