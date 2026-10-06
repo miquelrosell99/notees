@@ -40,6 +40,72 @@ predating this file.
   `notees-operations` skills point here. Deliberate exception: the protocol
   fixtures under `packages/protocol/fixtures/` keep their metadata untouched —
   those bytes are sha256-pinned across the TS/GTK/Flutter convergence gate.
+- **refactor(web): S5 of the main-content restructure — the class variant is
+  pure data; `ClassPillsList` generalizes the class pills (M9–M13).** M11:
+  `components/ClassPillsList.tsx` — ONE relation-parameterized pills
+  component (`query` + add/remove/reorder mutations as arguments) riding the
+  existing NodePills machinery; `ClassesRow` (the page corner's instance-of)
+  and `ExtendsRow` (the class corner's extends) become thin adapters over
+  it, and `NodePills` stays exported for BlockRow. M13: the slot
+  composition dies — new `components/pageVariant.ts` derives the page
+  variant (`plain` | `date-day` | `date-period` | `class`): the
+  day/month/year facts, the class corner's extends-pills relation config,
+  and the class section stack (SectionSpec-shaped descriptors mounting the
+  unchanged classview renderers) are DATA consumed by PageView; `ClassView`
+  is deleted — class nodes render the normal page path with the class
+  variant. The deleted class chrome per M9/M12: no curated icon button
+  (`ClassIconButton` deleted), no color dot, no extends-cycle banner —
+  the shared header icon button is the single icon+color entry, now wired
+  to the picker's M10 color section (`onColorChange`). Date variants as
+  data: the inline day/month/year derivation moves behind `pageVariantOf`;
+  the DayPageHeader swap stays in PageHeaderChrome, section placement
+  unchanged (S7's job). The store's loud extends-cycle refusal (the
+  applier's CycleError) is unchanged — the rejection now lands in the
+  console (no UI). Tests: the three suites importing `ClassView` plus
+  windowing/class-bindings/view-modes re-point at `NodeView`; the
+  cycle-banner assertion is updated to the new truth (store refuses, no
+  banner); the class icon-picker test clicks the shared header icon
+  button. `test/child-query.test.ts`: pre-existing type-hygiene fixes
+  (explicit `Entry` shape — the `ReturnType` self-reference was circular;
+  non-null index reads) so the apps/web `tsc --noEmit` gate is clean.
+  tsc clean, full web suite green (119 files / 1193 tests; the 9-file
+  verify list: 122 tests). Design:
+  `.plans/2026-10-06-1352-main-content-restructure/`.
+- **feat(web): the v1-UI recovery batch — M33 upload-modal parity + cover/
+  assets-hub triggers, M35 builder re-UI, M10 picker color, M38a noCreate.**
+  Four view-layer slices, no wire/model change. **M33:** the
+  AssetUploadModal gains the full v1 interaction — a modal-internal
+  clipboard-paste capture (`clipboardData.items`), `acceptedTypes`
+  (narrows the accept list + validates with the v1 "Only … files are
+  accepted." wording), the v1 size caps enforced client-side (50 MB media /
+  100 MB documents, mirroring the server config), `initialFile` routed
+  through the same validation, and a single-category title ("Upload
+  image/audio"); the CAS upload path + preview row are unchanged. Three
+  triggers now open it: the empty cover card's **Add cover** (image-only;
+  the uploaded asset becomes the cover), the Assets hub's new **New asset**
+  header button (uploading IS creating; the created asset opens), and the
+  existing property-upload row (unchanged). The cover's **Change** path
+  keeps the CoverPicker; its "Upload new cover…" row routes to the same
+  modal. **M35:** QueryBuilderFields re-presents the §34.31 builder subset
+  as the v1 ViewBuilder card list — scope bar, one card per condition with
+  a remove (✕) back to unset, prose operator words (contains/after/before),
+  the v1 "No filters — all nodes will be shown" note — chrome only: the
+  AST subset, the control labels/values, and the C1 lossy-edit guard are
+  untouched (co-located `QueryBuilderFields.css`; the dead `.nt-query-field`
+  block leaves app.css). **M10:** IconPickerPopup gains the additive color
+  section — `onColorChange` + `color` props host the kit ColorButton
+  (swatch + palette + no-color) in the header; absent prop = hidden, so
+  icon-only consumers are untouched; ColorButton's picker popover now stops
+  pointerdown capture so a nested pick doesn't dismiss the host popup.
+  **M38a:** NodeSelector `noCreate` suppresses the create-from-query
+  affordance (QuickCreateModal route included) — search-without-match shows
+  the honest empty state. Verification: the 8-file suite green
+  (asset-upload-modal 11, covers 16, asset-attachments 10, pickers 12,
+  query-builder-guard 5, queries-hub 5, query-block 18, settings-modals
+  28 — 105 total), plus class-create-modal 8 (new assets-hub creation
+  test), page-layouts + day-features 44, css-token-drift gate green;
+  `tsc --noEmit` clean for every touched file.
+
 - **refactor(web): S4 of the main-content restructure — the body is the
   plain collection, fed by `childQuery`.** The body's item resolution
   becomes `components/childQuery.ts` beside the SectionSpec factories: page
