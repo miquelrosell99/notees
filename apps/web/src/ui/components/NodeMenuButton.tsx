@@ -1,11 +1,12 @@
 /**
- * NodeMenuButton — the "…" affordance pinned to the main content card's
- * top-right corner whenever a node is open in it (hosted by NodeView's
- * cornerMenu mode; sidebar peek cards opt out). Clicking opens the node's
- * context menu anchored to the button (right edge aligned), giving every
- * node surface a discoverable path to Open / Copy link / Favorites /
- * Export / Share / Delete without right-clicking. The ExportPageModal and
- * SharePageModal live here, mirroring PageView's header-menu wiring.
+ * NodeMenuButton — the "…" affordance for the main content card's top-right
+ * corner cluster (hosted by NodeView's cornerMenu mode; the cluster's
+ * absolute positioning lives in App.css — sidebar peek cards opt out).
+ * Clicking opens the node's context menu anchored to the button (right edge
+ * aligned), giving every node surface a discoverable path to Open / Copy
+ * link / Favorites / Export / Share / Delete without right-clicking. The
+ * ExportPageModal and SharePageModal live here, mirroring PageView's
+ * header-menu wiring.
  */
 
 import { useRef, useState } from "react";
@@ -51,28 +52,26 @@ export function NodeMenuButton({
 
   return (
     <>
-      <span className="nt-node-menu-corner">
-        <button
-          ref={buttonRef}
-          type="button"
-          className="nt-icon-btn"
-          title="Node actions"
-          aria-label="Node actions"
-          aria-haspopup="menu"
-          aria-expanded={menu !== null}
-          onClick={() =>
-            setMenu({
-              x: 0,
-              y: 0,
-              node,
-              isPage: rendersWithDocumentChrome(node),
-              anchorEl: buttonRef.current,
-            })
-          }
-        >
-          <Icon path="mdi-dots-vertical" size={1} />
-        </button>
-      </span>
+      <button
+        ref={buttonRef}
+        type="button"
+        className="nt-icon-btn"
+        title="Node actions"
+        aria-label="Node actions"
+        aria-haspopup="menu"
+        aria-expanded={menu !== null}
+        onClick={() =>
+          setMenu({
+            x: 0,
+            y: 0,
+            node,
+            isPage: rendersWithDocumentChrome(node),
+            anchorEl: buttonRef.current,
+          })
+        }
+      >
+        <Icon path="mdi-dots-vertical" size={1} />
+      </button>
       <NodeContextMenu
         state={menu}
         client={client}

@@ -27,8 +27,7 @@ import { Section } from "../Section.js";
 import { displayNameFromClient } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import {
-  buildCreatedTodayAst,
-  chainNodeIds,
+  createdTodayBounds,
   partitionOpenTasks,
   type OpenTaskRow,
   type PartitionedTasks,
@@ -41,7 +40,7 @@ import {
 } from "./calendarRows.js";
 import { ensureTaskFamily } from "./taskFamily.js";
 import { Checkbox } from "./ui/Checkbox.js";
-import { NodeViewSection } from "./NodeViewSection.js";
+import { CreatedSection } from "./CreatedSection.js";
 import { Pill } from "./ui/Pill.js";
 import "./DayPageSections.css";
 
@@ -126,39 +125,10 @@ export function DayPageSections({
   // Dated: the day node's materialized backlink set (minus chain/tasks).
   const datedRows = useMemo(() => datedRowNodes(client, pageId), [client, pageId, version]);
 
-  // Created: one created-today query per notification; the count gates
-  // hide-when-empty, rows render on expand. A failure keeps the previous
-  // rows (the Section contract: reference material, never a boot gate).
-  const [createdRows, setCreatedRows] = useState<ClientNode[] | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      try {
-        const result = await Promise.resolve(client.runQueryAst(buildCreatedTodayAst(iso)));
-        if (cancelled) return;
-        const chain = chainNodeIds(iso);
-        const excluded = new Set([chain.year, chain.month, chain.day]);
-        setCreatedRows(
-          result.rows
-            .filter((row) => !excluded.has(row.id))
-            .map((row) => client.getNode(row.id))
-            .filter((node): node is ClientNode => node !== undefined)
-            .sort(
-              (a, b) =>
-                (b.createdAt ?? "").localeCompare(a.createdAt ?? "") || a.id.localeCompare(b.id),
-            ),
-        );
-      } catch {
-        // Closed client / failed query: keep the previous rows.
-      }
-    };
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, [client, iso, version]);
-
-  const [createdExpanded, setCreatedExpanded] = useState(false);
+  // Created: delegated to CreatedSection (the same section month and year
+  // pages render) — one createdAt range query per notification, the section
+  // hidden while empty, cards the default view mode.
+  const createdBounds = createdTodayBounds(iso);
 
   const openCount =
     tasksPartition.overdue.length +
@@ -263,22 +233,13 @@ export function DayPageSections({
           )}
         />
       )}
-      {createdRows !== null && createdRows.length > 0 && (
-        <NodeViewSection
-          title="Created"
-          icon={<Icon path="mdi-plus-circle-outline" size={0.9} />}
-          count={createdRows.length}
-          className="nt-section"
-          expanded={createdExpanded}
-          onExpandedChange={setCreatedExpanded}
-        >
-          <ul className="day-page-sections__rows">
-            {createdRows.map((node) => (
-              <NodeRow key={node.id} client={client} node={node} onOpenPage={onOpenPage} />
-            ))}
-          </ul>
-        </NodeViewSection>
-      )}
+      <CreatedSection
+        client={client}
+        pageId={pageId}
+        after={createdBounds.after}
+        before={createdBounds.before}
+        onOpenPage={onOpenPage}
+      />
     </div>
   );
 }
