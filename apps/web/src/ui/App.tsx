@@ -47,7 +47,9 @@ import {
 } from "@/core/auth-api.js";
 
 import { Icon } from "./Icon.js";
-import { PageView } from "./PageView.js";
+import { PageView, BLOCKS_VIEW_MODES } from "./PageView.js";
+import { ViewToolbar } from "./views/ViewToolbar.js";
+import { useViewModePreference } from "./viewPrefs.js";
 import { displayNameForSettings } from "./dateDisplay.js";
 import { ClassView } from "./ClassView.js";
 import { DeckView } from "./presentation/DeckView.js";
@@ -77,6 +79,9 @@ import { QueriesHub } from "./components/QueriesHub.js";
 import { GraphView } from "./views/graph/GraphView.js";
 import { LocalGraphCard } from "./components/LocalGraphCard.js";
 import { TopBar } from "./components/TopBar.js";
+import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher.js";
+import { NodeSelector } from "./components/pickers/NodeSelector.js";
+import { createNodesWithClasses } from "./components/createNodesWithClasses.js";
 import { QuickAddModal } from "./components/modals/QuickAddModal.js";
 import { ClassCreateModal } from "./components/modals/ClassCreateModal.js";
 import { QuickCreateFab } from "./components/QuickCreateFab.js";
@@ -550,6 +555,17 @@ export function NodeView({
   /** §34.62 shares: server coordinates for the "Share…" surface (pages). */
   shareTarget?: ShareTarget | undefined;
 }) {
+  /**
+   * The child-blocks view mode, owned here because the switcher rides this
+   * view's top-right corner (left of the "…" menu — owner 2026-10-06). The
+   * same per-page device preference PageView falls back to, so the choice
+   * survives the move.
+   */
+  const [blocksMode, setBlocksMode] = useViewModePreference(
+    `nodeBlocks.${nodeId}`,
+    "outline",
+    BLOCKS_VIEW_MODES,
+  );
   const node = client.getNode(nodeId);
   if (node === undefined) {
     return <div className="nt-page-missing">Page not found.</div>;
@@ -567,20 +583,33 @@ export function NodeView({
       onDeleted={onDeleted}
       onPresent={onPresent}
       shareTarget={shareTarget}
+      layout={cornerMenu ? "default" : "compact"}
+      blocksMode={blocksMode}
+      onBlocksModeChange={setBlocksMode}
     />
   );
   if (!cornerMenu) return view;
+  const pageView = !node.isClass && !rendersAsInlineBlock(node);
   return (
     <div className="nt-node-view">
       {view}
-      <NodeMenuButton
-        client={client}
-        node={node}
-        onOpenNode={(id) => onOpenNode?.(id)}
-        onPresent={onPresent}
-        onDeleted={onDeleted}
-        shareTarget={shareTarget}
-      />
+      {/* The card's top-right corner cluster: the blocks view switcher
+          (pages only) left of the "…" node menu. */}
+      <div className="nt-node-view__corner">
+        {pageView && (
+          <div className="nt-node-view__modes" role="group" aria-label="Blocks view">
+            <ViewToolbar modes={BLOCKS_VIEW_MODES} value={blocksMode} onChange={setBlocksMode} />
+          </div>
+        )}
+        <NodeMenuButton
+          client={client}
+          node={node}
+          onOpenNode={(id) => onOpenNode?.(id)}
+          onPresent={onPresent}
+          onDeleted={onDeleted}
+          shareTarget={shareTarget}
+        />
+      </div>
     </div>
   );
 }
@@ -1022,6 +1051,12 @@ export function App() {
   const clientRef = useRef<AnyClient | null>(null);
   const serverUrlRef = useRef(serverUrl);
   serverUrlRef.current = serverUrl;
+  /**
+   * The top bar's "New" class picker (owner 2026-10-06 — the sidebar hosts
+   * its own picker beside its New button; both ride the same create flow).
+   */
+  const [newPickerOpen, setNewPickerOpen] = useState(false);
+  const newButtonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (client === null) return;
@@ -1709,7 +1744,58 @@ export function App() {
         historyButtonRef={historyButtonRef}
         onToggleSidebar={() => setSidebarOpen((open) => !open)}
         onToggleRightPanel={() => setRightPanelOpen((open) => !open)}
+        onNewNode={() => setNewPickerOpen(true)}
+        onRequestSearch={() => setPaletteOpen(true)}
+        newButtonRef={newButtonRef}
+        workspaceSwitcher={
+          offline ? undefined : (
+            <WorkspaceSwitcher
+              serverUrl={serverUrl}
+              credential={token}
+              activeWorkspaceId={readStored(STORAGE_KEYS.workspaceId)}
+              activeName={workspaceName}
+              client={client}
+              onSwitch={(id, name) => {
+                setSelectedPageId(null);
+                void connect(serverUrl, token, id, {
+                  isOffline: false,
+                  credentialType: sessionSignedIn ? "session" : "apikey",
+                  label: name,
+                });
+              }}
+              onManageWorkspaces={() => {
+                window.history.pushState({ view: "workspaces" }, "", "/workspaces");
+                setManagerOpen(true);
+              }}
+              onRenamed={(id, name) => {
+                if (id === readStored(STORAGE_KEYS.workspaceId)) setWorkspaceName(name);
+              }}
+            />
+          )
+        }
       />
+      {newPickerOpen && (
+        <NodeSelector
+          client={client}
+          anchorEl={newButtonRef.current}
+          searchMode="classes"
+          multiSelect
+          searchPlaceholder="Search classes…"
+          onClose={() => setNewPickerOpen(false)}
+          onAdd={(picked) => {
+            setNewPickerOpen(false);
+            createNodesWithClasses(client, [picked.id], openPage);
+          }}
+          onApplyMulti={(picked) => {
+            setNewPickerOpen(false);
+            createNodesWithClasses(
+              client,
+              picked.map((node) => node.id),
+              openPage,
+            );
+          }}
+        />
+      )}
       {historyOpen && (
         <HistoryMenuPopup
           client={client}
@@ -1762,6 +1848,15 @@ export function App() {
           selectedPageId={selectedPageId}
           activeNav={activeNav}
           onSelectNav={(key) => {
+            // Today is a page, not a hub (owner 2026-10-06 — the sidebar
+            // entry before Journal): ensure the chain and open the day page.
+            if (key === "today") {
+              const live = clientRef.current;
+              if (live !== null) {
+                void live.ensureDateChain(todayIsoLocal()).then(({ day }) => openPage(day));
+              }
+              return;
+            }
             setActiveNav(key);
             setSelectedPageId(null);
             window.history.pushState({ node: null, nav: key }, "", pathForNav(key));
@@ -1785,7 +1880,6 @@ export function App() {
             if (id === readStored(STORAGE_KEYS.workspaceId)) setWorkspaceName(name);
           }}
           onOpenInSidebar={openInSidebar}
-          cacheVersion={pagesVersion}
         />
         <PageCard
           accent={

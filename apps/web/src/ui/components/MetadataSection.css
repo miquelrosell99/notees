@@ -145,6 +145,21 @@ span.pill__text {
   position: relative;
 }
 
+/* Panel layout (the main card's left properties panel): each property is
+   its own cell — the name rides above the value as a small header instead
+   of a left-hand column. */
+.nt-properties-list--panel > li {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--spacing-1);
+  padding: var(--spacing-2) 0;
+}
+
+.nt-properties-list--panel .nt-property-name {
+  font-size: var(--font-size-2xs);
+}
+
 .nt-property-hint {
   color: var(--color-on-surface-variant);
   font-size: var(--font-size-2xs);

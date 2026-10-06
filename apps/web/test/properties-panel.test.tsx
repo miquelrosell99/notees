@@ -47,7 +47,12 @@ async function flushWrites(): Promise<void> {
   await act(async () => {});
 }
 
-/** Expand the page's "Properties N" section (collapsed by default in the note layout). */
+/**
+ * The panelled main layout (the default) renders the properties OPEN in the
+ * left side panel — there is no in-flow "Properties N" section to expand.
+ * Kept as a seam for compact layouts (sidebar peeks, embedded renders),
+ * where the collapsible section still hosts the table.
+ */
 function expandProperties(): void {
   const header = screen.queryByRole("button", { name: /^Properties / });
   if (header !== null && header.getAttribute("aria-expanded") === "false") {
@@ -91,11 +96,15 @@ describe("Properties panel (effective values)", () => {
     ]);
   });
 
-  it("still renders the section when the node has no effective properties (always-visible metadata)", async () => {
+  it("still renders the properties chrome when the node has no effective properties (always-visible metadata)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Plain" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
-    expect(container.querySelector(".nt-properties-panel")).not.toBeNull();
+    // The panelled main layout rides the left side panel (PropertiesTable,
+    // stacked panel layout) — always rendered, even with zero properties.
+    const panel = container.querySelector(".nt-page-side-panel");
+    expect(panel).not.toBeNull();
+    expect(panel!.querySelector(".nt-properties-list--panel")).not.toBeNull();
   });
 
   it("editing a default writes an authored value that shadows it", async () => {

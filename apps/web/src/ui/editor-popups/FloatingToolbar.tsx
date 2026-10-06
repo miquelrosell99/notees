@@ -46,6 +46,7 @@ const MARKS: { mark: Mark; label: string; icon: string }[] = [
 ];
 
 const VERB_LABEL = "Link verb (Cmd+K)";
+const MENTION_LABEL = "Add link from text selection (@)";
 
 interface FloatingToolbarProps {
   /** The editor root: the toolbar only shows for selections inside it. */
@@ -53,11 +54,14 @@ interface FloatingToolbarProps {
   /** Marks every covered run carries (button active state). */
   activeMarks: ReadonlySet<Mark>;
   onToggleMark: (mark: Mark) => void;
+  /** Turns the selected text into a link: opens the mention picker over the
+   *  selection (the @ gesture — owner 2026-10-06). */
+  onMention: () => void;
   /** Opens the typed-link verb popover over the selection. */
   onVerb: () => void;
 }
 
-export function FloatingToolbar({ rootRef, activeMarks, onToggleMark, onVerb }: FloatingToolbarProps) {
+export function FloatingToolbar({ rootRef, activeMarks, onToggleMark, onMention, onVerb }: FloatingToolbarProps) {
   const [isVisible, setIsVisible] = useState(false);
   const showTimeoutRef = useRef<number | null>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
@@ -190,6 +194,15 @@ export function FloatingToolbar({ rootRef, activeMarks, onToggleMark, onVerb }: 
               <Icon path={icon} size={0.7} className="btn__icon btn__icon--left" />
             </button>
           ))}
+          <button
+            type="button"
+            aria-label={MENTION_LABEL}
+            title={MENTION_LABEL}
+            className="btn btn--ghost btn--sm btn--icon-only floating-toolbar__button"
+            onClick={onMention}
+          >
+            <Icon path="mdi-at" size={0.7} className="btn__icon btn__icon--left" />
+          </button>
           <button
             type="button"
             aria-label={VERB_LABEL}

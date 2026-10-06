@@ -1,10 +1,10 @@
 /**
  * Sidebar — the 260px workspace navigator on the background canvas.
  *
- * Original information architecture: the workspace switcher + search icon on
- * top, the full-text search field (SearchBox — plain FTS plus the query
- * language, results panel overlaying the nav) below it; NAVIGATION rows
- * switch the main view (Journal / Inbox / Pages /
+ * Original information architecture: the workspace switcher + New + search
+ * icons on top (the full-text SearchBox below the switcher was removed —
+ * search lives in the top-bar button / Ctrl+K palette); NAVIGATION rows
+ * switch the main view (Today / Journal / Inbox / Pages /
  * Whiteboards / Tasks hubs — never an inline page dump); FAVORITES and
  * RECENTS are cross-device UI state (§34.61 — the server per-user prefs
  * store is the authority, device-local cache offline; see nodePrefs.ts);
@@ -12,7 +12,7 @@
  * App).
  */
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
@@ -24,8 +24,9 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 import { displayNameForSettings } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import { nodeIcon } from "../iconFor.js";
-import { SearchBox } from "../SearchBox.js";
 import { useNodePrefs, toggleNodeFavorite, removeSyncedRecent } from "./nodePrefs.js";
+import { createNodesWithClasses } from "./createNodesWithClasses.js";
+import { NodeSelector } from "./pickers/NodeSelector.js";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher.js";
 import { SidebarItemMenu, type SidebarItemMenuState } from "./SidebarItemMenu.js";
 import { ConfirmationModal } from "./ui/ConfirmationModal.js";
@@ -34,9 +35,10 @@ import "./Sidebar.css";
 
 export type AnyClient = WorkspaceClient | WorkerClient;
 
-export type NavKey = "journal" | "calendar" | "inbox" | "pages" | "classes" | "whiteboards" | "tasks" | "assets" | "queries" | "graph";
+export type NavKey = "today" | "journal" | "calendar" | "inbox" | "pages" | "classes" | "whiteboards" | "tasks" | "assets" | "queries" | "graph";
 
 export const NAV_ENTRIES: Array<{ key: NavKey; label: string; icon: string }> = [
+  { key: "today", label: "Today", icon: "mdi-calendar-today-outline" },
   { key: "journal", label: "Journal", icon: "mdi-calendar-clock" },
   { key: "calendar", label: "Calendar", icon: "mdi-calendar-today" },
   { key: "inbox", label: "Inbox", icon: "mdi-tray-arrow-down" },
@@ -122,7 +124,6 @@ export function Sidebar({
   onSignOut,
   onRenameWorkspace,
   onOpenInSidebar,
-  cacheVersion = 0,
 }: {
   client: AnyClient;
   workspaceName: string;
@@ -145,13 +146,6 @@ export function Sidebar({
   onRenameWorkspace?: ((workspaceId: string, name: string) => void) | undefined;
   /** Peek the node as a right-sidebar card (the row context menu). */
   onOpenInSidebar?: ((nodeId: string) => void) | undefined;
-  /**
-   * Bumped by the App on every client notification — forwarded to the
-   * sidebar SearchBox so its cached reads re-run when the worker cache
-   * refreshes (see SearchBox's prop doc). Defaults to 0 (no refreshes) for
-   * direct/test renders.
-   */
-  cacheVersion?: number | undefined;
 }) {
   /**
    * Favorites + recents (§34.61): the shared nodePrefs store — server-side
@@ -168,6 +162,9 @@ export function Sidebar({
   const [rowMenu, setRowMenu] = useState<SidebarItemMenuState | null>(null);
   /** Delete confirmation target (lives here so it survives the menu closing). */
   const [deleteTarget, setDeleteTarget] = useState<ClientNode | null>(null);
+  /** The "New" class picker (a node per picked class, opened untitled). */
+  const [newPickerOpen, setNewPickerOpen] = useState(false);
+  const newButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const fullName =
     user !== null ? [user.name, user.surnames].filter((part) => part !== null && part !== "").join(" ").trim() : "";
@@ -194,6 +191,16 @@ export function Sidebar({
     // Recents recording lives in App.openPage (the single navigation funnel —
     // breadcrumbs, links and sidebar rows alike); see recordRecent.
     onOpenPage(id);
+  };
+
+  /**
+   * The "New" flow (owner 2026-10-06): one untitled node per picked class,
+   * each opened as a main page; the first pick lands in the main view. The
+   * picker runs in its multi-select mode — Apply creates one node per
+   * checked class.
+   */
+  const createWithClasses = (classIds: string[]): void => {
+    createNodesWithClasses(client, classIds, onOpenPage);
   };
 
   const toggleFavorite = (id: string): void => {
@@ -323,6 +330,16 @@ export function Sidebar({
           />
         )}
         <button
+          ref={newButtonRef}
+          type="button"
+          className="nt-icon-btn"
+          title="New (pick a class)"
+          aria-label="New node"
+          onClick={() => setNewPickerOpen(true)}
+        >
+          <Icon path="mdi-plus" size={1} />
+        </button>
+        <button
           type="button"
           className="nt-icon-btn"
           title="Search (Ctrl+K)"
@@ -332,7 +349,24 @@ export function Sidebar({
           <Icon path="mdi-magnify" size={1} />
         </button>
       </div>
-      <SearchBox client={client} onOpenNode={onOpenPage} cacheVersion={cacheVersion} />
+      {newPickerOpen && (
+        <NodeSelector
+          client={client}
+          anchorEl={newButtonRef.current}
+          searchMode="classes"
+          multiSelect
+          searchPlaceholder="Search classes…"
+          onClose={() => setNewPickerOpen(false)}
+          onAdd={(picked) => {
+            setNewPickerOpen(false);
+            createWithClasses([picked.id]);
+          }}
+          onApplyMulti={(picked) => {
+            setNewPickerOpen(false);
+            createWithClasses(picked.map((node) => node.id));
+          }}
+        />
+      )}
       <nav className="nt-sidebar-nav">
         {section(
           "Navigation",

@@ -125,7 +125,7 @@ describe("BlockRow metadata section", () => {
     expect(block.querySelector(".nt-block-tags")!.textContent).toContain("review-later");
   });
 
-  it("the page-level metadata section still renders on its own", async () => {
+  it("the page-level properties render on their own (side panel in the default layout, in-flow section in compact)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Solo" });
     await client.createObject({
@@ -133,10 +133,17 @@ describe("BlockRow metadata section", () => {
       contentAst: [{ type: "text", text: "block without metadata" }],
     });
 
-    const { container } = render(<PageView client={client} pageId={pageId} />);
-    // Exactly one below-row section: the page's "Properties" (empty for this
-    // page, so it still renders — the block carries nothing, so none for it).
-    const sections = container.querySelectorAll(".node-metadata-section");
+    // Default (panelled) layout: the page properties ride the left side
+    // panel; no in-flow metadata section, none for the plain block either.
+    const panelled = render(<PageView client={client} pageId={pageId} />);
+    expect(panelled.container.querySelector(".nt-page-side-panel")).not.toBeNull();
+    expect(panelled.container.querySelectorAll(".node-metadata-section")).toHaveLength(0);
+    panelled.unmount();
+
+    // Compact layout: the v1 in-flow "Properties" section renders under the
+    // header (exactly one — the page's; the block carries nothing).
+    const compact = render(<PageView client={client} pageId={pageId} layout="compact" />);
+    const sections = compact.container.querySelectorAll(".node-metadata-section");
     expect(sections).toHaveLength(1);
   });
 });

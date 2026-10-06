@@ -1357,6 +1357,12 @@ export function PropertiesTable({
   nodeId,
   onOpenPage,
   omitDisplayPositions,
+  /**
+   * Row layout: "table" (default) — the property name is a left-hand column
+   * and the value sits right; "panel" — each property is its own cell, the
+   * name a small header above the value (the main card's side panel).
+   */
+  layout = "table",
 }: {
   client: AnyClient;
   nodeId: string;
@@ -1364,6 +1370,7 @@ export function PropertiesTable({
   /** §34.90: schema display positions (bullet/inline) the host surfaces
    *  itself — filter out. */
   omitDisplayPositions?: ReadonlyArray<"bullet" | "inline"> | undefined;
+  layout?: "table" | "panel";
 }) {
   const { rows, rendered, emptyObjectBindings } = propertyGroupsOf(client, nodeId, omitDisplayPositions);
   const labelOf = (row: EffectiveProperty): string => row.schema?.name ?? row.propertySchemaId;
@@ -1529,7 +1536,7 @@ export function PropertiesTable({
   return (
     <>
       <ul
-        className="nt-properties-list"
+        className={layout === "panel" ? "nt-properties-list nt-properties-list--panel" : "nt-properties-list"}
         onClick={(event) => {
           const schemaId = schemaIdFromEvent(event);
           if (schemaId !== null) setSettingsFor(schemaId);

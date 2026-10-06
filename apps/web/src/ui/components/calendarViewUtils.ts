@@ -105,6 +105,42 @@ export function buildOpenTasksAst(
 /** The created-today query over node.created_at (UTC ISO-8601 bounds). */
 export function buildCreatedTodayAst(iso: string): QueryAst {
   const { after, before } = createdTodayBounds(iso);
+  return buildCreatedInPeriodAst(after, before);
+}
+
+/**
+ * The created-this-period bounds for a month (`YYYYMM00`) or year
+ * (`YYYY0000`) date-node id: the period's first local midnight through its
+ * last local day, converted to UTC (the same lexicographic-comparison
+ * contract as createdTodayBounds).
+ */
+export function createdPeriodBounds(parts: {
+  year: number;
+  month: number;
+  precision: "year" | "month";
+}): { after: string; before: string } {
+  const startIso =
+    parts.precision === "year"
+      ? `${parts.year}-01-01`
+      : `${parts.year}-${String(parts.month).padStart(2, "0")}-01`;
+  const endIso =
+    parts.precision === "year"
+      ? `${parts.year}-12-31`
+      : (() => {
+          // Last day of the month: day 0 of the next month.
+          const end = new Date(parts.year, parts.month, 0);
+          return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(
+            end.getDate(),
+          ).padStart(2, "0")}`;
+        })();
+  return {
+    after: new Date(`${startIso}T00:00:00.000`).toISOString(),
+    before: new Date(`${endIso}T23:59:59.999`).toISOString(),
+  };
+}
+
+/** The created-in-period query over node.created_at (UTC ISO-8601 bounds). */
+export function buildCreatedInPeriodAst(after: string, before: string): QueryAst {
   return {
     version: 1,
     scope: { type: "entire_workspace" },

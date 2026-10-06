@@ -1,0 +1,44 @@
+/* DayPageHeader — the day-page header: the weekday + Today flags above the
+   title, the ISO week flag after it. Token-only. */
+
+.day-page-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.day-page-header__flags {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+}
+
+.day-page-header__weekday {
+  font: var(--font-label-large);
+  color: var(--color-on-surface-variant);
+}
+
+.day-page-header__today {
+  font: var(--font-label-small);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-primary);
+  background: var(--color-primary-container);
+  border-radius: var(--radius-full);
+  padding: 0 var(--spacing-2);
+}
+
+.day-page-header__title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-3);
+  flex-wrap: wrap;
+}
+
+.day-page-header__week {
+  font: var(--font-label-large);
+  color: var(--color-on-surface-variant);
+  flex-shrink: 0;
+}

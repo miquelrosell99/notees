@@ -37,9 +37,10 @@ import { ExportPageModal } from "./components/modals/ExportPageModal.js";
 import { SharePageModal } from "./components/modals/SharePageModal.js";
 import type { ShareTarget } from "./components/NodeMenuButton.js";
 import { NodeContextMenu } from "./components/NodeContextMenu.js";
-import { DayFlags, DayPageDateBar } from "./components/DayPageDateBar.js";
+import { DayPageHeader } from "./components/DayPageHeader.js";
 import { DayPageSections } from "./components/DayPageSections.js";
-import { isoOfDateParts } from "./components/calendarViewUtils.js";
+import { CreatedSection } from "./components/CreatedSection.js";
+import { isoOfDateParts, createdPeriodBounds } from "./components/calendarViewUtils.js";
 import { nodeIcon } from "./iconFor.js";
 import { displayNameForSettings, displayNameFromClient } from "./dateDisplay.js";
 
@@ -56,7 +57,7 @@ import {
   useBlockDndSensors,
   type DropLine,
 } from "./block-dnd.js";
-import { PropertiesSection, ClassesRow, TagsRow } from "./components/MetadataSection.js";
+import { PropertiesSection, PropertiesTable, ClassesRow, TagsRow } from "./components/MetadataSection.js";
 import { IconPickerPopup } from "./components/IconPickerPopup.js";
 import { CoverCard } from "./components/PageBanner.js";
 import { PageFooter } from "./components/PageFooter.js";
@@ -72,7 +73,7 @@ import { TitleEditor } from "./TitleEditor.js";
 import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
 import { OutlinerContext, useOutlinerValue } from "./outliner-context.js";
 import { useBlockSelectionSurface } from "./use-block-selection.js";
-import { NodeCollection, ViewToolbar } from "./views/index.js";
+import { NodeCollection } from "./views/index.js";
 import type { NodeCollectionItem, ViewMode } from "./views/index.js";
 import { useViewModePreference } from "./viewPrefs.js";
 import { FindReplaceWidget } from "./editor-popups/FindReplaceWidget.js";
@@ -84,8 +85,9 @@ import { replaceRangeInAst } from "./editor-popups/block-find-replace.js";
 import { ensureTemplateFamily } from "./components/templateFamily.js";
 import { GhostRow, realizeGhost } from "./GhostRow.js";
 
-/** The child-blocks triad, in switcher order. */
-const BLOCKS_VIEW_MODES: ViewMode[] = ["outline", "prose", "cards"];
+/** The child-blocks triad, in switcher order. Exported for the NodeView
+ *  chrome, which hosts the switcher at the card's top-right. */
+export const BLOCKS_VIEW_MODES: ViewMode[] = ["outline", "prose", "cards"];
 
 /** BlockTreeNode → the collection input shape (recursive). */
 function toCollectionItem(entry: BlockTreeNode): NodeCollectionItem {
@@ -100,6 +102,24 @@ export function PageView({
   onDeleted,
   onPresent,
   embedded = false,
+  /**
+   * Layout mode (owner 2026-10-06, the Capacities-style main layout):
+   * "default" (the main content card) puts the properties in a collapsible
+   * LEFT side panel inside the card, the classes pills at the content
+   * column's top-left, and moves the blocks view switcher out to the card's
+   * top-right (the NodeView chrome). "compact" keeps the v1 in-flow chrome —
+   * the properties as a list section under the header — for secondary
+   * surfaces (sidebar peek cards; embedded renders keep their own slim
+   * chrome). Focus mode always compacts.
+   */
+  layout = "default",
+  /**
+   * The child-blocks view mode, lifted to the NodeView chrome when the host
+   * renders the switcher at the card's top-right; falls back to the internal
+   * per-page device preference when unset (embedded renders).
+   */
+  blocksMode: blocksModeProp = undefined,
+  onBlocksModeChange = undefined,
   /**
    * Class composition (the Class View renders a class node through PageView):
    * accepts a class node in the page read (getPage excludes classes), adds
@@ -140,6 +160,9 @@ export function PageView({
    * install one document listener per entry.
    */
   embedded?: boolean;
+  layout?: "default" | "compact";
+  blocksMode?: ViewMode;
+  onBlocksModeChange?: ((mode: ViewMode) => void) | undefined;
   forClass?: boolean;
   rootClassName?: string | undefined;
   corner?: ReactNode;
@@ -153,19 +176,34 @@ export function PageView({
   /**
    * Child-blocks view mode (the outline/prose/cards triad): durable display
    * state per page (§34.27 L1) — device-local, never an op. Unset/stale
-   * values fall back to outline, the surface default.
+   * values fall back to outline, the surface default. The main NodeView owns
+   * the switcher (card top-right) and passes the mode down; standalone
+   * renders keep the internal preference.
    */
-  const [blocksMode, setBlocksMode] = useViewModePreference(
+  const [internalBlocksMode, setInternalBlocksMode] = useViewModePreference(
     `nodeBlocks.${pageId}`,
     "outline",
     BLOCKS_VIEW_MODES,
   );
+  const blocksMode = blocksModeProp ?? internalBlocksMode;
+  const setBlocksMode = onBlocksModeChange ?? setInternalBlocksMode;
   /**
    * Focus mode (#12) — device-local: the page keeps its title and editable
    * body, but the surrounding chrome (classes corner, header icon, tags,
    * cover, date bar, properties, system sections, footer) steps aside.
    */
   const [focusMode] = useDeviceSetting("focusMode", false);
+  /**
+   * The Capacities-style main layout: left properties panel + classes at the
+   * content top-left. Device-local collapse (never an op); class composition
+   * and focus mode keep the compact in-flow chrome.
+   */
+  const [sidePanelCollapsed, setSidePanelCollapsed] = useDeviceSetting(
+    "pageSidePanelCollapsed",
+    false,
+  );
+  const panelled =
+    layout === "default" && !embedded && !focusMode && !forClass;
   const [headerMenu, setHeaderMenu] = useState<{ x: number; y: number } | null>(null);
   /** Icon picker popup anchor + open state (clicking the page icon). */
   const pageIconRef = useRef<HTMLElement | null>(null);
@@ -277,14 +315,24 @@ export function PageView({
   const blockItems: NodeCollectionItem[] = tree.map(toCollectionItem);
   /**
    * §34.28 #4/#7 — the day branch: a node whose id parses at day precision
-   * is a day page and gets the date bar (±1 day stepping over the
-   * deterministic ids + the reviewed toggle) and the three aggregation
-   * sections. Embedded renders (journal feed, calendar daily-note embed)
-   * skip both — they already sit on aggregation surfaces.
+   * is a day page and gets the date header (weekday/Today flags + the week
+   * flag, owner 2026-10-06) and the three aggregation sections. The month
+   * and year pages carry the Created aggregation too (owner 2026-10-06).
+   * Embedded renders (journal feed, calendar daily-note embed) skip both —
+   * they already sit on aggregation surfaces.
    */
   const parsedDay = page !== undefined ? parseDateNodeId(pageId) : null;
   const dayIso =
     parsedDay !== null && parsedDay.precision === "day" ? isoOfDateParts(parsedDay) : null;
+  /** Month/year Created bounds (null on day pages and non-date nodes). */
+  const createdPeriod =
+    page !== undefined && parsedDay !== null && parsedDay.precision !== "day"
+      ? createdPeriodBounds({
+          year: parsedDay.year,
+          month: parsedDay.month,
+          precision: parsedDay.precision,
+        })
+      : null;
 
   // Fullscreen whiteboard (SCHEMA.md: a whiteboard page carries a
   // `whiteboard` content token — the whiteboard CLASS, not any node kind,
@@ -502,6 +550,116 @@ export function PageView({
    */
   const ghostVisible = !embedded && blocksMode !== "cards";
 
+  /**
+   * The page body: the whiteboard canvas, or the editable block tree + the
+   * aggregation/system sections (all inside the same drag context). In the
+   * panelled main layout this rides the content column beside the left
+   * properties panel; compact layouts render it full-width.
+   */
+  const bodyContent = (
+    <>
+      {whiteboardTokenIndex >= 0 || (whiteboardClassed && !embedded) ? (
+        whiteboardTokenIndex >= 0 ? (
+          <>
+            <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
+            {!focusMode &&
+              (systemSections ?? (
+                <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} withActivity={!embedded} />
+              ))}
+          </>
+        ) : (
+          // Classed whiteboard without the token yet: the open effect is
+          // authoring it — one bare frame, then the canvas mounts.
+          <div className="nt-whiteboard-boot" aria-label="Opening whiteboard…" />
+        )
+      ) : (
+        <>
+          <EmbedBoundary rootId={pageId}>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={blockCollisionDetection}
+              onDragStart={handleDragStart}
+              onDragMove={handleDragMove}
+              onDragEnd={handleDragEnd}
+              onDragCancel={handleDragCancel}
+            >
+              <DropLineContext.Provider value={dropLine}>
+                <SortableContext items={tree.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
+                  <div
+                    ref={selectionRootRef}
+                    className={tree.length === 0 ? "nt-select-surface nt-select-surface--empty" : "nt-select-surface"}
+                    onMouseDownCapture={selectionSurface.onMouseDownCapture}
+                  >
+                    <NodeCollection
+                      viewMode={blocksMode}
+                      client={client}
+                      items={blockItems}
+                      tree
+                      editable
+                      onNodeClick={(id) => onOpenPage?.(id)}
+                      onNodeShiftClick={(id) => onOpenInSidebar?.(id)}
+                    />
+                    {/* §34.109 ghost trailing block (owner refinement of
+                        §34.85): the page root trails exactly ONE "+ Add
+                        block" ghost row as the last sibling of the main
+                        level — display-only until the click, which creates
+                        a real empty block after the last child and focuses
+                        it (never an op by itself). Blocks no longer trail
+                        their own ghosts at deeper levels, and focus mode
+                        keeps the body (hence this ghost) — only chrome
+                        steps aside. Prose mounts it too, gutter dropped
+                        (bullets are hidden in that transform). */}
+                    {ghostVisible && (
+                      <GhostRow
+                        parentId={pageId}
+                        prose={blocksMode === "prose"}
+                        onRealize={() => {
+                          void realizeGhost(client, outliner, pageId).catch((error: unknown) => {
+                            console.warn(`[outliner] ghost realize (${pageId}) failed:`, error);
+                          });
+                        }}
+                      />
+                    )}
+                  </div>
+                </SortableContext>
+                {/* The system sections join the same drag context: the Child
+                    pages section's read-only rows are droppable (zone-aware —
+                    a drop anchored on a main child promotes into the Pages
+                    zone, see handleDragEnd). Class composition inserts its
+                    class-relevant sections ahead of them. */}
+                {sections}
+                {dayIso !== null && !embedded && (
+                  <DayPageSections
+                    client={client}
+                    pageId={pageId}
+                    iso={dayIso}
+                    onOpenPage={onOpenPage}
+                  />
+                )}
+                {createdPeriod !== null && !embedded && (
+                  <CreatedSection
+                    client={client}
+                    pageId={pageId}
+                    after={createdPeriod.after}
+                    before={createdPeriod.before}
+                    onOpenPage={onOpenPage}
+                  />
+                )}
+                {!focusMode &&
+                  (systemSections ?? (
+                    <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} withActivity={!embedded} />
+                  ))}
+              </DropLineContext.Provider>
+              <DragOverlay dropAnimation={null}>
+                {dragging !== null && <div className="nt-drag-ghost">{dragging.label}</div>}
+              </DragOverlay>
+            </DndContext>
+          </EmbedBoundary>
+        </>
+      )}
+    </>
+  );
+
   return (
     <OutlinerContext.Provider value={outliner}>
       <LinkEditModalHost client={client} openerRef={linkOpenerRef}>
@@ -510,12 +668,11 @@ export function PageView({
           ref={pageRootRef}
           onClick={handleExternalLinkClick}
         >
-          {/* Classes: pinned to the main content card's top-left corner
-              (outside the centered content column), with card padding.
-              Class composition swaps in its extends (parent-class) pills.
-              Focus mode (#12) hides the corner — the title row is the one
-              landmark that stays. */}
-          {!embedded && !focusMode &&
+          {/* Classes: compact layouts pin the pills to the card's top-left
+              corner; the panelled main layout moves them inline at the
+              content column's top-left (the page top bar below). Class
+              composition swaps in its extends (parent-class) pills. */}
+          {!panelled && !embedded && !focusMode &&
             (corner !== undefined ? (
               corner
             ) : (
@@ -531,12 +688,51 @@ export function PageView({
               onClose={() => setFindOpen(false)}
             />
           )}
+          {/* The panelled main layout's top bar: the side-panel collapse
+              toggle at the content's top-left corner, then the classes pills
+              (the Capacities-style "non-sidebar part" corner). */}
+          {panelled && (
+            <div className="nt-page-topbar">
+              <button
+                type="button"
+                className="nt-icon-btn"
+                aria-label={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
+                aria-pressed={!sidePanelCollapsed}
+                title={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
+                onClick={() => setSidePanelCollapsed(!sidePanelCollapsed)}
+              >
+                <Icon path="mdi-page-layout-sidebar-left" size={1} />
+              </button>
+              {corner !== undefined ? (
+                corner
+              ) : (
+                <div className="nt-page-classes-inline">
+                  <ClassesRow client={client} nodeId={pageId} classIds={page.classIds} onOpenPage={onOpenPage} />
+                </div>
+              )}
+            </div>
+          )}
           {/* §34.72 — the v1 header layout: header left, the collapsible
               cover CARD right (always rendered when the page can carry a
               cover, even empty). */}
           <div className="page-header-section">
           <header className="nt-page-header">
           <div className="page-header__title-row">
+            {dayIso !== null && !embedded ? (
+              /* Day pages: the header IS the date header — weekday + Today
+                 flags above the (dateFormat-aware) title, the ISO week flag
+                 after it. Right-click keeps the node context menu. */
+              <span
+                className="nt-page-title-wrap"
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  setHeaderMenu({ x: event.clientX, y: event.clientY });
+                }}
+              >
+                <DayPageHeader iso={dayIso} title={displayNameForSettings(page)} />
+              </span>
+            ) : (
+              <>
             {!focusMode &&
               (iconButton !== undefined ? (
                 iconButton
@@ -595,16 +791,8 @@ export function PageView({
             ) : (
               <TitleEditor page={page} />
             )}
-              {dayIso !== null && !embedded && <DayFlags iso={dayIso} />}
             </span>
-            {!embedded && blocksMode !== undefined && (
-              <div className="nt-blocks-bar" role="group" aria-label="Blocks view">
-                <ViewToolbar
-                  modes={BLOCKS_VIEW_MODES}
-                  value={blocksMode}
-                  onChange={setBlocksMode}
-                />
-              </div>
+              </>
             )}
             {headerActions !== undefined && !focusMode && (
               <div className="nt-page-toolbar">{headerActions}</div>
@@ -620,9 +808,6 @@ export function PageView({
           </aside>
         )}
         </div>
-        {dayIso !== null && !embedded && !focusMode && (
-          <DayPageDateBar client={client} iso={dayIso} onOpenPage={onOpenPage} />
-        )}
         {notice}
         {moveError !== null && (
           <div role="alert" className="nt-dnd-error">
@@ -634,101 +819,32 @@ export function PageView({
         {!embedded && !focusMode && (
           <AliasOfBanner client={client} aliasPageId={pageId} onOpenPage={onOpenPage} />
         )}
-        {!focusMode && (
+        {/* The compact layouts keep the v1 in-flow properties list (the
+            panelled main layout moves it into the left side panel). */}
+        {!focusMode && !panelled && (
           <>
             <PropertiesSection client={client} nodeId={pageId} onOpenPage={onOpenPage} />
             <div className="nt-metadata-divider" />
           </>
         )}
-        {whiteboardTokenIndex >= 0 || (whiteboardClassed && !embedded) ? (
-          whiteboardTokenIndex >= 0 ? (
-            <>
-              <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
-              {!focusMode &&
-                (systemSections ?? (
-                  <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} withActivity={!embedded} />
-                ))}
-            </>
-          ) : (
-            // Classed whiteboard without the token yet: the open effect is
-            // authoring it — one bare frame, then the canvas mounts.
-            <div className="nt-whiteboard-boot" aria-label="Opening whiteboard…" />
-          )
+        {/* The page body: beside the left properties panel in the panelled
+            main layout, full-width in the compact ones. */}
+        {panelled ? (
+          <div className="nt-page-body">
+            {!sidePanelCollapsed && (
+              <aside className="nt-page-side-panel">
+                <PropertiesTable
+                  client={client}
+                  nodeId={pageId}
+                  onOpenPage={onOpenPage}
+                  layout="panel"
+                />
+              </aside>
+            )}
+            <div className="nt-page-content">{bodyContent}</div>
+          </div>
         ) : (
-          <>
-            <EmbedBoundary rootId={pageId}>
-              <DndContext
-                sensors={sensors}
-                collisionDetection={blockCollisionDetection}
-                onDragStart={handleDragStart}
-                onDragMove={handleDragMove}
-                onDragEnd={handleDragEnd}
-                onDragCancel={handleDragCancel}
-              >
-                <DropLineContext.Provider value={dropLine}>
-                  <SortableContext items={tree.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
-                    <div
-                      ref={selectionRootRef}
-                      className="nt-select-surface"
-                      onMouseDownCapture={selectionSurface.onMouseDownCapture}
-                    >
-                      <NodeCollection
-                        viewMode={blocksMode}
-                        client={client}
-                        items={blockItems}
-                        tree
-                        editable
-                        onNodeClick={(id) => onOpenPage?.(id)}
-                        onNodeShiftClick={(id) => onOpenInSidebar?.(id)}
-                      />
-                      {/* §34.109 ghost trailing block (owner refinement of
-                          §34.85): the page root trails exactly ONE "+ Add
-                          block" ghost row as the last sibling of the main
-                          level — display-only until the click, which creates
-                          a real empty block after the last child and focuses
-                          it (never an op by itself). Blocks no longer trail
-                          their own ghosts at deeper levels, and focus mode
-                          keeps the body (hence this ghost) — only chrome
-                          steps aside. Prose mounts it too, gutter dropped
-                          (bullets are hidden in that transform). */}
-                      {ghostVisible && (
-                        <GhostRow
-                          parentId={pageId}
-                          prose={blocksMode === "prose"}
-                          onRealize={() => {
-                            void realizeGhost(client, outliner, pageId).catch((error: unknown) => {
-                              console.warn(`[outliner] ghost realize (${pageId}) failed:`, error);
-                            });
-                          }}
-                        />
-                      )}
-                    </div>
-                  </SortableContext>
-                  {/* The system sections join the same drag context: the Child
-                      pages section's read-only rows are droppable (zone-aware —
-                      a drop anchored on a main child promotes into the Pages
-                      zone, see handleDragEnd). Class composition inserts its
-                      class-relevant sections ahead of them. */}
-                  {sections}
-                  {dayIso !== null && !embedded && (
-                    <DayPageSections
-                      client={client}
-                      pageId={pageId}
-                      iso={dayIso}
-                      onOpenPage={onOpenPage}
-                    />
-                  )}
-                  {!focusMode &&
-                    (systemSections ?? (
-                      <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} withActivity={!embedded} />
-                    ))}
-                </DropLineContext.Provider>
-                <DragOverlay dropAnimation={null}>
-                  {dragging !== null && <div className="nt-drag-ghost">{dragging.label}</div>}
-                </DragOverlay>
-              </DndContext>
-            </EmbedBoundary>
-          </>
+          bodyContent
         )}
         {!embedded && !focusMode && (
           <PageFooter client={client} page={page} tree={tree} onOpenNode={onOpenPage} />

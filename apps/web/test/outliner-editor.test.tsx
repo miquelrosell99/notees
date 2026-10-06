@@ -19,6 +19,7 @@ import { PageView } from "../src/ui/PageView.js";
 import { SAVE_DEBOUNCE_MS } from "../src/ui/BlockTextEditor.js";
 import { astFromProse, proseFromAst } from "../src/editor/prose.js";
 import { buildOutlinePositions } from "../src/editor/outline.js";
+import { writeViewModePref } from "../src/ui/viewPrefs.js";
 import type { BlockTreeNode } from "../src/core/workspace-client.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
@@ -606,16 +607,18 @@ describe("ghost block rows (the v1 add affordance)", () => {
 
     // Prose: the sole add affordance stays (§34.85) but the bullet is
     // hidden like every prose bullet — the row mounts the prose modifier
-    // (GhostRow.css drops the gutter under .nt-ghost-row--prose).
-    fireEvent.click(screen.getByRole("radio", { name: "Prose" }));
+    // (GhostRow.css drops the gutter under .nt-ghost-row--prose). The mode
+    // rides the per-page device preference (the switcher lives in the
+    // NodeView chrome now, not on a directly rendered PageView).
+    act(() => writeViewModePref(`nodeBlocks.${pageId}`, "prose"));
     expect(ghost()).not.toBeNull();
     expect(ghost()!.classList.contains("nt-ghost-row--prose")).toBe(true);
 
-    fireEvent.click(screen.getByRole("radio", { name: "Cards" }));
+    act(() => writeViewModePref(`nodeBlocks.${pageId}`, "cards"));
     expect(container.querySelectorAll("[data-ghost]")).toHaveLength(0);
 
     // Back to outline: the affordance returns, gutter and all.
-    fireEvent.click(screen.getByRole("radio", { name: "Outline" }));
+    act(() => writeViewModePref(`nodeBlocks.${pageId}`, "outline"));
     expect(ghost()).not.toBeNull();
     expect(ghost()!.classList.contains("nt-ghost-row--prose")).toBe(false);
   });

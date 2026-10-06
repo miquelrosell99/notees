@@ -1,0 +1,9 @@
+/* CreatedSection — the date pages' Created aggregation: the view-mode
+   switcher rides the section content's top-right, the collection below.
+   Token-only. */
+
+.nt-created-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--spacing-2);
+}

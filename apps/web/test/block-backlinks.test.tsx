@@ -7,6 +7,10 @@
  * toggle and caches until an invalidating notification. jsdom over the
  * in-process WorkspaceClient.
  *
+ * The laziness assertions scope the query spy to the BLOCK's id: the
+ * page-level backlinks strip (owner 2026-10-06) loads the PAGE's references
+ * on mount, so a bare call-count would include the strip's mount query.
+ *
  * Every write kicks a floating engine push whose ack notifies later
  * (microtasks), so each test flushes the queue after seeding — the late
  * acks are legitimate invalidations, not fixture noise.
@@ -86,20 +90,24 @@ describe("block-level backlink gutter", () => {
     render(<PageView client={client} pageId={pageId} />);
     // PageView's first mount idempotently writes the cover-property schema
     // (self-heal) and kicks pushes — settle those notifications so the
-    // collapsed panel (which executes nothing) sees a quiet client.
+    // collapsed panel (which executes nothing) sees a quiet client. (The
+    // page-level backlinks strip's mount load may call the same query for
+    // the PAGE id — the assertions below scope the spy to the block.)
     await flushSync();
+    const blockQueries = () =>
+      refsSpy.mock.calls.filter((args) => args[0] === targetBlockId).length;
 
-    // The badge reads the materialized count; no query has run yet and no
-    // panel is rendered.
+    // The badge reads the materialized count; the block's query has not run
+    // and no panel is rendered.
     const toggle = screen.getByRole("button", { name: "2 linked references" });
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    expect(refsSpy).not.toHaveBeenCalled();
+    expect(blockQueries()).toBe(0);
     expect(document.querySelector(".nt-block-backlink-refs")).toBeNull();
 
     // First toggle: the query runs once and the references render beneath
     // the block row.
     fireEvent.click(toggle);
-    await waitFor(() => expect(refsSpy).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(blockQueries()).toBe(1));
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
     const panel = document.querySelector(".nt-block-backlink-refs") as HTMLElement;
     expect(panel).not.toBeNull();
@@ -111,13 +119,13 @@ describe("block-level backlink gutter", () => {
     expect(document.querySelector(".nt-block-backlink-refs")).toBeNull();
     fireEvent.click(toggle);
     expect(document.querySelector(".nt-block-backlink-refs")).not.toBeNull();
-    expect(refsSpy).toHaveBeenCalledTimes(1);
+    expect(blockQueries()).toBe(1);
   });
 
   it("hides the gutter when the block has no backlinks", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Quiet" });
-    await client.createObject({
+    const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "Unmentioned block" }],
     });
@@ -127,7 +135,9 @@ describe("block-level backlink gutter", () => {
     render(<PageView client={client} pageId={pageId} />);
 
     expect(screen.queryByRole("button", { name: /linked references?/ })).toBeNull();
-    expect(refsSpy).not.toHaveBeenCalled();
+    // The block's query stays lazy (the page-level strip's mount load may
+    // call the same query for the PAGE id — scope the assertion).
+    expect(refsSpy.mock.calls.filter((args) => args[0] === blockId)).toHaveLength(0);
   });
 
   it("re-runs the expanded query when an invalidating notification lands", async () => {
@@ -147,8 +157,10 @@ describe("block-level backlink gutter", () => {
     const refsSpy = vi.spyOn(client, "getLinkedReferences");
     render(<PageView client={client} pageId={pageId} />);
     await flushSync();
+    const blockQueries = () =>
+      refsSpy.mock.calls.filter((args) => args[0] === targetBlockId).length;
     fireEvent.click(screen.getByRole("button", { name: "1 linked reference" }));
-    await waitFor(() => expect(refsSpy).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(blockQueries()).toBe(1));
 
     // A new mention arrives from another page: the expanded panel re-queries
     // on the invalidating notification and the badge updates to the new
@@ -163,6 +175,6 @@ describe("block-level backlink gutter", () => {
     await screen.findByRole("button", { name: "2 linked references" });
     const panel = document.querySelector(".nt-block-backlink-refs") as HTMLElement;
     expect(within(panel).getByText("Source B")).not.toBeNull();
-    expect(refsSpy.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(blockQueries()).toBeGreaterThanOrEqual(2);
   });
 });

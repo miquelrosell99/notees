@@ -2,30 +2,27 @@
  * SystemSections — the card-bottom system sections. Below the page's own
  * content: the Child pages section (expanded) and the workspace Activity
  * feed (§34.19 :1167, mounted last; off for embedded renders via
- * `withActivity`) stay stacked as today, while the three reference sections
- * live behind one tab strip (#5): Linked references, References (the
- * outgoing mirror — document-chrome pages this node points at, via the
- * source-side roll-up in @notees/store), and Unlinked references (the only
- * tab carrying the promote/ignore action pair). Each tab mounts its lazy
- * Section inside a Tabs.Panel, which renders only while the tab is active —
- * a collapsed section still executes no query, and an inactive tab's query
- * never runs at all. Empty tabs hide entirely (owner rule): the strip
- * appears only when at least one tab has rows, and an active tab that
- * emptied falls back to the first non-empty one.
+ * `withActivity`) stay stacked sections as before; only the REFERENCES
+ * rework rides the tab strip (owner 2026-10-06, the Capacities-style
+ * layout): ONE tab bar in the old references-tab slot — Backlinks and
+ * Unlinked mentions (renamed from "unlinked references") — always showing
+ * both tabs even when empty. The tab label carries the eager count; a tab's
+ * list query runs lazily on its first activation (the SCHEMA.md lazy
+ * contract), the results cache across tab switches, and a live notification
+ * re-runs the loaded tabs' queries. The tabbed panels render headerless —
+ * the tab IS the section header (no duplicated tabs-plus-section-headers
+ * chrome).
  *
- * The lazy-loading contract lives in Section (../Section.js): a collapsed
- * section executes no query.
- *
- * Unlinked references carry the v1 action pair (§34.27 L4, §34.19 :1137):
+ * Unlinked mentions carry the v1 action pair (§34.27 L4, §34.19 :1137):
  * Promote rewrites the source block's literal name match into a mention
- * (./unlinkedRefs.ts — after the write the source moves to Linked, the
+ * (./unlinkedRefs.ts — after the write the source moves to Backlinks, the
  * honest place for it); Ignore dismisses the source device-locally, per
  * page — device state, never an op (./viewPrefs.js).
  *
  * Extracted from PageView.tsx.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, ReferenceEntry, WorkspaceClient } from "@/core/workspace-client.js";
@@ -49,9 +46,8 @@ type AnyClient = WorkspaceClient | WorkerClient;
 /** Cycle-protection depth cap for the recursive page tree. */
 const PAGE_TREE_DEPTH_CAP = 64;
 
-/** The references tab strip's tab values (#5). */
-const REF_TAB_LINKED = "linked";
-const REF_TAB_REFERENCES = "references";
+/** The bottom backlinks strip's tab values. */
+const REF_TAB_BACKLINKS = "backlinks";
 const REF_TAB_UNLINKED = "unlinked";
 
 /** A main node plus its main CHILDREN (inline body blocks filtered out), recursive. */
@@ -197,42 +193,87 @@ export function SystemSections({
   withActivity?: boolean | undefined;
 }) {
   const loadLinkedRefs = useCallback(() => client.getLinkedReferences(pageId), [client, pageId]);
-  const loadReferences = useCallback(() => client.getReferences(pageId), [client, pageId]);
   const ignored = useIgnoredUnlinkedRefs(pageId);
+  // The ignore-list hook hands back a FRESH array every render — key the
+  // callback on the joined value so its identity (and the refresh effect's
+  // deps below) stays stable between actual ignore-list changes; a churning
+  // identity re-runs that effect every render and loops on the fresh-array
+  // state installs (found by the §34.116 test pass).
+  const ignoredKey = ignored.join(" ");
   const loadUnlinkedRefs = useCallback(() => {
-    const dismissed = new Set(ignored);
+    const dismissed = new Set(ignoredKey === "" ? [] : ignoredKey.split(" "));
     return client
       .getUnlinkedReferences(pageId)
       .filter((entry) => !dismissed.has(entry.source.id));
-  }, [client, pageId, ignored]);
+  }, [client, pageId, ignoredKey]);
   const loadChildPages = useCallback(() => client.getChildPages(pageId), [client, pageId]);
 
-  // Empty sections hide entirely (owner rule): linked refs read the
-  // materialized backlink count, unlinked refs its (memoized) count query,
-  // child pages the child count — the headers must know emptiness without
-  // an expand, and windowed feeds (the journal) mount too few pages for
-  // that to matter. The References tab reads the same roll-up its list
-  // renders (getReferenceCount), so its badge and rows cannot diverge.
+  // The eager counts ride the tab labels (the backlink count is a
+  // materialized read; the unlinked count its memoized count query — the
+  // SystemSections precedent, so the labels know emptiness without running
+  // the list queries).
   const backlinkCount = client.getBacklinkCount(pageId);
   const unlinkedCount = client.getUnlinkedReferenceCount(pageId);
   const childPageCount = client.getChildPageCount(pageId);
-  const referenceCount = client.getReferenceCount(pageId);
 
-  // The three reference sections share one tab strip. Tabs.Panel renders
-  // only while active, so an inactive tab's Section never mounts — the
-  // Section lazy contract (collapsed ⇒ no query) holds per active tab.
-  // Empty tabs hide (owner rule): the strip appears only when at least one
-  // tab has rows; an active tab that emptied (e.g. the last unlinked ref
-  // promoted) falls back to the first non-empty tab.
-  const [refTab, setRefTab] = useState(REF_TAB_LINKED);
-  const refTabs = [
-    backlinkCount > 0 ? { value: REF_TAB_LINKED, label: "Linked references" } : null,
-    referenceCount > 0 ? { value: REF_TAB_REFERENCES, label: "References" } : null,
-    unlinkedCount > 0 ? { value: REF_TAB_UNLINKED, label: "Unlinked references" } : null,
-  ].filter((tab): tab is { value: string; label: string } => tab !== null);
-  const activeRefTab = refTabs.some((tab) => tab.value === refTab)
-    ? refTab
-    : (refTabs[0]?.value ?? REF_TAB_LINKED);
+  // The bottom backlinks strip: both tabs always visible (owner 2026-10-06),
+  // a tab's list query runs on its FIRST activation only (lazy per the
+  // SCHEMA.md contract), the rows cache across tab switches, and a live
+  // notification re-runs the loaded tabs' queries (the Section contract).
+  const [refTab, setRefTab] = useState(REF_TAB_BACKLINKS);
+  const [backlinkRows, setBacklinkRows] = useState<ReferenceEntry[] | null>(null);
+  const [unlinkedRows, setUnlinkedRows] = useState<ReferenceEntry[] | null>(null);
+  const [backlinksVersion, setBacklinksVersion] = useState(0);
+  useEffect(() => client.subscribe(() => setBacklinksVersion((v) => v + 1)), [client]);
+  useEffect(() => {
+    if (backlinkRows !== null) {
+      try {
+        setBacklinkRows(loadLinkedRefs());
+      } catch {
+        // Closed client / failed query: keep the previous rows.
+      }
+    }
+    if (unlinkedRows !== null) {
+      try {
+        setUnlinkedRows(loadUnlinkedRefs());
+      } catch {
+        // Closed client / failed query: keep the previous rows.
+      }
+    }
+    // Re-run the loaded tabs' queries per notification (the Section
+    // contract); the lazy tabs stay silent until their first activation.
+  }, [client, backlinksVersion, loadLinkedRefs, loadUnlinkedRefs]);
+  const activateRefTab = (tab: string) => {
+    setRefTab(tab);
+    try {
+      if (tab === REF_TAB_BACKLINKS && backlinkRows === null) {
+        setBacklinkRows(loadLinkedRefs());
+      }
+      if (tab === REF_TAB_UNLINKED && unlinkedRows === null) {
+        setUnlinkedRows(loadUnlinkedRefs());
+      }
+    } catch {
+      // Failed first load: the panel renders its empty state honestly.
+    }
+  };
+  /**
+   * The initially-selected tab is active from the first render, and the Tabs
+   * primitive swallows re-clicks on the active tab — so onChange can never
+   * fire for it and its first load must run here (without this the default
+   * tab's panel stayed blank until the user switched away and back). The
+   * other tab stays lazy until a real switch.
+   */
+  const initialTabLoaded = useRef(false);
+  useEffect(() => {
+    if (initialTabLoaded.current) return;
+    initialTabLoaded.current = true;
+    try {
+      if (refTab === REF_TAB_BACKLINKS) setBacklinkRows(loadLinkedRefs());
+      else setUnlinkedRows(loadUnlinkedRefs());
+    } catch {
+      // Failed first load: the panel renders its empty state honestly.
+    }
+  }, [refTab, loadLinkedRefs, loadUnlinkedRefs]);
 
   return (
     <div className="nt-page-sections">
@@ -261,72 +302,41 @@ export function SystemSections({
           )}
         />
       )}
-      {refTabs.length > 0 && (
-        <Tabs className="nt-ref-tabs" value={activeRefTab} onChange={setRefTab}>
+      {/* The backlinks strip — the page's references (Backlinks + Unlinked
+          mentions) ride one tab bar in the old references-tab slot. Both
+          tabs always show; the panel under a tab renders headerless (the
+          tab is the header). The other system sections are untouched. */}
+      <div className="nt-backlinks">
+        <Tabs className="nt-ref-tabs" value={refTab} onChange={activateRefTab}>
           <Tabs.List>
-            {refTabs.map((tab) => (
-              <Tabs.Tab key={tab.value} value={tab.value}>
-                {tab.label}
-              </Tabs.Tab>
-            ))}
+            <Tabs.Tab value={REF_TAB_BACKLINKS}>
+              Backlinks{backlinkCount > 0 ? ` ${backlinkCount}` : ""}
+            </Tabs.Tab>
+            <Tabs.Tab value={REF_TAB_UNLINKED}>
+              Unlinked mentions{unlinkedCount > 0 ? ` ${unlinkedCount}` : ""}
+            </Tabs.Tab>
           </Tabs.List>
-          <Tabs.Panel value={REF_TAB_LINKED}>
-            <Section
-              key={`linked-${pageId}`}
-              client={client}
-              title="Linked references"
-              icon={<Icon path="mdi-link-variant" size={0.9} />}
-              badge={backlinkCount}
-              defaultCollapsed
-              load={loadLinkedRefs}
-              emptyText="No linked references."
-              renderResults={(entries) => <ReferenceList entries={entries} client={client} onOpenPage={onOpenPage} />}
-            />
-          </Tabs.Panel>
-          <Tabs.Panel value={REF_TAB_REFERENCES}>
-            <Section
-              key={`references-${pageId}`}
-              client={client}
-              title="References"
-              icon={<Icon path="mdi-file-document-outline" size={0.9} />}
-              badge={referenceCount}
-              defaultCollapsed
-              load={loadReferences}
-              emptyText="No references."
-              renderResults={(targets) => (
-                // The outgoing mirror of linked references: the referenced
-                // pages themselves (the tab is about targets, so the rows
-                // are the simple read-only outline — no source breadcrumbs).
-                <NodeCollection
-                  viewMode="outline"
-                  client={client}
-                  items={targets.map((target) => ({ node: target }))}
-                  readOnly
-                  onNodeClick={(id) => onOpenPage?.(id)}
-                />
-              )}
-            />
+          <Tabs.Panel value={REF_TAB_BACKLINKS}>
+            {backlinkRows === null ? null : backlinkRows.length === 0 ? (
+              <div className="nt-section-empty">No backlinks.</div>
+            ) : (
+              <ReferenceList entries={backlinkRows} client={client} onOpenPage={onOpenPage} />
+            )}
           </Tabs.Panel>
           <Tabs.Panel value={REF_TAB_UNLINKED}>
-            <Section
-              key={`unlinked-${pageId}`}
-              client={client}
-              title="Unlinked references"
-              icon={<Icon path="mdi-link-off" size={0.9} />}
-              load={loadUnlinkedRefs}
-              emptyText="No unlinked references."
-              renderResults={(entries) => (
-                <ReferenceList
-                  entries={entries}
-                  client={client}
-                  onOpenPage={onOpenPage}
-                  unlinkedPageId={pageId}
-                />
-              )}
-            />
+            {unlinkedRows === null ? null : unlinkedRows.length === 0 ? (
+              <div className="nt-section-empty">No unlinked mentions.</div>
+            ) : (
+              <ReferenceList
+                entries={unlinkedRows}
+                client={client}
+                onOpenPage={onOpenPage}
+                unlinkedPageId={pageId}
+              />
+            )}
           </Tabs.Panel>
         </Tabs>
-      )}
+      </div>
       {withActivity && <ActivityLogSection client={client} onOpenPage={onOpenPage} />}
     </div>
   );
