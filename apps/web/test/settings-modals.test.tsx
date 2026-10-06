@@ -84,12 +84,12 @@ describe("WorkspaceSettingsModal", () => {
     const onRenamed = vi.fn();
     render(
       <WorkspaceSettingsModal
-        isOpen
-        onClose={() => {}}
         serverUrl="https://notees.example.com"
         credential="session-token"
         workspaceId="ws1"
         workspaceName="Garden"
+        isOpen
+        onClose={() => {}}
         workspaceRole="owner"
         onRenamed={onRenamed}
       />,
@@ -109,12 +109,12 @@ describe("WorkspaceSettingsModal", () => {
   it("disables rename for non-owners with an explanatory note", () => {
     render(
       <WorkspaceSettingsModal
-        isOpen
-        onClose={() => {}}
         serverUrl="https://notees.example.com"
         credential="session-token"
         workspaceId="ws1"
         workspaceName="Garden"
+        isOpen
+        onClose={() => {}}
         workspaceRole="editor"
       />,
     );
@@ -125,12 +125,12 @@ describe("WorkspaceSettingsModal", () => {
   it("persists sidebar visibility toggles device-locally", () => {
     render(
       <WorkspaceSettingsModal
-        isOpen
-        onClose={() => {}}
         serverUrl="https://notees.example.com"
         credential="session-token"
         workspaceId="ws1"
         workspaceName="Garden"
+        isOpen
+        onClose={() => {}}
         workspaceRole="owner"
       />,
     );
@@ -142,12 +142,12 @@ describe("WorkspaceSettingsModal", () => {
   it("renders retention and citekey controls honestly inert", () => {
     render(
       <WorkspaceSettingsModal
-        isOpen
-        onClose={() => {}}
         serverUrl="https://notees.example.com"
         credential="session-token"
         workspaceId="ws1"
         workspaceName="Garden"
+        isOpen
+        onClose={() => {}}
         workspaceRole="owner"
       />,
     );
@@ -159,12 +159,12 @@ describe("WorkspaceSettingsModal", () => {
   it("lists the shell shortcuts in the Shortcuts tab", () => {
     render(
       <WorkspaceSettingsModal
-        isOpen
-        onClose={() => {}}
         serverUrl="https://notees.example.com"
         credential="session-token"
         workspaceId="ws1"
         workspaceName="Garden"
+        isOpen
+        onClose={() => {}}
         workspaceRole="owner"
       />,
     );
@@ -179,9 +179,9 @@ describe("UserSettingsModal", () => {
   it("applies the theme choice to <html> and persists it device-locally", () => {
     render(
       <UserSettingsModal
+        serverUrl="https://notees.example.com"
         isOpen
         onClose={() => {}}
-        serverUrl="https://notees.example.com"
         token="session-token"
         user={USER}
         onSignOut={() => {}}
@@ -195,9 +195,9 @@ describe("UserSettingsModal", () => {
   it("applies the UI font choice to <html> and persists it device-locally", () => {
     render(
       <UserSettingsModal
+        serverUrl="https://notees.example.com"
         isOpen
         onClose={() => {}}
-        serverUrl="https://notees.example.com"
         token="session-token"
         user={USER}
         onSignOut={() => {}}
@@ -214,9 +214,9 @@ describe("UserSettingsModal", () => {
   it("applies the focus mode choice to <html> and persists it device-locally", () => {
     render(
       <UserSettingsModal
+        serverUrl="https://notees.example.com"
         isOpen
         onClose={() => {}}
-        serverUrl="https://notees.example.com"
         token="session-token"
         user={USER}
         onSignOut={() => {}}
@@ -233,9 +233,9 @@ describe("UserSettingsModal", () => {
   it("applies the accent color choice to <html>", () => {
     render(
       <UserSettingsModal
+        serverUrl="https://notees.example.com"
         isOpen
         onClose={() => {}}
-        serverUrl="https://notees.example.com"
         token="session-token"
         user={USER}
         onSignOut={() => {}}
@@ -287,9 +287,9 @@ describe("UserSettingsModal", () => {
 
     render(
       <UserSettingsModal
+        serverUrl="https://notees.example.com"
         isOpen
         onClose={() => {}}
-        serverUrl="https://notees.example.com"
         token="session-token"
         user={USER}
         onSignOut={() => {}}
@@ -324,9 +324,9 @@ describe("UserSettingsModal", () => {
     const onSignOut = vi.fn();
     render(
       <UserSettingsModal
+        serverUrl="https://notees.example.com"
         isOpen
         onClose={() => {}}
-        serverUrl="https://notees.example.com"
         token="session-token"
         user={USER}
         onSignOut={onSignOut}
@@ -341,9 +341,9 @@ describe("UserSettingsModal", () => {
     stubFetch({});
     render(
       <UserSettingsModal
+        serverUrl="https://notees.example.com"
         isOpen
         onClose={() => {}}
-        serverUrl="https://notees.example.com"
         token="session-token"
         user={USER}
         onSignOut={() => {}}
@@ -387,10 +387,6 @@ describe("entry points", () => {
     render(
       <Sidebar
         client={client}
-        workspaceName="Garden"
-        workspaceId="ws1"
-        serverUrl="https://notees.example.com"
-        credential="session-token"
         user={USER}
         offline={false}
         showSettings
@@ -399,9 +395,6 @@ describe("entry points", () => {
         activeNav="pages"
         onSelectNav={() => {}}
         onOpenPage={() => {}}
-        onRequestSearch={() => {}}
-        onSwitchWorkspace={() => {}}
-        onManageWorkspaces={() => {}}
         onSignOut={() => {}}
       />,
     );
@@ -414,10 +407,6 @@ describe("entry points", () => {
     render(
       <Sidebar
         client={client}
-        workspaceName="Garden"
-        workspaceId="ws1"
-        serverUrl="https://notees.example.com"
-        credential="session-token"
         user={USER}
         offline={false}
         showSettings
@@ -426,9 +415,6 @@ describe("entry points", () => {
         activeNav="pages"
         onSelectNav={() => {}}
         onOpenPage={() => {}}
-        onRequestSearch={() => {}}
-        onSwitchWorkspace={() => {}}
-        onManageWorkspaces={() => {}}
         onSignOut={() => {}}
       />,
     );

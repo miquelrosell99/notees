@@ -54,6 +54,8 @@ export function TextPropertyRow({
   multi,
   rows,
   onOpenPage,
+  /** Hide the label/hints (the host chrome carries them — the sidebar). */
+  bare = false,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -62,6 +64,7 @@ export function TextPropertyRow({
   multi: boolean;
   rows: EffectiveProperty[];
   onOpenPage?: ((pageId: string) => void) | undefined;
+  bare?: boolean;
 }) {
   const ordered = [...rows].sort((a, b) => a.idx - b.idx);
   const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
@@ -107,11 +110,15 @@ export function TextPropertyRow({
           : "nt-property nt-property-text node-metadata-row"
       }
     >
-      <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>
-        {label}
-      </span>
-      {allDefault && <span className="nt-property-hint">default</span>}
-      {unbound && <span className="nt-property-hint">unbound</span>}
+      {!bare && (
+        <>
+          <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>
+            {label}
+          </span>
+          {allDefault && <span className="nt-property-hint">default</span>}
+          {unbound && <span className="nt-property-hint">unbound</span>}
+        </>
+      )}
       <span className="nt-property-textcell">
         <CarrierEnterContext.Provider
           value={{ carrierOf: (blockId) => carrierInfo.get(blockId) ?? null }}

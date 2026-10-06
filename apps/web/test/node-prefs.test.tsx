@@ -260,10 +260,6 @@ function renderSidebar(client: AnyClient) {
   return render(
     <Sidebar
       client={client}
-      workspaceName="Garden"
-      workspaceId={WS}
-      serverUrl={SERVER}
-      credential={CREDENTIAL}
       user={null}
       offline={false}
       showSettings={false}
@@ -272,9 +268,6 @@ function renderSidebar(client: AnyClient) {
       activeNav="pages"
       onSelectNav={() => {}}
       onOpenPage={() => {}}
-      onRequestSearch={() => {}}
-      onSwitchWorkspace={() => {}}
-      onManageWorkspaces={() => {}}
       onSignOut={() => {}}
     />,
   );

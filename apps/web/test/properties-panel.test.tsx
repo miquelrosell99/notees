@@ -84,11 +84,13 @@ describe("Properties panel (effective values)", () => {
     await client.assignClass(pageId, taskId);
     const { container } = render(<PageView client={client} pageId={pageId} />);
     expandProperties();
-    const row = container.querySelector(".nt-property")!;
-    expect(row.className).toContain("nt-property-default");
-    expect(row.textContent).toContain("priority");
-    expect(row.textContent).toContain("default");
-    const input = screen.getByLabelText("Property priority") as HTMLInputElement;
+    // The panelled main layout rides the left properties sidebar: the name
+    // row carries the hints, the scalar value cell the editor.
+    const sidebar = container.querySelector(".nt-props-sidebar")!;
+    const nameRow = sidebar.querySelector(`[data-property-schema-id="${schemaId}"]`)!;
+    expect(nameRow.textContent).toContain("priority");
+    expect(nameRow.textContent).toContain("default");
+    const input = sidebar.querySelector(`input[aria-label="Property priority"]`) as HTMLInputElement;
     expect(input.value).toBe("medium");
     // The read model agrees: derived, bound by Task, no authored row.
     expect(client.getEffectiveProperties(pageId)).toEqual([
@@ -100,11 +102,12 @@ describe("Properties panel (effective values)", () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Plain" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
-    // The panelled main layout rides the left side panel (PropertiesTable,
-    // stacked panel layout) — always rendered, even with zero properties.
+    // The panelled main layout rides the left side panel (PropertiesSidebar,
+    // name row + value row per property) — always rendered, even with zero
+    // properties.
     const panel = container.querySelector(".nt-page-side-panel");
     expect(panel).not.toBeNull();
-    expect(panel!.querySelector(".nt-properties-list--panel")).not.toBeNull();
+    expect(panel!.querySelector(".nt-props-sidebar")).not.toBeNull();
   });
 
   it("editing a default writes an authored value that shadows it", async () => {
@@ -115,16 +118,18 @@ describe("Properties panel (effective values)", () => {
     const { container } = render(<PageView client={client} pageId={pageId} />);
     expandProperties();
 
-    fireEvent.blur(screen.getByLabelText("Property priority"), { target: { value: "urgent" } });
+    const sidebar = container.querySelector(".nt-props-sidebar")!;
+    const input = sidebar.querySelector(`input[aria-label="Property priority"]`) as HTMLInputElement;
+    fireEvent.blur(input, { target: { value: "urgent" } });
     await flushWrites();
 
     const effective = client.getEffectiveProperties(pageId);
     expect(effective).toEqual([
       expect.objectContaining({ propertySchemaId: schemaId, value: "urgent", source: "authored", boundBy: taskId }),
     ]);
-    const row = container.querySelector(".nt-property")!;
-    expect(row.className).not.toContain("nt-property-default");
-    expect(row.textContent).not.toContain("default");
+    // The name row loses the "default" hint once the authored value wins.
+    const nameRow = sidebar.querySelector(`[data-property-schema-id="${schemaId}"]`)!;
+    expect(nameRow.textContent).not.toContain("default");
 
     // Clearing the authored value lets the derived default resurface.
     await act(async () => {
@@ -137,17 +142,19 @@ describe("Properties panel (effective values)", () => {
 
   it("multi-class conflict shows the first-applied class's value", async () => {
     const client = await seedClient();
-    const { taskId, projectId } = await seedPriorityClasses(client);
+    const { schemaId, taskId, projectId } = await seedPriorityClasses(client);
     const pageId = await client.createObject({ presentAsMain: true, name: "Ship it" });
     // Task is assigned first: its 'medium' beats Project's 'high'.
     await client.assignClass(pageId, taskId);
     await client.assignClass(pageId, projectId);
-    render(<PageView client={client} pageId={pageId} />);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
     expandProperties();
 
-    const input = screen.getByLabelText("Property priority") as HTMLInputElement;
+    const sidebar = container.querySelector(".nt-props-sidebar")!;
+    const input = sidebar.querySelector(`input[aria-label="Property priority"]`) as HTMLInputElement;
     expect(input.value).toBe("medium");
-    expect(input.closest(".nt-property")!.textContent).toContain("default");
+    // The name row still carries the "default" hint (the value is derived).
+    expect(sidebar.querySelector(`[data-property-schema-id="${schemaId}"]`)!.textContent).toContain("default");
 
     // On a page where Project was applied first, Project's default wins.
     const otherId = await client.createObject({ presentAsMain: true, name: "Other" });
@@ -194,7 +201,9 @@ describe("Properties panel (effective values)", () => {
       expect.objectContaining({ propertySchemaId: schemaId, value: "high", source: "default", boundBy: projectId }),
       expect.objectContaining({ propertySchemaId: effortSchemaId, value: "authored", source: "authored", boundBy: null }),
     ]);
-    expect(screen.getByText("unbound")).not.toBeNull();
+    // The hint shows on the sidebar's name row (the reused value row's own
+    // hint hides — the name row carries it).
+    expect(screen.getAllByText("unbound").length).toBeGreaterThan(0);
   });
 });
 

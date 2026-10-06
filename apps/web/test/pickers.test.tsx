@@ -163,7 +163,7 @@ describe("metadata pickers (ported popups)", () => {
     expandProperties();
 
     // Unvalued: the Empty cell opens the options picker.
-    const row = screen.getByText("status").closest(".nt-property-select") as HTMLElement;
+    const row = screen.getByText("status").closest(".nt-props-sidebar__prop, .nt-property-select") as HTMLElement;
     fireEvent.click(within(row).getByText("Empty"));
     fireEvent.click(within(row).getByText("Doing"));
     await flushWrites();
@@ -173,7 +173,7 @@ describe("metadata pickers (ported popups)", () => {
 
     // The pill renders with the option label; its remove affordance unsets.
     // (The row re-mounts when the value lands, so re-query the live row.)
-    const rowAfter = screen.getByText("status").closest(".nt-property-select") as HTMLElement;
+    const rowAfter = screen.getByText("status").closest(".nt-props-sidebar__prop, .nt-property-select") as HTMLElement;
     expect(within(rowAfter).getByText("Doing")).not.toBeNull();
     fireEvent.click(within(rowAfter).getByRole("button", { name: "Remove Doing" }));
     await flushWrites();
@@ -199,7 +199,7 @@ describe("metadata pickers (ported popups)", () => {
 
     // Unvalued: the Empty cell opens the options picker; each pick appends
     // to the array value (the multi_select control, previously undispatched).
-    const row = screen.getByText("genres").closest(".nt-property-select") as HTMLElement;
+    const row = screen.getByText("genres").closest(".nt-props-sidebar__prop, .nt-property-select") as HTMLElement;
     fireEvent.click(within(row).getByText("Empty"));
     fireEvent.click(within(row).getByText("Fiction"));
     await flushWrites();
@@ -208,7 +208,7 @@ describe("metadata pickers (ported popups)", () => {
     ]);
 
     // The pill shows the label; the multi "+" affordance picks a second option.
-    const rowAfter = screen.getByText("genres").closest(".nt-property-select") as HTMLElement;
+    const rowAfter = screen.getByText("genres").closest(".nt-props-sidebar__prop, .nt-property-select") as HTMLElement;
     expect(within(rowAfter).getByText("Fiction")).not.toBeNull();
     fireEvent.click(within(rowAfter).getByRole("button", { name: "Add option" }));
     fireEvent.click(within(rowAfter).getByText("Mystery"));
@@ -218,7 +218,7 @@ describe("metadata pickers (ported popups)", () => {
     ]);
 
     // Removing one option keeps the other (multi semantics).
-    const rowFinal = screen.getByText("genres").closest(".nt-property-select") as HTMLElement;
+    const rowFinal = screen.getByText("genres").closest(".nt-props-sidebar__prop, .nt-property-select") as HTMLElement;
     fireEvent.click(within(rowFinal).getByRole("button", { name: "Remove Fiction" }));
     await flushWrites();
     expect(client.getEffectiveProperties(pageId)).toEqual([
@@ -256,7 +256,7 @@ describe("metadata pickers (ported popups)", () => {
     // toggle on a mounted controlled input.)
     const first = render(<PageView client={client} pageId={pageId} />);
     expandProperties();
-    const firstRow = screen.getByText("archived").closest(".nt-property-boolean") as HTMLElement;
+    const firstRow = screen.getByText("archived").closest(".nt-props-sidebar__prop, .nt-property-boolean") as HTMLElement;
     fireEvent.click(within(firstRow).getByLabelText("Property archived"));
     await flushWrites();
     expect(client.getEffectiveProperties(pageId)).toEqual([
@@ -268,7 +268,7 @@ describe("metadata pickers (ported popups)", () => {
     await client.setProperty(pageId, schemaId, true, 0);
     render(<PageView client={client} pageId={pageId} />);
     expandProperties();
-    const row = screen.getByText("archived").closest(".nt-property-boolean") as HTMLElement;
+    const row = screen.getByText("archived").closest(".nt-props-sidebar__prop, .nt-property-boolean") as HTMLElement;
     const toggle = within(row).getByLabelText("Property archived") as HTMLInputElement;
     expect(toggle.checked).toBe(true);
     fireEvent.click(toggle);
@@ -293,7 +293,7 @@ describe("metadata pickers (ported popups)", () => {
     render(<PageView client={client} pageId={teamId} />);
     expandProperties();
 
-    const row = screen.getByText("mentor").closest(".nt-property-object") as HTMLElement;
+    const row = screen.getByText("mentor").closest(".nt-props-sidebar__prop, .nt-property-object") as HTMLElement;
     fireEvent.click(within(row).getByRole("button", { name: "Add" }));
     fireEvent.change(screen.getByLabelText("Search mentor"), { target: { value: "Ada" } });
     fireEvent.click(screen.getByText('Create "Ada"'));

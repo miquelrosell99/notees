@@ -57,7 +57,7 @@ import {
   useBlockDndSensors,
   type DropLine,
 } from "./block-dnd.js";
-import { PropertiesSection, PropertiesTable, ClassesRow, TagsRow } from "./components/MetadataSection.js";
+import { PropertiesSection, PropertiesSidebar, ClassesRow, TagsRow } from "./components/MetadataSection.js";
 import { IconPickerPopup } from "./components/IconPickerPopup.js";
 import { CoverCard } from "./components/PageBanner.js";
 import { PageFooter } from "./components/PageFooter.js";
@@ -121,6 +121,13 @@ export function PageView({
   blocksMode: blocksModeProp = undefined,
   onBlocksModeChange = undefined,
   /**
+   * The card's top-right chrome (the blocks view switcher + the "…" node
+   * menu), owned by NodeView. In the panelled main layout it rides the
+   * nodeview top bar's right section; compact layouts render it in the
+   * absolute top-right corner (as before).
+   */
+  chromeRight = undefined,
+  /**
    * Class composition (the Class View renders a class node through PageView):
    * accepts a class node in the page read (getPage excludes classes), adds
    * `rootClassName` to the `.nt-page` root, and enables the slots below. All
@@ -163,6 +170,7 @@ export function PageView({
   layout?: "default" | "compact";
   blocksMode?: ViewMode;
   onBlocksModeChange?: ((mode: ViewMode) => void) | undefined;
+  chromeRight?: ReactNode;
   forClass?: boolean;
   rootClassName?: string | undefined;
   corner?: ReactNode;
@@ -660,37 +668,13 @@ export function PageView({
     </>
   );
 
-  return (
-    <OutlinerContext.Provider value={outliner}>
-      <LinkEditModalHost client={client} openerRef={linkOpenerRef}>
-        <div
-          className={rootClassName !== undefined ? `nt-page ${rootClassName}` : "nt-page"}
-          ref={pageRootRef}
-          onClick={handleExternalLinkClick}
-        >
-          {/* Classes: compact layouts pin the pills to the card's top-left
-              corner; the panelled main layout moves them inline at the
-              content column's top-left (the page top bar below). Class
-              composition swaps in its extends (parent-class) pills. */}
-          {!panelled && !embedded && !focusMode &&
-            (corner !== undefined ? (
-              corner
-            ) : (
-              <div className="nt-page-classes-corner">
-                <ClassesRow client={client} nodeId={pageId} classIds={page.classIds} onOpenPage={onOpenPage} />
-              </div>
-            ))}
-          {findOpen && (
-            <FindReplaceWidget
-              blocks={findDocs}
-              highlightRootRef={pageRootRef}
-              onReplace={handleFindReplace}
-              onClose={() => setFindOpen(false)}
-            />
-          )}
-          {/* §34.72 — the v1 header layout: header left, the collapsible
-              cover CARD right (always rendered when the page can carry a
-              cover, even empty). */}
+  /**
+   * §34.72 — the v1 header layout: header left, the collapsible cover CARD
+   * right (always rendered when the page can carry a cover, even empty).
+   * Shared by both layout modes.
+   */
+  const headerChrome = (
+    <>
           <div className="page-header-section">
           <header className="nt-page-header">
           <div className="page-header__title-row">
@@ -784,6 +768,14 @@ export function PageView({
           </aside>
         )}
         </div>
+    </>
+  );
+
+  /** Notices, the alias banner, the compact in-flow properties (compact
+   *  layouts only), and the block body — everything after the header and
+   *  before the footer in both layout modes. */
+  const mainChrome = (
+    <>
         {notice}
         {moveError !== null && (
           <div role="alert" className="nt-dnd-error">
@@ -803,15 +795,39 @@ export function PageView({
             <div className="nt-metadata-divider" />
           </>
         )}
-        {/* The page body: beside the left properties panel in the panelled
-            main layout, full-width in the compact ones. The hamburger rides
-            a slim rail pinned to the body's top-left corner; the classes
-            pills sit at the content column's top, so opening the panel
-            pushes them right of the panel divider while the hamburger stays
-            where it is (owner correction 2026-10-06). */}
-        {panelled ? (
-          <div className="nt-page-body">
-            <div className="nt-page-panel-rail">
+        {bodyContent}
+    </>
+  );
+
+  const footerChrome = !embedded && !focusMode ? (
+    <PageFooter client={client} page={page} tree={tree} onOpenNode={onOpenPage} />
+  ) : null;
+
+  /**
+   * The page chrome composed per layout mode. The panelled main layout
+   * (owner 2026-10-06) is a 2-column, 1-row split: the properties sidebar
+   * rides the first column (1/3 of the space) and the whole node view rides
+   * the second (2/3) — behind a nodeview top bar (the sidebar collapse
+   * toggle + classes list left, the view switcher + node menu right, over a
+   * full-width divider border). Compact layouts render the same chrome
+   * full-width, header first, with the top-right chrome in the absolute
+   * corner.
+   */
+  const pageChrome = (
+    <>
+      {panelled ? (
+        <div className="nt-page-body">
+          {!sidePanelCollapsed && (
+            <aside className="nt-page-side-panel">
+              <PropertiesSidebar client={client} nodeId={pageId} onOpenPage={onOpenPage} />
+            </aside>
+          )}
+          <div className="nt-page-content">
+            {/* The nodeview top bar: the sidebar collapse toggle and the
+                classes pills on the left, the view-mode switcher + the node
+                menu on the right, over a divider border like the sidebar's.
+                Pinned to the top of the column. */}
+            <div className="nt-node-topbar">
               <button
                 type="button"
                 className="nt-icon-btn"
@@ -822,34 +838,75 @@ export function PageView({
               >
                 <Icon path="mdi-page-layout-sidebar-left" size={1} />
               </button>
-            </div>
-            {!sidePanelCollapsed && (
-              <aside className="nt-page-side-panel">
-                <PropertiesTable
-                  client={client}
-                  nodeId={pageId}
-                  onOpenPage={onOpenPage}
-                  layout="panel"
-                />
-              </aside>
-            )}
-            <div className="nt-page-content">
-              <div className="nt-page-classes-row">
+              <div className="nt-node-topbar__classes">
                 {corner !== undefined ? (
                   corner
                 ) : (
                   <ClassesRow client={client} nodeId={pageId} classIds={page.classIds} onOpenPage={onOpenPage} />
                 )}
               </div>
-              {bodyContent}
+              <span className="nt-node-topbar__spacer" aria-hidden="true" />
+              {chromeRight !== undefined && (
+                <div className="nt-node-topbar__right">{chromeRight}</div>
+              )}
             </div>
+            {/* The nodeview proper: auto height between the pinned top bar
+                and footer — it scrolls when the content outgrows the cell. */}
+            <div className="nt-nodeview-body">
+              {headerChrome}
+              {mainChrome}
+            </div>
+            {footerChrome}
           </div>
-        ) : (
-          bodyContent
-        )}
-        {!embedded && !focusMode && (
-          <PageFooter client={client} page={page} tree={tree} onOpenNode={onOpenPage} />
-        )}
+        </div>
+      ) : (
+        <>
+          {headerChrome}
+          {mainChrome}
+          {footerChrome}
+          {chromeRight !== undefined && (
+            <div className="nt-node-view__corner">{chromeRight}</div>
+          )}
+        </>
+      )}
+    </>
+  );
+
+  return (
+    <OutlinerContext.Provider value={outliner}>
+      <LinkEditModalHost client={client} openerRef={linkOpenerRef}>
+        <div
+          className={
+            [
+              "nt-page",
+              panelled ? "nt-page--panelled" : "",
+              rootClassName ?? "",
+            ].filter(Boolean).join(" ")
+          }
+          ref={pageRootRef}
+          onClick={handleExternalLinkClick}
+        >
+          {/* Classes: compact layouts pin the pills to the card's top-left
+              corner; the panelled main layout carries them in the nodeview
+              top bar. Class composition swaps in its extends (parent-class)
+              pills. */}
+          {!panelled && !embedded && !focusMode &&
+            (corner !== undefined ? (
+              corner
+            ) : (
+              <div className="nt-page-classes-corner">
+                <ClassesRow client={client} nodeId={pageId} classIds={page.classIds} onOpenPage={onOpenPage} />
+              </div>
+            ))}
+          {findOpen && (
+            <FindReplaceWidget
+              blocks={findDocs}
+              highlightRootRef={pageRootRef}
+              onReplace={handleFindReplace}
+              onClose={() => setFindOpen(false)}
+            />
+          )}
+          {pageChrome}
         </div>
         <NodeContextMenu
           state={

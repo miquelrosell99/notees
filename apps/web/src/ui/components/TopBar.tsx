@@ -2,9 +2,8 @@
  * TopBar — the slim, transparent shell header in three sections:
  *  LEFT   hamburger (sidebar show/hide at every width), the workspace
  *         selector (the wordmark's permanent replacement — owner
- *         2026-10-06), and — only while the sidebar is COLLAPSED — icon-
- *         only New + search buttons to the selector's right; sync status
- *         rides the section's end
+ *         2026-10-06), and icon-only New + search buttons to its right;
+ *         sync status rides the section's end
  *  CENTER the current node's breadcrumbs, left-aligned within the section
  *  RIGHT  undo/redo (the §34.64 journal, §34.69 topbar buttons + the
  *         history chevron), calendar, right-sidebar show/hide
@@ -72,9 +71,10 @@ export function TopBar({
   onToggleSidebar,
   onToggleRightPanel,
   /**
-   * The collapsed-sidebar left cluster (owner 2026-10-06): icon-only New +
-   * search buttons (left of the workspace selector), rendered only while
-   * the sidebar is hidden. `workspaceSwitcher` replaces the wordmark.
+   * The collapsed-sidebar-era left cluster is permanent now (owner
+   * 2026-10-06): icon-only New + search buttons ride the top bar at every
+   * sidebar state, to the workspace selector's right. `workspaceSwitcher`
+   * replaces the wordmark.
    */
   onNewNode,
   onRequestSearch,
@@ -131,7 +131,7 @@ export function TopBar({
         ) : (
           <span className="nt-wordmark">Notees</span>
         )}
-        {!sidebarOpen && onNewNode !== undefined && (
+        {onNewNode !== undefined && (
           <button
             ref={newButtonRef}
             type="button"
@@ -143,7 +143,7 @@ export function TopBar({
             <Icon path="mdi-plus" size={1} />
           </button>
         )}
-        {!sidebarOpen && onRequestSearch !== undefined && (
+        {onRequestSearch !== undefined && (
           <button
             type="button"
             className="nt-icon-btn"

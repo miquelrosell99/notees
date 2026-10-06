@@ -570,6 +570,29 @@ export function NodeView({
   if (node === undefined) {
     return <div className="nt-page-missing">Page not found.</div>;
   }
+  const pageView = !node.isClass && !rendersAsInlineBlock(node);
+  /**
+   * The card's top-right chrome: pages get the blocks view switcher + the
+   * "…" node menu (rendered by PageView — in the nodeview top bar when
+   * panelled, else the absolute corner); class/block views keep just the
+   * "…" menu in the absolute corner.
+   */
+  const chromeRight =
+    pageView && cornerMenu ? (
+      <>
+        <div className="nt-node-view__modes" role="group" aria-label="Blocks view">
+          <ViewToolbar modes={BLOCKS_VIEW_MODES} value={blocksMode} onChange={setBlocksMode} />
+        </div>
+        <NodeMenuButton
+          client={client}
+          node={node}
+          onOpenNode={(id) => onOpenNode?.(id)}
+          onPresent={onPresent}
+          onDeleted={onDeleted}
+          shareTarget={shareTarget}
+        />
+      </>
+    ) : undefined;
   const view = node.isClass ? (
     <ClassView client={client} classId={nodeId} onOpenClass={onOpenNode} onOpenPage={onOpenNode} />
   ) : rendersAsInlineBlock(node) ? (
@@ -586,30 +609,25 @@ export function NodeView({
       layout={cornerMenu ? "default" : "compact"}
       blocksMode={blocksMode}
       onBlocksModeChange={setBlocksMode}
+      chromeRight={chromeRight}
     />
   );
   if (!cornerMenu) return view;
-  const pageView = !node.isClass && !rendersAsInlineBlock(node);
   return (
     <div className="nt-node-view">
       {view}
-      {/* The card's top-right corner cluster: the blocks view switcher
-          (pages only) left of the "…" node menu. */}
-      <div className="nt-node-view__corner">
-        {pageView && (
-          <div className="nt-node-view__modes" role="group" aria-label="Blocks view">
-            <ViewToolbar modes={BLOCKS_VIEW_MODES} value={blocksMode} onChange={setBlocksMode} />
-          </div>
-        )}
-        <NodeMenuButton
-          client={client}
-          node={node}
-          onOpenNode={(id) => onOpenNode?.(id)}
-          onPresent={onPresent}
-          onDeleted={onDeleted}
-          shareTarget={shareTarget}
-        />
-      </div>
+      {!pageView && (
+        <div className="nt-node-view__corner">
+          <NodeMenuButton
+            client={client}
+            node={node}
+            onOpenNode={(id) => onOpenNode?.(id)}
+            onPresent={onPresent}
+            onDeleted={onDeleted}
+            shareTarget={shareTarget}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -1837,10 +1855,6 @@ export function App() {
         <FloatingEditorHost client={client} openNode={(id) => openPage(resolveAliasOpen(client, id))}>
         <Sidebar
           client={client}
-          workspaceName={workspaceName}
-          workspaceId={readStored(STORAGE_KEYS.workspaceId)}
-          serverUrl={serverUrl}
-          credential={token}
           user={user}
           offline={offline}
           showSettings={sessionSignedIn && user !== null && !offline}
@@ -1861,24 +1875,8 @@ export function App() {
             setSelectedPageId(null);
             window.history.pushState({ node: null, nav: key }, "", pathForNav(key));
           }}
-          onRequestSearch={() => setPaletteOpen(true)}
           onOpenPage={openPage}
-          onSwitchWorkspace={(id, name) => {
-            setSelectedPageId(null);
-            void connect(serverUrl, token, id, {
-              isOffline: false,
-              credentialType: sessionSignedIn ? "session" : "apikey",
-              label: name,
-            });
-          }}
-          onManageWorkspaces={() => {
-            window.history.pushState({ view: "workspaces" }, "", "/workspaces");
-            setManagerOpen(true);
-          }}
           onSignOut={() => void handleSignOut()}
-          onRenameWorkspace={(id, name) => {
-            if (id === readStored(STORAGE_KEYS.workspaceId)) setWorkspaceName(name);
-          }}
           onOpenInSidebar={openInSidebar}
         />
         <PageCard

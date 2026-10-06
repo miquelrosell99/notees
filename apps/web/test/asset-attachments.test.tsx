@@ -122,7 +122,7 @@ function expandProperties(): void {
 
 function attachmentsRow(): HTMLElement {
   expandProperties();
-  return screen.getByText("attachments").closest(".nt-property-object") as HTMLElement;
+  return screen.getByText("attachments").closest(".nt-props-sidebar__prop, .nt-property-object") as HTMLElement;
 }
 
 /** Stub fetch: upload POSTs answer with `body`, download GETs with bytes. */
@@ -410,7 +410,7 @@ describe("Asset attachments (node-typed properties)", () => {
 
     render(<PageView client={client} pageId={teamId} />);
     expandProperties();
-    const row = screen.getByText("mentor").closest(".nt-property-object") as HTMLElement;
+    const row = screen.getByText("mentor").closest(".nt-props-sidebar__prop, .nt-property-object") as HTMLElement;
     expect(row.textContent).not.toContain("default");
     fireEvent.click(within(row).getByRole("button", { name: "Add" }));
 
