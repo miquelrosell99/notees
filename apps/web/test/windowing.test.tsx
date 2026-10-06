@@ -16,7 +16,7 @@ import { renderHook } from "@testing-library/react";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
-import { ClassView } from "../src/ui/ClassView.js";
+import { NodeView } from "../src/ui/App.js";
 import { CollectionHub } from "../src/ui/components/CollectionHub.js";
 import { PageView } from "../src/ui/PageView.js";
 import { NodeCollection } from "../src/ui/views/index.js";
@@ -149,7 +149,7 @@ describe("table windowing", () => {
   it("renders the first window with an honest remaining count; Show more grows", async () => {
     const client = await seedClient();
     const classId = await seedBigTable(client);
-    render(<ClassView client={client} classId={classId} />);
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     await expandClassedNodes();
 
     expect(rowCount()).toBe(100);
@@ -163,7 +163,7 @@ describe("table windowing", () => {
   it("a sort change resets the window", async () => {
     const client = await seedClient();
     const classId = await seedBigTable(client);
-    render(<ClassView client={client} classId={classId} />);
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     await expandClassedNodes();
 
     fireEvent.click(screen.getByRole("button", { name: "Show more (20 remaining)" }));
@@ -177,7 +177,7 @@ describe("table windowing", () => {
   it("select-all is labeled and covers the loaded window only", async () => {
     const client = await seedClient();
     const classId = await seedBigTable(client);
-    render(<ClassView client={client} classId={classId} />);
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     await expandClassedNodes();
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Select all loaded rows" }));
@@ -190,7 +190,7 @@ describe("table windowing", () => {
     const client = await seedClient();
     const classId = await seedBigTable(client);
     const download = stubDownload();
-    render(<ClassView client={client} classId={classId} />);
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     await expandClassedNodes();
 
     // The window shows 100; the export must still carry all 120 rows.
