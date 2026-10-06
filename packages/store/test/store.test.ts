@@ -2045,6 +2045,29 @@ describe("sql.js snapshot round-trip", () => {
   });
 });
 
+describe("aliasOfTarget (§34.95 — the node-alias read behind /resolve parity)", () => {
+  const ALIAS_SCHEMA = "00000000-0000-0000-0000-000000000029";
+  const MAIN = "0192a000-0000-7000-8000-0000000000f1";
+  const ALIAS = "0192a000-0000-7000-8000-0000000000f2";
+
+  it("returns the aliasOf target for an alias page, undefined otherwise", () => {
+    const store = Store.open(betterSqlite3Backend(":memory:"));
+    store.apply(createPage(MAIN, 1727200000000));
+    store.apply(createPage(ALIAS, 1727200000100));
+    expect(store.aliasOfTarget(ALIAS)).toBeUndefined();
+    store.apply(
+      env(
+        "property.set",
+        { objectId: ALIAS, propertySchemaId: ALIAS_SCHEMA, value: { nodeId: MAIN }, idx: 0 },
+        1727200000200,
+      ),
+    );
+    expect(store.aliasOfTarget(ALIAS)).toBe(MAIN);
+    expect(store.aliasOfTarget(MAIN)).toBeUndefined();
+    store.close();
+  });
+});
+
 // --- cross-backend restore (server FTS5 snapshot -> sql.js FTS4 client) --------
 
 describe("cross-backend snapshot restore", () => {
