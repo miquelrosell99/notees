@@ -613,8 +613,24 @@ export function CommandPalette({
   // pool is captured here too — the cached page list, asset-classed pages
   // excluded (the same read the Pages section uses) — and the section's
   // display rows are picked from it.
+  //
+  // Deps deliberately EXCLUDE the callbacks: App hands this component fresh
+  // inline arrow identities every render, and during a background catch-up
+  // the shell re-renders constantly — with them in the deps this reset ran
+  // on every render and wiped the typed query from under the user (found
+  // by the post-§34.116 smoke: the fast boot left catch-up running through
+  // the search step). The open-transition + client change are the only
+  // moments that should reset the palette.
+  const onOpenNodeRef = useRef(onOpenNode);
+  onOpenNodeRef.current = onOpenNode;
+  const wasOpenRef = useRef(false);
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      wasOpenRef.current = false;
+      return;
+    }
+    if (wasOpenRef.current) return;
+    wasOpenRef.current = true;
     setQuery("");
     setActiveIndex(0);
     setContentItems([]);
@@ -623,8 +639,8 @@ export function CommandPalette({
       classes.find((cls) => cls.name === "asset")?.id ?? SYSTEM_CLASS_UUIDS.asset;
     const pool = client.listPages().filter((page) => !page.classIds.includes(assetClassId));
     randomPoolRef.current = pool.map((page) => page.id);
-    setRandomRows(pickRandomRows(client, randomPoolRef.current, onOpenNode));
-  }, [open, client, onOpenNode]);
+    setRandomRows(pickRandomRows(client, randomPoolRef.current, onOpenNodeRef.current));
+  }, [open, client]);
 
   useEffect(() => {
     const active = listRef.current?.querySelector<HTMLElement>("[data-active='true']");
