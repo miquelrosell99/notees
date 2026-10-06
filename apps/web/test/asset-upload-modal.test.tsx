@@ -1,5 +1,5 @@
 /**
- * AssetUploadModal tests (§34.19 :1174 + M33's v1 parity): the drop zone
+ * AssetUploadModal tests: the drop zone
  * accepts a picked file, the preview row shows name + size + category chip
  * (image/audio/document), the upload runs the CAS path (uploadAsset → asset
  * node → attachAsset) with an explicit progress state, the caller receives

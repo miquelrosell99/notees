@@ -14,7 +14,7 @@
  * + the primary focus ring. The cover is a matted slot (surface-container-high
  * background, spacing-2 inset — the image never bleeds to the card edge).
  * v2 machinery is untouched: useWindowed paging, selection export, the
- * CoverLayoutToggle, useLazyInView covers (§34.75 — the 16:9 cover slot
+ * CoverLayoutToggle, useLazyInView covers (the 16:9 cover slot
  * stays so the pending placeholder keeps its size before bytes arrive),
  * content-visibility skipping, and NodeCard shared with the kanban.
  */
@@ -40,7 +40,7 @@
   column-width: min(var(--layout-size-9xl), 100%);
 }
 
-/* The §34.70 affordance spans every column (a masonry item otherwise). */
+/* The affordance spans every column (a masonry item otherwise). */
 .cards-grid > .nt-window-more {
   column-span: all;
 }
@@ -63,7 +63,7 @@
   border: var(--border-width-default) solid color-mix(in srgb, var(--color-outline) 50%, var(--color-outline-variant));
   border-radius: var(--shape-card);
   background: var(--color-surface);
-  /* §34.75 lazy rendering: off-screen cards skip layout/paint entirely;
+  /* lazy rendering: off-screen cards skip layout/paint entirely;
      the intrinsic size keeps the scrollbar stable while skipped. */
   content-visibility: auto;
   contain-intrinsic-size: auto 180px;
@@ -95,7 +95,7 @@
   background: var(--color-surface-container-high);
 }
 
-/* §34.75 — the lazy placeholder: same slot, no bytes, a quiet pulse
+/* the lazy placeholder: same slot, no bytes, a quiet pulse
    until the viewport nears and the real fetch starts. */
 .node-card__cover--pending {
   background:
@@ -146,7 +146,7 @@
 }
 
 /* v1: the top cover keeps the image's slot at a stable ratio (v2 keeps the
-   16/9 so the §34.75 pending placeholder holds its size before bytes). */
+   16/9 so the pending placeholder holds its size before bytes). */
 .node-card--cover-top .node-card__cover {
   width: 100%;
   aspect-ratio: 16 / 9;
@@ -306,7 +306,7 @@
   white-space: nowrap;
 }
 
-/* ─── Cover badge (§34.74) — v1's cover bullet rode the TOP-LEFT corner
+/* ─── Cover badge — v1's cover bullet rode the TOP-LEFT corner
    (the modal-open bullet), leaving the top-right for the select checkbox. */
 .node-card__cover-badge {
   position: absolute;
@@ -315,7 +315,7 @@
   z-index: var(--z-10);
 }
 
-/* ─── Selection (§34.69) — v1's hover-reveal corner checkbox ─────── */
+/* ─── Selection — v1's hover-reveal corner checkbox ─────── */
 
 .node-card__select {
   position: absolute;
