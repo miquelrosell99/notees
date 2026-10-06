@@ -142,9 +142,16 @@
   white-space: nowrap;
 }
 
-/* The references tab strip (#5): the shared Tabs primitive (ghost variant)
-   tightened to the section rhythm — flush tab list, one tab active at a
-   time, its lazy Section beneath. Token-only. */
+/* The references tab strip (#5, reworked 2026-10-06): the shared Tabs
+   primitive (ghost variant) tightened to the section rhythm — flush tab
+   list, one tab active at a time, its headerless panel beneath. Token-only. */
 .nt-ref-tabs .tabs__list {
   padding: 0;
+}
+
+/* The strip rides the old references-tab slot: a hairline above it reads it
+   as a section (the panels render headerless — the tab IS the header). */
+.nt-backlinks {
+  border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  padding-top: var(--spacing-2, 8px);
 }
