@@ -9,6 +9,15 @@ predating this file.
 
 ## 2026-10-06
 
+- **chore(sync): the GTK/Flutter wire corpora re-vendored to byte-identity
+  (21 fixtures).** The client copies of `packages/protocol/fixtures/` had
+  drifted (missing `object-restore.json`, stale `class-property-defaults.json`);
+  both now sha256-match the TS reference 21/21 and their exact-list gate
+  assertions were extended — the convergence signal, mirroring the protocol
+  gate's exact-list law. No wire change: `object.restore` and the
+  number-format schema keys already shipped in the reference; the corpus now
+  pins them on all three sides. Gates green: TS (262 protocol + 401 store),
+  GTK 680 passed, Flutter 578 passed.
 - **chore(docs): milestone markers (M1/M2/M3/M5 labels) scrubbed from code
   comments, test titles, and package docs.** Continuation of the record-keeping
   retirement: `apps/server/src` + `apps/server/test`, `apps/server/Dockerfile`
