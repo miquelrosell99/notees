@@ -3,7 +3,8 @@
  * half of the node-hover work, issue #11). Where the hover preview is a
  * transient read-only card, pinning a node promotes it to an independent
  * floating window: the node's own view (the Revision-11 render cascade —
- * ClassView / FocusedBlockView / PageView in embedded mode) inside a small
+ * the class page variant / the focused block view / the Page View in
+ * embedded mode) inside a small
  * draggable window with a title bar (node title, "open in main", close).
  *
  * Design rulings:
@@ -275,8 +276,8 @@ export function FloatingEditorHost({
  * The render cascade inside one floating window — the shared NodeView
  * dispatcher in embedded mode (the journal-feed composition that suppresses
  * exactly the chrome a floating window carries itself: the page-level
- * find/replace chord, fold chords, cover card, footer). PageView/ClassView
- * build their own OutlinerContext, so the window is a fully independent
+ * find/replace chord, fold chords, cover card, footer). Every view
+ * builds its own OutlinerContext, so the window is a fully independent
  * editor instance. (Pre-S1 this was a second copy of App's dispatch; the
  * extraction makes the windows reuse it — the main-content restructure.)
  */

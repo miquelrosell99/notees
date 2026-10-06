@@ -7,7 +7,7 @@
  * exactly like edits in the page body (same ops, same sync).
  *
  * BlockRow consumes OutlinerContext and useSortable, so each subtree hosts
- * its own OutlinerContext (via useOutlinerValue, same as PageView/ClassView)
+ * its own OutlinerContext (via useOutlinerValue, same as PageView)
  * and its own SortableContext — but NO DndContext: the surrounding page
  * view's DndContext owns every row, so blocks drag across lists (page body
  * ↔ linked references) within one drag session.

@@ -12,9 +12,18 @@
  * S3b of the main-content restructure: the chrome LEAVES (NodeTopbar,
  * PageHeaderChrome, PageFooterChrome) live in PageChrome.tsx; the editing
  * machinery lives in usePageMachinery.ts. What stays here is the composer:
- * the reads (page/tree/cover/day facts), the body (the block tree inside
- * the drag context), the notices + compact properties in mainChrome, and
- * the panelled/compact composition (S7 reworks the columns).
+ * the reads (page/tree/cover), the body (the block tree inside the drag
+ * context), the notices + compact properties in mainChrome, and the
+ * panelled/compact composition (S7 reworks the columns).
+ *
+ * S5 (M13): the page mode is composed from DATA — `pageVariantOf`
+ * (components/pageVariant.ts) derives the variant (plain / date-day /
+ * date-period / class): the day/month/year facts, the class corner's
+ * extends-pills relation config (ClassPillsList, M11), and the class
+ * section stack ride the descriptor — no slots, no ClassView branch. The
+ * deleted class chrome (M9/M12): no curated icon button, no color dot, no
+ * cycle banner — the shared header icon button is the single icon+color
+ * entry.
  *
  * PageView also owns the OutlinerContext: the write surface, the per-render
  * outline position map (sibling/parent facts for Tab/Backspace), the focus
@@ -29,12 +38,12 @@
  * opener (see editor-popups/).
  */
 
-import { useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 
 import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
-import { rendersWithDocumentChrome, parseDateNodeId, SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { rendersWithDocumentChrome, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
@@ -45,7 +54,8 @@ import type { ShareTarget } from "./components/NodeMenuButton.js";
 import { NodeContextMenu } from "./components/NodeContextMenu.js";
 import { DayPageSections } from "./components/DayPageSections.js";
 import { CreatedSection } from "./components/CreatedSection.js";
-import { isoOfDateParts, createdPeriodBounds } from "./components/calendarViewUtils.js";
+import { ClassPillsList } from "./components/ClassPillsList.js";
+import { pageVariantOf } from "./components/pageVariant.js";
 import { nodeIcon } from "./iconFor.js";
 
 import {
@@ -115,26 +125,6 @@ export function PageView({
    * absolute top-right corner (as before).
    */
   chromeRight = undefined,
-  /**
-   * Class composition (the Class View renders a class node through PageView):
-   * accepts a class node in the page read (getPage excludes classes), adds
-   * `rootClassName` to the `.nt-page` root, and enables the slots below. All
-   * slots default to the plain-page chrome.
-   */
-  forClass = false,
-  rootClassName = undefined,
-  /** Replaces the default classes corner cluster (ClassView: extends pills). */
-  corner = undefined,
-  /** Replaces the default header icon button + picker (ClassView: curated). */
-  iconButton = undefined,
-  /** Right-aligned extras in the title row (ClassView: the class color dot). */
-  headerActions = undefined,
-  /** Rendered right after the header (ClassView: the extends-cycle banner). */
-  notice = undefined,
-  /** Inserted between the block tree and the system sections (class sections). */
-  sections = undefined,
-  /** Replaces the default <SystemSections/> (ClassView: extends-by + system). */
-  systemSections = undefined,
   /** §34.62 shares: server coordinates for the "Share…" item + modal. */
   shareTarget = undefined,
 }: {
@@ -159,14 +149,6 @@ export function PageView({
   blocksMode?: ViewMode;
   onBlocksModeChange?: ((mode: ViewMode) => void) | undefined;
   chromeRight?: ReactNode;
-  forClass?: boolean;
-  rootClassName?: string | undefined;
-  corner?: ReactNode;
-  iconButton?: ReactNode;
-  headerActions?: ReactNode;
-  notice?: ReactNode;
-  sections?: ReactNode;
-  systemSections?: ReactNode;
   shareTarget?: ShareTarget | undefined;
 }) {
   /**
@@ -191,15 +173,16 @@ export function PageView({
   const [focusMode] = useDeviceSetting("focusMode", false);
   /**
    * The Capacities-style main layout: left properties panel + classes at the
-   * content top-left. Device-local collapse (never an op); class composition
-   * and focus mode keep the compact in-flow chrome.
+   * content top-left. Device-local collapse (never an op); the class variant
+   * (M13) and focus mode keep the compact in-flow chrome.
    */
+  const variant = pageVariantOf(client, pageId);
   const [sidePanelCollapsed, setSidePanelCollapsed] = useDeviceSetting(
     "pageSidePanelCollapsed",
     false,
   );
   const panelled =
-    layout === "default" && !embedded && !focusMode && !forClass;
+    layout === "default" && !embedded && !focusMode && variant.variant !== "class";
   const [headerMenu, setHeaderMenu] = useState<{ x: number; y: number } | null>(null);
   const [exporting, setExporting] = useState<{ pageId: string; name: string } | null>(null);
   const [sharing, setSharing] = useState<{ pageId: string; name: string } | null>(null);
@@ -216,12 +199,12 @@ export function PageView({
   // (usePageMachinery — S3a of the main-content restructure; constructed
   // after the block-tree read below.)
 
-  // The page read accepts a class node only in class composition (getPage
-  // excludes classes by design — rendersWithDocumentChrome is the page test).
+  // The page read accepts a class node (M13: the class page IS a page —
+  // rendersWithDocumentChrome excludes classes by design; the class variant
+  // re-admits the class node).
   const rawNode = client.getNode(pageId);
   const page =
-    rawNode !== undefined &&
-    (rendersWithDocumentChrome(rawNode) || (forClass && rawNode.isClass))
+    rawNode !== undefined && (rendersWithDocumentChrome(rawNode) || rawNode.isClass)
       ? rawNode
       : undefined;
   const headerIcon =
@@ -230,25 +213,17 @@ export function PageView({
   /** The same tree in the view system's input shape (session view state). */
   const blockItems = childQuery(client, pageId);
   /**
-   * §34.28 #4/#7 — the day branch: a node whose id parses at day precision
-   * is a day page and gets the date header (weekday/Today flags + the week
-   * flag, owner 2026-10-06) and the three aggregation sections. The month
-   * and year pages carry the Created aggregation too (owner 2026-10-06).
-   * Embedded renders (journal feed, calendar daily-note embed) skip both —
-   * they already sit on aggregation surfaces.
+   * §34.28 #4/#7 — the date variants: a node whose id parses at day
+   * precision is a day page and gets the date header (weekday/Today flags +
+   * the week flag, owner 2026-10-06) and the three aggregation sections;
+   * month/year pages carry the Created aggregation too. Both facts ride the
+   * variant descriptor now (pageVariantOf); embedded renders (journal feed,
+   * calendar daily-note embed) skip both at the render sites — they already
+   * sit on aggregation surfaces.
    */
-  const parsedDay = page !== undefined ? parseDateNodeId(pageId) : null;
-  const dayIso =
-    parsedDay !== null && parsedDay.precision === "day" ? isoOfDateParts(parsedDay) : null;
+  const dayIso = variant.dayIso ?? null;
   /** Month/year Created bounds (null on day pages and non-date nodes). */
-  const createdPeriod =
-    page !== undefined && parsedDay !== null && parsedDay.precision !== "day"
-      ? createdPeriodBounds({
-          year: parsedDay.year,
-          month: parsedDay.month,
-          precision: parsedDay.precision,
-        })
-      : null;
+  const createdPeriod = variant.createdPeriod ?? null;
 
   // Fullscreen whiteboard (SCHEMA.md: a whiteboard page carries a
   // `whiteboard` content token — the whiteboard CLASS, not any node kind,
@@ -325,7 +300,7 @@ export function PageView({
     pageId,
     tree,
     embedded,
-    forClass,
+    forClass: variant.variant === "class",
     focusMode,
     globalShortcuts: true,
     onOpenPage,
@@ -359,6 +334,21 @@ export function PageView({
   }
 
   /**
+   * The variant's section stacks (M13): the descriptor's SectionSpec-shaped
+   * entries mount their existing section components at the two placement
+   * sites the old slots used — between the body and the date sections, and
+   * ahead of the default <SystemSections/>. Empty for plain/date variants,
+   * so the map is the no-op it always was there.
+   */
+  const variantSectionCtx = { client, nodeId: pageId, onOpenPage, onOpenClass: onOpenPage };
+  const variantSections = variant.sections.map((spec) => (
+    <Fragment key={`${spec.key}-${pageId}`}>{spec.render(variantSectionCtx)}</Fragment>
+  ));
+  const variantSystemSections = variant.systemSections.map((spec) => (
+    <Fragment key={`${spec.key}-${pageId}`}>{spec.render(variantSectionCtx)}</Fragment>
+  ));
+
+  /**
    * §34.109 ghost (owner refinement of §34.85): the page root trails exactly
    * ONE muted "add block" ghost row as the last sibling of the main level —
    * rendered ALWAYS in the child-blocks section (outline and prose,
@@ -383,10 +373,10 @@ export function PageView({
         whiteboardTokenIndex >= 0 ? (
           <>
             <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
-            {!focusMode &&
-              (systemSections ?? (
-                <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} withActivity={!embedded} />
-              ))}
+            {!focusMode && variantSystemSections}
+            {!focusMode && (
+              <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} withActivity={!embedded} />
+            )}
           </>
         ) : (
           // Classed whiteboard without the token yet: the open effect is
@@ -446,9 +436,10 @@ export function PageView({
                 {/* The system sections join the same drag context: the Child
                     pages section's read-only rows are droppable (zone-aware —
                     a drop anchored on a main child promotes into the Pages
-                    zone, see handleDragEnd). Class composition inserts its
-                    class-relevant sections ahead of them. */}
-                {sections}
+                    zone, see handleDragEnd). The variant's section stack
+                    (M13: the class sections) inserts its descriptors here —
+                    data, not a slot. */}
+                {variantSections}
                 {dayIso !== null && !embedded && (
                   <DayPageSections
                     client={client}
@@ -466,10 +457,10 @@ export function PageView({
                     onOpenPage={onOpenPage}
                   />
                 )}
-                {!focusMode &&
-                  (systemSections ?? (
-                    <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} withActivity={!embedded} />
-                  ))}
+                {!focusMode && variantSystemSections}
+                {!focusMode && (
+                  <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} withActivity={!embedded} />
+                )}
               </DropLineContext.Provider>
               <DragOverlay dropAnimation={null}>
                 {dragging !== null && <div className="nt-drag-ghost">{dragging.label}</div>}
@@ -484,7 +475,7 @@ export function PageView({
   /**
    * §34.72 — the v1 header layout (the PageHeaderChrome leaf): header left,
    * the collapsible cover CARD right. Shared by both layout modes; the
-   * class composition slots (iconButton / headerActions) pass through.
+   * day-header swap rides the variant's `dayIso`.
    */
   const headerChrome = (
     <PageHeaderChrome
@@ -494,8 +485,6 @@ export function PageView({
       focusMode={focusMode}
       dayIso={dayIso}
       headerIcon={headerIcon}
-      iconButton={iconButton}
-      headerActions={headerActions}
       coverPossible={coverPossible}
       coverAssetId={coverAssetId}
       onOpenPage={onOpenPage}
@@ -508,7 +497,6 @@ export function PageView({
    *  before the footer in both layout modes. */
   const mainChrome = (
     <>
-        {notice}
         {moveError !== null && (
           <div role="alert" className="nt-dnd-error">
             {moveError}
@@ -572,7 +560,6 @@ export function PageView({
               classIds={page.classIds}
               sidePanelCollapsed={sidePanelCollapsed}
               onToggleSidePanel={() => setSidePanelCollapsed(!sidePanelCollapsed)}
-              corner={corner}
               chromeRight={chromeRight}
               onOpenPage={onOpenPage}
             />
@@ -606,7 +593,7 @@ export function PageView({
             [
               "nt-page",
               panelled ? "nt-page--panelled" : "",
-              rootClassName ?? "",
+              variant.variant === "class" ? "nt-class" : "",
             ].filter(Boolean).join(" ")
           }
           ref={pageRootRef}
@@ -614,16 +601,22 @@ export function PageView({
         >
           {/* Classes: compact layouts pin the pills to the card's top-left
               corner; the panelled main layout carries them in the nodeview
-              top bar. Class composition swaps in its extends (parent-class)
-              pills. */}
-          {!panelled && !embedded && !focusMode &&
-            (corner !== undefined ? (
-              corner
-            ) : (
-              <div className="nt-page-classes-corner">
+              top bar. The class variant's corner is the extends relation's
+              ClassPillsList config (M11/M13) — data, not a slot. */}
+          {!panelled && !embedded && !focusMode && (
+            <div className="nt-page-classes-corner">
+              {variant.cornerPills !== undefined ? (
+                <ClassPillsList
+                  client={client}
+                  nodeId={pageId}
+                  onOpenPage={onOpenPage}
+                  {...variant.cornerPills}
+                />
+              ) : (
                 <ClassesRow client={client} nodeId={pageId} classIds={page.classIds} onOpenPage={onOpenPage} />
-              </div>
-            ))}
+              )}
+            </div>
+          )}
           {findOpen && (
             <FindReplaceWidget
               blocks={findDocs}

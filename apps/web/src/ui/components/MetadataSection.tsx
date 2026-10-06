@@ -60,7 +60,7 @@ import { SelectionPropertyControl, type SelectionOption } from "./pickers/Select
 import { AssetUploadModal } from "./modals/AssetUploadModal.js";
 import { propertyLinkHref } from "../views/propertyDisplay.js";
 import { cssColorFor, resolveCssColor } from "./ui/colorPresets.js";
-import { NodePills } from "./NodePills.js";
+import { ClassPillsList } from "./ClassPillsList.js";
 import { ContextMenu } from "./ui/ContextMenu.js";
 import { Modal } from "./ui/Modal.js";
 import { Button } from "./ui/Button.js";
@@ -982,7 +982,9 @@ function BooleanPropertyRow({
 /**
  * The node's own classes: pills with an × that unassigns (class.unassign),
  * a right-click color-swatch menu (object.update color), and a "+ Add class"
- * ghost pill opening the node-selector popup (assignClass).
+ * ghost pill opening the node-selector popup (assignClass). M11: the pills
+ * ride ClassPillsList — the instance-of relation's mutations passed as
+ * arguments, the row chrome (the label) stays here.
  */
 export function ClassesRow({
   client,
@@ -998,7 +1000,15 @@ export function ClassesRow({
   return (
     <div className="node-metadata-row nt-classes-row">
       <div className="section-label">Classes:</div>
-      <NodePills client={client} nodeId={nodeId} classIds={classIds} onOpenPage={onOpenPage} />
+      <ClassPillsList
+        client={client}
+        nodeId={nodeId}
+        query={classIds}
+        add={(classId) => void client.assignClass(nodeId, classId)}
+        remove={(classId) => void client.unassignClass(nodeId, classId)}
+        reorder={(ordered) => void client.reorderClasses(nodeId, ordered)}
+        onOpenPage={onOpenPage}
+      />
     </div>
   );
 }

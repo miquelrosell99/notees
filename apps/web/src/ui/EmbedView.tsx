@@ -176,7 +176,7 @@ export function EmbedView({
   tokenIndex?: number | undefined;
 }) {
   const { client: seamClient } = useOutliner();
-  // Every OutlinerContext provider (PageView, ClassView, ReferenceSubtree)
+  // Every OutlinerContext provider (PageView, ReferenceSubtree)
   // builds the value from the full client; the seam type just narrows it.
   // BlockRow's grid branch needs the full type's prop surface.
   const client = seamClient as AnyClient;
