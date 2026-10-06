@@ -248,3 +248,49 @@ to the running store — see `data-migrations.md` §1.B.7). Smoke:
 Operator caveats: the server binds `0.0.0.0` (right inside a container); put
 a reverse proxy in front for TLS. Bind-mounting `/data` instead of the named
 volume needs the mount owned by uid 1000 (`node`).
+
+## 10. Tailscale HTTPS (tailnet serving, live on atlas since 2026-10-06)
+
+Tailnet TLS is terminated by the host's tailscaled via `tailscale serve` —
+no reverse-proxy container, no cert files; Tailscale issues and renews the
+per-hostname Let's Encrypt cert itself. The stack's host ports are published
+**loopback-only** so tailscaled owns the tailnet-facing ports:
+
+- `.env`: `NOTEES_SYNC_PORT=127.0.0.1:8377`, `NOTEES_WEB_PORT=127.0.0.1:8378`
+  (plain HTTP stays on loopback for the serve proxies and the verify-min
+  smoke; **LAN access to 8377/8378 is gone** — the tailnet URLs are the
+  access path; drop the `127.0.0.1:` prefix to restore LAN http).
+- Serve listeners (config lives in tailscaled state; `tailscale serve status`
+  to inspect, `tailscale serve reset` to undo):
+
+````text
+https://<host>.<tailnet>.ts.net:8378  → 127.0.0.1:8378   web    (canonical)
+https://<host>.<tailnet>.ts.net:443   → 127.0.0.1:8378   web    (convenience)
+https://<host>.<tailnet>.ts.net:8377  → 127.0.0.1:8377   sync   (canonical)
+https://<host>.<tailnet>.ts.net:8443  → 127.0.0.1:8377   sync   (kept from the first cut)
+````
+
+- `.env`: `NOTEES_SERVER_URL=https://<host>.<tailnet>.ts.net:8377` — the web
+  entrypoint bakes it into `/config.js`; recreate the container to re-bake
+  (`docker compose up -d --force-recreate notees-web`; a plain `restart` does
+  not re-run the entrypoint). Port-symmetric URLs mean the web client's
+  same-host guess (`protocol//host:8377`) is correct too. The default
+  `NOTEES_CORS_ORIGIN=*` covers the https origins.
+- **The bare hostname has no TLS identity.** Public CAs don't issue for
+  single-label names, and Tailscale only issues for `<host>.<tailnet>.ts.net` —
+  so `https://atlas:8378/` cannot work: tailscaled selects certs by SNI and
+  **aborts the handshake** for a name it has no cert for (a hard connection
+  failure, not a click-through warning). Green access is always the ts.net
+  name. Serving the bare name would need a self-signed/private-CA cert
+  terminated inside the web container (cert-file lifecycle + nginx conf
+  mounts) — build only if the owner asks.
+- **Prerequisite**: Serve + HTTPS certificates enabled for the tailnet (admin
+  console). When gated, `tailscale serve` prints a `login.tailscale.com/f/serve?…`
+  enablement URL, and `tailscale cert` fails with "account does not support
+  getting TLS certs".
+- **Operator caveats**: atlas runs `accept-dns=false`, so the host itself
+  cannot resolve ts.net names — verify from it with
+  `curl --resolve atlas.taila48da.ts.net:443:100.71.29.92 https://atlas.taila48da.ts.net/`;
+  tailnet clients with MagicDNS resolve normally. Fleet instance:
+  `https://atlas.taila48da.ts.net:8378` (web) + `https://atlas.taila48da.ts.net:8377`
+  (sync).
