@@ -1,7 +1,10 @@
-/* GhostRow — the v1 ghost-block row: normal row chrome (gutter + muted
-   bullet) at the row's depth, the content area a muted "+ Add block" button.
-   The label stays hidden until the row is hovered or focused (v1 parity:
-   the affordance reads as a faint bullet until you reach for it). */
+/* GhostRow — the v1 ghost-block row: row chrome (gutter + bullet) at the
+   row's depth, the content area a muted "+ Add block" button. The bullet
+   reads FAINT, never at a real bullet's weight (§34.109): a real block's
+   dot is --color-on-surface-variant at 55% opacity; the ghost's sits at
+   30% and brightens only when the row is reached for. The label stays
+   hidden until the row is hovered or focused (v1 parity: the affordance
+   reads as a faint bullet until you reach for it). */
 
 .nt-ghost-row {
   display: flex;
@@ -11,13 +14,6 @@
   /* Mirror .nt-block-row's chevron gutter so the ghost bullet aligns with
      the real rows' bullets. */
   padding-left: 14px;
-  opacity: var(--opacity-55);
-  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.nt-ghost-row:hover,
-.nt-ghost-row:focus-within {
-  opacity: var(--opacity-100);
 }
 
 .nt-ghost-row__gutter {
@@ -32,7 +28,9 @@
   height: 6px;
   border-radius: 50%;
   background: var(--color-on-surface-variant);
+  opacity: var(--opacity-30);
   flex: none;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .nt-ghost-row__add {
@@ -49,16 +47,23 @@
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
+/* Reaching for the row brightens the bullet and reveals the label (the v1
+   affordance: faint until hovered or focused). */
+.nt-ghost-row:hover .nt-ghost-row__bullet,
+.nt-ghost-row:focus-within .nt-ghost-row__bullet,
 .nt-ghost-row:hover .nt-ghost-row__add,
 .nt-ghost-row:focus-within .nt-ghost-row__add,
 .nt-ghost-row__add:focus-visible {
   opacity: var(--opacity-100);
 }
 
-/* The ghost slot mirrors the children container's indent (margin + padding)
-   so the ghost row sits exactly where a child block would — without drawing
-   the subtree guide line. */
-.nt-ghost-slot {
-  margin-left: 20px;
-  padding-left: 8px;
+/* Prose mode (the view transform hides every bullet — app.css .nt-prose):
+   the ghost's gutter and row padding go too, so the lone "+ Add block"
+   label trails the paragraphs flush-left like plain text. */
+.nt-ghost-row--prose {
+  padding-left: 0;
+}
+
+.nt-ghost-row--prose .nt-ghost-row__gutter {
+  display: none;
 }
