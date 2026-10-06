@@ -36,9 +36,9 @@ export class ServerContext {
   readonly clock: Clock;
   readonly relay: RelayStorage;
   readonly auth: AuthStorage;
-  /** §34.59: the inert plugin-manifest registry (runtime parked — §34.33 AG7). */
+  /** The inert plugin-manifest registry (runtime parked). */
   readonly plugins: PluginRegistry;
-  /** §34.62 (shares record): read-only public share tokens (server coordination). */
+  /** Read-only public share tokens (server coordination). */
   readonly shares: ShareStorage;
   /**
    * Workflow rules + run audit (issue #13, server coordination state like
@@ -56,7 +56,7 @@ export class ServerContext {
     global: FixedWindowLimiter;
     login: FixedWindowLimiter;
   };
-  /** §34.33 AG5: Idempotency-Key → first-successful-response replay store. */
+  /** Idempotency-Key → first-successful-response replay store. */
   readonly idempotency: IdempotencyStore;
   readonly defaultWorkspace: string;
   readonly serverVersion: string;
@@ -108,7 +108,7 @@ export class ServerContext {
    * The one write path: persist to the relay log, apply to the derived store,
    * broadcast to WS subscribers, then evaluate workflow rules (issue #13).
    * `envelopes` may span workspaces (grouped here); per-workspace rate
-   * accounting is charged per envelope (v1) on client-authorized ingests only.
+   * accounting is charged per envelope on client-authorized ingests only.
    */
   async ingestBatch(envelopes: Envelope[]): Promise<IngestOutcome> {
     return this.ingestInternal(envelopes, null);

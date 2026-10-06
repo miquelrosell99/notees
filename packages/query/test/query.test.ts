@@ -703,7 +703,7 @@ describe.each(adapters)("$name", ({ makeStore }) => {
     });
   });
 
-  describe("PG5/PC4 property-wire semantics (§34.56)", () => {
+  describe("PG5/PC4 property-wire semantics", () => {
     it("PC4: an inactive binding stops deriving defaults (authored values still match)", () => {
       const store = worldStore();
       store.apply(

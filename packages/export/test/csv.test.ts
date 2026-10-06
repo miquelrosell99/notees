@@ -1,5 +1,5 @@
 /**
- * CSV view export specs (§34.24 parked row "CSV view export", 2026-10-04):
+ * CSV view export specs (2026-10-04):
  * RFC-4180 quoting/escaping, the UTF-8 BOM default, line-ending options,
  * and a round-trip through a real parser (the parser lives in this spec —
  * the package ships the serializer only, no new dependency).

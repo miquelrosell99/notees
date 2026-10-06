@@ -106,10 +106,10 @@ export function deriveDisplayName(node: NodeLike): string {
  * text-only content — SCHEMA.md "title-is-content"). Used when a block is
  * promoted to a page/class and by the applier's text-only constraint.
  * Inline rich tokens (mentions, chips, links, marks) fold into their plain
- * text; block-scale structural widgets (whiteboard, query, code_block —
- * §34.34 B3) survive as tokens — they are displays/source, not prose, and
+ * text; block-scale structural widgets (whiteboard, query, code_block)
+ * survive as tokens — they are displays/source, not prose, and
  * a whiteboard/code page is a real surface (the flatten would otherwise
- * destroy it). `hr` (§34.34 B5) is deliberately NOT a survivor: it carries
+ * destroy it). `hr` is deliberately NOT a survivor: it carries
  * no prose.
  */
 export function stringifyContentAst(ast: ContentAst | null | undefined): ContentAst {

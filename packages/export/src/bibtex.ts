@@ -3,7 +3,7 @@
  * `@notees/export` home for citation IO — pure and IO-free like the rest of
  * the package).
  *
- * Parser tolerance decisions (deliberate, M1):
+ * Parser tolerance decisions (deliberate):
  *  - `@entry{key, field = value, ...}` with arbitrary whitespace/newlines.
  *  - Braced values `{...}` nest; one nesting level is DROPPED in output (the
  *    outer braces delimit, inner groups concatenate) — matching common

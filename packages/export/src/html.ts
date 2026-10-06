@@ -1,5 +1,5 @@
 /**
- * ExportDocument IR → standalone HTML projection (§34.24 task H1) — the
+ * ExportDocument IR → standalone HTML projection — the
  * reference rendering for the later paged formats (P1's PDF consumes this
  * look; D1's docx mirrors its structure), so its projection discipline
  * matches markdown.ts exactly: the IR is resolved once by

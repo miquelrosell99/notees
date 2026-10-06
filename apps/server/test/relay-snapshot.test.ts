@@ -81,10 +81,10 @@ describe("snapshots", () => {
     expect(Buffer.from(data.rawPayload).equals(SNAPSHOT_BYTES)).toBe(true);
   });
 
-  it("PUT accepts a body past the global 128 MiB cap — the route rides its own 512 MiB limit (§34.69)", async () => {
+  it("PUT accepts a body past the global 128 MiB cap — the route rides its own 512 MiB limit", async () => {
     server = await makeTestServer();
     await ingest(server, [testEnvelope({ opType: "object.create", payload: pagePayload("big") })]);
-    // One byte over the app-global bodyLimit: rejected 413 before §34.69,
+    // One byte over the app-global bodyLimit: rejected 413 before the raise,
     // accepted now via the route-local SNAPSHOT_PUT_BODY_LIMIT.
     const justOverGlobal = Buffer.alloc(128 * 1024 * 1024 + 1, 7);
     const put = await putSnapshot(200, 1, justOverGlobal);

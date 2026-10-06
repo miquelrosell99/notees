@@ -1,6 +1,6 @@
 /**
- * Transports: the fetch-based HTTP client (WIRE.md §1) with the WebSocket
- * acceleration path (WIRE.md §2), plus an in-process fake relay (array-backed
+ * Transports: the fetch-based HTTP client (WIRE.md) with the WebSocket
+ * acceleration path (WIRE.md), plus an in-process fake relay (array-backed
  * envelope log with server seq assignment) used by tests and local
  * development. The WS client is structural over a minimal WebSocket shape so
  * the browser built-in is used in the app and the `ws` package in Node tests
@@ -32,7 +32,7 @@ export interface HttpTransportOptions {
   wsReconnectDelaysMs?: readonly number[];
 }
 
-/** WIRE.md §2 framing version; a newer one from the relay fails loud. */
+/** WIRE.md framing version; a newer one from the relay fails loud. */
 export const WS_PROTOCOL_VERSION = 2;
 
 const DEFAULT_WS_RECONNECT_DELAYS_MS = [1_000, 2_000, 5_000, 10_000, 30_000] as const;
@@ -162,7 +162,7 @@ export class HttpTransport implements Transport {
     });
   }
 
-  // --- WebSocket acceleration path (WIRE.md §2) --------------------------------
+  // --- WebSocket acceleration path (WIRE.md) ------------------------------------
 
   /**
    * Subscribe to the workspace's realtime stream. Connects to
@@ -270,7 +270,7 @@ export class HttpTransport implements Transport {
           new Error(typeof frame["message"] === "string" ? frame["message"] : "relay error"),
         );
       }
-      // Unknown frame types are ignored (WIRE.md §2).
+      // Unknown frame types are ignored (WIRE.md).
     };
 
     const connect = (): void => {

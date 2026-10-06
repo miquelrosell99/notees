@@ -1,8 +1,8 @@
 /**
- * Error envelope (WIRE.md §3): every endpoint failure answers
+ * Error envelope (WIRE.md): every endpoint failure answers
  * {"error": {code, message, status}} with stable machine codes.
  *
- * AC2 (§34.33): the code list below IS the pinned taxonomy. Every AppError a
+ * The code list below IS the pinned taxonomy. Every AppError a
  * route throws must use one of these codes, the OpenAPI document
  * (`src/openapi.ts`) exposes the same table under `x-error-codes`, and
  * test/error-taxonomy.test.ts fails on any drift between the three
@@ -44,15 +44,15 @@ export function errorBody(status: number, code: ErrorCode, message: string): Err
 }
 
 /**
- * The pinned taxonomy (§34.33 AC2): code → HTTP status → one-line meaning.
+ * The pinned taxonomy: code → HTTP status → one-line meaning.
  * `status` is the canonical status (what the OpenAPI document and the error
  * envelope pin); `aliases` lists additional statuses the code legitimately
  * answers with today (e.g. the permanent-delete confirm guard answers 400
  * rather than 422 — pre-existing behavior kept additive). `internal` is the
  * 500 fallback of the global error handler; every other code is thrown
- * explicitly by route code. `scope_denied` (AG3) is the 403 a scoped API key
+ * explicitly by route code. `scope_denied` is the 403 a scoped API key
  * gets when a route needs a scope the key does not carry;
- * `idempotency_replay` (AG5) is the 409 for reusing an Idempotency-Key with a
+ * `idempotency_replay` is the 409 for reusing an Idempotency-Key with a
  * different request than the original.
  */
 export const ERROR_TAXONOMY: Readonly<
@@ -60,7 +60,7 @@ export const ERROR_TAXONOMY: Readonly<
 > = {
   unauthenticated: { status: 401, description: "missing, unknown, or expired credentials" },
   forbidden: { status: 403, description: "authenticated but not allowed (membership, role, self-revocation rules)" },
-  scope_denied: { status: 403, description: "a scoped API key called a route outside its scope set (§34.33 AG3)" },
+  scope_denied: { status: 403, description: "a scoped API key called a route outside its scope set" },
   validation_failed: {
     status: 422,
     aliases: [400, 416],
@@ -72,8 +72,8 @@ export const ERROR_TAXONOMY: Readonly<
   already_provisioned: { status: 409, description: "POST /setup after the first account exists" },
   invalid_credentials: { status: 401, description: "login rejected (unknown email or wrong password, indistinguishable)" },
   account_locked: { status: 429, description: "per-account login lockout after 5 failures in 15 minutes" },
-  idempotency_replay: { status: 409, description: "an Idempotency-Key was replayed with a different request than the original (§34.33 AG5)" },
-  // §34.74: the upload route's fail-loud guard — the CAS bytes stored but the
+  idempotency_replay: { status: 409, description: "an Idempotency-Key was replayed with a different request than the original" },
+  // the upload route's fail-loud guard — the CAS bytes stored but the
   // asset.attach write never reached the log (never half-attach; observed
   // 2026-10-04 as 801 silent losses in a bulk run).
   attach_failed: { status: 500, description: "the upload's asset.attach write never reached the log (fail loud, never half-attach)" },

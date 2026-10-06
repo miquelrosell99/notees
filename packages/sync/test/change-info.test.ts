@@ -1,5 +1,5 @@
 /**
- * Change-info classification (§34.114): the incremental-invalidation
+ * Change-info classification: the incremental-invalidation
  * vocabulary — which op types are listing-affecting (structural), the
  * presentAsMain carrier exception, envelope summarization, and the
  * coalescing merge.

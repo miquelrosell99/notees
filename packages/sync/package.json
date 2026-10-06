@@ -1,7 +1,7 @@
 {
   "name": "@notees/sync",
   "version": "0.1.0-m1",
-  "description": "Notees v2 sync engine: outbox, conflict resolution, transport against the operation relay.",
+  "description": "Notees sync engine: outbox, conflict resolution, transport against the operation relay.",
   "license": "AGPL-3.0",
   "type": "module",
   "sideEffects": false,

@@ -1,8 +1,8 @@
 /**
- * Single-user M1 identity: the API key is the principal. The actor id is
+ * Single-user identity: the API key is the principal. The actor id is
  * derived deterministically from the key (uuid5-style over sha256) so the
- * same key maps to the same actor across restarts — v1 derived the actor
- * from the authenticated principal, never from client claims.
+ * same key maps to the same actor across restarts (the actor is derived
+ * from the authenticated principal, never from client claims).
  */
 
 import { createHash, timingSafeEqual } from "node:crypto";

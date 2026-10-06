@@ -1,5 +1,5 @@
 /**
- * Compile-time placeholder tests (§34.31 C4/V2): the `{today}`-style
+ * Compile-time placeholder tests: the `{today}`-style
  * editor-relative date tokens resolve at COMPILE time against the
  * `CompileOptions.now` clock (runtime default: the current instant), in
  * createdAfter/createdBefore timestamps and comparison-bound property values.

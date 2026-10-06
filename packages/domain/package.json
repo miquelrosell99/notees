@@ -1,7 +1,7 @@
 {
   "name": "@notees/domain",
   "version": "0.1.0-m1",
-  "description": "Notees v2 domain model: node graph, seeds, pure domain operations.",
+  "description": "Notees domain model: node graph, seeds, pure domain operations.",
   "license": "AGPL-3.0",
   "type": "module",
   "sideEffects": false,

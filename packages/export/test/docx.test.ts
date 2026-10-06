@@ -281,7 +281,7 @@ describe("inline spans", () => {
       { type: "external_link", href: "https://example.com/a?b=1&c=2", text: "a site" },
     ]);
     const { document } = await toDocx(node, makeCtx());
-    // v1 link convention: plain text + (href) — a real docx Hyperlink would
+    // The link convention: plain text + (href) — a real docx Hyperlink would
     // need a relationship id; the & rides as &amp; character data.
     expect(document).toContain("a site (https://example.com/a?b=1&amp;c=2)");
   });

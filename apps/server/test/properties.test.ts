@@ -44,7 +44,7 @@ describe("object property writes", () => {
       schemaId: SYSTEM_PROPERTY_UUIDS.citekey,
       schemaName: "Citekey",
       schemaType: "text",
-      // PG5: the authored row's stable element id (deterministic composite
+      // The authored row's stable element id (deterministic composite
       // for positional writes) rides every property entry.
       elementId: expect.stringContaining(`:${SYSTEM_PROPERTY_UUIDS.citekey}:0`),
       idx: 0,
@@ -69,7 +69,7 @@ describe("object property writes", () => {
 
   it("re-POST at the same idx overwrites (LWW); idx addresses multi-values", async () => {
     const id = await createObject("prop-multi");
-    // PG6 cardinality: higher slots need a multi schema — create one and
+    // Cardinality: higher slots need a multi schema — create one and
     // address it at idx 0/1 (isbn is single-value; idx 1 there is a 422 now).
     const multi = (await api("POST", "/api/property-schemas", {
       payload: { propertySchemaId: crypto.randomUUID(), name: "alt-titles", type: "text", multi: true },
@@ -285,7 +285,7 @@ describe("property schemas", () => {
   });
 });
 
-describe("property schema update/delete routes (§34.32 PG7)", () => {
+describe("property schema update/delete routes", () => {
   async function createSchema(name: string, extra: Record<string, unknown> = {}): Promise<string> {
     const schemaId = crypto.randomUUID();
     const res = await api("POST", "/api/property-schemas", {
@@ -360,7 +360,7 @@ describe("property schema update/delete routes (§34.32 PG7)", () => {
   });
 });
 
-describe("class property binding routes (§34.32 PG7)", () => {
+describe("class property binding routes", () => {
   async function createClass(name: string): Promise<string> {
     const res = await api("POST", "/api/objects", { payload: { isClass: true, name } });
     expect(res.statusCode).toBe(201);
@@ -376,7 +376,7 @@ describe("class property binding routes (§34.32 PG7)", () => {
     return schemaId;
   }
 
-  it("POST binds sequence/required/defaultValue and the effective read derives the default (§34.90: the render contracts are schema-level)", async () => {
+  it("POST binds sequence/required/defaultValue and the effective read derives the default (the render contracts are schema-level)", async () => {
     const classId = await createClass("pg7-shelf");
     const schemaId = await createSchema("pg7-code");
 
@@ -384,7 +384,7 @@ describe("class property binding routes (§34.32 PG7)", () => {
       payload: { propertySchemaId: schemaId, sequence: 2, required: true, defaultValue: "n/a" },
     });
     expect(bound.statusCode).toBe(200);
-    // §34.90: the binding echo carries ONLY the per-class mechanics.
+    // The binding echo carries ONLY the per-class mechanics.
     expect(bound.json()).toMatchObject({
       classId,
       propertySchemaId: schemaId,
@@ -422,7 +422,7 @@ describe("class property binding routes (§34.32 PG7)", () => {
     });
   });
 
-  it("POST fails loud on a wrong-typed defaultValue (PC2) and on unknown class/schema", async () => {
+  it("POST fails loud on a wrong-typed defaultValue and on unknown class/schema", async () => {
     const classId = await createClass("pg7-shelf-2");
     const schemaId = await createSchema("pg7-code-2");
 

@@ -160,7 +160,7 @@ export const OP_CATALOG: OpCatalogEntry[] = [
   {
     opType: "workspace.feature.set",
     description:
-      "Per-workspace feature toggle (§34.35), LWW by HLC on (workspace, feature); absent row = enabled. Derives the membership-preserving archival of the feature's managed system classes — toggle-off hides surfaces and keeps data; a class.delete on a managed class routes here (F4).",
+      "Per-workspace feature toggle, LWW by HLC on (workspace, feature); absent row = enabled. Derives the membership-preserving archival of the feature's managed system classes — toggle-off hides surfaces and keeps data; a class.delete on a managed class routes here (F4).",
     example: { feature: "tasks", enabled: false },
     affected: "none",
   },

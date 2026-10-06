@@ -344,7 +344,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     });
   });
 
-  describe("color grammar (§34.43: token | #hex | null-clear)", () => {
+  describe("color grammar (token | #hex | null-clear)", () => {
     it("object.update applies preset token, custom hex, then null as a clear", () => {
       const store = baseStore();
       const page = "0192a000-0000-7000-8000-000000000510";
@@ -1738,7 +1738,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     });
   });
 
-  describe("backlinksWithRollup (source-side containment roll-up, 01 §8)", () => {
+  describe("backlinksWithRollup (source-side containment roll-up)", () => {
     const FRANCE = "0192a000-0000-7000-8000-0000000000e2";
     const PARIS = "0192a000-0000-7000-8000-0000000000e3";
     const SPAIN = "0192a000-0000-7000-8000-0000000000e4";
@@ -2045,7 +2045,7 @@ describe("sql.js snapshot round-trip", () => {
   });
 });
 
-describe("aliasOfTarget (§34.95 — the node-alias read behind /resolve parity)", () => {
+describe("aliasOfTarget (the node-alias read behind /resolve parity)", () => {
   const ALIAS_SCHEMA = "00000000-0000-0000-0000-000000000029";
   const MAIN = "0192a000-0000-7000-8000-0000000000f1";
   const ALIAS = "0192a000-0000-7000-8000-0000000000f2";
@@ -2243,7 +2243,7 @@ const MEETING_CLASS = "00000000-0000-0000-0001-000000000039";
 const BIRTHDAY_CLASS = "00000000-0000-0000-0001-000000000041";
 
 for (const adapter of adapters) {
-  describe(`workspace features on ${adapter.name} (§34.35/§34.55)`, () => {
+  describe(`workspace features on ${adapter.name}`, () => {
     it("F2: an empty table means all enabled; rows list only toggled features", () => {
       const store = Store.open(adapter.makeBackend());
       expect(store.isFeatureEnabled(WS, "tasks")).toBe(true);
@@ -2346,7 +2346,7 @@ for (const adapter of adapters) {
         "Cancelled",
       ]);
       expect(options[1]!.id).toBe("00000000-0000-0000-0004-000000000009");
-      // §34.89: the designed circle-family glyphs + §34.43 colors (yellow
+      // The designed circle-family glyphs + colors (yellow
       // pending, blue review, red cancel, green done — owner-mandated).
       expect(options.map((option) => [option.icon, option.color])).toEqual([
         ["mdiCircleOutline", "gray"],
@@ -2367,7 +2367,7 @@ for (const adapter of adapters) {
         "00000000-0000-0000-0003-000000000005",
         "00000000-0000-0000-0003-000000000006",
       ]);
-      // §34.90: the Status SCHEMA carries display 'bullet' (property-level);
+      // The Status SCHEMA carries display 'bullet' (property-level);
       // the binding rows stay flag-free (sequence/required/default/active
       // only — the rebuild dropped the render-contract columns).
       const statusSchema = store.database
@@ -2623,7 +2623,7 @@ describe.each(adapters)("$name: v7 -> v8 migration (node_type -> is_class/presen
     expect(JSON.parse(page.tag_ids)).toEqual(["t1"]);
     expect(JSON.parse(page.content)).toEqual([{ type: "text", text: "Page" }]);
     // Both node indexes are recreated on the rebuilt table (plus the v15
-    // list-reads index — §34.92).
+    // list-reads index).
     const indexes = (
       db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_node%'").all() as
         { name: string }[]
@@ -2649,9 +2649,9 @@ describe.each(adapters)("$name: v7 -> v8 migration (node_type -> is_class/presen
 });
 
 
-// --- v15: the render-path list-reads index (§34.92) ---------------------------
+// --- v15: the render-path list-reads index --------------------------------------
 
-describe.each(adapters)("$name: v15 — idx_node_list_reads (§34.92)", ({ makeBackend }) => {
+describe.each(adapters)("$name: v15 — idx_node_list_reads", ({ makeBackend }) => {
   const nodeIndexes = (db: { prepare: (sql: string) => { all: (...params: unknown[]) => unknown[] } }): string[] =>
     (
       db

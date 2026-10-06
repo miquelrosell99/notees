@@ -18,7 +18,7 @@ the pointer and the law.
    is a hard-coded color with extra steps.)
 3. **Never mention legacy version names** in files, comments, or class
    names; provenance lives in git history.
-4. **Popups compose `usePopupDismissal`** (§34.67): one dismissal layer —
+4. **Popups compose `usePopupDismissal`**: one dismissal layer —
    Escape (when the keydown didn't originate inside the popup) +
    pointer-down outside — so every picker/popover/menu closes the same way.
    (`usePopupDismissal.ts` lives in the library; overlay helpers and the
@@ -46,15 +46,15 @@ Inputs & buttons: `Button`, `Pill`/`AddPill`, `TextField`, `SearchField`,
 
 Feedback & status: `Spinner`, `LoadingScreen`/`LoadingSkeleton`,
 `DataStateView`, `EmptyState`, `NotificationToast` (+ `NotificationToaster`
-and `notificationStore.ts`), `Badge`, `BackendUnavailableOverlay` (§34.107 —
-the backend-down ladder: dismissible banner → lock with a "Continue anyway"
-escape → persistent banner), `InProcessStoreBanner` (the §34.92
+and `notificationStore.ts`), `Badge`, `BackendUnavailableOverlay` (the
+backend-down ladder: dismissible banner → lock with a "Continue anyway"
+escape → persistent banner), `InProcessStoreBanner` (the
 in-process-store warning bar).
 
 Structure & surfaces: `Card`, `Tabs`, `Modal`, `ImageModal`,
 `ConfirmationModal`, `ContextMenu`, `Separator`, `ErrorBoundary`,
 `ListSortable` (+ the `useListDragSort` hook), `FloatingButtonArray`,
-`PresentationOverlay` (§34.26 — the fullscreen presentation host: dark
+`PresentationOverlay` (the fullscreen presentation host: dark
 stage, auto-hiding toolbar, edge zones, Esc/focus-trap, owned keymap).
 
 Calendar: `MonthCalendar` (the month-grid panel), the top-bar

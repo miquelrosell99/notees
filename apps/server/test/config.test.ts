@@ -16,7 +16,7 @@ afterEach(async () => {
 });
 
 describe("config / API key bootstrap", () => {
-  it("generates nk_ keys of the v1 shape", () => {
+  it("generates nk_ keys of the pinned shape", () => {
     const key = generateApiKey();
     expect(key.startsWith("nk_")).toBe(true);
     expect(key.length).toBe(3 + 32);

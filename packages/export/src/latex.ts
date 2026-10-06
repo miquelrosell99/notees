@@ -1,12 +1,12 @@
 /**
- * ExportDocument IR → LaTeX projection (§34.24 task L1) — an
+ * ExportDocument IR → LaTeX projection — an
  * escaping-correct template serializer emitting one complete, compilable
  * `.tex` document. Pure and IO-free like every serializer in this package:
  * the output is source text the caller delivers however it chooses; no bytes
  * are ever bundled (single-file delivery — asset blocks are placeholders,
  * see below).
  *
- * The layout option (§34.24 modelling decision 5: LaTeX gets
+ * The layout option (LaTeX gets
  * article/two-column class variants — LaTeX has no "Notes/Essay" theme)
  * projects to the documentclass only: "notes"/"essay" → one-column
  * `article`, "academic" → `twocolumn` (the `thebibliography` then typesets
@@ -52,7 +52,7 @@
  * could break out — accepted, documented, same "human-opaque projection"
  * tier as the other serializers).
  *
- * The E5 multi-file hooks do not link-project in v1: the `.tex` is a
+ * The multi-file hooks do not link-project in LaTeX: the `.tex` is a
  * single file, so a mention/embed whose target file was resolved renders
  * the `[name](path)` text convention (the path points at another export's
  * file, not at a resource the document includes), and a resolved
@@ -149,7 +149,7 @@ export function escapeLatex(text: string): string {
 // --- preamble ------------------------------------------------------------------
 
 function renderPreamble(options: ResolvedExportOptions): string {
-  // §34.24 decision 5: LaTeX mirrors the layouts as article/two-column class
+  // LaTeX mirrors the layouts as article/two-column class
   // variants only — notes/essay are the same one-column article.
   const documentClass =
     options.layout === "academic"
@@ -403,7 +403,7 @@ function collectSources(document: ExportDocument): CslItem[] {
 
 /** The rendered entry text: `Authors (Year). \emph{Title}.` composed from
  * the CSL record (csl.ts `formatAuthors` for the BibTeX-style name list);
- * container/publisher/DOI fields are not projected in v1. Missing parts are
+ * container/publisher/DOI fields are not projected. Missing parts are
  * omitted — a source without authors or year still compiles. */
 function renderSourceText(item: CslItem): string {
   const authors =

@@ -1,14 +1,14 @@
 /**
- * Envelope appliers: derive semantic state from the M1 op registry
- * (`@notees/protocol` op-types.ts). Semantics ported from v1
+ * Envelope appliers: derive semantic state from the op registry
+ * (`@notees/protocol` op-types.ts). Semantics ported from
  * `app/core/derived/{node,edge,property,class,class_hierarchy,child_order,asset}.py`,
- * adapted to v2: the Revision-11 render-state model (is_class /
+ * adapted to the current model: the Revision-11 render-state model (is_class /
  * present_as_main) instead of kind/node_type, no relation.* ops (associations
  * are typed-link marks and node-typed property values projecting into the
  * edge index), OR-Set class membership, m2m class extends (replace
  * semantics).
  *
- * Convergence rules (01-knowledge-model.md §12 / SCHEMA.md):
+ * Convergence rules (SCHEMA.md):
  *  - row-level LWW by (hlc_physical, hlc_logical, actor_id) — higher HLC
  *    wins; equal HLC breaks the tie on actor_id (deterministic);
  *  - property values: single-value slots stay LWW per (node, schema, idx);
@@ -125,7 +125,7 @@ export function validateEnvelope(input: unknown): Envelope {
   const env = parsed.data;
   if (typeof env.payload === "object" && env.payload !== null && "$e" in env.payload) {
     throw new EnvelopeValidationError(
-      "encrypted payload slot ($e) is reserved for M3 E2EE and cannot be applied yet",
+      "encrypted payload slot ($e) is reserved for E2EE and cannot be applied yet",
       env.opType,
     );
   }
@@ -356,7 +356,7 @@ const tagMemberUpsert = db.prepare(
           AND excluded.actor_id > COALESCE(actor_id, ''))`,
 );
 
-  // First create wins for duplicate node ids (v1 INSERT OR IGNORE): re-issuing
+  // First create wins for duplicate node ids (INSERT OR IGNORE): re-issuing
   // object.create on an existing id must not touch the TREE — the earlier
   // half-apply added a second node_child_order row under the new parent while
   // node.parent_id stayed stale, rendering the node under TWO parents. The
@@ -574,7 +574,7 @@ function applyObjectDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
   const affected = new Set<string>([p.objectId, ...ancestorIds(db, p.objectId)]);
 
   if (!p.permanent) {
-    // Soft delete: trash the subtree (v1 precedent, SCHEMA.md deletion
+    // Soft delete: trash the subtree (SCHEMA.md deletion
     // semantics — restore is whole-tree), keep the tree for restore.
     const ids = subtreeIds(db, p.objectId);
     const placeholders = ids.map(() => "?").join(",");
@@ -613,7 +613,7 @@ function applyObjectDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
   // property_value / mention content survives deletion by design, so its
   // edge projection must survive too; deleting here only to have the
   // source's next rebuildEdges re-derive the identical row (shape-based,
-  // target-existence-blind) was the register's transient resurrection.
+  // target-existence-blind) was a transient resurrection.
   // Ghost-target edge rows are inert: every backlink/reference query is
   // keyed by a live node id, and a target restored from trash heals the
   // set only when its rows survived.
@@ -922,7 +922,7 @@ function applyClassUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
 function applyClassDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "class.delete";
   const p = env.payload as OpPayload<"class.delete">;
-  // F4 (§34.35/§34.55): a delete addressed at a family BASE class is routed
+  // F4: a delete addressed at a family BASE class is routed
   // to the toggle — applied as a feature-disable so the Features setting is
   // the single archive path for the families and the lossy plain delete
   // (membership tombstoning below) never runs on them. Only the five bases
@@ -1025,7 +1025,7 @@ function applyTagUnassign(db: StoreDatabase, env: Envelope): ChangeSummary {
 /**
  * Full, deterministic rebuild of the class_hierarchy closure from the
  * class_extends edge set (m2m: multiple parents per class, per the designed
- * model in 01-knowledge-model.md §6). Recompute-from-scratch for the whole
+ * model). Recompute-from-scratch for the whole
  * table on every setExtends — the class count is small (system seed ~30),
  * correctness and wipe -> replay -> byte-identity dominate any incremental
  * bookkeeping. Rows are inserted per class in sorted id order with sorted
@@ -1110,8 +1110,8 @@ function applyClassSetExtends(db: StoreDatabase, env: Envelope): ChangeSummary {
 // --- class.property.* ---------------------------------------------------------
 //
 // Binding rows on `class_property` (SCHEMA.md "Class properties"): the
-// genuinely per-class mechanics ONLY (sequence, defaultValue, active) since
-// §34.90 moved the render contracts (required/readonly/hideWhenEmpty/display)
+// genuinely per-class mechanics ONLY (sequence, defaultValue, active) —
+// the render contracts (required/readonly/hideWhenEmpty/display) moved
 // to the property schema. Row-level LWW by envelope HLC; on update the
 // payload PATCHES the row — omitted fields keep their existing values.
 // Defaults are never materialized into property_value; the effective-values
@@ -1135,7 +1135,7 @@ function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary 
     return summary(opType, [p.classId], true);
   }
 
-  // PC2 (§34.32): defaultValue is typed per the schema type — a wrong-typed
+  // PC2: defaultValue is typed per the schema type — a wrong-typed
   // default fails loud here instead of deriving silently on every read.
   // Omitted defaultValue (patch keeps the stored one) skips the check; a
   // stored default that drifts out of match (schema delete+recreate with a
@@ -1297,7 +1297,7 @@ function applyPropertySchemaUpdate(db: StoreDatabase, env: Envelope): ChangeSumm
     sets.push("number_rounding = ?");
     values.push(p.numberRounding);
   }
-  // §34.90 render contracts (PROPERTY-level): absent keeps the stored value,
+  // Render contracts (PROPERTY-level): absent keeps the stored value,
   // present-null clears (the same keep-vs-clear contract as the number
   // formats — `required` is NOT here; it stays on the class binding).
   if (p.display !== undefined) {
@@ -1345,7 +1345,7 @@ function applyPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary {
   const p = env.payload as OpPayload<"property.set">;
   const incoming = winnerFromEnvelope(env);
 
-  // PB2/PG6 (§34.32): one-shape-per-type + schema-linked integrity at the
+  // PB2/PG6: one-shape-per-type + schema-linked integrity at the
   // write path. The schema row (when known — property.set has no schema FK)
   // types the slot: shape/scalar mismatch, a date ref finer than the
   // schema's precision, a target outside the class filter, and a ref to a
@@ -1376,7 +1376,7 @@ function applyPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary {
     dropped = applyPositionalSet(db, env, p, value, metadata);
   }
 
-  // The FTS row carries the node's text-ish property values (§34.30 M5), so
+  // The FTS row carries the node's text-ish property values too, so
   // property writes reindex the owner exactly like content writes.
   reindexNode(db, p.objectId);
   rebuildEdges(db, p.objectId, env.timestamp);
@@ -1542,7 +1542,7 @@ function applyPropertyUnset(db: StoreDatabase, env: Envelope): ChangeSummary {
     applyPositionalUnset(db, env, p);
   }
 
-  // M5: the owner's indexed text includes its property values — reindex.
+  // The owner's indexed text includes its property values — reindex.
   reindexNode(db, p.objectId);
   rebuildEdges(db, p.objectId, env.timestamp);
   return summary(opType, [p.objectId]);
@@ -1766,7 +1766,7 @@ function applyCollectionMember(
 
 // --- workspace.feature.* ---------------------------------------------------------
 //
-// Per-workspace feature toggles (§34.35): LWW by (workspaceId, feature) on
+// Per-workspace feature toggles: LWW by (workspaceId, feature) on
 // the envelope (hlc, actor) — the winning row lands in `workspace_feature`
 // and the applier derives the membership-preserving archival of the
 // feature's managed system classes from it. Toggle-off is hide-surfaces-
@@ -1840,8 +1840,8 @@ function deriveFamilyClassBits(db: StoreDatabase, workspaceId: string, feature: 
 }
 
 /**
- * The `tasks` enable path (§34.35 constraint 5 — closes the "task property
- * schemas never authored in v2" row): author the task class + the six
+ * The `tasks` enable path (constraint 5 — closes the "task property
+ * schemas never authored" gap): author the task class + the six
  * property schemas + their bindings at the fixed seed ids. Purely additive
  * (INSERT OR IGNORE everywhere) so a client-authored family (the web
  * ensureTaskFamily, random option ids) or a server-seeded one is never

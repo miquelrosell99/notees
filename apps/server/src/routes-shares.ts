@@ -1,5 +1,5 @@
 /**
- * Share routes (§34.62) — READ-ONLY public page shares.
+ * Share routes — READ-ONLY public page shares.
  *
  * Management surface (registered under /api, per-route auth):
  *
@@ -23,7 +23,7 @@
  * ever renders derived content, there is no write path and no app script.
  *
  * AuthZ: the operator API key (the machine/owner path) plus admin users and
- * owner-role members of the default workspace — the object API v1 is
+ * owner-role members of the default workspace — the object API is
  * default-workspace scoped, so shares are too.
  */
 

@@ -1,11 +1,11 @@
 /**
  * Property-value shapes — the one-shape-per-type invariant (SCHEMA.md
  * "Node-backed text properties" / "Dates"), enforced fail-loud at the
- * apply-time write path (PB2/PC2/PG6, §34.32) and re-checked defensively at
+ * apply-time write path (PB2/PC2/PG6) and re-checked defensively at
  * the effective read model (a stored value/default that no longer matches
  * the schema type yields nothing instead of garbage).
  *
- * PG5/PC6 (§34.56, the property-wire batch) extend this module with:
+ * PG5/PC6 (the property-wire batch) extend this module with:
  *  - `visiblePropertyValueRows` — the single visible-set derivation (live
  *    rows minus slot tombstones minus element tombstones) every read surface
  *    (effective model, edge index, FTS plaintext, store reads) consults, so
@@ -27,14 +27,14 @@
  *    rejected (a scalar is not a node reference).
  *  - date_range: `{ "start": ref|null, "end": ref|null }` — either side
  *    open; each present side is a reference (legacy bare uuid normalized).
- *  - number: a finite number; a NUMERIC STRING is the v1-migrated legacy
+ *  - number: a finite number; a NUMERIC STRING is a migrated-legacy
  *    encoding (live data carries epoch-millis strings — verified against
  *    the owner's derived store 2026-10-04) and normalizes to a number,
  *    anything else is rejected.
  *  - boolean: a boolean. url / email / select: a string. multi_select: an
  *    array of strings (the option-id list).
  *  - image: UNCHECKED by design — the type has no defined value shape yet
- *    (§34.32 PG14's zombie row): live data carries v1 asset-payload records
+ *    (PG14's zombie row): live data carries legacy asset-payload records
  *    and legacy bare uuids, so any shape check would break replay of the
  *    migrated log. Validation arrives with PG14's owner call.
  *
@@ -81,7 +81,7 @@ export function nodeRefOfValue(value: unknown): string | null {
  * Validate a property.set value against the schema type; returns the value
  * to store (a legacy bare-uuid reference is normalized to `{nodeId}`).
  * `null` means "no value" and bypasses shape validation. Throws
- * PropertyValueShapeError on mismatch — fail-loud, per the register.
+ * PropertyValueShapeError on mismatch — fail-loud.
  */
 export function assertValueShapeForType(type: string, value: unknown, opType: string): unknown {
   if (value === null) return value;
@@ -131,8 +131,8 @@ export function assertValueShapeForType(type: string, value: unknown, opType: st
 /**
  * PC2: a class-binding defaultValue must be typed per the schema type.
  * Node-typed schemas (date/date_range/object) accept only JSON null — a
- * default that links a node is meaningless ("arguably" per the register;
- * the citations family binds text/number/select defaults, never links).
+ * default that links a node is meaningless; the citations family binds
+ * text/number/select defaults, never links.
  * `text` accepts scalar strings (the raw-text default editor's shape), not
  * carrier references. Returns false instead of throwing so the read model
  * can drop silently; the write path (class.property.set) fails loud.
@@ -181,7 +181,7 @@ function assertScalarShapeForType(type: string, value: unknown, opType: string):
   switch (type) {
     case "number": {
       if (typeof value === "number" && Number.isFinite(value)) return value;
-      // v1-migrated epoch-millis strings (live-data verified): normalize.
+      // Migrated epoch-millis strings (live-data verified): normalize.
       if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) {
         return Number(value);
       }

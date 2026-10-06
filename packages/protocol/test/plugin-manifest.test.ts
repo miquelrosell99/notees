@@ -1,5 +1,5 @@
 /**
- * Plugin manifest grammar tests (§34.59): the strict schema accepts a
+ * Plugin manifest grammar tests: the strict schema accepts a
  * minimal and a full manifest, rejects every malformed shape loud (bad id,
  * bad semver, unknown keys, bad capability members, unknown permissions,
  * path-traversal entrypoints), and the summary helper renders the

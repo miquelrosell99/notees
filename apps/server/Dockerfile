@@ -1,4 +1,4 @@
-# Notees v2 sync server — all-in-one image from the monorepo root (context = repo root).
+# Notees sync server — all-in-one image from the monorepo root (context = repo root).
 #
 # Stage layout:
 #   deps    — `pnpm fetch` warms the store from the lockfile alone (cached

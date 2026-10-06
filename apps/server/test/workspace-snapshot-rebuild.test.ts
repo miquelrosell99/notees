@@ -1,5 +1,5 @@
 /**
- * §34.48 — server-side snapshot self-heal: a workspace whose log has no
+ * Server-side snapshot self-heal: a workspace whose log has no
  * snapshot (post-restore wipe, fresh relay) gets one from the server's own
  * derived store at hydration time, so the next fresh client restores instead
  * of replaying the whole log. Snapshots stay an optimization — the log is
@@ -91,7 +91,7 @@ async function snapshotMeta(server: TestServer) {
   };
 }
 
-describe("snapshot self-heal after replay (§34.48)", () => {
+describe("snapshot self-heal after replay", () => {
   it("creates a snapshot from the replayed store when the log has none", async () => {
     freshDataDir();
     const first = await boot();

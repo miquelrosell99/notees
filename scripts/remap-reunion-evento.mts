@@ -1,5 +1,5 @@
 /**
- * §34.36 remap tooling (reshaped by the owner's
+ * Remap tooling (reshaped by the owner's
  * design directive the same day) — one-shot migration of a workspace's
  * hand-rolled meeting-ish classes onto the seeded system family:
  *

@@ -12,7 +12,7 @@
  *  - source class ↔ CSL type: book → book; paper → article-journal;
  *    article → article; thesis → thesis; conference → paper-conference;
  *    song → song; movie → motion_picture; tv_series → broadcast; document →
- *    article (M1 fallback — CSL has no document-ish type, so a document
+ *    article (the fallback — CSL has no document-ish type, so a document
  *    drifts to article on round-trip; documented deviation).
  *  - CSL type → BibTeX type for re-serialization: book → book;
  *    article-journal/article → article; paper-conference → inproceedings;
@@ -32,7 +32,7 @@
  * import.
  *
  * Dates are year-only `date-parts` taken from the first 4-digit run of the
- * publicationDate value (M1).
+ * publicationDate value.
  */
 
 import {
@@ -124,7 +124,7 @@ export function bibTypeToClassName(entryType: string): SourceClassName {
   return BIB_TYPE_TO_CLASS_NAME[entryType.toLowerCase()] ?? DEFAULT_CLASS_NAME;
 }
 
-/** Source class name → CSL type (document → article is the M1 fallback). */
+/** Source class name → CSL type (document → article is the fallback). */
 export const CLASS_NAME_TO_CSL_TYPE: Record<SourceClassName, CslType> = {
   book: "book",
   paper: "article-journal",
@@ -217,7 +217,7 @@ export function formatAuthors(names: readonly CslName[]): string {
   return names.map(formatAuthorName).filter((name) => name.length > 0).join(" and ");
 }
 
-/** First 4-digit year of a date-ish value (publicationDate is M1 year-only). */
+/** First 4-digit year of a date-ish value (publicationDate is year-only). */
 export function yearFromDate(value: unknown): number | undefined {
   if (typeof value !== "string") return undefined;
   const match = /(\d{4})/.exec(value);
@@ -294,7 +294,7 @@ function propText(props: readonly ExportPropertyValue[], schemaId: string): stri
 
 /**
  * A property value looked up by schema NAME (the loose, convention-based
- * direction — §34.32 PG15): the container fields have no seeded system
+ * direction — PG15): the container fields have no seeded system
  * schemas, so nodeToCsl completes the CSL mapping through the BibTeX field
  * vocabulary by schema name — `journal`/`booktitle` → container-title,
  * `volume` → volume, `number` → issue, `pages` → page (the exact inverse of
@@ -329,7 +329,7 @@ export function nodeToCsl(
   authors: readonly string[],
   /** Resolve a `{nodeId}` property ref to the target's display name (the
    *  publicationDate date-node ref — year-only values ride the date chain
-   *  since the §34.28 #19 import change; plain-string values still win). */
+   *  since the import-format change; plain-string values still win). */
   resolveName?: ((id: string) => string | undefined) | undefined,
 ): CslItem {
   const className = sourceClassOf(node.classIds) ?? DEFAULT_CLASS_NAME;
@@ -359,7 +359,7 @@ export function nodeToCsl(
   if (url !== undefined) item.URL = url;
   const publisher = propText(props, SYSTEM_PROPERTY_UUIDS.publisher);
   if (publisher !== undefined) item.publisher = publisher;
-  // §34.32 PG15 — container fields complete the export mapping (schema-name
+  // PG15 — container fields complete the export mapping (schema-name
   // convention, see propTextByName); absent on nodes without those schemas.
   const containerTitle = propTextByName(props, "journal") ?? propTextByName(props, "booktitle");
   if (containerTitle !== undefined) item["container-title"] = containerTitle;

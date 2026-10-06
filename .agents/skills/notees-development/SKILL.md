@@ -21,30 +21,28 @@ summary here.
    NOT done until fixtures exist in `packages/protocol/fixtures/` and every
    client applier converges — the TS reference here **plus** the GTK and
    Flutter ports (byte-identical fixture files, sha256-checked). Recipe:
-   `references/development-workflow.md`; law: `development.md` §§3–4.
+   `references/development-workflow.md`; law: `docs/developers/development.md`.
 2. **Dev-condition exports.** vitest reads `src`, `tsc` reads `dist` — after
    changing a package's public API, rebuild its dist before typechecking
    dependents.
-3. **The plan is the record.** Before implementing, check
-   `.plans/implementation-plan.md` for an existing design (follow it or improve
-   it in place). After shipping, append a §34 work-record entry (what shipped,
-   verification, register cross-checks) in the same pass. A change without its
-   record is not done.
+3. **The changelog is the record.** Before implementing, skim `CHANGELOG.md`
+   at the repo root for recent related work and check `.plans/` for an
+   in-flight proposal folder. After shipping, add a `CHANGELOG.md` entry (what
+   shipped, verification) in the same pass. A change without its record is not
+   done.
 4. **Docs are part of the change.** Same-pass updates to `docs/`,
    `packages/protocol/SCHEMA.md`, AGENTS.md / `.agents/`, and the
    `docs/developers/` runbooks for anything behavior/model/wire/UX changes.
 5. **Fail loud; no backward compatibility.** Retired wire keys are rejected
    outright; changes are additive, or a versioned breaking bump with fixtures
    and the client lockstep.
-6. **Don't fake the designed-not-built register** (`development.md` §8) —
-   typed-link resolution, citations, E2EE, plugins, TreeCrdt port, the outliner
-   editor program, etc. are not shipped. Never document, test, or build
-   against them as if they existed.
-7. **Code wins over design docs** where they disagree
-   (`architecture.md` §11). Known doc lags: `development.md` §2 claims the root
-   has no `build` script (it has — `pnpm -r build`), and `architecture.md` §3
-   says `SCHEMA_VERSION = 8` (the derived store is v15; `releases.md`'s
-   current-wire line is the freshest source).
+6. **Don't fake the designed-not-built register**
+   (`docs/developers/development.md`) — typed-link resolution, citations, E2EE,
+   plugins, TreeCrdt port, the outliner editor program, etc. are not shipped.
+   Never document, test, or build against them as if they existed.
+7. **Code wins over design docs** where they disagree — fix the doc in the
+   same pass (freshness cues: `releases.md`'s current-wire line for the wire,
+   `packages/store/src/schema.ts` for the derived schema).
 
 ## Gate before declaring done
 
@@ -57,6 +55,6 @@ pnpm install && pnpm typecheck && pnpm test   # from repo root; all green = bloc
 - **Architecture** → `references/architecture.md`
   (canonical: `docs/developers/architecture.md`)
 - **Coding conventions** → `references/coding-conventions.md`
-  (canonical: `development.md` §7 + `docs/developers/ui-primitives.md`)
+  (canonical: `docs/developers/development.md` + `docs/developers/ui-primitives.md`)
 - **Development workflow** → `references/development-workflow.md`
-  (canonical: `development.md`)
+  (canonical: `docs/developers/development.md`)

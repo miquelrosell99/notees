@@ -1,5 +1,5 @@
 /**
- * Recurrence grammar + expansion tests (§34.28 #6, compute-on-read ruling):
+ * Recurrence grammar + expansion tests (compute-on-read ruling):
  * canonical-string round-trips, fail-loud garbage, month-boundary / leap-year
  * / cap behavior of occurrenceIsosOf.
  */
@@ -234,7 +234,7 @@ describe("occurrenceIsosOf", () => {
   });
 });
 
-describe("completedOccurrencesOf / withCompletedOccurrence (§34.69)", () => {
+describe("completedOccurrencesOf / withCompletedOccurrence", () => {
   it("absent or null metadata reads as no completed occurrences", () => {
     expect(completedOccurrencesOf(null)).toEqual([]);
     expect(completedOccurrencesOf(undefined)).toEqual([]);

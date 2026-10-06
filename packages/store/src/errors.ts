@@ -38,8 +38,8 @@ export class CycleError extends StoreError {}
 
 /**
  * object.update arrived with the canonical CRDT wire carrier
- * (contentDeltaB64) but no readable contentAst mirror. The Yjs port is M1+
- * store/sync work; until it lands this carrier cannot be interpreted, so the
+ * (contentDeltaB64) but no readable contentAst mirror. The Yjs port is
+ * still-owed store/sync work; until it lands this carrier cannot be interpreted, so the
  * applier fails loud rather than dropping a write silently.
  */
 export class UnsupportedCarrierError extends StoreError {}

@@ -1,14 +1,13 @@
 /**
- * CSV view export — the §34.24 parked register's "CSV view export" row
- * (2026-10-04): the classed-nodes table and query-result tables download
+ * CSV view export (2026-10-04): the classed-nodes table and query-result tables download
  * their CURRENT view as CSV — columns = the visible table columns, rows =
  * the current result set. The package owns only the record serialization
  * (RFC-4180 quoting, dependency-free): callers flatten their view to
  * display strings (the web table renders cells exactly as on screen) and
  * hand over header + rows.
  *
- * The module follows the export package's options-bag discipline
- * (§34.24 E1): every knob is optional at the surface and resolved by
+ * The module follows the export package's options-bag discipline:
+ * every knob is optional at the surface and resolved by
  * {@link resolveCsvExportOptions}. It deliberately does NOT join the
  * IR-based `EXPORT_FORMATS` registry — that registry's serializers consume
  * the per-node-subtree {@link ExportDocument} IR, while CSV input is

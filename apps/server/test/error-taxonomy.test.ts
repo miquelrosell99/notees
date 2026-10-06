@@ -1,5 +1,5 @@
 /**
- * Error-code taxonomy pin (§34.33 AC2): the `ErrorCode` union in
+ * Error-code taxonomy pin: the `ErrorCode` union in
  * src/errors.ts is the single source; this test fails on drift between
  *  - the taxonomy table (ERROR_TAXONOMY) and the codes route code actually
  *    throws or emits (`new AppError(status, "<code>"…)` /
@@ -7,7 +7,7 @@
  *    call site uses, and
  *  - the OpenAPI exposure (`x-error-codes`).
  *
- * The AG5 additions (`scope_denied` from AG3 scoped keys, `idempotency_replay`
+ * The additions (`scope_denied` from scoped keys, `idempotency_replay`
  * from the Idempotency-Key guard) are covered behaviorally in
  * developer-api.test.ts.
  */
@@ -44,7 +44,7 @@ function scanEmissions(): Emission[] {
   return emissions;
 }
 
-describe("error taxonomy pin (AC2)", () => {
+describe("error taxonomy pin", () => {
   it("every code emitted by route code is in the pinned taxonomy", () => {
     const emitted = scanEmissions();
     expect(emitted.length).toBeGreaterThan(0);

@@ -1,12 +1,12 @@
 /**
- * Developer self-description routes (§34.33 AG4/AG5), prefix /api:
+ * Developer self-description routes, prefix /api:
  *
  *  - GET /api/meta         auth-free self-description: server version, wire
  *                          protocol versions, the default workspace id (a
  *                          fixed system uuid — identity.ts), setup state;
- *  - GET /api/openapi.json the OpenAPI 3.1 contract (AG4), built once;
+ *  - GET /api/openapi.json the OpenAPI 3.1 contract, built once;
  *  - GET /api/operations   paginated read of a workspace's relay operation
- *                          log (AG5 agent-safety feed) — cursor semantics
+ *                          log (agent-safety feed) — cursor semantics
  *                          match relay catch-up, auth read + objects.read
  *                          scope for scoped keys.
  */

@@ -1,6 +1,6 @@
 # Health checks
 
-Canonical: `docs/developers/deployment.md` §9.
+Canonical: `docs/developers/deployment.md`.
 
 ## Endpoints (on notees-sync, default 8377)
 

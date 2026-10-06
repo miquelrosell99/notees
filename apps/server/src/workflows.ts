@@ -20,7 +20,7 @@
  * envelope's affected node. Criteria are pure node filters: an AST carrying
  * an aggregation is rejected at rule creation.
  *
- * Z (actions, v1) — property.set and class.assign, each translated to its
+ * Z (actions) — property.set and class.assign, each translated to its
  * EXISTING wire op at execution time (class.assign → object.create re-issue
  * with classIds, the OR-Set add carrier). New actions ride new trigger sets;
  * none of it changes the wire.
@@ -29,7 +29,7 @@
  * re-entrant, depth-capped ingest. Max depth 1 — a client batch (depth 0) may
  * fire rules, whose actions ingest at depth 1 and are evaluated once more,
  * but matches at depth 1 write NOTHING (outcome "skipped_depth_cap"): rule
- * chains beyond one hop do not execute in v1. Within that one re-entry, the
+ * chains beyond one hop do not execute. Within that one re-entry, the
  * loop breaker applies: a rule never fires on envelopes it caused
  * (outcome "skipped_loop" when it matches anyway). A firing whose action
  * ingest throws is recorded as "actions_failed" and never blocks the
@@ -62,7 +62,7 @@ import type { EnvelopeFactory } from "./envelope-factory.js";
 // --- vocabulary & caps ----------------------------------------------------------
 
 /**
- * X triggers, v1. "class.assign" is the semantic name for the wire's
+ * X triggers. "class.assign" is the semantic name for the wire's
  * object-create OR-Set add carrier (see module header); the other two are
  * literal op types.
  */
@@ -619,7 +619,7 @@ export class WorkflowEngine {
         nodeId,
         actionsWritten: [],
         outcome: "skipped_depth_cap",
-        detail: `rule chains beyond depth ${WORKFLOW_MAX_DEPTH} do not execute in v1`,
+        detail: `rule chains beyond depth ${WORKFLOW_MAX_DEPTH} do not execute`,
       });
       return;
     }

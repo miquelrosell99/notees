@@ -1,15 +1,15 @@
 /**
- * SyncEngine: the v2 client/server sync engine — outbox push, seq-cursor
+ * SyncEngine: the client/server sync engine — outbox push, seq-cursor
  * catch-up pull, snapshot shortcut, restoreEpoch wipe+park recovery, realtime
- * acceleration hook, and conflict reporting. Port of v1
- * `frontend/src/core/sync.ts` (968-line SyncEngine) adapted to WIRE.md:
+ * acceleration hook, and conflict reporting. Port of
+ * `frontend/src/core/sync.ts` (the 968-line SyncEngine) adapted to WIRE.md:
  *  - seq is the only ordering authority (no HLC catch-up; HLC remains the LWW
  *    causality watermark for snapshot decisions);
  *  - envelopes are validated/applied through @notees/store (applied_envelope
  *    idempotency, one transaction per page via applyMany);
  *  - the server seq cursor persists in app_meta (see meta.ts for why not
  *    sync_state.cursor_seq);
- *  - single-user M1: no E2EE decryption, no presence; the WS acceleration
+ *  - single-user: no E2EE decryption, no presence; the WS acceleration
  *    path is wired through Transport.subscribe (HttpTransport implements it).
  */
 
@@ -36,7 +36,7 @@ import type {
   Transport,
 } from "./types.js";
 
-/** v1 backoff schedule: 5s, 15s, 1m, 5m, 30m; exhausted → quarantined. */
+/** Backoff schedule: 5s, 15s, 1m, 5m, 30m; exhausted → quarantined. */
 const RETRY_DELAYS_MS = [5_000, 15_000, 60_000, 300_000, 1_800_000] as const;
 const DEFAULT_BATCH_SIZE = 100;
 const DEFAULT_CATCH_UP_LIMIT = 1000;
@@ -44,7 +44,7 @@ const ZERO_HLC: Hlc = { physical: 0, logical: 0 };
 
 /**
  * True when an upload failure is the relay's request-body cap (413) — the
- * one error that retrying can never heal (§34.69). Accepts the typed
+ * one error that retrying can never heal. Accepts the typed
  * TransportError and any foreign error carrying a numeric `status`, so a
  * non-HTTP transport implementation can't smuggle a permanent failure past
  * the report latch.
@@ -94,7 +94,7 @@ export class SyncEngine {
   /** HLC of the last snapshot this session uploaded; avoids re-uploading. */
   private uploadedSnapshotHlc: Hlc | null = null;
   /**
-   * §34.69 — the oversize-upload report latch: the relay answers an over-cap
+   * The oversize-upload report latch: the relay answers an over-cap
    * snapshot PUT with 413, and unlike transient failures that never heals by
    * retrying, so it is surfaced ONCE per session (log + onError) instead of
    * being swallowed on every sync cycle. Reset when an upload succeeds.
@@ -217,14 +217,14 @@ export class SyncEngine {
     return summary;
   }
 
-  /** Requeue quarantined ops and push them (v1 retryQuarantined). */
+  /** Requeue quarantined ops and push them. */
   async requeueQuarantined(): Promise<void> {
     this.outbox.requeueQuarantined();
     this.reportOutboxCounts();
     await this.syncOnce();
   }
 
-  /** Re-push ops parked by a server restore (v1 recoverParkedChanges). */
+  /** Re-push ops parked by a server restore. */
   async recoverParkedChanges(): Promise<void> {
     const requeued = this.outbox.requeueParked();
     if (requeued > 0) this.callbacks.onParkedChanges?.(this.outbox.parkedCount());
@@ -246,7 +246,7 @@ export class SyncEngine {
       this.outbox.markInFlight(ids);
       try {
         await this.transport.sendBatch(chunk.map((entry) => entry.envelope));
-        // Whole-chunk ack (v1): a 200 means every envelope is persisted
+        // Whole-chunk ack: a 200 means every envelope is persisted
         // server-side — the server omits duplicate ids from savedIds, but
         // duplicate-only chunks still leave the outbox.
         this.outbox.markAcknowledged(ids);
@@ -344,7 +344,7 @@ export class SyncEngine {
       }
       if (!page.hasMore) break;
       if (page.nextAfterSeq === null) {
-        // Defensive (v1): a hasMore page without a cursor would loop forever.
+        // Defensive: a hasMore page without a cursor would loop forever.
         break;
       }
       afterSeq = page.nextAfterSeq;
@@ -376,7 +376,7 @@ export class SyncEngine {
     }
   }
 
-  /** Best-effort snapshot upload when the server has none or an older one (v1). */
+  /** Best-effort snapshot upload when the server has none or an older one. */
   private async maybeUploadSnapshot(meta: SnapshotMeta, skip: boolean): Promise<void> {
     const upload = this.transport.uploadSnapshot?.bind(this.transport);
     if (!upload || skip) return;
@@ -392,11 +392,11 @@ export class SyncEngine {
     } catch (error) {
       // Best-effort: a failed upload must not fail sync. The ONE failure
       // that never heals by retrying — the relay's body cap (413 Request
-      // entity too large; §34.49's cliff, route-raised to 512 MiB in
-      // §34.69 but a projection can outgrow any cap) — is surfaced once per
+      // entity too large; the route-raised 512 MiB ceiling, but a projection
+      // can outgrow any cap) — is surfaced once per
       // session, loudly, instead of silently retried forever: the user
       // learns the client upload is disabled while the server-side
-      // snapshot (§34.49) keeps covering restore.
+      // snapshot keeps covering restore.
       if (!this.snapshotOversizeReported && isBodyTooLarge(error)) {
         this.snapshotOversizeReported = true;
         const message =
@@ -477,7 +477,7 @@ export class SyncEngine {
   // --- realtime hook surface (WS acceleration path) -------------------------------------
 
   /**
-   * Apply a realtime ops frame (WIRE.md §2). Strictly an accelerator: frames
+   * Apply a realtime ops frame (WIRE.md). Strictly an accelerator: frames
    * buffer while a pull runs so the seq cursor cannot regress past applied
    * frames, and any drop is recovered by the cursor on the next pull.
    */
@@ -537,7 +537,7 @@ export class SyncEngine {
         const { applied, info } = this.applyRemote(envelopes, frame.seqs);
         if (applied > 0) this.callbacks.onRemoteBatch?.(applied, info);
       } catch (err) {
-        // v1: drop the remaining buffer — unapplied frames never advanced the
+        // Drop the remaining buffer — unapplied frames never advanced the
         // cursor, so the next pull re-fetches them through catch-up.
         this.wsBuffer = [];
         this.callbacks.onError?.(asError(err));
@@ -552,7 +552,7 @@ export class SyncEngine {
     await this.syncOnce(options);
   }
 
-  /** One push+pull cycle; concurrent callers share the in-flight run (v1). */
+  /** One push+pull cycle; concurrent callers share the in-flight run. */
   syncOnce(options: { skipSnapshotUpload?: boolean } = {}): Promise<void> {
     if (this.inFlightSync) return this.inFlightSync;
     this.inFlightSync = (async (): Promise<void> => {

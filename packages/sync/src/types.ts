@@ -1,9 +1,9 @@
 /**
  * Sync engine shared types: the transport contract (per WIRE.md), the outbox
- * state machine shapes, and the engine callback surface. Ported from v1
- * `frontend/src/core/{sync.ts,transport.ts}`, adapted to v2: seq-only cursor
+ * state machine shapes, and the engine callback surface. Ported from
+ * `frontend/src/core/{sync.ts,transport.ts}`: seq-only cursor
  * (HLC is causality metadata, never a catch-up ordering), camelCase bodies,
- * single-user M1 (API-key auth, no E2EE slot handling, no presence).
+ * single-user (API-key auth, no E2EE slot handling, no presence).
  */
 
 import type { Envelope, Hlc } from "@notees/protocol";
@@ -13,7 +13,7 @@ import type { SyncConflict } from "./conflicts.js";
 
 export type SyncStatus = "idle" | "syncing" | "error";
 
-// --- transport contract (WIRE.md §1–2) ---------------------------------------
+// --- transport contract (WIRE.md) ------------------------------------------------
 
 export interface SendBatchResult {
   savedCount: number;
@@ -43,7 +43,7 @@ export interface RealtimeHello {
   restoreEpoch: number;
 }
 
-/** Handlers for the realtime (WebSocket) acceleration path (WIRE.md §2). */
+/** Handlers for the realtime (WebSocket) acceleration path (WIRE.md). */
 export interface RealtimeHandlers {
   onHello?: (hello: RealtimeHello) => void;
   onOps?: (envelopes: Envelope[], seqs: Record<string, number>) => void;
@@ -67,11 +67,11 @@ export interface Transport {
   getSnapshotData(): Promise<Uint8Array>;
   /** PUT /snapshot/data (best-effort client-produced snapshot). */
   uploadSnapshot?(bytes: Uint8Array, hlc: Hlc): Promise<void>;
-  /** Optional realtime channel (WIRE.md §2); HttpTransport implements it over WebSocket. */
+  /** Optional realtime channel (WIRE.md); HttpTransport implements it over WebSocket. */
   subscribe?(handlers: RealtimeHandlers): () => void;
 }
 
-// --- engine callbacks (v1 SyncEngineCallbacks, minus E2EE/presence) ----------
+// --- engine callbacks (SyncEngineCallbacks, minus E2EE/presence) -----------------
 
 export interface OutboxStatusCounts {
   pending: number;

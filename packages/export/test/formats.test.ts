@@ -92,7 +92,7 @@ describe("format registry", () => {
   it("hands each format its gated option specs", () => {
     const keysFor = (id: ExportFormatId): string[] =>
       (getExportFormat(id)?.options ?? []).map((spec) => spec.key);
-    // §34.24 gating: pageFormat pdf only; includeAssets markdown only;
+    // Gating: pageFormat pdf only; includeAssets markdown only;
     // includeOutline pdf/docx/html (+ markdown by decision).
     expect(keysFor("pdf")).toContain("pageFormat");
     expect(keysFor("markdown")).not.toContain("pageFormat");

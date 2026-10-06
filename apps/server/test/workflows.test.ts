@@ -300,7 +300,7 @@ describe("workflow engine (issue #13)", () => {
   it("a failing action is audited (actions_failed) and never blocks the triggering ingest", async () => {
     server = await makeTestServer();
     // A number-typed schema rejects a string value at apply time
-    // (PB2/PG6 shape integrity, fail loud) — after the envelope persisted
+    // (shape integrity, fail loud) — after the envelope persisted
     // to the log, exactly the failure mode the audit must absorb.
     const numberSchema = await createSchema("wf-count", "number");
     const res = await api("POST", "/api/workflows", {

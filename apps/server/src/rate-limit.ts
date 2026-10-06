@@ -1,6 +1,6 @@
 /**
- * In-memory fixed-window rate limiter (per WIRE.md §3 and v1
- * app/rate_limit.py). Single-process M1: counters live in process memory,
+ * In-memory fixed-window rate limiter (per WIRE.md; a port of
+ * app/rate_limit.py). Single-process: counters live in process memory,
  * keyed by caller-supplied strings. Not persisted.
  */
 
