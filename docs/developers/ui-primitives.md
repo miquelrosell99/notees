@@ -24,6 +24,18 @@ the pointer and the law.
    (`usePopupDismissal.ts` lives in the library; overlay helpers and the
    sheet gesture seam sit beside it in `overlay-hooks.ts` /
    `sheetGesture.ts`.)
+5. **Adaptive values over hard-coded numbers.** When a value tracks type
+   metrics or layout, write the adaptive form, never a fixed literal:
+   `1lh` / `em` / `ch` / `%` for anything line- or glyph-sized, the
+   spacing, radius, and motion tokens for rhythm and chrome, and
+   `clamp()` / `min()` / `max()` for bounds. A hard-coded px number is a
+   silent contract with today's font metrics and viewport — the moment the
+   type scale or density shifts, the value lies (an empty text line
+   collapsing to zero height and losing its click target is the canonical
+   casualty). Fixed px is right only where the dimension is genuinely
+   constant: border hairlines, icon canvases, tap-target floors. The drift
+   gate (`css-token-drift.test.ts`) enforces the font-size slice of this
+   rule.
 
 ## Catalog
 
@@ -34,8 +46,10 @@ Inputs & buttons: `Button`, `Pill`/`AddPill`, `TextField`, `SearchField`,
 
 Feedback & status: `Spinner`, `LoadingScreen`/`LoadingSkeleton`,
 `DataStateView`, `EmptyState`, `NotificationToast` (+ `NotificationToaster`
-and `notificationStore.ts`), `Badge`, `BackendUnavailableOverlay`,
-`InProcessStoreBanner` (the §34.92 in-process-store warning bar).
+and `notificationStore.ts`), `Badge`, `BackendUnavailableOverlay` (§34.107 —
+the backend-down ladder: dismissible banner → lock with a "Continue anyway"
+escape → persistent banner), `InProcessStoreBanner` (the §34.92
+in-process-store warning bar).
 
 Structure & surfaces: `Card`, `Tabs`, `Modal`, `ImageModal`,
 `ConfirmationModal`, `ContextMenu`, `Separator`, `ErrorBoundary`,

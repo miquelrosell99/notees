@@ -38,12 +38,13 @@ Full file map: `docs/developers/architecture.md` §10 · normative model & wire:
 
 ## UI primitives
 
-All chrome MUST compose from `apps/web/src/ui/components/ui/` — one element per file, co-located CSS, barrel-exported, token-only CSS (`variables.css`). No ad-hoc styled controls in feature code. **Catalog, the popup-dismissal seam, and the drift classes: `docs/developers/ui-primitives.md`.**
+All chrome MUST compose from `apps/web/src/ui/components/ui/` — one element per file, co-located CSS, barrel-exported, token-only CSS (`variables.css`). No ad-hoc styled controls in feature code. Values that track type metrics or layout take the adaptive form (`1lh`/`em`/`ch`/`%`, `clamp()`, spacing/radius/motion tokens), not fixed px numbers — hard-coded px only where the dimension is genuinely constant (hairlines, tap-target floors). **Catalog, the popup-dismissal seam, the drift classes, and the adaptive-values law: `docs/developers/ui-primitives.md`.**
 
 ## Working rules (owner)
 
 - **Docs are part of the change**: any change to behavior, the model, the wire, or the UX updates the relevant documentation in the same pass — user-facing `docs/`, `packages/protocol/SCHEMA.md`, `AGENTS.md` / `.agents/` when they describe changed reality, and the `docs/developers/` runbooks.
 - **The plan is the record** (owner 2026-10-03): check `.plans/implementation-plan.md` (and `.plans/` generally) for existing designs before implementing — follow them or improve them in place — then record the slice in the same pass: a new §34 work-record entry (what shipped, verification, register cross-checks), owed-work rows ticked, deviations registered where future readers will look. A change without its plan/doc updates is not done.
+- **Fleet-agnostic artifacts** (owner 2026-10-06): never hardcode machine names (Tailscale device names), IPs, or tailnet names in code, templates, docs, or notes — write `<host>`, `<tailnet>`, `<lan-ip>`, `<tailscale-ip>`, or "the fleet host". Concrete values live only in gitignored host-local files (`.env`) and per-host operator config; example values in templates must be clearly generic (e.g. `192.168.1.10`).
 
 ## Parked decisions (owner)
 
