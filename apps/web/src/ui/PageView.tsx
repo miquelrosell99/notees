@@ -125,7 +125,7 @@ export function PageView({
    * absolute top-right corner (as before).
    */
   chromeRight = undefined,
-  /** §34.62 shares: server coordinates for the "Share…" item + modal. */
+  /** shares: server coordinates for the "Share…" item + modal. */
   shareTarget = undefined,
 }: {
   client: WorkspaceClient | WorkerClient;
@@ -136,7 +136,7 @@ export function PageView({
   onOpenInSidebar?: ((nodeId: string) => void) | undefined;
   /** Post-delete navigation (host routes to the parent / default view). */
   onDeleted?: ((node: ClientNode) => void) | undefined;
-  /** Presentation mode (§34.26): "Present" decks this page's subtree read-only. */
+  /** Presentation mode: "Present" decks this page's subtree read-only. */
   onPresent?: ((pageId: string) => void) | undefined;
   /**
    * Embedded mode (journals feed): the title renders as a static button that
@@ -153,7 +153,7 @@ export function PageView({
 }) {
   /**
    * Child-blocks view mode (the outline/prose/cards triad): durable display
-   * state per page (§34.27 L1) — device-local, never an op. Unset/stale
+   * state per page — device-local, never an op. Unset/stale
    * values fall back to outline, the surface default. The main NodeView owns
    * the switcher (card top-right) and passes the mode down; standalone
    * renders keep the internal preference.
@@ -213,7 +213,7 @@ export function PageView({
   /** The same tree in the view system's input shape (session view state). */
   const blockItems = childQuery(client, pageId);
   /**
-   * §34.28 #4/#7 — the date variants: a node whose id parses at day
+   * #4/#7 — the date variants: a node whose id parses at day
    * precision is a day page and gets the date header (weekday/Today flags +
    * the week flag, owner 2026-10-06) and the three aggregation sections;
    * month/year pages carry the Created aggregation too. Both facts ride the
@@ -253,7 +253,7 @@ export function PageView({
   }, [client, page, embedded, whiteboardTokenIndex, whiteboardClassed]);
 
   /**
-   * Cover property self-heal (§34.27 L2): the cover schema + source binding
+   * Cover property self-heal: the cover schema + source binding
    * are seed-manifest entries nothing else authors (the v1 migration is the
    * only other writer), so a fresh workspace self-heals them on first page
    * view — an idempotent no-op once present. The banner below then reads
@@ -265,7 +265,7 @@ export function PageView({
   }, [client]);
 
   /**
-   * Alias property self-heal (§34.32 PG10 + issue #7): the seeded
+   * Alias property self-heal: the seeded
    * multi-value `alias` text schema and the seeded single-value node-typed
    * `aliasOf` schema (global scope, no class bindings) are authored
    * idempotently on first page view — the server seed only runs on an
@@ -282,7 +282,7 @@ export function PageView({
     page !== undefined && !embedded && whiteboardTokenIndex < 0
       ? coverAssetIdOf(client, pageId)
       : null;
-  /** §34.72: the v1 element renders whenever the page can carry a cover —
+  /** the v1 element renders whenever the page can carry a cover —
    *  set or empty (the card shows the Add affordance when empty). */
   const coverPossible =
     page !== undefined && !embedded && whiteboardTokenIndex < 0
@@ -349,7 +349,7 @@ export function PageView({
   ));
 
   /**
-   * §34.109 ghost (owner refinement of §34.85): the page root trails exactly
+   * ghost (owner refinement of ): the page root trails exactly
    * ONE muted "add block" ghost row as the last sibling of the main level —
    * rendered ALWAYS in the child-blocks section (outline and prose,
    * non-embedded, focus mode included), including an empty body, as the
@@ -410,8 +410,8 @@ export function PageView({
                       onNodeClick={(id) => onOpenPage?.(id)}
                       onNodeShiftClick={(id) => onOpenInSidebar?.(id)}
                     />
-                    {/* §34.109 ghost trailing block (owner refinement of
-                        §34.85): the page root trails exactly ONE "+ Add
+                    {/* ghost trailing block (owner refinement of
+                        ): the page root trails exactly ONE "+ Add
                         block" ghost row as the last sibling of the main
                         level — display-only until the click, which creates
                         a real empty block after the last child and focuses
@@ -473,7 +473,7 @@ export function PageView({
   );
 
   /**
-   * §34.72 — the v1 header layout (the PageHeaderChrome leaf): header left,
+   * the v1 header layout (the PageHeaderChrome leaf): header left,
    * the collapsible cover CARD right. Shared by both layout modes; the
    * day-header swap rides the variant's `dayIso`.
    */
@@ -657,7 +657,7 @@ export function PageView({
             onDeleted?.(node);
           }}
         />
-        {/* §34.19 block multi-selection: the floating group-ops bar rides
+        {/* block multi-selection: the floating group-ops bar rides
             the page chrome while a selection is live. */}
         {outliner.selectionEnabled && <SelectionBar client={client} />}
         {exporting !== null && (

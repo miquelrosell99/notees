@@ -1,5 +1,5 @@
 /**
- * Class View tests: a class page IS a page (§34.44, .plans/design/05-class-
+ * Class View tests: a class page IS a page (.plans/design/05-class-
  * view-redesign.md) — render-cascade view resolution (class → the page view
  * with the class variant data, M13 of the main-content restructure), the
  * page chrome (title; M9: the shared header icon button is the single

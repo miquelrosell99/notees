@@ -75,7 +75,7 @@ export function NodeTopbar({
 }
 
 /**
- * PageHeaderChrome — the .page-header-section (§34.72): the header proper
+ * PageHeaderChrome — the .page-header-section: the header proper
  * beside the cover card aside. Day pages render the DayPageHeader as the
  * whole title row (driven by the variant's `dayIso`); every other page
  * renders the shared icon button + picker (M9: the SINGLE icon+color edit
@@ -168,7 +168,7 @@ export function PageHeaderChrome({
                       }}
                       onColorChange={(color) => {
                         // M9/M10 — the single icon+color entry: null = "No
-                        // color" (object.update color:null clears, §34.43).
+                        // color" (object.update color:null clears, ).
                         void client.updateObject(pageId, { color });
                       }}
                       onClose={() => setIconPickerOpen(false)}
@@ -217,7 +217,7 @@ export function PageHeaderChrome({
 
 /**
  * PageFooterChrome — the card-bottom wrapper: the word count + the
- * Created/Updated day-page stamps (PageFooter, §34.27 L4 + M32 — the
+ * Created/Updated day-page stamps (PageFooter, L4 + M32 — the
  * defined bottom divider of the node view). Null for embedded renders and
  * focus mode: the chrome steps aside, the body stays.
  */

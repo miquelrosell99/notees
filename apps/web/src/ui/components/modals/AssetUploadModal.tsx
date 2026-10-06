@@ -1,5 +1,5 @@
 /**
- * AssetUploadModal — the §34.19 :1174 row's upload surface, at the v1
+ * AssetUploadModal — the 1174 row's upload surface, at the v1
  * interaction's full parity: drag-drop OR click-to-browse, a clipboard
  * paste capture active while the modal is open (clipboardData.items — the
  * v1 modal-internal paste plumbing), type + size validation BEFORE the

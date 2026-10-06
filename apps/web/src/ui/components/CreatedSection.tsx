@@ -1,6 +1,6 @@
 /**
  * CreatedSection — the "Created" aggregation for date pages: everything
- * created on the day (day pages, §34.28 #4) or inside the month/year
+ * created on the day (day pages, #4) or inside the month/year
  * (owner 2026-10-06 — month and year pages carry the section too). The
  * section hides while empty (there is no cheaper materialized count, so the
  * one createdAt range query IS the count: it resolves from mount and

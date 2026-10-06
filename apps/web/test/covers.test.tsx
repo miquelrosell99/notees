@@ -1,6 +1,6 @@
 /**
- * Covers (§34.74, owner directive 2026-10-04): a cover IS an ordinary
- * asset-classed node — the dedicated `cover` system class (§34.56) was
+ * Covers: a cover IS an ordinary
+ * asset-classed node — the dedicated `cover` system class was
  * withdrawn the same day it shipped: it duplicated the cover PROPERTY's
  * meaning. The property value is the only authority; the card-view "Cover"
  * badge DERIVES from it (isCoverAsset — no class to keep in sync).
@@ -31,7 +31,7 @@ import {
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
-/** The withdrawn cover class id (…0042 — minted §34.56, withdrawn §34.74). */
+/** The withdrawn cover class id (…0042 — minted withdrawn ). */
 const WITHDRAWN_COVER_CLASS = "00000000-0000-0000-0001-000000000042";
 
 let sqlModule: SqlJsStatic;
@@ -74,7 +74,7 @@ async function seedPageAndAsset(client: WorkspaceClient): Promise<[string, strin
   return [pageId, asset];
 }
 
-describe("covers (§34.74 — asset-classed, no cover class)", () => {
+describe("covers", () => {
   it("ensureCoverProperty authors the schema + class roots, NO source binding, NO cover class (owner ruling 2026-10-05: a cover makes no sense on sources)", async () => {
     const client = await seedClient();
     await ensureCoverProperty(client);
@@ -90,8 +90,8 @@ describe("covers (§34.74 — asset-classed, no cover class)", () => {
         .getClassBindings(SYSTEM_CLASS_UUIDS.source)
         .some((b) => b.propertySchemaId === SYSTEM_PROPERTY_UUIDS.cover),
     ).toBe(false);
-    // The withdrawn cover class is never authored (…0042 minted §34.56,
-    // withdrawn §34.74 — a cover is a plain asset).
+    // The withdrawn cover class is never authored (…0042 minted
+    // withdrawn a cover is a plain asset).
     expect(client.getNode(WITHDRAWN_COVER_CLASS)).toBeUndefined();
 
     // Idempotent: a second ensure authors nothing new.
@@ -190,7 +190,7 @@ describe("covers (§34.74 — asset-classed, no cover class)", () => {
     await flushWrites();
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
-    // A set cover auto-expands the card (§34.72).
+    // A set cover auto-expands the card.
     await screen.findByRole("button", { name: "Collapse cover" });
     const card = container.querySelector(".nt-covercard")!;
     expect(card.querySelector('[aria-label="Change cover"]')).not.toBeNull();
@@ -219,7 +219,7 @@ describe("covers (§34.74 — asset-classed, no cover class)", () => {
   });
 });
 
-describe("the dedicated header element (§34.59)", () => {
+describe("the dedicated header element", () => {
   it("the cover is NOT a property row — the Properties panel suppresses it", async () => {
     const client = await seedClient();
     vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,HEADER");
@@ -276,7 +276,7 @@ describe("the dedicated header element (§34.59)", () => {
     await flushWrites();
 
     expect(upload).toHaveBeenCalledTimes(1);
-    // The uploaded node is an ordinary asset (no cover class — §34.74) and
+    // The uploaded node is an ordinary asset (no cover class — ) and
     // the cover points at it.
     const coverAsset = coverAssetIdOf(client, pageId)!;
     expect(client.getNode(coverAsset)?.classIds).toContain(SYSTEM_CLASS_UUIDS.asset);
@@ -368,7 +368,7 @@ describe("the global cover (owner bug 2026-10-04: any page, like v1)", () => {
   });
 });
 
-describe("the v1-parity cover (§34.72: placeholder shell + drag-and-drop)", () => {
+describe("the v1-parity cover", () => {
   it("a cover whose asset has NO image bytes renders the dashed shell naming the asset — never a silent void (the Wartortle case)", async () => {
     const client = await seedClient();
     // getAssetDataUrl resolves null: no node_asset bytes for this node.
@@ -416,7 +416,7 @@ describe("the v1-parity cover (§34.72: placeholder shell + drag-and-drop)", () 
 
     expect(upload).toHaveBeenCalledWith(file, "dropped.png");
     expect(attach).toHaveBeenCalled();
-    // The uploaded node is an ordinary asset (no cover class — §34.74).
+    // The uploaded node is an ordinary asset (no cover class — ).
     const coverAsset = coverAssetIdOf(client, pageId)!;
     expect(client.getNode(coverAsset)?.classIds).toContain(SYSTEM_CLASS_UUIDS.asset);
     // The set cover auto-expands the card with the image.
