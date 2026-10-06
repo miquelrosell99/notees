@@ -1,5 +1,5 @@
 /**
- * Relay routes — WIRE.md §1–2 implemented exactly: POST /batch, POST
+ * Relay routes — WIRE.md implemented exactly: POST /batch, POST
  * /catch-up, GET /snapshot, GET|PUT /snapshot/data, POST /compact, GET /stats,
  * and the /ws/{workspaceId} socket (hello/ops/ack/error frames, framing
  * version 2). Auth: the credential (operator API key or account session
@@ -52,9 +52,8 @@ const snapshotPutQuerySchema = z.object({
 });
 
 /**
- * §34.49's residual cliff, healed (§34.69): the client-produced snapshot PUT
- * rides a RAISED, route-local bodyLimit — 512 MiB against the app's global
- * 128 MiB. Snapshot blobs are the largest bodies this API ever carries (a
+ * The client-produced snapshot PUT rides a RAISED, route-local bodyLimit —
+ * 512 MiB against the app's global 128 MiB. Snapshot blobs are the largest bodies this API ever carries (a
  * big workspace's full local projection) and they are authenticated,
  * workspace-scoped, and size-bounded by the client's own store — the one
  * route where the headroom is deliberate, not a DoS surface. Every other
@@ -68,7 +67,7 @@ const SNAPSHOT_PUT_BODY_LIMIT = 512 * 1024 * 1024;
  * key keeps its historical unrestricted access (CLI, owned devices).
  * `access: "write"` claims unclaimed workspaces for the first account.
  *
- * §34.33 AG3: scoped API keys are object-API credentials — the whole relay
+ * Scoped API keys are object-API credentials — the whole relay
  * surface (HTTP and the WebSocket) rejects them with 403 `scope_denied`.
  */
 export function requireCredential(
@@ -322,7 +321,7 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
       }
       const typed = frame as { type?: unknown; wsProtocolVersion?: unknown; envelopes?: unknown };
       const type = typeof typed.type === "string" ? typed.type : undefined;
-      // Fail loud on newer framing versions (WIRE.md §2).
+      // Fail loud on newer framing versions (WIRE.md).
       if (
         (type === "hello" || type === "ops") &&
         typeof typed.wsProtocolVersion === "number" &&
@@ -339,7 +338,7 @@ export function registerRelayRoutes(app: FastifyInstance, ctx: ServerContext): v
         handleSocketBatch(typed.envelopes).catch(() => undefined);
         return;
       }
-      // Unknown frame types are ignored (WIRE.md §2).
+      // Unknown frame types are ignored (WIRE.md).
     });
 
     ws.on("close", () => {

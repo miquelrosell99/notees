@@ -1,14 +1,14 @@
 /**
- * PG6 + PB1 validation batch (§34.32 register, owner-ruling pass 2026-10-04):
+ * PG6 + PB1 validation batch (owner-ruling pass 2026-10-04):
  *
- *  - PG6 apply-time fail-loud validation, extending §34.45's one-shape
- *    validator with the register's remaining gaps: scalar typing
+ *  - PG6 apply-time fail-loud validation, extending the one-shape
+ *    validator: scalar typing
  *    (number/boolean/url/email/select/multi_select), the multi cardinality
  *    ceiling, datePrecision ceilings, targetClassFilter membership, and
  *    node-typed target existence — asserted on BOTH store adapters.
  *    Evidence-scoped deviations (live-owner-data verified 2026-10-04):
- *    numeric strings normalize for number (v1 epoch-millis), image stays
- *    unchecked (PG14 zombie — v1 asset payloads ride the log), text
+ *    numeric strings normalize for number (epoch-millis legacy), image stays
+ *    unchecked (PG14 zombie — legacy asset payloads ride the log), text
  *    carriers skip existence checks (PB2 legacy leniency).
  *  - PB1 broken-target rule: a node-typed value pointing at a
  *    deleted/trashed node KEEPS the value (no cascade) and the edge index
@@ -184,7 +184,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       const store = seededStore();
       store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_NUMBER, value: 42 }, 1727200005000));
       expect(valueRow(store, SCHEMA_NUMBER)?.value).toBe("42");
-      // v1-migrated epoch-millis encoding (live-data evidence).
+      // Migrated epoch-millis encoding (live-data evidence).
       store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_NUMBER, value: "1757427533728" }, 1727200005100));
       expect(valueRow(store, SCHEMA_NUMBER)?.value).toBe("1757427533728");
       for (const bad of ["abc", "", [1], {}, true, NaN]) {
@@ -223,10 +223,10 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
 
     it("image passes through unchecked (PG14 zombie — no defined value shape yet)", () => {
       const store = seededStore();
-      // A v1-migrated asset payload rides the live log — it must not fail.
-      const v1Payload = { hash: "abc", size: 12, filename: "", mime_type: "image/png" };
-      store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_IMAGE, value: v1Payload }, 1727200005000));
-      expect(valueRow(store, SCHEMA_IMAGE)?.value).toBe(JSON.stringify(v1Payload));
+      // A migrated asset payload rides the live log — it must not fail.
+      const legacyPayload = { hash: "abc", size: 12, filename: "", mime_type: "image/png" };
+      store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_IMAGE, value: legacyPayload }, 1727200005000));
+      expect(valueRow(store, SCHEMA_IMAGE)?.value).toBe(JSON.stringify(legacyPayload));
     });
   });
 

@@ -1,11 +1,11 @@
 /**
- * Color-token one-time migration (implementation-plan §34.43, owner directive
+ * Color-token one-time migration (owner directive
  * 2026-10-03): `var(--color-preset-<token>)` → `<token>` on the wire.
  *
  * The stored relay log is rewritten IN PLACE (the stack must be stopped; the
  * owner is the sole user). The first v3 color encoding stored CSS variable
  * references — a web-ism that leaked onto the wire and drifted between
- * clients. The §34.43 grammar is one string field: a preset TOKEN
+ * clients. The grammar is one string field: a preset TOKEN
  * (`sky`) or a custom `#RRGGBB` hex; `null` clears. Payload schemas reject
  * the retired encoding outright, so every stored occurrence must be
  * rewritten before the new server can replay the log:
@@ -74,15 +74,15 @@ const LEGACY_VAR_PATTERN = /^var\(--color-preset-([a-z]+)\)$/;
  * Known legacy preset hexes → tokens (normalized to tokens by this
  * migration; any other hex stays a custom color). Three sources, all
  * drifted renderings of THE SAME preset picks:
- *  - the §34.42-pre web palette (never stored as bare hexes by web pickers,
+ *  - the old web palette (never stored as bare hexes by web pickers,
  *    but a freeform hex input could have produced them);
  *  - ClassView's retired raw-hex class palette (#b42318 …);
  *  - the Flutter client's muted mobile palette (#c55a55 … — mobile stored
- *    resolved hexes instead of references, the drift §34.43 fixes).
+ *    resolved hexes instead of references, the drift this migration fixes).
  * The mobile quick-capture cream default (#f9f5e8) is NOT a preset — custom.
  */
 const LEGACY_HEX_TO_TOKEN: Record<string, string> = {
-  // pre-§34.42 web palette
+  // old web palette
   "#d64540": "red",
   "#e07b39": "orange",
   "#cfa70a": "yellow",

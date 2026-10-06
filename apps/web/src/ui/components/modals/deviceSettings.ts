@@ -82,7 +82,7 @@ export function useDeviceSetting<T>(
 
 export type ThemePreference = "light" | "dark" | "system";
 export type AccentColor = "monochrome" | "sage" | "teal" | "rose" | "navy" | "custom";
-/** §34.91 (#6) — the UI font family: bundled (Inter/JetBrains Mono,
+/** The UI font family: bundled (Inter/JetBrains Mono,
  * self-hosted in fonts.css) or the platform system stack. */
 export type UiFontPreference = "bundled" | "system";
 
@@ -158,7 +158,7 @@ export function applyAppearance(): void {
   const accent = readDeviceSetting<AccentColor>("accentColor", "monochrome");
   document.documentElement.dataset.accent = accent;
 
-  // §34.91 (#6): the UI font rides the same pre-paint data-attribute path.
+  // The UI font rides the same pre-paint data-attribute path.
   const uiFont = readDeviceSetting<UiFontPreference>("uiFont", "bundled");
   document.documentElement.dataset.font = uiFont;
 

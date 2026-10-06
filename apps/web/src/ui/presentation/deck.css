@@ -1,5 +1,5 @@
 /**
- * Deck slide styles — presentation-mode chrome (§34.26 P3/P4).
+ * Deck slide styles — presentation-mode chrome.
  *
  * Slides render on the overlay's dark stage: every color resolves to a
  * presentation-stage token from variables.css (never a page-surface token —
@@ -150,7 +150,7 @@
   max-height: 85%;
 }
 
-/* §34.75 — the presented page's cover opens the title slide as a hero
+/* The presented page's cover opens the title slide as a hero
    above the title; section covers ride the split's image column. */
 .nt-deck-cover {
   display: flex;

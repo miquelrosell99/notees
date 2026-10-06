@@ -1,6 +1,6 @@
 /**
- * scripts/migrate-cover-to-asset.mts tests (§34.74 — the cover-class
- * retirement) — the migration core (plan building, dry-run/apply) driven
+ * scripts/migrate-cover-to-asset.mts tests — the cover-class
+ * retirement: the migration core (plan assembly, dry-run/apply) driven
  * against the in-process client harness (WorkspaceClient over a
  * MemoryRelay), through the same surface the script's HTTP adapter
  * implements. Safety properties under test: dry run writes NOTHING; --apply
@@ -89,7 +89,7 @@ async function seedCoverClassed(
   return ids;
 }
 
-describe("migrate-cover-to-asset (§34.74)", () => {
+describe("migrate-cover-to-asset", () => {
   it("a workspace without the cover class plans nothing", async () => {
     const client = await seedClient();
     const surface = surfaceOf(client);

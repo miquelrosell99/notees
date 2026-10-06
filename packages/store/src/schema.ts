@@ -1,14 +1,14 @@
 /**
- * Derived-state SQLite schema for Notees v2 (better-sqlite3, synchronous).
+ * Derived-state SQLite schema for Notees (better-sqlite3, synchronous).
  *
- * Port of v1 `app/core/derived/schema.py` + `frontend/src/core/db/schema.ts`
- * (client schema v22), adapted to the v2 model (SCHEMA.md):
+ * Port of `app/core/derived/schema.py` + `frontend/src/core/db/schema.ts`
+ * (client schema v22), adapted to the current model (SCHEMA.md):
  *  - the Revision-11 render-state model: `node.is_class` (identity marker,
  *    classes are always roots) + `node.present_as_main` (render bit for
  *    parented non-class nodes) replace the retired node_type enumeration;
  *    the single placement CHECK (`is_class = 0 OR parent_id IS NULL`) keeps
  *    illegal states unrepresentable;
- *  - FTS5 replaces v1 FTS4 (same node_id -> docid map pattern); the stock
+ *  - FTS5 replaces the old FTS4 (same node_id -> docid map pattern); the stock
  *    sql.js WASM build lacks FTS5, so sql.js-backed stores build the same
  *    index with FTS4 (`schemaSql("fts4")`, selected by the backend's
  *    declared `ftsModule` — identical MATCH/prefix syntax);
@@ -26,7 +26,7 @@ import type { SqliteDB } from "./db.js";
 export const SCHEMA_VERSION = 15;
 
 /**
- * §34.92 — the render-path list-reads index: composite for the
+ * The render-path list-reads index: composite for the
  * listClasses/listPages/roots WHERE (workspace_id, is_class, is_active) +
  * ORDER BY COALESCE(name, id), id — the profiled full-scan+sort per render
  * burst. Kept OUT of the canonical schema DDL on purpose: migrate()'s
@@ -133,7 +133,7 @@ CREATE INDEX IF NOT EXISTS idx_tag_member_set_tag
     ON tag_member_set (tag_id);
 
 -- Direct extends edges (m2m: a class may have MULTIPLE parents, per the
--- designed model in 01-knowledge-model.md §6). class.setExtends replaces
+-- designed model). class.setExtends replaces
 -- the class's full row set (delete + insert). Rows carry no order — diamond
 -- resolution (own binding → shortest extends-path → earliest HLC) happens
 -- at read time in the bindings read model.
@@ -195,7 +195,7 @@ CREATE TABLE IF NOT EXISTS property_schema (
     number_pad INTEGER,
     number_decimals INTEGER,
     number_rounding TEXT,
-    -- §34.90: the render contracts are PROPERTY-level (owner review
+    -- The render contracts are PROPERTY-level (owner review
     -- 2026-10-05) — display (panel|bullet|inline; NULL = panel) and the
     -- readonly/hide-when-empty tri-state flags, wherever the property
     -- appears (class-bound or not). ('required' deliberately stays on the
@@ -218,7 +218,7 @@ CREATE INDEX IF NOT EXISTS idx_property_schema_workspace
 -- the row, so a stale set replayed after a newer one is dropped. Defaults
 -- here are configuration only — the applier never writes property_value rows
 -- for them; the effective-values read model derives them at query time.
--- §34.90 (owner review 2026-10-05): the row carries ONLY the genuinely
+-- (owner review 2026-10-05): the row carries ONLY the genuinely
 -- per-class mechanics (sequence, required, default_value, active). The
 -- render contracts (readonly/hide_when_empty/display) are PROPERTY-level
 -- and live on property_schema.
@@ -292,7 +292,7 @@ CREATE TABLE IF NOT EXISTS property_value_tombstone (
 -- Derived reference index (never authored). type: mention | typed_link |
 -- property. verb: the typed-link verb (string) or the bound propertySchemaId;
 -- NULL for plain mentions. target_id is NULL for typed_link marks (the
--- target is unresolved by design — RECORD, DON'T RESOLVE until M2).
+-- target is unresolved by design — RECORD, DON'T RESOLVE).
 CREATE TABLE IF NOT EXISTS edge (
     id TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL,
@@ -352,7 +352,7 @@ CREATE TABLE IF NOT EXISTS collection_member (
 CREATE INDEX IF NOT EXISTS idx_collection_member_object
     ON collection_member (object_id);
 
--- FTS5 over derived node plaintext (v1 used FTS4; same docid-map pattern).
+-- FTS5 over derived node plaintext (FTS4 before; same docid-map pattern).
 -- Rows are addressed by rowid through search_index_docid. The docid index is
 -- load-bearing: without it the join from FTS rowids back to node ids degrades
 -- to a full docid-map scan per matched row, and a common-prefix query (e.g.
@@ -431,7 +431,7 @@ CREATE TABLE IF NOT EXISTS app_meta (
     value TEXT NOT NULL
 );
 
--- Per-workspace feature toggles (§34.35, the workspace.feature.set op): the
+-- Per-workspace feature toggles (the workspace.feature.set op): the
 -- winning LWW row per (workspace_id, feature); an ABSENT row means enabled
 -- (all features default ON — the empty table is the pre-toggle state, so
 -- existing workspaces need no migration). The applier derives the
@@ -540,7 +540,7 @@ export function migrate(
       `);
     }
   }
-  // v14 -> v15 (§34.92 — the render-path list reads): the composite
+  // v14 -> v15 (the render-path list reads): the composite
   // list-reads index. Runs after the v8 rebuild block so the node table is
   // guaranteed v8-shaped here; CREATE IF NOT EXISTS is idempotent (the
   // rebuild above just created it for pre-v8 databases). Fresh databases
@@ -593,7 +593,7 @@ export function migrate(
         quarantined_at TEXT NOT NULL
     );
   `);
-  // v9 -> v10: per-workspace feature toggles (§34.35). Purely additive —
+  // v9 -> v10: per-workspace feature toggles. Purely additive —
   // CREATE IF NOT EXISTS is a no-op for fresh v10 creates; existing
   // databases gain the empty table (empty = all features enabled).
   db.exec(`
@@ -607,7 +607,7 @@ export function migrate(
         PRIMARY KEY (workspace_id, feature)
     );
   `);
-  // v10 -> v11 (the §34.56 property-wire batch: PG5 element identity + PC4
+  // v10 -> v11 (the property-wire batch: PG5 element identity + PC4
   // binding active). Three additive steps, each guarded so a fresh v11
   // create (which already has them) is untouched:
   // (1) class_property gains the soft-unbind flag — absent column means the
@@ -618,7 +618,7 @@ export function migrate(
   if (!classPropertyColumns.some((c) => c.name === "active")) {
     db.exec("ALTER TABLE class_property ADD COLUMN active INTEGER NOT NULL DEFAULT 1;");
   }
-  // v13 -> v14 (§34.90, owner review 2026-10-05 — the render contracts move
+  // v13 -> v14 (owner review 2026-10-05 — the render contracts move
   // from the binding to the property). Two guarded steps, each idempotent
   // for a fresh v14 create:
   // (1) property_schema gains display + readonly/hide_when_empty
@@ -635,7 +635,7 @@ export function migrate(
   }
   // (2) class_property is REBUILT without the retired binding columns
   //     (readonly/hide_when_empty from the original shape, display from the
-  //     §34.89 v13 experiment — the v11 property_value rebuild precedent:
+  //     v13 experiment — the v11 property_value rebuild precedent:
   //     same surviving columns, rows copy verbatim, indexes recreated).
   //     `required` survives on the row (the owner's per-class exception).
   const classPropertyColumnsV14 = db.prepare("PRAGMA table_info(class_property)").all() as {

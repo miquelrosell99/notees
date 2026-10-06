@@ -122,7 +122,7 @@ const INITIAL_SYNC_STATUS: SyncStatusSnapshot = {
 const STATUS_POLL_MS = 2_000;
 
 /**
- * §34.92 — field-wise snapshot compare. `status()` builds a fresh object every
+ * Field-wise snapshot compare. `status()` builds a fresh object every
  * call, so an unguarded setState re-rendered the whole app (and every
  * render-time store read under it) every 2s poll even when nothing moved.
  */
@@ -152,7 +152,7 @@ type Phase =
 
 /**
  * The worker store needs both `Worker` and OPFS (`navigator.storage
- * getDirectory`). §34.92 fix 3: when the fallback to in-process mode is
+ * getDirectory`). When the fallback to in-process mode is
  * taken, say so loudly in the console (naming the missing capability — this
  * is how the profiled Zen session will be diagnosed) and in the UI
  * (`InProcessStoreBanner`, rendered off `storeMode`).
@@ -254,8 +254,8 @@ export function pathForNav(nav: NavKey): string {
 }
 
 /**
- * Ctrl/Cmd+Shift+T — open today's daily page (§34.28 #8; the §34.19 :1140
- * keymap row reserves the chord for "today"). Local-midnight today (never
+ * Ctrl/Cmd+Shift+T — open today's daily page (the keymap row reserves
+ * the chord for "today"). Local-midnight today (never
  * the UTC .slice pattern), ensure-chain (idempotent get-or-create) + open.
  * Text fields keep the keystroke — the guard matches the other global
  * chords. Note: browsers reserve Ctrl+Shift+T for "reopen closed tab", so
@@ -287,7 +287,7 @@ export function openTodayKeyHandler(opts: {
 }
 
 /**
- * Alt+← / Alt+→ — in-app Back/Forward (§34.19 :1136). Desktop browsers use
+ * Alt+← / Alt+→ — in-app Back/Forward. Desktop browsers use
  * the same chords for history natively and still deliver keydown to the
  * page, so preventDefault stops the native jump and window.history drives
  * the EXISTING nav state: the popstate effect maps the stack entry exactly
@@ -313,7 +313,7 @@ export function historyNavKeyHandler(): (event: KeyboardEvent) => void {
 
 /**
  * Ctrl/Cmd+N new page, Ctrl/Cmd+, settings, Ctrl/Cmd+\ sidebar toggle —
- * the §34.19 :1140 keymap-breadth chords. Every chord is guarded from form
+ * the keymap-breadth chords. Every chord is guarded from form
  * fields (the guard matches the other global chords). Ctrl+N is browser-
  * reserved on desktop builds (new window), so it fires only where the
  * browser yields the keystroke; Ctrl+, and Ctrl+\ are unclaimed in
@@ -363,7 +363,7 @@ export function keymapChordHandler(opts: {
 
 /**
  * Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z (or Ctrl/Cmd+Y) redo — the session
- * journal chords (§34.64). The editor-interaction rule (docs/ux.md "Undo and
+ * journal chords. The editor-interaction rule (docs/ux.md "Undo and
  * redo"): while a text field or the outliner editor (contentEditable) owns
  * the focus, the local text behavior keeps the keystroke and the global
  * journal stays out of the way; every other focus runs the journal. The
@@ -405,7 +405,7 @@ export function undoRedoKeyHandler(opts: {
 }
 
 /**
- * Ctrl/Cmd+Shift+H — the browsable history popup (§34.69, v1's history-menu
+ * Ctrl/Cmd+Shift+H — the browsable history popup (the history-menu
  * chord). Same guard as the undo chords: text fields and the outliner editor
  * keep the keystroke (Firefox may reserve it for its own history sidebar;
  * where the browser yields, the popup toggles). Exported for the keymap
@@ -431,7 +431,7 @@ export function historyKeyHandler(opts: {
 }
 
 /**
- * Ctrl/Cmd+Alt+F — focus mode toggle (#12). The §34.19 keymap row leaves
+ * Ctrl/Cmd+Alt+F — focus mode toggle (#12). The keymap row leaves
  * Alt+F free (the Shift+F find/replace chord owns the shifted variant; the
  * browser's plain Alt+F menu focus is a different binding). Same guard as
  * the other global chords: text fields and the outliner editor keep the
@@ -480,7 +480,7 @@ export function focusModeExitHandler(opts: {
 }
 
 /**
- * Tap-outside drawer dismissal (§34.19 MobileLayout owed half): at narrow
+ * Tap-outside drawer dismissal: at narrow
  * widths the sidebar is a floating drawer — a pointer press that lands
  * outside the drawer AND outside the topbar (the hamburger toggle lives
  * there) closes it. Desktop layout (drawer docked beside content) never
@@ -541,7 +541,7 @@ export function NodeView({
   onOpenInSidebar?: ((nodeId: string) => void) | undefined;
   onDeleted?: ((node: ClientNode) => void) | undefined;
   /**
-   * Presentation mode (§34.26): the page's "Present" surfaces (the "…" menu,
+   * Presentation mode: the page's "Present" surfaces (the "…" menu,
    * the header context menu) request a deck of this node's subtree, routed
    * to the deck host above.
    */
@@ -552,7 +552,7 @@ export function NodeView({
    * cards keep their own header actions and skip it.
    */
   cornerMenu?: boolean | undefined;
-  /** §34.62 shares: server coordinates for the "Share…" surface (pages). */
+  /** Shares: server coordinates for the "Share…" surface (pages). */
   shareTarget?: ShareTarget | undefined;
 }) {
   /**
@@ -715,7 +715,7 @@ export function App() {
   const [authTab, setAuthTab] = useState<"account" | "apikey">("account");
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
-  /** §34.115 — the sync indicator's details modal (resync + conflicts). */
+  /** The sync indicator's details modal (resync + conflicts). */
   const [syncDetailsOpen, setSyncDetailsOpen] = useState(false);
   /** Manage Workspaces view, opened from the workspace switcher popup. */
   const [managerOpen, setManagerOpen] = useState(false);
@@ -730,7 +730,7 @@ export function App() {
     return window.matchMedia("(min-width: 801px)").matches;
   });
   /**
-   * Tap-outside drawer dismissal (§34.19 MobileLayout owed half) — the
+   * Tap-outside drawer dismissal — the
    * predicate lives in the exported drawerDismissHandler (unit-tested); the
    * effect just wires it to the sidebar state.
    */
@@ -776,7 +776,7 @@ export function App() {
   /** #14 — the palette's "New class…" command opens the creation modal. */
   const [classCreateOpen, setClassCreateOpen] = useState(false);
   /**
-   * §34.64 — the session undo journal's chrome state (availability + labels).
+   * The session undo journal's chrome state (availability + labels).
    * Refreshed on a macrotask coalescer off every client notification (the
    * worker round-trip is cheap; the journal lives worker-side, per tab).
    */
@@ -801,7 +801,7 @@ export function App() {
   /** Top-bar calendar popup (the popup needs the client, so it renders here). */
   const [calendarOpen, setCalendarOpen] = useState(false);
   const calendarButtonRef = useRef<HTMLButtonElement | null>(null);
-  /** §34.69 — the browsable history popup over the undo journal. */
+  /** The browsable history popup over the undo journal. */
   const [historyOpen, setHistoryOpen] = useState(false);
   const historyButtonRef = useRef<HTMLButtonElement | null>(null);
   const [firstDayOfWeek] = useDeviceSetting("firstDayOfWeek", 1);
@@ -811,7 +811,7 @@ export function App() {
   const [client, setClient] = useState<AnyClient | null>(null);
   const [offline, setOffline] = useState(false);
   /**
-   * §34.62 shares: the coordinates the Share… surface needs. Absent in
+   * Shares: the coordinates the Share… surface needs. Absent in
    * offline mode (there is no server to mint against) — the menu item and
    * modal hide themselves without it.
    */
@@ -831,7 +831,7 @@ export function App() {
   const [syncStatus, setSyncStatus] = useState<SyncStatusSnapshot>(INITIAL_SYNC_STATUS);
   const [pagesVersion, setPagesVersion] = useState(0);
   /**
-   * Presentation mode (§34.26): the node id currently decked, or null.
+   * Presentation mode: the node id currently decked, or null.
    * Session-local device state — never persisted, never on the wire.
    */
   const [presentingId, setPresentingId] = useState<string | null>(null);
@@ -951,10 +951,10 @@ export function App() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Ctrl/Cmd+Alt+Enter — present the open page (§34.26 P6). Capacities'
-  // Ctrl+Alt+P collides with §34.19's reserved "add property" chord (and the
+  // Ctrl/Cmd+Alt+Enter — present the open page. Capacities'
+  // Ctrl+Alt+P collides with the reserved "add property" chord (and the
   // browser's private-window binding); Ctrl+Alt+Enter is free in both the
-  // plan's keymap row and the tree.
+  // keymap row and the tree.
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Enter" || !event.altKey || !(event.ctrlKey || event.metaKey)) {
@@ -974,7 +974,7 @@ export function App() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Ctrl/Cmd+Shift+T — open today's daily page (§34.28 #8).
+  // Ctrl/Cmd+Shift+T — open today's daily page.
   useEffect(() => {
     const handler = openTodayKeyHandler({
       client: () => clientRef.current,
@@ -984,14 +984,14 @@ export function App() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
-  // Alt+← / Alt+→ — in-app Back/Forward through the history stack (§34.19).
+  // Alt+← / Alt+→ — in-app Back/Forward through the history stack.
   useEffect(() => {
     const handler = historyNavKeyHandler();
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
-  // Ctrl/Cmd+N / Ctrl/Cmd+, / Ctrl/Cmd+\ — the §34.19 keymap-breadth chords.
+  // Ctrl/Cmd+N / Ctrl/Cmd+, / Ctrl/Cmd+\ — the keymap-breadth chords.
   useEffect(() => {
     const handler = keymapChordHandler({
       client: () => clientRef.current,
@@ -1004,7 +1004,7 @@ export function App() {
   }, []);
 
   // Ctrl/Cmd+Z undo / Ctrl/Cmd+Shift+Z (or Ctrl/Cmd+Y) redo — the session
-  // journal chords (§34.64). The chord handler reads the coalesced undo
+  // journal chords. The chord handler reads the coalesced undo
   // snapshot synchronously; the write itself runs through the normal path
   // and the worker's "changed" notification re-syncs the snapshot.
   useEffect(() => {
@@ -1031,7 +1031,7 @@ export function App() {
     return () => document.removeEventListener("keydown", handler);
   }, [scheduleUndoRefresh]);
 
-  // Ctrl/Cmd+Shift+H — the history popup chord (§34.69). Toggles the popup;
+  // Ctrl/Cmd+Shift+H — the history popup chord. Toggles the popup;
   // the popup itself closes on its own dismissal layer.
   useEffect(() => {
     const handler = historyKeyHandler({
@@ -1088,7 +1088,7 @@ export function App() {
   }, [client, scheduleUndoRefresh]);
 
   // Poll the (cheap) status snapshot on a cadence and on every worker
-  // notification; state is only set when a field actually changed (§34.92 —
+  // notification; state is only set when a field actually changed —
   // the field-wise guard keeps the 2s cadence from re-rendering the tree).
   useEffect(() => {
     if (client === null) return;
@@ -1097,7 +1097,7 @@ export function App() {
       try {
         const snapshot = await client.status();
         // Skip no-op updates: a fresh object every poll would re-render the
-        // whole app twice a second (§34.92 — this used to re-run every
+        // whole app twice a second (this used to re-run every
         // render-time store read in the tree).
         if (!cancelled) setSyncStatus((prev) => (syncStatusEqual(prev, snapshot) ? prev : snapshot));
       } catch {
@@ -2001,7 +2001,7 @@ export function App() {
           onCreated={(id) => openPage(id)}
         />
       )}
-      {/* The mobile quick-create FAB (§34.19 MobileLayout): hosts its own
+      {/* The mobile quick-create FAB: hosts its own
           QuickAddModal; CSS surfaces the button only at narrow widths. */}
       <QuickCreateFab client={client} />
       {presentingId !== null && (
@@ -2103,7 +2103,7 @@ export function HubView({
 }) {
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
-  // §34.28 #2 — author the six task property schemas + bindings on first
+  // Author the six task property schemas + bindings on first
   // tasks-hub open (idempotent no-op once present); before this, a fresh
   // workspace silently dropped the Scheduled/Deadline columns.
   useEffect(() => {
@@ -2140,7 +2140,7 @@ export function HubView({
         : ["outline", "cards", "table"];
     return (
       <div className="nt-hub-tasks">
-        {/* §34.28 #5 — the bucketed surface (Overdue/Today/Upcoming/
+        {/* The bucketed surface (Overdue/Today/Upcoming/
             Unscheduled/Completed) over the same members; device-collapse. */}
         <TaskBuckets client={client} onOpenNode={onOpenNode} />
         <CollectionHub

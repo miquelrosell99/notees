@@ -14,7 +14,7 @@ surface is:
   - `workflow_run` table + `GET /api/workflows/:id/runs` — the workflow-rules
     engine's append-only run audit (workflow writes are owner/admin only).
   - The web UI sync dot → details modal with conflict history
-    (bounded FIFO log, `docs/developers/releases.md`/§34.115).
+    (bounded FIFO log, `docs/developers/releases.md`).
 - **Watch the growth:** `relay.db` (append-only log) and
   `workspaces/*/assets/` (CAS) grow monotonically; compaction exists via
   `POST /api/relay/v2/compact` — treat pruning as deliberate maintenance

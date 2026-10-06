@@ -206,7 +206,7 @@
   --font-family-display: georgia, 'Times New Roman', serif;
   --font-family-mono: 'JetBrains Mono', 'Fira Code', consolas, monospace;
 
-/* §34.91 (#6) — Settings → Appearance → Font. The bundled faces above are
+/* Settings → Appearance → Font. The bundled faces above are
    the default; "system" swaps both families for the platform stack (the
    data-font attribute is set pre-paint, see deviceSettings.ts). */
 [data-font="system"] {

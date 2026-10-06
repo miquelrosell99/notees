@@ -1,7 +1,7 @@
 /**
- * nodePrefs — the cross-device favorites/recents store (§34.61).
+ * nodePrefs — the cross-device favorites/recents store.
  *
- * Owner ruling 2026-10-04 (§34.29 #8): favorites/recents are UI preferences,
+ * Owner ruling 2026-10-04: favorites/recents are UI preferences,
  * so the server-side per-user prefs store is the authority
  * (`GET/PUT /api/me/prefs`) — the operation log stays untouched ("device
  * state is never an op" stands). This module is the main-thread bridge:

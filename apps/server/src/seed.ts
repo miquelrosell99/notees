@@ -65,7 +65,7 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
   for (const [name, spec] of Object.entries(SYSTEM_PROPERTY_SPECS)) {
     if (spec === undefined) continue;
     const propertySchemaId = SYSTEM_PROPERTY_UUIDS[name as SystemPropertyName];
-    // PG10: bindTo-less specs (the alias property) seed the schema at
+    // bindTo-less specs (the alias property) seed the schema at
     // global scope with NO class binding row.
     const scope = spec.bindTo === undefined ? "global" : "class";
     envelopes.push(

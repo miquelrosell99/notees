@@ -1,6 +1,5 @@
 /**
- * Class View tests: a class page IS a page (§34.44, .plans/design/05-class-
- * view-redesign.md) — render-cascade view resolution (class → Class View,
+ * Class View tests: a class page IS a page — render-cascade view resolution (class → Class View,
  * document chrome → Page View), the page chrome (title/icon/color), the
  * extends corner pills (class.setExtends m2m, class-only picker), the
  * classed-nodes instances section (expanded by default), the property-
@@ -77,7 +76,7 @@ describe("Class View", () => {
     expect(screen.getByRole("button", { name: /class properties/i })).not.toBeNull();
     expect(classRender.container.querySelector(".nt-class")).not.toBeNull();
     // The page body chrome: an empty class offers the first-block affordance
-    // (the v1 ghost row, aria-label "Add block").
+    // (the ghost row, aria-label "Add block").
     expect(screen.getByRole("button", { name: /add block/i })).not.toBeNull();
     classRender.unmount();
 
@@ -175,7 +174,7 @@ describe("Class View", () => {
     const onOpenNode = vi.fn();
     render(<ClassView client={client} classId={classId} onOpenPage={onOpenNode} />);
 
-    // Owner refinement: the name cell click EDITS (inline); the v1
+    // Owner refinement: the name cell click EDITS (inline); the
     // open-arrow navigates.
     const openArrow = screen.getByRole("button", { name: "Open Ada Lovelace" });
     fireEvent.click(openArrow);
@@ -276,7 +275,7 @@ describe("Class View", () => {
   });
 });
 
-describe("the class icon picker (owner directive 2026-10-04: the v1 full picker)", () => {
+describe("the class icon picker (owner directive 2026-10-04: the full picker)", () => {
   it("the Class icon button opens the full emoji/icon picker — tabs, the entire sets, recents", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "pokemon");
@@ -284,7 +283,7 @@ describe("the class icon picker (owner directive 2026-10-04: the v1 full picker)
 
     fireEvent.click(screen.getByRole("button", { name: "Class icon" }));
 
-    // The full v1 picker: the dialog with its three tabs…
+    // The full picker: the dialog with its three tabs…
     const dialog = screen.getByRole("dialog", { name: "Icon picker" });
     expect(within(dialog).getByRole("tab", { name: "All" })).not.toBeNull();
     expect(within(dialog).getByRole("tab", { name: "Emojis" })).not.toBeNull();
@@ -299,7 +298,7 @@ describe("the class icon picker (owner directive 2026-10-04: the v1 full picker)
     expect(within(dialog).getByText("Animals")).not.toBeNull();
     expect(within(dialog).getByText("Flags")).not.toBeNull();
 
-    // Selecting an emoji writes it as the class icon (the v1 contract)…
+    // Selecting an emoji writes it as the class icon (the original contract)…
     fireEvent.click(within(dialog).getByRole("button", { name: "😀" }));
     await flushWrites();
     expect(client.getNode(classId)?.icon).toBe("😀");

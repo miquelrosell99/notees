@@ -17,9 +17,9 @@
  *   priority for the surrounding page: pan and wheel-zoom stay disabled; the
  *   full toolset still works).
  *
- * Toolset (§34.19 whiteboard row): select/move (background drag box-selects,
+ * Toolset: select/move (background drag box-selects,
  * with marquee live highlight), card, sticky note (a colored child block —
- * the color rides the node's §34.43 color field, not geometry), the shape
+ * the color rides the node's color field, not geometry), the shape
  * set (rect/ellipse/line/arrow, drag to draw, click for a default size),
  * the pen/highlighter/eraser group (freehand stroke; the highlighter commits
  * the layout schema's `highlight` marker — translucent wide stroke; the
@@ -30,7 +30,7 @@
  * strokes) offers delete, bring-to-front/send-to-back (geometry), and color
  * — the kit ContextMenu primitive. Draw/place tools are one-shot — a
  * completed gesture returns the palette to select. Formatting: colors via
- * the §34.43 grammar (preset token or hex, "no color" clears) and
+ * the color grammar (preset token or hex, "no color" clears) and
  * stroke-width tiers; alignment/distribution helpers over the multi-
  * selection; grid snap toggle. Keyboard (surface-focused): Delete removes
  * the selection, arrows nudge (Shift = one grid step), Esc exits the active
@@ -152,7 +152,7 @@ export const EMBEDDED_HEIGHT_PX = 320;
 export const CARD_DEFAULT_W = 240;
 export const CARD_DEFAULT_H = 120;
 
-/** Sticky-note size + seed color (a §34.43 preset token; recolorable later). */
+/** Sticky-note size + seed color (a preset token; recolorable later). */
 const STICKY_W = 180;
 const STICKY_H = 180;
 const STICKY_COLOR = "yellow";
@@ -173,7 +173,7 @@ const ANCHOR_SNAP_RADIUS = 14;
 /** Eraser reach: strokes/shapes within this world-unit radius of the pointer erase. */
 const ERASER_RADIUS = 10;
 
-/** Highlighter marker defaults (§34.43 preset token + world-unit width). */
+/** Highlighter marker defaults (preset token + world-unit width). */
 const HIGHLIGHTER_COLOR = "yellow";
 const HIGHLIGHTER_WIDTH = 12;
 
@@ -613,7 +613,7 @@ export function WhiteboardCanvas({
     [client, commitLayout, editingCardId, labelEdit, renderedCardIdsNow],
   );
 
-  /** §34.43 color of the selection's primary element (swatch display). */
+  /** Color of the selection's primary element (swatch display). */
   const selectionColor = useCallback((): string | null => {
     const layout = viewRef.current;
     for (const id of selectedIdsRef.current) {
@@ -674,7 +674,7 @@ export function WhiteboardCanvas({
     [commitLayout],
   );
 
-  /** Color one canvas element (the §34.43 grammar; null clears). */
+  /** Color one canvas element (the color grammar; null clears). */
   const applyColorToElement = useCallback(
     (id: string, kind: "shape" | "stroke" | "card", color: string | null) => {
       if (kind === "card") {
@@ -859,7 +859,7 @@ export function WhiteboardCanvas({
   const createStickyAt = useCallback(
     async (world: { x: number; y: number }) => {
       const id = await createCardAt(world, { w: STICKY_W, h: STICKY_H });
-      // The sticky's color is the NODE's §34.43 color, not geometry.
+      // The sticky's color is the NODE's color field, not geometry.
       void client.updateObject(id, { color: STICKY_COLOR });
     },
     [client, createCardAt],

@@ -5,12 +5,12 @@
  * general date references fanning into the day node, everything created
  * that day, quick-create chips (configurable per workspace in Workspace
  * Settings; defaults = every class with a date-typed binding), and the
- * month grid in the right column (MonthCalendar) — §34.28 #11 breadth:
+ * month grid in the right column (MonthCalendar) — the breadth pass:
  * range-aware dots (date refs and date_range ends fan out to the
- * deterministic day node) plus the #15 reviewed tint on day cells, the
+ * deterministic day node) plus the reviewed tint on day cells, the
  * week strip, and the week agenda beneath the grid.
  *
- * §34.63 (recurrence, the §34.28 #6 compute-on-read ruling): date values
+ * Recurrence (compute-on-read ruling): date values
  * carrying a `repeat` rule (metadata, additive — no wire change) expand
  * into VIRTUAL occurrences here — the Dated/Tasks sections, the month
  * dots, and the week agenda consult the expansion; recurring rows wear an
@@ -22,7 +22,7 @@
  * local store plus client.subscribe re-render; the two structured queries
  * (open tasks, created-today) run through runQueryAst per notification and
  * cache their last result while a re-run lands (the QueryBlockView
- * contract). The §34.28 #2 task family is authored idempotently on first
+ * contract). The task family is authored idempotently on first
  * open so scheduling actually works on a fresh workspace.
  */
 
@@ -114,7 +114,7 @@ function RowClassChips({ client, classIds }: { client: AnyClient; classIds: stri
 }
 
 /**
- * The honest repeats marker (§34.63): ONE row represents the whole series —
+ * The honest repeats marker: ONE row represents the whole series —
  * the icon + label say "repeats", never N phantom rows for N occurrences.
  */
 function RepeatMarker({ rule }: { rule: RecurrenceRule }) {
@@ -140,7 +140,7 @@ export function CalendarView({
   const [filter, setFilter] = useState<DayFilter>("all");
   const [firstDayOfWeek] = useDeviceSetting("firstDayOfWeek", 1);
 
-  // §34.28 #2 — idempotent no-op once the six schemas + bindings exist.
+  // Family ensure: idempotent no-op once the six schemas + bindings exist.
   // Fire-and-forget: a rejection (e.g. the store closing mid-deploy) must not
   // surface as an unhandled rejection — the next mount re-runs the deploy.
   useEffect(() => {
@@ -150,7 +150,7 @@ export function CalendarView({
   const dayId = dayNodeId(selectedIso);
   const chain = chainNodeIds(selectedIso);
   // Day-existence only, exactly like the calendar popup's has-note dots
-  // (§34.28 #11 — an existing day page renders, even before today's exists).
+  // (an existing day page renders, even before today's exists).
   const hasDailyNote = client.getNodeRaw(dayId) !== undefined;
 
   const statusSchema = client
@@ -216,7 +216,7 @@ export function CalendarView({
         .find((entry) => entry.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskStatus)?.value,
     );
 
-  // --- recurrence (§34.63 — compute-on-read, §34.28 #6) -----------------------
+  // --- recurrence (compute-on-read) -------------------------------------------
   // Every date value carrying a `repeat` rule, scanned once per store change.
   // Occurrences are virtual — the Dated section, the month dots, and the week
   // agenda all expand from this list; tasks recur through the same metadata
@@ -264,7 +264,7 @@ export function CalendarView({
       .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? "") || a.id.localeCompare(b.id));
   }, [client, createdResult, selectedIso, version]);
 
-  // --- day marks + week breadth (§34.28 #11, §34.63) ----------------------
+  // --- day marks + week breadth -------------------------------------------
   // Range-aware dots + the reviewed tint read the same materialized state as
   // the sections: one backlink read per day cell (the edge projection fans
   // date refs and date_range ends out to the deterministic day node, so an
@@ -298,7 +298,7 @@ export function CalendarView({
     [client, weekDays, recurringEvents, version],
   );
 
-  // --- quick-create chips (§34.28 #10) ---------------------------------------
+  // --- quick-create chips ------------------------------------------------------
   // Defaults follow current eligibility (every class with a date-typed
   // binding); a per-workspace device-local setting narrows the list, and the
   // settings-changed event re-renders this memo live.
@@ -319,10 +319,10 @@ export function CalendarView({
     return all.filter((chip) => effective.has(chip.classId));
   }, [client, version, storedChips]);
 
-  // --- create flow (§34.25 T2 — create-with-template) --------------------------
+  // --- create flow (create-with-template) ---------------------------------------
   // A class with bound has-template values opens the picker; a class without
   // (the common case) creates directly, exactly as before. The quick-create
-  // bar's repeat picker (§34.63) stamps the new event's date value with the
+  // bar's repeat picker stamps the new event's date value with the
   // chosen rule — device state, never an op; absent = plain event.
   const [quickRepeat, setQuickRepeat] = useState<string | null>(null);
   const [pendingCreate, setPendingCreate] = useState<{
@@ -385,7 +385,7 @@ export function CalendarView({
   const show = (section: DayFilter) => filter === "all" || filter === section;
 
   const renderTaskRow = (row: OpenTaskRow, group: "overdue" | "scheduled") => {
-    // §34.69: a recurring task's checkbox reflects THIS occurrence (the
+    // A recurring task's checkbox reflects THIS occurrence (the
     // viewed day) — done occurrences render checked and reopen from there;
     // the node-level status stays untouched.
     const checked = row.closed || row.occurrenceDone;

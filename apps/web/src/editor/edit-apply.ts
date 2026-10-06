@@ -4,7 +4,7 @@
  *
  * Given the old token array and the new plain-text draft, the change is
  * applied to the token stream instead of replacing it with a single text
- * run (v1 `setNodeText` pattern): the common prefix/suffix between the old
+ * run (the `setNodeText` pattern): the common prefix/suffix between the old
  * prose and the draft brackets the changed middle, and only the tokens the
  * middle covers are touched —
  *
@@ -165,7 +165,7 @@ export function applyTextEdit(
   const next = draft.replace(/\r\n?/g, "\n");
   if (next === prose) return previous as ContentAst;
 
-  // v1 setNodeText pattern: bracket the change with a common prefix/suffix.
+  // setNodeText pattern: bracket the change with a common prefix/suffix.
   let start = 0;
   const minLen = Math.min(prose.length, next.length);
   while (start < minLen && prose.charCodeAt(start) === next.charCodeAt(start)) start += 1;

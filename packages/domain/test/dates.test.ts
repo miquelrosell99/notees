@@ -1,9 +1,9 @@
 /**
- * Date-node id vectors, locked against the v1 implementations in
+ * Date-node id vectors, locked against the reference implementations in
  * `app/domain/entities/constants.py` (generate_day_uuid / generate_month_uuid
  * / generate_year_uuid / parse_date_uuid). Expected values below were
  * produced by running those Python functions; the scheme is frozen, so these
- * vectors guard the v1<->v2 lockstep.
+ * vectors guard the cross-client lockstep.
  */
 
 import { describe, expect, it } from "vitest";
@@ -18,7 +18,7 @@ import {
   yearNodeId,
 } from "../src/index.js";
 
-// Computed from the v1 Python source:
+// Computed from the Python source:
 //   generate_day_uuid(date(2026, 9, 27))    -> 00000000-0000-0000-00dd-202609270000
 //   generate_month_uuid(2026, 9)            -> 00000000-0000-0000-00aa-202609000000
 //   generate_year_uuid(2026)                -> 00000000-0000-0000-00bb-202600000000
@@ -50,8 +50,8 @@ const V1_VECTORS = [
   },
 ] as const;
 
-describe("date node ids (v1 scheme port)", () => {
-  it("matches the v1 generators' outputs for known dates", () => {
+describe("date node ids (scheme port)", () => {
+  it("matches the reference generators' outputs for known dates", () => {
     for (const v of V1_VECTORS) {
       expect(dayNodeId(v.iso)).toBe(v.day);
       expect(monthNodeId(v.iso)).toBe(v.month);
@@ -65,7 +65,7 @@ describe("date node ids (v1 scheme port)", () => {
     expect(dateNodeId(v.iso, "month")).toBe(v.month);
     expect(dateNodeId(v.iso, "year")).toBe(v.year);
     expect(chainNodeIds(v.iso)).toEqual({ year: v.year, month: v.month, day: v.day });
-    // Zero-padding: single-digit months/days stay two digits (v1 %02d).
+    // Zero-padding: single-digit months/days stay two digits (%02d).
     expect(chainNodeIds("1999-01-01")).toEqual({
       year: "00000000-0000-0000-00bb-199900000000",
       month: "00000000-0000-0000-00aa-199901000000",
@@ -81,7 +81,7 @@ describe("date node ids (v1 scheme port)", () => {
     expect(() => parseIsoDate("not a date")).toThrow(/invalid ISO date/);
   });
 
-  it("parseDateNodeId round-trips the generators (v1 parse_date_uuid port)", () => {
+  it("parseDateNodeId round-trips the generators (parse_date_uuid port)", () => {
     for (const v of V1_VECTORS) {
       expect(parseDateNodeId(v.day)).toEqual({
         precision: "day",
@@ -94,17 +94,17 @@ describe("date node ids (v1 scheme port)", () => {
     }
   });
 
-  it("parseDateNodeId returns null for non-date ids and the v1 year window", () => {
+  it("parseDateNodeId returns null for non-date ids and the year window", () => {
     expect(parseDateNodeId("0192a000-0000-7000-8000-000000000001")).toBeNull();
     expect(parseDateNodeId("not-a-uuid")).toBeNull();
-    // v1's parse_date_uuid accepts only 1900..2200.
+    // parse_date_uuid accepts only 1900..2200.
     expect(parseDateNodeId("00000000-0000-0000-00bb-185000000000")).toBeNull();
     expect(parseDateNodeId("00000000-0000-0000-00bb-230100000000")).toBeNull();
     expect(parseDateNodeId(yearNodeId("1900-06-15"))).toMatchObject({ precision: "year", year: 1900 });
     expect(parseDateNodeId(yearNodeId("2200-06-15"))).toMatchObject({ precision: "year", year: 2200 });
   });
 
-  it("labels mirror the v1 journal names (year YYYY0000, month YYYYMM00, day YYYYMMDD)", () => {
+  it("labels mirror the journal names (year YYYY0000, month YYYYMM00, day YYYYMMDD)", () => {
     const parts = { year: 2026, month: 9, day: 27 };
     expect(dateNodeLabel(parts, "year")).toBe("20260000");
     expect(dateNodeLabel(parts, "month")).toBe("20260900");

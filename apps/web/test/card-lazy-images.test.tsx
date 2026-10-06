@@ -1,5 +1,5 @@
 /**
- * §34.75 — card imagery lazy loading + the click-to-zoom lightbox.
+ * Card imagery lazy loading + the click-to-zoom lightbox.
  *
  * The Pokemon-class freeze: 100 windowed cards each fired a full-bytes
  * fetch + base64 + decode on mount. Now the list renders instantly with
@@ -8,7 +8,7 @@
  * has none — without the mock the hook honestly falls back to eager):
  *   - before the observer fires, NO asset-bytes fetch happens;
  *   - after it fires, the img renders and the fetch ran exactly once;
- *   - clicking the loaded cover opens the ImageModal lightbox (the v1
+ *   - clicking the loaded cover opens the ImageModal lightbox (the
  *     AssetImage pattern), with the download + fullscreen + close buttons.
  */
 
@@ -74,7 +74,7 @@ class MockIntersectionObserver {
   }
 }
 
-describe("card cover lazy loading (§34.75)", () => {
+describe("card cover lazy loading", () => {
   it("renders placeholders without fetching; the viewport gate starts the fetch once", async () => {
     vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
     MockIntersectionObserver.instances = [];

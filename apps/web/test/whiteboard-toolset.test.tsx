@@ -1,5 +1,5 @@
 /**
- * Whiteboard toolset tests — the §34.19 whiteboard full-toolset row over the
+ * Whiteboard toolset tests — the full whiteboard toolset over the
  * live canvas (WorkspaceClient + MemoryRelay, jsdom): the tool palette
  * (select/move, card, sticky, rect/ellipse/line/arrow, stroke, text,
  * connector), one-shot tool switching, placements (sticky note = colored
@@ -8,7 +8,7 @@
  * Backspace remove the selection, arrows nudge, Esc exits a tool, keys are
  * ignored while editing card text), multi-select + group gestures (shift
  * accumulation, multi-card drag coalesced to one write), alignment and
- * distribution helpers, the §34.43 color + stroke-width formatting surfaces,
+ * distribution helpers, the color + stroke-width formatting surfaces,
  * and the minimap/zoom controls. Geometry always lands through the token
  * layout; cards stay child blocks (the model law).
  */
@@ -144,7 +144,7 @@ describe("whiteboard toolset layout schema", () => {
   it("tolerant parse: malformed toolset fields are dropped, never fatal", () => {
     const parsed = parseWhiteboardLayout({
       shapes: [
-        // Retired §34.43 var() encoding and garbage colors do not survive.
+        // Retired var() encoding and garbage colors do not survive.
         { id: "s1", kind: "line", x: 0, y: 0, w: 10, h: 0, color: "var(--color-preset-red)" },
         { id: "s2", kind: "rect", x: 0, y: 0, w: 10, h: 10, color: "not-a-color", strokeWidth: 0 },
         { id: "s3", kind: "text", x: 0, y: 0, w: 10, h: 10, strokeWidth: -3 },
@@ -181,7 +181,7 @@ describe("whiteboard tool palette", () => {
     expect(screen.getByRole("button", { name: "Select / move" }).getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("lists the full palette the §34.19 row names", async () => {
+  it("lists the full palette", async () => {
     const client = await seedClient();
     const host = await seedWhiteboardPage(client);
     render(<PageView client={client} pageId={host} />);
@@ -205,7 +205,7 @@ describe("whiteboard tool palette", () => {
 });
 
 describe("whiteboard placements", () => {
-  it("sticky note = a child block with geometry AND the node's §34.43 color", async () => {
+  it("sticky note = a child block with geometry AND the node's color", async () => {
     const client = await seedClient();
     const host = await seedWhiteboardPage(client);
     const { container } = render(<PageView client={client} pageId={host} />);
@@ -541,7 +541,7 @@ describe("whiteboard formatting surfaces", () => {
     expect(storedLayout(client, host).shapes[0]!.color).toBeUndefined();
   });
 
-  it("applies a custom hex through the picker's hex input (§34.43 grammar)", async () => {
+  it("applies a custom hex through the picker's hex input", async () => {
     const client = await seedClient();
     const host = await seedWhiteboardPage(client, {
       strokes: [{ id: "p1", points: [0, 0, 50, 50] }],
@@ -593,7 +593,7 @@ describe("whiteboard formatting surfaces", () => {
     expect(updateSpy.mock.calls.filter((call) => call[0] === host).length).toBe(1);
   });
 
-  it("card color writes the node's §34.43 color field, not the layout", async () => {
+  it("card color writes the node's color field, not the layout", async () => {
     const client = await seedClient();
     const cardId = "0192a000-0000-7000-8000-0000000000d6";
     const host = await seedWhiteboardPage(client, {
@@ -693,7 +693,7 @@ describe("whiteboard minimap + zoom controls", () => {
   });
 });
 
-describe("whiteboard pen/highlighter/eraser group (§34.19 owed modes)", () => {
+describe("whiteboard pen/highlighter/eraser group", () => {
   it("the highlighter commits a translucent wide marker stroke (the layout schema's highlight flag)", async () => {
     const client = await seedClient();
     const host = await seedWhiteboardPage(client);
@@ -757,7 +757,7 @@ describe("whiteboard pen/highlighter/eraser group (§34.19 owed modes)", () => {
   });
 });
 
-describe("whiteboard canvas context menu (§34.19 owed)", () => {
+describe("whiteboard canvas context menu", () => {
   it("right-clicking a shape offers delete / z-order / color; bring-to-front reorders the layout", async () => {
     const client = await seedClient();
     const host = await seedWhiteboardPage(client, {

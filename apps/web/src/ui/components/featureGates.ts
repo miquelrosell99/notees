@@ -1,10 +1,10 @@
 /**
- * Feature chrome gates (§34.35/§34.55) — the READ gating every family-flavored
+ * Feature chrome gates — the READ gating every family-flavored
  * surface composes: a class's chrome shows only when its own family AND every
  * managed ancestor's family are enabled (gatingFeaturesForClass over
  * SYSTEM_CLASS_EXTENDS — disabling EVENT hides meeting and birthday chrome
  * with it; disabling MEETINGS alone hides meeting chrome only). All reads are
- * live: an absent workspace_feature row means enabled (F2), so this is a pure
+ * live: an absent workspace_feature row means enabled, so this is a pure
  * client read — no caching, no writes.
  */
 

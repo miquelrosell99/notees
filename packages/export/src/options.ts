@@ -1,5 +1,5 @@
 /**
- * Export options bag + per-format gating (§34.24 modelling decision 1).
+ * Export options bag + per-format gating.
  *
  * One typed bag threads through `nodeToMarkdown` / `bundleMarkdown` and the
  * format-registry serializers; every option is optional at the surface and
@@ -8,42 +8,41 @@
  * (no depth cap), empty properties hidden — so existing two-argument callers
  * get the hardened engine without changes.
  *
- * Options added beyond the work-record bag (each is a deliberate extension,
- * not in the §34.24 list):
+ * Options added beyond the original bag (each is a deliberate extension):
  *
  *  - `maxDepth` — the retired silent `MAX_CHILD_DEPTH` cap returns as an
  *    EXPLICIT option; `null` (default) renders the whole tree, and a hit
  *    renders a visible `![[uuid]]` cut bullet, never a silent truncation.
- *  - `layout` — the §34.24 Notes/Essay/Academic render themes as an engine
+ *  - `layout` — the Notes/Essay/Academic render themes as an engine
  *    option: `"notes"` (default) | `"essay"` | `"academic"`, gated to
  *    pdf/docx/html/latex. H1 projects it as the HTML body class +
  *    stylesheet variants; P1/D1/L1 theme the paged formats.
  *  - `whiteboardMode` — `"inline"` (single-file default: fenced ```json) vs
- *    `"sidecar"` (bundle/zip mode: sidecar JSON file + file link, §34.12
+ *    `"sidecar"` (bundle/zip mode: sidecar JSON file + file link, the
  *    Tier-2 convention "whiteboards → sidecar JSON + file link").
  *  - `filenamePolicy` — bundle file naming: `"uuid"` (`<uuid>.md`, default —
  *    rename-free) vs `"slug"` (`<slugified-title>-<id8>.md`, id8 fallback
  *    for empty titles; the id8 suffix — a pure hash of the node id — keeps
- *    names unique for duplicate titles). The server zip (task E5) reuses this policy.
+ *    names unique for duplicate titles). The server zip reuses this policy.
  *
- * Workspace-zip enumeration (§34.24 zip-roots exclusion, owner 2026-10-04):
+ * Workspace-zip enumeration (owner ruling 2026-10-04):
  * the server zip's page set is `Store.roots` + the main-children DFS MINUS
- * the system-seed pages (inbox — the scratchpad was withdrawn §34.81 but
+ * the system-seed pages (inbox — the scratchpad was withdrawn but
  * legacy workspaces still carry it) and the date chain
  * (year/month/day nodes — journal scaffolding, 5,657 files of noise on the
  * real workspace). This is an enumeration rule, not a serializer option —
  * serializers never see the excluded rows; links targeting them keep the
  * single-file `[[name]]`/`![[uuid]]` conventions.
  *
- * Gating (from §34.24): `includeOutline` — pdf/docx/html (+ markdown:
+ * Gating: `includeOutline` — pdf/docx/html (+ markdown:
  * markdown is both a single-file and an outline format, so it supports the
  * option too); `pageFormat` — pdf only; `includeAssets` — the markdown
  * bundle/zip path only (zip is markdown-bundle delivery, not its own
  * registry format). The catalog below is the machine-readable form the
- * format registry and the later UI (task E3) render from.
+ * format registry and the later UI render from.
  */
 
-/** Registry format ids — the export-redesign format set (§34.24 task list). */
+/** Registry format ids — the export-redesign format set. */
 export type ExportFormatId = "markdown" | "html" | "pdf" | "docx" | "latex";
 
 /** Options accepted by every serializer entry point. All optional. */
@@ -58,7 +57,7 @@ export interface ExportOptions {
    * Child outline (the nested-bullets children section). Default ON for
    * markdown; the gating table's pdf/docx/html set is the minimum — markdown
    * is both a single-file and an outline format, so it supports the option
-   * too (§34.24 allows this, documented here).
+   * too (a deliberate extension, documented here).
    */
   includeOutline?: boolean | undefined;
   /**
@@ -136,8 +135,8 @@ export interface ExportOptionChoice {
 }
 
 /**
- * Machine-readable option spec for later UI rendering (task E3 renders the
- * modal's options section from these). `appliesTo` is the gating set.
+ * Machine-readable option spec for later UI rendering (the export modal
+ * renders its options section from these). `appliesTo` is the gating set.
  */
 export interface ExportOptionSpec {
   key: keyof ExportOptions;
@@ -169,7 +168,7 @@ export const EXPORT_OPTION_SPECS: readonly ExportOptionSpec[] = [
     kind: "boolean",
     default: true,
     appliesTo: OUTLINE_FORMATS,
-    note: "Nested-bullets children section; markdown is both a single-file and an outline format (§34.24).",
+    note: "Nested-bullets children section; markdown is both a single-file and an outline format.",
   },
   {
     key: "hideEmptyProperties",
@@ -216,7 +215,7 @@ export const EXPORT_OPTION_SPECS: readonly ExportOptionSpec[] = [
     kind: "boolean",
     default: false,
     appliesTo: ["markdown"],
-    note: "Bundle/zip delivery (§34.24 E5/E7); single-file markdown keeps CAS references.",
+    note: "Bundle/zip delivery; single-file markdown keeps CAS references.",
   },
   {
     key: "maxDepth",

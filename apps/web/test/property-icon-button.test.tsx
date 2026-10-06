@@ -1,5 +1,5 @@
 /**
- * §34.89 PropertyIconButton tests: a select property bound with a
+ * PropertyIconButton tests: a select property bound with a
  * bullet/inline display position rides the block row as an icon button —
  * the current option's MDI icon tinted with its color (the at-a-glance state
  * read), or a subdued hollow circle when unset. Clicking opens the options
@@ -58,7 +58,7 @@ const STATUS_OPTIONS = [
 ];
 
 /** A page with one block whose class binds "status" (select) at the given
- *  display position (§34.90: display is property-level — set on the schema). */
+ *  display position (display is property-level — set on the schema). */
 async function seedStatusBlock(display: "bullet" | "inline" | "panel") {
   const client = await seedClient();
   const schemaId = await client.createPropertySchema({
@@ -238,7 +238,7 @@ describe("PropertyIconButton", () => {
   });
 });
 
-describe("PropertyIconButton boolean mode (§34.89)", () => {
+describe("PropertyIconButton boolean mode", () => {
   /** A page with one block whose class binds a boolean at the bullet. */
   async function seedFlagBlock() {
     const client = await seedClient();

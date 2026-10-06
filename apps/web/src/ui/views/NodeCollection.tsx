@@ -1,7 +1,8 @@
 /**
  * NodeCollection — the view dispatcher. Resolves the registry entry for the
  * requested mode and renders its component inside a mode-classed container
- * (`node-collection node-collection--{mode}`, the v1 convention) with a
+ * (`node-collection node-collection--{mode}`, the established convention)
+ * with a
  * Suspense boundary and (when the entry opts in) the kit ErrorBoundary. The
  * empty collection renders the kit EmptyState when the container offers a
  * title; otherwise nothing.

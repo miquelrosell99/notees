@@ -1,5 +1,5 @@
 /**
- * ExportDocument IR → Word .docx projection (§34.24 task D1) — mirrors the
+ * ExportDocument IR → Word .docx projection — mirrors the
  * H1 HTML reference rendering's structure (html.ts): the same
  * document-chrome predicate gates the title heading, properties render as a
  * two-column table mirroring the HTML <dl>, the same per-value qualifier
@@ -13,8 +13,8 @@
  * Word-specific projection choices (docx is not a link-projection format):
  *
  *  - External links render as `text (href)` plain runs. A real docx Hyperlink
- *    needs a relationship id per target; v1 keeps the package relationship-
- *    free and stays readable as plain text.
+ *    needs a relationship id per target; this projection keeps the package
+ *    relationship-free and stays readable as plain text.
  *  - Mentions/chips render as their resolved names (chips with the leading
  *    `#`); typed links render `verb text (locator)`; math renders the
  *    `$…$` expression — all plain text, no relationship ids.
@@ -25,7 +25,7 @@
  *  - Query/whiteboard blocks are Courier New paragraphs carrying the
  *    pretty-printed JSON, one line per run (`break: 1` line jumps).
  *
- * Layouts (minimal honor per §34.24): "notes" keeps the Word defaults
+ * Layouts (minimal honor): "notes" keeps the Word defaults
  * (Calibri body font, single-ish leading); "essay"/"academic" switch the
  * default document font to Georgia with looser leading via docDefaults, so
  * every style inheriting from Normal (including Title) follows. `pageFormat`
@@ -39,7 +39,7 @@
  *  | text           | TextRun; marks → run properties: bold/italics/strike,       |
  *  |                |   highlight → HighlightColor.YELLOW, code → Courier New     |
  *  | hard_break     | TextRun({ break: 1 })                                       |
- *  | mention        | resolved name (plain text — no relationships in v1)         |
+ *  | mention        | resolved name (plain text — no relationships)              |
  *  | class_chip     | `#name`                                                     |
  *  | typed_link     | runs: verb (bold) + " " + text + " (locator)"               |
  *  | external_link  | runs: text + " (href)"                                      |
@@ -84,7 +84,7 @@ import type { ResolvedExportOptions } from "./options.js";
 const CODE_FONT = "Courier New";
 
 /**
- * Layout theming via docDefaults (the minimal §34.24 honor): notes keeps the
+ * Layout theming via docDefaults (the minimal honor): notes keeps the
  * Word template look (Calibri); essay/academic typeset serif with looser
  * leading. Line spacing is in twentieths of a point on the "auto" rule
  * (240 = single, 276 ≈ Word's default 1.15, 360 = 1.5).
@@ -136,7 +136,7 @@ function renderSpan(span: ExportSpan): TextRun[] {
       return runs;
     }
     case "externalLink":
-      // v1 link convention: the text followed by the href in parentheses
+      // The link convention: the text followed by the href in parentheses
       // (a real Hyperlink would need a relationship id per target).
       return [new TextRun({ text: `${span.text} (${span.href})` })];
     case "math":

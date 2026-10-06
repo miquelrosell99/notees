@@ -34,7 +34,7 @@ const NODE_PAGE = "0192a000-0000-7000-8000-000000000010";
 const PUBLISHED = "0192a000-0000-7000-8000-0000000000d1";
 const SPAN = "0192a000-0000-7000-8000-0000000000d2";
 
-/** Deterministic chain for the tests' fixed dates (v1 scheme). */
+/** Deterministic chain for the tests' fixed dates. */
 const CHAIN_A = chainNodeIds("2026-09-27");
 const CHAIN_B = chainNodeIds("2027-10-05");
 const CHAIN_C = chainNodeIds("2028-01-15");
@@ -243,7 +243,7 @@ describe.each(adapters)("$name: dates (SCHEMA.md)", ({ makeBackend }) => {
     const row = store.database
       .prepare("SELECT metadata FROM property_value WHERE node_id = ? AND property_schema_id = ?")
       .get(NODE_PAGE, LINKED) as { metadata: string };
-    // PC6 (§34.56): the legacy ISO-string qualifiers normalize ON WRITE to
+    // PC6: the legacy ISO-string qualifiers normalize ON WRITE to
     // deterministic day-node refs — the canonical date-node-backed shape.
     expect(JSON.parse(row.metadata)).toEqual({
       startDate: { nodeId: "00000000-0000-0000-00dd-202601010000" },

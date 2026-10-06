@@ -8,7 +8,7 @@
  * list of targetNodeIds of the MENTION tokens in the same block, ordered by
  * prose distance from the mark's start to the mention's start, deduped,
  * capped at 8. Top-level stream only — mentions nested inside quote children
- * are out of scope for the M1 capture slice.
+ * are out of scope for the capture slice.
  */
 
 import { proseSpans } from "@/editor/prose.js";

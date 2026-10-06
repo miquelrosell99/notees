@@ -4,7 +4,7 @@
  * the real PATCH /workspaces/:id endpoint; appearance choices apply to
  * <html> data-* attributes and persist under `notees.settings.*`; the API
  * keys manager (ApiKeysSection) works inside the user settings modal against
- * a mocked /api-keys surface; controls with no v2 backend render honestly
+ * a mocked /api-keys surface; controls with no backend render honestly
  * inert with a "not available in this build" note; the workspace switcher
  * offers create-from-query and opens Manage Workspaces; the Manage
  * Workspaces modal lists, renames, creates, switches, exports, and deletes
@@ -378,7 +378,7 @@ describe("entry points", () => {
     classIcons: () => new Map(),
     effectiveClassIcons: () => new Map(),
     listPages: () => [],
-    // §34.55: the sidebar nav reads the feature surface for the Tasks hub.
+    // The sidebar nav reads the feature surface for the Tasks hub.
     isFeatureEnabled: () => true,
   } as unknown as AnyClient;
 

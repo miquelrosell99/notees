@@ -14,13 +14,13 @@
  *    getNode / getNodeRaw / getEffectiveProperties / getAssetInfo /
  *    getAnnotationsForAsset / listPropertySchemas / isFeatureEnabled /
  *    listFeatureRows / getFeatureInstanceCount), the batched read surface
- *    (multiRead — one round-trip per cache refresh, §34.114), the write
+ *    (multiRead — one round-trip per cache refresh), the write
  *    surface (createObject / updateObject / deleteObject / moveObject /
  *    setClassProperty / unsetClassProperty / createPropertySchema /
  *    setProperty / unsetProperty / attachAsset), the session undo journal
- *    (§34.64: undoState / undo / redo), syncOnce, the realtime
+ *    (undoState / undo / redo), syncOnce, the realtime
  *    acceleration path (startRealtime / stopRealtime), status, exportBytes,
- *    stats, the per-user UI prefs reads/writes (getPrefs / patchPrefs, §34.61),
+ *    stats, the per-user UI prefs reads/writes (getPrefs / patchPrefs),
  *    and flush;
  *  - persists db.export() bytes to OPFS debounced (~500 ms, coalesced) after
  *    every mutation, each save awaiting the previous one (serialized chain);
@@ -118,7 +118,7 @@ export async function handleMessage(
 
 const DEFAULT_DEBOUNCE_MS = 500;
 /**
- * Notification coalescing window (§34.114): the client notifies per applied
+ * Notification coalescing window: the client notifies per applied
  * batch, and a sync burst (local apply + push + echo + ack) can fire hundreds
  * of notifications per second — each of which used to make the main thread
  * refetch its whole read cache. One emission on the leading edge plus at most
@@ -207,14 +207,14 @@ export interface WorkerCoreOptions {
   actorId?: string;
   deviceId?: string;
   /**
-   * REST config for the client (per-user prefs §34.61). The entry forwards
+   * REST config for the client (per-user prefs). The entry forwards
    * the init message's serverUrl/apiKey; tests omit it (local fallback).
    */
   serverUrl?: string;
   apiKey?: string;
   /** Persist debounce after mutations; defaults to 500 ms. */
   debounceMs?: number;
-  /** Notification coalescing window; defaults to 50 ms (§34.114). */
+  /** Notification coalescing window; defaults to 50 ms. */
   notifyDebounceMs?: number;
   /** Fired on local apply and sync completion (the payload is coalesced — see scheduleNotify). */
   onNotify?: (change: ChangeNotification) => void;
@@ -357,7 +357,7 @@ export class WorkerCore {
     this.flushPendingNotify();
   }
 
-  // --- notification coalescing (§34.114) ---------------------------------------
+  // --- notification coalescing ---------------------------------------------------
 
   /**
    * Leading+trailing coalescer over the client's notifications. The first
@@ -589,7 +589,7 @@ export class WorkerCore {
   }
 
   /**
-   * Batched read for the main thread's cache refresh (§34.114): N cache keys
+   * Batched read for the main thread's cache refresh: N cache keys
    * (`JSON.stringify([method, args])`) resolved in ONE round-trip instead of
    * N awaited RPCs. Only READ_METHODS are accepted — a refresh batch must
    * never become a write path.

@@ -1,7 +1,7 @@
 {
   "name": "@notees/export",
   "version": "0.1.0-m1",
-  "description": "Notees v2 export engine: content tokens → Markdown projection (frontmatter, bundle, workspace manifest).",
+  "description": "Notees export engine: content tokens → Markdown projection (frontmatter, bundle, workspace manifest).",
   "license": "AGPL-3.0",
   "type": "module",
   "sideEffects": false,

@@ -140,7 +140,7 @@ describe("BlockRow metadata section", () => {
     expect(panelled.container.querySelectorAll(".node-metadata-section")).toHaveLength(0);
     panelled.unmount();
 
-    // Compact layout: the v1 in-flow "Properties" section renders under the
+    // Compact layout: the in-flow "Properties" section renders under the
     // header (exactly one — the page's; the block carries nothing).
     const compact = render(<PageView client={client} pageId={pageId} layout="compact" />);
     const sections = compact.container.querySelectorAll(".node-metadata-section");
@@ -148,9 +148,9 @@ describe("BlockRow metadata section", () => {
   });
 });
 
-describe("BlockRow §34.90 value-display buttons", () => {
+describe("BlockRow value-display buttons", () => {
   /** A block whose class binds a select schema at the given display
-   *  position (§34.90: display is property-level — set on the schema). */
+   *  position (display is property-level — set on the schema). */
   async function seedDisplayBlock(display: "bullet" | "inline" | "panel") {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({

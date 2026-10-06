@@ -9,7 +9,7 @@
  * chain and opens the page (get-or-create, exactly like the archived
  * behavior), then closes this popup.
  *
- * The days grid renders through the shared CalendarDayGrid (§34.28 #3 —
+ * The days grid renders through the shared CalendarDayGrid —
  * one day-grid implementation for the popup and the Calendar view's
  * MonthCalendar panel).
  */

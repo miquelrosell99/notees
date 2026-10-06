@@ -1,5 +1,5 @@
 /**
- * PDF render entry (§34.24 P1) — the lazily-imported engine behind the
+ * PDF render entry — the lazily-imported engine behind the
  * export modal's PDF card. The modal reaches this module ONLY through
  * `await import("@/ui/export-pdf/renderPdf.js")`, so @react-pdf/renderer,
  * the font bundle, and this code live in their own async chunk and never

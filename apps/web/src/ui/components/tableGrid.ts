@@ -1,5 +1,5 @@
 /**
- * Table grid — §34.34 B4 structure writes and layout math. A table is a
+ * Table grid — structure writes and layout math. A table is a
  * container node classed `table`; its child blocks are the rows, and each
  * row's child blocks are the cells (tableFamily.ts carries the class seed).
  * These helpers are the only writers of table shape: the /table slash flow
@@ -26,7 +26,7 @@ const MAX_COLUMNS = 20;
 /**
  * Parse the `/table` typed remainder into a column count: "/table 5" → 5.
  * An empty or unparseable remainder returns null (the caller takes the
- * default) — the v1 boundary rule: the remainder is the command's argument.
+ * default) — the boundary rule: the remainder is the command's argument.
  */
 export function parseTableColumnCount(remainder: string): number | null {
   const trimmed = remainder.trim();

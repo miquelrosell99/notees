@@ -9,7 +9,7 @@ services:
     # ${NOTEES_SYNC_PORT} (loopback) serves the tailscale serve proxies + the
     # smoke; ${NOTEES_SYNC_LAN_PORT} re-exposes plain HTTP on the LAN. Both
     # bind specific IPs, so tailscaled can hold the tailnet IP on the same
-    # port number for HTTPS (deployment.md §10).
+    # port number for HTTPS (deployment.md).
     ports:
       - "${NOTEES_SYNC_PORT:-8377}:8377"
       - "${NOTEES_SYNC_LAN_PORT:-127.0.0.1:18377}:8377"
@@ -42,7 +42,7 @@ services:
     environment:
       # Optional prefill for non-standard sync topologies (the web client
       # guesses protocol//hostname:8377 from its own origin, which is right
-      # on every standard path — deployment.md §10; empty ships no prefill).
+      # on every standard path — deployment.md; empty ships no prefill).
       - NOTEES_SERVER_URL=${NOTEES_SERVER_URL:-}
     depends_on:
       notees-sync:

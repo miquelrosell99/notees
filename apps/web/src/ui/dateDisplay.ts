@@ -5,7 +5,7 @@
  * fixed slash layout; display points that can read the device setting route
  * through here so the user's preference actually applies (the page header
  * is the main one — the stored name itself must stay compact for
- * chronological sorting and the v1 lookup contract).
+ * chronological sorting and the compact lookup contract).
  */
 
 import { deriveDisplayName, parseDateNodeId, dateNodeLabel, plainTextExcerpt, type NodeLike } from "@notees/domain";

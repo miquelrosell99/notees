@@ -1,8 +1,8 @@
-/* PageBanner.css — the cover PICKER popover + the v1 right-side cover
-   card (§34.72: collapsible, always rendered when the page can carry a
+/* PageBanner.css — the cover PICKER popover + the right-side cover
+   card (collapsible, always rendered when the page can carry a
    cover, drag-and-drop). Token-only. */
 
-/* --- the picker popover (unchanged §34.59 surface) --------------------- */
+/* --- the picker popover (unchanged surface) --------------------- */
 
 .nt-cover-picker {
   position: absolute;
@@ -40,7 +40,7 @@
   font-size: 12px;
 }
 
-/* --- the v1 cover card -------------------------------------------------- */
+/* --- the cover card -------------------------------------------------- */
 
 .nt-covercard {
   position: relative;
@@ -173,7 +173,7 @@
   background: var(--color-primary-container);
 }
 
-/* Mobile: the card stacks under the header (the v1 breakpoint). */
+/* Mobile: the card stacks under the header (the narrow breakpoint). */
 @media (width <= 768px) {
   .nt-covercard {
     height: var(--page-cover-height);

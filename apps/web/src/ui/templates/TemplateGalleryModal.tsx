@@ -1,8 +1,7 @@
 /**
- * TemplateGalleryModal — §34.25 T3's main-view template surface (the v1
- * TemplateGallery ported): a gallery over every template-class node in the
- * workspace. Consistent with the ONE-class-filtered-picker amendment — the
- * gallery's candidate set IS the template class's members (flat; no binding
+ * TemplateGalleryModal — the main-view template surface: a
+ * gallery over every template-class node in the workspace. The gallery's
+ * candidate set IS the template class's members (flat; no binding
  * class filter anywhere).
  *
  * Surfaces per template: Open (the row click — templates are ordinary pages,

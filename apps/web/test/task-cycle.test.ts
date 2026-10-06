@@ -1,5 +1,5 @@
 /**
- * cycleTaskState tests (the Cmd/Ctrl+Enter task-state toggle): the v1
+ * cycleTaskState tests (the Cmd/Ctrl+Enter task-state toggle): the
  * three-state cycle — not a task -> task + Pending -> task + Done ->
  * not a task (any closed status clears). Writes ride the canonical client
  * paths: the stored option id at the status row's existing idx (never the
@@ -118,7 +118,7 @@ describe("cycleTaskState", () => {
   it("task with an open status -> sets Done by the stored option id (never a hardcoded designed UUID)", async () => {
     const client = await seedClient();
     await ensureTaskFamily(client);
-    // Simulate an old (v1-migrated) workspace: the status options carry
+    // Simulate an old (migrated) workspace: the status options carry
     // random stored ids, NOT the designed TASK_STATUS_OPTION_UUIDS.
     const statusSchema = client
       .listPropertySchemas()

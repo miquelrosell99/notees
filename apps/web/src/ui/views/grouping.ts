@@ -8,7 +8,7 @@ import type { AnyClient, CollectionGroup, NodeCollectionItem } from "./types.js"
 import { displayNameFromClient } from "../dateDisplay.js";
 
 /**
- * The references grouping (v1's linked/unlinked sections): items group by
+ * The references grouping: items group by
  * their containing page (`meta.containingPageId` — the breadcrumb of the
  * page the referencing node lives on); items without that meta group by
  * their own id. Header click opens the page. First-seen key order is kept.

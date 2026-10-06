@@ -378,6 +378,88 @@ wire/protocol change — pure web view-layer, like `05`.
     display-layer filter (hide aliases from child-pages lists), never
     structural sync.
 
+**Owner pass 21 — v1's asset upload modal, fully recovered (same day):**
+45. *M33 — the AssetUploadModal regains its complete v1 surface, with the
+    v1 trigger set.* Verified at `v1-archive`
+    (`features/assets/components/AssetUploadModal.tsx`): drag-and-drop OR
+    click-to-select (`FileDropZone`), type/size validation (50 MB media /
+    100 MB documents), a modal-INTERNAL clipboard paste handler
+    (`clipboardData.items`, :151) plus an `initialFile` prop for external
+    paste plumbing, `acceptedTypes` filtering, and `existingNodeId`
+    (convert an empty block into an asset). v1 opened it from the banner
+    image picker and the cover image picker (`NodeView.tsx:1279-1292`,
+    `acceptedTypes=['image']`), and from content/kanban card surfaces. The
+    v2 modal already exists over the CAS path (`components/modals/
+    AssetUploadModal.tsx`, drag-drop + preview); M33 is the full recovery:
+    clipboard support, `acceptedTypes`, validation parity, the
+    convert-empty-block path, and the complete trigger set — (1) clicking
+    the EMPTY cover element, (2) clicking the EMPTY banner element (M23's
+    BannerCard Add state), (3) creating a new asset node (the modal IS the
+    creation flow), (4) the existing property-upload path, (5) empty-block
+    conversion. Rides S3b; view-layer, no wire change (assets already ride
+    the CAS path).
+
+**Owner pass 22 — fields-vs-properties sanity check, recommendation adopted (same day):**
+46. *M34 — the boundary rule, recorded as standing guidance.* One-by-one
+    analysis (cover · banner · aliasedNodeId against nine dimensions:
+    authority/convergence, cardinality, universality, read/write paths,
+    query exposure, doctrine, migration cost, value history, bindings) —
+    recommendation adopted: **wire fields for all three** (M27 stands); the
+    property system keeps its userland role. Three costs fold into the M27
+    program: (1) **QueryAST field predicates** (`coverAsset`/`bannerAsset`/
+    `aliasedNode`) so the query language, M4 custom views, and M30 roll-ups
+    keep the expressiveness the property form gave for free; (2) the fixture
+    gate + GTK/Flutter lockstep (already recorded); (3) the property→field
+    log migration incl. v1-migrated cover data + an additive JSON-archive
+    note. Value history for the three accepted as lost (low-value audit for
+    pointer fields). **Boundary rule (standing): platform-fixed
+    cardinality-1 node fundamentals that core chrome or navigation reads or
+    writes → wire fields; user-extensible typed attributes (class-bound,
+    multi-value, defaulted, qualified, query-filtered) → properties.**
+    Landed as guidance: `AGENTS.md` Invariants ·
+    `.agents/skills/notees-development/references/architecture.md` ·
+    `docs/developers/architecture.md` §4.
+
+**Owner pass 23 — three more v1 UI recoveries (same day, during
+implementation):**
+47. *M35 — the v1 query builder.* v2's query builder (`FilterBuilderModal`,
+    the §34.31 V2) is re-UI'd to v1's builder (`v1-archive:
+    frontend/src/features/queries/components/FilterBuilderModal.tsx`) — the
+    owner wants the v1 interaction. Grammar stays the §34.31 AST (one
+    grammar, owner pass 5) — this is chrome, not a second builder.
+48. *M36 — v1 fullscreen whiteboards.* The whiteboard page renders as the
+    FULL main-content container (v1's fullscreen whiteboard): edge-to-edge,
+    no card border/padding around the canvas. The v2 fullscreen branch
+    already replaces the tree; the recovery is the container chrome
+    (PageView/S7 territory).
+49. *M37 — the v1 graph view UI, full container, no border.* v2's GraphView
+    (§34.80 WebGL port) re-UI'd to v1's graph (`v1-archive:
+    frontend/src/features/views/components/GraphView.tsx` +
+    `features/content/pages/AllPagesGraphView.tsx` for the full-page
+    surface): same UI as v1, rendered in the full main-content container —
+    no border, edge-to-edge, like the whiteboard recovery (M36).
+
+**Owner pass 24 — the asset property type (same day, during
+implementation):**
+50. *M38 — a dedicated asset property type with an Upload/Link empty state,
+    a `noCreate` picker prop, and the attachments migration.* (a) New
+    `asset` property TYPE (zod enum addition at
+    `packages/protocol/src/op-types.ts:282` — a strict payload change, so
+    the fixture gate + GTK/Flutter lockstep apply; it rides the model
+    program). The empty value renders TWO buttons — **Upload** (opens the
+    recovered AssetUploadModal, M33) and **Link** (opens the node picker
+    scoped to asset-classed nodes). (b) `NodeSelector` gains
+    **`noCreate?: boolean`** (default false) suppressing
+    create-from-query; the asset Link button sets it true. (c) Multi-value:
+    a list of the assets with the two buttons ALWAYS at the list bottom.
+    Single-value: replacement requires clearing first (the buttons render
+    only on empty). (d) Migration: the seeded `attachments` property
+    (`…0000-000000000011` — today object-typed with
+    `targetClassFilter: ["asset"]`, SCHEMA.md line 238) retypes to `asset`
+    via a one-time script (the migrate-*.mts precedent); the existing
+    upload-for-asset-targets row logic in MetadataSection folds into the
+    dedicated type's renderer.
+
 ## Problem
 
 `PageView.tsx` is one 908-line function that owns four jobs at once:
@@ -892,6 +974,14 @@ one home, no duplication.
 AND color, for every node kind (plain, date, class); the picker carries both
 (M10). Any future affordance that edits an icon or a color reuses this path.
 
+**`AssetUploadModal` (full v1 recovery, M33)** — ONE modal for every asset
+ingestion: drag-and-drop, click-to-select, and **clipboard paste** (modal-
+internal listener + `initialFile` plumbing), `acceptedTypes` filtering,
+size/type validation (50 MB media / 100 MB documents), and the empty-block
+conversion path. Trigger set: the EMPTY cover element, the EMPTY banner
+element (M23), new asset-node creation (the modal IS the creation flow),
+property upload, empty-block convert.
+
 **`useSectionData` + `CollectionSection`** — the lazy/filter contract lives in
 the hook, **one instance per section view/tab**; the skin is **ONE**
 collapsible-header component hosting `NodeCollection` as-is, with the
@@ -949,6 +1039,7 @@ deleted here by M22 and restored by M32 — it stays.)
 | Derived store (`packages/store`) | small store slice (M25/M26): universal `cover_asset_id` + `banner_asset_id` + `aliased_node_id` materialized columns (appliers + derived SCHEMA_VERSION bump) — independently landable, not view-layer, no wire change |
 | `components/aliasProperty.tsx` (the `aliasOf` row + `resolveAliasOpen`) | the property row disappears (M26); `resolveAliasOpen`/`AliasOfBanner` read the `aliasedNodeId` field (M27) with the M28 UX — filtered add-picker, row navigate buttons, alias-uuid links kept, redirect at navigation; the pseudo-property row + title-row affordance land at S3b; the universal `resolveAlias` seam + write-time alias-cycle validation ride the M27 program (M29); the backlinks read rolls alias edges UP additively and the graph filters alias vertices, repointing edges (M30); alias parents stay independent — no move cascades (M31) |
 | `components/PageBanner.tsx` (cover + the returning banner, M23), `AliasOfBanner.tsx`, `DayPageHeader.tsx` | consumed by `PageChrome` — the banner follows the cover machinery; both property-backed per M24 |
+| `components/modals/AssetUploadModal.tsx` (v2, partial — drag-drop + preview) | gains the full v1 surface per M33 — clipboard paste, `acceptedTypes`, validation parity, empty-block conversion, and the complete trigger set (empty cover/banner click, new-asset-node creation) — rides S3b |
 | `components/NodeMenuButton.tsx` + corner cluster | moves into `NodeView` chrome |
 | `views/*` (untouched here; the hosted-views tab chrome lands with M4) · `components/ui/*` · `BlockRow`/`InlineTokens`/editor · `outliner-context.ts` · `block-dnd.ts` (pure logic, reused by the host) · `use-block-selection.ts` · `GhostRow.tsx` · `WhiteboardCanvas.tsx` · palette · embed/deck/query machinery | **untouched** |
 
@@ -976,8 +1067,8 @@ deleted here by M22 and restored by M32 — it stays.)
 4. **S3b — `PageChrome` split.** The chrome block → `PageChrome` variants
    (variants as pure data per M13). JSX surgery, land after S3a so each
    half's diff stands alone. **The picker color section (M10), the
-   locked-NodeCollection text rows (M20), and the banner restoration (M23)
-   ride here.**
+   locked-NodeCollection text rows (M20), the banner restoration (M23), and
+   the upload-modal recovery (M33) ride here.**
 5. **S4 — block branch + `childQuery` factory.** `FocusedBlockView` folds
    into the block branch (body = `NodeCollection` over
    `items=[{root+children}]`, minimal outliner inline — M1/M2; drag joins the
@@ -1083,3 +1174,73 @@ slices read the new columns once landed).
   data — if so, the context column keeps graph + TOC only) and the
   **context-column collapse detail** (the `layout` prop gains a third state
   or per-column prefs).
+
+## Execution progress (2026-10-06, owner: "proceed with full implementation")
+
+Environment: implementation runs in a git worktree
+(`../notees-restructure`, branch `feat/main-content-restructure`) because
+the main tree carries a pending ~460-file prose-scrub commit
+(milestone-label removal) — merging the restructure into that dirty tree
+would entangle unrelated hunks; the branch rebases onto main once the scrub
+lands. Per the post-§34 records regime, shipped slices are recorded in
+`CHANGELOG.md` (worktree) and marked here.
+
+**Re-assessment deltas (HEAD f0e2ec83 vs the plan's assumptions):**
+1. §34.116 ("the main-layout grid — full-card 2 columns, 3-row nodeview
+   stack") pre-positioned the chrome-right cluster INSIDE PageView via a
+   `chromeRight` slot rendered in the nodeview top bar (panelled) or the
+   absolute corner (compact). S1 absorbs this: the extraction keeps the
+   slot mechanism; NodeView still owns building the cluster.
+2. `PropertiesSidebar` (MetadataSection) is the committed first column —
+   S7's third column extends the same `.nt-page-body` grid (the owner's
+   "trivial from there").
+3. The footer is pinned to the card bottom as a divided section (M32's
+   "defined divider" shipped in §34.116).
+4. **Deviation (registered):** `SidebarNodeCard` is NOT deleted in S1 — the
+   right rail still hosts the context sections (graph/TOC/references), and
+   the cards-only rail rework is S7; deleting the card frame in S1 would
+   force the rail rebuild early. Its deletion rides S7 as the plan's
+   migration map originally had it at S1+M15; M15's full semantics (rail =
+   workspace cards) remain S7 scope.
+5. `scripts/screenshots/layout-probe.mjs` asserts nodeview top-bar
+   selectors — layout-touching slices (S7) must keep or update it.
+
+**Slice status:**
+- **S1 — NodeView shell extraction: DONE** (commit `aa0e02ea`).
+  `ui/NodeView.tsx` (the dispatcher + chrome-right builder + `embedded`
+  surface prop) and `ui/SidebarNodeCard.tsx` extracted from App.tsx; App
+  re-exports NodeView for the view-routing tests; FloatingEditor's
+  `FloatingNodeView` now reuses NodeView (`embedded`) — the duplicated
+  dispatch is gone. Verified: full web suite green (1175 tests).
+- **S3a — `usePageMachinery`: DONE** (commit `a210faa6`). Outliner,
+  selection surface, find/replace, external-link delegation + LinkEditModal
+  opener, the DnD wiring, and the fold chords move to
+  `ui/usePageMachinery.ts` (one bag, zero JSX); new `globalShortcuts`
+  option. The drag half hoists to the workspace host in S6.
+- **S2 — SectionSpec conversion: DONE** (commit `fa54d8f1`).
+  `components/useSectionData.ts` (first-activation gate, version-keyed
+  cache, per-notification re-run, failure keeps rows; `read`/`query`
+  strategies; `keepFresh`/`refreshKey`) + `components/CollectionSection.tsx`
+  (the one skin). `Section.tsx` is a thin wrapper with unchanged props; the
+  backlinks tabs ride TWO hook instances (never a shared cache);
+  CreatedSection/ActivityLogSection byte-identical exports; DayPageSections
+  absorbed via Section; `SectionSpec` lands as the data-facing descriptor.
+- **S3b — PageChrome split + Properties header: DONE** (commit `38ef495b`).
+  `ui/PageChrome.tsx` (NodeTopbar / PageHeaderChrome incl. the icon picker
+  state / PageFooterChrome); PageView keeps the column composition (690
+  lines, props unchanged). The PropertiesSidebar grows its "Properties"
+  header row (icon + label + effective count) — the owner's explicit ask.
+- **S4 — `childQuery` + block branch: DONE** (commit `c2a4cb43`).
+  `components/childQuery.ts` (page mode: children as siblings; block mode:
+  the single root item; M19 comment exclusion at every level);
+  `FocusedBlockView.tsx` deleted — the NodeView block branch renders
+  ReferenceSubtree with the same chrome wrapper; new unit coverage.
+- **S5 — class subtraction + variants as data: IN FLIGHT** (subagent).
+  M11 ClassPillsList, M13 variant data (PageView slots deleted, ClassView
+  deleted, `components/pageVariant.ts`), M9 chrome subtraction, M12's
+  banner deletion.
+- **Recovery batch IN FLIGHT** (subagent): M33 upload modal, M35 v1 query
+  builder, M10 picker color, M38a NodeSelector `noCreate`.
+- Next after the in-flight wave: commit verifications, **S7** (three-column
+  context + cards-only rail; M19 Comments + M36 whiteboard + M37 graph
+  containers land inside it), then **S6** (workspace DnD hoist).

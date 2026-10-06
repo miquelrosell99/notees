@@ -1,6 +1,6 @@
 /**
  * WS subscription bus: workspace → socket set. The socket is an acceleration
- * path only (WIRE.md §2) — broadcast failures just prune the subscriber.
+ * path only (WIRE.md) — broadcast failures just prune the subscriber.
  */
 
 import type { WebSocket } from "ws";

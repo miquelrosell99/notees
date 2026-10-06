@@ -1,5 +1,5 @@
 /**
- * Create-with-template flow tests (§34.25 T2): the Calendar day view's
+ * Create-with-template flow tests: the Calendar day view's
  * quick-create offers the TemplatePickerModal only when the picked class has
  * bound templates; picking one instantiates through the clone engine (fresh
  * object, grafted root, cloned children, template-authored values beating
@@ -88,8 +88,8 @@ async function seedClient(relay: MemoryRelay = seededRelay()): Promise<Workspace
 }
 
 /**
- * A gathering class (a generic user class — "meeting" is system vocabulary
- * since §34.36) with a date binding (quick-create eligibility), a Priority
+ * A gathering class (a generic user class — "meeting" is system vocabulary)
+ * with a date binding (quick-create eligibility), a Priority
  * binding whose defaultValue "low" the template overrides with "high" (D2),
  * and the "Sync template" bound via has-template with one child block.
  */
@@ -123,7 +123,7 @@ async function setupPlainClass(client: WorkspaceClient) {
   return { plainId, whenId };
 }
 
-describe("CalendarView create-with-template (§34.25 T2)", () => {
+describe("CalendarView create-with-template", () => {
   it("offers the picker for a class with templates; picking instantiates via the clone engine", async () => {
     const client = await seedClient();
     const { meetingId, whenId, prioId, templateId } = await setupMeetingWithTemplate(client);

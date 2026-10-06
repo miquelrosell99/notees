@@ -1,10 +1,10 @@
 /**
- * Alias property self-heal (§34.32 PG10, owner 2026-10-04) — the register
- * contradiction (v2 post-mortem deemed `node_alias` obsolete vs the
- * v1-parity register listing "Aliases (pages)") resolves to the v1-parity
- * side: a seeded multi-value `alias` text schema. The seed lives in the
- * domain manifest, but the server seed runs only on a completely empty
- * workspace — following the ensureCoverProperty precedent (§34.27 L2),
+ * Alias property self-heal (owner 2026-10-04) — the register
+ * contradiction (the later post-mortem deemed `node_alias` obsolete vs the
+ * parity register listing "Aliases (pages)") resolves to the parity side: a
+ * seeded multi-value `alias` text schema. The seed lives in the domain
+ * manifest, but the server seed runs only on a completely empty
+ * workspace — following the ensureCoverProperty precedent,
  * the web client authors the schema idempotently at the reserved id on
  * page view. Global scope, NO class binding: aliases are page metadata
  * and "page" is not a class in the render-state model — a binding would
@@ -16,7 +16,7 @@
  * self-heal here; the roll-up read path lives in the workspace client.
  *
  * Name-equivalence (SCHEMA.md "Aliases"): alias values fold into the FTS
- * row via the generic M5 text-scalar indexing, and the name-RESOLUTION
+ * row via the generic text-scalar indexing, and the name-RESOLUTION
  * paths (resolveNodeByName, the server's GET /api/resolve, unlinked
  * references) treat an exact case-insensitive alias hit as the node's
  * name. Values are plain strings — the panel's scalar text editor; no
@@ -75,7 +75,7 @@ export async function ensureAliasOfProperty(client: AnyClient): Promise<void> {
  * authored shapes count: a scalar string is the name itself; a node-backed
  * carrier reference (the generic Add-property path for text schemas
  * authors one) resolves to the carrier's content excerpt. The FTS row
- * indexes both shapes via the generic M5 text indexing, so resolution
+ * indexes both shapes via the generic text indexing, so resolution
  * follows search semantics either way.
  */
 export function aliasValuesOf(

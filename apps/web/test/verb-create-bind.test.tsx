@@ -1,5 +1,5 @@
 /**
- * PG1 schema-at-capture tests (§34.32 — the Tana flagship gesture): the verb
+ * Schema-at-capture tests — the Tana flagship gesture: the verb
  * popover's create-and-bind row authors a property schema at capture
  * (propertySchema.create typed object/multi, empty targetClassFilter) and
  * binds the typed_link mark to it (`verb: { propertySchemaId }`); an exact
@@ -99,7 +99,7 @@ function edgesOf(client: WorkspaceClient, sourceId: string): Array<{ type: strin
     .all(sourceId) as Array<{ type: string; verb: string | null }>;
 }
 
-describe("PG1 verb create-and-bind (§34.32)", () => {
+describe("verb create-and-bind", () => {
   it("creates the property schema at capture and binds the mark to it", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Home" });

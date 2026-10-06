@@ -1,5 +1,5 @@
 /**
- * Table-nodes tests (§34.34 B4, owner directive 2026-10-04): a table is a
+ * Table-nodes tests (owner directive 2026-10-04): a table is a
  * CONTAINER node carrying the system `table` class — rows are its child
  * blocks, cells are each row's child blocks, and every cell is an ordinary
  * node (own UUID: mentionable, editable, classable). No new wire token; the
@@ -131,7 +131,7 @@ function typeSlashCommand(editor: HTMLElement, command: string, argument = ""): 
 
 const rowsOf = (client: WorkspaceClient, id: string) => client.getChildren(id);
 
-describe("tableFamily (§34.34 B4 self-heal)", () => {
+describe("tableFamily (self-heal)", () => {
   it("authors the system table class node at the reserved id on a fresh workspace", async () => {
     const client = await seedClient();
     // A fresh test relay is never seeded: the class node is absent.
@@ -475,7 +475,7 @@ describe("read-only projections", () => {
 
 describe("table class-name contract (owner bug 2026-10-04)", () => {
   it("the cells-as-nodes grid never reclaims the collection table's .nt-table class", async () => {
-    // The §34.34.2 block grid once shipped as .nt-table and clobbered the
+    // The block grid once shipped as .nt-table and clobbered the
     // collection TableView (display: grid on a <table> → per-row anonymous
     // tables → header/body columns out of place). Pin the prefixes apart.
     // The web vitest config aliases node:fs to a browser shim — escape via

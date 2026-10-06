@@ -2,7 +2,7 @@
  * CollectionHub — the hub shell behind a sidebar entry: header (icon,
  * title, count, view switcher) over a NodeCollection of the hub's nodes.
  * View mode persists per hub device-locally when `persistKey` is given
- * (§34.27 L1 — never an op); without a key it stays session-local. The
+ * (never an op); without a key it stays session-local. The
  * pages/classes hubs ride the outline mode; tasks defaults to table; assets
  * to cards (owner rules).
  */

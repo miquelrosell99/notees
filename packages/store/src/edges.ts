@@ -1,6 +1,6 @@
 /**
- * Edge-index derivation (v1 `derived/edge.py` port, adapted to the v2 model
- * where edge is the single derived reference index — never authored).
+ * Edge-index derivation (port of `derived/edge.py` — edge is the single
+ * derived reference index, never authored).
  *
  * For a source node, rebuildEdges synchronizes three families of edges from
  * the node's current derived state:
@@ -10,7 +10,7 @@
  *  - ``typed_link``   — typed-link word marks, top-level and inside quotes
  *                       (SCHEMA.md: a mark on a prose word — the association
  *                       dies with its word). target_id is NULL by design:
- *                       candidateSpans are recorded, resolution is M2 work;
+ *                       candidateSpans are recorded, resolution is deferred;
  *  - ``property``     — node-typed property values ({ "nodeId": ... }),
  *                       verb = propertySchemaId.
  *

@@ -1,5 +1,5 @@
 /**
- * Share tokens (§34.62) — server-side coordination state for READ-ONLY public
+ * Share tokens — server-side coordination state for READ-ONLY public
  * page shares: an owner/admin mints an unguessable token for a page; anyone
  * holding `GET /s/<token>` gets a static read-only render. No write path, no
  * viewer account. Deliberately NOT operation-log state (like prefs): shares

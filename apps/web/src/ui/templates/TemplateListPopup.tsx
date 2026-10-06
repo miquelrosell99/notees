@@ -1,8 +1,8 @@
 /**
- * TemplateListPopup — the `/template` slash flow's second stage (§34.25 T3,
- * D1 amendment): a flat, UNFILTERED-by-class list of every template in the
+ * TemplateListPopup — the `/template` slash flow's second stage: a
+ * flat, UNFILTERED-by-class list of every template in the
  * workspace, instantiated at the caret on pick. (The class-filtered picker
- * remains only for the Class View binding gesture; v1's class-filtered
+ * remains only for the Class View binding gesture; the class-filtered
  * picker-reopen pattern is deliberately not ported here.)
  *
  * The slash trigger is already consumed when this opens — the popup owns a
@@ -129,7 +129,7 @@ export function TemplateListPopup({
     return () => document.removeEventListener("mousedown", handler);
   }, [onClose]);
 
-  // Dismissal (§34.67): document-level Escape — the filter input and the
+  // Dismissal: document-level Escape — the filter input and the
   // popup root below own Escape while focus is inside; the hook closes when
   // focus is elsewhere (e.g. back on the edited block).
   usePopupDismissal({ popupRef: containerRef, isOpen: true, onClose });

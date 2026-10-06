@@ -1,5 +1,5 @@
 /**
- * classRemoval — the §34.19 non-removable-class rule: the system/journal
+ * classRemoval — the non-removable-class rule: the system/journal
  * classes are identity-bearing (the class anchor + the year/month/day
  * journal chain per the seed manifest), so class-membership removal is
  * refused for them everywhere the UI offers ×-removal (NodePills — the
@@ -9,7 +9,7 @@
  * The refusal is UI-level and honest: the × stays visible, the click
  * surfaces an explanatory toast, and no write is issued. (The server/CLI
  * REST surface stays ungated — a deliberate admin escape hatch, same as
- * v1.)
+ * the original shell.)
  */
 
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";

@@ -1,6 +1,6 @@
 /**
  * Revision 11 one-time migration: `node_type` → (`is_class`, `present_as_main`),
- * envelope v3 (implementation-plan.md §34.23, owner directive 2026-10-02).
+ * envelope v3 (owner directive 2026-10-02).
  *
  * The stored relay log is rewritten IN PLACE (the stack must be stopped; the
  * owner is the sole user). No backward compatibility anywhere: payload

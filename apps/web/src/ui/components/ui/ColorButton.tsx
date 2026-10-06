@@ -183,7 +183,7 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
     };
   }, [isPickerOpen]);
 
-  // Dismissal (§34.67): Escape from outside the picker and pointer-down
+  // Dismissal: Escape from outside the picker and pointer-down
   // outside it (the button itself is an anchor — clicking it toggles). The
   // picker's own root handles Escape from inside (e.g. the hex field).
   usePopupDismissal({

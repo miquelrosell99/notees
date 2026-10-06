@@ -57,7 +57,7 @@ import { InlineConfirmButton } from "./components/ui/InlineConfirmButton.js";
 import { tableClassIdOf } from "./components/tableFamily.js";
 import { addTableColumn, addTableRow, deleteTableColumn, deleteTableRow, tableColumnCount } from "./components/tableGrid.js";
 
-/** §34.90 display positions (schema-level) a block row surfaces itself; the
+/** Display positions (schema-level) a block row surfaces itself; the
  *  collapsed properties panel below omits them (no duplicated value read). */
 const ROW_DISPLAY_POSITIONS = ["bullet", "inline"] as const;
 
@@ -66,7 +66,7 @@ interface BlockRowProps {
   client: WorkspaceClient | WorkerClient;
   resolveName?: ((nodeId: string) => string | null) | undefined;
   /**
-   * Read-only projection (the v1 blocks-list readonly mode): renders the same
+   * Read-only projection: renders the same
    * row chrome but disables every mutation gesture — no drag, no edit on
    * click, no context menu; clicking the content opens the node instead.
    * Used by the Child pages tree and the Class View's "Extended by" list.
@@ -79,7 +79,7 @@ interface BlockRowProps {
    */
   ignoreCollapse?: boolean | undefined;
   /**
-   * §34.34 B4 table-row projection: set by the table container's grid branch
+   * Table-row projection: set by the table container's grid branch
    * on each of its row children. The row root becomes a CSS-subgrid row and
    * renders ONLY its cell children (each an ordinary editable block) — no
    * row chrome of its own.
@@ -145,7 +145,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
       openNode(node.id);
       return;
     }
-    // §34.19 block multi-selection: shift+click extends the range from the
+    // Block multi-selection: shift+click extends the range from the
     // anchor, Ctrl/Cmd+click toggles one row — neither enters edit mode.
     if (selectionEnabled && event.shiftKey) {
       const anchor = selectionAnchor ?? node.id;
@@ -164,7 +164,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
     setEditing(true);
   };
 
-  // §34.92: effectiveClassIcons() is the narrow revision-cached read (stable reference
+  // effectiveClassIcons() is the narrow revision-cached read (stable reference
   // until the store actually changes), so keying on it keeps this memo valid
   // across class-icon changes without re-running on every row re-map; the
   // pre-fix [node, node.classIds] key re-ran a full listClasses query per row
@@ -177,7 +177,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
     dropLine !== null && dropLine.targetId === node.id ? ` nt-drop-${dropLine.intent}` : "";
   const selectedClass = selection.has(node.id) ? " nt-block--selected" : "";
 
-  // §34.34 B4: a block carrying the table class renders its children (rows)
+  // A block carrying the table class renders its children (rows)
   // as a CSS grid instead of the outline list. The class says what-it-is
   // (the whiteboard pattern) — the same branch covers read-only projections.
   const isTableContainer = !tableRow && node.classIds.includes(tableClassIdOf(outlinerClient));
@@ -214,10 +214,10 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
     );
   }
 
-  // §34.90: select-typed or boolean properties whose SCHEMA carries a
+  // Select-typed or boolean properties whose SCHEMA carries a
   // "bullet"/"inline" display position ride the block row as icon buttons
   // (the Logseq-DB "beginning of the block" behavior; the buttons and the
-  // boolean glyphs are the §34.89 design) — one button per property, in
+  // boolean glyphs are the design) — one button per property, in
   // binding-sequence order (the groups sort by sequence across both
   // sources). Valued properties group from the effective rows (row.display
   // is schema-sourced); a bound-but-empty binding still mounts the button —
@@ -266,10 +266,10 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
     }
     // Bound-but-empty bindings with a row display position: no effective row
     // exists yet (no value, no default), but the button is how the value
-    // gets set — the panel's empty-bindings pass, same gate (§34.90: the
-    // render contracts are property-level — display/hide-when-empty read
-    // from the schema row; options-bearing selects only, booleans synthesize
-    // their own; hide-when-empty stays hidden).
+    // gets set — the panel's empty-bindings pass, same gate: the render
+    // contracts are property-level — display/hide-when-empty read from the
+    // schema row; options-bearing selects only, booleans synthesize their
+    // own; hide-when-empty stays hidden).
     for (const classId of node.classIds) {
       for (const binding of client.getClassBindings(classId)) {
         if (binding.type !== "select" && binding.type !== "multi_select" && binding.type !== "boolean") continue;
@@ -363,7 +363,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
             )}
           </span>
         </span>
-        {/* §34.90 value-display buttons (the §34.89 design): the bullet group
+        {/* The value-display buttons: the bullet group
             hugs the bullet element, the inline group hugs the content.
             Siblings of the grip and content — never inside .nt-block-content
             (the contentEditable DOM must stay untouched). In read-only
@@ -506,7 +506,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
       )}
       {/* Properties: the same collapsed "Properties N" section the page view
           uses; hidden entirely when the block carries no properties. Rows
-          whose schema display rides the block row (§34.90 bullet/inline)
+          whose schema display rides the block row (bullet/inline)
           are omitted — the button above already surfaces the value. Focus
           mode (#12) hides the whole section. */}
       {!readOnly && !focusMode && (
@@ -527,7 +527,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
         onClose={() => setGripMenu(null)}
         onOpenNode={openNode}
       />
-      {/* §34.34 B4: a table container's children are the grid rows. The
+      {/* A table container's children are the grid rows. The
           column template comes from the FIRST row's cell count; ragged rows
           show blanks (fewer cells) or spill into implicit tracks (more).
           The + Row / + Column hover affordance rides the container (hidden

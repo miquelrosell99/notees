@@ -5,7 +5,7 @@
  *         2026-10-06), and icon-only New + search buttons to its right;
  *         sync status rides the section's end
  *  CENTER the current node's breadcrumbs, left-aligned within the section
- *  RIGHT  undo/redo (the §34.64 journal, §34.69 topbar buttons + the
+ *  RIGHT  undo/redo (the session journal, topbar buttons + the
  *         history chevron), calendar, right-sidebar show/hide
  */
 
@@ -62,7 +62,7 @@ export function TopBar({
   calendarOpen = false,
   onToggleCalendar,
   calendarButtonRef,
-  /** §34.69 — the session journal's topbar buttons (undo + redo + history). */
+  /** The session journal's topbar buttons (undo + redo + history). */
   undoState,
   onUndo,
   onRedo,
@@ -82,7 +82,7 @@ export function TopBar({
   workspaceSwitcher,
 }: {
   syncStatus: SyncStatusSnapshot;
-  /** Opens the sync details modal (§34.115); undefined on boot screens. */
+  /** Opens the sync details modal; undefined on boot screens. */
   onOpenSyncDetails?: (() => void) | undefined;
   /** The current node's breadcrumb trail (center section). */
   breadcrumbs?: ReactNode;
@@ -93,7 +93,7 @@ export function TopBar({
   onToggleCalendar?: (() => void) | undefined;
   calendarButtonRef?: RefObject<HTMLButtonElement | null> | undefined;
   /**
-   * The journal state slice (§34.64): the undo/redo buttons disable when
+   * The journal state slice: the undo/redo buttons disable when
    * empty and take the live labels ("Undo edit text") as their titles.
    * Undefined hides the cluster (the boot screens' TopBar never gets it).
    */

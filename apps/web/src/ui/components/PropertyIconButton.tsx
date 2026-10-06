@@ -1,9 +1,9 @@
 /**
- * PropertyIconButton — §34.89 design, §34.90 contracts: a select-typed or
+ * PropertyIconButton — a select-typed or
  * boolean property whose SCHEMA carries a "bullet"/"inline" display position
  * rides the block row as an icon button
- * (the Logseq-DB "UI position: beginning of the block" behavior; the v1
- * PropertyIconButton port). The button shows the FIRST selected option's MDI
+ * (the Logseq-DB "UI position: beginning of the block" behavior).
+ * The button shows the FIRST selected option's MDI
  * icon tinted with its color — the at-a-glance state read; an unset value
  * renders a dimmed hollow circle so a fresh task can be given a value in
  * place. Clicking opens a small popover listing every option (icon + label +
@@ -32,7 +32,7 @@ import "./PropertyIconButton.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
-/** §34.89 boolean mode: the owner-specified synthetic options — the checked
+/** Boolean mode: the owner-specified synthetic options — the checked
  *  circle (green) for true, the hollow circle (gray) for false. The option
  *  ids are the JSON boolean spelled out; writes translate back. */
 const BOOLEAN_TRUE_OPTION: SelectionOption = {
@@ -117,7 +117,7 @@ export function PropertyIconButton({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
-  // Dismissal (§34.67): Escape from outside + pointer-down outside; the
+  // Dismissal: Escape from outside + pointer-down outside; the
   // popover root owns an interior Escape.
   usePopupDismissal({
     popupRef: popoverRef,

@@ -150,7 +150,7 @@ describe("ingest validation (WIRE error shapes)", () => {
     expect(res.json().error.code).toBe("validation_failed");
   });
 
-  it("lets the M3 encrypted slot pass through unvalidated", async () => {
+  it("lets the encrypted slot pass through unvalidated", async () => {
     server = await makeTestServer();
     const env = testEnvelope({ opType: "object.create", payload: { $e: { iv: "x", ct: "y" } } });
     const res = await ingest(server, [env]);

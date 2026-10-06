@@ -289,7 +289,7 @@
   color: var(--color-on-accent);
 }
 
-/* §34.19 broken-link heal: the mention's target resolves to no node — the
+/* Broken-link heal: the mention's target resolves to no node — the
    row offers creating the page at that exact id (mention heals in place). */
 .link-edit-modal__broken {
   display: flex;
@@ -308,7 +308,7 @@
   min-width: 0;
 }
 
-/* PG1 schema-at-capture (§34.32): the verb field's create-and-bind row —
+/* Schema-at-capture: the verb field's create-and-bind row —
    the create-flow sibling of the broken-link row above. An exact schema-name
    hit instead notes the mark saves bound to that property. */
 .link-edit-modal__verb-bind {

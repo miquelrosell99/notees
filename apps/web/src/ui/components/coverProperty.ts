@@ -1,12 +1,12 @@
 /**
- * Cover property self-heal (§34.27 L2) — the `cover` system property exists
+ * Cover property self-heal — the `cover` system property exists
  * in the seed manifest (SYSTEM_PROPERTY_UUIDS.cover) but nothing authors it:
- * the server seed emits SYSTEM_PROPERTY_SPECS only, and the v1 migration is
+ * the server seed emits SYSTEM_PROPERTY_SPECS only, and the migration import is
  * the only other writer. A fresh workspace therefore has no cover schema and
  * no surface could ever set one — the page banner would be dead chrome.
  *
- * Following the ensureTaskFamily precedent (§34.28 #2): author the schema
- * idempotently at the reserved id (type `image`, the v1 mapping). A complete
+ * Following the ensureTaskFamily precedent: author the schema
+ * idempotently at the reserved id (type `image`, the designed mapping). A complete
  * no-op once present. Safe under both WorkspaceClient and WorkerClient —
  * it composes only the shared write surface (createPropertySchema) and sync
  * reads.
@@ -15,9 +15,9 @@
  * shape object/date property values carry); for a cover the target is an
  * asset-classed node whose bytes render through `assetImageUrl`
  * (views/assetThumbs.ts). This is the first real renderer of the `image`
- * property type (§34.32 PG14's zombie row).
+ * property type (the image type's long-empty schema row).
  *
- * §34.74 (owner directive 2026-10-04): the dedicated `cover` system class
+ * (owner directive 2026-10-04): the dedicated `cover` system class
  * is DROPPED — it duplicated the property's meaning. A cover is an ordinary
  * ASSET-classed node; the property value is the only authority and the
  * card-view "Cover" badge derives from it (isCoverAsset below).
@@ -55,7 +55,7 @@ export function coverPropertyPresent(
  * Author the cover family when missing (idempotent): the image-typed cover
  * schema (plus the asset/source class roots on workspaces that do not carry
  * the seed rows yet — the meetingFamily ensure pattern). No cover CLASS
- * (§34.74 — withdrawn the day it shipped; covers are plain asset-classed
+ * (withdrawn the day it shipped; covers are plain asset-classed
  * nodes, the property value is the authority) and NO source binding
  * (2026-10-05 owner ruling — a cover makes no sense on sources).
  */
@@ -94,8 +94,8 @@ export function coverAssetIdOf(
 }
 
 /**
- * True when the node COULD carry a cover. v1's cover was a GLOBAL property
- * (any page) — §34.59-era read it as the source binding only, hiding the
+ * True when the node COULD carry a cover. The original cover was a GLOBAL property
+ * (any page) — the original read treated it as the source binding only, hiding the
  * cover from every other page (owner bug 2026-10-04: "I don't see the cover
  * element in page view"). The honest global rule: once the cover schema
  * exists, ANY document-chrome node can carry the value — authored values
@@ -155,7 +155,7 @@ export async function clearNodeCover(client: AnyClient, pageId: string): Promise
 }
 
 /**
- * §34.74 — the card-view "Cover" badge, DERIVED (the retired cover class
+ * The card-view "Cover" badge, DERIVED (the retired cover class
  * used to carry this identity): an asset wears the badge when any live
  * node's cover property points at it. The property value is the authority;
  * the badge follows it with no class to keep in sync.

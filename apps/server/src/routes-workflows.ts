@@ -3,7 +3,7 @@
  * "when X on nodes matching Y, do Z" rules + the append-only run audit.
  *
  * AuthZ (the shares idiom): reading is any authenticated principal — the
- * object API v1 is default-workspace scoped, so every workspace member reads
+ * object API is default-workspace scoped, so every workspace member reads
  * rules. Writing is owner/admin only: the operator key, an administrator
  * account, or the owner membership role on the default workspace. Scoped API
  * keys authenticate as their user; the user must still clear the gate.
@@ -42,7 +42,7 @@ import {
 
 /**
  * Read gate: any authenticated principal (operator key, session, user API
- * key) — the v1 object-authz scope is the default workspace.
+ * key) — the object-authz scope is the default workspace.
  */
 function requireWorkflowReader(ctx: ServerContext, request: FastifyRequest): void {
   if (resolvePrincipal(ctx, request) === null) {

@@ -1,9 +1,9 @@
 /**
- * TemplatesSection — the class's assigned templates (§34.25 T3) as a card
+ * TemplatesSection — the class's assigned templates as a card
  * row: one compact card per bound template (icon + name, hover-reveal × to
  * unbind, click opens the template), plus the "＋ Bind template" affordance
  * opening the template-class-filtered NodeSelector (the ONE class-filtered
- * surface; instantiation surfaces stay unfiltered per the D1 amendment).
+ * surface; instantiation surfaces stay unfiltered per the amendment ruling).
  * Expanded when empty (invites setup), collapsed once bound.
  *
  * T4 additions: per-card "Apply to node…" (the apply-to-existing gesture —

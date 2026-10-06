@@ -1,16 +1,16 @@
 /**
- * Content-addressed asset storage (v1 app/features/assets port):
+ * Content-addressed asset storage (a port of app/features/assets):
  *  - POST   /api/assets         multipart upload; magic-byte sniffing
  *                                  (jpeg/png/webp/pdf/epub/audio); size caps
- *                                  (50MB media / 100MB documents, v1 caps);
- *                                  sha256; bytes at
+ *                                  (50MB media / 100MB documents, the original
+ *                                  caps); sha256; bytes at
  *                                  <dataDir>/workspaces/<ws>/assets/<hash[:4]>/<hash>;
  *                                  emits asset.attach when an objectId is given.
  *  - GET    /api/assets/:id     auth; Range requests supported (206).
  *  - GET    /api/assets/:id/info
  *
  * The id in the API is an asset uuid; bytes are content-addressed by hash,
- * so identical uploads dedupe to one file with multiple refs (v1 asset_ref).
+ * so identical uploads dedupe to one file with multiple refs (asset_ref).
  */
 
 import { createHash } from "node:crypto";
@@ -39,7 +39,7 @@ function ascii(bytes: Buffer, offset: number, length: number): string | null {
   return bytes.subarray(offset, offset + length).toString("latin1");
 }
 
-/** Magic-byte sniffing (v1 app/features/assets/utils.py signature table). */
+/** Magic-byte sniffing (app/features/assets/utils.py signature table). */
 export function sniffAssetType(bytes: Buffer): SniffResult | null {
   if (matchesAt(bytes, 0, [0xff, 0xd8, 0xff])) return { mimeType: "image/jpeg", category: "media" };
   if (matchesAt(bytes, 0, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) {
@@ -180,11 +180,11 @@ export function registerAssetRoutes(app: FastifyInstance, ctx: ServerContext): v
         // Fail loud, never half-attach: the CAS bytes are already stored, but
         // an unsaved attach envelope leaves the node without its node_asset
         // row and the UI without bytes (observed 2026-10-04: 801 of 1,351
-        // bulk uploads returned 201 with the attach silently unsaved —
-        // registered in the plan §34.73). The objects route's empty-save
+        // bulk uploads returned 201 with the attach silently unsaved). The
+        // objects route's empty-save
         // analog answers 409; here the 500 says the write SHOULD have
         // landed (its own taxonomy code — `internal` is the handler
-        // fallback only, §34.74).
+        // fallback only).
         throw new AppError(500, "attach_failed", `asset.attach for ${assetId} was not saved to the log`);
       }
       attachedTo = objectId;

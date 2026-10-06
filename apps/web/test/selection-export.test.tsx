@@ -1,5 +1,5 @@
 /**
- * Selection export beyond tables (§34.69 — the §34.60 follow-up): flat
+ * Selection export beyond tables: flat
  * cards and kanban collections gain the table's selection machinery (a
  * per-card checkbox, session state) and the same "Export selected…"
  * affordance (the ExportPageModal batch path over the checked ids). The
@@ -126,7 +126,7 @@ async function makeItems(client: WorkspaceClient, names: string[]): Promise<Node
   return items;
 }
 
-describe("table CSV — the optional selected-rows scope (§34.69)", () => {
+describe("table CSV — the optional selected-rows scope", () => {
   it("Export selected CSV downloads just the checked rows; Export CSV stays whole-view", async () => {
     const client = await seedClient();
     const items = await makeItems(client, ["Alpha", "Beta", "Gamma"]);
@@ -152,7 +152,7 @@ describe("table CSV — the optional selected-rows scope (§34.69)", () => {
   });
 });
 
-describe("cards selection export (§34.69)", () => {
+describe("cards selection export", () => {
   it("card checkboxes accumulate a session selection and Export selected… opens the batch modal over the checked ids", async () => {
     const client = await seedClient();
     const items = await makeItems(client, ["Alpha", "Beta", "Gamma"]);
@@ -189,7 +189,7 @@ describe("cards selection export (§34.69)", () => {
   });
 });
 
-describe("kanban selection export (§34.69)", () => {
+describe("kanban selection export", () => {
   it("board cards check + export through the same affordance", async () => {
     const client = await seedClient();
     const statusId = await client.createPropertySchema({

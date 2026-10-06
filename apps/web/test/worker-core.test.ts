@@ -206,7 +206,7 @@ describe("WorkerCore OPFS persistence", () => {
   });
 });
 
-describe("notification coalescing (§34.114)", () => {
+describe("notification coalescing", () => {
   // The coalescer is leading+trailing with a re-armed window: after ANY
   // emission the window stays open one more interval, so continuous traffic
   // caps at one emission per window and a notify arriving mid-window merges
@@ -329,7 +329,7 @@ describe("notification coalescing (§34.114)", () => {
   });
 });
 
-describe("multiRead (§34.114)", () => {
+describe("multiRead", () => {
   it("resolves cached-read keys in one batch and refuses write methods", async () => {
     const core = await createCore({
       opfs: createMemoryOpfs().opfs,

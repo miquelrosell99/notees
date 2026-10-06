@@ -1,6 +1,5 @@
 /**
- * colorGroups.ts — QueryAST color groups (the parked §34.80 follow-up, the
- * v1 GraphGroupModal/evaluateQueryAST design): each group is a query in the
+ * colorGroups.ts — QueryAST color groups: each group is a query in the
  * text DSL (`class:book prop:read:` …) plus a color; nodes matching a group
  * render in the group's color. First match wins; a node with no group keeps
  * its own color. Evaluation rides the client's own query runner and the
@@ -16,7 +15,7 @@ import type { WorkspaceClient } from "@/core/workspace-client.js";
 export interface GraphColorGroup {
   id: string;
   label: string;
-  /** Preset token or #RRGGBB (the §34.43 grammar). */
+  /** Preset token or #RRGGBB. */
   color: string;
   /** The text DSL query selecting the group's nodes. */
   query: string;

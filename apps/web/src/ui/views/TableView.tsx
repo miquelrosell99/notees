@@ -1,5 +1,5 @@
 /**
- * TableView — the v1 table mode port, extended:
+ * TableView — the table mode, extended:
  *
  * - Columns: Name (fixed) + Classes/Created + property columns resolved by
  *   the container; a "Columns" panel toggles built-ins and adds/removes any
@@ -7,25 +7,25 @@
  * - Sort: per-column header click sets a single quick sort; the "Sort"
  *   panel manages the full multi-column SortSpec list (add/remove,
  *   direction toggle, priority reorder).
- * - Rows: windowed (§34.70 — the shared useWindowed convention: "Show more
+ * - Rows: windowed (the shared useWindowed convention: "Show more
  *   (N remaining)" at the list's end, the window resets on every sort
  *   change); row checkboxes with a tri-state header box when `selectable`
  *   (default on) — selection is session state. The header box selects the
  *   LOADED window (labeled so); exports and counts always read the full set.
  * - Cells: boolean + select edit inline; text/url/email and number/integer
  *   commit on blur/Enter (empty unsets); date cells ride the shared
- *   DateSlotControl (the zoom picker, §34.32 PG17) writing a day-node
+ *   DateSlotControl (the zoom picker) writing a day-node
  *   reference (ensureDateChain); node cells open the anchored NodeSelector.
  *   Multi-value properties stay read-only.
  * - Name cell: row click opens, shift+click peeks.
- * - CSV export (§34.59, extended §34.69): the toolbar's "Export CSV"
+ * - CSV export: the toolbar's "Export CSV"
  *   downloads the CURRENT view — the visible columns × the full sorted
  *   result set (the window is display-only, never an export cut) — through
  *   @notees/export's renderCsv (RFC-4180 quoting + UTF-8 BOM for Excel), and
  *   a live selection additionally offers "Export selected CSV" — the same
  *   columns scoped to exactly the checked rows. A selection also offers
  *   "Export selected…": the export modal's batch path over just the checked
- *   row ids (the §34.24 parked row "selection-scoped export").
+ *   row ids (the parked "selection-scoped export").
  * - Excel export + import (issue #9): "Export Excel" writes the same view
  *   as a minimal .xlsx (a leading uuid column then the visible labels, typed
  *   number cells) so the sheet round-trips through "Import table…", which
@@ -60,7 +60,7 @@ import type {
 } from "./types.js";
 import "./TableView.css";
 
-/** Rows per window (the v1 WINDOW_SIZE pattern). */
+/** Rows per window. */
 const ROW_WINDOW = 100;
 
 const DEFAULT_COLUMNS: TableColumn[] = [
@@ -332,7 +332,7 @@ function DateCell({ row, schemaId, props, schemaName }: { row: TableRow; schemaI
   );
 }
 
-/** The v1 open-arrow — navigates to a node (row, link target, day page). */
+/** The open-arrow — navigates to a node (row, link target, day page). */
 function OpenArrow({ label, onOpen }: { label: string; onOpen: () => void }) {
   return (
     <button
@@ -352,7 +352,7 @@ function OpenArrow({ label, onOpen }: { label: string; onOpen: () => void }) {
 
 /** Name cell: click enters inline edit for simple titles (single text token);
     rich content keeps click-to-open (editing flattens it — never silently).
-    The v1 open-arrow always navigates. */
+    The open-arrow always navigates. */
 function NameCell({
   node,
   icon,
@@ -529,7 +529,7 @@ function PropertyCell({ row, column, props }: { row: TableRow; column: TableColu
     return <NodeCell row={row} schemaId={schemaId} props={props} schemaName={schema.name} />;
   }
 
-  // §34.32 PG14: url/email values render as links (mailto: for email; a url
+  // Url/email values render as links (mailto: for email; a url
   // value keeps whatever scheme the author wrote, tel: included).
   const href = propertyLinkHref(schema?.type, prop?.value);
   if (href !== null) {
@@ -675,7 +675,7 @@ export function TableView(props: NodeCollectionProps) {
     return [...rows].sort((rowA, rowB) => compareRows(client, sort, visibleColumns, rowA, rowB));
   }, [rows, sort, client, visibleColumns]);
 
-  // §34.70: the display window over the FULL sorted set — every sort change
+  // The display window over the FULL sorted set — every sort change
   // resets it (a resort re-narrows instead of inheriting a grown window).
   // The CSV export below reads `sorted`, never the window. Containers that
   // own their own pagination (query results) opt out via `windowed={false}`.
@@ -732,7 +732,7 @@ export function TableView(props: NodeCollectionProps) {
    * result set (the row window is a display convenience, never an export
    * cut). The package serializer owns quoting/escaping + the UTF-8 BOM;
    * the Blob is typed text/csv so the download carries the encoding.
-   * `rows` scopes the export (§34.69): the whole sorted set, or — from the
+   * `rows` scopes the export: the whole sorted set, or — from the
    * selection chrome — exactly the checked rows.
    */
   const handleExportCsv = (rows: readonly TableRow[], stem: string) => {

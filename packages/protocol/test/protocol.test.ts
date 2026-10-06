@@ -38,7 +38,7 @@ function loadFixtures(): FixtureFile[] {
     });
 }
 
-describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
+describe("canonical fixtures (SCHEMA.md gate)", () => {
   const fixtures = loadFixtures();
 
   it("has exactly the twenty-one required fixtures", () => {
@@ -264,7 +264,7 @@ describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
     const hlcA = tasks[0]!.hlc as { physical: number; logical: number };
     const hlcB = tasks[1]!.hlc as { physical: number; logical: number };
     expect(compareHlc(hlcA, hlcB)).toBeLessThan(0);
-    // The core families (owner reshape §34.55): a single events disable…
+    // The core families (owner reshape): a single events disable…
     const events = fixture.envelopes.filter(
       (env) => (env.payload as { feature: string }).feature === "events",
     );
@@ -443,7 +443,7 @@ describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
         active: "yes",
       }).success,
     ).toBe(false);
-    // §34.90: display moved OFF the binding — it is a retired key there,
+    // Display moved OFF the binding — it is a retired key there,
     // rejected by the strict schema like nodeType.
     expect(
       payloadSchemaFor("class.property.set")!.safeParse({
@@ -482,7 +482,7 @@ describe("canonical fixtures (SCHEMA.md / 00-INDEX gate)", () => {
         display: "hover",
       }).success,
     ).toBe(false);
-    // The fixture's options carry the §34.89 icon in the §34.43 color grammar.
+    // The fixture's options carry the icon in the color grammar.
     const create = fixture.envelopes.find((env) => env.opType === "propertySchema.create")!;
     expect((create.payload as { options: Array<Record<string, unknown>> }).options[0]).toEqual({
       id: "opt-a",
@@ -580,7 +580,7 @@ describe("envelope v3", () => {
     expect(updateParsed.success).toBe(false);
   });
 
-  it("accepts the M3 encryption slot without interpreting it", () => {
+  it("accepts the encryption slot without interpreting it", () => {
     const env = newEnvelope({
       workspaceId: "0192a000-0000-7000-8000-000000000001",
       actorId: "0192a000-0000-7000-8000-000000000002",

@@ -410,7 +410,7 @@
   transition: background-color var(--motion-duration-short) var(--motion-easing-standard), border-color var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-/* --- Features tab: the core class families (§34.35/§34.55) ----------------
+/* --- Features tab: the core class families --------------------------------
    One row per family: the class's effective icon (tinted by its effective
    color when set), its live title, the one-line powers description, and the
    inert ToggleSwitch. */

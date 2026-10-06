@@ -50,7 +50,7 @@
   flex-shrink: 0;
 }
 
-/* §34.69 — the journal cluster: undo + history chevron + redo as one unit.
+/* The journal cluster: undo + history chevron + redo as one unit.
    The chevron halves the undo button's right radius so the pair reads as a
    split button. */
 .nt-topbar-undo {
@@ -149,7 +149,7 @@
   color: var(--color-on-surface-variant);
 }
 
-/* Sync dot — the indicator is a button once the client is live (§34.115):
+/* Sync dot — the indicator is a button once the client is live:
    plain button chrome, same disc states. */
 .nt-sync-dot {
   position: relative;

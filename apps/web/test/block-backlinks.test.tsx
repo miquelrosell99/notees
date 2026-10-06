@@ -1,5 +1,5 @@
 /**
- * Block-level backlink gutter tests (§34.34 BC2 — SCHEMA.md:117): a block
+ * Block-level backlink gutter tests (SCHEMA.md:117): a block
  * with backlinks shows a right-gutter toggle carrying the materialized
  * node_stats count (renders unconditionally, exempt from the lazy-loading
  * contract); toggling expands the linked-references system query scoped to

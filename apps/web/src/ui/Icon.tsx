@@ -1,9 +1,9 @@
 /**
  * Icon — renders MDI icons as inline SVGs via a shared sprite sheet, or a
  * text glyph (emoji icons) when the stored value is not an MDI name. The
- * resolver is the v1 iconDom contract: mdi-prefixed camelCase ("mdiHeart"),
+ * resolver is the iconDom contract: mdi-prefixed camelCase ("mdiHeart"),
  * "mdi-heart-outline", bare "heart-outline", JSON-wrapped {"icon": …}
- * (legacy v1 rows), and anything else renders as text (emoji passthrough).
+ * (legacy rows), and anything else renders as text (emoji passthrough).
  */
 import React from 'react';
 import { resolveIconSize } from './iconSizes.js';
@@ -42,7 +42,7 @@ function resolveIcon(path: string): ResolvedIcon {
   let value = path.trim();
   if (value === "") return null;
 
-  // JSON-encoded icon field (legacy v1 rows): {"icon":"mdiHeart", …}.
+  // JSON-encoded icon field (legacy rows): {"icon":"mdiHeart", …}.
   try {
     const parsed: unknown = JSON.parse(value);
     if (typeof parsed === "object" && parsed !== null) {
@@ -61,7 +61,7 @@ function resolveIcon(path: string): ResolvedIcon {
   if (/^mdi[A-Z]/.test(value)) {
     return { kind: "mdi", name: camelToKebab(value) };
   }
-  // Emoji / text glyph passthrough (v1 contract).
+  // Emoji / text glyph passthrough (the original contract).
   return { kind: "text", glyph: value };
 }
 

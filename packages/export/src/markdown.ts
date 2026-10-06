@@ -1,7 +1,7 @@
 /**
  * Content tokens → Markdown projection (SCHEMA.md owed work "Content
- * serialization for export", §34.12 Tier 2 conventions), hardened per the
- * export-redesign work record (§34.24 E2).
+ * serialization for export", Tier 2 conventions), hardened per the
+ * export-redesign pass.
  *
  * The op log is the truth; this is a lossy, human-facing projection:
  * UUID-or-slug filenames, YAML frontmatter (name/isClass/presentAsMain/
@@ -43,8 +43,8 @@
  * embed-style cycles and an explicit `maxDepth` hit render as `![[uuid]]`
  * bullets. Whiteboards: `whiteboardMode: "inline"` (single-file default)
  * keeps the fenced ```json block; `"sidecar"` emits a file link that
- * `bundleMarkdown` backs with a `<uuid>.whiteboard.json` sidecar (§34.12
- * "whiteboards → sidecar JSON + file link").
+ * `bundleMarkdown` backs with a `<uuid>.whiteboard.json` sidecar (the
+ * "whiteboards → sidecar JSON + file link" convention).
  *
  * Token → Markdown mapping:
  *
@@ -57,18 +57,18 @@
  *  | mention        | `[[name]]` — displayText ?? ctx.nameOf(target) ?? raw id    |
  *  |                |   (broken targets render the id; SCHEMA Fork 4); when       |
  *  |                |   ctx.linkTarget resolves the target's exported file,       |
- *  |                |   `[name](<path>)` instead (multi-file/zip delivery, E5)    |
+ *  |                |   `[name](<path>)` instead (multi-file/zip delivery)    |
  *  | class_chip     | `#name` — displayText ?? ctx.nameOf(class) ?? raw id;  |
  *  |                |   whitespace collapsed to `-`, leading `#` stripped    |
  *  | typed_link     | `**verb** text (locator)` — verb string, or bound      |
  *  |                |   propertySchemaId resolved via ctx.nameOf; locator   |
  *  |                |   from metadata.locator, plain parentheses            |
  *  | asset_ref      | `![asset](<uuid>)`; when ctx.assetPath resolves the    |
- *  |                |   bundle-relative bytes path, `![asset](<path>)` (E5)  |
+ *  |                |   bundle-relative bytes path, `![asset](<path>)`        |
  *  | embed_ref      | `![[uuid]]`, or the target's rendered content when    |
  *  |                |   includeEmbedded resolves it via ctx.nodeOf; when    |
  *  |                |   unresolved and ctx.linkTarget knows the file,       |
- *  |                |   `[name](<path>)` (E5)                               |
+ *  |                |   `[name](<path>)`                                    |
  *  | external_link  | `[text](href)` — href bare when safe, else `<…>`       |
  *  | math           | `$expression$`                                        |
  *  | quote          | `> ` prefix per rendered line (children inline)        |
@@ -78,7 +78,7 @@
  *  | outline cut    | `- ![[uuid]]` — cycle or explicit maxDepth (visible)   |
  *
  * Block-scale tokens (asset/embed/query/whiteboard) always render as their
- * own paragraph (kept M1 simplification). The package is pure/IO-free:
+ * own paragraph (a kept simplification). The package is pure/IO-free:
  * name, node, and child resolution are injected via ExportContext.
  */
 
@@ -251,7 +251,7 @@ function renderFrontmatter(document: ExportDocument, options: ResolvedExportOpti
       if (values.length === 1) {
         const only = values[0];
         if (only === undefined) continue;
-        // §34.32 PG15 per-type branches: date_range rows emit a start/end map,
+        // PG15 per-type branches: date_range rows emit a start/end map,
         // multi-value arrays emit one YAML item per element (labels, not raw
         // JSON); everything else stays a scalar.
         const ends = rangeEnds(only);

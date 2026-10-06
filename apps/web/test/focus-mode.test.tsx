@@ -7,7 +7,7 @@
  *    pills, header icon, tags row, cover, properties side panel, system
  *    sections, footer — while the title row stays (the landmark that says
  *    where you are) and text editing still works;
- *  - BlockRow hides its backlink gutter + panel and the §34.90 property
+ *  - BlockRow hides its backlink gutter + panel and the property
  *    icon buttons;
  *  - the command palette offers a "Focus mode" command that flips the
  *    setting, and the App-level chords (Ctrl/Cmd+Alt+F toggle, Esc exit)

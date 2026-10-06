@@ -1,5 +1,5 @@
 /**
- * textCarrier.ts — the text-property carrier contract (§34.80).
+ * textCarrier.ts — the text-property carrier contract.
  *
  * A text property's value is node-backed: the value references a carrier
  * block (a child of the node carrying the property). The metadata panel

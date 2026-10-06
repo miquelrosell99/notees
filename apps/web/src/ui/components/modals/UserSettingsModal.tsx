@@ -9,7 +9,7 @@
  * - API keys talk to the real /api-keys endpoints through ApiKeysSection
  *   (the existing SettingsPanel section component);
  * - sign-out calls the real /auth/logout flow provided by the shell;
- * - controls with no v2 backend (profile edit, password change, 2FA,
+ * - controls with no backend (profile edit, password change, 2FA,
  *   encryption) are honestly inert with a "not available in this build" note;
  * - remaining preferences persist device-local under `notees.settings.*`.
  */

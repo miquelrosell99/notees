@@ -35,13 +35,13 @@ export interface OutlinerClient {
   updateObject(id: string, fields: UpdateObjectInput): Promise<void>;
   deleteObject(id: string, opts?: DeleteObjectOptions): Promise<void>;
   /**
-   * §34.64 — the session undo journal (in-memory, per tab): availability +
+   * The session undo journal (in-memory, per tab): availability +
    * labels, undo, redo. Every write above is journaled as it applies; undo
    * composes existing ops through the same write path. View-level surfaces
    * (menus, chords) reach the journal here without app-shell plumbing.
    */
   undoState(): Promise<UndoUiState>;
-  /** §34.69 — the browsable history (labels + timestamps + affected ids). */
+  /** The browsable history (labels + timestamps + affected ids). */
   undoHistory(): Promise<UndoHistoryEntry[]>;
   undo(): Promise<boolean>;
   redo(): Promise<boolean>;
@@ -102,7 +102,7 @@ export interface OutlinerClient {
   unsetProperty(objectId: string, propertySchemaId: string, idx?: number): Promise<void>;
   /**
    * Patch a property schema's metadata (`propertySchema.update`) — the
-   * task-cycle chord's family ensure rides the §34.89 status-restyle pass.
+   * task-cycle chord's family ensure rides the status-restyle pass.
    */
   updatePropertySchema(
     propertySchemaId: string,
@@ -149,7 +149,7 @@ export interface OutlinerReader {
   roots(): ClientNode[];
   listClasses(): ClientNode[];
   /**
-   * The narrow id → icon read behind the UI icon maps (§34.92) — prefer this
+   * The narrow id → icon read behind the UI icon maps — prefer this
    * over `classIconMap(client.listClasses())`; both client classes satisfy it.
    */
   classIcons(): ReadonlyMap<string, string | null>;
@@ -207,7 +207,7 @@ export interface OutlinerContextValue {
    */
   focusMode: boolean;
   /**
-   * §34.19 block multi-selection — session-local display state (never an
+   * Block multi-selection — session-local display state (never an
    * op): the selected block-id set plus the anchor the range gestures
    * extend from. `selectionEnabled` is a view-level opt-in (the main page
    * body enables it; embedded feeds and read-only projections don't), so a
@@ -236,7 +236,7 @@ export interface OutlinerContextValue {
     displayName(id: string): string | null;
   };
   /**
-   * §34.25 T3: the template family's idempotent self-heal (template class
+   * The template family's idempotent self-heal (template class
    * node + has-template/generated-from schemas), invoked by the slash
    * template flow before instantiation. The full client lives at the view
    * level (PageView), which provides the seam; shells without it skip the

@@ -1,16 +1,16 @@
 /**
- * Page layouts §34.27 L1–L4 tests, over the in-process WorkspaceClient +
+ * Page layouts tests, over the in-process WorkspaceClient +
  * MemoryRelay (jsdom):
  *
- *  - L1 view-mode persistence: deviceSettings read/write round-trips, the
+ *  - View-mode persistence: deviceSettings read/write round-trips, the
  *    page blocks triad + hub modes survive remounts, stale values fall back
  *    to surface defaults, the card cover layout persists per device.
- *  - L2 page banner: renders above the title from the `cover` property,
+ *  - Page banner: renders above the title from the `cover` property,
  *    absent without one (and on whiteboard pages), collapse persists
  *    device-locally.
- *  - L3 sidebar context sections: TOC derivation (main children + the
+ *  - Sidebar context sections: TOC derivation (main children + the
  *    heading heuristic + one nesting level), the rail sections' hide rules.
- *  - L4 chrome: the page footer word count + Created/Updated day links,
+ *  - Page chrome: the page footer word count + Created/Updated day links,
  *    the unlinked-mentions promote/ignore pair.
  */
 
@@ -196,7 +196,7 @@ describe("L2 page banner", () => {
     return pageId;
   }
 
-  it("renders the cover as the right-side header card (v1); the empty element shows collapsed", async () => {
+  it("renders the cover as the right-side header card; the empty element shows collapsed", async () => {
     const client = await seedClient();
     vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,BBBB");
     const coveredId = await seedCoveredPage(client);
@@ -217,7 +217,7 @@ describe("L2 page banner", () => {
     expect(screen.queryByRole("button", { name: "Collapse cover" })).toBeNull();
   });
 
-  it("collapse toggles the card away; the toggle is session-local (v1: no persistence)", async () => {
+  it("collapse toggles the card away; the toggle is session-local (no persistence)", async () => {
     const client = await seedClient();
     vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,CCCC");
     const pageId = await seedCoveredPage(client);
@@ -228,7 +228,7 @@ describe("L2 page banner", () => {
     expect(screen.queryByRole("button", { name: "Collapse cover" })).toBeNull();
     unmount();
 
-    // v1: the collapse derives from whether a cover is SET — remounting
+    // The collapse derives from whether a cover is SET — remounting
     // with a cover re-expands (no per-node persistence).
     render(<PageView client={client} pageId={pageId} />);
     expect(await screen.findByRole("button", { name: "Collapse cover" })).not.toBeNull();

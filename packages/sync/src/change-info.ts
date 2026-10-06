@@ -3,7 +3,7 @@
  * SyncEngine (which sees applied batches) and the embedding client (which
  * expands ancestors and notifies subscribers).
  *
- * The web client's read cache (§34.114) refetches cached reads on every
+ * The web client's read cache refetches cached reads on every
  * worker notification; carrying WHAT changed lets it refetch only impacted
  * keys instead of the whole cache. Two axes are enough:
  *

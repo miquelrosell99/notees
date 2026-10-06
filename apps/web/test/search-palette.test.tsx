@@ -1,19 +1,19 @@
 /**
- * Search & command palette wave (§34.30 M4/M6/M7/M8 + §34.28 #12) — jsdom
+ * Search & command palette wave — jsdom
  * over the in-process WorkspaceClient:
  *
- *  - CommandPalette sections (M6): Recent (device-local recents, empty query
- *    only), Date Pages (§34.28 #12), Pages, Classes, Content (M4), Commands
+ *  - CommandPalette sections: Recent (device-local recents, empty query
+ *    only), Date Pages, Pages, Classes, Content, Commands
  *    (the action registry, with the query-scoped typed create);
- *  - the Content group debounces the ranked FTS, renders M3 snippets, and
+ *  - the Content group debounces the ranked FTS, renders match snippets, and
  *    labels block hits with their containing page;
  *  - the `is_daily:` prefix scopes the palette to the Date Pages section,
  *    and formatted-date keywords ("feb 14") map onto the deterministic date
  *    chain (create-on-pick via ensureDateChain);
- *  - NodeSelector (M7): a leading `class:<name>` prefix refines candidates
+ *  - NodeSelector: a leading `class:<name>` prefix refines candidates
  *    to that class's members, and the create row answers the rest of the
  *    query carrying the refined class;
- *  - NodeSelector (M8): searchMode="blocks" lists only inline blocks, each
+ *  - NodeSelector: searchMode="blocks" lists only inline blocks, each
  *    labeled with its containing-page path.
  */
 
@@ -128,7 +128,7 @@ const typeInPalette = (text: string): void => {
   fireEvent.change(screen.getByLabelText("Command palette search"), { target: { value: text } });
 };
 
-describe("CommandPalette sections (M6 + §34.28 #12)", () => {
+describe("CommandPalette sections", () => {
   it("empty query shows the device-local Recent section and the Commands registry", async () => {
     const { client, garden } = await seedPaletteWorld();
     localStorage.setItem("notees.recents", JSON.stringify([garden]));
@@ -164,12 +164,12 @@ describe("CommandPalette sections (M6 + §34.28 #12)", () => {
     expect(created).toEqual(["Shopping List"]);
   });
 
-  it("a shell re-render with fresh callback identities does not wipe the typed query (§34.116)", async () => {
+  it("a shell re-render with fresh callback identities does not wipe the typed query", async () => {
     const { client } = await seedPaletteWorld();
     // App hands the palette fresh inline arrows every render; during a
     // background catch-up the shell re-renders constantly. The open-reset
     // effect must not re-run on callback identity churn — the query and its
-    // results survive (the post-§34.116 smoke caught the wipe live).
+    // results survive (the post-fix smoke caught the wipe live).
     const props = {
       client,
       open: true,
@@ -267,7 +267,7 @@ describe("CommandPalette Random section (#8)", () => {
   });
 });
 
-describe("CommandPalette Content group (M4)", () => {
+describe("CommandPalette Content group", () => {
   it("debounced ranked FTS with snippets, block hits labeled by containing page", async () => {
     const { client } = await seedPaletteWorld();
     const { opened } = renderPalette(client);
@@ -292,7 +292,7 @@ describe("CommandPalette Content group (M4)", () => {
   });
 });
 
-describe("CommandPalette date affordances (§34.28 #12)", () => {
+describe("CommandPalette date affordances", () => {
   it("formatted-date keywords offer the parsed date page (created on pick)", async () => {
     const { client } = await seedPaletteWorld();
     const { opened } = renderPalette(client);
@@ -330,7 +330,7 @@ describe("CommandPalette date affordances (§34.28 #12)", () => {
   });
 });
 
-describe("NodeSelector class refine (M7)", () => {
+describe("NodeSelector class refine", () => {
   it("a class: prefix narrows candidates to the class's members", async () => {
     const client = await seedClient();
     const fictionId = await createTitledClass(client, "Fiction");
@@ -367,7 +367,7 @@ describe("NodeSelector class refine (M7)", () => {
   });
 });
 
-describe("NodeSelector block mode (M8)", () => {
+describe("NodeSelector block mode", () => {
   it("blocks mode lists only inline blocks, labeled by their containing page", async () => {
     const client = await seedClient();
     const notes = await client.createObject({ presentAsMain: true, name: "Notes" });
@@ -385,7 +385,7 @@ describe("NodeSelector block mode (M8)", () => {
     // The block renders; the page with the matching TITLE stays out.
     expect(await screen.findByText("quixotic block text")).not.toBeNull();
     expect(screen.queryByText("Quixotic Page")).toBeNull();
-    // The containing-page label (the M8 breadcrumb).
+    // The containing-page breadcrumb.
     const crumbs = container.querySelector(".node-result-item__crumbs");
     expect(crumbs?.textContent).toBe("Notes");
   });

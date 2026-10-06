@@ -1,6 +1,6 @@
 /**
- * Relay-ingest validation (WIRE.md §1): full envelope schema check plus the
- * M1 op-registry payload shapes. The M3 E2EE slot ({"$e": …}) passes through
+ * Relay-ingest validation (WIRE.md): full envelope schema check plus the
+ * op-registry payload shapes. The E2EE slot ({"$e": …}) passes through
  * unvalidated by design — payloads are opaque to the relay except that slot.
  */
 

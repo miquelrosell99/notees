@@ -1,7 +1,7 @@
 /**
- * §34.33 developer-API behavior tests: the agent-safety batch (AG5 meta /
+ * Developer-API behavior tests: the agent-safety batch (meta /
  * operations feed / Idempotency-Key / baseRevision) and scoped API keys
- * (AG3) end to end over HTTP.
+ * end to end over HTTP.
  */
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -98,7 +98,7 @@ describe("GET /api/operations", () => {
   });
 });
 
-describe("Idempotency-Key (AG5)", () => {
+describe("Idempotency-Key", () => {
   it("replays the original response without a second write", async () => {
     server = await makeTestServer();
     const body = { name: "idem-page" };
@@ -155,7 +155,7 @@ describe("Idempotency-Key (AG5)", () => {
   });
 });
 
-describe("baseRevision (AG5)", () => {
+describe("baseRevision", () => {
   it("409s a stale base and accepts the current one", async () => {
     server = await makeTestServer();
     const created = await server.app.inject({
@@ -214,9 +214,9 @@ describe("baseRevision (AG5)", () => {
     expect(response.statusCode).toBe(422);
   });
 
-  it("taken caller-supplied id fails loud with 409 (AB3 owner ruling 2026-10-04)", async () => {
-    // §34.33 AB3 resolution (b): the pre-submit existence check makes the
-    // v1-parity "a taken id fails loud" contract real. The id-LESS path
+  it("taken caller-supplied id fails loud with 409 (owner ruling 2026-10-04)", async () => {
+    // The pre-submit existence check makes the
+    // "a taken id fails loud" contract real. The id-LESS path
     // cannot conflict (server-stamped UUIDv7; retried submits ride the
     // Idempotency-Key replay), so 409 is pinned only for caller-chosen ids.
     server = await makeTestServer();
@@ -258,7 +258,7 @@ describe("baseRevision (AG5)", () => {
   });
 });
 
-describe("scoped API keys (AG3)", () => {
+describe("scoped API keys", () => {
   async function setupAndKey(scopes?: unknown): Promise<{ session: string; token: string }> {
     const setup = await server!.app.inject({
       method: "POST",

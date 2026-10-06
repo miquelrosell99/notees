@@ -1,6 +1,6 @@
 /**
- * scripts/remap-reunion-evento.mts tests (§34.36 + owner reshape directive)
- * — the remap core (title→target matching, plan building, dry-run/apply)
+ * scripts/remap-reunion-evento.mts tests (owner reshape directive)
+ * — the remap core (title→target matching, plan assembly, dry-run/apply)
  * driven against the in-process client harness (WorkspaceClient over a
  * MemoryRelay), through the same surface the script's HTTP adapter
  * implements. Safety properties under test: dry run writes NOTHING; --apply

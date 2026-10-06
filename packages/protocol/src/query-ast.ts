@@ -1,6 +1,6 @@
 /**
- * QueryAST v1 — the canonical, serializable query model for Notees v2
- * (port of v1 `app/domain/entities/query_ast.py` concepts, adapted to the v2
+ * QueryAST v1 — the canonical, serializable query model for Notees
+ * (port of `app/domain/entities/query_ast.py` concepts, adapted to the
  * derived schema: the Revision-11 booleans (`is_class`, `present_as_main`)
  * replace node_type/kind, edge replaces node_link as the
  * reference index, class_hierarchy carries the transitive extends closure).
@@ -11,14 +11,14 @@
  * unchanged (`packages/query/src/ast.ts`), so existing
  * `import { … } from "@notees/query"` paths keep working.
  *
- * Design laws (carried over from v1):
+ * Design laws (carried over):
  *  - the AST is the source of truth — UI and SQL are projections of it;
  *  - the AST is versioned (`version: 1`) and evolves by versioned extension —
  *    unknown condition types or newer versions FAIL LOUD at parse time
  *    (`queryAstSchema` is strict; the protocol content token wraps it in a
  *    loose union so foreign blocks still apply — see content-mark);
  *  - scopes and conditions carry explicit ids; there are no editor-relative
- *    ID placeholders in v1 ("this page" is baked at write time by the
+ *    ID placeholders ("this page" is baked at write time by the
  *    builder). `{today}`-style DATE placeholders ({today}/{this_week}/
  *    {this_month}/{this_year}) are ordinary strings in timestamp/value
  *    positions and resolve at compile time against the run clock
@@ -49,7 +49,7 @@ export const scopeSchema = z.discriminatedUnion("type", [
 // --- conditions ------------------------------------------------------------------
 
 /**
- * eq/neq/contains/exists are the v1 subset; gt/gte/lt/lte are the v1
+ * eq/neq/contains/exists are the original subset; gt/gte/lt/lte are the
  * GREATER_THAN / LESS_THAN family. Comparison runs over the effective/authored
  * scalar through json_extract(value, '$'): numeric JSON values compare
  * numerically, everything else (ISO-8601 dates in particular) lexicographically.

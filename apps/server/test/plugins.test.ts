@@ -1,5 +1,5 @@
 /**
- * Plugin registry tests (§34.59): the inert manifest registry — install
+ * Plugin registry tests: the inert manifest registry — install
  * (strict manifest validation, idempotent on id+version), list, enable
  * toggle, uninstall — under the owner/admin gate (operator key, admin
  * session, admin-scoped key; non-admin and wrong-scope denials), plus the
@@ -52,7 +52,7 @@ const MINIMAL_MANIFEST = {
   capabilities: {},
 };
 
-describe("plugin registry (§34.59)", () => {
+describe("plugin registry", () => {
   it("rejects unauthenticated calls on every route", async () => {
     server = await makeTestServer();
     const responses = [

@@ -1,6 +1,6 @@
 # Backups
 
-Canonical: `docs/developers/deployment.md` §6.
+Canonical: `docs/developers/deployment.md`.
 
 ## What the dataset is
 
@@ -30,8 +30,8 @@ the smoke. After restoring a pre-migration backup, see rollback.md.
 - `GET /snapshot/data?workspaceId=…` — download snapshot bytes
 - `PUT /snapshot/data` — upload
 
-The `restoreEpoch` mechanism is implemented but has **no operator route in
-M1** — plain file restore is the documented path.
+The `restoreEpoch` mechanism is implemented but has **no operator route yet**
+— plain file restore is the documented path.
 
 ## Not backups
 

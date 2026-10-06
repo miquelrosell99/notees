@@ -1,6 +1,6 @@
 /**
- * Workspace feature map (§34.35, RESHAPED per owner directive 2026-10-04,
- * §34.55) — the per-workspace feature toggles ARE the core class families:
+ * Workspace feature map (RESHAPED per owner directive 2026-10-04) — the
+ * per-workspace feature toggles ARE the core class families:
  * tasks=task, events=event, meetings=meeting, sources=source, persons=person.
  * Each family is a seeded system class with built-in product logic; the
  * extends-children ride the base class (disabling events archives meetings
@@ -49,7 +49,7 @@ export interface WorkspaceFeatureSpec {
   powers: string;
 }
 
-/** The core class families (owner directive 2026-10-04, §34.55). */
+/** The core class families (owner directive 2026-10-04). */
 export const WORKSPACE_FEATURE_MAP: Record<WorkspaceFeature, WorkspaceFeatureSpec> = {
   tasks: {
     baseClass: "task",
@@ -173,7 +173,7 @@ export function featureForManagedClass(classId: string): WorkspaceFeature | null
 }
 
 /**
- * Chrome gating (§34.55): the features whose OFF state hides a class's
+ * Chrome gating: the features whose OFF state hides a class's
  * surfaces — its own feature when it is a family base, plus the feature of
  * every family-base ANCESTOR (systemClassAncestors walk). Empty for
  * always-on/unmanaged classes. A class's chrome shows only when EVERY
@@ -234,7 +234,7 @@ export const DEPLOYABLE_SYSTEM_CLASSES: readonly SystemClassName[] = [
   "collection",
   "highlight",
   "weblink",
-  // §34.99 (#14 follow-up): the owner's list — everyday classes that were
+  // #14 follow-up: the owner's list — everyday classes that were
   // missing from the catalog; definition/idea/place/project are standalone,
   // trip extends event (calendar-bound, events-toggle cascades).
   "definition",

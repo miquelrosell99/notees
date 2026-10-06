@@ -1,12 +1,12 @@
 /**
- * ActivityLog section tests (§34.19 :1167): the workspace activity feed
+ * ActivityLog section tests: the workspace activity feed
  * renders as a collapsed system section, hides on an empty workspace (the
  * cheap active-node proxy gate), executes NO query while collapsed (the
  * normative lazy contract — runQueryAst stays silent until the first
  * expand), expands into Recently created (the workspace-wide createdAt-desc
  * query — blocks included, newest first) + Recently edited (pages/classes
  * updated after creation, with the honest coverage note), re-derives on
- * notification while expanded, and relativeTime formats the v1 convention.
+ * notification while expanded, and relativeTime formats the original convention.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -57,7 +57,7 @@ function activitySection(): HTMLElement {
 describe("relativeTime", () => {
   const now = Date.parse("2026-10-04T12:00:00Z");
 
-  it("formats the v1 convention", () => {
+  it("formats the original convention", () => {
     expect(relativeTime(null, now)).toBe("");
     expect(relativeTime("", now)).toBe("");
     expect(relativeTime("not-a-date", now)).toBe("");

@@ -1,6 +1,6 @@
 /**
  * Auto-generated list of all MDI icon names (camelCase, @mdi/js convention —
- * the v1 format the IconPicker emits). Rendered names resolve through
+ * the format the IconPicker emits). Rendered names resolve through
  * getMdiClass to the kebab sprite id. Regenerate from public/mdi-sprite.svg
  * (kebab ids → camelCase) whenever the sprite changes.
  */

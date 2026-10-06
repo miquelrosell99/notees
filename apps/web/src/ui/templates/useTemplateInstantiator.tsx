@@ -1,5 +1,5 @@
 /**
- * useTemplateInstantiator — §34.25 T4 shared instantiation flow for every
+ * useTemplateInstantiator — shared instantiation flow for every
  * "use this template" surface (the slash flow, the TemplateGallery).
  *
  * begin(templateId) runs the caller's family ensure, extracts the template's

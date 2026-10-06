@@ -1,5 +1,5 @@
 /**
- * OpenAPI contract gate (§34.33 AG4) — the drift check wired into CI as its
+ * OpenAPI contract gate — the drift check wired into CI as its
  * own job (`.github/workflows/ci.yml`, `openapi-coverage`):
  *
  *  1. Every route the Fastify app actually registers (collected via onRoute

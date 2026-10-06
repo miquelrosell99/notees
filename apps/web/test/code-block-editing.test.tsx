@@ -1,5 +1,5 @@
 /**
- * Code-block editing tests (§34.34 B3 owed editor): a block whose content IS
+ * Code-block editing tests: a block whose content IS
  * one code_block token swaps the prose contentEditable for the
  * CodeTextarea-integrated surface — typing writes the token's `text`
  * (debounced, the standard content path), the language badge stays, Esc/blur
@@ -76,7 +76,7 @@ function typeSlashCommand(editor: HTMLElement, command: string, argument = ""): 
   typeWithCaret(editor, `/${command}${argument === "" ? "" : ` ${argument}`}`);
 }
 
-describe("code_block editing surface (§34.34 B3)", () => {
+describe("code_block editing surface", () => {
   it("clicking a code block mounts the textarea with the language badge; typing writes the token's text", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Code" });

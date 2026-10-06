@@ -1,9 +1,9 @@
 /**
- * Plaintext extraction for the FTS index (v1 `derived/search.py` port,
+ * Plaintext extraction for the FTS index (port of `derived/search.py`,
  * extended per SCHEMA.md's owed FTS spec): text runs, typed-link text,
  * mention captured text, math expressions and recursive quote children come
  * from the domain excerpt helper; asset original names are joined from
- * node_asset; text-ish property values (§34.30 M5) are appended from
+ * node_asset; text-ish property values are appended from
  * property_value — a carrier block's content for node-backed text, scalar
  * strings as-is, select option labels, numbers in string form. Plaintext is
  * derived by the applier, never stored as truth.
@@ -52,7 +52,7 @@ function contentPlaintext(db: StoreDatabase, raw: string | null | undefined): st
   return parts.filter((p) => p.length > 0).join(" ");
 }
 
-/** Schema types whose values contribute searchable text (§34.30 M5). */
+/** Schema types whose values contribute searchable text. */
 const SEARCH_INDEXED_VALUE_TYPES = new Set([
   "text",
   "url",

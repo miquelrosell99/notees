@@ -95,7 +95,7 @@
   opacity: 0.85;
 }
 
-/* The unlinked-references action pair (§34.27 L4): quiet icon buttons that
+/* The unlinked-references action pair: quiet icon buttons that
    ride the reference row, revealed on hover/focus of the row. */
 .nt-ref-actions {
   display: inline-flex;
@@ -124,7 +124,7 @@
   color: var(--color-on-surface);
 }
 
-/* Bound-verb backlink badge (§34.69): the schema name the reference arrived
+/* Bound-verb backlink badge: the schema name the reference arrived
    through — a quiet pill riding the breadcrumb line of the reference row. */
 .nt-ref-verb {
   display: inline-block;

@@ -1,6 +1,6 @@
 /**
  * Relay envelope log on SQLite (better-sqlite3, one file per server:
- * <dataDir>/relay.db) — the v2 port of v1 app/relay/storage.py.
+ * <dataDir>/relay.db) — the port of app/relay/storage.py.
  *
  *  - envelope table: one row per accepted envelope. `seq` is the
  *    server-assigned ordering authority (INTEGER PRIMARY KEY AUTOINCREMENT);
@@ -8,7 +8,7 @@
  *    device_id/client are persisted alongside the spec'd columns so
  *    catch-up can return byte-faithful envelopes.
  *  - restore_epoch: per-workspace counter; a change tells clients to wipe
- *    local state and resync (backup restores bump it — M1 keeps it at 0,
+ *    local state and resync (backup restores bump it — today it stays at 0,
  *    the contract is implemented and tested).
  *  - snapshot rows + blob files under <dataDir>/snapshots/<ws>/<id>.db
  *    (serialized derived-state SQLite bytes from @notees/store).

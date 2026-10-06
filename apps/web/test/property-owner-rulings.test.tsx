@@ -8,7 +8,7 @@
  *  - PG10 aliases: ensureAliasProperty authors the seeded schema
  *    idempotently, alias values resolve by name (resolveNodeByName), and
  *    unlinked references match alias text as name-equivalents;
- *  - PG16 option colors: a select option's §34.43 color tints the pill in
+ *  - PG16 option colors: a select option's color tints the pill in
  *    the selection control, and the settings modal carries a per-option
  *    ColorButton dot;
  *  - PG3 conversion: the settings modal's Convert… runs the blessed

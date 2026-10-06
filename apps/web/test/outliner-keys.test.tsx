@@ -1,12 +1,12 @@
 /**
- * v1-level outliner key semantics (Roam/Logseq feel):
+ * Outliner key semantics (Roam/Logseq feel):
  * - Enter mid-text splits the block at the caret (head stays, tail moves to
  *   a new sibling right after).
  * - Enter at the start creates a new empty block BEFORE this one.
  * - Enter at the end of a block with children creates a new FIRST CHILD.
  * - Enter at the end (no children) creates a sibling after.
  * - Backspace at the start of text merges into the previous block when the
- *   v1 guard allows (same-parent childless / only-child into parent).
+ *   guard allows (same-parent childless / only-child into parent).
  * - Backspace on an empty block with children promotes the children into
  *   the block's place, then deletes it.
  * - Delete at the end merges a childless next sibling into this block.

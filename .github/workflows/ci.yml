@@ -22,7 +22,7 @@ jobs:
       - name: Test
         run: pnpm test
 
-  # §34.33 AG4 drift gate: the OpenAPI document must describe every route the
+  # AG4 drift gate: the OpenAPI document must describe every route the
   # server registers (and no ghosts). Runs the coverage + taxonomy tests on
   # their own so a doc-drift failure points here, not inside the full suite.
   openapi-coverage:

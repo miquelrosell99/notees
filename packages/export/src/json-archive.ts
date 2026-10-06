@@ -1,12 +1,11 @@
 /**
- * JSON archive — the §34.12 Tier-1 "JSON archive" track and the §34.24
- * parked register's "JSON archive Tier-1 backup export" row (2026-10-04):
+ * JSON archive (2026-10-04):
  * the object-graph slice as structured JSON in a versioned envelope —
  * every node with its verbatim `contentAst`, `classIds`, authored
  * `properties`, position-ordered `children`, and explicit `edges` metadata
  * mined from the content stream and property values.
  *
- * Doctrine (§34.12): export is a PROJECTION, one-way by design — this
+ * Doctrine: export is a PROJECTION, one-way by design — this
  * archive is the highest-fidelity projection (raw tokens and raw property
  * values, not display strings), the disaster-recovery / migration artifact
  * and the future re-import harness's input. It is still not the log: HLC

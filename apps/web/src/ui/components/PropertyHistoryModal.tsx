@@ -1,7 +1,7 @@
 /**
- * PropertyHistoryModal — a property value's history (§34.32 PG13; panel
+ * PropertyHistoryModal — a property value's history (panel
  * scope decided: modal). The op log is the authority and the server
- * exposes it as the GET /api/operations feed (§34.33.1); this modal pulls
+ * exposes it as the GET /api/operations feed; this modal pulls
  * the feed (paginated), filters client-side to property.set/property.unset
  * for ONE node + schema, and renders the entries newest-first (HLC order —
  * physical then logical then seq). Honest degradation: when the feed is

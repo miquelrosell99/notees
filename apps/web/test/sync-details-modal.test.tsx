@@ -1,5 +1,5 @@
 /**
- * SyncDetailsModal (§34.115): the sync indicator's details surface. Renders
+ * SyncDetailsModal: the sync indicator's details surface. Renders
  * the status snapshot, lists the conflict history (node display name,
  * classified label, timestamps), and the Resync action drives one push+pull
  * cycle through the client.
@@ -40,7 +40,7 @@ function makeClient(overrides: {
   } as unknown as AnyClient;
 }
 
-describe("SyncDetailsModal (§34.115)", () => {
+describe("SyncDetailsModal", () => {
   it("shows the status snapshot and backlog", () => {
     render(
       <SyncDetailsModal client={makeClient()} snapshot={SNAPSHOT} isOpen onClose={() => {}} />,

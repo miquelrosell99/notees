@@ -1,10 +1,9 @@
 # Architecture (development view)
 
 Canonical: `docs/developers/architecture.md` — read it for anything beyond this
-digest. Section numbers below refer to it. The normative model/wire spec is
-`packages/protocol/SCHEMA.md` (+ `WIRE.md`).
+digest. The normative model/wire spec is `packages/protocol/SCHEMA.md` (+ `WIRE.md`).
 
-## The model in one paragraph (§1–§2)
+## The model in one paragraph
 
 Append-only op log = sole authority. Envelopes are versioned, zod-strict,
 camelCase JSON: `protocolVersion: 3` (mandatory), `id` (UUIDv7), `workspaceId`,
@@ -15,13 +14,13 @@ NOT exist in envelopes — the server's `relay.db` `envelope` table assigns it
 `INSERT OR IGNORE` ingest). HLC lives in `packages/protocol/src/hlc.ts`;
 `compareHlc` orders `(physical, logical)`.
 
-16 M1 op types in `packages/protocol/src/op-types.ts`
+16 op types in `packages/protocol/src/op-types.ts`
 (`object.*`, `class.*`, `propertySchema.*`, `property.*`, `asset.*`,
 `collection.member.*`) — there is **no `relation.*`** (deleted 2026-09-25).
 `payloadSchemaFor(opType)` is the single payload lookup; the relay
 (`apps/server/src/validate.ts`) rejects unknown/invalid envelopes with 422.
 
-## Derived store (§3)
+## Derived store
 
 `packages/store` — one TS implementation, three backends (better-sqlite3
 server/CLI, sql.js browser WASM — every store test runs against **both**).
@@ -32,7 +31,7 @@ determinism — edge ids are sha256 over `(source, type, target, verb, metadata,
 occurrence)`, so **wipe → replay → identical**. FTS: canonical FTS5; the
 sql.js backend uses `ftsModule: "fts4"` + `schemaSql("fts4")`.
 
-## Axes: render-state model (§4, SCHEMA.md "Node structure")
+## Axes: render-state model (SCHEMA.md "Node structure")
 
 Nodes carry two booleans + one CHECK: `is_class`, `present_as_main`,
 `CHECK (is_class = 0 OR parent_id IS NULL)`. "Page"/"block" are render states,
@@ -40,7 +39,20 @@ not node kinds. **Title-is-content** (2026-10-01): no `name` on the wire — a
 node's title IS its text content; pages/classes carry text-only content
 (`stringifyContentAst`, `deriveDisplayName`).
 
-## Server: one write path (§8)
+## Node fields vs properties (boundary rule)
+
+Platform-fixed, cardinality-1 node fundamentals that core chrome or navigation
+reads or writes are **wire node fields** (`object.update`, the icon/color
+precedent — `coverAssetId`/`bannerAssetId`/`aliasedNodeId` are the first
+three); the derived store projects them as plain per-field columns. The
+**property system is for user-extensible typed attributes** (class-bound,
+multi-value, defaulted, qualified, query-filtered) — never for platform
+fundamentals. Corollary: structural invariants (extends DAG, alias-chain
+acyclicity) are validated at the operation level — loud failure, never
+applied; render assumes them. Full reasoning:
+`.plans/2026-10-06-1352-main-content-restructure/` (passes 14–15 + 22).
+
+## Server: one write path
 
 Fastify 5. Every write funnels through `ServerContext.ingestBatch`
 (`apps/server/src/context.ts`): persist to relay log first → apply to derived
@@ -60,7 +72,7 @@ only `GET /healthz` and `GET /api/version` are public. No TLS in the server —
 terminate in a reverse proxy. Limits: relay batch ≤1000 envelopes / ≤1 MB;
 ≤30 k envelopes/min/workspace; 10 k req/min/IP; body 128 MB.
 
-## Sync (§7)
+## Sync
 
 `packages/sync`: outbox `pending → in_flight → acknowledged | failed →
 quarantined`, backoff 5 s/15 s/1 m/5 m/30 m; push chunks 100; catch-up pages
@@ -68,26 +80,26 @@ default 1000 (server clamps [1,10000]); `restoreEpoch` + full client resync
 implemented; WS `/ws/{workspaceId}` framing v2 (`hello` + `ops`,
 acceleration-only; newer framing fails loud, close 1002).
 
-**Conflict semantics** (§5, `development.md` §5 cheat sheet): scalars +
-property values LWW by HLC · class/collection membership OR-Set add-wins
-(per-pair `(hlc, actor)`) · tag membership mirrors the OR-Set but the add
-tiebreak is strictly greater (deliberate asymmetry — first-in-log-wins on
+**Conflict semantics** (cheat sheet in `docs/developers/development.md`):
+scalars + property values LWW by HLC · class/collection membership OR-Set
+add-wins (per-pair `(hlc, actor)`) · tag membership mirrors the OR-Set but the
+add tiebreak is strictly greater (deliberate asymmetry — first-in-log-wins on
 exact ties) · deletion tombstone-wins, subtree trashes · conflicts are
 detected (`detectConflicts`: `move_move`, `node_deleted`, `class_conflict`,
 `property_conflict`), reported, never blocking.
 
-## Clients (§9)
+## Clients
 
 - **Web** (`apps/web`): data path `src/core/workspace-client.ts` (sql.js over
   OPFS via Web Worker); writes funnel through `enqueueLocal` → session-local
-  **undo journal** (`src/core/undo-journal.ts`, §34.64 — in-memory per tab,
-  inverses compose existing ops, never on the wire).
-- **CLI**: separate repo `notees-cli` (§34.82, pinned `vendor/notees`
-  submodule) — user-scope skill `notees-cli` covers it.
+  **undo journal** (`src/core/undo-journal.ts` — in-memory per tab, inverses
+  compose existing ops, never on the wire).
+- **CLI**: separate repo `notees-cli` (pinned `vendor/notees` submodule) —
+  user-scope skill `notees-cli` covers it.
 - **GTK / Flutter**: sibling repos; the **lockstep law** applies to any wire
   change (see `references/development-workflow.md`).
 
-## Content + edges (§5)
+## Content + edges
 
 `contentAst: ContentToken[]` (text, class_chip, mention, typed_link,
 asset_ref, embed_ref, quote, query, whiteboard, external_link, math,
@@ -100,6 +112,6 @@ it.
 
 ## File map + status discipline
 
-Full file map: §10 of the runbook. Mark features "implemented (M1)" vs
-"designed, not shipped" — code wins over design docs (§11 lists 13 known
-discrepancies).
+Full file map: the runbook's file-map section. Mark features "implemented"
+vs "designed, not shipped" — code wins over design docs (the runbook
+lists known discrepancies).

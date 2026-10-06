@@ -13,21 +13,21 @@
  *
  * Writes: binding fields (sequence/default/required) via class.property.set;
  * schema fields (name/targetClassFilter/date precision/dateQualified and —
- * §34.90 — the property-level render contracts display/readonly/
+ * the property-level render contracts display/readonly/
  * hideWhenEmpty) via property.schema.update; the render contracts edit in
  * the property's settings surface (PropertySettingsModal), not here. Add: a
  * search/create popup over existing property schemas.
  *
- * PC4 (§34.56): the Enabled switch renders the binding's live `active` flag
+ * PC4: the Enabled switch renders the binding's live `active` flag
  * but stays DISABLED — LOCKSTEP-PENDING (the `active` payload key ships inert
  * until the GTK m6+ / Flutter m16+ releases parse it; flipping it now would
  * fail old clients loud). Activation = flip BINDING_ACTIVE_WRITES_ENABLED.
  */
 
-/** PC4 lockstep gate — activation flips this single constant (§34.54 pattern). */
+/** PC4 lockstep gate — activation flips this single constant. */
 const BINDING_ACTIVE_WRITES_ENABLED = true; // lockstep SHIPPED: GTK/Flutter v3.0.0
 const LOCKSTEP_PENDING_NOTE =
-  "Available once all clients catch up — the protocol batch (PG5/PC4/PC6) is pending the GTK/Flutter lockstep releases.";
+  "Available once all clients catch up — the protocol batch is pending the GTK/Flutter lockstep releases.";
 
 import { useRef, useState } from "react";
 
@@ -69,7 +69,7 @@ const TYPE_GLYPHS: Record<string, string> = {
   boolean: "mdi-check-circle-outline",
 };
 
-/** The per-class required flag (§34.90: the only binding-level flag left —
+/** The per-class required flag (the only binding-level flag left —
  *  readonly/hideWhenEmpty/display moved to the property schema). */
 const FLAG_TOGGLES = [
   { field: "required", label: "Required", icon: "mdi-asterisk" },
@@ -304,7 +304,7 @@ function BindingRow({
             />
             <span>Enabled {!BINDING_ACTIVE_WRITES_ENABLED && "(pending client lockstep)"}</span>
           </div>
-          {/* §34.90: the value-display position and the read-only / hide-when-
+          {/* The value-display position and the read-only / hide-when-
               empty contracts are PROPERTY-level now — they edit in the
               property's settings surface (PropertySettingsModal), not here. */}
           {isDate && (

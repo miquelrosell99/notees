@@ -1,6 +1,6 @@
 # Deployment
 
-Canonical: `docs/developers/deployment.md` §§3–10 + `releases.md` §2.
+Canonical: `docs/developers/deployment.md` + `releases.md`.
 
 ## Standard deploy (from repo root)
 
@@ -49,12 +49,12 @@ The bind-mounted data dir needs uid-1000 ownership (images run `USER node`).
 | `NOTEES_GLOBAL_REQ_PER_MINUTE` | 10000 | |
 | `NOTEES_MAX_MEDIA_BYTES` / `NOTEES_MAX_DOCUMENT_BYTES` | 50 MB / 100 MB | |
 | `NOTEES_CORS_ORIGIN` | absent = no CORS | compose defaults `*` |
-| `NOTEES_SERVER_URL` | empty | optional web prefill; the web client guesses `protocol//hostname:8377` from its origin (deployment.md §10) |
+| `NOTEES_SERVER_URL` | empty | optional web prefill; the web client guesses `protocol//hostname:8377` from its origin |
 
 CLI env: `NOTEES_SERVER`, `NOTEES_API_KEY`, `NOTEES_WORKSPACE`,
 `NOTEES_STATE_FILE` (default `~/.notees/state.json`).
 
-## HTTPS topology (fleet host — deployment.md §10)
+## HTTPS topology (fleet host — deployment.md)
 
 `tailscale serve` terminates TLS on the tailnet; compose ports bind
 loopback-only by default (8377/8378) with inert LAN shadows at
@@ -68,4 +68,4 @@ host/tailnet names into any artifact — `.env` only.
 ## After a data migration that rewrote the log
 
 `docker compose restart notees-sync` — required so the running derived store
-reapplies (ingest alone does not reapply; migrations.md §1B step 7).
+reapplies (ingest alone does not reapply; migrations.md step 7).

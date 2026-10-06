@@ -13,7 +13,7 @@
  * user watches.
  *
  * Row layout: the quote excerpt (the annotation object's name) plus its
- * provenance line (origin + page context in M1); the row jumps to the
+ * provenance line (origin + page context); the row jumps to the
  * annotation object, which the outliner renders as an ordinary page.
  */
 

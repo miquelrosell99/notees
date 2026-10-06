@@ -6,7 +6,7 @@
  * WorkerClient mirrors them through its read cache), and the done-toggle is
  * the tasks hub's exact write (property.set of the status option id, never
  * a taskClosedDate). Dated rows are the day node's existing backlink set
- * minus date-chain sources and tasks (§34.28 #4a — zero model work).
+ * minus date-chain sources and tasks (zero model work).
  */
 
 import {
@@ -63,10 +63,10 @@ export function taskRowFacts(
     deadlineIso,
     drivingIso: null,
     closed: statusLabel !== null && TASK_CLOSED_STATUSES.has(statusLabel as "Done" | "Cancelled"),
-    // §34.63: recurrence rides the taskScheduled value's metadata (null for
+    // Recurrence rides the taskScheduled value's metadata (null for
     // plain tasks; corrupt metadata throws — fail loud, never reads as plain).
     repeat: scheduledRow === undefined ? null : recurrenceRuleOf(scheduledRow.metadata),
-    // §34.69: per-occurrence completion days (metadata.completedOccurrences;
+    // Per-occurrence completion days (metadata.completedOccurrences;
     // [] for plain tasks — corrupt metadata throws, the fail-loud idiom).
     completedOccurrences:
       scheduledRow === undefined ? [] : completedOccurrencesOf(scheduledRow.metadata),
@@ -89,10 +89,10 @@ export function taskRowsOf(
  * viewed day).
  *
  * A PLAIN task (no recurrence rule): `property.set` of the Done/default
- * option id — exactly the tasks hub's write (§34.28 #4b note; no
+ * option id — exactly the tasks hub's write (no
  * taskClosedDate anywhere).
  *
- * A RECURRING task (§34.69): the node-level status is never touched —
+ * A RECURRING task: the node-level status is never touched —
  * completing the series' status would close every occurrence at once.
  * Instead the occurrence is recorded in the taskScheduled value's metadata
  * (`completedOccurrences`, ISO dates): `iso` joins the list (done) or
@@ -139,7 +139,7 @@ export async function setTaskDone(
 }
 
 /**
- * The day node's dated-reference rows (§34.28 #4a): its existing backlink
+ * The day node's dated-reference rows: its existing backlink
  * set, deduped, minus date-chain sources (the month/year fan-in) and tasks
  * (their own section), sorted by display name. One materialized read — no
  * query.
@@ -165,7 +165,7 @@ export function datedRowNodes(client: AnyClient, dayId: string): ClientNode[] {
   return rows;
 }
 
-// --- recurrence (§34.63 — compute-on-read expansion, §34.28 #6) -------------------
+// --- recurrence (compute-on-read expansion) --------------------------------------
 
 /**
  * One recurring node: the node plus its series (rule + anchor day). The rule
@@ -220,7 +220,7 @@ export interface DatedRow {
 }
 
 /**
- * The Dated rows for one day (§34.63): the day node's materialized backlink
+ * The Dated rows for one day: the day node's materialized backlink
  * set (datedRowNodes) UNION the recurring nodes occurring on this day —
  * occurrences are virtual, so the backlink read alone can't see them. The
  * anchor day of a recurring node is already in the backlink set; the union

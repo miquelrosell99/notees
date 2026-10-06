@@ -104,7 +104,7 @@ export function propertyDisplayText(client: AnyClient, prop: EffectiveProperty |
 }
 
 /**
- * The external navigation target of a url/email value (§34.32 PG14): url
+ * The external navigation target of a url/email value: url
  * values pass through (http(s), protocol-relative, or any scheme the author
  * wrote — a `tel:` value rides the same href), email values become
  * `mailto:`. Null when the value is not a non-empty string — nothing to

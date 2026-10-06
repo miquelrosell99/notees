@@ -1,5 +1,5 @@
 /**
- * Recurrence web tests (§34.63 — the §34.28 #6 compute-on-read engine):
+ * Recurrence web tests (compute-on-read engine):
  * the day view lists virtual occurrences with the honest repeats marker
  * (one row per series, never phantom rows), a repeating task schedules on
  * occurrence days without ever going overdue, the month grid dots every

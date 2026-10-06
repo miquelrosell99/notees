@@ -572,7 +572,7 @@
   background: var(--color-primary-container);
 }
 
-/* Multi-select checkbox mode (§34.19): the checkbox rides the row's left
+/* Multi-select checkbox mode: the checkbox rides the row's left
    slot (pointer-transparent — the whole row toggles); the footer carries
    the picked count, the Apply commit, and the keyboard hints. */
 .node-selector__multi-check {

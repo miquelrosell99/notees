@@ -1,7 +1,7 @@
 # Rollback
 
-Canonical: `docs/developers/releases.md` §1 + `docs/developers/deployment.md`
-§7. Discipline per the `deployment-runbook` skill (rollback triggers, traffic
+Canonical: `docs/developers/releases.md` + `docs/developers/deployment.md`.
+Discipline per the `deployment-runbook` skill (rollback triggers, traffic
 switch, postmortem) — this file is the Notees-specific mechanics.
 
 ## Code/image rollback
@@ -24,7 +24,7 @@ current wire version.
   store schema is a hard error at boot. The way back is a **backup restore**
   (`references/backups.md`), then re-deploy the older image.
 - **Never re-tag.** A broken release is fixed by the next patch tag; same-day
-  correction = next patch (`releases.md` §1).
+  correction = next patch.
 - A breaking wire change requires the three-client lockstep to have shipped
   first — if a rollback crosses a wire-version bump, older clients fail loud
   on unknown envelopes (by design).

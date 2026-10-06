@@ -161,7 +161,7 @@ describe("WorkerClient read cache", () => {
   });
 });
 
-describe("incremental cache invalidation (§34.114)", () => {
+describe("incremental cache invalidation", () => {
   /** Fake worker that also lets the test push `{type:"changed"}` messages in. */
   function controllableWorker(
     handler: (method: string, args: unknown[]) => unknown | Promise<unknown>,

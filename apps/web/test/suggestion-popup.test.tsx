@@ -1,11 +1,11 @@
 /**
- * §34.19 suggestion-popup rows — the #/+ capture popup (NodeSelector
+ * Suggestion-popup rows — the #/+ capture popup (NodeSelector
  * machinery) gained:
  *
  * - Multi-select checkbox mode: row clicks accumulate a picked set (checked
  *   rows ride the top), the Apply footer / Ctrl+Enter commits them all, and
  *   a plain Enter keeps the fast single-assign path (pick + commit).
- * - Filter prefixes: `daily:` (bare = day pages only) plus the v1 boolean
+ * - Filter prefixes: `daily:` (bare = day pages only) plus the boolean
  *   family `is_daily:` / `is_page:` / `is_class:` refine the candidates;
  *   the tokens strip from the search text (never a created title) and a
  *   bare filter lists its pool.

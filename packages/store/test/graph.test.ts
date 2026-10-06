@@ -1,5 +1,5 @@
 /**
- * graph.ts topology projection tests (§34.80): the node set (classes +
+ * graph.ts topology projection tests: the node set (classes +
  * present-as-main only — blocks never render), the containment rollup for
  * every edge family, the semantic co-occurrence projection (clique, weight,
  * hub guard, evidence), and the local-scope BFS.

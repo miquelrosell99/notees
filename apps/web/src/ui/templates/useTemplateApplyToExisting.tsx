@@ -1,6 +1,6 @@
 /**
- * useTemplateApplyToExisting — §34.25 T4's apply-to-existing flow (the D1
- * amendment path): graft a template onto a node that already exists and
+ * useTemplateApplyToExisting — the apply-to-existing flow: graft a
+ * template onto a node that already exists and
  * record generatedFrom provenance. Mirrors useTemplateInstantiator's
  * variables handling (dialog when the template carries {{variables}};
  * dynamic names computed readonly) but targets a caller-chosen node instead

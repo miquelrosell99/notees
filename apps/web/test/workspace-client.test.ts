@@ -345,7 +345,7 @@ describe("effective icons (display-time defaults)", () => {
   });
 });
 
-describe("WorkspaceClient render-path list reads — the §34.92 revision cache", () => {
+describe("WorkspaceClient render-path list reads — the revision cache", () => {
   it("memoizes listPages/roots/listClasses within a store revision", async () => {
     const ctx = makeContext();
     const client = await createClient(ctx);
@@ -391,7 +391,7 @@ describe("WorkspaceClient render-path list reads — the §34.92 revision cache"
     expect(clientB.listClasses().map((c) => c.id)).toContain(classId);
   });
 
-  it("reuses ClientNode identity for unchanged rows across revisions (§34.92 fix 5)", async () => {
+  it("reuses ClientNode identity for unchanged rows across revisions", async () => {
     const ctx = makeContext();
     const client = await createClient(ctx);
     await client.bootstrapWorkspace(WS);
@@ -411,7 +411,7 @@ describe("WorkspaceClient render-path list reads — the §34.92 revision cache"
     expect(deriveDisplayName(pagesAfter.find((p) => p.id === pageB)!)).toBe("B2");
   });
 
-  it("membership recomputes bust the row without an hlc/updated_at bump (§34.92 fix 5)", async () => {
+  it("membership recomputes bust the row without an hlc/updated_at bump", async () => {
     // The soundness case: recomputeClassIds changes class_ids but not the
     // row's hlc/updated_at — the identity stamp must cover the values.
     const ctx = makeContext();
@@ -442,7 +442,7 @@ describe("WorkspaceClient render-path list reads — the §34.92 revision cache"
     expect(client.classIcons().has(cls)).toBe(false);
   });
 
-  it("getBlockTree rides the revision cache (the deferred §34.92 follow-up)", async () => {
+  it("getBlockTree rides the revision cache (the deferred follow-up)", async () => {
     const ctx = makeContext();
     const client = await createClient(ctx);
     await client.bootstrapWorkspace(WS);
@@ -458,7 +458,7 @@ describe("WorkspaceClient render-path list reads — the §34.92 revision cache"
   });
 });
 
-describe("change notifications (§34.114)", () => {
+describe("change notifications", () => {
   it("classifies local writes: structural for creates, scoped+ancestors for content edits", async () => {
     const ctx = makeContext();
     const client = await createClient(ctx);
@@ -499,7 +499,7 @@ describe("change notifications (§34.114)", () => {
     }
   });
 
-  it("records semantic conflicts for the sync details modal (§34.115)", async () => {
+  it("records semantic conflicts for the sync details modal", async () => {
     const ctx = makeContext();
     const seen: import("@notees/sync").SyncConflict[] = [];
     const client = await createClient(ctx, { onConflict: (c) => seen.push(...c) });

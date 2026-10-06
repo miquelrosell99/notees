@@ -1,8 +1,8 @@
 /**
- * Object API (single-user M1 surface, /api): nodes, classes, properties,
+ * Object API (single-user surface, /api): nodes, classes, properties,
  * search, backlinks. Every write IS an envelope through the same pipeline as
  * /batch (the server stamps id/HLC/timestamp/actor from the API key) — one
- * write path, per the milestone's hard invariant.
+ * write path, per the hard invariant.
  */
 
 import type { FastifyInstance, FastifyRequest } from "fastify";
@@ -130,7 +130,7 @@ const updateBodySchema = z
     color: colorValueSchema.nullish(),
     contentAst: z.array(z.unknown()).optional(),
     /**
-     * §34.33 AG5 optimistic-concurrency guard, HTTP-layer only (never
+     * optimistic-concurrency guard, HTTP-layer only (never
      * enters the op payload): the node's `hlc` as last seen by the caller.
      * The node row's (hlc_physical, hlc_logical) is the one natural
      * per-node revision (bumped by object.update/object.move); a stale
@@ -156,7 +156,7 @@ const searchQuerySchema = z
     presentAsMain: booleanQueryParam.optional(),
     limit: z.coerce.number().int().min(1).max(500).default(50),
     /**
-     * Offset cursor from a previous response's `nextCursor` (§34.30 C5) —
+     * Offset cursor from a previous response's `nextCursor` —
      * opaque to callers; anything not a decimal offset fails 422.
      */
     cursor: z.string().regex(/^\d+$/).optional(),
@@ -268,7 +268,7 @@ interface SchemaRow {
   targetClassFilter: string | null;
   datePrecision: string | null;
   dateQualified: number | null;
-  /** §34.90 render contracts (PROPERTY-level; NULL = panel / unset). */
+  /** render contracts (PROPERTY-level; NULL = panel / unset). */
   display: string | null;
   readonly: number | null;
   hideWhenEmpty: number | null;
@@ -353,7 +353,7 @@ export function fullObject(store: Store, row: NodeRow) {
       return { id: classRow.id, name: classNameFromNode(classRow.nodeContent, classRow.nodeClassIds, classRow.name), icon: classRow.icon, color: classRow.color };
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
-  // PG5: authored rows ride the visible-set derivation (tombstoned elements
+  // Authored rows ride the visible-set derivation (tombstoned elements
   // never surface), each carrying its stable element id.
   const properties = visiblePropertyValueRows(store.database, row.id)
     .map((property) => {
@@ -488,10 +488,10 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     await ctx.ensureSeeded(workspaceId);
     const callerSuppliedId = parsed.data.id !== undefined;
     const objectId = parsed.data.id ?? uuidv7();
-    // AB3 (owner ruling 2026-10-04, §34.33): a CALLER-SUPPLIED id that is
+    // Owner ruling 2026-10-04: a CALLER-SUPPLIED id that is
     // already taken fails loud with 409 before anything reaches the log.
     // The id-less path cannot conflict (fresh UUIDv7; retried submits ride
-    // the Idempotency-Key replay, §34.33 AG5) — v1's "a taken id fails
+    // the Idempotency-Key replay) — the original "a taken id fails
     // loud" intent is honored for the only path where a conflict is
     // meaningful. Trashed ids are taken too (restore is the honest path).
     if (callerSuppliedId) {
@@ -537,7 +537,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
         client: "api",
       });
       if (outcome.savedIds.length === 0) {
-        // AB3 race net: the pre-submit check passed but a concurrent submit
+        // Race net: the pre-submit check passed but a concurrent submit
         // took the id first — the envelope dedupes, the tree stays with the
         // first write, and the honest answer is still 409.
         throw new AppError(409, "conflict", `object ${objectId} already exists`);
@@ -567,7 +567,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
       client: "api",
     });
     if (outcome.savedIds.length === 0) {
-      // AB3 race net (see the class.create branch above).
+      // Race net (see the class.create branch above).
       throw new AppError(409, "conflict", `object ${objectId} already exists`);
     }
     const store = ctx.workspaces.storeFor(workspaceId);
@@ -766,7 +766,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
   });
 
   /**
-   * propertySchema.update (§34.32 PG7): rename / options / date behavior
+   * propertySchema.update: rename / options / date behavior
    * patch. The stored row is the route's 404 gate — the applier's UPDATE is
    * intentionally quiet on unknown ids, the API is not.
    */
@@ -794,7 +794,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
   });
 
   /**
-   * propertySchema.delete (§34.32 PG7): soft-delete (active = 0). Authored
+   * propertySchema.delete: soft-delete (active = 0). Authored
    * values on nodes survive; the schema drops out of every read. Delete of a
    * missing/inactive schema fails loud with 404 (same contract as object
    * delete).
@@ -819,9 +819,9 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
   });
 
   /**
-   * class.property.set (§34.32 PG7): the binding upsert (sequence, flags,
+   * class.property.set: the binding upsert (sequence, flags,
    * defaultValue patch — omitted fields keep their values; null clears a
-   * flag). A wrong-typed defaultValue fails loud at the applier (PC2) and
+   * flag). A wrong-typed defaultValue fails loud at the applier and
    * surfaces as 422 validation_failed.
    */
   app.post("/classes/:id/properties", async (request) => {
@@ -871,7 +871,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     };
   });
 
-  /** class.property.unset (§34.32 PG7): remove the binding row (authored values survive). */
+  /** class.property.unset: remove the binding row (authored values survive). */
   app.delete("/classes/:id/properties/:propertySchemaId", async (request) => {
     const { id, propertySchemaId } = request.params as { id: string; propertySchemaId: string };
     const workspaceId = workspaceFor(ctx, request);
@@ -1014,15 +1014,15 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
   });
 
   /**
-   * Name→id resolution (§34.30 C6): the exact-display-name counterpart of
+   * Name→id resolution: the exact-display-name counterpart of
    * /search, so DSL clients (CLI `linked:`, future builders) resolve a node's
    * id from its title in ONE round trip instead of prefetching through /search
    * and filtering exact matches client-side. Title-is-content: the compared
    * name is the derived display name, case-insensitive; the candidate pool is
    * the ranked FTS hit set (blocks included), so resolution follows search
-   * semantics. PG10: an exact case-insensitive ALIAS value is a
-   * name-equivalent (the alias text already folds into the FTS row via the
-   * M5 text-scalar indexing). 404 when no active node carries the name.
+   * semantics. An exact case-insensitive ALIAS value is a
+   * name-equivalent (the alias text already folds into the FTS row via
+   * text-scalar indexing). 404 when no active node carries the name.
    */
   app.get("/resolve", async (request) => {
     const parsed = resolveQuerySchema.safeParse(request.query);
@@ -1042,7 +1042,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
       const matchesName = (api.name ?? "").toLowerCase() === wanted;
       const matchesAlias = aliases.some((alias) => alias.toLowerCase() === wanted);
       if (matchesName || matchesAlias) {
-        // §34.95 parity: a name hit on an ALIAS page answers the MAIN page
+        // a name hit on an ALIAS page answers the MAIN page
         // (chain-collapsing, cycle-safe — the same semantics the web
         // client's resolveNodeByName folds in via nameEquivalentsOf).
         let resolvedId = hit.nodeId;
@@ -1230,7 +1230,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
           .all() as Array<{ id: string; name: string | null }>
       ).map((row) => [row.id, row.name]),
     );
-    // PG5: the values read rides the visible-set derivation.
+    // The values read rides the visible-set derivation.
     const values = visiblePropertyValueRows(store.database)
       .filter((row) => row.property_schema_id === id)
       .sort(

@@ -1,12 +1,12 @@
 /**
- * Bound-verb backlinks (§34.69 — the §34.66 boundary follow-up): a property
- * value over a bound verb schema (object/multi, created by the PG1
+ * Bound-verb backlinks: a property
+ * value over a bound verb schema (object/multi, created by the
  * create-and-bind gesture) projects into the edge index with verb =
  * propertySchemaId and target = the referenced node — so the TARGET's
  * linked references (the page section AND the block-level backlink gutter)
  * list it. The surfaces render the verb's SCHEMA NAME (never the raw id)
  * and the row opens the source like any other reference. Typed-link marks
- * themselves stay targetless (the M2-deferred resolution ruling) — this
+ * themselves stay targetless (the deferred-resolution ruling) — this
  * slice wires the designed targeted path (property values), not a
  * resolution heuristic. Harness: in-process WorkspaceClient + jsdom.
  */
@@ -64,7 +64,7 @@ async function boundVerbSchema(client: WorkspaceClient, name: string): Promise<s
   });
 }
 
-describe("bound-verb backlinks (§34.69)", () => {
+describe("bound-verb backlinks", () => {
   it("a bound-schema property value lists in the target's linked references with the verb", async () => {
     const client = await seedClient();
     const schemaId = await boundVerbSchema(client, "supports");

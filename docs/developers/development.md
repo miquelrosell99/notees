@@ -2,11 +2,11 @@
 
 Contributing and hacking guide for this monorepo. For the system's architecture see
 [architecture.md](architecture.md); for model authority see
-`../../.plans/design/01-knowledge-model.md` and `../../packages/protocol/SCHEMA.md`.
+`../../packages/protocol/SCHEMA.md`.
 
 **Status marking.** Commands and paths below were verified against the tree at the time of
-writing. Where a feature is *designed* rather than implemented, the registers in
-`../../.plans/implementation-plan.md` say so — do not write docs, tests, or UI as if it
+writing. Where a feature is *designed* rather than implemented, the designed-not-built
+register at the end of this page says so — do not write docs, tests, or UI as if it
 exists. In case of disagreement between a design doc and the code, the code wins.
 
 ## 1. Prerequisites
@@ -31,12 +31,12 @@ Run from the repo root:
 | `pnpm install` | install all workspace deps |
 | `pnpm test` | `pnpm -r test` — every package/app's vitest suite |
 | `pnpm typecheck` | `pnpm -r typecheck` — `tsc --noEmit` everywhere |
-| `pnpm -r build` | build every package that defines one (`@notees/server`, `@notees/web`). Note: the root has **no** `build` script — use `-r` |
+| `pnpm -r build` | build every package that defines one (`@notees/server`, `@notees/web`) — the root `build` script runs exactly this |
 | `pnpm --filter @notees/store test` | run one package's suite (alias `-F`) |
 | `pnpm --filter @notees/server typecheck` | typecheck one package |
 | `pnpm --filter @notees/server dev` | `tsx watch src/server.ts` — dev server with reload |
 | `pnpm --filter @notees/web dev` | vite dev server (browser client against a running server) |
-| the CLI | split into its own repo (`notees-cli`, §34.82) — `pnpm dev -- <args>` runs it from source via tsx there |
+| the CLI | split into its own repo (`notees-cli`) — `pnpm dev -- <args>` runs it from source via tsx there |
 
 Per-package scripts (`packages/*`): `test` (vitest run), `typecheck` (tsc --noEmit). Apps
 add `dev`/`build`/`start` (`apps/server`: `start` = `node dist/server.js`).
@@ -47,8 +47,7 @@ the typecheck sees stale types.
 
 ## 3. The fixture gate — blocking, at full width
 
-The single most important process rule (`../../.plans/implementation-plan.md`
-fixture-gate lineage; `00-INDEX.md` amendment (b)):
+The single most important process rule:
 **an op type is not done until its fixture validates.** Canonical fixtures live in
 `packages/protocol/fixtures/` as JSON files of envelopes (or `{"envelopes": [...]}`
 groups). Eight exist today:
@@ -84,8 +83,8 @@ fixtures were replaced by typed-link-mark fixtures exercising the same scenarios
 **Cross-implementation parity (client lockstep).** The same canonical fixtures are
 vendored byte-identical (sha256-verified) by the sibling client repos and replayed
 through their appliers with the same expected outcomes: `notees-gtk`
-(`tests/fixtures/v2/` + `tests/test_store_fixtures.py`, pytest) and `notees-flutter`
-(`test/fixtures/v2/` + `test/v2_fixture_replay_test.dart`, flutter_test). A semantic
+(`tests/fixtures/wire/` + `tests/test_store_fixtures.py`, pytest) and `notees-flutter`
+(`test/fixtures/wire/` + `test/fixture_replay_test.dart`, flutter_test). A semantic
 change is not done until all three implementations converge on the same fixture
 expectations — this is the practical enforcement of "one semantics, many clients".
 Update all three repos' fixture copies together (they are the same bytes).
@@ -94,7 +93,7 @@ Update all three repos' fixture copies together (they are the same bytes).
 
 1. **Spec** — write the payload shape and semantics into `packages/protocol/SCHEMA.md`
    (owed-work register) or the relevant normative section. If the model itself changes,
-   `../../.plans/design/01-knowledge-model.md` is normative — read `00-INDEX.md` first.
+   `packages/protocol/SCHEMA.md` is normative.
 2. **Payload zod schema** — add `yourOpPayload = z.object({...}).strict()` to
    `packages/protocol/src/op-types.ts` and register it in `OP_PAYLOAD_SCHEMAS`. The
    registry is the single source of truth: the relay's `validateRelayEnvelope`
@@ -110,13 +109,13 @@ Update all three repos' fixture copies together (they are the same bytes).
    applier semantics (both adapters), and sync/server tests where the op crosses the
    wire.
 
-Additiveness is safe by protocol policy (WIRE §3): optional fields and new op types do
+Additiveness is safe by protocol policy (WIRE.md): optional fields and new op types do
 not bump `PROTOCOL_VERSION`; breaking changes bump the version and the fixtures together.
 
 ## 5. Conflict semantics — cheat sheet
 
 Implemented in `packages/store/src/appliers.ts` + `packages/sync/src/conflicts.ts`;
-normative statements in `01-knowledge-model.md` §12 and `SCHEMA.md`.
+normative statements in `SCHEMA.md`.
 
 | Mechanism | Where | Rule |
 |---|---|---|
@@ -143,11 +142,11 @@ but the data converges, it is a conflict report, not an apply failure.
 | Domain | `packages/domain/test/domain.test.ts` | seeds (fixed UUIDs never drift), name derivation |
 | Sync | `packages/sync/test/sync.test.ts` | two-device convergence over one in-process `MemoryRelay` (dumps compared via ordered full-database dumps), retry/backoff/quarantine, restoreEpoch wipe+park recovery, catch-up idempotency, conflict reporting |
 | Server | `apps/server/test/` (`relay-batch`, `relay-catchup`, `relay-snapshot`, `relay-ws`, `objects`, `assets`, `config`, `e2e`, `helpers.ts`) | `buildServer` against a temp data dir via fastify inject — real HTTP layer, no sockets needed; helpers in `helpers.ts` |
-| CLI e2e | `notees-cli` repo (split 2026-10-05, §34.82), `test/cli.test.ts` | boots the real server on an ephemeral port, drives `run()` with captured IO/stdin, asserts `--json` output and exit codes |
+| CLI e2e | `notees-cli` repo (split 2026-10-05), `test/cli.test.ts` | boots the real server on an ephemeral port, drives `run()` with captured IO/stdin, asserts `--json` output and exit codes |
 | Web client | `apps/web/test/` (`workspace-client.test.ts` over `MemoryTransport` + jsdom rendering tests) | the browser data path without a browser; slice-1 rendering |
 
 Convergence is asserted by comparing serialized database dumps, not row samples — the
-same standard as v1. When adding sync behavior, extend the two-device MemoryRelay test,
+same standard everywhere. When adding sync behavior, extend the two-device MemoryRelay test,
 not a mocked-transport unit test.
 
 Run the whole gate exactly as CI would: `pnpm install && pnpm typecheck && pnpm test`
@@ -169,21 +168,21 @@ Verified against `tsconfig.base.json`, the package manifests, and git history:
   keep the store driver-agnostic (both adapters must keep passing).
 - **Deterministic derived state** — no `AUTOINCREMENT` in the derived schema; derived ids
   are content hashes; every applier change must preserve wipe → replay → identical.
-- **Comments explain invariants, not mechanics** — file headers cite the spec section
-  they implement (e.g. "WIRE.md §1–2", "SCHEMA.md Node structure"); match that style.
-- **Conventional Commits** — history shows `feat(v2/web): …`, `refactor(v2/store): …`,
-  `chore(v2): …`; scope by area, imperative subject.
+- **Comments explain invariants, not mechanics** — file headers cite the spec they
+  implement (e.g. "WIRE.md", "SCHEMA.md Node structure"); match that style.
+- **Conventional Commits** — history shows `feat(web): …`, `refactor(store): …`,
+  `chore: …`; scope by area, imperative subject.
 - **Fail loud** — unknown opTypes, newer protocol/framing versions, invalid shapes, and
   model violations (move a class, cycle `extends`) throw; they never coerce or silently
-  drop. The one designed exception: unknown WS frame types are ignored (WIRE §2).
+  drop. The one designed exception: unknown WS frame types are ignored (WIRE.md).
 
 ## 8. Where things are designed but not built (don't fake them)
 
 Registered so contributors don't re-invent or mis-document them: typed-link target
-resolution (M2 — candidate spans are recorded now), citations pipeline + Markdown export
-(M2), annotations on assets and selective asset sync (M2), property-schema CRUD UX and
-create-and-bind (M2), `notees shell` REPL (owed, cheap, not shipped), computed
-properties (deferred owner decision), E2EE activation (M3 — the `{"$e": …}` slot is
-already in the envelope schema), plugin runtime and event projections (M3), multi-user
-auth/JWT sessions (M3), the outliner editor program (M1b–M2), TreeCrdt/fractional
-reorder port (M1b — `node_child_order` exists; the editor ops around it do not).
+resolution (candidate spans are recorded now), citations pipeline + Markdown export,
+annotations on assets and selective asset sync, property-schema CRUD UX and
+create-and-bind, `notees shell` REPL (owed, cheap, not shipped), computed
+properties (deferred owner decision), E2EE activation (the `{"$e": …}` slot is
+already in the envelope schema), plugin runtime and event projections, multi-user
+auth/JWT sessions, the outliner editor program, TreeCrdt/fractional
+reorder port (`node_child_order` exists; the editor ops around it do not).

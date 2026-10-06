@@ -1,8 +1,8 @@
 /**
- * §34.19 editor keymap chords:
+ * Editor keymap chords:
  *
  * - Alt+Shift+↑/↓ — move the block among its siblings without dragging
- *   (the v1 MOVE_UP/MOVE_DOWN chords; one object.move per press, the caret
+ *   (the MOVE_UP/MOVE_DOWN chords; one object.move per press, the caret
  *   stays in the editor).
  * - Ctrl+. — toggle fold on the FOCUSED block; Ctrl+Alt+← folds and
  *   Ctrl+Alt+→ unfolds (the register's fold row; Alt+←/→ belongs to

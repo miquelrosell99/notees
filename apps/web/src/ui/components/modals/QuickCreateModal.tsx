@@ -1,9 +1,9 @@
 /**
- * QuickCreateModal — the §34.19 :1172 class-aware create dialog. Opens from
+ * QuickCreateModal — the class-aware create dialog. Opens from
  * a node picker's create row when the class filter resolves to the source
  * family (citation fields up front: type, title, authors, year, DOI) or the
- * agent family (person: given/family split; organization: plain name — v1
- * Decisions 17–19, ported). A plain page picker create stays plain: this
+ * agent family (person: given/family split; organization: plain name —
+ * ported). A plain page picker create stays plain: this
  * modal only mounts when resolveQuickCreate says a family applies.
  *
  * The authors field is free text (comma-separated names): bibliography
@@ -76,7 +76,7 @@ export function QuickCreateModal({
   const firstFieldRef = useRef<HTMLInputElement>(null);
 
   // Reset state each time the modal opens; split a free-typed person name
-  // into given/family parts (the v1 AgentQuickCreateModal behavior).
+  // into given/family parts (the AgentQuickCreateModal behavior).
   useEffect(() => {
     if (!isOpen) return;
     setTitle(initialName);

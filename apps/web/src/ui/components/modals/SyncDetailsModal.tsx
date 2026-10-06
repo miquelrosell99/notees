@@ -1,7 +1,7 @@
 /**
- * SyncDetailsModal (§34.115) — the sync indicator's click target. Shows the
+ * SyncDetailsModal — the sync indicator's click target. Shows the
  * engine state and backlog, a force resync (push + pull), and the bounded
- * semantic conflict history (§34.115 — conflicts are otherwise transient:
+ * semantic conflict history (conflicts are otherwise transient:
  * emitted once by the engine, never stored). Composes the ui primitives;
  * live-refreshes the conflict list on worker notifications while open. The
  * status snapshot arrives from the App layer (it already polls on a cadence

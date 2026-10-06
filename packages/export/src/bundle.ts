@@ -1,17 +1,17 @@
 /**
  * Export bundle: one Markdown file per node plus the workspace-level
- * UUID↔name↔type manifest. E1/E2 extensions:
+ * UUID↔name↔type manifest. Extensions:
  *
  *  - `filenamePolicy` — "uuid" (`<uuid>.md`, rename-free default) or "slug"
  *    (`<slugified-title>-<id8>.md`, id8 fallback for empty titles; the
- *    id8 suffix — a pure hash of the node id — keeps duplicate titles unique). The server zip (task E5)
+ *    id8 suffix — a pure hash of the node id — keeps duplicate titles unique). The server zip
  *    reuses this policy.
  *  - `whiteboardMode: "sidecar"` — besides each `.md`, the bundle emits one
  *    `<owner-id>.whiteboard.json` sidecar per whiteboard block (pretty-printed
  *    token layout), named exactly as the serializer's file links name them
  *    (both sides derive from `whiteboardSidecarPath`).
  *  - the manifest entries carry the rendered `path` alongside the id, plus a
- *    `type` discriminator ("page" | "class") — manifest version 2 (E5). The
+ *    `type` discriminator ("page" | "class") — manifest version 2. The
  *    workspace zip consumes this manifest as its `notees-manifest.json`.
  */
 
@@ -64,12 +64,12 @@ export interface ExportBundle {
 }
 
 /**
- * Bundle file naming for one node: "uuid" keeps exports rename-free
- * (§34.12); "slug" renders `<slugified-title>-<id8>.md` — the slug keeps
+ * Bundle file naming for one node: "uuid" keeps exports rename-free;
+ * "slug" renders `<slugified-title>-<id8>.md` — the slug keeps
  * unicode letters/numbers (the repo's existing slug idiom), empty titles
  * fall back to the id8 alone, and the id8 suffix disambiguates duplicate
  * titles (uniqueness never relies on the slug). The suffix is a pure hash
- * of the full id (FNV-1a, 8 hex chars), NOT `id.slice(0, 8)`: v1-derived
+ * of the full id (FNV-1a, 8 hex chars), NOT `id.slice(0, 8)`: the
  * deterministic ids (date chains, fixed system seeds) start with zero runs,
  * so a plain prefix carries no identity signal.
  */

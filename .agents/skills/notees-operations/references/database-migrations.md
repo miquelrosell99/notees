@@ -7,7 +7,7 @@ data. Two distinct kinds:
 
 `packages/store/src/schema.ts` `SCHEMA_VERSION`, gated by
 `PRAGMA user_version`. Additive is safe; **newer-than-code = hard error at
-open — downgrade by restoring a backup** (`deployment.md` §7). A breaking
+open — downgrade by restoring a backup**. A breaking
 wire change additionally bumps PROTOCOL_VERSION + WS_PROTOCOL_VERSION +
 fixtures with the three-client lockstep.
 
@@ -16,7 +16,7 @@ fixtures with the three-client lockstep.
 The standing law: **no backward compatibility** (owner directive, sole user).
 The stored log is rewritten once in place; every derived store re-syncs.
 
-**The asymmetry that decides the strategy** (`migrations.md` §0): keys inside
+**The asymmetry that decides the strategy**: keys inside
 option/metadata JSON *strip* safely on old clients (no migration needed);
 **new keys on strict payloads are *rejected*** by pre-batch clients →
 lockstep first. Retired keys/moved fields → in-place rewrite.
@@ -46,7 +46,7 @@ lockstep first. Retired keys/moved fields → in-place rewrite.
 
 ## Script catalog
 
-`scripts/migrate-*.mts` (9 scripts; `migrations.md` §4 has the per-script
+`scripts/migrate-*.mts` (9 scripts; `migrations.md` has the per-script
 table). All: **dry-run by default, `--apply` to write**, `--data-dir` +
 `--workspace` flags (owner workspace default), run from repo root:
 
@@ -57,5 +57,4 @@ pnpm --filter @notees/server exec tsx ../../scripts/<name>.mts --apply
 ## Lockstep ordering
 
 TS reference change → GTK + Flutter ports + tags → **then** the live
-migration. Option-record additions may migrate before the clients land
-(`migrations.md` §2).
+migration. Option-record additions may migrate before the clients land.

@@ -1,16 +1,16 @@
 /**
- * Web-side export-format registry (§34.24 E3, P1 pdf delivery, §34.59 json).
+ * Web-side export-format registry.
  *
- * Delegates to the package-side catalog in @notees/export (task E1) and adds
+ * Delegates to the package-side catalog in @notees/export and adds
  * only web delivery metadata: MIME type, file extension, card icon, the
  * delivery mode (`"file"` inline vs `"client-pdf"` for the lazily imported
  * PDF engine), and the subset of each format's option specs the export
  * modal renders as checkbox rows. Unavailable formats stay listed as
  * disabled cards carrying the package registry's reason — never stub-message
  * tabs. The availability overrides: pdf, which the web client renders
- * client-side (task P1) even though the pure package serializer stays a
+ * client-side even though the pure package serializer stays a
  * throwing skeleton (a pure package cannot pull react-pdf in); and the
- * JSON archive (§34.59), a NODE-SET format that rides the modal like the IR
+ * JSON archive, a NODE-SET format that rides the modal like the IR
  * formats but deliberately stays out of the package's IR-based
  * EXPORT_FORMATS registry (its input is the verbatim node slice, not the
  * resolved ExportDocument — the bundleMarkdown/csv.ts precedent). Select-
@@ -38,7 +38,7 @@ import {
  */
 export const INCLUDE_CHILD_PAGES_KEY = "includeChildPages";
 
-/** Web format ids — the package IR formats + the §34.59 JSON archive card. */
+/** Web format ids — the package IR formats + the JSON archive card. */
 export type WebExportFormatId = ExportFormatId | "json";
 
 /**
@@ -128,7 +128,7 @@ function toWebDefinition(definition: ExportFormatDefinition): WebExportFormatDef
 }
 
 /**
- * The JSON archive row (§34.59) — a node-set format outside the package's
+ * The JSON archive row — a node-set format outside the package's
  * IR registry, so its card is assembled web-side from the package's
  * archive constants. The only modal option that reaches the archive engine
  * is the subtree toggle (verbatim payloads ignore the display-options bag).

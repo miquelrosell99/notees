@@ -5,7 +5,7 @@
  * bounded read-only card anchored at the mention (icon/title/excerpt/
  * backlink count); leaving hides it after a short grace; the pointer can
  * travel into the card or back to the mention to keep it alive; dismissal
- * follows the §34.67 layer (Escape + pointer-down outside); a held button
+ * follows the shared layer (Escape + pointer-down outside); a held button
  * (a drag) never raises the card; the card's pin promotes to a floating
  * editor window.
  *
@@ -290,7 +290,7 @@ describe("node hover preview", () => {
     fireEvent.keyDown(document.body, { key: "Escape" });
     expect(previewCard()).toBeNull();
 
-    // Reopen, then a pointer-down outside closes (§34.67 layer).
+    // Reopen, then a pointer-down outside closes (dismissal layer).
     fireEvent.mouseEnter(link);
     advance(HOVER_DWELL_MS);
     expect(previewCard()).not.toBeNull();

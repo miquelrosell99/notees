@@ -1,5 +1,5 @@
 /**
- * §34.19 keymap chords — the standalone handler factories from App.tsx
+ * Keymap chords — the standalone handler factories from App.tsx
  * (same harness style as the openTodayKeyHandler specs in
  * day-features.test.tsx):
  *

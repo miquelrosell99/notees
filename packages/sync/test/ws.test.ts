@@ -1,11 +1,11 @@
 // @vitest-environment node
 /**
- * WebSocket client tests (WIRE.md §2): a tiny `ws`-based fake relay speaks
+ * WebSocket client tests (WIRE.md): a tiny `ws`-based fake relay speaks
  * hello/ops/ack/error frames over `/api/relay/v2/ws/{workspaceId}?token=…`.
  * Asserts frame dispatch, fail-loud on a newer framing version, reconnect
  * with backoff after an abnormal close, and a clean stop with no reconnect.
  * Real timers with a short injected backoff schedule (the default is
- * 1s/2s/5s/10s/30s) so the WS I/O stays genuinely asynchronous. The M1 client
+ * 1s/2s/5s/10s/30s) so the WS I/O stays genuinely asynchronous. The client
  * is receive-only on the socket (push stays on HTTP POST /batch), so the
  * relay's inbound `batch` path is not exercised here.
  */

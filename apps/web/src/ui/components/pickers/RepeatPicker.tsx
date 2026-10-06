@@ -1,6 +1,6 @@
 /**
- * RepeatPicker — the minimal recurrence authoring control (§34.63, the
- * §34.28 #6 engine): None / Daily / Weekly / Weekdays (Mon–Fri) / Monthly /
+ * RepeatPicker — the minimal recurrence authoring control:
+ * None / Daily / Weekly / Weekdays (Mon–Fri) / Monthly /
  * Yearly, writing the canonical RRULE-lite grammar string (packages/domain
  * recurrence) for the caller to persist as the date value's `metadata.repeat`
  * (the startDate/endDate precedent — additive metadata, no wire change).

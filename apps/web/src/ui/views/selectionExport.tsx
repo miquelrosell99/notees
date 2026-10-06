@@ -1,7 +1,7 @@
 /**
  * Selection export — the cards/kanban counterpart of the table's row
- * selection (§34.69, the §34.60 follow-up "selection export beyond
- * tables"). One session-local selection state + one export affordance
+ * selection ("selection export beyond tables"). One session-local selection
+ * state + one export affordance
  * shared by every flat collection view:
  *
  *  - `useViewSelection` — the picked-id set + toggle/clear (session state,

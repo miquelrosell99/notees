@@ -1,11 +1,12 @@
 /**
  * Fastify assembly: plugins, the WIRE error envelope, request logging (pino
  * via fastify), the global 10k req/min per-IP fallback limiter, and the
- * public health/version probes. Every failure answer is the §3 envelope.
+ * public health/version probes. Every failure answer is the WIRE error
+ * envelope.
  *
- * §34.33 developer-API additions: the meta plugin (GET /api/meta,
- * /api/openapi.json, /api/operations), AG3 scoped-key enforcement on the
- * object/assets group (route scopes from the OpenAPI table), and the AG5
+ * Developer-API additions: the meta plugin (GET /api/meta,
+ * /api/openapi.json, /api/operations), scoped-key enforcement on the
+ * object/assets group (route scopes from the OpenAPI table), and the
  * Idempotency-Key hooks on the same group. The registered-route inventory
  * (`BuiltServer.registeredRoutes`, collected via onRoute) feeds the
  * route-coverage test that keeps the OpenAPI document honest.
@@ -55,7 +56,7 @@ export async function buildServer(
     logger: options.logger ?? config.logger,
     // Global request-body cap; the one legitimate oversized body — the
     // client-produced snapshot PUT — raises its own route-local limit
-    // (routes-relay.ts SNAPSHOT_PUT_BODY_LIMIT, §34.69).
+    // (routes-relay.ts SNAPSHOT_PUT_BODY_LIMIT).
     bodyLimit: 128 * 1024 * 1024,
   });
 
@@ -96,7 +97,7 @@ export async function buildServer(
     done(null, body);
   });
 
-  // Global fallback limiter: 10k requests/min per IP (WIRE.md §3).
+  // Global fallback limiter: 10k requests/min per IP (WIRE.md).
   app.addHook("onRequest", async (request, reply) => {
     if (request.url === "/healthz") return;
     const ip = request.ip;
@@ -148,7 +149,7 @@ export async function buildServer(
     wsProtocolVersion: 2,
   }));
 
-  // Developer self-description (§34.33 AG4/AG5): meta, the OpenAPI contract,
+  // Developer self-description: meta, the OpenAPI contract,
   // and the paginated operation feed. Each route enforces its own auth, so
   // this plugin has no group preHandler.
   const openApiDocument = buildOpenApiDocument(SERVER_VERSION);
@@ -178,9 +179,9 @@ export async function buildServer(
   );
 
   // The object/assets machine API: any authenticated principal (operator API
-  // key, account session, or per-user API key) — v1 of multi-account object
+  // key, account session, or per-user API key) — multi-account object
   // authorization is the default workspace, claimed by the first account
-  // (see routes-auth /setup). Scoped API keys (§34.33 AG3) pass auth here
+  // (see routes-auth /setup). Scoped API keys pass auth here
   // and are then checked against the route's scope from the OpenAPI table;
   // the relay surface rejects them outright.
   const routeScopes = buildRouteScopeMap(documentedRoutes());
@@ -196,7 +197,7 @@ export async function buildServer(
   await app.register(
     async (api) => {
       api.addHook("preHandler", apiAuth);
-      // §34.33 AG5: Idempotency-Key replay after auth+scope, so a replayed
+      // Idempotency-Key replay after auth+scope, so a replayed
       // mutation still requires the caller's credentials and scope.
       registerIdempotencyHooks(api, ctx);
       registerObjectRoutes(api, ctx);
@@ -205,8 +206,8 @@ export async function buildServer(
     { prefix: "/api" },
   );
 
-  // §34.59 plugin registry: inert manifest storage (validated JSON + an
-  // enable bit — the runtime is parked, §34.33 AG7). Owner/admin-scoped:
+  // Plugin registry: inert manifest storage (validated JSON + an
+  // enable bit — the runtime is parked). Owner/admin-scoped:
   // the operator key or an administrator account; a scoped API key needs the
   // "admin" scope. Rows are server state, not log state (prefs/shares ruling).
   await app.register(
@@ -219,7 +220,7 @@ export async function buildServer(
     { prefix: "/api" },
   );
 
-  // §34.62 (shares record) — READ-ONLY public page shares: the management
+  // READ-ONLY public page shares: the management
   // routes live under /api with per-route owner/admin auth (like the account
   // surface); the public view is a root-level GET, unauthenticated BY DESIGN
   // (unguessable tokens — see routes-shares.ts for the threat note).

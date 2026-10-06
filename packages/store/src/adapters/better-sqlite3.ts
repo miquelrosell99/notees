@@ -82,7 +82,7 @@ function applyConnectionPragmas(db: RawDatabase): void {
   db.pragma("journal_mode = WAL");
   db.pragma("synchronous = NORMAL");
   db.pragma("busy_timeout = 5000");
-  // Foreign keys stay off (v1 precedent): the appliers maintain tree
+  // Foreign keys stay off: the appliers maintain tree
   // integrity fail-loud, and out-of-order delivery must not hard-fail on
   // a missing parent. Placement invariants live in the CHECK constraints.
 }

@@ -1,10 +1,10 @@
 /**
- * Scoped API keys (§34.33 AG3): the scope vocabulary and its validation.
+ * Scoped API keys: the scope vocabulary and its validation.
  *
- * Names follow the §26 granular set. Today's object/assets surface exercises
+ * Names follow the granular set. Today's object/assets surface exercises
  * a subset — relations/annotations/citations/collections endpoints do not
  * exist yet, so their scope names are reserved vocabulary, not enforced
- * anywhere. A key created with NO scope list is unrestricted (the M1 default;
+ * anywhere. A key created with NO scope list is unrestricted (the default;
  * the operator key and account sessions are always unrestricted). Scoped keys
  * are object-API credentials: the relay surface rejects them with 403
  * `scope_denied` (routes-relay.ts), and account routes keep requiring a
