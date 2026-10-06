@@ -1,14 +1,5 @@
 /**
- * NodeMenuButton styles — the corner wrapper only; the button itself is the
- * shared .nt-icon-btn primitive (app.css). The content card (.nt-page-card)
- * is the nearest positioned ancestor — the same mechanism as the top-left
- * classes corner (app.css) — so the button sits at the card's top-right,
- * outside the centered content column.
+ * NodeMenuButton styles — the button itself is the shared .nt-icon-btn
+ * primitive (app.css); its absolute corner cluster lives in App.tsx's
+ * NodeView (.nt-node-view__corner), so this module carries no positioning.
  */
-
-.nt-node-menu-corner {
-  position: absolute;
-  top: var(--spacing-4);
-  right: var(--spacing-4);
-  z-index: 1;
-}

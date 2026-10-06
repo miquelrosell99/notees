@@ -5,9 +5,11 @@
  *  - pure helpers: partitionTasksIntoBuckets, weekDaysOfIso, isoOfDateParts,
  *    scheduledIsoOf, hasDatedRefs.
  *  - openTodayKeyHandler: the Ctrl/Cmd+Shift+T chord (text-field guard).
- *  - PageView day branch: the date bar (±1 day over the deterministic ids,
- *    the reviewed toggle), the three lazy sections (hidden when empty,
- *    rows only after expand, the done-toggle write), embedded suppression.
+ *  - PageView day branch: the DayPageHeader (weekday line above the title,
+ *    the Today pill when the day is today, the Week-N flag after the
+ *    dateFormat-formatted title; the ±1-day date bar is gone), the three
+ *    lazy sections (hidden when empty, rows only after expand, the
+ *    done-toggle write), embedded suppression.
  *  - TaskBuckets over HubView nav=tasks: the five buckets + counts, the
  *    done-toggle moving rows, the device-local collapse, the empty hub.
  *  - CalendarView breadth: the range-aware dated dot, the reviewed tint,
@@ -344,22 +346,40 @@ describe("openTodayKeyHandler (Ctrl/Cmd+Shift+T)", () => {
 // --- #4/#7/#15 the day-page branch ------------------------------------------------
 
 describe("PageView day branch", () => {
-  it("renders the date bar with ±1 day stepping over the deterministic ids", async () => {
+  it("renders the DayPageHeader: weekday flag above the date title, the Week flag after it, no ±1-day bar", async () => {
     const client = await seedClient();
     const iso = "2026-06-15";
     const { day } = await client.ensureDateChain(iso);
     await flushWrites();
-    const onOpenPage = vi.fn();
 
-    render(<PageView client={client} pageId={day} onOpenPage={onOpenPage} />);
-    expect(screen.getByText("Today")).toBeDefined(); // the bar's Today jump
-    expect(screen.getByText(weekdayLabel(iso))).toBeDefined();
+    const { container } = render(<PageView client={client} pageId={day} onOpenPage={vi.fn()} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Previous day" }));
-    await waitFor(() => expect(onOpenPage).toHaveBeenCalledWith(dayNodeId("2026-06-14")));
+    // The old ‹ / Today / › date bar is gone — no day stepping on the page.
+    expect(screen.queryByRole("button", { name: "Previous day" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Next day" })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Next day" }));
-    await waitFor(() => expect(onOpenPage).toHaveBeenCalledWith(dayNodeId("2026-06-16")));
+    // The header IS the date header: the weekday flag rides a small line
+    // above the title; the title is the user's dateFormat-formatted date
+    // with the ISO week flag after it.
+    const header = container.querySelector(".day-page-header") as HTMLElement;
+    expect(header).not.toBeNull();
+    expect(within(header).getByText(weekdayLabel(iso))).not.toBeNull();
+    const heading = within(header).getByRole("heading", { level: 1 });
+    expect(heading.textContent).toContain("2026-06-15"); // default YYYY-MM-DD
+    expect(within(heading).getByText("Week 25")).not.toBeNull();
+    // The "Today" pill rides the flags line only when the day IS today.
+    expect(within(header).queryByText("Today")).toBeNull();
+  });
+
+  it("renders the Today pill on today's day page", async () => {
+    const client = await seedClient();
+    const { day } = await client.ensureDateChain(todayIsoLocal());
+    await flushWrites();
+
+    const { container } = render(<PageView client={client} pageId={day} onOpenPage={vi.fn()} />);
+    const header = container.querySelector(".day-page-header") as HTMLElement;
+    expect(header).not.toBeNull();
+    expect(within(header).getByText("Today")).not.toBeNull();
   });
 
   it("hides all three sections on an empty day page", async () => {
@@ -373,8 +393,10 @@ describe("PageView day branch", () => {
     expect(sections.queryByRole("button", { name: /^tasks( \d+)?$/i })).toBeNull();
     expect(sections.queryByRole("button", { name: /dated/i })).toBeNull();
     expect(sections.queryByRole("button", { name: /created/i })).toBeNull();
-    // The date bar still renders (it is chrome, not an aggregation).
-    expect(screen.getByRole("button", { name: "Previous day" })).toBeDefined();
+    // The day header still renders (it is chrome, not an aggregation)…
+    expect(screen.getByText(weekdayLabel("2026-06-15"))).toBeDefined();
+    // …and the deleted date bar's stepping buttons stay gone.
+    expect(screen.queryByRole("button", { name: "Previous day" })).toBeNull();
   });
 
   it("shows the Tasks section lazily and the done-toggle writes the status", async () => {
@@ -388,11 +410,15 @@ describe("PageView day branch", () => {
     render(<PageView client={client} pageId={day} onOpenPage={vi.fn()} />);
     const toggle = within(daySections()).getByRole("button", { name: /^tasks( \d+)?$/i });
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    // Lazy: no rows while collapsed.
-    expect(screen.queryByText("Water the plants")).toBeNull();
+    // Lazy: no rows while collapsed. (Scope to the day sections: the
+    // page-level backlinks strip loads on mount and lists the task too —
+    // its scheduled date backlinks the day page.)
+    expect(within(daySections()).queryByText("Water the plants")).toBeNull();
 
     fireEvent.click(toggle);
-    await waitFor(() => expect(screen.getByText("Water the plants")).toBeDefined());
+    await waitFor(() =>
+      expect(within(daySections()).getByText("Water the plants")).toBeDefined(),
+    );
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Mark task done" }));
     await flushWrites();
@@ -402,8 +428,12 @@ describe("PageView day branch", () => {
         .find((entry) => entry.propertySchemaId === schema.id)?.value;
       expect(value).toBe(optionId("Done"));
     });
-    // The row leaves the open partition after the write lands.
-    await waitFor(() => expect(screen.queryByText("Water the plants")).toBeNull());
+    // The row leaves the open partition after the write lands (the backlinks
+    // strip still lists it — the scheduled date edge is untouched by the
+    // status write).
+    await waitFor(() =>
+      expect(within(daySections()).queryByText("Water the plants")).toBeNull(),
+    );
   });
 
   it("shows the Dated section from the backlink set, tasks excluded", async () => {
@@ -419,9 +449,12 @@ describe("PageView day branch", () => {
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
 
     fireEvent.click(toggle);
-    await waitFor(() => expect(screen.getByText("Sync with Ada")).toBeDefined());
+    // Scope to the opened Dated section: the mount-loaded backlinks strip
+    // lists both rows too (the dated objects backlink the day page).
+    const dated = toggle.closest("section") as HTMLElement;
+    await waitFor(() => expect(within(dated).getByText("Sync with Ada")).toBeDefined());
     // Tasks carry their own section — never a Dated row.
-    expect(screen.queryByText("Task dated same day")).toBeNull();
+    expect(within(dated).queryByText("Task dated same day")).toBeNull();
   });
 
   it("shows the Created section for today, chain nodes excluded", async () => {
@@ -453,7 +486,9 @@ describe("PageView day branch", () => {
 
     render(<PageView client={client} pageId={day} onOpenPage={vi.fn()} embedded />);
     await flushWrites();
-    expect(screen.queryByRole("button", { name: "Previous day" })).toBeNull();
+    // Embedded renders skip the day header entirely (they sit on aggregation
+    // surfaces) — no flags line, no title, no sections.
+    expect(document.querySelector(".day-page-header")).toBeNull();
     expect(screen.queryByRole("button", { name: /^tasks( \d+)?$/i })).toBeNull();
   });
 });

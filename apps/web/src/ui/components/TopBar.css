@@ -82,6 +82,14 @@
   color: var(--color-on-surface);
 }
 
+/* The workspace selector (the wordmark's permanent replacement) sizes to
+   its label in the top bar — the sidebar's full-width default must not
+   stretch the left section. */
+.nt-topbar-left .workspace-switcher {
+  width: auto;
+  max-width: 12rem;
+}
+
 .nt-topbar-spacer {
   flex: 1;
 }

@@ -23,6 +23,13 @@ import { NodeCollection } from "../src/ui/views/index.js";
 import { useWindowed } from "../src/ui/views/useWindowed.js";
 import type { NodeCollectionItem } from "../src/ui/views/index.js";
 
+/** The `.nt-backlinks` strip (the selected tab's rows load on mount). */
+function backlinksStrip(): HTMLElement {
+  const strip = document.querySelector(".nt-backlinks");
+  if (strip === null) throw new Error("no .nt-backlinks strip rendered");
+  return strip as HTMLElement;
+}
+
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
 
@@ -306,10 +313,8 @@ describe("grouped outline sections — the references grouping (§34.70)", () =>
     }
     render(<PageView client={client} pageId={targetId} onOpenPage={() => {}} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /Linked references/ }));
-    const linked = screen
-      .getByRole("button", { name: /Linked references/ })
-      .closest("section") as HTMLElement;
+    // The selected Backlinks tab loaded its rows on mount.
+    const linked = backlinksStrip();
 
     // One group, its header count honest at 120, its rows windowed at 100.
     expect(linked.querySelectorAll(".outline-group")).toHaveLength(1);

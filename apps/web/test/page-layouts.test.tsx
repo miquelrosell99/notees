@@ -11,7 +11,7 @@
  *  - L3 sidebar context sections: TOC derivation (main children + the
  *    heading heuristic + one nesting level), the rail sections' hide rules.
  *  - L4 chrome: the page footer word count + Created/Updated day links,
- *    the unlinked-references promote/ignore pair.
+ *    the unlinked-mentions promote/ignore pair.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -96,7 +96,7 @@ describe("L1 view-mode persistence (deviceSettings)", () => {
     expect(readViewModePref("hub.y", ["table"])).toBeNull();
   });
 
-  it("the page's blocks triad survives a remount; a fresh page starts at outline", async () => {
+  it("the page's blocks triad persists device-locally; a fresh page starts at outline", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Persisted Modes" });
     await client.createObject({
@@ -104,19 +104,24 @@ describe("L1 view-mode persistence (deviceSettings)", () => {
       contentAst: [{ type: "text", text: "body" }],
     });
 
+    // The switcher lives in the App-level NodeView chrome; its seam is the
+    // per-page device preference — write it and the page renders prose.
     const first = render(<PageView client={client} pageId={pageId} />);
-    fireEvent.click(screen.getByRole("radio", { name: "Prose" }));
+    expect(document.querySelector(".nt-block-tree")!.classList.contains("nt-prose")).toBe(false);
+    act(() => writeViewModePref(`nodeBlocks.${pageId}`, "prose"));
+    expect(document.querySelector(".nt-block-tree")!.classList.contains("nt-prose")).toBe(true);
     first.unmount();
 
+    // Remount: the persisted mode survives…
     render(<PageView client={client} pageId={pageId} />);
-    expect(screen.getByRole("radio", { name: "Prose" })).toHaveAttribute("aria-checked", "true");
+    expect(document.querySelector(".nt-block-tree")!.classList.contains("nt-prose")).toBe(true);
 
-    // A different page is unaffected (per-page keys).
+    // …and a different page is unaffected (per-page keys).
     const otherId = await client.createObject({ presentAsMain: true, name: "Other Page" });
     await client.createObject({ parentId: otherId, contentAst: [{ type: "text", text: "x" }] });
     cleanup();
     const second = render(<PageView client={client} pageId={otherId} />);
-    expect(screen.getByRole("radio", { name: "Outline" })).toHaveAttribute("aria-checked", "true");
+    expect(document.querySelector(".nt-block-tree")!.classList.contains("nt-prose")).toBe(false);
     second.unmount();
   });
 
@@ -574,7 +579,7 @@ describe("L4 breadcrumb edit gestures", () => {
 
 // --- L4: unlinked references promote/ignore -----------------------------------------
 
-describe("L4 unlinked references promote/ignore", () => {
+describe("L4 unlinked mentions promote/ignore", () => {
   it("promote rewrites the literal match into a mention (the source becomes linked)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Zebra" });
@@ -585,7 +590,8 @@ describe("L4 unlinked references promote/ignore", () => {
     });
 
     render(<PageView client={client} pageId={pageId} />);
-    fireEvent.click(screen.getByRole("button", { name: /Unlinked references/ }));
+    // The Unlinked mentions tab is lazy: one click activates it.
+    fireEvent.click(screen.getByRole("tab", { name: /Unlinked mentions/ }));
     fireEvent.click(screen.getByRole("button", { name: /Promote/ }));
     await flushWrites();
 
@@ -612,17 +618,18 @@ describe("L4 unlinked references promote/ignore", () => {
     });
 
     const { unmount } = render(<PageView client={client} pageId={pageId} />);
-    fireEvent.click(screen.getByRole("button", { name: /Unlinked references/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Unlinked mentions/ }));
     fireEvent.click(screen.getByRole("button", { name: /Ignore/ }));
     await flushWrites();
     unmount();
 
     expect(readIgnoredUnlinkedRefs(pageId)).toContain(blockId);
 
-    // Reopen: the section's query result is filtered — empty text renders.
+    // Reopen: the section's query result is filtered — the dismissed source
+    // stays out and the empty text renders.
     render(<PageView client={client} pageId={pageId} />);
-    fireEvent.click(screen.getByRole("button", { name: /Unlinked references/ }));
-    expect(screen.getByText("No unlinked references.")).not.toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: /Unlinked mentions/ }));
+    expect(screen.getByText("No unlinked mentions.")).not.toBeNull();
     void sourceId;
   });
 });
