@@ -1870,7 +1870,9 @@ export function PropertiesSection({
  * PropertiesSidebar — the main layout's first column (owner 2026-10-06):
  * a set of rows, one per property — a property-name row followed by its
  * value-cell row — beside a continuous vertical divider (the sidebar's
- * right edge runs the card's full height, no top or bottom gap). The value
+ * right edge runs the card's full height, no top or bottom gap). The column
+ * opens with a small "Properties" header row (owner request): the first
+ * column names itself, in the nodeview top bar's muted register. The value
  * cells reuse the properties table's row components verbatim (only their
  * internal label/hints hide — the name row above carries them); only the
  * two-row stacking and the divider are this component's own. Clicking a
@@ -1885,7 +1887,9 @@ export function PropertiesSidebar({
   nodeId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
 }) {
-  const { rendered, emptyObjectBindings } = propertyGroupsOf(client, nodeId);
+  const groups = propertyGroupsOf(client, nodeId);
+  const { rendered, emptyObjectBindings } = groups;
+  const count = propertiesCountOf(groups);
   const [settingsFor, setSettingsFor] = useState<string | null>(null);
   const [viewFor, setViewFor] = useState<string | null>(null);
   const [historyFor, setHistoryFor] = useState<string | null>(null);
@@ -1975,6 +1979,14 @@ export function PropertiesSidebar({
 
   return (
     <div className="nt-props-sidebar">
+      {/* The column names itself (owner request): a muted label row in the
+          nodeview top bar's register — icon + "Properties" + the effective
+          row count. Not a control: the panel is always visible. */}
+      <div className="nt-props-sidebar__header">
+        <Icon path="mdi-tune-variant" size={0.8} />
+        <span className="nt-props-sidebar__heading">Properties</span>
+        <span className="nt-props-sidebar__count">{count}</span>
+      </div>
       {rendered.map((entry) => {
         if (entry === null) return null;
         if (entry.kind === "grouped") {

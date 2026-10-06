@@ -157,6 +157,23 @@ span.pill__text {
   min-width: 0;
 }
 
+/* The column names itself (owner request): a small muted label row — the
+   nodeview top bar's visual register. No hairline: the vertical divider on
+   the sidebar container remains the only separator. */
+.nt-props-sidebar__header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: var(--height-sm);
+  font: var(--font-label-medium);
+  color: var(--color-on-surface-variant);
+}
+
+.nt-props-sidebar__count {
+  font-size: var(--font-size-2xs);
+  opacity: var(--opacity-70);
+}
+
 .nt-props-sidebar__name {
   display: flex;
   align-items: center;
