@@ -64,7 +64,7 @@ property batch — **option `icon` (strip-safe additive JSON), and the render
 contracts `display`/`readonly`/`hideWhenEmpty` on the PROPERTY SCHEMA
 (`propertySchema.create/update`), with `required` staying on the class binding
 (owner ruling: per-class requirement is real)**. TS reference: main repo
-**v3.4.0** (store v15); GTK **v3.1.1** (store v12); Flutter **v3.1.1**
+**v3.4.1** (store v15); GTK **v3.1.2** (store v12); Flutter **v3.1.2**
 (app DB v26). The GTK UI has no property rendering (protocol+store port
 only); Flutter renders the block-bullet value button.
 
@@ -91,6 +91,7 @@ this batch = bumping the package pins + releases, not code ports.
 | §34.89/§34.90 property batch | 2026-10-05 | option `icon` + task-status glyphs/colors + schema-level `display`/`readonly`/`hideWhenEmpty` (`required` per-class) — TS v3.3.0→v3.3.1 (store v13→v14 after the owner review moved the flags), GTK v3.1.0→v3.1.1 (store v11→v12), Flutter v3.1.0→v3.1.1 (DB v25→v26); live log rewritten by `migrate-binding-flags-to-schema.mts` |
 | §34.92 perf batch (parallel session) | 2026-10-05 | main-thread SQL jank fixes: guarded 2 s status poll, revision-cached render-path list reads, in-process-store banner, store v15 list-reads index, classIcons narrow read, per-row identity cache — TS-only, no wire change; folded into the v3.4.0 line below |
 | §34.91–§34.99 the GitHub-issues batch (#1–#14) + owner-flag pass | 2026-10-06 | All 14 open issues + the flagged follow-ups (alias /resolve parity, chain-resolved row icons, focus-mode icon scope, five new seeds) — no wire change, no lockstep; TS **v3.4.0** (store v15); client alignment = package-pin bumps (GTK/Flutter/CLI rows below) |
+| §34.107–§34.111 web batch (ghost block, backend-down ladder, flake fix, empty-block click target) | 2026-10-06 | Web/ops only — no wire change, no store schema change (the single packages/ delta is the sql.js adapter's error normalization); TS **v3.4.1** (store v15); **client alignment: none needed** — the clients' pins (CLI vendor v3.4.0, GTK/Flutter v3.1.2) are unaffected by a web-only delta; ghcr `notees-sync`/`notees-web` v3.4.1 + latest from the tag |
 
 ## 5. The SDK/repo splits (parked, owner)
 
