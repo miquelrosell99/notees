@@ -446,6 +446,7 @@ select:focus-visible {
 }
 
 .nt-page--panelled .nt-page-content {
+  align-self: stretch;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -462,12 +463,17 @@ select:focus-visible {
 }
 
 /* The footer as the bottom row of the column: a divided section pinned to
-   the bottom (no sticky — the grid cell does the pinning). */
+   the bottom (no sticky — the grid cell does the pinning). Its divider
+   starts at the column edge like the top bar's (no crossing into the
+   sidebar) and runs to the card's right edge. */
 .nt-page--panelled .nt-page-footer {
   position: static;
   bottom: auto;
   margin-top: 0;
   flex: none;
+  margin-left: 0;
+  padding-left: 0;
+  padding-bottom: var(--spacing-2);
 }
 
 .nt-page-content {
@@ -477,17 +483,18 @@ select:focus-visible {
 
 /* The nodeview top bar: the sidebar collapse toggle + the classes pills on
    the left, the view-mode switcher + node menu on the right, over a
-   full-width divider border like the sidebar's (the negative horizontal
-   insets run the divider edge to edge of the content column). */
+   divider border like the sidebar's. The divider runs to the column's
+   right edge; on the left it starts at the column edge (no crossing into
+   the sidebar), and the vertical rhythm is balanced. */
 .nt-node-topbar {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  margin-left: calc(-1 * var(--spacing-6));
   margin-right: calc(-1 * var(--spacing-6));
-  padding: 0 var(--spacing-6) var(--spacing-2);
+  margin-left: 0;
+  padding: var(--spacing-2) var(--spacing-6) var(--spacing-2) 0;
   border-bottom: var(--border-width-default) solid var(--color-outline-variant);
-  margin-bottom: var(--spacing-4);
+  margin-bottom: var(--spacing-3);
 }
 
 .nt-node-topbar__classes {
