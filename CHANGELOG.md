@@ -40,6 +40,38 @@ predating this file.
   `notees-operations` skills point here. Deliberate exception: the protocol
   fixtures under `packages/protocol/fixtures/` keep their metadata untouched —
   those bytes are sha256-pinned across the TS/GTK/Flutter convergence gate.
+- **fix(web): M39 — the card cover layout gate is honored (no-cover is
+  text-only again) + the v1 cards/table look recovery.**
+  - `CardCover` declared the `layout` prop but never read it: cards rendered
+    covers (placeholder + lazy fetch + lightbox) under the "No cover"
+    layout. Now `no-cover` renders nothing AND skips the lazy fetch (no
+    observation, no bytes); the JSX and the effect are both gated.
+  - Cards v1 recovery (`CardsView.css`): the grid is v1's adaptive CSS
+    masonry on a raised surface-container-high panel (spacing-4 pad,
+    shape-large radius); cards wear the v1 chrome — blended
+    outline/outline-variant border, the 20px --shape-card radius, zero
+    elevation, row-based padding with no interior dividers, the cover as a
+    matted slot, the select checkbox as a hover-reveal surface chip, the
+    selected wash = surface-container-high + primary focus ring, and the
+    cover badge moves to the top-left (v1's cover-bullet corner).
+  - Table v1 recovery (`TableView.css` + the header JSX): the boxed table —
+    separate borders, outline-variant outer border with shape-medium
+    radius, per-cell grid hairlines, surface-variant sticky header at 600,
+    spacing-2/3 cells at base font size, the row hover painting every
+    cell, the selected row on the hover-overlay wash, the sticky
+    select column with the row-gutter shadow, and the v1 sort register —
+    direction arrows on every sorted column plus the multi-sort priority
+    index.
+  - Machinery untouched throughout: useWindowed paging, selection export,
+    the CoverLayoutToggle preference, useLazyInView (16/9 cover slot kept
+    so the pending placeholder holds its size), kanban's NodeCard reuse,
+    inline editing, the tri-state header checkbox, CSV/Excel export,
+    ImportTableModal, ROW_WINDOW.
+  - **Verification:** the M39-targeted web suites all green — view-modes
+    (28), card-lazy-images (4), table-nodes (16), selection-export (4),
+    query-block (18), windowing (15), class-view (11), covers (16),
+    page-layouts (25) — and the full apps/web suite (119 files / 1193
+    tests) green; `tsc --noEmit` clean in apps/web.
 - **refactor(web): S5 of the main-content restructure — the class variant is
   pure data; `ClassPillsList` generalizes the class pills (M9–M13).** M11:
   `components/ClassPillsList.tsx` — ONE relation-parameterized pills
