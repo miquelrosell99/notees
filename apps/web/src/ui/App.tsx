@@ -82,6 +82,7 @@ import { ClassCreateModal } from "./components/modals/ClassCreateModal.js";
 import { QuickCreateFab } from "./components/QuickCreateFab.js";
 import { WorkspacesView } from "./components/WorkspacesView.js";
 import { UserSettingsModal } from "./components/modals/UserSettingsModal.js";
+import { SyncDetailsModal } from "./components/modals/SyncDetailsModal.js";
 import { applyAppearance, readDeviceSetting, toggleFocusMode, useDeviceSetting } from "./components/modals/deviceSettings.js";
 import { BackendUnavailableOverlay } from "./components/ui/BackendUnavailableOverlay.js";
 import { InProcessStoreBanner } from "./components/ui/InProcessStoreBanner.js";
@@ -667,6 +668,8 @@ export function App() {
   const [authTab, setAuthTab] = useState<"account" | "apikey">("account");
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** §34.115 — the sync indicator's details modal (resync + conflicts). */
+  const [syncDetailsOpen, setSyncDetailsOpen] = useState(false);
   /** Manage Workspaces view, opened from the workspace switcher popup. */
   const [managerOpen, setManagerOpen] = useState(false);
   /** True when the live credential is a session (API-key management needs one). */
@@ -1678,6 +1681,7 @@ export function App() {
     <div className={sidebarOpen ? "nt-app nt-sidebar-open" : "nt-app"}>
       <TopBar
         syncStatus={syncStatus}
+        onOpenSyncDetails={() => setSyncDetailsOpen(true)}
         breadcrumbs={
           selectedPageId !== null ? (
             <Breadcrumbs client={client} nodeId={selectedPageId} onOpenNode={openPage} showCurrent editable />
@@ -1917,6 +1921,14 @@ export function App() {
         />
       )}
       {storeMode === "in-process" && <InProcessStoreBanner />}
+      {client !== null && (
+        <SyncDetailsModal
+          client={client}
+          snapshot={syncStatus}
+          isOpen={syncDetailsOpen}
+          onClose={() => setSyncDetailsOpen(false)}
+        />
+      )}
       <BackendUnavailableOverlay syncStatus={syncStatus} />
       <NotificationToaster />
     </div>
