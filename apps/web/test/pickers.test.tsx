@@ -25,6 +25,8 @@ import { deriveDisplayName } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { PageView } from "../src/ui/PageView.js";
+import { IconPickerPopup } from "../src/ui/components/IconPickerPopup.js";
+import { NodeSelector } from "../src/ui/components/pickers/NodeSelector.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -310,5 +312,90 @@ describe("metadata pickers (ported popups)", () => {
         source: "authored",
       }),
     ]);
+  });
+});
+
+describe("icon picker color section (M10)", () => {
+  it("the section stays hidden when no onColorChange is provided", async () => {
+    const client = await seedClient();
+    render(
+      <IconPickerPopup value="" onSelect={() => {}} onClose={() => {}} anchorEl={null} />,
+    );
+    expect(screen.getByRole("dialog", { name: "Icon picker" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Icon color" })).toBeNull();
+  });
+
+  it("with onColorChange the header swatch opens the palette; a swatch emits its token", async () => {
+    const client = await seedClient();
+    const colors: Array<string | null> = [];
+    render(
+      <IconPickerPopup
+        value=""
+        onSelect={() => {}}
+        onClose={() => {}}
+        anchorEl={null}
+        color="red"
+        onColorChange={(color) => colors.push(color)}
+      />,
+    );
+    // The icon popup stays open (the picker's presses don't dismiss it)…
+    fireEvent.click(screen.getByRole("button", { name: "Icon color" }));
+    const picker = screen.getByRole("dialog", { name: "Color picker" });
+    fireEvent.click(within(picker).getByRole("button", { name: "Blue" }));
+    expect(colors).toEqual(["blue"]);
+    expect(screen.getByRole("dialog", { name: "Icon picker" })).not.toBeNull();
+  });
+
+  it("the no-color entry emits null", async () => {
+    const client = await seedClient();
+    const colors: Array<string | null> = [];
+    render(
+      <IconPickerPopup
+        value=""
+        onSelect={() => {}}
+        onClose={() => {}}
+        anchorEl={null}
+        color="sky"
+        onColorChange={(color) => colors.push(color)}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Icon color" }));
+    const picker = screen.getByRole("dialog", { name: "Color picker" });
+    fireEvent.click(within(picker).getByRole("button", { name: "Remove color" }));
+    expect(colors).toEqual([null]);
+  });
+});
+
+describe("NodeSelector noCreate (M38a)", () => {
+  it("search-without-match shows the honest empty state instead of a create row", async () => {
+    const client = await seedClient();
+    await client.createObject({ presentAsMain: true, name: "Existing" });
+    render(
+      <NodeSelector
+        client={client}
+        trigger="inline"
+        noCreate
+        searchPlaceholder="Search pages"
+        onAdd={() => {}}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Search pages"), { target: { value: "zz" } });
+    expect(screen.getByText("No matches found")).not.toBeNull();
+    expect(screen.queryByText('Create "zz"')).toBeNull();
+  });
+
+  it("the default keeps the create-from-query affordance", async () => {
+    const client = await seedClient();
+    await client.createObject({ presentAsMain: true, name: "Existing" });
+    render(
+      <NodeSelector
+        client={client}
+        trigger="inline"
+        searchPlaceholder="Search pages"
+        onAdd={() => {}}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Search pages"), { target: { value: "zz" } });
+    expect(screen.getByText('Create "zz"')).not.toBeNull();
   });
 });
