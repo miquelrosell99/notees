@@ -40,6 +40,20 @@ predating this file.
   `notees-operations` skills point here. Deliberate exception: the protocol
   fixtures under `packages/protocol/fixtures/` keep their metadata untouched —
   those bytes are sha256-pinned across the TS/GTK/Flutter convergence gate.
+- **refactor(web): S2 of the main-content restructure — one lazy-section
+  contract behind `useSectionData`.** The four hand-rolled lazy idioms
+  collapse into one hook: `components/useSectionData.ts` (first-activation
+  gate, version-keyed cache across switches, per-notification re-run,
+  failure keeps rows; `read`/`query` strategies) + `components/
+  CollectionSection.tsx` (the one skin: NodeViewSection header + body-top
+  ViewToolbar + NodeCollection). `Section.tsx` is a thin wrapper over the
+  hook with unchanged props; SystemSections (the backlinks tabs ride TWO
+  hook instances — never a shared cache), CreatedSection, and
+  ActivityLogSection converted with byte-identical exports; DayPageSections
+  absorbed via Section. `SectionSpec` lands as the data-facing descriptor.
+  Same-exports hard rule held — PageView didn't move. S2-surface tests
+  green (~95), tsc clean. Design:
+  `.plans/2026-10-06-1352-main-content-restructure/`.
 - **refactor(web): S3a of the main-content restructure — the page machinery
   moves behind `usePageMachinery`.** Outliner construction, the selection
   surface, find/replace (state, shortcut listener, prose docs), the

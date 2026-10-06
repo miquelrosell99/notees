@@ -7,14 +7,20 @@
  * failure (e.g. the client closing mid-flight) keeps the previous results
  * instead of crashing the tree — a section is reference material, never a
  * boot gate.
+ *
+ * S2: a thin chrome wrapper over useSectionData — the timing/cache contract
+ * moved into the hook (one instance per section view); this component keeps
+ * its exact pre-S2 props and renders the collapsible chrome around
+ * `renderResults`.
  */
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client.js";
 
 import { NodeViewSection } from "./components/NodeViewSection.js";
+import { useSectionData } from "./components/useSectionData.js";
 
 export interface SectionProps<T> {
   client: WorkspaceClient | WorkerClient;
@@ -34,6 +40,8 @@ export interface SectionProps<T> {
   renderResults: (results: T) => ReactNode;
   /** Text when the query came back empty. */
   emptyText: string;
+  /** Optional chrome rendered above the results (an extension slot). */
+  children?: ReactNode;
 }
 
 export function Section<T>({
@@ -45,25 +53,10 @@ export function Section<T>({
   load,
   renderResults,
   emptyText,
+  children,
 }: SectionProps<T>) {
   const [expanded, setExpanded] = useState(!defaultCollapsed);
-  const [results, setResults] = useState<T | null>(null);
-  /** Notification version at which `load` last ran; null = never ran. */
-  const lastRunAt = useRef<number | null>(null);
-  const [version, setVersion] = useState(0);
-
-  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
-
-  useEffect(() => {
-    if (!expanded) return;
-    if (lastRunAt.current === version) return; // cached result is still fresh
-    lastRunAt.current = version;
-    try {
-      setResults(load());
-    } catch {
-      // Closed client or a failed section query: keep the previous results.
-    }
-  }, [expanded, version, load]);
+  const { rows } = useSectionData<T>({ client, active: expanded, read: load });
 
   return (
     <NodeViewSection
@@ -74,10 +67,11 @@ export function Section<T>({
       expanded={expanded}
       onExpandedChange={setExpanded}
     >
-      {results === null ? null : Array.isArray(results) && results.length === 0 ? (
+      {children}
+      {rows === null ? null : Array.isArray(rows) && rows.length === 0 ? (
         <div className="nt-section-empty">{emptyText}</div>
       ) : (
-        renderResults(results)
+        renderResults(rows)
       )}
     </NodeViewSection>
   );
