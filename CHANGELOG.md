@@ -40,6 +40,17 @@ predating this file.
   `notees-operations` skills point here. Deliberate exception: the protocol
   fixtures under `packages/protocol/fixtures/` keep their metadata untouched —
   those bytes are sha256-pinned across the TS/GTK/Flutter convergence gate.
+- **refactor(web): S3a of the main-content restructure — the page machinery
+  moves behind `usePageMachinery`.** Outliner construction, the selection
+  surface, find/replace (state, shortcut listener, prose docs), the
+  external-link delegation + LinkEditModal opener, the DnD wiring, and the
+  fold chords — everything PageView wired by hand — moves to
+  `ui/usePageMachinery.ts` and returns one bag the component consumes; the
+  JSX that hosts it stays. New `globalShortcuts` option (default true;
+  embedded implies false) prefigures the workspace-card surfaces. Pure move:
+  typecheck clean, 102 machinery-adjacent tests green. The drag half hoists
+  to the workspace host in S6. Design:
+  `.plans/2026-10-06-1352-main-content-restructure/`.
 - **refactor(web): S1 of the main-content restructure — the NodeView shell
   extraction.** `ui/NodeView.tsx` (the mode dispatcher + chrome-right
   cluster builder + the new `embedded` surface prop) and
