@@ -236,7 +236,7 @@ function DeckSlideView({
       .map((node) => ({ node, children: client.getBlockTree(node.id) }));
   }
   const titleIcon =
-    titleNode !== undefined ? nodeIcon(titleNode, client.classIcons()) : null;
+    titleNode !== undefined ? nodeIcon(titleNode, client.effectiveClassIcons()) : null;
   const titleColor =
     titleNode !== undefined ? client.effectiveNodeColor(titleNode) : null;
 

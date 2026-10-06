@@ -20,7 +20,7 @@
  */
 
 import type { Envelope, WorkspaceFeature } from "@notees/protocol";
-import { managedClassIds } from "@notees/domain";
+import { managedClassIds, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { applyEnvelope, validateEnvelope, type ChangeSummary } from "./appliers.js";
 import type { SqliteDB, StoreBackend } from "./db.js";
@@ -451,6 +451,21 @@ export class Store {
     return this.db
       .prepare("SELECT * FROM edge WHERE source_id = ? ORDER BY type, verb, id")
       .all(nodeId);
+  }
+
+  /**
+   * The node's node-alias target (§34.95): the target of its `aliasOf`
+   * value (a node-typed property — an edge row, verb = the aliasOf schema),
+   * or undefined when the node is not an alias. Server `/resolve` parity:
+   * resolving an alias page's title answers the MAIN page.
+   */
+  aliasOfTarget(nodeId: string): string | undefined {
+    const row = this.db
+      .prepare(
+        "SELECT target_id FROM edge WHERE source_id = ? AND type = 'property' AND verb = ? LIMIT 1",
+      )
+      .get(nodeId, SYSTEM_PROPERTY_UUIDS.aliasOf) as { target_id: string } | undefined;
+    return row?.target_id;
   }
 
   /**

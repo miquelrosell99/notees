@@ -254,6 +254,27 @@ describe("effective icons (display-time defaults)", () => {
     expect(client.effectiveClassIcon(leafId)).toBe("mdi-label");
   });
 
+  it("effectiveClassIcons: the row-icon map is chain-resolved (#1 follow-up)", async () => {
+    const client = await seedIconClient();
+    const parentId = await client.createClass("Row Parent", { icon: "mdi-star" });
+    const childId = await client.createClass("Row Child");
+    await client.setClassExtends(childId, [parentId]);
+    const ownId = await client.createClass("Row Own", { icon: "mdi-heart" });
+    const map = client.effectiveClassIcons();
+    expect(map.get(parentId)).toBe("mdi-star");
+    expect(map.get(childId)).toBe("mdi-star");
+    expect(map.get(ownId)).toBe("mdi-heart");
+    // A node whose icon arrives through the class chain renders it in ROWS:
+    // nodeIcon over the effective map agrees with effectiveNodeIcon.
+    const pageId = await client.createObject({ presentAsMain: true, name: "Daily" });
+    await client.assignClass(pageId, childId);
+    const node = client.getNode(pageId)!;
+    expect(nodeIcon(node, map)).toBe(client.effectiveNodeIcon(node));
+    expect(nodeIcon(node, map)).toBe("mdi-star");
+    // Display-time only: the child's stored icon stays empty.
+    expect(client.getNode(childId)?.icon ?? null).toBeNull();
+  });
+
   it("effectiveNodeIcon: own icon wins, then the first class with an icon (class order)", async () => {
     const client = await seedIconClient();
     const clsA = await client.createClass("A", { icon: "mdi-star" });

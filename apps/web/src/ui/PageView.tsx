@@ -271,7 +271,7 @@ export function PageView({
       ? rawNode
       : undefined;
   const headerIcon =
-    page !== undefined ? nodeIcon(page, client.classIcons()) : null;
+    page !== undefined ? nodeIcon(page, client.effectiveClassIcons()) : null;
   const tree = page !== undefined ? client.getBlockTree(pageId) : [];
   /** The same tree in the view system's input shape (session view state). */
   const blockItems: NodeCollectionItem[] = tree.map(toCollectionItem);

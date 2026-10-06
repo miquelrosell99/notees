@@ -1042,12 +1042,26 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
       const matchesName = (api.name ?? "").toLowerCase() === wanted;
       const matchesAlias = aliases.some((alias) => alias.toLowerCase() === wanted);
       if (matchesName || matchesAlias) {
+        // §34.95 parity: a name hit on an ALIAS page answers the MAIN page
+        // (chain-collapsing, cycle-safe — the same semantics the web
+        // client's resolveNodeByName folds in via nameEquivalentsOf).
+        let resolvedId = hit.nodeId;
+        const seen = new Set<string>([resolvedId]);
+        for (;;) {
+          const target = store.aliasOfTarget(resolvedId);
+          if (target === undefined) break;
+          const targetRow = store.getNode(target);
+          if (targetRow === undefined || targetRow.is_active !== 1 || seen.has(target)) break;
+          seen.add(target);
+          resolvedId = target;
+        }
+        const resolved = nodeToApi(store.getNode(resolvedId)!);
         return {
-          name: api.name,
-          id: api.id,
-          isClass: api.isClass,
-          presentAsMain: api.presentAsMain,
-          parentId: api.parentId,
+          name: resolved.name,
+          id: resolved.id,
+          isClass: resolved.isClass,
+          presentAsMain: resolved.presentAsMain,
+          parentId: resolved.parentId,
         };
       }
     }
