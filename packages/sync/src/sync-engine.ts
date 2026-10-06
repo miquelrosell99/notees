@@ -23,6 +23,7 @@ import {
 import { validateEnvelope, type ChangeSummary, type Store } from "@notees/store";
 
 import { detectConflicts, type SyncConflict } from "./conflicts.js";
+import { summarizeAppliedChanges, summarizeEnvelopes, mergeChangeInfo, type BatchChangeInfo } from "./change-info.js";
 import { TransportError } from "./errors.js";
 import { SyncMeta } from "./meta.js";
 import { Outbox } from "./outbox.js";
@@ -237,6 +238,7 @@ export class SyncEngine {
     const due = this.outbox.due(this.now());
     const total = due.length;
     let sent = 0;
+    let changeInfo: BatchChangeInfo | undefined;
 
     for (let i = 0; i < due.length; i += this.batchSize) {
       const chunk = due.slice(i, i + this.batchSize);
@@ -249,6 +251,7 @@ export class SyncEngine {
         // duplicate-only chunks still leave the outbox.
         this.outbox.markAcknowledged(ids);
         this.callbacks.onAcknowledged?.(ids);
+        changeInfo = mergeChangeInfo(changeInfo, summarizeEnvelopes(chunk.map((entry) => entry.envelope)));
         sent += chunk.length;
         onProgress?.({ sent, total });
       } catch (err) {
@@ -262,7 +265,7 @@ export class SyncEngine {
     }
 
     this.reportOutboxCounts();
-    if (total > 0) this.callbacks.onPush?.(total);
+    if (total > 0) this.callbacks.onPush?.(total, changeInfo);
   }
 
   // --- pull --------------------------------------------------------------------------
@@ -312,6 +315,7 @@ export class SyncEngine {
     let afterSeq = this.cursorSeq;
     let totalEnvelopes = 0;
     let appliedOps = 0;
+    let changeInfo: BatchChangeInfo | undefined;
     for (;;) {
       const page = await this.transport.catchUp(afterSeq, this.catchUpLimit);
       if (page.restoreEpoch !== this.restoreEpoch) {
@@ -328,7 +332,9 @@ export class SyncEngine {
         // validateEnvelope fails loud on unknown opTypes / newer protocol
         // versions before the transaction opens.
         const envelopes = page.envelopes.map((input) => validateEnvelope(input));
-        appliedOps += this.applyRemote(envelopes, null);
+        const pageResult = this.applyRemote(envelopes, null);
+        appliedOps += pageResult.applied;
+        changeInfo = mergeChangeInfo(changeInfo, pageResult.info);
       }
       this.callbacks.onPullProgress?.({ applied: appliedOps, total: appliedOps + page.totalRemaining });
 
@@ -344,7 +350,7 @@ export class SyncEngine {
       afterSeq = page.nextAfterSeq;
     }
 
-    this.callbacks.onPull?.(totalEnvelopes);
+    this.callbacks.onPull?.(totalEnvelopes, changeInfo ?? { affectedNodeIds: [], structural: false });
     await this.maybeUploadSnapshot(meta, options.skipSnapshotUpload === true);
     this.reportPhase("synced", "Synced");
     this.reportOutboxCounts();
@@ -409,15 +415,29 @@ export class SyncEngine {
    * Apply a remote batch: one store transaction, conflict detection against
    * local un-acknowledged ops (reported, never blocking), HLC watermark +
    * device clock merge, and (when seqs are known) cursor advancement.
-   * Returns the number of newly applied envelopes.
+   * Returns the number of newly applied envelopes plus the batch's change
+   * info for incremental UI invalidation.
    */
-  private applyRemote(envelopes: Envelope[], seqs: Record<string, number> | null): number {
+  private applyRemote(
+    envelopes: Envelope[],
+    seqs: Record<string, number> | null,
+  ): { applied: number; info: BatchChangeInfo } {
     const ordered =
       seqs !== null
         ? [...envelopes].sort((a, b) => (seqs[a.id] ?? 0) - (seqs[b.id] ?? 0))
         : envelopes;
 
     const summaries = this.store.applyMany(ordered, { quarantineMoveGuards: true });
+    // summaries pair 1:1 with `ordered` (one entry per envelope, ignored
+    // included): the structural check reads the envelope (op type + payload
+    // — presentAsMain rides object.update), the affected ids read the
+    // summary the applier actually computed.
+    const info = summarizeAppliedChanges(
+      ordered.map((envelope, i) => ({
+        envelope,
+        summary: summaries[i] ?? { affectedNodeIds: [], ignored: true },
+      })),
+    );
 
     // Quarantined remote envelopes (poison history): surfaced loud — but the
     // batch converged, so this is a report, not a failure.
@@ -451,7 +471,7 @@ export class SyncEngine {
       if (maxSeq > this.cursorSeq) this.cursorSeq = maxSeq;
     }
     this.persistState();
-    return summaries.filter((summary) => !summary.ignored).length;
+    return { applied: summaries.filter((summary) => !summary.ignored).length, info };
   }
 
   // --- realtime hook surface (WS acceleration path) -------------------------------------
@@ -514,8 +534,8 @@ export class SyncEngine {
       const frame = this.wsBuffer.shift()!;
       try {
         const envelopes = frame.envelopes.map((input) => validateEnvelope(input));
-        const applied = this.applyRemote(envelopes, frame.seqs);
-        if (applied > 0) this.callbacks.onRemoteBatch?.(applied);
+        const { applied, info } = this.applyRemote(envelopes, frame.seqs);
+        if (applied > 0) this.callbacks.onRemoteBatch?.(applied, info);
       } catch (err) {
         // v1: drop the remaining buffer — unapplied frames never advanced the
         // cursor, so the next pull re-fetches them through catch-up.
