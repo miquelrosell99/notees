@@ -74,8 +74,16 @@ describe("text properties as a blocks list", () => {
     const { container } = render(<PropertiesTable client={client} nodeId={pageId} />);
     const rows = container.querySelectorAll(".nt-property-text");
     expect(rows.length).toBe(1);
-    const cells = container.querySelectorAll(".nt-property-textcell .nt-refblock-tree");
-    expect(cells.length).toBe(2);
+    // The carriers render through the locked outline collection — one
+    // collection per row, each carrier a root BlockRow.
+    const collections = container.querySelectorAll(".nt-property-textcell .node-collection--outline");
+    expect(collections.length).toBe(1);
+    expect(
+      container.querySelector(`.nt-property-textcell [data-block-id="${carrierA}"]`),
+    ).not.toBeNull();
+    expect(
+      container.querySelector(`.nt-property-textcell [data-block-id="${carrierB}"]`),
+    ).not.toBeNull();
     // The label appears once — values are blocks, not repeated entries.
     expect(container.querySelectorAll(".nt-property-text .nt-property-name").length).toBe(1);
   });
