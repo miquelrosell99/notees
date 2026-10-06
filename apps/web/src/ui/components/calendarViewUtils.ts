@@ -50,10 +50,15 @@ export function isoWeekNumber(iso: string): number {
   return Math.ceil(((date.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
 }
 
-/** Long weekday name for a local ISO date (locale-sensitive display). */
+/**
+ * Long weekday name for a date (the UI is English-only — the locale is
+ * pinned, not `undefined`, so a host/browser es locale can never leak
+ * "martes" into an English surface). Day-page header and Calendar day view
+ * share this.
+ */
 export function weekdayLabel(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
-  return new Date(y!, m! - 1, d!).toLocaleDateString(undefined, { weekday: "long" });
+  return new Date(y!, m! - 1, d!).toLocaleDateString("en-US", { weekday: "long" });
 }
 
 /**

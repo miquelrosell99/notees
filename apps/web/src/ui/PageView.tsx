@@ -688,30 +688,6 @@ export function PageView({
               onClose={() => setFindOpen(false)}
             />
           )}
-          {/* The panelled main layout's top bar: the side-panel collapse
-              toggle at the content's top-left corner, then the classes pills
-              (the Capacities-style "non-sidebar part" corner). */}
-          {panelled && (
-            <div className="nt-page-topbar">
-              <button
-                type="button"
-                className="nt-icon-btn"
-                aria-label={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
-                aria-pressed={!sidePanelCollapsed}
-                title={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
-                onClick={() => setSidePanelCollapsed(!sidePanelCollapsed)}
-              >
-                <Icon path="mdi-page-layout-sidebar-left" size={1} />
-              </button>
-              {corner !== undefined ? (
-                corner
-              ) : (
-                <div className="nt-page-classes-inline">
-                  <ClassesRow client={client} nodeId={pageId} classIds={page.classIds} onOpenPage={onOpenPage} />
-                </div>
-              )}
-            </div>
-          )}
           {/* §34.72 — the v1 header layout: header left, the collapsible
               cover CARD right (always rendered when the page can carry a
               cover, even empty). */}
@@ -828,9 +804,25 @@ export function PageView({
           </>
         )}
         {/* The page body: beside the left properties panel in the panelled
-            main layout, full-width in the compact ones. */}
+            main layout, full-width in the compact ones. The hamburger rides
+            a slim rail pinned to the body's top-left corner; the classes
+            pills sit at the content column's top, so opening the panel
+            pushes them right of the panel divider while the hamburger stays
+            where it is (owner correction 2026-10-06). */}
         {panelled ? (
           <div className="nt-page-body">
+            <div className="nt-page-panel-rail">
+              <button
+                type="button"
+                className="nt-icon-btn"
+                aria-label={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
+                aria-pressed={!sidePanelCollapsed}
+                title={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
+                onClick={() => setSidePanelCollapsed(!sidePanelCollapsed)}
+              >
+                <Icon path="mdi-page-layout-sidebar-left" size={1} />
+              </button>
+            </div>
             {!sidePanelCollapsed && (
               <aside className="nt-page-side-panel">
                 <PropertiesTable
@@ -841,7 +833,16 @@ export function PageView({
                 />
               </aside>
             )}
-            <div className="nt-page-content">{bodyContent}</div>
+            <div className="nt-page-content">
+              <div className="nt-page-classes-row">
+                {corner !== undefined ? (
+                  corner
+                ) : (
+                  <ClassesRow client={client} nodeId={pageId} classIds={page.classIds} onOpenPage={onOpenPage} />
+                )}
+              </div>
+              {bodyContent}
+            </div>
           </div>
         ) : (
           bodyContent

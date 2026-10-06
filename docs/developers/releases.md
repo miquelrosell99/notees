@@ -64,7 +64,7 @@ property batch — **option `icon` (strip-safe additive JSON), and the render
 contracts `display`/`readonly`/`hideWhenEmpty` on the PROPERTY SCHEMA
 (`propertySchema.create/update`), with `required` staying on the class binding
 (owner ruling: per-class requirement is real)**. TS reference: main repo
-**v3.4.1** (store v15); GTK **v3.1.2** (store v12); Flutter **v3.1.2**
+**v3.4.2** (store v15); GTK **v3.1.2** (store v12); Flutter **v3.1.2**
 (app DB v26). The GTK UI has no property rendering (protocol+store port
 only); Flutter renders the block-bullet value button.
 
@@ -92,6 +92,7 @@ this batch = bumping the package pins + releases, not code ports.
 | §34.92 perf batch (parallel session) | 2026-10-05 | main-thread SQL jank fixes: guarded 2 s status poll, revision-cached render-path list reads, in-process-store banner, store v15 list-reads index, classIcons narrow read, per-row identity cache — TS-only, no wire change; folded into the v3.4.0 line below |
 | §34.91–§34.99 the GitHub-issues batch (#1–#14) + owner-flag pass | 2026-10-06 | All 14 open issues + the flagged follow-ups (alias /resolve parity, chain-resolved row icons, focus-mode icon scope, five new seeds) — no wire change, no lockstep; TS **v3.4.0** (store v15); client alignment = package-pin bumps (GTK/Flutter/CLI rows below) |
 | §34.107–§34.111 web batch (ghost block, backend-down ladder, flake fix, empty-block click target) | 2026-10-06 | Web/ops only — no wire change, no store schema change (the single packages/ delta is the sql.js adapter's error normalization); TS **v3.4.1** (store v15); **client alignment: none needed** — the clients' pins (CLI vendor v3.4.0, GTK/Flutter v3.1.2) are unaffected by a web-only delta; ghcr `notees-sync`/`notees-web` v3.4.1 + latest from the tag |
+| §34.112–§34.116 web batch (hover-calm chrome, breadcrumbs, notify-storm perf, sync-details modal, the Capacities-style main layout) | 2026-10-06 | §34.112–115: resting-calm chrome, editable breadcrumbs, the coalesced-notify/batched-reads perf pass, the sync-dot details modal — then §34.116: date-page header (weekday/Today flags + week flag, stepping bar removed), left properties side panel (panelled vs compact layout modes), Backlinks/Unlinked mentions bottom tabs (always both, headerless lazy panels), view switcher to the card corner, Created today stamp, Created on day+month+year (cards default), selection-toolbar @ link item, sidebar Today/New(+class picker)/SearchBox removal, top-bar workspace selector + collapsed New/Search — display-layer only, no wire change, no store schema change; TS **v3.4.2** (store v15); **client alignment: none needed** (web-only delta; the clients' pins stay valid); ghcr `notees-sync`/`notees-web` v3.4.2 + latest from the tag |
 
 ## 5. The SDK/repo splits (parked, owner)
 
