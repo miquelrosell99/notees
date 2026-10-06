@@ -1,0 +1,9 @@
+/* CollectionSection — the one section skin's co-located styles (M7): the
+   optional toolbar rides the body top (the section header is a single
+   <button> — no interactive control nests inside it). Token-only. */
+
+.nt-collection-section__toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--spacing-2);
+}
