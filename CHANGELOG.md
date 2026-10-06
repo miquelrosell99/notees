@@ -9,6 +9,22 @@ predating this file.
 
 ## 2026-10-06
 
+- **feat(web): text-property rows render as locked outline collections.**
+  A text property's values are node-backed carrier blocks; the row's
+  bespoke mini-outliner renderer is replaced by the shared dispatcher —
+  one `NodeCollection` per row, viewMode pinned to the outline mode (no
+  switcher), `tree` + `editable`, each carrier one root item rendered
+  through the `BlockRow` machinery. Each root row keeps its own
+  per-carrier outliner context (carrier-scoped positions and collapse,
+  bullet click opens the node), and the row keeps the standalone
+  renderer's client subscription, so editing, navigation, and the
+  carrier Enter semantics (multi registers the sibling as the next
+  value; single nests a child) are unchanged. The dead-carrier-EMPTY
+  cell and the legacy scalar input fallback stay as-is; the panel and
+  the compact layouts both consume the row through the properties
+  table, so one change covers both. Gates green: the four property/
+  metadata/table web suites (48 tests) + `tsc --noEmit` clean for the
+  touched files.
 - **chore(sync): the GTK/Flutter wire corpora re-vendored to byte-identity
   (21 fixtures).** The client copies of `packages/protocol/fixtures/` had
   drifted (missing `object-restore.json`, stale `class-property-defaults.json`);
