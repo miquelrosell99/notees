@@ -1,20 +1,26 @@
 /**
- * CoverCard — the cover element (owner directive 2026-10-04: "the
+ * CoverCard — the v1 cover element (owner directive 2026-10-04: "the v1
  * collapsible cover element, that showed even when empty — cover as a card
- * in the right side"). Sits in the header row's right column
+ * in the right side like in v1"). Sits in the header row's right column
  * (the .page-header-section grid); ALWAYS renders when the page can carry
  * a cover — collapsed to the slim chevron strip by default, expanding to
  * the card: the cover image, a dashed placeholder naming a byte-less
  * asset, or the dashed "Add cover" affordance when empty.
  *
- * The collapse state derives from whether a cover is set (no per-node
+ * The collapse state derives from whether a cover is set (v1: no per-node
  * persistence; the toggle is session-local). The card accepts a dropped
- * image file (the AddCoverButton gesture); hover reveals Change/Remove.
+ * image file (the v1 AddCoverButton gesture); hover reveals Change/Remove.
  * Selection writes through coverProperty: value + the cover/asset classes
  * (explicit ops — every client converges).
+ *
+ * The v1 upload gesture (M33): clicking the empty "Add cover" element opens
+ * the AssetUploadModal directly — image-only (acceptedTypes), validated,
+ * with preview + progress — and the uploaded asset node becomes the cover.
+ * The Change path keeps the CoverPicker (search existing assets, or "Upload
+ * new cover…" which routes to the same modal).
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
@@ -24,26 +30,32 @@ import type { WorkspaceClient } from "@/core/workspace-client.js";
 import { assetImageUrl } from "../views/assetThumbs.js";
 import { Icon } from "../Icon.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
+import { AssetUploadModal } from "./modals/AssetUploadModal.js";
 import { Button, ImageModal } from "./ui/index.js";
 import { clearNodeCover, setNodeCover, uploadCoverAsset } from "./coverProperty.js";
 import "./PageBanner.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
-/** The shared cover-picker surface: pick an existing asset or upload. */
+/**
+ * The shared cover-picker surface: pick an existing asset, or hand the
+ * upload to the AssetUploadModal (the M33 v1 gesture — validated, preview,
+ * progress). `onUploadRequest` swaps the picker's raw hidden-input upload
+ * for the modal; the picker closes so the modal owns the interaction.
+ */
 export function CoverPicker({
   client,
   pageId,
   anchor,
   onClose,
+  onUploadRequest,
 }: {
   client: AnyClient;
   pageId: string;
   anchor: HTMLElement;
   onClose: () => void;
+  onUploadRequest: () => void;
 }) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const pickCover = async (assetNodeId: string) => {
@@ -53,19 +65,6 @@ export function CoverPicker({
       await setNodeCover(client, pageId, assetNodeId);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
-    }
-  };
-
-  const uploadCover = async (file: File) => {
-    onClose();
-    setBusy(true);
-    setError(null);
-    try {
-      await uploadCoverAsset(client, pageId, file);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -83,23 +82,13 @@ export function CoverPicker({
       <button
         type="button"
         className="nt-cover-picker__upload"
-        disabled={busy}
-        onClick={() => fileInputRef.current?.click()}
+        onClick={() => {
+          onClose();
+          onUploadRequest();
+        }}
       >
         Upload new cover…
       </button>
-      <input
-        ref={fileInputRef}
-        type="file"
-        className="nt-file-input"
-        aria-label="Upload cover image"
-        accept="image/*"
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file !== undefined) void uploadCover(file);
-          event.target.value = "";
-        }}
-      />
       {error !== null && (
         <p role="alert" className="nt-cover-picker__error">
           {error}
@@ -149,15 +138,28 @@ export function CoverCard({
 }) {
   const [url, setUrl] = useState<string | null>(null);
   const [resolved, setResolved] = useState(false);
-  /** The collapse derives from whether a cover is set; session-local. */
+  /** v1: the collapse derives from whether a cover is set; session-local. */
   const [collapsed, setCollapsed] = useState(assetId === null);
   const [pickerAnchor, setPickerAnchor] = useState<HTMLButtonElement | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  /** The M33 upload modal — opened by the empty Add state and the picker's
+   *  "Upload new cover…" row (the v1 gestures). */
+  const [uploadOpen, setUploadOpen] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const drop = useCoverDrop(client, pageId);
 
-  // New cover set while collapsed? Expand (the card appears).
+  // The uploaded asset node becomes the cover (value + asset class through
+  // the shared coverProperty write).
+  const applyUploadedCover = (assetNodeId: string) => {
+    setUploadOpen(false);
+    setError(null);
+    setNodeCover(client, pageId, assetNodeId).catch((err: unknown) => {
+      setError(err instanceof Error ? err.message : String(err));
+    });
+  };
+
+  // New cover set while collapsed? Expand (the v1 feel: the card appears).
   useEffect(() => {
     if (assetId !== null) setCollapsed(false);
   }, [assetId]);
@@ -220,10 +222,7 @@ export function CoverCard({
               className="nt-covercard__empty"
               aria-label="Add cover image"
               title="Add cover image"
-              onClick={(event) => {
-                setPickerAnchor(event.currentTarget);
-                setPickerOpen((open) => !open);
-              }}
+              onClick={() => setUploadOpen(true)}
             >
               <Icon path="mdi-image-plus" size={0.9} />
               <span>Add cover</span>
@@ -296,6 +295,17 @@ export function CoverCard({
           pageId={pageId}
           anchor={pickerAnchor}
           onClose={() => setPickerOpen(false)}
+          onUploadRequest={() => setUploadOpen(true)}
+        />
+      )}
+      {uploadOpen && (
+        <AssetUploadModal
+          isOpen
+          client={client}
+          assetClassId={SYSTEM_CLASS_UUIDS.asset}
+          acceptedTypes={["image"]}
+          onClose={() => setUploadOpen(false)}
+          onUploaded={applyUploadedCover}
         />
       )}
       {(error !== null || drop.error !== null) && (

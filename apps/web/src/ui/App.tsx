@@ -81,6 +81,7 @@ import { NodeSelector } from "./components/pickers/NodeSelector.js";
 import { createNodesWithClasses } from "./components/createNodesWithClasses.js";
 import { QuickAddModal } from "./components/modals/QuickAddModal.js";
 import { ClassCreateModal } from "./components/modals/ClassCreateModal.js";
+import { AssetUploadModal } from "./components/modals/AssetUploadModal.js";
 import { QuickCreateFab } from "./components/QuickCreateFab.js";
 import { WorkspacesView } from "./components/WorkspacesView.js";
 import { UserSettingsModal } from "./components/modals/UserSettingsModal.js";
@@ -1932,6 +1933,9 @@ export function HubView({
   // #14 — the Classes hub hosts the class-creation modal (blank + system
   // deploy); the header button opens it, and a created class opens.
   const [classCreateOpen, setClassCreateOpen] = useState(false);
+  // The Assets hub's creation path IS the upload modal (M33): the header
+  // button opens it, and the uploaded asset node opens.
+  const [assetUploadOpen, setAssetUploadOpen] = useState(false);
   // Top-level pages: subpages render in their parent's Pages zone, so the
   // workspace-level hubs list roots only; the asset class stays excluded.
   const pages = client.roots().filter((page) => !page.classIds.includes(assetClassId));
@@ -1982,24 +1986,51 @@ export function HubView({
   }
 
   if (nav === "assets") {
-    // Any node classed asset, cards by default (owner rule).
+    // Any node classed asset, cards by default (owner rule). The header's
+    // "New asset" button opens the upload modal — uploading IS creating here
+    // (M33): the modal's CAS path mints the asset-classed node.
     const members = client
       .getClassMembers(assetClassId)
       .map((node) => ({ node }));
+    const newAssetAction = (
+      <Button
+        size="sm"
+        variant="outline"
+        icon="mdiFileUpload"
+        onClick={() => setAssetUploadOpen(true)}
+      >
+        New asset
+      </Button>
+    );
     return (
-      <CollectionHub
-        client={client}
-        icon={entry?.icon ?? "mdi-folder-multiple-image"}
-        title={entry?.label ?? "Assets"}
-        items={members}
-        modes={["cards", "table"]}
-        defaultMode="cards"
-        persistKey="hub.assets"
-        tableColumns={HUB_ASSET_COLUMNS}
-        emptyTitle="No assets yet"
-        onOpenNode={onOpenNode}
-        onOpenInSidebar={onOpenInSidebar}
-      />
+      <>
+        <CollectionHub
+          client={client}
+          icon={entry?.icon ?? "mdi-folder-multiple-image"}
+          title={entry?.label ?? "Assets"}
+          items={members}
+          modes={["cards", "table"]}
+          defaultMode="cards"
+          persistKey="hub.assets"
+          tableColumns={HUB_ASSET_COLUMNS}
+          emptyTitle="No assets yet"
+          headerActions={newAssetAction}
+          onOpenNode={onOpenNode}
+          onOpenInSidebar={onOpenInSidebar}
+        />
+        {assetUploadOpen && (
+          <AssetUploadModal
+            isOpen
+            client={client}
+            assetClassId={assetClassId}
+            onClose={() => setAssetUploadOpen(false)}
+            onUploaded={(assetNodeId) => {
+              setAssetUploadOpen(false);
+              onOpenNode(assetNodeId);
+            }}
+          />
+        )}
+      </>
     );
   }
 
