@@ -1,5 +1,5 @@
 /**
- * PDF layout themes (§34.24 modelling decision 2) — the Notes/Essay/Academic
+ * PDF layout themes — the Notes/Essay/Academic
  * render themes as data. react-pdf has no stylesheets, so the app token
  * VALUES (apps/web/src/ui/variables.css, light theme) live here as the
  * constants the Notes theme is built from; this file is the single place a

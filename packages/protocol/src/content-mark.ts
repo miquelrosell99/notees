@@ -9,7 +9,7 @@
  * prohibits where a token may appear; rendering defines presentation.
  *
  * Storage: the array serializes to JSON inside the block's per-node Y.Text
- * CRDT (v1 port — canonical wire carrier contentDeltaB64; contentAst is the
+ * CRDT (canonical wire carrier contentDeltaB64; contentAst is the
  * readable carrier). Plaintext for FTS is derived by the applier, never stored
  * as truth.
  */
@@ -114,7 +114,7 @@ export const assetRefTokenSchema = z
  * editing-through-the-embed then ride the standard notification/op path.
  * Cycle guard (depth cap + visited set) is a renderer obligation.
  *
- * `view` (§34.34 B8, additive 2026-10-04) selects the presentation between
+ * `view` (additive 2026-10-04) selects the presentation between
  * the two-point mention↔embed spectrum: absent (or the default "embed") =
  * the full live transclusion; "small_card" / "wide_card" = the intermediate
  * card references (a bounded card with the target's identity; navigation
@@ -159,7 +159,7 @@ export const whiteboardTokenSchema = z
   .strict();
 
 /**
- * Block-scale: a code block (§34.34 B3). `text` is the verbatim source (the
+ * Block-scale: a code block. `text` is the verbatim source (the
  * grammar stores it plain — no nested tokens inside a code block);
  * `language` is an OPTIONAL hint tag (free lowercase string — "python",
  * "typescript", "mermaid", …) for renderers; absent = plain text. A
@@ -167,8 +167,8 @@ export const whiteboardTokenSchema = z
  * stringifies rich tokens to text-only content but keeps code_block tokens
  * (a code page is a real surface — flattening would destroy the source).
  * Inline marks ("code") remain the inline-scale escape hatch; this token is
- * the block-scale one (v1 rendered class-`code` blocks; v2 carries the
- * language metadata the class could not).
+ * the block-scale one (it carries the language metadata a class-`code`
+ * rendering never could).
  */
 export const codeBlockTokenSchema = z
   .object({
@@ -184,7 +184,7 @@ export const codeBlockTokenSchema = z
   .strict();
 
 /**
- * Block-scale: a horizontal rule (§34.34 B5) — the layout divider token.
+ * Block-scale: a horizontal rule — the layout divider token.
  * Carries no payload. NOT a promotion survivor: an hr holds no prose, so
  * block→page promotion stringifies it away (a rule in a page title is
  * meaningless).

@@ -1,9 +1,9 @@
 /**
- * Popup dismissal matrix + regressions (§34.67).
+ * Popup dismissal matrix + regressions.
  *
  * Owner bug report (2026-10-04): "most, if not all, of the popups don't close
- * when pressing Esc or clicking outside." The audit (see the §34.67 plan
- * record) found the kit surfaces and several app popups already dismissed
+ * when pressing Esc or clicking outside." The audit found the kit surfaces
+ * and several app popups already dismissed
  * honestly, while a family of hand-rolled popups was missing Escape and/or
  * outside-click. The fix is the shared `usePopupDismissal` kit hook; this
  * suite pins the platform convention:

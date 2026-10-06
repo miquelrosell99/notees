@@ -1,8 +1,8 @@
 /**
- * Per-user UI prefs tests (§34.61): GET/PUT /api/me/prefs round-trip, auth
+ * Per-user UI prefs tests: GET/PUT /api/me/prefs round-trip, auth
  * scoping (session vs API-key owner vs operator key vs anonymous), caps, and
  * uuid validation. Favorites/recents are server-side per-user UI state — not
- * op-log state (owner ruling 2026-10-04 on §34.29 #8).
+ * op-log state (owner ruling 2026-10-04).
  */
 
 import { afterEach, describe, expect, it } from "vitest";

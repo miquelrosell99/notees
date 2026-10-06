@@ -1,5 +1,5 @@
 /**
- * WeekStrip — the 7-day week row (§34.28 #11 calendar breadth): the visible
+ * WeekStrip — the 7-day week row: the visible
  * week containing the selected day (first-day-of-week aware via the caller's
  * weekDaysOfIso input), each cell a compact weekday-initial + day-number
  * button carrying the same day marks as the month grid (today fill,
@@ -11,7 +11,7 @@ import { Button } from "../Button.js";
 import type { CalendarDayExtraMarks } from "./dayGrid.js";
 import "./WeekStrip.css";
 
-/** Local `YYYY-MM-DD` for today (the §34.28 #1 rule: local midnight, never UTC). */
+/** Local `YYYY-MM-DD` for today (local midnight, never UTC). */
 function todayIso(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(

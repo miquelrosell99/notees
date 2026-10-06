@@ -1,6 +1,6 @@
 /**
- * §34.90 binding-flags rewrite (owner review 2026-10-05, same day as the
- * §34.89/§34.90 releases): the render contracts moved from the class binding
+ * Binding-flags rewrite (owner review 2026-10-05, same day as the
+ * releases): the render contracts moved from the class binding
  * to the property schema — readonly, hideWhenEmpty, display are PROPERTY-level
  * (class.property.set now strict-rejects them); required stays per-class.
  * The live relay log still carries envelopes that wrote the moved keys on
@@ -26,7 +26,7 @@
  *     snapshot+tail without the ~35-minute full replay the owed-work register
  *     documents. Backups first; verification opens the patched bytes.
  *  4. RESTORE-EPOCH BUMP: every client wipes and re-syncs from the rewritten
- *     log (the §34.11 precedent) — without it, applied_envelope id-skips the
+ *     log (the precedent) — without it, applied_envelope id-skips the
  *     rewritten envelopes and clients silently keep the old derivation.
  *
  * The moved values are read from the server's derived database (read-only;
@@ -284,7 +284,7 @@ function main(): void {
     // 2. The converged per-schema values (from the server's derived store).
     const values = readMovedValues(options.dataDir, options.workspace);
 
-    console.log("\nplanned §34.90 binding-flags rewrite:");
+    console.log("\nplanned binding-flags rewrite:");
     if (affected.length === 0) {
       console.log("  no class.property.set envelope carries hideWhenEmpty/readonly/display — nothing to rewrite.");
     } else {
@@ -305,7 +305,7 @@ function main(): void {
     }
 
     if (affected.length === 0 && values.length === 0) {
-      console.log("\nnothing to rewrite — the log is already §34.90-clean.");
+      console.log("\nnothing to rewrite — the log is already clean.");
       return;
     }
 

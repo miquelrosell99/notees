@@ -1,5 +1,5 @@
 /**
- * TaskBuckets — the §34.28 #5 bucketed tasks surface: Overdue / Today /
+ * TaskBuckets — the bucketed tasks surface: Overdue / Today /
  * Upcoming / Unscheduled / Completed over the tasks-hub members (pages AND
  * blocks, the owner rule), computed client-side from the effective
  * scheduled/deadline/status values — the same derived reads the hub's table
@@ -51,7 +51,7 @@ export function TaskBuckets({
   const [version, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
 
-  // §34.28 #2 — idempotent no-op once the six schemas + bindings exist.
+  // Family ensure: idempotent no-op once the six schemas + bindings exist.
   // Fire-and-forget: a mid-teardown rejection must not go unhandled (the
   // next mount re-runs the deploy).
   useEffect(() => {

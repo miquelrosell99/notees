@@ -4,7 +4,7 @@
  * owner's contentAst. All writes go through the normal content update path
  * (`object.update` on the owning node's contentAst, token splice by index) —
  * the tokens ride the op log, so saved views sync like any other content
- * (§34.31 V1: no view entity, no new op).
+ * (no view entity, no new op).
  */
 
 import type { ContentAst } from "@notees/protocol";

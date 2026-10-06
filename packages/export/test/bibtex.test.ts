@@ -350,7 +350,7 @@ describe("nodeToCsl / cslToNodeSpecs", () => {
     expect(item.author).toEqual([{ family: "Kuhn", given: "Thomas S." }]);
   });
 
-  it("§34.32 PG15: container fields complete the export mapping by schema-name convention", () => {
+  it("PG15: container fields complete the export mapping by schema-name convention", () => {
     const item = nodeToCsl(
       { id: "paper-1", name: "A combinatorial paper", classIds: [SOURCE_CLASS_IDS.paper] },
       [

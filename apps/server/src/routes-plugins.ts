@@ -1,8 +1,8 @@
 /**
- * Plugin registry routes (§34.59, owner 2026-10-04), prefix /api — the
+ * Plugin registry routes (owner 2026-10-04), prefix /api — the
  * INERT half of the plugin program: manifest schema + server registry.
  *
- * THE RUNTIME IS PARKED (plan §19 / §34.33 AG7): nothing here executes,
+ * THE RUNTIME IS PARKED: nothing here executes,
  * loads, spawns, imports, exports, or subscribes anything. The registry is
  * server state — validated manifest JSON + an enabled flag + an install
  * timestamp — the same ruling as prefs/shares: registry rows are NOT log
@@ -195,7 +195,7 @@ function rowToJson(row: PluginRow): Record<string, unknown> {
 
 /**
  * Owner/admin gate: the operator key IS the owner path; otherwise an
- * administrator account is required. A scoped API key (§34.33 AG3) must
+ * administrator account is required. A scoped API key must
  * carry the "admin" scope — the first enforcement of that reserved name.
  */
 export function requireAdmin(ctx: ServerContext, request: FastifyRequest): void {
@@ -216,14 +216,14 @@ export function registerPluginRoutes(app: FastifyInstance, ctx: ServerContext): 
   /**
    * The registry listing — inert data: what is installed, its declared
    * capabilities, and the enable bit. NOTHING here is loaded or executed;
-   * the runtime that would consume these rows is parked (§34.33 AG7).
+   * the runtime that would consume these rows is parked.
    */
   app.get("/plugins", async () => ({
     plugins: ctx.plugins.list().map(rowToJson),
   }));
 
   /**
-   * Install a plugin manifest. The body IS the manifest (the §34.59 grammar
+   * Install a plugin manifest. The body IS the manifest (the grammar
    * in @notees/protocol) — strict-validated, fail-loud. Idempotent on
    * id+version: a repeat install answers the existing row; the same id at a
    * different version is 409 (versioned updates ride the parked runtime).
@@ -243,7 +243,7 @@ export function registerPluginRoutes(app: FastifyInstance, ctx: ServerContext): 
       throw new AppError(
         409,
         "conflict",
-        `plugin "${manifest.id}" is already installed at another version; versioned updates ship with the plugin runtime (parked, §34.33 AG7)`,
+        `plugin "${manifest.id}" is already installed at another version; versioned updates ship with the plugin runtime (parked)`,
       );
     }
     const { row, alreadyInstalled } = ctx.plugins.install(manifest);

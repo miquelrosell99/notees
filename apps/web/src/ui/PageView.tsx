@@ -107,7 +107,7 @@ export function PageView({
    * "default" (the main content card) puts the properties in a collapsible
    * LEFT side panel inside the card, the classes pills at the content
    * column's top-left, and moves the blocks view switcher out to the card's
-   * top-right (the NodeView chrome). "compact" keeps the v1 in-flow chrome —
+   * top-right (the NodeView chrome). "compact" keeps the in-flow chrome —
    * the properties as a list section under the header — for secondary
    * surfaces (sidebar peek cards; embedded renders keep their own slim
    * chrome). Focus mode always compacts.
@@ -147,7 +147,7 @@ export function PageView({
   sections = undefined,
   /** Replaces the default <SystemSections/> (ClassView: extends-by + system). */
   systemSections = undefined,
-  /** §34.62 shares: server coordinates for the "Share…" item + modal. */
+  /** Shares: server coordinates for the "Share…" item + modal. */
   shareTarget = undefined,
 }: {
   client: WorkspaceClient | WorkerClient;
@@ -158,7 +158,7 @@ export function PageView({
   onOpenInSidebar?: ((nodeId: string) => void) | undefined;
   /** Post-delete navigation (host routes to the parent / default view). */
   onDeleted?: ((node: ClientNode) => void) | undefined;
-  /** Presentation mode (§34.26): "Present" decks this page's subtree read-only. */
+  /** Presentation mode: "Present" decks this page's subtree read-only. */
   onPresent?: ((pageId: string) => void) | undefined;
   /**
    * Embedded mode (journals feed): the title renders as a static button that
@@ -183,7 +183,7 @@ export function PageView({
 }) {
   /**
    * Child-blocks view mode (the outline/prose/cards triad): durable display
-   * state per page (§34.27 L1) — device-local, never an op. Unset/stale
+   * state per page — device-local, never an op. Unset/stale
    * values fall back to outline, the surface default. The main NodeView owns
    * the switcher (card top-right) and passes the mode down; standalone
    * renders keep the internal preference.
@@ -322,7 +322,7 @@ export function PageView({
   /** The same tree in the view system's input shape (session view state). */
   const blockItems: NodeCollectionItem[] = tree.map(toCollectionItem);
   /**
-   * §34.28 #4/#7 — the day branch: a node whose id parses at day precision
+   * The day branch: a node whose id parses at day precision
    * is a day page and gets the date header (weekday/Today flags + the week
    * flag, owner 2026-10-06) and the three aggregation sections. The month
    * and year pages carry the Created aggregation too (owner 2026-10-06).
@@ -370,9 +370,9 @@ export function PageView({
   }, [client, page, embedded, whiteboardTokenIndex, whiteboardClassed]);
 
   /**
-   * Cover property self-heal (§34.27 L2): the cover schema + source binding
-   * are seed-manifest entries nothing else authors (the v1 migration is the
-   * only other writer), so a fresh workspace self-heals them on first page
+   * Cover property self-heal: the cover schema + source binding
+   * are seed-manifest entries nothing else authors (the migration import is
+   * the only other writer), so a fresh workspace self-heals them on first page
    * view — an idempotent no-op once present. The banner below then reads
    * the effective cover value; pages without one (date pages, whiteboard
    * pages, everything not classed `source`) render no banner at all.
@@ -382,7 +382,7 @@ export function PageView({
   }, [client]);
 
   /**
-   * Alias property self-heal (§34.32 PG10 + issue #7): the seeded
+   * Alias property self-heal (issue #7): the seeded
    * multi-value `alias` text schema and the seeded single-value node-typed
    * `aliasOf` schema (global scope, no class bindings) are authored
    * idempotently on first page view — the server seed only runs on an
@@ -399,7 +399,7 @@ export function PageView({
     page !== undefined && !embedded && whiteboardTokenIndex < 0
       ? coverAssetIdOf(client, pageId)
       : null;
-  /** §34.72: the v1 element renders whenever the page can carry a cover —
+  /** The cover element renders whenever the page can carry a cover —
    *  set or empty (the card shows the Add affordance when empty). */
   const coverPossible =
     page !== undefined && !embedded && whiteboardTokenIndex < 0
@@ -410,10 +410,10 @@ export function PageView({
     // Render-cascade navigation for query result lists (App routes the id).
     openNode: (id) => onOpenPage?.(id),
     openInSidebar: (id) => onOpenInSidebar?.(id),
-    // §34.25 T3: the slash template flow self-heals the template family
+    // The slash template flow self-heals the template family
     // before instantiating (idempotent no-op once present).
     ensureTemplateFamily: () => ensureTemplateFamily(client),
-    // §34.19 block multi-selection: the main page body is a selection
+    // Block multi-selection: the main page body is a selection
     // surface; embedded feed entries and class composition aren't.
     selection: !embedded && !forClass,
     // Focus mode (#12): block rows hide their reference/property chrome.
@@ -423,12 +423,12 @@ export function PageView({
   const outlinerRef = useRef(outliner);
   outlinerRef.current = outliner;
 
-  // Ctrl+. (toggle) / Ctrl+Alt+← (fold) / Ctrl+Alt+→ (unfold) — the §34.19
+  // Ctrl+. (toggle) / Ctrl+Alt+← (fold) / Ctrl+Alt+→ (unfold) — the
   // fold chords on the FOCUSED block (the row is discovered from the active
   // element — the editor stays the focus owner, no focus ledger). Alt+←/→
   // belongs to Back/Forward (the App keymap), so fold moved to the Ctrl+Alt+
   // arrow pair (free in Chrome/Firefox/Safari; some OS display drivers rotate
-  // the screen on it — out of the page's reach, same as v1's fate with
+  // the screen on it — out of the page's reach, same story with
   // Alt+arrows in browsers).
   useEffect(() => {
     if (embedded) return;
@@ -460,7 +460,7 @@ export function PageView({
     return () => document.removeEventListener("keydown", handler);
   }, [embedded]);
 
-  // --- §34.19 block multi-selection ------------------------------------------
+  // --- block multi-selection ----------------------------------------------------
   const selectionSurface = useBlockSelectionSurface(
     outliner,
     selectionRootRef,
@@ -546,7 +546,7 @@ export function PageView({
   }
 
   /**
-   * §34.109 ghost (owner refinement of §34.85): the page root trails exactly
+   * The ghost row (owner-refined): the page root trails exactly
    * ONE muted "add block" ghost row as the last sibling of the main level —
    * rendered ALWAYS in the child-blocks section (outline and prose,
    * non-embedded, focus mode included), including an empty body, as the
@@ -607,9 +607,9 @@ export function PageView({
                       onNodeClick={(id) => onOpenPage?.(id)}
                       onNodeShiftClick={(id) => onOpenInSidebar?.(id)}
                     />
-                    {/* §34.109 ghost trailing block (owner refinement of
-                        §34.85): the page root trails exactly ONE "+ Add
-                        block" ghost row as the last sibling of the main
+                    {/* The ghost trailing block (owner-refined): the page
+                        root trails exactly ONE "+ Add block" ghost row as
+                        the last sibling of the main
                         level — display-only until the click, which creates
                         a real empty block after the last child and focuses
                         it (never an op by itself). Blocks no longer trail
@@ -669,7 +669,7 @@ export function PageView({
   );
 
   /**
-   * §34.72 — the v1 header layout: header left, the collapsible cover CARD
+   * The header layout: header left, the collapsible cover CARD
    * right (always rendered when the page can carry a cover, even empty).
    * Shared by both layout modes.
    */
@@ -787,7 +787,7 @@ export function PageView({
         {!embedded && !focusMode && (
           <AliasOfBanner client={client} aliasPageId={pageId} onOpenPage={onOpenPage} />
         )}
-        {/* The compact layouts keep the v1 in-flow properties list (the
+        {/* The compact layouts keep the in-flow properties list (the
             panelled main layout moves it into the left side panel). */}
         {!focusMode && !panelled && (
           <>
@@ -938,7 +938,7 @@ export function PageView({
             onDeleted?.(node);
           }}
         />
-        {/* §34.19 block multi-selection: the floating group-ops bar rides
+        {/* Block multi-selection: the floating group-ops bar rides
             the page chrome while a selection is live. */}
         {outliner.selectionEnabled && <SelectionBar client={client} />}
         {exporting !== null && (

@@ -60,7 +60,7 @@ export function ClassedNodesSection({
       ? ["outline", "cards", "kanban", "table"]
       : MEMBERS_VIEW_MODES;
   /**
-   * Durable display state per class (§34.27 L1) — device-local, never an
+   * Durable display state per class — device-local, never an
    * op; table stays the default per the owner rule, and a persisted mode
    * the switcher no longer offers (kanban without a grouping select) falls
    * back to the default.
@@ -118,7 +118,7 @@ export function ClassedNodesSection({
             className="nt-class-member-remove"
             aria-label={`Remove ${displayNameForSettings(item.node) || item.node.id} from ${displayNameForSettings(client.getNode(classId)!) || "this class"}`}
             onClick={() => {
-              // §34.19: system/journal classes refuse membership removal.
+              // System/journal classes refuse membership removal.
               if (refuseClassRemoval(classId)) return;
               void client.unassignClass(item.node.id, classId);
             }}

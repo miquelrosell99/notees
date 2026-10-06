@@ -4,11 +4,11 @@
  * [first] [second] […] [second-to-last] [last] beyond four items, the
  * ellipsis opening a popup of the hidden ancestors.
  *
- * Data wiring is v2: the chain walks node.parentId via client.getNode
+ * Data wiring: the chain walks node.parentId via client.getNode
  * until the workspace root (no ancestors → nothing renders). The parent
  * re-renders on client notifications, so renames refresh the chain.
  *
- * Edit gestures (§34.27 L4, v1 parity §34.19 :1134, opt-in via `editable`):
+ * Edit gestures (opt-in via `editable`):
  * hovering a crumb reveals a chevron and right-click opens the same menu —
  * Open / Reassign parent… / Remove parent — acting on the EDGE BELOW the
  * crumb: the menu edits the parent relationship between the crumb and the
@@ -97,7 +97,7 @@ export function Breadcrumbs({
   /** Append the current node itself as a highlighted trailing crumb. */
   showCurrent = false,
   anchor = "left",
-  /** Parent-edit gestures (the v1 row): crumb chevron/right-click menus + Add parent. */
+  /** Parent-edit gestures: crumb chevron/right-click menus + Add parent. */
   editable = false,
 }: {
   client: AnyClient;

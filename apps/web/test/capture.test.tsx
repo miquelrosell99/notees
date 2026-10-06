@@ -5,7 +5,7 @@
  * in-process WorkspaceClient + MemoryRelay (jsdom), same harness as
  * outliner-editor.test.tsx.
  *
- * Popup contract (v1 parity): typing the trigger char opens the ported
+ * Popup contract: typing the trigger char opens the ported
  * NodeSelector popup anchored at the caret with its OWN search input (focus
  * moves there); the trigger char stays in the block as a placeholder. Enter
  * on a result row (or the create row) commits; Escape / click-outside keeps
@@ -328,7 +328,7 @@ describe("capture: @ mention", () => {
     expect(editor.textContent).toBe("@");
 
     // No-match Enter commits the create row: a page titled by the query is
-    // created and linked (the v1 create-from-query contract).
+    // created and linked (the create-from-query contract).
     typeWithCaret(editor, "@");
     typeInPicker("zzz");
     expect(pickerRows()).toHaveLength(1); // only "Create \"zzz\""
@@ -369,7 +369,7 @@ describe("capture: # tag (auto-create + assign) and + class picker", () => {
     // …and assigned to the edited node's Tags (OR-set add).
     expect(client.getNode(blockId)?.tagIds).toEqual([tagPages[0]!.id]);
     // No class was created — "#" is tag semantics, "+" owns classes. (The
-    // covers-v2 seed authors the asset/source/cover family rows on client
+    // The covers seed authors the asset/source/cover family rows on client
     // seed, so assert no USER class named "Proj" appeared, not an empty
     // registry.)
     expect(client.listClasses().filter((c) => deriveDisplayName(c) === "Proj")).toHaveLength(0);
@@ -420,7 +420,7 @@ describe("capture: # tag (auto-create + assign) and + class picker", () => {
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "+");
     // The class picker lists the class vocabulary on an empty query (the
-    // seeded system family included since covers v2).
+    // seeded system family included since the covers rework).
     expect(within(picker()!).getByText("Project")).toBeInTheDocument();
     // Narrow to the user class — the seeded family rows lead the empty-query
     // list, so Enter on the unfiltered list would assign a system class.

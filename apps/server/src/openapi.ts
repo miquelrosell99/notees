@@ -1,5 +1,5 @@
 /**
- * The OpenAPI 3.1 contract of the HTTP surface (§34.33 AG4) — served at
+ * The OpenAPI 3.1 contract of the HTTP surface — served at
  * GET /api/openapi.json and gated in CI by the route-coverage test
  * (test/openapi-coverage.test.ts): every route the Fastify app actually
  * registers must appear here, so the document cannot drift from the code.
@@ -11,10 +11,10 @@
  * (`additionalProperties: true`, no invented fields) elsewhere. Cross-cutting
  * facts live in top-level extensions, all backed by code:
  *
- *  - `x-error-codes` — the AC2 pinned taxonomy (src/errors.ts).
- *  - `x-rate-limits`  — the three real fixed-window limiters (AG10).
- *  - `x-api-key-scopes` — the AG3 scope vocabulary and enforcement rules.
- *  - `x-revision-checks` — which mutations honor `baseRevision` (AG5), and
+ *  - `x-error-codes` — the pinned taxonomy (src/errors.ts).
+ *  - `x-rate-limits`  — the three real fixed-window limiters.
+ *  - `x-api-key-scopes` — the scope vocabulary and enforcement rules.
+ *  - `x-revision-checks` — which mutations honor `baseRevision`, and
  *    the honest note that other mutating routes have no natural revision.
  */
 
@@ -38,9 +38,9 @@ interface OperationSpec {
   requestBody?: JsonSchema;
   /** Response for the success status: description + schema. */
   success?: { status?: number; description: string; schema?: JsonSchema };
-  /** §34.33 AG3: scope a scoped API key must carry for this operation. */
+  /** scope a scoped API key must carry for this operation. */
   requiredScope?: string;
-  /** §34.33 AG5: the mutation honors the Idempotency-Key header. */
+  /** the mutation honors the Idempotency-Key header. */
   idempotency?: boolean;
   /** Extra error codes this operation throws, beyond the base {401,403,429}. */
   errors?: string[];
@@ -190,7 +190,7 @@ const updateObjectBody: JsonSchema = {
       additionalProperties: false,
       properties: { physical: { type: "integer" }, logical: { type: "integer" } },
       description:
-        "§34.33 AG5 optimistic-concurrency guard: the node's `hlc` as last seen; a stale value fails 409 conflict. The field never enters the op payload (HTTP-layer check only).",
+        "optimistic-concurrency guard: the node's `hlc` as last seen; a stale value fails 409 conflict. The field never enters the op payload (HTTP-layer check only).",
     },
   },
 };
@@ -226,7 +226,7 @@ const apiKeyCreateBody: JsonSchema = {
       type: "array",
       items: { type: "string", enum: API_SCOPES },
       description:
-        "optional scope set (§34.33 AG3); omit for the unrestricted M1 default. Scoped keys are object-API-only: the relay surface rejects them with 403 scope_denied.",
+        "optional scope set; omit for the unrestricted default. Scoped keys are object-API-only: the relay surface rejects them with 403 scope_denied.",
     },
   },
 };
@@ -253,17 +253,17 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   ["get", "/api/meta", {
     summary: "Server self-description: version, wire protocol versions, default workspace, setup state",
     description:
-      "§34.33 AG5. The default workspace id is a fixed system uuid (identity.ts), safe to expose unauthenticated; per-account workspace listing lives behind auth at GET /api/workspaces.",
+      "The default workspace id is a fixed system uuid (identity.ts), safe to expose unauthenticated; per-account workspace listing lives behind auth at GET /api/workspaces.",
     tags: ["Meta"],
     public: true,
   }],
   ["get", "/api/openapi.json", {
-    summary: "This OpenAPI 3.1 document (the published HTTP contract, §34.33 AG4)",
+    summary: "This OpenAPI 3.1 document (the published HTTP contract)",
     tags: ["Meta"],
     public: true,
   }],
   ["get", "/api/operations", {
-    summary: "Paginated read of the workspace's relay operation log (§34.33 AG5 agent-safety feed)",
+    summary: "Paginated read of the workspace's relay operation log (agent-safety feed)",
     description:
       "Cursor-paginated over the server seq, same shape as relay catch-up. Read access: any authenticated principal with workspace membership (or the operator key); scoped API keys need the objects.read scope.",
     tags: ["Meta"],
@@ -335,9 +335,9 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     errors: ["validation_failed"],
   }],
   ["get", "/api/me/prefs", {
-    summary: "Per-user UI prefs: favorites + recents (§34.61 — server-side UI state, not op-log state)",
+    summary: "Per-user UI prefs: favorites + recents (server-side UI state, not op-log state)",
     description:
-      "Owner ruling 2026-10-04 (§34.29 #8): favorites/recents are UI preferences, so they live in the sync server's per-user prefs store, NOT the operation log (\"device state is never an op\" stands). Scoped to the authenticated principal (account session or per-user API key owner).",
+      "Owner ruling 2026-10-04: favorites/recents are UI preferences, so they live in the sync server's per-user prefs store, NOT the operation log (\"device state is never an op\" stands). Scoped to the authenticated principal (account session or per-user API key owner).",
     tags: ["Account"],
   }],
   ["put", "/api/me/prefs", {
@@ -389,7 +389,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   ["get", "/api/workspaces/:id/export.zip", {
     summary: "Full-workspace Markdown zip (one file per page, manifest, optional assets/)",
     description:
-      "§34.24 zip-roots exclusion (owner 2026-10-04): the system-seed pages (inbox — the scratchpad was withdrawn §34.81 but legacy workspaces still carry it) and the date chain (year/month/day nodes) are excluded from the bundle — journal scaffolding, not exportable content; links targeting them keep the single-file wikilink convention.",
+      "zip-roots exclusion (owner 2026-10-04): the system-seed pages (inbox — the scratchpad was withdrawn but legacy workspaces still carry it) and the date chain (year/month/day nodes) are excluded from the bundle — journal scaffolding, not exportable content; links targeting them keep the single-file wikilink convention.",
     tags: ["Workspaces"],
     requiredScope: "export",
     query: {
@@ -410,7 +410,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   ["post", "/api/api-keys", {
     summary: "Mint an API key (full token returned exactly once; sha256 at rest)",
     description:
-      "§34.33 AG3: an optional `scopes` list makes the key a scoped object-API credential. Omit scopes for the unrestricted M1 default.",
+      "an optional `scopes` list makes the key a scoped object-API credential. Omit scopes for the unrestricted default.",
     tags: ["Account"],
     requestBody: apiKeyCreateBody,
     success: { status: 201, description: "the key row and the full token (once)" },
@@ -445,7 +445,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   ["post", "/api/objects", {
     summary: "Create an object (or declare a class with isClass: true)",
     description:
-      "Every write is an envelope through the one write path. AB3 (owner 2026-10-04): re-POSTing a CALLER-CHOSEN `id` that is already taken — active or trashed — fails 409 `conflict` before anything reaches the log (the first write wins; a concurrent take between the check and the submit hits the same 409). The id-LESS path cannot conflict: the server stamps a fresh UUIDv7, and a retried submit is answered by the Idempotency-Key replay (409 `idempotency_replay` on key reuse with a different body). Relay-level duplicate object.create envelopes (any client) stay first-write-wins no-ops by the applier — that convergence carrier is unchanged.",
+      "Every write is an envelope through the one write path. Owner ruling 2026-10-04: re-POSTing a CALLER-CHOSEN `id` that is already taken — active or trashed — fails 409 `conflict` before anything reaches the log (the first write wins; a concurrent take between the check and the submit hits the same 409). The id-LESS path cannot conflict: the server stamps a fresh UUIDv7, and a retried submit is answered by the Idempotency-Key replay (409 `idempotency_replay` on key reuse with a different body). Relay-level duplicate object.create envelopes (any client) stay first-write-wins no-ops by the applier — that convergence carrier is unchanged.",
     tags: ["Objects"],
     requestBody: createObjectBody,
     success: { status: 201, description: "{ id, object }" },
@@ -462,7 +462,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   ["patch", "/api/objects/:id", {
     summary: "Update an object (render bit, icon, color, contentAst)",
     description:
-      "§34.33 AG5: the only mutation with a natural per-node revision — the node's `hlc`, bumped by object.update/object.move — so it is the only route honoring the optional `baseRevision` guard (409 conflict on stale). Property slots carry their own per-slot revision and are LWW by the op log; a base check there would be misleading and is deliberately not offered.",
+      "The only mutation with a natural per-node revision — the node's `hlc`, bumped by object.update/object.move — so it is the only route honoring the optional `baseRevision` guard (409 conflict on stale). Property slots carry their own per-slot revision and are LWW by the op log; a base check there would be misleading and is deliberately not offered.",
     tags: ["Objects"],
     requestBody: updateObjectBody,
     requiredScope: "objects.write",
@@ -667,11 +667,11 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     errors: ["not_found"],
   }],
 
-  // --- relay (WIRE.md §1–2) -----------------------------------------------------------
+  // --- relay (WIRE.md) -----------------------------------------------------------
   ["post", "/api/relay/v2/batch", {
     summary: "Ingest a batch of envelopes (idempotent by envelope id)",
     description:
-      "Scoped API keys are rejected on the whole relay surface with 403 scope_denied — scoped keys are object-API credentials (§34.33 AG3).",
+      "Scoped API keys are rejected on the whole relay surface with 403 scope_denied — scoped keys are object-API credentials.",
     tags: ["Relay"],
     requestBody: { type: "object", additionalProperties: true, required: ["envelopes"], properties: { envelopes: { type: "array", items: { type: "object", additionalProperties: true } } } },
     errors: ["validation_failed", "scope_denied"],
@@ -745,29 +745,29 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   ["get", "/api/relay/v2/ws/:workspaceId", {
     summary: "WebSocket sync socket (hello/ops/ack/error frames, framing version 2)",
     description:
-      "Not plain HTTP: upgrade endpoint. Auth via ?token= or Authorization header; the credential is re-checked per batch frame. Fail loud on newer framing versions (WIRE.md §2).",
+      "Not plain HTTP: upgrade endpoint. Auth via ?token= or Authorization header; the credential is re-checked per batch frame. Fail loud on newer framing versions (WIRE.md).",
     tags: ["Relay"],
     params: { workspaceId: "workspace uuid" },
     webSocket: true,
   }],
 
-  // --- plugins (§34.61 — manifest schema + inert registry; the RUNTIME is parked, §34.33 AG7) ----
+  // --- plugins (manifest schema + inert registry; the RUNTIME is parked) ----
   ["get", "/api/plugins", {
     summary: "List installed plugin manifests (inert registry data — nothing is loaded or executed)",
     description:
-      "§34.61: the registry is server state, NOT log state (the prefs/shares ruling) — no envelope, no op type. The plugin runtime that would consume these rows (capability broker, subprocess host) is parked (§34.33 AG7). Owner/admin-scoped: operator key or administrator account; a scoped API key needs the admin scope.",
+      "The registry is server state, NOT log state (the prefs/shares ruling) — no envelope, no op type. The plugin runtime that would consume these rows (capability broker, subprocess host) is parked. Owner/admin-scoped: operator key or administrator account; a scoped API key needs the admin scope.",
     tags: ["Plugins"],
     requiredScope: "admin",
   }],
   ["post", "/api/plugins", {
     summary: "Install a plugin manifest (the body IS the manifest; zod-strict validated fail-loud)",
     description:
-      "§34.61. Idempotent on id+version: a repeat install answers the existing row (200, alreadyInstalled). The same id at a DIFFERENT version is 409 — versioned updates ship with the parked runtime. The manifest grammar (§34.61 / SCHEMA.md) is normative; `entrypoint`/`permissions` are reserved vocabulary, stored only.",
+      "Idempotent on id+version: a repeat install answers the existing row (200, alreadyInstalled). The same id at a DIFFERENT version is 409 — versioned updates ship with the parked runtime. The manifest grammar (SCHEMA.md) is normative; `entrypoint`/`permissions` are reserved vocabulary, stored only.",
     tags: ["Plugins"],
     requestBody: {
       type: "object",
       additionalProperties: true,
-      description: "the plugin manifest per the §34.61 grammar (manifestVersion 1; strict — unknown keys rejected)",
+      description: "the plugin manifest per the grammar (manifestVersion 1; strict — unknown keys rejected)",
     },
     success: { status: 201, description: "{ plugin, alreadyInstalled: false } (200 + alreadyInstalled: true on a repeat install)" },
     requiredScope: "admin",
@@ -776,7 +776,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   ["delete", "/api/plugins/:id", {
     summary: "Uninstall a plugin (every version of the id; inert data deletion)",
     description:
-      "§34.61: nothing was ever loaded, so there is nothing to unload — the row is deleted.",
+      "Nothing was ever loaded, so there is nothing to unload — the row is deleted.",
     tags: ["Plugins"],
     params: { id: "plugin id (reverse-domain or UUID — identity, not the display name)" },
     requiredScope: "admin",
@@ -784,7 +784,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   }],
   ["post", "/api/plugins/:id/enabled", {
     summary: "Enable/disable a plugin ({ enabled: boolean }; stored bit only — a parked runtime reads nothing)",
-    description: "§34.61: applies to every installed version of the id.",
+    description: "Applies to every installed version of the id.",
     tags: ["Plugins"],
     params: { id: "plugin id (reverse-domain or UUID)" },
     requestBody: {
@@ -797,11 +797,11 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     errors: ["validation_failed", "not_found"],
   }],
 
-  // --- shares (§34.61 — READ-ONLY public page shares; the write-collab variant stays parked) ----
+  // --- shares (READ-ONLY public page shares; the write-collab variant stays parked) ----
   ["post", "/api/shares", {
     summary: "Mint a public read-only share token for a page (owner/admin only)",
     description:
-      "§34.62 (shares record): share state is server-side coordination (like prefs), NOT operation-log state — no envelope, no op type. Returns the token and the public urlPath (`/s/<token>`; prefix the server origin for the full link). Threat note: possession of the URL IS the capability — the token is 24 random bytes (base64url), there is NO directory listing (unguessable tokens; unknown/revoked/expired all answer the same 404), revocation takes effect on the next request, and an optional expiresAt dies on its own. Classes are not shareable (422); trashed pages stop resolving immediately. Only the object API's default workspace can be shared (the v1 object-authz scope).",
+      "Share state is server-side coordination (like prefs), NOT operation-log state — no envelope, no op type. Returns the token and the public urlPath (`/s/<token>`; prefix the server origin for the full link). Threat note: possession of the URL IS the capability — the token is 24 random bytes (base64url), there is NO directory listing (unguessable tokens; unknown/revoked/expired all answer the same 404), revocation takes effect on the next request, and an optional expiresAt dies on its own. Classes are not shareable (422); trashed pages stop resolving immediately. Only the object API's default workspace can be shared (the object-authz scope).",
     tags: ["Shares"],
     requestBody: {
       type: "object",
@@ -818,7 +818,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   ["get", "/api/shares", {
     summary: "List share tokens (owner/admin only; ?nodeId= filters to one page)",
     description:
-      "§34.62 (shares record): every share of the default workspace, newest first — including revoked rows (revokedAt set), so managers see history. Scoped API keys authenticate as their user; the user must still be owner/admin.",
+      "Every share of the default workspace, newest first — including revoked rows (revokedAt set), so managers see history. Scoped API keys authenticate as their user; the user must still be owner/admin.",
     tags: ["Shares"],
     query: {
       nodeId: { description: "filter to one node's shares", type: "string" },
@@ -827,7 +827,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   ["delete", "/api/shares/:token", {
     summary: "Revoke a share link (owner/admin only; effective immediately)",
     description:
-      "§34.62 (shares record): sets revoked_at — the next GET /s/:token answers 404. The row stays for history; already-revoked or unknown tokens 404.",
+      "Sets revoked_at — the next GET /s/:token answers 404. The row stays for history; already-revoked or unknown tokens 404.",
     tags: ["Shares"],
     params: { token: { description: "the opaque share token (base64url, NOT a uuid)", format: "opaque" } },
     errors: ["not_found"],
@@ -835,7 +835,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   ["get", "/s/:token", {
     summary: "The public share view: one static read-only HTML document (UNAUTHENTICATED BY DESIGN)",
     description:
-      "§34.62 (shares record): GET-only, no credentials, no app — the page title, its block tree as nested lists, and its properties, projected by the export serializer (no JavaScript, no external resource; a strict CSP, no-store caching, nosniff, and no-referrer ride along). Missing, revoked, expired tokens and trashed pages are indistinguishable 404s (no enumeration oracle). The global per-IP rate limit is the only throttle.",
+      "GET-only, no credentials, no app — the page title, its block tree as nested lists, and its properties, projected by the export serializer (no JavaScript, no external resource; a strict CSP, no-store caching, nosniff, and no-referrer ride along). Missing, revoked, expired tokens and trashed pages are indistinguishable 404s (no enumeration oracle). The global per-IP rate limit is the only throttle.",
     tags: ["Shares"],
     params: { token: { description: "the opaque share token from POST /api/shares", format: "opaque" } },
     success: { description: "text/html — the standalone read-only share document" },
@@ -915,7 +915,7 @@ export function buildOpenApiDocument(serverVersion: string): JsonSchema {
       title: "Notees server API",
       version: serverVersion,
       description:
-        "The HTTP surface of the Notees sync server: the object/assets machine API under /api (every write is an envelope through the one write path), the relay sync API under /api/relay/v2 (WIRE.md is its normative spec), and account routes. Auth: `X-API-Key` (operator key or per-user API key) or `Authorization: Bearer` (session token) on every route except the public probes; workspace selection via `X-Workspace-Id` (else the server default). This document is served at GET /api/openapi.json and gated by a route-coverage test (every registered route must appear here). Versioning policy (AG8, owner 2026-10-04): paths stay UNVERSIONED forever (`/api/*`, no `/api/v2`); the API version IS the server's X.Y.Z semver, self-described at `GET /api/meta` (`version`) and `GET /api/version`; additive changes ship inside a version per the WIRE.md §3 culture (additive-doesn't-bump, fail-loud on a newer `protocolVersion`); wire-affecting changes ride the three-client lockstep (git tags remain the release mechanism).",
+        "The HTTP surface of the Notees sync server: the object/assets machine API under /api (every write is an envelope through the one write path), the relay sync API under /api/relay/v2 (WIRE.md is its normative spec), and account routes. Auth: `X-API-Key` (operator key or per-user API key) or `Authorization: Bearer` (session token) on every route except the public probes; workspace selection via `X-Workspace-Id` (else the server default). This document is served at GET /api/openapi.json and gated by a route-coverage test (every registered route must appear here). Versioning policy (owner 2026-10-04): paths stay UNVERSIONED forever (`/api/*`, no `/api/v2`); the API version IS the server's X.Y.Z semver, self-described at `GET /api/meta` (`version`) and `GET /api/version`; additive changes ship inside a version per the WIRE.md culture (additive-doesn't-bump, fail-loud on a newer `protocolVersion`); wire-affecting changes ride the three-client lockstep (git tags remain the release mechanism).",
     },
     servers: [{ url: "/" }],
     "x-versioning-policy": {
@@ -923,8 +923,8 @@ export function buildOpenApiDocument(serverVersion: string): JsonSchema {
       versionHeader: null,
       versionProbe: ["GET /api/meta", "GET /api/version"],
       pathsVersioned: false,
-      additiveCulture: "WIRE.md §3 — additive-doesn't-bump; fail-loud on newer protocolVersion",
-      decided: "AG8 owner ruling 2026-10-04 (X.Y.Z from v3.0.0; the 2.0.0-mN milestone tags retired)",
+      additiveCulture: "WIRE.md — additive-doesn't-bump; fail-loud on newer protocolVersion",
+      decided: "owner ruling 2026-10-04 (X.Y.Z from v3.0.0; the 2.0.0-mN milestone tags retired)",
     },
     tags: [
       { name: "Meta", description: "Public probes and developer self-description" },
@@ -935,9 +935,9 @@ export function buildOpenApiDocument(serverVersion: string): JsonSchema {
       { name: "Search & Query", description: "FTS search and the compiled QueryAST" },
       { name: "Classes", description: "The class catalog (classes are nodes)" },
       { name: "Assets", description: "Content-addressed asset storage" },
-      { name: "Relay", description: "Sync API — WIRE.md §1–2 is the normative spec" },
-      { name: "Plugins", description: "Inert plugin-manifest registry (§34.61 — schema + storage shipped; the runtime is parked, §34.33 AG7)" },
-      { name: "Shares", description: "Read-only public page shares — token management (owner/admin) + the unauthenticated GET /s/:token view (§34.62 shares record)" },
+      { name: "Relay", description: "Sync API — WIRE.md is the normative spec" },
+      { name: "Plugins", description: "Inert plugin-manifest registry (schema + storage shipped; the runtime is parked)" },
+      { name: "Shares", description: "Read-only public page shares — token management (owner/admin) + the unauthenticated GET /s/:token view" },
       { name: "Workflows", description: "Server-side workflow rules (issue #13) — \"when X happens to nodes matching Y, do Z\": rule CRUD (read: any authenticated principal; write: owner/admin) + the append-only run audit. Coordination state, not log state; effects are ordinary ops by a server actor" },
     ],
     paths,
@@ -970,7 +970,7 @@ export function buildOpenApiDocument(serverVersion: string): JsonSchema {
       ]),
     ),
     "x-rate-limits": {
-      note: "Single fixed-window limiters, in-process (restart clears counters). 429 answers carry code rate_limited (account lockouts: account_locked). Per-endpoint-class tightening is §34.33 AG10 follow-up.",
+      note: "Single fixed-window limiters, in-process (restart clears counters). 429 answers carry code rate_limited (account lockouts: account_locked). Per-endpoint-class tightening is follow-up work.",
       global: {
         default: "10000 req/min/IP",
         env: "NOTEES_GLOBAL_REQ_PER_MINUTE",
@@ -989,7 +989,7 @@ export function buildOpenApiDocument(serverVersion: string): JsonSchema {
       },
     },
     "x-api-key-scopes": {
-      note: "§34.33 AG3. POST /api/api-keys accepts an optional `scopes` list; keys created without one (and the operator key, and account sessions) are unrestricted. Enforcement is per-route via the x-required-scope operation extension: a scoped key calling a route outside its set gets 403 scope_denied.",
+      note: "POST /api/api-keys accepts an optional `scopes` list; keys created without one (and the operator key, and account sessions) are unrestricted. Enforcement is per-route via the x-required-scope operation extension: a scoped key calling a route outside its set gets 403 scope_denied.",
       vocabulary: API_SCOPES,
       reservedNotYetEnforced: [
         "relations.read",
@@ -1006,18 +1006,18 @@ export function buildOpenApiDocument(serverVersion: string): JsonSchema {
         "assets.write": "POST /api/assets",
         "search": "GET /api/search, POST /api/query",
         "export": "GET /api/workspaces/:id/export.zip",
-        "admin": "the whole /api/plugins surface (§34.61) — the FIRST enforcement of the reserved admin scope; sessions additionally require the administrator flag (routes-plugins requireAdmin)",
+        "admin": "the whole /api/plugins surface — the FIRST enforcement of the reserved admin scope; sessions additionally require the administrator flag (routes-plugins requireAdmin)",
       },
       relaySurface: "scoped keys are rejected on all /api/relay/v2 routes (403 scope_denied)",
       accountRoutes: "account routes keep requiring an account session (or key self-revocation); scopes never widen that",
     },
     "x-revision-checks": {
-      note: "§34.33 AG5. Only PATCH /api/objects/:id honors the optional `baseRevision` guard: the node row's (hlc_physical, hlc_logical) — bumped by object.update and object.move — is the one natural per-node revision. Property slots carry per-slot LWW rows, deletes/restore trash-state semantics have no meaningful base, and creates address a not-yet-existing node; a base check on those would be misleading, so it is deliberately not offered (op-log LWW governs).",
+      note: "Only PATCH /api/objects/:id honors the optional `baseRevision` guard: the node row's (hlc_physical, hlc_logical) — bumped by object.update and object.move — is the one natural per-node revision. Property slots carry per-slot LWW rows, deletes/restore trash-state semantics have no meaningful base, and creates address a not-yet-existing node; a base check on those would be misleading, so it is deliberately not offered (op-log LWW governs).",
       honoredBy: ["PATCH /api/objects/:id"],
       staleBaseAnswer: "409 conflict",
     },
     "x-idempotency-key": {
-      note: "§34.33 AG5. Operations flagged x-idempotency-key replay the first successful (2xx) response within 24h for an identical replay (method + URL + body); a key reused with a different request fails 409 idempotency_replay. Multipart uploads are excluded (CAS hash dedupe). In-memory, single-process.",
+      note: "Operations flagged x-idempotency-key replay the first successful (2xx) response within 24h for an identical replay (method + URL + body); a key reused with a different request fails 409 idempotency_replay. Multipart uploads are excluded (CAS hash dedupe). In-memory, single-process.",
       window: "24h",
       replayHeader: "x-idempotency-replay: true marks a replayed response",
     },
@@ -1028,7 +1028,7 @@ export function buildOpenApiDocument(serverVersion: string): JsonSchema {
  * The documented route inventory, in Fastify form (method + `:param` path)
  * with each route's enforced scope. The coverage test compares this against
  * the live Fastify registration (a route added in code but not here fails
- * CI), and app.ts builds the AG3 enforcement map from `requiredScope` — the
+ * CI), and app.ts builds the scope-enforcement map from `requiredScope` — the
  * OpenAPI `x-required-scope` extension and the middleware are one source of
  * truth.
  */

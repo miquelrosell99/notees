@@ -1,9 +1,9 @@
 /**
- * GhostRow — the v1 ghost block recovered, §34.109-refined: the page root
+ * GhostRow — the ghost add row: the page root
  * trails exactly ONE muted "+ Add block" row as the last sibling of the main
  * level; the click realizes it into a real empty block after the last child
  * and focuses it. Blocks no longer trail their own ghosts at every depth
- * (owner 2026-10-06: one ghost per page, not one per level). The §34.85
+ * (owner 2026-10-06: one ghost per page, not one per level). The owner
  * ruling stands in spirit: the ghost is the SOLE add affordance and shows
  * even on empty bodies — in outline AND prose mode (prose hides bullets,
  * so the `prose` flag drops this row's gutter to read as plain trailing
@@ -18,7 +18,7 @@ import type { WorkspaceClient } from "@/core/workspace-client.js";
 
 import "./GhostRow.css";
 
-/** The v1 ghost identity: `__ghost-<parentId>` (never a real node id). */
+/** The ghost identity: `__ghost-<parentId>` (never a real node id). */
 export function ghostIdFor(parentId: string): string {
   return `__ghost-${parentId}`;
 }
@@ -62,7 +62,7 @@ export function GhostRow({ parentId, onRealize, prose = false }: GhostRowProps) 
 }
 
 /**
- * Realize a ghost into a real block (v1 handleGhostRealize parity): create
+ * Realize a ghost into a real block: create
  * the empty child of the ghost's parent AFTER its last real child, then hand
  * the caret to the new block. A flush of any pending draft happens through
  * the usual debounced exit — the create is one object.create.

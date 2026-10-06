@@ -1,5 +1,5 @@
 /**
- * Cross-device favorites/recents tests (§34.61):
+ * Cross-device favorites/recents tests:
  *
  *  - core client: getPrefs/patchPrefs against a mocked HTTP layer (server
  *    answers vs offline fallback to the device-local cache, tagged `source`);
@@ -8,7 +8,7 @@
  *  - Sidebar: Favorites section renders the server copy, the row star toggle
  *    writes through, recents sync on open;
  *  - the store toggle: favorites push + sync (the header star retired —
- *    favorites are set from the sidebar / context menu, owner §34.72);
+ *    favorites are set from the sidebar / context menu, owner ruling);
  *  - worker RPC: getPrefs/patchPrefs through handleMessage (memory fallback).
  */
 
@@ -273,7 +273,7 @@ function renderSidebar(client: AnyClient) {
   );
 }
 
-describe("Sidebar favorites/recents (§34.61)", () => {
+describe("Sidebar favorites/recents", () => {
   it("renders the Favorites section from the server prefs copy", async () => {
     const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
     const pageId = await client.createObject({ presentAsMain: true, name: "Alpha" });

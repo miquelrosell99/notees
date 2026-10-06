@@ -1,6 +1,6 @@
 /**
  * useCopiedState — transient "copied" flag with an automatic reset (drives
- * the export modal's Copy button). Lives in its own module (§34.69): the
+ * the export modal's Copy button). Lives in its own module: the
  * old overlayHooks stack it came from was deleted — every other behavior in
  * that file (overlay stack / focus trap / click-outside / media queries)
  * had a live kit implementation in components/ui/overlay-hooks.ts, and

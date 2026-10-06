@@ -1,6 +1,6 @@
 /**
  * Recurrence — the RRULE-lite grammar behind repeating calendar events
- * (§34.28 #6, owner ruling 2026-10-04: COMPUTE-ON-READ — no new op, no wire
+ * (owner ruling 2026-10-04: COMPUTE-ON-READ — no new op, no wire
  * change).
  *
  * A recurrence rule lives as METADATA on the event's date value: the value's
@@ -125,7 +125,7 @@ export function recurrenceRuleOf(metadata: unknown): RecurrenceRule | null {
 }
 
 /**
- * Per-occurrence completion (§34.69 — the §34.63 follow-up): the dates of
+ * Per-occurrence completion: the dates of
  * individually completed occurrences, `metadata.completedOccurrences` on the
  * recurring date value — additive metadata like `repeat` itself, so no op,
  * no wire change; occurrences stay virtual (no nodes). Absent/null reads as

@@ -1,6 +1,6 @@
 # Logs
 
-Canonical: `docs/developers/deployment.md` §9 (compose logging posture).
+Canonical: `docs/developers/deployment.md` (compose logging posture).
 
 - Compose runs the sync server with `NOTEES_LOG=false` — no per-request pino
   output. Errors still reach stderr: `docker compose logs -f notees-sync`.

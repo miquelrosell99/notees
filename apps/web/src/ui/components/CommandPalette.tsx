@@ -2,29 +2,29 @@
  * CommandPalette — Ctrl/Cmd+K command surface (plus the topbar search
  * trigger, via the `open` prop). A fixed-position modal (~top 18vh, 560px)
  * with an autofocused SearchField and a fuzzy subsequence filter over the
- * section registry (§34.30 M6):
+ * section registry:
  *
  *  - Recent     device-local recents (empty query only — the Sidebar's
- *               `notees.recents` contract; no sync per the §34.29 #8 ruling)
+ *               `notees.recents` contract; no sync per the owner ruling)
  *  - Random     five pages picked on open via Fisher–Yates over the
  *               already-loaded page list (asset-classed pages excluded); the
  *               group label carries a ghost refresh button that re-shuffles
  *               the SAME cached pool — deliberately no new worker query
- *               (the v1 ruling: extra projections starve the palette on
+ *               (the ruling: extra projections starve the palette on
  *               large workspaces). Empty query only; exempt from the
  *               seen-ids dedupe like Commands (#8)
  *  - Date Pages date pages matching the query: formatted/raw keywords plus a
  *               parsed-date suggestion ("feb 14" → the deterministic date
- *               chain; §34.28 #12). The `is_daily:` prefix scopes the whole
+ *               chain). The `is_daily:` prefix scopes the whole
  *               palette to this section.
  *  - Pages      (client.listPages, asset-classed pages excluded)
  *  - Classes    (client.listClasses)
- *  - Content    debounced ranked FTS (client.searchPage) with M3 match
+ *  - Content    debounced ranked FTS (client.searchPage) with match
  *               snippets; block hits carry their containing-page label
- *               (M4, label helper shared with M8's picker work)
+ *               (label helper shared with the picker)
  *  - Commands   the action registry: New page, New class… (#14, where the
  *               host provides it), a typed "Create page …" row, Focus mode
- *               (#12), Toggle theme, Sign out (M6's contribution point)
+ *               (#12), Toggle theme, Sign out (a contribution point)
  *
  * Full keyboard navigation: ArrowUp/Down cycles, Enter selects, Esc closes;
  * the mouse hovers and clicks. Theme toggling dispatches the same
@@ -54,7 +54,7 @@ type AnyClient = WorkspaceClient | WorkerClient;
 const THEME_KEY = "notees.theme";
 /** The Sidebar's device-local recents key — same contract, read-only here. */
 const RECENTS_KEY = "notees.recents";
-/** The Random section's row count (the v1 section's slice size). */
+/** The Random section's row count (the original section's slice size). */
 const RANDOM_PAGE_COUNT = 5;
 
 type Group = "Recent" | "Random" | "Date Pages" | "Pages" | "Classes" | "Content" | "Commands";
@@ -65,14 +65,14 @@ interface PaletteItem {
   label: string;
   icon: string;
   keywords: string;
-  /** Right-side hint — the containing page for block content hits (M4/M8). */
+  /** Right-side hint — the containing page for block content hits. */
   meta?: string | undefined;
   /** Match-context excerpt under the label (the Content group). */
   snippet?: SearchSnippetData | null;
   run: () => void;
 }
 
-/** One action registry entry (M6's contribution point shape). */
+/** One action registry entry (contribution-point shape). */
 interface PaletteAction {
   key: string;
   label: string;
@@ -147,7 +147,7 @@ function SnippetLine({ snippet }: { snippet: SearchSnippetData }) {
   return <span className="nt-search-snippet nt-palette-snippet">{parts}</span>;
 }
 
-/** Containing-page breadcrumb for a block hit (M8's label semantics). */
+/** Containing-page breadcrumb for a block hit. */
 function containingPageLabel(client: AnyClient, node: ClientNode): string | null {
   let currentId = node.parentId;
   let guard = 0;
@@ -171,7 +171,7 @@ function readRecents(): string[] {
 }
 
 /**
- * Fisher–Yates over a copy (the v1 shufflePages precedent, #8) — pure with
+ * Fisher–Yates over a copy (the shufflePages precedent, #8) — pure with
  * respect to the input so a refresh can re-shuffle the same cached pool.
  */
 function shuffledIds(ids: readonly string[]): string[] {
@@ -244,7 +244,7 @@ export function CommandPalette({
    *  appears only where the host provides it. */
   onOpenClassCreate?: (() => void) | undefined;
   onSignOut: () => void;
-  /** §34.64 — the session undo journal state; rows appear only when available. */
+  /** The session undo journal state; rows appear only when available. */
   undoState: UndoUiState;
   onUndo: () => void;
   onRedo: () => void;
@@ -262,13 +262,13 @@ export function CommandPalette({
    * Random section (#8): the five rows picked on open, plus the id pool they
    * came from. The pool is captured once per open (the cached `listPages`
    * read); refresh re-shuffles THAT list — deliberately no new worker query
-   * (the v1 ruling: extra projections starve the palette on large
+   * (the ruling: extra projections starve the palette on large
    * workspaces). The rows are display data captured at pick time, so a
    * refresh never re-runs the sync-sections memo.
    */
   const [randomRows, setRandomRows] = useState<PaletteItem[]>([]);
   const randomPoolRef = useRef<readonly string[]>([]);
-  /** Debounced FTS content group (M4): tagged with the query they answer. */
+  /** Debounced FTS content group: tagged with the query they answer. */
   const [contentItems, setContentItems] = useState<Array<PaletteItem & { queryTag: string }>>([]);
   const [contentLoading, setContentLoading] = useState(false);
   const contentGeneration = useRef(0);
@@ -295,8 +295,8 @@ export function CommandPalette({
     return () => window.removeEventListener("notees:recents", refresh);
   }, []);
 
-  // Query parsing: the `is_daily:` prefix scopes the palette to date pages
-  // (§34.28 #12); the rest is the fuzzy/FTS text.
+  // Query parsing: the `is_daily:` prefix scopes the palette to date pages;
+  // the rest is the fuzzy/FTS text.
   const dailyOnly = /^is_daily:\s*/i.test(query);
   const text = query.replace(/^is_daily:\s*/i, "").trim();
 
@@ -419,8 +419,8 @@ export function CommandPalette({
       );
     }
 
-    // Action registry (M6): static rows + a query-scoped typed creation +
-    // the session journal's Undo/Redo rows (§34.64 — present only when the
+    // Action registry: static rows + a query-scoped typed creation +
+    // the session journal's Undo/Redo rows (present only when the
     // journal has something to (re)apply; the row IS the label).
     const actions: PaletteAction[] = [
       {
@@ -518,7 +518,7 @@ export function CommandPalette({
     // re-derive the sections when the worker cache refreshes.
   }, [client, dailyOnly, text, onOpenNode, onNewPage, onOpenClassCreate, onSignOut, onClose, recentIds, cacheVersion, undoState, onUndo, onRedo]);
 
-  // --- Content section (M4): debounced ranked FTS with snippets -------------
+  // --- Content section: debounced ranked FTS with snippets ------------------
 
   useEffect(() => {
     if (!open) return;
@@ -618,7 +618,7 @@ export function CommandPalette({
   // inline arrow identities every render, and during a background catch-up
   // the shell re-renders constantly — with them in the deps this reset ran
   // on every render and wiped the typed query from under the user (found
-  // by the post-§34.116 smoke: the fast boot left catch-up running through
+  // by the post-fix smoke: the fast boot left catch-up running through
   // the search step). The open-transition + client change are the only
   // moments that should reset the palette.
   const onOpenNodeRef = useRef(onOpenNode);

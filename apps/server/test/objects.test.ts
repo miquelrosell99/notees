@@ -187,7 +187,7 @@ describe("objects API", () => {
     expect(res.json().results.map((r: { id: string }) => r.id)).toContain(id);
   });
 
-  it("search paginates with a cursor until nextCursor comes back null (C5)", async () => {
+  it("search paginates with a cursor until nextCursor comes back null", async () => {
     server = await makeTestServer();
     for (let i = 0; i < 5; i++) {
       await api("POST", "/api/objects", {
@@ -212,7 +212,7 @@ describe("objects API", () => {
     expect(bad.statusCode).toBe(422);
   });
 
-  it("search supports quoted phrases (C1)", async () => {
+  it("search supports quoted phrases", async () => {
     server = await makeTestServer();
     await api("POST", "/api/objects", {
       payload: { presentAsMain: true, contentAst: [{ type: "text", text: "the quick brown fox" }] },
@@ -226,7 +226,7 @@ describe("objects API", () => {
     expect(res.json().results[0].name).toBe("the quick brown fox");
   });
 
-  it("resolve maps an exact display name to an id (C6)", async () => {
+  it("resolve maps an exact display name to an id", async () => {
     server = await makeTestServer();
     const { id } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "My Source" } })).json();
     const res = await api("GET", `/api/resolve?name=${encodeURIComponent("my source")}`);
@@ -238,7 +238,7 @@ describe("objects API", () => {
     expect(partial.json().error).toMatchObject({ code: "not_found" });
   });
 
-  it("resolve treats an exact alias value as a name-equivalent (PG10)", async () => {
+  it("resolve treats an exact alias value as a name-equivalent", async () => {
     server = await makeTestServer();
     // The alias schema is seeded (global scope, multi text) — author a value
     // and resolve by it.
@@ -250,12 +250,12 @@ describe("objects API", () => {
     const res = await api("GET", `/api/resolve?name=${encodeURIComponent("politeia")}`);
     expect(res.statusCode).toBe(200);
     expect(res.json().id).toBe(id);
-    // Searching the alias text also finds the node (M5 text-scalar indexing).
+    // Searching the alias text also finds the node (text-scalar indexing).
     const search = await api("GET", `/api/search?q=Politeia`);
     expect(search.json().results.map((r: { id: string }) => r.id)).toContain(id);
   });
 
-  it("resolve folds a NODE alias to its main page (§34.95 parity)", async () => {
+  it("resolve folds a NODE alias to its main page", async () => {
     server = await makeTestServer();
     const main = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Productivity" } })).json();
     const alias = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Getting Things Done" } })).json();
@@ -273,7 +273,7 @@ describe("objects API", () => {
     expect(direct.json().id).toBe(main.id);
   });
 
-  it("apply-time value validation fails loud as 422 (PG6)", async () => {
+  it("apply-time value validation fails loud as 422", async () => {
     server = await makeTestServer();
     const { id } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Dated" } })).json();
     const schema = (await api("POST", "/api/property-schemas", {
@@ -421,7 +421,7 @@ describe("objects API", () => {
     expect(res.statusCode).toBe(200);
     // The values endpoint still selects the (retired) node.name column, so
     // objectName is null post-title-is-content; the stored value is the point.
-    // PG5: each entry carries the row's stable element id.
+    // Each entry carries the row's stable element id.
     expect(res.json().values).toEqual([
       {
         objectId: id,

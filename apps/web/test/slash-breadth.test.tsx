@@ -1,15 +1,15 @@
 /**
- * Slash breadth tests (§34.31 B1 `/query`, §34.28 #9 `/date`, §34.25 T3
- * `/template`) — the three rows that widened the slash command list beyond
+ * Slash breadth tests (`/query`, `/date`, `/template`) — the
+ * three rows that widened the slash command list beyond
  * the block-type actions, through PageView over the in-process
  * WorkspaceClient + MemoryRelay (same harness as capture.test.tsx).
  *
  * - /query inserts a query content token at the caret and opens the builder
- *   popover when the block re-renders in read mode (§34.31 B1's contract).
+ *   popover when the block re-renders in read mode.
  * - /date parses the typed query (NL, same parser as the @-picker), ensures
  *   the journal chain, and links the day/month/year page; a bare /date is
  *   today; an unparseable query falls back like a no-match.
- * - /template opens the flat unfiltered template list (D1 amendment), and
+ * - /template opens the flat unfiltered template list (the amendment), and
  *   the pick instantiates a fresh page through the clone engine (provenance
  *   written), linking it at the caret; {{variables}} open the variable
  *   dialog first and substitute at apply time.
@@ -110,7 +110,7 @@ async function setupPageWithBlock(): Promise<{
   return { client, pageId, blockId, container };
 }
 
-describe("slash /query (§34.31 B1)", () => {
+describe("slash /query", () => {
   it("inserts a query token at the caret and opens the builder popover", async () => {
     const { client, blockId, container } = await setupPageWithBlock();
     const editor = clickIntoBlock(container);
@@ -138,7 +138,7 @@ describe("slash /query (§34.31 B1)", () => {
   });
 });
 
-describe("slash /date (§34.28 #9)", () => {
+describe("slash /date", () => {
   it("links a typed date, creating the daily page on demand", async () => {
     const { client, blockId, container } = await setupPageWithBlock();
     const editor = clickIntoBlock(container);
@@ -185,7 +185,7 @@ describe("slash /date (§34.28 #9)", () => {
   });
 });
 
-describe("slash /template (§34.25 T3)", () => {
+describe("slash /template", () => {
   /** A template with one child block; the template class is seeded by the flow's self-heal. */
   async function setupTemplate(client: WorkspaceClient, content = "Sync template") {
     const templateId = await client.createObject({
@@ -301,7 +301,7 @@ describe("slash /template (§34.25 T3)", () => {
   });
 });
 
-describe("slash /hr and /code (§34.34 B3/B5 — lockstep SHIPPED)", () => {
+describe("slash /hr and /code (lockstep SHIPPED)", () => {
   it("/hr inserts the divider token at the caret", async () => {
     const { client, blockId, container } = await setupPageWithBlock();
     const editor = clickIntoBlock(container);

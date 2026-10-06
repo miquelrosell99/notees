@@ -1,11 +1,11 @@
 /**
- * Deterministic date-node ids — the v1 scheme ported from
+ * Deterministic date-node ids — the scheme ported from
  * `app/domain/entities/constants.py` (`generate_day_uuid` and siblings).
  *
  * A date is a node, not a string (SCHEMA.md "Dates"): every ISO date maps to
  * a year / month / day node chain with ids content-addressed from the date,
- * so chain creation is an idempotent no-op on re-create and v1 data locks
- * step with v2. Layout (FIXED — lockstep with v1, never regenerate):
+ * so chain creation is an idempotent no-op on re-create and stored data
+ * stays valid. Layout (FIXED — cross-client lockstep, never regenerate):
  *
  *   day    00000000-0000-0000-00dd-YYYYMMDD0000
  *   month  00000000-0000-0000-00aa-YYYYMM000000
@@ -24,7 +24,7 @@ export interface DateParts {
   day: number;
 }
 
-/** v1 `parse_date_uuid` acceptance window (1900..2200 inclusive). */
+/** `parse_date_uuid` acceptance window (1900..2200 inclusive). */
 export const DATE_UUID_MIN_YEAR = 1900;
 export const DATE_UUID_MAX_YEAR = 2200;
 
@@ -58,19 +58,19 @@ export function parseIsoDate(isoDate: string): DateParts {
   return { year, month, day };
 }
 
-/** `00000000-0000-0000-00bb-YYYY00000000` (v1 `generate_year_uuid`). */
+/** `00000000-0000-0000-00bb-YYYY00000000` (`generate_year_uuid`). */
 export function yearNodeId(isoDate: string): string {
   const { year } = parseIsoDate(isoDate);
   return `${YEAR_PREFIX}${pad(year, 4)}00000000`;
 }
 
-/** `00000000-0000-0000-00aa-YYYYMM000000` (v1 `generate_month_uuid`). */
+/** `00000000-0000-0000-00aa-YYYYMM000000` (`generate_month_uuid`). */
 export function monthNodeId(isoDate: string): string {
   const { year, month } = parseIsoDate(isoDate);
   return `${MONTH_PREFIX}${pad(year, 4)}${pad(month, 2)}000000`;
 }
 
-/** `00000000-0000-0000-00dd-YYYYMMDD0000` (v1 `generate_day_uuid`). */
+/** `00000000-0000-0000-00dd-YYYYMMDD0000` (`generate_day_uuid`). */
 export function dayNodeId(isoDate: string): string {
   const { year, month, day } = parseIsoDate(isoDate);
   return `${DAY_PREFIX}${pad(year, 4)}${pad(month, 2)}${pad(day, 2)}0000`;
@@ -94,9 +94,9 @@ export function chainNodeIds(isoDate: string): { year: string; month: string; da
 }
 
 /**
- * Node display names — the v1 journal labels (v1 `yearlyNoteIdentity` et al.):
+ * Node display names — the journal labels (`yearlyNoteIdentity` et al.):
  * year `YYYY0000`, month `YYYYMM00`, day `YYYYMMDD`. Date nodes are named by
- * their compact date so v1's name-based lookups still resolve them.
+ * their compact date so name-based lookups still resolve them.
  */
 export function dateNodeLabel(parts: DateParts, precision: DatePrecision): string {
   switch (precision) {
@@ -114,9 +114,9 @@ export interface ParsedDateNodeId extends DateParts {
 }
 
 /**
- * v1 `parse_date_uuid` port: extract precision + date components from a
+ * `parse_date_uuid` port: extract precision + date components from a
  * date-node id, or null when the id is not a date UUID (or falls outside
- * the v1 1900..2200 window). Round-trips with the generators above.
+ * the 1900..2200 window). Round-trips with the generators above.
  */
 export function parseDateNodeId(id: string): ParsedDateNodeId | null {
   if (typeof id !== "string" || id.length !== 36) return null;

@@ -13,7 +13,7 @@
  *  - POST /workspaces         create a workspace (creator becomes owner);
  *  - PATCH /workspaces/:id    rename a workspace (owner-only via membership);
  *  - GET  /workspaces/:id/export.zip
- *                             full-workspace ZIP export (§34.24 E5): one
+ *                             full-workspace ZIP export: one
  *                             Markdown file per page (roots + their
  *                             main-zone descendants), properties frontmatter,
  *                             relative links between the files, the bundle
@@ -197,7 +197,7 @@ export interface ResolvedRequest {
   /** The raw API key token when the principal authenticated via a user API key. */
   apiKeyToken?: string;
   /**
-   * §34.33 AG3: the API key's scope set when the principal authenticated via
+   * The API key's scope set when the principal authenticated via
    * a scoped user API key; null means unrestricted (operator key, sessions,
    * and keys minted without a scope list).
    */
@@ -494,7 +494,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     return { ok: true };
   });
 
-  // GET /workspaces/:id/export.zip — full-workspace ZIP export (§34.24 E5):
+  // GET /workspaces/:id/export.zip — full-workspace ZIP export:
   // one Markdown file per page (top-level pages plus their main-zone child
   // pages, each rendered by @notees/export with properties frontmatter and
   // inline-body blocks as nested bullets), relative links between the files,
@@ -552,9 +552,9 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     // main-children zone. Blocks (render bit unset) stay inside their page's
     // file; classes are never exported.
     //
-    // §34.24 zip-roots exclusion (owner-via-register-recommendation,
-    // 2026-10-04): the system-seed pages (inbox; the scratchpad was withdrawn
-    // §34.81 but legacy workspaces still carry it) and the whole date chain
+    // zip-roots exclusion (owner ruling 2026-10-04): the system-seed pages
+    // (inbox; the scratchpad was withdrawn but legacy workspaces still carry
+    // it) and the whole date chain
     // (year/month/day nodes — 5,657 files of journal scaffolding on the real
     // workspace) stay OUT of the zip. Date-chain rows are skipped at every
     // level, so a user page parented under a day node is skipped with the
@@ -707,8 +707,8 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "name is required");
     }
-    // §34.33 AG3: an optional scope list makes the key a scoped object-API
-    // credential; omitting it (or null) keeps the unrestricted M1 default.
+    // An optional scope list makes the key a scoped object-API
+    // credential; omitting it (or null) keeps the unrestricted default.
     const scopes = parseApiScopes(parsed.data.scopes);
     if (scopes === null) {
       throw new AppError(422, "validation_failed", "scopes must be an array of known scope names");

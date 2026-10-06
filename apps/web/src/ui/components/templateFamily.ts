@@ -1,10 +1,10 @@
 /**
- * Template family — §34.25 T2/T3. The `has-template` system property (fixed
- * UUID in @notees/domain seeds, §34.28 #2's lesson applied: a reserved UUID is
+ * Template family. The `has-template` system property (fixed
+ * UUID in @notees/domain seeds, the fixed-UUID lesson applied: a reserved UUID is
  * dead without an author) binds a CLASS node to its template nodes
  * (node-typed, multi, `targetClassFilter: ["template"]` — SCHEMA.md
- * "Templates", owner decision D1). The `generated-from` property (D1
- * amendment, owner 2026-10-03) is instantiation PROVENANCE: every generated
+ * "Templates", owner decision). The `generated-from` property (owner
+ * amendment 2026-10-03) is instantiation PROVENANCE: every generated
  * node records its template instance-side (single node-typed, same class
  * filter, deliberately NOT class-bound — instance metadata).
  *

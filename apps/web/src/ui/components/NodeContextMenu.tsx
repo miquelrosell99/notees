@@ -18,7 +18,7 @@
  *
  * Promote ("Move to Pages"): promotion stringifies content server-side
  * (the title-is-content flatten — SCHEMA.md), so when the block carries rich
- * tokens the menu asks first, naming what will flatten (§34.34 BC4 guard;
+ * tokens the menu asks first, naming what will flatten;
  * extending the survivor set itself stays an owner ruling).
  */
 
@@ -39,8 +39,8 @@ import { ContextMenu, type ContextMenuItem } from "./ui/ContextMenu.js";
 
 /**
  * The minimal client surface the menu needs (both client classes and the
- * outliner seam satisfy it). The clone surfaces power "Duplicate" (§34.25
- * T4, the B4 resolution: a real subtree clone through the shared engine —
+ * outliner seam satisfy it). The clone surfaces power "Duplicate": a real
+ * subtree clone through the shared engine —
  * the DuplicatePageModal name-conflict dialog is a different feature and
  * keeps its name).
  */
@@ -137,9 +137,9 @@ export function NodeContextMenu({
   onClose: () => void;
   onOpenNode: (nodeId: string) => void;
   onExport?: ((pageId: string, name: string) => void) | undefined;
-  /** §34.62 shares: "Share…" opens the page's public read-only link manager. */
+  /** Shares: "Share…" opens the page's public read-only link manager. */
   onShare?: ((pageId: string, name: string) => void) | undefined;
-  /** Presentation mode (§34.26): "Present" decks the page's subtree read-only. */
+  /** Presentation mode: "Present" decks the page's subtree read-only. */
   onPresent?: ((pageId: string) => void) | undefined;
   /** Present for class nodes: "Change color…" opens the swatch row. */
   onChangeColor?: ((x: number, y: number) => void) | undefined;
@@ -270,7 +270,7 @@ export function NodeContextMenu({
           },
     );
   }
-  // Duplicate (§34.25 T4 / B4): a real subtree clone through the shared
+  // Duplicate: a real subtree clone through the shared
   // engine, placed right after the source (roots land with the other
   // root pages). Deliberately provenance-free — a copy is not "generated
   // from" a template.
@@ -337,7 +337,7 @@ export function NodeContextMenu({
       label: "Remove from this node",
       icon: "mdi-close-circle-outline",
       onClick: () => {
-        // §34.19: system/journal classes refuse membership removal.
+        // System/journal classes refuse membership removal.
         if (refuseClassRemoval(node.id)) return;
         if (onRemoveFromOwner !== undefined) onRemoveFromOwner();
         else void client.unassignClass(ownerId, node.id);

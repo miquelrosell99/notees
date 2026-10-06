@@ -1,10 +1,10 @@
 /**
  * components/nodes/NodeViewSection.css). Class names unchanged.
  *
- * Adaptations for the v2 shell:
+ * Adaptations for the current shell:
  *    it gains width/font/background resets and keeps the same hover/focus
  *    treatment;
- *    v2 shell has no right-sidebar sections).
+ *    the shell has no right-sidebar sections).
  */
 
 .node-view-section {

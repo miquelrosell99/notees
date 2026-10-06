@@ -1,6 +1,6 @@
 /**
- * Per-user UI preferences — favorites & recents (§34.61, owner ruling
- * 2026-10-04 on §34.29 #8).
+ * Per-user UI preferences — favorites & recents (owner ruling
+ * 2026-10-04).
  *
  *  - GET /api/me/prefs   the authenticated account's prefs
  *                        ({favorites, recents, updatedAt});

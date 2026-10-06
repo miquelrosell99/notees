@@ -78,7 +78,7 @@ const DEFAULT_TREE_DEPTH = 64;
 /** Bare-uuid test for the legacy carrier value shape (archived data). */
 const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Default actor for the single-user M1 client (overridable per client). */
+/** Default actor for the single-user client (overridable per client). */
 const DEFAULT_ACTOR_ID = "01920000-0000-7000-8000-0000000000a1";
 
 const DEFAULT_WORKSPACE_ID = "00000000-0000-0000-0000-000000000000";
@@ -103,7 +103,7 @@ export interface SyncStatusSnapshot {
 /**
  * A semantic conflict the engine reported (see @notees/sync detectConflicts),
  * with the wall-clock time it was observed. Newest-last, bounded history for
- * the sync details modal (§34.115) — conflicts are otherwise transient
+ * the sync details modal — conflicts are otherwise transient
  * (emitted, never stored).
  */
 export interface ConflictHistoryEntry extends SyncConflict {
@@ -121,11 +121,11 @@ const IDLE_SNAPSHOT: SyncStatusSnapshot = {
   cursorSeq: 0,
 };
 
-/** Conflict-history retention for the sync details modal (§34.115). */
+/** Conflict-history retention for the sync details modal. */
 const CONFLICT_LOG_CAP = 100;
 
 /**
- * Change notification payload (§34.114): what a `notify()` actually changed,
+ * Change notification payload — what a `notify()` actually changed,
  * so the main-thread read cache refetches only impacted keys instead of the
  * whole cache. Semantics for subscribers:
  *
@@ -181,7 +181,7 @@ export interface BlockTreeNode {
 /**
  * Typed error for a `query` content token whose serialized AST fails
  * validation (`parseQueryAst` — unknown condition types / versions fail loud)
- * or whose compilation the M1 engine does not support. The query block view
+ * or whose compilation the query engine does not support. The query block view
  * renders an "invalid query" placeholder for it; the worker RPC path surfaces
  * the same shape as an Error message.
  */
@@ -226,7 +226,7 @@ export interface QueryAggregateResult {
 }
 
 /**
- * One page of the cursor-paginated ranked search (§34.30 C5): the resolved
+ * One page of the cursor-paginated ranked search: the resolved
  * nodes plus the opaque cursor for the next page (null = exhausted).
  */
 export interface SearchPageResult {
@@ -235,7 +235,7 @@ export interface SearchPageResult {
 }
 
 /**
- * Match-context snippet (§34.30 M3), mirrored from @notees/store's
+ * Match-context snippet, mirrored from @notees/store's
  * SearchSnippet: the whitespace-normalized excerpt plus char-offset match
  * spans into it.
  */
@@ -259,7 +259,7 @@ export interface ClassBinding {
   /** Bound target class names (seed spec), null when unconstrained. */
   targetClassFilter: string[] | null;
   sequence: number;
-  /** Per-CLASS (§34.90): the binding's required flag — a property may be
+  /** Per-CLASS: the binding's required flag — a property may be
    *  mandatory for one class, optional for another. */
   required: boolean | null;
   defaultValue: string | null;
@@ -270,11 +270,11 @@ export interface ClassBinding {
   numberPad?: number | null;
   numberDecimals?: number | null;
   numberRounding?: "round" | "floor" | "ceil" | "truncate" | null;
-  /** PC4: the soft-unbind flag (false = the binding stops contributing). */
+  /** The soft-unbind flag (false = the binding stops contributing). */
   active: boolean;
 }
 
-/** §34.90: where a select/multi_select (or boolean) value renders on a block row. */
+/** Where a select/multi_select (or boolean) value renders on a block row. */
 export type PropertyDisplay = "panel" | "bullet" | "inline";
 
 /** Editable fields of a class.property.set write (all optional — patch). */
@@ -285,19 +285,19 @@ export interface SetClassPropertyInput {
   active?: boolean;
 }
 
-/** A select/multi_select option (PG16 color + §34.89 icon, both optional). */
+/** A select/multi_select option (color + icon, both optional). */
 export interface ClientPropertyOption {
   id: string;
   label: string;
-  /** Preset token or `#RRGGBB` hex (§34.43); absent/null = uncolored. */
+  /** Preset token or `#RRGGBB` hex; absent/null = uncolored. */
   color?: string | null;
   /** MDI icon name (camelCase @mdi/js convention); absent/null = no icon. */
   icon?: string | null;
 }
 
 /**
- * One entry of the GET /api/operations relay-log feed (§34.33.1), trimmed to
- * what the PG13 history modal renders — the envelope's coordination fields
+ * One entry of the GET /api/operations relay-log feed, trimmed to
+ * what the property-history modal renders — the envelope's coordination fields
  * plus its payload.
  */
 export interface OperationFeedEntry {
@@ -320,7 +320,7 @@ export interface UpdatePropertySchemaInput {
   numberPad?: number | null;
   numberDecimals?: number | null;
   numberRounding?: "round" | "floor" | "ceil" | "truncate" | null;
-  /** §34.90 render contracts (PROPERTY-level): absent keeps, null clears. */
+  /** The render contracts (PROPERTY-level): absent keeps, null clears. */
   display?: PropertyDisplay | null;
   readonly?: boolean | null;
   hideWhenEmpty?: boolean | null;
@@ -343,7 +343,7 @@ export interface ClientPropertySchema {
   numberPad?: number | null;
   numberDecimals?: number | null;
   numberRounding?: "round" | "floor" | "ceil" | "truncate" | null;
-  /** §34.90 render contracts (PROPERTY-level; null = panel / unset). */
+  /** The render contracts (PROPERTY-level; null = panel / unset). */
   display?: PropertyDisplay | null;
   readonly?: boolean | null;
   hideWhenEmpty?: boolean | null;
@@ -352,7 +352,7 @@ export interface ClientPropertySchema {
 export interface CreatePropertySchemaInput {
   /**
    * Defaults to a fresh UUIDv7. Pass the reserved system id to author a
-   * designed schema idempotently (the task family — §34.28 #2); the
+   * designed schema idempotently (the task family); the
    * propertySchema.create op has always accepted a caller-chosen id.
    */
   id?: string;
@@ -376,7 +376,7 @@ export interface CreatePropertySchemaInput {
 export interface EffectiveProperty {
   propertySchemaId: string;
   idx: number;
-  /** PG5: the value's stable element id — the address multi-value removes target. */
+  /** The value's stable element id — the address multi-value removes target. */
   elementId: string;
   schema: {
     id: string;
@@ -388,19 +388,19 @@ export interface EffectiveProperty {
     numberPad?: number | null;
     numberDecimals?: number | null;
     numberRounding?: "round" | "floor" | "ceil" | "truncate" | null;
-    /** §34.90 render contracts (PROPERTY-level; null = panel / unset). */
+    /** The render contracts (PROPERTY-level; null = panel / unset). */
     display?: PropertyDisplay | null;
     readonly?: boolean | null;
     hideWhenEmpty?: boolean | null;
   } | null;
   value: unknown;
-  /** Authored qualifiers (PC6: date-node refs or legacy ISO strings). */
+  /** Authored qualifiers (date-node refs or legacy ISO strings). */
   metadata: Record<string, unknown> | null;
   source: "authored" | "default";
   boundBy: string | null;
-  /** Per-CLASS (§34.90): the winning binding's required flag. */
+  /** Per-CLASS: the winning binding's required flag. */
   required: boolean | null;
-  /** PROPERTY-level (§34.90): the schema's render contracts — the same for
+  /** PROPERTY-level: the schema's render contracts — the same for
    *  every carrier, class-bound or not. */
   readonly: boolean | null;
   hideWhenEmpty: boolean | null;
@@ -429,16 +429,16 @@ export interface ReferenceEntry {
   /**
    * Linked references only: "direct" = the edge targets the node itself;
    * "containment" = the edge is an outward link from inside the node's
-   * subtree (01 §8 source-side containment roll-up); "alias" = the edge
+   * subtree (source-side containment roll-up); "alias" = the edge
    * targets an alias page of the node (issue #7 node-alias roll-up —
    * SCHEMA.md "Node aliases"). Unlinked references are always "direct".
    */
   kind: "direct" | "containment" | "alias";
   /**
-   * Linked references only (§34.69): the edge's verb — a propertySchemaId
+   * Linked references only: the edge's verb — a propertySchemaId
    * when the referencing edge is a property value over a bound verb schema
    * (the designed targeted path; typed-link marks stay targetless per the
-   * M2-deferred resolution ruling). The surfaces resolve it to the schema
+   * deferred-resolution ruling). The surfaces resolve it to the schema
    * name. Null for mentions and unlinked references.
    */
   verb: string | null;
@@ -483,7 +483,7 @@ export interface UpdateObjectInput {
   presentAsMain?: boolean;
   contentAst?: ContentAst;
   icon?: string;
-  /** Preset token or #RRGGBB hex; null clears the color (§34.43 grammar). */
+  /** Preset token or #RRGGBB hex; null clears the color. */
   color?: string | null;
 }
 
@@ -519,7 +519,7 @@ export interface AssetUploadResult {
  * Input of an annotation write (SCHEMA.md annotation family, seeded
  * `highlight` class): the quote excerpt names the object, the seeded
  * highlight_asset property (…000000000020) links the asset node, the seeded
- * provenance property (…000000000019) records origin (+ page context in M1),
+ * provenance property (…000000000019) records origin (+ page context),
  * and an optional note becomes a child block of the annotation page.
  */
 export interface CreateAnnotationInput {
@@ -562,7 +562,8 @@ export async function createAnnotation(
     classIds: [SYSTEM_CLASS_UUIDS.highlight],
   });
   await writes.setProperty(id, SYSTEM_PROPERTY_UUIDS.highlightAsset, { nodeId: input.assetId }, 0);
-  // M1 has no seeded locator property (v1 …0018 withdrawn, never reused), so
+  // The model has no seeded locator property (the …0018 locator was
+  // withdrawn, never reused), so
   // the page context rides in the provenance string; the PDF-anchored capture
   // will need a structured position instead.
   await writes.setProperty(
@@ -697,9 +698,9 @@ export function readBlobAsDataUrl(blob: Blob): Promise<string | null> {
   });
 }
 
-// --- per-user UI prefs (§34.61: favorites/recents — server-side UI state) ----
+// --- per-user UI prefs (favorites/recents — server-side UI state) ----
 //
-// Owner ruling 2026-10-04 (§34.29 #8): favorites/recents are UI preferences,
+// Owner ruling 2026-10-04: favorites/recents are UI preferences,
 // so they live in the sync server's per-user prefs store, NOT the operation
 // log ("device state is never an op" stands). The client speaks REST
 // (getPrefs/patchPrefs below) with a device-local cache (`notees.favorites` /
@@ -823,7 +824,7 @@ function mapNode(row: NodeRow): ClientNode {
 }
 
 /**
- * §34.92 — per-row identity stamp for the `mapNode` cache, hashing exactly
+ * Per-row identity stamp for the `mapNode` cache, hashing exactly
  * the raw columns `mapNode` consumes. Metadata stamps are UNSOUND here:
  * membership recomputes touch `class_ids`/`tag_ids` without bumping
  * `hlc`/`updated_at` (appliers.ts recomputeClassIds/recomputeTagIds), so the
@@ -884,7 +885,7 @@ export class WorkspaceClient {
   private realtimeStop: (() => void) | null = null;
   private closed = false;
   /**
-   * §34.92 — revision-keyed memo for the render-path list reads
+   * Revision-keyed memo for the render-path list reads
    * (listClasses/listPages/roots). Dozens of components call these per
    * render; uncached, each call re-ran the full-table query + row mapping on
    * the main thread (the profiled 75%-of-capture jank). `notify()` is the
@@ -896,7 +897,7 @@ export class WorkspaceClient {
    */
   private readonly listReadCache = new Map<string, unknown>();
   /**
-   * §34.92 — per-row `mapNode` identity cache: unchanged rows reuse their
+   * Per-row `mapNode` identity cache: unchanged rows reuse their
    * `ClientNode` across store revisions, so a version bump (one keystroke's
    * op) doesn't re-parse/re-allocate every node in the workspace (the
    * profiled allocation churn — 254 minor GCs in a 35s capture). Keyed by
@@ -915,14 +916,14 @@ export class WorkspaceClient {
     return node;
   }
   /**
-   * §34.64 — the session-local op-inverse undo journal (in-memory, per
+   * The session-local op-inverse undo journal (in-memory, per
    * client = per tab; never cross-tab, never durable). Records every write
    * this client applies through its outbox path, with the pre-op snapshot
    * captured at apply time; undo/redo compose existing ops through the same
    * write path (see undo-journal.ts for the inversion matrix).
    */
   private readonly undoJournal: UndoJournal;
-  /** Semantic conflict history for the sync details modal (§34.115). */
+  /** Semantic conflict history for the sync details modal. */
   private readonly conflictLog: ConflictHistoryEntry[] = [];
 
   private constructor(store: Store, options: WorkspaceClientOptions) {
@@ -1000,7 +1001,7 @@ export class WorkspaceClient {
   }
 
   /**
-   * The graph-view topology projection (§34.80): one derived read over the
+   * The graph-view topology projection: one derived read over the
    * local store — classes + present-as-main nodes only, every edge rolled up
    * to that node set, plus the semantic co-occurrence family. Pure read, no
    * caching here: the graph view debounces its own reloads on subscribe.
@@ -1157,7 +1158,7 @@ export class WorkspaceClient {
   }
 
   /**
-   * The class id → icon lookup behind the UI icon maps (§34.92): a narrow
+   * The class id → icon lookup behind the UI icon maps: a narrow
    * `SELECT id, icon` — no content blob, no sort — revision-cached like the
    * list reads. Both web clients satisfy this; icon-map call sites should
    * prefer it over `classIconMap(client.listClasses())`.
@@ -1278,7 +1279,7 @@ export class WorkspaceClient {
     };
     // Extends-aware (owner fix): a class's bindings include its ancestors'
     // — book extends source, so source's bound properties are book's class
-    // properties too. Own rows first (the §34.32 PG4 resolution order), then
+    // properties too. Own rows first, then
     // ancestors' by sequence; the first binding for a schema wins.
     // class_hierarchy rows are (class_id, ancestor_id): the ancestor set of
     // `classId` is `SELECT ancestor_id … WHERE class_id = classId` (the
@@ -1393,8 +1394,8 @@ export class WorkspaceClient {
   }
 
   /**
-   * Nodes carrying an authored value for the property schema (§34.32 PG12 —
-   * the PropertyView's references population). Pure read over the local
+   * Nodes carrying an authored value for the property schema (the
+   * PropertyView's references population). Pure read over the local
    * store; derived defaults never materialize, so unvalued bindings never
    * list.
    */
@@ -1515,11 +1516,11 @@ export class WorkspaceClient {
             .map((v) => ({
               id: String(v.id),
               label: String(v.label),
-              // PG16 option colors ride the §34.43 grammar; absent/null = none.
+              // Option colors ride the color grammar; absent/null = none.
               ...("color" in v && (typeof v.color === "string" || v.color === null)
                 ? { color: v.color as string | null }
                 : {}),
-              // §34.89 option icons ride as an MDI name; absent/null = none.
+              // Option icons ride as an MDI name; absent/null = none.
               ...("icon" in v && (typeof v.icon === "string" || v.icon === null)
                 ? { icon: v.icon as string | null }
                 : {}),
@@ -1551,7 +1552,7 @@ export class WorkspaceClient {
           row.number_rounding === null || row.number_rounding === undefined
             ? null
             : (row.number_rounding as "round" | "floor" | "ceil" | "truncate"),
-        // §34.90 render contracts (PROPERTY-level; null = panel / unset).
+        // The render contracts (PROPERTY-level; null = panel / unset).
         display: row.display === "bullet" || row.display === "inline" ? row.display : null,
         readonly: row.readonly === null || row.readonly === undefined ? null : row.readonly === 1,
         hideWhenEmpty:
@@ -1576,13 +1577,13 @@ export class WorkspaceClient {
    * normalization the worker path silently renders every page with zero
    * block rows.
    *
-   * PB3: the node-backed-property exclusion is computed PER SUBTREE ROOT —
+   * The node-backed-property exclusion is computed PER SUBTREE ROOT —
    * a nested block's own carriers are excluded from ITS body, and an
    * excluded carrier's whole subtree is pruned with it (children of an
    * excluded row are never visited).
    */
   getBlockTree(pageId: string, depth?: number | null): BlockTreeNode[] {
-    // §34.92 — the deferred follow-up: `useOutlinerValue` calls this on every
+    // The deferred follow-up: `useOutlinerValue` calls this on every
     // view render, so it rides the revision cache like the list reads (the
     // worker client already cachedReads it; now the in-process path matches).
     return this.cachedListRead(`getBlockTree:${pageId}:${depth ?? "*"}`, () => {
@@ -1616,7 +1617,7 @@ export class WorkspaceClient {
    * The node ids referenced by `nodeId`'s property values (canonical
    * `{nodeId}` refs and legacy bare-uuid text values) — the carrier set the
    * body render excludes. Scoped to ONE node: each subtree root filters its
-   * own carriers (PB3).
+   * own carriers.
    */
   private propertyCarrierIdsOf(nodeId: string): Set<string> {
     const propertyRefIds = new Set<string>();
@@ -1649,7 +1650,7 @@ export class WorkspaceClient {
   }
 
   /**
-   * Cursor-paginated ranked search (§34.30 C5): the async counterpart of the
+   * Cursor-paginated ranked search: the async counterpart of the
    * cached sync `search` for load-more surfaces. `cursor` is the opaque
    * `nextCursor` of the previous page (null/absent = first page); the result
    * carries the next cursor (null = exhausted).
@@ -1669,7 +1670,7 @@ export class WorkspaceClient {
 
   /**
    * Match-context snippet around the densest query-term cluster in one node's
-   * indexed plaintext (§34.30 M3) — the results panels' excerpt. Null when
+   * indexed plaintext — the results panels' excerpt. Null when
    * the node is unknown or carries no match. Sync like the other cached reads.
    */
   getSearchSnippet(
@@ -1681,11 +1682,11 @@ export class WorkspaceClient {
   }
 
   /**
-   * Name→id resolution (§34.30 C6): the local twin of GET /api/resolve —
+   * Name→id resolution: the local twin of GET /api/resolve —
    * case-insensitive EXACT display-name match over the ranked FTS candidates
-   * (blocks included). PG10: an exact case-insensitive ALIAS value is a
+   * (blocks included). An exact case-insensitive ALIAS value is a
    * name-equivalent — the candidate pool already folds alias text into the
-   * FTS row (M5 text-scalar indexing), so resolution follows search
+   * FTS row (text-scalar indexing), so resolution follows search
    * semantics. Issue #7: an alias PAGE's title is a name-equivalent of its
    * MAIN page too (node aliases) — matching either resolves the main node.
    * Null when no active node carries the name or alias.
@@ -1884,7 +1885,7 @@ export class WorkspaceClient {
 
   /**
    * Linked references (SCHEMA.md system sections): direct backlinks of the
-   * node PLUS source-side containment roll-up (01 §8, query-time traversal) —
+   * node PLUS source-side containment roll-up (query-time traversal) —
    * outward links from inside the node's subtree (a block inside France
    * linking Paris references France by containment). Ordered direct first,
    * then containment by subtree depth. Each entry carries the breadcrumb of
@@ -2049,8 +2050,8 @@ export class WorkspaceClient {
   }
 
   /**
-   * The node's name-equivalents (issue #7): every text alias value (§34.32
-   * PG10) plus the title of every alias page of the node — an alias page's
+   * The node's name-equivalents (issue #7): every text alias value plus the
+   * title of every alias page of the node — an alias page's
    * title names its main page for search (resolve + unlinked references).
    */
   private nameEquivalentsOf(id: string): string[] {
@@ -2090,7 +2091,7 @@ export class WorkspaceClient {
     return row?.n ?? 0;
   }
 
-  /** §34.35 feature-toggle read — absent row means enabled (F2 default). */
+  /** Feature-toggle read — absent row means enabled (default on). */
   isFeatureEnabled(feature: WorkspaceFeature): boolean {
     return this.store.isFeatureEnabled(this.workspaceId, feature);
   }
@@ -2105,7 +2106,7 @@ export class WorkspaceClient {
     return this.store.featureInstanceCount(this.workspaceId, feature);
   }
 
-  /** §34.35/§34.55 — write a feature toggle (workspace.feature.set, LWW by HLC). */
+  /** Write a feature toggle (workspace.feature.set, LWW by HLC). */
   async setFeatureEnabled(feature: WorkspaceFeature, enabled: boolean): Promise<void> {
     this.enqueueLocal(
       this.buildEnvelope(
@@ -2172,7 +2173,7 @@ export class WorkspaceClient {
   }
 
   /**
-   * The single local-write seam (§34.64): every envelope this client authors
+   * The single local-write seam: every envelope this client authors
    * funnels through here. The inverse intent is captured BEFORE the apply
    * (the pre-op snapshot), the envelope then applies + enters the outbox
    * exactly like any write, and only a successful apply is journaled — a
@@ -2197,7 +2198,7 @@ export class WorkspaceClient {
     this.kickPush();
   }
 
-  // --- undo journal (§34.64) ---------------------------------------------------
+  // --- undo journal -------------------------------------------------------------
 
   /** The pre-apply read seam behind the journal — pure store reads (see undo-journal.ts). */
   private buildUndoCaptureSource(): UndoCaptureSource {
@@ -2384,14 +2385,14 @@ export class WorkspaceClient {
             "SELECT enabled FROM workspace_feature WHERE workspace_id = ? AND feature = ?",
           )
           .get(this.workspaceId, feature) as { enabled: number } | undefined;
-        // Absent row = enabled (the F2 empty-table default).
+        // Absent row = enabled (the empty-table default).
         return row === undefined || row.enabled === 1;
       },
     };
   }
 
   /**
-   * §34.64 — the session journal state for chrome (keymap gating, palette
+   * The session journal state for chrome (keymap gating, palette
    * rows): availability plus the "Undo <verb>" / "Redo <verb>" labels. Async
    * to match the WorkerClient proxy (the union type is what App consumes).
    */
@@ -2402,7 +2403,7 @@ export class WorkspaceClient {
   }
 
   /**
-   * §34.69 — the browsable history behind the jump-to menu: the undo stack
+   * The browsable history behind the jump-to menu: the undo stack
    * oldest-first with labels + timestamps + affected node ids. Empty when
    * the journal is (new session, new workspace).
    */
@@ -2580,11 +2581,11 @@ export class WorkspaceClient {
     const node = this.getNode(id) ?? this.getNodeRaw(id);
     if (!node) throw new Error(`unassignClass: node ${id} not found`);
     if (!node.classIds.includes(classId)) return;
-    // §34.65 (owner rule): authored values that merely MIRROR the departing
+    // Owner rule: authored values that merely MIRROR the departing
     // class's binding defaults carry no user data — the user never put
     // anything in that property. Sweep them (unset envelopes, explicit ops —
     // every client converges) before the membership remove. The provenance
-    // flag (owner directive, §34.69 — value metadata, wire-neutral) makes
+    // flag (owner directive — value metadata, wire-neutral) makes
     // the call EXACT where present:
     //   metadata.provenance === "system" → the system materialized it —
     //     sweep even when it differs from the default;
@@ -2768,8 +2769,8 @@ export class WorkspaceClient {
   }
 
   /**
-   * Soft-delete a property schema (propertySchema.delete — the §34.32 PG3
-   * conversion flow's final step). Authored values under the schema survive
+   * Soft-delete a property schema (propertySchema.delete — the conversion
+   * flow's final step). Authored values under the schema survive
    * in the log; recreate-under-the-same-id reactivates (the applier upsert).
    */
   async deletePropertySchema(propertySchemaId: string): Promise<void> {
@@ -2868,9 +2869,9 @@ export class WorkspaceClient {
   }
 
   /**
-   * Ensure the year/month/day node chain for an ISO date exists (v1 journal
+   * Ensure the year/month/day node chain for an ISO date exists (journal
    * layout: year as a workspace-root page, month under year, day under month,
-   * named by the v1 compact labels) and return the three deterministic ids.
+   * named by the compact labels) and return the three deterministic ids.
    * Ids are content-addressed from the date (@notees/domain dates.ts), so a
    * re-run creates nothing — the client-level existence check is op-log
    * hygiene, not correctness; even a raced create is an applier no-op.
@@ -2909,7 +2910,7 @@ export class WorkspaceClient {
     }
     // Heal the chain parentage AND labels: older writers created chain nodes
     // parentless and with ISO-dashed content ("2026-10-05"); the stored label
-    // must be the compact form ("20261005" — the v1 lookup/sort contract), so
+    // must be the compact form ("20261005" — the lookup/sort contract), so
     // an existing-but-wrong level is rewritten, idempotently — one op per
     // stray, only while it actually differs.
     const healLevel = async (
@@ -3004,7 +3005,7 @@ export class WorkspaceClient {
     return { serverUrl: this.restServerUrl, apiKey: this.restApiKey };
   }
 
-  // --- per-user UI prefs (§34.61: favorites/recents — server-side UI state) ---
+  // --- per-user UI prefs (favorites/recents — server-side UI state) -------------
 
   /**
    * GET /api/me/prefs (session or API-key credential). On success the local
@@ -3124,8 +3125,8 @@ export class WorkspaceClient {
   }
 
   /**
-   * Property value history feed (§34.32 PG13): paginated GET /api/operations
-   * (the §34.33.1 relay-log read), filtered client-side to property.* ops
+   * Property value history feed: paginated GET /api/operations
+   * (the relay-log read), filtered client-side to property.* ops
    * for one node + schema, newest-first by HLC. The feed entries are
    * envelope-v3 objects — seq, hlc, actor, timestamp, payload — everything
    * the history modal renders. Throws when the feed is unreachable (the
@@ -3290,7 +3291,7 @@ export class WorkspaceClient {
   }
 
   /**
-   * The single notify funnel (§34.114). Callers pass what they know:
+   * The single notify funnel. Callers pass what they know:
    *
    *  - no argument — the change set is unknown (bootstrap, status/realtime
    *    wiring, manual sync wrappers): subscribers must treat everything as

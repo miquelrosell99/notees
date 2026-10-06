@@ -1,5 +1,5 @@
 /**
- * Property-value lifecycle (§34.32 register, correctness batch):
+ * Property-value lifecycle (correctness batch):
  *
  *  - PB2 one-shape-per-type: the property.set applier validates the value
  *    against the schema type (text = string-or-reference, date/object =
@@ -424,7 +424,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
 
     it("inherited binding metadata (required from the binding, readonly from the schema) surfaces on authored rows", () => {
       const store = chainStore([BASE]);
-      // §34.90: required rides the BINDING (per-class); readonly rides the
+      // Required rides the BINDING (per-class); readonly rides the
       // SCHEMA (per-property) — both surface on the subclass's authored row.
       store.apply(
         env("class.property.set", { classId: BASE, propertySchemaId: SCHEMA, required: true }, 1727200001700),

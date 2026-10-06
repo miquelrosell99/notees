@@ -1,13 +1,13 @@
 /**
- * ViewTabs — §34.31 V1: the saved-views chrome for a section whose saved
+ * ViewTabs — the saved-views chrome for a section whose saved
  * views are the `query` content tokens on an owner node. Each token is one
- * tab (its §34.31 V3 view-record title, else the positional "Query N"); the
+ * tab (its view-record title, else the positional "Query N"); the
  * tab order IS the token order in the content stream, so reordering tabs
  * reorders tokens (one content update), and every mutation rides the normal
  * content path — saved views sync like any other content, no view entity, no
  * new op.
  *
- * Per-tab menu: Rename (inline), Duplicate, Set/Clear default (§34.31 V13 —
+ * Per-tab menu: Rename (inline), Duplicate, Set/Clear default —
  * the section's default view is configuration in the record, not code),
  * Move left/right, Delete (confirmation). Composes the Tabs/ContextMenu/
  * ConfirmationModal/TextField primitives.

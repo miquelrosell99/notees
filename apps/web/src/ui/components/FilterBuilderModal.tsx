@@ -1,10 +1,10 @@
 /**
- * FilterBuilderModal — §34.31 V2's full-AST editor as a shell modal (the
+ * FilterBuilderModal — the full-AST editor as a shell modal (the
  * ad-hoc query composer behind the Queries hub's "New query"). It edits the
  * same representable subset as the token popover (queryBuilder.ts — flat AND
  * of class/bits/text/created-window, one sort, one aggregation
  * dimension+measure) through the shared QueryBuilderFields grid, and carries
- * the §34.31 C1 guard: an initial AST with constructs outside the subset
+ * the read-back guard: an initial AST with constructs outside the subset
  * renders the read-only summary + explicit "edit anyway" opt-in, never
  * silent defaults.
  *
@@ -13,8 +13,8 @@
  * evaluates on the day it runs.
  *
  * Outcomes: "Run" composes the AST for a session-only ad-hoc run; "Save as
- * view" requires a name and persists a query token (view record per §34.31
- * V3) on the host the caller provides — the same content-token write path
+ * view" requires a name and persists a query token (view record) on the host
+ * the caller provides — the same content-token write path
  * everything else uses, no new op.
  */
 

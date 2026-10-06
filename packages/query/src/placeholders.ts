@@ -1,12 +1,12 @@
 /**
  * Query compile-time placeholders — the `{today}`-style editor-relative date
- * tokens (§34.31 C4/V2). A placeholder is an ordinary string in the AST (the
+ * tokens. A placeholder is an ordinary string in the AST (the
  * zod model accepts any string in the positions that carry them), resolved to
  * a concrete date at COMPILE time, so a saved view authored with `{today}`
  * re-evaluates against the day it runs on — every surface (web live tokens,
  * CLI, server API) that compiles an AST gets the same semantics.
  *
- * Supported set (deliberately small, the v1 family):
+ * Supported set (deliberately small):
  *  - `{today}`       — the current day
  *  - `{this_week}`   — the current ISO week (Monday start)
  *  - `{this_month}`  — the current month

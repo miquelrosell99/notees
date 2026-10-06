@@ -1,5 +1,5 @@
 /**
- * Text-property blocks list (§34.80, owner ruling): a multi/single text
+ * Text-property blocks list (owner ruling): a multi/single text
  * property renders as ONE row whose values are the carrier blocks
  * themselves (a blocks list, never repeated label entries), and Enter
  * applies the property semantics — multi registers the new sibling as the

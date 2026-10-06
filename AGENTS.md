@@ -2,8 +2,6 @@
 
 Notees — a self-hosted, privacy-first, local-first **personal information environment**: one object graph (nodes carry `is_class` + `present_as_main`; "page" and "block" are render states, not node kinds; typed properties, typed link marks, assets) whose only authority is an immutable **operation log** (envelope **v3**); every SQLite database (server, browser worker, CLI) is a derived projection of that log. TypeScript everywhere (Node 22, pnpm 9).
 
-This repo is the v2 rewrite promoted to root (2026-09-28). The v1 Python+React codebase is removed; it remains reachable at git tag **`v1-archive`** (runtime data archived outside the repo at `/etc/periphery/stacks/notees-v1-data-archive/`).
-
 ## Skills (mandatory)
 
 ```
@@ -26,7 +24,7 @@ AGENTS.md
            └── maintenance            → references/maintenance.md
 ```
 
-- **Any code, model, wire, applier, fixture, sync, or UI change → invoke the `notees-development` skill first** and follow its laws (fixture gate + GTK/Flutter lockstep, dev-condition exports, plan-as-record, docs-part-of-change, designed-not-built register).
+- **Any code, model, wire, applier, fixture, sync, or UI change → invoke the `notees-development` skill first** and follow its laws (fixture gate + GTK/Flutter lockstep, dev-condition exports, changelog-as-record, docs-part-of-change, designed-not-built register).
 - **Any operations task — deploy, health check, logs, rollback, database migration, backup, monitoring, incident response, maintenance → invoke the `notees-operations` skill first.** Deployment and rollback discipline additionally follows the **`deployment-runbook`** skill (pre-deploy checklist, health checks, rollback triggers, postmortem) — if it is not installed in the current environment, fetch and follow it from GitHub: <https://github.com/majiayu000/claude-skill-registry/blob/main/skills/data/deployment-runbook/SKILL.md>
 - The skills summarize and enforce; their references point at the canonical `docs/developers/` runbooks (person-facing, written for people **and** agent sessions). Content is referenced, not duplicated — update skill + runbook in the same pass; on disagreement the runbook wins until the skill is corrected.
 
@@ -37,14 +35,14 @@ AGENTS.md
 - `packages/store` — derived SQLite schema + appliers; one TS implementation, three backends (better-sqlite3, sql.js)
 - `packages/sync` — SyncEngine (HLC + server seq, snapshots, compaction, WebSocket)
 - `packages/query` — QueryAST model + SQLite compiler
-- `packages/export` — export projections over the object graph: IR + serializers (markdown/html/docx/latex package-side, pdf client-side in the web app, csv + json-archive view-shaped); detail in `docs/developers/architecture.md` §10
+- `packages/export` — export projections over the object graph: IR + serializers (markdown/html/docx/latex package-side, pdf client-side in the web app, csv + json-archive view-shaped); detail in `docs/developers/architecture.md`
 - `apps/server` — sync relay + object API + CAS assets + coordination state (per-user prefs, plugin-manifest registry, workflow rules + run audit) + read-only public page shares (`notees-sync` image)
-- `apps/web` — React/Vite outliner editor + worker (`notees-web` image); carries the session-local op-inverse **undo journal** (§34.64, `src/core/undo-journal.ts` — client convenience only, inverses compose existing ops, per-tab)
-- `apps/cli` — MOVED 2026-10-05: lives in its own repo (`notees-cli`, sibling to the GTK/Flutter clients, consuming the packages via a pinned `vendor/notees` submodule — §34.82)
+- `apps/web` — React/Vite outliner editor + worker (`notees-web` image); carries the session-local op-inverse **undo journal** (`src/core/undo-journal.ts` — client convenience only, inverses compose existing ops, per-tab)
+- `apps/cli` — MOVED 2026-10-05: lives in its own repo (`notees-cli`, sibling to the GTK/Flutter clients, consuming the packages via a pinned `vendor/notees` submodule)
 - `docs/` — **person-facing only**: `usage.md`, `ux.md`, `philosophy.md` + the `developers/` runbooks (indexed by `docs/developers/README.md`). **Internal notes never go in `docs/`; user docs never go in dot-folders.**
-- `.plans/` — the implementation plan + decision record §34 (the ongoing work record) + `design/` (historical entries saying `.plans/dev/…` read `docs/developers/…` since the 2026-10-05 move) · `.audits/` — internal audit reports · `.agents/` — internal agent reference: `parked-decisions.md` + the **project skills** (`skills/notees-development`, `skills/notees-operations` — Kimi Code auto-discovers project skills from `.agents/skills/`, Project scope)
+- `.plans/` — date-stamped proposal folders (`YYYY-MM-DD-HHMM-<slug>/`, owner sorting convention 2026-10-06 — first: `2026-10-06-1352-main-content-restructure/`). The old implementation plan + decision record retired 2026-10-06 (pre-retirement history is recoverable from git history); the shipped-work record lives in `CHANGELOG.md`. · `.audits/` — internal audit reports · `.agents/` — internal agent reference: `parked-decisions.md` + the **project skills** (`skills/notees-development`, `skills/notees-operations` — Kimi Code auto-discovers project skills from `.agents/skills/`, Project scope)
 
-Full file map: `docs/developers/architecture.md` §10 · normative model & wire: `packages/protocol/SCHEMA.md` (and `WIRE.md`) · design docs: `.plans/design/`.
+Full file map: `docs/developers/architecture.md` · normative model & wire: `packages/protocol/SCHEMA.md` (and `WIRE.md`).
 
 ## Commands
 
@@ -54,11 +52,13 @@ Full file map: `docs/developers/architecture.md` §10 · normative model & wire:
 
 ## Invariants (design law — read the linked homes before changing the model, wire, or appliers)
 
-- The operation log is the only authority; semantic state only — device state is never an op (`architecture.md` §2).
-- Conflict semantics: **LWW by HLC** (scalars, property values) · **OR-Set add-wins** (class/collection membership) · tag membership mirrors the OR-Set with a strictly-greater add tiebreak (deliberate asymmetry — `development.md` §5 cheat sheet).
+- The operation log is the only authority; semantic state only — device state is never an op (`docs/developers/architecture.md`).
+- Conflict semantics: **LWW by HLC** (scalars, property values) · **OR-Set add-wins** (class/collection membership) · tag membership mirrors the OR-Set with a strictly-greater add tiebreak (deliberate asymmetry — cheat sheet in `docs/developers/development.md`).
 - **Title-is-content** (owner 2026-10-01): no `name` field on the wire — a node's title IS its text content; pages/classes carry text-only content (`SCHEMA.md`).
 - **Render-state model** (Revision 11, owner 2026-10-02): nodes have no page/block kind — only `is_class` + `present_as_main`. Wire is envelope **v3**; retired keys are rejected outright — **no backward compatibility** (owner directive, sole user): migration is a one-time in-place rewrite of the stored log, after which every store re-syncs (`SCHEMA.md` "Node structure"; `migrations.md`).
-- New op types are additive and require protocol fixtures exercising every client applier (TS reference; GTK/Flutter lockstep) before implementation counts as complete (`development.md` §§3–4).
+- **Node fields vs properties**: platform-fixed, cardinality-1 node fundamentals that core chrome or navigation reads or writes (`coverAssetId`, `bannerAssetId`, `aliasedNodeId` — the icon/color precedent) are **wire node fields**, with derived columns as their direct projections. The property system is for user-extensible typed attributes (class-bound, multi-value, defaulted, qualified, query-filtered) — never for platform fundamentals, and property drift is never answered with reserved-schema machinery.
+- **Impossible states are write-time impossible**: structural invariants (extends DAG, alias-chain acyclicity, class-parenting) are validated at the operation level — loud failure, never applied — and render assumes them; there is no UI for impossible states.
+- New op types are additive and require protocol fixtures exercising every client applier (TS reference; GTK/Flutter lockstep) before implementation counts as complete (`docs/developers/development.md`).
 - Identity is UUIDv7 everywhere; titles/paths/citekeys are attributes, never identity.
 - Sync server (PostgreSQL relay) is coordination, not the object database.
 
@@ -69,9 +69,18 @@ All chrome MUST compose from `apps/web/src/ui/components/ui/` — one element pe
 ## Working rules (owner)
 
 - **Docs are part of the change**: any change to behavior, the model, the wire, or the UX updates the relevant documentation in the same pass — user-facing `docs/`, `packages/protocol/SCHEMA.md`, `AGENTS.md` / `.agents/` when they describe changed reality, and the `docs/developers/` runbooks.
-- **The plan is the record** (owner 2026-10-03): check `.plans/implementation-plan.md` (and `.plans/` generally) for existing designs before implementing — follow them or improve them in place — then record the slice in the same pass: a new §34 work-record entry (what shipped, verification, register cross-checks), owed-work rows ticked, deviations registered where future readers will look. A change without its plan/doc updates is not done.
+- **The changelog is the record** (owner 2026-10-06): what shipped and why lives in `CHANGELOG.md` at the repo root — one entry per shipped slice, newest first. `AGENTS.md` itself is static guidance: never append history, dates, or work-record entries to it; edit it only when the guidance changes. Before implementing, skim `CHANGELOG.md` for recent related work and check `.plans/` for an in-flight proposal folder. A change without its changelog + doc updates is not done.
 - **Fleet-agnostic artifacts** (owner 2026-10-06): never hardcode machine names (Tailscale device names), IPs, or tailnet names in code, templates, docs, or notes — write `<host>`, `<tailnet>`, `<lan-ip>`, `<tailscale-ip>`, or "the fleet host". Concrete values live only in gitignored host-local files (`.env`) and per-host operator config; example values in templates must be clearly generic (e.g. `192.168.1.10`).
+
+## Records index (scan, don't embed)
+
+| Record | Home |
+|--------|------|
+| Shipped work | `CHANGELOG.md` (newest first, one entry per slice) |
+| In-flight proposals | `.plans/YYYY-MM-DD-HHMM-<slug>/` |
+| Parked decisions | `.agents/parked-decisions.md` |
+| Audit reports | `.audits/` |
 
 ## Parked decisions (owner)
 
-See **`.agents/parked-decisions.md`** — SDK publish archived (2026-10-03) · releases/lockstep runbook pointer · repo-split state (CLI out §34.82; web split wanted, deferred §34.83; `notees-sync` stays).
+See **`.agents/parked-decisions.md`** — SDK publish archived (2026-10-03) · releases/lockstep runbook pointer · repo-split state (CLI split out; web split wanted, deferred; `notees-sync` stays).

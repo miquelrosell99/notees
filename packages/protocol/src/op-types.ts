@@ -1,8 +1,8 @@
 /**
- * Operation type registry v2 (M1 subset).
+ * Operation type registry v2.
  *
- * Model per .plans/design/01-knowledge-model.md (the model is normative there;
- * this registry is its op-level expression). Associations are node-typed
+ * Model per SCHEMA.md — this registry is the op-level expression of the
+ * model. Associations are node-typed
  * property values or typed-link word marks in contentAst — there are no
  * relation.* ops. contentAst rides object.create/update as the readable carrier
  * (fixtures, tests, plain-text editor path); contentDeltaB64 is the canonical
@@ -113,7 +113,7 @@ export const objectRestorePayload = z
  * applier's cross-row move guard rejects any class parenting (fail loud).
  * `afterId` places the node immediately after that sibling in the parent's
  * child order (Enter placement); `beforeId` places it immediately before
- * (the v1-level Enter-at-start / first-child placement that afterId-only
+ * (the Enter-at-start / first-child placement that afterId-only
  * fractional ordering cannot express — midpoints never drop below the
  * current minimum). Omit both to append at the end. At most one anchor is
  * meaningful; when both are present `afterId` wins. An anchor that is not a
@@ -195,14 +195,14 @@ export const tagUnassignPayload = z
 export const classSetExtendsPayload = z
   .object({
     classId: uuid,
-    /** Designed m2m model (01-knowledge-model.md §6): a class may have
+    /** Designed m2m model: a class may have
      * MULTIPLE parents — diamonds are natural. Replace semantics: the array
      * IS the class's full parent set (an empty array detaches all parents).
      * The store applier keeps the transitive closure in sync and fails loud
      * on cycles, including self-parent and multi-hop cycles. Closure rows
      * carry no order: diamond resolution (own binding → shortest extends-path
      * → earliest-authored HLC) happens at read time in the bindings read
-     * model, so the payload needs nothing extra for M1. */
+     * model, so the payload needs nothing extra. */
     parentClassIds: z.array(uuid),
   })
   .strict();
@@ -215,7 +215,7 @@ export const classSetExtendsPayload = z
  * fields KEEP their existing values. `defaultValue` is any JSON value
  * (JSON-null is a real default; absent = keep).
  *
- * §34.90 (owner review 2026-10-05): the render contracts readonly,
+ * (owner review 2026-10-05): the render contracts readonly,
  * hideWhenEmpty, display are PROPERTY-level characteristics and live on the
  * property schema (`propertySchema.create/update`) — the strict schema
  * rejects them here like any retired key. `required` is the exception the
@@ -224,7 +224,7 @@ export const classSetExtendsPayload = z
  * in what order, required or not, with what default"; a schema answers "what
  * the property is and how it behaves everywhere" (class-bound or not).
  *
- * `active` (§34.32 PC4, LOCKSTEP-PENDING): the soft-unbind flag — an
+ * `active` (PC4, LOCKSTEP-PENDING): the soft-unbind flag — an
  * inactive binding row stops contributing to the effective-properties read
  * (no derived default, no sequence metadata) while AUTHORED property values
  * always survive (the row is kept, never deleted). Omitted = keep the stored
@@ -255,16 +255,16 @@ export const classPropertyUnsetPayload = z
   .strict();
 
 /**
- * A select/multi_select option record (§34.32 PG16, additive 2026-10-04):
- * `{ id, label }` plus an OPTIONAL color in the §34.43 grammar — a preset
+ * A select/multi_select option record (PG16, additive 2026-10-04):
+ * `{ id, label }` plus an OPTIONAL color — a preset
  * token or a custom `#RRGGBB` hex; absent/null = no color (the token
  * palette renders the pill like any uncolored one). Additive JSON inside
  * the existing options array — no op-shape change.
  *
- * `icon` (§34.89, additive): an OPTIONAL MDI icon name (camelCase @mdi/js
+ * `icon` (additive): an OPTIONAL MDI icon name (camelCase @mdi/js
  * convention, max 64 chars — the same string shape as node/class icons);
  * absent/null = no icon. The option record itself intentionally stays
- * NON-strict: pre-§34.89 parsers strip unknown keys instead of rejecting
+ * NON-strict: older parsers strip unknown keys instead of rejecting
  * the envelope, so icon-carrying options sync through old clients (their
  * stores drop the icon; wipe → replay restores it).
  */
@@ -316,19 +316,19 @@ export const propertySchemaCreatePayload = z
     numberDecimals: z.number().int().min(0).max(10).nullable().optional(),
     numberRounding: z.enum(["round", "floor", "ceil", "truncate"]).nullable().optional(),
     /**
-     * §34.90 (supersedes the §34.89 binding-level field — owner correction
+     * (supersedes the binding-level field — owner correction
      * 2026-10-05: the position is a PROPERTY-level characteristic, like name
      * and options; bindings come and go, schemas are the surface): where a
      * select/multi_select (or boolean) value renders on a block row —
      * "panel" (absent/null) keeps the value in the properties section only;
      * "bullet" renders it as an icon button next to the block bullet;
-     * "inline" renders it before the block content (the v1 icon_visibility /
+     * "inline" renders it before the block content (the icon_visibility /
      * Logseq-DB "UI position" port). A render contract only — never read by
      * queries or appliers beyond persistence.
      */
     display: z.enum(["panel", "bullet", "inline"]).nullable().optional(),
     /**
-     * §34.90 (owner review 2026-10-05): the render contracts are PROPERTY-level
+     * (owner review 2026-10-05): the render contracts are PROPERTY-level
      * — a property is readonly/hidden-when-empty everywhere it appears,
      * whatever class binds it (or none). (`required` is the deliberate
      * exception: it stays on the class binding — a property may be mandatory
@@ -357,12 +357,12 @@ export const propertySchemaUpdatePayload = z
     numberDecimals: z.number().int().min(0).max(10).nullable().optional(),
     numberRounding: z.enum(["round", "floor", "ceil", "truncate"]).nullable().optional(),
     /**
-     * §34.90: the value-display position (create-side doc above). Update-side
+     * The value-display position (create-side doc above). Update-side
      * keep/clear contract like the number formats: absent keeps the stored
      * value, null clears back to the "panel" default.
      */
     display: z.enum(["panel", "bullet", "inline"]).nullable().optional(),
-    /** §34.90: the render contracts (create-side doc above) — same
+    /** The render contracts (create-side doc above) — same
      *  absent-keeps / null-clears contract. */
     readonly: z.boolean().nullable().optional(),
     hideWhenEmpty: z.boolean().nullable().optional(),
@@ -388,13 +388,13 @@ export const propertySchemaDeletePayload = z
  *    tombstones the element (add-wins: a re-issued add whose HLC is not
  *    strictly older than the tombstone revives it). `idx` is a per-element
  *    order hint (writers allocate; gaps never heal — PB4 tolerance stands).
- *  - A payload WITHOUT `elementId` is the legacy positional carrier (v1 +
- *    pre-PG5 clients): it addresses the deterministic positional element of
+ *  - A payload WITHOUT `elementId` is the legacy positional carrier
+ *    (pre-PG5 clients): it addresses the deterministic positional element of
  *    its idx — replayed stored logs and old clients keep applying unchanged.
  *
  * `metadata` carries per-value qualifiers: for dateQualified schemas the
  * reserved keys `startDate`/`endDate` are date-node refs
- * `{ "nodeId": <chain node> }` (§34.32 PC6 — legacy ISO strings read lenient
+ * `{ "nodeId": <chain node> }` (PC6 — legacy ISO strings read lenient
  * and normalize to day-node refs on write); any other keys ride as authored.
  */
 export const propertySetPayload = z
@@ -422,8 +422,8 @@ export const propertyUnsetPayload = z
   .strict();
 
 // --- associations ------------------------------------------------------------
-// First-class relation entities were deleted 2026-09-25 (02-model-assessment.md
-// §6): associations are node-typed property values (m2o/m2m) or typed-link word
+// First-class relation entities were deleted 2026-09-25:
+// associations are node-typed property values (m2o/m2m) or typed-link word
 // marks riding in contentAst — both project into the derived edge index. There
 // is deliberately NO relation.* op type, and no seeded relation vocabulary
 // (design law: predictions become defaults/conventions, never protocol).
@@ -445,7 +445,7 @@ export const assetDetachPayload = z
 
 // --- collections -------------------------------------------------------------
 // Reconciliation (SCHEMA.md owed work, decided 2026-09-26): collections ARE
-// nodes per 01 — created via object.create with the `collection` class. There
+// nodes — created via object.create with the `collection` class. There
 // are deliberately NO collection.create/update/delete ops (that would be a
 // parallel write path to the node model). Only membership carries dedicated
 // ops; everything else is object.* + class assignments.
@@ -461,11 +461,11 @@ export const collectionMemberRemovePayload = z
 // --- workspace ----------------------------------------------------------------
 
 /**
- * Per-workspace feature toggles (§34.35, the Features settings tab): the
+ * Per-workspace feature toggles (the Features settings tab): the
  * synced semantic state behind each toggle. `feature` is fixed protocol
  * vocabulary (the WORKSPACE_FEATURES set below — feature ids, not UUIDs;
  * these name protocol-level switches, not nodes). The enum IS the core
- * class families (owner directive 2026-10-04, §34.55): tasks=task,
+ * class families (owner directive 2026-10-04): tasks=task,
  * events=event, meetings=meeting, sources=source, persons=person — each a
  * seeded system-class family with built-in product logic; the
  * extends-children ride the base class (disabling events archives meetings

@@ -35,6 +35,5 @@ npm-distribution program.
 
 The normative model and wire spec live in
 [packages/protocol/SCHEMA.md](../../packages/protocol/SCHEMA.md); the
-implementation decision record and work registers live in
-[.plans/implementation-plan.md](../../.plans/implementation-plan.md) (internal
-to the repo — these runbooks reference it but never duplicate it).
+shipped-work record lives in [CHANGELOG.md](../../CHANGELOG.md) and in-flight
+proposals in `.plans/YYYY-MM-DD-HHMM-<slug>/` folders.

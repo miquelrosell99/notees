@@ -15,11 +15,12 @@ against `apps/server/src/config.ts`, `relay-storage.ts`, `assets.ts`, and
 ## 1. Requirements
 
 - **Node 22** (`engines.node >=22`). There is no published package — you run
-  from source, from a local tsup build, or as a container (§9).
+  from source, from a local tsup build, or as a container (see the Docker + Compose
+  section below).
 - **pnpm 9** (`packageManager: pnpm@9.0.0`) for install/build; enable via Corepack.
 - **better-sqlite3** is a native module. Prebuilt binaries cover common glibc platforms;
   on musl/alpine or exotic arches you need Python 3, make, and g++ for node-gyp.
-- The **web client** (`@notees/web`) is a vite dev app in M1 — the server does not serve
+- The **web client** (`@notees/web`) is a vite dev app today — the server does not serve
   a built frontend. Run `pnpm --filter @notees/web dev` and point it at the server, or
   use the CLI.
 
@@ -48,10 +49,11 @@ node apps/server/dist/server.js
 # or: pnpm --filter @notees/server start
 ```
 
-The CLI builds the same way in its own repo (`notees-cli`, §34.82):
+The CLI builds the same way in its own repo (`notees-cli`):
 `pnpm build` → `dist/cli.js` (exposed as the `notees` bin).
 
-First boot prints the generated API key once to stderr and persists it (see §4).
+First boot prints the generated API key once to stderr and persists it (see the
+Data directory layout section).
 
 ## 3. Configuration
 
@@ -63,10 +65,10 @@ All server configuration is environment variables (`apps/server/src/config.ts`,
 | `NOTEES_DATA_DIR` | `./data` (resolved cwd-relative) | Root for the relay log, snapshots, derived DBs, CAS asset bytes, and the bootstrap key file |
 | `NOTEES_API_KEY` | — | Bootstrap key, shape `nk_` + 32 base64url chars (`/^nk_[A-Za-z0-9_-]{32}$/`). When absent, the key file is used; when that is absent, a key is generated and persisted. An invalid value is a fatal startup error |
 | `NOTEES_PORT` | `8377` | Listen port |
-| `NOTEES_HOST` | `0.0.0.0` | Listen host. For a single machine, set `127.0.0.1`; see §7 |
+| `NOTEES_HOST` | `0.0.0.0` | Listen host. For a single machine, set `127.0.0.1` (see the Security notes) |
 | `NOTEES_LOG` | `true` | pino request logging; `false` disables |
 | `NOTEES_RELAY_BATCH_PER_MINUTE` | `30000` | Envelopes per workspace per minute accepted by the relay (429 past it) |
-| `NOTEES_GLOBAL_REQ_PER_MINUTE` | `10000` | Global fallback limit, requests/min/IP (WIRE §3) |
+| `NOTEES_GLOBAL_REQ_PER_MINUTE` | `10000` | Global fallback limit, requests/min/IP (WIRE.md) |
 | `NOTEES_MAX_MEDIA_BYTES` | `52428800` (50 MB) | Upload cap, media sniffed by magic bytes (jpeg/png/webp/audio) |
 | `NOTEES_MAX_DOCUMENT_BYTES` | `104857600` (100 MB) | Upload cap, documents (pdf/epub) |
 | `NOTEES_CORS_ORIGIN` | — (no CORS headers) | Comma-separated browser origins allowed to call the API cross-origin (web client served from another origin/port). `*` allows any origin — LAN-trusted deployments only. Absent → no CORS headers: same-origin and CLI clients unaffected, browsers denied |
@@ -128,7 +130,7 @@ is ignored while the env var is set.
 
 ## 6. Backups
 
-What M1 gives you:
+What ships today:
 
 - **Snapshot endpoint** — `POST /api/relay/v2/compact` with
   `{"workspaceId", "upToHlc", "prune", "dataBase64"}` snapshots derived state up to an HLC
@@ -142,23 +144,23 @@ What M1 gives you:
   slower first boot after restore.
 - **restoreEpoch** — the resync contract for restores is implemented end-to-end:
   `RelayStorage.bumpRestoreEpoch` bumps the per-workspace counter and clients wipe +
-  resync on change. In M1 nothing calls it from an operator-facing surface (no admin
+  resync on change. Nothing calls it from an operator-facing surface today (no admin
   route; it is exercised in tests), so a plain file restore also works without any epoch
   bookkeeping — clients converge by idempotent replay.
 
-Designed, **not implemented**: the JSON archive export (plan §34.12 — Tier 1 full-fidelity
-workspace dump slated as the M1 backup-grade format, Tier 2 Markdown projection in M2).
+Designed, **not implemented**: the JSON archive export (Tier 1 full-fidelity
+workspace dump slated as the backup-grade format, Tier 2 Markdown projection).
 Until it ships, the snapshot endpoint plus the file layout above are the backup story;
 there is no `notees export`.
 
 ## 7. Upgrades
 
 - **Store schema migrations** are `PRAGMA user_version`-gated
-  (`packages/store/src/schema.ts`, `migrate()`; `SCHEMA_VERSION = 1`). Opening a database
+  (`packages/store/src/schema.ts`, `migrate()`; `SCHEMA_VERSION = 15`). Opening a database
   newer than the code supports is a hard error ("newer store required") — downgrade by
   restoring a backup, not by forcing it.
 - **Additive changes are safe.** New optional fields and new op types do not bump
-  `PROTOCOL_VERSION` (WIRE §3), and old envelopes keep replaying identically
+  `PROTOCOL_VERSION` (WIRE.md), and old envelopes keep replaying identically
   (`applied_envelope` idempotency is per-envelope-id). A schema change that alters
   derived tables ships as a `SCHEMA_VERSION` bump; the wipe → replay → identical
   property means rebuild-after-migration converges by construction.
@@ -166,7 +168,7 @@ there is no `notees export`.
   (framing) independently, and the fixtures with them. Receivers fail loud on newer
   versions, so mixed-version fleets surface immediately rather than diverging.
 
-## 8. Security notes (single-user M1)
+## 8. Security notes (single-user)
 
 - **The API key is the only auth.** Every route except `GET /healthz` and
   `GET /api/v1/version` requires it (`X-API-Key` header, `Authorization: Bearer`, or
@@ -183,8 +185,8 @@ there is no `notees export`.
   `api_key.txt` is written `0600`; keep `NOTEES_DATA_DIR` permissions tight for the same
   reason.
 - **Designed, not present:** E2EE (the `{"$e": …}` envelope slot is defined and passes
-  through the relay unvalidated, but no client encrypts — M3), JWT sessions and
-  multi-user authorization (M3), scoped keys. Until M3, "whoever holds the key" is the
+  through the relay unvalidated, but no client encrypts), JWT sessions and
+  multi-user authorization, scoped keys. For now, "whoever holds the key" is the
   entire threat-model boundary.
 
 ## 9. Docker + Compose (shipped 2026-09-26; plain-Docker deploy since 2026-10-04)
@@ -226,7 +228,7 @@ docker login is read-only, so `docker pull ghcr.io/…:vX.Y.Z` + the env
 override is the alternative to local builds). After a data migration that
 rewrites the log, `docker compose restart notees-sync` rehydrates the server's
 derived store from snapshot+tail (`RelayStorage.ingest` alone does not apply
-to the running store — see `data-migrations.md` §1.B.7). Smoke:
+to the running store — see `migrations.md`). Smoke:
 `node scripts/screenshots/verify-min.mjs` from `scripts/screenshots/` with
 `NOTEES_ADMIN_PASSWORD` (`config/notees/.admin_password` on the fleet host).
 
@@ -243,9 +245,9 @@ to the running store — see `data-migrations.md` §1.B.7). Smoke:
   `docker compose exec notees-sync cat /data/api_key.txt` (also logged once).
 - `NOTEES_SERVER_URL` is baked into the web image at build time
   (`http://localhost:8377` by default) as a last-resort prefill; compose
-  overrides it at runtime, **empty by default since §34.105** — the web
+  overrides it at runtime, **empty by default** — the web
   client's same-host `:8377` guess covers every standard topology, so set it
-  only for non-standard sync placements (§10).
+  only for non-standard sync placements (see the Tailscale HTTPS section).
 
 Operator caveats: the server binds `0.0.0.0` (right inside a container); put
 a reverse proxy in front for TLS. Bind-mounting `/data` instead of the named
@@ -288,7 +290,7 @@ https://<host>.<tailnet>.ts.net:8443  → 127.0.0.1:8377   sync   (kept from the
   (`protocol//hostname:8377`, `App.tsx initialServerUrl`) derives the sync
   origin from the page origin and is correct on every access path above; the
   baked `/config.js` prefill is a last resort the guess supersedes. The
-  compose default is empty since §34.105 (the entrypoint then ships the empty
+  compose default is empty (the entrypoint then ships the empty
   stub `window.NOTEES_CONFIG = {}`). Set the var only for non-standard sync
   placements. The default `NOTEES_CORS_ORIGIN=*` covers the https origins.
 - **The bare hostname has no TLS identity.** Public CAs don't issue for

@@ -1,5 +1,5 @@
 /**
- * TemplatePickerModal — §34.25 T2 create-with-template picker. Offered by a
+ * TemplatePickerModal — create-with-template picker. Offered by a
  * classed create flow when the picked class has bound templates (SCHEMA.md
  * "Templates"): a blank entry plus one row per template, presented as kit
  * outline buttons (the quick-create chips' idiom). Picking a row confirms

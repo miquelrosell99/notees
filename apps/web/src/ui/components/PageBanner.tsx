@@ -1,15 +1,15 @@
 /**
- * CoverCard — the v1 cover element (owner directive 2026-10-04: "the v1
+ * CoverCard — the cover element (owner directive 2026-10-04: "the
  * collapsible cover element, that showed even when empty — cover as a card
- * in the right side like in v1"). Sits in the header row's right column
+ * in the right side"). Sits in the header row's right column
  * (the .page-header-section grid); ALWAYS renders when the page can carry
  * a cover — collapsed to the slim chevron strip by default, expanding to
  * the card: the cover image, a dashed placeholder naming a byte-less
  * asset, or the dashed "Add cover" affordance when empty.
  *
- * The collapse state derives from whether a cover is set (v1: no per-node
+ * The collapse state derives from whether a cover is set (no per-node
  * persistence; the toggle is session-local). The card accepts a dropped
- * image file (the v1 AddCoverButton gesture); hover reveals Change/Remove.
+ * image file (the AddCoverButton gesture); hover reveals Change/Remove.
  * Selection writes through coverProperty: value + the cover/asset classes
  * (explicit ops — every client converges).
  */
@@ -149,7 +149,7 @@ export function CoverCard({
 }) {
   const [url, setUrl] = useState<string | null>(null);
   const [resolved, setResolved] = useState(false);
-  /** v1: the collapse derives from whether a cover is set; session-local. */
+  /** The collapse derives from whether a cover is set; session-local. */
   const [collapsed, setCollapsed] = useState(assetId === null);
   const [pickerAnchor, setPickerAnchor] = useState<HTMLButtonElement | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -157,7 +157,7 @@ export function CoverCard({
   const [error, setError] = useState<string | null>(null);
   const drop = useCoverDrop(client, pageId);
 
-  // New cover set while collapsed? Expand (the v1 feel: the card appears).
+  // New cover set while collapsed? Expand (the card appears).
   useEffect(() => {
     if (assetId !== null) setCollapsed(false);
   }, [assetId]);

@@ -1,8 +1,8 @@
 /**
- * Plugin manifest grammar (§34.59, owner 2026-10-04) — the DECLARED contract
+ * Plugin manifest grammar (owner 2026-10-04) — the DECLARED contract
  * between a plugin and the host. This is deliberately inert vocabulary: the
- * plugin RUNTIME (capability broker, subprocess host, manifest consumption —
- * plan §19 / §34.33 AG7) is parked, so nothing executes, renders, imports, or
+ * plugin RUNTIME (capability broker, subprocess host, manifest consumption)
+ * is parked, so nothing executes, renders, imports, or
  * exports through this manifest today. What ships now is the normative shape
  * (this schema is the executable form of packages/protocol/SCHEMA.md "Plugin
  * manifest grammar"), the server-side registry that stores validated
@@ -92,8 +92,8 @@ export const widgetCapabilitySchema = z
 
 /**
  * Reserved permission vocabulary. Plugins are API clients with an embedded
- * token (plan §19), so the permission names ARE the §26 scope set, plus the
- * two plugin-era additions from §19 (`events.subscribe` — durable event
+ * token, so the permission names ARE the API scope set, plus the
+ * two plugin-era additions (`events.subscribe` — durable event
  * delivery; `network` — explicit egress, off by default). The reserved
  * vocabulary is validated now; enforcement is entirely a runtime-era concern
  * (a parked runtime enforces nothing).

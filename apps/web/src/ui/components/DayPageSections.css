@@ -50,7 +50,7 @@
   color: var(--color-on-surface-variant);
 }
 
-/* §34.69 per-occurrence completion: a done occurrence renders checked and
+/* Per-occurrence completion: a done occurrence renders checked and
    quiet — struck through like a finished item, still listed on its day. */
 .day-page-sections__row--done .day-page-sections__row-name {
   text-decoration: line-through;

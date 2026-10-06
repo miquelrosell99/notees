@@ -3,7 +3,7 @@
  * QueryBlockView (the token's inline view) and the Queries hub (the
  * section-scale saved-views surface).
  *
- * §34.31 C2 — coalesced live re-runs: the query re-runs when the AST or the
+ * Coalesced live re-runs: the query re-runs when the AST or the
  * store version changes, but a run in flight marks intervening notifications
  * dirty and schedules exactly ONE trailing run, so a notification burst costs
  * at most two executions instead of one per envelope; a run whose (AST,

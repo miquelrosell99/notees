@@ -1,5 +1,5 @@
 /**
- * graph.ts — the graph-view topology projection (§34.80).
+ * graph.ts — the graph-view topology projection.
  *
  * One derived, read-only projection over the store:
  *  - the node set is classes + present-as-main nodes ONLY (owner ruling:
@@ -220,7 +220,7 @@ export function graphTopology(store: Store, workspaceId: string, options?: Graph
 
   // Temporal family: co-occurrence per DAY — targets mentioned anywhere
   // inside the same day page's subtree link with weight = shared days and
-  // the day node ids as evidence (the parked §34.80 Q3 design, now shipped).
+  // the day node ids as evidence (the parked design, now shipped).
   const classIdsById = new Map<string, string[]>(nodes.map((n) => [n.id, n.classIds]));
   const dayAncestorOf = (id: string): string | null => {
     let current: string | null = id;

@@ -1,6 +1,6 @@
 /**
  * CreatedSection — the "Created" aggregation for date pages: everything
- * created on the day (day pages, §34.28 #4) or inside the month/year
+ * created on the day (day pages) or inside the month/year
  * (owner 2026-10-06 — month and year pages carry the section too). One
  * createdAt range query per notification (the Section contract: a failed
  * query keeps the previous rows; the section hides while empty), the

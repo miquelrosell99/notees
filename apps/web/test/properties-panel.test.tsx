@@ -416,7 +416,7 @@ describe("dead carrier in the value cell (owner bug 2026-10-04)", () => {
   });
 });
 
-describe("default-mirror sweep on class removal (§34.65, owner rule)", () => {
+describe("default-mirror sweep on class removal (owner rule)", () => {
   it("unassigning a class removes authored values that merely mirror its defaults; differing values survive", async () => {
     const client = await seedClient();
     // A task-like class: status bound with defaultValue "pending".
@@ -480,7 +480,7 @@ describe("default-mirror sweep on class removal (§34.65, owner rule)", () => {
   });
 });
 
-describe("the provenance flag (§34.69, owner directive)", () => {
+describe("the provenance flag (owner directive)", () => {
   it('"user"-provenance values survive even when they equal the default; "system" values sweep even when they differ', async () => {
     const client = await seedClient();
     const statusSchema = await client.createPropertySchema({

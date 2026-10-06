@@ -8,9 +8,9 @@
  * path (CLI, owned devices) with full access — see routes-relay.ts authz.
  *
  * Passwords are scrypt-hashed (`scrypt$N$r$p$salt$hash`, node:crypto, no
- * dependencies). v1's bcrypt hashes are NOT stored: the one-off migration
- * script (scripts/import-v1-admin.mjs) verifies the v1 bcrypt hash with
- * Python and stores a fresh scrypt hash of the same password.
+ * dependencies). Legacy bcrypt hashes are NOT stored: the one-off migration
+ * script (scripts/import-v1-admin.mjs) verifies the imported bcrypt hash
+ * with Python and stores a fresh scrypt hash of the same password.
  *
  * Sessions are opaque `nt_` tokens; only the sha256 of the token is stored,
  * so a database leak does not leak active sessions. 30-day expiry, sliding:
@@ -154,8 +154,8 @@ CREATE INDEX IF NOT EXISTS idx_member_user ON workspace_member (user_id);
 -- Per-user API keys: machine credentials minted from user settings. Only the
 -- sha256 of the key is stored; the full nk_-prefixed token is shown once at
 -- creation (like session tokens, nt_-prefixed, only hashed at rest).
--- The scopes column (§34.33 AG3): optional JSON array of scope names; NULL
--- means unrestricted (the M1 default; pre-scopes rows migrate as NULL).
+-- The scopes column: optional JSON array of scope names; NULL
+-- means unrestricted (the default; pre-scopes rows migrate as NULL).
 CREATE TABLE IF NOT EXISTS api_key (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
@@ -169,7 +169,7 @@ CREATE TABLE IF NOT EXISTS api_key (
 );
 CREATE INDEX IF NOT EXISTS idx_api_key_user ON api_key (user_id);
 
--- Per-user UI preferences (§34.61): favorites + recents are cross-device UI
+-- Per-user UI preferences: favorites + recents are cross-device UI
 -- state, NOT op-log state — the design law "device state is never an op"
 -- stands, so they live beside the account, scoped to the user row. One small
 -- JSON column per list, order-preserving; the server validates uuid shapes
@@ -226,7 +226,7 @@ export function generateApiKeyToken(): string {
 // can check after deriving the key (so a wrong password is detectable before
 // attempting to unwrap). The password-derived key itself is never stored or
 // transmitted. Created at setup, backfilled lazily on login for accounts
-// that predate the column (e.g. the v1 import).
+// that predate the column (e.g. the legacy import).
 
 export interface KdfRecord {
   algorithm: "scrypt";
@@ -274,8 +274,8 @@ export interface ApiKeyRow {
   lastUsedAt: number | null;
   revokedAt: number | null;
   /**
-   * §34.33 AG3: the key's scope set, or null when the key is unrestricted
-   * (created without scopes — the M1 default; the operator key and account
+   * The key's scope set, or null when the key is unrestricted
+   * (created without scopes — the default; the operator key and account
    * sessions are always unrestricted).
    */
   scopes: string[] | null;
@@ -575,7 +575,7 @@ export class AuthStorage {
   /**
    * Resolve a key to its owning user id (and the key's own row id — self-
    * revocation); updates last_used_at. `scopes` is null for unrestricted
-   * keys (§34.33 AG3).
+   * keys.
    */
   resolveApiKey(token: string): { userId: string; isAdmin: boolean; keyId: string; scopes: string[] | null } | null {
 
@@ -690,7 +690,7 @@ export class AuthStorage {
     return record;
   }
 
-  // --- per-user UI prefs (§34.61: favorites/recents — server-side UI state) ---
+  // --- per-user UI prefs (favorites/recents — server-side UI state) ---
 
   /** The account's prefs row, or the empty default when never written. */
   getUserPrefs(userId: string): { favorites: string[]; recents: string[]; updatedAt: number } {

@@ -1,12 +1,12 @@
 /**
  * PropertyConvertModal — blessed delete+recreate type conversion
- * (§34.32 PG3; owner ruling 2026-10-04: the recommendation side of the
+ * (owner ruling 2026-10-04: the recommendation side of the
  * register — conversion machinery à la Capacities is NOT built; one honest
  * flow instead):
  *
  *   1. pick the new type (the `image` zombie has no defined value shape —
- *      PG14 — and is not offered as a target);
- *   2. the plan computes same-shape copies per authored value (node-ref
+ *      and is not offered as a target);
+ *   2. the flow computes same-shape copies per authored value (node-ref
  *      family → node-typed targets, scalars → scalar targets, select family
  *      options carry over so option ids keep resolving); every value that
  *      does not map is LISTED, and is dropped only after an explicit
@@ -255,7 +255,7 @@ export function PropertyConvertModal({
           ? { datePrecision: schema.datePrecision }
           : {}),
       });
-      // §34.90: the render contracts are PROPERTY-level and the create input
+      // The render contracts are PROPERTY-level and the create input
       // carries none — patch the new schema with the old row's contracts.
       // Value display only rides types the row button renders (select /
       // multi_select / boolean); read-only and hide-when-empty are

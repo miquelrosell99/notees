@@ -18,7 +18,7 @@ import type { QueryAst } from "@notees/query";
 // other day-view helpers.
 export { chainNodeIds, dayNodeId, recurrenceRuleOf } from "@notees/domain";
 
-/** Local `YYYY-MM-DD` for today — the §34.28 #1 rule: always local midnight, never UTC .slice. */
+/** Local `YYYY-MM-DD` for today — always local midnight, never UTC .slice. */
 export function todayIsoLocal(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
@@ -76,7 +76,7 @@ export function createdTodayBounds(iso: string): { after: string; before: string
 
 /**
  * The open-task query: class:task AND property taskScheduled "exists" AND NOT
- * (property taskStatus eq <done>) AND NOT (… eq <cancelled>). The §34.28 #4b
+ * (property taskStatus eq <done>) AND NOT (… eq <cancelled>). The
  * compiler caveat is load-bearing: never op "neq" for open filtering — nodes
  * with no value don't match neq — so each closed status is a negated eq arm.
  * `closedOptionIds` are the taskStatus select-option ids whose labels are the
@@ -168,13 +168,13 @@ export interface OpenTaskRow {
   /** True when the status label is a TASK_CLOSED_STATUSES name. */
   closed: boolean;
   /**
-   * §34.63 — the taskScheduled value's recurrence rule (metadata.repeat),
+   * The taskScheduled value's recurrence rule (metadata.repeat),
    * null for plain tasks. A repeating task OCCURS on every expanded day;
    * it is never "overdue" (missed days roll forward to the next occurrence).
    */
   repeat: RecurrenceRule | null;
   /**
-   * §34.69 — the taskScheduled value's completed occurrence days
+   * The taskScheduled value's completed occurrence days
    * (metadata.completedOccurrences; [] for plain tasks). Per-occurrence
    * completion: the day view's done-toggle on a recurring task records the
    * DATE here instead of the node-level status, so one occurrence closes
@@ -182,7 +182,7 @@ export interface OpenTaskRow {
    */
   completedOccurrences: readonly string[];
   /**
-   * §34.69 — set by partitionOpenTasks against the viewed day: this row's
+   * Set by partitionOpenTasks against the viewed day: this row's
    * occurrence ON THAT DAY is recorded done (a done occurrence still lists,
    * rendered checked, excluded from the open count).
    */
@@ -201,10 +201,10 @@ export interface PartitionedTasks {
  * Future rows (selected day before the scheduled day) are dropped; closed
  * rows are dropped too (the query already excludes them — this is the
  * fallback for the window before ensureTaskFamily's write lands).
- * §34.63: a repeating task lands in `scheduled` on EVERY occurrence day
+ * A repeating task lands in `scheduled` on EVERY occurrence day
  * (its scheduled day is occurrence #0); it never lands in `overdue` —
  * a missed occurrence rolls forward to the next one.
- * §34.69: an occurrence recorded done (completedOccurrences ∋ selectedIso)
+ * An occurrence recorded done (completedOccurrences ∋ selectedIso)
  * still lists in `scheduled`, flagged `occurrenceDone` — it renders checked
  * on that day and reopens from there, while every other occurrence stays
  * open.
@@ -234,7 +234,7 @@ export function partitionOpenTasks(
   return { overdue, scheduled };
 }
 
-// --- day-page derivation (§34.28 #4/#7/#11) -----------------------------------
+// --- day-page derivation --------------------------------------------------------
 
 /** `YYYY-MM-DD` from parsed date-node id parts — the inverse direction of parseIsoDate. */
 export function isoOfDateParts(parts: { year: number; month: number; day: number }): string {
@@ -259,7 +259,7 @@ export function scheduledIsoOf(value: unknown): string | null {
 /**
  * The 7 local ISO dates of the visible week containing `iso`, honoring the
  * first-day-of-week setting (noon-anchored via addDaysIso, so DST never
- * shifts the calendar day). Feeds the week strip (§34.28 #11).
+ * shifts the calendar day). Feeds the week strip.
  */
 export function weekDaysOfIso(iso: string, firstDayOfWeek: number): string[] {
   const [y, m, d] = iso.split("-").map(Number);
@@ -269,7 +269,7 @@ export function weekDaysOfIso(iso: string, firstDayOfWeek: number): string[] {
 }
 
 /**
- * Range-aware day activity (§34.28 #11): true when the day node's backlink
+ * Range-aware day activity: true when the day node's backlink
  * set holds any non-date-chain source. The edge projection fans date refs
  * (and date_range ends) out to the deterministic day node, so one
  * materialized read answers "objects dated this day" — a day-precision ref
@@ -281,7 +281,7 @@ export function hasDatedRefs(backlinks: ReadonlyArray<{ sourceId: string }>): bo
   return backlinks.some((edge) => parseDateNodeId(edge.sourceId) === null);
 }
 
-// --- bucketed tasks (§34.28 #5) ------------------------------------------------
+// --- bucketed tasks --------------------------------------------------------------
 
 /**
  * One task row's client-side bucket facts (derived from effective
@@ -307,10 +307,10 @@ export interface TaskBuckets {
 }
 
 /**
- * The v1 TasksPopup partition, client-side over the tasks-hub members: a
+ * The tasks-bucket partition, client-side over the tasks-hub members: a
  * task's driving day is its earliest scheduled/deadline day, and the bucket
  * priority is Overdue → Today → Upcoming, so every open task lands in
- * exactly one bucket. (v1's OR-section queries could list one task twice;
+ * exactly one bucket. (The original OR-section queries could list one task twice;
  * the hub section keeps rows unique and unbounded-upcoming so nothing
  * scheduled vanishes.)
  */
@@ -349,7 +349,7 @@ export function partitionTasksIntoBuckets(
   return { overdue, today, upcoming, unscheduled, completed };
 }
 
-// --- quick-create chips (§34.28 #10) -----------------------------------------
+// --- quick-create chips ----------------------------------------------------------
 
 /** The option ids whose labels name closed statuses (labels, never colors —
  * select options carry no color on the wire). */
@@ -414,7 +414,7 @@ export function dateChipCandidates(
   return chips;
 }
 
-// --- recurrence (§34.63 — compute-on-read, §34.28 #6) ----------------------------
+// --- recurrence (compute-on-read) -------------------------------------------------
 
 /** True when `iso` is an occurrence day of the anchored series. */
 export function occursOnDay(rule: RecurrenceRule, anchorIso: string, iso: string): boolean {

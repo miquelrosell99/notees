@@ -22,7 +22,7 @@ CI-equivalent gate (run before claiming done on anything non-trivial):
 changing a package's public API: build that package's dist first, then
 typecheck dependents.
 
-## The fixture gate (blocking — §3)
+## The fixture gate (blocking)
 
 Op fixtures live in `packages/protocol/fixtures/` (envelope-minimal,
 object-create, object-move, property-set-lww, typed-link-mark,
@@ -34,11 +34,11 @@ never silently drop or rename a fixture — plus envelope schema, KNOWN_OP_TYPES
 `Store.apply` on BOTH adapters (better-sqlite3 + sql.js).
 
 **Cross-implementation parity:** the same fixtures are vendored byte-identical
-(sha256-verified) to `notees-gtk` (`tests/fixtures/v2/`, pytest) and
-`notees-flutter` (`test/fixtures/v2/`, flutter_test). A semantic wire change
+(sha256-verified) to `notees-gtk` (`tests/fixtures/wire/`, pytest) and
+`notees-flutter` (`test/fixtures/wire/`, flutter_test). A semantic wire change
 is not done until all three implementations converge.
 
-## Adding an op type (§4 — order matters)
+## Adding an op type (order matters)
 
 1. Spec it in `packages/protocol/SCHEMA.md`.
 2. zod payload in `packages/protocol/src/op-types.ts`, registered in
@@ -50,12 +50,12 @@ is not done until all three implementations converge.
 5. Tests: protocol gate, store on both adapters, sync/server where it crosses
    the wire.
 
-Additive = no `PROTOCOL_VERSION` bump (WIRE §3). A breaking change bumps the
+Additive = no `PROTOCOL_VERSION` bump (WIRE.md). A breaking change bumps the
 version + fixtures + all three clients together (lockstep law,
-`docs/developers/releases.md` §3): **TS reference with fixtures → GTK + Flutter
+`docs/developers/releases.md`): **TS reference with fixtures → GTK + Flutter
 ports and tags → live migration.**
 
-## Conflict-semantics cheat sheet (§5)
+## Conflict-semantics cheat sheet
 
 Scalars + property values: LWW by HLC. Class/collection membership: OR-Set
 add-wins (per-pair `(hlc, actor)`). Tag membership: mirrors the OR-Set but the
@@ -63,33 +63,28 @@ add tiebreak is **strictly greater** (deliberate asymmetry). Deletion:
 tombstone-wins, subtree trashes. Replay is idempotent. Conflicts are
 detection-only (`detectConflicts`, 4 kinds) — reported, never blocking.
 
-## Testing strategy (§6)
+## Testing strategy
 
 Convergence is asserted by **full database dumps, not row samples** (the
 sync suite runs a two-device MemoryRelay and compares ordered full dumps).
 Server tests use fastify inject with `test/helpers.ts`; web tests run over
 MemoryTransport + jsdom; the CLI has its own e2e suite in its repo.
 
-## The §34 work-record ritual (owner rule)
+## The changelog ritual (owner rule)
 
-After shipping any slice, append an entry to `.plans/implementation-plan.md`:
+After shipping any slice, add an entry to `CHANGELOG.md` at the repo root —
+one entry per shipped slice, newest first:
 
 ```
-### 34.NNN type(scope): Title (YYYY-MM-DD — STATUS)
-<what shipped — bullets with bolded leads>
-**Verification:** <suite counts, typecheck/build, gate runs; note unrelated
-failures honestly>
-**Register cross-checks:** <docs updated, SCHEMA.md/wire statement, lockstep
-statement, superseded entries>
+## YYYY-MM-DD
+
+- type(scope): Title — <what shipped, bullets with bolded leads>.
+  **Verification:** <suite counts, typecheck/build, gate runs; note unrelated
+  failures honestly>.
 ```
 
-- Numbering: next integer above the highest used (entries are not strictly
-  positional — check the tail of the file, don't assume).
-- Status vocabulary: SHIPPED / SHIPPED same day / LOCKSTEP-PENDING / PENDING /
-  DIAGNOSED / NOT WANTED / ARCHIVED; may carry `closes #N`, `ops-only`,
-  `docs-only`, `SHIPPED vX.Y.Z`.
-- Same pass: tick owed-work rows you resolved; register deviations where
-  future readers will look.
+- Same pass: update the docs the change touches (`docs/`, `SCHEMA.md`, the
+  runbooks); a change without its record + doc updates is not done.
 
 ## Fleet-agnostic artifacts
 

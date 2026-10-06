@@ -22,7 +22,7 @@ import {
 } from "../src/index.js";
 import type { ContentAst } from "@notees/protocol";
 
-describe("system seeds (v1 port)", () => {
+describe("system seeds (ported)", () => {
   it("has unique class UUIDs and icons for every class", () => {
     const names = Object.keys(SYSTEM_CLASS_UUIDS);
     const ids = Object.values(SYSTEM_CLASS_UUIDS);
@@ -73,7 +73,7 @@ describe("system seeds (v1 port)", () => {
     }
   });
 
-  it("never reuses withdrawn ids (v1 locator …0018; linkedAuthors …0025; cover class …0042)", () => {
+  it("never reuses withdrawn ids (locator …0018; linkedAuthors …0025; cover class …0042)", () => {
     const allIds = [
       ...Object.values(SYSTEM_CLASS_UUIDS),
       ...Object.values(SYSTEM_PROPERTY_UUIDS),
@@ -81,11 +81,11 @@ describe("system seeds (v1 port)", () => {
     ];
     expect(allIds).not.toContain("00000000-0000-0000-0000-000000000018");
     expect(allIds).not.toContain("00000000-0000-0000-0000-000000000025");
-    // §34.74 (owner 2026-10-04): the cover system class duplicated the cover
+    // (owner 2026-10-04): the cover system class duplicated the cover
     // property — covers are plain asset-classed nodes. Minted and withdrawn
     // the same day; never reuse.
     expect(allIds).not.toContain("00000000-0000-0000-0001-000000000042");
-    // §34.81 (owner 2026-10-05): the scratchpad page is withdrawn — not
+    // (owner 2026-10-05): the scratchpad page is withdrawn — not
     // wanted. No longer seeded (SYSTEM_PAGE_UUIDS carries inbox only); the
     // id lives on as LEGACY_SCRATCHPAD_PAGE_ID for the zip exclusion, never
     // to be re-seeded.
@@ -116,7 +116,7 @@ describe("system seeds (v1 port)", () => {
     expect(SYSTEM_PROPERTY_SPECS).not.toHaveProperty("linkedAuthors");
   });
 
-  it("templates seed (§34.25 T2): has-template reserved, seeded, targets the template class", () => {
+  it("templates seed (T2): has-template reserved, seeded, targets the template class", () => {
     // Next free id in the general block (…0018 withdrawn, …0025 withdrawn —
     // never reused); the domain-wide block rule above pins the prefix.
     expect(SYSTEM_PROPERTY_UUIDS.hasTemplate).toBe("00000000-0000-0000-0000-000000000026");
@@ -129,7 +129,7 @@ describe("system seeds (v1 port)", () => {
     });
   });
 
-  it("templates provenance seed (§34.25 T3, D1 amendment 2026-10-03): generated-from is instance-side, never class-bound", () => {
+  it("templates provenance seed (T3, D1 amendment 2026-10-03): generated-from is instance-side, never class-bound", () => {
     expect(SYSTEM_PROPERTY_UUIDS.generatedFrom).toBe("00000000-0000-0000-0000-000000000027");
     // Instance metadata: no SYSTEM_PROPERTY_SPECS entry (a spec would seed a
     // class binding — the amendment forbids one); the web client authors the
@@ -141,7 +141,7 @@ describe("system seeds (v1 port)", () => {
   });
 
   it("node aliases (issue #7, owner 2026-10-05): aliasOf is the next general-block id, single-value node-typed, global, coexisting with the text alias", () => {
-    // …0029 continues the general block after the §34.32 text alias (…0028);
+    // …0029 continues the general block after the text alias (…0028);
     // the domain-wide block/prefix rules above pin the shape.
     expect(SYSTEM_PROPERTY_UUIDS.aliasOf).toBe("00000000-0000-0000-0000-000000000029");
     // Single-value node-typed: NO multi, NO bindTo, NO targetClassFilter —
@@ -153,13 +153,13 @@ describe("system seeds (v1 port)", () => {
     for (const binding of SYSTEM_EXTRA_CLASS_BINDINGS) {
       expect(binding.property).not.toBe("aliasOf");
     }
-    // Coexistence with the §34.32 text alias — both stay seeded.
+    // Coexistence with the text alias — both stay seeded.
     expect(SYSTEM_PROPERTY_UUIDS.alias).toBe("00000000-0000-0000-0000-000000000028");
     expect(SYSTEM_PROPERTY_SPECS.alias).toEqual({ type: "text", multi: true });
   });
 
-  it("meeting/event family seeds (§34.36 + owner reshape directive 2026-10-04: plain seeds — zero wire cost)", () => {
-    // The register's reserved class ids (append-only rule): meeting …039
+  it("meeting/event family seeds (owner reshape directive 2026-10-04: plain seeds — zero wire cost)", () => {
+    // The reserved class ids (append-only rule): meeting …039
     // (first slice), then `event` …040 — the calendar family root seeded by
     // the owner's reshape directive.
     expect(SYSTEM_CLASS_UUIDS.meeting).toBe("00000000-0000-0000-0001-000000000039");
@@ -178,7 +178,7 @@ describe("system seeds (v1 port)", () => {
     expect(SYSTEM_PROPERTY_UUIDS.location).toBe("00000000-0000-0000-0003-000000000008");
     expect(SYSTEM_PROPERTY_UUIDS.agenda).toBe("00000000-0000-0000-0003-000000000009");
     expect(SYSTEM_PROPERTY_UUIDS.eventDate).toBe("00000000-0000-0000-0003-000000000010");
-    // M2 whole-day law: the date bindings are date-typed — there is no
+    // Whole-day law: the date bindings are date-typed — there is no
     // clock-time type anywhere in the spec union.
     expect(SYSTEM_PROPERTY_SPECS.meetingDate).toEqual({ type: "date", bindTo: "meeting" });
     expect(SYSTEM_PROPERTY_SPECS.location).toEqual({ type: "text", bindTo: "meeting" });
@@ -186,7 +186,7 @@ describe("system seeds (v1 port)", () => {
     expect(SYSTEM_PROPERTY_SPECS.eventDate).toEqual({ type: "date", bindTo: "event" });
   });
 
-  it("birthday family seeds (§34.36.3, owner directive 2026-10-04: birthday extends event, for persons)", () => {
+  it("birthday family seeds (owner directive 2026-10-04: birthday extends event, for persons)", () => {
     // The next reserved class id after event …040; person-typed family, NO
     // birthdayDate (the date rides eventDate through the extends chain).
     expect(SYSTEM_CLASS_UUIDS.birthday).toBe("00000000-0000-0000-0001-000000000041");
@@ -248,7 +248,7 @@ describe("system seeds (v1 port)", () => {
     }
   });
 
-  it("systemClassAncestors encodes the Features-tab gating semantics (§34.36 reshape + §34.36.3 birthday)", () => {
+  it("systemClassAncestors encodes the Features-tab gating semantics (event-family reshape + birthday)", () => {
     // Disabling event disables meeting WITH it (child sees the ancestor)…
     expect(systemClassAncestors("meeting").has("event")).toBe(true);
     // …and birthday disables with event the same way (sibling child)…
@@ -426,7 +426,7 @@ describe("date node display names", () => {
   });
 });
 
-describe("workspace feature map (§34.35, reshaped §34.55)", () => {
+describe("workspace feature map", () => {
   it("the five core families map to their seeded base classes", async () => {
     const { WORKSPACE_FEATURE_MAP, managedClassIds, featureForManagedClass } = await import(
       "../src/index.js"
@@ -550,7 +550,7 @@ describe("workspace feature map (§34.35, reshaped §34.55)", () => {
       expect(SYSTEM_PROPERTY_UUIDS).toHaveProperty(entry.property);
       expect(entry.sequence).toBeGreaterThan(0);
     }
-    // Status/priority option labels match the v1 option vocabulary.
+    // Status/priority option labels match the original option vocabulary.
     expect(TASK_FAMILY_SEED[0]!.options!.map((o) => o.label)).toEqual([
       "Backlog",
       "Pending",
@@ -568,7 +568,7 @@ describe("workspace feature map (§34.35, reshaped §34.55)", () => {
   });
 });
 
-describe("promotion survivors (§34.34 B3/B5)", () => {
+describe("promotion survivors", () => {
   it("code_block survives stringifyContentAst; hr flattens away", async () => {
     const { stringifyContentAst, isTextOnlyContent } = await import("../src/index.js");
     const ast = [

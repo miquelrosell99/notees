@@ -1,5 +1,5 @@
 /**
- * Clone engine tests (§34.25 T1/T2) — two layers:
+ * Clone engine tests — two layers:
  *
  * 1. Composition over a SYNTHETIC template subtree + fake read surface: the
  *    emitted op list is asserted exactly — fresh ids, beforeId/afterId

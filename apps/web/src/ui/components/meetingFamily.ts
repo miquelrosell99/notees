@@ -1,5 +1,5 @@
 /**
- * Meeting/event family — §34.36 + the owner's reshape directive (2026-10-04:
+ * Meeting/event family — the owner's reshape directive (2026-10-04:
  * PLAIN SEEDS, zero wire cost — seed convergence only, no lockstep).
  *
  * `event` is the CALENDAR family root: a date-only base class (its single
@@ -7,8 +7,8 @@
  * eligible — any class with a date-typed binding per dateChipCandidates).
  * `meeting` IS-A event (SYSTEM_CLASS_EXTENDS): a meeting is an event with a
  * meeting-specific family on top (meetingDate — still whole-day per the
- * §34.28 law, no clock times — plus text location/agenda). `birthday` IS-A
- * event too (§34.36.3, owner directive 2026-10-04): a person's birthday is an
+ * calendar law, no clock times — plus text location/agenda). `birthday` IS-A
+ * event too (owner directive 2026-10-04): a person's birthday is an
  * event on the calendar — the date rides eventDate through the extends chain,
  * and the family is person-typed (birthdayPerson links the event TO the
  * person; filter rooted at `person`, so orgs don't carry birthdays). Gating

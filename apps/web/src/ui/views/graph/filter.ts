@@ -1,5 +1,5 @@
 /**
- * graph/filter.ts — the pure display shaping for the graph view (§34.80):
+ * graph/filter.ts — the pure display shaping for the graph view:
  * settings filtering (node families, link families), collection scoping,
  * and the semantic co-occurrence sparsification (per-node top-K by weight +
  * min-weight threshold, symmetric keep). Pure functions over GraphTopology —
@@ -13,7 +13,7 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 export interface GraphSettings {
   /** Class nodes render (default on). */
   showClasses: boolean;
-  /** The journal chain (year/month/day) renders (default OFF — v1 precedent). */
+  /** The journal chain (year/month/day) renders (default OFF by design). */
   showJournal: boolean;
   /** Orphan nodes (no visible edges) render (default on). */
   showOrphans: boolean;
@@ -132,7 +132,7 @@ export function applyGraphSettings(
   return { nodes: finalNodes, edges };
 }
 
-/** Honest counts for the toolbar (the §34.70 rule: counts name the full set). */
+/** Honest counts for the toolbar (counts name the full set). */
 export function graphCounts(topology: GraphTopology): { nodes: number; edges: number } {
   return { nodes: topology.nodes.length, edges: topology.edges.length };
 }
@@ -148,7 +148,7 @@ export const LINK_TYPE_IDS: Record<GraphEdgeKind, number> = {
 };
 
 /**
- * The zoom-dependent edge LOD mask (the v1 convention): parent/class always,
+ * The zoom-dependent edge LOD mask (the original convention): parent/class always,
  * mention from 0.30, property from 0.60, semantic + temporal from 1.00.
  */
 export function edgeMaskForZoom(zoom: number): number {

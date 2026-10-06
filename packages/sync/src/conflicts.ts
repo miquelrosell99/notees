@@ -1,11 +1,11 @@
 /**
- * Semantic conflict detection — port of v1 `frontend/src/core/syncConflicts.ts`
- * to v2 envelopes and the M1 op registry.
+ * Semantic conflict detection — port of `frontend/src/core/syncConflicts.ts`
+ * to the current envelopes and the op registry.
  *
- * v2 op mapping (the M1 registry has no class.assign op):
+ * Op mapping (the registry has no class.assign op):
  *  - move_move: two `object.move` ops on the same objectId targeting
  *    different parents concurrently — parent/position converge by row-level
- *    LWW (envelope HLC), but the user's intent is ambiguous (v1: two
+ *    LWW (envelope HLC), but the user's intent is ambiguous (two
  *    concurrent re-parents). object.move landed 2026-09-26; the detector
  *    below still keys move_move off `object.create` envelopes carrying an
  *    explicit parentId (the legacy reparent carrier for in-flight logs — a
@@ -15,7 +15,7 @@
  *    carrying parentId (a reparent).
  *  - class_conflict: concurrent `object.create` on the same node seeding
  *    different classIds — the OR-Set unions them, but the user's intent is
- *    ambiguous (v1: assign vs unassign of the same class concurrently).
+ *    ambiguous (assign vs unassign of the same class concurrently).
  *  - property_conflict: `property.set` vs `property.unset` on the same
  *    (objectId, propertySchemaId, idx) — LWW picks a winner, intent is ambiguous.
  *
@@ -39,7 +39,7 @@ function payloadOf(envelope: Envelope): Record<string, unknown> {
   return envelope.payload as Record<string, unknown>;
 }
 
-/** v2 payloads key the node as objectId (v1 used nodeId — kept as fallback). */
+/** Payloads key the node as objectId (nodeId kept as fallback). */
 function getNodeId(envelope: Envelope): string | undefined {
   const payload = payloadOf(envelope);
   if (typeof payload.objectId === "string") return payload.objectId;

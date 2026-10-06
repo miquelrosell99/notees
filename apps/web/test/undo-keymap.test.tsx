@@ -1,5 +1,5 @@
 /**
- * §34.63 global undo/redo — the web wiring:
+ * Global undo/redo — the web wiring:
  *
  *  - undoRedoKeyHandler (App.tsx): Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z (or
  *    Ctrl/Cmd+Y) redo, guarded from form fields AND the outliner editor
@@ -122,7 +122,7 @@ describe("undoRedoKeyHandler — the editor-interaction rule", () => {
   });
 });
 
-describe("CommandPalette Undo/Redo rows (§34.63)", () => {
+describe("CommandPalette Undo/Redo rows", () => {
   const WS = "0192a000-0000-7000-8000-000000000001";
   const ACTOR = "0192a000-0000-7000-8000-000000000002";
   let sqlModule: SqlJsStatic;

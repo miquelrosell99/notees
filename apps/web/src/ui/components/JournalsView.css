@@ -39,7 +39,7 @@
     border-color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-/* §34.28 #7 — the header date bar: prev/next day stepping around the
+/* The header date bar: prev/next day stepping around the
    feed-local Today scroller. */
 .journals-view__nav {
   display: flex;

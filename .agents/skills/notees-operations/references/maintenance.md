@@ -1,6 +1,6 @@
 # Maintenance
 
-Canonical: `docs/developers/deployment.md` §§5–7 + `releases.md`.
+Canonical: `docs/developers/deployment.md` + `releases.md`.
 
 ## Routine
 
@@ -29,7 +29,7 @@ future API writes.
 `POST /api/relay/v2/compact {workspaceId, upToHlc, prune, dataBase64}` creates
 snapshots; `snapshots/<id>.db` files are optional accelerators — delete stale
 ones freely (full replay ~35 min), but **after a log rewrite prefer patching
-snapshot bytes** (migrations.md §1B step 5). Snapshot deletes are safe;
+snapshot bytes** (migrations.md step 5). Snapshot deletes are safe;
 `relay.db` deletion is data loss, full stop.
 
 ## Health of the law

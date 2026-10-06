@@ -1,8 +1,8 @@
 # Notees Protocol v2 — Wire Spec
 
-Status: **v2.0-draft, 2026-09-26.** Port of v1 `protocol/SPEC.md` with the §34.4 clean-break fixes applied. Companion to `SCHEMA.md` (payloads/content grammar — normative there) and the envelope/op schemas in `src/` (executable form).
+Status: **v2.0-draft, 2026-09-26.** Companion to `SCHEMA.md` (payloads/content grammar — normative there) and the envelope/op schemas in `src/` (executable form).
 
-Base path: `/api/relay/v2`. Auth: single-user API key (`X-API-Key`) in M1 (JWT sessions land with multi-user in M3); actor identity is derived from the authenticated principal only. All request/response bodies are camelCase JSON; envelopes travel inside bodies as defined in `envelope.ts` (`seq` never appears inside an envelope — it rides on catch-up responses and WS frames).
+Base path: `/api/relay/v2`. Auth: single-user API key (`X-API-Key`) today (JWT sessions land with multi-user); actor identity is derived from the authenticated principal only. All request/response bodies are camelCase JSON; envelopes travel inside bodies as defined in `envelope.ts` (`seq` never appears inside an envelope — it rides on catch-up responses and WS frames).
 
 ## 1. Endpoints
 
@@ -23,10 +23,10 @@ Latest snapshot metadata: `{"snapshotId", "hlc": {physical, logical}, "hasSnapsh
 Snapshot bytes (`application/octet-stream`) — a serialized derived-state SQLite database. Clients restore, then catch up from `upToSeq`. 404 when absent.
 
 ### `PUT /snapshot/data?workspaceId=…&physical=…&logical=…`
-Upload a client-produced snapshot (owner-only in multi-user; single-user M1: any key with write scope). Raw body bytes. Body cap: **512 MiB route-local** (§34.69) — the app-global request cap is 128 MiB, and this route is the one deliberate exception (an authenticated, workspace-scoped full projection is the largest body the API carries). Over-cap answers `413 entity_too_large` (the §3 envelope); a client that sees it reports once and keeps syncing normally (the server-side snapshot covers restore) — it MUST NOT treat the refusal as sync failure.
+Upload a client-produced snapshot (owner-only in multi-user; single-user today: any key with write scope). Raw body bytes. Body cap: **512 MiB route-local** — the app-global request cap is 128 MiB, and this route is the one deliberate exception (an authenticated, workspace-scoped full projection is the largest body the API carries). Over-cap answers `413 entity_too_large` (the error envelope); a client that sees it reports once and keeps syncing normally (the server-side snapshot covers restore) — it MUST NOT treat the refusal as sync failure.
 
 ### `POST /compact`
-Owner/admin: `{"workspaceId", "upToHlc": {physical, logical}, "prune": true, "dataBase64": "..."}` — snapshot the derived state up to an HLC and optionally prune covered envelopes. `prune: true` requires non-empty `dataBase64`. Single checkpoint flow (replaces v1's three divergent snapshot endpoints).
+Owner/admin: `{"workspaceId", "upToHlc": {physical, logical}, "prune": true, "dataBase64": "..."}` — snapshot the derived state up to an HLC and optionally prune covered envelopes. `prune: true` requires non-empty `dataBase64`. Single checkpoint flow (replacing the three divergent snapshot endpoints of the first system).
 
 ### `GET /stats?workspaceId=…`
 `{"envelopeCount", "snapshotCount", "compactedOperationCount", "maxHlc", "restoreEpoch", "latestSnapshotHlc"}`.
@@ -49,6 +49,6 @@ The socket is an acceleration path only: a dropped socket is indistinguishable f
 - Limits: batch ≤ 1000 envelopes / 1 MB per payload; catch-up page ≤ 10000; global fallback 10 000 req/min per IP; per-endpoint buckets documented at implementation.
 - `PROTOCOL_VERSION = 3` (envelope schema; v3 accepts only 3 — Revision 11's render-state model) and `WS_PROTOCOL_VERSION = 2` (framing) are versioned independently. Additive changes (optional fields, new op types) do not bump either; breaking changes bump both repos + fixtures together. Envelopes without `protocolVersion` are rejected; receivers fail loud on a newer version. **No backward compatibility:** retired payload keys (e.g. v2's `nodeType`) are rejected outright, and previously stored v2 rows are rewritten in place once by the one-time migration script (`scripts/migrate-node-type.mts`, planned) — not replayed, not bridged.
 
-## 4. Trust model (carried from v1, unchanged)
+## 4. Trust model
 
-Routing metadata (`affectedNodeIds`) is client-supplied and best-effort; workspace membership is the real security boundary. Payloads are opaque to the relay except the M3 E2EE slot (`{"$e": …}`), which skips payload validation. Semi-trusted server: for plaintext workspaces the operator can read contents; E2EE workspaces (M3) expose only routing metadata, sizes, timing.
+Routing metadata (`affectedNodeIds`) is client-supplied and best-effort; workspace membership is the real security boundary. Payloads are opaque to the relay except the E2EE slot (`{"$e": …}`), which skips payload validation. Semi-trusted server: for plaintext workspaces the operator can read contents; E2EE workspaces (once E2EE exists) expose only routing metadata, sizes, timing.

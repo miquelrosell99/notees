@@ -1,5 +1,5 @@
 /**
- * Table family — §34.34 B4 (owner directive 2026-10-04): a table is a
+ * Table family — owner directive 2026-10-04: a table is a
  * CONTAINER node carrying the system `table` class — the whiteboard pattern
  * (the class says what-it-is; the grid render is a projection). Rows are the
  * container's child blocks, cells are each row's child blocks, and every

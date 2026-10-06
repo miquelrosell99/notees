@@ -496,7 +496,7 @@ describe("outliner editor", () => {
     const { container } = render(<PageView client={client} pageId={pageId} />);
     expect(client.getBlockTree(pageId)).toHaveLength(0);
 
-    // The §34.85 ruling: the ghost is the SOLE add affordance and shows even
+    // The owner ruling: the ghost is the SOLE add affordance and shows even
     // on an empty body — the page root trails exactly one ghost row.
     const add = screen.getByRole("button", { name: "Add block" });
     await act(async () => {
@@ -507,7 +507,7 @@ describe("outliner editor", () => {
     expect(tree).toHaveLength(1);
     expect(tree[0]!.node.parentId).toBe(pageId);
     // The root ghost stays — the affordance is always-on, exactly one per
-    // page (§34.106) — and the new block takes the focus.
+    // page — and the new block takes the focus.
     expect(screen.getAllByRole("button", { name: "Add block" })).toHaveLength(1);
     const editor = container.querySelector<HTMLElement>(".nt-block-text");
     expect(editor).not.toBeNull();
@@ -515,7 +515,7 @@ describe("outliner editor", () => {
   });
 });
 
-describe("ghost block rows (the v1 add affordance)", () => {
+describe("ghost block rows (the add affordance)", () => {
   /** Page with one root block holding a nested child. */
   async function seedNestedPage(client: WorkspaceClient): Promise<{
     pageId: string;
@@ -540,7 +540,7 @@ describe("ghost block rows (the v1 add affordance)", () => {
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     const ghosts = container.querySelectorAll<HTMLElement>("[data-ghost]");
-    // §34.106 (owner 2026-10-06): exactly ONE ghost — the page root's, as
+    // Owner ruling 2026-10-06: exactly ONE ghost — the page root's, as
     // the last sibling of the main level. Blocks no longer trail their own
     // ghosts at the next depth.
     expect(ghosts).toHaveLength(1);
@@ -587,7 +587,7 @@ describe("ghost block rows (the v1 add affordance)", () => {
     const rootChildren = client.getChildren(pageId);
     expect(rootChildren).toHaveLength(2);
     expect(rootChildren[0]!.id).toBe(parentId);
-    // The new block lands AFTER the last real child (v1 realize semantics).
+    // The new block lands AFTER the last real child (realize semantics).
     const created = rootChildren[1]!;
     expect(created.contentAst).toEqual([]);
     expect(created.parentId).toBe(pageId);
@@ -605,7 +605,7 @@ describe("ghost block rows (the v1 add affordance)", () => {
     const ghost = () => container.querySelector<HTMLElement>("[data-ghost]");
     expect(ghost()).not.toBeNull();
 
-    // Prose: the sole add affordance stays (§34.85) but the bullet is
+    // Prose: the sole add affordance stays but the bullet is
     // hidden like every prose bullet — the row mounts the prose modifier
     // (GhostRow.css drops the gutter under .nt-ghost-row--prose). The mode
     // rides the per-page device preference (the switcher lives in the
