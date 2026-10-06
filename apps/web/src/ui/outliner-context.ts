@@ -153,6 +153,12 @@ export interface OutlinerReader {
    * over `classIconMap(client.listClasses())`; both client classes satisfy it.
    */
   classIcons(): ReadonlyMap<string, string | null>;
+  /**
+   * The chain-resolved variant for DISPLAY: a class's own icon, else the
+   * first icon found walking its extends chain (#1 follow-up) — the map
+   * `nodeIcon` should read when rendering row/list icons.
+   */
+  effectiveClassIcons(): ReadonlyMap<string, string | null>;
   search(query: string): ClientNode[];
   getClassParents(classId: string): string[];
   getClassMembers(classId: string): ClientNode[];

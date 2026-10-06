@@ -1112,6 +1112,53 @@ export class WorkspaceClient {
     });
   }
 
+  /**
+   * The class id → EFFECTIVE icon lookup (#1 follow-up): each class's own
+   * icon, else the first icon found walking its `class_extends` chain (the
+   * `classIconInChain` semantics — a daily page whose icon arrives through
+   * a class parent now renders it in ROWS too, not just group-by headers).
+   * Computed once per revision over the narrow id+icon read + the extends
+   * table. Display-time only: the stored icons stay as authored.
+   */
+  effectiveClassIcons(): ReadonlyMap<string, string | null> {
+    return this.cachedListRead("effectiveClassIcons", () => {
+      const own = this.classIcons();
+      const rows = this.store.database
+        .prepare(
+          "SELECT class_id, parent_class_id FROM class_extends ORDER BY class_id, parent_class_id",
+        )
+        .all() as Array<{ class_id: string; parent_class_id: string }>;
+      const parentsOf = new Map<string, string[]>();
+      for (const row of rows) {
+        const list = parentsOf.get(row.class_id);
+        if (list === undefined) parentsOf.set(row.class_id, [row.parent_class_id]);
+        else list.push(row.parent_class_id);
+      }
+      const resolved = new Map<string, string | null>();
+      const resolve = (id: string, seen: ReadonlySet<string>): string | null => {
+        if (resolved.has(id)) return resolved.get(id)!;
+        if (seen.has(id)) return null;
+        const icon = own.get(id);
+        if (icon !== null && icon !== undefined && icon !== "") {
+          resolved.set(id, icon);
+          return icon;
+        }
+        const next = new Set(seen).add(id);
+        for (const parent of parentsOf.get(id) ?? []) {
+          const parentIcon = resolve(parent, next);
+          if (parentIcon !== null) {
+            resolved.set(id, parentIcon);
+            return parentIcon;
+          }
+        }
+        resolved.set(id, null);
+        return null;
+      };
+      for (const id of own.keys()) resolve(id, new Set());
+      return resolved;
+    });
+  }
+
   /** Compute-once-per-revision list read (see `listReadCache`). */
   private cachedListRead<T>(key: string, compute: () => T): T {
     if (this.listReadCache.has(key)) return this.listReadCache.get(key) as T;

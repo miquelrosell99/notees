@@ -96,7 +96,7 @@ export function OutlineRow({
   props: NodeCollectionProps;
 }) {
   const { client, onNodeClick, onNodeShiftClick, trailingAction, renderItem } = props;
-  const icon = nodeIcon(item.node, client.classIcons());
+  const icon = nodeIcon(item.node, client.effectiveClassIcons());
   const label = displayNameForSettings(item.node) || "Untitled";
   const row = (
     <span className="outline-row">

@@ -173,12 +173,13 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
     setEditing(true);
   };
 
-  // §34.92: classIcons() is the narrow revision-cached read (stable reference
+  // §34.92: effectiveClassIcons() is the narrow revision-cached read (stable reference
   // until the store actually changes), so keying on it keeps this memo valid
   // across class-icon changes without re-running on every row re-map; the
   // pre-fix [node, node.classIds] key re-ran a full listClasses query per row
-  // per refresh.
-  const classIcons = outlinerClient.classIcons();
+  // per refresh. Chain-resolved (#1 follow-up): a class parent with the icon
+  // now reaches the row.
+  const classIcons = outlinerClient.effectiveClassIcons();
   const gripIcon = useMemo(() => nodeIcon(node, classIcons), [node, classIcons]);
 
   const dropClass =
@@ -363,7 +364,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
             }}
           >
             {children.length > 0 && <span className="nt-bullet-ring" aria-hidden="true" />}
-            {gripIcon !== null ? (
+            {!focusMode && gripIcon !== null ? (
               <span className="nt-bullet-icon">
                 <Icon path={gripIcon} size={0.8} />
               </span>
@@ -474,7 +475,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
             (SCHEMA.md:117 — the count badge rides the materialized
             node_stats number). The gutter is reference material, so it shows
             in read-only projections too. */}
-        {(backlinkCount > 0 || !readOnly) && (
+        {!focusMode && (backlinkCount > 0 || !readOnly) && (
           <div className="nt-block-row-end">
             {!readOnly && (
               <div className="nt-block-classes">
@@ -506,8 +507,9 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
         <BlockBacklinkPanel nodeId={node.id} expanded={backlinksExpanded} client={client} />
       )}
       {/* Tags: dedicated row below the block row, only when set (assignment
-          rides the `#` trigger). */}
-      {!readOnly && node.tagIds.length > 0 && (
+          rides the `#` trigger). Focus mode (#12) hides them with the rest
+          of the block metadata. */}
+      {!readOnly && !focusMode && node.tagIds.length > 0 && (
         <div className="nt-block-tags">
           <TagsRow client={client} nodeId={node.id} tagIds={node.tagIds} onOpenPage={openNode} />
         </div>

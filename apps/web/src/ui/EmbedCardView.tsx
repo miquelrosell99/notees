@@ -48,7 +48,7 @@ export function EmbedCardView({
     );
   }
 
-  const icon = nodeIcon(node, client.classIcons());
+  const icon = nodeIcon(node, client.effectiveClassIcons());
   const label = displayNameFromClient(client, nodeId) ?? nodeId;
   const excerpt = view === "wide_card" ? plainExcerpt(node.contentAst) : "";
 

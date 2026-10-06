@@ -39,7 +39,7 @@ import { proseFromAst } from "@/editor/prose.js";
 
 import { displayNameFromClient } from "../dateDisplay.js";
 import { openFloatingEditor } from "./FloatingEditor.js";
-import { classIconMap, nodeIcon } from "../iconFor.js";
+import { nodeIcon } from "../iconFor.js";
 import { Icon } from "../Icon.js";
 import { renderStateLabel } from "../renderStateLabel.js";
 import { Button } from "./ui/Button.js";
@@ -273,7 +273,7 @@ function NodeHoverPreviewCard({
     );
   }
 
-  const icon = nodeIcon(node, classIconMap(client.listClasses()));
+  const icon = nodeIcon(node, client.effectiveClassIcons());
   const label = displayNameFromClient(client, nodeId) ?? nodeId;
   const excerpt = excerptOf(node.contentAst);
   const backlinkCount = client.getBacklinkCount(nodeId);

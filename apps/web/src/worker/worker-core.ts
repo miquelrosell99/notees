@@ -329,6 +329,10 @@ export class WorkerCore {
     return this.client.classIcons();
   }
 
+  effectiveClassIcons(): ReadonlyMap<string, string | null> {
+    return this.client.effectiveClassIcons();
+  }
+
   getBlockTree(pageId: string, depth?: number): BlockTreeNode[] {
     return this.client.getBlockTree(pageId, depth);
   }
@@ -508,6 +512,8 @@ export class WorkerCore {
         return this.listClasses();
       case "classIcons":
         return this.classIcons();
+      case "effectiveClassIcons":
+        return this.effectiveClassIcons();
       case "getClassParents":
         return this.client.getClassParents(args[0] as string);
       case "getClassChildren":
