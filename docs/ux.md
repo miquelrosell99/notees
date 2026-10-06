@@ -101,6 +101,8 @@ Reads always answer from the device-local store and writes persist there, syncin
 
 Recovery resets the ladder: the next outage starts again at the dismissible banner.
 
+**The sync dot is a door, not a lamp.** The dot in the top bar (idle / syncing / backlog / error) is clickable: it opens a details panel with the engine state, the pending/failed/quarantined/parked backlog counts, the server seq, and the last error — plus two actions on the same surface. **Resync now** forces one push-then-pull cycle against the relay (the same cycle the automatic path runs, on demand). **Conflicts** lists the semantic conflicts this session has seen (concurrent moves, edit-vs-delete, class and property clashes — the CRDT merge stays authoritative; the list is the "the log picked a winner, but you should know" record), newest first with the node's name, the clash type, and both sides' op counts.
+
 ## System sections — and the lazy-loading contract
 
 Pages come with predefined sections that are **named system queries** over the query runtime, not bespoke UI: **linked references**, **references** (outgoing), **unlinked references**, **child pages**, **classed nodes**, and **extended-by**. They are fixtures like any op type, and the section registry becomes plugin-extensible later.

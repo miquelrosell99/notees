@@ -1,0 +1,99 @@
+/**
+ * SyncDetailsModal chrome (§34.115) — token-only CSS per the ui-primitives
+ * law; adaptive values for anything that tracks type metrics.
+ */
+
+.sync-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3, var(--spacing-4));
+  min-width: min(42ch, 100%);
+}
+
+.sync-details-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1, var(--spacing-2));
+  margin: 0;
+}
+
+.sync-details-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2, var(--spacing-3));
+}
+
+.sync-details-row dt {
+  color: var(--color-text-secondary, var(--color-on-surface-variant));
+  font-size: 0.9em;
+}
+
+.sync-details-row dd {
+  margin: 0;
+  text-align: end;
+  overflow-wrap: anywhere;
+}
+
+.sync-details-row-error dd {
+  color: var(--color-error, #e05252);
+}
+
+.sync-details-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, var(--spacing-3));
+}
+
+.sync-details-hint {
+  color: var(--color-text-tertiary, var(--color-on-surface-variant));
+  font-size: 0.85em;
+}
+
+.sync-details-error {
+  margin: 0;
+  color: var(--color-error, #e05252);
+  font-size: 0.9em;
+}
+
+.sync-details-conflicts-heading {
+  margin: 0;
+  font-size: 1em;
+  font-weight: 600;
+}
+
+.sync-details-conflicts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, var(--spacing-3));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 32vh;
+  overflow-y: auto;
+}
+
+.sync-details-conflict {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+  padding: var(--space-1, var(--spacing-2)) var(--space-2, var(--spacing-3));
+  border: var(--border-width-default, 1px) solid
+    var(--color-border, var(--color-outline-variant));
+  border-radius: var(--radius-md, var(--shape-medium));
+}
+
+.sync-details-conflict-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.sync-details-conflict-type {
+  color: var(--color-text-secondary, var(--color-on-surface-variant));
+  font-size: 0.9em;
+}
+
+.sync-details-conflict-meta {
+  color: var(--color-text-tertiary, var(--color-on-surface-variant));
+  font-size: 0.8em;
+}
