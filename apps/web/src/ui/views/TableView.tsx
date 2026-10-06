@@ -971,30 +971,43 @@ export function TableView(props: NodeCollectionProps) {
                 />
               </th>
             )}
-            {visibleColumns.map((column) => (
-              <th
-                key={column.id}
-                aria-sort={
-                  sort.length === 1 && sort[0]!.key === column.id
-                    ? sort[0]!.direction === "asc"
-                      ? "ascending"
-                      : "descending"
-                    : undefined
-                }
-              >
-                <button
-                  type="button"
-                  className={`nt-table-sort${sort.some((s) => s.key === column.id) ? " nt-table-sort--active" : ""}`}
-                  onClick={() => cycleSort(column)}
-                  disabled={column.sortable === false}
+            {visibleColumns.map((column) => {
+              // v1 sort register: every sorted column wears its direction
+              // arrow; a multi-sort adds the priority index badge.
+              const sortIndex = sort.findIndex((s) => s.key === column.id);
+              return (
+                <th
+                  key={column.id}
+                  aria-sort={
+                    sort.length === 1 && sort[0]!.key === column.id
+                      ? sort[0]!.direction === "asc"
+                        ? "ascending"
+                        : "descending"
+                      : undefined
+                  }
                 >
-                  {column.label}
-                  {sort.length === 1 && sort[0]!.key === column.id && (
-                    <Icon path={sort[0]!.direction === "asc" ? "mdi-arrow-up" : "mdi-arrow-down"} size={0.7} />
-                  )}
-                </button>
-              </th>
-            ))}
+                  <button
+                    type="button"
+                    className={`nt-table-sort${sortIndex !== -1 ? " nt-table-sort--active" : ""}`}
+                    onClick={() => cycleSort(column)}
+                    disabled={column.sortable === false}
+                  >
+                    {column.label}
+                    {sortIndex !== -1 && (
+                      <>
+                        <Icon
+                          path={sort[sortIndex]!.direction === "asc" ? "mdi-arrow-up" : "mdi-arrow-down"}
+                          size={0.7}
+                        />
+                        {sort.length > 1 && (
+                          <span className="nt-table-sort-index">{sortIndex + 1}</span>
+                        )}
+                      </>
+                    )}
+                  </button>
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
