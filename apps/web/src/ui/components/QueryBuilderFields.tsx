@@ -4,16 +4,33 @@
  * dimension+measure), composed identically by QueryBlockView's popover and
  * the FilterBuilderModal. The representable subset lives in
  * queryBuilder.ts; this module is purely presentational.
+ *
+ * M35 — the v1 ViewBuilder interaction, chrome-only (the §34.31 AST is the
+ * one grammar; nothing here changes what composes): the fields render as the
+ * v1 block list — a scope bar on top, then one card per condition with an
+ * uppercase header label and a remove (✕) that clears the row back to its
+ * unset default. Setting a control IS the add gesture (the flat-AND subset
+ * has exactly these conditions — v1's type menu maps onto "the card you fill
+ * in"), and a card whose condition is unset reads as a dashed placeholder;
+ * when no filter is set at all, the v1 empty note names the consequence
+ * ("No filters — all nodes will be shown"). The operator pickers present
+ * v1-style: the fixed operators ride as prose words (contains / after /
+ * before), the bit conditions keep their tri-state picker. Every control
+ * keeps its label and value semantics, so the QueryBlockView/QueriesHub
+ * integrations are unchanged.
  */
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 
 import { QUERY_PLACEHOLDERS } from "@notees/query";
 
 import type { ClassBinding, ClientNode } from "@/core/workspace-client.js";
 
+import { Icon } from "../Icon.js";
+import { Button } from "./ui/Button.js";
 import { displayNameForSettings } from "../dateDisplay.js";
 import type { QueryBuilderState } from "../queryBuilder.js";
+import "./QueryBuilderFields.css";
 
 /** The read surface the pickers need (both client classes satisfy it). */
 export interface BuilderFactsClient {
@@ -63,13 +80,69 @@ export interface QueryBuilderFieldsProps {
   rootIsPage: boolean;
 }
 
+/**
+ * One v1 condition card: the uppercase header label + the remove (✕) that
+ * clears the row (visible only while the condition is set — the unset card
+ * is the dashed "add me" placeholder).
+ */
+function ConditionCard({
+  label,
+  active,
+  onRemove,
+  children,
+}: {
+  label: string;
+  active: boolean;
+  onRemove: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <section className={`nt-vb__card${active ? "" : " nt-vb__card--unset"}`}>
+      <header className="nt-vb__card-head">
+        <span className="nt-vb__card-label">{label}</span>
+        {active && (
+          <Button
+            variant="ghost"
+            size="xs"
+            icon="mdi-close"
+            aria-label={`Remove ${label} filter`}
+            title={`Remove ${label} filter`}
+            onClick={onRemove}
+          />
+        )}
+      </header>
+      <div className="nt-vb__card-body">{children}</div>
+    </section>
+  );
+}
+
 export function QueryBuilderFields({ state, onChange, facts, rootIsPage }: QueryBuilderFieldsProps) {
   const { classes, boundProperties, numericProperties } = facts;
+
+  // Active mirrors the compose gate (queryBuilder.ts): a condition composes
+  // into the AST exactly when its trimmed value differs from the default.
+  const classActive = state.classId !== null && state.classId !== "";
+  const classBitActive = state.isClass !== "";
+  const renderBitActive = state.presentAsMain !== "";
+  const containsActive = state.contains.trim() !== "";
+  const createdAfterActive = state.createdAfter.trim() !== "";
+  const createdBeforeActive = state.createdBefore.trim() !== "";
+  const sortActive = state.sortField !== "";
+  const groupActive = (state.groupBy ?? "") !== "" || (state.measure ?? "count") !== "count";
+  const anyFilterActive =
+    classActive || classBitActive || renderBitActive || containsActive || createdAfterActive || createdBeforeActive;
+
   return (
-    <>
-      <label className="nt-query-field">
-        <span>Scope</span>
+    <div className="nt-vb">
+      {/* The v1 scope bar: icon + prose + the scope picker. Scope is always
+          set (never a removable condition). */}
+      <div className="nt-vb__scope">
+        <span className="nt-vb__scope-label">
+          <Icon path="mdi-filter-variant" size={0.8} />
+          Scope
+        </span>
         <select
+          aria-label="Scope"
           value={state.scope}
           onChange={(event) =>
             onChange({ scope: event.target.value as QueryBuilderState["scope"] })
@@ -79,141 +152,183 @@ export function QueryBuilderFields({ state, onChange, facts, rootIsPage }: Query
           {rootIsPage && <option value="page">This page</option>}
           <option value="pages">Pages only</option>
         </select>
-      </label>
-      <label className="nt-query-field">
-        <span>Class</span>
-        <select
-          value={state.classId ?? ""}
-          onChange={(event) => onChange({ classId: event.target.value || null })}
-        >
-          <option value="">Any class</option>
-          {classes.map((cls) => (
-            <option key={cls.id} value={cls.id}>
-              {displayNameForSettings(cls) || cls.id}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="nt-query-field">
-        <span>Class bit</span>
-        <select
-          value={state.isClass}
-          onChange={(event) =>
-            onChange({ isClass: event.target.value as QueryBuilderState["isClass"] })
-          }
-        >
-          <option value="">Any</option>
-          <option value="true">Class</option>
-          <option value="false">Not a class</option>
-        </select>
-      </label>
-      <label className="nt-query-field">
-        <span>Render bit</span>
-        <select
-          value={state.presentAsMain}
-          onChange={(event) =>
-            onChange({ presentAsMain: event.target.value as QueryBuilderState["presentAsMain"] })
-          }
-        >
-          <option value="">Any</option>
-          <option value="true">Main children</option>
-          <option value="false">Inline body</option>
-        </select>
-      </label>
-      <label className="nt-query-field">
-        <span>Text contains</span>
-        <input
-          value={state.contains}
-          onChange={(event) => onChange({ contains: event.target.value })}
-        />
-      </label>
-      <label className="nt-query-field">
-        <span>Created after</span>
-        <input
-          list="nt-query-date-placeholders"
-          placeholder="{today} or 2026-10-04"
-          value={state.createdAfter}
-          onChange={(event) => onChange({ createdAfter: event.target.value })}
-        />
-      </label>
-      <label className="nt-query-field">
-        <span>Created before</span>
-        <input
-          list="nt-query-date-placeholders"
-          placeholder="{today} or 2026-10-04"
-          value={state.createdBefore}
-          onChange={(event) => onChange({ createdBefore: event.target.value })}
-        />
-      </label>
-      <datalist id="nt-query-date-placeholders">
-        {QUERY_PLACEHOLDERS.map((placeholder) => (
-          <option key={placeholder} value={placeholder} />
-        ))}
-      </datalist>
-      <label className="nt-query-field">
-        <span>Sort by</span>
-        <select
-          value={state.sortField}
-          onChange={(event) =>
-            onChange({ sortField: event.target.value as QueryBuilderState["sortField"] })
-          }
-        >
-          <option value="">None</option>
-          <option value="name">Name</option>
-          <option value="createdAt">Created</option>
-          <option value="isClass">Class bit</option>
-          <option value="presentAsMain">Render bit</option>
-        </select>
-      </label>
-      {state.sortField !== "" && (
-        <label className="nt-query-field">
-          <span>Sort direction</span>
+      </div>
+
+      {/* The v1 filters section: one card per condition. */}
+      <div className="nt-vb__filters">
+        {!anyFilterActive && (
+          <p className="nt-vb__empty-note">No filters — all nodes will be shown</p>
+        )}
+        <ConditionCard label="Class" active={classActive} onRemove={() => onChange({ classId: null })}>
           <select
-            value={state.sortDir}
+            aria-label="Class"
+            value={state.classId ?? ""}
+            onChange={(event) => onChange({ classId: event.target.value || null })}
+          >
+            <option value="">Any class</option>
+            {classes.map((cls) => (
+              <option key={cls.id} value={cls.id}>
+                {displayNameForSettings(cls) || cls.id}
+              </option>
+            ))}
+          </select>
+        </ConditionCard>
+        <ConditionCard
+          label="Class bit"
+          active={classBitActive}
+          onRemove={() => onChange({ isClass: "" })}
+        >
+          <span className="nt-vb__word">is</span>
+          <select
+            aria-label="Class bit"
+            value={state.isClass}
             onChange={(event) =>
-              onChange({ sortDir: event.target.value as QueryBuilderState["sortDir"] })
+              onChange({ isClass: event.target.value as QueryBuilderState["isClass"] })
             }
           >
-            <option value="asc">Ascending</option>
-            <option value="desc">Descending</option>
+            <option value="">Any</option>
+            <option value="true">A class</option>
+            <option value="false">Not a class</option>
           </select>
-        </label>
-      )}
-      <label className="nt-query-field">
-        <span>Group by</span>
-        <select value={state.groupBy} onChange={(event) => onChange({ groupBy: event.target.value })}>
-          <option value="">None</option>
-          <option value="isClass">Class bit</option>
-          <option value="presentAsMain">Render bit</option>
-          {classes.map((cls) => (
-            <option key={cls.id} value={`class:${cls.id}`}>
-              Class: {displayNameForSettings(cls) || cls.id}
-            </option>
+        </ConditionCard>
+        <ConditionCard
+          label="Render bit"
+          active={renderBitActive}
+          onRemove={() => onChange({ presentAsMain: "" })}
+        >
+          <span className="nt-vb__word">is</span>
+          <select
+            aria-label="Render bit"
+            value={state.presentAsMain}
+            onChange={(event) =>
+              onChange({ presentAsMain: event.target.value as QueryBuilderState["presentAsMain"] })
+            }
+          >
+            <option value="">Any</option>
+            <option value="true">Main children</option>
+            <option value="false">Inline body</option>
+          </select>
+        </ConditionCard>
+        <ConditionCard
+          label="Text contains"
+          active={containsActive}
+          onRemove={() => onChange({ contains: "" })}
+        >
+          <span className="nt-vb__word">contains</span>
+          <input
+            aria-label="Text contains"
+            value={state.contains}
+            onChange={(event) => onChange({ contains: event.target.value })}
+          />
+        </ConditionCard>
+        <ConditionCard
+          label="Created after"
+          active={createdAfterActive}
+          onRemove={() => onChange({ createdAfter: "" })}
+        >
+          <span className="nt-vb__word">after</span>
+          <input
+            aria-label="Created after"
+            list="nt-query-date-placeholders"
+            placeholder="{today} or 2026-10-04"
+            value={state.createdAfter}
+            onChange={(event) => onChange({ createdAfter: event.target.value })}
+          />
+        </ConditionCard>
+        <ConditionCard
+          label="Created before"
+          active={createdBeforeActive}
+          onRemove={() => onChange({ createdBefore: "" })}
+        >
+          <span className="nt-vb__word">before</span>
+          <input
+            aria-label="Created before"
+            list="nt-query-date-placeholders"
+            placeholder="{today} or 2026-10-04"
+            value={state.createdBefore}
+            onChange={(event) => onChange({ createdBefore: event.target.value })}
+          />
+        </ConditionCard>
+        <datalist id="nt-query-date-placeholders">
+          {QUERY_PLACEHOLDERS.map((placeholder) => (
+            <option key={placeholder} value={placeholder} />
           ))}
-          {boundProperties.map((property) => (
-            <option key={property.id} value={`property:${property.id}`}>
-              Property: {property.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="nt-query-field">
-        <span>Measure</span>
-        <select value={state.measure} onChange={(event) => onChange({ measure: event.target.value })}>
-          <option value="count">Count</option>
-          <option value="countDistinct">Count distinct</option>
-          {numericProperties.map((property) => (
-            <option key={property.id} value={`sum:${property.id}`}>
-              Sum of {property.name}
-            </option>
-          ))}
-          {numericProperties.map((property) => (
-            <option key={property.id} value={`avg:${property.id}`}>
-              Average of {property.name}
-            </option>
-          ))}
-        </select>
-      </label>
-    </>
+        </datalist>
+        <ConditionCard
+          label="Sort by"
+          active={sortActive}
+          onRemove={() => onChange({ sortField: "" })}
+        >
+          <select
+            aria-label="Sort by"
+            value={state.sortField}
+            onChange={(event) =>
+              onChange({ sortField: event.target.value as QueryBuilderState["sortField"] })
+            }
+          >
+            <option value="">None</option>
+            <option value="name">Name</option>
+            <option value="createdAt">Created</option>
+            <option value="isClass">Class bit</option>
+            <option value="presentAsMain">Render bit</option>
+          </select>
+          {state.sortField !== "" && (
+            <select
+              aria-label="Sort direction"
+              value={state.sortDir}
+              onChange={(event) =>
+                onChange({ sortDir: event.target.value as QueryBuilderState["sortDir"] })
+              }
+            >
+              <option value="asc">Ascending</option>
+              <option value="desc">Descending</option>
+            </select>
+          )}
+        </ConditionCard>
+        <ConditionCard
+          label="Group by"
+          active={groupActive}
+          onRemove={() => onChange({ groupBy: "", measure: "count" })}
+        >
+          <select
+            aria-label="Group by"
+            value={state.groupBy ?? ""}
+            onChange={(event) => onChange({ groupBy: event.target.value })}
+          >
+            <option value="">None</option>
+            <option value="isClass">Class bit</option>
+            <option value="presentAsMain">Render bit</option>
+            {classes.map((cls) => (
+              <option key={cls.id} value={`class:${cls.id}`}>
+                Class: {displayNameForSettings(cls) || cls.id}
+              </option>
+            ))}
+            {boundProperties.map((property) => (
+              <option key={property.id} value={`property:${property.id}`}>
+                Property: {property.name}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Measure"
+            value={state.measure ?? "count"}
+            onChange={(event) => onChange({ measure: event.target.value })}
+          >
+            <option value="count">Count</option>
+            <option value="countDistinct">Count distinct</option>
+            {numericProperties.map((property) => (
+              <option key={property.id} value={`sum:${property.id}`}>
+                Sum of {property.name}
+              </option>
+            ))}
+            {numericProperties.map((property) => (
+              <option key={property.id} value={`avg:${property.id}`}>
+                Average of {property.name}
+              </option>
+            ))}
+          </select>
+        </ConditionCard>
+      </div>
+    </div>
   );
 }
