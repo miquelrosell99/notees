@@ -1,5 +1,5 @@
 /**
- * PresentationOverlay tests (§34.26 P1/P6) — the kit's fullscreen host:
+ * PresentationOverlay tests — the kit's fullscreen host:
  * portal render with slide counter and toolbar, Esc exit via the overlay
  * stack, the presentation keymap (arrows / space / PageUp / PageDown with
  * clamping), edge click zones, focus trap, and the auto-hiding chrome.

@@ -44,7 +44,7 @@ export function NodePill({
   const pillRef = useRef<HTMLDivElement>(null);
   const colorMenuRef = useRef<HTMLDivElement>(null);
 
-  // Dismissal (§34.67): Escape closes the portaled color row; the backdrop
+  // Dismissal: Escape closes the portaled color row; the backdrop
   // keeps owning outside-click.
   usePopupDismissal({
     popupRef: colorMenuRef,

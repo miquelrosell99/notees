@@ -1,6 +1,6 @@
 /**
  * Effective-values read model (SCHEMA.md "Class properties"): the per-node
- * property view the panel and (M2) queries read through.
+ * property view the panel and queries read through.
  *
  *   effective(node, schema, idx) = authored property_value
  *                                  ?? winning binding's defaultValue
@@ -11,7 +11,7 @@
  * Authored rows come through the PG5 visible-set derivation
  * (property-values.ts: slot tombstones + element tombstones) and carry their
  * stable element id. Binding conflicts resolve per the SCHEMA.md diamond rule
- * (§34.32 PG4): OWN bindings first (first-class-applied-wins — the class
+ * (PG4): OWN bindings first (first-class-applied-wins — the class
  * whose OR-Set membership add carries the earliest HLC, exact ties by class
  * id), then INHERITED bindings by shortest extends-path (BFS over
  * class_extends; the class itself is distance 0), ties by the same assignment
@@ -37,7 +37,7 @@ export interface EffectivePropertySchema {
   numberPad: number | null;
   numberDecimals: number | null;
   numberRounding: "round" | "floor" | "ceil" | "truncate" | null;
-  /** §34.90: PROPERTY-level render contracts (NULL = panel / unset). */
+  /** PROPERTY-level render contracts (NULL = panel / unset). */
   display: "panel" | "bullet" | "inline" | null;
   readonly: boolean | null;
   hideWhenEmpty: boolean | null;
@@ -63,10 +63,10 @@ export interface EffectiveProperty {
   metadata: Record<string, unknown> | null;
   source: "authored" | "default";
   boundBy: string | null;
-  /** Per-CLASS (§34.90): the winning binding's required flag — a property
+  /** Per-CLASS: the winning binding's required flag — a property
    *  may be mandatory for one class, optional for another. */
   required: boolean | null;
-  /** PROPERTY-level (§34.90): the schema's render contracts — the same for
+  /** PROPERTY-level: the schema's render contracts — the same for
    *  every carrier, class-bound or not. */
   readonly: boolean | null;
   hideWhenEmpty: boolean | null;
@@ -94,7 +94,7 @@ function parseJson(raw: string): unknown {
 }
 
 const flag = (v: number | null): boolean | null => (v === null || v === undefined ? null : v === 1);
-/** §34.89: sanitize the stored position (NULL/unknown = the "panel" default). */
+/** Sanitize the stored position (NULL/unknown = the "panel" default). */
 const displayOf = (v: string | null): "panel" | "bullet" | "inline" | null =>
   v === "bullet" || v === "inline" ? v : null;
 
@@ -278,7 +278,7 @@ export function getEffectiveProperties(db: SqliteDB, nodeId: string): EffectiveP
       metadata: authored.metadata !== null ? (parseJson(authored.metadata) as Record<string, unknown>) : null,
       source: "authored",
       boundBy: winner?.classId ?? null,
-      // §34.90: required is per-CLASS (the winning binding); readonly/
+      // Required is per-CLASS (the winning binding); readonly/
       // hideWhenEmpty/display are per-PROPERTY (the schema — unbound values
       // included, the owner's multi-class/unbound cases).
       required: winner ? flag(winner.binding.required) : null,

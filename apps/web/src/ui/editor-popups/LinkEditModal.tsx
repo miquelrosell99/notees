@@ -6,12 +6,12 @@
  * are wired here: the target section hosts the NodeSelector picker (Page =
  * pages, Block = blocks) and the Display Label field sets an optional
  * per-link `displayText` override (empty = resolve the target's name). URL
- * mode authors external_link tokens. Verb mode (PG1, §34.32) edits a
+ * mode authors external_link tokens. Verb mode edits a
  * typed_link mark: the verb field live-matches the workspace's property
  * schemas (an exact name hit saves bound to the existing schema; an unknown
  * name offers "Create property '…' and bind") plus the optional locator.
  * When the mention's target id resolves to no node, the target section
- * offers the §34.19 "create page with this id" heal (the caller-id create
+ * offers the "create page with this id" heal (the caller-id create
  * path — the mention heals in place, no retarget write). Enter inside the
  * modal saves (capture phase, so it beats button activation) — except
  * inside the embedded node picker, which owns Enter/Escape for its rows;
@@ -199,7 +199,7 @@ export function LinkEditModal({
   const verbInputRef = useRef<HTMLInputElement>(null);
 
   /**
-   * §34.19 broken-link heal: the mention's target id resolves to no node —
+   * Broken-link heal: the mention's target id resolves to no node —
    * offer creating the page AT that id (the caller-id create path), so the
    * mention heals in place instead of being retargeted.
    */

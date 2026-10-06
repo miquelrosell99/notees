@@ -1,6 +1,6 @@
 /**
- * Mobile quick-create + drawer dismissal tests (§34.19 MobileLayout owed
- * half): the QuickCreateFab component (a floating action button opening the
+ * Mobile quick-create + drawer dismissal tests: the QuickCreateFab
+ * component (a floating action button opening the
  * existing QuickAddModal) and the drawerDismissHandler predicate from
  * App.tsx (narrow-viewport taps outside the drawer/topbar close it; desktop
  * and no-matchMedia environments never dismiss). The FAB's narrow-width
@@ -47,7 +47,7 @@ async function seedClient(): Promise<WorkspaceClient> {
   return client;
 }
 
-describe("QuickCreateFab (§34.19 MobileLayout FAB)", () => {
+describe("QuickCreateFab", () => {
   it("renders the FAB button and opens the QuickAddModal on tap", async () => {
     const client = await seedClient();
     render(<QuickCreateFab client={client} />);

@@ -1,6 +1,6 @@
 /**
- * Shares API — the share-token slice of the sync server (routes-shares.ts,
- * §34.62 shares record). Plain fetch helpers mirroring core/auth-api's and
+ * Shares API — the share-token slice of the sync server (routes-shares.ts
+ * shares record). Plain fetch helpers mirroring core/auth-api's and
  * workspaceApi's request shape: the session token (or operator key) rides the
  * Authorization slot. All routes are owner/admin-gated server-side.
  */

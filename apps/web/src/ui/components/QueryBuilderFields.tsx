@@ -2,7 +2,7 @@
  * QueryBuilderFields — the shared builder field grid (scope / class / the
  * Revision-11 bits / text-contains / created window / sort / one aggregation
  * dimension+measure), composed identically by QueryBlockView's popover and
- * the FilterBuilderModal (§34.31 V2). The representable subset lives in
+ * the FilterBuilderModal. The representable subset lives in
  * queryBuilder.ts; this module is purely presentational.
  */
 

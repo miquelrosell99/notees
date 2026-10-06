@@ -1,5 +1,5 @@
 /**
- * §34.19 broken-link "create page with UUID" row — LinkEditModal's
+ * Broken-link "create page with UUID" row — LinkEditModal's
  * broken-target state: when a mention's target id resolves to no node, the
  * modal offers creating the page AT that id (the caller-id create path).
  * The mention heals in place — its targetNodeId stays, the token is never

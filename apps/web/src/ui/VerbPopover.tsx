@@ -5,7 +5,7 @@
  * editor's blur handler treats focus-within as "stay in edit mode").
  * Enter submits, Esc cancels. Fixed-positioned at the selection anchor.
  *
- * PG1 schema-at-capture (§34.32): the popover live-matches the typed verb
+ * Schema-at-capture: the popover live-matches the typed verb
  * against the workspace's property schemas and offers the bound-verb path —
  * a row under the fields:
  *  - the verb matches an EXISTING property schema → "Bind to property …"
@@ -30,12 +30,12 @@ export interface VerbSchemaOption {
 interface VerbPopoverProps {
   top: number;
   left: number;
-  /** Property schemas live-matched against the typed verb (PG1). */
+  /** Property schemas live-matched against the typed verb. */
   schemas?: readonly VerbSchemaOption[] | undefined;
-  /** Bind the mark to an existing property schema (PG1). */
+  /** Bind the mark to an existing property schema. */
   onBind?: ((schemaId: string, verb: string, locator: string) => void) | undefined;
   /**
-   * Create-and-bind (PG1): the caller authors the property schema (typed
+   * Create-and-bind: the caller authors the property schema (typed
    * object, multi, empty targetClassFilter) and then binds the mark. May
    * return a promise — the row shows a pending state and surfaces a failure.
    */
@@ -52,7 +52,7 @@ export function VerbPopover({ top, left, schemas, onBind, onCreateAndBind, onSub
   const verbRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
-  // Dismissal (§34.67): pointer-down outside the popover cancels it. Escape
+  // Dismissal: pointer-down outside the popover cancels it. Escape
   // stays with the form's own keydown (the hook skips in-popup keystrokes).
   usePopupDismissal({
     popupRef: formRef,

@@ -1,15 +1,15 @@
 /**
- * Format registry — the package-side catalog of export formats (§34.24 E1).
+ * Format registry — the package-side catalog of export formats.
  * Every serializer consumes the {@link ExportDocument} IR; this module maps
  * format ids to labels, availability (with honest reasons), the per-format
- * option specs (from the gated catalog in options.ts — the task-E3 modal
+ * option specs (from the gated catalog in options.ts — the export modal
  * renders its options section from these), and the serializer itself.
  *
  * Markdown, HTML, Word (.docx), and LaTeX are implemented. pdf is the
  * remaining registered skeleton with `availability: "unavailable"` and the
- * work-record task that will land it (P1) — the modal lists it disabled
+ * landing task (P1) — the modal lists it disabled
  * instead of stub-message tabs, and its serializer throws loud rather than
- * no-oping. The web-side registry (task E3) delegates to this one.
+ * no-oping. The web-side registry delegates to this one.
  */
 
 import type { ExportDocument } from "./document.js";
@@ -54,7 +54,7 @@ export interface ExportFormatDefinition {
 function notImplemented(id: ExportFormatId, task: string): ExportFormatDefinition["serialize"] {
   return () => {
     throw new Error(
-      `${id} export is registered but not implemented — it lands in ${task} of the export-redesign work record (§34.24).`,
+      `${id} export is registered but not implemented — it lands in ${task} of the export-redesign pass.`,
     );
   };
 }

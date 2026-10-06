@@ -1,6 +1,5 @@
 /**
- * JSON archive specs (§34.12 Tier-1 + §34.24 parked row "JSON archive",
- * 2026-10-04): the versioned envelope, verbatim node payloads, the edges
+ * JSON archive specs (2026-10-04): the versioned envelope, verbatim node payloads, the edges
  * metadata mined from streams and property values, id de-duplication, and a
  * parse-back sanity of the rendered document.
  */

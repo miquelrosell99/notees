@@ -1,7 +1,6 @@
 /**
- * Per-occurrence completion for recurring tasks (§34.69 — the §34.63
- * follow-up): the Calendar day view's done-toggle on a recurring task's
- * occurrence records the DATE in the taskScheduled value's metadata
+ * Per-occurrence completion for recurring tasks: the Calendar day view's
+ * done-toggle on a recurring task's occurrence records the DATE in the taskScheduled value's metadata
  * (`completedOccurrences`) instead of the node-level status — the occurrence
  * renders done on that day while every other occurrence stays open, and
  * reopening removes the date. Occurrences stay virtual (no nodes). A plain
@@ -74,7 +73,7 @@ function scheduledValueOf(client: WorkspaceClient, id: string) {
     .find((prop) => prop.propertySchemaId === SYSTEM_PROPERTY_UUIDS.taskScheduled);
 }
 
-describe("per-occurrence completion (§34.69)", () => {
+describe("per-occurrence completion", () => {
   it("partitionOpenTasks flags a done occurrence on its day, keeps other occurrences open", () => {
     const today = todayIsoLocal();
     const rows = [

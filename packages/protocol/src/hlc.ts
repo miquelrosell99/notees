@@ -1,7 +1,7 @@
 /**
- * Hybrid Logical Clock — causality metadata for v2 envelopes.
+ * Hybrid Logical Clock — causality metadata for the envelopes.
  *
- * Semantics (design law, assessment §34.4): the HLC is causality metadata only.
+ * Semantics (design law): the HLC is causality metadata only.
  * The server-assigned `seq` is the sole ordering authority. The HLC never
  * orders the relay log; it resolves last-writer-wins ties in derived state.
  */

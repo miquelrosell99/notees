@@ -1,9 +1,9 @@
 /**
- * Template apply-time variable tests (§34.25 T4): the `{{name}}` syntax
- * (one syntax for static + dynamic), the dual extraction (v1 port, Set
+ * Template apply-time variable tests: the `{{name}}` syntax
+ * (one syntax for static + dynamic), the dual extraction (Set
  * dedup, first-seen order), text-token-only substitution inside the clone
  * engine's composition (graft root + cloned children), the unknown-name
- * verbatim guard, and the dynamic values computed LOCAL (the v1 UTC
+ * verbatim guard, and the dynamic values computed LOCAL (the UTC
  * `today` bug stays fixed).
  */
 
@@ -212,7 +212,7 @@ describe("computeDynamicTemplateVariables (local, never UTC)", () => {
   // 2026-10-03 15:04:05 local (month/day constructor = local by design).
   const NOW = new Date(2026, 9, 3, 15, 4, 5);
 
-  it("today is the LOCAL date (the v1 UTC bug stays fixed)", () => {
+  it("today is the LOCAL date (the UTC bug stays fixed)", () => {
     const values = computeDynamicTemplateVariables(["today"], {}, NOW);
     expect(values.today).toBe("2026-10-03");
   });

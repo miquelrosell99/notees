@@ -3,7 +3,7 @@
  * (outline/prose/cards) over PageView, the classed-nodes table default,
  * and the Tasks/Assets hub modes. jsdom over the in-process
  * WorkspaceClient + MemoryRelay; view-mode state persists device-locally
- * (§34.27 L1) under `viewMode.*` keys, and the global afterEach clears
+ * under `viewMode.*` keys, and the global afterEach clears
  * localStorage — so a fresh render still lands on the surface default here.
  *
  * The outline/prose/cards switcher moved to the App-level NodeView chrome
@@ -64,7 +64,7 @@ async function flushWrites(): Promise<void> {
 }
 
 /**
- * The tasks hub authors the task family on open (§34.28 #2), so its kanban
+ * The tasks hub authors the task family on open, so its kanban
  * board groups by the fixed-id taskStatus schema — tests ensure the family
  * up front for a deterministic first render (and no in-flight writes at
  * teardown), reading the fresh option ids back from the authored schema.
@@ -184,7 +184,7 @@ describe("classed-nodes table", () => {
     await client.assignClass(member, classId);
     render(<ClassView client={client} classId={classId} />);
 
-    // The section defaults to expanded (§34.44); only click when collapsed.
+    // The section defaults to expanded; only click when collapsed.
     const classedNodesHeader = screen.getByRole("button", { name: /classed nodes/i });
     if (classedNodesHeader.getAttribute("aria-expanded") === "false") {
       fireEvent.click(classedNodesHeader);
@@ -206,7 +206,7 @@ describe("classed-nodes table", () => {
 describe("tasks hub", () => {
   it("lists pages AND blocks classed task, table by default, switchable", async () => {
     const client = await seedClient();
-    // The hub authors the task family on open (§34.28 #2) — ensure up front
+    // The hub authors the task family on open — ensure up front
     // so no write is in flight when the test teardown closes the client.
     await ensureTaskFamily(client);
     const taskPage = await client.createObject({ presentAsMain: true, name: "Write report" });
@@ -230,7 +230,7 @@ describe("tasks hub", () => {
     expect(cards.length).toBe(2);
 
     fireEvent.click(screen.getByRole("radio", { name: "Outline" }));
-    // §34.28 #5 — the bucket section above the collection lists the same
+    // The bucket section above the collection lists the same
     // tasks; scope the outline assertions to the hub collection itself.
     const hub = within(document.querySelector(".nt-hub") as HTMLElement);
     expect(hub.getByRole("button", { name: /Write report/ })).not.toBeNull();
@@ -335,7 +335,7 @@ describe("kanban board (property-dimension groupBy)", () => {
   it("kanban rides the authored task family; hubs without a grouping select offer no kanban", async () => {
     const client = await seedClient();
     await seedTask(client, "Lonely Task");
-    // §34.28 #2: the hub authors the task family on open, so the status
+    // The hub authors the task family on open, so the status
     // schema (a usable select) always exists and kanban is always offered.
     await ensureTaskFamily(client);
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
@@ -360,7 +360,7 @@ describe("kanban board (property-dimension groupBy)", () => {
     await client.assignClass(member, classId);
 
     render(<ClassView client={client} classId={classId} />);
-    // The section defaults to expanded (§34.44); only click when collapsed.
+    // The section defaults to expanded; only click when collapsed.
     const classedNodesHeader = screen.getByRole("button", { name: /classed nodes/i });
     if (classedNodesHeader.getAttribute("aria-expanded") === "false") {
       fireEvent.click(classedNodesHeader);
@@ -584,7 +584,7 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
   }
 
   const expandClassedNodes = async (): Promise<void> => {
-    // The section defaults to expanded (§34.44); only click when collapsed.
+    // The section defaults to expanded; only click when collapsed.
     const classedNodesHeader = screen.getByRole("button", { name: /classed nodes/i });
     if (classedNodesHeader.getAttribute("aria-expanded") === "false") {
       fireEvent.click(classedNodesHeader);
@@ -669,7 +669,7 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     render(<ClassView client={client} classId={seeded.classId} />);
     await expandClassedNodes();
 
-    // §34.32 PG17: the cell rides the shared DateSlotControl — clicking opens
+    // The cell rides the shared DateSlotControl — clicking opens
     // the zoom picker initialized at the committed month (Oct 2026); picking
     // the 5th rewrites the ref through ensureDateChain.
     fireEvent.click(screen.getAllByRole("button", { name: "Due" })[1]!);
@@ -717,7 +717,7 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
   });
 });
 
-describe("table export: CSV view export + selection-scoped export (§34.59)", () => {
+describe("table export: CSV view export + selection-scoped export", () => {
   /** Minimal RFC-4180 reader (spec-local; mirrors the package escaper). */
   function parseCsv(text: string): string[][] {
     const input = text.startsWith("﻿") ? text.slice(1) : text;
@@ -951,7 +951,7 @@ describe("kanban polish: multi-select grouping, collapsible columns", () => {
     const other = await client.createObject({ presentAsMain: true, name: "Other" });
     await client.assignClass(other, SYSTEM_CLASS_UUIDS.task);
 
-    // The tasks hub groups by the authored single-select status (§34.28 #2),
+    // The tasks hub groups by the authored single-select status,
     // so the multi-select dimension is exercised through an explicit board.
     const items = [both, other]
       .map((id) => client.getNode(id)!)
@@ -991,7 +991,7 @@ describe("kanban polish: multi-select grouping, collapsible columns", () => {
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
     fireEvent.click(screen.getByRole("radio", { name: "Kanban" }));
 
-    // §34.28 #5 — the bucket section also lists "Solo"; the collapse
+    // The bucket section also lists "Solo"; the collapse
     // assertions scope to the board itself.
     const board = () => document.querySelector(".kanban-board") as HTMLElement;
     fireEvent.click(screen.getByRole("button", { name: "Collapse column Backlog" }));

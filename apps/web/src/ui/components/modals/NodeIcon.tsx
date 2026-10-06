@@ -38,7 +38,7 @@ export function NodeIcon({
   color?: string | null;
 }) {
   // Parse JSON-encoded icon fields like {"icon":"mdiCalendarToday","color":"green"}
-  // (the color rides the §34.43 token|hex grammar).
+  // (the color rides the token|hex grammar).
   let icon = rawIcon;
   let parsedColor: string | undefined;
   if (rawIcon) {

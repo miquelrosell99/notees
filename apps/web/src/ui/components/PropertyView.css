@@ -1,4 +1,4 @@
-/* PropertyView — the property schema's inspector modal (§34.32 PG12).
+/* PropertyView — the property schema's inspector modal.
  * Token-only: every value resolves to a custom property from variables.css. */
 
 .nt-property-view .modal__content {

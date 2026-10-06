@@ -1,12 +1,11 @@
 /**
  * ClassView — the class projection (SCHEMA.md render cascade, first branch):
- * a class page IS a page (`.plans/design/05-class-view-redesign.md`): the
- * standard PageView chrome and the class's child blocks as the editable
- * body, composed with class-relevant sections:
+ * a class page IS a page: the standard PageView chrome and the class's child
+ * blocks as the editable body, composed with class-relevant sections:
  *
  * - corner: ExtendsRow — the class's PARENT classes as pills (class-only
  *   picker; class.setExtends replace semantics, loud cycle failure).
- * - header actions: the class color dot (ColorButton picker; §34.43 grammar);
+ * - header actions: the class color dot (ColorButton picker; the color grammar);
  *   the curated ClassIconButton replaces the page icon picker.
  * - sections: ClassedNodesSection (the instances table — the class page's
  *   centerpiece), PropertyDefinitionsSection (the schema editor),

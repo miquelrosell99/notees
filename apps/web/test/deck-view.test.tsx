@@ -1,5 +1,5 @@
 /**
- * Presentation mode integration tests (§34.26 P3–P7) — DeckView over a real
+ * Presentation mode integration tests — DeckView over a real
  * seeded client: the title slide, the intro/section partition rendered
  * read-only, keymap navigation, Esc exit, session-local resume, link
  * click-through (exit + navigate), embed expansion into the slide stream,
@@ -250,7 +250,7 @@ describe("Present entry point", () => {
   });
 });
 
-describe("DeckView §34.75 — assets, images, and covers in presentation mode", () => {
+describe("DeckView — assets, images, and covers in presentation mode", () => {
   it("an asset token inside a text block renders the live image (click → lightbox)", async () => {
     const client = await seedClient();
     const asset = await client.createObject({ presentAsMain: true, name: "slide-art.png" });

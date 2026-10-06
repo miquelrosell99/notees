@@ -1,6 +1,6 @@
 /**
  * DateSlotControl — one shared date-slot editor for every surface that
- * commits a single day-precision date (§34.32 PG17): the metadata panel's
+ * commits a single day-precision date: the metadata panel's
  * date_range start/end slots and date-qualified link qualifiers, and the
  * table view's date cells. One implementation, one picker (the zoom
  * DatePickerPopup — no native date inputs), one clear contract.
@@ -10,7 +10,7 @@
  * value means — a date-chain node reference for property values
  * (ensureDateChain at the call site), a bare ISO qualifier for metadata.
  *
- * §34.63 — an optional RepeatPicker rides the slot (event date cells): the
+ * An optional RepeatPicker rides the slot (event date cells): the
  * caller passes the stored `metadata.repeat` grammar string plus an
  * `onRepeatChange` and owns the write, exactly like `onCommit`.
  */
@@ -58,7 +58,7 @@ export interface DateSlotControlProps {
   clearable?: boolean;
   clearLabel?: string;
   onCommit: (iso: string | null) => void;
-  /** §34.63 — the stored recurrence grammar string (null = does not repeat). */
+  /** The stored recurrence grammar string (null = does not repeat). */
   repeat?: string | null;
   /** With onRepeatChange, a RepeatPicker rides the slot; the caller writes. */
   onRepeatChange?: ((rule: string | null) => void) | undefined;

@@ -7,7 +7,7 @@
  *  - at most ONE sort spec (field + direction);
  *  - at most ONE aggregation dimension + ONE measure.
  *
- * §34.31 C1 — the read-back hazard: an AST using constructs OUTSIDE this
+ * The read-back hazard: an AST using constructs OUTSIDE this
  * subset (or-roots, nested groups, NOT, property/linkedTo conditions, fts,
  * multi-sort, multi-dimension aggregations) used to load into the builder as
  * silent defaults, and a single Apply clobbered the rich AST. The guard here
@@ -15,7 +15,7 @@
  * the UI can render a read-only summary + an explicit "edit anyway" opt-in
  * before any lossy write.
  *
- * §34.31 V2 — createdAfter/createdBefore read and write through the shared
+ * createdAfter/createdBefore read and write through the shared
  * state (values may be `{today}`-style placeholders — the compile-time
  * resolution lives in @notees/query's placeholders module), and a single
  * sort row is representable.
@@ -112,7 +112,7 @@ export function builderUnsupportedConstructs(ast: QueryAst | null): string[] {
 /**
  * Populate the builder from an AST, best effort: unsupported constructs read
  * back as defaults/omitted (callers gate on `builderUnsupportedConstructs`
- * first — §34.31 C1). The represented subset round-trips: scope, the flat
+ * first). The represented subset round-trips: scope, the flat
  * AND conditions (incl. the created window), the first sort spec, and the
  * first aggregation dimension/measure.
  */

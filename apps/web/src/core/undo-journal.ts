@@ -1,5 +1,5 @@
 /**
- * undo-journal.ts — the session-local op-inverse undo journal (§34.64).
+ * undo-journal.ts — the session-local op-inverse undo journal.
  *
  * Model law: the operation log is the only authority, and this journal is a
  * pure CLIENT convenience — it never invents a new op type. Every locally
@@ -42,7 +42,7 @@
  *                         (root display order is name-sorted, not positional).
  *  - property.set         → property.set with the captured prior row (value +
  *                         idx + elementId + metadata), or property.unset when
- *                         the slot was empty. A PG5 element add inverts as an
+ *                         the slot was empty. An element add inverts as an
  *                         element-addressed remove.
  *  - property.unset       → property.set restoring the captured row (nothing
  *                         to restore → the unset is a no-op, not journaled).
@@ -103,7 +103,7 @@ export const EMPTY_UNDO_STATE: UndoUiState = {
 };
 
 /**
- * One browsable history entry (§34.69 — v1's history menu with jump-to):
+ * One browsable history entry (the history menu with jump-to):
  * the label, the timestamp, and the node ids the entry touched. Jumping
  * opens the first affected node that still resolves — the honest move for a
  * session journal (it cannot restore a past caret or scroll position).
@@ -132,7 +132,7 @@ export interface UndoNodeSnapshot {
   active: boolean;
 }
 
-/** One property_value row, decoded (the row id IS the PG5 element id). */
+/** One property_value row, decoded (the row id IS the element id). */
 export interface UndoPropertyValueSnapshot {
   elementId: string;
   idx: number;
@@ -140,7 +140,7 @@ export interface UndoPropertyValueSnapshot {
   metadata: Record<string, unknown> | null;
 }
 
-/** One class_property binding row, decoded. §34.90: the render contracts
+/** One class_property binding row, decoded. The render contracts
  *  (readonly/hideWhenEmpty/display) left the binding for the property schema
  *  — a binding snapshot carries only what class.property.set still writes. */
 export interface UndoBindingSnapshot {
@@ -161,7 +161,7 @@ export interface UndoSchemaSnapshot {
   targetClassFilter: string[] | null;
   datePrecision: string | null;
   dateQualified: boolean | null;
-  /** §34.90 render contracts (PROPERTY-level): null = panel / unset. */
+  /** The render contracts (PROPERTY-level): null = panel / unset. */
   display: "panel" | "bullet" | "inline" | null;
   readonly: boolean | null;
   hideWhenEmpty: boolean | null;

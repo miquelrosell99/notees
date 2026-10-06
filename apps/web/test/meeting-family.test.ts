@@ -1,5 +1,5 @@
 /**
- * ensureMeetingFamily tests (§34.36 + owner reshape directive 2026-10-04:
+ * ensureMeetingFamily tests (owner reshape directive 2026-10-04:
  * plain seeds). `event` is the calendar family root (its single eventDate
  * date binding is the calendar-eligibility anchor); `meeting` extends it
  * with its own family (meetingDate/location/agenda). A fresh/offline
@@ -336,7 +336,7 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
   });
 });
 
-describe("ensureBirthdayFamily (birthday extends event, for persons — §34.36.3)", () => {
+describe("ensureBirthdayFamily (birthday extends event, for persons)", () => {
   it("self-heals the birthday family at the reserved ids on an unseeded workspace", async () => {
     const client = await seedClient();
     expect(await birthdayFamilyPresent(client)).toBe(false);
@@ -482,7 +482,7 @@ describe("ensureBirthdayFamily (birthday extends event, for persons — §34.36.
     ).toEqual({ nodeId: personId });
 
     // …an organization is NOT (person-rooted filter; org founding days are
-    // ordinary events). The write fails loud per the §34.45/§34.51 rule.
+    // ordinary events). The write fails loud per the loud-failure rule.
     await expect(
       client.setProperty(birthday, SYSTEM_PROPERTY_UUIDS.birthdayPerson, { nodeId: orgId }, 1),
     ).rejects.toThrow();

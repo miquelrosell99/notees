@@ -5,7 +5,7 @@
  * tags, statuses, node colors, class pills, and selection options. The
  * design-system tokens stay monochrome.
  *
- * Wire grammar (packages/protocol/src/colors.ts, §34.43): stored colors are
+ * Wire grammar (packages/protocol/src/colors.ts): stored colors are
  * preset TOKENS (`"sky"`) or custom `#RRGGBB` hex — never CSS syntax. The
  * concrete preset hex lives only in variables.css (`--color-preset-*`), so
  * themes remap the palette without rewriting node data.
@@ -17,9 +17,9 @@
  *    token → PRESET_HEX, hex passthrough). PRESET_HEX mirrors variables.css
  *    and a parity test (color-presets.test.ts) fails on drift.
  *
- * `canonicalColor(stored)` folds the retired v1 CSS-variable encoding
+ * `canonicalColor(stored)` folds the retired CSS-variable encoding
  * (`var(--color-preset-red)`) to its token — render tolerance for data
- * read before the §34.43 log migration / client re-sync window closes; the
+ * read before the log migration / client re-sync window closes; the
  * wire schemas reject that encoding outright.
  */
 

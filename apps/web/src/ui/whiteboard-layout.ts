@@ -9,8 +9,8 @@
  * by a newer client degrades to "fewer things on the canvas" instead of a
  * broken token. Serialization is the strict inverse of the typed shape.
  *
- * Toolset formatting (§34.19 whiteboard row) rides the same fields:
- * `color` follows the §34.43 data-color grammar (preset token or `#RRGGBB`;
+ * Toolset formatting rides the same fields:
+ * `color` follows the data-color grammar (preset token or `#RRGGBB`;
  * absent = theme default) and widths are world-unit stroke widths.
  */
 
@@ -38,7 +38,7 @@ export interface WhiteboardShape {
   h: number;
   /** Chrome only — semantic text lives in cards, never in shape labels. */
   label?: string;
-  /** §34.43 grammar: preset token or `#RRGGBB`; absent = theme default. */
+  /** Preset token or `#RRGGBB`; absent = theme default. */
   color?: string;
   /** Stroke width in world units; absent = the canvas default. */
   strokeWidth?: number;
@@ -48,7 +48,7 @@ export interface WhiteboardShape {
 export interface WhiteboardStroke {
   id: string;
   points: number[];
-  /** §34.43 grammar: preset token or `#RRGGBB`; absent = theme default. */
+  /** Preset token or `#RRGGBB`; absent = theme default. */
   color?: string;
   /** Pen width in world units; absent = the canvas default. */
   width?: number;
@@ -92,7 +92,7 @@ function finiteWidth(value: unknown): number | null {
   return parsed !== null && parsed > 0 ? parsed : null;
 }
 
-/** A color must satisfy the §34.43 grammar to survive the read. */
+/** A color must satisfy the color grammar to survive the read. */
 function parseColor(value: unknown): string | null {
   return typeof value === "string" && isColorValue(value) ? value : null;
 }

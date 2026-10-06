@@ -1,5 +1,5 @@
 /**
- * The persisted query-token `view` record — the §34.31 V3 formalization
+ * The persisted query-token `view` record — the formalization
  * (SCHEMA.md "The token view record"). The protocol grammar keeps the record
  * a free-form `z.record(z.unknown())` (foreign keys ride along; newer
  * writers must not break older readers), so this module is the web client's
@@ -9,7 +9,7 @@
  *                  back as the list default;
  *  - `title`     — the saved view's display name (ViewTabs); null when unset
  *                  (the tab falls back to "Query N");
- *  - `isDefault` — the section opens on this saved view (V13: the default is
+ *  - `isDefault` — the section opens on this saved view (the default is
  *                  configuration in the record, not code).
  *
  * Writers merge into the existing record (never replace it) so keys this

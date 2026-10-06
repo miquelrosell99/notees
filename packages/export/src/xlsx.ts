@@ -7,7 +7,7 @@
  * dependency, already in the tree for the docx specs), NOT in the IR-based
  * EXPORT_FORMATS registry (the registry consumes per-node-subtree
  * ExportDocuments; this input is view-shaped), and the same options-bag
- * discipline (§34.24 E1).
+ * discipline.
  *
  * The produced file is a minimal-but-valid SpreadsheetML zip, hand-rolled:
  * [Content_Types].xml, the top-level _rels, xl/workbook.xml (+ its rels) and

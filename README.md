@@ -1,10 +1,10 @@
-# Notees v2
+# Notees
 
 **One object graph. The operation log is the only authority. Every interface — UI, CLI, API, export — is a projection of the same derived state.**
 
 Notees is a local-first personal knowledge environment: a single node table for pages, blocks, and classes; three information layers (attributes, discourse links, plain prose) feeding one edge index; and an append-only op log that syncs between your devices and converges without a server you have to trust.
 
-It is also a greenfield rewrite at **M1 alpha**. The model below is settled; the surface is young. See [Status](#status-m1-alpha) before planning your workflow around it.
+It is also at **alpha**. The model below is settled; the surface is young. See [Status](#status-alpha) before planning your workflow around it.
 
 ## The five bets
 
@@ -16,9 +16,9 @@ Five design decisions no competitor makes, which together define what Notees is 
 | 2 | **Unified node table — classes are nodes** | Pages, blocks, and classes are rows of one table with one identity scheme. Inheritance (`extends`) is an m2m property on class nodes; the hierarchy closure is derived, not stored. |
 | 3 | **Typed discourse links as marks on prose words** | "X *contradicts* Y" is a mark on the word you wrote — a verb in your sentence, not a field in a form. Verbs group backlinks and color the graph. |
 | 4 | **Two-way link propagation along the tree** | Backlinks roll up to containing pages, and links inherit down the tree: `refset(n) = own_links(n) ∪ refset(parent(n))`. Containment is context; nobody tags anything. |
-| 5 | **Agent-first surface** | Scoped API keys (server-enforced read/write scopes today; in-app checkboxes §34.19), one grammar for humans and machines, and a full CLI from M1. Agents are peers of the UI, not plugins bolted on later. |
+| 5 | **Agent-first surface** | Scoped API keys (server-enforced read/write scopes today; in-app key management planned), one grammar for humans and machines, and a full CLI. Agents are peers of the UI, not plugins bolted on later. |
 
-## Status: M1 alpha
+## Status: alpha
 
 The model is implemented; the product around it is a slice. We say exactly which is which in every document — [philosophy](docs/philosophy.md) for the ideas, [usage](docs/usage.md) for what you can run now, [ux](docs/ux.md) for the interaction model (each feature labeled Today or Designed).
 
@@ -33,8 +33,8 @@ The model is implemented; the product around it is a slice. We say exactly which
 
 **Designed, coming**
 
-- M2 — research environment: interactive outliner editor, typed-link capture UX, whiteboards UI, citations/bibliography, annotations on assets, Markdown export, typed-link target resolution
-- M3 — trust & extension: E2EE activation, plugin runtime, multi-user, realtime collaboration
+- Research environment — interactive outliner editor, typed-link capture UX, whiteboards UI, citations/bibliography, annotations on assets, Markdown export, typed-link target resolution
+- Trust & extension — E2EE activation, plugin runtime, multi-user, realtime collaboration
 
 ## Quickstart
 
@@ -58,7 +58,7 @@ The full walkthrough — server env, a real CLI session, the web app, the object
 - [docs/usage.md](docs/usage.md) — install, run, CLI tutorial, web app, object API reference
 - [docs/ux.md](docs/ux.md) — the interaction model: outliner, system sections, marks on words, whiteboards, promotion (Today vs Designed per feature)
 - [docs/developers/](docs/developers/) — runbooks for people developing and operating Notees: architecture, development, deployment, live data migrations, releases & client lockstep
-- [.plans/design/](.plans/design/) — the normative design stack (`00-INDEX.md`, `01-knowledge-model.md`, `02-model-assessment.md`, `03-paradigm-assessment.md`)
+- [CHANGELOG.md](CHANGELOG.md) — the shipped-work record
 - [packages/protocol/SCHEMA.md](packages/protocol/SCHEMA.md) — content grammar, node structure, typed-link tokens, sections contract (normative)
 - [packages/protocol/WIRE.md](packages/protocol/WIRE.md) — relay wire spec: envelopes, endpoints, WebSocket framing
 
@@ -68,7 +68,8 @@ The full walkthrough — server env, a real CLI session, the web app, the object
 - `packages/domain` — display-name derivation, seeds, shared domain logic
 - `packages/store` — SQLite derived state (server: better-sqlite3; web: sql.js)
 - `packages/sync` — SyncEngine: outbox, catch-up, snapshot restore
-- `packages/query`, `packages/search`, `packages/editor`, `packages/api-client`, `packages/plugin-sdk` — per-milestone scope (see plan assessment §34.3)
+- `packages/query` — QueryAST model + SQLite compiler
+- `packages/export` — export projections (markdown/html/docx/latex/csv/json-archive/bibtex)
 - `apps/server`, `apps/web` — the two surfaces you can run today (the CLI is its own repo: [notees-cli](https://github.com/miquelrosell99/notees-cli))
 
 ## Development

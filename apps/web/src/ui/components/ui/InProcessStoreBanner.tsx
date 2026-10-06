@@ -1,5 +1,5 @@
 /**
- * InProcessStoreBanner — the §34.92 loud warning for the in-process store mode.
+ * InProcessStoreBanner — the loud warning for the in-process store mode.
  *
  * Shown when detectStoreMode() falls back to WorkspaceClient (the Web Worker
  * store unavailable): every store read then runs synchronously on the UI

@@ -1,5 +1,5 @@
 /**
- * Per-user UI preferences — favorites & recents (§34.61).
+ * Per-user UI preferences — favorites & recents.
  *
  *  - GET /api/me/prefs   the authenticated account's prefs
  *                        ({favorites, recents, updatedAt});

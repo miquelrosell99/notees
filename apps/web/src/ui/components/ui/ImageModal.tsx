@@ -3,7 +3,7 @@
  *
  * Fullscreen modal for displaying images.
  * - Fullscreen overlay with image centered
- * - Download + fullscreen + close buttons top right (the v1 button set)
+ * - Download + fullscreen + close buttons top right (the original button set)
  * - Optional bullet in top left corner for navigation
  * - Click outside or Escape to close
  * - Rendered using React portal to escape parent constraints

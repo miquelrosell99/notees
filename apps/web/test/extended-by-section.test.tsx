@@ -3,7 +3,7 @@
  * class page — hidden while no class extends this one, a tree of the
  * transitive extenders once any do.
  *
- * §34.105: the hide-when-empty early return sat BEFORE the useMemo — a
+ * The hide-when-empty early return sat BEFORE the useMemo — a
  * rules-of-hooks violation in the TitleEditor crash class. Empirically
  * React 19 does NOT crash on this instance's 0↔1-hook flip (a fiber that
  * rendered zero hooks is re-mounted, not updated), so this is behavior

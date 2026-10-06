@@ -1,10 +1,10 @@
 /**
- * Task-status styles migration (§34.89, 2026-10-05): the designed task-status
- * options gained circle-family icons + §34.43 colors (yellow pending, blue
+ * Task-status styles migration (2026-10-05): the designed task-status
+ * options gained circle-family icons + colors (yellow pending, blue
  * review, red cancel, green done — owner-mandated), and the task class's
  * Status binding gained the "bullet" value-display position (the status value
  * rides the block bullet as an icon button — the Logseq-DB "beginning of the
- * block" behavior, a port of v1's icon_visibility). Seeds only shape NEW
+ * block" behavior, a port of icon_visibility). Seeds only shape NEW
  * workspaces; live workspaces converge by APPENDED envelopes — the immutable
  * relay log is never edited:
  *
@@ -15,7 +15,7 @@
  *    An optionless status schema (never authored with options) gets the
  *    designed fixed-uuid option set instead;
  *  - propertySchema.update { propertySchemaId: taskStatus, display: "bullet" }
- *    (§34.90: the position is a PROPERTY-level field — moved off the class
+ *    (the position is a PROPERTY-level field — moved off the class
  *    binding in the owner review) when the schema carries no position yet
  *    (NULL/'panel'). A user-chosen position is never overwritten.
  *
@@ -27,7 +27,7 @@
  *
  * LOCKSTEP NOTE: both envelopes are propertySchema.update — accepted by
  * any client whose propertySchema.update validator allows additive display
- * keys (§34.90 TS reference first; GTK/Flutter v3.1.1+). Older strict
+ * keys (TS reference first; GTK/Flutter v3.1.1+). Older strict
  * validators reject them — update clients before running --apply.
  *
  * DRY RUN BY DEFAULT: without --apply the script prints the full plan and

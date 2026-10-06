@@ -1,16 +1,16 @@
 /**
- * Search store batch (§34.30 register): M2 ranked search, M3 snippets, M5
- * property values in the FTS index.
+ * Search store batch: ranked search, snippets, and property values in
+ * the FTS index.
  *
- *  - M2: ORDER BY rank + recency. FTS5 orders by the hidden rank column in
+ *  - Ranking: ORDER BY rank + recency. FTS5 orders by the hidden rank column in
  *    SQL; the stock sql.js FTS4 has no rank column, so that backend scores
  *    matchinfo('x') hit counts in JS — both must produce relevance-first,
  *    recency-tiebroken, deterministic order (asserted on BOTH adapters).
- *  - M3: searchSnippet excerpts the densest query-term cluster with
+ *  - Snippets: searchSnippet excerpts the densest query-term cluster with
  *    char-accurate match spans, computed in JS over the derived plaintext
  *    (the stock sql.js FTS4 snippet() emits its column index into the
  *    output — verified — so the SQL function is not used).
- *  - M5: text-ish property values (carrier content, scalar strings, select
+ *  - Property values: text-ish values (carrier content, scalar strings, select
  *    labels, numbers) fold into the indexed plaintext on property.set /
  *    property.unset; reindexAllSearch rebuilds the same rows.
  *
@@ -86,7 +86,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     return Store.open(makeBackend());
   }
 
-  describe("M2: relevance ranking + recency", () => {
+  describe("relevance ranking + recency", () => {
     it("a document with more term hits outranks a single-hit document", () => {
       const store = makeStore();
       store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000f1", contentAst: text("needle needle needle haystack") }, 1727200001000));
@@ -138,7 +138,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     });
   });
 
-  describe("M3: snippets", () => {
+  describe("snippets", () => {
     it("excerpts around the match with char-accurate spans", () => {
       const store = makeStore();
       const id = "0192a000-0000-7000-8000-0000000000f7";
@@ -207,7 +207,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     });
   });
 
-  describe("M5: property values in the FTS index", () => {
+  describe("property values in the FTS index", () => {
     const SCHEMA_TEXT = "0192a000-0000-7000-8000-0000000000a1";
     const SCHEMA_SELECT = "0192a000-0000-7000-8000-0000000000a2";
     const SCHEMA_URL = "0192a000-0000-7000-8000-0000000000a3";

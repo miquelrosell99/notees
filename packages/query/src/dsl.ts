@@ -1,8 +1,8 @@
 /**
  * The Notees text query DSL — a compact, safe, injection-free language that
- * compiles to the versioned QueryAST (port of v1
- * `app/domain/services/query_language.py` concepts, adapted to the v2 AST and
- * extended where v1 fell short: ISO-8601 dates, DOIs/URLs and other values
+ * compiles to the versioned QueryAST (port of
+ * `app/domain/services/query_language.py` concepts, extended where the
+ * original fell short: ISO-8601 dates, DOIs/URLs and other values
  * containing `:` or `/` read cleanly, and property comparison operators).
  *
  * Grammar (fail loud — every syntax/resolution error is a QueryLanguageError
@@ -438,7 +438,7 @@ class Parser {
     return this.error(`unknown field '${field}' (known fields: ${known.join(", ")})`);
   }
 
-  /** ":" with no following value means exists; the rest map onto the v1 operator family. */
+  /** ":" with no following value means exists; the rest map onto the operator family. */
   private mapPropertyOp(op: Op): "eq" | "neq" | "contains" | "exists" | "gt" | "gte" | "lt" | "lte" {
     switch (op) {
       case ":":
@@ -503,7 +503,7 @@ class Parser {
    *
    * "slice" mode (prop values, text terms) reads the raw source up to the next
    * whitespace/paren, so URLs (`https://…`), DOIs (`10.2307/…`) and ISO dates
-   * survive intact (v1's word/number lexer could not carry them). Numbers
+   * survive intact (the original word/number lexer could not carry them). Numbers
    * coerce to JSON numbers; everything else stays a string.
    */
   private readValue(what: string, mode: "token" | "slice" = "slice"): string | number {

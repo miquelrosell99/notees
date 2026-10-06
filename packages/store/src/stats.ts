@@ -1,7 +1,7 @@
 /**
- * Materialized node counts (v1 `frontend/src/core/derived/nodeStats.ts`
- * port). child_count from node_child_order; backlink/reference counts from
- * the derived edge index (the v2 unified reference index — mentions,
+ * Materialized node counts (port of `frontend/src/core/derived/nodeStats.ts`).
+ * child_count from node_child_order; backlink/reference counts from
+ * the derived edge index (the unified reference index — mentions,
  * typed_link marks, node-typed property values); descendant_count via a
  * recursive CTE over node_child_order.
  *

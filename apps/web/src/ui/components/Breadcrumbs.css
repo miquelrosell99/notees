@@ -1,6 +1,6 @@
 /**
  * components/nodes/NodeBreadcrumbs.css). Class names unchanged; only the
- * edits v2 needs were made (the popup backdrop is a button, the per-item
+ * edits the current shell needs were made (the popup backdrop is a button, the per-item
  */
 
 .node-breadcrumbs {
@@ -142,7 +142,7 @@
   text-overflow: ellipsis;
 }
 
-/* ─── Parent-edit gestures (§34.27 L4) ─────────────────────────────────── */
+/* ─── Parent-edit gestures ─────────────────────────────────────────────── */
 
 /* The chevron rides inside the crumb item, revealed on hover/focus.
    Collapsed to zero width at rest (the negative margin cancels its leading

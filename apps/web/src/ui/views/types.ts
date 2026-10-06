@@ -7,10 +7,10 @@
  * is only whether items carry `children`. Containers resolve items from the
  * client, pick the available modes + defaults, and own the view-mode state:
  * display state per SCHEMA.md — never an op; durable where the container
- * persists it device-locally (§34.27 L1, `viewPrefs.ts`), session-local
+ * persists it device-locally (`viewPrefs.ts`), session-local
  * otherwise.
  *
- * The flag set is the ported v1 subset — extended on demand, not inherited
+ * The flag set is the ported subset — extended on demand, not inherited
  * wholesale.
  */
 
@@ -21,7 +21,7 @@ import type { ClientNode, EffectiveProperty, WorkspaceClient } from "@/core/work
 
 export type AnyClient = WorkspaceClient | WorkerClient;
 
-/** The collection view modes (graph = the §34.80 workspace graph). */
+/** The collection view modes (graph = the workspace graph). */
 export type ViewMode = "outline" | "prose" | "cards" | "kanban" | "table" | "graph";
 
 export type SortDirection = "asc" | "desc";
@@ -47,7 +47,7 @@ export interface TableColumn {
   sortable?: boolean;
 }
 
-/** Card cover placement (the four v1 layouts). */
+/** Card cover placement (the four placements). */
 export type CardLayout = "no-cover" | "cover-top" | "cover-left" | "cover-right";
 
 export interface NodeCollectionItem {
@@ -118,7 +118,7 @@ export interface NodeCollectionProps {
   /** Flat rows show containing-page breadcrumbs above the label. */
   showBreadcrumbs?: boolean | undefined;
   /**
-   * Escape hatch: wrap/replace a row's default rendering (v1's renderItem).
+   * Escape hatch: wrap/replace a row's default rendering.
    * Receives the item and the default row; return custom chrome.
    */
   renderItem?: ((item: NodeCollectionItem, defaultRow: ReactNode) => ReactNode) | undefined;
@@ -140,7 +140,7 @@ export interface NodeCollectionProps {
    * selection is session state; bulk actions over the selection are a
    * separate feature. Cards/kanban (flat node sets): a per-card checkbox
    * with the same session-selection semantics + the "Export selected…"
-   * affordance (§34.69); tree card contexts never render checkboxes.
+   * affordance; tree card contexts never render checkboxes.
    */
   selectable?: boolean | undefined;
   /**
@@ -162,7 +162,7 @@ export interface NodeCollectionProps {
   kanbanProperty?: string | undefined;
 
   /**
-   * §34.70 windowing opt-out: the views window their list by default (the
+   * Windowing opt-out: the views window their list by default (the
    * shared useWindowed + ShowMoreButton convention). A container that owns
    * its own pagination (query results with their 200-row cap + load-more)
    * passes false so the list never double-windows. Display state, never an op.
@@ -189,7 +189,7 @@ export interface ViewCapabilities {
   sorting?: boolean;
   /** Supports groupBy (containing-page groups / kanban property columns). */
   groupBy?: boolean;
-  /** Supports cover layouts (cards/kanban; §34.27 L1 persists the choice). */
+  /** Supports cover layouts (cards/kanban; the choice persists device-locally). */
   cardLayout?: boolean;
   /** Wrap in the ErrorBoundary when rendered inside chrome. */
   errorBoundary?: boolean;

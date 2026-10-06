@@ -23,7 +23,7 @@
  * - any pointer-down cancels a pending dwell (a press is an intent to
  *   interact, not to hover) and hides an open card whose anchor is being
  *   pressed (the press navigates through the mention).
- * - dismissal composes usePopupDismissal (§34.67): Escape from outside +
+ * - dismissal composes usePopupDismissal: Escape from outside +
  *   pointer-down outside close; the mention anchor counts as part of the
  *   surface for the outside-pointer check.
  */
@@ -206,7 +206,7 @@ export function NodeHoverPreviewHost({
             style={{ top: preview.top, left: preview.left }}
             onMouseEnter={clearGrace}
             onKeyDown={(event) => {
-              // §34.67 contract: an Escape that originates inside the popup
+              // Dismissal contract: an Escape that originates inside the popup
               // belongs to the popup — the card has no sub-states, so it
               // closes (and never leaks the Escape outward).
               if (event.key === "Escape") {

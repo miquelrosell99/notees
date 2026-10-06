@@ -1,6 +1,6 @@
 // @vitest-environment node
 /**
- * The §34.92 status-poll guard: `status()` builds a fresh SyncStatusSnapshot
+ * The status-poll guard: `status()` builds a fresh SyncStatusSnapshot
  * object every call, so the 2s poll's setState must compare field-wise or the
  * whole app re-renders (and re-runs every render-time store read) on each
  * tick even when nothing changed.
@@ -22,7 +22,7 @@ const BASE: SyncStatusSnapshot = {
   cursorSeq: 0,
 };
 
-describe("syncStatusEqual (§34.92)", () => {
+describe("syncStatusEqual", () => {
   it("treats field-identical snapshots as equal despite fresh object identity", () => {
     expect(syncStatusEqual(BASE, { ...BASE })).toBe(true);
   });

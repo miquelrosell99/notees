@@ -1,5 +1,5 @@
 /**
- * PropertyView — a property schema's inspector surface (§34.32 PG12). v2
+ * PropertyView — a property schema's inspector surface. The
  * schemas are registry rows, not nodes, so the "property page" is this
  * modal: the schema's metadata (type, cardinality, scope, date behavior,
  * options, target classes), its bound classes, and the references section —

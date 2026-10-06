@@ -9,10 +9,10 @@
  * client.setProperty/unsetProperty (drop on "None" clears) — single-select
  * sets, multi-select merges. Columns collapse via their header chevron
  * (session state); cards reorder within a column by dragging (session
- * order — persisting card order needs an order property, recorded in the
- * plan). Cards reuse the flat NodeCard, cover layouts included.
+ * order — persisting card order needs an order property, parked as a
+ * designed-not-built follow-up). Cards reuse the flat NodeCard, cover layouts included.
  *
- * §34.70: each column windows its card list independently (the shared
+ * Each column windows its card list independently (the shared
  * useWindowed + ShowMoreButton convention) — the column count badge and the
  * drop logic read the FULL bucket; only the rendering is windowed, and the
  * "Show more" affordance names the hidden count at the column's end.
@@ -155,12 +155,12 @@ function KanbanColumn({
   collapsed: boolean;
   onToggleCollapse: () => void;
   coverLayout: CardLayout;
-  /** §34.69 selection export: card checkboxes + the column's checked set. */
+  /** Selection export: card checkboxes + the column's checked set. */
   selectable: boolean;
   selection: ViewSelection;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: columnId });
-  // §34.70: the column's cards are the windowed collection — the header
+  // The column's cards are the windowed collection — the header
   // count above still names the FULL bucket, and drags resolve positions
   // against it (ordered() at the board level), so the window is display-only.
   const { visible, remaining, showMore } = useWindowed(items, {
@@ -220,9 +220,9 @@ export function KanbanView(props: NodeCollectionProps) {
   const [collapsedColumns, setCollapsedColumns] = useState<ReadonlySet<string>>(new Set());
   /** Within-column order overrides (session — see the persistence note). */
   const [columnOrder, setColumnOrder] = useState<ReadonlyMap<string, readonly string[]>>(new Map());
-  /** The cover layout persists device-locally (§34.27 L1) — never an op. */
+  /** The cover layout persists device-locally — never an op. */
   const [coverLayout, setCoverLayout] = useCardLayoutPreference("no-cover");
-  /** §34.69 selection export — the same affordance the table toolbar has. */
+  /** Selection export — the same affordance the table toolbar has. */
   const selection = useViewSelection();
   const selectable = props.selectable ?? true;
 
