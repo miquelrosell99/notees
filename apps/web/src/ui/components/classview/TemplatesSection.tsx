@@ -145,7 +145,7 @@ export function TemplatesSection({
           onClick={(element) => {
             setPickerAnchor(element);
             setPickerOpen(true);
-            void ensureTemplateFamily(client);
+            void ensureTemplateFamily(client).catch(() => {});
           }}
         />
         <Button variant="ghost" size="sm" onClick={() => setGalleryOpen(true)}>
