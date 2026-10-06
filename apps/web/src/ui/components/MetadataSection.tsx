@@ -188,6 +188,8 @@ function ObjectPropertyRow({
   bindingFilter,
   rows,
   onOpenPage,
+  /** Hide the label/hints (the host chrome carries them — the sidebar). */
+  bare = false,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -198,6 +200,7 @@ function ObjectPropertyRow({
   bindingFilter: string[] | null;
   rows: EffectiveProperty[];
   onOpenPage?: ((pageId: string) => void) | undefined;
+  bare?: boolean;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -285,9 +288,13 @@ function ObjectPropertyRow({
           : "nt-property nt-property-object node-metadata-row"
       }
     >
-      <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
-      {allDefault && <span className="nt-property-hint">default</span>}
-      {unbound && <span className="nt-property-hint">unbound</span>}
+      {!bare && (
+        <>
+          <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
+          {allDefault && <span className="nt-property-hint">default</span>}
+          {unbound && <span className="nt-property-hint">unbound</span>}
+        </>
+      )}
       <span className="nt-property-chips node-metadata-pills">
         {pills.map(({ row, ref }) => {
           const removeLabel = `Remove ${pillLabel(ref)}`;
@@ -457,6 +464,8 @@ function DatePropertyRow({
   multi,
   schema,
   rows,
+  /** Hide the label/hints (the host chrome carries them — the sidebar). */
+  bare = false,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -465,6 +474,7 @@ function DatePropertyRow({
   multi: boolean;
   schema: { datePrecision?: DatePrecision | null } | null;
   rows: EffectiveProperty[];
+  bare?: boolean;
 }) {
   const [pickerFor, setPickerFor] = useState<number | "new" | null>(null);
   const anchorRef = useRef<HTMLElement | null>(null);
@@ -507,9 +517,13 @@ function DatePropertyRow({
           : "nt-property nt-property-date node-metadata-row"
       }
     >
-      <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
-      {allDefault && <span className="nt-property-hint">default</span>}
-      {unbound && <span className="nt-property-hint">unbound</span>}
+      {!bare && (
+        <>
+          <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
+          {allDefault && <span className="nt-property-hint">default</span>}
+          {unbound && <span className="nt-property-hint">unbound</span>}
+        </>
+      )}
       <span className="nt-property-chips node-metadata-pills">
         {ordered.map((row) => (
           <span
@@ -608,6 +622,8 @@ function DateRangePropertyRow({
   multi,
   schema,
   rows,
+  /** Hide the label/hints (the host chrome carries them — the sidebar). */
+  bare = false,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -616,6 +632,7 @@ function DateRangePropertyRow({
   multi: boolean;
   schema: { datePrecision?: DatePrecision | null } | null;
   rows: EffectiveProperty[];
+  bare?: boolean;
 }) {
   const [picking, setPicking] = useState<{ idx: number; end: "start" | "end" } | null>(null);
   const anchorRef = useRef<HTMLElement | null>(null);
@@ -666,9 +683,13 @@ function DateRangePropertyRow({
           : "nt-property nt-property-date-range node-metadata-row"
       }
     >
-      <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
-      {allDefault && <span className="nt-property-hint">default</span>}
-      {unbound && <span className="nt-property-hint">unbound</span>}
+      {!bare && (
+        <>
+          <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
+          {allDefault && <span className="nt-property-hint">default</span>}
+          {unbound && <span className="nt-property-hint">unbound</span>}
+        </>
+      )}
       <span className="nt-property-chips node-metadata-pills">
         {ordered.map((row) => (
           <span key={`${propertySchemaId}:${row.idx}`} className="nt-range">
@@ -794,6 +815,8 @@ function SelectPropertyRow({
   multi,
   options,
   rows,
+  /** Hide the label/hints (the host chrome carries them — the sidebar). */
+  bare = false,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -802,6 +825,7 @@ function SelectPropertyRow({
   multi: boolean;
   options: SelectionOption[];
   rows: EffectiveProperty[];
+  bare?: boolean;
 }) {
   const ordered = [...rows].sort((a, b) => a.idx - b.idx);
   const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
@@ -838,9 +862,13 @@ function SelectPropertyRow({
               : "nt-property nt-property-select node-metadata-row"
           }
         >
-          <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
-          {allDefault && <span className="nt-property-hint">default</span>}
-          {unbound && <span className="nt-property-hint">unbound</span>}
+          {!bare && (
+            <>
+              <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
+              {allDefault && <span className="nt-property-hint">default</span>}
+              {unbound && <span className="nt-property-hint">unbound</span>}
+            </>
+          )}
           <SelectionPropertyControl
             options={options}
             values={valuesOf(row)}
@@ -858,7 +886,9 @@ function SelectPropertyRow({
       ))}
       {ordered.length === 0 && (
         <li className="nt-property nt-property-select node-metadata-row">
-          <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
+          {!bare && (
+            <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
+          )}
           <SelectionPropertyControl
             options={options}
             values={[]}
@@ -887,12 +917,15 @@ function BooleanPropertyRow({
   propertySchemaId,
   label,
   rows,
+  /** Hide the label/hints (the host chrome carries them — the sidebar). */
+  bare = false,
 }: {
   client: AnyClient;
   nodeId: string;
   propertySchemaId: string;
   label: string;
   rows: EffectiveProperty[];
+  bare?: boolean;
 }) {
   const ordered = [...rows].sort((a, b) => a.idx - b.idx);
   const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
@@ -909,9 +942,13 @@ function BooleanPropertyRow({
               : "nt-property nt-property-boolean node-metadata-row"
           }
         >
-          <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
-          {allDefault && <span className="nt-property-hint">default</span>}
-          {unbound && <span className="nt-property-hint">unbound</span>}
+          {!bare && (
+            <>
+              <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
+              {allDefault && <span className="nt-property-hint">default</span>}
+              {unbound && <span className="nt-property-hint">unbound</span>}
+            </>
+          )}
           <Checkbox
             size="sm"
             checked={row.value === true}
@@ -925,7 +962,9 @@ function BooleanPropertyRow({
       ))}
       {ordered.length === 0 && (
         <li className="nt-property nt-property-boolean node-metadata-row">
-          <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
+          {!bare && (
+            <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
+          )}
           <Checkbox
             size="sm"
             checked={false}
@@ -1352,17 +1391,234 @@ function propertiesCountOf(groups: PropertyGroups): number {
  * Both ride event delegation on the list — the label spans carry
  * `data-property-schema-id`.
  */
+/**
+ * GroupedPropertyRow — one row per grouped schema (node-typed / date /
+ * date_range / boolean / text always; select schemas once they declare
+ * options), the per-type value-row component chosen by schema type.
+ * Shared by the properties table and the properties sidebar.
+ */
+function GroupedPropertyRow({
+  client,
+  nodeId,
+  type,
+  propertySchemaId,
+  label,
+  multi,
+  schema,
+  bindingFilter,
+  groupRows,
+  onOpenPage,
+  /** Hide the label/hints (the host chrome carries them — the sidebar). */
+  bare = false,
+}: {
+  client: AnyClient;
+  nodeId: string;
+  type: string | undefined;
+  propertySchemaId: string;
+  label: string;
+  multi: boolean;
+  schema: { datePrecision?: DatePrecision | null } | null;
+  bindingFilter: string[] | null;
+  groupRows: EffectiveProperty[];
+  onOpenPage?: ((pageId: string) => void) | undefined;
+  bare?: boolean;
+}) {
+  if (type === "date") {
+    return (
+      <DatePropertyRow
+        client={client}
+        nodeId={nodeId}
+        propertySchemaId={propertySchemaId}
+        label={label}
+        multi={multi}
+        schema={schema}
+        rows={groupRows}
+        bare={bare}
+      />
+    );
+  }
+  if (type === "date_range") {
+    return (
+      <DateRangePropertyRow
+        client={client}
+        nodeId={nodeId}
+        propertySchemaId={propertySchemaId}
+        label={label}
+        multi={multi}
+        schema={schema}
+        rows={groupRows}
+        bare={bare}
+      />
+    );
+  }
+  if (type === "select" || type === "multi_select") {
+    const options =
+      client.listPropertySchemas().find((s) => s.id === propertySchemaId)?.options ?? [];
+    return (
+      <SelectPropertyRow
+        client={client}
+        nodeId={nodeId}
+        propertySchemaId={propertySchemaId}
+        label={label}
+        multi={type === "multi_select" ? true : multi}
+        options={options}
+        rows={groupRows}
+        bare={bare}
+      />
+    );
+  }
+  if (type === "boolean") {
+    return (
+      <BooleanPropertyRow
+        client={client}
+        nodeId={nodeId}
+        propertySchemaId={propertySchemaId}
+        label={label}
+        rows={groupRows}
+        bare={bare}
+      />
+    );
+  }
+  if (type === "text") {
+    return (
+      <TextPropertyRow
+        client={client}
+        nodeId={nodeId}
+        propertySchemaId={propertySchemaId}
+        label={label}
+        multi={multi}
+        rows={groupRows}
+        onOpenPage={onOpenPage}
+        bare={bare}
+      />
+    );
+  }
+  return (
+    <ObjectPropertyRow
+      client={client}
+      nodeId={nodeId}
+      propertySchemaId={propertySchemaId}
+      label={label}
+      multi={multi}
+      bindingFilter={bindingFilter}
+      rows={groupRows}
+      onOpenPage={onOpenPage}
+      bare={bare}
+    />
+  );
+}
+
+/**
+ * ScalarPropertyValue — the value cell of a scalar (ungrouped) property
+ * row: a node-backed carrier block renders its editable subtree; anything
+ * else rides the minimal text editor (a dead carrier reference renders
+ * EMPTY, never the raw uuid — typing authors a fresh carrier, leaving it
+ * empty unsets the dead value). Shared by the properties table and the
+ * sidebar; the row chrome (label, hints, li wrapper) stays at the call
+ * sites.
+ */
+function ScalarPropertyValue({
+  client,
+  nodeId,
+  row,
+  onOpenPage,
+}: {
+  client: AnyClient;
+  nodeId: string;
+  row: EffectiveProperty;
+  onOpenPage?: ((pageId: string) => void) | undefined;
+}) {
+  // Text properties are node-backed: the value references a carrier
+  // block — {"nodeId"} after migration, a bare uuid string in archived
+  // data. Render the block, editable, in place of the raw input when it
+  // resolves to a block.
+  const editable = toEditableText(row.value);
+  const rawRef =
+    typeof row.value === "object" && row.value !== null && "nodeId" in (row.value as object)
+      ? String((row.value as { nodeId: unknown }).nodeId)
+      : typeof editable === "string" &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editable)
+        ? editable
+        : null;
+  const rawNode = rawRef !== null ? client.getNode(rawRef) : undefined;
+  const carrier =
+    rawNode !== undefined && rendersAsInlineBlock(rawNode) ? rawNode : undefined;
+  // Dead carrier (owner bug report 2026-10-04): the value references a
+  // carrier block that was deleted/trashed from the value cell. The
+  // content is GONE — display EMPTY, never the raw uuid; editing authors
+  // a fresh carrier, and touching it empty cleans the dead value row (so
+  // the uuid does not survive reloads).
+  const deadCarrierRef = rawRef !== null && carrier === undefined;
+  const editableText = deadCarrierRef ? "" : toEditableText(row.value);
+  // §34.32 PG14: url/email scalars keep the text editor and gain an
+  // external-link affordance (mailto: for email; url values keep their
+  // authored scheme, tel: included).
+  const linkHref = propertyLinkHref(row.schema?.type, row.value);
+  return (
+    <>
+      {carrier !== undefined ? (
+        <span className="nt-property-blockcell">
+          <ReferenceSubtree client={client} rootId={carrier.id} onOpenNode={onOpenPage} />
+        </span>
+      ) : (
+        <input
+          key={`${row.propertySchemaId}:${row.idx}:${editableText}`}
+          type="text"
+          className="nt-property-value"
+          defaultValue={editableText}
+          aria-label={`Property ${row.schema?.name ?? row.propertySchemaId}`}
+          onBlur={(event) => {
+            const text = event.target.value;
+            if (deadCarrierRef) {
+              // The old carrier is gone: typing authors a NEW carrier
+              // (the §34.45 pattern); leaving it empty unsets the dead
+              // value so the row does not hold a dangling ref.
+              if (text.trim() === "") {
+                void client.unsetProperty(nodeId, row.propertySchemaId, row.idx);
+              } else {
+                void (async () => {
+                  const carrierId = await client.createObject({
+                    parentId: nodeId,
+                    contentAst: [{ type: "text", text }],
+                  });
+                  await client.setProperty(
+                    nodeId,
+                    row.propertySchemaId,
+                    { nodeId: carrierId },
+                    row.idx,
+                  );
+                })();
+              }
+              return;
+            }
+            const next = fromEditableText(text);
+            // Deep-compare so a no-op blur never enqueues a write.
+            if (JSON.stringify(next) !== JSON.stringify(row.value)) {
+              void client.setProperty(nodeId, row.propertySchemaId, next, row.idx);
+            }
+          }}
+        />
+      )}
+      {linkHref !== null && (
+        <a
+          className="nt-property-link"
+          href={linkHref}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`Open ${row.schema?.name ?? row.propertySchemaId}`}
+        >
+          <Icon path="mdi-open-in-new" size={0.7} />
+        </a>
+      )}
+    </>
+  );
+}
+
 export function PropertiesTable({
   client,
   nodeId,
   onOpenPage,
   omitDisplayPositions,
-  /**
-   * Row layout: "table" (default) — the property name is a left-hand column
-   * and the value sits right; "panel" — each property is its own cell, the
-   * name a small header above the value (the main card's side panel).
-   */
-  layout = "table",
 }: {
   client: AnyClient;
   nodeId: string;
@@ -1370,7 +1626,6 @@ export function PropertiesTable({
   /** §34.90: schema display positions (bullet/inline) the host surfaces
    *  itself — filter out. */
   omitDisplayPositions?: ReadonlyArray<"bullet" | "inline"> | undefined;
-  layout?: "table" | "panel";
 }) {
   const { rows, rendered, emptyObjectBindings } = propertyGroupsOf(client, nodeId, omitDisplayPositions);
   const labelOf = (row: EffectiveProperty): string => row.schema?.name ?? row.propertySchemaId;
@@ -1447,96 +1702,26 @@ export function PropertiesTable({
     schema: { datePrecision?: DatePrecision | null } | null,
     bindingFilter: string[] | null,
     groupRows: EffectiveProperty[],
-  ) => {
-    if (type === "date") {
-      return (
-        <DatePropertyRow
-          key={propertySchemaId}
-          client={client}
-          nodeId={nodeId}
-          propertySchemaId={propertySchemaId}
-          label={label}
-          multi={multi}
-          schema={schema}
-          rows={groupRows}
-        />
-      );
-    }
-    if (type === "date_range") {
-      return (
-        <DateRangePropertyRow
-          key={propertySchemaId}
-          client={client}
-          nodeId={nodeId}
-          propertySchemaId={propertySchemaId}
-          label={label}
-          multi={multi}
-          schema={schema}
-          rows={groupRows}
-        />
-      );
-    }
-    if (type === "select" || type === "multi_select") {
-      const options =
-        client.listPropertySchemas().find((s) => s.id === propertySchemaId)?.options ?? [];
-      return (
-        <SelectPropertyRow
-          key={propertySchemaId}
-          client={client}
-          nodeId={nodeId}
-          propertySchemaId={propertySchemaId}
-          label={label}
-          multi={type === "multi_select" ? true : multi}
-          options={options}
-          rows={groupRows}
-        />
-      );
-    }
-    if (type === "boolean") {
-      return (
-        <BooleanPropertyRow
-          key={propertySchemaId}
-          client={client}
-          nodeId={nodeId}
-          propertySchemaId={propertySchemaId}
-          label={label}
-          rows={groupRows}
-        />
-      );
-    }
-    if (type === "text") {
-      return (
-        <TextPropertyRow
-          key={propertySchemaId}
-          client={client}
-          nodeId={nodeId}
-          propertySchemaId={propertySchemaId}
-          label={label}
-          multi={multi}
-          rows={groupRows}
-          onOpenPage={onOpenPage}
-        />
-      );
-    }
-    return (
-      <ObjectPropertyRow
-        key={propertySchemaId}
-        client={client}
-        nodeId={nodeId}
-        propertySchemaId={propertySchemaId}
-        label={label}
-        multi={multi}
-        bindingFilter={bindingFilter}
-        rows={groupRows}
-        onOpenPage={onOpenPage}
-      />
-    );
-  };
+  ) => (
+    <GroupedPropertyRow
+      key={propertySchemaId}
+      client={client}
+      nodeId={nodeId}
+      type={type}
+      propertySchemaId={propertySchemaId}
+      label={label}
+      multi={multi}
+      schema={schema}
+      bindingFilter={bindingFilter}
+      groupRows={groupRows}
+      onOpenPage={onOpenPage}
+    />
+  );
 
   return (
     <>
       <ul
-        className={layout === "panel" ? "nt-properties-list nt-properties-list--panel" : "nt-properties-list"}
+        className="nt-properties-list"
         onClick={(event) => {
           const schemaId = schemaIdFromEvent(event);
           if (schemaId !== null) setSettingsFor(schemaId);
@@ -1565,32 +1750,6 @@ export function PropertiesTable({
             }
             const row = entry.row;
             const label = labelOf(row);
-            const editable = toEditableText(row.value);
-            // Text properties are node-backed: the value references a carrier
-            // block — {"nodeId"} after migration, a bare uuid string in
-            // archived data. Render the block, editable, in place of the raw
-            // input when it resolves to a block.
-            const rawRef =
-              typeof row.value === "object" && row.value !== null && "nodeId" in (row.value as object)
-                ? String((row.value as { nodeId: unknown }).nodeId)
-                : typeof editable === "string" &&
-                    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editable)
-                  ? editable
-                  : null;
-            const rawNode = rawRef !== null ? client.getNode(rawRef) : undefined;
-            const carrier =
-              rawNode !== undefined && rendersAsInlineBlock(rawNode) ? rawNode : undefined;
-            // Dead carrier (owner bug report 2026-10-04): the value references
-            // a carrier block that was deleted/trashed from the value cell.
-            // The content is GONE — display EMPTY, never the raw uuid; editing
-            // authors a fresh carrier, and touching it empty cleans the dead
-            // value row (so the uuid does not survive reloads).
-            const deadCarrierRef = rawRef !== null && carrier === undefined;
-            const editableText = deadCarrierRef ? "" : toEditableText(row.value);
-            // §34.32 PG14: url/email scalars keep the text editor and gain an
-            // external-link affordance (mailto: for email; url values keep
-            // their authored scheme, tel: included).
-            const linkHref = propertyLinkHref(row.schema?.type, row.value);
             return (
               <li
                 key={`${row.propertySchemaId}:${row.idx}`}
@@ -1605,60 +1764,7 @@ export function PropertiesTable({
                 {row.source === "authored" && row.boundBy === null && (
                   <span className="nt-property-hint">unbound</span>
                 )}
-                {carrier !== undefined ? (
-                  <span className="nt-property-blockcell">
-                    <ReferenceSubtree client={client} rootId={carrier.id} onOpenNode={onOpenPage} />
-                  </span>
-                ) : (
-                <input
-                  key={`${row.propertySchemaId}:${row.idx}:${editableText}`}
-                  type="text"
-                  className="nt-property-value"
-                  defaultValue={editableText}
-                  aria-label={`Property ${label}`}
-                  onBlur={(event) => {
-                    const text = event.target.value;
-                    if (deadCarrierRef) {
-                      // The old carrier is gone: typing authors a NEW carrier
-                      // (the §34.45 pattern); leaving it empty unsets the dead
-                      // value so the row does not hold a dangling ref.
-                      if (text.trim() === "") {
-                        void client.unsetProperty(nodeId, row.propertySchemaId, row.idx);
-                      } else {
-                        void (async () => {
-                          const carrierId = await client.createObject({
-                            parentId: nodeId,
-                            contentAst: [{ type: "text", text }],
-                          });
-                          await client.setProperty(
-                            nodeId,
-                            row.propertySchemaId,
-                            { nodeId: carrierId },
-                            row.idx,
-                          );
-                        })();
-                      }
-                      return;
-                    }
-                    const next = fromEditableText(text);
-                    // Deep-compare so a no-op blur never enqueues a write.
-                    if (JSON.stringify(next) !== JSON.stringify(row.value)) {
-                      void client.setProperty(nodeId, row.propertySchemaId, next, row.idx);
-                    }
-                  }}
-                />
-                )}
-                {linkHref !== null && (
-                  <a
-                    className="nt-property-link"
-                    href={linkHref}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={`Open ${label}`}
-                  >
-                    <Icon path="mdi-open-in-new" size={0.7} />
-                  </a>
-                )}
+                <ScalarPropertyValue client={client} nodeId={nodeId} row={row} onOpenPage={onOpenPage} />
               </li>
             );
           })}
@@ -1757,6 +1863,220 @@ export function PropertiesSection({
         />
       </div>
     </NodeViewSection>
+  );
+}
+
+/**
+ * PropertiesSidebar — the main layout's first column (owner 2026-10-06):
+ * a set of rows, one per property — a property-name row followed by its
+ * value-cell row — beside a continuous vertical divider (the sidebar's
+ * right edge runs the card's full height, no top or bottom gap). The value
+ * cells reuse the properties table's row components verbatim (only their
+ * internal label/hints hide — the name row above carries them); only the
+ * two-row stacking and the divider are this component's own. Clicking a
+ * name row opens the property's settings, like the table's label click.
+ */
+export function PropertiesSidebar({
+  client,
+  nodeId,
+  onOpenPage,
+}: {
+  client: AnyClient;
+  nodeId: string;
+  onOpenPage?: ((pageId: string) => void) | undefined;
+}) {
+  const { rendered, emptyObjectBindings } = propertyGroupsOf(client, nodeId);
+  const [settingsFor, setSettingsFor] = useState<string | null>(null);
+  const [viewFor, setViewFor] = useState<string | null>(null);
+  const [historyFor, setHistoryFor] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ schemaId: string; x: number; y: number } | null>(null);
+  const labelOf = (row: EffectiveProperty): string => row.schema?.name ?? row.propertySchemaId;
+
+  const hintOf = (rows: EffectiveProperty[]): string | null => {
+    if (rows.length === 0) return null;
+    if (rows.every((row) => row.source === "default")) return "default";
+    if (rows.some((row) => row.source === "authored" && row.boundBy === null)) return "unbound";
+    return null;
+  };
+
+  // The name row's right-click menu rides the same actions as the table's
+  // label (Open property / Value history / Empty / Remove).
+  const rowsOf = rendered.flatMap((entry) =>
+    entry === null ? [] : entry.kind === "grouped" ? entry.groupRows : [entry.row],
+  );
+  const isBound = (schemaId: string): boolean => {
+    const node = client.getNode(nodeId);
+    for (const classId of node?.classIds ?? []) {
+      if (client.getClassBindings(classId).some((b) => b.propertySchemaId === schemaId)) return true;
+    }
+    return false;
+  };
+  const isReadonly = (schemaId: string): boolean =>
+    rowsOf.some((r) => r.propertySchemaId === schemaId && r.readonly === true);
+  const emptyProperty = (schemaId: string) => {
+    for (const row of rowsOf) {
+      if (row.propertySchemaId === schemaId && row.source === "authored") {
+        void client.setProperty(nodeId, schemaId, "", row.idx);
+      }
+    }
+  };
+  const removeFromNode = (schemaId: string) => {
+    for (const row of rowsOf) {
+      if (row.propertySchemaId === schemaId && row.source === "authored") {
+        void client.unsetProperty(nodeId, schemaId, row.idx);
+      }
+    }
+  };
+  const menuItems = (schemaId: string) => {
+    const bound = isBound(schemaId);
+    const readonly = isReadonly(schemaId);
+    return [
+      { id: "open", label: "Open property", icon: "mdi-open-in-app", onClick: () => setSettingsFor(schemaId) },
+      {
+        id: "history",
+        label: "Value history…",
+        icon: "mdi-history",
+        onClick: () => setHistoryFor(schemaId),
+      },
+      {
+        id: "empty",
+        label: "Empty property",
+        icon: "mdi-eraser",
+        onClick: () => emptyProperty(schemaId),
+        disabled: readonly,
+      },
+      {
+        id: "remove",
+        label: "Remove from node",
+        icon: "mdi-close-circle-outline",
+        onClick: () => removeFromNode(schemaId),
+        danger: true,
+        disabled: bound || readonly,
+      },
+    ];
+  };
+
+  const nameRow = (propertySchemaId: string, label: string, hint: string | null) => (
+    <button
+      type="button"
+      className="nt-props-sidebar__name nt-property-name"
+      data-property-schema-id={propertySchemaId}
+      onClick={() => setSettingsFor(propertySchemaId)}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setMenu({ schemaId: propertySchemaId, x: event.clientX, y: event.clientY });
+      }}
+    >
+      {label}
+      {hint !== null && <span className="nt-property-hint">{hint}</span>}
+    </button>
+  );
+
+  return (
+    <div className="nt-props-sidebar">
+      {rendered.map((entry) => {
+        if (entry === null) return null;
+        if (entry.kind === "grouped") {
+          const schema = entry.groupRows[0]?.schema ?? null;
+          const label = schema?.name ?? entry.propertySchemaId;
+          return (
+            <div className="nt-props-sidebar__prop" key={entry.propertySchemaId}>
+              {nameRow(entry.propertySchemaId, label, hintOf(entry.groupRows))}
+              <div className="nt-props-sidebar__value">
+                <GroupedPropertyRow
+                  client={client}
+                  nodeId={nodeId}
+                  type={entry.type}
+                  propertySchemaId={entry.propertySchemaId}
+                  label={label}
+                  multi={schema?.multi ?? true}
+                  schema={schema}
+                  bindingFilter={null}
+                  groupRows={entry.groupRows}
+                  onOpenPage={onOpenPage}
+                  bare
+                />
+              </div>
+            </div>
+          );
+        }
+        const row = entry.row;
+        return (
+          <div className="nt-props-sidebar__prop" key={`${row.propertySchemaId}:${row.idx}`}>
+            {nameRow(
+              row.propertySchemaId,
+              labelOf(row),
+              row.source === "default"
+                ? "default"
+                : row.source === "authored" && row.boundBy === null
+                  ? "unbound"
+                  : null,
+            )}
+            <div className="nt-props-sidebar__value">
+              <ScalarPropertyValue client={client} nodeId={nodeId} row={row} onOpenPage={onOpenPage} />
+            </div>
+          </div>
+        );
+      })}
+      {emptyObjectBindings.map((binding) => (
+        <div className="nt-props-sidebar__prop" key={`empty-${binding.propertySchemaId}`}>
+          {nameRow(binding.propertySchemaId, binding.name, null)}
+          <div className="nt-props-sidebar__value">
+            <GroupedPropertyRow
+              client={client}
+              nodeId={nodeId}
+              type={binding.type}
+              propertySchemaId={binding.propertySchemaId}
+              label={binding.name}
+              multi={binding.multi}
+              schema={{ datePrecision: binding.datePrecision }}
+              bindingFilter={binding.targetClassFilter}
+              groupRows={[]}
+              onOpenPage={onOpenPage}
+              bare
+            />
+          </div>
+        </div>
+      ))}
+      <AddPropertyRow client={client} nodeId={nodeId} />
+      {menu !== null && (
+        <ContextMenu items={menuItems(menu.schemaId)} position={{ x: menu.x, y: menu.y }} onClose={() => setMenu(null)} />
+      )}
+      {historyFor !== null && (
+        <PropertyHistoryModal
+          client={client}
+          nodeId={nodeId}
+          propertySchemaId={historyFor}
+          schemaName={
+            client.listPropertySchemas().find((s) => s.id === historyFor)?.name ?? historyFor
+          }
+          onClose={() => setHistoryFor(null)}
+        />
+      )}
+      {settingsFor !== null && (
+        <PropertySettingsModal
+          client={client}
+          propertySchemaId={settingsFor}
+          onClose={() => setSettingsFor(null)}
+          onOpenView={() => {
+            setViewFor(settingsFor);
+            setSettingsFor(null);
+          }}
+        />
+      )}
+      {viewFor !== null && (
+        <PropertyView
+          client={client}
+          propertySchemaId={viewFor}
+          onClose={() => setViewFor(null)}
+          onOpenPage={(id) => {
+            setViewFor(null);
+            onOpenPage?.(id);
+          }}
+        />
+      )}
+    </div>
   );
 }
 

@@ -12,7 +12,7 @@
  * App).
  */
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
@@ -25,9 +25,6 @@ import { displayNameForSettings } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import { nodeIcon } from "../iconFor.js";
 import { useNodePrefs, toggleNodeFavorite, removeSyncedRecent } from "./nodePrefs.js";
-import { createNodesWithClasses } from "./createNodesWithClasses.js";
-import { NodeSelector } from "./pickers/NodeSelector.js";
-import { WorkspaceSwitcher } from "./WorkspaceSwitcher.js";
 import { SidebarItemMenu, type SidebarItemMenuState } from "./SidebarItemMenu.js";
 import { ConfirmationModal } from "./ui/ConfirmationModal.js";
 import { useDeviceSetting } from "./modals/deviceSettings.js";
@@ -106,10 +103,6 @@ export function removeRecent(id: string): void {
 
 export function Sidebar({
   client,
-  workspaceName,
-  workspaceId,
-  serverUrl,
-  credential,
   user,
   offline,
   showSettings,
@@ -118,18 +111,10 @@ export function Sidebar({
   activeNav,
   onSelectNav,
   onOpenPage,
-  onRequestSearch,
-  onSwitchWorkspace,
-  onManageWorkspaces,
   onSignOut,
-  onRenameWorkspace,
   onOpenInSidebar,
 }: {
   client: AnyClient;
-  workspaceName: string;
-  workspaceId: string;
-  serverUrl: string;
-  credential: string;
   user: AccountUser | null;
   offline: boolean;
   showSettings: boolean;
@@ -138,12 +123,7 @@ export function Sidebar({
   activeNav: NavKey;
   onSelectNav: (key: NavKey) => void;
   onOpenPage: (nodeId: string) => void;
-  onRequestSearch: () => void;
-  onSwitchWorkspace: (workspaceId: string, name: string) => void;
-  /** Opens the Manage Workspaces view from the switcher popup. */
-  onManageWorkspaces: () => void;
   onSignOut: () => void;
-  onRenameWorkspace?: ((workspaceId: string, name: string) => void) | undefined;
   /** Peek the node as a right-sidebar card (the row context menu). */
   onOpenInSidebar?: ((nodeId: string) => void) | undefined;
 }) {
@@ -162,9 +142,6 @@ export function Sidebar({
   const [rowMenu, setRowMenu] = useState<SidebarItemMenuState | null>(null);
   /** Delete confirmation target (lives here so it survives the menu closing). */
   const [deleteTarget, setDeleteTarget] = useState<ClientNode | null>(null);
-  /** The "New" class picker (a node per picked class, opened untitled). */
-  const [newPickerOpen, setNewPickerOpen] = useState(false);
-  const newButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const fullName =
     user !== null ? [user.name, user.surnames].filter((part) => part !== null && part !== "").join(" ").trim() : "";
@@ -191,16 +168,6 @@ export function Sidebar({
     // Recents recording lives in App.openPage (the single navigation funnel —
     // breadcrumbs, links and sidebar rows alike); see recordRecent.
     onOpenPage(id);
-  };
-
-  /**
-   * The "New" flow (owner 2026-10-06): one untitled node per picked class,
-   * each opened as a main page; the first pick lands in the main view. The
-   * picker runs in its multi-select mode — Apply creates one node per
-   * checked class.
-   */
-  const createWithClasses = (classIds: string[]): void => {
-    createNodesWithClasses(client, classIds, onOpenPage);
   };
 
   const toggleFavorite = (id: string): void => {
@@ -314,59 +281,9 @@ export function Sidebar({
 
   return (
     <aside className="nt-sidebar">
-      <div className="nt-sidebar-top">
-        {offline ? (
-          <span className="nt-ws-offline">{(workspaceName || "This device").toUpperCase()}</span>
-        ) : (
-          <WorkspaceSwitcher
-            serverUrl={serverUrl}
-            credential={credential}
-            activeWorkspaceId={workspaceId}
-            activeName={workspaceName}
-            client={client}
-            onSwitch={onSwitchWorkspace}
-            onManageWorkspaces={onManageWorkspaces}
-            onRenamed={onRenameWorkspace}
-          />
-        )}
-        <button
-          ref={newButtonRef}
-          type="button"
-          className="nt-icon-btn"
-          title="New (pick a class)"
-          aria-label="New node"
-          onClick={() => setNewPickerOpen(true)}
-        >
-          <Icon path="mdi-plus" size={1} />
-        </button>
-        <button
-          type="button"
-          className="nt-icon-btn"
-          title="Search (Ctrl+K)"
-          aria-label="Search"
-          onClick={onRequestSearch}
-        >
-          <Icon path="mdi-magnify" size={1} />
-        </button>
-      </div>
-      {newPickerOpen && (
-        <NodeSelector
-          client={client}
-          anchorEl={newButtonRef.current}
-          searchMode="classes"
-          multiSelect
-          searchPlaceholder="Search classes…"
-          onClose={() => setNewPickerOpen(false)}
-          onAdd={(picked) => {
-            setNewPickerOpen(false);
-            createWithClasses([picked.id]);
-          }}
-          onApplyMulti={(picked) => {
-            setNewPickerOpen(false);
-            createWithClasses(picked.map((node) => node.id));
-          }}
-        />
-      )}
+      {/* No top row (owner 2026-10-06): the workspace selector and the
+          New/Search buttons live in the top bar — the sidebar starts with
+          the Navigation section. */}
       <nav className="nt-sidebar-nav">
         {section(
           "Navigation",
