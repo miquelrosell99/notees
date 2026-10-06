@@ -141,8 +141,10 @@ export function CalendarView({
   const [firstDayOfWeek] = useDeviceSetting("firstDayOfWeek", 1);
 
   // §34.28 #2 — idempotent no-op once the six schemas + bindings exist.
+  // Fire-and-forget: a rejection (e.g. the store closing mid-deploy) must not
+  // surface as an unhandled rejection — the next mount re-runs the deploy.
   useEffect(() => {
-    void ensureTaskFamily(client);
+    void ensureTaskFamily(client).catch(() => {});
   }, [client]);
 
   const dayId = dayNodeId(selectedIso);
