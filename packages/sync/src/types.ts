@@ -8,6 +8,7 @@
 
 import type { Envelope, Hlc } from "@notees/protocol";
 
+import type { BatchChangeInfo } from "./change-info.js";
 import type { SyncConflict } from "./conflicts.js";
 
 export type SyncStatus = "idle" | "syncing" | "error";
@@ -89,8 +90,8 @@ export interface SyncPullProgress {
 }
 
 export interface SyncEngineCallbacks {
-  onPush?: (envelopeCount: number) => void;
-  onPull?: (envelopeCount: number) => void;
+  onPush?: (envelopeCount: number, info?: BatchChangeInfo) => void;
+  onPull?: (envelopeCount: number, info?: BatchChangeInfo) => void;
   onPullProgress?: (progress: SyncPullProgress | null) => void;
   onError?: (error: Error) => void;
   onStatusChange?: (status: SyncStatus, error: Error | null) => void;
@@ -102,7 +103,7 @@ export interface SyncEngineCallbacks {
   onConflict?: (conflicts: SyncConflict[]) => void;
   onSyncPhase?: (phase: string, message: string) => void;
   /** A realtime (WS) frame was applied to the store; the embedding client refreshes. */
-  onRemoteBatch?: (appliedCount: number) => void;
+  onRemoteBatch?: (appliedCount: number, info?: BatchChangeInfo) => void;
   /** A local envelope was enqueued (durable local-op-log hook). */
   onEnqueued?: (envelope: Envelope) => void;
   /** A chunk of local envelopes was acknowledged by the server (durable-log hook). */
