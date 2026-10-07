@@ -372,12 +372,11 @@ export interface ChipCandidateInput {
  * with type "date". The task class prefers its taskScheduled schema; other
  * classes with several date bindings take the first by sorted schema id.
  * Excluded by design: the year/month/day date-chain classes (a chip there
- * would fight the deterministic chain ids) and the `class` system class
- * (classes are authored by class.create, not object.create). Every other
- * class rides on its bindings — that is what makes a meeting-classed page
- * one click away. The Calendar view and the workspace-settings editor share
- * this helper so the two surfaces never drift; `propertyName` names the
- * driving date property for settings rows (null for nameless inputs).
+ * would fight the deterministic chain ids). Every other class rides on its
+ * bindings — that is what makes a meeting-classed page one click away. The
+ * Calendar view and the workspace-settings editor share this helper so the
+ * two surfaces never drift; `propertyName` names the driving date property
+ * for settings rows (null for nameless inputs).
  */
 export function dateChipCandidates(
   classes: ReadonlyArray<{ id: string; name: string | null }>,
@@ -387,7 +386,6 @@ export function dateChipCandidates(
     SYSTEM_CLASS_UUIDS.year,
     SYSTEM_CLASS_UUIDS.month,
     SYSTEM_CLASS_UUIDS.day,
-    SYSTEM_CLASS_UUIDS.class,
   ]);
   const chips: Array<{ classId: string; schemaId: string; label: string; propertyName: string | null }> = [];
   for (const cls of classes) {

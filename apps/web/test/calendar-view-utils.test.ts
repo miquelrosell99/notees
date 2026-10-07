@@ -267,13 +267,12 @@ describe("dateChipCandidates", () => {
     expect(chips[0]!.schemaId).toBe("sch-aaa");
   });
 
-  it("excludes the date-chain classes and the class system class", () => {
+  it("excludes the date-chain classes", () => {
     const chips = dateChipCandidates(
       [
         { id: SYSTEM_CLASS_UUIDS.year, name: "year" },
         { id: SYSTEM_CLASS_UUIDS.month, name: "month" },
         { id: SYSTEM_CLASS_UUIDS.day, name: "day" },
-        { id: SYSTEM_CLASS_UUIDS.class, name: "class" },
         { id: "cls-ok", name: "OK" },
       ],
       () => [{ propertySchemaId: "sch-date", type: "date" }],

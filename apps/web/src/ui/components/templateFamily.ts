@@ -1,24 +1,30 @@
 /**
  * Template family. The `has-template` system property (fixed
  * UUID in @notees/domain seeds, the fixed-UUID lesson applied: a reserved UUID is
- * dead without an author) binds a CLASS node to its template nodes
+ * dead without an author) links a CLASS node to its template nodes
  * (node-typed, multi, `targetClassFilter: ["template"]` — SCHEMA.md
- * "Templates", owner decision). The `generated-from` property (owner
- * amendment 2026-10-03) is instantiation PROVENANCE: every generated
- * node records its template instance-side (single node-typed, same class
- * filter, deliberately NOT class-bound — instance metadata).
+ * "Templates", owner decision), authored as property values on the class
+ * node itself. M47 (2026-10-07 — the class-class retirement): the schema is
+ * GLOBAL scope with NO class binding — the retired `class` meta class used
+ * to host the binding (the only "every class" host), and no class can host
+ * a universal binding (the aliasOf precedent). Authored values surface in
+ * the effective-properties read with or without a binding, so the read
+ * paths (listClassTemplateBindings below, the TemplatesSection) are
+ * unchanged; the write path is plain setProperty on the class node. The
+ * `generated-from` property (owner amendment 2026-10-03) is instantiation
+ * PROVENANCE: every generated node records its template INSTANCE-SIDE
+ * (single node-typed, same class filter, never class-bound).
  *
  * The seeded has-template spec rides the server seed (buildSeedEnvelopes
- * iterates SYSTEM_PROPERTY_SPECS), so fresh workspaces get the schema + the
- * binding to the system `class` class from boot. generated-from has no spec
- * entry (specs always seed a class binding); both schemas are self-healed
- * client-side idempotently — the ensureTaskFamily pattern — and the T3
- * surfaces call ensureTemplateFamily before reading/instantiating.
+ * iterates SYSTEM_PROPERTY_SPECS — bindTo-less specs seed at global scope);
+ * both schemas are self-healed client-side idempotently — the
+ * ensureTaskFamily pattern — and the T3 surfaces call
+ * ensureTemplateFamily before reading/instantiating.
  *
  * Safe under both WorkspaceClient and WorkerClient — it composes only the
- * shared write surface (createClass / createPropertySchema / setClassProperty)
- * and sync reads (listPropertySchemas / getClassBindings / getNode /
- * getEffectiveProperties / getBacklinks), all RPC-mirrored.
+ * shared write surface (createClass / createPropertySchema) and sync reads
+ * (listPropertySchemas / getNodeRaw / getEffectiveProperties / getBacklinks),
+ * all RPC-mirrored.
  */
 
 import {
@@ -49,55 +55,34 @@ function nodeRefOf(value: unknown): string | null {
   return typeof nodeId === "string" ? nodeId : null;
 }
 
-/** True when the has-template schema exists and is bound to the system `class` class. */
+/**
+ * True when the has-template schema exists (M47: global scope — presence is
+ * just the schema row; there is deliberately no binding anywhere).
+ */
 export function templatePropertyPresent(
-  client: Pick<AnyClient, "listPropertySchemas" | "getClassBindings">,
+  client: Pick<AnyClient, "listPropertySchemas">,
 ): boolean {
-  const schemas = client.listPropertySchemas();
-  const schema = schemas.find((entry: ClientPropertySchema) => entry.id === HAS_TEMPLATE_ID);
-  if (schema === undefined) return false;
-  const bound = client
-    .getClassBindings(SYSTEM_CLASS_UUIDS.class)
-    .map((binding) => binding.propertySchemaId);
-  return bound.includes(HAS_TEMPLATE_ID);
+  return client
+    .listPropertySchemas()
+    .some((entry: ClientPropertySchema) => entry.id === HAS_TEMPLATE_ID);
 }
 
 /**
- * Author the has-template schema + system-class binding when missing; a
- * complete no-op once present (idempotent — safe to call on every create).
- * Self-heals the system `class` class node at its reserved id when the
- * workspace was never seeded (offline-first devices), else the binding rows
- * are invisible to getClassBindings and every call would re-author them.
+ * Author the has-template schema at global scope when missing; a complete
+ * no-op once present (idempotent — safe to call on every create). M47: no
+ * class-class node, no binding row — values are authored on class nodes
+ * directly and read through the effective-properties authored rows.
  */
 export async function ensureTemplateProperty(client: AnyClient): Promise<void> {
   if (templatePropertyPresent(client)) return;
-  if (client.getNodeRaw(SYSTEM_CLASS_UUIDS.class) === undefined) {
-    await client.createClass(SYSTEM_CLASS_DISPLAY_NAMES.class, {
-      id: SYSTEM_CLASS_UUIDS.class,
-      icon: SYSTEM_CLASS_ICONS.class,
-    });
-  }
-  const have = new Set(client.listPropertySchemas().map((schema) => schema.id));
-  if (!have.has(HAS_TEMPLATE_ID)) {
-    await client.createPropertySchema({
-      id: HAS_TEMPLATE_ID,
-      name: SYSTEM_PROPERTY_DISPLAY_NAMES.hasTemplate,
-      type: "object",
-      multi: true,
-      scope: "class",
-      targetClassFilter: [SYSTEM_CLASS_UUIDS.template],
-    });
-  }
-  const bound = new Set(
-    client
-      .getClassBindings(SYSTEM_CLASS_UUIDS.class)
-      .map((binding) => binding.propertySchemaId),
-  );
-  if (!bound.has(HAS_TEMPLATE_ID)) {
-    await client.setClassProperty(SYSTEM_CLASS_UUIDS.class, HAS_TEMPLATE_ID, {
-      sequence: client.getClassBindings(SYSTEM_CLASS_UUIDS.class).length,
-    });
-  }
+  await client.createPropertySchema({
+    id: HAS_TEMPLATE_ID,
+    name: SYSTEM_PROPERTY_DISPLAY_NAMES.hasTemplate,
+    type: "object",
+    multi: true,
+    scope: "global",
+    targetClassFilter: [SYSTEM_CLASS_UUIDS.template],
+  });
 }
 
 /**
