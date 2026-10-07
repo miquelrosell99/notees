@@ -10,8 +10,9 @@
  *
  * A thin chrome wrapper over useSectionData — the timing/cache contract
  * moved into the hook (one instance per section view); this component keeps
- * its exact pre-restructure props and renders the collapsible chrome around
- * `renderResults`.
+ * the established prop shape (the `renderWhenEmpty` opt-in extends it for
+ * containers owning their own empty state) and renders the collapsible
+ * chrome around `renderResults`.
  */
 
 import { useState, type ReactNode } from "react";
@@ -29,9 +30,10 @@ export interface SectionProps<T> {
   /**
    * Materialized count badge — renders unconditionally and is exempt from
    * the lazy-loading contract (reading it is reading a stored number).
-   * Omit for no badge: unlinked references never shows an eager count.
+   * Omit for no badge: unlinked references never shows an eager count (and
+   * an empty child-pages section suppresses the zero).
    */
-  badge?: number;
+  badge?: number | undefined;
   /** Collapsed on first render unless overridden. */
   defaultCollapsed?: boolean;
   /** The section query; MUST NOT be invoked while collapsed. */
@@ -40,6 +42,13 @@ export interface SectionProps<T> {
   renderResults: (results: T) => ReactNode;
   /** Text when the query came back empty. */
   emptyText: string;
+  /**
+   * Render `renderResults` for an EMPTY result set too (default false):
+   * the container owns its own empty state — e.g. a NodeCollection whose
+   * kit EmptyState carries the create affordance. The `emptyText` branch
+   * stays for every section without that chrome.
+   */
+  renderWhenEmpty?: boolean;
   /** Optional chrome rendered above the results (an extension slot). */
   children?: ReactNode;
 }
@@ -53,6 +62,7 @@ export function Section<T>({
   load,
   renderResults,
   emptyText,
+  renderWhenEmpty = false,
   children,
 }: SectionProps<T>) {
   const [expanded, setExpanded] = useState(!defaultCollapsed);
@@ -68,7 +78,7 @@ export function Section<T>({
       onExpandedChange={setExpanded}
     >
       {children}
-      {rows === null ? null : Array.isArray(rows) && rows.length === 0 ? (
+      {rows === null ? null : Array.isArray(rows) && rows.length === 0 && !renderWhenEmpty ? (
         <div className="nt-section-empty">{emptyText}</div>
       ) : (
         renderResults(rows)

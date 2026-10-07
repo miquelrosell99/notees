@@ -5,7 +5,9 @@
  * with a
  * Suspense boundary and (when the entry opts in) the kit ErrorBoundary. The
  * empty collection renders the kit EmptyState when the container offers a
- * title; otherwise nothing.
+ * title; otherwise nothing. The create affordance (the view contract's
+ * `showAddButton` + `onAdd`) rides the empty state's action slot — the
+ * button renders only when BOTH the flag and the callback are set.
  */
 
 import { Suspense } from "react";
@@ -22,9 +24,14 @@ export function NodeCollection({ viewMode, ...props }: NodeCollectionProps & { v
   const View = entry.component;
   // Whole-topology views (graph) omit `items`; list views always receive [].
   const viewProps = { ...props, items: props.items ?? [] };
+  const showAdd = props.showAddButton === true && props.onAdd !== undefined;
   const body =
     viewProps.items.length === 0 && entry.id !== "graph" && props.emptyTitle !== undefined ? (
-      <EmptyState title={props.emptyTitle} description={props.emptyHint} />
+      <EmptyState
+        title={props.emptyTitle}
+        description={props.emptyHint}
+        {...(showAdd ? { actionLabel: props.addLabel ?? "Add", onAction: props.onAdd } : {})}
+      />
     ) : (
       <Suspense fallback={<Spinner />}>
         <View {...viewProps} />

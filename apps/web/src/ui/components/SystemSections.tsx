@@ -23,6 +23,15 @@
  * honest place for it); Ignore dismisses the source device-locally, per
  * page — device state, never an op (./viewPrefs.js).
  *
+ * The Child pages section renders when the page has main children OR the
+ * surface can create them: an empty main-surface page shows the section
+ * with the collection's create affordance in its empty state ("Add child
+ * page" — the create lands IN THE PAGES ZONE and focuses the new child by
+ * opening it, the section's row-click behavior; the expanded section's
+ * live re-query refreshes the list). Embedded feeds render the sections
+ * read-only: no create affordance, and a childless feed entry hides the
+ * section as before.
+ *
  * Extracted from PageView.tsx.
  */
 
@@ -184,10 +193,17 @@ export function SystemSections({
   client,
   pageId,
   onOpenPage,
+  /**
+   * Embedded surfaces (journal feeds) render the sections read-only: the
+   * Child pages create affordance stays a main-surface privilege, same as
+   * the body's ghost row.
+   */
+  embedded = false,
 }: {
   client: AnyClient;
   pageId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
+  embedded?: boolean | undefined;
 }) {
   const loadLinkedRefs = useCallback(() => client.getLinkedReferences(pageId), [client, pageId]);
   const ignored = useIgnoredUnlinkedRefs(pageId);
@@ -204,6 +220,23 @@ export function SystemSections({
       .filter((entry) => !dismissed.has(entry.source.id));
   }, [client, pageId, ignoredKey]);
   const loadChildPages = useCallback(() => client.getChildPages(pageId), [client, pageId]);
+  /**
+   * The Child pages create affordance — the collection contract's flag +
+   * callback + context: the context is the main surface (embedded feeds
+   * never create) WITH a navigation target (the create focuses the new
+   * child by opening it, the section's row-click behavior). The create
+   * lands IN THE PAGES ZONE (presentAsMain); the section's live re-query
+   * (an expanded section re-runs on the write notification) refreshes the
+   * list.
+   */
+  const addChildPage =
+    !embedded && onOpenPage !== undefined
+      ? () => {
+          void client
+            .createObject({ parentId: pageId, presentAsMain: true })
+            .then((childId) => onOpenPage(childId));
+        }
+      : undefined;
 
   // The eager counts ride the tab labels (the backlink count is a
   // materialized read; the unlinked count its memoized count query — the
@@ -241,20 +274,26 @@ export function SystemSections({
 
   return (
     <div className="nt-page-sections">
-      {childPageCount > 0 && (
+      {/* The Child pages section: hidden only when the surface cannot create
+          (embedded feeds, no navigation target) AND the page has none — an
+          empty main-surface page renders the section with the collection's
+          create affordance in its empty state. */}
+      {(childPageCount > 0 || addChildPage !== undefined) && (
         <Section
           key={`child-${pageId}`}
           client={client}
           title="Child pages"
           icon={<Icon path="mdi-file-tree-outline" size={0.9} />}
-          badge={childPageCount}
+          badge={childPageCount > 0 ? childPageCount : undefined}
           defaultCollapsed={false}
           load={loadChildPages}
           emptyText="No child pages."
+          renderWhenEmpty={addChildPage !== undefined}
           renderResults={(pages) => (
             // The reusable outline view over the read-only child-page tree
             // (rows open the page via the row click, per the outline view's
-            // read-only tree path).
+            // read-only tree path). Empty on the main surface: the kit
+            // EmptyState carries the "Add child page" create affordance.
             <NodeCollection
               viewMode="outline"
               client={client}
@@ -262,6 +301,15 @@ export function SystemSections({
               tree
               readOnly
               onNodeClick={(id) => onOpenPage?.(id)}
+              {...(addChildPage !== undefined
+                ? {
+                    emptyTitle: "No child pages.",
+                    emptyHint: "Pages created here live under this page.",
+                    showAddButton: true,
+                    onAdd: addChildPage,
+                    addLabel: "Add child page",
+                  }
+                : {})}
             />
           )}
         />
