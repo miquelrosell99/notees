@@ -7,6 +7,33 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-10-07
+
+- **fix(web): the boot screen never silently re-routes; a Sync tab in User
+  Settings; uploads clear the web proxy.** Owner rulings: a failed connect
+  now shows the error plus an explicit "Try `<origin>` instead" suggestion —
+  nothing probes or connects anywhere without a click (the silent same-host
+  fallback is gone from the account AND the API-key flows). User Settings
+  gains a Sync tab: the current sync server with reachability, "Disconnect &
+  forget this server" (confirmed), and "Connect to a different server". The
+  web nginx proxy also honors the sync server's body ceiling (128 MB —
+  asset uploads died at nginx's 1 MB default with HTTP 413). Full web suite
+  green (118 files / 1200+ tests), deployed via the compose build flow.
+
+- **feat(web): the boot screen never silently re-routes — the same-host guess
+  becomes an explicit suggestion; User Settings gains a Sync tab.** Owner
+  ruling: a failed probe no longer auto-retries the same-origin guess. The
+  error + hint stay, and a "Try \<origin\> instead" button rendered under the
+  boot form is the only path to the guess — clicking it sets the field and
+  probes explicitly. The probe path is extracted into a shared
+  `connectTo(url)` used by the boot form and the new settings Sync tab, which
+  shows the configured sync server with its reachability, offers "Connect to
+  a different server", and "Disconnect & forget this server" (kit
+  ConfirmationModal — it signs the user out and clears the stored server URL,
+  session token, and API key). The auto-retry's now-dead boot note is removed.
+  Verified: `npx tsc --noEmit` in apps/web clean; `settings-modals` +
+  `app-smoke` (45 tests) and the App-rendering suites (136 tests) all green.
+
 ## 2026-10-06
 
 - **chore(ops): the edge's https port defaults to 8443 — :443 is not Notees's.**
