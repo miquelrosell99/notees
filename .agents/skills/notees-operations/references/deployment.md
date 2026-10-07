@@ -61,7 +61,7 @@ CLI env: `NOTEES_SERVER`, `NOTEES_API_KEY`, `NOTEES_WORKSPACE`,
 HTTPS is OPTIONAL, behind the compose "edge" profile — a Caddy container
 (`notees-edge:local`, built from `deploy/Dockerfile.caddy`) with the tailscale
 plugin: `NOTEES_EDGE_NAME=<host>.<tailnet>.ts.net` in `.env` + `docker compose
---profile edge up -d`. One published port (`NOTEES_EDGE_HTTP`, default 443);
+--profile edge up -d`. One published port (`NOTEES_EDGE_HTTP`, default 8443; :443 stays free);
 certs issue/renew via the mounted tailscaled socket; `/api/*` → sync and
 everything else → web over the compose network (the https page is
 same-origin). App publishes are remappable full `ip:port` envs
