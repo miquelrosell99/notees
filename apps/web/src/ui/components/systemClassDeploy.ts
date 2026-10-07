@@ -10,8 +10,11 @@
  * first: an edge has nothing to attach to without the parent row), and its
  * property family from the seed manifest (SYSTEM_PROPERTY_SPECS bound to
  * the class + the SYSTEM_EXTRA_CLASS_BINDINGS rows). Every step checks
- * existence first, so re-running is a complete no-op. All existing ops —
- * nothing here mints new vocabulary.
+ * existence first, so re-running is a complete no-op — and the binding
+ * steps check the REGISTRY rows only (getRegistryBindings), never the
+ * seed-spec fallback read: the fallback makes a class LOOK bound while no
+ * class_property row exists, which used to defeat this self-heal entirely.
+ * All existing ops — nothing here mints new vocabulary.
  *
  * The `task` family is the one exception to the generic path: its schemas
  * carry the designed status options + the bullet display position, a
@@ -109,6 +112,13 @@ export async function deploySystemClass(
   // Generic family: the manifest's specs bound to this class, in manifest
   // order (sequences continue after any existing binding rows, exactly
   // what the server seed's per-class counter does on a fresh class).
+  // The existence check reads the REGISTRY only (getRegistryBindings):
+  // getClassBindings read-synthesizes the seed-spec fallback rows, so a
+  // workspace whose binding rows were never authored would LOOK bound
+  // through that read and the self-heal would author nothing — the ClassView
+  // renders configured while the registry-only effective-properties read
+  // sees no bindings. Own rows only: an inherited binding is not this
+  // class's row, and the seeded shape binds every spec on its own class.
   const family = (
     Object.entries(SYSTEM_PROPERTY_SPECS) as Array<
       [SystemPropertyName, (typeof SYSTEM_PROPERTY_SPECS)[SystemPropertyName]]
@@ -130,10 +140,9 @@ export async function deploySystemClass(
           : {}),
       });
     }
-    const bound = new Set(
-      client.getClassBindings(classId).map((binding) => binding.propertySchemaId),
-    );
-    let sequence = client.getClassBindings(classId).length;
+    const registry = client.getRegistryBindings(classId);
+    const bound = new Set(registry.map((binding) => binding.propertySchemaId));
+    let sequence = registry.length;
     for (const [name, spec] of family) {
       const schemaId = SYSTEM_PROPERTY_UUIDS[name];
       if (bound.has(schemaId)) continue;
@@ -146,11 +155,14 @@ export async function deploySystemClass(
 
   // The manifest's extra binding rows for this class (an extends-child
   // re-binding an inherited schema so class-local binding reads see it —
-  // the birthday→eventDate shape).
+  // the birthday→eventDate shape). Registry-only check here too: birthday
+  // inherits event's eventDate row once the parent is deployed, and an
+  // extends-aware check would mistake that inheritance for the class-local
+  // row the calendar quick-create eligibility walk reads.
   for (const extra of SYSTEM_EXTRA_CLASS_BINDINGS) {
     if (extra.bindTo !== key) continue;
     const bound = client
-      .getClassBindings(classId)
+      .getRegistryBindings(classId)
       .some((binding) => binding.propertySchemaId === SYSTEM_PROPERTY_UUIDS[extra.property]);
     if (bound) continue;
     await client.setClassProperty(classId, SYSTEM_PROPERTY_UUIDS[extra.property], {
