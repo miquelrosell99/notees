@@ -57,6 +57,18 @@
   margin-right: auto;
 }
 
+/* The graph hub: the canvas is the card's sole content — edge-to-edge,
+   no centered column cap, no margins (the fullscreen whiteboard's
+   treatment; the card frame itself stays). */
+.nt-page-card > .nt-graph-surface {
+  max-width: none;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 /* Right sidebar: the cards-only rail — workspace cards (the
    generic frame around NodeView). The EXTERNAL container is one surface
    step below the main card; the node view renders INSIDE it on

@@ -217,6 +217,32 @@ describe("Class View", () => {
     expect(screen.getByText("No classed nodes.")).not.toBeNull();
   });
 
+  it("the classed-nodes toolbar (and the empty state) carry the create affordance: a node classed with this class", async () => {
+    const client = await seedClient();
+    const classId = await createTitledClass(client, "agent");
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+
+    // An empty database still renders the section chrome: the toolbar's
+    // "Add member" button (left of the switcher) and the empty state's
+    // action — both the collection contract's affordance.
+    const classedNodesSection = screen
+      .getByRole("button", { name: /classed nodes/i })
+      .closest("section")!;
+    const addButtons = within(classedNodesSection).getAllByRole("button", { name: "Add member" });
+    expect(addButtons).toHaveLength(2);
+
+    fireEvent.click(addButtons[0]!);
+    await flushWrites();
+
+    // The create composed the class assignment: the new node is a member
+    // (object.create carried classIds — the section's member route), and
+    // the expanded section's re-query renders it as a row.
+    const members = client.getClassMembers(classId);
+    expect(members).toHaveLength(1);
+    expect(members[0]!.classIds).toContain(classId);
+    expect(within(classedNodesSection).queryByText("No classed nodes.")).toBeNull();
+  });
+
   it("renders the seeded property definitions in sequence order", async () => {
     const client = await seedClient();
     // The reserved system id makes the class a SYSTEM class: the seed-spec

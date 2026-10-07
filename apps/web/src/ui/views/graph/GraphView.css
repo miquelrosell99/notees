@@ -47,15 +47,6 @@
   border-color: var(--color-outline);
 }
 
-.nt-graph__select {
-  height: 28px;
-  border-radius: var(--radius-sm, 6px);
-  border: 1px solid var(--color-outline);
-  background: var(--color-surface);
-  color: var(--color-on-surface);
-  padding: 0 var(--spacing-1);
-}
-
 .nt-graph__sep {
   width: 1px;
   height: 18px;
@@ -101,14 +92,8 @@
   flex: 1;
 }
 
-.nt-graph__search {
-  height: 28px;
-  width: 180px;
-  border-radius: var(--radius-sm, 6px);
-  border: 1px solid var(--color-outline);
-  background: var(--color-surface);
-  color: var(--color-on-surface);
-  padding: 0 var(--spacing-sm, 8px);
+.nt-graph__search-field {
+  width: 200px;
 }
 
 .nt-graph__stage {
@@ -116,6 +101,35 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+/* The empty surfaces (nothing to graph / empty neighborhood / everything
+   filtered out) ride the stage's slot: centered, no canvas mounted. */
+.nt-graph__stage--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+}
+
+/* The local-mode depth control: the labeled slider + value readout (the
+   reference neighborhood control). */
+.nt-graph__depth {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font-size: var(--font-size-xs, 12px);
+  color: var(--color-on-surface);
+}
+
+.nt-graph__depth .slider {
+  width: 96px;
+}
+
+.nt-graph__depth-value {
+  min-width: 1ch;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-on-surface-variant, var(--color-on-surface));
 }
 
 .nt-graph__canvas {
