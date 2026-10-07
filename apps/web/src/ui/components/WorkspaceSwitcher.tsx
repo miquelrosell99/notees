@@ -5,6 +5,7 @@ import { createWorkspace, listWorkspaces, type WorkspaceEntry } from "@/core/aut
 import type { AnyClient } from "./Sidebar.js";
 import { Icon } from "../Icon.js";
 import { Separator } from "./ui/Separator.js";
+import { usePopupDismissal } from "./ui/usePopupDismissal.js";
 import { WorkspaceSettingsModal } from "./modals/WorkspaceSettingsModal.js";
 import "./WorkspaceSwitcher.css";
 
@@ -49,7 +50,8 @@ export function WorkspaceSwitcher({
   const [workspaces, setWorkspaces] = useState<WorkspaceEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [settingsWorkspace, setSettingsWorkspace] = useState<WorkspaceEntry | null>(null);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -66,23 +68,14 @@ export function WorkspaceSwitcher({
     };
   }, [open, serverUrl, credential]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (rootRef.current !== null && !rootRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
+  // The shared dismissal layer: pointer-down outside (the trigger is an
+  // anchor, so pressing it toggles instead of dismissing) + Escape.
+  usePopupDismissal({
+    popupRef,
+    anchorRefs: [triggerRef],
+    isOpen: open,
+    onClose: () => setOpen(false),
+  });
 
   const filtered =
     workspaces === null
@@ -106,10 +99,11 @@ export function WorkspaceSwitcher({
   }
 
   return (
-    <div className="workspace-switcher" ref={rootRef}>
+    <div className="workspace-switcher">
       <div className="workspace-switcher__row">
         <button
           type="button"
+          ref={triggerRef}
           className="workspace-switcher__trigger"
           aria-expanded={open}
           onClick={() => setOpen((value) => !value)}
@@ -120,7 +114,19 @@ export function WorkspaceSwitcher({
       </div>
 
       {open && (
-        <div className="workspace-switcher__popup" role="listbox" aria-label="Workspaces">
+        <div
+          className="workspace-switcher__popup"
+          role="listbox"
+          aria-label="Workspaces"
+          ref={popupRef}
+          // The search input may hold focus; the shared layer skips Esc that
+          // originates inside the popup, so the popup root closes on it.
+          onKeyDown={(event) => {
+            if (event.key !== "Escape") return;
+            event.stopPropagation();
+            setOpen(false);
+          }}
+        >
           <div className="workspace-switcher__search">
             <input
               className="workspace-switcher__search-input"
