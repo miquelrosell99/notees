@@ -21,8 +21,10 @@
  *    setProperty / unsetProperty / attachAsset), the session undo journal
  *    (undoState / undo / redo), syncOnce, the realtime
  *    acceleration path (startRealtime / stopRealtime), status, exportBytes,
- *    stats, the per-user UI prefs reads/writes (getPrefs / patchPrefs),
- *    and flush;
+ *    stats, the per-user UI prefs reads/writes (getPrefs / patchPrefs), the
+ *    hosted section views surface (listSectionViews / createSectionView /
+ *    renameSectionView / reorderSectionViews / deleteSectionView — the
+ *    prefs-channel custom tabs), and flush;
  *  - persists db.export() bytes to OPFS debounced (~500 ms, coalesced) after
  *    every mutation, each save awaiting the previous one (serialized chain);
  *    flush() forces the pending write now (close path, tests).
@@ -855,6 +857,31 @@ export class WorkerCore {
         return this.client.getPrefs();
       case "patchPrefs":
         return this.client.patchPrefs(args[0] as PrefsPatch);
+      case "listSectionViews":
+        return this.client.listSectionViews(args[0] as string, args[1] as string);
+      case "createSectionView":
+        return this.client.createSectionView(
+          args[0] as Parameters<WorkspaceClient["createSectionView"]>[0],
+        );
+      case "renameSectionView":
+        return this.client.renameSectionView(
+          args[0] as string,
+          args[1] as string,
+          args[2] as string,
+          args[3] as string,
+        );
+      case "reorderSectionViews":
+        return this.client.reorderSectionViews(
+          args[0] as string,
+          args[1] as string,
+          args[2] as string[],
+        );
+      case "deleteSectionView":
+        return this.client.deleteSectionView(
+          args[0] as string,
+          args[1] as string,
+          args[2] as string,
+        );
       case "exportBytes":
         return this.exportBytes();
       case "stats":

@@ -1,0 +1,90 @@
+/* SectionViewTabs — the hosted-views chrome riding a hosted NodeCollection:
+   the tab bar row (Default permanent first, custom tabs by sequence, the
+   "+" add-slot, the always-available reset), the active custom tab's manage
+   row (rename / move / delete), and the write-error line. Token-only. */
+
+.nt-section-views {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1, 4px);
+}
+
+.nt-section-views__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2, 8px);
+  min-width: 0;
+}
+
+.nt-section-views__tabs {
+  min-width: 0;
+  flex: 1;
+}
+
+.nt-section-views__tabs .tabs__list {
+  flex-wrap: wrap;
+}
+
+.nt-section-views__reset {
+  border: none;
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-sm, 0.8125rem);
+  padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
+  border-radius: var(--shape-small, 4px);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.nt-section-views__reset:hover:not(:disabled) {
+  background: var(--color-hover-overlay);
+  color: var(--color-on-surface);
+}
+
+.nt-section-views__reset:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.nt-section-views__manage {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1, 4px);
+}
+
+.nt-section-views__manage-name {
+  font-size: var(--font-size-sm, 0.8125rem);
+  color: var(--color-on-surface-variant);
+  margin-inline-end: var(--spacing-1, 4px);
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-section-views__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  padding: var(--spacing-1, 4px);
+  border-radius: var(--shape-small, 4px);
+  cursor: pointer;
+}
+
+.nt-section-views__action:hover:not(:disabled) {
+  background: var(--color-hover-overlay);
+  color: var(--color-on-surface);
+}
+
+.nt-section-views__action:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.nt-section-views__action--danger:hover:not(:disabled) {
+  color: var(--color-error, #b3261e);
+}
