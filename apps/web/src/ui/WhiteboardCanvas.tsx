@@ -85,7 +85,7 @@ import type {
   UpdateObjectInput,
 } from "@/core/workspace-client.js";
 
-import { displayNameFromClient } from "./dateDisplay.js";
+import { displayNameFromClient, fullTitleFromClient } from "./dateDisplay.js";
 import { InlineTokens } from "./InlineTokens.js";
 import { openNodeLinkMenu } from "./components/NodeLinkContextMenu.js";
 import { SAVE_DEBOUNCE_MS } from "./BlockTextEditor.js";
@@ -1283,6 +1283,7 @@ export function WhiteboardCanvas({
   const hasContent =
     cards.length > 0 || view.shapes.length > 0 || view.strokes.length > 0 || drawing !== null;
   const resolveName = (id: string) => displayNameFromClient(client, id);
+  const resolveFullTitle = (id: string) => fullTitleFromClient(client, id);
 
   const toolbar = (
     <div className="nt-wb-toolbar">
@@ -1614,6 +1615,7 @@ export function WhiteboardCanvas({
                     <InlineTokens
                       tokens={card.contentAst}
                       resolveName={resolveName}
+                      resolveFullTitle={resolveFullTitle}
                       onMentionMenu={(info) => openNodeLinkMenu({ blockId: card.id, ...info })}
                     />
                   )}

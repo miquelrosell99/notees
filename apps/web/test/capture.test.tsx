@@ -17,7 +17,7 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
-import { deriveDisplayName } from "@notees/domain";
+import { deriveDisplayName, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import type { ContentAst } from "@notees/protocol";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
@@ -588,5 +588,126 @@ describe("capture tokens survive editing", () => {
     expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: targetId, text: "Target" });
     expect(ast[2]).toEqual({ type: "text", text: " and more" });
     expect(proseFromAst(ast)).toBe("see Target and more");
+  });
+});
+
+describe("capture: create-from-@ (async completion)", () => {
+  it("the create row's completion splices the mention even when the trigger was dismissed before the node arrived", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    // Gate the create promise so the completion can be ordered AFTER the
+    // trigger's dismissal (the in-process client resolves too fast to
+    // interleave otherwise).
+    let openGate: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      openGate = resolve;
+    });
+    const originalCreate = client.createObject.bind(client);
+    vi.spyOn(client, "createObject").mockImplementation(((input: unknown) => {
+      const result = originalCreate(input as Parameters<typeof originalCreate>[0]);
+      if ((input as { name?: string }).name === "Async page") {
+        return Promise.all([result, gate]).then(([id]) => id as string);
+      }
+      return result;
+    }) as never);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "@");
+    typeInPicker("Async page");
+    // Choose the create row — the picker's UI closes immediately and the
+    // create stays in flight behind the gate.
+    fireEvent.click(within(picker()!).getByText('Create "Async page"'));
+    // The user dismisses the trigger before the node arrives (backspacing
+    // the trigger char — the plain-text cleanup gesture).
+    typeWithCaret(editor, "");
+    await act(async () => {});
+    // The created node arrives; the completion must still land the mention.
+    await act(async () => {
+      openGate();
+    });
+    // Drain the completion's write + push chain before teardown.
+    for (let i = 0; i < 6; i += 1) await act(async () => {});
+
+    const created = client.listPages().filter((p) => deriveDisplayName(p) === "Async page");
+    expect(created).toHaveLength(1);
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[ast.length - 1]).toMatchObject({
+      type: "mention",
+      targetNodeId: created[0]!.id,
+      text: "Async page",
+    });
+    expect(editor.textContent).toContain("Async page");
+  });
+
+  it("the class-aware modal's completion links the created source at the trigger", async () => {
+    const client = await seedClient();
+    // The server-seed shape for the source family.
+    await client.createClass("Source", { id: SYSTEM_CLASS_UUIDS.source });
+    await client.createClass("Book", { id: SYSTEM_CLASS_UUIDS.book });
+    await client.setClassExtends(SYSTEM_CLASS_UUIDS.book, [SYSTEM_CLASS_UUIDS.source]);
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "@");
+    // A `class:` refine routes the create row to the citation modal.
+    typeInPicker("class:source Dune");
+    fireEvent.click(within(picker()!).getByText('Create "Dune"'));
+
+    const dialog = await screen.findByRole("dialog", { name: /new book/i });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^create$/i }));
+    await act(async () => {});
+    await act(async () => {});
+
+    const created = client
+      .listPages()
+      .filter((p) => deriveDisplayName(p) === "Dune" && p.classIds.includes(SYSTEM_CLASS_UUIDS.book));
+    expect(created).toHaveLength(1);
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[0]).toMatchObject({
+      type: "mention",
+      targetNodeId: created[0]!.id,
+      text: "Dune",
+    });
+    expect(editor.textContent).toBe("Dune");
+  });
+
+  it("create cancellation leaves the plain trigger text (no mention ever lands)", async () => {
+    const client = await seedClient();
+    await client.createClass("Source", { id: SYSTEM_CLASS_UUIDS.source });
+    await client.createClass("Book", { id: SYSTEM_CLASS_UUIDS.book });
+    await client.setClassExtends(SYSTEM_CLASS_UUIDS.book, [SYSTEM_CLASS_UUIDS.source]);
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "@");
+    typeInPicker("class:source Dune");
+    fireEvent.click(within(picker()!).getByText('Create "Dune"'));
+    const dialog = await screen.findByRole("dialog", { name: /new book/i });
+
+    // Cancel the modal: nothing is created, the trigger char stays plain.
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await act(async () => {});
+    expect(screen.queryByRole("dialog", { name: /new book/i })).toBeNull();
+    expect(client.listPages().some((p) => deriveDisplayName(p) === "Dune")).toBe(false);
+    expect(editor.textContent).toBe("@");
+    let ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast.some((token) => (token as { type?: string }).type === "mention")).toBe(false);
+
+    // Abandoning the capture (backspacing the trigger) keeps plain text —
+    // no late mention can appear, the create never happened. Blur flushes
+    // the emptied draft (and clears the debounce timer) before teardown.
+    typeWithCaret(editor, "");
+    fireEvent.blur(editor);
+    await act(async () => {});
+    for (let i = 0; i < 6; i += 1) await act(async () => {});
+    ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast.some((token) => (token as { type?: string }).type === "mention")).toBe(false);
   });
 });
