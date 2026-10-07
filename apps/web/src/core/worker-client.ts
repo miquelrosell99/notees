@@ -443,6 +443,14 @@ export class WorkerClient {
     return this.cachedRead<ClassBinding[]>("getClassBindings", [classId], []);
   }
 
+  /**
+   * The class's OWN registry rows — no extends inheritance, no seed-spec
+   * fallback (the deploy-path existence read; see WorkspaceClient).
+   */
+  getRegistryBindings(classId: string): ClassBinding[] {
+    return this.cachedRead<ClassBinding[]>("getRegistryBindings", [classId], []);
+  }
+
   getEffectiveProperties(id: string): EffectiveProperty[] {
     return this.cachedRead<EffectiveProperty[]>("getEffectiveProperties", [id], []);
   }
