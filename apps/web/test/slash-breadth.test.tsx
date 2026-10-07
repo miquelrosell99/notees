@@ -288,9 +288,12 @@ describe("slash /template", () => {
       targetNodeId: string;
     };
     const created = client.getNode(mention.targetNodeId)!;
-    // {{topic}} unfilled substitutes empty (deliberate, never silent; the
-    // store trims the trailing space).
-    expect(created.contentAst).toEqual([{ type: "text", text: "Notes for" }]);
+    // {{topic}} unfilled substitutes empty (deliberate, never silent): the
+    // stored content keeps the faithful "Notes for " run — content writes no
+    // longer re-flatten a page's own content — while display-name derivation
+    // still trims (the label read is unchanged).
+    expect(created.contentAst).toEqual([{ type: "text", text: "Notes for " }]);
+    expect(client.getDisplayName(created.id)).toBe("Notes for");
     const child = client.getChildren(created.id)[0]!;
     const todayIso = new Date();
     const today = `${todayIso.getFullYear()}-${String(todayIso.getMonth() + 1).padStart(2, "0")}-${String(todayIso.getDate()).padStart(2, "0")}`;
