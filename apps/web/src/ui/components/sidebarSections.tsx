@@ -1,22 +1,23 @@
 /**
- * Right-sidebar context sections: the
- * table of contents + linked references of the page open in the MAIN view,
- * rendered above the peek-card stack. The rail is chrome — the collapsed
- * system sections at the card bottom stay the small-viewport fallback, and
- * the references section keeps the lazy-loading contract (a collapsed
- * section runs no query; the badge reads the materialized backlink count).
+ * Right-sidebar context sections → the page chrome's context column (S7 of
+ * the main-content restructure, M17): what survives the rail's cards-only
+ * rework is the table of contents of the page open in the MAIN view, now
+ * riding the panelled layout's third column inside the content card (the
+ * rail hosts workspace cards exclusively). TOC derivation lives in
+ * ./sidebarToc.ts (tree-derived — no heading tokens exist).
  *
- * TOC derivation lives in ./sidebarToc.ts (tree-derived per D4 — no heading
- * tokens exist); references reuse the linked-references read the bottom
- * section uses, promoted into the rail when the panel is open (B2).
+ * The references dedupe check (the S7 precondition): the rail's
+ * ReferencesSection and the page's own Backlinks tab both rendered
+ * getLinkedReferences — the SAME data — so the rail's ReferencesSection is
+ * DELETED rather than relocated; the Backlinks tab stays the one home in
+ * the SectionStack, where the tab/filter machinery lands later. One home,
+ * no duplication.
  */
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ReferenceEntry, WorkspaceClient } from "@/core/workspace-client.js";
+import type { WorkspaceClient } from "@/core/workspace-client.js";
 
 import { Icon } from "../Icon.js";
-import { Section } from "../Section.js";
-import { displayNameForSettings } from "../dateDisplay.js";
 import { clipCrumbName } from "./Breadcrumbs.js";
 import { tocEntriesOf } from "./sidebarToc.js";
 import "./sidebarSections.css";
@@ -74,68 +75,5 @@ export function TocSection({
         })}
       </ul>
     </nav>
-  );
-}
-
-/** One compact reference row: the source's name + its containing page. */
-function ReferenceRow({
-  entry,
-  onOpenNode,
-}: {
-  entry: ReferenceEntry;
-  onOpenNode: (nodeId: string) => void;
-}) {
-  const name = clipCrumbName(displayNameForSettings(entry.source), 48);
-  return (
-    <li className="nt-rail-ref__item">
-      <button
-        type="button"
-        className="nt-rail-ref__row"
-        title={entry.containingPageName}
-        onClick={() => onOpenNode(entry.source.id)}
-      >
-        <span className="nt-rail-ref__name">{name}</span>
-        {entry.source.id !== entry.containingPageId && (
-          <span className="nt-rail-ref__context">{clipCrumbName(entry.containingPageName, 24)}</span>
-        )}
-      </button>
-    </li>
-  );
-}
-
-/**
- * Linked references of the main-view page, promoted into the rail (B2).
- * Hidden at zero backlinks (owner rule); the query itself stays lazy —
- * the section runs it only on first expand, per the system-section contract.
- */
-export function ReferencesSection({
-  client,
-  pageId,
-  onOpenNode,
-}: {
-  client: AnyClient;
-  pageId: string;
-  onOpenNode: (nodeId: string) => void;
-}) {
-  const backlinkCount = client.getBacklinkCount(pageId);
-  if (backlinkCount === 0) return null;
-  return (
-    <Section
-      key={`rail-refs-${pageId}`}
-      client={client}
-      title="References"
-      icon={<Icon path="mdi-link-variant" size={0.9} />}
-      badge={backlinkCount}
-      defaultCollapsed
-      load={() => client.getLinkedReferences(pageId)}
-      emptyText="No linked references."
-      renderResults={(entries) => (
-        <ul className="nt-rail-ref__list">
-          {entries.map((entry) => (
-            <ReferenceRow key={entry.source.id} entry={entry} onOpenNode={onOpenNode} />
-          ))}
-        </ul>
-      )}
-    />
   );
 }

@@ -1247,12 +1247,28 @@ lands. Per the post-§34 records regime, shipped slices are recorded in
   the single root item; M19 comment exclusion at every level);
   `FocusedBlockView.tsx` deleted — the NodeView block branch renders
   ReferenceSubtree with the same chrome wrapper; new unit coverage.
-- **S5 — class subtraction + variants as data: IN FLIGHT** (subagent).
+- **S5 — class subtraction + variants as data: DONE** (commit `76224dfb`).
   M11 ClassPillsList, M13 variant data (PageView slots deleted, ClassView
   deleted, `components/pageVariant.ts`), M9 chrome subtraction, M12's
   banner deletion.
-- **Recovery batch IN FLIGHT** (subagent): M33 upload modal, M35 v1 query
-  builder, M10 picker color, M38a NodeSelector `noCreate`.
-- Next after the in-flight wave: commit verifications, **S7** (three-column
-  context + cards-only rail; M19 Comments + M36 whiteboard + M37 graph
-  containers land inside it), then **S6** (workspace DnD hoist).
+- **Recovery batch: DONE** (commits `d0f278e7` M33 upload modal, `6b997e1f`
+  M35 v1 query builder, `9be3606a` M10 picker color + M38a NodeSelector
+  `noCreate`; `c2b11b50` M39 no-cover fix + v1 cards/table re-UI).
+- **M20 — text-property rows as locked outline NodeCollections: DONE**
+  (commit `034200ce`).
+- **S7a — context column + cards-only rail: DONE** (uncommitted at this
+  writing). Three-column panelled composition (NodeView · properties ·
+  context); context = LocalGraphCard · TocSection · Activity (M18) ·
+  Comments (M19, the v1 model restored); per-column device-local collapse
+  from the nodeview top bar (the `layout` prop stays binary — per-column
+  prefs replace the recorded "third state" option, registered choice); the
+  references dedupe check VERIFIED the rail's ReferencesSection and the
+  Backlinks tab render the same `getLinkedReferences` data — the rail's
+  section is DELETED, the Backlinks tab stays the one home; the rail is
+  cards-only via the generic `NodeCardFrame` (`SidebarNodeCard` deleted;
+  card collapse session-local, reorder a registered follow-up); NodeView
+  gains the `preview` seam (no machinery, no corner menu, first-level capped
+  body — nothing renders it yet; swapping NodeHoverPreview over is a
+  registered follow-up).
+- Next: the rest of **S7** (M36 whiteboard + M37 graph full-container
+  chrome), then **S6** (workspace DnD hoist).

@@ -11,10 +11,8 @@
  * M19: children classed `comment` are excluded at EVERY level, with their
  * whole subtrees — comments never render in the main body (the v1
  * precedent, NodeTreeProjection's `is_comment` skip); they surface only in
- * the Comments section of the context column. Nothing authors comment
- * nodes in the UI yet, so the filter is inert until the Comments section
- * lands (S7/M19) — recorded so the exclusion's visibility gap is a known,
- * accepted window.
+ * the Comments section of the context column (components/CommentsSection.tsx,
+ * landed with S7a).
  */
 
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
