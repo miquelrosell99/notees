@@ -41,6 +41,12 @@ export interface UsePageMachineryOptions {
   embedded: boolean;
   forClass: boolean;
   focusMode: boolean;
+  /**
+   * Preview surface (the hover preview): no block multi-selection — the
+   * rows are read-only; a gesture surface over them would fight the page
+   * editor that owns the caret.
+   */
+  preview?: boolean;
   /** Surface-level global listeners (find/replace chord, fold chords). */
   globalShortcuts?: boolean;
   onOpenPage?: ((pageId: string) => void) | undefined;
@@ -68,6 +74,7 @@ export function usePageMachinery({
   embedded,
   forClass,
   focusMode,
+  preview = false,
   globalShortcuts = true,
   onOpenPage,
   onOpenInSidebar,
@@ -112,8 +119,9 @@ export function usePageMachinery({
     // instantiating (idempotent no-op once present).
     ensureTemplateFamily: () => ensureTemplateFamily(client),
     // Block multi-selection: the main page body is a selection surface;
-    // embedded feed entries and class composition aren't.
-    selection: !embedded && !forClass,
+    // embedded feed entries, class composition, and the preview surface
+    // (read-only rows) aren't.
+    selection: !embedded && !forClass && !preview,
     // Focus mode: block rows hide their reference/property chrome.
     focusMode,
   });

@@ -44,6 +44,22 @@
  *   expansion mounts the card's body, whose zone registration measures it
  *   into the live session.
  *
+ * Rail card reorder (the same session, a distinct drag kind):
+ *
+ * - A card frame's header carries a GRIP that registers the card as a
+ *   reorder source (the block-row grip precedent — a small distinct
+ *   handle, so the reorder gesture never conflicts with the header's
+ *   drop gesture or the breadcrumb clicks). Dragging the grip starts a
+ *   RAIL session: the block machinery stays out (no zone measuring, no
+ *   drop line, no transient expands) — the feedback is the overlay chip
+ *   plus the target header's reorder edge (before/after, the pointer's
+ *   half of the header; keyboard drags default below).
+ * - At drop, the host reports { activeCard, targetCard, position } to the
+ *   App's onRailCardReorder — the App owns the card stack (session state)
+ *   and its device-local persistence; the session never moves blocks for
+ *   a card drag, and never reorders for a block drag. Dropping onto the
+ *   dragged card's own header is a no-op.
+ *
  * Cross-zone drops are always MOVE (re-parent) — never copy/link.
  *
  * Without a host (standalone renders, tests) the registration hooks are
@@ -64,7 +80,7 @@ import {
   type RefObject,
 } from "react";
 
-import { DndContext, DragOverlay, useDroppable, type DragEndEvent, type DragMoveEvent, type DragStartEvent } from "@dnd-kit/core";
+import { DndContext, DragOverlay, useDraggable, useDroppable, type DragEndEvent, type DragMoveEvent, type DragStartEvent, type DraggableAttributes, type DraggableSyntheticListeners } from "@dnd-kit/core";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client.js";
@@ -112,18 +128,34 @@ export interface WorkspaceDndHeaderFacts {
   client: AnyClient;
 }
 
-/** The drag-scoped UI state the frames read (header drop + transient expand). */
+/** A rail card's registered reorder source (the header grip). */
+export interface WorkspaceRailCardFacts {
+  /** The grip's drag id — the `workspaceRailCardDraggableId` namespace. */
+  draggableId: string;
+  /** The card's node (the rail stack is keyed by it). */
+  nodeId: string;
+  /** The label source for the overlay chip. */
+  client: AnyClient;
+}
+
+/** The edge of the target card a reorder lands on. */
+export type RailReorderPosition = "before" | "after";
+
+/** The drag-scoped UI state the frames read (header drop + transient expand + rail reorder). */
 export interface WorkspaceDndDragUi {
-  /** The header droppable id currently targeted, if any. */
+  /** The header droppable id currently targeted, if any (block drags only). */
   headerDropId: string | null;
   /** Card node ids transiently expanded for the session (drag-scoped). */
   expandedNodeIds: ReadonlySet<string>;
+  /** Rail reorder: the targeted card + edge while a card drag is live. */
+  railReorder: { nodeId: string; position: RailReorderPosition } | null;
 }
 
 /** The host API surfaces register through (null without a host). */
 export interface WorkspaceDndHostApi {
   registerZone: (facts: WorkspaceDndZoneFacts) => () => void;
   registerHeader: (facts: WorkspaceDndHeaderFacts) => () => void;
+  registerRailCard: (facts: WorkspaceRailCardFacts) => () => void;
   dragUi: WorkspaceDndDragUi;
 }
 
@@ -134,9 +166,18 @@ export function workspaceCardHeaderDroppableId(nodeId: string): string {
   return `workspace-card-header:${nodeId}`;
 }
 
+/** The draggable id a rail card's grip registers under (its own namespace —
+ *  never a block id, so the host can tell a card drag from a block drag). */
+export function workspaceRailCardDraggableId(nodeId: string): string {
+  return `workspace-rail-card:${nodeId}`;
+}
+
 interface DragSession {
+  /** Rail sessions reorder the App's card stack; block sessions move blocks. */
+  kind: "blocks" | "rail";
   activeId: string;
-  /** Per-zone valid-location sets; the merged projection rides alongside. */
+  /** Per-zone valid-location sets; the merged projection rides alongside
+   *  (empty for rail sessions — the block machinery stays out). */
   perZone: Map<string, readonly DropCandidate[]>;
   merged: readonly ZoneDropCandidate[];
 }
@@ -152,7 +193,33 @@ function rebuildMerged(session: DragSession): void {
  *  (header drops always resolve cross-tree, straight from the client). */
 const NO_POSITIONS: OutlinePositionMap = new Map();
 
-export function useWorkspaceDnd() {
+/**
+ * The rail reorder edge for a drag event: the pointer's half of the target
+ * header's rect (above the midpoint → before, below → after). Keyboard
+ * drags carry no pointer — they resolve below, the event-driven default in
+ * the same spirit as the block keyboard line anchoring under the over row.
+ * Pure — exported for the rail reorder tests.
+ */
+export function railReorderPositionOf(
+  pointer: { x: number; y: number } | null,
+  overRect: { top: number; height: number } | null,
+): RailReorderPosition {
+  if (pointer === null || overRect === null) return "after";
+  return pointer.y < overRect.top + overRect.height / 2 ? "before" : "after";
+}
+
+export function useWorkspaceDnd(opts: {
+  /**
+   * The rail reorder report: the App owns the card stack and its
+   * device-local persistence; the host only reports the gesture
+   * { activeCard, targetCard, edge }.
+   */
+  onRailCardReorder?:
+    | ((activeNodeId: string, targetNodeId: string, position: RailReorderPosition) => void)
+    | undefined;
+} = {}) {
+  const onRailCardReorderRef = useRef(opts.onRailCardReorder);
+  onRailCardReorderRef.current = opts.onRailCardReorder;
   const sensors = useBlockDndSensors();
   const [dropLine, setDropLine] = useState<DropLine | null>(null);
   const [dragging, setDragging] = useState<{ id: string; label: string } | null>(null);
@@ -160,9 +227,11 @@ export function useWorkspaceDnd() {
   const [dragUi, setDragUi] = useState<WorkspaceDndDragUi>({
     headerDropId: null,
     expandedNodeIds: new Set(),
+    railReorder: null,
   });
   const zonesRef = useRef(new Map<string, WorkspaceDndZoneFacts>());
   const headersRef = useRef(new Map<string, WorkspaceDndHeaderFacts>());
+  const railCardsRef = useRef(new Map<string, WorkspaceRailCardFacts>());
   const sessionRef = useRef<DragSession | null>(null);
 
   useEffect(() => {
@@ -202,6 +271,13 @@ export function useWorkspaceDnd() {
     };
   }, []);
 
+  const registerRailCard = useCallback((facts: WorkspaceRailCardFacts) => {
+    railCardsRef.current.set(facts.draggableId, facts);
+    return () => {
+      railCardsRef.current.delete(facts.draggableId);
+    };
+  }, []);
+
   /** The zone whose positions own the id (the dragged row's home zone
    *  first — the event-driven keyboard line reads the ACTIVE row's
    *  previous sibling; then the zone under the pointer). */
@@ -219,22 +295,69 @@ export function useWorkspaceDnd() {
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const id = String(event.active.id);
+    const railCard = railCardsRef.current.get(id);
+    setMoveError(null);
+    if (railCard !== undefined) {
+      // A rail-card reorder drag: the block machinery stays out — no zone
+      // measuring, no drop line, no transient expands. The feedback is the
+      // overlay chip + the target header's reorder edge.
+      setDragging({
+        id,
+        label: displayNameFromClient(railCard.client, railCard.nodeId) ?? railCard.nodeId,
+      });
+      setDragUi({ headerDropId: null, expandedNodeIds: new Set(), railReorder: null });
+      sessionRef.current = { kind: "rail", activeId: id, perZone: new Map(), merged: [] };
+      return;
+    }
     const home = zoneFor(id, id);
     const client = home?.client;
     setDragging({ id, label: (client === undefined ? null : displayNameFromClient(client, id)) ?? id });
-    setMoveError(null);
-    setDragUi({ headerDropId: null, expandedNodeIds: new Set() });
+    setDragUi({ headerDropId: null, expandedNodeIds: new Set(), railReorder: null });
     const perZone = new Map<string, readonly DropCandidate[]>();
     for (const [zoneId, facts] of zonesRef.current) {
       perZone.set(zoneId, measureZone(facts, id));
     }
-    const session: DragSession = { activeId: id, perZone, merged: [] };
+    const session: DragSession = { kind: "blocks", activeId: id, perZone, merged: [] };
     rebuildMerged(session);
     sessionRef.current = session;
   }, [measureZone, zoneFor]);
 
   const handleDragMove = useCallback(
     (event: DragMoveEvent) => {
+      const railSession = sessionRef.current;
+      if (railSession?.kind === "rail") {
+        // Rail reorder: only another card's header is a target (block-row
+        // droppables under the pointer are ignored); the dragged card's own
+        // header is not.
+        const railCard = railCardsRef.current.get(railSession.activeId);
+        const overId = event.over === null ? null : String(event.over.id);
+        const header = overId === null ? undefined : headersRef.current.get(overId);
+        const target =
+          header !== undefined && railCard !== undefined && header.nodeId !== railCard.nodeId
+            ? header
+            : undefined;
+        const position =
+          target === undefined
+            ? "after"
+            : railReorderPositionOf(dragPointerOf(event), event.over?.rect ?? null);
+        setDragUi((prev) => {
+          const current = prev.railReorder;
+          if (
+            (target === undefined && current === null) ||
+            (target !== undefined &&
+              current !== null &&
+              current.nodeId === target.nodeId &&
+              current.position === position)
+          ) {
+            return prev;
+          }
+          return {
+            ...prev,
+            railReorder: target === undefined ? null : { nodeId: target.nodeId, position },
+          };
+        });
+        return;
+      }
       const overId = event.over === null ? null : String(event.over.id);
       const header = overId === null ? undefined : headersRef.current.get(overId);
       if (header !== undefined) {
@@ -247,6 +370,7 @@ export function useWorkspaceDnd() {
             : {
                 headerDropId: overId,
                 expandedNodeIds: new Set(prev.expandedNodeIds).add(header.nodeId),
+                railReorder: null,
               },
         );
         return;
@@ -273,9 +397,25 @@ export function useWorkspaceDnd() {
       sessionRef.current = null;
       setDropLine(null);
       setDragging(null);
-      // Drag-scoped expansions release: transiently expanded cards
-      // re-collapse (their own collapse state never moved).
-      setDragUi({ headerDropId: null, expandedNodeIds: new Set() });
+      // Drag-scoped UI releases: header drops, transient expansions, and
+      // the rail reorder edge all end with the session.
+      setDragUi({ headerDropId: null, expandedNodeIds: new Set(), railReorder: null });
+      if (session?.kind === "rail") {
+        // The report seam: the App owns the stack + its persistence; a
+        // self-drop (or a drop on nothing) reports nothing.
+        const railCard = railCardsRef.current.get(activeId);
+        const overId = event.over === null ? null : String(event.over.id);
+        const header = overId === null ? undefined : headersRef.current.get(overId);
+        if (railCard === undefined || header === undefined || header.nodeId === railCard.nodeId) {
+          return;
+        }
+        onRailCardReorderRef.current?.(
+          railCard.nodeId,
+          header.nodeId,
+          railReorderPositionOf(dragPointerOf(event), event.over?.rect ?? null),
+        );
+        return;
+      }
       const pointer = dragPointerOf(event);
       const overId = event.over === null ? null : String(event.over.id);
       const header = overId === null ? undefined : headersRef.current.get(overId);
@@ -358,12 +498,12 @@ export function useWorkspaceDnd() {
     sessionRef.current = null;
     setDropLine(null);
     setDragging(null);
-    setDragUi({ headerDropId: null, expandedNodeIds: new Set() });
+    setDragUi({ headerDropId: null, expandedNodeIds: new Set(), railReorder: null });
   }, []);
 
   const hostApi = useMemo<WorkspaceDndHostApi>(
-    () => ({ registerZone, registerHeader, dragUi }),
-    [registerZone, registerHeader, dragUi],
+    () => ({ registerZone, registerHeader, registerRailCard, dragUi }),
+    [registerZone, registerHeader, registerRailCard, dragUi],
   );
 
   return {
@@ -384,8 +524,20 @@ export function useWorkspaceDnd() {
  * the right rail, and the floating editor windows; the DropLineContext the
  * block rows read; the overlay chip; the transient move-error banner.
  */
-export function WorkspaceDndHost({ children }: { children: ReactNode }) {
-  const dnd = useWorkspaceDnd();
+export function WorkspaceDndHost({
+  children,
+  onRailCardReorder,
+}: {
+  children: ReactNode;
+  /**
+   * The rail reorder report — the App owns the card stack (session state +
+   * device-local persistence); the host reports the gesture.
+   */
+  onRailCardReorder?:
+    | ((activeNodeId: string, targetNodeId: string, position: RailReorderPosition) => void)
+    | undefined;
+}) {
+  const dnd = useWorkspaceDnd({ onRailCardReorder });
   return (
     <WorkspaceDndHostContext.Provider value={dnd.hostApi}>
       <DndContext
@@ -451,4 +603,32 @@ export function useWorkspaceDndHeader(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [host, facts.droppableId]);
   return setNodeRef;
+}
+
+/**
+ * A rail card's GRIP joins the session as a reorder source: registers the
+ * card with the host (no-op without one) and returns the draggable's ref
+ * callback + activator props for the grip element (inert without a host).
+ */
+export function useWorkspaceDndRailCard(facts: WorkspaceRailCardFacts): {
+  setGripRef: (element: HTMLElement | null) => void;
+  attributes: DraggableAttributes;
+  listeners: DraggableSyntheticListeners;
+  isDragging: boolean;
+} {
+  const host = useContext(WorkspaceDndHostContext);
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: facts.draggableId,
+    disabled: host === null,
+  });
+  const factsRef = useRef(facts);
+  factsRef.current = facts;
+  useEffect(() => {
+    if (host === null) return;
+    return host.registerRailCard(factsRef.current);
+    // The facts object is rebuilt per render; registration is keyed on the
+    // stable draggable id (the host reads the client live).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [host, facts.draggableId]);
+  return { setGripRef: setNodeRef, attributes, listeners, isDragging };
 }
