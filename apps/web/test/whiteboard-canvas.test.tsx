@@ -174,8 +174,9 @@ describe("whiteboard canvas (fullscreen page)", () => {
     expect(el.style.top).toBe("50px");
     expect(el.style.width).toBe("200px");
     // The content shows twice on the card: the title bar (display name) and
-    // the body projection.
-    expect(screen.getAllByText("hello card").length).toBe(2);
+    // the body projection. (Scoped to the canvas: the context column's TOC
+    // also lists the card's one-line text.)
+    expect(within(canvas as HTMLElement).getAllByText("hello card").length).toBe(2);
     // Empty-state hint is gone once a card exists.
     expect(container.querySelector(".nt-wb-empty")).toBeNull();
   });
@@ -242,8 +243,10 @@ describe("whiteboard canvas (fullscreen page)", () => {
     fireEvent.blur(editor);
     await act(async () => {});
     expect(client.getNode(cardId)!.contentAst).toEqual(text("fresh idea"));
-    // Title bar (display name) + body projection both carry the text.
-    expect(screen.getAllByText("fresh idea").length).toBe(2);
+    // Title bar (display name) + body projection both carry the text —
+    // scoped to the canvas (the context column's TOC lists it too).
+    const board = container.querySelector(".nt-wb-fullscreen")!;
+    expect(within(board as HTMLElement).getAllByText("fresh idea").length).toBe(2);
   });
 
   it("card tool + surface click creates a child block with geometry at the click point", async () => {
