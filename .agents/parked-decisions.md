@@ -45,11 +45,12 @@ folder's retirement:
   preview** swap — registered follow-ups from the cards-only rail slice.
 - **The M38 empty-cover/empty-banner upload triggers** — shipped with the
   banner; the empty-banner modal trigger noted for verification.
-- **Client follow-ons from the alignment batches** — the Flutter local
-  seed's raw-title keys (display-title divergence across classes; also the
-  option of the full events family in the local seed) and the GTK/Flutter
-  alias UI chrome (their read hooks landed; the aliases UI itself is a
-  client-side follow-on). **Extended 2026-10-07:** the GTK/Flutter derived
+- **Client follow-ons from the alignment batches** — DONE (2026-10-07):
+  the Flutter local-seed display titles + full events family and the
+  GTK/Flutter alias UI chrome all shipped. Two notes remain: the GTK
+  client's LOCAL seed likely needs the same display-title mirror if it
+  emits raw keys, and the Flutter app's navigation could wire resolveAlias
+  app-wide (the web's universal redirect) plus the AliasOfBanner port. **Extended 2026-10-07:** the GTK/Flutter derived
   schemas gain the store v17 `edge.resolved_target_id` column (the alias
   resolved-target materialization — same write-time/re-resolution
   semantics; recorded in SCHEMA.md "Node aliases").
