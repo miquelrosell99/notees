@@ -1,4 +1,6 @@
 /**
+ * PageBanner.tsx — the page's imagery chrome:
+ *
  * CoverCard — the cover element (owner directive 2026-10-04: "the
  * collapsible cover element, that showed even when empty — cover as a card
  * in the right side"). Sits in the header row's right column
@@ -6,6 +8,15 @@
  * a cover — collapsed to the slim chevron strip by default, expanding to
  * the card: the cover image, a dashed placeholder naming a byte-less
  * asset, or the dashed "Add cover" affordance when empty.
+ *
+ * BannerCard — the full-width banner ABOVE the header (the wire
+ * `bannerAssetId` node field, written through object.update; the
+ * ClientNode read, the icon/color precedent). Collapsed to a slim
+ * full-width strip by default (per-page device-local pref), expanding to
+ * the fixed-height cover-fit image; empty expands to the dashed Add
+ * affordance, which opens the AssetUploadModal (images only). Banner and
+ * cover coexist: the banner spans the content width above the header, the
+ * cover card stays in the header row.
  *
  * The collapse state derives from whether a cover is set (no per-node
  * persistence; the toggle is session-local). The card accepts a dropped
@@ -21,6 +32,7 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client.js";
 
+import { useBannerCollapsed } from "../viewPrefs.js";
 import { assetImageUrl } from "../views/assetThumbs.js";
 import { Icon } from "../Icon.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
@@ -301,6 +313,205 @@ export function CoverCard({
       {(error !== null || drop.error !== null) && (
         <p role="alert" className="nt-page-banner__error">
           {error ?? drop.error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// --- the banner (the bannerAssetId wire field) ------------------------------
+
+/** The asset node id a node's `bannerAssetId` wire field carries (null = unset). */
+export function bannerAssetIdOf(
+  client: Pick<AnyClient, "getNode">,
+  nodeId: string,
+): string | null {
+  return client.getNode(nodeId)?.bannerAssetId ?? null;
+}
+
+/**
+ * Set a node's banner: the `bannerAssetId` object.update field + the
+ * asset's asset class — explicit ops, so every client converges on the
+ * classIds projection (the wire field is the authority).
+ */
+export async function setNodeBanner(
+  client: AnyClient,
+  pageId: string,
+  assetId: string,
+): Promise<void> {
+  await client.updateObject(pageId, { bannerAssetId: assetId });
+  const node = client.getNode(assetId);
+  if (node !== undefined && !node.classIds.includes(SYSTEM_CLASS_UUIDS.asset)) {
+    await client.assignClass(assetId, SYSTEM_CLASS_UUIDS.asset);
+  }
+}
+
+/** Remove a node's banner (present-null clears the field). The asset stays. */
+export async function clearNodeBanner(client: AnyClient, pageId: string): Promise<void> {
+  await client.updateObject(pageId, { bannerAssetId: null });
+}
+
+/**
+ * BannerCard — the full-width banner above the page header, spanning the
+ * content width inside the page card. Collapsed to a slim full-width strip
+ * by default (the per-page device-local pref — display state, never an
+ * op); expanding shows the fixed-height cover-fit image, the dashed
+ * placeholder naming a byte-less asset, or the dashed Add affordance when
+ * no banner is set. The Add/Change affordances open the AssetUploadModal
+ * through the host's `onUploadRequest` (image-only accept) so the page
+ * context menu's Add banner rides the exact same modal; the upload lands
+ * via setNodeBanner. Whiteboard pages and embedded renders host no banner
+ * (the cover gating precedent).
+ */
+export function BannerCard({
+  client,
+  pageId,
+  assetId,
+  onUploadRequest,
+}: {
+  client: AnyClient;
+  pageId: string;
+  /** The banner's asset node id (the wire field), null when unset. */
+  assetId: string | null;
+  /** Opens the image-only upload modal (owned by the host). */
+  onUploadRequest: () => void;
+}) {
+  const [collapsed, setCollapsed] = useBannerCollapsed(pageId);
+  const [url, setUrl] = useState<string | null>(null);
+  const [resolved, setResolved] = useState(false);
+  const [zoomOpen, setZoomOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // A banner landing while the card is mounted (upload, the context menu)
+  // expands the strip — the new image is the feedback (the CoverCard
+  // precedent). The mount is excluded: the pref governs the first view, so
+  // a page whose banner was set elsewhere still starts collapsed.
+  const initialAssetId = useRef(assetId);
+  useEffect(() => {
+    if (assetId !== null && assetId !== initialAssetId.current) setCollapsed(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the setter is stable per pageId; react to the field only.
+  }, [assetId]);
+
+  useEffect(() => {
+    let alive = true;
+    setUrl(null);
+    setResolved(false);
+    if (assetId === null) return;
+    void assetImageUrl(client, assetId).then((resolved_) => {
+      if (alive) {
+        setUrl(resolved_);
+        setResolved(true);
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, [client, assetId]);
+
+  const assetName =
+    assetId !== null && client.getNode(assetId) !== undefined
+      ? (client.getDisplayName(assetId) ?? assetId)
+      : assetId;
+  const hasImage = assetId !== null && resolved && url !== null;
+
+  return (
+    <div className="nt-bannercard">
+      {collapsed ? (
+        <button
+          type="button"
+          className="nt-bannercard__strip"
+          aria-label="Expand banner"
+          aria-expanded={false}
+          onClick={() => setCollapsed(false)}
+        >
+          <span className="nt-bannercard__strip-handle" aria-hidden="true">
+            <Icon path="mdi-chevron-down" size={0.7} />
+          </span>
+        </button>
+      ) : (
+        <div className="nt-bannercard__card">
+          {assetId === null ? (
+            <button
+              type="button"
+              className="nt-bannercard__empty"
+              aria-label="Add banner"
+              title="Add banner"
+              onClick={onUploadRequest}
+            >
+              <Icon path="mdi-panorama" size={0.9} />
+              <span>Add banner</span>
+            </button>
+          ) : hasImage ? (
+            <>
+              <button
+                type="button"
+                className="nt-bannercard__zoom"
+                title={`${assetName ?? "Banner"} (click to view full size)`}
+                aria-label={`View ${assetName ?? "banner"} full size`}
+                onClick={() => setZoomOpen(true)}
+              >
+                <img className="nt-bannercard__img" src={url} alt="" draggable="false" />
+              </button>
+              {zoomOpen && (
+                <ImageModal
+                  isOpen
+                  onClose={() => setZoomOpen(false)}
+                  src={url}
+                  filename={assetName ?? undefined}
+                  alt={assetName ?? ""}
+                />
+              )}
+            </>
+          ) : (
+            <div className="nt-bannercard__placeholder" role="status">
+              <Icon path="mdi-image-outline" size={0.8} />
+              <span className="nt-bannercard__placeholder-name">{assetName}</span>
+              <span className="nt-bannercard__placeholder-hint">
+                {resolved ? "No image bytes — change or remove" : "Loading…"}
+              </span>
+            </div>
+          )}
+          <div className="nt-bannercard__toolbar">
+            <Button
+              variant="ghost"
+              size="xs"
+              icon="mdi-chevron-up"
+              aria-label="Collapse banner"
+              aria-expanded={true}
+              title="Collapse banner"
+              onClick={() => setCollapsed(true)}
+            />
+            {assetId !== null && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  icon="mdi-image-sync"
+                  aria-label="Change banner"
+                  title="Change banner…"
+                  onClick={onUploadRequest}
+                />
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  icon="mdi-close"
+                  aria-label="Remove banner"
+                  title="Remove banner"
+                  onClick={() => {
+                    setError(null);
+                    clearNodeBanner(client, pageId).catch((err: unknown) => {
+                      setError(err instanceof Error ? err.message : String(err));
+                    });
+                  }}
+                />
+              </>
+            )}
+          </div>
+        </div>
+      )}
+      {error !== null && (
+        <p role="alert" className="nt-page-banner__error">
+          {error}
         </p>
       )}
     </div>

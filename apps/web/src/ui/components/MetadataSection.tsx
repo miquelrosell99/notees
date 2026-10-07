@@ -9,6 +9,10 @@
  *    is the ported NodeSelector popup (search + create, filtered by the
  *    schema's target classes, upload for asset targets), date rows open the
  *    ported DatePickerPopup (drill-down calendar + typed-date input);
+ *  - asset values render as the dedicated asset list (thumbnail + name +
+ *    remove) with the Upload / Link authoring buttons (the asset picker is
+ *    asset-scoped with create disabled; the upload runs in the
+ *    AssetUploadModal);
  *  - select schemas with options render the ported options control
  *    (pills + picker), booleans a checkbox, everything else the minimal
  *    text editor. Derived defaults stay dimmed with a "default" hint, authored
@@ -18,7 +22,7 @@
  * .nt-property-*, .nt-classes-row, …) are unchanged.
  */
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import {
@@ -42,6 +46,7 @@ import type {
 import { AnnotationsSection } from "../AnnotationsSection.js";
 import { todayIsoLocal } from "./calendarViewUtils.js";
 import { displayNameFromClient } from "../dateDisplay.js";
+import { assetImageUrl } from "../views/assetThumbs.js";
 import { Icon } from "../Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
 import { IconPickerPopup } from "./IconPickerPopup.js";
@@ -441,6 +446,260 @@ function ObjectPropertyRow({
         <p role="alert" className="nt-picker-error">
           {error}
         </p>
+      )}
+    </li>
+  );
+}
+
+/**
+ * One asset-typed property (the `asset` type — a node reference whose target
+ * must carry the ASSET class, the filter implicit in the type): the values
+ * render as a list of the linked assets (thumbnail + file name + remove) and
+ * the row carries TWO authoring buttons — Upload (the AssetUploadModal
+ * flow: CAS upload → asset node → the property value) and Link (the node
+ * picker scoped to asset-classed nodes, create disabled). Multi rows keep
+ * both buttons at the list's bottom; a single-value row renders the buttons
+ * only while empty — replacement goes through clearing first.
+ */
+function AssetPropertyRow({
+  client,
+  nodeId,
+  propertySchemaId,
+  label,
+  multi,
+  rows,
+  /** Hide the label/hints (the host chrome carries them — the sidebar). */
+  bare = false,
+}: {
+  client: AnyClient;
+  nodeId: string;
+  propertySchemaId: string;
+  label: string;
+  multi: boolean;
+  rows: EffectiveProperty[];
+  bare?: boolean;
+}) {
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const uploadButtonRef = useRef<HTMLButtonElement | null>(null);
+  const linkButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  const items = rows
+    .map((row) => ({ row, ref: nodeRefOf(row.value) }))
+    .filter((item): item is { row: EffectiveProperty; ref: string } => item.ref !== null)
+    .sort((a, b) => a.row.idx - b.row.idx);
+  const authoredIdx = rows.filter((row) => row.source === "authored").map((row) => row.idx);
+  // Per-slot write pattern: append at the next free idx (0 shadows a default).
+  const nextIdx = authoredIdx.length > 0 ? Math.max(...authoredIdx) + 1 : 0;
+
+  const linkAsset = async (target: string): Promise<void> => {
+    setError(null);
+    try {
+      await client.setProperty(nodeId, propertySchemaId, { nodeId: target }, nextIdx);
+      setPickerOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  /** The modal's completion: link the uploaded asset node at the next slot. */
+  const linkUploadedAsset = async (assetNodeId: string): Promise<void> => {
+    setError(null);
+    try {
+      await client.setProperty(nodeId, propertySchemaId, { nodeId: assetNodeId }, nextIdx);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
+  const unbound = rows.some((row) => row.source === "authored" && row.boundBy === null);
+
+  return (
+    <li
+      className={
+        allDefault
+          ? "nt-property nt-property-default nt-property-asset node-metadata-row"
+          : "nt-property nt-property-asset node-metadata-row"
+      }
+    >
+      {!bare && (
+        <>
+          <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
+          {allDefault && <span className="nt-property-hint">default</span>}
+          {unbound && <span className="nt-property-hint">unbound</span>}
+        </>
+      )}
+      <div className="nt-property-assets">
+        {items.length > 0 && (
+          <ul className="nt-asset-list">
+            {items.map(({ row, ref }) => (
+              <AssetItemRow
+                key={`${propertySchemaId}:${row.idx}`}
+                client={client}
+                assetRef={ref}
+                dimmed={row.source === "default"}
+                removable={row.source === "authored"}
+                onRemove={() => void client.unsetProperty(nodeId, propertySchemaId, row.idx)}
+              />
+            ))}
+          </ul>
+        )}
+        {(multi || items.length === 0) && (
+          <div className="nt-asset-actions">
+            <Button
+              ref={uploadButtonRef}
+              variant="ghost"
+              size="sm"
+              icon="mdi-upload"
+              onClick={() => setUploadOpen(true)}
+            >
+              Upload
+            </Button>
+            <Button
+              ref={linkButtonRef}
+              variant="ghost"
+              size="sm"
+              icon="mdi-link-variant"
+              aria-expanded={pickerOpen}
+              onClick={() => setPickerOpen((open) => !open)}
+            >
+              Link
+            </Button>
+          </div>
+        )}
+      </div>
+      {pickerOpen && (
+        <NodeSelector
+          client={client}
+          searchMode="all"
+          classFilters={[SYSTEM_CLASS_UUIDS.asset]}
+          allowCreate={false}
+          excludeNodeId={nodeId}
+          anchorEl={linkButtonRef.current}
+          onClose={() => setPickerOpen(false)}
+          searchPlaceholder={`Search ${label}`}
+          onAdd={(node) => void linkAsset(node.id)}
+        />
+      )}
+      {uploadOpen && (
+        <AssetUploadModal
+          isOpen
+          client={client}
+          assetClassId={SYSTEM_CLASS_UUIDS.asset}
+          onClose={() => setUploadOpen(false)}
+          onUploaded={(assetNodeId) => void linkUploadedAsset(assetNodeId)}
+        />
+      )}
+      {error !== null && (
+        <p role="alert" className="nt-picker-error">
+          {error}
+        </p>
+      )}
+    </li>
+  );
+}
+
+/**
+ * One linked asset in the asset property list: the thumbnail (image bytes
+ * through the session cache; a kind icon otherwise) + the file name (the
+ * node_asset original name — clicking downloads) + the remove button. A
+ * value whose target is gone renders the broken-reference id honestly
+ * (the dashed broken-mention policy), never a silent void.
+ */
+function AssetItemRow({
+  client,
+  assetRef,
+  dimmed,
+  removable,
+  onRemove,
+}: {
+  client: AnyClient;
+  assetRef: string;
+  dimmed: boolean;
+  removable: boolean;
+  onRemove: () => void;
+}) {
+  const info = client.getAssetInfo(assetRef);
+  const name = info?.originalName ?? displayNameFromClient(client, assetRef) ?? assetRef;
+  const isImage = info !== undefined && info.mimeType.startsWith("image/");
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isImage) return;
+    let alive = true;
+    void assetImageUrl(client, assetRef).then((resolved) => {
+      if (alive) setUrl(resolved);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [client, assetRef, isImage]);
+
+  const linkedNode = client.getNode(assetRef);
+  const broken = linkedNode === undefined;
+  const download = () => {
+    if (info !== undefined) void client.downloadAsset(info.assetId);
+  };
+
+  return (
+    <li
+      className={
+        dimmed
+          ? "nt-asset-item nt-asset-item--default"
+          : broken
+            ? "nt-asset-item nt-asset-item--broken"
+            : "nt-asset-item"
+      }
+      title={broken ? `Broken reference: ${assetRef}` : undefined}
+    >
+      {broken ? (
+        <span className="nt-asset-item__thumb nt-asset-item__thumb--broken" aria-hidden="true">
+          <Icon path="mdi-file-question-outline" size={0.8} />
+        </span>
+      ) : isImage ? (
+        url !== null ? (
+          <img className="nt-asset-item__thumb" src={url} alt="" draggable="false" />
+        ) : (
+          <span className="nt-asset-item__thumb" aria-hidden="true">
+            <Icon path="mdi-image-outline" size={0.8} />
+          </span>
+        )
+      ) : (
+        <span className="nt-asset-item__thumb" aria-hidden="true">
+          <Icon
+            path={
+              info !== undefined && info.mimeType.startsWith("audio/")
+                ? "mdi-music-note-outline"
+                : "mdi-file-outline"
+            }
+            size={0.8}
+          />
+        </span>
+      )}
+      {broken ? (
+        <span className="nt-asset-item__name nt-asset-item__name--broken">
+          <code>{assetRef}</code>
+        </span>
+      ) : (
+        <button
+          type="button"
+          className="nt-asset-item__name"
+          title="Download"
+          onClick={download}
+        >
+          {name}
+        </button>
+      )}
+      {removable && !broken && (
+        <button
+          type="button"
+          className="nt-asset-item__remove"
+          aria-label={`Remove ${name}`}
+          onClick={onRemove}
+        >
+          ×
+        </button>
       )}
     </li>
   );
@@ -1286,14 +1545,14 @@ function propertyGroupsOf(
     );
 
   // Node-typed / date / date_range / boolean / text schemas render as one
-  // grouped row per schema (the `asset` type — M38 — joins the node-ref
-  // family: the existing object row renders it; the dedicated upload/link
-  // chrome is a separate later task); select AND multi_select schemas join
-  // them only when they declare options (without options the minimal text
-  // editor is the honest editor — there is nothing to pick; the shape routes
-  // multi_select to the selection control). Text groups render as a blocks
-  // list (the carrier blocks themselves). Grouped rows appear at
-  // their first occurrence so the panel order is unchanged.
+  // grouped row per schema; the `asset` type joins the family with its
+  // dedicated row (the upload/link chrome + the multi asset list).
+  // Select AND multi_select schemas join them only when they declare
+  // options (without options the minimal text editor is the honest editor —
+  // there is nothing to pick; the shape routes multi_select to the selection
+  // control). Text groups render as a blocks list (the carrier blocks
+  // themselves). Grouped rows appear at their first occurrence so the panel
+  // order is unchanged.
   const optionsOf = (propertySchemaId: string) =>
     client.listPropertySchemas().find((s) => s.id === propertySchemaId)?.options;
   const isGroupedType = (type: string | undefined, propertySchemaId: string): boolean => {
@@ -1491,6 +1750,19 @@ function GroupedPropertyRow({
         multi={multi}
         rows={groupRows}
         onOpenPage={onOpenPage}
+        bare={bare}
+      />
+    );
+  }
+  if (type === "asset") {
+    return (
+      <AssetPropertyRow
+        client={client}
+        nodeId={nodeId}
+        propertySchemaId={propertySchemaId}
+        label={label}
+        multi={multi}
+        rows={groupRows}
         bare={bare}
       />
     );

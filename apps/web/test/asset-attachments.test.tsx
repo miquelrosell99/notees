@@ -1,17 +1,21 @@
 /**
  * Asset attachment UX tests (Zotero-style source containers): the properties
- * panel renders node-typed (`object`) properties as chips + a picker filtered
- * by the schema's targetClassFilter; asset-targeted rows add an "upload file"
- * action (POST /api/assets → asset node + asset.attach + property.set);
- * chips resolve the asset's original name via the derived node_asset rows and
- * download through GET /api/assets/:id (workspace API key header, blob URL
- * so the key never lands in a URL). jsdom over the in-process WorkspaceClient
- * with a stubbed fetch.
+ * panel renders the `asset`-typed attachments property as the dedicated row
+ * chrome — a list of the linked assets (thumbnail + file name + remove) with
+ * the Upload / Link authoring buttons. Upload runs the AssetUploadModal
+ * (drag-drop + paste + preview + progress; the CAS path POSTs to
+ * /api/assets → asset node + asset.attach + property.set); Link opens the
+ * node picker scoped to asset-classed nodes with create disabled. Names
+ * resolve via the derived node_asset rows; downloads ride GET
+ * /api/assets/:id (workspace API key header, blob URL so the key never
+ * lands in a URL). jsdom over the in-process WorkspaceClient with a stubbed
+ * fetch.
  *
  * The relay is pre-seeded with the server-style seed ops (apps/server/src/
  * seed.ts): the fixed-UUID asset + source classes and the attachments
- * property schema (…000000000011, targetClassFilter [asset]) — so the pulled
- * store matches what a real workspace bootstrap delivers.
+ * property schema (…000000000011, the `asset` type since the type landed —
+ * the filter is implicit in the type, no explicit targetClassFilter) — so
+ * the pulled store matches what a real workspace bootstrap delivers.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -77,10 +81,9 @@ function seedRelay(): MemoryRelay {
       {
         propertySchemaId: ATTACHMENTS,
         name: "attachments",
-        type: "object",
+        type: "asset",
         multi: true,
         scope: "class",
-        targetClassFilter: [ASSET_CLASS],
       },
       [],
     ),
@@ -111,7 +114,6 @@ async function createSource(client: WorkspaceClient, name: string): Promise<stri
   return id;
 }
 
-/** The attachments row in the panel (the source also binds linkedAuthors). */
 /** Expand the page's "Properties N" section (collapsed by default in the note layout). */
 function expandProperties(): void {
   const header = screen.queryByRole("button", { name: /^Properties / });
@@ -120,9 +122,10 @@ function expandProperties(): void {
   }
 }
 
+/** The attachments row in the panel (the dedicated asset row). */
 function attachmentsRow(): HTMLElement {
   expandProperties();
-  return screen.getByText("attachments").closest(".nt-props-sidebar__prop, .nt-property-object") as HTMLElement;
+  return screen.getByText("attachments").closest(".nt-props-sidebar__prop, .nt-property-asset") as HTMLElement;
 }
 
 /** Stub fetch: upload POSTs answer with `body`, download GETs with bytes. */
@@ -167,48 +170,76 @@ async function attachFile(
   });
 }
 
-describe("Asset attachments (node-typed properties)", () => {
-  it("shows the bound attachments row for a source with no attachments yet", async () => {
+describe("Asset attachments (the asset property row)", () => {
+  it("shows the bound attachments row for a source with no attachments yet — the Upload and Link buttons, no generic Add pill", async () => {
     const client = await seedClient();
     const sourceId = await createSource(client, "The Book");
 
     render(<PageView client={client} pageId={sourceId} />);
-    expandProperties();
     const row = attachmentsRow();
     expect(row.textContent).toContain("attachments");
-    // No values: no "default" hint, but the add affordance is reachable.
+    // No values: no "default" hint, both authoring buttons reachable.
     expect(row.textContent).not.toContain("default");
-    expect(within(row).getByRole("button", { name: "Add" })).not.toBeNull();
+    expect(within(row).getByRole("button", { name: "Upload" })).not.toBeNull();
+    expect(within(row).getByRole("button", { name: "Link" })).not.toBeNull();
+    expect(within(row).queryByRole("button", { name: "Add" })).toBeNull();
   });
 
-  it("picker filters candidates by the schema's target class", async () => {
+  it("Link opens the picker filtered to the asset class, with create disabled", async () => {
     const client = await seedClient();
     const sourceId = await createSource(client, "The Book");
     await client.createObject({ presentAsMain: true, name: "scan.pdf", classIds: [ASSET_CLASS] });
     await client.createObject({ presentAsMain: true, name: "Random notes" });
 
     render(<PageView client={client} pageId={sourceId} />);
-    expandProperties();
-    fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Add" }));
+    fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Link" }));
 
     // Only asset-class nodes are candidates; the plain page is filtered out.
     expect(screen.getByText("scan.pdf")).not.toBeNull();
     expect(screen.queryByText("Random notes")).toBeNull();
+    // Create is disabled: a query offers no create row (and no upload row).
+    fireEvent.change(screen.getByLabelText("Search attachments"), { target: { value: "scan" } });
+    expect(screen.getByText("scan.pdf")).not.toBeNull();
+    expect(screen.queryByText(/Create/)).toBeNull();
+    expect(screen.queryByText("Upload file…")).toBeNull();
   });
 
-  it("picker search narrows candidates by name within the target class", async () => {
+  it("picker search narrows candidates by name within the asset class", async () => {
     const client = await seedClient();
     const sourceId = await createSource(client, "The Book");
     await client.createObject({ presentAsMain: true, name: "chapter-one.pdf", classIds: [ASSET_CLASS] });
     await client.createObject({ presentAsMain: true, name: "cover.png", classIds: [ASSET_CLASS] });
 
     render(<PageView client={client} pageId={sourceId} />);
-    expandProperties();
-    fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Add" }));
+    fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Link" }));
     fireEvent.change(screen.getByLabelText("Search attachments"), { target: { value: "cover" } });
 
     expect(screen.getByText("cover.png")).not.toBeNull();
     expect(screen.queryByText("chapter-one.pdf")).toBeNull();
+  });
+
+  it("picking an asset from Link writes the property value", async () => {
+    const client = await seedClient();
+    const sourceId = await createSource(client, "The Book");
+    // The picker searches node names — the asset node is named by its file.
+    const assetId = await client.createObject({ presentAsMain: true, name: "scan.pdf", classIds: [ASSET_CLASS] });
+    await attachFile(client, assetId, { assetId: ASSET_ID_A, hash: HASH_A, originalName: "scan.pdf" });
+
+    render(<PageView client={client} pageId={sourceId} />);
+    fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Link" }));
+    fireEvent.change(screen.getByLabelText("Search attachments"), { target: { value: "scan" } });
+    await flushWrites();
+    fireEvent.click(
+      document.querySelector(
+        ".node-result-item:not(.node-result-item--create):not(.node-result-item--date)",
+      )!,
+    );
+    await flushWrites();
+
+    const effective = client.getEffectiveProperties(sourceId);
+    expect(effective).toHaveLength(1);
+    expect(effective[0]!.propertySchemaId).toBe(ATTACHMENTS);
+    expect(effective[0]!.value).toEqual({ nodeId: assetId });
   });
 
   it("uploading a file POSTs to the asset store and links the new asset", async () => {
@@ -217,11 +248,9 @@ describe("Asset attachments (node-typed properties)", () => {
     const calls = stubFetch();
 
     render(<PageView client={client} pageId={sourceId} />);
-    expandProperties();
-    fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Add" }));
-    // The upload runs in the AssetUploadModal (drag-drop +
-    // preview + progress), opened from the picker's "Upload file…" row.
-    fireEvent.click(await screen.findByText("Upload file…"));
+    // The Upload button opens the AssetUploadModal directly (drag-drop +
+    // preview + progress).
+    fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Upload" }));
     const dialog = await screen.findByRole("dialog", { name: /upload file/i });
     const file = new File(["hello"], "paper.pdf", { type: "application/pdf" });
     fireEvent.change(document.querySelector('input[type="file"]')!, {
@@ -229,8 +258,9 @@ describe("Asset attachments (node-typed properties)", () => {
     });
     await within(dialog).findAllByText("paper.pdf");
     fireEvent.click(within(dialog).getByRole("button", { name: /upload/i }));
+    await flushWrites();
 
-    // The chip lands with the server-returned original name.
+    // The list row lands with the server-returned original name.
     await screen.findByRole("button", { name: "paper.pdf" });
 
     // The upload hit the server with the workspace API key, multipart body.
@@ -253,7 +283,7 @@ describe("Asset attachments (node-typed properties)", () => {
     const assetNodeId = (row.value as { nodeId: string }).nodeId;
 
     // The asset node carries the asset class + file name as its title content;
-    // node_asset ties it to the content-addressed bytes (the chip's
+    // node_asset ties it to the content-addressed bytes (the row's
     // name/download read).
     const assetNode = client.getNode(assetNodeId)!;
     expect(assetNode.classIds).toContain(ASSET_CLASS);
@@ -272,9 +302,7 @@ describe("Asset attachments (node-typed properties)", () => {
     );
 
     render(<PageView client={client} pageId={sourceId} />);
-    expandProperties();
-    fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Add" }));
-    fireEvent.click(await screen.findByText("Upload file…"));
+    fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Upload" }));
     const dialog = await screen.findByRole("dialog", { name: /upload file/i });
     const file = new File(["hello"], "paper.pdf", { type: "application/pdf" });
     fireEvent.change(document.querySelector('input[type="file"]')!, {
@@ -289,7 +317,40 @@ describe("Asset attachments (node-typed properties)", () => {
     expect(client.getEffectiveProperties(sourceId)).toEqual([]);
   });
 
-  it("chip removal unlinks the slot (property.unset per idx)", async () => {
+  it("an unacceptable file is rejected with a named error before any upload", async () => {
+    const client = await seedClient({ rest: true });
+    const sourceId = await createSource(client, "The Book");
+    stubFetch();
+    const upload = vi.spyOn(client, "uploadAsset");
+
+    render(<PageView client={client} pageId={sourceId} />);
+    fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Upload" }));
+    const dialog = await screen.findByRole("dialog", { name: /upload file/i });
+    const file = new File(["MZ"], "program.exe", { type: "application/x-msdownload" });
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [file] },
+    });
+
+    const alert = await within(dialog).findByRole("alert");
+    expect(alert.textContent).toContain("not an accepted type");
+    expect(upload).not.toHaveBeenCalled();
+    expect(client.getEffectiveProperties(sourceId)).toEqual([]);
+  });
+
+  it("a pasted file fills the upload modal (the clipboard path)", async () => {
+    const client = await seedClient({ rest: true });
+    const sourceId = await createSource(client, "The Book");
+    stubFetch();
+
+    render(<PageView client={client} pageId={sourceId} />);
+    fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Upload" }));
+    const dialog = await screen.findByRole("dialog", { name: /upload file/i });
+    const file = new File(["hello"], "pasted.pdf", { type: "application/pdf" });
+    fireEvent.paste(document.body, { clipboardData: { files: [file] } });
+    await within(dialog).findAllByText("pasted.pdf");
+  });
+
+  it("item removal unlinks the slot (property.unset per idx)", async () => {
     const client = await seedClient();
     const sourceId = await createSource(client, "The Book");
     const nodeA = await client.createObject({ presentAsMain: true, name: "Asset node A", classIds: [ASSET_CLASS] });
@@ -300,9 +361,9 @@ describe("Asset attachments (node-typed properties)", () => {
     await client.setProperty(sourceId, ATTACHMENTS, { nodeId: nodeB }, 1);
 
     render(<PageView client={client} pageId={sourceId} />);
-    expandProperties();
+    const row = attachmentsRow();
     expect(screen.getByRole("button", { name: "a.pdf" })).not.toBeNull();
-    fireEvent.click(screen.getByLabelText("Remove a.pdf"));
+    fireEvent.click(within(row).getByLabelText("Remove a.pdf"));
     await flushWrites();
 
     // Only the second link survives — the multi-value list was rewritten.
@@ -314,7 +375,7 @@ describe("Asset attachments (node-typed properties)", () => {
     expect(screen.getByRole("button", { name: "b.pdf" })).not.toBeNull();
   });
 
-  it("attachment chips render the asset's original name from node_asset, not the node name", async () => {
+  it("attachment rows render the asset's original name from node_asset, not the node name", async () => {
     const client = await seedClient();
     const sourceId = await createSource(client, "The Book");
     const assetNode = await client.createObject({ presentAsMain: true, name: "Asset node", classIds: [ASSET_CLASS] });
@@ -326,14 +387,13 @@ describe("Asset attachments (node-typed properties)", () => {
     await client.setProperty(sourceId, ATTACHMENTS, { nodeId: assetNode }, 0);
 
     const { container } = render(<PageView client={client} pageId={sourceId} />);
-    expandProperties();
-    // The chip resolves through the node_asset row, so the file name (not the
+    // The row resolves through the node_asset row, so the file name (not the
     // generic node name, and never a bare UUID) is what the user shows.
     expect(screen.getByRole("button", { name: "Chapter 1 — scan.pdf" })).not.toBeNull();
     expect(container.textContent).not.toContain(assetNode);
   });
 
-  it("clicking an attachment chip downloads it via the server asset URL", async () => {
+  it("clicking an attachment row downloads it via the server asset URL", async () => {
     const client = await seedClient({ rest: true });
     const sourceId = await createSource(client, "The Book");
     const assetNode = await client.createObject({ presentAsMain: true, name: "Asset node", classIds: [ASSET_CLASS] });
@@ -355,7 +415,6 @@ describe("Asset attachments (node-typed properties)", () => {
     }) as typeof window.open);
 
     render(<PageView client={client} pageId={sourceId} />);
-    expandProperties();
     fireEvent.click(screen.getByRole("button", { name: "a.pdf" }));
 
     await waitFor(() => expect(opened).toEqual(["blob:notees-test"]));
@@ -384,13 +443,73 @@ describe("Asset attachments (node-typed properties)", () => {
     ]);
     expect(effective[0]!.boundBy).toBeNull();
 
-    // The panel renders both chips in idx order with their asset names.
+    // The panel renders both rows in idx order with their asset names.
     const { container } = render(<PageView client={client} pageId={sourceId} />);
-    expandProperties();
-    const chipNames = Array.from(container.querySelectorAll("button.nt-chip-label")).map(
+    const names = Array.from(container.querySelectorAll(".nt-asset-item__name")).map(
       (el) => el.textContent,
     );
-    expect(chipNames).toEqual(["front.pdf", "back.pdf"]);
+    expect(names).toEqual(["front.pdf", "back.pdf"]);
+  });
+
+  it("multi rows keep the Upload/Link buttons at the list's bottom; image assets render thumbnails", async () => {
+    const client = await seedClient();
+    vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,THUMBS");
+    const sourceId = await createSource(client, "The Book");
+    const nodeA = await client.createObject({ presentAsMain: true, name: "Asset node A", classIds: [ASSET_CLASS] });
+    const nodeB = await client.createObject({ presentAsMain: true, name: "Asset node B", classIds: [ASSET_CLASS] });
+    // A is an image asset (thumbnail), B a document (kind icon).
+    await client.attachAsset(nodeA, { assetId: ASSET_ID_A, hash: HASH_A, mimeType: "image/png", size: 1, originalName: "front.png" });
+    await attachFile(client, nodeB, { assetId: ASSET_ID_B, hash: HASH_B, originalName: "back.pdf" });
+    await client.setProperty(sourceId, ATTACHMENTS, { nodeId: nodeA }, 0);
+    await client.setProperty(sourceId, ATTACHMENTS, { nodeId: nodeB }, 1);
+
+    render(<PageView client={client} pageId={sourceId} />);
+    const row = attachmentsRow();
+    const items = row.querySelectorAll(".nt-asset-item");
+    expect(items).toHaveLength(2);
+    expect(within(row).getByRole("button", { name: "front.png" })).not.toBeNull();
+    expect(within(row).getByRole("button", { name: "back.pdf" })).not.toBeNull();
+    // The image asset renders a thumbnail <img> (bytes resolve async through
+    // the session cache); removals ride each item.
+    await flushWrites();
+    expect(row.querySelector("img.nt-asset-item__thumb")).not.toBeNull();
+    expect(within(row).getByLabelText("Remove front.png")).not.toBeNull();
+    expect(within(row).getByLabelText("Remove back.pdf")).not.toBeNull();
+    // Both buttons sit at the list's bottom (after the items in the DOM).
+    const actions = row.querySelector<HTMLElement>(".nt-asset-actions")!;
+    expect(actions.compareDocumentPosition(items[1]!) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    expect(within(actions).getByRole("button", { name: "Upload" })).not.toBeNull();
+    expect(within(actions).getByRole("button", { name: "Link" })).not.toBeNull();
+    // The attachments row is the dedicated asset row — not the generic
+    // object row (the source's separate `authors` row is object-typed).
+    expect(row.querySelector(".nt-property-object")).toBeNull();
+  });
+
+  it("a single-value asset row hides the buttons until the value is cleared", async () => {
+    const client = await seedClient();
+    const schemaId = await client.createPropertySchema({ name: "hero", type: "asset", multi: false });
+    const heroClass = await client.createClass("heroed");
+    await client.setClassProperty(heroClass, schemaId, { sequence: 0 });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Heroed page" });
+    await client.assignClass(pageId, heroClass);
+    const assetId = await client.createObject({ presentAsMain: true, name: "hero.png", classIds: [ASSET_CLASS] });
+    await client.setProperty(pageId, schemaId, { nodeId: assetId }, 0);
+
+    render(<PageView client={client} pageId={pageId} />);
+    const row = screen.getByText("hero").closest(".nt-props-sidebar__prop, .nt-property-asset") as HTMLElement;
+    // Valued: the item renders, the authoring buttons do NOT.
+    expect(within(row).getByRole("button", { name: "hero.png" })).not.toBeNull();
+    expect(within(row).queryByRole("button", { name: "Upload" })).toBeNull();
+    expect(within(row).queryByRole("button", { name: "Link" })).toBeNull();
+
+    // Clearing swaps the row for the bound empty row (a fresh element) — the
+    // buttons are back, hosted by the empty binding.
+    fireEvent.click(within(row).getByLabelText("Remove hero.png"));
+    await flushWrites();
+    expect(client.getEffectiveProperties(pageId)).toEqual([]);
+    const emptied = screen.getByText("hero").closest(".nt-props-sidebar__prop, .nt-property-asset") as HTMLElement;
+    expect(within(emptied).getByRole("button", { name: "Upload" })).not.toBeNull();
+    expect(within(emptied).getByRole("button", { name: "Link" })).not.toBeNull();
   });
 
   it("a non-asset node-typed property renders the picker without the upload action", async () => {
