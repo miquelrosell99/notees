@@ -23,6 +23,10 @@
  * outliner gestures (Enter creates a sibling, Backspace-delete hands the
  * caret to the previous block). Data comes from the WorkspaceClient read
  * API; the client itself arrives through OutlinerContext.
+ *
+ * variant="title" is the page-header projection: the page node itself as a
+ * bullet-less, chrome-less row (see the prop doc below) — the shared token
+ * rendering and the full block editor, minus the outline chrome.
  */
 
 import { useContext, useEffect, useMemo, useState, type MouseEvent } from "react";
@@ -35,6 +39,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 
 import { Icon } from "./Icon.js";
 import { InlineTokens } from "./InlineTokens.js";
+import { fullTitleFromClient } from "./dateDisplay.js";
 import { AssetView } from "./AssetView.js";
 import { BlockBacklinkPanel, BlockBacklinkToggle } from "./BlockBacklinks.js";
 import { BlockTextEditor, type EditorCaret } from "./BlockTextEditor.js";
@@ -85,11 +90,24 @@ interface BlockRowProps {
    * row chrome of its own.
    */
   tableRow?: boolean | undefined;
+  /**
+   * Title projection (the page header): the page node itself as a
+   * bullet-less, chrome-less row — full editor powers on the page's own
+   * content (inline tokens render and edit exactly as in body blocks), but
+   * no grip/drag, no collapse, no property/backlink/tags chrome, no
+   * children, and no row context menu (the header owns the right-click
+   * page menu). The content wrapper carries `nt-title-content`, NOT
+   * `nt-block-content`, so body-row selectors never match the header row.
+   * Block-scale widget tokens (embeds, queries, whiteboards, assets) render
+   * nothing here — they live in the body surface.
+   */
+  variant?: "block" | "title" | undefined;
 }
 
-export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCollapse = false, tableRow = false }: BlockRowProps) {
+export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCollapse = false, tableRow = false, variant = "block" }: BlockRowProps) {
   const [gripMenu, setGripMenu] = useState<{ x: number; y: number } | null>(null);
   const { node, children } = tree;
+  const isTitle = variant === "title";
   const {
     client: outlinerClient,
     rootId,
@@ -122,10 +140,12 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
   const isCollapsed = !ignoreCollapse && collapsed.has(node.id);
   // Sortable within this row's sibling group; the bullet/chevron area is the
   // drag handle (whole-row drag would fight text editing). A small activation
-  // distance keeps plain clicks untouched.
+  // distance keeps plain clicks untouched. The title row is never sortable
+  // (and renders outside the body's DndContext) — the disabled flag keeps
+  // the hook inert, the same pattern read-only projections use.
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: node.id,
-    disabled: readOnly,
+    disabled: readOnly || isTitle,
   });
 
   useEffect(() => {
@@ -145,21 +165,25 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
       openNode(node.id);
       return;
     }
-    // Block multi-selection: shift+click extends the range from the
-    // anchor, Ctrl/Cmd+click toggles one row — neither enters edit mode.
-    if (selectionEnabled && event.shiftKey) {
-      const anchor = selectionAnchor ?? node.id;
-      setSelectionAnchor(anchor);
-      replaceSelection(new Set(rangeBetween(anchor, node.id)), anchor);
-      return;
+    // The title row never joins the block multi-selection (it lives outside
+    // the selection surface); a click there always edits.
+    if (!isTitle) {
+      // Block multi-selection: shift+click extends the range from the
+      // anchor, Ctrl/Cmd+click toggles one row — neither enters edit mode.
+      if (selectionEnabled && event.shiftKey) {
+        const anchor = selectionAnchor ?? node.id;
+        setSelectionAnchor(anchor);
+        replaceSelection(new Set(rangeBetween(anchor, node.id)), anchor);
+        return;
+      }
+      if (selectionEnabled && (event.ctrlKey || event.metaKey)) {
+        if (selectionAnchor === null) setSelectionAnchor(node.id);
+        toggleSelected(node.id);
+        return;
+      }
+      // A plain click with a live selection resets it, then edits as usual.
+      if (selection.size > 0) clearSelection();
     }
-    if (selectionEnabled && (event.ctrlKey || event.metaKey)) {
-      if (selectionAnchor === null) setSelectionAnchor(node.id);
-      toggleSelected(node.id);
-      return;
-    }
-    // A plain click with a live selection resets it, then edits as usual.
-    if (selection.size > 0) clearSelection();
     setCaret({ x: event.clientX, y: event.clientY });
     setEditing(true);
   };
@@ -225,11 +249,8 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
   // panel below omits these positions so the value never reads twice. Reads
   // follow the PropertiesSection pattern: plain render reads over the
   // client, refreshed by the surrounding view's client.subscribe re-render.
-  const effectiveRows = client.getEffectiveProperties(node.id);
-  const schemasById = new Map(
-    client.listPropertySchemas().map((schema) => [schema.id, schema]),
-  );
-  const selectDisplayGroups: Array<{
+  // The title row renders none of this chrome — skip the whole read.
+  const bulletDisplayGroups: Array<{
     propertySchemaId: string;
     label: string;
     options: SelectionOption[];
@@ -240,65 +261,186 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
     display: "bullet" | "inline";
     sequence: number;
   }> = [];
-  {
-    const seenGroups = new Set<string>();
-    for (const row of effectiveRows) {
-      const display = row.display;
-      if (display !== "bullet" && display !== "inline") continue;
-      const type = row.schema?.type;
-      if (type !== "select" && type !== "multi_select" && type !== "boolean") continue;
-      if (seenGroups.has(row.propertySchemaId)) continue;
-      seenGroups.add(row.propertySchemaId);
-      const groupRows = effectiveRows.filter(
-        (r) => r.propertySchemaId === row.propertySchemaId,
-      );
-      selectDisplayGroups.push({
-        propertySchemaId: row.propertySchemaId,
-        label: row.schema?.name ?? row.propertySchemaId,
-        options: schemasById.get(row.propertySchemaId)?.options ?? [],
-        rows: groupRows,
-        multi: row.schema?.multi ?? type === "multi_select",
-        required: groupRows.some((r) => r.required === true),
-        boolean: type === "boolean",
-        display,
-        sequence: row.sequence ?? Number.MAX_SAFE_INTEGER,
-      });
-    }
-    // Bound-but-empty bindings with a row display position: no effective row
-    // exists yet (no value, no default), but the button is how the value
-    // gets set — the panel's empty-bindings pass, same gate: the render
-    // contracts are property-level — display/hide-when-empty read from the
-    // schema row; options-bearing selects only, booleans synthesize their
-    // own; hide-when-empty stays hidden).
-    for (const classId of node.classIds) {
-      for (const binding of client.getClassBindings(classId)) {
-        if (binding.type !== "select" && binding.type !== "multi_select" && binding.type !== "boolean") continue;
-        if (seenGroups.has(binding.propertySchemaId)) continue;
-        const schemaRow = schemasById.get(binding.propertySchemaId);
-        const display = schemaRow?.display ?? null;
+  const inlineDisplayGroups: Array<{
+    propertySchemaId: string;
+    label: string;
+    options: SelectionOption[];
+    rows: EffectiveProperty[];
+    multi: boolean;
+    required: boolean;
+    boolean: boolean;
+    display: "bullet" | "inline";
+    sequence: number;
+  }> = [];
+  if (!isTitle) {
+    const effectiveRows = client.getEffectiveProperties(node.id);
+    const schemasById = new Map(
+      client.listPropertySchemas().map((schema) => [schema.id, schema]),
+    );
+    const selectDisplayGroups: typeof bulletDisplayGroups = [];
+    {
+      const seenGroups = new Set<string>();
+      for (const row of effectiveRows) {
+        const display = row.display;
         if (display !== "bullet" && display !== "inline") continue;
-        if (schemaRow?.hideWhenEmpty === true) continue;
-        const isBoolean = binding.type === "boolean";
-        const options = schemaRow?.options ?? [];
-        if (!isBoolean && options.length === 0) continue;
-        seenGroups.add(binding.propertySchemaId);
+        const type = row.schema?.type;
+        if (type !== "select" && type !== "multi_select" && type !== "boolean") continue;
+        if (seenGroups.has(row.propertySchemaId)) continue;
+        seenGroups.add(row.propertySchemaId);
+        const groupRows = effectiveRows.filter(
+          (r) => r.propertySchemaId === row.propertySchemaId,
+        );
         selectDisplayGroups.push({
-          propertySchemaId: binding.propertySchemaId,
-          label: binding.name,
-          options,
-          rows: [],
-          multi: binding.multi,
-          required: binding.required === true,
-          boolean: isBoolean,
+          propertySchemaId: row.propertySchemaId,
+          label: row.schema?.name ?? row.propertySchemaId,
+          options: schemasById.get(row.propertySchemaId)?.options ?? [],
+          rows: groupRows,
+          multi: row.schema?.multi ?? type === "multi_select",
+          required: groupRows.some((r) => r.required === true),
+          boolean: type === "boolean",
           display,
-          sequence: binding.sequence,
+          sequence: row.sequence ?? Number.MAX_SAFE_INTEGER,
         });
       }
+      // Bound-but-empty bindings with a row display position: no effective row
+      // exists yet (no value, no default), but the button is how the value
+      // gets set — the panel's empty-bindings pass, same gate: the render
+      // contracts are property-level — display/hide-when-empty read from the
+      // schema row; options-bearing selects only, booleans synthesize their
+      // own; hide-when-empty stays hidden).
+      for (const classId of node.classIds) {
+        for (const binding of client.getClassBindings(classId)) {
+          if (binding.type !== "select" && binding.type !== "multi_select" && binding.type !== "boolean") continue;
+          if (seenGroups.has(binding.propertySchemaId)) continue;
+          const schemaRow = schemasById.get(binding.propertySchemaId);
+          const display = schemaRow?.display ?? null;
+          if (display !== "bullet" && display !== "inline") continue;
+          if (schemaRow?.hideWhenEmpty === true) continue;
+          const isBoolean = binding.type === "boolean";
+          const options = schemaRow?.options ?? [];
+          if (!isBoolean && options.length === 0) continue;
+          seenGroups.add(binding.propertySchemaId);
+          selectDisplayGroups.push({
+            propertySchemaId: binding.propertySchemaId,
+            label: binding.name,
+            options,
+            rows: [],
+            multi: binding.multi,
+            required: binding.required === true,
+            boolean: isBoolean,
+            display,
+            sequence: binding.sequence,
+          });
+        }
+      }
+      selectDisplayGroups.sort((a, b) => a.sequence - b.sequence);
     }
-    selectDisplayGroups.sort((a, b) => a.sequence - b.sequence);
+    for (const group of selectDisplayGroups) {
+      if (group.display === "bullet") bulletDisplayGroups.push(group);
+      else inlineDisplayGroups.push(group);
+    }
   }
-  const bulletDisplayGroups = selectDisplayGroups.filter((group) => group.display === "bullet");
-  const inlineDisplayGroups = selectDisplayGroups.filter((group) => group.display === "inline");
+
+  // The content read both display modes share: inline tokens read-only, or
+  // the full block editor swapped in on click. The title projection
+  // suppresses the block-scale widget renderers (embeds, queries,
+  // whiteboards, assets) — those surfaces render in the body, never in the
+  // header.
+  const suppressWidget = isTitle ? () => null : undefined;
+  const tokens = (
+    <InlineTokens
+      tokens={node.contentAst}
+      resolveName={resolveName}
+      resolveFullTitle={(id) => fullTitleFromClient(client, id)}
+      resolveVerb={(schemaId) =>
+        outlinerClient.listPropertySchemas().find((schema) => schema.id === schemaId)?.name ?? null
+      }
+      // Issue #7 — a mention whose target is an alias page opens the
+      // MAIN page (the alias view stays reachable by opening the
+      // alias as a node: search, child rows, deep links).
+      onOpenNode={(targetId) => openNode(resolveAliasOpen(outlinerClient, targetId))}
+      onMentionMenu={(info) => openNodeLinkMenu({ blockId: node.id, ...info })}
+      resolveColor={(id) => {
+        const target = outlinerClient.getNode(id);
+        return target === undefined ? null : outlinerClient.effectiveNodeColor(target);
+      }}
+      renderEmbed={
+        suppressWidget ??
+        ((id, _token, index) => <EmbedView nodeId={id} hostId={node.id} tokenIndex={index} />)
+      }
+      renderEmbedCard={
+        suppressWidget ??
+        ((id, view, _token, index) => (
+          <EmbedCardView nodeId={id} view={view} hostId={node.id} tokenIndex={index} />
+        ))
+      }
+      renderQuery={
+        suppressWidget ??
+        ((token, index) => (
+          <QueryBlockView
+            client={outlinerClient}
+            ownerId={node.id}
+            tokenIndex={index}
+            queryAst={(token as { queryAst?: unknown }).queryAst}
+            view={(token as { view?: unknown }).view}
+            rootId={rootId}
+            onOpenNode={openNode}
+          />
+        ))
+      }
+      renderWhiteboard={
+        suppressWidget ??
+        ((_token, index) => (
+          <WhiteboardCanvas
+            client={outlinerClient}
+            hostId={node.id}
+            tokenIndex={index}
+            embedded
+          />
+        ))
+      }
+      renderAsset={
+        suppressWidget ??
+        ((token, _index, fullBleed) => {
+          const assetId = (token as { assetId?: unknown }).assetId;
+          return typeof assetId === "string" ? (
+            <AssetView client={client} assetId={assetId} fullBleed={fullBleed} />
+          ) : null;
+        })
+      }
+    />
+  );
+
+  // Title projection: the page header's editable title — bullet-less and
+  // chrome-less by definition, only the content column renders. The
+  // heading role keeps the page-title landmark; the wrapper class is
+  // title-specific (NOT .nt-block-content) so body-row selectors never
+  // match the header row. All hooks ran above, so the early return is safe.
+  if (isTitle) {
+    return (
+      <div
+        className="nt-block nt-block--title nt-page-title"
+        role="heading"
+        aria-level={1}
+        data-block-id={node.id}
+      >
+        <div className="nt-block-row">
+          <div className="nt-title-content" onClick={enterEdit}>
+            {editing ? (
+              <BlockTextEditor
+                node={node}
+                caret={caret}
+                onExitEdit={() => setEditing(false)}
+                variant="title"
+              />
+            ) : (
+              tokens
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -411,53 +553,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
           {editing ? (
             <BlockTextEditor node={node} caret={caret} onExitEdit={() => setEditing(false)} />
           ) : (
-            <InlineTokens
-              tokens={node.contentAst}
-              resolveName={resolveName}
-              resolveVerb={(schemaId) =>
-                outlinerClient.listPropertySchemas().find((schema) => schema.id === schemaId)?.name ?? null
-              }
-              // Issue #7 — a mention whose target is an alias page opens the
-              // MAIN page (the alias view stays reachable by opening the
-              // alias as a node: search, child rows, deep links).
-              onOpenNode={(targetId) => openNode(resolveAliasOpen(outlinerClient, targetId))}
-              onMentionMenu={(info) => openNodeLinkMenu({ blockId: node.id, ...info })}
-              resolveColor={(id) => {
-                const target = outlinerClient.getNode(id);
-                return target === undefined ? null : outlinerClient.effectiveNodeColor(target);
-              }}
-              renderEmbed={(id, _token, index) => (
-                <EmbedView nodeId={id} hostId={node.id} tokenIndex={index} />
-              )}
-              renderEmbedCard={(id, view, _token, index) => (
-                <EmbedCardView nodeId={id} view={view} hostId={node.id} tokenIndex={index} />
-              )}
-              renderQuery={(token, index) => (
-                <QueryBlockView
-                  client={outlinerClient}
-                  ownerId={node.id}
-                  tokenIndex={index}
-                  queryAst={(token as { queryAst?: unknown }).queryAst}
-                  view={(token as { view?: unknown }).view}
-                  rootId={rootId}
-                  onOpenNode={openNode}
-                />
-              )}
-              renderWhiteboard={(_token, index) => (
-                <WhiteboardCanvas
-                  client={outlinerClient}
-                  hostId={node.id}
-                  tokenIndex={index}
-                  embedded
-                />
-              )}
-              renderAsset={(token, _index, fullBleed) => {
-                const assetId = (token as { assetId?: unknown }).assetId;
-                return typeof assetId === "string" ? (
-                  <AssetView client={client} assetId={assetId} fullBleed={fullBleed} />
-                ) : null;
-              }}
-            />
+            tokens
           )}
         </div>
         {/* Right end of the row: the classes column (first pill + "+N"

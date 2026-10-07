@@ -17,12 +17,12 @@
  *
  * Editor chrome owned here: the find & replace widget (Ctrl/Cmd+Shift+F)
  * searching the block tree's prose projection, and the page-level
- * LinkEditModal host — read-mode clicks on external_link chips open the
- * modal, and the editor's slash "Add URL" flow opens it through the same
- * opener (see editor-popups/).
+ * LinkEditModal host for NODE links (owner ruling: external links navigate —
+ * they never open the modal; the slash "Add URL" flow authors the token
+ * directly in the editor — see editor-popups/).
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { DndContext, DragOverlay, type DragEndEvent, type DragMoveEvent, type DragStartEvent } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -69,7 +69,7 @@ import { AliasOfBanner } from "./components/AliasOfBanner.js";
 import { useDeviceSetting } from "./components/modals/deviceSettings.js";
 import { EmbedBoundary } from "./EmbedView.js";
 import { Icon } from "./Icon.js";
-import { TitleEditor } from "./TitleEditor.js";
+import { BlockRow } from "./BlockRow.js";
 import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
 import { OutlinerContext, useOutlinerValue } from "./outliner-context.js";
 import { useBlockSelectionSurface } from "./use-block-selection.js";
@@ -79,7 +79,6 @@ import { useViewModePreference } from "./viewPrefs.js";
 import { FindReplaceWidget } from "./editor-popups/FindReplaceWidget.js";
 import {
   LinkEditModalHost,
-  type LinkEditModalOpener,
 } from "./editor-popups/LinkEditModal.js";
 import { replaceRangeInAst } from "./editor-popups/block-find-replace.js";
 import { ensureTemplateFamily } from "./components/templateFamily.js";
@@ -162,9 +161,9 @@ export function PageView({
   onPresent?: ((pageId: string) => void) | undefined;
   /**
    * Embedded mode (journals feed): the title renders as a static button that
-   * navigates to the full page view instead of the inline TitleEditor, and
-   * the page-level find/replace shortcut stays off so stacked feeds don't
-   * install one document listener per entry.
+   * navigates to the full page view instead of the inline editable title
+   * row, and the page-level find/replace shortcut stays off so stacked
+   * feeds don't install one document listener per entry.
    */
   embedded?: boolean;
   layout?: "default" | "compact";
@@ -229,13 +228,11 @@ export function PageView({
 
   // --- editor chrome: find & replace + link edit modal -----------------------
 
-  /** Page root: find/replace highlights blocks inside it; link clicks delegate. */
+  /** Page root: find/replace highlights blocks inside it. */
   const pageRootRef = useRef<HTMLDivElement>(null);
   /** The block-tree selection surface (multi-selection gestures). */
   const selectionRootRef = useRef<HTMLDivElement>(null);
   const [findOpen, setFindOpen] = useState(false);
-  /** The LinkEditModal opener, published by the host below (context lives a level down). */
-  const linkOpenerRef = useRef<LinkEditModalOpener | null>(null);
 
   // Ctrl/Cmd+Shift+F opens the find & replace widget (page view only —
   // embedded journal entries skip it so feeds don't stack document listeners).
@@ -261,41 +258,6 @@ export function PageView({
     },
     [client],
   );
-
-  /**
-   * Read-mode clicks on an external_link chip open the LinkEditModal for
-   * that token (the anchor's default navigation is suppressed only when the
-   * token resolves). The slash "Add URL" flow reaches the same modal through
-   * the opener while editing.
-   */
-  const handleExternalLinkClick = (event: MouseEvent<HTMLDivElement>) => {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    const anchor = target.closest("a.nt-external-link");
-    if (anchor === null) return;
-    const blockId = anchor.closest("[data-block-id]")?.getAttribute("data-block-id");
-    if (blockId === null || blockId === undefined) return;
-    const block = client.getNode(blockId);
-    if (block === undefined) return;
-    const href = anchor.getAttribute("href") ?? "";
-    const text = anchor.textContent ?? "";
-    const tokenIndex = block.contentAst.findIndex(
-      (token) =>
-        (token as { type?: string }).type === "external_link" &&
-        (token as { href?: string }).href === href &&
-        (token as { text?: string }).text === text,
-    );
-    if (tokenIndex < 0) return;
-    event.preventDefault();
-    linkOpenerRef.current?.({
-      kind: "external",
-      blockId,
-      tokenIndex,
-      insertAt: null,
-      initialUrl: href,
-      initialLabel: text,
-    });
-  };
 
   // --- drag-and-drop reordering (block-dnd.ts intent model) -------------------
   const sensors = useBlockDndSensors();
@@ -749,7 +711,16 @@ export function PageView({
                 {displayNameForSettings(page)}
               </button>
             ) : (
-              <TitleEditor page={page} />
+              /* The title is a bullet-less BlockRow over the page node itself
+                 (no children — the body tree stays the separate collection
+                 below): display renders the content's inline tokens (links,
+                 mentions), a click swaps in the full block editor. */
+              <BlockRow
+                variant="title"
+                tree={{ node: page, children: [] }}
+                client={client}
+                resolveName={(id) => displayNameFromClient(client, id)}
+              />
             )}
             </span>
               </>
@@ -874,7 +845,7 @@ export function PageView({
 
   return (
     <OutlinerContext.Provider value={outliner}>
-      <LinkEditModalHost client={client} openerRef={linkOpenerRef}>
+      <LinkEditModalHost client={client}>
         <div
           className={
             [
@@ -884,7 +855,6 @@ export function PageView({
             ].filter(Boolean).join(" ")
           }
           ref={pageRootRef}
-          onClick={handleExternalLinkClick}
         >
           {/* Classes: compact layouts pin the pills to the card's top-left
               corner; the panelled main layout carries them in the nodeview
