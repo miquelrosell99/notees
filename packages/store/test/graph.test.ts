@@ -225,4 +225,69 @@ describe("graphTopology", () => {
     const depth2 = graphTopology(store, WS, { anchor: PAGE_A, depth: 2 });
     expect(depth2.nodes.map((n) => n.id).sort()).toEqual([PAGE_A, PAGE_B, PAGE_C, PAGE_D]);
   });
+
+  it("alias nodes are not vertices; incident edges repoint to the terminal", () => {
+    const ALIAS = "0192a000-0000-7000-8000-0000000000e1";
+    const store = setup(
+      createPage(PAGE_A),
+      createPage(PAGE_B),
+      env("object.create", { objectId: ALIAS, presentAsMain: true }),
+      env("object.update", { objectId: ALIAS, aliasedNodeId: PAGE_B }),
+      // An edge authored ON the alias page (a mention of PAGE_A)…
+      env("object.update", { objectId: ALIAS, contentAst: [mention(PAGE_A, "A")] }),
+      // …and an edge TARGETING the alias (a block under PAGE_A mentions it).
+      createBlock(BLOCK_B1, PAGE_A),
+      env("object.update", { objectId: BLOCK_B1, contentAst: [mention(ALIAS, "B")] }),
+    );
+    const topology = graphTopology(store, WS);
+    // The alias never renders as a node…
+    expect(topology.nodes.some((n) => n.id === ALIAS)).toBe(false);
+    // …the authored edge renders incident to the terminal (alias → A)…
+    expect(edge(topology, "mention", PAGE_B, PAGE_A)).toBeDefined();
+    expect(topology.edges.every((e) => e.source !== ALIAS && e.target !== ALIAS)).toBe(true);
+    // …and the targeting edge repoints to the terminal (A → B).
+    expect(edge(topology, "mention", PAGE_A, PAGE_B)).toBeDefined();
+  });
+
+  it("repointed parallels merge into one edge (weight accumulates)", () => {
+    const ALIAS = "0192a000-0000-7000-8000-0000000000e1";
+    const store = setup(
+      createPage(PAGE_A),
+      createPage(PAGE_B),
+      env("object.create", { objectId: ALIAS, presentAsMain: true }),
+      env("object.update", { objectId: ALIAS, aliasedNodeId: PAGE_B }),
+      // PAGE_A links both the terminal and its alias: two authored edges,
+      // one rendered edge (A → B) with weight 2.
+      createBlock(BLOCK_B1, PAGE_A),
+      createBlock(BLOCK_C1, PAGE_A),
+      env("object.update", { objectId: BLOCK_B1, contentAst: [mention(PAGE_B, "B")] }),
+      env("object.update", { objectId: BLOCK_C1, contentAst: [mention(ALIAS, "B")] }),
+    );
+    const topology = graphTopology(store, WS);
+    const merged = edge(topology, "mention", PAGE_A, PAGE_B);
+    expect(merged).toBeDefined();
+    expect(merged!.weight).toBe(2);
+  });
+
+  it("a chain alias collapses to the chain terminal; the local anchor steps through", () => {
+    const ALIAS = "0192a000-0000-7000-8000-0000000000e1";
+    const CHAIN_ALIAS = "0192a000-0000-7000-8000-0000000000e2";
+    const store = setup(
+      createPage(PAGE_A),
+      createPage(PAGE_B),
+      env("object.create", { objectId: ALIAS, presentAsMain: true }),
+      env("object.create", { objectId: CHAIN_ALIAS, presentAsMain: true }),
+      env("object.update", { objectId: ALIAS, aliasedNodeId: PAGE_B }),
+      env("object.update", { objectId: CHAIN_ALIAS, aliasedNodeId: ALIAS }),
+      createBlock(BLOCK_B1, PAGE_A),
+      env("object.update", { objectId: BLOCK_B1, contentAst: [mention(CHAIN_ALIAS, "B")] }),
+    );
+    const topology = graphTopology(store, WS);
+    expect(topology.nodes.some((n) => n.id === CHAIN_ALIAS)).toBe(false);
+    expect(edge(topology, "mention", PAGE_A, PAGE_B)).toBeDefined();
+    // Anchoring the LOCAL card on the chain alias shows the terminal's
+    // neighborhood (depth 1 reaches PAGE_A across the repointed edge).
+    const local = graphTopology(store, WS, { anchor: CHAIN_ALIAS, depth: 1 });
+    expect(local.nodes.map((n) => n.id).sort()).toEqual([PAGE_A, PAGE_B]);
+  });
 });

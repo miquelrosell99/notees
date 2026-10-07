@@ -168,10 +168,8 @@ CHECK (is_class = 0 OR parent_id IS NULL)
   fundamentals as properties; never answer property drift with
   reserved-schema machinery. Structural invariants (extends DAG, alias-chain
   acyclicity) are write-time invariants: validated at the operation level
-  with loud failure, never applied; render assumes them — the extends DAG is
-  enforced today; **alias-chain acyclicity lands with the alias-semantics
-  follow-on slices** (the wire fields ship mapped-but-unvalidated, stated
-  honestly).
+  with loud failure, never applied; render assumes them — both are enforced
+  today (the alias-chain check since the wire-fields batch, 2026-10-07).
 
 ## 5. Content grammar and the edge index
 

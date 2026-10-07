@@ -2046,25 +2046,42 @@ describe("sql.js snapshot round-trip", () => {
   });
 });
 
-describe("aliasOfTarget (the node-alias read behind /resolve parity)", () => {
-  const ALIAS_SCHEMA = "00000000-0000-0000-0000-000000000029";
+describe("aliasNodesOf (the reverse alias read behind the backlinks roll-up)", () => {
   const MAIN = "0192a000-0000-7000-8000-0000000000f1";
   const ALIAS = "0192a000-0000-7000-8000-0000000000f2";
+  const CHAIN = "0192a000-0000-7000-8000-0000000000f3";
+  const OTHER = "0192a000-0000-7000-8000-0000000000f4";
 
-  it("returns the aliasOf target for an alias page, undefined otherwise", () => {
+  const alias = (from: string, to: string | null, physical: number) =>
+    env("object.update", { objectId: from, aliasedNodeId: to }, physical);
+
+  it("lists every node whose alias-terminal is the main, chains included; [] when none", () => {
     const store = Store.open(betterSqlite3Backend(":memory:"));
-    store.apply(createPage(MAIN, 1727200000000));
-    store.apply(createPage(ALIAS, 1727200000100));
-    expect(store.aliasOfTarget(ALIAS)).toBeUndefined();
-    store.apply(
-      env(
-        "property.set",
-        { objectId: ALIAS, propertySchemaId: ALIAS_SCHEMA, value: { nodeId: MAIN }, idx: 0 },
-        1727200000200,
-      ),
-    );
-    expect(store.aliasOfTarget(ALIAS)).toBe(MAIN);
-    expect(store.aliasOfTarget(MAIN)).toBeUndefined();
+    for (const id of [MAIN, ALIAS, CHAIN, OTHER]) store.apply(createPage(id, 1727200000000));
+    expect(store.aliasNodesOf(MAIN)).toEqual([]);
+    // A plain alias and a chain member both resolve to the main.
+    store.apply(alias(ALIAS, MAIN, 1727200001000));
+    store.apply(alias(CHAIN, ALIAS, 1727200002000));
+    expect(store.aliasNodesOf(MAIN)).toEqual([ALIAS, CHAIN]);
+    // CHAIN points at ALIAS directly, so it lists under ALIAS's own set…
+    expect(store.aliasNodesOf(ALIAS)).toEqual([CHAIN]);
+    // …while nothing points at CHAIN or OTHER.
+    expect(store.aliasNodesOf(CHAIN)).toEqual([]);
+    expect(store.aliasNodesOf(OTHER)).toEqual([]);
+    store.close();
+  });
+
+  it("never includes the main itself and skips trashed aliases", () => {
+    const store = Store.open(betterSqlite3Backend(":memory:"));
+    for (const id of [MAIN, ALIAS, OTHER]) store.apply(createPage(id, 1727200000000));
+    store.apply(alias(ALIAS, MAIN, 1727200001000));
+    expect(store.aliasNodesOf(MAIN)).toEqual([ALIAS]);
+    // Trash the alias (soft-delete keeps the row, flips is_active).
+    store.apply(env("object.delete", { objectId: ALIAS }, 1727200002000));
+    expect(store.aliasNodesOf(MAIN)).toEqual([]);
+    // The trash never lists as a terminal either.
+    expect(store.aliasNodesOf(ALIAS)).toEqual([]);
+    expect(store.aliasNodesOf(OTHER)).toEqual([]);
     store.close();
   });
 });
