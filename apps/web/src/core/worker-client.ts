@@ -92,6 +92,11 @@ const READ_INVALIDATION: Record<string, "change" | "structure" | "scope"> = {
   getClassMemberCount: "scope",
   getClassBindings: "scope",
   getBlockTree: "scope",
+  // Node-alias reads: a chain link ANYWHERE (args[0]'s chain is not an
+  // ancestor relation of the affected set) may change the answer — the
+  // conservative content-global class is the honest one.
+  resolveAlias: "change",
+  aliasNodesOf: "change",
   // Content-global reads: titles and typed link marks flow in from anywhere.
   search: "change",
   getSearchSnippet: "change",
@@ -537,6 +542,19 @@ export class WorkerClient {
 
   getBacklinks(id: string): ClientEdge[] {
     return this.cachedRead<ClientEdge[]>("getBacklinks", [id], []);
+  }
+
+  /**
+   * The terminal of a node-alias chain (the navigation seam — unresolved
+   * seeds as the id itself, converging on the worker's refresh).
+   */
+  resolveAlias(id: string): string {
+    return this.cachedRead<string>("resolveAlias", [id], id);
+  }
+
+  /** Every live alias page of the node (the title-row aliases listing). */
+  aliasNodesOf(id: string): import("@/core/workspace-client.js").ClientNode[] {
+    return this.cachedRead("aliasNodesOf", [id], []);
   }
 
   getLinkedReferences(id: string): ReferenceEntry[] {
