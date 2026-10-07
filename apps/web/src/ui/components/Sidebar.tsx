@@ -12,7 +12,7 @@
  * App).
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
@@ -21,13 +21,18 @@ import type { AccountUser } from "@/core/auth-api.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
-import { displayNameForSettings } from "../dateDisplay.js";
+import { displayNameFromClient, fullTitleFromClient } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
+import { InlineTokens } from "../InlineTokens.js";
 import { nodeIcon } from "../iconFor.js";
+import { untitledLabelOf } from "../renderStateLabel.js";
+import { resolveAliasOpen } from "./aliasProperty.js";
+import { openNodeLinkMenu } from "./NodeLinkContextMenu.js";
 import { useNodePrefs, toggleNodeFavorite, removeSyncedRecent } from "./nodePrefs.js";
 import { SidebarItemMenu, type SidebarItemMenuState } from "./SidebarItemMenu.js";
 import { ConfirmationModal } from "./ui/ConfirmationModal.js";
 import { useDeviceSetting } from "./modals/deviceSettings.js";
+import { usePopupDismissal } from "./ui/usePopupDismissal.js";
 import "./Sidebar.css";
 
 export type AnyClient = WorkspaceClient | WorkerClient;
@@ -136,12 +141,29 @@ export function Sidebar({
   const nodePrefs = useNodePrefs(client);
   const favorites = nodePrefs.favorites;
   const recents = nodePrefs.recents;
+  /**
+   * Live labels: favorites/recents rows render node content read at render
+   * time, so a rename (any client notification) must re-render the sidebar —
+   * the bump re-reads the lists below.
+   */
+  const [, setVersion] = useState(0);
+  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [accountMenu, setAccountMenu] = useState(false);
   /** Right-click menu over a Favorites/Recents row. */
   const [rowMenu, setRowMenu] = useState<SidebarItemMenuState | null>(null);
   /** Delete confirmation target (lives here so it survives the menu closing). */
   const [deleteTarget, setDeleteTarget] = useState<ClientNode | null>(null);
+
+  /** The account popup + its trigger — the shared dismissal layer anchors. */
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
+  usePopupDismissal({
+    popupRef: accountMenuRef,
+    anchorRefs: [profileButtonRef],
+    isOpen: accountMenu,
+    onClose: () => setAccountMenu(false),
+  });
 
   const fullName =
     user !== null ? [user.name, user.surnames].filter((part) => part !== null && part !== "").join(" ").trim() : "";
@@ -192,31 +214,84 @@ export function Sidebar({
     .filter((node): node is ClientNode => node !== undefined)
     .slice(0, 12);
 
+  /**
+   * Row label: the shared read-only content machinery (InlineTokens), so a
+   * link-rich title renders exactly like block content — mention chips get
+   * the link UI (click → open the target, right-click → the node-link menu)
+   * and class chips render as chips. The row itself stays a plain list row:
+   * no outliner tree, no editing. The row body is a div[role=button] (the
+   * NodePill idiom) because the label's mention links are real buttons —
+   * buttons cannot nest. Shift+click peeks the node in the right sidebar,
+   * mirroring the block bullet's shift idiom.
+   */
+  const renderRowLabel = (node: ClientNode) =>
+    node.contentAst.length === 0 ? (
+      <span className="nt-side-item-label">{untitledLabelOf(node)}</span>
+    ) : (
+      <span className="nt-side-item-label">
+        <InlineTokens
+          tokens={node.contentAst}
+          resolveName={(id) => displayNameFromClient(client, id)}
+          resolveFullTitle={(id) => fullTitleFromClient(client, id)}
+          resolveVerb={(schemaId) =>
+            client.listPropertySchemas().find((schema) => schema.id === schemaId)?.name ?? null
+          }
+          onOpenNode={(targetId) => openRow(resolveAliasOpen(client, targetId))}
+          onMentionMenu={(info) => openNodeLinkMenu({ blockId: node.id, ...info })}
+          resolveColor={(id) => {
+            const target = client.getNode(id);
+            return target === undefined ? null : client.effectiveNodeColor(target);
+          }}
+        />
+      </span>
+    );
+
   const renderRow = (node: ClientNode, icon?: string | null, list?: "favorites" | "recents") => (
     <li
       key={node.id}
       className="nt-side-row"
       onContextMenu={(event) => {
         if (list === undefined) return;
+        // A right-click on an inline mention link belongs to the node-link
+        // menu (the chip's own handler already fired); the row menu only
+        // claims presses on the row itself.
+        if (
+          event.target instanceof Element &&
+          event.target.closest(".nt-link, .nt-chip") !== null
+        )
+          return;
         event.preventDefault();
         setRowMenu({ x: event.clientX, y: event.clientY, node, list });
       }}
     >
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         className={node.id === selectedPageId ? "nt-side-item nt-side-item-active" : "nt-side-item"}
-        onClick={() => openRow(node.id)}
+        onClick={(event) => {
+          if (event.shiftKey) {
+            onOpenInSidebar?.(node.id);
+            return;
+          }
+          openRow(node.id);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            openRow(node.id);
+          }
+        }}
       >
         {icon !== null && icon !== undefined && (
           <Icon path={icon} size={1} className="nt-side-item-icon" />
         )}
-        <span className="nt-side-item-label">{displayNameForSettings(node) || node.id}</span>
+        {renderRowLabel(node)}
         {node.isClass && (
           <span className="nt-side-item-flag" title="Class">
             class
           </span>
         )}
-      </button>
+      </div>
       <button
         type="button"
         className="nt-side-star"
@@ -328,6 +403,7 @@ export function Sidebar({
       <div className="nt-sidebar-bottom">
         <button
           type="button"
+          ref={profileButtonRef}
           className="nt-profile"
           title={user?.email ?? "Account"}
           aria-label="Account"
@@ -359,7 +435,18 @@ export function Sidebar({
           </button>
         )}
         {accountMenu && (
-          <div className="nt-account-menu" role="menu">
+          <div
+            className="nt-account-menu"
+            role="menu"
+            ref={accountMenuRef}
+            // Escape owned by the popup's own interior (the shared layer
+            // skips keydowns that originate inside the popup): close here.
+            onKeyDown={(event) => {
+              if (event.key !== "Escape") return;
+              event.stopPropagation();
+              setAccountMenu(false);
+            }}
+          >
             <span className="nt-account-email">{user?.email ?? "Offline workspace"}</span>
             <button
               type="button"
