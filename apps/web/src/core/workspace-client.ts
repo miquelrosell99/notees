@@ -853,6 +853,74 @@ export function mergeRecentOpen(list: readonly string[], id: string): string[] {
   return [id, ...list.filter((entry) => entry !== id)].slice(0, MAX_SYNCED_RECENTS);
 }
 
+// --- per-user hosted section views (custom tabs — the prefs channel) ---------
+//
+// Same ruling as favorites/recents: custom views on collection-backed sections
+// are cross-device UI state, so they live in the sync server's per-user prefs
+// store, never the op log. The client speaks REST (the five endpoints under
+// /api/me/nodes/:nodeId/sections/:sectionKey/views); the sectionViews module
+// (ui/components/sectionViews.ts) owns syncing, the device-local cache, and
+// the React hook. queryAst is the verbatim QueryAST v1 the FilterBuilderModal
+// produced — parsed again at resolution time.
+
+/** The collection-backed sections that may host custom views (the server's vocabulary). */
+export type HostedSectionKey = "linked-references" | "unlinked-mentions" | "classed-nodes";
+
+export const HOSTED_SECTION_KEYS: readonly HostedSectionKey[] = [
+  "linked-references",
+  "unlinked-mentions",
+  "classed-nodes",
+];
+
+/** One custom view row (the server section_view table, wire shape). */
+export interface SectionView {
+  id: string;
+  nodeId: string;
+  sectionKey: string;
+  name: string;
+  sequence: number;
+  queryAst: unknown;
+  viewMode: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Server body → SectionView; a malformed row is a loud error, never half-read. */
+function normalizeSectionView(raw: unknown): SectionView {
+  const value = raw as Partial<SectionView>;
+  if (
+    typeof value !== "object" || value === null ||
+    typeof value.id !== "string" ||
+    typeof value.nodeId !== "string" ||
+    typeof value.sectionKey !== "string" ||
+    typeof value.name !== "string" ||
+    typeof value.sequence !== "number" ||
+    typeof value.createdAt !== "number" ||
+    typeof value.updatedAt !== "number"
+  ) {
+    throw new Error("section view response missing id/nodeId/sectionKey/name/sequence/timestamps");
+  }
+  return {
+    id: value.id,
+    nodeId: value.nodeId,
+    sectionKey: value.sectionKey,
+    name: value.name,
+    sequence: value.sequence,
+    queryAst: value.queryAst ?? null,
+    viewMode: typeof value.viewMode === "string" ? value.viewMode : null,
+    createdAt: value.createdAt,
+    updatedAt: value.updatedAt,
+  };
+}
+
+function normalizeSectionViewList(body: unknown): SectionView[] {
+  const value = body as { views?: unknown };
+  if (typeof value !== "object" || value === null || !Array.isArray(value.views)) {
+    throw new Error("section view list response missing views array");
+  }
+  return value.views.map(normalizeSectionView);
+}
+
 function mapNode(row: NodeRow): ClientNode {
   // Each column parses independently: a missing/legacy column must never
   // wipe the other (cross-version snapshots can predate a column).
@@ -1943,19 +2011,19 @@ export class WorkspaceClient {
   }
 
   /**
-   * Linked references (SCHEMA.md system sections): direct backlinks of the
-   * node PLUS source-side containment roll-up (query-time traversal) —
-   * outward links from inside the node's subtree (a block inside France
-   * linking Paris references France by containment). Ordered direct first,
-   * then containment by subtree depth. Each entry carries the breadcrumb of
-   * its containing page (the actual linking block's chain) and a `kind`.
-   * The section badge reads getBacklinkCount (direct only) — unchanged, so a
-   * containment-heavy page shows a longer list than its badge number.
-   * The node-alias roll-up unions in edges whose target is any page whose
-   * alias-terminal is this node (the store's recursive read over
-   * `aliased_node_id`; chains included) as `kind: "alias"` rows after the
-   * direct and containment sets — the alias page's own view is unchanged
-   * (it lists only its own edges; SCHEMA.md "Node aliases").
+   * Linked references (SCHEMA.md system sections): the three-family read in
+   * ONE store pass — direct backlinks of the node, source-side containment
+   * roll-up (query-time traversal), and the node-alias roll-up. The alias
+   * family rides the applier-materialized `resolved_target_id` column (the
+   * store schema v17 optimization — a plain index read replacing the old
+   * recursive alias-set walk + per-alias union; the carrier filter is the
+   * SCHEMA.md page restriction, mirrored into the store read, so non-page
+   * alias carriers still don't act as aliases). The store orders
+   * direct+containment first and alias rows last, deduping per (source,
+   * kind); the client seen-set keeps one reference per source (direct beats
+   * containment beats alias). The alias page's own view is unchanged: its
+   * edges match on the raw target column, so it lists only edges targeting
+   * the alias itself (SCHEMA.md "Node aliases").
    */
   getLinkedReferences(id: string): ReferenceEntry[] {
     const seen = new Set<string>();
@@ -1963,8 +2031,6 @@ export class WorkspaceClient {
     for (const row of this.store.backlinksWithRollup(id) as Array<Record<string, unknown>>) {
       const sourceId = String(row.source_id);
       if (seen.has(sourceId)) continue;
-      // Links written inside the node's OWN subtree (e.g. a link to a page
-      // mentioned in that page's own blocks) are content, not references.
       // Live sources only — a trashed node no longer claims a reference.
       const source = this.getNode(sourceId);
       if (!source) continue;
@@ -1973,36 +2039,27 @@ export class WorkspaceClient {
       // Links written inside the node's OWN subtree (a link mentioned in the
       // page's own blocks) are content, not references.
       if (entry.containingPageId === id || entry.source.id === id) continue;
+      // Alias-family rows carry the edge's RAW target (the alias page): a
+      // link from inside the alias's subtree to the alias is the alias's own
+      // content, never a main-page reference — the same both-ends exclusion
+      // the client-side union applied before the materialization.
+      const rawTargetId =
+        row.target_id === null || row.target_id === undefined ? null : String(row.target_id);
+      if (
+        rawTargetId !== null &&
+        rawTargetId !== id &&
+        (entry.containingPageId === rawTargetId || entry.source.id === rawTargetId)
+      ) {
+        continue;
+      }
       seen.add(sourceId);
+      const kind =
+        row.kind === "alias" ? "alias" : row.kind === "containment" ? "containment" : "direct";
       entries.push({
         ...entry,
-        kind: row.kind === "containment" ? "containment" : "direct",
+        kind,
         verb: row.verb === null || row.verb === undefined ? null : String(row.verb),
       });
-    }
-    // Node-alias roll-up: an edge targeting an alias page of this node
-    // references this node by alias — union the alias pages' DIRECT backlink
-    // sets in (query-time over the derived edge index; no derived-schema
-    // change — the alias enumeration rides the store's recursive read).
-    // Sources already claimed by the direct/containment sets stay single-row
-    // (one reference per source).
-    for (const aliasId of this.aliasPageIdsOf(id)) {
-      for (const edge of this.getBacklinks(aliasId)) {
-        const sourceId = edge.sourceId;
-        if (seen.has(sourceId)) continue;
-        const source = this.getNode(sourceId);
-        if (!source) continue;
-        const entry = this.referenceEntry(source);
-        if (entry === null) continue;
-        // Same own-subtree exclusion as the direct set, relative to BOTH
-        // this node and the alias: a link from inside this node's subtree to
-        // its alias, or from inside the alias's subtree to the alias itself,
-        // is content, not a reference.
-        if (entry.containingPageId === id || entry.source.id === id) continue;
-        if (entry.containingPageId === aliasId || entry.source.id === aliasId) continue;
-        seen.add(sourceId);
-        entries.push({ ...entry, kind: "alias", verb: edge.verb });
-      }
     }
     return entries;
   }
@@ -3089,7 +3146,7 @@ export class WorkspaceClient {
   private requireRest(): { serverUrl: string; apiKey: string } {
     if (this.restServerUrl === null || this.restApiKey === null) {
       throw new Error(
-        "WorkspaceClient: asset upload/download requires serverUrl + apiKey (use createHttp)",
+        "WorkspaceClient: this call requires serverUrl + apiKey (use createHttp)",
       );
     }
     return { serverUrl: this.restServerUrl, apiKey: this.restApiKey };
@@ -3157,6 +3214,111 @@ export class WorkspaceClient {
       }
     }
     return { ...merged, source: "local" };
+  }
+
+  // --- per-user hosted section views (custom tabs — the prefs channel) --------
+
+  private sectionViewsUrl(nodeId: string, sectionKey: string, suffix = ""): string {
+    const { serverUrl } = this.requireRest();
+    return `${serverUrl.replace(/\/$/, "")}/api/me/nodes/${encodeURIComponent(nodeId)}/sections/${encodeURIComponent(sectionKey)}/views${suffix}`;
+  }
+
+  /** GET the section's custom views in tab order. Throws when the server answers non-ok. */
+  async listSectionViews(nodeId: string, sectionKey: string): Promise<SectionView[]> {
+    const { apiKey } = this.requireRest();
+    const response = await fetch(this.sectionViewsUrl(nodeId, sectionKey), {
+      headers: { "X-API-Key": apiKey },
+    });
+    if (!response.ok) {
+      throw new Error(
+        `list section views failed: HTTP ${response.status}: ${await response.text()}`,
+      );
+    }
+    return normalizeSectionViewList(await response.json());
+  }
+
+  /** POST a new view (appended after the last tab). Throws on 4xx/5xx (409 = name collision). */
+  async createSectionView(input: {
+    nodeId: string;
+    sectionKey: string;
+    name: string;
+    queryAst: unknown;
+    viewMode?: string | null;
+  }): Promise<SectionView> {
+    const { apiKey } = this.requireRest();
+    const response = await fetch(this.sectionViewsUrl(input.nodeId, input.sectionKey), {
+      method: "POST",
+      headers: { "X-API-Key": apiKey, "content-type": "application/json" },
+      body: JSON.stringify({
+        name: input.name,
+        queryAst: input.queryAst,
+        ...(input.viewMode != null ? { viewMode: input.viewMode } : {}),
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(
+        `create section view failed: HTTP ${response.status}: ${await response.text()}`,
+      );
+    }
+    return normalizeSectionView((await response.json()).view);
+  }
+
+  /** PATCH a view's name. 404 = missing/foreign row (also throws). */
+  async renameSectionView(
+    nodeId: string,
+    sectionKey: string,
+    viewId: string,
+    name: string,
+  ): Promise<SectionView> {
+    const { apiKey } = this.requireRest();
+    const response = await fetch(
+      this.sectionViewsUrl(nodeId, sectionKey, `/${encodeURIComponent(viewId)}`),
+      {
+        method: "PATCH",
+        headers: { "X-API-Key": apiKey, "content-type": "application/json" },
+        body: JSON.stringify({ name }),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(
+        `rename section view failed: HTTP ${response.status}: ${await response.text()}`,
+      );
+    }
+    return normalizeSectionView((await response.json()).view);
+  }
+
+  /** PUT the full ordered id list; sequences rewrite 0..n-1. Throws on an incomplete list. */
+  async reorderSectionViews(
+    nodeId: string,
+    sectionKey: string,
+    orderedIds: string[],
+  ): Promise<SectionView[]> {
+    const { apiKey } = this.requireRest();
+    const response = await fetch(this.sectionViewsUrl(nodeId, sectionKey, "/order"), {
+      method: "PUT",
+      headers: { "X-API-Key": apiKey, "content-type": "application/json" },
+      body: JSON.stringify({ orderedIds }),
+    });
+    if (!response.ok) {
+      throw new Error(
+        `reorder section views failed: HTTP ${response.status}: ${await response.text()}`,
+      );
+    }
+    return normalizeSectionViewList(await response.json());
+  }
+
+  /** DELETE a view (204). 404 = missing/foreign row (also throws). */
+  async deleteSectionView(nodeId: string, sectionKey: string, viewId: string): Promise<void> {
+    const { apiKey } = this.requireRest();
+    const response = await fetch(
+      this.sectionViewsUrl(nodeId, sectionKey, `/${encodeURIComponent(viewId)}`),
+      { method: "DELETE", headers: { "X-API-Key": apiKey } },
+    );
+    if (!response.ok) {
+      throw new Error(
+        `delete section view failed: HTTP ${response.status}: ${await response.text()}`,
+      );
+    }
   }
 
   /**

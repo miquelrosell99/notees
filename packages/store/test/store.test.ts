@@ -2796,6 +2796,341 @@ describe.each(adapters)("$name: v16 — wire node fields", ({ makeBackend }) => 
   });
 });
 
+// --- v17: the alias resolved-target materialization ------------------------------
+
+describe.each(adapters)("$name: edge.resolved_target_id (v17)", ({ makeBackend }) => {
+  const MAIN = "0192a000-0000-7000-8000-0000000005a1";
+  const ALIAS = "0192a000-0000-7000-8000-0000000005a2";
+  const CHAIN = "0192a000-0000-7000-8000-0000000005a3";
+  const OTHER = "0192a000-0000-7000-8000-0000000005a4";
+  const SOURCE = "0192a000-0000-7000-8000-0000000005a5";
+  const BLOCK = "0192a000-0000-7000-8000-0000000005a6";
+
+  function makeStore(): Store {
+    return Store.open(makeBackend());
+  }
+
+  const edgeRows = (store: Store) =>
+    store.database
+      .prepare(
+        "SELECT source_id, target_id, resolved_target_id, type FROM edge ORDER BY source_id, type, id",
+      )
+      .all() as Array<{ source_id: string; target_id: string | null; resolved_target_id: string | null; type: string }>;
+
+  /** The alias-world envelopes: MAIN ← ALIAS ← CHAIN, one mention edge
+   *  targeting each of ALIAS / CHAIN / OTHER, authored BEFORE the alias
+   *  writes land (the re-resolution maintenance path). */
+  function worldEnvelopes(): Envelope[] {
+    return [
+      createPage(MAIN, 1727200000000),
+      createPage(ALIAS, 1727200000100),
+      createPage(CHAIN, 1727200000200),
+      createPage(OTHER, 1727200000300),
+      createPage(SOURCE, 1727200000400),
+      env("object.create", { objectId: BLOCK, parentId: SOURCE, presentAsMain: false }, 1727200000500),
+      // One content write carrying all three mentions (a contentAst write
+      // replaces the stream — three separate updates would leave only the
+      // last token standing).
+      env(
+        "object.update",
+        {
+          objectId: BLOCK,
+          contentAst: [
+            { type: "text", text: "see " },
+            { type: "mention", targetNodeId: ALIAS, text: "a" },
+            { type: "mention", targetNodeId: CHAIN, text: "c" },
+            { type: "mention", targetNodeId: OTHER, text: "o" },
+          ],
+        },
+        1727200000600,
+      ),
+      env("object.update", { objectId: ALIAS, aliasedNodeId: MAIN }, 1727200000900),
+      env("object.update", { objectId: CHAIN, aliasedNodeId: ALIAS }, 1727200001000),
+    ];
+  }
+
+  function seedWorld(store: Store): void {
+    store.applyMany(worldEnvelopes());
+  }
+
+  it("materializes the alias terminal at write time; non-alias targets resolve to themselves", () => {
+    const store = makeStore();
+    seedWorld(store);
+    const rows = edgeRows(store);
+    // Both alias-targeted edges resolve to the terminal; the plain target is
+    // its own resolution.
+    const byTarget = new Map(rows.map((r) => [r.target_id, r.resolved_target_id]));
+    expect(byTarget.get(ALIAS)).toBe(MAIN);
+    expect(byTarget.get(CHAIN)).toBe(MAIN);
+    expect(byTarget.get(OTHER)).toBe(OTHER);
+    // Targetless typed_link marks stay NULL.
+    store.apply(
+      env(
+        "object.update",
+        {
+          objectId: BLOCK,
+          contentAst: [
+            { type: "text", text: "a " },
+            { type: "typed_link", verb: "cites", text: "mark", metadata: { candidateSpans: [] } },
+          ],
+        },
+        1727200002000,
+      ),
+    );
+    expect(edgeRows(store).some((r) => r.type === "typed_link" && r.resolved_target_id === null)).toBe(true);
+    store.close();
+  });
+
+  it("re-resolves on alias writes: re-point and clear move every chain member's edges", () => {
+    const store = makeStore();
+    seedWorld(store);
+    // Re-point ALIAS at OTHER: both the ALIAS edge and the CHAIN edge (whose
+    // chain now runs CHAIN -> ALIAS -> OTHER) follow.
+    store.apply(env("object.update", { objectId: ALIAS, aliasedNodeId: OTHER }, 1727200002000));
+    let byTarget = new Map(edgeRows(store).map((r) => [r.target_id, r.resolved_target_id]));
+    expect(byTarget.get(ALIAS)).toBe(OTHER);
+    expect(byTarget.get(CHAIN)).toBe(OTHER);
+    // Clear ALIAS: its edges collapse to ALIAS itself; the CHAIN edge stops
+    // at the cleared link (CHAIN -> ALIAS, terminal).
+    store.apply(env("object.update", { objectId: ALIAS, aliasedNodeId: null }, 1727200003000));
+    byTarget = new Map(edgeRows(store).map((r) => [r.target_id, r.resolved_target_id]));
+    expect(byTarget.get(ALIAS)).toBe(ALIAS);
+    expect(byTarget.get(CHAIN)).toBe(ALIAS);
+    store.close();
+  });
+
+  it("a stale-HLC alias update loses the row LWW and re-resolves nothing", () => {
+    const store = makeStore();
+    seedWorld(store);
+    store.apply(env("object.update", { objectId: ALIAS, aliasedNodeId: OTHER }, 1727200000500));
+    expect(store.getNode(ALIAS)?.aliased_node_id).toBe(MAIN);
+    const byTarget = new Map(edgeRows(store).map((r) => [r.target_id, r.resolved_target_id]));
+    expect(byTarget.get(ALIAS)).toBe(MAIN);
+    expect(byTarget.get(CHAIN)).toBe(MAIN);
+    store.close();
+  });
+
+  it("trash / restore / permanent delete re-resolve the touching edges", () => {
+    const store = makeStore();
+    seedWorld(store);
+    // Soft-delete the alias: inactive rows never resolve through — the
+    // ALIAS edge stays on the alias (inert), the CHAIN edge collapses to
+    // the last live link (ALIAS).
+    store.apply(env("object.delete", { objectId: ALIAS }, 1727200002000));
+    let byTarget = new Map(edgeRows(store).map((r) => [r.target_id, r.resolved_target_id]));
+    expect(byTarget.get(ALIAS)).toBe(ALIAS);
+    expect(byTarget.get(CHAIN)).toBe(ALIAS);
+    // Restore heals the chains back to the terminal.
+    store.apply(env("object.restore", { objectId: ALIAS }, 1727200003000));
+    byTarget = new Map(edgeRows(store).map((r) => [r.target_id, r.resolved_target_id]));
+    expect(byTarget.get(ALIAS)).toBe(MAIN);
+    expect(byTarget.get(CHAIN)).toBe(MAIN);
+    // Permanent delete: ghost rows resolve to the ghost id itself (the
+    // walker's "unstored rows are their own terminal") — the edges survive
+    // (PB1) but point nowhere live.
+    store.apply(env("object.delete", { objectId: ALIAS, permanent: true }, 1727200004000));
+    byTarget = new Map(edgeRows(store).map((r) => [r.target_id, r.resolved_target_id]));
+    expect(byTarget.get(ALIAS)).toBe(ALIAS);
+    expect(byTarget.get(CHAIN)).toBe(ALIAS);
+    store.close();
+  });
+
+  it("wipe -> replay reproduces the materialized column byte-identically", () => {
+    // One envelope set, deep-copied per application: envelope ids are minted
+    // per newEnvelope call, so both stores must replay the SAME envelopes.
+    const envelopes = worldEnvelopes();
+    const store1 = makeStore();
+    store1.applyMany(envelopes.map((e) => JSON.parse(JSON.stringify(e)) as Envelope));
+    const before = edgeRows(store1);
+    expect(before.some((r) => r.resolved_target_id === MAIN)).toBe(true);
+    const replay = makeStore();
+    replay.applyMany(envelopes.map((e) => JSON.parse(JSON.stringify(e)) as Envelope));
+    expect(edgeRows(replay)).toEqual(before);
+    // The full-database dump (the convergence gate's comparison shape)
+    // agrees as well.
+    expect(dumpDb(replay, { withAppliedLog: true })).toEqual(dumpDb(store1, { withAppliedLog: true }));
+    store1.close();
+    replay.close();
+  });
+});
+
+describe.each(adapters)("$name: v16 -> v17 migration (resolved_target_id backfill)", ({ makeBackend }) => {
+  const MAIN = "0192a000-0000-7000-8000-0000000005b1";
+  const ALIAS = "0192a000-0000-7000-8000-0000000005b2";
+  const SOURCE = "0192a000-0000-7000-8000-0000000005b3";
+  const BLOCK = "0192a000-0000-7000-8000-0000000005b4";
+
+  const envelopes = (): Envelope[] => [
+    createPage(MAIN, 1727200000000),
+    createPage(ALIAS, 1727200000100),
+    createPage(SOURCE, 1727200000200),
+    env("object.create", { objectId: BLOCK, parentId: SOURCE, presentAsMain: false }, 1727200000300),
+    env(
+      "object.update",
+      {
+        objectId: BLOCK,
+        contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: ALIAS, text: "A" }],
+      },
+      1727200000400,
+    ),
+    env("object.update", { objectId: ALIAS, aliasedNodeId: MAIN }, 1727200000500),
+  ];
+
+  const edgeRows = (store: Store) =>
+    store.database
+      .prepare("SELECT source_id, target_id, resolved_target_id, type FROM edge ORDER BY id")
+      .all() as Array<{ source_id: string; target_id: string | null; resolved_target_id: string | null; type: string }>;
+
+  it("adds the column + index and backfills through the applier's resolution walk", () => {
+    const store = Store.open(makeBackend());
+    store.applyMany(envelopes());
+    const expected = edgeRows(store);
+    expect(expected.some((r) => r.resolved_target_id === MAIN)).toBe(true);
+
+    // Simulate a pre-v17 database: drop the index + column and rewind the
+    // version.
+    store.database.exec(`
+      DROP INDEX IF EXISTS idx_edge_resolved_target;
+      ALTER TABLE edge DROP COLUMN resolved_target_id;
+    `);
+    store.database.pragma("user_version = 16");
+    migrate(store.database, "fts5");
+    expect(store.database.pragma("user_version", { simple: true })).toBe(SCHEMA_VERSION);
+    const columns = store.database.prepare("PRAGMA table_info(edge)").all() as { name: string }[];
+    expect(columns.some((c) => c.name === "resolved_target_id")).toBe(true);
+    const indexes = store.database
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx_edge%'")
+      .all() as { name: string }[];
+    expect(indexes.map((r) => r.name)).toContain("idx_edge_resolved_target");
+    // The backfill reproduces the applier-materialized values exactly.
+    expect(edgeRows(store)).toEqual(expected);
+
+    // Idempotent: a second migrate is a no-op that stays current.
+    migrate(store.database, "fts5");
+    expect(store.database.pragma("user_version", { simple: true })).toBe(SCHEMA_VERSION);
+    expect(edgeRows(store)).toEqual(expected);
+    store.close();
+  });
+
+  it("a migrated database equals a fresh v17 replay (wipe -> replay convergence)", () => {
+    const migrated = Store.open(makeBackend());
+    migrated.applyMany(envelopes());
+    migrated.database.exec(`
+      DROP INDEX IF EXISTS idx_edge_resolved_target;
+      ALTER TABLE edge DROP COLUMN resolved_target_id;
+    `);
+    migrated.database.pragma("user_version = 16");
+    migrate(migrated.database, "fts5");
+
+    const fresh = Store.open(makeBackend());
+    fresh.applyMany(envelopes());
+    expect(edgeRows(migrated)).toEqual(edgeRows(fresh));
+    migrated.close();
+    fresh.close();
+  });
+});
+
+describe.each(adapters)("$name: backlinksWithRollup — the alias family rides resolved_target_id", ({ makeBackend }) => {
+  const MAIN = "0192a000-0000-7000-8000-0000000005c1";
+  const ALIAS = "0192a000-0000-7000-8000-0000000005c2";
+  const OTHER = "0192a000-0000-7000-8000-0000000005c3";
+  const BLOCK_CARRIER = "0192a000-0000-7000-8000-0000000005c4";
+  const SRC_MAIN = "0192a000-0000-7000-8000-0000000005c6";
+  const SRC_ALIAS = "0192a000-0000-7000-8000-0000000005c7";
+  const SRC_BLOCK = "0192a000-0000-7000-8000-0000000005c8";
+  const CARRIER_BLOCK = "0192a000-0000-7000-8000-0000000005c9";
+  const INNER_BLOCK = "0192a000-0000-7000-8000-0000000005ca";
+  const SELF_BLOCK = "0192a000-0000-7000-8000-0000000005cb";
+
+  const mentionOn = (blockId: string, parentId: string, target: string, physical: number): Envelope[] => [
+    env("object.create", { objectId: blockId, parentId, presentAsMain: false }, physical),
+    env(
+      "object.update",
+      {
+        objectId: blockId,
+        contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: target, text: "x" }],
+      },
+      physical + 1,
+    ),
+  ];
+
+  function makeStore(): Store {
+    const store = Store.open(makeBackend());
+    store.applyMany([
+      createPage(MAIN, 1727200000000),
+      createPage(ALIAS, 1727200000100),
+      createPage(OTHER, 1727200000200),
+      createPage(SRC_MAIN, 1727200000500),
+      createPage(SRC_ALIAS, 1727200000600),
+      createPage(SRC_BLOCK, 1727200000700),
+      env("object.create", { objectId: BLOCK_CARRIER, parentId: SRC_BLOCK, presentAsMain: false }, 1727200000800),
+      env("object.update", { objectId: ALIAS, aliasedNodeId: MAIN }, 1727200000900),
+      // A block carrier: the field rides a non-page node — it must NOT act
+      // as an alias (the page restriction, mirrored into the read).
+      env("object.update", { objectId: BLOCK_CARRIER, aliasedNodeId: MAIN }, 1727200001000),
+      ...mentionOn("0192a000-0000-7000-8000-0000000005d1", SRC_MAIN, MAIN, 1727200002000),
+      ...mentionOn("0192a000-0000-7000-8000-0000000005d2", SRC_ALIAS, ALIAS, 1727200003000),
+      ...mentionOn("0192a000-0000-7000-8000-0000000005d3", SRC_BLOCK, BLOCK_CARRIER, 1727200004000),
+    ]);
+    return store;
+  }
+
+  const kindsOf = (store: Store, id: string) =>
+    (store.backlinksWithRollup(id) as Array<{ source_id: string; kind: string; target_id: string | null }>).map(
+      (r) => ({ source: r.source_id, kind: r.kind, target: r.target_id }),
+    );
+
+  it("labels direct, alias, and non-acting block-carrier edges; the alias view stays raw-direct", () => {
+    const store = makeStore();
+    const mainRows = kindsOf(store, MAIN);
+    // The edge authored at the main page is direct; the edge authored at the
+    // alias rolls up as alias (raw target preserved on the row); the
+    // block-carrier edge never lands on the main (page restriction).
+    expect(mainRows).toContainEqual({ source: "0192a000-0000-7000-8000-0000000005d1", kind: "direct", target: MAIN });
+    expect(mainRows).toContainEqual({ source: "0192a000-0000-7000-8000-0000000005d2", kind: "alias", target: ALIAS });
+    expect(mainRows.some((r) => r.source === "0192a000-0000-7000-8000-0000000005d3")).toBe(false);
+    // The alias page's own view: its edge lists as direct (raw), the main
+    // page's edge stays off it.
+    const aliasRows = kindsOf(store, ALIAS);
+    expect(aliasRows).toContainEqual({ source: "0192a000-0000-7000-8000-0000000005d2", kind: "direct", target: ALIAS });
+    expect(aliasRows.some((r) => r.target === MAIN)).toBe(false);
+    // The block carrier's own view lists its edge (raw-direct).
+    const carrierRows = kindsOf(store, BLOCK_CARRIER);
+    expect(carrierRows).toContainEqual({
+      source: "0192a000-0000-7000-8000-0000000005d3",
+      kind: "direct",
+      target: BLOCK_CARRIER,
+    });
+    store.close();
+  });
+
+  it("a trashed alias drops out of the roll-up and heals on restore", () => {
+    const store = makeStore();
+    expect(kindsOf(store, MAIN).some((r) => r.kind === "alias")).toBe(true);
+    store.apply(env("object.delete", { objectId: ALIAS }, 1727200005000));
+    expect(kindsOf(store, MAIN).some((r) => r.kind === "alias")).toBe(false);
+    store.apply(env("object.restore", { objectId: ALIAS }, 1727200006000));
+    expect(kindsOf(store, MAIN).some((r) => r.kind === "alias")).toBe(true);
+    store.close();
+  });
+
+  it("containment still works on resolved targets: an outward link from inside the subtree", () => {
+    const store = makeStore();
+    // A block INSIDE MAIN's subtree links OUT (to OTHER): containment.
+    store.applyMany(mentionOn(INNER_BLOCK, MAIN, OTHER, 1727200007000));
+    const rows = store.backlinksWithRollup(MAIN) as Array<{ source_id: string; kind: string; distance: number }>;
+    const containment = rows.find((r) => r.source_id === INNER_BLOCK);
+    expect(containment).toMatchObject({ kind: "containment", distance: 1 });
+    // An intra-subtree link (target = MAIN itself) is direct, not containment.
+    store.applyMany(mentionOn(SELF_BLOCK, MAIN, MAIN, 1727200008000));
+    const innerMain = (store.backlinksWithRollup(MAIN) as Array<{ source_id: string; kind: string }>).find(
+      (r) => r.source_id === SELF_BLOCK,
+    );
+    expect(innerMain?.kind).toBe("direct");
+    store.close();
+  });
+});
+
 // --- class.create on an existing node: the declaration/conversion capability --------
 
 describe.each(adapters)("$name: class.create conversion (M47)", ({ makeBackend }) => {

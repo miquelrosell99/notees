@@ -274,6 +274,51 @@ describe("objects API", () => {
     expect(direct.json().id).toBe(main.id);
   });
 
+  it("the ApiObject projection exposes the three wire node fields (null = unset)", async () => {
+    server = await makeTestServer();
+    const main = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Main" } })).json();
+    const page = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Page" } })).json();
+    // Unset fields read null on every read surface.
+    let fetched = (await api("GET", `/api/objects/${page.id}`)).json().object;
+    expect(fetched).toMatchObject({ coverAssetId: null, bannerAssetId: null, aliasedNodeId: null });
+
+    // The cover/banner carry asset node ids; the alias field carries the
+    // main page id — all three round-trip through PATCH -> GET.
+    const asset = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Asset" } })).json();
+    const patched = await api("PATCH", `/api/objects/${page.id}`, {
+      payload: { coverAssetId: asset.id, bannerAssetId: asset.id, aliasedNodeId: main.id },
+    });
+    expect(patched.statusCode).toBe(200);
+    expect(patched.json().object).toMatchObject({
+      coverAssetId: asset.id,
+      bannerAssetId: asset.id,
+      aliasedNodeId: main.id,
+    });
+    fetched = (await api("GET", `/api/objects/${page.id}`)).json().object;
+    expect(fetched).toMatchObject({ coverAssetId: asset.id, bannerAssetId: asset.id, aliasedNodeId: main.id });
+    // The list and children projections ride the same nodeToApi mapping.
+    const list = (await api("GET", `/api/objects?parent=${page.id}`)).json();
+    expect(list.objects).toHaveLength(0);
+    const listed = (await api("GET", `/api/objects?q=Page`)).json().objects as Array<Record<string, unknown>>;
+    expect(listed.find((o) => o.id === page.id)).toMatchObject({
+      coverAssetId: asset.id,
+      bannerAssetId: asset.id,
+      aliasedNodeId: main.id,
+    });
+    const children = (await api("GET", `/api/objects/${page.id}`)).json().object;
+    expect(children).toMatchObject({ aliasedNodeId: main.id });
+
+    // Present-null clears (exactly like `color`).
+    const cleared = await api("PATCH", `/api/objects/${page.id}`, {
+      payload: { coverAssetId: null, aliasedNodeId: null },
+    });
+    expect(cleared.json().object).toMatchObject({
+      coverAssetId: null,
+      bannerAssetId: asset.id,
+      aliasedNodeId: null,
+    });
+  });
+
   it("apply-time value validation fails loud as 422", async () => {
     server = await makeTestServer();
     const { id } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Dated" } })).json();

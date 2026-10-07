@@ -358,6 +358,86 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     },
     errors: ["validation_failed"],
   }],
+  ["get", "/api/me/nodes/:nodeId/sections/:sectionKey/views", {
+    summary: "Per-user hosted section views (custom tabs) for one section of one node, in tab order",
+    description:
+      "Cross-device UI state on the prefs channel (like favorites/recents — never op-log state). The default view is derived-not-stored: no default row exists, an empty table renders factory behavior. Per-user scoped: one account never sees another's tabs. sectionKey ∈ linked-references | unlinked-mentions | classed-nodes.",
+    tags: ["Account"],
+    params: {
+      nodeId: "the page/class node the section lives on",
+      sectionKey: "linked-references | unlinked-mentions | classed-nodes",
+    },
+  }],
+  ["post", "/api/me/nodes/:nodeId/sections/:sectionKey/views", {
+    summary: "Create a hosted section view (appends after the last tab)",
+    description:
+      "queryAst must parse against QueryAST v1 (the same grammar the FilterBuilderModal produces — a transient filter persists verbatim); viewMode is a nullable display pin (null = the container's mode). The name is unique per (user, node, section) — a collision is 409.",
+    tags: ["Account"],
+    params: {
+      nodeId: "the page/class node the section lives on",
+      sectionKey: "linked-references | unlinked-mentions | classed-nodes",
+    },
+    requestBody: {
+      type: "object",
+      additionalProperties: false,
+      required: ["name", "queryAst"],
+      properties: {
+        name: { type: "string", minLength: 1, maxLength: 120, description: "tab label (unique per section)" },
+        queryAst: { description: "QueryAST v1 (validated against the zod schema)" },
+        viewMode: { type: ["string", "null"], maxLength: 32, description: "optional display-mode pin" },
+      },
+    },
+    success: { status: 201, description: "the created view" },
+    errors: ["validation_failed", "conflict"],
+  }],
+  ["patch", "/api/me/nodes/:nodeId/sections/:sectionKey/views/:viewId", {
+    summary: "Rename a hosted section view",
+    description:
+      "The row must exist, belong to the caller, and live on this node+section — anything else is 404 (per-user scoping never leaks). A name collision on the section's unique key is 409.",
+    tags: ["Account"],
+    params: {
+      nodeId: "the page/class node the section lives on",
+      sectionKey: "linked-references | unlinked-mentions | classed-nodes",
+      viewId: "the section view id (uuid)",
+    },
+    requestBody: {
+      type: "object",
+      additionalProperties: false,
+      required: ["name"],
+      properties: { name: { type: "string", minLength: 1, maxLength: 120 } },
+    },
+    errors: ["validation_failed", "not_found", "conflict"],
+  }],
+  ["put", "/api/me/nodes/:nodeId/sections/:sectionKey/views/order", {
+    summary: "Reorder the section's views (the full ordered id list; sequences rewrite 0..n-1)",
+    description:
+      "The client owns ordering, like the prefs lists. orderedIds must name every view of the section exactly once — anything else is 422.",
+    tags: ["Account"],
+    params: {
+      nodeId: "the page/class node the section lives on",
+      sectionKey: "linked-references | unlinked-mentions | classed-nodes",
+    },
+    requestBody: {
+      type: "object",
+      additionalProperties: false,
+      required: ["orderedIds"],
+      properties: { orderedIds: { type: "array", minItems: 1, items: objectIdField } },
+    },
+    errors: ["validation_failed"],
+  }],
+  ["delete", "/api/me/nodes/:nodeId/sections/:sectionKey/views/:viewId", {
+    summary: "Delete a hosted section view (204)",
+    description:
+      "Deleting every row of a section restores factory behavior — the default view is derived-not-stored, so reset-to-default is just this route over all rows.",
+    tags: ["Account"],
+    params: {
+      nodeId: "the page/class node the section lives on",
+      sectionKey: "linked-references | unlinked-mentions | classed-nodes",
+      viewId: "the section view id (uuid)",
+    },
+    success: { status: 204, description: "deleted" },
+    errors: ["not_found"],
+  }],
   ["get", "/api/workspaces", {
     summary: "The account's workspaces (membership view, with envelope stats)",
     tags: ["Workspaces"],
@@ -457,13 +537,15 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     errors: ["validation_failed", "not_found", "conflict"],
   }],
   ["get", "/api/objects/:id", {
-    summary: "Fetch one object (contentAst, classes, properties)",
+    summary: "Fetch one object (contentAst, classes, properties, wire node fields)",
+    description:
+      "The object projection carries the wire node fields alongside the base shape: `coverAssetId` / `bannerAssetId` (the asset nodes behind the page cover/banner chrome) and `aliasedNodeId` (the main page a node alias points at) — null = unset (SCHEMA.md \"Node structure\"). The same projection backs the list and children reads.",
     tags: ["Objects"],
     requiredScope: "objects.read",
     errors: ["not_found"],
   }],
   ["patch", "/api/objects/:id", {
-    summary: "Update an object (render bit, icon, color, contentAst)",
+    summary: "Update an object (render bit, icon, color, contentAst, wire node fields)",
     description:
       "The only mutation with a natural per-node revision — the node's `hlc`, bumped by object.update/object.move — so it is the only route honoring the optional `baseRevision` guard (409 conflict on stale). Property slots carry their own per-slot revision and are LWW by the op log; a base check there would be misleading and is deliberately not offered.",
     tags: ["Objects"],

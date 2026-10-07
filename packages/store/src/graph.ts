@@ -216,10 +216,13 @@ export function graphTopology(store: Store, workspaceId: string, options?: Graph
   };
 
   // Structural mention + property families (multiplicity rides in weight).
+  // Targets ride the applier-materialized resolved_target_id (the alias
+  // terminal — graph.ts already steps through aliases, so this is the same
+  // projection, one column read instead of a per-endpoint chain walk).
   const typedLinkRows = db
     .prepare(
-      `SELECT source_id, target_id, type FROM edge
-       WHERE workspace_id = ? AND target_id IS NOT NULL AND type IN ('mention', 'property')`,
+      `SELECT source_id, resolved_target_id AS target_id, type FROM edge
+       WHERE workspace_id = ? AND resolved_target_id IS NOT NULL AND type IN ('mention', 'property')`,
     )
     .all(workspaceId) as unknown as (EdgeRow & { type: "mention" | "property" })[];
   for (const row of typedLinkRows) {
