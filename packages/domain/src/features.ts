@@ -86,10 +86,10 @@ export const WORKSPACE_FEATURE_MAP: Record<WorkspaceFeature, WorkspaceFeatureSpe
  * DROPPED pre-reshape features (highlight, collection, agent, organization).
  * The five family bases (task/event/meeting/source/person), their
  * extends-children, and weblink (now a source-family child) are NOT here —
- * they are the toggle set.
+ * they are the toggle set. (The retired `class` meta class left the
+ * manifest with its 2026-10-07 retirement — it is nobody's anchor anymore.)
  */
 export const ALWAYS_ON_SYSTEM_CLASSES: readonly SystemClassName[] = [
-  "class",
   "year",
   "month",
   "day",
