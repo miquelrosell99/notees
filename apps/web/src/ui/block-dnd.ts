@@ -32,6 +32,19 @@
  *   a descendant; reorder intent into a group whose parent is inside its own
  *   subtree) — computed by walking the positions parent chain.
  * - Dropping exactly where the block already sits is a silent no-op.
+ *
+ * Drag-session feedback (pointer drags ride a snap model, not live
+ * hit-testing): at drag start the machinery measures the visible rows once
+ * and builds the valid-location set — per row a sibling pair (above/below)
+ * plus a child candidate, each anchored at a fixed point. Sibling anchors
+ * sit at the row's divider (y = the row boundary) at the row depth's gutter
+ * x; the child anchor sits at the row's vertical center at the child-offset
+ * x. The dragged block's own subtree is excluded. Each pointer move projects
+ * the pointer onto the nearest anchor within a y threshold (x distance
+ * breaks ties); far from every anchor, no indicator renders. The dragged row
+ * itself stays in place and renders muted (see BlockRow's drag-source
+ * class); the floating DragOverlay chip is the only preview. Keyboard drags
+ * (no pointer) keep the event-driven path below.
  */
 
 import { createContext } from "react";
@@ -99,6 +112,20 @@ export function dropLineFromPointer(args: {
 }
 
 /**
+ * The live pointer position for a drag event: the activator origin + the
+ * drag delta (dnd-kit does not expose the pointer on the event itself).
+ * Keyboard drags have no pointer — null.
+ */
+export function dragPointerOf(event: {
+  delta: { x: number; y: number };
+  activatorEvent: unknown;
+}): { x: number; y: number } | null {
+  const origin = event.activatorEvent as Partial<PointerEvent>;
+  if (typeof origin.clientX !== "number" || typeof origin.clientY !== "number") return null;
+  return { x: origin.clientX + event.delta.x, y: origin.clientY + event.delta.y };
+}
+
+/**
  * The drop line for a drag event: pointer position = activator origin + delta
  * (dnd-kit does not expose the live pointer on the event). Keyboard-driven
  * drags have no pointer; they anchor below the over row (above when the over
@@ -108,10 +135,10 @@ export function dropLineFromDragEvent(
   event: DragMoveEvent | DragEndEvent,
   positions: OutlinePositionMap,
 ): DropLine | null {
-  const { active, over, delta, activatorEvent } = event;
+  const { active, over } = event;
   if (over === null || active === null) return null;
-  const origin = activatorEvent as Partial<PointerEvent>;
-  if (typeof origin.clientX !== "number" || typeof origin.clientY !== "number") {
+  const pointer = dragPointerOf(event);
+  if (pointer === null) {
     const previous = positions.get(String(active.id))?.previousSiblingId;
     return {
       targetId: String(over.id),
@@ -120,10 +147,140 @@ export function dropLineFromDragEvent(
   }
   return dropLineFromPointer({
     overId: String(over.id),
-    pointerX: origin.clientX + delta.x,
-    pointerY: origin.clientY + delta.y,
+    pointerX: pointer.x,
+    pointerY: pointer.y,
     overRect: over.rect,
   });
+}
+
+// --- drag-session snap model ------------------------------------------------------
+//
+// The feedback layer: the valid-location set for one drag session plus the
+// pointer projection that drives the drop indicator. Pure and unit-testable;
+// the machinery measures the rows once at drag start and memoizes the set
+// for the session.
+
+/** A visible row's measured rect for one drag session. */
+export interface DragRowRect {
+  id: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * One valid drop location: the drop line plus the anchor point the pointer
+ * snaps to. Sibling anchors sit at the row's divider (y = the row boundary)
+ * at the row depth's gutter x; the child anchor sits at the row's vertical
+ * center at the child-offset x.
+ */
+export interface DropCandidate {
+  targetId: string;
+  intent: DropLine["intent"];
+  anchorX: number;
+  anchorY: number;
+}
+
+/** Default y threshold for the pointer projection (see nearestCandidate). */
+export const DROP_SNAP_MAX_DY_PX = 24;
+
+/**
+ * Measures the rows that can receive a block drop during a drag session: the
+ * editable block rows and table-grid rows under the page root. Read-only
+ * projections (linked-reference chrome, embeds, the Child pages tree) are
+ * not droppable and stay out of the candidate set. Rows are measured in
+ * document order, once, at drag start.
+ */
+export function measureDragRows(root: HTMLElement | null): DragRowRect[] {
+  if (root === null) return [];
+  const rows: DragRowRect[] = [];
+  const seen = new Set<string>();
+  const elements = root.querySelectorAll<HTMLElement>(
+    "[data-block-id].nt-block, [data-block-id].nt-blocktable-row",
+  );
+  for (const el of elements) {
+    if (el.classList.contains("nt-block--readonly")) continue;
+    const id = el.getAttribute("data-block-id");
+    if (id === null || seen.has(id)) continue;
+    seen.add(id);
+    const rect = el.getBoundingClientRect();
+    rows.push({ id, left: rect.left, top: rect.top, width: rect.width, height: rect.height });
+  }
+  return rows;
+}
+
+/**
+ * The valid-location set for a drag session: for every visible row except
+ * the dragged subtree (the dragged block itself included — dropping onto it
+ * is a no-op the indicator should not suggest), a sibling pair above/below
+ * the row and a child candidate, each carrying its anchor point.
+ */
+export function dropCandidatesOf(
+  positions: OutlinePositionMap,
+  activeId: string,
+  rows: readonly DragRowRect[],
+): DropCandidate[] {
+  const inDraggedSubtree = (startId: string): boolean => {
+    let current: string | null | undefined = startId;
+    const seen = new Set<string>();
+    while (typeof current === "string" && !seen.has(current)) {
+      if (current === activeId) return true;
+      seen.add(current);
+      current = positions.get(current)?.parentId ?? null;
+    }
+    return false;
+  };
+  const candidates: DropCandidate[] = [];
+  for (const row of rows) {
+    if (inDraggedSubtree(row.id)) continue;
+    candidates.push({ targetId: row.id, intent: "above", anchorX: row.left, anchorY: row.top });
+    candidates.push({
+      targetId: row.id,
+      intent: "below",
+      anchorX: row.left,
+      anchorY: row.top + row.height,
+    });
+    candidates.push({
+      targetId: row.id,
+      intent: "child",
+      anchorX: row.left + CHILD_DROP_OFFSET_PX,
+      anchorY: row.top + row.height / 2,
+    });
+  }
+  return candidates;
+}
+
+/**
+ * The candidate whose anchor is nearest the pointer among those within the y
+ * threshold (default DROP_SNAP_MAX_DY_PX; maxDxPx gates horizontally, unbounded
+ * by default so a deep pointer still reaches its row's child anchor). Ties
+ * break by x distance, then by generation order. Null when nothing is near —
+ * the machinery renders no indicator then.
+ */
+export function nearestCandidate(
+  pointer: { x: number; y: number },
+  candidates: readonly DropCandidate[],
+  thresholds: { maxDyPx?: number; maxDxPx?: number } = {},
+): DropCandidate | null {
+  const maxDyPx = thresholds.maxDyPx ?? DROP_SNAP_MAX_DY_PX;
+  const maxDxPx = thresholds.maxDxPx ?? Number.POSITIVE_INFINITY;
+  let best: DropCandidate | null = null;
+  let bestDistSq = Number.POSITIVE_INFINITY;
+  let bestDx = Number.POSITIVE_INFINITY;
+  for (const candidate of candidates) {
+    const dy = Math.abs(candidate.anchorY - pointer.y);
+    if (dy > maxDyPx) continue;
+    const dx = Math.abs(candidate.anchorX - pointer.x);
+    if (dx > maxDxPx) continue;
+    const distSq = dx * dx + dy * dy;
+    if (distSq < bestDistSq || (distSq === bestDistSq && dx < bestDx)) {
+      best = candidate;
+      bestDistSq = distSq;
+      bestDx = dx;
+    }
+  }
+  return best;
 }
 
 export type MoveCommand =
