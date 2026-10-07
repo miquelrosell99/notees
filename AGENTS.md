@@ -31,7 +31,7 @@ AGENTS.md
 ## Layout
 
 - `packages/protocol` — op wire spec, envelopes, fixtures (the convergence gate corpus), `SCHEMA.md` (the normative model)
-- `packages/domain` — seeds (fixed system-class UUIDs), display-name derivation, content stringify (text-only invariant for pages/classes)
+- `packages/domain` — seeds (fixed system-class UUIDs), display-name derivation, content stringify (the text-only flatten for class content and the create/promotion boundaries)
 - `packages/store` — derived SQLite schema + appliers; one TS implementation, three backends (better-sqlite3, sql.js)
 - `packages/sync` — SyncEngine (HLC + server seq, snapshots, compaction, WebSocket)
 - `packages/query` — QueryAST model + SQLite compiler
@@ -48,13 +48,13 @@ Full file map: `docs/developers/architecture.md` · normative model & wire: `pac
 
 - Install: `pnpm install` · Build: `pnpm -r --workspace-concurrency=1 build` · Test: `pnpm test` (all green = blocking gate). Full command table, the fixture gate, and the add-an-op recipe: `docs/developers/development.md`.
 - **Dev-condition exports**: vitest reads `src`, `tsc` reads `dist` — after changing a package's public API, rebuild its dist before typechecking dependents.
-- Deploy: plain Docker, build + `docker compose up -d` from the repo root (web :8378, sync :8377; data under `./config/notees/`), then the `verify-min.mjs` smoke — **invoke the `notees-operations` skill first** (plus `deployment-runbook` for the deploy/rollback discipline). Full runbook, ghcr/CI publish path, and the client lockstep law: `docs/developers/releases.md` + `deployment.md`.
+- Deploy: plain Docker, `docker compose build` + `docker compose up -d` from the repo root (the compose build contexts pin the deployment to the local codebase; hosts that haven't built pull :latest) (web :8378, sync :8377; data under `./config/notees/`), then the `verify-min.mjs` smoke — **invoke the `notees-operations` skill first** (plus `deployment-runbook` for the deploy/rollback discipline). Full runbook, ghcr/CI publish path, and the client lockstep law: `docs/developers/releases.md` + `deployment.md`.
 
 ## Invariants (design law — read the linked homes before changing the model, wire, or appliers)
 
 - The operation log is the only authority; semantic state only — device state is never an op (`docs/developers/architecture.md`).
 - Conflict semantics: **LWW by HLC** (scalars, property values) · **OR-Set add-wins** (class/collection membership) · tag membership mirrors the OR-Set with a strictly-greater add tiebreak (deliberate asymmetry — cheat sheet in `docs/developers/development.md`).
-- **Title-is-content** (owner 2026-10-01): no `name` field on the wire — a node's title IS its text content; pages/classes carry text-only content (`SCHEMA.md`).
+- **Title-is-content** (owner 2026-10-01): no `name` field on the wire — a node's title IS its text content; a page's own content MAY carry inline rich tokens (mentions, external links — the header title is a full block row), class content stays text-only, and display-name derivation still flattens to text (`SCHEMA.md`).
 - **Render-state model** (Revision 11, owner 2026-10-02): nodes have no page/block kind — only `is_class` + `present_as_main`. Wire is envelope **v3**; retired keys are rejected outright — **no backward compatibility** (owner directive, sole user): migration is a one-time in-place rewrite of the stored log, after which every store re-syncs (`SCHEMA.md` "Node structure"; `migrations.md`).
 - **Node fields vs properties**: platform-fixed, cardinality-1 node fundamentals that core chrome or navigation reads or writes (`coverAssetId`, `bannerAssetId`, `aliasedNodeId` — the icon/color precedent) are **wire node fields**, with derived columns as their direct projections. The property system is for user-extensible typed attributes (class-bound, multi-value, defaulted, qualified, query-filtered) — never for platform fundamentals, and property drift is never answered with reserved-schema machinery.
 - **Impossible states are write-time impossible**: structural invariants (extends DAG, alias-chain acyclicity, class-parenting) are validated at the operation level — loud failure, never applied — and render assumes them; there is no UI for impossible states.
@@ -71,6 +71,8 @@ All chrome MUST compose from `apps/web/src/ui/components/ui/` — one element pe
 - **Docs are part of the change**: any change to behavior, the model, the wire, or the UX updates the relevant documentation in the same pass — user-facing `docs/`, `packages/protocol/SCHEMA.md`, `AGENTS.md` / `.agents/` when they describe changed reality, and the `docs/developers/` runbooks.
 - **The changelog is the record** (owner 2026-10-06): what shipped and why lives in `CHANGELOG.md` at the repo root — one entry per shipped slice, newest first. `AGENTS.md` itself is static guidance: never append history, dates, or work-record entries to it; edit it only when the guidance changes. Before implementing, skim `CHANGELOG.md` for recent related work and check `.plans/` for an in-flight proposal folder. A change without its changelog + doc updates is not done.
 - **Fleet-agnostic artifacts** (owner 2026-10-06): never hardcode machine names (Tailscale device names), IPs, or tailnet names in code, templates, docs, or notes — write `<host>`, `<tailnet>`, `<lan-ip>`, `<tailscale-ip>`, or "the fleet host". Concrete values live only in gitignored host-local files (`.env`) and per-host operator config; example values in templates must be clearly generic (e.g. `192.168.1.10`).
+- **Worktrees live in `.worktrees/`** (owner 2026-10-07): git worktree work goes in the repo's own gitignored `.worktrees/<slug>/` — never a random sibling folder (`git worktree add .worktrees/<slug> -b <branch>`).
+- **No transient-internal-doc pointers in the tree** (owner 2026-10-07): code, tests, docs, and CHANGELOG entries never reference `.plans/` proposal folders, design docs, or any internal transient documentation — the durable text stands alone. Internal cross-references live inside the internal docs themselves; the tree carries zero pointers to them.
 
 ## Records index (scan, don't embed)
 

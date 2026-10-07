@@ -10,8 +10,8 @@ Images are tag-addressable, so the rollback is a pin change:
 
 ```sh
 docker pull ghcr.io/miquelrosell99/notees-sync:vPREVIOUS
-NOTEES_SYNC_TAG=vPREVIOUS docker compose up -d
-# same with NOTEES_WEB_TAG for the web image
+git checkout vPREVIOUS && docker compose build && docker compose up -d
+# both images rebuild from the checkout — no tags to manage
 ```
 
 then re-run the smoke (`references/health-checks.md`). Both images roll back

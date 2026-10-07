@@ -153,5 +153,9 @@ describe("PageView rendering", () => {
     const link = screen.getByText("Example");
     expect(link.tagName).toBe("A");
     expect(link.getAttribute("href")).toBe("https://example.com");
+    // An external link is a plain hyperlink, not a chip: the hyperlink class
+    // and none of the chip chrome.
+    expect(link.classList.contains("nt-hyperlink")).toBe(true);
+    expect(link.classList.contains("nt-chip")).toBe(false);
   });
 });

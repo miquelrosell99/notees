@@ -211,12 +211,17 @@ function initialServerUrl(): string {
 /**
  * Best guess for a colocated sync server: same host as this page, port 8377.
  * `localhost` entered by hand points at the user's own device, which is the
- * classic first-connect failure — this guess is what the auto-retry falls
- * back to.
+ * classic first-connect failure — after a failed probe this guess is offered
+ * to the user as a suggestion; clicking it is the only path to it (never an
+ * automatic re-route).
  */
 function sameHostServerUrl(): string {
   if (typeof location !== "undefined" && location.hostname !== "") {
-    return `${location.protocol}//${location.hostname}:8377`;
+    // The web container proxies /api/* to the sync service, so the API is
+    // ALWAYS same-origin with the page — whatever the scheme (https via the
+    // edge, http on loopback/LAN). The manual server field stays for
+    // non-standard topologies (remote sync, dev servers).
+    return location.origin;
   }
   return "";
 }
@@ -525,8 +530,12 @@ export function App() {
   const [phase, setPhase] = useState<Phase>({ name: "server" });
   const [error, setError] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
-  /** Set when the auto-retry swapped the server URL, so the next screen explains it. */
-  const [bootNote, setBootNote] = useState<string | null>(null);
+  /**
+   * Same-host guess offered under the boot form after a failed probe
+   * (TypeError only). Clicking the suggestion button is the only path to the
+   * guess — the boot screen never silently re-routes.
+   */
+  const [serverSuggestion, setServerSuggestion] = useState<string | null>(null);
   const [user, setUser] = useState<AccountUser | null>(null);
   const [token, setToken] = useState(() => readStored(STORAGE_KEYS.sessionToken));
   const [authTab, setAuthTab] = useState<"account" | "apikey">("account");
@@ -1105,32 +1114,29 @@ export function App() {
     }
   }
 
-  async function handleServerSubmit(event: FormEvent) {
-    event.preventDefault();
+  /**
+   * Probe `rawUrl` and advance to setup/login on success — the single
+   * connect path for the boot form and the settings Sync tab (identical
+   * behavior everywhere). On failure the error + hint surface under the boot
+   * form; a failed fetch (TypeError — unreachable host, connection refused,
+   * CORS preflight block) additionally offers the same-host guess as an
+   * explicit suggestion.
+   */
+  async function connectTo(rawUrl: string): Promise<void> {
     setError(null);
     setHint(null);
-    setBootNote(null);
-    const url = serverUrl.trim().replace(/\/$/, "");
+    setServerSuggestion(null);
+    const url = rawUrl.trim().replace(/\/$/, "");
     try {
       await probeServer(url);
       return;
     } catch (err) {
-      // A failed fetch surfaces as TypeError("NetworkError…"/"Failed to
-      // fetch") with no status: unreachable host, connection refused, or a
-      // CORS preflight block. Whatever the cause, the single most common fix
-      // on first connect is the same-host guess (hand-typed "localhost"
-      // points at the user's own device) — so try it once, automatically.
+      // Whatever the cause, the single most common fix on first connect is
+      // the same-host guess (hand-typed "localhost" points at the user's own
+      // device) — offered, never taken automatically.
       const guess = sameHostServerUrl();
       if (err instanceof TypeError && guess !== "" && guess !== url) {
-        try {
-          await probeServer(guess);
-          setBootNote(
-            `"${url}" did not respond — using ${guess} instead. You can change it by going back.`,
-          );
-          return;
-        } catch {
-          // Both failed: fall through to the generic message below.
-        }
+        setServerSuggestion(guess);
       }
       setError(err instanceof Error ? err.message : String(err));
       setHint(
@@ -1140,6 +1146,20 @@ export function App() {
           "also block it).",
       );
     }
+  }
+
+  async function handleServerSubmit(event: FormEvent) {
+    event.preventDefault();
+    await connectTo(serverUrl);
+  }
+
+  /** The suggestion button is the ONLY path to the guess: an explicit click. */
+  async function handleServerSuggestion() {
+    if (serverSuggestion === null) return;
+    const guess = serverSuggestion;
+    setServerUrl(guess);
+    setServerSuggestion(null);
+    await connectTo(guess);
   }
 
   async function enterWorkspaces(url: string, sessionToken: string, account: AccountUser) {
@@ -1205,20 +1225,11 @@ export function App() {
     }
     try {
       // Validating against /workspaces also proves the key: a user API key
-      // authenticates as its owner (routes-auth requireUser). NetworkError →
-      // same one-shot same-host fallback as the account flow.
-      let list: WorkspaceEntry[];
-      try {
-        list = (await listWorkspaces(url, key)).workspaces;
-      } catch (err) {
-        const guess = sameHostServerUrl();
-        if (err instanceof TypeError && guess !== "" && guess !== url) {
-          url = guess;
-          list = (await listWorkspaces(url, key)).workspaces;
-        } else {
-          throw err;
-        }
-      }
+      // authenticates as its owner (routes-auth requireUser). No silent
+      // same-host fallback (the owner ruling: never re-route without an
+      // explicit user action) — a NetworkError surfaces with the suggestion
+      // path, same as the account flow.
+      const list = (await listWorkspaces(url, key)).workspaces;
       setServerUrl(url);
       setToken(key);
       // Persist the key NOW (not only after connect): a reload while the
@@ -1286,6 +1297,47 @@ export function App() {
     setPhase({ name: "server" });
   }
 
+  /**
+   * Sync tab → "Disconnect & forget": drop every stored credential for this
+   * server, sign out, and land back on the boot form with the field reset to
+   * the same-origin guess.
+   */
+  function handleForgetServer() {
+    clearStored(STORAGE_KEYS.serverUrl);
+    clearStored(STORAGE_KEYS.sessionToken);
+    clearStored(STORAGE_KEYS.apiKey);
+    setToken("");
+    setUser(null);
+    setSessionSignedIn(false);
+    setSettingsOpen(false);
+    const live = clientRef.current;
+    clientRef.current = null;
+    live?.close();
+    setClient(null);
+    setServerUrl(initialServerUrl());
+    setError(null);
+    setHint(null);
+    setServerSuggestion(null);
+    window.history.pushState({ view: "login" }, "", "/login");
+    setPhase({ name: "server" });
+  }
+
+  /**
+   * Sync tab → "Connect to a different server": leave the shell, then run the
+   * exact connect path the boot form uses (probe → setup/login, or the same
+   * error/suggestion state on failure).
+   */
+  function handleConnectServer(url: string) {
+    const live = clientRef.current;
+    clientRef.current = null;
+    live?.close();
+    setClient(null);
+    setSettingsOpen(false);
+    setServerUrl(url);
+    setPhase({ name: "server" });
+    void connectTo(url);
+  }
+
   async function handleNewPage(title?: string) {
     if (client === null) return;
     const id = await client.createObject({ presentAsMain: true, name: title ?? "Untitled" });
@@ -1314,9 +1366,6 @@ export function App() {
           )}
           {phase.name === "setup" && (
             <p className="nt-bootstrap-subtitle">Initial setup — create the admin account</p>
-          )}
-          {phase.name !== "server" && bootNote !== null && (
-            <p className="nt-hint">{bootNote}</p>
           )}
           {isLogin && (
             <div className="nt-tabs" role="tablist">
@@ -1381,7 +1430,6 @@ export function App() {
                 onClick={() => {
                   setApiKeyInput("");
                   setError(null);
-                  setBootNote(null);
                   setPhase({ name: "server" });
                 }}
               >
@@ -1477,7 +1525,6 @@ export function App() {
                     setEmail("");
                     setPassword("");
                     setError(null);
-                    setBootNote(null);
                     setPhase({ name: "server" });
                   }}
                 >
@@ -1487,6 +1534,21 @@ export function App() {
               {hint !== null && <p className="nt-hint">{hint}</p>}
               {error !== null && <p className="nt-error">{error}</p>}
             </form>
+          )}
+          {serverSuggestion !== null && (
+            <div className="nt-server-suggestion">
+              <p className="nt-hint">
+                This app is usually served by the same machine as the sync
+                server — the address below is this origin itself.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void handleServerSuggestion()}
+              >
+                Try {serverSuggestion} instead
+              </Button>
+            </div>
           )}
           <div className="nt-bootstrap-footer">
             <ThemeToggle />
@@ -1791,6 +1853,9 @@ export function App() {
           token={token}
           user={user}
           onSignOut={() => void handleSignOut()}
+          syncConnected={syncStatus.status !== "error"}
+          onForgetServer={() => handleForgetServer()}
+          onConnectServer={(url) => handleConnectServer(url)}
         />
       )}
       {quickAddOpen && (

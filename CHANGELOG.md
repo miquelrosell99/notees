@@ -9,6 +9,212 @@ predating this file.
 
 ## 2026-10-07
 
+- **fix(web): the LinkEditModal is node-only — URL mode removed; external
+  links navigate and are authored directly.** Owner ruling: the modal edits
+  NODE links (and typed-link verbs) only. The mode toggle is Page/Block
+  (verb still arrives from the typed-link flow, no toggle); the URL field,
+  its state, the `external` target kind, and `writeExternalLink` are
+  deleted. External links now behave like the plain hyperlinks they render
+  as: a read-mode click navigates (PageView's delegated click handler and
+  its `linkOpenerRef` are gone — no path opens the link editor for an
+  `external_link` token), and the editor's slash "Add URL" command composes
+  the `external_link` token directly at the caret through the edit-apply
+  splice (a URL-looking query becomes the token; anything else falls back
+  to plain prose — markdown `[label](url)` / raw-URL pasting remain the
+  label-carrying paths). The node-link context menu's "Edit link…" is now
+  structurally node-only too: it renders only when the target token is a
+  mention (an external token never offers Edit; Remove/Delete stay). Tests:
+  the modal suites open through a mention's Edit link… (the honest seam) and
+  assert the Page/Block mode set; a read-mode external-link click asserts
+  no modal opens; the slash flow asserts direct token authoring (plus the
+  non-URL fallback); the context-menu suite gains the no-Edit-on-external
+  case. Verified: `npx tsc --noEmit` in apps/web clean; the full web suite
+  green.
+
+- **fix(web): four editor-chrome corrections — external links are plain
+  hyperlinks, the remaining mention renderers wire the full title, the
+  link-edit modal consolidates to one anchored node picker, and sidebar rows
+  track renames live.** Owner ruling: an external link reads as a hyperlink,
+  never a pill — the read-mode `external_link` render swaps the
+  `nt-external-link` chip class for `nt-hyperlink` (underline + link color
+  only; no background/border/radius), and PageView's delegated read-mode
+  click handling follows the new class (the link-edit/remove flows are
+  unchanged; edit mode still shows the raw markdown). The full-title ruling's
+  remaining call sites are wired: `BlockRow` (body rows and the page-title
+  projection) and the sidebar favorites/recents row labels now pass
+  `resolveFullTitle` next to `resolveName`, so mentions render the complete
+  title there too (dense chrome — breadcrumbs — stays capped). The
+  LinkEditModal's target section is ONE control now: a kit SelectTrigger
+  showing the current selection whose click anchors the NodeSelector
+  dropdown (portaled), a pick replacing the selection in place — the old
+  pair (a display row plus an always-expanded embedded search) is gone; the
+  verb mode's schema picker, the broken-link heal row, and the Esc/backdrop
+  dismissal (kit Modal overlay stack + the shared popup-dismissal layer) are
+  untouched. The sidebar subscribes to client notifications so a rename
+  re-renders favorites/recents rows with the new name (regression test:
+  rename a recents node, the row label updates). Verified: `npx tsc
+  --noEmit` in apps/web clean; the web suites green (external-link class
+  assertions, the modal's one-control picker flow, the live-name
+  regression, and the retarget/label/broken-link flows).
+
+- **fix(web): creating a node from the editor's @ picker always lands the
+  mention — the create completion splices from a capture snapshot.** The
+  picker's create row starts an ASYNC create (the promise-based default
+  create, or the class-aware QuickCreateModal), and the created node can
+  arrive after the popup already closed (Escape / outside press / blur while
+  the create is in flight). `commitNodePick` read the live capture state and
+  no-op'd, leaving the bare "@query" text in the block. The editor now keeps
+  the last-open capture in a ref (the `/template` flow's `templateStageRef`
+  idiom — only non-null captures refresh it, so the snapshot survives the
+  close re-render) and completes the mention from the snapshot when the
+  capture is gone. Cancellation/abandon is unchanged: the modal's Cancel
+  authors nothing and the trigger char stays plain text with focus back on
+  the block (the `closeNodePicker` contract); multi-select paths and plain
+  picks are untouched. `packages/protocol/SCHEMA.md` and the
+  `BlockTextEditor` header doc carry the description. Verified: `npx tsc
+  --noEmit` in apps/web clean; the capture suite (18 tests, incl. a gated
+  completion-after-dismissal case and the modal cancel case) plus the full
+  web suite green.
+
+- **feat(web,server): the web link extends the source class.** Owner ruling:
+  a bookmarked page is a cited web source. `SYSTEM_CLASS_EXTENDS` gains
+  `weblink: ["source"]` — weblink inherits the source bibliographic bindings
+  (unset fields stay hidden; effective binding resolution is own-first, so
+  weblink's own `url` binding wins over any inherited one — pinned by a
+  two-writer test) and the sources-family feature toggle now archives
+  weblinks with the family (weblink left the always-on list; the
+  `systemClassAncestors` gating cascade covered by domain + web tests).
+  Empty workspaces receive the edge from the server seed (generic
+  extends-map emission); live workspaces materialize it idempotently through
+  `ensureWeblinkExtendsSource` (the declaration-first meetingFamily
+  precedent, delegation to `deploySystemClass` — re-runs are no-ops). The
+  GTK/Flutter seed-convergence follow-up (non-blocking, no lockstep) now
+  also covers the weblink→source extends constant. `packages/protocol/SCHEMA.md`
+  (seed manifest, citations family, feature map) and
+  `docs/developers/architecture.md` updated. Verified: the domain suite
+  (72 tests) and the web suites (class-create-modal, properties-panel,
+  protocol-batch gating) green; `npx tsc --noEmit` in apps/web clean.
+
+- **feat(web): node links and mention chips render the COMPLETE title.**
+  Owner ruling: a link must read as the page's whole title, never a
+  truncation. `deriveDisplayName` keeps the 80-char cap for dense chrome
+  (breadcrumbs, pickers, sidebars); the domain gains `fullTitleOf` — the
+  same title-is-content derivation without the slice, date-node formatting
+  intact — and `InlineTokens` mention labels (chips and linked mentions)
+  prefer a new `resolveFullTitle` prop, falling back to the capped
+  `resolveName` (callers not wired yet keep the old form; a token's custom
+  `displayText` always wins). `fullTitleFromClient`/`fullTitleForSettings`
+  mirror the displayName pair in `dateDisplay.ts`; the direct call sites
+  this pass wires are EmbedView, WhiteboardCanvas, and the presentation
+  deck. `packages/protocol/SCHEMA.md` (name-derivation bullet) and
+  `docs/developers/architecture.md` updated. Verified: new domain tests
+  (uncapped/full/date branch) and web tests (>80-char mention renders
+  complete; breadcrumbs keep the capped-and-clipped form) green.
+
+- **feat(web): the page title is a bullet-less block row — full editor powers
+  in the header; a page's own content may carry link/mention tokens.** Owner
+  ruling: the bespoke single-purpose title editor is replaced by the shared
+  row machinery — `BlockRow` gains `variant="title"` (bullet-less, chrome-less:
+  no grip/drag, collapse, property/backlink/tags chrome, children, or row
+  context menu; the content wrapper is `nt-title-content`, never
+  `.nt-block-content`, so body-row selectors never match the header row) and
+  `BlockTextEditor` gains the matching title contract: plain Enter flushes and
+  leaves edit mode (never splits, never creates a body block), Backspace/Delete
+  are in-text-only (an empty title never deletes the page), no task cycle on
+  Ctrl/Cmd+Enter; every other power (marks, @/#/+ captures, slash commands, the
+  link modal, node-link clipboard, atomic pills) is unchanged. Display mode
+  renders the content's inline tokens — external links open the link modal,
+  mentions open the target — and the header title keeps the page-heading
+  landmark. The store's `object.update` content path no longer flattens rich
+  tokens for main-presenting nodes (classes stay text-only; create-as-main and
+  block→page promotion remain the lossy, warned boundaries), so authored
+  link/mention tokens in a title persist; display-name derivation still
+  flattens to text — labels, breadcrumbs, and export titles are untouched.
+  Day pages keep the static date header, embedded feeds keep the static title
+  link, class pages keep the icon button + title row, focus mode unchanged.
+  `ui/TitleEditor.tsx` deleted. Docs in the same pass: `SCHEMA.md`
+  (title-is-content ruling), `AGENTS.md`, `docs/developers/architecture.md`,
+  `docs/ux.md`. Client lockstep note: the GTK/Flutter appliers still flatten on
+  the update path — the rich-title relaxation reaches them with the next
+  lockstep batch (their fixtures and wire are unaffected). Verified: store
+  suite green (401), `npx tsc --noEmit` in apps/web clean, full web suite
+  green (120 files / 1204 tests).
+
+- **fix(web): the link-edit modal composes the kit primitives — the crushed,
+  overlapping mode-tab row is gone.** The modal shipped its own unscoped
+  copies of the kit chrome classes (`.modal-backdrop`, `.modal`, `.btn`,
+  `.selection-button` and parts) for its hand-rolled shell, and the kit's
+  higher-specificity `.selection-button--sm` sizing (26px icon squares,
+  icon-only by design) beat the modal's label-carrying tab buttons once the
+  kit stylesheet landed in the bundle — the Page/Block/URL labels piled on
+  top of each other at the top of the modal while the form below stacked
+  bare. The shell now composes the kit `Modal` (backdrop, header/footer,
+  Esc through the overlay stack, focus trap), the mode toggle composes the
+  kit `SelectionButton` (icon tabs with tooltips and aria-labels; the field
+  label beneath already names the active mode), and every action composes
+  the kit `Button`; Enter still saves from anywhere inside, the embedded
+  node picker keeps owning its own Enter/Escape, and the broken-link heal
+  and verb create-and-bind rows are unchanged. LinkEditModal.css keeps only
+  the namespaced field styles — its global copies are deleted, so kit
+  buttons and selection controls elsewhere render from the kit stylesheet
+  alone. A structural regression test pins the tab row, the field label,
+  and the input as distinct, ordered, non-nested elements (not a pixel
+  assertion), plus Esc/backdrop dismissal through the kit layer. Verified:
+  `npx tsc --noEmit` in apps/web clean; `editor-popups` + `modals-overlays`
+  (40 tests) and the link-modal-adjacent suites (`broken-link-create`,
+  `verb-create-bind`, `node-link-gestures`, `popup-dismissal`, `pickers`,
+  `template-gallery` — 97 tests) green; visual check of URL/Page/verb
+  states in a headless browser harness shows a clean tab row over clearly
+  separated labelled fields.
+
+- **fix(web): sidebar popups take the shared dismissal layer; Favorites and
+  Recents rows render their titles as read-only block content.** The footer's
+  account popup (avatar/email + Sign out) ignored every dismissal gesture —
+  the reported bug; it now composes `usePopupDismissal` (outside pointer-down +
+  Escape, the profile trigger declared as an anchor so pressing it toggles
+  instead of dismissing, presses inside the popup never dismiss; the popup
+  root owns Escape from its own interior). The workspace switcher's
+  hand-rolled outside-click effect is replaced by the same house hook with
+  the trigger as anchor. The Favorites/Recents row context menu already
+  dismissed correctly through the kit ContextMenu (capture-phase outside
+  press + the overlay stack's Escape) — audited, now pinned by tests. Row
+  labels drop the bespoke string render and compose the shared read-only
+  `InlineTokens` machinery, exactly like a read-only block row: mention chips
+  get the link UI (click opens the target through the alias resolution,
+  right-click opens the node-link menu), the row keeps its star toggle, class
+  flag, active highlight, and keyboard navigation, and the row body becomes a
+  `div[role=button]` (the NodePill idiom) so the label's links are real
+  buttons; Shift+click peeks the node in the right sidebar, mirroring the
+  block bullet's shift idiom. `docs/usage.md` carries the user-facing
+  description. Verified: `npx tsc --noEmit` in apps/web clean; the sidebar
+  menu + settings-modals suites (46 tests) and the full web suite green
+  (119 files / 1190 tests).
+
+- **fix(web): the boot screen never silently re-routes; a Sync tab in User
+  Settings; uploads clear the web proxy.** Owner rulings: a failed connect
+  now shows the error plus an explicit "Try `<origin>` instead" suggestion —
+  nothing probes or connects anywhere without a click (the silent same-host
+  fallback is gone from the account AND the API-key flows). User Settings
+  gains a Sync tab: the current sync server with reachability, "Disconnect &
+  forget this server" (confirmed), and "Connect to a different server". The
+  web nginx proxy also honors the sync server's body ceiling (128 MB —
+  asset uploads died at nginx's 1 MB default with HTTP 413). Full web suite
+  green (118 files / 1200+ tests), deployed via the compose build flow.
+
+- **feat(web): the boot screen never silently re-routes — the same-host guess
+  becomes an explicit suggestion; User Settings gains a Sync tab.** Owner
+  ruling: a failed probe no longer auto-retries the same-origin guess. The
+  error + hint stay, and a "Try \<origin\> instead" button rendered under the
+  boot form is the only path to the guess — clicking it sets the field and
+  probes explicitly. The probe path is extracted into a shared
+  `connectTo(url)` used by the boot form and the new settings Sync tab, which
+  shows the configured sync server with its reachability, offers "Connect to
+  a different server", and "Disconnect & forget this server" (kit
+  ConfirmationModal — it signs the user out and clears the stored server URL,
+  session token, and API key). The auto-retry's now-dead boot note is removed.
+  Verified: `npx tsc --noEmit` in apps/web clean; `settings-modals` +
+  `app-smoke` (45 tests) and the App-rendering suites (136 tests) all green.
+
 - **feat(web): the drag-session interaction model — the muted source row and
   the proximity-snapped drop line.** The outliner's drag feedback stops
   reshaping the page. The dragged row no longer translates with the pointer:
@@ -69,6 +275,46 @@ predating this file.
   --noEmit` clean; full web suite green (1215 tests).
 
 ## 2026-10-06
+
+- **chore(ops): the edge's https port defaults to 8443 — :443 is not Notees's.**
+  The tailnet URL is `https://<host>.<tailnet>.ts.net:8443` (name-based certs
+  work on any port); `NOTEES_EDGE_HTTP` remaps it. Verified on the fleet host.
+- **fix(ops): the web container proxies /api to the sync service — one
+  origin for UI+API; compose carries the build contexts (no more tag
+  envs).** Following the tailnet-edge migration (same day): the nginx config
+  in the web image now proxies `/api/*` to `notees-sync:8377` over the
+  compose network (websocket headers included), so browsers only ever talk
+  to the one web origin — no CORS, no separate sync URL to configure, https
+  over the optional edge wraps everything in one secure context (browser
+  storage requires it). The web client's default sync URL is now simply the
+  page origin (vite dev gained the same proxy). The edge's Caddyfile
+  simplifies to a single proxy. App publishes return to zero-config wildcard
+  defaults (the fleet host's loopback pins were serve-era only), the
+  `18xxx` LAN-shadow publishes are removed, and `NOTEES_SYNC_TAG` /
+  `NOTEES_WEB_TAG` are gone — compose carries the build contexts, so the
+  development flow is `docker compose build && docker compose up -d` (the
+  deployment always runs the local codebase; hosts that haven't built pull
+  `:latest`). Verified on the fleet host: `http://atlas:8378` serves,
+  `/api/version` answers same-origin through the proxy and through the
+  edge, `VERIFY-PASS`.
+
+- **fix(ops): the containers could not start — a wildcard app bind collided
+  with the tailnet edge; HTTPS moved from tailscale serve to an optional Caddy
+  edge.** Incident (2026-10-07): the sync/web containers sat in `Created`,
+  failing to bind `0.0.0.0:8377` — tailscaled's serve held the tailnet IP on
+  the same port number; the loopback pin had gone missing from the host's
+  `.env`. Root fix, per the owner's direction: app publishes are now remappable
+  full `ip:port` envs (`NOTEES_SYNC_HTTP`, `NOTEES_WEB_HTTP`, `*_LAN_HTTP`,
+  zero-config wildcard defaults); TLS moved off `tailscale serve` into an
+  optional compose **edge profile** — Caddy + the tailscale plugin, one
+  published port, ts.net certs via the mounted tailscaled socket, `/api/*` →
+  sync + everything else → web over the compose network so the https page is
+  same-origin (browser storage requires a secure context). The web client
+  guesses same-origin on https pages, same-host:8377 on plain http; a remapped
+  sync port is set from the UI's server field. No-https deployments keep
+  working (in-process store banner). Verified end-to-end on the fleet host:
+  `VERIFY-PASS`, https name serving the web UI + API. Runbook + ops skill
+  updated (deployment.md).
 
 - **chore(web): the restructure branch meets the scrub law — era references
   removed from comments and test titles.** The branch's new files predated
@@ -143,7 +389,7 @@ predating this file.
   the compact layouts both consume the row through the properties
   table, so one change covers both. Gates green: the four property/
   metadata/table web suites (48 tests) + `tsc --noEmit` clean for the
-  touched files.
+
 - **chore(sync): the GTK/Flutter wire corpora re-vendored to byte-identity
   (21 fixtures).** The client copies of `packages/protocol/fixtures/` had
   drifted (missing `object-restore.json`, stale `class-property-defaults.json`);
@@ -175,158 +421,3 @@ predating this file.
   `notees-operations` skills point here. Deliberate exception: the protocol
   fixtures under `packages/protocol/fixtures/` keep their metadata untouched —
   those bytes are sha256-pinned across the TS/GTK/Flutter convergence gate.
-- **fix(web): M39 — the card cover layout gate is honored (no-cover is
-  text-only again) + the v1 cards/table look recovery.**
-  - `CardCover` declared the `layout` prop but never read it: cards rendered
-    covers (placeholder + lazy fetch + lightbox) under the "No cover"
-    layout. Now `no-cover` renders nothing AND skips the lazy fetch (no
-    observation, no bytes); the JSX and the effect are both gated.
-  - Cards v1 recovery (`CardsView.css`): the grid is v1's adaptive CSS
-    masonry on a raised surface-container-high panel (spacing-4 pad,
-    shape-large radius); cards wear the v1 chrome — blended
-    outline/outline-variant border, the 20px --shape-card radius, zero
-    elevation, row-based padding with no interior dividers, the cover as a
-    matted slot, the select checkbox as a hover-reveal surface chip, the
-    selected wash = surface-container-high + primary focus ring, and the
-    cover badge moves to the top-left (v1's cover-bullet corner).
-  - Table v1 recovery (`TableView.css` + the header JSX): the boxed table —
-    separate borders, outline-variant outer border with shape-medium
-    radius, per-cell grid hairlines, surface-variant sticky header at 600,
-    spacing-2/3 cells at base font size, the row hover painting every
-    cell, the selected row on the hover-overlay wash, the sticky
-    select column with the row-gutter shadow, and the v1 sort register —
-    direction arrows on every sorted column plus the multi-sort priority
-    index.
-  - Machinery untouched throughout: useWindowed paging, selection export,
-    the CoverLayoutToggle preference, useLazyInView (16/9 cover slot kept
-    so the pending placeholder holds its size), kanban's NodeCard reuse,
-    inline editing, the tri-state header checkbox, CSV/Excel export,
-    ImportTableModal, ROW_WINDOW.
-  - **Verification:** the M39-targeted web suites all green — view-modes
-    (28), card-lazy-images (4), table-nodes (16), selection-export (4),
-    query-block (18), windowing (15), class-view (11), covers (16),
-    page-layouts (25) — and the full apps/web suite (119 files / 1193
-    tests) green; `tsc --noEmit` clean in apps/web.
-- **refactor(web): S5 of the main-content restructure — the class variant is
-  pure data; `ClassPillsList` generalizes the class pills (M9–M13).** M11:
-  `components/ClassPillsList.tsx` — ONE relation-parameterized pills
-  component (`query` + add/remove/reorder mutations as arguments) riding the
-  existing NodePills machinery; `ClassesRow` (the page corner's instance-of)
-  and `ExtendsRow` (the class corner's extends) become thin adapters over
-  it, and `NodePills` stays exported for BlockRow. M13: the slot
-  composition dies — new `components/pageVariant.ts` derives the page
-  variant (`plain` | `date-day` | `date-period` | `class`): the
-  day/month/year facts, the class corner's extends-pills relation config,
-  and the class section stack (SectionSpec-shaped descriptors mounting the
-  unchanged classview renderers) are DATA consumed by PageView; `ClassView`
-  is deleted — class nodes render the normal page path with the class
-  variant. The deleted class chrome per M9/M12: no curated icon button
-  (`ClassIconButton` deleted), no color dot, no extends-cycle banner —
-  the shared header icon button is the single icon+color entry, now wired
-  to the picker's M10 color section (`onColorChange`). Date variants as
-  data: the inline day/month/year derivation moves behind `pageVariantOf`;
-  the DayPageHeader swap stays in PageHeaderChrome, section placement
-  unchanged (S7's job). The store's loud extends-cycle refusal (the
-  applier's CycleError) is unchanged — the rejection now lands in the
-  console (no UI). Tests: the three suites importing `ClassView` plus
-  windowing/class-bindings/view-modes re-point at `NodeView`; the
-  cycle-banner assertion is updated to the new truth (store refuses, no
-  banner); the class icon-picker test clicks the shared header icon
-  button. `test/child-query.test.ts`: pre-existing type-hygiene fixes
-  (explicit `Entry` shape — the `ReturnType` self-reference was circular;
-  non-null index reads) so the apps/web `tsc --noEmit` gate is clean.
-  tsc clean, full web suite green (119 files / 1193 tests; the 9-file
-  verify list: 122 tests).
-- **feat(web): the v1-UI recovery batch — M33 upload-modal parity + cover/
-  assets-hub triggers, M35 builder re-UI, M10 picker color, M38a noCreate.**
-  Four view-layer slices, no wire/model change. **M33:** the
-  AssetUploadModal gains the full v1 interaction — a modal-internal
-  clipboard-paste capture (`clipboardData.items`), `acceptedTypes`
-  (narrows the accept list + validates with the v1 "Only … files are
-  accepted." wording), the v1 size caps enforced client-side (50 MB media /
-  100 MB documents, mirroring the server config), `initialFile` routed
-  through the same validation, and a single-category title ("Upload
-  image/audio"); the CAS upload path + preview row are unchanged. Three
-  triggers now open it: the empty cover card's **Add cover** (image-only;
-  the uploaded asset becomes the cover), the Assets hub's new **New asset**
-  header button (uploading IS creating; the created asset opens), and the
-  existing property-upload row (unchanged). The cover's **Change** path
-  keeps the CoverPicker; its "Upload new cover…" row routes to the same
-  modal. **M35:** QueryBuilderFields re-presents the §34.31 builder subset
-  as the v1 ViewBuilder card list — scope bar, one card per condition with
-  a remove (✕) back to unset, prose operator words (contains/after/before),
-  the v1 "No filters — all nodes will be shown" note — chrome only: the
-  AST subset, the control labels/values, and the C1 lossy-edit guard are
-  untouched (co-located `QueryBuilderFields.css`; the dead `.nt-query-field`
-  block leaves app.css). **M10:** IconPickerPopup gains the additive color
-  section — `onColorChange` + `color` props host the kit ColorButton
-  (swatch + palette + no-color) in the header; absent prop = hidden, so
-  icon-only consumers are untouched; ColorButton's picker popover now stops
-  pointerdown capture so a nested pick doesn't dismiss the host popup.
-  **M38a:** NodeSelector `noCreate` suppresses the create-from-query
-  affordance (QuickCreateModal route included) — search-without-match shows
-  the honest empty state. Verification: the 8-file suite green
-  (asset-upload-modal 11, covers 16, asset-attachments 10, pickers 12,
-  query-builder-guard 5, queries-hub 5, query-block 18, settings-modals
-  28 — 105 total), plus class-create-modal 8 (new assets-hub creation
-  test), page-layouts + day-features 44, css-token-drift gate green;
-  `tsc --noEmit` clean for every touched file.
-
-- **refactor(web): S4 of the main-content restructure — the body is the
-  plain collection, fed by `childQuery`.** The body's item resolution
-  becomes `components/childQuery.ts` beside the SectionSpec factories: page
-  mode = children as siblings; block mode (`showRoot`) = the node as the
-  single root item (the M2-verified item shape — no NodeCollectionProps
-  addition). `FocusedBlockView` folds into the NodeView block branch (the
-  `.nt-focused-block` chrome preserved). M19's exclusion lands with it:
-  comment-classed children are cut at every level (whole subtrees) — inert
-  until the Comments section (S7) gives them a home. New unit coverage
-  (test/child-query.test.ts); typecheck clean, 120 tests green across the
-  touched surface.
-- **refactor(web): S3b of the main-content restructure — the chrome leaves
-  move to `PageChrome`.** `ui/PageChrome.tsx` extracted from PageView: the
-  `NodeTopbar` (sidebar toggle + classes corner + chromeRight), the
-  `PageHeaderChrome` (day-aware header: DayPageHeader branch, icon button +
-  IconPickerPopup, TitleEditor / embedded link, headerActions, TagsRow, and
-  the cover aside), and the `PageFooterChrome` (null when embedded/focus
-  mode). PageView keeps the panelled/compact composition (the `.nt-page-body`
-  grid + `.nt-nodeview-body` stack) — S7 reworks the columns; props and
-  behavior unchanged, ClassView's slot composition passes through the
-  extracted pieces verbatim. The Properties column names itself now (owner
-  request): PropertiesSidebar renders a small muted "Properties" header row
-  (icon + label + the effective count) in the nodeview top bar's register.
-  Pure move + the one additive header row: tsc clean, full web suite green
-  (1175 tests, one properties-panel assertion added for the header).
-- **refactor(web): S2 of the main-content restructure — one lazy-section
-  contract behind `useSectionData`.** The four hand-rolled lazy idioms
-  collapse into one hook: `components/useSectionData.ts` (first-activation
-  gate, version-keyed cache across switches, per-notification re-run,
-  failure keeps rows; `read`/`query` strategies) + `components/
-  CollectionSection.tsx` (the one skin: NodeViewSection header + body-top
-  ViewToolbar + NodeCollection). `Section.tsx` is a thin wrapper over the
-  hook with unchanged props; SystemSections (the backlinks tabs ride TWO
-  hook instances — never a shared cache), CreatedSection, and
-  ActivityLogSection converted with byte-identical exports; DayPageSections
-  absorbed via Section. `SectionSpec` lands as the data-facing descriptor.
-  Same-exports hard rule held — PageView didn't move. S2-surface tests
-  green (~95), tsc clean.
-- **refactor(web): S3a of the main-content restructure — the page machinery
-  moves behind `usePageMachinery`.** Outliner construction, the selection
-  surface, find/replace (state, shortcut listener, prose docs), the
-  external-link delegation + LinkEditModal opener, the DnD wiring, and the
-  fold chords — everything PageView wired by hand — moves to
-  `ui/usePageMachinery.ts` and returns one bag the component consumes; the
-  JSX that hosts it stays. New `globalShortcuts` option (default true;
-  embedded implies false) prefigures the workspace-card surfaces. Pure move:
-  typecheck clean, 102 machinery-adjacent tests green. The drag half hoists
-  to the workspace host in S6.
-- **refactor(web): S1 of the main-content restructure — the NodeView shell
-  extraction.** `ui/NodeView.tsx` (the mode dispatcher + chrome-right
-  cluster builder + the new `embedded` surface prop) and
-  `ui/SidebarNodeCard.tsx` extracted from App.tsx; App re-exports NodeView
-  for the view-routing tests. FloatingEditor windows now render the shared
-  NodeView (`embedded`) instead of their own copy of the render cascade —
-  the dispatch existed twice (App + FloatingEditor) since the v1 port; one
-  copy remains. Pure move, no behavior change: typecheck clean, full web
-  suite green (1175 tests). Design + the registered deviation
-  (SidebarNodeCard deletion rides S7):

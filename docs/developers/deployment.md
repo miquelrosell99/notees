@@ -232,7 +232,7 @@ to the running store — see `migrations.md`). Smoke:
 `node scripts/screenshots/verify-min.mjs` from `scripts/screenshots/` with
 `NOTEES_ADMIN_PASSWORD` (`config/notees/.admin_password` on the fleet host).
 
-- Ports: `NOTEES_SYNC_PORT` (default 8377), `NOTEES_WEB_PORT` (default 8378).
+- Ports: `NOTEES_SYNC_HTTP` / `NOTEES_WEB_HTTP` (full `ip:port` per publish, defaults `0.0.0.0:8377` / `0.0.0.0:8378` — zero-config wildcard).
 - Data: bind mount `./config/notees/sync` → `/data` (relay.db, snapshots,
   derived/, workspaces/, `api_key.txt`).
 - CORS: compose defaults `NOTEES_CORS_ORIGIN=*` (safe: header-based auth, no
@@ -253,59 +253,46 @@ Operator caveats: the server binds `0.0.0.0` (right inside a container); put
 a reverse proxy in front for TLS. Bind-mounting `/data` instead of the named
 volume needs the mount owned by uid 1000 (`node`).
 
-## 10. Tailscale HTTPS (tailnet serving, live on the fleet host since 2026-10-06)
+## 10. HTTPS — the optional Caddy edge (tailnet or bring-your-own)
 
-Tailnet TLS is terminated by the host's tailscaled via `tailscale serve` —
-no reverse-proxy container, no cert files; Tailscale issues and renews the
-per-hostname Let's Encrypt cert itself. The stack's host ports are published
-**loopback-only** so tailscaled owns the tailnet-facing ports. Names and IPs
-below are placeholders — per the fleet-agnostic rule (AGENTS.md), real values
-live only in gitignored `.env`:
+The core stack has **no HTTPS dependency**: plain http on the remappable app
+ports works for everything except browser-persistent storage (OPFS requires a
+secure context — browsers without https run the app on the in-process store
+with the loud warning banner; fully functional otherwise). When a deployment
+wants https, the compose **edge profile** turns it on in one step — a Caddy
+container with the tailscale plugin:
 
-- `.env`: `NOTEES_SYNC_PORT=127.0.0.1:8377`, `NOTEES_WEB_PORT=127.0.0.1:8378`
-  (plain HTTP stays on loopback for the serve proxies and the verify-min smoke).
-- **LAN http coexists on the same port numbers** via specific-IP binds:
-  `NOTEES_SYNC_LAN_PORT=<lan-ip>:8377`, `NOTEES_WEB_LAN_PORT=<lan-ip>:8378`
-  in `.env`. Compose binds only the LAN IP while tailscaled holds the tailnet
-  IP on the same port — the kernel allows one bind per specific address;
-  only wildcard binds conflict. Result: `http://<lan-ip>:8378` (web) +
-  `http://<lan-ip>:8377` (sync) on the LAN alongside the green ts.net URLs,
-  and the web client's same-host `:8377` guess is correct on both networks.
-  The shipped compose defaults keep `*_LAN_PORT` inert on loopback high
-  ports (18377/18378) — set them to enable LAN serving. If the host's LAN IP
-  changes, update the two vars (`docker compose up` fails loudly otherwise;
-  pin the IP on the NIC or a DHCP reservation to avoid it).
-- Serve listeners (config lives in tailscaled state; `tailscale serve status`
-  to inspect, `tailscale serve reset` to undo):
+```sh
+docker build -t notees-edge:local -f deploy/Dockerfile.caddy deploy/
+# .env: NOTEES_EDGE_NAME=<host>.<tailnet>.ts.net  (the machine's tailnet name)
+docker compose --profile edge up -d              # or COMPOSE_PROFILES=edge
+```
 
-````text
-https://<host>.<tailnet>.ts.net:8378  → 127.0.0.1:8378   web    (canonical)
-https://<host>.<tailnet>.ts.net:443   → 127.0.0.1:8378   web    (convenience)
-https://<host>.<tailnet>.ts.net:8377  → 127.0.0.1:8377   sync   (canonical)
-https://<host>.<tailnet>.ts.net:8443  → 127.0.0.1:8377   sync   (kept from the first cut)
-````
-
-- `NOTEES_SERVER_URL` is **unset on the fleet host and unneeded on any
-  standard (same-host, :8377) topology** — the web client's same-host guess
-  (`protocol//hostname:8377`, `App.tsx initialServerUrl`) derives the sync
-  origin from the page origin and is correct on every access path above; the
-  baked `/config.js` prefill is a last resort the guess supersedes. The
-  compose default is empty (the entrypoint then ships the empty
-  stub `window.NOTEES_CONFIG = {}`). Set the var only for non-standard sync
-  placements. The default `NOTEES_CORS_ORIGIN=*` covers the https origins.
-- **The bare hostname has no TLS identity.** Public CAs don't issue for
-  single-label names, and Tailscale only issues for `<host>.<tailnet>.ts.net` —
-  so `https://<host>:8378/` cannot work: tailscaled selects certs by SNI and
-  **aborts the handshake** for a name it has no cert for (a hard connection
-  failure, not a click-through warning). Green access is always the ts.net
-  name. Serving the bare name would need a self-signed/private-CA cert
-  terminated inside the web container (cert-file lifecycle + nginx conf
-  mounts) — build only if the owner asks.
-- **Prerequisite**: Serve + HTTPS certificates enabled for the tailnet (admin
-  console). When gated, `tailscale serve` prints a `login.tailscale.com/f/serve?…`
-  enablement URL, and `tailscale cert` fails with "account does not support
-  getting TLS certs".
-- **Operator caveats**: the host may run with `accept-dns=false`, in which
-  case it cannot resolve ts.net names locally — verify from it with
+- **Certificates**: issued and renewed automatically for the tailnet
+  hostname via the mounted tailscaled socket (`tls { get_certificate
+  tailscale }`) — real, device-trusted certs with no DNS challenge, no cert
+  files, no per-device root installs. The edge publishes ONE port
+  (`NOTEES_EDGE_HTTP`, default 8443 — :443 stays free for a shared edge) and proxies over the compose network:
+  `/api/*` → `notees-sync:8377`, everything else → `notees-web:80` — the https
+  page calls its API **same-origin**, so no CORS and no mixed content.
+- **Remapping**: every published port is one env in full `ip:port` form
+  (`NOTEES_SYNC_HTTP`, `NOTEES_WEB_HTTP`, the `*_LAN_HTTP` loopback
+  high-ports, `NOTEES_EDGE_HTTP`). Container ports are fixed, so host remaps
+  never touch the edge config. A remapped sync port is pointed out from the
+  **web UI's server field** (the client default is same-host:8377); deploys
+  can also prefill `NOTEES_SERVER_URL`.
+- **No edge / no tailnet**: run your own reverse proxy instead — the contract
+  is two routes: `/api/*` → the sync port, `/*` → the web port; set the web
+  client's `NOTEES_SERVER_URL` (or sign in through the UI's server field).
+- **Fleet host shape** (gitignored `.env`): `NOTEES_SYNC_HTTP=127.0.0.1:8377`,
+  `NOTEES_WEB_HTTP=127.0.0.1:8378`, LAN http via `*_LAN_HTTP=<lan-ip>:…` if
+  wanted, `COMPOSE_PROFILES=edge` + `NOTEES_EDGE_NAME`. Loopback app binds keep
+  the tailnet/LAN edges as the only listeners on their port numbers — the
+  lesson of 2026-10-07, when a wildcard app bind collided with the edge and
+  the stack could not start.
+- **Operator caveats**: hosts with `accept-dns=false` cannot resolve ts.net
+  names — verify from the host with
   `curl --resolve <host>.<tailnet>.ts.net:443:<tailscale-ip> https://<host>.<tailnet>.ts.net/`;
-  tailnet clients with MagicDNS resolve normally.
+  tailnet clients with MagicDNS resolve normally. The web client guesses
+  same-origin for any https page and same-host:8377 for plain http — both
+  paths need no configuration on a standard deployment.
