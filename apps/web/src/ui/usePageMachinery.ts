@@ -29,14 +29,19 @@ import type { BlockTreeNode, WorkspaceClient } from "@/core/workspace-client.js"
 import { proseFromAst } from "@/editor/prose.js";
 
 import {
+  dragPointerOf,
+  dropCandidatesOf,
   dropLineFromDragEvent,
   dropZoneOf,
   executeMove,
   executeMoveFromClient,
+  measureDragRows,
   moveErrorMessage,
+  nearestCandidate,
   resolveMove,
   resolveMoveFromClient,
   useBlockDndSensors,
+  type DropCandidate,
   type DropLine,
 } from "./block-dnd.js";
 import { ensureTemplateFamily } from "./components/templateFamily.js";
@@ -170,6 +175,9 @@ export function usePageMachinery({
   const [dropLine, setDropLine] = useState<DropLine | null>(null);
   const [dragging, setDragging] = useState<{ id: string; label: string } | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
+  // The drag session's valid-location set: the visible rows measured once at
+  // drag start, projected against on every pointer move (proximity snapping).
+  const dragCandidatesRef = useRef<DropCandidate[] | null>(null);
   useEffect(() => {
     if (moveError === null) return;
     const timer = setTimeout(() => setMoveError(null), 4000);
@@ -254,17 +262,38 @@ export function usePageMachinery({
     const id = String(event.active.id);
     setDragging({ id, label: displayNameFromClient(client, id) ?? id });
     setMoveError(null);
+    dragCandidatesRef.current = dropCandidatesOf(positions, id, measureDragRows(pageRootRef.current));
   };
 
   const handleDragMove = (event: DragMoveEvent) => {
-    setDropLine(dropLineFromDragEvent(event, positions));
+    const session = dragCandidatesRef.current;
+    const pointer = dragPointerOf(event);
+    if (session === null || pointer === null) {
+      // Keyboard drags (no pointer) keep the event-driven indicator.
+      setDropLine(dropLineFromDragEvent(event, positions));
+      return;
+    }
+    const candidate = nearestCandidate(pointer, session);
+    setDropLine(candidate === null ? null : { targetId: candidate.targetId, intent: candidate.intent });
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
-    const line = dropLineFromDragEvent(event, positions);
     const activeId = String(event.active.id);
+    const session = dragCandidatesRef.current;
+    dragCandidatesRef.current = null;
     setDropLine(null);
     setDragging(null);
+    // Pointer sessions resolve through the snap model; when nothing is near
+    // (no indicator was showing), the event-driven line still resolves the
+    // drop so guard refusals surface their banner exactly as before.
+    // Keyboard drags have no pointer and always take the event-driven path.
+    const pointer = dragPointerOf(event);
+    const snapped =
+      session !== null && pointer !== null ? nearestCandidate(pointer, session) : null;
+    const line: DropLine | null =
+      snapped !== null
+        ? { targetId: snapped.targetId, intent: snapped.intent }
+        : dropLineFromDragEvent(event, positions);
     if (line === null) return;
     let resolution = resolveMove({ activeId, line, positions });
     let crossTree = false;
@@ -307,6 +336,7 @@ export function usePageMachinery({
   };
 
   const handleDragCancel = () => {
+    dragCandidatesRef.current = null;
     setDropLine(null);
     setDragging(null);
   };

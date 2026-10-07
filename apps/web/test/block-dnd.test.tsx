@@ -14,7 +14,15 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { MoveGuardError } from "@notees/store";
 
+import type { OutlinePositionMap } from "../src/editor/outline.js";
 import { WorkspaceClient } from "../src/core/workspace-client.js";
+import {
+  CHILD_DROP_OFFSET_PX,
+  DROP_SNAP_MAX_DY_PX,
+  dropCandidatesOf,
+  nearestCandidate,
+  type DragRowRect,
+} from "../src/ui/block-dnd.js";
 import { PageView } from "../src/ui/PageView.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
@@ -129,6 +137,29 @@ function gripOf(row: HTMLElement): HTMLElement {
 
 function rootOrder(client: WorkspaceClient, pageId: string): string[] {
   return client.getBlockTree(pageId).map((t) => t.node.id);
+}
+
+/**
+ * A minimal outline position map for the pure snap-model tests: [id,
+ * parentId] pairs in document order; the previous sibling follows from the
+ * order within each parent.
+ */
+function positionsOf(...entries: Array<[string, string | null]>): OutlinePositionMap {
+  const map = new Map<
+    string,
+    { parentId: string | null; previousSiblingId: string | null; grandParentId: string | null }
+  >();
+  const lastSibling = new Map<string, string>();
+  for (const [id, parentId] of entries) {
+    const group = parentId ?? "(root)";
+    map.set(id, {
+      parentId,
+      previousSiblingId: lastSibling.get(group) ?? null,
+      grandParentId: null,
+    });
+    lastSibling.set(group, id);
+  }
+  return map;
 }
 
 /** Flush the microtasks the drop handler's async move chain runs on. */
@@ -315,5 +346,153 @@ describe("block drag-and-drop", () => {
     expect(moveSpy).toHaveBeenCalledTimes(1);
     expect(moveSpy).toHaveBeenCalledWith(one, pageId, two);
     expect(rootOrder(client, pageId)).toEqual([two, one, three]);
+  });
+
+  it("keeps the dragged row pinned and muted; the overlay chip is the only preview", async () => {
+    const client = await seedClient();
+    const { pageId, ids } = await seedThreeBlocks(client);
+    const [one] = ids;
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const fromRect = rowEl(container, one).getBoundingClientRect();
+    const grip = gripOf(rowEl(container, one));
+    fireEvent.pointerDown(grip, {
+      clientX: fromRect.left + 200,
+      clientY: fromRect.top + 16,
+      button: 0,
+      pointerId: 1,
+    });
+    fireEvent.pointerMove(document, {
+      clientX: fromRect.left + 210,
+      clientY: fromRect.top + 16,
+      buttons: 1,
+      pointerId: 1,
+    });
+
+    // The source row stays in place (no drag transform) and reads muted.
+    const source = rowEl(container, one);
+    expect(source.className).toContain("nt-block--drag-source");
+    expect(source.style.transform).toBe("");
+    // The floating overlay is the small name chip — no block preview inside.
+    const ghost = document.querySelector<HTMLElement>(".nt-drag-ghost");
+    expect(ghost).not.toBeNull();
+    expect(ghost!.textContent).toContain("one");
+    expect(ghost!.querySelector("[data-block-id]")).toBeNull();
+
+    fireEvent.pointerUp(document, {
+      clientX: fromRect.left + 210,
+      clientY: fromRect.top + 16,
+      button: 0,
+      pointerId: 1,
+    });
+    await flushMoves();
+    expect(rowEl(container, one).className).not.toContain("nt-block--drag-source");
+  });
+});
+
+describe("drag-session snap model", () => {
+  it("builds a sibling pair plus a child candidate per row, excluding the dragged subtree", () => {
+    const positions = positionsOf(["a", null], ["b", "a"], ["c", null]);
+    const rows: DragRowRect[] = [
+      { id: "a", left: 0, top: 0, width: 400, height: 32 },
+      { id: "b", left: 28, top: 32, width: 372, height: 32 },
+      { id: "c", left: 0, top: 64, width: 400, height: 32 },
+    ];
+    const candidates = dropCandidatesOf(positions, "a", rows);
+
+    // The dragged block and its descendant are not drop targets.
+    expect(candidates.filter((c) => c.targetId === "a" || c.targetId === "b")).toEqual([]);
+    expect(candidates.map((c) => `${c.targetId}:${c.intent}`)).toEqual([
+      "c:above",
+      "c:below",
+      "c:child",
+    ]);
+    // Sibling anchors sit at the row's divider at the row's gutter x; the
+    // child anchor rides at the child-offset x, vertically centered.
+    expect(candidates[0]).toMatchObject({ targetId: "c", anchorX: 0, anchorY: 64 });
+    expect(candidates[1]).toMatchObject({ targetId: "c", anchorX: 0, anchorY: 96 });
+    expect(candidates[2]).toMatchObject({
+      targetId: "c",
+      anchorX: CHILD_DROP_OFFSET_PX,
+      anchorY: 80,
+    });
+  });
+
+  it("projects a shallow mid-row pointer to above or below by the row half", () => {
+    const positions = positionsOf(["x", null], ["r", null]);
+    const rows: DragRowRect[] = [
+      { id: "x", left: 0, top: 0, width: 400, height: 32 },
+      { id: "r", left: 24, top: 40, width: 376, height: 32 },
+    ];
+    const candidates = dropCandidatesOf(positions, "x", rows);
+
+    // Upper half → the line above the row.
+    expect(nearestCandidate({ x: 26, y: 51 }, candidates)).toMatchObject({
+      targetId: "r",
+      intent: "above",
+    });
+    // Lower half → the line below the row.
+    expect(nearestCandidate({ x: 26, y: 59 }, candidates)).toMatchObject({
+      targetId: "r",
+      intent: "below",
+    });
+  });
+
+  it("projects a deep-x pointer mid-row to the child intent", () => {
+    const positions = positionsOf(["x", null], ["r", null]);
+    const rows: DragRowRect[] = [
+      { id: "x", left: 0, top: 0, width: 400, height: 32 },
+      { id: "r", left: 24, top: 40, width: 376, height: 32 },
+    ];
+    const candidates = dropCandidatesOf(positions, "x", rows);
+
+    expect(nearestCandidate({ x: 80, y: 56 }, candidates)).toMatchObject({
+      targetId: "r",
+      intent: "child",
+    });
+  });
+
+  it("disambiguates the hierarchy-end gap by x bands across three nearby candidates", () => {
+    // An expanded parent with one child; the pointer hovers the gap right
+    // below the child's bottom edge. The compact rows keep the gap-adjacent
+    // anchors inside the default snap band: the parent's below-divider, the
+    // child's below-divider, and the child-slot anchors at the child-offset
+    // x. Three candidates compete for the same strip, nearest x wins, and
+    // the line renders at the winning depth.
+    const positions = positionsOf(["x", null], ["p", null], ["c", "p"]);
+    const rows: DragRowRect[] = [
+      { id: "x", left: 0, top: 60, width: 400, height: 15 },
+      { id: "p", left: 0, top: 0, width: 400, height: 15 },
+      { id: "c", left: 24, top: 15, width: 376, height: 15 },
+    ];
+    const candidates = dropCandidatesOf(positions, "x", rows);
+    const at = (x: number) => nearestCandidate({ x, y: 31 }, candidates);
+
+    // Near the parent's gutter: a sibling after the parent, the line at the
+    // parent's depth.
+    expect(at(0)).toMatchObject({ targetId: "p", intent: "below" });
+    // Near the last child's gutter: a sibling after the child, the line at
+    // the child's depth.
+    expect(at(24)).toMatchObject({ targetId: "c", intent: "below" });
+    // Deep at the child offset: the child slot of the row above the gap —
+    // appending there fills the same slot a parent-append would, nested
+    // under the nearest row.
+    expect(at(60)).toMatchObject({ targetId: "c", intent: "child" });
+  });
+
+  it("returns null when nothing is near", () => {
+    const positions = positionsOf(["x", null], ["r", null]);
+    const rows: DragRowRect[] = [
+      { id: "x", left: 0, top: 0, width: 400, height: 32 },
+      { id: "r", left: 24, top: 40, width: 376, height: 32 },
+    ];
+    const candidates = dropCandidatesOf(positions, "x", rows);
+
+    expect(DROP_SNAP_MAX_DY_PX).toBe(24);
+    // Far in y from every anchor.
+    expect(nearestCandidate({ x: 26, y: 400 }, candidates)).toBeNull();
+    // A tighter threshold turns a near miss into nothing.
+    expect(nearestCandidate({ x: 26, y: 51 }, candidates, { maxDyPx: 4 })).toBeNull();
+    expect(nearestCandidate({ x: 26, y: 51 }, [])).toBeNull();
   });
 });
