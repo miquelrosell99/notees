@@ -17,14 +17,16 @@ the footer has no sync error + UI search finds a known hit; prints
 
 ## Version pinning (ghcr path)
 
-Compose defaults to `:latest`. To run a specific release:
+Compose carries the build contexts: the deployment runs the LOCAL codebase
+(`docker compose build && docker compose up -d`); a host that hasn't built
+pulls `:latest`. To run a specific release, check it out and build — the
+image content is the checkout, no tags to manage:
 
 ```sh
-docker pull ghcr.io/miquelrosell99/notees-sync:vX.Y.Z
-NOTEES_SYNC_TAG=vX.Y.Z docker compose up -d
+git checkout vX.Y.Z && docker compose build && docker compose up -d
 ```
 
-(same for `NOTEES_WEB_TAG`). The host's ghcr login is read-only; a release is
+The host's ghcr login is read-only; a release is
 published by pushing a `v*` git tag (CI `.github/workflows/release-docker.yml`
 publishes both images at the tag + `latest`), or
 `gh workflow run release-docker.yml -f image_tag=X.Y.Z` to re-publish without
