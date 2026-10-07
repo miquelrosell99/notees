@@ -29,9 +29,11 @@ RUN pnpm --filter @notees/web... build
 # ---------- runtime ----------
 FROM nginx:1.27-alpine
 # Baked default (overridable at runtime: docker run -e NOTEES_SERVER_URL=…).
-# index.html loads /config.js first; App.tsx prefills the server URL from
-# window.NOTEES_CONFIG.serverUrl, keeping the manual form as fallback.
-ARG NOTEES_SERVER_URL=http://localhost:8377
+# Empty by default: the web container proxies /api/* to the sync service, so
+# the client defaults to its own origin — no prefill needed on any standard
+# deployment. index.html loads /config.js first; App.tsx prefills the server
+# URL from window.NOTEES_CONFIG.serverUrl, keeping the manual form as fallback.
+ARG NOTEES_SERVER_URL=""
 ENV NOTEES_SERVER_URL=$NOTEES_SERVER_URL
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 COPY apps/web/nginx-gzip.conf /etc/nginx/conf.d/00-gzip.conf
