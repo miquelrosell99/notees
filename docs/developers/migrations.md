@@ -92,9 +92,12 @@ The immutable log gains envelopes; every replica applies them in order.
 ## 3. Fixtures are part of the contract
 
 - The shared corpus (`packages/protocol/fixtures/`, vendored verbatim into the
-  GTK/Flutter repos) is the convergence gate: change it in place for additive
-  fields on existing ops (the 21-file count stays), add a file + bump the gate
-  list only for genuinely new op semantics.
+  GTK/Flutter repos) is the convergence gate: a small additive field batch
+  may ride an existing fixture (the file changes in place); a batch that
+  needs its own set/clear lifecycle or semantic pin gets a dedicated file +
+  the exact-list gate entry (21→24 across the 2026-10-07 batches — the wire
+  node fields, the class conversion, the asset property type). Either way
+  the gate list is the contract — never silently drop or rename a fixture.
 - Cross-applier replay (both TS store backends; GTK/Flutter CI) must pass on
   the updated fixture BEFORE the client ports count as done.
 
@@ -110,6 +113,9 @@ The immutable log gains envelopes; every replica applies them in order.
 | `migrate-system-names.mts` | A | display-wording renames via appended `class.update`/`propertySchema.update` |
 | `migrate-task-status-styles.mts` | A | task-status option icons/colors + `display: "bullet"` on the Status **schema** |
 | `migrate-binding-flags-to-schema.mts` | B | `hideWhenEmpty`/`readonly`/`display` off `class.property.set` onto the property schema |
+| `migrate-cover-banner-alias.mts` | A | the retired cover/banner/aliasOf property assertions → the `coverAssetId`/`bannerAssetId`/`aliasedNodeId` wire fields (appended `object.update` + `property.unset`; resolves v1 `{hash}` cover data through the CAS table). STRICT-PAYLOAD ADDITIVE: run only after the GTK/Flutter ports accept the new keys |
+| `migrate-retire-class-class.mts` | A | the retired `class` meta class — members convert to real classes via the `class.create`-on-existing-node capability + binding drops; has-template relocates to global scope (binding unset + `propertySchema.create` re-scope upsert); the emptied class-class rides to the trash. CLASS-IDENTITY SEMANTIC: run only after the GTK/Flutter ports implement the conversion |
+| `migrate-attachments-asset-type.mts` | A | the attachments schema (…0011) retypes object → asset via the `propertySchema.create` upsert (the only wire path that changes a type); the explicit targetClassFilter retires (implicit in the type), values ride untouched. STRICT-ENUM ADDITIVE: run only after the GTK/Flutter ports accept the asset type |
 
 All scripts: **dry-run by default**, `--apply` to write, `--data-dir` +
 `--workspace` flags (the owner workspace id is the default). Run via

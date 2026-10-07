@@ -81,7 +81,7 @@ itself is not shipped.
 
 `packages/store` is the single semantic-store implementation. Across the five storage
 categories, the derived schema
-(`packages/store/src/schema.ts`, `SCHEMA_VERSION = 15`, DDL mirrored as `SCHEMA_SQL`; additive `PRAGMA user_version` migrations — v2 class_property LWW columns, v3 date columns, v4 FTS4→FTS5, v5 tags `tag_member_set` + `node.tag_ids`, v6 → v7 `node.class_order`, v7 → v8 the render-state model: `is_class` + `present_as_main` replace `node_type`, node table rebuilt in place) holds:
+(`packages/store/src/schema.ts`, `SCHEMA_VERSION = 16`, DDL mirrored as `SCHEMA_SQL`; additive `PRAGMA user_version` migrations — v2 class_property LWW columns, v3 date columns, v4 FTS4→FTS5, v5 tags `tag_member_set` + `node.tag_ids`, v6 → v7 `node.class_order`, v7 → v8 the render-state model: `is_class` + `present_as_main` replace `node_type`, node table rebuilt in place, v16 the wire node fields `cover_asset_id`/`banner_asset_id`/`aliased_node_id` on `node`) holds:
 
 | Category | Tables | Notes |
 |---|---|---|
@@ -160,14 +160,18 @@ CHECK (is_class = 0 OR parent_id IS NULL)
 - **Node fields vs properties (boundary rule, 2026-10-06):** platform-fixed,
   cardinality-1 node fundamentals that core chrome or navigation reads or
   writes are **wire node fields** (`object.update`, the icon/color precedent;
-  `coverAssetId`/`bannerAssetId`/`aliasedNodeId` are the first three) — the
+  `coverAssetId`/`bannerAssetId`/`aliasedNodeId` are the first three — shipped
+  as fields + appliers + fixtures 2026-10-07, store v16) — the
   derived store projects them as plain per-field columns. The property
   system stays for user-extensible typed attributes (class-bound,
   multi-value, defaulted, qualified, query-filtered). Never model platform
   fundamentals as properties; never answer property drift with
   reserved-schema machinery. Structural invariants (extends DAG, alias-chain
   acyclicity) are write-time invariants: validated at the operation level
-  with loud failure, never applied; render assumes them.
+  with loud failure, never applied; render assumes them — the extends DAG is
+  enforced today; **alias-chain acyclicity lands with the alias-semantics
+  follow-on slices** (the wire fields ship mapped-but-unvalidated, stated
+  honestly).
 
 ## 5. Content grammar and the edge index
 
@@ -419,10 +423,11 @@ keeps `ClientNode` instances for unchanged rows across revisions (the stamp hash
 mapped columns, not hlc/updated_at — membership recomputes touch `class_ids`/`tag_ids`
 without bumping either), so a single keystroke's op doesn't re-map the workspace.
 `classIcons()` is the narrow `id, icon` read the icon maps consume (no content blob, no
-sort). The derived schema is at **v15** — the composite `idx_node_list_reads`
+sort). The derived schema is at **v16** — the composite `idx_node_list_reads`
 (`workspace_id, is_class, is_active, name, id`) serves the list WHERE + ORDER BY; it is
 version-gated DDL (pre-v8 node tables can't parse it), re-asserted on the snapshot-repair
-path. When the Web Worker store is unavailable and the app falls back to the in-process
+path; the wire node fields project as the nullable `node.cover_asset_id` /
+`node.banner_asset_id` / `node.aliased_node_id` columns (mapped by `object.update`). When the Web Worker store is unavailable and the app falls back to the in-process
 client, `detectStoreMode()` warns in the console (naming the missing capability) and the
 UI shows the dismissible `InProcessStoreBanner`;
 writes build envelopes (`newEnvelope`, deviceId `web`), apply optimistically via

@@ -544,6 +544,16 @@ sidebar rows get the link UI (same day, during implementation):**
     Block / Verb; the read-mode click that opened the modal for external
     links is removed (hyperlinks navigate), and the node-link context menu
     drops its "Edit link…" item for external-link targets.*
+59. *M47 — the seeded `class` class (…0001) is RETIRED; its instances become
+    real classes (owner ruling: "turn the nodes that have it assigned to
+    classes"). Seeds cleaned (the UUID never reused); the one-time migration
+    converts every bound node into a class (`is_class`) and drops the
+    binding. Load-bearing consequence found at ruling time: the class-class
+    hosts the `hasTemplate` binding (the template family's universal host)
+    — it relocates to a global-scope schema. If the conversion needs a wire
+    capability that doesn't exist (declaring an EXISTING node a class), the
+    implementer flags it (additive `class.create` on an existing id +
+    fixtures, or a new op) rather than faking it.*
 
 **Lockstep debt (registered, awaiting owner ruling):** M42's rich titles
 required relaxing the TS store applier (the update path no longer flattens
