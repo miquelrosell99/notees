@@ -38,27 +38,21 @@ folder's retirement:
 - **Custom views as stored tabs** (`section_view` table: node/section/name/
   sequence/query_ast composed on the derived base row set; the tab system
   is NodeCollection chrome; the derived-not-stored law — no default rows,
-  emptying restores factory behavior). Design: the transient filter layer
-  and the one-grammar AST contract shipped; the stored-table half is the
-  follow-up.
-- **The transient filter layer** (`filterable` sections, FilterSpec applied
-  post-resolution/pre-windowing) — designed, unscheduled.
+  emptying restores factory behavior). The transient filter layer and the
+  one-grammar AST contract shipped (record: `CHANGELOG.md` 2026-10-07); the
+  stored-table half is the follow-up.
 - **Rail card management** (reorder) and the **hover-preview → NodeView
   preview** swap — registered follow-ups from the cards-only rail slice.
-- **The materialized resolved-target column** for alias edges (the
-  roll-up's documented later optimization; the indexed recursive-CTE read
-  serves at current scale).
-- **The REST `ApiObject` response exposing the three wire fields** — the
-  op log is the authoritative path; flagged, unscheduled.
-- **The query-builder-guard coalescing test's load-sensitivity** — a
-  stability pass on the timing assertion.
 - **The M38 empty-cover/empty-banner upload triggers** — shipped with the
   banner; the empty-banner modal trigger noted for verification.
 - **Client follow-ons from the alignment batches** — the Flutter local
   seed's raw-title keys (display-title divergence across classes; also the
   option of the full events family in the local seed) and the GTK/Flutter
   alias UI chrome (their read hooks landed; the aliases UI itself is a
-  client-side follow-on).
+  client-side follow-on). **Extended 2026-10-07:** the GTK/Flutter derived
+  schemas gain the store v17 `edge.resolved_target_id` column (the alias
+  resolved-target materialization — same write-time/re-resolution
+  semantics; recorded in SCHEMA.md "Node aliases").
 
 ## Repo split (notees-sync / notees-web)
 
