@@ -475,11 +475,37 @@ class Compiler {
         return `n.created_at <= ${this.push(
           resolveTimestampPlaceholder(condition.timestamp, "before", this.options),
         )}`;
+      case "coverAsset":
+        return this.nodeFieldSql("coverAsset", "cover_asset_id", condition);
+      case "bannerAsset":
+        return this.nodeFieldSql("bannerAsset", "banner_asset_id", condition);
+      case "aliasedNode":
+        return this.nodeFieldSql("aliasedNode", "aliased_node_id", condition);
       default:
         throw new Error(
           `query compile: unknown condition type ${(condition as { type: string }).type}`,
         );
     }
+  }
+
+  /**
+   * A wire-field predicate compiles straight into the node-table column
+   * (store schema v16): exists = the IS NOT NULL probe; eq/neq compare the
+   * reference id. SQL NULL semantics hold — an unset field matches neither
+   * eq nor neq — so "is unset" reads `not exists`, not `neq`.
+   */
+  private nodeFieldSql(
+    type: "coverAsset" | "bannerAsset" | "aliasedNode",
+    column: string,
+    condition: { op: "eq" | "neq" | "exists"; value?: string | undefined },
+  ): string {
+    if (condition.op === "exists") {
+      return `n.${column} IS NOT NULL`;
+    }
+    if (condition.value === undefined || condition.value === null) {
+      throw new Error(`query compile: ${type} op '${condition.op}' requires a non-null value`);
+    }
+    return `n.${column} ${condition.op === "eq" ? "=" : "!="} ${this.push(condition.value)}`;
   }
 
   private contentSql(condition: Extract<Condition, { type: "content" }>): string {
