@@ -57,9 +57,24 @@
   margin-right: auto;
 }
 
-/* Right sidebar: peek cards (shift+click a block bullet). The EXTERNAL
-   container is one surface step below the main card; the node view renders
-   INSIDE it on --color-surface, so it reads as a card within the card. */
+/* The graph hub: the canvas is the card's sole content — edge-to-edge,
+   no centered column cap, no margins (the fullscreen whiteboard's
+   treatment; the card frame itself stays). */
+.nt-page-card > .nt-graph-surface {
+  max-width: none;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Right sidebar: the cards-only rail — workspace cards (the
+   generic frame around NodeView). The EXTERNAL container is one surface
+   step below the main card; the node view renders INSIDE it on
+   --color-surface, so it reads as a card within the card. The
+   node-relevant widgets (graph/TOC/Activity/Comments) live in the page
+   chrome's context column now. */
 .nt-right-card {
   width: 340px;
   flex-shrink: 0;
@@ -92,6 +107,14 @@
   /* The lead "…" clip chip in right-anchored breadcrumb trails masks with
      this surface. */
   --breadcrumb-clip-bg: var(--color-surface-container-low);
+}
+
+/* The workspace drag session's header drop target: a block dropped here
+   appends as the card node's last child — the distinct active-drop state
+   (a primary underline + tint, mirroring the row drop indicators). */
+.nt-sidebar-card__header--drop-active {
+  box-shadow: inset 0 -2px 0 0 var(--color-primary);
+  background: var(--color-surface-container-high);
 }
 
 .nt-sidebar-card__actions {
@@ -144,16 +167,6 @@
   border: var(--border-width-default, 1px) solid var(--color-outline-variant);
   border-radius: var(--shape-card, 14px);
   box-shadow: var(--shadow-elevation-1, 0 2px 8px rgba(0, 0, 0, 0.18));
-}
-
-/* The context block (TOC + references of the main-view page)
-   stacks above the peek cards; the sections inside keep their own card
-   surfaces, so the wrapper only spaces them. */
-.nt-right-card-context {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-3, 12px);
 }
 
 /* Focus mode (#12): the shell chrome dims to a whisper while the page card
