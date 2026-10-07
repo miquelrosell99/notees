@@ -109,6 +109,14 @@
   --breadcrumb-clip-bg: var(--color-surface-container-low);
 }
 
+/* The workspace drag session's header drop target: a block dropped here
+   appends as the card node's last child — the distinct active-drop state
+   (a primary underline + tint, mirroring the row drop indicators). */
+.nt-sidebar-card__header--drop-active {
+  box-shadow: inset 0 -2px 0 0 var(--color-primary);
+  background: var(--color-surface-container-high);
+}
+
 .nt-sidebar-card__actions {
   flex-shrink: 0;
   display: flex;

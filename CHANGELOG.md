@@ -9,6 +9,44 @@ predating this file.
 
 ## 2026-10-07
 
+- **feat(web): one workspace drag session — the host hoists every surface's
+  drag, and the rail cards' headers become append-drop targets.** The
+  per-surface drag context is gone: a single workspace host
+  (`useWorkspaceDnd.tsx` — the `WorkspaceDndHost` provider + the
+  `useWorkspaceDnd` session hook) owns the dnd-kit context, the sensors, the
+  drop indicator context, the overlay name chip, and the transient
+  move-error banner. In App it wraps the floating-editor host (which wraps
+  the regions), so the main content card, the right rail's workspace cards,
+  and the floating editor windows — they portal, but stay inside the host's
+  React subtree — all join the SAME drag session. Every mounted editing
+  surface registers its drag facts with the host as a zone (the measured
+  root, the live positions getter, the client — `PageView` registers;
+  embedded renders, rail cards, and floating windows render PageView, so
+  they join automatically): at drag start the host measures every zone once
+  and merges the per-zone valid-location sets (`mergeZoneCandidates` — each
+  candidate tagged with its zone), pointer moves project onto the merged set
+  (the proximity snap model, the muted source row, and the hierarchy-end
+  disambiguation unchanged), and drops resolve against the zone under the
+  pointer. Cross-zone drops are always MOVE (re-parent) — never copy/link.
+  The machinery loses the DnD half (no sensors/handlers/drop state — it
+  keeps the outliner, selection, find/replace, and fold chords); block rows
+  are draggable only inside a workspace editing surface (the drag scope
+  PageView provides — the context-presence law, now explicit). Card frames
+  register their header as a droppable: dropping on a rail card's header
+  moves the block as the LAST CHILD of the card's node — one code path with
+  a child drop on that node — and the header renders its distinct
+  active-drop state while it is the target. A collapsed card under
+  drag-hover transiently expands to reveal the drop position and
+  re-collapses at drag end (drag-scoped — the session holds the temporary
+  set; the card's own collapse state never mutates). The cards also pass
+  `globalShortcuts: false` down — the find/replace and fold chords are
+  main-surface-only (they were leaking one document listener per card).
+  `npx tsc --noEmit` in apps/web clean; full web suite green (the block-dnd
+  suite renders inside the host now; the new workspace-dnd suite covers the
+  merge helper, the header append, the transient expand, the cross-zone
+  move, and the chords gate — its afterEach settles past dnd-kit's 50ms
+  post-drop click suppression).
+
 - **fix(web): the LinkEditModal is node-only — URL mode removed; external
   links navigate and are authored directly.** Owner ruling: the modal edits
   NODE links (and typed-link verbs) only. The mode toggle is Page/Block
