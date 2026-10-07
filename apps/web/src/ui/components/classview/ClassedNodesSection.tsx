@@ -8,7 +8,18 @@
  * member from THIS class. The toolbar (and the empty state's action button)
  * carry the create affordance — a node classed with this class — visible
  * even on an empty database.
+ *
+ * The section resolves through useSectionData directly (the Section chrome
+ * wrapper stays the lazy contract too, but the transient filter layer needs
+ * the hook's post-resolution/pre-windowing step): a FilterBar rides the
+ * body top, the section's FilterSpec filters the resolved members before
+ * the collection's windowing sees them, and the eager member-count badge
+ * stays UNFILTERED — an active filter reads "0 of N" in the bar and never
+ * hides the section. The spec is component state — one instance per class
+ * page, lost on reload, nothing persisted.
  */
+
+import { useCallback, useMemo, useState } from "react";
 
 import { rendersWithDocumentChrome } from "@notees/domain";
 
@@ -17,10 +28,13 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { displayNameForSettings } from "../../dateDisplay.js";
 import { Icon } from "../../Icon.js";
-import { Section } from "../../Section.js";
+import { NodeViewSection } from "../NodeViewSection.js";
 import { useViewModePreference } from "../../viewPrefs.js";
 import { refuseClassRemoval } from "../classRemoval.js";
 import { Button } from "../ui/Button.js";
+import { FilterBar } from "../FilterBar.js";
+import { EMPTY_FILTER_SPEC, isFilterEmpty, type FilterSpec } from "../filterSpec.js";
+import { useSectionData, type SectionRowFilter } from "../useSectionData.js";
 import { NodeCollection, ViewToolbar } from "../../views/index.js";
 import type { NodeCollectionItem, TableColumn, ViewMode } from "../../views/index.js";
 
@@ -75,6 +89,26 @@ export function ClassedNodesSection({
   );
 
   /**
+   * The transient filter layer: one FilterSpec per class page (component
+   * state, lost on reload), applied to the resolved members
+   * post-resolution/pre-windowing through the hook. The eager badge below
+   * stays UNFILTERED.
+   */
+  const [memberFilter, setMemberFilter] = useState<FilterSpec>(EMPTY_FILTER_SPEC);
+  const memberFilterActive = useMemo<SectionRowFilter<ClientNode> | undefined>(() => {
+    if (isFilterEmpty(memberFilter)) return undefined;
+    return { spec: memberFilter, nodeOf: (member) => member };
+  }, [memberFilter]);
+  const loadMembers = useCallback(() => client.getClassMembers(classId), [client, classId]);
+  const [expanded, setExpanded] = useState(true);
+  const { rows: members, total } = useSectionData<ClientNode[]>({
+    client,
+    active: expanded,
+    read: loadMembers,
+    filter: memberFilterActive,
+  });
+
+  /**
    * A member opens directly when it renders with document chrome; an inline
    * block member resolves to its containing main node (nearest ancestor
    * matching the document-chrome predicate).
@@ -104,82 +138,85 @@ export function ClassedNodesSection({
     void client.createObject({ presentAsMain: true, classIds: [classId] });
   };
 
+  const memberItems: NodeCollectionItem[] = (members ?? []).map((member) => ({ node: member }));
+  const memberColumns: TableColumn[] = [
+    { id: "name", kind: "name", label: "Name", sortable: true },
+    ...bindings.map((binding) => ({
+      id: binding.propertySchemaId,
+      kind: "property" as const,
+      label: binding.name,
+      propertySchemaId: binding.propertySchemaId,
+      sortable: true,
+    })),
+    { id: "created", kind: "created", label: "Created", sortable: true },
+  ];
+  const unassignAction = (item: NodeCollectionItem) => (
+    <button
+      type="button"
+      className="nt-class-member-remove"
+      aria-label={`Remove ${displayNameForSettings(item.node) || item.node.id} from ${displayNameForSettings(client.getNode(classId)!) || "this class"}`}
+      onClick={() => {
+        // System/journal classes refuse membership removal.
+        if (refuseClassRemoval(classId)) return;
+        void client.unassignClass(item.node.id, classId);
+      }}
+    >
+      ×
+    </button>
+  );
+
   return (
-    <Section
-      client={client}
+    <NodeViewSection
       title="Classed nodes"
       icon={<Icon path="mdi-shape-outline" size={0.9} />}
-      badge={client.getClassMemberCount(classId)}
-      defaultCollapsed={false}
-      load={() => client.getClassMembers(classId)}
-      emptyText="No classed nodes."
-      // The container owns its empty state: the view toolbar (with the
-      // create affordance) and the kit EmptyState's action must render on
-      // an empty database, not the bare emptyText line.
-      renderWhenEmpty
-      renderResults={(members) => {
-        const memberItems: NodeCollectionItem[] = members.map((member) => ({ node: member }));
-        const memberColumns: TableColumn[] = [
-          { id: "name", kind: "name", label: "Name", sortable: true },
-          ...bindings.map((binding) => ({
-            id: binding.propertySchemaId,
-            kind: "property" as const,
-            label: binding.name,
-            propertySchemaId: binding.propertySchemaId,
-            sortable: true,
-          })),
-          { id: "created", kind: "created", label: "Created", sortable: true },
-        ];
-        const unassignAction = (item: NodeCollectionItem) => (
-          <button
-            type="button"
-            className="nt-class-member-remove"
-            aria-label={`Remove ${displayNameForSettings(item.node) || item.node.id} from ${displayNameForSettings(client.getNode(classId)!) || "this class"}`}
-            onClick={() => {
-              // System/journal classes refuse membership removal.
-              if (refuseClassRemoval(classId)) return;
-              void client.unassignClass(item.node.id, classId);
+      count={client.getClassMemberCount(classId)}
+      className="nt-section"
+      expanded={expanded}
+      onExpandedChange={setExpanded}
+    >
+      <FilterBar
+        client={client}
+        value={memberFilter}
+        onChange={setMemberFilter}
+        matchCount={members === null ? null : members.length}
+        totalCount={total}
+      />
+      {members === null ? null : (
+        <>
+          {/* The toolbar carries the create affordance left of the
+              switcher — visible on an empty database too. */}
+          <ViewToolbar modes={modes} value={membersMode} onChange={setMembersMode}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              icon="mdi mdi-plus"
+              onClick={addMember}
+            >
+              Add member
+            </Button>
+          </ViewToolbar>
+          <NodeCollection
+            viewMode={membersMode}
+            client={client}
+            items={memberItems}
+            tableColumns={memberColumns}
+            propertiesOf={(id) => client.getEffectiveProperties(id)}
+            tableEditable
+            kanbanProperty={kanbanProperty}
+            onNodeClick={(id) => {
+              const member = client.getNode(id);
+              if (member !== undefined) openMember(member);
             }}
-          >
-            ×
-          </button>
-        );
-        return (
-          <>
-            {/* The toolbar carries the create affordance left of the
-                switcher — visible on an empty database too. */}
-            <ViewToolbar modes={modes} value={membersMode} onChange={setMembersMode}>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                icon="mdi mdi-plus"
-                onClick={addMember}
-              >
-                Add member
-              </Button>
-            </ViewToolbar>
-            <NodeCollection
-              viewMode={membersMode}
-              client={client}
-              items={memberItems}
-              tableColumns={memberColumns}
-              propertiesOf={(id) => client.getEffectiveProperties(id)}
-              tableEditable
-              kanbanProperty={kanbanProperty}
-              onNodeClick={(id) => {
-                const member = client.getNode(id);
-                if (member !== undefined) openMember(member);
-              }}
-              trailingAction={unassignAction}
-              emptyTitle="No classed nodes."
-              showAddButton
-              onAdd={addMember}
-              addLabel="Add member"
-            />
-          </>
-        );
-      }}
-    />
+            trailingAction={unassignAction}
+            emptyTitle="No classed nodes."
+            showAddButton
+            onAdd={addMember}
+            addLabel="Add member"
+            hostedViews={{ nodeId: classId, sectionKey: "classed-nodes" }}
+          />
+        </>
+      )}
+    </NodeViewSection>
   );
 }
