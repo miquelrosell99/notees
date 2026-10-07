@@ -1177,6 +1177,74 @@ describe.each(adapters)("$name", ({ makeStore }) => {
       ).toEqual([FRANCE, PARIS, LONE].sort());
     });
   });
+
+  describe("wire-field predicates (coverAsset / bannerAsset / aliasedNode)", () => {
+    const ASSET = "0192a000-0000-7000-8000-000000000901";
+    const MAIN = "0192a000-0000-7000-8000-000000000902";
+
+    function fieldsStore(): Store {
+      const store = worldStore();
+      store.apply(env("object.create", { objectId: ASSET, contentAst: [{ type: "text", text: "Asset" }] }, T0 + 60 * STEP));
+      store.apply(env("object.create", { objectId: MAIN, contentAst: [{ type: "text", text: "Main" }] }, T0 + 61 * STEP));
+      // France: cover → ASSET. Paris: banner → ASSET + alias → MAIN.
+      // Lone and every other node: all three fields unset.
+      store.apply(env("object.update", { objectId: FRANCE, coverAssetId: ASSET }, T0 + 62 * STEP));
+      store.apply(env("object.update", { objectId: PARIS, bannerAssetId: ASSET, aliasedNodeId: MAIN }, T0 + 63 * STEP));
+      return store;
+    }
+
+    it("eq/exists compile into the node-table columns (unset matches neither eq nor neq)", () => {
+      const store = fieldsStore();
+      expect(runQuery(store, ast(entire, [{ type: "coverAsset", op: "eq", value: ASSET }])).ids).toEqual([FRANCE]);
+      expect(runQuery(store, ast(entire, [{ type: "bannerAsset", op: "eq", value: ASSET }])).ids).toEqual([PARIS]);
+      expect(runQuery(store, ast(entire, [{ type: "aliasedNode", op: "eq", value: MAIN }])).ids).toEqual([PARIS]);
+      // exists: France (cover set) and Paris (banner + alias set).
+      expect(runQuery(store, ast(entire, [{ type: "coverAsset", op: "exists" }])).ids).toEqual([FRANCE]);
+      expect(
+        runQuery(store, ast(entire, [{ type: "aliasedNode", op: "exists" }])).ids,
+      ).toEqual([PARIS]);
+      // neq matches rows set to a DIFFERENT id; unset rows stay out (SQL NULL).
+      expect(runQuery(store, ast(entire, [{ type: "coverAsset", op: "neq", value: ASSET }])).ids).toEqual([]);
+      expect(
+        runQuery(store, ast(entire, [{ type: "coverAsset", op: "neq", value: MAIN }])).ids,
+      ).toEqual([FRANCE]);
+      // "is unset" reads not-exists: every active node except France.
+      const unset = runQuery(store, ast(entire, [
+        { type: "not", child: { type: "coverAsset", op: "exists" } },
+      ])).ids;
+      expect(unset).not.toContain(FRANCE);
+      expect(unset).toContain(PARIS);
+      expect(unset).toContain(LONE);
+      store.close();
+    });
+
+    it("eq/neq require a value and the schema validates the reference", () => {
+      const store = fieldsStore();
+      expect(() =>
+        runQuery(store, ast(entire, [{ type: "coverAsset", op: "eq" }])),
+      ).toThrow(/requires a non-null value/);
+      // Fail loud at parse time: a non-uuid reference and an unknown op.
+      expect(() =>
+        parseQueryAst({
+          version: 1,
+          scope: entire,
+          root: { type: "group", logic: "and", children: [{ type: "coverAsset", op: "eq", value: "nope" }] },
+        }),
+      ).toThrow();
+      expect(() =>
+        parseQueryAst({
+          version: 1,
+          scope: entire,
+          root: {
+            type: "group",
+            logic: "and",
+            children: [{ type: "bannerAsset", op: "contains", value: "x" }],
+          },
+        }),
+      ).toThrow();
+      store.close();
+    });
+  });
 });
 
 describe("buildMatchExpression (FTS match compilation)", () => {

@@ -28,6 +28,7 @@ import {
   migrate,
   MoveGuardError,
   NotFoundError,
+  PropertyValueShapeError,
   SCHEMA_VERSION,
   Store,
   UnsupportedCarrierError,
@@ -2678,6 +2679,485 @@ describe.each(adapters)("$name: v15 — idx_node_list_reads", ({ makeBackend }) 
     // Idempotent: a second migrate is a no-op that stays current.
     migrate(store.database, "fts5");
     expect(nodeIndexes(store.database)).toContain("idx_node_list_reads");
+    store.close();
+  });
+});
+
+// --- v16: the wire node fields (cover/banner asset refs + the alias target) ------
+
+describe.each(adapters)("$name: v16 — wire node fields", ({ makeBackend }) => {
+  const PAGE = "0192a000-0000-7000-8000-00000000052a";
+  const ASSET = "0192a000-0000-7000-8000-00000000052b";
+  const MAIN = "0192a000-0000-7000-8000-00000000052c";
+
+  function makeStore(): Store {
+    return Store.open(makeBackend());
+  }
+
+  it("the wire-fields fixture lands set + clear through object.update", () => {
+    const store = makeStore();
+    const [createPage_, createAsset, createMain, ...updates] = loadFixture("object-wire-fields.json");
+    store.apply(createPage_!);
+    store.apply(createAsset!);
+    store.apply(createMain!);
+    const row = () => store.getNode(PAGE);
+    expect(row()).toMatchObject({
+      cover_asset_id: null,
+      banner_asset_id: null,
+      aliased_node_id: null,
+    });
+    store.apply(updates[0]!); // coverAssetId = ASSET
+    expect(row()).toMatchObject({ cover_asset_id: ASSET });
+    store.apply(updates[1]!); // bannerAssetId = ASSET, aliasedNodeId = MAIN
+    expect(row()).toMatchObject({ banner_asset_id: ASSET, aliased_node_id: MAIN });
+    store.apply(updates[2]!); // aliasedNodeId = null (clear)
+    expect(row()).toMatchObject({ aliased_node_id: null, cover_asset_id: ASSET });
+    store.apply(updates[3]!); // coverAssetId = null
+    expect(row()).toMatchObject({ cover_asset_id: null, banner_asset_id: ASSET });
+    store.apply(updates[4]!); // bannerAssetId = null
+    expect(row()).toMatchObject({
+      cover_asset_id: null,
+      banner_asset_id: null,
+      aliased_node_id: null,
+    });
+    store.close();
+  });
+
+  it("absence preserves, present-null clears, and the fields ride the row LWW", () => {
+    const store = makeStore();
+    store.apply(createPage(PAGE, 1727200000000));
+    const setAll = env(
+      "object.update",
+      { objectId: PAGE, coverAssetId: ASSET, bannerAssetId: ASSET, aliasedNodeId: MAIN },
+      1727200001000,
+    );
+    store.apply(setAll);
+    // An absent field is not a write: an icon-only update keeps the fields.
+    store.apply(env("object.update", { objectId: PAGE, icon: "mdiStar" }, 1727200002000));
+    expect(store.getNode(PAGE)).toMatchObject({
+      icon: "mdiStar",
+      cover_asset_id: ASSET,
+      banner_asset_id: ASSET,
+      aliased_node_id: MAIN,
+    });
+    // A stale-HLC update loses the row LWW race: nothing changes.
+    store.apply(
+      env("object.update", { objectId: PAGE, coverAssetId: null }, 1727200000500),
+    );
+    expect(store.getNode(PAGE)?.cover_asset_id).toBe(ASSET);
+    // The winning clear.
+    store.apply(env("object.update", { objectId: PAGE, coverAssetId: null }, 1727200003000));
+    expect(store.getNode(PAGE)?.cover_asset_id).toBeNull();
+    store.close();
+  });
+
+  it("adds the three columns idempotently when a v15 database migrates", () => {
+    const store = makeStore();
+    store.apply(createPage(PAGE, 1727200000000));
+    // Simulate a pre-v16 database: rewind the version and drop the columns
+    // (SQLite 3.35+ DROP COLUMN; the v14 index-precedent shape).
+    store.database.exec(`
+      ALTER TABLE node DROP COLUMN cover_asset_id;
+      ALTER TABLE node DROP COLUMN banner_asset_id;
+      ALTER TABLE node DROP COLUMN aliased_node_id;
+    `);
+    store.database.pragma("user_version = 15");
+    migrate(store.database, "fts5");
+    expect(store.database.pragma("user_version", { simple: true })).toBe(SCHEMA_VERSION);
+    expect(store.getNode(PAGE)).toMatchObject({
+      cover_asset_id: null,
+      banner_asset_id: null,
+      aliased_node_id: null,
+    });
+    // Idempotent: a second migrate is a no-op that stays current.
+    migrate(store.database, "fts5");
+    expect(store.database.pragma("user_version", { simple: true })).toBe(SCHEMA_VERSION);
+    // The migrated table still maps the fields on update.
+    store.apply(env("object.update", { objectId: PAGE, aliasedNodeId: MAIN }, 1727200001000));
+    expect(store.getNode(PAGE)?.aliased_node_id).toBe(MAIN);
+    store.close();
+  });
+});
+
+// --- class.create on an existing node: the declaration/conversion capability --------
+
+describe.each(adapters)("$name: class.create conversion (M47)", ({ makeBackend }) => {
+  const PAGE = "0192a000-0000-7000-8000-00000000053a";
+  const RACK = "0192a000-0000-7000-8000-00000000053b";
+  const SHELF = "0192a000-0000-7000-8000-00000000053c";
+  const FRESH = "0192a000-0000-7000-8000-00000000053d";
+
+  function makeStore(): Store {
+    return Store.open(makeBackend());
+  }
+
+  it("declares an existing parentless page a class: identity flips, the title rides along", () => {
+    const store = makeStore();
+    const [pageCreate, , shelfCreate, convertPage] = loadFixture("class-convert.json");
+    store.apply(pageCreate!);
+    store.apply(convertPage!);
+    const row = store.getNode(PAGE);
+    expect(row).toMatchObject({
+      is_class: 1,
+      present_as_main: 0,
+      parent_id: null,
+    });
+    // Title-is-content: the node's existing text content is the class title
+    // (the conversion payload carried no contentAst).
+    expect(JSON.parse(row!.content)).toEqual([{ type: "text", text: "Genre collection" }]);
+    // The registry row + hierarchy self-row landed.
+    expect(
+      (store.database.prepare("SELECT name, active FROM class WHERE id = ?").get(PAGE) as {
+        name: string;
+        active: number;
+      }).name,
+    ).toBe("Genre collection");
+    expect(
+      store.database
+        .prepare("SELECT 1 FROM class_hierarchy WHERE class_id = ? AND ancestor_id = ?")
+        .get(PAGE, PAGE),
+    ).toBeDefined();
+    // The class answers class-identity reads.
+    expect(
+      (
+        store.database
+          .prepare("SELECT is_class FROM node WHERE id = ?")
+          .get(PAGE) as { is_class: number }
+      ).is_class,
+    ).toBe(1);
+    store.close();
+  });
+
+  it("converting a PARENTED node cuts it to a root: the parent edge and its child-order row go", () => {
+    const store = makeStore();
+    const [, rackCreate, shelfCreate, , convertShelf] = loadFixture("class-convert.json");
+    store.apply(rackCreate!);
+    store.apply(shelfCreate!);
+    expect(store.children(RACK).map((n) => n.id)).toEqual([SHELF]);
+    store.apply(convertShelf!);
+    expect(store.getNode(SHELF)).toMatchObject({ is_class: 1, parent_id: null });
+    expect(store.children(RACK)).toEqual([]);
+    expect(
+      store.database
+        .prepare("SELECT 1 FROM node_child_order WHERE child_id = ?")
+        .get(SHELF),
+    ).toBeUndefined();
+    store.close();
+  });
+
+  it("re-declaration is a replace no-op and fresh declaration keeps working", () => {
+    const store = makeStore();
+    const [pageCreate, , , convertPage, , redeclare, freshCreate] = loadFixture("class-convert.json");
+    store.apply(pageCreate!);
+    store.apply(convertPage!);
+    const contentBefore = store.getNode(PAGE)?.content;
+    store.apply(redeclare!);
+    expect(store.getNode(PAGE)?.content).toBe(contentBefore);
+    // A fresh id still declares a brand-new class node.
+    store.apply(freshCreate!);
+    expect(store.getNode(FRESH)).toMatchObject({ is_class: 1 });
+    expect(JSON.parse(store.getNode(FRESH)!.content)).toEqual([
+      { type: "text", text: "Fresh genre" },
+    ]);
+    store.close();
+  });
+});
+
+// --- M12: write-time alias-cycle validation + the resolveAlias chain walker --------
+
+describe.each(adapters)("$name: alias cycles (M12)", ({ makeBackend }) => {
+  const A = "0192a000-0000-7000-8000-0000000000a1";
+  const B = "0192a000-0000-7000-8000-0000000000a2";
+  const C = "0192a000-0000-7000-8000-0000000000a3";
+  const D = "0192a000-0000-7000-8000-0000000000a4";
+
+  function makeStore(): Store {
+    return Store.open(makeBackend());
+  }
+
+  const alias = (from: string, to: string | null, physical: number) =>
+    env("object.update", { objectId: from, aliasedNodeId: to }, physical);
+
+  it("a plain chain sets and resolves; acyclic re-points stay legal", () => {
+    const store = makeStore();
+    for (const id of [A, B, C, D]) store.apply(createPage(id, 1727200000000));
+    store.apply(alias(A, B, 1727200001000));
+    store.apply(alias(B, C, 1727200002000));
+    expect(store.getNode(A)?.aliased_node_id).toBe(B);
+    expect(store.resolveAlias(A)).toBe(C);
+    expect(store.resolveAlias(B)).toBe(C);
+    expect(store.resolveAlias(C)).toBe(C);
+    // Re-pointing the middle of the chain is fine while it stays acyclic:
+    // B → D (D carries no alias) collapses A's chain to D as well.
+    store.apply(alias(B, D, 1727200003000));
+    expect(store.resolveAlias(A)).toBe(D);
+    expect(store.resolveAlias(B)).toBe(D);
+    store.close();
+  });
+
+  it("self-alias (the 1-edge cycle) fails loud and is never applied", () => {
+    const store = makeStore();
+    store.apply(createPage(A, 1727200000000));
+    expect(() => store.apply(alias(A, A, 1727200001000))).toThrow(CycleError);
+    expect(store.getNode(A)?.aliased_node_id).toBeNull();
+    store.close();
+  });
+
+  it("an indirect cycle fails loud: A→B→C then C→A is rejected and nothing changes", () => {
+    const store = makeStore();
+    for (const id of [A, B, C]) store.apply(createPage(id, 1727200000000));
+    store.apply(alias(A, B, 1727200001000));
+    store.apply(alias(B, C, 1727200002000));
+    // C → A would close A → B → C → A: rejected, never applied.
+    expect(() => store.apply(alias(C, A, 1727200003000))).toThrow(CycleError);
+    expect(store.getNode(C)?.aliased_node_id).toBeNull();
+    expect(store.getNode(A)?.aliased_node_id).toBe(B);
+    expect(store.getNode(B)?.aliased_node_id).toBe(C);
+    // Same for a 2-cycle proposal: B → A revisits A's chain back to B.
+    expect(() => store.apply(alias(B, A, 1727200004000))).toThrow(CycleError);
+    expect(store.getNode(B)?.aliased_node_id).toBe(C);
+    store.close();
+  });
+
+  it("clearing an alias lands NULL and re-opens the chain for new targets", () => {
+    const store = makeStore();
+    for (const id of [A, B]) store.apply(createPage(id, 1727200000000));
+    store.apply(alias(A, B, 1727200001000));
+    expect(store.resolveAlias(A)).toBe(B);
+    // Clearing cannot create a cycle — it never touches the check and lands.
+    store.apply(alias(A, null, 1727200002000));
+    expect(store.getNode(A)?.aliased_node_id).toBeNull();
+    expect(store.resolveAlias(A)).toBe(A);
+    // With A's alias gone, B → A is acyclic and legal.
+    store.apply(alias(B, A, 1727200003000));
+    expect(store.resolveAlias(B)).toBe(A);
+    store.close();
+  });
+
+  it("a stale-HLC alias write is dropped by the row LWW before any check", () => {
+    const store = makeStore();
+    for (const id of [A, B, C]) store.apply(createPage(id, 1727200000000));
+    store.apply(alias(A, B, 1727200001000));
+    store.apply(alias(B, C, 1727200002000));
+    // Older than both rows — dropped silently (LWW), no throw, no change.
+    store.apply(alias(A, C, 1727200000500));
+    expect(store.getNode(A)?.aliased_node_id).toBe(B);
+    store.close();
+  });
+
+  it("resolveAlias is cycle-safe (id unchanged on a revisit) and depth-capped", () => {
+    const store = makeStore();
+    for (const id of [A, B, C]) store.apply(createPage(id, 1727200000000));
+    store.apply(alias(A, B, 1727200001000));
+    store.apply(alias(B, C, 1727200002000));
+    expect(store.resolveAlias(A)).toBe(C);
+    // A cycle can only exist if it predates the write-path check (a legacy
+    // row, a hand-edited store): close C → A in place and observe the
+    // walker's ruling — every member's walk revisits its start and yields
+    // the STARTING id unchanged.
+    store.database
+      .prepare("UPDATE node SET aliased_node_id = ? WHERE id = ?")
+      .run(A, C);
+    expect(store.resolveAlias(A)).toBe(A);
+    expect(store.resolveAlias(B)).toBe(B);
+    expect(store.resolveAlias(C)).toBe(C);
+    // Depth cap: a hand-built 40-link chain resolves to the node reached at
+    // the cap (best-effort terminal), never loops forever.
+    let prev = A;
+    for (let i = 0; i < 40; i += 1) {
+      const next = `0192a000-0000-7000-8000-0000000001${String(i).padStart(2, "0")}`;
+      store.apply(createPage(next, 1727200010000 + i));
+      store.apply(alias(prev, next, 1727200020000 + i));
+      prev = next;
+    }
+    const resolved = store.resolveAlias(A);
+    expect(resolved).not.toBe(A);
+    store.close();
+  });
+});
+
+// --- M38: the `asset` property type -------------------------------------------------
+
+describe.each(adapters)("$name: asset property type (M38)", ({ makeBackend }) => {
+  const ASSET_CLASS = "00000000-0000-0000-0001-000000000009";
+  const SCHEMA = "0192a000-0000-7000-8000-000000000541";
+  const ATTACHMENTS = "00000000-0000-0000-0000-000000000011";
+  const PAGE = "0192a000-0000-7000-8000-0000000000f1";
+  const ASSET_NODE = "0192a000-0000-7000-8000-0000000000f2";
+  const PLAIN_NODE = "0192a000-0000-7000-8000-0000000000f3";
+  const SOURCE_CLASS = "00000000-0000-0000-0001-000000000023";
+
+  function makeStore(): Store {
+    return Store.open(makeBackend());
+  }
+
+  function worldWithAssetClass(): Store {
+    const store = makeStore();
+    store.apply(
+      env(
+        "class.create",
+        { classId: ASSET_CLASS, contentAst: [{ type: "text", text: "Asset" }] },
+        1727199999000,
+      ),
+    );
+    store.apply(createPage(PAGE, 1727200000000));
+    store.apply(
+      env(
+        "object.create",
+        { objectId: ASSET_NODE, presentAsMain: true, classIds: [ASSET_CLASS] },
+        1727200000100,
+      ),
+    );
+    store.apply(createPage(PLAIN_NODE, 1727200000200));
+    return store;
+  }
+
+  it("the fixture lands asset-typed schemas and the update coexists", () => {
+    const store = makeStore();
+    store.applyMany(loadFixture("property-asset-type.json"));
+    const rows = store.database
+      .prepare("SELECT id, type, multi, scope, name FROM property_schema ORDER BY id")
+      .all() as Array<{ id: string; type: string; multi: number; scope: string; name: string }>;
+    expect(rows).toEqual([
+      {
+        id: "0192a000-0000-7000-8000-000000000541",
+        type: "asset",
+        multi: 1,
+        scope: "class",
+        name: "Attachment",
+      },
+      {
+        id: "0192a000-0000-7000-8000-000000000542",
+        type: "asset",
+        multi: 0,
+        scope: "object",
+        name: "Cover file (renamed)",
+      },
+    ]);
+    store.close();
+  });
+
+  it("values validate as asset-node references — the implicit filter is the asset class", () => {
+    const store = worldWithAssetClass();
+    store.applyMany([
+      env(
+        "propertySchema.create",
+        { propertySchemaId: SCHEMA, name: "Attachment", type: "asset", multi: true, scope: "class" },
+        1727200001000,
+      ),
+      env("class.property.set", { classId: SOURCE_CLASS, propertySchemaId: SCHEMA, sequence: 0 }, 1727200001100),
+      // A legacy bare-uuid carrier normalizes to {nodeId}.
+      env("property.set", { objectId: PAGE, propertySchemaId: SCHEMA, value: ASSET_NODE }, 1727200001200),
+    ]);
+    const row = store.database
+      .prepare("SELECT value FROM property_value WHERE node_id = ? AND property_schema_id = ?")
+      .get(PAGE, SCHEMA) as { value: string };
+    expect(JSON.parse(row.value)).toEqual({ nodeId: ASSET_NODE });
+
+    // A target NOT carrying the asset class fails loud (implicit filter)…
+    expect(() =>
+      store.apply(
+        env("property.set", { objectId: PAGE, propertySchemaId: SCHEMA, value: { nodeId: PLAIN_NODE } }, 1727200001300),
+      ),
+    ).toThrow(/does not carry any of the schema's allowed classes/);
+    // …as does a nonexistent node…
+    expect(() =>
+      store.apply(
+        env(
+          "property.set",
+          { objectId: PAGE, propertySchemaId: SCHEMA, value: { nodeId: "0192a000-0000-7000-8000-00000000ffff" } },
+          1727200001400,
+        ),
+      ),
+    ).toThrow(/does not exist/);
+    // …and a non-reference shape fails the type's shape check.
+    expect(() =>
+      store.apply(
+        env("property.set", { objectId: PAGE, propertySchemaId: SCHEMA, value: "not-a-ref" }, 1727200001500),
+      ),
+    ).toThrow(PropertyValueShapeError);
+    store.close();
+  });
+
+  it("node-typed defaults stay unsupported: a defaultValue on an asset schema fails loud", () => {
+    const store = worldWithAssetClass();
+    store.apply(
+      env(
+        "propertySchema.create",
+        { propertySchemaId: SCHEMA, name: "Attachment", type: "asset", multi: true, scope: "class" },
+        1727200001000,
+      ),
+    );
+    expect(() =>
+      store.apply(
+        env(
+          "class.property.set",
+          { classId: SOURCE_CLASS, propertySchemaId: SCHEMA, defaultValue: { nodeId: ASSET_NODE } },
+          1727200001100,
+        ),
+      ),
+    ).toThrow(/must be null/);
+    store.close();
+  });
+
+  it("the retype path: propertySchema.create upserts object → asset, drops the explicit filter, preserves values and flags", () => {
+    const store = worldWithAssetClass();
+    store.applyMany([
+      // The pre-M38 seeded shape: object-typed with an explicit filter.
+      env(
+        "propertySchema.create",
+        {
+          propertySchemaId: ATTACHMENTS,
+          name: "Attachments",
+          type: "object",
+          multi: true,
+          scope: "class",
+          targetClassFilter: [ASSET_CLASS],
+        },
+        1727200001000,
+      ),
+      env("class.property.set", { classId: SOURCE_CLASS, propertySchemaId: ATTACHMENTS, sequence: 0 }, 1727200001100),
+      env("property.set", { objectId: PAGE, propertySchemaId: ATTACHMENTS, value: { nodeId: ASSET_NODE } }, 1727200001200),
+      // A user-set render contract the retype must not clobber.
+      env("propertySchema.update", { propertySchemaId: ATTACHMENTS, display: "inline" }, 1727200001300),
+    ]);
+
+    // The M38 migration envelope: same id, type "asset", NO explicit filter.
+    store.apply(
+      env(
+        "propertySchema.create",
+        {
+          propertySchemaId: ATTACHMENTS,
+          name: "Attachments",
+          type: "asset",
+          multi: true,
+          scope: "class",
+          options: [],
+          display: "inline",
+        },
+        1727200002000,
+      ),
+    );
+
+    const row = store.database
+      .prepare("SELECT type, target_class_filter, display FROM property_schema WHERE id = ?")
+      .get(ATTACHMENTS) as { type: string; target_class_filter: string | null; display: string | null };
+    expect(row.type).toBe("asset");
+    // The filter is implicit now — the explicit column retired.
+    expect(row.target_class_filter).toBeNull();
+    // The user-set display flag survived the upsert (carried by the payload).
+    expect(row.display).toBe("inline");
+    // Values are shape-compatible ({nodeId} → asset nodes): untouched.
+    const value = store.database
+      .prepare("SELECT value FROM property_value WHERE node_id = ? AND property_schema_id = ?")
+      .get(PAGE, ATTACHMENTS) as { value: string };
+    expect(JSON.parse(value.value)).toEqual({ nodeId: ASSET_NODE });
+    // And the implicit filter now guards NEW writes.
+    expect(() =>
+      store.apply(
+        env("property.set", { objectId: PAGE, propertySchemaId: ATTACHMENTS, value: { nodeId: PLAIN_NODE } }, 1727200003000),
+      ),
+    ).toThrow(/does not carry any of the schema's allowed classes/);
     store.close();
   });
 });

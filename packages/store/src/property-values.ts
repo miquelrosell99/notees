@@ -52,7 +52,7 @@
  *    read-lenient, and the migrated log carries sixteen of them.
  */
 
-import { dayNodeId, parseDateNodeId } from "@notees/domain";
+import { dayNodeId, parseDateNodeId, SYSTEM_CLASS_UUIDS, yearNodeId } from "@notees/domain";
 
 import { PropertyValueShapeError } from "./errors.js";
 import type { StoreDatabase } from "./types.js";
@@ -93,7 +93,8 @@ export function assertValueShapeForType(type: string, value: unknown, opType: st
       break;
     }
     case "date":
-    case "object": {
+    case "object":
+    case "asset": {
       const ref = nodeRefOfValue(value);
       if (ref !== null) return { nodeId: ref };
       break;
@@ -155,6 +156,7 @@ export function isValidDefaultForType(type: string, value: unknown): boolean {
     case "date":
     case "date_range":
     case "object":
+    case "asset":
       return false;
     default:
       return true;
@@ -199,7 +201,8 @@ function assertScalarShapeForType(type: string, value: unknown, opType: string):
       if (Array.isArray(value) && value.every((v) => typeof v === "string")) return value;
       break;
     default:
-      // image and any future type: unchecked (see the file header).
+      // image, asset (shape-normalized above), and any future type:
+      // unchecked (see the file header).
       return value;
   }
   throw new PropertyValueShapeError(
@@ -220,7 +223,9 @@ const DATE_PRECISION_RANK: Record<string, number> = { year: 1, month: 2, day: 3 
 
 /** Assert a node-typed ref's target honors the schema's graph constraints:
  *  row existence (any liveness) and the targetClassFilter, plus the date
- *  precision ceiling for date refs. */
+ *  precision ceiling for date refs. M38: an asset-typed schema's filter is
+ *  IMPLICIT — the type IS the filter (the asset class); an explicit
+ *  targetClassFilter on an asset schema is redundant and ignored. */
 function assertRefTargetForSchema(
   db: StoreDatabase,
   schema: PropertySchemaValidationRow,
@@ -236,42 +241,44 @@ function assertRefTargetForSchema(
       opType,
     );
   }
-  if (schema.targetClassFilter !== null) {
-    let filter: unknown;
+  let filter: unknown = null;
+  if (schema.type === "asset") {
+    filter = [SYSTEM_CLASS_UUIDS.asset];
+  } else if (schema.targetClassFilter !== null) {
     try {
       filter = JSON.parse(schema.targetClassFilter);
     } catch {
       filter = null;
     }
-    if (Array.isArray(filter) && filter.length > 0) {
-      let classIds: unknown;
-      try {
-        classIds = JSON.parse(target.class_ids);
-      } catch {
-        classIds = [];
-      }
-      const carried = Array.isArray(classIds)
-        ? classIds.filter((id): id is string => typeof id === "string")
-        : [];
-      // Extends-aware membership: the bibliography model filters authors by
-      // `agent` while person/organization EXTEND agent (SCHEMA.md "Citations")
-      // — a carried class satisfies the filter when it equals an entry or
-      // descends from one through class_hierarchy.
-      const allowed = new Set<string>(carried);
-      if (carried.length > 0) {
-        const ancestors = db
-          .prepare(
-            "SELECT ancestor_id FROM class_hierarchy WHERE class_id IN (SELECT value FROM json_each(?))",
-          )
-          .all(JSON.stringify(carried)) as Array<{ ancestor_id: string }>;
-        for (const row of ancestors) allowed.add(row.ancestor_id);
-      }
-      if (!filter.some((classId) => typeof classId === "string" && allowed.has(classId))) {
-        throw new PropertyValueShapeError(
-          `${opType}: value target ${ref} does not carry any of the schema's allowed classes`,
-          opType,
-        );
-      }
+  }
+  if (Array.isArray(filter) && filter.length > 0) {
+    let classIds: unknown;
+    try {
+      classIds = JSON.parse(target.class_ids);
+    } catch {
+      classIds = [];
+    }
+    const carried = Array.isArray(classIds)
+      ? classIds.filter((id): id is string => typeof id === "string")
+      : [];
+    // Extends-aware membership: the bibliography model filters authors by
+    // `agent` while person/organization EXTEND agent (SCHEMA.md "Citations")
+    // — a carried class satisfies the filter when it equals an entry or
+    // descends from one through class_hierarchy.
+    const allowed = new Set<string>(carried);
+    if (carried.length > 0) {
+      const ancestors = db
+        .prepare(
+          "SELECT ancestor_id FROM class_hierarchy WHERE class_id IN (SELECT value FROM json_each(?))",
+        )
+        .all(JSON.stringify(carried)) as Array<{ ancestor_id: string }>;
+      for (const row of ancestors) allowed.add(row.ancestor_id);
+    }
+    if (!filter.some((classId) => typeof classId === "string" && allowed.has(classId))) {
+      throw new PropertyValueShapeError(
+        `${opType}: value target ${ref} does not carry any of the schema's allowed classes`,
+        opType,
+      );
     }
   }
   if (schema.type === "date" || schema.type === "date_range") {
@@ -304,7 +311,7 @@ export function assertValueForSchema(
   const shaped = assertValueShapeForType(schema.type, value, opType);
   const typed = assertScalarShapeForType(schema.type, shaped, opType);
   if (typed === null) return typed;
-  if (schema.type === "date" || schema.type === "object") {
+  if (schema.type === "date" || schema.type === "object" || schema.type === "asset") {
     const ref = nodeRefOfValue(typed);
     if (ref !== null) assertRefTargetForSchema(db, schema, ref, opType);
   } else if (schema.type === "date_range") {

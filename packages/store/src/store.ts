@@ -39,6 +39,11 @@ import {
 import { MoveGuardError } from "./errors.js";
 import { LIST_READS_INDEX_DDL, migrate, schemaSql } from "./schema.js";
 
+/** M12: the alias-chain walker's depth cap (chains are user-built and tiny;
+ *  the cap bounds pathological data — on exhaustion the furthest node is
+ *  the best-effort terminal). */
+const ALIAS_CHAIN_DEPTH_CAP = 32;
+
 export interface NodeRow {
   id: string;
   workspace_id: string;
@@ -55,6 +60,13 @@ export interface NodeRow {
   content: string;
   icon: string | null;
   color: string | null;
+  /** Wire node fields (the icon/color precedent): the asset node behind
+   * the page cover/banner chrome and the main page a node alias points at
+   * (many-to-one FROM the alias). NULL = unset. Mapped by object.update
+   * (store schema v16). */
+  cover_asset_id: string | null;
+  banner_asset_id: string | null;
+  aliased_node_id: string | null;
   is_active: number;
   created_at: string | null;
   updated_at: string | null;
@@ -465,6 +477,29 @@ export class Store {
       )
       .get(nodeId, SYSTEM_PROPERTY_UUIDS.aliasOf) as { target_id: string } | undefined;
     return row?.target_id;
+  }
+
+  /**
+   * The terminal of a node-alias chain: follow `aliased_node_id` links to
+   * the final main node (M12 — the wire-field read helper behind the alias
+   * semantics; the read-path repointing that consumes it is a follow-on
+   * slice). Cycle-safe by construction: a revisit yields the STARTING id
+   * unchanged (the SCHEMA.md navigation ruling — a cyclic alias is no
+   * alias), and a generous depth cap bounds pathological chains to the
+   * furthest node reached. Unset/unstored rows are their own terminal.
+   */
+  resolveAlias(nodeId: string): string {
+    const visited = new Set<string>();
+    let current = nodeId;
+    const stmt = this.db.prepare("SELECT aliased_node_id FROM node WHERE id = ?");
+    for (let depth = 0; depth < ALIAS_CHAIN_DEPTH_CAP; depth += 1) {
+      if (visited.has(current)) return nodeId; // cycle — the id unchanged
+      visited.add(current);
+      const row = stmt.get(current) as { aliased_node_id: string | null } | undefined;
+      if (row === undefined || row.aliased_node_id === null) return current;
+      current = row.aliased_node_id;
+    }
+    return current; // depth cap — best-effort terminal
   }
 
   /**

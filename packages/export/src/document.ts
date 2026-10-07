@@ -80,6 +80,13 @@ export interface ExportNode {
   contentAst: ContentAst;
   classIds: string[];
   properties: ExportPropertyValue[];
+  /** Wire node fields (the icon/color precedent): the page cover/banner
+   * asset refs and the main page a node alias points at. Optional at the
+   * interface so hand-built fixtures stay lean; the JSON archive projects
+   * them as explicit nulls (unset). */
+  coverAssetId?: string | null;
+  bannerAssetId?: string | null;
+  aliasedNodeId?: string | null;
 }
 
 /**

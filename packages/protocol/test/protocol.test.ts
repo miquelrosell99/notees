@@ -41,9 +41,10 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the twenty-one required fixtures", () => {
+  it("has exactly the twenty-four required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
+      "class-convert.json",
       "class-delete-managed.json",
       "class-extends-cycle.json",
       "class-extends-m2m.json",
@@ -59,6 +60,8 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       "object-move-before.json",
       "object-move.json",
       "object-restore.json",
+      "object-wire-fields.json",
+      "property-asset-type.json",
       "property-date-qualifier.json",
       "property-set-lww.json",
       "property-value-elements.json",
@@ -147,6 +150,89 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       color: "not-a-color",
     });
     expect(garbage.success).toBe(false);
+    // Applicable in sequence: HLCs strictly ascend.
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
+  });
+
+  it("object-wire-fields fixture exercises the node wire fields through set + clear", () => {
+    const fixture = fixtures.find((f) => f.name === "object-wire-fields.json")!;
+    const page = "0192a000-0000-7000-8000-00000000052a";
+    const asset = "0192a000-0000-7000-8000-00000000052b";
+    const main = "0192a000-0000-7000-8000-00000000052c";
+    const updates = fixture.envelopes.filter((env) => env.opType === "object.update");
+    expect(updates.map((env) => env.payload as Record<string, unknown>)).toEqual([
+      { objectId: page, coverAssetId: asset },
+      { objectId: page, bannerAssetId: asset, aliasedNodeId: main },
+      { objectId: page, aliasedNodeId: null },
+      { objectId: page, coverAssetId: null },
+      { objectId: page, bannerAssetId: null },
+    ]);
+    // Strict schema: a non-uuid reference is rejected outright, and so is
+    // every field on object.create (the fields are object.update-only).
+    for (const key of ["coverAssetId", "bannerAssetId", "aliasedNodeId"]) {
+      expect(
+        objectUpdatePayload.safeParse({ objectId: page, [key]: "not-a-uuid" }).success,
+      ).toBe(false);
+      expect(
+        payloadSchemaFor("object.create")!.safeParse({ objectId: page, [key]: asset }).success,
+      ).toBe(false);
+    }
+    // Applicable in sequence: HLCs strictly ascend.
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
+  });
+
+  it("class-convert fixture exercises the declaration capability on existing nodes", () => {
+    const fixture = fixtures.find((f) => f.name === "class-convert.json")!;
+    const page = "0192a000-0000-7000-8000-00000000053a";
+    const shelf = "0192a000-0000-7000-8000-00000000053c";
+    const fresh = "0192a000-0000-7000-8000-00000000053d";
+    const creates = fixture.envelopes.filter((env) => env.opType === "class.create");
+    expect(creates.map((env) => (env.payload as { classId: string }).classId)).toEqual([
+      page,
+      shelf,
+      page,
+      fresh,
+    ]);
+    // Conversion carries NO content — the node's existing title is the
+    // class's title (title-is-content; the payload schema already accepts a
+    // bare id, so the capability is applier semantics, not a new key).
+    expect(creates[0]!.payload).toEqual({ classId: page });
+    expect(creates[3]!.payload).toMatchObject({ classId: fresh, contentAst: [{ type: "text", text: "Fresh genre" }] });
+    // Strict schema: an unknown declaration key is rejected outright.
+    expect(
+      payloadSchemaFor("class.create")!.safeParse({ classId: page, isClass: true }).success,
+    ).toBe(false);
+    // Applicable in sequence: HLCs strictly ascend.
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
+  });
+
+  it("property-asset-type fixture exercises the asset property type through create + update", () => {
+    const fixture = fixtures.find((f) => f.name === "property-asset-type.json")!;
+    const creates = fixture.envelopes.filter((env) => env.opType === "propertySchema.create");
+    expect(creates.map((env) => (env.payload as { type: string }).type)).toEqual([
+      "asset",
+      "asset",
+    ]);
+    expect(creates[0]!.payload).toMatchObject({ multi: true, scope: "class" });
+    expect(creates[1]!.payload).toMatchObject({ multi: false, scope: "object" });
+    // The update coexists with an asset-typed schema (type rides create only).
+    const update = fixture.envelopes.find((env) => env.opType === "propertySchema.update")!;
+    expect(update.payload).toEqual({
+      propertySchemaId: "0192a000-0000-7000-8000-000000000542",
+      name: "Cover file (renamed)",
+    });
+    // Strict schema: an unknown property type is rejected outright (the
+    // "asset" enum value is the only addition).
+    expect(
+      payloadSchemaFor("propertySchema.create")!.safeParse({
+        propertySchemaId: "0192a000-0000-7000-8000-000000000541",
+        name: "x",
+        type: "file",
+      }).success,
+    ).toBe(false);
     // Applicable in sequence: HLCs strictly ascend.
     const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
     expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
