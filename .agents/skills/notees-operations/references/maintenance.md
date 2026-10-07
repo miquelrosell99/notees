@@ -5,7 +5,7 @@ Canonical: `docs/developers/deployment.md` + `releases.md`.
 ## Routine
 
 - **Image updates:** pull/build → `docker compose up -d` → smoke
-  (`references/health-checks.md`). Pin via `NOTEES_SYNC_TAG`/`NOTEES_WEB_TAG`
+  (`references/health-checks.md`). Version = the checkout: `git checkout <release> && docker compose build`
   when you don't want `:latest`.
 - **Re-check `.env`** against `.env.example` after pulls — LAN ports and
   `NOTEES_CORS_ORIGIN` defaults changed meaning over time; loopback-only
