@@ -574,6 +574,42 @@ select:focus-visible {
   min-width: 0;
 }
 
+/* The page header's title row (BlockRow variant="title"): the page node as
+   a bullet-less, chrome-less row — full editor powers, none of the outline
+   chrome. The typography rides .nt-page-title on the row root; the content
+   wrapper is title-specific, NEVER .nt-block-content, so body-row selectors
+   (and index-based test queries) never match the header row. */
+.nt-block--title {
+  flex: 1;
+}
+
+.nt-block--title .nt-block-row {
+  /* No bullet/chevron gutter in the header. */
+  padding-left: 0;
+  gap: 0;
+}
+
+.nt-title-content {
+  flex: 1;
+  min-width: 0;
+  /* An empty title renders no line box, so without this floor the
+     click-to-edit target collapses to zero height (same contract as
+     .nt-block-content). 1lh = one line in the content's own font. */
+  min-height: 1lh;
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: text;
+  border-radius: 4px;
+  outline: none;
+}
+
+/* An untitled page reads "Untitled" (the old editable-title placeholder
+   convention, now the display-mode placeholder). */
+.nt-title-content:empty::before {
+  content: "Untitled";
+  color: var(--color-on-surface-variant);
+}
+
 .nt-page-header {
   margin-bottom: var(--spacing-2);
 }
@@ -1114,17 +1150,6 @@ select:focus-visible {
   display: inline-flex;
   align-items: center;
   padding: 4px 6px;
-}
-
-.nt-title-editable {
-  cursor: text;
-  outline: none;
-  border-radius: 4px;
-}
-
-.nt-title-editable:empty::before {
-  content: "Untitled";
-  color: var(--color-on-surface-variant);
 }
 
 .nt-block-children {
@@ -1986,8 +2011,12 @@ select:focus-visible {
   color: var(--color-on-surface-variant);
 }
 
-.nt-external-link {
+/* External links read as plain hyperlinks (owner ruling), never a pill:
+   underline + link color only — no background, border, or radius. */
+.nt-hyperlink {
   color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .nt-placeholder {

@@ -52,7 +52,7 @@ export function ExtendedBySection({
   // can flip 0↔N on this same instance when an edge arrives via sync.
   // React 19 happens to tolerate this instance's 0↔1-hook flip (a zero-hook
   // fiber re-mounts), but the shape is the known crash class — the day a
-  // hook lands above the return it throws #310, as TitleEditor did.
+  // hook lands above the return it throws #310.
   const items = useMemo(() => buildTree(client, classId, new Set([classId])), [client, classId]);
 
   if (children.length === 0) return null;

@@ -221,8 +221,9 @@ describe("node aliases: navigation semantics", () => {
     );
     await flushSync();
 
-    // The alias's own title renders (TitleEditor) — the view is the alias's.
-    expect(container.querySelector(".nt-page-title")!.textContent).toBe("Cats");
+    // The alias's own title renders (the header title row) — the view is
+    // the alias's.
+    expect(container.querySelector(".nt-block--title")!.textContent).toBe("Cats");
     expect(onOpenPage).not.toHaveBeenCalled();
   });
 });

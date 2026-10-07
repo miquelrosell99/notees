@@ -27,7 +27,10 @@
  *   anchored at the caret with its own search field — Main/Blocks scope tabs
  *   (document-chrome nodes incl. classes vs inline child blocks, Main first)
  *   scoping the search; picking inserts `{type:"mention", targetNodeId, text, linkId}`
- *   at the trigger; the create row links a new page named by the query; the
+ *   at the trigger; the create row links a new page named by the query (the
+ *   create completes asynchronously — the picker may close while it runs;
+ *   the completion splices the mention from the capture snapshot taken when
+ *   the popup was open, so the mention still lands at the trigger); the
  *   typed-date row links the journal chain page ("Link to … page" /
  *   "Create … page"). Esc/click-outside keeps the trigger char as plain text
  *   and hands focus back to the block.
@@ -51,8 +54,10 @@
  *   block-type actions the content grammar executes — Text (strip the
  *   trigger), Quote (wrap the block's inline tokens in a quote token),
  *   Task/checkbox (assign the task class, OR-set add), Line break (insert a
- *   hard_break token), Add URL (strip the trigger, then open the page-level
- *   LinkEditModal to author an external_link token at the trigger offset),
+ *   hard_break token), Add URL (compose the external_link token directly at
+ *   the trigger offset — the LinkEditModal is node-only; a URL-looking query
+ *   becomes the token, anything else falls back to plain prose and markdown
+ *   [label](url) / raw-URL pasting remain the label-carrying paths),
  *   Query (insert a query token at the caret and open its builder
  *   popover on exit), Date (typed date → mention of the daily
  *   page, chain ensured on demand), Template (flat unfiltered
@@ -117,6 +122,18 @@
  *                  the selection.
  * - Right-click a node link → Open / Open in sidebar / Edit link… /
  *                  Remove link (keeps the text) / Delete link.
+ *
+ * variant="title" (the page header's title row) relaxes the structural
+ * contract where it would damage the page itself — the title IS the page
+ * node's content, so nothing may split it or create/delete nodes from it:
+ * - Enter (plain) → flush the draft and leave edit mode; never splits,
+ *                  never creates a sibling or child block.
+ * - Backspace/Delete → ordinary in-text deletion only; the merge/delete-
+ *                  block gestures are suppressed (an empty title stays an
+ *                  empty page, and the page is never deleted by a key).
+ * - Ctrl/Cmd+Enter → no task cycle on the page node.
+ * Everything else (marks, @ / # / + captures, slash commands, the link
+ * modal, Ctrl/Cmd+C node-link copy, atomic-pill gestures) is unchanged.
  * - `**` over a selection → toggle bold (markdown shortcut; the asterisks
  *                  are swallowed, they are not stored).
  */
@@ -406,6 +423,14 @@ interface BlockTextEditorProps {
   node: ClientNode;
   caret: EditorCaret;
   onExitEdit: () => void;
+  /**
+   * "title" — the page header's title row (BlockRow variant="title"): the
+   * structural Enter/Backspace/Delete gestures are suppressed so the page
+   * node itself can never be split, reparented, or deleted from its title;
+   * plain Enter flushes and leaves edit mode. Default "block" = the full
+   * outliner contract.
+   */
+  variant?: "block" | "title" | undefined;
 }
 
 /** Viewport anchor for the toolbar/popups (jsdom rects are zero — harmless). */
@@ -439,7 +464,7 @@ function caretLineAnchor(): { top: number; left: number; caretTop: number } {
   return { top: 0, left: 0, caretTop: 0 };
 }
 
-export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProps) {
+export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: BlockTextEditorProps) {
   const {
     client,
     rootId,
@@ -478,6 +503,19 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
   const starRef = useRef<{ start: number; end: number } | null>(null);
   const [activeMarks, setActiveMarks] = useState<readonly Mark[]>([]);
   const [capture, setCapture] = useState<CaptureState | null>(null);
+  /**
+   * The node-picker capture as it stood when the popup was last open, kept
+   * PAST the popup's close: choosing the picker's create row starts an
+   * ASYNC create (the promise-based default create, or the class-aware
+   * QuickCreateModal), and the created node can arrive after the capture
+   * already went null (Escape / outside press / blur while the create is
+   * in flight). commitNodePick then completes the mention from this
+   * snapshot instead of the dead live state. (The /template flow's
+   * templateStageRef is the same idiom; only non-null captures refresh it,
+   * so the snapshot survives the close re-render.)
+   */
+  const captureSnapshotRef = useRef<CaptureState | null>(null);
+  if (capture !== null) captureSnapshotRef.current = capture;
   const [verb, setVerb] = useState<{ start: number; end: number; top: number; left: number } | null>(
     null,
   );
@@ -891,18 +929,19 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       return;
     }
     if (commandId === "url") {
-      applySplice(start, end, [], start);
-      // The page-level LinkEditModal authors the external_link token at the
-      // trigger offset; a typed URL-looking query pre-fills the URL field.
-      const looksLikeUrl = /^https?:\/\//i.test(query.trim());
-      openLinkEditor({
-        kind: "external",
-        blockId: nodeRef.current.id,
-        tokenIndex: null,
-        insertAt: start,
-        initialUrl: looksLikeUrl ? query.trim() : "",
-        initialLabel: looksLikeUrl ? "" : query.trim(),
-      });
+      // Owner ruling: the LinkEditModal is node-only — the URL command
+      // authors the external_link token directly at the trigger offset
+      // (the token carries no prose; the caret lands at the splice point).
+      // A URL-looking query becomes the token (href + label = the URL);
+      // anything else falls back to plain prose — markdown [label](url) and
+      // raw-URL pasting remain the label-carrying paths.
+      const trimmed = query.trim();
+      const remainder = /^url(\s+|$)/i.test(trimmed) ? trimmed.replace(/^url(\s+|$)/i, "").trim() : trimmed;
+      if (/^https?:\/\/\S+$/i.test(remainder)) {
+        applySplice(start, end, [{ type: "external_link", href: remainder, text: remainder }], start);
+      } else {
+        plainFallback(start);
+      }
       return;
     }
     if (commandId === "query") {
@@ -1054,7 +1093,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
     if (state === null || el === null || state.kind !== "slash") return;
     const caret = caretOffset(el);
     if (caret === null) {
-      setCapture(null);
+        setCapture(null);
       return;
     }
     setCapture(null);
@@ -1079,7 +1118,10 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
    * custom label (displayText) instead of resolving the target's name.
    */
   const commitNodePick = (picked: ClientNode, context?: NodePickContext) => {
-    const state = capture;
+    // The pick itself reads the live capture; an async create's completion
+    // can arrive after the picker already closed (the capture is null) —
+    // splice from the last-open snapshot instead (see captureSnapshotRef).
+    const state = capture ?? captureSnapshotRef.current;
     if (state === null || state.kind === "slash") return;
     setCapture(null);
     const el = spanRef.current;
@@ -1664,6 +1706,8 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       // above already committed the popup and returned — the popup's commit
       // wins over the cycle by design.
       if (key === "enter" && !event.shiftKey) {
+        // No task cycle on the page node itself (the title row).
+        if (variant === "title") return;
         event.preventDefault();
         const id = nodeRef.current.id;
         void cycleTaskState(client, id).catch((error: unknown) => {
@@ -1732,6 +1776,12 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       if (event.shiftKey) return; // the newline is allowed; flush stores hard_break
       event.preventDefault();
       flush();
+      if (variant === "title") {
+        // The title IS the page node: Enter commits and leaves edit mode —
+        // it never splits the title and never creates a body block.
+        spanRef.current?.blur();
+        return;
+      }
       const el = spanRef.current;
       const caret = el === null ? null : caretOffset(el);
       const draft = draftRef.current;
@@ -1822,7 +1872,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
         });
       return;
     }
-    if (event.key === "Backspace") {
+    if (event.key === "Backspace" && variant !== "title") {
       const el = spanRef.current;
       const text = el?.textContent ?? "";
       const caret = el === null ? null : caretOffset(el);
@@ -1866,7 +1916,7 @@ export function BlockTextEditor({ node, caret, onExitEdit }: BlockTextEditorProp
       void client.deleteObject(id);
       return;
     }
-    if (event.key === "Delete") {
+    if (event.key === "Delete" && variant !== "title") {
       const el = spanRef.current;
       const caret = el === null ? null : caretOffset(el);
       if (caret === null || caret !== draftRef.current.length) return; // mid-text: browser default
