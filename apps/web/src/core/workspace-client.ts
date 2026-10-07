@@ -168,6 +168,12 @@ export interface ClientNode {
   contentAst: ContentAst;
   icon: string | null;
   color: string | null;
+  /** Wire node fields (the icon/color precedent, store schema v16): the
+   * page cover/banner asset refs and the main page a node alias points at.
+   * Null when unset; mapped by object.update. */
+  coverAssetId: string | null;
+  bannerAssetId: string | null;
+  aliasedNodeId: string | null;
   isActive: boolean;
   createdAt: string | null;
   updatedAt: string | null;
@@ -272,6 +278,59 @@ export interface ClassBinding {
   numberRounding?: "round" | "floor" | "ceil" | "truncate" | null;
   /** The soft-unbind flag (false = the binding stops contributing). */
   active: boolean;
+}
+
+/**
+ * Map one `class_property ⋈ property_schema` row to a ClassBinding — shared
+ * by the extends-aware getClassBindings read and the own-rows-only
+ * getRegistryBindings read. Title-is-content: the schema ROW is the naming
+ * authority (renames and user edits ride it); only a missing row falls back
+ * to a synthesized label at the call site.
+ */
+function mapClassBindingRow(row: Record<string, unknown>): ClassBinding {
+  const decodeDefault = (raw: string | null): string | null => {
+    if (raw === null) return null;
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      return typeof parsed === "string" ? parsed : JSON.stringify(parsed);
+    } catch {
+      return raw;
+    }
+  };
+  const parsePrecision = (raw: unknown): DatePrecision | null =>
+    raw === "year" || raw === "month" || raw === "day" ? raw : null;
+  let targetClassFilter: string[] | null = null;
+  try {
+    const parsed: unknown = JSON.parse((row.target_class_filter as string | null) ?? "null");
+    if (Array.isArray(parsed)) {
+      targetClassFilter = parsed.filter((v): v is string => typeof v === "string");
+    }
+  } catch {
+    targetClassFilter = null;
+  }
+  return {
+    propertySchemaId: String(row.property_schema_id),
+    name: (row.name as string | null) ?? "(missing schema)",
+    type: (row.type as string | null) ?? "",
+    multi: row.multi === 1,
+    targetClassFilter,
+    sequence: (row.sequence as number) ?? 0,
+    required: row.required === null || row.required === undefined ? null : row.required === 1,
+    defaultValue: decodeDefault((row.default_value as string | null) ?? null),
+    datePrecision: parsePrecision(row.date_precision),
+    dateQualified:
+      row.date_qualified === null || row.date_qualified === undefined
+        ? null
+        : row.date_qualified === 1,
+    numberPad: row.number_pad === null || row.number_pad === undefined ? null : Number(row.number_pad),
+    numberDecimals:
+      row.number_decimals === null || row.number_decimals === undefined ? null : Number(row.number_decimals),
+    numberRounding:
+      row.number_rounding === null || row.number_rounding === undefined
+        ? null
+        : (row.number_rounding as "round" | "floor" | "ceil" | "truncate"),
+    active: row.binding_active === 0 ? false : true,
+  };
 }
 
 /** Where a select/multi_select (or boolean) value renders on a block row. */
@@ -817,6 +876,9 @@ function mapNode(row: NodeRow): ClientNode {
     contentAst: parseContentAst(row.content),
     icon: row.icon,
     color: row.color,
+    coverAssetId: row.cover_asset_id ?? null,
+    bannerAssetId: row.banner_asset_id ?? null,
+    aliasedNodeId: row.aliased_node_id ?? null,
     isActive: row.is_active === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -858,6 +920,9 @@ function nodeRowStamp(row: NodeRow): { h1: number; h2: number } {
   mix(row.content);
   mix(row.icon);
   mix(row.color);
+  mix(row.cover_asset_id);
+  mix(row.banner_asset_id);
+  mix(row.aliased_node_id);
   mix(row.is_active);
   mix(row.created_at);
   mix(row.updated_at);
@@ -1266,17 +1331,6 @@ export class WorkspaceClient {
     if (node === undefined || !node.isClass) {
       return [];
     }
-    // Title-is-content: `node.name` is vestigial; reads derive labels from
-    // content where needed.
-    const decodeDefault = (raw: string | null): string | null => {
-      if (raw === null) return null;
-      try {
-        const parsed: unknown = JSON.parse(raw);
-        return typeof parsed === "string" ? parsed : JSON.stringify(parsed);
-      } catch {
-        return raw;
-      }
-    };
     // Extends-aware (owner fix): a class's bindings include its ancestors'
     // — book extends source, so source's bound properties are book's class
     // properties too. Own rows first, then
@@ -1303,42 +1357,7 @@ export class WorkspaceClient {
       seenSchemas.add(id);
       return true;
     });
-    const parsePrecision = (raw: unknown): DatePrecision | null =>
-      raw === "year" || raw === "month" || raw === "day" ? raw : null;
-    const bindings: ClassBinding[] = dedupedRows.map((row) => {
-      let targetClassFilter: string[] | null = null;
-      try {
-        const parsed: unknown = JSON.parse((row.target_class_filter as string | null) ?? "null");
-        if (Array.isArray(parsed)) {
-          targetClassFilter = parsed.filter((v): v is string => typeof v === "string");
-        }
-      } catch {
-        targetClassFilter = null;
-      }
-      return {
-        propertySchemaId: String(row.property_schema_id),
-        name: (row.name as string | null) ?? "(missing schema)",
-        type: (row.type as string | null) ?? "",
-        multi: row.multi === 1,
-        targetClassFilter,
-        sequence: (row.sequence as number) ?? 0,
-        required: row.required === null || row.required === undefined ? null : row.required === 1,
-        defaultValue: decodeDefault((row.default_value as string | null) ?? null),
-        datePrecision: parsePrecision(row.date_precision),
-        dateQualified:
-          row.date_qualified === null || row.date_qualified === undefined
-            ? null
-            : row.date_qualified === 1,
-        numberPad: row.number_pad === null || row.number_pad === undefined ? null : Number(row.number_pad),
-        numberDecimals:
-          row.number_decimals === null || row.number_decimals === undefined ? null : Number(row.number_decimals),
-        numberRounding:
-          row.number_rounding === null || row.number_rounding === undefined
-            ? null
-            : (row.number_rounding as "round" | "floor" | "ceil" | "truncate"),
-        active: row.binding_active === 0 ? false : true,
-      };
-    });
+    const bindings: ClassBinding[] = dedupedRows.map((row) => mapClassBindingRow(row));
     const bound = new Set(bindings.map((b) => b.propertySchemaId));
     // Seed-spec fallback: a system class whose binding rows were never
     // authored still exposes its spec's schemas (read-synthesized — the
@@ -1382,6 +1401,37 @@ export class WorkspaceClient {
       });
     }
     return bindings.sort((a, b) => a.sequence - b.sequence || a.name.localeCompare(b.name));
+  }
+
+  /**
+   * The class's OWN registry rows (class_property ⋈ property_schema) —
+   * no extends inheritance, no seed-spec fallback synthesis. This is the
+   * honest existence read for write-path self-heals (deploySystemClass's
+   * binding step): getClassBindings read-synthesizes the designed system
+   * seeds for system classes, so a workspace whose registry rows were never
+   * authored still LOOKS bound through that read while the registry-only
+   * effective-properties read (store effective.ts) sees nothing. Reads that
+   * deliberately rely on the fallback (the meetingFamily present gates, the
+   * calendar chip eligibility walk, the ClassView) keep using
+   * getClassBindings.
+   */
+  getRegistryBindings(classId: string): ClassBinding[] {
+    const node = this.getNode(classId);
+    if (node === undefined || !node.isClass) {
+      return [];
+    }
+    const rows = this.store.database
+      .prepare(
+        `SELECT cp.property_schema_id, cp.sequence, cp.required, cp.default_value,
+                cp.active AS binding_active, ps.name, ps.type, ps.multi, ps.target_class_filter, ps.active,
+                ps.date_precision, ps.date_qualified, ps.number_pad, ps.number_decimals, ps.number_rounding
+         FROM class_property cp
+         LEFT JOIN property_schema ps ON ps.id = cp.property_schema_id
+         WHERE cp.class_id = ?
+         ORDER BY cp.sequence, cp.property_schema_id`,
+      )
+      .all(classId) as Array<Record<string, unknown>>;
+    return rows.map((row) => mapClassBindingRow(row));
   }
 
   /**

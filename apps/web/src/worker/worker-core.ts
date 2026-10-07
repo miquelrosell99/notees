@@ -152,6 +152,7 @@ const READ_METHODS: ReadonlySet<string> = new Set([
   "getClassMembers",
   "getClassMemberCount",
   "getClassBindings",
+  "getRegistryBindings",
   "getEffectiveProperties",
   "getPropertyReferences",
   "getAssetInfo",
@@ -677,6 +678,8 @@ export class WorkerCore {
         return this.client.getClassMemberCount(args[0] as string);
       case "getClassBindings":
         return this.client.getClassBindings(args[0] as string);
+      case "getRegistryBindings":
+        return this.client.getRegistryBindings(args[0] as string);
       case "getBlockTree":
         return this.getBlockTree(args[0] as string, args[1] as number | undefined);
       case "search":
