@@ -16,8 +16,11 @@
  *
  * Drag-and-drop: each row is sortable within its sibling group (dnd-kit,
  * vertical strategy) via the bullet/chevron grip handle. Drops resolve to
- * `object.move` through the intent model in block-dnd.ts; the live drop
- * indicator arrives through DropLineContext.
+ * `object.move` through the intent model in block-dnd.ts; the drop indicator
+ * arrives through DropLineContext, proximity-snapped to the nearest valid
+ * location of the drag session. While its row drags, the source stays in
+ * place and renders muted (the drag-source class) — the floating DragOverlay
+ * chip is the only preview, so the layout never shifts under the pointer.
  *
  * Edit mode is also entered in response to a focus request from the
  * outliner gestures (Enter creates a sibling, Backspace-delete hands the
@@ -176,6 +179,9 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
   const dropClass =
     dropLine !== null && dropLine.targetId === node.id ? ` nt-drop-${dropLine.intent}` : "";
   const selectedClass = selection.has(node.id) ? " nt-block--selected" : "";
+  // The dragged row stays in place (no drag transform) and reads muted; the
+  // floating name chip is the only preview.
+  const dragSourceClass = isDragging ? " nt-block--drag-source" : "";
 
   // A block carrying the table class renders its children (rows)
   // as a CSS grid instead of the outline list. The class says what-it-is
@@ -189,13 +195,12 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
   if (tableRow) {
     return (
       <div
-        className="nt-blocktable-row"
+        className={`nt-blocktable-row${dragSourceClass}`}
         ref={setNodeRef}
         data-block-id={node.id}
         style={{
-          transform: CSS.Transform.toString(transform),
-          transition,
-          opacity: isDragging ? 0.4 : undefined,
+          transform: isDragging ? undefined : CSS.Transform.toString(transform),
+          transition: isDragging ? undefined : transition,
         }}
       >
         <SortableContext items={children.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
@@ -302,13 +307,12 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
 
   return (
     <div
-      className={`nt-block${readOnly ? " nt-block--readonly" : ""}${editing ? " nt-block--editing" : ""}${dropClass}${selectedClass}`}
+      className={`nt-block${readOnly ? " nt-block--readonly" : ""}${editing ? " nt-block--editing" : ""}${dropClass}${selectedClass}${dragSourceClass}`}
       ref={setNodeRef}
       data-block-id={node.id}
       style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.4 : undefined,
+        transform: isDragging ? undefined : CSS.Transform.toString(transform),
+        transition: isDragging ? undefined : transition,
       }}
     >
       <div className="nt-block-row">
