@@ -27,6 +27,19 @@
  * occurrence), so wipe -> replay -> identical rows. Stale edges and node_link
  * assertions for the source are deleted; ``node_stats`` is recomputed for the
  * source and every target whose backlink set may have changed.
+ *
+ * resolved_target_id (store schema v17): every edge row carries the
+ * alias-terminal of its target, materialized BY THE APPLIER at write time —
+ * the backlinks roll-up and the graph read the column instead of walking
+ * alias chains per query. Resolution walks `aliased_node_id` chains exactly
+ * like Store.resolveAlias (cycle-safe: a revisit yields the STARTING id
+ * unchanged; depth-capped), with one deliberate difference: LIVE rows only —
+ * a trashed or deleted node never resolves through (a trashed alias's edges
+ * stay on the alias, inert, matching the live-only roll-up the client
+ * unioned from aliasNodesOf); a missing/inactive row is its own terminal.
+ * Non-alias targets resolve to their own id; targetless typed_link rows
+ * carry NULL. The column is a pure function of the node rows, so it
+ * converges under any delivery order and replays byte-identical.
  */
 
 import { createHash } from "node:crypto";
@@ -34,10 +47,80 @@ import { createHash } from "node:crypto";
 import { monthNodeId, parseDateNodeId, yearNodeId } from "@notees/domain";
 import type { ContentAst } from "@notees/protocol";
 
+import type { SqliteDB } from "./db.js";
 import { parseContentAst } from "./content.js";
 import { rebuildNodeStats } from "./stats.js";
 import { visiblePropertyValueRows } from "./property-values.js";
 import type { StoreDatabase } from "./types.js";
+
+/** The alias-chain walker's depth cap (chains are user-built and tiny; the
+ *  cap bounds pathological data — on exhaustion the furthest node is the
+ *  best-effort terminal). Shared by the store reads and the edge
+ *  resolution walk. */
+export const ALIAS_CHAIN_DEPTH_CAP = 32;
+
+/** Minimal DB surface the resolution walk needs (migrate()'s backfill runs
+ *  on a connection typed narrower than StoreDatabase). */
+type ResolutionDB = Pick<SqliteDB, "prepare">;
+
+/**
+ * The alias-terminal of an edge target, materialized at edge-write time:
+ * follow `aliased_node_id` links to the final live node — a non-alias
+ * target resolves to its own id, a NULL target (typed_link) to NULL. The
+ * walk mirrors Store.resolveAlias's cycle rule (a revisit yields the
+ * starting id unchanged) with the liveness gate described above. Pure
+ * function of the node table; deterministic, so wipe -> replay converges.
+ */
+export function resolveEdgeTarget(db: ResolutionDB, targetId: string | null): string | null {
+  if (targetId === null) return null;
+  const stmt = db.prepare("SELECT aliased_node_id, is_active FROM node WHERE id = ?");
+  const visited = new Set<string>();
+  let current = targetId;
+  for (let depth = 0; depth < ALIAS_CHAIN_DEPTH_CAP; depth += 1) {
+    if (visited.has(current)) return targetId; // cycle — the starting id unchanged
+    visited.add(current);
+    const row = stmt.get(current) as
+      | { aliased_node_id: string | null; is_active: number }
+      | undefined;
+    if (row === undefined || row.is_active !== 1 || row.aliased_node_id === null) {
+      return current;
+    }
+    current = row.aliased_node_id;
+  }
+  return current; // depth cap — best-effort terminal
+}
+
+/**
+ * Re-materialize resolved_target_id after anything that can shift alias
+ * chains: an object.update writing `aliasedNodeId`, or a liveness flip
+ * (trash / restore / permanent delete / archival) of any node that is IN a
+ * chain. For every seed id the reverse closure over `aliased_node_id`
+ * (every LIVE node whose alias chain passes through the seed — pointer-
+ * based, invariant under the seed's own edit or liveness flip) plus the
+ * seed itself re-resolves its edge rows. Idempotent and cheap when no
+ * aliases involve the seeds (the closure is the seed alone).
+ */
+export function reresolveEdgeTargets(db: StoreDatabase, nodeIds: string[]): void {
+  const closureOf = db.prepare(
+    `WITH RECURSIVE rev(id) AS (
+       SELECT ?
+       UNION
+       SELECT n.id FROM node n JOIN rev r ON n.aliased_node_id = r.id
+       WHERE n.is_active = 1
+     )
+     SELECT id FROM rev`,
+  );
+  const targets = new Set<string>();
+  for (const id of nodeIds) {
+    if (id.length === 0) continue;
+    const rows = closureOf.all(id) as Array<{ id: string }>;
+    for (const row of rows) targets.add(row.id);
+  }
+  const update = db.prepare("UPDATE edge SET resolved_target_id = ? WHERE target_id = ?");
+  for (const target of targets) {
+    update.run(resolveEdgeTarget(db, target), target);
+  }
+}
 
 export interface DesiredEdge {
   targetId: string | null;
@@ -226,10 +309,22 @@ export function rebuildEdges(db: StoreDatabase, nodeId: string, at: string): Edg
   const desiredIds = new Set<string>();
   const occurrenceByKey = new Map<string, number>();
   const insertEdge = db.prepare(
-    `INSERT INTO edge (id, workspace_id, source_id, target_id, type, verb, metadata, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET created_at = excluded.created_at`,
+    `INSERT INTO edge (id, workspace_id, source_id, target_id, resolved_target_id, type, verb, metadata, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       created_at = excluded.created_at,
+       resolved_target_id = excluded.resolved_target_id`,
   );
+  // Resolution is a pure function of the target id — cache within the rebuild.
+  const resolvedCache = new Map<string, string | null>();
+  const resolvedOf = (targetId: string | null): string | null => {
+    if (targetId === null) return null;
+    const cached = resolvedCache.get(targetId);
+    if (cached !== undefined) return cached;
+    const resolved = resolveEdgeTarget(db, targetId);
+    resolvedCache.set(targetId, resolved);
+    return resolved;
+  };
   for (const edge of desired) {
     const key = [edge.type, edge.targetId ?? "", edge.verb ?? "", edge.metadata ?? ""].join("\u0000");
     const occurrence = occurrenceByKey.get(key) ?? 0;
@@ -240,7 +335,17 @@ export function rebuildEdges(db: StoreDatabase, nodeId: string, at: string): Edg
     // edges carry their causal stamp in property_value.hlc_* and stay NULL
     // so cross-order replays do not diverge on a pass-through timestamp.
     const createdAt = edge.type === "property" ? null : at;
-    insertEdge.run(id, workspaceId, nodeId, edge.targetId, edge.type, edge.verb, edge.metadata, createdAt);
+    insertEdge.run(
+      id,
+      workspaceId,
+      nodeId,
+      edge.targetId,
+      resolvedOf(edge.targetId),
+      edge.type,
+      edge.verb,
+      edge.metadata,
+      createdAt,
+    );
   }
 
   const existingEdges = db
