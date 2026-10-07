@@ -11,7 +11,7 @@
  *   - clicking the loaded cover opens the ImageModal lightbox (the
  *     AssetImage pattern), with the download + fullscreen + close buttons.
  *
- * The cover layouts are the gate (M39): these tests pin the preference to
+ * The cover layouts are the gate: these tests pin the preference to
  * a cover layout up front — under the device default ("no-cover") cards
  * render text-only and the lazy machinery never engages (its own spec
  * below).
@@ -170,7 +170,7 @@ describe("card cover lazy loading", () => {
     expect(client.getAssetDataUrl).toHaveBeenCalledTimes(1);
   });
 
-  it("the no-cover layout renders no cover element and never starts the lazy fetch; cover-top does (M39)", async () => {
+  it("the no-cover layout renders no cover element and never starts the lazy fetch; cover-top does", async () => {
     vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
     MockIntersectionObserver.instances = [];
 

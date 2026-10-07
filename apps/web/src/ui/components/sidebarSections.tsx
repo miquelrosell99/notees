@@ -1,12 +1,12 @@
 /**
- * Right-sidebar context sections → the page chrome's context column (S7 of
- * the main-content restructure, M17): what survives the rail's cards-only
+ * Right-sidebar context sections → the page chrome's context column:
+ * what survives the rail's cards-only
  * rework is the table of contents of the page open in the MAIN view, now
  * riding the panelled layout's third column inside the content card (the
  * rail hosts workspace cards exclusively). TOC derivation lives in
  * ./sidebarToc.ts (tree-derived — no heading tokens exist).
  *
- * The references dedupe check (the S7 precondition): the rail's
+ * The references dedupe check (the layout precondition): the rail's
  * ReferencesSection and the page's own Backlinks tab both rendered
  * getLinkedReferences — the SAME data — so the rail's ReferencesSection is
  * DELETED rather than relocated; the Backlinks tab stays the one home in

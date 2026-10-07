@@ -8,9 +8,9 @@
  * instead of crashing the tree — a section is reference material, never a
  * boot gate.
  *
- * S2: a thin chrome wrapper over useSectionData — the timing/cache contract
+ * A thin chrome wrapper over useSectionData — the timing/cache contract
  * moved into the hook (one instance per section view); this component keeps
- * its exact pre-S2 props and renders the collapsible chrome around
+ * its exact pre-restructure props and renders the collapsible chrome around
  * `renderResults`.
  */
 

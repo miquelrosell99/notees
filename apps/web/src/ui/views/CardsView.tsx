@@ -97,7 +97,7 @@ function TreeCards({ items, props }: { items: NodeCollectionItem[]; props: NodeC
  * under a cover layout shows its imagery placeholder; the expensive fetch
  * (full bytes → data URL → decode) starts only when the card nears the
  * viewport (useLazyInView), and the loaded image clicks open into the
- * ImageModal lightbox (the v1 AssetImage pattern: download + fullscreen +
+ * ImageModal lightbox (the AssetImage pattern: download + fullscreen +
  * Esc).
  *
  * The layout prop is the gate, not a cosmetic switch: "no-cover" renders
@@ -250,7 +250,7 @@ const COVER_LAYOUT_OPTIONS: Array<{ value: CardLayout; icon: string; label: stri
   { value: "cover-top", icon: "mdi-dock-top", label: "Cover top" },
 ];
 
-/** The cover-layout picker (the four v1 layouts); the choice persists per device. */
+/** The cover-layout picker (the four original layouts); the choice persists per device. */
 export function CoverLayoutToggle({ value, onChange }: { value: CardLayout; onChange: (layout: CardLayout) => void }) {
   return (
     <SelectionButton

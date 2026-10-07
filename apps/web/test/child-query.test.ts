@@ -1,8 +1,8 @@
 /**
- * childQuery (S4/M1+M19) — the body's item-resolution factory.
+ * childQuery — the body's item-resolution factory.
  * Page mode: children as siblings. Block mode: the node as the single root
  * item. Comment-classed rows are cut at EVERY level, with their subtrees —
- * they surface only in the Comments section (M19), never the main body.
+ * they surface only in the Comments section, never the main body.
  */
 
 import { describe, expect, it } from "vitest";

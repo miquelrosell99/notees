@@ -1,18 +1,18 @@
 /**
  * CommentsSection — the Comments section of the page chrome's context
- * column (M19 of the main-content restructure): the v1 model restored onto
+ * column: the original model restored onto
  * the op-log graph. Comments are DIRECT CHILDREN classed `comment` (the
- * seeded system class — the v1 UUID, packages/domain/src/seeds.ts); a reply
+ * seeded system class — the original UUID, packages/domain/src/seeds.ts); a reply
  * is a comment whose parent is the comment; a comment's children nest in the
- * thread (any child blocks nest — v1's recursion over comment.children). The
+ * thread (any child blocks nest — the original recursion over comment.children). The
  * main body never renders comment-classed rows: childQuery cuts them at
  * every level, so this section is their only surface.
  *
  * The section chrome is NodeViewSection ("Comments" + the direct-child
- * count), hidden when empty; the v1 quick-add/reply composer pair creates a
+ * count), hidden when empty; the original quick-add/reply composer pair creates a
  * child block classed comment through the ordinary write path (createObject
  * with the class + the text as initial content — title-is-content), and each
- * row carries the v1 action pair: Reply (the nested composer) and delete
+ * row carries the original action pair: Reply (the nested composer) and delete
  * (object.delete). A row click opens the comment node. Lazy per the section
  * contract: the thread resolution rides useSectionData (no read runs until
  * the first expand; a client notification re-derives while expanded; the
@@ -45,12 +45,12 @@ function isComment(node: ClientNode): boolean {
   return node.classIds.includes(SYSTEM_CLASS_UUIDS.comment);
 }
 
-/** The direct comment children of a node (the v1 getCommentNodes read). */
+/** The direct comment children of a node (the original getCommentNodes read). */
 export function commentChildrenOf(client: AnyClient, nodeId: string): ClientNode[] {
   return client.getChildren(nodeId).filter(isComment);
 }
 
-/** A comment + its children, recursively (any child blocks nest — v1). */
+/** A comment + its children, recursively (any child blocks nest). */
 function threadOf(client: AnyClient, node: ClientNode): CommentThread {
   return {
     node,
@@ -59,7 +59,7 @@ function threadOf(client: AnyClient, node: ClientNode): CommentThread {
 }
 
 /**
- * The quick-add/reply composer (the v1 pair): a plain input — Enter submits,
+ * The quick-add/reply composer (the original pair): a plain input — Enter submits,
  * Escape (or an untouched blur) cancels. Submit creates a child block classed
  * comment parented at `parentId` (the page for a top-level comment, the
  * comment for a reply) with the text as its initial content; the client
@@ -138,8 +138,8 @@ function CommentComposer({
 /**
  * One comment row: its text (title-is-content — the display name IS the
  * content), the Reply toggle (the nested composer), and the delete action
- * (the v1 pair). Children nest as a sub-list — any child blocks, not only
- * comment-classed ones (v1's recursion). The row click opens the comment
+ * (the original pair). Children nest as a sub-list — any child blocks, not only
+ * comment-classed ones (the original recursion). The row click opens the comment
  * node.
  */
 function CommentRow({
