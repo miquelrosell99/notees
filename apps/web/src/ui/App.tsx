@@ -99,6 +99,8 @@ const STORAGE_KEYS = {
   workspaceId: "notees.workspaceId",
   /** Device-local workspace created by "Work offline". */
   localWorkspaceId: "notees.localWorkspaceId",
+  /** The right rail's workspace card order (device-local UI chrome). */
+  railCardOrder: "notees.sidebarCards",
 } as const;
 
 type CredentialType = "session" | "apikey";
@@ -189,6 +191,52 @@ function clearStored(key: string): void {
   } catch {
     // Ignore.
   }
+}
+
+// --- Right rail card order (device-local, the recents-order precedent) ------
+
+/**
+ * The rail's card order persistence: a plain validated localStorage list,
+ * exactly the recents-order precedent (`notees.recents` in Sidebar.tsx) —
+ * device-local UI chrome, no server counterpart, never an op. Exported for
+ * the rail-order tests.
+ */
+export function readRailCardOrder(): string[] {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(STORAGE_KEYS.railCardOrder) || "[]");
+    return Array.isArray(parsed)
+      ? parsed.filter((entry): entry is string => typeof entry === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+export function persistRailCardOrder(order: readonly string[]): void {
+  writeStored(STORAGE_KEYS.railCardOrder, JSON.stringify(order));
+}
+
+/**
+ * The rail's reorder move (pure): lift `activeId` out and re-insert it at
+ * the target's edge. Dropping onto itself, either end unknown, or exactly
+ * in place returns the input reference (React bails — no render, no
+ * persistence write). Exported for the rail-order tests.
+ */
+export function moveRailCardOrder(
+  order: readonly string[],
+  activeId: string,
+  targetId: string,
+  position: "before" | "after",
+): string[] {
+  if (activeId === targetId) return order as string[];
+  if (!order.includes(activeId)) return order as string[];
+  const rest = order.filter((id) => id !== activeId);
+  const index = rest.indexOf(targetId);
+  if (index < 0) return order as string[];
+  const insertAt = position === "before" ? index : index + 1;
+  const next = [...rest.slice(0, insertAt), activeId, ...rest.slice(insertAt)];
+  if (next.every((id, i) => id === order[i])) return order as string[];
+  return next;
 }
 
 /**
@@ -574,9 +622,13 @@ export function App() {
   /**
    * Right-sidebar peek cards (shift+click a block bullet): most recent first.
    * Re-clicking an open card brings it to the top; opening a card opens the
-   * panel. Closing the last card closes the panel with it.
+   * panel. Closing the last card closes the panel with it. The stack ORDER
+   * is device-local (the recents-order precedent — `readRailCardOrder`): a
+   * grip drag reorders it (the workspace drag session reports the gesture,
+   * see useWorkspaceDnd), every change persists, and ids that no longer
+   * exist in the current workspace are filtered out on connect.
    */
-  const [sidebarCards, setSidebarCards] = useState<string[]>([]);
+  const [sidebarCards, setSidebarCards] = useState<string[]>(() => readRailCardOrder());
   const openInSidebar = useCallback(
     (nodeId: string) => {
       // The redirect seam: a peek card opened on an alias shows the
@@ -593,6 +645,22 @@ export function App() {
     setSidebarCards(next);
     if (next.length === 0) setRightPanelOpen(false);
   }
+  /**
+   * The rail reorder report (the workspace drag session's callback): a pure
+   * stack move — no-ops return the same reference and never reach the
+   * persistence effect.
+   */
+  const reorderSidebarCard = useCallback(
+    (activeId: string, targetId: string, position: "before" | "after") => {
+      setSidebarCards((prev) => moveRailCardOrder(prev, activeId, targetId, position));
+    },
+    [],
+  );
+  // The card order persists device-locally on every change (open, close,
+  // reorder, stale-id filtering) — one write seam, the recents precedent.
+  useEffect(() => {
+    persistRailCardOrder(sidebarCards);
+  }, [sidebarCards]);
   /**
    * Post-delete navigation: a deleted page/class lands on its parent page
    * when one exists, otherwise on the workspace default view (today's page /
@@ -684,6 +752,16 @@ export function App() {
     const name = node !== undefined ? displayNameForSettings(node) : "";
     document.title = name !== "" ? `${name} - Notees` : "Notees";
   }, [client, selectedPageId, pagesVersion]);
+  // The persisted rail order may carry ids from another workspace (the key
+  // is device-global, the recents precedent): drop the ones this client
+  // doesn't know — the persistence effect writes the filtered list through.
+  useEffect(() => {
+    if (client === null) return;
+    setSidebarCards((prev) => {
+      const next = prev.filter((id) => client.getNode(id) !== undefined);
+      return next.length === prev.length ? prev : next;
+    });
+  }, [client]);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
 
   /**
@@ -1163,11 +1241,24 @@ export function App() {
         setServerSuggestion(guess);
       }
       setError(err instanceof Error ? err.message : String(err));
+      // Browsers block plain-http fetches from an https page as mixed
+      // content — the failure surfaces as a bare NetworkError, so name the
+      // law when it applies (the sync API must be same-origin https here,
+      // or the page itself reached over http).
+      const mixedContent =
+        typeof location !== "undefined" &&
+        location.protocol === "https:" &&
+        url.startsWith("http://");
       setHint(
-        "Could not reach a sync server at that address. Check that the URL " +
-          "points at the machine running the sync server — not this device — " +
-          "and that the port is reachable (a firewall or a reverse proxy can " +
-          "also block it).",
+        mixedContent
+          ? "This page is https, and browsers block http API calls from it " +
+            "(mixed content) before they leave the device. Use the page " +
+            "origin (the suggested address), or reach the web UI over http " +
+            "to use a plain-http sync address."
+          : "Could not reach a sync server at that address. Check that the URL " +
+            "points at the machine running the sync server — not this device — " +
+            "and that the port is reachable (a firewall or a reverse proxy can " +
+            "also block it).",
       );
     }
   }
@@ -1758,8 +1849,10 @@ export function App() {
         {/* The ONE workspace drag session: the host wraps the FloatingEditorHost
             (which wraps the regions), so the main content card, the right
             rail's workspace cards, and the floating editor windows (portals
-            keep the React context) all join the same drag — useWorkspaceDnd.ts. */}
-        <WorkspaceDndHost>
+            keep the React context) all join the same drag — useWorkspaceDnd.ts.
+            The rail's card reorder rides the same session: the host reports
+            the gesture, the App owns the stack + its device-local order. */}
+        <WorkspaceDndHost onRailCardReorder={reorderSidebarCard}>
         <FloatingEditorHost client={client} openNode={openPage}>
         <Sidebar
           client={client}
