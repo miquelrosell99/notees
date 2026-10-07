@@ -482,6 +482,40 @@ function recomputeClassIds(db: StoreDatabase, nodeId: string): void {
   );
 }
 
+/**
+ * M12 write-time alias-cycle validation (the extends-DAG precedent):
+ * `object.update {aliasedNodeId: T}` on node N must not close an alias
+ * cycle. The would-be chain is N → T → T's target → … — walk it from T; a
+ * revisit of any visited node (including N itself — the 1-edge self-alias)
+ * means the write would create a cycle, so it fails loud and is NEVER
+ * applied. Clearing (null) cannot create a cycle and skips the check.
+ * Chains without a cycle terminate (finite graph); the visited set makes
+ * the walk exact.
+ */
+function assertAliasAcyclic(
+  db: StoreDatabase,
+  nodeId: string,
+  targetId: string,
+  opType: string,
+): void {
+  const visited = new Set<string>([nodeId]);
+  let current = targetId;
+  for (;;) {
+    if (visited.has(current)) {
+      throw new CycleError(
+        `${opType}: aliasing ${nodeId} → ${targetId} would close an alias cycle at ${current}`,
+        opType,
+      );
+    }
+    visited.add(current);
+    const row = db
+      .prepare("SELECT aliased_node_id FROM node WHERE id = ?")
+      .get(current) as { aliased_node_id: string | null } | undefined;
+    if (row === undefined || row.aliased_node_id === null) return;
+    current = row.aliased_node_id;
+  }
+}
+
 function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "object.update";
   const p = env.payload as OpPayload<"object.update">;
@@ -529,6 +563,28 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
   if (p.color !== undefined) {
     sets.push("color = ?");
     values.push(p.color);
+  }
+  // Wire node fields (the icon/color precedent): presence writes, present-
+  // null clears (SQL NULL) — the schema's nullish fields make absence and
+  // clear distinguishable, exactly like `color`. They ride the row-level
+  // LWW with the rest of the update. Cover/banner map without validating
+  // (asset existence is a read/client-layer concern); the alias target DOES
+  // validate — see assertAliasAcyclic below (M12, the extends-DAG
+  // precedent: structural invariants are write-time impossible).
+  if (p.coverAssetId !== undefined) {
+    sets.push("cover_asset_id = ?");
+    values.push(p.coverAssetId);
+  }
+  if (p.bannerAssetId !== undefined) {
+    sets.push("banner_asset_id = ?");
+    values.push(p.bannerAssetId);
+  }
+  if (p.aliasedNodeId !== undefined) {
+    if (p.aliasedNodeId !== null) {
+      assertAliasAcyclic(db, p.objectId, p.aliasedNodeId, opType);
+    }
+    sets.push("aliased_node_id = ?");
+    values.push(p.aliasedNodeId);
   }
   if (p.contentAst !== undefined) {
     // Class content stays text-only; every other node keeps the rich token
@@ -867,16 +923,54 @@ function upsertClassNode(
 function applyClassCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "class.create";
   const p = env.payload as OpPayload<"class.create">;
-  // Registry `name` is a denormalized cache of the class node's title text.
-  const titleText = plainTextExcerpt(p.contentAst as never) ?? "";
+  // Registry `name` is a denormalized cache of the class node's title text
+  // (NOT NULL — the empty string is the absent sentinel). A conversion
+  // (class.create on an existing node) carries no contentAst: absent fields
+  // PRESERVE the stored registry values on re-declaration (COALESCE around a
+  // NULLIF sentinel), they never wipe. The fresh INSERT's empty-name case is
+  // backfilled from the node's existing title below (title-is-content: the
+  // node row is the authority).
+  const titleText = p.contentAst !== undefined ? (plainTextExcerpt(p.contentAst as never) ?? "") : null;
   db.prepare(
     `INSERT INTO class (id, workspace_id, name, icon, color, description, active, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, NULL, 1, ?, ?)
+     VALUES (?, ?, COALESCE(?, ''), ?, ?, NULL, 1, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
-       name = excluded.name, icon = excluded.icon, color = excluded.color,
-       description = excluded.description, active = 1, updated_at = excluded.updated_at`,
+       name = COALESCE(NULLIF(excluded.name, ''), class.name),
+       icon = COALESCE(excluded.icon, class.icon),
+       color = COALESCE(excluded.color, class.color),
+       description = class.description, active = 1, updated_at = excluded.updated_at`,
   ).run(p.classId, env.workspaceId, titleText, p.icon ?? null, p.color ?? null, env.timestamp, env.timestamp);
+  if (titleText === null) {
+    // Title-less declaration (the conversion path — a bare classId payload):
+    // adopt the node's current title into the fresh registry cache.
+    const nodeRow = db.prepare("SELECT content FROM node WHERE id = ?").get(p.classId) as
+      | { content: string }
+      | undefined;
+    let derived = "";
+    try {
+      derived = plainTextExcerpt(JSON.parse(nodeRow?.content ?? "[]") as never) ?? "";
+    } catch {
+      derived = "";
+    }
+    db.prepare("UPDATE class SET name = ? WHERE id = ? AND name = ''").run(derived, p.classId);
+  }
   upsertClassNode(db, env, p.classId, { contentAst: p.contentAst, icon: p.icon, color: p.color });
+  // Conversion (owner ruling retiring the seeded `class` class, 2026-10-07):
+  // class.create on an EXISTING node DECLARES that node a class — the node
+  // row was INSERT OR IGNOREed above, which never flips the identity bit.
+  // The flip is the whole capability: is_class = 1, classes-are-roots (the
+  // parent edge + its child-order row drop), the render bit cleared. The
+  // node's title/icon/color stay LWW-gated above (an absent payload field
+  // preserves them — conversion carries no content unless sent). Membership
+  // and the node's own children are untouched (classes are containers).
+  // Applied unconditionally: declaration is structural, not a row-field race
+  // (the extends-DAG precedent, object.delete's bit flips).
+  const converted = db
+    .prepare("UPDATE node SET is_class = 1, present_as_main = 0, parent_id = NULL WHERE id = ? AND is_class = 0")
+    .run(p.classId);
+  if (converted.changes > 0) {
+    db.prepare("DELETE FROM node_child_order WHERE child_id = ?").run(p.classId);
+  }
   // Hierarchy self-row: the `class` query condition matches via the closure,
   // so every class needs (id, id) even before any setExtends runs.
   db.prepare(`INSERT OR IGNORE INTO class_hierarchy (class_id, ancestor_id) VALUES (?, ?)`).run(
@@ -1147,7 +1241,8 @@ function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary 
     if (schemaType !== null && !isValidDefaultForType(schemaType, p.defaultValue)) {
       throw new PropertyValueShapeError(
         `${opType}: defaultValue for ${schemaType} schema ` +
-          (schemaType === "date" || schemaType === "date_range" || schemaType === "object"
+          (schemaType === "date" || schemaType === "date_range" || schemaType === "object" ||
+            schemaType === "asset"
             ? "must be null — node-typed defaults are not supported"
             : `must be typed ${schemaType}`) +
           ` — got ${JSON.stringify(p.defaultValue)}`,

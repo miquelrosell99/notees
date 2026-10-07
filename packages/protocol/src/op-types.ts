@@ -71,6 +71,22 @@ export const objectUpdatePayload = z
     /** Preset token (`sky`) or custom `#RRGGBB` hex (colors.ts grammar);
      * null CLEARS the node's color. */
     color: colorValueSchema.nullish(),
+    /**
+     * Wire node fields (the icon/color precedent): platform-fixed node
+     * fundamentals that core chrome or navigation reads/writes — an asset
+     * node for the page cover, an asset node for the page banner, and the
+     * main page a node alias points at (many-to-one FROM the alias: a node
+     * aliases at most one node). Set via object.update only (object.create
+     * carries no appearance/fundamental fields); `null` CLEARS. Presence
+     * writes, null clears — the applier distinguishes absence (no write)
+     * from present-null (SQL NULL), exactly like `color`. Reference
+     * integrity (asset existence, alias-chain cycle validation, the
+     * universal redirect) is a client/read-layer concern — the applier
+     * maps the fields, it does not validate them. See SCHEMA.md
+     * "Node structure" and "Node aliases". */
+    coverAssetId: uuid.nullish(),
+    bannerAssetId: uuid.nullish(),
+    aliasedNodeId: uuid.nullish(),
     /** Canonical wire carrier: base64 incremental CRDT delta. */
     contentDeltaB64: z.string().optional(),
     /** Readable carrier (fixtures, tests, plain-text editor path before the Yjs port). */
@@ -291,6 +307,15 @@ export const propertySchemaCreatePayload = z
       "multi_select",
       "object",
       "image",
+      /**
+       * M38: an asset reference — a node-typed value ({ nodeId }) whose
+       * target MUST carry the asset class; the filter is IMPLICIT in the
+       * type (an explicit targetClassFilter is redundant and dropped on
+       * retype migrations). The attachments property (…0011) is the first
+       * asset-typed schema (retyped from object). See SCHEMA.md
+       * "Node-backed text properties".
+       */
+      "asset",
     ]),
     multi: z.boolean().default(false),
     scope: z.enum(["global", "class", "object"]).default("global"),

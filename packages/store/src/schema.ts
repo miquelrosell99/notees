@@ -23,7 +23,7 @@
 
 import type { SqliteDB } from "./db.js";
 
-export const SCHEMA_VERSION = 15;
+export const SCHEMA_VERSION = 16;
 
 /**
  * The render-path list-reads index: composite for the
@@ -75,6 +75,15 @@ CREATE TABLE IF NOT EXISTS node (
     content TEXT NOT NULL DEFAULT '[]',
     icon TEXT,
     color TEXT,
+    -- Wire node fields (the icon/color precedent): platform-fixed node
+    -- fundamentals set via object.update (never object.create) — the asset
+    -- node behind the page cover/banner chrome and the main page a node
+    -- alias points at (many-to-one FROM the alias). NULL = unset; present-
+    -- null on the wire CLEARS. Reference integrity is a read-layer concern
+    -- (the applier maps, it does not validate).
+    cover_asset_id TEXT,
+    banner_asset_id TEXT,
+    aliased_node_id TEXT,
     is_active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT,
     updated_at TEXT,
@@ -719,5 +728,20 @@ export function migrate(
       CREATE INDEX IF NOT EXISTS idx_property_value_node ON property_value (node_id);
       PRAGMA foreign_keys = ON;
     `);
+  }
+  // v15 -> v16: the wire node fields (SCHEMA.md "Node structure" — the
+  // cover/banner asset refs and the node-alias target, the icon/color
+  // precedent) land as three nullable node columns mapped by object.update.
+  // Purely additive; the column guard keeps the ALTER idempotent for fresh
+  // v16 creates (CREATE TABLE IF NOT EXISTS never alters).
+  if (current < 16) {
+    const nodeColumnsV16 = db.prepare("PRAGMA table_info(node)").all() as { name: string }[];
+    if (!nodeColumnsV16.some((c) => c.name === "cover_asset_id")) {
+      db.exec(`
+        ALTER TABLE node ADD COLUMN cover_asset_id TEXT;
+        ALTER TABLE node ADD COLUMN banner_asset_id TEXT;
+        ALTER TABLE node ADD COLUMN aliased_node_id TEXT;
+      `);
+    }
   }
   db.pragma(`user_version = ${SCHEMA_VERSION}`);}
