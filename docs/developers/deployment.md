@@ -272,7 +272,7 @@ docker compose --profile edge up -d              # or COMPOSE_PROFILES=edge
   hostname via the mounted tailscaled socket (`tls { get_certificate
   tailscale }`) — real, device-trusted certs with no DNS challenge, no cert
   files, no per-device root installs. The edge publishes ONE port
-  (`NOTEES_EDGE_HTTP`, default 443) and proxies over the compose network:
+  (`NOTEES_EDGE_HTTP`, default 8443 — :443 stays free for a shared edge) and proxies over the compose network:
   `/api/*` → `notees-sync:8377`, everything else → `notees-web:80` — the https
   page calls its API **same-origin**, so no CORS and no mixed content.
 - **Remapping**: every published port is one env in full `ip:port` form

@@ -66,7 +66,7 @@ services:
     # storage requires a secure context). NOTEES_EDGE_HTTP remaps the port.
     profiles: ["edge"]
     ports:
-      - "${NOTEES_EDGE_HTTP:-443}:443"
+      - "${NOTEES_EDGE_HTTP:-8443}:443"
     environment:
       - NOTEES_EDGE_NAME=${NOTEES_EDGE_NAME:?set NOTEES_EDGE_NAME (the tailnet hostname) in .env to enable the edge}
     volumes:

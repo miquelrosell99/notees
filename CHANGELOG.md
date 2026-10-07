@@ -9,6 +9,9 @@ predating this file.
 
 ## 2026-10-06
 
+- **chore(ops): the edge's https port defaults to 8443 — :443 is not Notees's.**
+  The tailnet URL is `https://<host>.<tailnet>.ts.net:8443` (name-based certs
+  work on any port); `NOTEES_EDGE_HTTP` remaps it. Verified on the fleet host.
 - **fix(ops): the web container proxies /api to the sync service — one
   origin for UI+API; compose carries the build contexts (no more tag
   envs).** Following the tailnet-edge migration (same day): the nginx config
