@@ -544,6 +544,14 @@ export interface UpdateObjectInput {
   icon?: string;
   /** Preset token or #RRGGBB hex; null clears the color. */
   color?: string | null;
+  /**
+   * The wire node fields (the icon/color precedent — SCHEMA.md "Node
+   * structure"): the page cover/banner asset refs and the main page a node
+   * alias points at. Presence writes; null clears; absence preserves.
+   */
+  coverAssetId?: string | null;
+  bannerAssetId?: string | null;
+  aliasedNodeId?: string | null;
 }
 
 export interface DeleteObjectOptions {
@@ -2550,6 +2558,9 @@ export class WorkspaceClient {
     if (fields.contentAst !== undefined) payload.contentAst = fields.contentAst;
     if (fields.icon !== undefined) payload.icon = fields.icon;
     if (fields.color !== undefined) payload.color = fields.color;
+    if (fields.coverAssetId !== undefined) payload.coverAssetId = fields.coverAssetId;
+    if (fields.bannerAssetId !== undefined) payload.bannerAssetId = fields.bannerAssetId;
+    if (fields.aliasedNodeId !== undefined) payload.aliasedNodeId = fields.aliasedNodeId;
     this.enqueueLocal(this.buildEnvelope("object.update", payload, [id]));
   }
 

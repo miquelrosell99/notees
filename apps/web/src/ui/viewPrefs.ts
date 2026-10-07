@@ -129,3 +129,10 @@ export function useCoverCollapsed(pageId: string): [boolean, (collapsed: boolean
   const [raw, setRaw] = useDeviceSetting<boolean>(`pageCoverCollapsed.${pageId}`, false);
   return [raw === true, setRaw];
 }
+
+/** Per-page banner collapse flag (`pageBannerCollapsed.<pageId>`) — the banner
+ * starts collapsed on every page until the device expands it. */
+export function useBannerCollapsed(pageId: string): [boolean, (collapsed: boolean) => void] {
+  const [raw, setRaw] = useDeviceSetting<boolean>(`pageBannerCollapsed.${pageId}`, true);
+  return [raw !== false, setRaw];
+}
