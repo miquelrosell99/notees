@@ -1,12 +1,16 @@
 /**
  * NodeHoverPreview — the hover preview card for inline node links (issue
- * #11). Dwelling on a mention (~400ms) raises a bounded, read-only card
- * anchored at the mention: the target's icon + title + a one-line content
- * excerpt + backlink count (the EmbedCardView identity set). The card is a
- * trampoline, not an editor — the block editor owns the caret and flushes
- * on blur, so a hover surface that steals focus would fight the page
- * editor. "Full editing" is the card's pin affordance, which promotes the
- * node to a FloatingEditor window (deliberate, focus-moving, closable).
+ * #11). Dwelling on a mention (~400ms) raises a bounded card anchored at
+ * the mention, rendering the shared NodeView in `preview` mode: the real
+ * chrome and the real read-only rendering (the title row, the capped
+ * first-level body), with the write machinery stepped aside (no corner
+ * menu, no banner/cover/properties editing, no section stack — see
+ * PageView's preview seam). The card is a trampoline, not an editor — the
+ * block editor owns the caret and flushes on blur, so a hover surface that
+ * steals focus would fight the page editor; the rows render read-only and
+ * a click navigates to the full view. "Full editing" is the card's pin
+ * affordance, which promotes the node to a FloatingEditor window
+ * (deliberate, focus-moving, closable).
  *
  * Plumbing mirrors NodeLinkContextMenu: InlineTokens calls the module-level
  * notifyNodeHover(...) on mouseenter/leave of every mention (no caller
@@ -26,21 +30,20 @@
  * - dismissal composes usePopupDismissal: Escape from outside +
  *   pointer-down outside close; the mention anchor counts as part of the
  *   surface for the outside-pointer check.
+ *
+ * The card chrome: the NodeView preview rides the top; a slim footer
+ * carries the backlink count + the Pin button. A mention whose target no
+ * longer exists previews honestly — the raw id, no Pin.
  */
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-import { rendersAsInlineBlock } from "@notees/domain";
-
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client.js";
-import { proseFromAst } from "@/editor/prose.js";
 
-import { displayNameFromClient } from "../dateDisplay.js";
 import { openFloatingEditor } from "./FloatingEditor.js";
-import { nodeIcon } from "../iconFor.js";
-import { Icon } from "../Icon.js";
+import { NodeView } from "../NodeView.js";
 import { renderStateLabel } from "../renderStateLabel.js";
 import { Button } from "./ui/Button.js";
 import { usePopupDismissal } from "./ui/usePopupDismissal.js";
@@ -108,7 +111,7 @@ export function NodeHoverPreviewHost({
   children,
 }: {
   client: AnyClient;
-  /** Main-view navigation (the card's title click). */
+  /** Main-view navigation (the preview's links + title clicks). */
   openNode: (nodeId: string) => void;
   children: ReactNode;
 }) {
@@ -120,6 +123,10 @@ export function NodeHoverPreviewHost({
   const cardRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLElement | null>(null);
   anchorRef.current = preview?.anchorEl ?? null;
+  // The footer (backlink count) lives outside NodeView's own subscription —
+  // a host-level refresh keeps it live across store changes.
+  const [, setVersion] = useState(0);
+  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
 
   const clearDwell = () => {
     if (dwellTimer.current !== null) clearTimeout(dwellTimer.current);
@@ -193,6 +200,9 @@ export function NodeHoverPreviewHost({
     onClose: hide,
   });
 
+  const previewNode = preview === null ? undefined : client.getNode(preview.nodeId);
+  const backlinkCount = preview === null ? 0 : client.getBacklinkCount(preview.nodeId);
+
   return (
     <>
       {children}
@@ -222,20 +232,45 @@ export function NodeHoverPreviewHost({
               }, HOVER_GRACE_MS);
             }}
           >
-            <NodeHoverPreviewCard
-              client={client}
-              nodeId={preview.nodeId}
-              onOpen={() => {
-                const id = preview.nodeId;
-                hide();
-                openNode(id);
-              }}
-              onPin={() => {
-                const id = preview.nodeId;
-                hide();
-                openFloatingEditor(id);
-              }}
-            />
+            {previewNode === undefined ? (
+              // Broken-mention fallback philosophy: the raw id, honestly.
+              <div className="nt-hover-preview__broken" title={preview.nodeId}>
+                broken reference <code>{preview.nodeId}</code>
+              </div>
+            ) : (
+              <>
+                <div className="nt-hover-preview__view">
+                  <NodeView
+                    client={client}
+                    nodeId={preview.nodeId}
+                    preview
+                    onOpenNode={(id) => {
+                      hide();
+                      openNode(id);
+                    }}
+                  />
+                </div>
+                <div className="nt-hover-preview__meta">
+                  <span className="nt-hover-preview__backlinks">
+                    {backlinkCount === 1 ? "1 backlink" : `${backlinkCount} backlinks`}
+                  </span>
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    icon="mdi-pin-outline"
+                    aria-label="Pin — edit in a floating window"
+                    title="Pin — edit in a floating window"
+                    onClick={() => {
+                      const id = preview.nodeId;
+                      hide();
+                      openFloatingEditor(id);
+                    }}
+                  >
+                    Pin
+                  </Button>
+                </div>
+              </>
+            )}
           </div>,
           document.body,
         )}
@@ -247,69 +282,4 @@ export function NodeHoverPreviewHost({
 function renderStateLabelOf(client: AnyClient, nodeId: string): string {
   const node = client.getNode(nodeId);
   return node === undefined ? "Node" : renderStateLabel(node);
-}
-
-function NodeHoverPreviewCard({
-  client,
-  nodeId,
-  onOpen,
-  onPin,
-}: {
-  client: AnyClient;
-  nodeId: string;
-  onOpen: () => void;
-  onPin: () => void;
-}) {
-  const [, setVersion] = useState(0);
-  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
-
-  const node = client.getNode(nodeId);
-  if (node === undefined) {
-    // Broken-mention fallback philosophy: the raw id, honestly.
-    return (
-      <div className="nt-hover-preview__broken" title={nodeId}>
-        broken reference <code>{nodeId}</code>
-      </div>
-    );
-  }
-
-  const icon = nodeIcon(node, client.effectiveClassIcons());
-  const label = displayNameFromClient(client, nodeId) ?? nodeId;
-  const excerpt = excerptOf(node.contentAst);
-  const backlinkCount = client.getBacklinkCount(nodeId);
-  const isBlock = rendersAsInlineBlock(node);
-
-  return (
-    <>
-      <button type="button" className="nt-hover-preview__main" title={label} onClick={onOpen}>
-        <span className="nt-hover-preview__head">
-          {icon !== null && <Icon path={icon} size={0.9} className="nt-hover-preview__icon" />}
-          <span className="nt-hover-preview__title">{label}</span>
-          {isBlock && <span className="nt-hover-preview__kind">block</span>}
-        </span>
-        {excerpt !== "" && <span className="nt-hover-preview__excerpt">{excerpt}</span>}
-      </button>
-      <div className="nt-hover-preview__meta">
-        <span className="nt-hover-preview__backlinks">
-          {backlinkCount === 1 ? "1 backlink" : `${backlinkCount} backlinks`}
-        </span>
-        <Button
-          size="xs"
-          variant="outline"
-          icon="mdi-pin-outline"
-          aria-label="Pin — edit in a floating window"
-          title="Pin — edit in a floating window"
-          onClick={onPin}
-        >
-          Pin
-        </Button>
-      </div>
-    </>
-  );
-}
-
-/** One-line plaintext teaser of a content stream (the wide-card excerpt set). */
-function excerptOf(contentAst: readonly unknown[]): string {
-  const text = proseFromAst(contentAst).replace(/\s+/g, " ").trim();
-  return text.length > 160 ? `${text.slice(0, 160)}…` : text;
 }

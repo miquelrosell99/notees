@@ -6,6 +6,10 @@
  * through the shared outliner client, so edits inside a reference behave
  * exactly like edits in the page body (same ops, same sync).
  *
+ * `readOnly` (the hover preview's preview surface) renders the same rows
+ * inert: clicks navigate instead of editing, the context menu stays shut,
+ * and the rows wear the readonly class (excluded from drag measuring).
+ *
  * BlockRow consumes OutlinerContext and useSortable, so each subtree hosts
  * its own OutlinerContext (via useOutlinerValue, same as PageView)
  * and its own SortableContext — but NO DndContext: the surrounding page
@@ -39,15 +43,18 @@ function toTree(client: AnyClient, node: ClientNode, remaining = TREE_DEPTH_CAP)
   };
 }
 
-/** The referencing node plus its whole subtree, editable. */
+/** The referencing node plus its whole subtree — editable, or read-only. */
 export function ReferenceSubtree({
   client,
   rootId,
   onOpenNode,
+  readOnly = false,
 }: {
   client: AnyClient;
   rootId: string;
   onOpenNode?: ((nodeId: string) => void) | undefined;
+  /** Read-only projection (the hover preview): clicks navigate, never edit. */
+  readOnly?: boolean;
 }) {
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
@@ -63,7 +70,12 @@ export function ReferenceSubtree({
     <OutlinerContext.Provider value={outliner}>
       <SortableContext items={[node.id]} strategy={verticalListSortingStrategy}>
         <div className="nt-refblock-tree">
-          <BlockRow tree={tree} client={client} resolveName={(id) => displayNameFromClient(client, id)} />
+          <BlockRow
+            tree={tree}
+            client={client}
+            resolveName={(id) => displayNameFromClient(client, id)}
+            readOnly={readOnly}
+          />
         </div>
       </SortableContext>
     </OutlinerContext.Provider>

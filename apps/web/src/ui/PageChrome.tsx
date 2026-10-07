@@ -123,6 +123,7 @@ export function PageHeaderChrome({
   page,
   embedded,
   focusMode,
+  preview = false,
   dayIso,
   headerIcon,
   bannerPossible,
@@ -138,6 +139,13 @@ export function PageHeaderChrome({
   page: ClientNode;
   embedded: boolean;
   focusMode: boolean;
+  /**
+   * Preview surface (the hover preview's NodeView): the header renders —
+   * icon, title, tags — but never edits: no icon picker, the title row is
+   * read-only (a click navigates), the aliases/tags machinery and the
+   * context menu stay shut. A trampoline, not an editor.
+   */
+  preview?: boolean;
   /** Day precision of the page's id, null for every non-date page. */
   dayIso: string | null;
   /** The effective icon (own or its classes'), null = the placeholder. */
@@ -185,7 +193,7 @@ export function PageHeaderChrome({
               className="nt-page-title-wrap"
               onContextMenu={(event) => {
                 event.preventDefault();
-                onHeaderMenu(event.clientX, event.clientY);
+                if (!preview) onHeaderMenu(event.clientX, event.clientY);
               }}
             >
               <DayPageHeader iso={dayIso} title={displayNameForSettings(page)} />
@@ -200,11 +208,11 @@ export function PageHeaderChrome({
                     title="Page icon (click: change icon)"
                     ref={pageIconRef}
                     onClick={() => {
-                      if (!embedded) setIconPickerOpen((open) => !open);
+                      if (!embedded && !preview) setIconPickerOpen((open) => !open);
                     }}
                     onContextMenu={(event) => {
                       event.preventDefault();
-                      onHeaderMenu(event.clientX, event.clientY);
+                      if (!preview) onHeaderMenu(event.clientX, event.clientY);
                     }}
                   >
                     {headerIcon !== null ? (
@@ -234,12 +242,13 @@ export function PageHeaderChrome({
               )}
             {/* Right-click anywhere on the title (not just the icon) opens the
                 page's node context menu — the browser menu is never the
-                honest surface for a node. */}
+                honest surface for a node. The preview surface suppresses
+                the menu (no machinery in a trampoline). */}
             <span
               className="nt-page-title-wrap"
               onContextMenu={(event) => {
                 event.preventDefault();
-                onHeaderMenu(event.clientX, event.clientY);
+                if (!preview) onHeaderMenu(event.clientX, event.clientY);
               }}
             >
             {embedded ? (
@@ -255,19 +264,22 @@ export function PageHeaderChrome({
               /* The title is a bullet-less BlockRow over the page node itself
                  (no children — the body tree stays the separate collection
                  below): display renders the content's inline tokens (links,
-                 mentions), a click swaps in the full block editor. */
+                 mentions), a click swaps in the full block editor. The
+                 preview surface passes readOnly — the click navigates to the
+                 full view instead (the trampoline contract). */
               <BlockRow
                 variant="title"
                 tree={{ node: page, children: [] }}
                 client={client}
                 resolveName={(id) => displayNameFromClient(client, id)}
+                readOnly={preview}
               />
             )}
             </span>
             {/* The aliases affordance: every page whose alias-terminal is
                 this page, listed + added from the ALIASED node's own title
-                row (null chrome for embedded/focus renders). */}
-            {!embedded && !focusMode && (
+                row (null chrome for embedded/focus/preview renders). */}
+            {!embedded && !focusMode && !preview && (
               <AliasesButton
                 client={client}
                 nodeId={pageId}
@@ -277,7 +289,9 @@ export function PageHeaderChrome({
               </>
           )}
         </div>
-        {!embedded && !focusMode && (
+        {/* Tags: navigational chips on the preview surface; the add/remove
+            machinery (the picker + the unassign ×) stays main-surface-only. */}
+        {!embedded && !focusMode && !preview && (
           <TagsRow client={client} nodeId={pageId} tagIds={page.tagIds} onOpenPage={onOpenPage} />
         )}
       </header>

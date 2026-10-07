@@ -59,9 +59,10 @@
  * The `preview` surface seam — NodeView's `preview` prop renders
  * this view with NO corner menu, NO global listeners, a READ-ONLY body
  * capped at the page's first body level (maxDepth 1 — outline only; other
- * view modes render uncapped), and NO section stack: the hover/peek
- * surface is a trampoline, not a page. Nothing renders it yet — swapping
- * NodeHoverPreview's bespoke card for this seam is a registered follow-up.
+ * view modes render uncapped), and NO section stack: the hover preview
+ * (NodeHoverPreview) renders it, and the write machinery steps aside — no
+ * banner/cover affordances, no properties list, no whiteboard
+ * lazy-authoring, no block multi-selection. A trampoline, not a page.
  *
  * PageView also owns the OutlinerContext: the write surface, the per-render
  * outline position map (sibling/parent facts for Tab/Backspace), the focus
@@ -184,11 +185,12 @@ export function PageView({
   /** shares: server coordinates for the "Share…" item + modal. */
   shareTarget = undefined,
   /**
-   * The preview surface seam (hover/peek): no chromeRight/corner
-   * menu (NodeView guarantees), no global listeners, a read-only body
-   * capped at the first body level, and no section stack. Nothing renders
-   * it yet — NodeHoverPreview keeps its bespoke card until the follow-up
-   * swap.
+   * The preview surface seam (hover/peek — NodeHoverPreview renders it):
+   * no chromeRight/corner menu (NodeView guarantees), no global listeners,
+   * a read-only body capped at the first body level, and no section stack.
+   * The write machinery steps aside too: no banner/cover affordances, no
+   * properties list, no whiteboard lazy-authoring, no block
+   * multi-selection — a trampoline, not an editor.
    */
   preview = false,
   /**
@@ -329,6 +331,7 @@ export function PageView({
     if (
       page === undefined ||
       embedded ||
+      preview ||
       whiteboardTokenIndex >= 0 ||
       !whiteboardClassed
     ) {
@@ -337,7 +340,7 @@ export function PageView({
     void client.updateObject(page.id, {
       contentAst: [...page.contentAst, { type: "whiteboard", layout: { cards: {}, shapes: [], strokes: [] } }],
     });
-  }, [client, page, embedded, whiteboardTokenIndex, whiteboardClassed]);
+  }, [client, page, embedded, preview, whiteboardTokenIndex, whiteboardClassed]);
 
   /**
    * Cover property self-heal: the cover schema + source binding
@@ -365,13 +368,14 @@ export function PageView({
 
   /** The cover's asset target, when the page carries the property. */
   const coverAssetId =
-    page !== undefined && !embedded && whiteboardTokenIndex < 0
+    page !== undefined && !embedded && !preview && whiteboardTokenIndex < 0
       ? coverAssetIdOf(client, pageId)
       : null;
   /** The cover element renders whenever the page can carry a cover —
-   *  set or empty (the card shows the Add affordance when empty). */
+   *  set or empty (the card shows the Add affordance when empty). The
+   *  preview surface hosts none (the Add/Change upload is machinery). */
   const coverPossible =
-    page !== undefined && !embedded && whiteboardTokenIndex < 0
+    page !== undefined && !embedded && !preview && whiteboardTokenIndex < 0
       ? canHaveCoverOf(client, pageId)
       : false;
 
@@ -381,12 +385,13 @@ export function PageView({
    * like the cover; whiteboard pages and embedded renders host none (the
    * cover gating precedent). The upload modal is host-owned so the page
    * context menu's Add banner rides the same flow as the empty affordance.
+   * The preview surface hosts none (the Add/Change upload is machinery).
    */
   const bannerAssetId =
-    page !== undefined && !embedded && whiteboardTokenIndex < 0
+    page !== undefined && !embedded && !preview && whiteboardTokenIndex < 0
       ? bannerAssetIdOf(client, pageId)
       : null;
-  const bannerPossible = page !== undefined && !embedded && whiteboardTokenIndex < 0;
+  const bannerPossible = page !== undefined && !embedded && !preview && whiteboardTokenIndex < 0;
   const [bannerUploadOpen, setBannerUploadOpen] = useState(false);
 
   /**
@@ -403,6 +408,7 @@ export function PageView({
     embedded,
     forClass: variant.variant === "class",
     focusMode,
+    preview,
     globalShortcuts: globalShortcuts ?? !preview,
     onOpenPage,
     onOpenInSidebar,
@@ -577,6 +583,7 @@ export function PageView({
       page={page}
       embedded={embedded}
       focusMode={focusMode}
+      preview={preview}
       dayIso={dayIso}
       headerIcon={headerIcon}
       bannerPossible={bannerPossible}
@@ -602,8 +609,10 @@ export function PageView({
           <AliasOfBanner client={client} aliasPageId={pageId} onOpenPage={onOpenPage} />
         )}
         {/* The compact layouts keep the original in-flow properties list (the
-            panelled main layout moves it into the left side panel). */}
-        {!focusMode && !panelled && (
+            panelled main layout moves it into the left side panel). The
+            preview surface hosts none — the properties editor is machinery
+            a trampoline card never carries. */}
+        {!focusMode && !panelled && !preview && (
           <>
             <PropertiesSection client={client} nodeId={pageId} onOpenPage={onOpenPage} />
             <div className="nt-metadata-divider" />

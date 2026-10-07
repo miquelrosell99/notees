@@ -63,16 +63,20 @@ beforeAll(async () => {
   // Synthetic layout for the block rows and the card headers (jsdom has none).
   Element.prototype.getBoundingClientRect = function (this: Element): DOMRect {
     if (this instanceof HTMLElement && this.classList.contains("nt-sidebar-card__header")) {
-      // The card header rides above the document's rows.
+      // The card headers ride above the document's rows, stacked in rail
+      // order (two-header reorder drags need distinct rects per card).
+      const headers = Array.from(document.querySelectorAll(".nt-sidebar-card__header"));
+      const index = Math.max(0, headers.indexOf(this));
+      const top = -48 + index * 48;
       return {
         x: 0,
-        y: -48,
+        y: top,
         left: 0,
-        top: -48,
+        top,
         width: 400,
         height: 32,
         right: 400,
-        bottom: -16,
+        bottom: top + 32,
         toJSON: () => ({}),
       } as DOMRect;
     }
@@ -375,5 +379,169 @@ describe("the workspace drag session", () => {
     fireEvent.keyDown(document, { key: "f", code: "KeyF", ctrlKey: true, shiftKey: true });
     await act(async () => {});
     expect(document.querySelector(".find-replace-widget")).not.toBeNull();
+  });
+});
+
+describe("the rail card reorder", () => {
+  function cardGrip(container: HTMLElement, cardNodeId: string): HTMLElement {
+    const header = container.querySelector<HTMLElement>(
+      `[data-header-droppable="workspace-card-header:${cardNodeId}"]`,
+    );
+    const grip = header?.querySelector<HTMLElement>(".nt-sidebar-card__grip");
+    if (grip === null || grip === undefined) throw new Error("no reorder grip in card header");
+    return grip;
+  }
+
+  /**
+   * A pointer drag of `cardId`'s grip to document coordinates (x, y) —
+   * over another card's header rect (its mock: -48 + index * 48, 32 tall).
+   */
+  function dragCardTo(container: HTMLElement, cardId: string, to: { x: number; y: number }): void {
+    const grip = cardGrip(container, cardId);
+    const origin = grip
+      .closest(".nt-sidebar-card__header")!
+      .getBoundingClientRect();
+    fireEvent.pointerDown(grip, {
+      clientX: origin.left + 20,
+      clientY: origin.top + 16,
+      button: 0,
+      pointerId: 1,
+    });
+    // First move beyond the 4px activation distance so the drag starts.
+    fireEvent.pointerMove(document, {
+      clientX: origin.left + 24,
+      clientY: origin.top + 20,
+      buttons: 1,
+      pointerId: 1,
+    });
+    let lastY = to.y;
+    for (let i = 0; i < 3; i += 1) {
+      lastY = to.y + i;
+      fireEvent.pointerMove(document, { clientX: to.x, clientY: lastY, buttons: 1, pointerId: 1 });
+    }
+    fireEvent.pointerUp(document, { clientX: to.x, clientY: lastY, button: 0, pointerId: 1 });
+  }
+
+  function renderTwoCards(
+    client: WorkspaceClient,
+    first: string,
+    second: string,
+    onReorder: (active: string, target: string, position: "before" | "after") => void,
+  ) {
+    // Childless cards: the headers are the only droppables in play.
+    return render(
+      <WorkspaceDndHost onRailCardReorder={onReorder}>
+        <NodeCardFrame client={client} nodeId={first} onOpenNode={() => {}} onClose={() => {}} />
+        <NodeCardFrame client={client} nodeId={second} onOpenNode={() => {}} onClose={() => {}} />
+      </WorkspaceDndHost>,
+    );
+  }
+
+  it("dragging a card's grip below another card's header reorders after it", async () => {
+    const client = await seedClient();
+    const first = await client.createObject({ presentAsMain: true, name: "First" });
+    const second = await client.createObject({ presentAsMain: true, name: "Second" });
+    const calls: Array<[string, string, "before" | "after"]> = [];
+    const { container } = renderTwoCards(client, first, second, (...args) => calls.push(args));
+
+    // Card A's grip onto card B's header LOWER half (header mock: top 0,
+    // midpoint 16).
+    dragCardTo(container, first, { x: 40, y: 24 });
+    await flushMoves();
+
+    expect(calls).toEqual([[first, second, "after"]]);
+    // A pure reorder report — the object graph never moved.
+    expect(client.getNode(first)?.parentId ?? null).toBeNull();
+  });
+
+  it("dragging a card's grip above another card's header reorders before it", async () => {
+    const client = await seedClient();
+    const first = await client.createObject({ presentAsMain: true, name: "First" });
+    const second = await client.createObject({ presentAsMain: true, name: "Second" });
+    const calls: Array<[string, string, "before" | "after"]> = [];
+    const { container } = renderTwoCards(client, first, second, (...args) => calls.push(args));
+
+    // Card B's grip onto card A's header UPPER half (header mock: top -48,
+    // midpoint -32).
+    dragCardTo(container, second, { x: 40, y: -40 });
+    await flushMoves();
+
+    expect(calls).toEqual([[second, first, "before"]]);
+  });
+
+  it("shows the target header's reorder edge while a card drag hovers it", async () => {
+    const client = await seedClient();
+    const first = await client.createObject({ presentAsMain: true, name: "First" });
+    const second = await client.createObject({ presentAsMain: true, name: "Second" });
+    const { container } = renderTwoCards(client, first, second, () => {});
+
+    const grip = cardGrip(container, first);
+    const origin = grip.closest(".nt-sidebar-card__header")!.getBoundingClientRect();
+    fireEvent.pointerDown(grip, {
+      clientX: origin.left + 20,
+      clientY: origin.top + 16,
+      button: 0,
+      pointerId: 1,
+    });
+    fireEvent.pointerMove(document, {
+      clientX: origin.left + 24,
+      clientY: origin.top + 20,
+      buttons: 1,
+      pointerId: 1,
+    });
+    for (let i = 0; i < 3; i += 1) {
+      fireEvent.pointerMove(document, { clientX: 40, clientY: 24 + i, buttons: 1, pointerId: 1 });
+    }
+
+    // Capture the during-drag state, then end the drag — an assertion must
+    // not throw while a drag is live (the sensor keeps document listeners).
+    const secondHeader = container.querySelectorAll<HTMLElement>(".nt-sidebar-card__header")[1]!;
+    const edgeClass = secondHeader.className;
+    fireEvent.pointerUp(document, { clientX: 40, clientY: 26, button: 0, pointerId: 1 });
+    await flushMoves();
+
+    expect(edgeClass).toContain("nt-sidebar-card__header--reorder-after");
+    // The edge clears at drag end.
+    expect(container.querySelector(".nt-sidebar-card__header--reorder-after")).toBeNull();
+  });
+
+  it("dropping a card onto its own header reports nothing", async () => {
+    const client = await seedClient();
+    const first = await client.createObject({ presentAsMain: true, name: "First" });
+    const second = await client.createObject({ presentAsMain: true, name: "Second" });
+    const calls: Array<[string, string, "before" | "after"]> = [];
+    const { container } = renderTwoCards(client, first, second, (...args) => calls.push(args));
+
+    // Card A's grip back over its own header (upper half).
+    dragCardTo(container, first, { x: 40, y: -40 });
+    await flushMoves();
+
+    expect(calls).toEqual([]);
+  });
+
+  it("the header drop keeps appending blocks while the reorder exists", async () => {
+    // The two gestures share one header and must not conflict: a BLOCK
+    // drag onto the grip-bearing header still appends as the last child.
+    const client = await seedClient();
+    const cardNodeId = await client.createObject({ presentAsMain: true, name: "Carded" });
+    const a = await seedBlock(client, cardNodeId, "alpha");
+    const b = await seedBlock(client, cardNodeId, "beta");
+    const calls: Array<[string, string, "before" | "after"]> = [];
+    const { container } = render(
+      <WorkspaceDndHost onRailCardReorder={(...args) => calls.push(args)}>
+        <NodeCardFrame client={client} nodeId={cardNodeId} onOpenNode={() => {}} onClose={() => {}} />
+      </WorkspaceDndHost>,
+    );
+    const moveSpy = vi.spyOn(client, "moveObject");
+
+    // Drag the card's first child onto the card header (header rect center).
+    dragTo(container, a, { x: 40, y: -32 });
+    await flushMoves();
+
+    expect(moveSpy).toHaveBeenCalledTimes(1);
+    expect(moveSpy).toHaveBeenCalledWith(a, cardNodeId);
+    expect(client.getChildren(cardNodeId).map((child) => child.id)).toEqual([b, a]);
+    // The reorder report stayed silent — no card drag happened.
+    expect(calls).toEqual([]);
   });
 });
