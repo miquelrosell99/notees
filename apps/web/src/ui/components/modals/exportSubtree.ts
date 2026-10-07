@@ -97,6 +97,9 @@ export function toExportNode(client: ExportClient, id: string): ExportNode | und
     contentAst: node.contentAst,
     classIds: node.classIds,
     properties,
+    coverAssetId: node.coverAssetId,
+    bannerAssetId: node.bannerAssetId,
+    aliasedNodeId: node.aliasedNodeId,
   };
 }
 
