@@ -4,11 +4,16 @@
  * One derived, read-only projection over the store:
  *  - the node set is classes + present-as-main nodes ONLY (owner ruling:
  *    blocks never render as graph nodes — they surface solely as edge
- *    evidence);
+ *    evidence); node ALIASES are not vertices either — a node carrying
+ *    `aliased_node_id` collapses into its terminal (an edge incident to an
+ *    alias renders incident to the terminal; repointed parallels merge into
+ *    one weighted edge);
  *  - every edge endpoint rolls up to the node set via its nearest node-set
  *    ancestor (the backlinksWithRollup containment semantics: a mention
  *    authored on a block lands between the block's page and the target; a
- *    block target rolls up to its containing page);
+ *    block target rolls up to its containing page); the walk steps THROUGH
+ *    aliases — an endpoint (or ancestor) that is an alias resolves to the
+ *    alias-terminal, never to the alias itself;
  *  - structural families: mention / property (from the derived edge index),
  *    parent (main-node parentage), class (membership);
  *  - the semantic family is the content co-occurrence projection: a block (or
@@ -16,7 +21,9 @@
  *    with weight = shared-context count; the hub guard (> SEMANTIC_HUB_GUARD
  *    distinct targets) contributes nothing — an index-style context would
  *    otherwise spray k² edges. Evidence carries the supporting context ids.
- *  - local scope (anchor + depth) BFS-truncates the final edge set.
+ *  - local scope (anchor + depth) BFS-truncates the final edge set; the
+ *    anchor resolves through the alias-terminal first (an alias anchor shows
+ *    its terminal's neighborhood).
  *
  * Sparsification (per-node top-K / min-weight) is a display concern — the
  * projection returns the full weighted set.
@@ -59,6 +66,11 @@ export interface GraphOptions {
 export const SEMANTIC_HUB_GUARD = 10;
 export const SEMANTIC_EVIDENCE_CAP = 5;
 
+/** Alias-chain cap for the in-memory graph terminal walk (the store walker's
+ *  precedent — chains are user-built and tiny; the cap bounds pathological
+ *  data). */
+const ALIAS_GRAPH_DEPTH_CAP = 32;
+
 /** The `day` system class seed id (SYSTEM_CLASS_UUIDS.day — inlined to keep
  *  the store package's dependency surface unchanged). */
 const DAY_CLASS_ID = "00000000-0000-0000-0001-000000000005";
@@ -70,6 +82,11 @@ interface NodeRow {
   class_ids: string;
   color: string | null;
   icon: string | null;
+}
+
+interface AliasRow {
+  id: string;
+  aliased_node_id: string | null;
 }
 
 interface IdRow {
@@ -94,19 +111,50 @@ export function graphTopology(store: Store, workspaceId: string, options?: Graph
     .prepare(
       `SELECT id, is_class, parent_id, class_ids, color, icon
        FROM node
-       WHERE workspace_id = ? AND is_active = 1 AND (is_class = 1 OR present_as_main = 1)`,
+       WHERE workspace_id = ? AND is_active = 1 AND (is_class = 1 OR present_as_main = 1)
+         AND aliased_node_id IS NULL`,
     )
     .all(workspaceId) as unknown as NodeRow[];
 
   const inSet = new Set(nodeRows.map((row) => row.id));
 
-  // Parent map over ALL active nodes: the rollup walks up through blocks.
+  // Parent + alias maps over ALL active nodes: the rollup walks up through
+  // blocks, and through aliases (an alias is transparent — its terminal is
+  // the vertex an edge incident to it renders against).
   const parentRows = db
     .prepare(`SELECT id, parent_id FROM node WHERE workspace_id = ? AND is_active = 1`)
     .all(workspaceId) as unknown as IdRow[];
   const parentOf = new Map<string, string | null>(parentRows.map((row) => [row.id, row.parent_id]));
+  const aliasRows = db
+    .prepare(`SELECT id, aliased_node_id FROM node WHERE workspace_id = ? AND is_active = 1`)
+    .all(workspaceId) as unknown as AliasRow[];
+  const aliasTargetOf = new Map<string, string>(
+    aliasRows
+      .filter((row): row is AliasRow & { aliased_node_id: string } => row.aliased_node_id !== null)
+      .map((row) => [row.id, row.aliased_node_id]),
+  );
 
-  /** Nearest node-set ancestor (blocks roll up; node-set nodes resolve to self). */
+  /** The alias-terminal of `id` (self when not an alias). Write-time cycle
+   *  validation keeps chains acyclic; the visited set + cap are the
+   *  belt-and-braces for data that predates the check. */
+  const terminalCache = new Map<string, string>();
+  const terminalOf = (id: string): string => {
+    const cached = terminalCache.get(id);
+    if (cached !== undefined) return cached;
+    let current = id;
+    const seen = new Set<string>();
+    for (let depth = 0; depth < ALIAS_GRAPH_DEPTH_CAP; depth += 1) {
+      const target = aliasTargetOf.get(current);
+      if (target === undefined || seen.has(target)) break;
+      seen.add(current);
+      current = target;
+    }
+    terminalCache.set(id, current);
+    return current;
+  };
+
+  /** Nearest node-set ancestor, stepping THROUGH aliases (blocks roll up;
+   *  node-set nodes resolve to self; an alias resolves to its terminal). */
   const resolveCache = new Map<string, string | null>();
   const resolveToSet = (id: string): string | null => {
     const cached = resolveCache.get(id);
@@ -119,6 +167,11 @@ export function graphTopology(store: Store, workspaceId: string, options?: Graph
       if (inSet.has(current)) {
         result = current;
         break;
+      }
+      const aliasTarget = aliasTargetOf.get(current);
+      if (aliasTarget !== undefined) {
+        current = aliasTarget;
+        continue;
       }
       current = parentOf.get(current) ?? null;
     }
@@ -232,7 +285,9 @@ export function graphTopology(store: Store, workspaceId: string, options?: Graph
         if (classIds !== undefined && classIds.includes(DAY_CLASS_ID)) return current;
         return null; // reached the node set without passing a day node
       }
-      current = parentOf.get(current) ?? null;
+      // Aliases are transparent here too: a context under an alias of a day
+      // page belongs to the terminal's day, never the alias's.
+      current = aliasTargetOf.get(current) ?? parentOf.get(current) ?? null;
     }
     return null;
   };
@@ -262,8 +317,10 @@ export function graphTopology(store: Store, workspaceId: string, options?: Graph
 
   let finalNodes = nodes;
   let finalEdges = edges;
-  const anchor = options?.anchor;
-  if (anchor !== undefined && inSet.has(anchor)) {
+  // The anchor steps through the alias-terminal too: an alias anchor shows
+  // its terminal's neighborhood (the alias is never a vertex).
+  const anchor = options?.anchor !== undefined ? resolveToSet(options.anchor) : undefined;
+  if (anchor !== undefined && anchor !== null) {
     const depth = options?.depth ?? 2;
     const adjacency = new Map<string, string[]>();
     const link = (a: string, b: string): void => {

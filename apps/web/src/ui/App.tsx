@@ -534,6 +534,7 @@ export function NodeView({
   client,
   nodeId,
   onOpenNode,
+  onOpenNodeRaw,
   onOpenInSidebar,
   onDeleted,
   onPresent,
@@ -543,6 +544,12 @@ export function NodeView({
   client: WorkspaceClient | WorkerClient;
   nodeId: string;
   onOpenNode?: ((nodeId: string) => void) | undefined;
+  /**
+   * The RAW open (no alias redirect): browser-deep-link identity + the
+   * aliases UI's NAVIGATE, which deliberately opens an alias node's OWN
+   * view. Defaults to onOpenNode.
+   */
+  onOpenNodeRaw?: ((nodeId: string) => void) | undefined;
   onOpenInSidebar?: ((nodeId: string) => void) | undefined;
   onDeleted?: ((node: ClientNode) => void) | undefined;
   /**
@@ -607,6 +614,7 @@ export function NodeView({
       client={client}
       pageId={nodeId}
       onOpenPage={onOpenNode}
+      onOpenPageRaw={onOpenNodeRaw ?? onOpenNode}
       onOpenInSidebar={onOpenInSidebar}
       onDeleted={onDeleted}
       onPresent={onPresent}
@@ -648,11 +656,14 @@ function SidebarNodeCard({
   client,
   nodeId,
   onOpenNode,
+  onOpenNodeRaw,
   onClose,
 }: {
   client: WorkspaceClient | WorkerClient;
   nodeId: string;
   onOpenNode: (nodeId: string) => void;
+  /** The RAW open (no alias redirect) — the aliases UI's NAVIGATE bypass. */
+  onOpenNodeRaw?: ((nodeId: string) => void) | undefined;
   onClose: () => void;
 }) {
   const node = client.getNode(nodeId);
@@ -697,7 +708,7 @@ function SidebarNodeCard({
         {node === undefined ? (
           <div className="nt-page-missing">Page not found.</div>
         ) : (
-          <NodeView client={client} nodeId={nodeId} onOpenNode={onOpenNode} onDeleted={() => onClose()} />
+          <NodeView client={client} nodeId={nodeId} onOpenNode={onOpenNode} onOpenNodeRaw={onOpenNodeRaw} onDeleted={() => onClose()} />
         )}
       </div>
     </section>
@@ -759,10 +770,17 @@ export function App() {
    * panel. Closing the last card closes the panel with it.
    */
   const [sidebarCards, setSidebarCards] = useState<string[]>([]);
-  const openInSidebar = useCallback((nodeId: string) => {
-    setSidebarCards((prev) => [nodeId, ...prev.filter((id) => id !== nodeId)]);
-    setRightPanelOpen(true);
-  }, []);
+  const openInSidebar = useCallback(
+    (nodeId: string) => {
+      // The redirect seam: a peek card opened on an alias shows the
+      // terminal's card (the same resolution openPage applies).
+      const live = clientRef.current;
+      const resolved = live !== null ? resolveAliasOpen(live, nodeId) : nodeId;
+      setSidebarCards((prev) => [resolved, ...prev.filter((id) => id !== resolved)]);
+      setRightPanelOpen(true);
+    },
+    [],
+  );
   function closeSidebarCard(nodeId: string): void {
     const next = sidebarCards.filter((id) => id !== nodeId);
     setSidebarCards(next);
@@ -861,12 +879,28 @@ export function App() {
   }, [client, selectedPageId, pagesVersion]);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
 
-  /** Open a node: sync the URL and record it in Recents (every open surface
-   * funnels through here — breadcrumbs, links, bullets, sidebar rows). */
-  function openPage(id: string): void {
+  /**
+   * The RAW open: sync the URL, the selection and Recents to exactly `id` —
+   * no alias resolution. The identity-level path: browser deep links and
+   * back/forward land here, and the aliases UI's NAVIGATE (open the alias
+   * node's OWN view) is the one in-app caller that bypasses the redirect.
+   */
+  function openPageAt(id: string): void {
     setSelectedPageId(id);
     window.history.pushState({ node: id }, "", `/${id}`);
     recordRecent(id);
+  }
+
+  /**
+   * Open a node: THE navigation funnel — every open surface routes through
+   * here (breadcrumbs, links, bullets, sidebar rows, backlink/query result
+   * rows, the command palette, graph clicks). Node aliases resolve to
+   * their terminal here (the single redirect seam — resolveAliasOpen), so
+   * a mention of an alias opens the MAIN page's view.
+   */
+  function openPage(id: string): void {
+    const live = clientRef.current;
+    openPageAt(live !== null ? resolveAliasOpen(live, id) : id);
   }
 
   /**
@@ -1910,11 +1944,11 @@ export function App() {
       <div className="nt-body">
         <NodeLinkMenuHost
           client={client}
-          openNode={(id) => openPage(resolveAliasOpen(client, id))}
+          openNode={openPage}
           openInSidebar={openInSidebar}
         >
-        <NodeHoverPreviewHost client={client} openNode={(id) => openPage(resolveAliasOpen(client, id))}>
-        <FloatingEditorHost client={client} openNode={(id) => openPage(resolveAliasOpen(client, id))}>
+        <NodeHoverPreviewHost client={client} openNode={openPage}>
+        <FloatingEditorHost client={client} openNode={openPage}>
         <Sidebar
           client={client}
           user={user}
@@ -1956,6 +1990,7 @@ export function App() {
               client={client}
               nodeId={selectedPageId}
               onOpenNode={openPage}
+              onOpenNodeRaw={openPageAt}
               onOpenInSidebar={openInSidebar}
               onDeleted={handleNodeDeleted}
               onPresent={(id) => setPresentingId(id)}
@@ -2008,6 +2043,7 @@ export function App() {
                   client={client}
                   nodeId={cardId}
                   onOpenNode={openPage}
+                  onOpenNodeRaw={openPageAt}
                   onClose={() => closeSidebarCard(cardId)}
                 />
               ))

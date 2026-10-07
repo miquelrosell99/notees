@@ -188,7 +188,6 @@ import { TriggerPopup, SLASH_COMMANDS, bumpSlashCommandUsage, readSlashCommandUs
 import { NodeSelector, type NodePickContext } from "./components/pickers/NodeSelector.js";
 import { parseDate } from "./components/pickers/dateParser.js";
 import { NodeLinkContextMenu } from "./components/NodeLinkContextMenu.js";
-import { resolveAliasOpen } from "./components/aliasProperty.js";
 import { useLinkEditModalOpener } from "./editor-popups/LinkEditModal.js";
 import { CodeTextarea } from "./components/ui/CodeTextarea.js";
 import { requestQueryBuilderOpen } from "./QueryBlockView.js";
@@ -475,13 +474,11 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     openInSidebar,
     ensureTemplateFamily,
   } = useOutliner();
-  // Issue #7 — every mention-open gesture (pill double-click, Enter on a
-  // selected pill, the link context menu's Open) resolves an alias target
-  // to its MAIN page; the alias view stays reachable by opening the alias
-  // as a node (search, child rows, deep links).
-  const openNodeResolved = (targetId: string) => openNode(resolveAliasOpen(client, targetId));
   /** Text-property carrier semantics — provided by the property
-   *  cell hosting this block as a carrier; null in the ordinary outline. */
+   *  cell hosting this block as a carrier; null in the ordinary outline.
+   *  Mention-open gestures (pill double-click, Enter on a selected pill, the
+   *  link context menu's Open) ride the context's `openNode` — the host
+   *  funnel (the App openPage seam) resolves node aliases to their terminal. */
   const carrierEnter = useContext(CarrierEnterContext);
   const rootRef = useRef<HTMLSpanElement>(null);
   const spanRef = useRef<HTMLSpanElement>(null);
@@ -1389,7 +1386,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     if (atom === null) return;
     event.preventDefault();
     setSelectedAtomKey(null);
-    openNodeResolved(atom.targetNodeId);
+    openNode(atom.targetNodeId);
   };
 
   /**
@@ -1643,7 +1640,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
         if (key === "Enter" && !event.shiftKey && !mod) {
           event.preventDefault();
           setSelectedAtomKey(null);
-          openNodeResolved(selected.targetNodeId);
+          openNode(selected.targetNodeId);
           return;
         }
         if (key === "ArrowRight") {
@@ -2099,7 +2096,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
           onClose={() => setLinkMenu(null)}
           onOpen={(id) => {
             setLinkMenu(null);
-            openNodeResolved(id);
+            openNode(id);
           }}
           onOpenInSidebar={(id) => {
             setLinkMenu(null);
