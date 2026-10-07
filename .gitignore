@@ -9,3 +9,4 @@ coverage/
 config/
 apps/server/data/
 scripts/migrated-verify/
+.worktrees/
