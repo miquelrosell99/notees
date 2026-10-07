@@ -205,6 +205,18 @@ wire/protocol change — pure web view-layer, like `05`.
     stamps entry; Diagram 1's variant boxes, the PageChrome contract, the
     migration map, and S7 revert accordingly.
 
+**Implementation record — S3b landed leaves-only (same day):**
+45. *S3b shipped as the leaf extraction + the Properties column header,
+    not the full chrome split.* `ui/PageChrome.tsx` carries `NodeTopbar`,
+    `PageHeaderChrome`, `PageFooterChrome`; PageView keeps the panelled /
+    compact composition (S7 reworks the columns). The three pieces the slice
+    plan attached to S3b — M10 (the picker's color section), M20 (text rows
+    as locked NodeCollections), M23 (the banner restoration) — are NOT part
+    of the landed slice; they remain pending, each independently landable on
+    top of the extracted leaves. The Properties column header (owner request:
+    the first column names itself — a muted "Properties" label row + the
+    effective count at the panel top) rode S3b as the one additive change.
+
 **Owner pass 13 — the banner returns; cover/banner modeling ruled (same day):**
 35. *M23 — v1's banner restored, following the cover implementation.*
     Verified at `v1-archive`: the banner was a first-class top element
@@ -1339,10 +1351,17 @@ lands. Per the post-§34 records regime, shipped slices are recorded in
   the single root item; M19 comment exclusion at every level);
   `FocusedBlockView.tsx` deleted — the NodeView block branch renders
   ReferenceSubtree with the same chrome wrapper; new unit coverage.
+- **S5 — class subtraction + variants as data: DONE** (commit `76224dfb`).
+  M11 ClassPillsList, M13 variant data (PageView slots deleted, ClassView
+  deleted, `components/pageVariant.ts`), M9 chrome subtraction, M12's
+  banner deletion.
 - **S5 — class subtraction + variants as data: DONE** (commit `33cb80a8`).
   M11 ClassPillsList, M13 variant data (PageView slots deleted, ClassView
   deleted, `components/pageVariant.ts`), M9 chrome subtraction, M12's
   banner deletion.
+- **Recovery batch: DONE** (commits `d0f278e7` M33 upload modal, `6b997e1f`
+  M35 v1 query builder, `9be3606a` M10 picker color + M38a NodeSelector
+  `noCreate`; `c2b11b50` M39 no-cover fix + v1 cards/table re-UI).
 - **Recovery batch DONE** (commits `5742859b`, `184f938f`, `bbef53fd`):
   M33 upload modal, M35 v1 query builder, M10 picker color, M38a
   NodeSelector `noCreate`.
@@ -1352,8 +1371,24 @@ lands. Per the post-§34 records regime, shipped slices are recorded in
   main (`94996963` + `a0e4b141`), plus the §-citation scrub-fidelity sweep
   (`2bed5b49`). A full scrub-persistence sweep (M-labels, S-slices, v1/v2
   prose — the branch's new files predated the scrub) follows S7a.
+- **M20 — text-property rows as locked outline NodeCollections: DONE**
+  (commit `034200ce`).
 - **M20 DONE** (`034200ce`): text-property carriers render through a
   locked outline NodeCollection.
+- **S7a — context column + cards-only rail: DONE** (uncommitted at this
+  writing). Three-column panelled composition (NodeView · properties ·
+  context); context = LocalGraphCard · TocSection · Activity (M18) ·
+  Comments (M19, the v1 model restored); per-column device-local collapse
+  from the nodeview top bar (the `layout` prop stays binary — per-column
+  prefs replace the recorded "third state" option, registered choice); the
+  references dedupe check VERIFIED the rail's ReferencesSection and the
+  Backlinks tab render the same `getLinkedReferences` data — the rail's
+  section is DELETED, the Backlinks tab stays the one home; the rail is
+  cards-only via the generic `NodeCardFrame` (`SidebarNodeCard` deleted;
+  card collapse session-local, reorder a registered follow-up); NodeView
+  gains the `preview` seam (no machinery, no corner menu, first-level capped
+  body — nothing renders it yet; swapping NodeHoverPreview over is a
+  registered follow-up).
 - **S7a DONE** (`7bc499a3`): the three-column card (context = graph · TOC
   · Activity · Comments; per-column collapse; layout stays binary), the
   Comments section (v1 model), the cards-only rail (NodeCardFrame;
@@ -1363,6 +1398,8 @@ lands. Per the post-§34 records regime, shipped slices are recorded in
 - **Environment note (2026-10-07):** the worktree moved to the repo's
   gitignored `.worktrees/restructure` (owner convention, committed on
   main as `64de271f` — AGENTS.md + skill + development runbook).
+- Next: the rest of **S7** (M36 whiteboard + M37 graph full-container
+  chrome), then **S6** (workspace DnD hoist).
 - Next: the full scrub-persistence sweep (in flight), then **S7b** (M36
   whiteboard + M37 v1 graph full-container recoveries + M40
   `showAddButton`), then **S6** (workspace DnD hoist).

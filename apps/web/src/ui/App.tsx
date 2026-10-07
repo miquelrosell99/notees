@@ -47,26 +47,23 @@ import {
 } from "@/core/auth-api.js";
 
 import { Icon } from "./Icon.js";
-import { PageView, BLOCKS_VIEW_MODES } from "./PageView.js";
-import { ViewToolbar } from "./views/ViewToolbar.js";
-import { useViewModePreference } from "./viewPrefs.js";
+import { NodeView } from "./NodeView.js";
+import { NodeCardFrame } from "./components/NodeCardFrame.js";
 import { displayNameForSettings } from "./dateDisplay.js";
-import { ClassView } from "./ClassView.js";
 import { DeckView } from "./presentation/DeckView.js";
 import { ThemeToggle } from "./ThemeToggle.js";
 import { CommandPalette } from "./components/CommandPalette.js";
 import { PageCard } from "./components/PageCard.js";
-import { NodeMenuButton, type ShareTarget } from "./components/NodeMenuButton.js";
+import type { ShareTarget } from "./components/NodeMenuButton.js";
 import { dayNodeId, rendersAsInlineBlock, rendersWithDocumentChrome, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import { CollectionHub } from "./components/CollectionHub.js";
 import type { TableColumn, ViewMode } from "./views/index.js";
 import { Breadcrumbs } from "./components/Breadcrumbs.js";
-import { TocSection, ReferencesSection } from "./components/sidebarSections.js";
-import { FocusedBlockView } from "./components/FocusedBlockView.js";
 import { NAV_ENTRIES, Sidebar, recordRecent, type NavKey } from "./components/Sidebar.js";
 import { NodeLinkMenuHost } from "./components/NodeLinkContextMenu.js";
 import { FloatingEditorHost } from "./components/FloatingEditor.js";
 import { NodeHoverPreviewHost } from "./components/NodeHoverPreview.js";
+import { WorkspaceDndHost } from "./useWorkspaceDnd.js";
 import { resolveAliasOpen } from "./components/aliasProperty.js";
 import { JournalsView } from "./components/JournalsView.js";
 import { CalendarView } from "./components/CalendarView.js";
@@ -77,13 +74,13 @@ import { CalendarPopup } from "./components/ui/CalendarPopup.js";
 import { HistoryMenuPopup } from "./components/HistoryMenuPopup.js";
 import { QueriesHub } from "./components/QueriesHub.js";
 import { GraphView } from "./views/graph/GraphView.js";
-import { LocalGraphCard } from "./components/LocalGraphCard.js";
 import { TopBar } from "./components/TopBar.js";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher.js";
 import { NodeSelector } from "./components/pickers/NodeSelector.js";
 import { createNodesWithClasses } from "./components/createNodesWithClasses.js";
 import { QuickAddModal } from "./components/modals/QuickAddModal.js";
 import { ClassCreateModal } from "./components/modals/ClassCreateModal.js";
+import { AssetUploadModal } from "./components/modals/AssetUploadModal.js";
 import { QuickCreateFab } from "./components/QuickCreateFab.js";
 import { WorkspacesView } from "./components/WorkspacesView.js";
 import { UserSettingsModal } from "./components/modals/UserSettingsModal.js";
@@ -523,197 +520,7 @@ function initialNav(): NavKey {
   return "pages";
 }
 
-/**
- * View resolution = the Revision-11 render cascade (SCHEMA.md): a class node
- * renders the Class View; a parented non-class node with the render bit unset
- * renders the focused block view (inline body + block chrome); everything
- * else — parentless or present-as-main — renders the Page View (document
- * chrome). Exported for the view-routing tests.
- */
-export function NodeView({
-  client,
-  nodeId,
-  onOpenNode,
-  onOpenNodeRaw,
-  onOpenInSidebar,
-  onDeleted,
-  onPresent,
-  cornerMenu = false,
-  shareTarget = undefined,
-}: {
-  client: WorkspaceClient | WorkerClient;
-  nodeId: string;
-  onOpenNode?: ((nodeId: string) => void) | undefined;
-  /**
-   * The RAW open (no alias redirect): browser-deep-link identity + the
-   * aliases UI's NAVIGATE, which deliberately opens an alias node's OWN
-   * view. Defaults to onOpenNode.
-   */
-  onOpenNodeRaw?: ((nodeId: string) => void) | undefined;
-  onOpenInSidebar?: ((nodeId: string) => void) | undefined;
-  onDeleted?: ((node: ClientNode) => void) | undefined;
-  /**
-   * Presentation mode: the page's "Present" surfaces (the "…" menu,
-   * the header context menu) request a deck of this node's subtree, routed
-   * to the deck host above.
-   */
-  onPresent?: ((nodeId: string) => void) | undefined;
-  /**
-   * Main-card mode: also render the "…" node menu pinned to the content
-   * card's top-right corner. Only the main view card opts in; sidebar peek
-   * cards keep their own header actions and skip it.
-   */
-  cornerMenu?: boolean | undefined;
-  /** Shares: server coordinates for the "Share…" surface (pages). */
-  shareTarget?: ShareTarget | undefined;
-}) {
-  /**
-   * The child-blocks view mode, owned here because the switcher rides this
-   * view's top-right corner (left of the "…" menu — owner 2026-10-06). The
-   * same per-page device preference PageView falls back to, so the choice
-   * survives the move.
-   */
-  const [blocksMode, setBlocksMode] = useViewModePreference(
-    `nodeBlocks.${nodeId}`,
-    "outline",
-    BLOCKS_VIEW_MODES,
-  );
-  const node = client.getNode(nodeId);
-  if (node === undefined) {
-    return <div className="nt-page-missing">Page not found.</div>;
-  }
-  const pageView = !node.isClass && !rendersAsInlineBlock(node);
-  /**
-   * The card's top-right chrome: pages get the blocks view switcher + the
-   * "…" node menu (rendered by PageView — in the nodeview top bar when
-   * panelled, else the absolute corner); class/block views keep just the
-   * "…" menu in the absolute corner.
-   */
-  const chromeRight =
-    pageView && cornerMenu ? (
-      <>
-        <div className="nt-node-view__modes" role="group" aria-label="Blocks view">
-          <ViewToolbar modes={BLOCKS_VIEW_MODES} value={blocksMode} onChange={setBlocksMode} />
-        </div>
-        <NodeMenuButton
-          client={client}
-          node={node}
-          onOpenNode={(id) => onOpenNode?.(id)}
-          onPresent={onPresent}
-          onDeleted={onDeleted}
-          shareTarget={shareTarget}
-        />
-      </>
-    ) : undefined;
-  const view = node.isClass ? (
-    <ClassView client={client} classId={nodeId} onOpenClass={onOpenNode} onOpenPage={onOpenNode} />
-  ) : rendersAsInlineBlock(node) ? (
-    <FocusedBlockView client={client} blockId={nodeId} onOpenNode={onOpenNode} />
-  ) : (
-    <PageView
-      client={client}
-      pageId={nodeId}
-      onOpenPage={onOpenNode}
-      onOpenPageRaw={onOpenNodeRaw ?? onOpenNode}
-      onOpenInSidebar={onOpenInSidebar}
-      onDeleted={onDeleted}
-      onPresent={onPresent}
-      shareTarget={shareTarget}
-      layout={cornerMenu ? "default" : "compact"}
-      blocksMode={blocksMode}
-      onBlocksModeChange={setBlocksMode}
-      chromeRight={chromeRight}
-    />
-  );
-  if (!cornerMenu) return view;
-  return (
-    <div className="nt-node-view">
-      {view}
-      {!pageView && (
-        <div className="nt-node-view__corner">
-          <NodeMenuButton
-            client={client}
-            node={node}
-            onOpenNode={(id) => onOpenNode?.(id)}
-            onPresent={onPresent}
-            onDeleted={onDeleted}
-            shareTarget={shareTarget}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * SidebarNodeCard — one independent peek card in the right sidebar
- * (shift+click a block bullet): the node's own view (page/class/focused
- * block) with a close button; links inside navigate the main view. The
- * header title IS the breadcrumb trail (right-anchored): for inline blocks
- * it ends at the containing main node, for pages/classes at the node itself.
- */
-function SidebarNodeCard({
-  client,
-  nodeId,
-  onOpenNode,
-  onOpenNodeRaw,
-  onClose,
-}: {
-  client: WorkspaceClient | WorkerClient;
-  nodeId: string;
-  onOpenNode: (nodeId: string) => void;
-  /** The RAW open (no alias redirect) — the aliases UI's NAVIGATE bypass. */
-  onOpenNodeRaw?: ((nodeId: string) => void) | undefined;
-  onClose: () => void;
-}) {
-  const node = client.getNode(nodeId);
-  return (
-    <section className="nt-sidebar-card" aria-label="Node preview">
-      <header className="nt-sidebar-card__header">
-        {node !== undefined && (
-          <Breadcrumbs
-            client={client}
-            nodeId={nodeId}
-            onOpenNode={onOpenNode}
-            showCurrent={!rendersAsInlineBlock(node)}
-            anchor="right"
-            editable
-          />
-        )}
-        <span className="nt-sidebar-card__actions">
-          <button
-            type="button"
-            className="nt-sidebar-card__action"
-            aria-label="Open in main view"
-            title="Open in main view"
-            onClick={() => {
-              onOpenNode(nodeId);
-              onClose();
-            }}
-          >
-            <Icon path="mdi-arrow-right" size={0.8} />
-          </button>
-          <button
-            type="button"
-            className="nt-sidebar-card__action"
-            aria-label="Close card"
-            title="Close"
-            onClick={onClose}
-          >
-            ×
-          </button>
-        </span>
-      </header>
-      <div className="nt-sidebar-card__body">
-        {node === undefined ? (
-          <div className="nt-page-missing">Page not found.</div>
-        ) : (
-          <NodeView client={client} nodeId={nodeId} onOpenNode={onOpenNode} onOpenNodeRaw={onOpenNodeRaw} onDeleted={() => onClose()} />
-        )}
-      </div>
-    </section>
-  );
-}
+export { NodeView } from "./NodeView.js";
 
 export function App() {
   const [serverUrl, setServerUrl] = useState(initialServerUrl);
@@ -1948,6 +1755,11 @@ export function App() {
           openInSidebar={openInSidebar}
         >
         <NodeHoverPreviewHost client={client} openNode={openPage}>
+        {/* The ONE workspace drag session: the host wraps the FloatingEditorHost
+            (which wraps the regions), so the main content card, the right
+            rail's workspace cards, and the floating editor windows (portals
+            keep the React context) all join the same drag — useWorkspaceDnd.ts. */}
+        <WorkspaceDndHost>
         <FloatingEditorHost client={client} openNode={openPage}>
         <Sidebar
           client={client}
@@ -2004,41 +1816,27 @@ export function App() {
           ) : activeNav === "queries" ? (
             <QueriesHub client={client} onOpenNode={openPage} onOpenInSidebar={openInSidebar} />
           ) : activeNav === "graph" ? (
-            <GraphView client={client} onNodeClick={openPage} />
+            /* The graph hub renders edge-to-edge in the main content card —
+               the canvas is the card's sole content (the whiteboard-surface
+               treatment; the card frame itself stays). */
+            <div className="nt-graph-surface">
+              <GraphView client={client} onNodeClick={openPage} />
+            </div>
           ) : (
             <HubView client={client} nav={activeNav} onOpenNode={openPage} onOpenInSidebar={openInSidebar} />
           )}
         </PageCard>
         {rightPanelOpen && (
           <aside className="nt-right-card" aria-label="Right sidebar">
-            {selectedPageId !== null &&
-              (() => {
-                const contextNode = client.getNode(selectedPageId);
-                if (contextNode === undefined || !rendersWithDocumentChrome(contextNode)) {
-                  return null;
-                }
-                return (
-                  <div className="nt-right-card-context">
-                    <LocalGraphCard client={client} nodeId={selectedPageId} onOpenNode={openPage} />
-                    <TocSection
-                      client={client}
-                      pageId={selectedPageId}
-                      activeId={selectedPageId}
-                      onOpenNode={openPage}
-                    />
-                    <ReferencesSection
-                      client={client}
-                      pageId={selectedPageId}
-                      onOpenNode={openPage}
-                    />
-                  </div>
-                );
-              })()}
+            {/* The cards-only rail: the node-relevant widgets
+                (graph/TOC/Activity/Comments) relocated into the page chrome's
+                context column; this rail hosts workspace cards exclusively —
+                the generic frame around NodeView. */}
             {sidebarCards.length === 0 ? (
               <div className="nt-right-card-placeholder" />
             ) : (
               sidebarCards.map((cardId) => (
-                <SidebarNodeCard
+                <NodeCardFrame
                   key={cardId}
                   client={client}
                   nodeId={cardId}
@@ -2051,6 +1849,7 @@ export function App() {
           </aside>
         )}
         </FloatingEditorHost>
+        </WorkspaceDndHost>
         </NodeHoverPreviewHost>
         </NodeLinkMenuHost>
       </div>
@@ -2215,6 +2014,9 @@ export function HubView({
   // #14 — the Classes hub hosts the class-creation modal (blank + system
   // deploy); the header button opens it, and a created class opens.
   const [classCreateOpen, setClassCreateOpen] = useState(false);
+  // The Assets hub's creation path IS the upload modal: the header
+  // button opens it, and the uploaded asset node opens.
+  const [assetUploadOpen, setAssetUploadOpen] = useState(false);
   // Top-level pages: subpages render in their parent's Pages zone, so the
   // workspace-level hubs list roots only; the asset class stays excluded.
   const pages = client.roots().filter((page) => !page.classIds.includes(assetClassId));
@@ -2265,24 +2067,51 @@ export function HubView({
   }
 
   if (nav === "assets") {
-    // Any node classed asset, cards by default (owner rule).
+    // Any node classed asset, cards by default (owner rule). The header's
+    // "New asset" button opens the upload modal — uploading IS creating here:
+    // the modal's CAS path mints the asset-classed node.
     const members = client
       .getClassMembers(assetClassId)
       .map((node) => ({ node }));
+    const newAssetAction = (
+      <Button
+        size="sm"
+        variant="outline"
+        icon="mdiFileUpload"
+        onClick={() => setAssetUploadOpen(true)}
+      >
+        New asset
+      </Button>
+    );
     return (
-      <CollectionHub
-        client={client}
-        icon={entry?.icon ?? "mdi-folder-multiple-image"}
-        title={entry?.label ?? "Assets"}
-        items={members}
-        modes={["cards", "table"]}
-        defaultMode="cards"
-        persistKey="hub.assets"
-        tableColumns={HUB_ASSET_COLUMNS}
-        emptyTitle="No assets yet"
-        onOpenNode={onOpenNode}
-        onOpenInSidebar={onOpenInSidebar}
-      />
+      <>
+        <CollectionHub
+          client={client}
+          icon={entry?.icon ?? "mdi-folder-multiple-image"}
+          title={entry?.label ?? "Assets"}
+          items={members}
+          modes={["cards", "table"]}
+          defaultMode="cards"
+          persistKey="hub.assets"
+          tableColumns={HUB_ASSET_COLUMNS}
+          emptyTitle="No assets yet"
+          headerActions={newAssetAction}
+          onOpenNode={onOpenNode}
+          onOpenInSidebar={onOpenInSidebar}
+        />
+        {assetUploadOpen && (
+          <AssetUploadModal
+            isOpen
+            client={client}
+            assetClassId={assetClassId}
+            onClose={() => setAssetUploadOpen(false)}
+            onUploaded={(assetNodeId) => {
+              setAssetUploadOpen(false);
+              onOpenNode(assetNodeId);
+            }}
+          />
+        )}
+      </>
     );
   }
 

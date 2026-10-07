@@ -1,4 +1,19 @@
-/* TableView — the collection table (token-only). */
+/**
+ * TableView — the collection table (token-only).
+ *
+ * The table look recovery. The original NodeTable ("bordered", size md)
+ * registered: a BOXED table — border-collapse separate, a 1px
+ * outline-variant outer border with the shape-medium radius, surface cells
+ * (no zebra) with per-cell right/bottom hairlines forming the grid; a
+ * header row on the surface-variant wash — 600-weight muted labels,
+ * sticky, with the sortable hover tint; row hover painting every cell
+ * hover-overlay; the selected row wearing the same hover-overlay wash;
+ * a sticky select-checkbox column with the row-gutter shadow; and the
+ * sort register: direction arrows on every sorted column plus the
+ * multi-sort priority index. The newer machinery stays: inline editing, the
+ * tri-state header checkbox, CSV/Excel export, ImportTableModal, and the
+ * ROW_WINDOW paging.
+ */
 
 .nt-table-wrap {
   overflow-x: auto;
@@ -6,23 +21,53 @@
 
 .nt-table {
   width: 100%;
-  border-collapse: collapse;
-  font-size: var(--font-size-sm, 0.85rem);
+  /* Separate borders + zero spacing — the boxed grid renders from
+     per-cell hairlines, and the rounded corners clip. */
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--font-size-base);
+  background: var(--color-surface);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  overflow: hidden;
 }
 
-.nt-table th {
+/* The header register: the surface-variant wash, sticky, 600-weight muted
+   labels, cell hairlines forming the grid's top edge. */
+.nt-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-10);
   text-align: left;
-  font-weight: 500;
-  color: var(--color-on-surface-variant, currentColor);
-  border-bottom: var(--border-width-default, 1px) solid var(--color-outline-variant, currentColor);
-  padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+  background: var(--color-surface-variant);
+  border-right: var(--border-width-default) solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  padding: var(--spacing-2) var(--spacing-3);
   white-space: nowrap;
 }
 
+.nt-table thead th:last-child {
+  border-right: none;
+}
+
+/* Body cells: the surface wash + the grid hairlines. */
 .nt-table td {
-  border-bottom: var(--border-width-default, 1px) solid var(--color-outline-variant, currentColor);
-  padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
+  background: var(--color-surface);
+  border-right: var(--border-width-default) solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  padding: var(--spacing-2) var(--spacing-3);
   vertical-align: middle;
+}
+
+.nt-table td:last-child {
+  border-right: none;
+}
+
+/* --hoverable: the row hover paints every cell. */
+.nt-table tbody tr:hover > td {
+  background: var(--color-hover-overlay);
 }
 
 .nt-table-sort {
@@ -46,7 +91,14 @@
 }
 
 .nt-table-sort--active {
-  color: var(--color-primary, currentColor);
+  color: var(--color-primary);
+}
+
+/* Multi-sort: the priority index rides the sort icon. */
+.nt-table-sort-index {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-outline);
 }
 
 .nt-table-name-btn {
@@ -308,8 +360,26 @@
   color: var(--color-primary, currentColor);
 }
 
-.nt-table-select-col {
-  width: var(--icon-size-lg, 24px);
+/* The sticky select column — pinned left with the row-gutter shadow;
+   the header cell rides the surface-variant wash above the body cells. */
+.nt-table th.nt-table-select-col,
+.nt-table td.nt-table-select-col {
+  width: var(--icon-size-2xl);
+  min-width: var(--spacing-10);
+  max-width: var(--spacing-10);
+  padding: 0 var(--spacing-2);
+  text-align: center;
+  position: sticky;
+  left: 0;
+}
+
+.nt-table td.nt-table-select-col {
+  z-index: var(--z-5);
+  box-shadow: var(--shadow-table-row-gutter);
+}
+
+.nt-table thead th.nt-table-select-col {
+  z-index: var(--z-15);
 }
 
 /* url/email cells: read-only values navigate (mailto: for email). */
@@ -322,8 +392,10 @@
   text-decoration: underline;
 }
 
-.nt-table-row--selected {
-  background: var(--color-primary-container, rgba(0, 0, 0, 0.06));
+/* The selected row: the same hover-overlay wash as the row hover (not a
+   primary-container fill). */
+.nt-table-row--selected > td {
+  background: var(--color-hover-overlay);
 }
 
 /* The shared selection-export chrome (cards/kanban toolbars use the

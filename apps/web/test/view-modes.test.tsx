@@ -24,7 +24,7 @@ import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { HubView } from "../src/ui/App.js";
 import { PageView } from "../src/ui/PageView.js";
-import { ClassView } from "../src/ui/ClassView.js";
+import { NodeView } from "../src/ui/App.js";
 import { CollectionHub } from "../src/ui/components/CollectionHub.js";
 import { ensureTaskFamily } from "../src/ui/components/taskFamily.js";
 import { getViewDefinition, getViewModeOptions } from "../src/ui/views/index.js";
@@ -135,8 +135,10 @@ describe("child-blocks triad", () => {
     const tree = container.querySelector(".nt-block-tree") as HTMLElement;
     expect(tree).not.toBeNull();
     expect(tree.classList.contains("nt-prose")).toBe(false);
-    expect(screen.getByText("root one")).not.toBeNull();
-    expect(screen.getByText("nested under two")).not.toBeNull();
+    // Scoped to the tree: the context column's TOC lists short one-line
+    // blocks too.
+    expect(within(tree).getByText("root one")).not.toBeNull();
+    expect(within(tree).getByText("nested under two")).not.toBeNull();
     // The triad switcher moved out to the App-level NodeView chrome (card
     // top-right): a directly rendered PageView hosts no header switcher.
     // The mode itself rides the per-page device preference (below).
@@ -154,9 +156,10 @@ describe("child-blocks triad", () => {
 
     const tree = container.querySelector(".nt-block-tree") as HTMLElement;
     expect(tree.classList.contains("nt-prose")).toBe(true);
-    // Same rows, same content — a display transform only.
-    expect(screen.getByText("root one")).not.toBeNull();
-    expect(screen.getByText("nested under two")).not.toBeNull();
+    // Same rows, same content — a display transform only. (Scoped to the
+    // tree: the context column's TOC lists short one-line blocks too.)
+    expect(within(tree).getByText("root one")).not.toBeNull();
+    expect(within(tree).getByText("nested under two")).not.toBeNull();
   });
 
   it("cards mode renders first-level blocks as cards with their children inside", async () => {
@@ -182,7 +185,7 @@ describe("classed-nodes table", () => {
     const classId = await createTitledClass(client, "Source", SYSTEM_CLASS_UUIDS.source);
     const member = await client.createObject({ presentAsMain: true, name: "A book" });
     await client.assignClass(member, classId);
-    render(<ClassView client={client} classId={classId} />);
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
 
     // The section defaults to expanded; only click when collapsed.
     const classedNodesHeader = screen.getByRole("button", { name: /classed nodes/i });
@@ -359,7 +362,7 @@ describe("kanban board (property-dimension groupBy)", () => {
     const member = await seedTask(client, "Member");
     await client.assignClass(member, classId);
 
-    render(<ClassView client={client} classId={classId} />);
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     // The section defaults to expanded; only click when collapsed.
     const classedNodesHeader = screen.getByRole("button", { name: /classed nodes/i });
     if (classedNodesHeader.getAttribute("aria-expanded") === "false") {
@@ -598,7 +601,7 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
   it("sort panel composes multi-column sorts and the header keeps quick-sort", async () => {
     const client = await seedClient();
     const seeded = await seedProjectTable(client);
-    render(<ClassView client={client} classId={seeded.classId} />);
+    render(<NodeView client={client} nodeId={seeded.classId} onOpenNode={() => {}} />);
     await expandClassedNodes();
 
     fireEvent.click(screen.getByRole("button", { name: "Sort" }));
@@ -607,6 +610,15 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     // Status asc: Backlog (Alpha), Doing (Beta); empty sinks last (Gamma).
     expect(rowNames()).toEqual(["Alpha", "Beta", "Gamma"]);
 
+    // The header register: every sorted column wears its direction
+    // arrow and a multi-sort shows the priority index badges.
+    expect(document.querySelectorAll(".nt-table-sort--active")).toHaveLength(2);
+    expect(
+      [...document.querySelectorAll(".nt-table-sort-index")]
+        .map((el) => el.textContent)
+        .sort(),
+    ).toEqual(["1", "2"]);
+
     // Toggle Status to desc: Doing first.
     fireEvent.click(screen.getByRole("button", { name: "Status: ascending — toggle" }));
     expect(rowNames()).toEqual(["Beta", "Alpha", "Gamma"]);
@@ -614,13 +626,16 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     // Remove the Status entry: single Name sort remains.
     fireEvent.click(screen.getByRole("button", { name: "Remove Status sort" }));
     expect(rowNames()).toEqual(["Alpha", "Beta", "Gamma"]);
+    // Single sort: the arrow stays, the index badge is gone.
+    expect(document.querySelectorAll(".nt-table-sort--active")).toHaveLength(1);
+    expect(document.querySelector(".nt-table-sort-index")).toBeNull();
   });
 
   it("column selector hides defaults and adds property columns", async () => {
     const client = await seedClient();
     const seeded = await seedProjectTable(client);
     await client.createPropertySchema({ name: "Pages", type: "text" });
-    render(<ClassView client={client} classId={seeded.classId} />);
+    render(<NodeView client={client} nodeId={seeded.classId} onOpenNode={() => {}} />);
     await expandClassedNodes();
 
     const headers = () => [...screen.getByRole("table").querySelectorAll("th")].map((th) => th.textContent ?? "");
@@ -636,7 +651,7 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
   it("inline text editing writes a node-backed carrier; numbers commit as scalars; empty unsets", async () => {
     const client = await seedClient();
     const seeded = await seedProjectTable(client);
-    render(<ClassView client={client} classId={seeded.classId} />);
+    render(<NodeView client={client} nodeId={seeded.classId} onOpenNode={() => {}} />);
     await expandClassedNodes();
 
     // Text cells are node-backed (PB2 one-shape-per-type): the commit
@@ -666,10 +681,10 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     const seeded = await seedProjectTable(client);
     const { day } = await client.ensureDateChain("2026-10-02");
     await client.setProperty(seeded.alpha, seeded.dueId, { nodeId: day }, 0);
-    render(<ClassView client={client} classId={seeded.classId} />);
+    render(<NodeView client={client} nodeId={seeded.classId} onOpenNode={() => {}} />);
     await expandClassedNodes();
 
-    // The cell rides the shared DateSlotControl — clicking opens
+    // PG17: the cell rides the shared DateSlotControl — clicking opens
     // the zoom picker initialized at the committed month (Oct 2026); picking
     // the 5th rewrites the ref through ensureDateChain.
     fireEvent.click(screen.getAllByRole("button", { name: "Due" })[1]!);
@@ -687,7 +702,7 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     const client = await seedClient();
     const seeded = await seedProjectTable(client);
     const paris = await client.createObject({ presentAsMain: true, name: "Paris" });
-    render(<ClassView client={client} classId={seeded.classId} />);
+    render(<NodeView client={client} nodeId={seeded.classId} onOpenNode={() => {}} />);
     await expandClassedNodes();
 
     // [0] is the column header sort button; [1] is Alpha's cell.
@@ -703,7 +718,7 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
   it("row checkboxes select rows; the header box selects the visible window", async () => {
     const client = await seedClient();
     const seeded = await seedProjectTable(client);
-    render(<ClassView client={client} classId={seeded.classId} />);
+    render(<NodeView client={client} nodeId={seeded.classId} onOpenNode={() => {}} />);
     await expandClassedNodes();
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Select Alpha" }));
@@ -847,7 +862,7 @@ describe("table export: CSV view export + selection-scoped export", () => {
     });
     await client.setProperty(seeded.alpha, seeded.noteId, { nodeId: carrier }, 0);
     const download = stubDownload();
-    render(<ClassView client={client} classId={seeded.classId} />);
+    render(<NodeView client={client} nodeId={seeded.classId} onOpenNode={() => {}} />);
     await expandClassedNodes();
 
     fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
@@ -878,7 +893,7 @@ describe("table export: CSV view export + selection-scoped export", () => {
     const client = await seedClient();
     const seeded = await seedCsvTable(client);
     const download = stubDownload();
-    render(<ClassView client={client} classId={seeded.classId} />);
+    render(<NodeView client={client} nodeId={seeded.classId} onOpenNode={() => {}} />);
     await expandClassedNodes();
 
     fireEvent.click(screen.getByRole("button", { name: "Columns" }));
@@ -894,7 +909,7 @@ describe("table export: CSV view export + selection-scoped export", () => {
     const client = await seedClient();
     const seeded = await seedCsvTable(client);
     const download = stubDownload();
-    render(<ClassView client={client} classId={seeded.classId} />);
+    render(<NodeView client={client} nodeId={seeded.classId} onOpenNode={() => {}} />);
     await expandClassedNodes();
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Select Alpha" }));
@@ -1004,7 +1019,7 @@ describe("kanban polish: multi-select grouping, collapsible columns", () => {
 });
 
 describe("card covers and asset thumbnails", () => {
-  it("image assets render a thumbnail; the layout toggle switches placements", async () => {
+  it("image assets render a thumbnail only under a cover layout; the toggle switches placements", async () => {
     const client = await seedClient();
     const host = await client.createObject({ presentAsMain: true, name: "Attachments" });
     const asset = await client.createObject({
@@ -1016,13 +1031,15 @@ describe("card covers and asset thumbnails", () => {
 
     render(<HubView client={client} nav="assets" onOpenNode={() => {}} />);
 
+    // Default layout is no-cover: the layout prop is honored, so the
+    // card renders text-only — no cover element at all.
+    expect(document.querySelector(".node-card__cover")).toBeNull();
+
+    // Switch to cover-top: the thumbnail appears in the top placement.
+    fireEvent.click(screen.getByRole("radio", { name: "Cover top" }));
     const cover = await screen.findByAltText("");
     expect(cover.tagName).toBe("IMG");
     expect(cover.getAttribute("src")).toContain("data:image/png");
-
-    // Default layout is no-cover; switch to cover-top.
-    expect(cover.closest(".node-card")!.className).toContain("node-card--no-cover");
-    fireEvent.click(screen.getByRole("radio", { name: "Cover top" }));
     expect(cover.closest(".node-card")!.className).toContain("node-card--cover-top");
   });
 });

@@ -9,7 +9,9 @@
  *   custom trigger.
  *
  * All modes render the shared NodeResultItem rows; keyboard navigation,
- * date suggestions, and create-from-query are built in. With `scopeTabs`
+ * date suggestions, and create-from-query are built in (`noCreate` turns
+ * the create affordance off — search-without-match shows the honest empty
+ * state instead). With `scopeTabs`
  * the picker adds Main/Blocks tabs scoping the results to document-chrome
  * nodes vs inline child blocks. `searchMode="blocks"` is the block-
  * linking candidate set — inline blocks only, each labeled with its
@@ -123,6 +125,12 @@ interface NodeSelectorProps {
   allowCreate?: boolean;
   /** Always show the create row, even with an empty query (e.g. upload flows). */
   alwaysShowCreate?: boolean;
+  /**
+   * Suppress the create-from-query affordance entirely: a search
+   * without a match shows the honest empty state instead of a create path
+   * (the QuickCreateModal flow included). Default false.
+   */
+  noCreate?: boolean;
   /** Function to determine if a node can be added (filters search results). */
   canAdd?: (node: ClientNode) => boolean;
   /** Node id to exclude from search results (e.g. the current node). */
@@ -150,7 +158,7 @@ interface NodeSelectorProps {
   /** Custom label for the create row (default: `Create "<query>"`). */
   createLabel?: string | undefined;
   /**
-   * Multi-select checkbox mode: row clicks toggle a picked set
+   * multi-select checkbox mode: row clicks toggle a picked set
    * (checked rows accumulate at the top), an Apply footer commits them all
    * through `onApplyMulti`. The picker stays open across toggles.
    */
@@ -186,6 +194,7 @@ export function NodeSelector({
   onCreateNew,
   allowCreate,
   alwaysShowCreate = false,
+  noCreate = false,
   canAdd,
   excludeNodeId,
   readOnly = false,
@@ -295,7 +304,7 @@ export function NodeSelector({
     }
   };
 
-  // Inline filter prefixes (the suggestion-popup
+  // Inline filter prefixes (suggestion-popup row, the original popup's
   // filter family): `daily:` (bare = daily pages only), `is_daily:`,
   // `is_page:` and `is_class:` booleans refine any non-classes search. The
   // tokens are stripped from the search text before FTS/name matching (and
@@ -360,7 +369,7 @@ export function NodeSelector({
   }, [classFilters, classRefine]);
 
   /**
-   * The class-aware create request: when the picker's create
+   * 1172 — the class-aware create request: when the picker's create
    * row runs under a source/agent family filter, the QuickCreateModal opens
    * with the citation fields instead of silently creating a plain page. The
    * modal completes the create and hands the id back through resolveCreateResult.
@@ -404,8 +413,11 @@ export function NodeSelector({
   // Create support: default on for page/class pickers. The create row answers
   // the EFFECTIVE query — under a `class:` refine the prefix scopes the
   // search; it must not become part of the created node's title.
+  // `noCreate` suppresses the whole affordance (row + the
+  // QuickCreateModal route + the alwaysShowCreate upload override): a
+  // search-without-match then renders the honest empty state.
   const effectiveQuery = classRefine.query.trim();
-  const createEnabled = allowCreate ?? true;
+  const createEnabled = (allowCreate ?? true) && !noCreate;
   const effectiveCreateNew = onCreateNew ?? defaultCreateNew;
   const showCreateOption =
     !!effectiveCreateNew && createEnabled && (alwaysShowCreate || effectiveQuery.length > 0);
@@ -632,7 +644,7 @@ export function NodeSelector({
     }
   };
 
-  // Dismissal rides the shared popup-dismissal layer (usePopupDismissal), replacing
+  // Dismissal rides the shared layer (usePopupDismissal), replacing
   // the hand-rolled outside-click/Escape pair: Escape closes unless it
   // originated inside the popup (the search input's own keydown closes via
   // the list nav), and a pointer-down outside closes with the trigger

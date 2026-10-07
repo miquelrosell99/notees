@@ -74,6 +74,17 @@ function blockTreeEl(container: HTMLElement): HTMLElement {
   return el;
 }
 
+/** Text queries scoped to the body tree: the panelled main layout's context
+ *  column derives a TOC from short one-line blocks, so body texts also ride
+ *  the rail chrome — tree assertions scope to the tree itself. */
+function treeByText(container: HTMLElement, text: string): HTMLElement {
+  return within(blockTreeEl(container)).getByText(text);
+}
+
+function treeQueryByText(container: HTMLElement, text: string): HTMLElement | null {
+  return within(blockTreeEl(container)).queryByText(text);
+}
+
 /**
  * Click the first "Collapse block" chevron in document order (the root-level
  * parent in the seeded tree). After it collapses, the nested chevron unmounts,
@@ -92,23 +103,23 @@ describe("block collapse", () => {
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     // Sanity: both descendant levels render inside nested children containers.
-    expect(screen.getByText("nested child")).not.toBeNull();
-    expect(screen.getByText("grandchild")).not.toBeNull();
+    expect(treeByText(container, "nested child")).not.toBeNull();
+    expect(treeByText(container, "grandchild")).not.toBeNull();
     expect(container.querySelectorAll(".nt-block-children").length).toBe(2);
 
     collapseRootParent();
 
     // The whole subtree disappears from the DOM; the block itself stays.
-    expect(screen.getByText("parent")).not.toBeNull();
-    expect(screen.queryByText("nested child")).toBeNull();
-    expect(screen.queryByText("grandchild")).toBeNull();
+    expect(treeByText(container, "parent")).not.toBeNull();
+    expect(treeQueryByText(container, "nested child")).toBeNull();
+    expect(treeQueryByText(container, "grandchild")).toBeNull();
     expect(container.querySelector(".nt-block-children")).toBeNull();
     expect(screen.getByRole("button", { name: "Expand block" })).not.toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Expand block" }));
 
-    expect(screen.getByText("nested child")).not.toBeNull();
-    expect(screen.getByText("grandchild")).not.toBeNull();
+    expect(treeByText(container, "nested child")).not.toBeNull();
+    expect(treeByText(container, "grandchild")).not.toBeNull();
     expect(container.querySelectorAll(".nt-block-children").length).toBe(2);
   });
 
@@ -123,7 +134,7 @@ describe("block collapse", () => {
 
     // The childless root block's row has no chevron — only the plain bullet
     // plus the drag-handle grip that every row carries.
-    const leafRow = screen.getByText("leaf root").closest(".nt-block-row");
+    const leafRow = treeByText(container, "leaf root").closest(".nt-block-row");
     expect(leafRow).not.toBeNull();
     expect(
       within(leafRow as HTMLElement).queryByRole("button", { name: /collapse block|expand block/i }),
@@ -140,7 +151,7 @@ describe("block collapse", () => {
 
     // Read-mode content stays; no contentEditable editor mounts in the row.
     expect(container.querySelector(".nt-block-text")).toBeNull();
-    expect(screen.getByText("parent")).not.toBeNull();
+    expect(treeByText(container, "parent")).not.toBeNull();
   });
 
   it("writes nothing to the store and leaves the tree data intact", async () => {
@@ -181,23 +192,23 @@ describe("prose mode", () => {
   it("ignores collapse state — collapsed subtrees still render, and outline restores them hidden", async () => {
     const client = await seedClient();
     const pageId = await seedTreePage(client);
-    render(<PageView client={client} pageId={pageId} />);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
 
     collapseRootParent();
-    expect(screen.queryByText("nested child")).toBeNull();
+    expect(treeQueryByText(container, "nested child")).toBeNull();
 
     // Prose: the device preference re-renders the page in place.
     act(() => writeViewModePref(`nodeBlocks.${pageId}`, "prose"));
 
     // Ignored, not cleared: the hidden subtree renders in prose mode.
-    expect(screen.getByText("nested child")).not.toBeNull();
-    expect(screen.getByText("grandchild")).not.toBeNull();
+    expect(treeByText(container, "nested child")).not.toBeNull();
+    expect(treeByText(container, "grandchild")).not.toBeNull();
     expect(screen.queryByRole("button", { name: /collapse block|expand block/i })).toBeNull();
 
     act(() => writeViewModePref(`nodeBlocks.${pageId}`, "outline"));
 
     // The session collapse set is intact: the subtree is hidden again.
-    expect(screen.queryByText("nested child")).toBeNull();
+    expect(treeQueryByText(container, "nested child")).toBeNull();
     expect(screen.getByRole("button", { name: "Expand block" })).not.toBeNull();
   });
 });

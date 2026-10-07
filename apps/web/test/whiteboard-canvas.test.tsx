@@ -174,8 +174,9 @@ describe("whiteboard canvas (fullscreen page)", () => {
     expect(el.style.top).toBe("50px");
     expect(el.style.width).toBe("200px");
     // The content shows twice on the card: the title bar (display name) and
-    // the body projection.
-    expect(screen.getAllByText("hello card").length).toBe(2);
+    // the body projection. (Scoped to the canvas: the context column's TOC
+    // also lists the card's one-line text.)
+    expect(within(canvas as HTMLElement).getAllByText("hello card").length).toBe(2);
     // Empty-state hint is gone once a card exists.
     expect(container.querySelector(".nt-wb-empty")).toBeNull();
   });
@@ -185,6 +186,46 @@ describe("whiteboard canvas (fullscreen page)", () => {
     const host = await seedWhiteboardPage(client);
     const { container } = render(<PageView client={client} pageId={host} />);
     expect(container.querySelector(".nt-wb-empty")).not.toBeNull();
+  });
+
+  it("the main surface renders the canvas as the card's sole content: fullscreen, no page chrome around it", async () => {
+    const client = await seedClient();
+    const host = await seedWhiteboardPage(client);
+    const { container } = render(<PageView client={client} pageId={host} onOpenPage={() => {}} />);
+
+    // The fullscreen surface class owns the composition: no panelled
+    // columns, no nodeview top bar, no page header, no footer — the canvas
+    // fills the card edge to edge.
+    const page = container.querySelector(".nt-page")!;
+    expect(page.classList.contains("nt-page--whiteboard")).toBe(true);
+    expect(page.classList.contains("nt-page--panelled")).toBe(false);
+    expect(container.querySelector(".nt-node-topbar")).toBeNull();
+    expect(container.querySelector(".page-header-section")).toBeNull();
+    expect(container.querySelector(".nt-page-footer")).toBeNull();
+    expect(container.querySelector(".nt-page-body")).toBeNull();
+    expect(container.querySelector(".nt-backlinks")).toBeNull();
+    // The canvas is the page's only element child (its own toolset and
+    // surface inside) — the 65vh in-flow cap no longer applies.
+    const canvas = container.querySelector(".nt-wb.nt-wb-fullscreen")!;
+    expect(canvas.parentElement).toBe(page);
+  });
+
+  it("an embedded page render (a journal feed entry) keeps the in-flow canvas with the page chrome around it", async () => {
+    const client = await seedClient();
+    const host = await seedWhiteboardPage(client);
+    const { container } = render(
+      <PageView client={client} pageId={host} embedded onOpenPage={() => {}} />,
+    );
+
+    // Not the fullscreen surface: the regular page composition wraps the
+    // in-flow canvas (the 65vh cap stays for feed entries), and the page
+    // chrome (header + sections) renders around it. The in-block
+    // `.nt-wb-embedded` mini-canvas is the BlockRow path, covered below.
+    const page = container.querySelector(".nt-page")!;
+    expect(page.classList.contains("nt-page--whiteboard")).toBe(false);
+    expect(container.querySelector(".nt-page-header")).not.toBeNull();
+    expect(container.querySelector(".nt-backlinks")).not.toBeNull();
+    expect(container.querySelector(".nt-wb.nt-wb-fullscreen")).not.toBeNull();
   });
 
   it("drag coalesces to ONE layout update at drag end (no per-mousemove ops)", async () => {
@@ -242,8 +283,10 @@ describe("whiteboard canvas (fullscreen page)", () => {
     fireEvent.blur(editor);
     await act(async () => {});
     expect(client.getNode(cardId)!.contentAst).toEqual(text("fresh idea"));
-    // Title bar (display name) + body projection both carry the text.
-    expect(screen.getAllByText("fresh idea").length).toBe(2);
+    // Title bar (display name) + body projection both carry the text —
+    // scoped to the canvas (the context column's TOC lists it too).
+    const board = container.querySelector(".nt-wb-fullscreen")!;
+    expect(within(board as HTMLElement).getAllByText("fresh idea").length).toBe(2);
   });
 
   it("card tool + surface click creates a child block with geometry at the click point", async () => {

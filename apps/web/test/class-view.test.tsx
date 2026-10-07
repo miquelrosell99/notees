@@ -1,10 +1,14 @@
 /**
- * Class View tests: a class page IS a page — render-cascade view resolution (class → Class View,
- * document chrome → Page View), the page chrome (title/icon/color), the
+ * Class View tests: a class page IS a page — render-cascade view
+ * resolution (class → the page view
+ * with the class variant data, the main-content restructure), the
+ * page chrome (title; the shared header icon button is the single
+ * icon+color entry — no curated class icon button, no color dot), the
  * extends corner pills (class.setExtends m2m, class-only picker), the
  * classed-nodes instances section (expanded by default), the property-
  * definitions section, and the child-blocks body + child-pages system
- * section. jsdom environment over the in-process WorkspaceClient + MemoryRelay.
+ * section. jsdom environment over the in-process WorkspaceClient +
+ * MemoryRelay.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -16,7 +20,6 @@ import { deriveDisplayName, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { NodeView } from "../src/ui/App.js";
-import { ClassView } from "../src/ui/ClassView.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -89,7 +92,7 @@ describe("Class View", () => {
   it("commits the edited class name through the header title row", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "agent");
-    const { container } = render(<ClassView client={client} classId={classId} />);
+    const { container } = render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
 
     const content = container.querySelector<HTMLElement>(".nt-title-content");
     if (content === null) throw new Error("title content missing");
@@ -109,7 +112,7 @@ describe("Class View", () => {
     const client = await seedClient();
     const childId = await createTitledClass(client, "person");
     const parentId = await createTitledClass(client, "agent");
-    render(<ClassView client={client} classId={childId} />);
+    render(<NodeView client={client} nodeId={childId} onOpenNode={() => {}} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Add class extension" }));
     const dialog = screen.getByRole("dialog", { name: "Select node" });
@@ -126,7 +129,7 @@ describe("Class View", () => {
     const childId = await createTitledClass(client, "person");
     const parentId = await createTitledClass(client, "agent");
     await client.setClassExtends(childId, [parentId]);
-    render(<ClassView client={client} classId={childId} />);
+    render(<NodeView client={client} nodeId={childId} onOpenNode={() => {}} />);
 
     expect(screen.getByRole("button", { name: "agent" })).not.toBeNull();
 
@@ -137,21 +140,24 @@ describe("Class View", () => {
     expect(screen.queryByRole("button", { name: "agent" })).toBeNull();
   });
 
-  it("surfaces the store's loud extends-cycle failure as a transient banner", async () => {
+  it("refuses a cycle-creating extends write loud in the store (render assumes a DAG — no cycle banner)", async () => {
     const client = await seedClient();
     const aId = await createTitledClass(client, "alpha");
     const bId = await createTitledClass(client, "beta");
     await client.setClassExtends(aId, [bId]);
-    render(<ClassView client={client} classId={bId} />);
+    render(<NodeView client={client} nodeId={bId} onOpenNode={() => {}} />);
 
-    // Picking alpha as beta's parent would close the cycle b → a → b.
+    // Picking alpha as beta's parent would close the cycle b → a → b. The
+    // store's operation-level DAG check (the applier's CycleError) refuses
+    // the write; the view renders NO cycle banner (that chrome was deleted —
+    // the rejection lands in the console).
     fireEvent.click(screen.getByRole("button", { name: "Add class extension" }));
     const dialog = screen.getByRole("dialog", { name: "Select node" });
     fireEvent.click(within(dialog).getByText("alpha"));
     await flushWrites();
 
-    expect(screen.getByRole("alert")).not.toBeNull();
     expect(client.getClassParents(bId)).toEqual([]);
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("lists classed nodes without expansion (the section defaults to expanded) and shows the count badge", async () => {
@@ -160,7 +166,7 @@ describe("Class View", () => {
     const pageId = await client.createObject({ presentAsMain: true, name: "Ada Lovelace" });
     await client.assignClass(pageId, classId);
     const membersSpy = vi.spyOn(client, "getClassMembers");
-    render(<ClassView client={client} classId={classId} />);
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
 
     // Badge from the COUNT projection (eager, like the child-pages count) —
     // rendered in the header without expanding anything.
@@ -175,10 +181,10 @@ describe("Class View", () => {
     const pageId = await client.createObject({ presentAsMain: true, name: "Ada Lovelace" });
     await client.assignClass(pageId, classId);
     const onOpenNode = vi.fn();
-    render(<ClassView client={client} classId={classId} onOpenPage={onOpenNode} />);
+    render(<NodeView client={client} nodeId={classId} onOpenNode={onOpenNode} />);
 
-    // Owner refinement: the name cell click EDITS (inline); the
-    // open-arrow navigates.
+    // Owner refinement: the name cell click EDITS (inline); the open-arrow
+    // navigates.
     const openArrow = screen.getByRole("button", { name: "Open Ada Lovelace" });
     fireEvent.click(openArrow);
     expect(onOpenNode).toHaveBeenCalledWith(pageId);
@@ -189,7 +195,7 @@ describe("Class View", () => {
     const classId = await createTitledClass(client, "agent");
     const pageId = await client.createObject({ presentAsMain: true, name: "Ada Lovelace" });
     await client.assignClass(pageId, classId);
-    render(<ClassView client={client} classId={classId} />);
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
 
     // Table is the section default (owner rule): the member renders as a
     // table row, and the unassign action lives in the outline mode. Two
@@ -214,13 +220,39 @@ describe("Class View", () => {
     expect(screen.getByText("No classed nodes.")).not.toBeNull();
   });
 
+  it("the classed-nodes toolbar (and the empty state) carry the create affordance: a node classed with this class", async () => {
+    const client = await seedClient();
+    const classId = await createTitledClass(client, "agent");
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+
+    // An empty database still renders the section chrome: the toolbar's
+    // "Add member" button (left of the switcher) and the empty state's
+    // action — both the collection contract's affordance.
+    const classedNodesSection = screen
+      .getByRole("button", { name: /classed nodes/i })
+      .closest("section")!;
+    const addButtons = within(classedNodesSection).getAllByRole("button", { name: "Add member" });
+    expect(addButtons).toHaveLength(2);
+
+    fireEvent.click(addButtons[0]!);
+    await flushWrites();
+
+    // The create composed the class assignment: the new node is a member
+    // (object.create carried classIds — the section's member route), and
+    // the expanded section's re-query renders it as a row.
+    const members = client.getClassMembers(classId);
+    expect(members).toHaveLength(1);
+    expect(members[0]!.classIds).toContain(classId);
+    expect(within(classedNodesSection).queryByText("No classed nodes.")).toBeNull();
+  });
+
   it("renders the seeded property definitions in sequence order", async () => {
     const client = await seedClient();
     // The reserved system id makes the class a SYSTEM class: the seed-spec
     // fallback synthesizes the source family (read-side, id-keyed) with the
     // manifest's normal-wording names.
     const classId = await createTitledClass(client, "Source", SYSTEM_CLASS_UUIDS.source);
-    const { container } = render(<ClassView client={client} classId={classId} />);
+    const { container } = render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
 
     // Non-empty schema collapses the section (invites setup, then stays out
     // of the way — parity with the page's "Properties N").
@@ -263,7 +295,7 @@ describe("Class View", () => {
     });
     await client.createObject({ presentAsMain: true, parentId: classId, name: "Class Main Child" });
 
-    const { container } = render(<ClassView client={client} classId={classId} />);
+    const { container } = render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
 
     // The body is the page tree: the inline child renders directly, with no
     // section to expand (the read-only Blocks section left with the redesign).
@@ -278,13 +310,18 @@ describe("Class View", () => {
   });
 });
 
-describe("the class icon picker (owner directive 2026-10-04: the full picker)", () => {
-  it("the Class icon button opens the full emoji/icon picker — tabs, the entire sets, recents", async () => {
+describe("the class icon picker (the shared header icon button is the single entry)", () => {
+  it("the page icon button opens the full emoji/icon picker — tabs, the entire sets, recents", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "pokemon");
-    render(<ClassView client={client} classId={classId} />);
+    const { container } = render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Class icon" }));
+    // No curated class icon button — the shared header icon button
+    // (left of the title) is the single icon+color edit entry for class
+    // pages too.
+    const iconButton = container.querySelector<HTMLElement>(".page-icon-btn");
+    if (iconButton === null) throw new Error("page icon button missing");
+    fireEvent.click(iconButton);
 
     // The full picker: the dialog with its three tabs…
     const dialog = screen.getByRole("dialog", { name: "Icon picker" });
@@ -307,7 +344,7 @@ describe("the class icon picker (owner directive 2026-10-04: the full picker)", 
     expect(client.getNode(classId)?.icon).toBe("😀");
 
     // …and lands in Recents — the section appears on reopen with the pick.
-    fireEvent.click(screen.getByRole("button", { name: "Class icon" }));
+    fireEvent.click(container.querySelector<HTMLElement>(".page-icon-btn")!);
     const again = screen.getByRole("dialog", { name: "Icon picker" });
     expect(within(again).getByText("Recents")).not.toBeNull();
     // The pick appears twice — once in Recents, once in the typical set
