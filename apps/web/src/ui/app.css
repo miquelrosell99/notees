@@ -1623,8 +1623,8 @@ select:focus-visible {
   margin-left: 26px;
 }
 
-/* Drop indicator: a line at the drop line, or a left accent for the
-   child-indent intent. */
+/* Drop indicator: a line at the drop line, or a bar at the child-offset
+   position (48px — where a dropped child would sit) for the child intent. */
 .nt-block.nt-drop-above > .nt-block-row {
   box-shadow: 0 -2px 0 0 var(--color-primary);
 }
@@ -1634,7 +1634,20 @@ select:focus-visible {
 }
 
 .nt-block.nt-drop-child > .nt-block-row {
-  box-shadow: inset 3px 0 0 0 var(--color-primary);
+  background:
+    linear-gradient(var(--color-primary), var(--color-primary)) no-repeat left 48px top 0 / 3px 100%,
+    linear-gradient(var(--color-surface-container-high), var(--color-surface-container-high));
+  border-radius: 4px;
+}
+
+/* The dragged source stays in place and reads muted — the floating name
+   chip (DragOverlay) is the only drag preview, so nothing under the
+   pointer reshapes. */
+.nt-block--drag-source {
+  opacity: var(--opacity-45);
+}
+
+.nt-block--drag-source > .nt-block-row {
   background: var(--color-surface-container-high);
   border-radius: 4px;
 }

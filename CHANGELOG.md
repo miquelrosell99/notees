@@ -9,6 +9,30 @@ predating this file.
 
 ## 2026-10-07
 
+- **feat(web): the drag-session interaction model — the muted source row and
+  the proximity-snapped drop line.** The outliner's drag feedback stops
+  reshaping the page. The dragged row no longer translates with the pointer:
+  it stays in place and renders muted (`.nt-block--drag-source` on the row
+  root, token-only opacity plus a surface tint — no layout change), and the
+  floating DragOverlay keeps only the small name chip as the preview. The
+  live hit-testing gives way to a proximity snap model: at drag start the
+  machinery measures the visible rows once and builds the valid-location set
+  (`dropCandidatesOf` — for every visible row except the dragged subtree, a
+  sibling above/below pair anchored at the row's divider at the row depth's
+  gutter x, plus a child candidate anchored at the row's center at the
+  child-offset x), and each pointer move projects the pointer onto the
+  nearest anchor within a 24px y band (`nearestCandidate`, x distance breaks
+  ties) — far from every anchor, no indicator renders. The hierarchy-end gap
+  below an expanded block's last child disambiguates across three nearby
+  candidates by x band: a sibling-after-parent at the parent's depth, a
+  sibling-after-last-child at the child's depth, and the child slot at the
+  child-offset x. The child intent's indicator bar now renders at that
+  child-offset position. The line stays the indicator: `resolveMove` /
+  `executeMove` / zone semantics are untouched, the event-driven path still
+  resolves keyboard drags and end-of-drop guard refusals (the own-subtree
+  banner included). `npx tsc --noEmit` clean; full web suite green (1221
+  tests).
+
 - **feat(web): the collection create-button flag, the fullscreen whiteboard
   container, and the graph view's reference chrome — the main-content
   restructure's view-layer recoveries.** (a) The reusable collection
