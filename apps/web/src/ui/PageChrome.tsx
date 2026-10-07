@@ -4,12 +4,23 @@
  * cover card aside), and the footer wrapper. Extracted from PageView so the
  * component stays a chrome composer; the panelled/compact COMPOSITION (the
  * .nt-page-body grid, the .nt-nodeview-body stack, the compact corner)
- * still lives in PageView until S7 reworks the columns. The day-header swap
- * is driven by the variant's `dayIso` (M13 — the page variant is data, see
- * components/pageVariant.ts); the shared icon button is the single
- * icon+color edit entry for every node kind (M9). The styles stay in
- * app.css — every class hook is exactly the one PageView rendered before
- * the extraction.
+ * lives in PageView, which owns the three-column composition since S7a.
+ * The day-header swap is driven by the variant's `dayIso` (M13 — the page
+ * variant is data, see components/pageVariant.ts); the shared icon button
+ * is the single icon+color edit entry for every node kind (M9). The styles
+ * stay in app.css — every class hook is exactly the one PageView rendered
+ * before the extraction.
+ *
+ * S7 (M17/M18/M19 + the references dedupe check): the panelled composition
+ * is now THREE columns — NodeView · properties · context (PageView owns the
+ * grid; the column-collapse choice is recorded there). The context column
+ * hosts LocalGraphCard, TocSection, the Activity section (relocated per
+ * M18), and CommentsSection (M19). The dedupe check (the S7 precondition):
+ * the right rail's ReferencesSection and the page's own Backlinks tab both
+ * rendered getLinkedReferences — the SAME data — so the rail's
+ * ReferencesSection is deleted (its lazy contract lived in the now-removed
+ * component); the Backlinks tab stays the one home in the SectionStack,
+ * where the tab/filter machinery lands later. One home, no duplication.
  */
 
 import { useRef, useState, type ReactNode } from "react";
@@ -30,9 +41,10 @@ type AnyClient = WorkspaceClient | WorkerClient;
 
 /**
  * NodeTopbar — the panelled main layout's pinned top row (the content
- * column's bar): the sidebar collapse toggle and the classes pills on the
- * left, the host's chromeRight (the blocks view switcher + the "…" node
- * menu) on the right, over a full-width divider border like the sidebar's.
+ * column's bar): the two panel collapse toggles (properties left, context
+ * right) and the classes pills on the left, the host's chromeRight (the
+ * blocks view switcher + the "…" node menu) on the right, over a full-width
+ * divider border like the sidebar's.
  */
 export function NodeTopbar({
   client,
@@ -40,6 +52,8 @@ export function NodeTopbar({
   classIds,
   sidePanelCollapsed,
   onToggleSidePanel,
+  contextPanelCollapsed,
+  onToggleContextPanel,
   chromeRight,
   onOpenPage,
 }: {
@@ -48,6 +62,8 @@ export function NodeTopbar({
   classIds: string[];
   sidePanelCollapsed: boolean;
   onToggleSidePanel: () => void;
+  contextPanelCollapsed: boolean;
+  onToggleContextPanel: () => void;
   chromeRight: ReactNode;
   onOpenPage?: ((pageId: string) => void) | undefined;
 }) {
@@ -62,6 +78,16 @@ export function NodeTopbar({
         onClick={onToggleSidePanel}
       >
         <Icon path="mdi-page-layout-sidebar-left" size={1} />
+      </button>
+      <button
+        type="button"
+        className="nt-icon-btn"
+        aria-label={contextPanelCollapsed ? "Show context panel" : "Hide context panel"}
+        aria-pressed={!contextPanelCollapsed}
+        title={contextPanelCollapsed ? "Show context panel" : "Hide context panel"}
+        onClick={onToggleContextPanel}
+      >
+        <Icon path="mdi-page-layout-sidebar-right" size={1} />
       </button>
       <div className="nt-node-topbar__classes">
         <ClassesRow client={client} nodeId={nodeId} classIds={classIds} onOpenPage={onOpenPage} />

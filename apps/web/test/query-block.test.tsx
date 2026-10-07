@@ -180,7 +180,10 @@ describe("query block (live query token)", () => {
     });
 
     const { container } = render(<PageView client={client} pageId={host} />);
-    await screen.findByText("host body");
+    // Scoped to the body tree: the context column's TOC lists the one-line
+    // block, and the subtree query result below echoes it in a row.
+    const tree = container.querySelector(".nt-block-tree") as HTMLElement;
+    await within(tree).findByText("host body");
 
     // Subtree: the host page + its two body blocks + the query block itself —
     // nothing from other pages. (The row read retries: the query re-runs
