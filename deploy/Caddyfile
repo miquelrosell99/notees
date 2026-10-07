@@ -1,0 +1,19 @@
+# The Notees edge — Caddy + the tailscale plugin. Optional: enabled with the
+# "edge" compose profile (COMPOSE_PROFILES=edge or --profile edge); the core
+# stack has no dependency on it. Required env: NOTEES_EDGE_NAME — the host's
+# tailnet name (https://<host>.<tailnet>.ts.net); the plugin issues and renews
+# the certificate automatically via the mounted tailscaled socket. The app
+# containers are reached over the compose network (fixed container ports), so
+# host port remaps never touch this file.
+
+https://{$NOTEES_EDGE_NAME} {
+	tls {
+		get_certificate tailscale
+	}
+
+	handle /api/* {
+		reverse_proxy notees-sync:8377
+	}
+
+	reverse_proxy notees-web:80
+}
