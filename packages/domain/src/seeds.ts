@@ -10,7 +10,11 @@
  */
 
 export const SYSTEM_CLASS_UUIDS = {
-  class: "00000000-0000-0000-0001-000000000001",
+  // …0001 WITHDRAWN 2026-10-07 (owner ruling): the seeded `class` META class
+  // is retired — nodes bound to it become REAL classes (class.create on an
+  // existing node, the conversion capability) and the seed no longer emits
+  // it. The `has-template` family relocated to a global-scope schema (no
+  // class-class host). Never reuse.
   year: "00000000-0000-0000-0001-000000000003",
   month: "00000000-0000-0000-0001-000000000004",
   day: "00000000-0000-0000-0001-000000000005",
@@ -78,7 +82,6 @@ export const SYSTEM_CLASS_UUIDS = {
 export type SystemClassName = keyof typeof SYSTEM_CLASS_UUIDS;
 
 export const SYSTEM_CLASS_ICONS: Record<SystemClassName, string> = {
-  class: "mdiTagMultiple",
   day: "mdiCalendarToday",
   month: "mdiCalendarMonth",
   year: "mdiCalendarText",
@@ -138,7 +141,6 @@ export const SYSTEM_CLASS_ICONS: Record<SystemClassName, string> = {
  * key — the domain test pins completeness.
  */
 export const SYSTEM_CLASS_DISPLAY_NAMES: Record<SystemClassName, string> = {
-  class: "Class",
   year: "Year",
   month: "Month",
   day: "Day",
@@ -279,7 +281,10 @@ export const SYSTEM_PROPERTY_UUIDS = {
   url: "00000000-0000-0000-0000-000000000024",
   // …0025 WITHDRAWN 2026-09-27 (`linkedAuthors`, reversed same day) — never reuse.
   // T2 — a class's bound templates (D1: relation lives on the class,
-  // multi, targets the template system class).
+  // multi, targets the template system class). GLOBAL scope since
+  // 2026-10-07 (the class-class retirement): the retired `class` meta class
+  // used to host the binding; values are authored on class nodes directly
+  // (the aliasOf precedent — no class can host a universal binding).
   hasTemplate: "00000000-0000-0000-0000-000000000026",
   // T3 (D1 amendment, owner 2026-10-03) — instantiation provenance: a
   // generated node records its template INSTANCE-SIDE (single node-typed,
@@ -348,7 +353,8 @@ export interface SystemPropertySpec {
     | "select"
     | "multi_select"
     | "object"
-    | "image";
+    | "image"
+    | "asset";
   multi?: boolean;
   bindTo?: SystemClassName;
   targetClassFilter?: SystemClassName[];
@@ -357,7 +363,13 @@ export interface SystemPropertySpec {
 }
 
 export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPropertySpec>> = {
-  attachments: { type: "object", multi: true, bindTo: "source", targetClassFilter: ["asset"] },
+  // M38 (owner 2026-10-07): the `asset` property TYPE — a node-typed value
+  // ({ nodeId }) whose target must carry the ASSET class, the filter implicit
+  // in the type (an explicit targetClassFilter is redundant — dropped here;
+  // live rows retype via scripts/migrate-attachments-asset-type.mts, values
+  // already point at asset nodes and need no rewrite). attachments leads the
+  // type out of `object`.
+  attachments: { type: "asset", multi: true, bindTo: "source" },
   // Node-typed to agent nodes — bibliography authors ARE agent nodes
   // (SCHEMA.md "Citations — source family and authorship", FINAL owner
   // decision 2026-09-27: `person` and `organization` both extend `agent`).
@@ -387,7 +399,10 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   url: { type: "url", bindTo: "weblink" },
   // D1: templates are ordinary nodes of the seeded `template` class;
   // a class binds its templates by authored values on the class node itself.
-  hasTemplate: { type: "object", multi: true, bindTo: "class", targetClassFilter: ["template"] },
+  // M47 (2026-10-07): the relation hosts on NO class — global scope, no
+  // binding (the class-class retirement; the aliasOf precedent). The
+  // template target filter stays (write-time validation).
+  hasTemplate: { type: "object", multi: true, targetClassFilter: ["template"] },
   // PG10 (owner 2026-10-04): aliases return (the parity side of
   // the contradiction) — multi-value text at GLOBAL scope, no class
   // binding: aliases are page metadata and "page" is not a class. Search
@@ -624,7 +639,6 @@ export function styleTaskStatusOptions(
 
 /** Classes the workspace seed emits (nodes + property schemas + bindings + extends). */
 export const SEEDED_SYSTEM_CLASSES: SystemClassName[] = [
-  "class",
   "day",
   "month",
   "year",

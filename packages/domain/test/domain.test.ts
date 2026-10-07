@@ -75,7 +75,7 @@ describe("system seeds (ported)", () => {
     }
   });
 
-  it("never reuses withdrawn ids (locator …0018; linkedAuthors …0025; cover class …0042)", () => {
+  it("never reuses withdrawn ids (locator …0018; linkedAuthors …0025; cover class …0042; the `class` meta class …0001)", () => {
     const allIds = [
       ...Object.values(SYSTEM_CLASS_UUIDS),
       ...Object.values(SYSTEM_PROPERTY_UUIDS),
@@ -87,6 +87,10 @@ describe("system seeds (ported)", () => {
     // property — covers are plain asset-classed nodes. Minted and withdrawn
     // the same day; never reuse.
     expect(allIds).not.toContain("00000000-0000-0000-0001-000000000042");
+    // (owner ruling 2026-10-07): the seeded `class` meta class is retired —
+    // its members become real classes (the class.create conversion
+    // capability) and nothing seeds or hosts on it anymore. Never reuse.
+    expect(allIds).not.toContain("00000000-0000-0000-0001-000000000001");
     // (owner 2026-10-05): the scratchpad page is withdrawn — not
     // wanted. No longer seeded (SYSTEM_PAGE_UUIDS carries inbox only); the
     // id lives on as LEGACY_SCRATCHPAD_PAGE_ID for the zip exclusion, never
@@ -118,17 +122,22 @@ describe("system seeds (ported)", () => {
     expect(SYSTEM_PROPERTY_SPECS).not.toHaveProperty("linkedAuthors");
   });
 
-  it("templates seed (T2): has-template reserved, seeded, targets the template class", () => {
+  it("templates seed (T2): has-template reserved, seeded at GLOBAL scope (M47 — no class-class host), targets the template class", () => {
     // Next free id in the general block (…0018 withdrawn, …0025 withdrawn —
     // never reused); the domain-wide block rule above pins the prefix.
     expect(SYSTEM_PROPERTY_UUIDS.hasTemplate).toBe("00000000-0000-0000-0000-000000000026");
     // D1: the relation lives on the class node, multi, targeting templates.
+    // M47 (2026-10-07): no bindTo — the retired `class` meta class used to
+    // host the binding; the schema is global-scope, values authored on class
+    // nodes (the aliasOf precedent). The template filter stays.
     expect(SYSTEM_PROPERTY_SPECS.hasTemplate).toEqual({
       type: "object",
       multi: true,
-      bindTo: "class",
       targetClassFilter: ["template"],
     });
+    // The seeded class manifest no longer carries the `class` meta class.
+    expect(SEEDED_SYSTEM_CLASSES).not.toContain("class");
+    expect(SYSTEM_CLASS_UUIDS).not.toHaveProperty("class");
   });
 
   it("templates provenance seed (T3, D1 amendment 2026-10-03): generated-from is instance-side, never class-bound", () => {
