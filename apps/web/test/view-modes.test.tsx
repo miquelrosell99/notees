@@ -135,8 +135,10 @@ describe("child-blocks triad", () => {
     const tree = container.querySelector(".nt-block-tree") as HTMLElement;
     expect(tree).not.toBeNull();
     expect(tree.classList.contains("nt-prose")).toBe(false);
-    expect(screen.getByText("root one")).not.toBeNull();
-    expect(screen.getByText("nested under two")).not.toBeNull();
+    // Scoped to the tree: the context column's TOC lists short one-line
+    // blocks too.
+    expect(within(tree).getByText("root one")).not.toBeNull();
+    expect(within(tree).getByText("nested under two")).not.toBeNull();
     // The triad switcher moved out to the App-level NodeView chrome (card
     // top-right): a directly rendered PageView hosts no header switcher.
     // The mode itself rides the per-page device preference (below).
@@ -154,9 +156,10 @@ describe("child-blocks triad", () => {
 
     const tree = container.querySelector(".nt-block-tree") as HTMLElement;
     expect(tree.classList.contains("nt-prose")).toBe(true);
-    // Same rows, same content — a display transform only.
-    expect(screen.getByText("root one")).not.toBeNull();
-    expect(screen.getByText("nested under two")).not.toBeNull();
+    // Same rows, same content — a display transform only. (Scoped to the
+    // tree: the context column's TOC lists short one-line blocks too.)
+    expect(within(tree).getByText("root one")).not.toBeNull();
+    expect(within(tree).getByText("nested under two")).not.toBeNull();
   });
 
   it("cards mode renders first-level blocks as cards with their children inside", async () => {

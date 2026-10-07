@@ -1,0 +1,123 @@
+/* CommentsSection — the context column's Comments thread: rows are plain
+   text buttons (title-is-content) with the Reply/Delete action pair; replies
+   nest as sub-lists (one indent step per level). Token-only. */
+
+.nt-comments {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.nt-comments__add {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  align-self: flex-start;
+  padding: var(--spacing-1) var(--spacing-2);
+  border: none;
+  border-radius: var(--shape-small);
+  background: none;
+  color: var(--color-on-surface-variant);
+  font: var(--font-body-medium);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.nt-comments__add:hover {
+  background: var(--color-hover-overlay);
+  color: var(--color-on-surface);
+}
+
+.nt-comments__composer {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.nt-comments__input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--spacing-1) var(--spacing-2);
+  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  font: var(--font-body-medium);
+  font-size: var(--font-size-sm);
+}
+
+.nt-comments__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.nt-comments__list--nested {
+  margin-inline-start: var(--spacing-4);
+  padding-inline-start: var(--spacing-2);
+  border-left: var(--border-width-default, 1px) solid var(--color-outline-variant);
+}
+
+.nt-comments__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.nt-comments__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.nt-comments__text {
+  flex: 1;
+  min-width: 0;
+  padding: var(--spacing-1) var(--spacing-2);
+  border: none;
+  border-radius: var(--shape-small);
+  background: none;
+  color: var(--color-on-surface);
+  font: var(--font-body-medium);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-comments__text:hover {
+  background: var(--color-hover-overlay);
+}
+
+.nt-comments__actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.nt-comments__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--height-xs);
+  height: var(--height-xs);
+  padding: 0;
+  border: none;
+  border-radius: var(--shape-small);
+  background: none;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+}
+
+.nt-comments__action:hover {
+  background: var(--color-hover-overlay);
+  color: var(--color-on-surface);
+}

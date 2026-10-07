@@ -57,9 +57,12 @@
   margin-right: auto;
 }
 
-/* Right sidebar: peek cards (shift+click a block bullet). The EXTERNAL
-   container is one surface step below the main card; the node view renders
-   INSIDE it on --color-surface, so it reads as a card within the card. */
+/* Right sidebar: the cards-only rail (M15/M17) — workspace cards (the
+   generic frame around NodeView). The EXTERNAL container is one surface
+   step below the main card; the node view renders INSIDE it on
+   --color-surface, so it reads as a card within the card. The
+   node-relevant widgets (graph/TOC/Activity/Comments) live in the page
+   chrome's context column now. */
 .nt-right-card {
   width: 340px;
   flex-shrink: 0;
@@ -144,16 +147,6 @@
   border: var(--border-width-default, 1px) solid var(--color-outline-variant);
   border-radius: var(--shape-card, 14px);
   box-shadow: var(--shadow-elevation-1, 0 2px 8px rgba(0, 0, 0, 0.18));
-}
-
-/* The context block (TOC + references of the main-view page)
-   stacks above the peek cards; the sections inside keep their own card
-   surfaces, so the wrapper only spaces them. */
-.nt-right-card-context {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-3, 12px);
 }
 
 /* Focus mode (#12): the shell chrome dims to a whisper while the page card
