@@ -1,15 +1,15 @@
 /**
- * CollectionSection — the ONE section skin (owner pass 7, M7): the
+ * CollectionSection — the ONE section skin: the
  * collapsible chrome (NodeViewSection, the chrome primitive — the header is
  * a single <button>, so the header ROW cannot host nested controls; an
  * optional ViewToolbar rides the body top instead) around a views/
  * NodeCollection, fed by useSectionData. The lazy contract — first
  * activation, cache across switches, re-run per notification, failure keeps
  * the previous rows — lives entirely in the hook; this component is chrome
- * + the collection host. Nothing rides the skin yet in S2 — the current
+ * + the collection host. Nothing rides the skin yet — the current
  * sections convert slice by slice (their exported signatures stay frozen
- * until S3+); the skin lands now as the single render target for the
- * SectionSpec stacks (S5+).
+ * for now); the skin lands as the single render target for the
+ * SectionSpec stacks.
  */
 
 import { useState, type ReactNode } from "react";

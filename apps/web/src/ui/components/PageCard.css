@@ -57,7 +57,7 @@
   margin-right: auto;
 }
 
-/* Right sidebar: the cards-only rail (M15/M17) — workspace cards (the
+/* Right sidebar: the cards-only rail — workspace cards (the
    generic frame around NodeView). The EXTERNAL container is one surface
    step below the main card; the node view renders INSIDE it on
    --color-surface, so it reads as a card within the card. The

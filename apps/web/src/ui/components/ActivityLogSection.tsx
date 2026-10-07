@@ -17,7 +17,7 @@
  * Lazy per the normative SCHEMA.md system-sections contract ("a collapsed
  * section executes no query"): the created query runs ONLY while expanded
  * (first expand, then re-derives per notification while expanded — the
- * contract rides useSectionData since S2); there is
+ * contract rides useSectionData); there is
  * no eager count badge — no materialized activity count exists, so like
  * unlinked references the header shows none. Hide-when-empty reads the
  * cheap active-node proxy (pages + classes); a blocks-only-under-trash
@@ -136,7 +136,7 @@ export function ActivityLogSection({ client, onOpenPage }: ActivityLogSectionPro
    * The lazy contract: no query exists until the first expand. While
    * expanded, one created-query per notification; a failed/closed query
    * keeps the previous rows (reference material, never a boot gate). Rides
-   * useSectionData since S2 (active = expanded).
+   * useSectionData (active = expanded).
    */
   const runCreatedQuery = useCallback(
     () =>

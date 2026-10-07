@@ -1,6 +1,6 @@
 /**
  * usePageMachinery — everything PageView wired by hand for its editing
- * surface, in one hook (the main-content restructure, S3a: the carve that
+ * surface, in one hook (the main-content restructure: the carve that
  * keeps NodeView a thin composer — the machinery bag moves out of the
  * component; the JSX that hosts it stays). Per-surface remainder:
  *
@@ -10,13 +10,13 @@
  * - find/replace state + the shortcut listener + the prose docs,
  * - the external-link delegation + the LinkEditModal opener ref,
  * - the DnD wiring (sensors, dropLine/dragging/moveError state, the four
- *   dnd-kit handlers) — moved as it exists today; S6 hoists the drag half
- *   to the workspace host (`useWorkspaceDnd`),
+ *   dnd-kit handlers) — moved as it exists today; a later slice hoists the
+ *   drag half to the workspace host (`useWorkspaceDnd`),
  * - the fold chords (Ctrl+. / Ctrl+Alt+arrows) on the focused block.
  *
  * Options: `globalShortcuts` (default true) gates the document-level
  * listeners (find/replace chord, fold chords) — the main surface passes
- * true; secondary surfaces (workspace cards, S6/S7) pass false; embedded
+ * true; secondary surfaces (workspace cards) pass false; embedded
  * renders imply false. Nothing here renders — pure hooks + callbacks.
  */
 
@@ -198,7 +198,7 @@ export function usePageMachinery({
   // element — the editor stays the focus owner, no focus ledger). Alt+←/→
   // belongs to Back/Forward (the App keymap), so fold moved to the Ctrl+Alt+
   // arrow pair (free in Chrome/Firefox/Safari; some OS display drivers rotate
-  // the screen on it — out of the page's reach, same as v1's fate with
+  // the screen on it — out of the page's reach, same as the original's fate with
   // Alt+arrows in browsers).
   useEffect(() => {
     if (!shortcuts) return;

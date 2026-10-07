@@ -278,8 +278,8 @@ export function FloatingEditorHost({
  * exactly the chrome a floating window carries itself: the page-level
  * find/replace chord, fold chords, cover card, footer). Every view
  * builds its own OutlinerContext, so the window is a fully independent
- * editor instance. (Pre-S1 this was a second copy of App's dispatch; the
- * extraction makes the windows reuse it — the main-content restructure.)
+ * editor instance. (Before the extraction this was a second copy of App's
+ * dispatch; the windows now reuse it — the main-content restructure.)
  */
 function FloatingNodeView({
   client,

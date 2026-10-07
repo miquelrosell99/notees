@@ -5,16 +5,16 @@
  * the FilterBuilderModal. The representable subset lives in
  * queryBuilder.ts; this module is purely presentational.
  *
- * M35 — the v1 ViewBuilder interaction, chrome-only (the AST is the
+ * The original ViewBuilder interaction, chrome-only (the AST is the
  * one grammar; nothing here changes what composes): the fields render as the
- * v1 block list — a scope bar on top, then one card per condition with an
+ * original block list — a scope bar on top, then one card per condition with an
  * uppercase header label and a remove (✕) that clears the row back to its
  * unset default. Setting a control IS the add gesture (the flat-AND subset
- * has exactly these conditions — v1's type menu maps onto "the card you fill
+ * has exactly these conditions — the original type menu maps onto "the card you fill
  * in"), and a card whose condition is unset reads as a dashed placeholder;
- * when no filter is set at all, the v1 empty note names the consequence
+ * when no filter is set at all, the original empty note names the consequence
  * ("No filters — all nodes will be shown"). The operator pickers present
- * v1-style: the fixed operators ride as prose words (contains / after /
+ * in the original style: the fixed operators ride as prose words (contains / after /
  * before), the bit conditions keep their tri-state picker. Every control
  * keeps its label and value semantics, so the QueryBlockView/QueriesHub
  * integrations are unchanged.
@@ -81,7 +81,7 @@ export interface QueryBuilderFieldsProps {
 }
 
 /**
- * One v1 condition card: the uppercase header label + the remove (✕) that
+ * One condition card: the uppercase header label + the remove (✕) that
  * clears the row (visible only while the condition is set — the unset card
  * is the dashed "add me" placeholder).
  */
@@ -134,7 +134,7 @@ export function QueryBuilderFields({ state, onChange, facts, rootIsPage }: Query
 
   return (
     <div className="nt-vb">
-      {/* The v1 scope bar: icon + prose + the scope picker. Scope is always
+      {/* The scope bar: icon + prose + the scope picker. Scope is always
           set (never a removable condition). */}
       <div className="nt-vb__scope">
         <span className="nt-vb__scope-label">
@@ -154,7 +154,7 @@ export function QueryBuilderFields({ state, onChange, facts, rootIsPage }: Query
         </select>
       </div>
 
-      {/* The v1 filters section: one card per condition. */}
+      {/* The filters section: one card per condition. */}
       <div className="nt-vb__filters">
         {!anyFilterActive && (
           <p className="nt-vb__empty-note">No filters — all nodes will be shown</p>

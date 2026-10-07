@@ -9,7 +9,7 @@
  * excluded (their ids are deterministic auto-created chain pages, never
  * "created that day" content). Rows default to the cards view mode
  * (owner 2026-10-06), outline one click away; the choice is device-local
- * per host page, never an op. S2: the query rides useSectionData.
+ * per host page, never an op. The query rides useSectionData.
  */
 
 import { useCallback, useState } from "react";
@@ -57,7 +57,7 @@ export function CreatedSection({
   // The count gates hide-when-empty and no cheaper materialized count
   // exists, so the one structured query resolves from mount (active stays
   // true) and re-runs per notification, independent of expansion — the
-  // section's pre-S2 contract, now riding useSectionData. A failed query
+  // section's pre-restructure contract, now riding useSectionData. A failed query
   // keeps the previous rows.
   const runCreatedQuery = useCallback(
     () =>

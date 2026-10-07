@@ -11,11 +11,11 @@
  * All modes render the shared NodeResultItem rows; keyboard navigation,
  * date suggestions, and create-from-query are built in (`noCreate` turns
  * the create affordance off — search-without-match shows the honest empty
- * state instead, M38a). With `scopeTabs`
+ * state instead). With `scopeTabs`
  * the picker adds Main/Blocks tabs scoping the results to document-chrome
- * nodes vs inline child blocks. `searchMode="blocks"` (M8) is the block-
+ * nodes vs inline child blocks. `searchMode="blocks"` is the block-
  * linking candidate set — inline blocks only, each labeled with its
- * containing-page path. A leading `class:<name>` prefix in the query (M7)
+ * containing-page path. A leading `class:<name>` prefix in the query
  * refines any non-classes mode to that class's members; the create row
  * answers the rest of the query and carries the refined class. Data wiring
  * goes through the workspace client (search/list/create/class-assign).
@@ -52,7 +52,7 @@ import "./NodeSelector.css";
 export interface NodeSelectorClient extends QuickCreateClient {
   getNode(id: string): ClientNode | undefined;
   getNodeRaw(id: string): ClientNode | undefined;
-  /** The document-chrome node pool (filter-prefix listings, ). */
+  /** The document-chrome node pool (filter-prefix listings). */
   listPages(): ClientNode[];
   search(query: string): ClientNode[];
   createClass(name: string, opts?: { icon?: string; color?: string }): Promise<string>;
@@ -126,7 +126,7 @@ interface NodeSelectorProps {
   /** Always show the create row, even with an empty query (e.g. upload flows). */
   alwaysShowCreate?: boolean;
   /**
-   * M38a — suppress the create-from-query affordance entirely: a search
+   * Suppress the create-from-query affordance entirely: a search
    * without a match shows the honest empty state instead of a create path
    * (the QuickCreateModal flow included). Default false.
    */
@@ -304,7 +304,7 @@ export function NodeSelector({
     }
   };
 
-  // Inline filter prefixes ( suggestion-popup row, the v1 popup's
+  // Inline filter prefixes (suggestion-popup row, the original popup's
   // filter family): `daily:` (bare = daily pages only), `is_daily:`,
   // `is_page:` and `is_class:` booleans refine any non-classes search. The
   // tokens are stripped from the search text before FTS/name matching (and
@@ -412,8 +412,8 @@ export function NodeSelector({
 
   // Create support: default on for page/class pickers. The create row answers
   // the EFFECTIVE query — under a `class:` refine the prefix scopes the
-  // search; it must not become part of the created node's title (M7).
-  // M38a — `noCreate` suppresses the whole affordance (row + the
+  // search; it must not become part of the created node's title.
+  // `noCreate` suppresses the whole affordance (row + the
   // QuickCreateModal route + the alwaysShowCreate upload override): a
   // search-without-match then renders the honest empty state.
   const effectiveQuery = classRefine.query.trim();
@@ -458,7 +458,7 @@ export function NodeSelector({
   };
 
   // Parse the query for date formats and offer the date-page suggestion
-  // (hidden in multi-select mode — the v1 boundary).
+  // (hidden in multi-select mode — the original boundary).
   const parsedDate = useMemo(() => {
     if (searchMode === "classes" || multiSelect) return null;
     return parseDate(inlineFilters.query.trim());
@@ -518,10 +518,10 @@ export function NodeSelector({
 
   // Search results through the client. Classes are matched by name over the
   // class list (name filtering is the better picker behavior for short
-  // queries); object/block hits go through the M2-ranked FTS index — the
+  // queries); object/block hits go through the ranked FTS index — the
   // class appliers reindex too, so "all"-mode search surfaces classes as
-  // well. A `class:` refine (M7) narrows the candidates to the refined
-  // class's members; "blocks" mode (M8) keeps only inline-body blocks — the
+  // well. A `class:` refine narrows the candidates to the refined
+  // class's members; "blocks" mode keeps only inline-body blocks — the
   // `((` block-linking candidate set.
   const searchResults = useMemo(() => {
     const q = classRefine.query.trim().toLowerCase();

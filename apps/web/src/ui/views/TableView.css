@@ -1,7 +1,7 @@
 /**
  * TableView — the collection table (token-only).
  *
- * M39 — the v1 table look recovery. v1's NodeTable ("bordered", size md)
+ * The table look recovery. The original NodeTable ("bordered", size md)
  * registered: a BOXED table — border-collapse separate, a 1px
  * outline-variant outer border with the shape-medium radius, surface cells
  * (no zebra) with per-cell right/bottom hairlines forming the grid; a
@@ -10,7 +10,7 @@
  * hover-overlay; the selected row wearing the same hover-overlay wash;
  * a sticky select-checkbox column with the row-gutter shadow; and the
  * sort register: direction arrows on every sorted column plus the
- * multi-sort priority index. v2 machinery stays: inline editing, the
+ * multi-sort priority index. The newer machinery stays: inline editing, the
  * tri-state header checkbox, CSV/Excel export, ImportTableModal, and the
  * ROW_WINDOW paging.
  */
@@ -21,7 +21,7 @@
 
 .nt-table {
   width: 100%;
-  /* v1: separate borders + zero spacing — the boxed grid renders from
+  /* Separate borders + zero spacing — the boxed grid renders from
      per-cell hairlines, and the rounded corners clip. */
   border-collapse: separate;
   border-spacing: 0;
@@ -32,7 +32,7 @@
   overflow: hidden;
 }
 
-/* v1 header register: the surface-variant wash, sticky, 600-weight muted
+/* The header register: the surface-variant wash, sticky, 600-weight muted
    labels, cell hairlines forming the grid's top edge. */
 .nt-table thead th {
   position: sticky;
@@ -52,7 +52,7 @@
   border-right: none;
 }
 
-/* v1 body cells: the surface wash + the grid hairlines. */
+/* Body cells: the surface wash + the grid hairlines. */
 .nt-table td {
   background: var(--color-surface);
   border-right: var(--border-width-default) solid var(--color-outline-variant);
@@ -65,7 +65,7 @@
   border-right: none;
 }
 
-/* v1 --hoverable: the row hover paints every cell. */
+/* --hoverable: the row hover paints every cell. */
 .nt-table tbody tr:hover > td {
   background: var(--color-hover-overlay);
 }
@@ -94,7 +94,7 @@
   color: var(--color-primary);
 }
 
-/* v1 multi-sort: the priority index rides the sort icon. */
+/* Multi-sort: the priority index rides the sort icon. */
 .nt-table-sort-index {
   font-size: var(--font-size-xs);
   font-weight: 600;
@@ -360,7 +360,7 @@
   color: var(--color-primary, currentColor);
 }
 
-/* v1: the sticky select column — pinned left with the row-gutter shadow;
+/* The sticky select column — pinned left with the row-gutter shadow;
    the header cell rides the surface-variant wash above the body cells. */
 .nt-table th.nt-table-select-col,
 .nt-table td.nt-table-select-col {
@@ -392,7 +392,7 @@
   text-decoration: underline;
 }
 
-/* v1 selected row: the same hover-overlay wash as the row hover (not a
+/* The selected row: the same hover-overlay wash as the row hover (not a
    primary-container fill). */
 .nt-table-row--selected > td {
   background: var(--color-hover-overlay);

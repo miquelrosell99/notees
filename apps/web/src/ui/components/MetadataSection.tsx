@@ -982,7 +982,7 @@ function BooleanPropertyRow({
 /**
  * The node's own classes: pills with an × that unassigns (class.unassign),
  * a right-click color-swatch menu (object.update color), and a "+ Add class"
- * ghost pill opening the node-selector popup (assignClass). M11: the pills
+ * ghost pill opening the node-selector popup (assignClass): the pills
  * ride ClassPillsList — the instance-of relation's mutations passed as
  * arguments, the row chrome (the label) stays here.
  */

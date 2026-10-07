@@ -1,8 +1,8 @@
 /**
- * Class View tests: a class page IS a page (.plans/design/05-class-
- * view-redesign.md) — render-cascade view resolution (class → the page view
- * with the class variant data, M13 of the main-content restructure), the
- * page chrome (title; M9: the shared header icon button is the single
+ * Class View tests: a class page IS a page — render-cascade view
+ * resolution (class → the page view
+ * with the class variant data, the main-content restructure), the
+ * page chrome (title; the shared header icon button is the single
  * icon+color entry — no curated class icon button, no color dot), the
  * extends corner pills (class.setExtends m2m, class-only picker), the
  * classed-nodes instances section (expanded by default), the property-
@@ -79,7 +79,7 @@ describe("Class View", () => {
     expect(screen.getByRole("button", { name: /class properties/i })).not.toBeNull();
     expect(classRender.container.querySelector(".nt-class")).not.toBeNull();
     // The page body chrome: an empty class offers the first-block affordance
-    // (the v1 ghost row, aria-label "Add block").
+    // (the ghost row, aria-label "Add block").
     expect(screen.getByRole("button", { name: /add block/i })).not.toBeNull();
     classRender.unmount();
 
@@ -137,7 +137,7 @@ describe("Class View", () => {
     expect(screen.queryByRole("button", { name: "agent" })).toBeNull();
   });
 
-  it("refuses a cycle-creating extends write loud in the store (M12: render assumes a DAG — no cycle banner)", async () => {
+  it("refuses a cycle-creating extends write loud in the store (render assumes a DAG — no cycle banner)", async () => {
     const client = await seedClient();
     const aId = await createTitledClass(client, "alpha");
     const bId = await createTitledClass(client, "beta");
@@ -146,7 +146,7 @@ describe("Class View", () => {
 
     // Picking alpha as beta's parent would close the cycle b → a → b. The
     // store's operation-level DAG check (the applier's CycleError) refuses
-    // the write; the view renders NO cycle banner (M12 deleted that chrome —
+    // the write; the view renders NO cycle banner (that chrome was deleted —
     // the rejection lands in the console).
     fireEvent.click(screen.getByRole("button", { name: "Add class extension" }));
     const dialog = screen.getByRole("dialog", { name: "Select node" });
@@ -180,8 +180,8 @@ describe("Class View", () => {
     const onOpenNode = vi.fn();
     render(<NodeView client={client} nodeId={classId} onOpenNode={onOpenNode} />);
 
-    // Owner refinement: the name cell click EDITS (inline); the v1
-    // open-arrow navigates.
+    // Owner refinement: the name cell click EDITS (inline); the open-arrow
+    // navigates.
     const openArrow = screen.getByRole("button", { name: "Open Ada Lovelace" });
     fireEvent.click(openArrow);
     expect(onOpenNode).toHaveBeenCalledWith(pageId);
@@ -281,20 +281,20 @@ describe("Class View", () => {
   });
 });
 
-describe("the class icon picker (M9: the shared header icon button is the single entry)", () => {
+describe("the class icon picker (the shared header icon button is the single entry)", () => {
   it("the page icon button opens the full emoji/icon picker — tabs, the entire sets, recents", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "pokemon");
     const { container } = render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
 
-    // M9/M13: no curated class icon button — the shared header icon button
+    // No curated class icon button — the shared header icon button
     // (left of the title) is the single icon+color edit entry for class
     // pages too.
     const iconButton = container.querySelector<HTMLElement>(".page-icon-btn");
     if (iconButton === null) throw new Error("page icon button missing");
     fireEvent.click(iconButton);
 
-    // The full v1 picker: the dialog with its three tabs…
+    // The full picker: the dialog with its three tabs…
     const dialog = screen.getByRole("dialog", { name: "Icon picker" });
     expect(within(dialog).getByRole("tab", { name: "All" })).not.toBeNull();
     expect(within(dialog).getByRole("tab", { name: "Emojis" })).not.toBeNull();
@@ -309,7 +309,7 @@ describe("the class icon picker (M9: the shared header icon button is the single
     expect(within(dialog).getByText("Animals")).not.toBeNull();
     expect(within(dialog).getByText("Flags")).not.toBeNull();
 
-    // Selecting an emoji writes it as the class icon (the v1 contract)…
+    // Selecting an emoji writes it as the class icon (the original contract)…
     fireEvent.click(within(dialog).getByRole("button", { name: "😀" }));
     await flushWrites();
     expect(client.getNode(classId)?.icon).toBe("😀");

@@ -972,7 +972,7 @@ export function TableView(props: NodeCollectionProps) {
               </th>
             )}
             {visibleColumns.map((column) => {
-              // v1 sort register: every sorted column wears its direction
+              // The sort register: every sorted column wears its direction
               // arrow; a multi-sort adds the priority index badge.
               const sortIndex = sort.findIndex((s) => s.key === column.id);
               return (
