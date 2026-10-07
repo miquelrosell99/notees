@@ -54,6 +54,11 @@ folder's retirement:
   stability pass on the timing assertion.
 - **The M38 empty-cover/empty-banner upload triggers** — shipped with the
   banner; the empty-banner modal trigger noted for verification.
+- **Client follow-ons from the alignment batches** — the Flutter local
+  seed's raw-title keys (display-title divergence across classes; also the
+  option of the full events family in the local seed) and the GTK/Flutter
+  alias UI chrome (their read hooks landed; the aliases UI itself is a
+  client-side follow-on).
 
 ## Repo split (notees-sync / notees-web)
 
