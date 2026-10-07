@@ -1,9 +1,8 @@
 /**
- * useSectionData — the shared lazy-section data contract (the shared
- * machinery — the design's "Diagram 5 — the section data contract"). ONE
+ * useSectionData — the shared lazy-section data contract. ONE
  * hook instance per section
  * view/tab (the per-view rule, owner pass 2): a section's default view, each
- * backlinks tab, and (later) each custom tab each own their instance — never
+ * backlinks tab, and each custom tab each own their instance — never
  * one shared cache with view-switch invalidation, which would re-run queries
  * a switch should be silent on.
  *
@@ -27,17 +26,39 @@
  * `SectionSpec` (below) is the data-facing descriptor for the future section
  * stacks: a page variant declares an ordered list of descriptors; the
  * hook owns WHEN resolution runs, the strategy owns WHAT it reads. The
- * transient filter layer and the hosted custom views are recorded
- * in the plan but deliberately NOT part of this descriptor yet.
+ * transient filter layer ships as part of this contract (`filterable`);
+ * the hosted custom views remain the follow-up.
+ *
+ * The transient filter layer (components/filterSpec.ts): a `filter`
+ * applies a FilterSpec to the resolved rows POST-RESOLUTION and
+ * PRE-WINDOWING — the returned rows are the filtered set, so the
+ * collection's windowing sees filtered rows; the resolution cache is
+ * untouched (a spec change re-derives from the cached rows, it never
+ * re-runs the query). The eager count stays UNFILTERED: `total` is the
+ * resolved count before the filter, and an active filter renders "0 of N"
+ * rather than hiding the section.
  */
 
 import { useEffect, useRef, useState } from "react";
 
+import type { ClientNode } from "@/core/workspace-client.js";
+
 import type { AnyClient, NodeCollectionItem, NodeCollectionProps, ViewMode } from "../views/index.js";
+import { matchesNodeFilter, type FilterBarConfig, type FilterSpec } from "./filterSpec.js";
 
 /** The resolution context handed to every strategy. */
 export interface SectionCtx {
   client: AnyClient;
+}
+
+/**
+ * The transient filter a section applies to its resolved rows: the spec
+ * plus the row→node accessor the predicates read (a backlinks row's node is
+ * its source; a collection row's node is the item's node).
+ */
+export interface SectionRowFilter<Row> {
+  spec: FilterSpec;
+  nodeOf: (row: Row) => ClientNode;
 }
 
 export interface UseSectionDataOptions<T> {
@@ -62,6 +83,13 @@ export interface UseSectionDataOptions<T> {
    * by identity — pass a joined/primitive value, not a fresh object.
    */
   refreshKey?: unknown;
+  /**
+   * The transient filter layer (list-shaped row sets only): applied
+   * post-resolution, pre-windowing. The spec changes re-derive from the
+   * cached rows on the next render — it is never part of the resolution
+   * signature, so a filter change re-runs no query.
+   */
+  filter?: (T extends readonly (infer Row)[] ? SectionRowFilter<Row> : never) | undefined;
   /** Cheap synchronous client/derived read strategy. */
   read?: ((ctx: SectionCtx) => T) | undefined;
   /** Structured-query strategy (self-bounding: range ASTs, row caps). */
@@ -72,9 +100,17 @@ export interface SectionData<T> {
   /**
    * The resolved rows; null until the first activation's resolution
    * completes (or fails — a first failure keeps null, so the view renders
-   * its not-yet-loaded state honestly).
+   * its not-yet-loaded state honestly). With an active filter this is the
+   * FILTERED set — windowing downstream sees filtered rows.
    */
   rows: T | null;
+  /**
+   * The resolved row count BEFORE the transient filter — the eager-count
+   * law: chrome reads this for the unfiltered count (an active filter
+   * shows "0 of N", never hides the section). Null until the first
+   * resolution completes.
+   */
+  total: number | null;
 }
 
 export function useSectionData<T>({
@@ -82,6 +118,7 @@ export function useSectionData<T>({
   active = true,
   keepFresh = false,
   refreshKey,
+  filter,
   read,
   query,
 }: UseSectionDataOptions<T>): SectionData<T> {
@@ -117,12 +154,21 @@ export function useSectionData<T>({
     };
   }, [client, active, keepFresh, version, refreshKey, read, query]);
 
-  return { rows };
+  // The transient filter step: post-resolution, pre-windowing. Derived on
+  // every render from the cached rows — a spec change re-filters without
+  // re-running the resolution above, and an inactive/absent filter keeps
+  // the resolved array's identity untouched.
+  const filtered =
+    rows === null || filter === undefined || !Array.isArray(rows)
+      ? rows
+      : (rows as unknown as unknown[]).filter((row) =>
+          matchesNodeFilter(client, (filter as SectionRowFilter<unknown>).nodeOf(row), filter.spec),
+        );
+  return { rows: filtered as T | null, total: Array.isArray(rows) ? rows.length : null };
 }
 
 /**
- * SectionSpec — the data-facing section descriptor (the design's "Diagram 5"
- * sketch):
+ * SectionSpec — the data-facing section descriptor:
  * a section stack is DATA, not JSX branches. A page variant declares an
  * ordered list of these; each entry is consumed by one useSectionData
  * instance riding one skin (CollectionSection). Nothing consumes the
@@ -138,6 +184,13 @@ export interface SectionSpec {
   /** Exactly one resolution strategy (what the rows are). */
   read?: (ctx: SectionCtx) => NodeCollectionItem[];
   query?: (ctx: SectionCtx) => Promise<NodeCollectionItem[]>;
+  /**
+   * The transient filter layer (default OFF): true renders the FilterBar
+   * with its full facet set, a FilterBarConfig names the offered facets,
+   * absent/false renders no bar. The bar's state is transient component
+   * state — one instance per section view, nothing persisted.
+   */
+  filterable?: boolean | FilterBarConfig;
   /** Optional view-mode switcher set within a view. */
   viewModes?: ViewMode[];
   /** Extra NodeCollection props (groups / renderItem / readOnly / trailingAction / windowed …). */

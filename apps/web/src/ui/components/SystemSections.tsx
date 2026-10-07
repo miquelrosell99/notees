@@ -23,6 +23,14 @@
  * honest place for it); Ignore dismisses the source device-locally, per
  * page — device state, never an op (./viewPrefs.js).
  *
+ * The transient filter layer (owner 2026-10-07): both tabs are filterable —
+ * a FilterBar rides each panel's body top (the tab IS the header; the bar
+ * cannot nest in it), each tab owning its FilterSpec instance (component
+ * state — a switch never leaks a filter across tabs, nothing persisted).
+ * The spec filters the tab's resolved rows post-resolution/pre-windowing;
+ * the eager counts on the tab labels stay UNFILTERED — an active filter
+ * reads "0 of N" in the bar and never empties the tab away.
+ *
  * The Child pages section renders when the page has main children OR the
  * surface can create them: an empty main-surface page shows the section
  * with the collection's create affordance in its empty state ("Add child
@@ -49,9 +57,11 @@ import { displayNameForSettings } from "../dateDisplay.js";
 import { untitledLabelOf } from "../renderStateLabel.js";
 import { useIgnoredUnlinkedRefs, writeIgnoredUnlinkedRef } from "../viewPrefs.js";
 import { promoteMentionInAst } from "./unlinkedRefs.js";
+import { FilterBar } from "./FilterBar.js";
+import { EMPTY_FILTER_SPEC, isFilterEmpty, type FilterSpec } from "./filterSpec.js";
 import { NodeCollection, groupByContainingPage } from "../views/index.js";
-import type { NodeCollectionItem } from "../views/index.js";
-import { useSectionData } from "./useSectionData.js";
+import type { HostedViewsConfig, NodeCollectionItem } from "../views/index.js";
+import { useSectionData, type SectionRowFilter } from "./useSectionData.js";
 import "./SystemSections.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -96,11 +106,13 @@ export function ReferenceList({
   client,
   onOpenPage,
   unlinkedPageId,
+  hostedViews,
 }: {
   entries: ReferenceEntry[];
   client: AnyClient;
   onOpenPage?: ((nodeId: string) => void) | undefined;
   unlinkedPageId?: string | undefined;
+  hostedViews?: HostedViewsConfig | undefined;
 }) {
   const promote = useCallback(
     (source: ClientNode) => {
@@ -136,6 +148,7 @@ export function ReferenceList({
       client={client}
       items={items}
       groups={groups}
+      {...(hostedViews !== undefined ? { hostedViews } : {})}
       renderItem={(item) => {
         const containingPageId =
           typeof item.meta?.containingPageId === "string" ? item.meta.containingPageId : undefined;
@@ -256,11 +269,28 @@ export function SystemSections({
   // re-runs every LOADED tab's query (keepFresh — the pre-restructure contract: a
   // selected-again tab lands on fresh rows).
   const [refTab, setRefTab] = useState(REF_TAB_BACKLINKS);
+  /**
+   * The transient filter layer: one FilterSpec per tab (the per-view rule —
+   * two useState instances, never one shared spec; a tab switch keeps each
+   * tab's own filter and never leaks it across). Component state, lost on
+   * reload.
+   */
+  const [backlinkFilter, setBacklinkFilter] = useState<FilterSpec>(EMPTY_FILTER_SPEC);
+  const [unlinkedFilter, setUnlinkedFilter] = useState<FilterSpec>(EMPTY_FILTER_SPEC);
+  const backlinkRowFilter = useMemo<SectionRowFilter<ReferenceEntry> | undefined>(() => {
+    if (isFilterEmpty(backlinkFilter)) return undefined;
+    return { spec: backlinkFilter, nodeOf: (entry) => entry.source };
+  }, [backlinkFilter]);
+  const unlinkedRowFilter = useMemo<SectionRowFilter<ReferenceEntry> | undefined>(() => {
+    if (isFilterEmpty(unlinkedFilter)) return undefined;
+    return { spec: unlinkedFilter, nodeOf: (entry) => entry.source };
+  }, [unlinkedFilter]);
   const backlinks = useSectionData<ReferenceEntry[]>({
     client,
     active: refTab === REF_TAB_BACKLINKS,
     keepFresh: true,
     read: loadLinkedRefs,
+    filter: backlinkRowFilter,
   });
   const unlinked = useSectionData<ReferenceEntry[]>({
     client,
@@ -270,6 +300,7 @@ export function SystemSections({
     // gate on it so an Ignore drops the row without waiting for one.
     refreshKey: ignoredKey,
     read: loadUnlinkedRefs,
+    filter: unlinkedRowFilter,
   });
 
   return (
@@ -329,13 +360,32 @@ export function SystemSections({
             </Tabs.Tab>
           </Tabs.List>
           <Tabs.Panel value={REF_TAB_BACKLINKS}>
+            <FilterBar
+              client={client}
+              value={backlinkFilter}
+              onChange={setBacklinkFilter}
+              matchCount={backlinks.rows === null ? null : backlinks.rows.length}
+              totalCount={backlinks.total}
+            />
             {backlinks.rows === null ? null : backlinks.rows.length === 0 ? (
               <div className="nt-section-empty">No backlinks.</div>
             ) : (
-              <ReferenceList entries={backlinks.rows} client={client} onOpenPage={onOpenPage} />
+              <ReferenceList
+                entries={backlinks.rows}
+                client={client}
+                onOpenPage={onOpenPage}
+                hostedViews={{ nodeId: pageId, sectionKey: "linked-references" }}
+              />
             )}
           </Tabs.Panel>
           <Tabs.Panel value={REF_TAB_UNLINKED}>
+            <FilterBar
+              client={client}
+              value={unlinkedFilter}
+              onChange={setUnlinkedFilter}
+              matchCount={unlinked.rows === null ? null : unlinked.rows.length}
+              totalCount={unlinked.total}
+            />
             {unlinked.rows === null ? null : unlinked.rows.length === 0 ? (
               <div className="nt-section-empty">No unlinked mentions.</div>
             ) : (
@@ -344,6 +394,7 @@ export function SystemSections({
                 client={client}
                 onOpenPage={onOpenPage}
                 unlinkedPageId={pageId}
+                hostedViews={{ nodeId: pageId, sectionKey: "unlinked-mentions" }}
               />
             )}
           </Tabs.Panel>
