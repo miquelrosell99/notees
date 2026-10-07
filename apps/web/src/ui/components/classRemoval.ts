@@ -1,10 +1,11 @@
 /**
- * classRemoval — the non-removable-class rule: the system/journal
- * classes are identity-bearing (the class anchor + the year/month/day
- * journal chain per the seed manifest), so class-membership removal is
- * refused for them everywhere the UI offers ×-removal (NodePills — the
- * page classes row AND the block-row classes column —, the classed-nodes
- * section, the node context menu, and the selection bar's bulk unassign).
+ * classRemoval — the non-removable-class rule: the journal chain classes
+ * are identity-bearing (the year/month/day journal chain per the seed
+ * manifest), so class-membership removal is refused for them everywhere the
+ * UI offers ×-removal (NodePills — the page classes row AND the block-row
+ * classes column —, the classed-nodes section, the node context menu, and
+ * the selection bar's bulk unassign). (The seeded `class` meta class left
+ * the list with its 2026-10-07 retirement — it is no longer seeded.)
  *
  * The refusal is UI-level and honest: the × stays visible, the click
  * surfaces an explanatory toast, and no write is issued. (The server/CLI
@@ -16,9 +17,8 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import { notificationStore } from "./ui/notificationStore.js";
 
-/** Class ids whose membership ×-removal is refused (system/journal classes). */
+/** Class ids whose membership ×-removal is refused (the journal chain). */
 const NON_REMOVABLE_CLASS_IDS: ReadonlySet<string> = new Set([
-  SYSTEM_CLASS_UUIDS.class,
   SYSTEM_CLASS_UUIDS.year,
   SYSTEM_CLASS_UUIDS.month,
   SYSTEM_CLASS_UUIDS.day,
@@ -27,7 +27,7 @@ const NON_REMOVABLE_CLASS_IDS: ReadonlySet<string> = new Set([
 /** The refusal message for a non-removable class id, or null when removable. */
 export function classRemovalRefusal(classId: string): string | null {
   if (!NON_REMOVABLE_CLASS_IDS.has(classId)) return null;
-  return "Journal and system classes are identity-bearing — they can't be removed from a node.";
+  return "Journal classes are identity-bearing — they can't be removed from a node.";
 }
 
 /**

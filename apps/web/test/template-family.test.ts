@@ -1,11 +1,14 @@
 /**
- * Template family tests: ensureTemplateProperty authors the
- * has-template schema + system-class binding at the reserved UUID
- * (the fixed-UUID lesson — a reserved UUID is dead without an author),
- * self-heals an unseeded workspace, and is a complete no-op once present;
- * listClassTemplates resolves a class's bound templates in authored order,
- * dropping stale/trashed/non-template targets and reading [] before the
- * schema exists.
+ * Template family tests: ensureTemplateProperty authors the has-template
+ * schema at the reserved UUID (the fixed-UUID lesson — a reserved UUID is
+ * dead without an author) as a GLOBAL-scope schema with no binding anywhere
+ * (M47: the retired `class` meta class used to host the binding), self-heals
+ * an unseeded workspace, and is a complete no-op once present;
+ * listClassTemplates resolves a class's authored template values in authored
+ * order (the effective-properties read surfaces authored rows with or
+ * without a binding — the new location is the only location), dropping
+ * stale/trashed/non-template targets and reading [] before the schema
+ * exists.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -84,7 +87,7 @@ async function seedClient(relay: MemoryRelay = seededRelay()): Promise<Workspace
 }
 
 describe("ensureTemplateProperty", () => {
-  it("authors the schema at the reserved id and binds it to the system class", async () => {
+  it("authors the schema at the reserved id — GLOBAL scope, no binding anywhere (M47)", async () => {
     const client = await seedClient();
     expect(templatePropertyPresent(client)).toBe(false);
 
@@ -97,12 +100,15 @@ describe("ensureTemplateProperty", () => {
     expect(schema?.name).toBe("Templates");
     expect(schema?.type).toBe("object");
     expect(schema?.multi).toBe(true);
+    expect(schema?.scope).toBe("global");
     expect(schema?.targetClassFilter).toEqual([SYSTEM_CLASS_UUIDS.template]);
+    // M47: nothing binds it — the retired class-class binding is gone and
+    // no class hosts the family. The registry is empty for the schema.
     expect(
-      client
-        .getClassBindings(SYSTEM_CLASS_UUIDS.class)
-        .map((binding) => binding.propertySchemaId),
-    ).toContain(SYSTEM_PROPERTY_UUIDS.hasTemplate);
+      client.store.database
+        .prepare("SELECT COUNT(*) AS n FROM class_property WHERE property_schema_id = ?")
+        .get(SYSTEM_PROPERTY_UUIDS.hasTemplate),
+    ).toMatchObject({ n: 0 });
     expect(templatePropertyPresent(client)).toBe(true);
   });
 
@@ -110,21 +116,23 @@ describe("ensureTemplateProperty", () => {
     const client = await seedClient();
     await ensureTemplateProperty(client);
     const schemasAfterFirst = client.listPropertySchemas().length;
-    const bindingsAfterFirst = client.getClassBindings(SYSTEM_CLASS_UUIDS.class).length;
 
     await ensureTemplateProperty(client);
     await ensureTemplateProperty(client);
 
     expect(client.listPropertySchemas()).toHaveLength(schemasAfterFirst);
-    expect(client.getClassBindings(SYSTEM_CLASS_UUIDS.class)).toHaveLength(bindingsAfterFirst);
   });
 
-  it("self-heals an unseeded (offline-first) workspace, including the system class node", async () => {
+  it("self-heals an unseeded (offline-first) workspace — no class-class node is minted", async () => {
     const client = await seedClient(new MemoryRelay());
     await ensureTemplateProperty(client);
 
-    const classNode = client.getNode(SYSTEM_CLASS_UUIDS.class);
-    expect(classNode?.isClass).toBe(true);
+    // M47: the ensure never authors the retired `class` meta class node.
+    expect(
+      client.store.database
+        .prepare("SELECT COUNT(*) AS n FROM node WHERE is_class = 1")
+        .get(),
+    ).toMatchObject({ n: 0 });
     expect(templatePropertyPresent(client)).toBe(true);
   });
 
@@ -137,20 +145,21 @@ describe("ensureTemplateProperty", () => {
       name: "has-template",
       type: "object",
       multi: true,
-      scope: "class",
+      scope: "global",
       targetClassFilter: [SYSTEM_CLASS_UUIDS.template],
-    });
-    await client.setClassProperty(SYSTEM_CLASS_UUIDS.class, SYSTEM_PROPERTY_UUIDS.hasTemplate, {
-      sequence: 0,
     });
     const before = client.listPropertySchemas().length;
     await ensureTemplateProperty(client);
     expect(client.listPropertySchemas()).toHaveLength(before);
+    expect(
+      client.listPropertySchemas().find((entry) => entry.id === SYSTEM_PROPERTY_UUIDS.hasTemplate)
+        ?.name,
+    ).toBe("has-template");
   });
 });
 
 describe("listClassTemplates", () => {
-  it("resolves bound templates in authored order and drops stale targets", async () => {
+  it("resolves authored values in authored order and drops stale targets", async () => {
     const client = await seedClient();
     const classId = await client.createClass("meeting");
     const tplA = await client.createObject({
@@ -173,6 +182,8 @@ describe("listClassTemplates", () => {
     });
     await client.deleteObject(trashed);
 
+    // No binding anywhere: the authored rows surface through the
+    // effective-properties read unbound (the M47 relocation's fallback read).
     await client.setProperty(classId, SYSTEM_PROPERTY_UUIDS.hasTemplate, { nodeId: tplB }, 0);
     await client.setProperty(classId, SYSTEM_PROPERTY_UUIDS.hasTemplate, { nodeId: tplA }, 1);
     await client.setProperty(classId, SYSTEM_PROPERTY_UUIDS.hasTemplate, { nodeId: plain }, 2);
