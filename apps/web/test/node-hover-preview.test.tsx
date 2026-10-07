@@ -2,12 +2,14 @@
  * Node hover preview + floating editor tests (issue #11).
  *
  * Hover preview: dwelling on a mention (~400ms, fake timers) raises a
- * bounded read-only card anchored at the mention (icon/title/excerpt/
- * backlink count); leaving hides it after a short grace; the pointer can
- * travel into the card or back to the mention to keep it alive; dismissal
- * follows the shared layer (Escape + pointer-down outside); a held button
- * (a drag) never raises the card; the card's pin promotes to a floating
- * editor window.
+ * bounded card anchored at the mention, rendering the shared NodeView in
+ * preview mode — the real page chrome (the title row, the capped
+ * first-level body) read-only, no corner menu / properties / section
+ * stack; the footer carries the backlink count + the Pin button; leaving
+ * hides it after a short grace; the pointer can travel into the card or
+ * back to the mention to keep it alive; dismissal follows the shared layer
+ * (Escape + pointer-down outside); a held button (a drag) never raises the
+ * card; the card's pin promotes to a floating editor window.
  *
  * Floating editor: the pinned window renders the node's own view (the
  * Revision-11 cascade — PageView in embedded mode for pages) with a
@@ -124,10 +126,11 @@ const mentionLink = (container: HTMLElement): HTMLElement => {
   if (link === null) throw new Error("no mention link rendered");
   return link;
 };
+/** The NodeView preview's real chrome: the page shell + the header title row. */
+const cardPageShell = (card: HTMLElement): HTMLElement | null =>
+  card.querySelector<HTMLElement>(".nt-page");
 const cardTitle = (card: HTMLElement): string =>
-  card.querySelector<HTMLElement>(".nt-hover-preview__title")?.textContent ?? "";
-const cardExcerpt = (card: HTMLElement): string =>
-  card.querySelector<HTMLElement>(".nt-hover-preview__excerpt")?.textContent ?? "";
+  card.querySelector<HTMLElement>(".nt-page-title")?.textContent ?? "";
 
 function advance(ms: number): void {
   act(() => {
@@ -150,7 +153,7 @@ function typeInBlock(scope: HTMLElement, text: string): void {
 // ── Hover preview ────────────────────────────────────────────────────────────
 
 describe("node hover preview", () => {
-  it("dwell raises the card with title, excerpt, and backlink count", async () => {
+  it("dwell raises the card: the NodeView preview's real chrome, backlink count, pin", async () => {
     const { client, pageId } = await seedLinked();
     const { container } = renderHosted(client, pageId);
     vi.useFakeTimers();
@@ -161,8 +164,15 @@ describe("node hover preview", () => {
 
     const card = previewCard();
     expect(card).not.toBeNull();
+    // The shared NodeView in preview mode: the real page shell + the header
+    // title row carry the target's identity (title-is-content).
+    expect(cardPageShell(card!)).not.toBeNull();
     expect(cardTitle(card!)).toBe(TARGET_TEXT);
-    expect(cardExcerpt(card!)).toBe(TARGET_TEXT);
+    // The preview surface carries none of the editing machinery.
+    expect(card!.querySelector(".nt-node-view__corner")).toBeNull();
+    expect(card!.querySelector(".nt-node-view__modes")).toBeNull();
+    expect(card!.querySelector(".nt-metadata-divider")).toBeNull();
+    expect(card!.querySelector(".find-replace-widget")).toBeNull();
     // The mention under the pointer is the target's one backlink.
     expect(within(card!).getByText("1 backlink")).toBeTruthy();
     expect(
@@ -298,7 +308,7 @@ describe("node hover preview", () => {
     expect(previewCard()).toBeNull();
   });
 
-  it("clicking the card's title opens the node in the main view", async () => {
+  it("clicking the preview's title opens the node in the main view", async () => {
     const { client, pageId, targetId } = await seedLinked();
     const opened: string[] = [];
     const { container } = renderHosted(client, pageId, { openNode: (id) => opened.push(id) });
@@ -306,12 +316,52 @@ describe("node hover preview", () => {
 
     fireEvent.mouseEnter(mentionLink(container));
     advance(HOVER_DWELL_MS);
-    const main = previewCard()!.querySelector<HTMLElement>(".nt-hover-preview__main");
-    if (main === null) throw new Error("no card main button");
-    fireEvent.click(main);
+    // The preview's title row is read-only — a click navigates (the
+    // trampoline contract), it never mounts the block editor.
+    const titleContent = previewCard()!.querySelector<HTMLElement>(".nt-page-title .nt-title-content");
+    if (titleContent === null) throw new Error("no preview title row");
+    fireEvent.click(titleContent);
 
     expect(opened).toEqual([targetId]);
     expect(previewCard()).toBeNull();
+    expect(document.querySelector(".nt-block-text")).toBeNull();
+  });
+
+  it("the preview's body rows are read-only — clicking navigates instead of editing", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
+    const childId = await client.createObject({
+      parentId: targetId,
+      contentAst: [{ type: "text", text: "child words" }],
+    });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [
+        { type: "text", text: "see " },
+        {
+          type: "mention",
+          targetNodeId: targetId,
+          text: "Target",
+          linkId: "0192a000-0000-7000-8000-0000000000dd",
+        },
+      ],
+    });
+    const opened: string[] = [];
+    const { container } = renderHosted(client, pageId, { openNode: (id) => opened.push(id) });
+    vi.useFakeTimers();
+
+    fireEvent.mouseEnter(mentionLink(container));
+    advance(HOVER_DWELL_MS);
+    const card = previewCard()!;
+    // The capped first-level body renders the real row, readonly-classed.
+    const row = card.querySelector<HTMLElement>(`.nt-block--readonly[data-block-id="${childId}"]`);
+    if (row === null) throw new Error("no readonly body row in the preview");
+    fireEvent.click(row.querySelector<HTMLElement>(".nt-block-content")!);
+
+    expect(opened).toEqual([childId]);
+    expect(previewCard()).toBeNull();
+    expect(document.querySelector(".nt-block-text")).toBeNull();
   });
 
   it("a broken mention previews honestly and cannot be pinned", async () => {
@@ -465,7 +515,7 @@ describe("floating editor", () => {
     expect(floatingWindows()[0]).toBe(first);
   });
 
-  it("a block target renders the FocusedBlockView (editable subtree)", async () => {
+  it("a block target previews the focused-block chrome read-only; pinning opens it editable", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
     const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
@@ -490,7 +540,12 @@ describe("floating editor", () => {
 
     fireEvent.mouseEnter(mentionLink(container));
     advance(HOVER_DWELL_MS);
-    expect(within(previewCard()!).getByText("block")).toBeTruthy(); // kind chip
+    // The preview renders the real block chrome — and stays a trampoline:
+    // the subtree rows are read-only there.
+    expect(previewCard()!.querySelector(".nt-focused-block")).not.toBeNull();
+    expect(
+      previewCard()!.querySelector(`.nt-block--readonly[data-block-id="${blockId}"]`),
+    ).not.toBeNull();
     fireEvent.click(
       within(previewCard()!).getByRole("button", { name: "Pin — edit in a floating window" }),
     );

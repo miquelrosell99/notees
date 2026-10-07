@@ -19,11 +19,11 @@
  * Surfaces: main (default) · workspace card (compact layout via
  * `cornerMenu: false`) · preview (`preview` — hover/peek: no machinery at
  * all — no corner menu, no global listeners, a read-only body capped at
- * the first level, no section stack; the hover preview keeps its bespoke
- * card until the follow-up swap) and `embedded` (journals feed, calendar
- * embed, floating windows) — `embedded` suppresses the page chrome the host
- * already carries (find/replace chord, top bar) and never shows the corner
- * menu. (A class node renders full chrome on every surface, the pre-restructure
+ * the first level, no section stack; the hover preview renders it) and
+ * `embedded` (journals feed, calendar embed, floating windows) —
+ * `embedded` suppresses the page chrome the host already carries
+ * (find/replace chord, top bar) and never shows the corner menu. (A class
+ * node renders full chrome on every surface, the pre-restructure
  * ClassView behavior — the class variant keeps the embedded flag off so
  * class pages stay visually identical minus the deleted curated chrome.)
  */
@@ -62,10 +62,9 @@ export function NodeView({
    */
   embedded = false,
   /**
-   * Preview surface (hover/peek): no corner menu, no global
-   * listeners, a read-only body capped at the first level, no section
-   * stack. Nothing renders it yet — swapping NodeHoverPreview's bespoke
-   * card for this seam is the registered follow-up.
+   * Preview surface (hover/peek: NodeHoverPreview renders it): no corner
+   * menu, no global listeners, a read-only body capped at the first level,
+   * no section stack — a trampoline, not an editor.
    */
   preview = false,
   /**
@@ -146,11 +145,12 @@ export function NodeView({
     /* Block mode: the body is the plain collection — the node itself as
        the root row with its children under it (ReferenceSubtree builds the
        minimal outliner + SortableContext and renders the real editable
-       BlockRow). The block view renders no drag scope, so rows are
+       BlockRow; the preview surface passes readOnly — the trampoline is
+       never an editor). The block view renders no drag scope, so rows are
        editable but not draggable — the context-presence law. The wrapper
-       keeps the FocusedBlockView-era chrome class (nt-page nt-focused-block). */
+       keeps the focused-block chrome class (nt-page nt-focused-block). */
     <div className="nt-page nt-focused-block">
-      <ReferenceSubtree client={client} rootId={nodeId} onOpenNode={onOpenNode} />
+      <ReferenceSubtree client={client} rootId={nodeId} onOpenNode={onOpenNode} readOnly={preview} />
     </div>
   ) : (
     /* Page mode — plain, date (day/period), or class: PageView composes the
