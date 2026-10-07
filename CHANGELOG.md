@@ -9,6 +9,178 @@ predating this file.
 
 ## 2026-10-07
 
+- **feat(protocol,store,domain): the `asset` property type — attachments
+  leads the type out of `object`.** Owner ruling (M38): an asset-typed value
+  is a node reference whose target must carry the ASSET class — the type IS
+  the filter. **Protocol:** `propertySchema.create`'s strict type enum gains
+  `"asset"`; the domain `SystemPropertySpec` union keeps pace and the seeded
+  `attachments` spec (…0011) drops its now-redundant explicit
+  targetClassFilter. **Fixture gate 23→24:** `property-asset-type.json`
+  exercises the type through create plus a coexisting update (type rides
+  create only — `propertySchema.update` deliberately carries none), with a
+  strict-schema pin rejecting a bogus type. **Store:** the validation
+  machinery treats `asset` as the node-ref family — `{nodeId}` shape with
+  legacy bare-uuid normalization, target existence, and the IMPLICIT
+  asset-class filter (explicit filters on asset schemas are ignored);
+  node-typed defaults stay unsupported. **Migration:**
+  `scripts/migrate-attachments-asset-type.mts` (the sibling-script
+  conventions: scratch-store plan, protocol-validated envelopes, dry-run
+  default) retypes live attachments rows through the `propertySchema.create`
+  UPSERT — the only wire path that can change a type — carrying the stored
+  row's name/scope/multi/flags verbatim (rename-safe, display/readonly/
+  hideWhenEmpty preserved) while the explicit filter column retires; values
+  are shape-compatible and ride untouched. Idempotent: a second run plans
+  nothing. `SCHEMA.md` ("Sources as containers", PB2/PG6/PC2) updated; the
+  UI half (Upload/Link buttons, the multi list) is a separate later task;
+  **the GTK/Flutter ports are a separate follow-up in the clients repo** (a
+  strict-enum additive — pre-batch clients reject the retype envelope, so
+  the live migration run gates on them). **Verification:** the store suite
+  gains an M38 block (fixture replay, implicit-filter accept/reject, the
+  no-defaults rule, the upsert retype preserving values + flags) and a new
+  web suite drives the migration core over the sql.js adapter; the full
+  gate green — `pnpm -r --workspace-concurrency=1 build`, `pnpm typecheck`,
+  `pnpm test`: **2,654 tests across 175 files** (protocol 301, domain 72,
+  export 219, store 433, sync 25, query 175, server 204, web 1,225).
+
+- **feat(protocol,store,web,domain): the seeded `class` meta class is
+  retired — its members become real classes.** Owner ruling: `class` (…0001)
+  withdraws from the seed manifest (the UUID never reuses, the cover-class
+  comment precedent), and nodes bound to it BECOME classes. **The conversion
+  capability (the (a) investigation: no wire path existed — `class.create`
+  upserted the registry row but `INSERT OR IGNORE` never flipped `is_class`,
+  leaving an inconsistent half-state; `object.update` has no `isClass`
+  key):** `class.create` on an EXISTING node now declares it a class — the
+  applier flips `is_class`, cuts a parented node to a root (parent edge +
+  child-order row drop), clears the render bit, and the registry adopts the
+  node's title; a payload `contentAst` still wins LWW, and absent fields
+  PRESERVE on re-declaration (the upsert used to wipe icon/color with null —
+  fixed, pinned). **No payload keys changed** — the schema always accepted
+  the id, so this is applier semantics, documented as the deviation from
+  "additive payload change"; the fixture gate applies anyway:
+  **gate 22→23** with `class-convert.json` (parentless + parented
+  conversions, re-declaration no-op, fresh declaration) and a store block
+  asserting the derived state. **Seeds:** `SYSTEM_CLASS_UUIDS` / icons /
+  display names / `SEEDED_SYSTEM_CLASSES` / the F1 always-on list lose the
+  `class` entry; the `has-template` spec loses its `bindTo` (the server seed
+  now emits it at global scope automatically). **The has-template
+  relocation:** the family hosts on NO class — `templateFamily.ts` authors
+  the schema at global scope with no binding and no class-class self-heal;
+  the TemplatesSection/listClassTemplateBindings read path is unchanged
+  (authored values surface through the effective-properties read with or
+  without a binding — the new location IS the honest location). The other
+  class-class consumers follow: `classRemoval` (journal-chain only),
+  `dateChipCandidates` (date-chain exclusions only). **Migration:**
+  `scripts/migrate-retire-class-class.mts` converts every bound node
+  (bare-id `class.create` + `class.unassign`), retires the (class-class,
+  has-template) binding row, re-scopes the schema to global through the
+  create-upsert (carrying the stored row verbatim), and trashes the emptied
+  class-class node (recoverable — the migrate-cover-to-asset precedent);
+  idempotent, dangling memberships skipped, verified by a fresh-scratch
+  replay. **The GTK/Flutter alignment is a separate follow-up in the clients
+  repo** — class identity is the lockstep gate, stated in the script
+  docstring, `WIRE.md`, `migrations.md`, and `releases.md`. Same-pass
+  `SCHEMA.md` (the seed manifest, "Node structure", Templates). **Verification:**
+  the store conversion block (both adapters), the updated template-family /
+  calendar suites, the new migration web suite (4 tests), and the domain
+  pins (spec shape, withdrawn …0001) all green; the full gate green
+  (2,654 tests across 175 files — totals in the newest entry).
+
+- **feat(store): write-time alias-cycle validation + the `resolveAlias`
+  chain walker (M12).** The follow-on scoped in with the wire fields: an
+  `object.update {aliasedNodeId}` that would close an alias cycle now fails
+  loud AT THE APPLIER and is never applied — the extends-DAG precedent for
+  structural invariants. The would-be chain N → T → T's target → … is walked
+  before the write; a revisit of any visited node fails (`CycleError`) — the
+  1-edge self-alias included — while clearing (null) skips the check and a
+  stale-HLC write is dropped by the row LWW before any check. The read
+  helper `Store.resolveAlias(nodeId)` walks a chain to its terminal,
+  cycle-safe by construction (a revisit yields the starting id unchanged — a
+  cyclic alias is no alias, the SCHEMA.md navigation ruling) with a 32-link
+  depth cap. **The alias read-path repointing (`aliasOfTarget` usages, the
+  universal redirect, backlinks roll-up, graph exclusion) is deliberately
+  NOT this task — recorded as the next follow-on** in `SCHEMA.md` "Node
+  aliases". **Verification:** a new store block on both adapters (chain set/
+  resolve, self + indirect + 2-cycle rejections with nothing applied, clear
+  re-opens the chain, stale-write drop, the direct-row cycle walk, the depth
+  cap); the full gate green (2,654 tests across 175 files — totals in the
+  newest entry).
+
+- **feat(protocol,store,query,export): the wire node fields —
+  `coverAssetId` / `bannerAssetId` / `aliasedNodeId` on `object.update`,
+  superseding the retired cover/banner/aliasOf property
+  assertions.** Owner ruling (the
+  node-fields boundary, the icon/color precedent): platform-fixed node
+  fundamentals are wire node fields, never class-bound properties.
+  **Protocol:** `object.update` gains the three optional nullable fields
+  (presence writes, present-null clears); `object.create` carries none.
+  **Fixture gate 21→22:** `object-wire-fields.json` exercises set + clear of
+  all three through `object.update`; the exact-list assertion and a semantic
+  pin (non-uuid rejected; the fields rejected on `object.create`) join the
+  protocol suite. **Store:** `SCHEMA_VERSION` 15→v16 — the node table gains
+  `cover_asset_id` / `banner_asset_id` / `aliased_node_id` (guarded
+  idempotent ALTER for existing databases); the `object.update` applier maps
+  the fields (absence preserves, null clears, row LWW like icon/color) with
+  no referential validation — alias-chain acyclicity and asset existence are
+  read/client-layer concerns. **Query:** the AST/compiler gain the
+  `coverAsset` / `bannerAsset` / `aliasedNode` predicates (eq/neq/exists
+  compiling into the node-table columns; "unset" reads `not exists` under
+  SQL NULL semantics). **Export:** the JSON archive node record carries the
+  three fields, always present, null when unset (envelope version stays 1 —
+  additive; format comment records the note). **Migration:**
+  `scripts/migrate-cover-banner-alias.mts` (the `migrate-system-names`
+  precedent: scratch-store plan, protocol-validated envelopes,
+  `RelayStorage.ingest`, dry-run default) appends per carrier node one
+  `object.update` (the latest visible assertion's target — `{nodeId}`
+  canonical, bare uuid defensive, v1 `{hash}` cover data resolved through
+  the CAS `node_asset` table) plus a `property.unset` per visible row
+  (element remove for element-authored rows, slot unset for the legacy
+  positional rows whose deterministic id is not a uuid); unresolvable values
+  are skipped untouched for a fixed re-run. **Alias semantics (resolveAlias
+  chains, write-time cycle validation, the universal redirect, backlinks
+  roll-up, graph exclusion) are follow-on slices — this ships fields +
+  appliers + fixtures + migration only;** `SCHEMA.md` ("Node structure",
+  "Node aliases"), `WIRE.md`, `migrations.md`, `releases.md` (the current-wire
+  line + batch table), `architecture.md` (the schema-version lines and the
+  boundary rule's honest carve-out), and `development.md` (the fixture table)
+  updated in the same pass. **The GTK/Flutter alignment is a separate
+  follow-up in the clients repo** — the new keys are additive on a strict
+  payload, so a pre-batch client rejects them and the live migration run
+  gates on the ports (the lockstep law; the script's docstring states it).
+  **Verification:** the full gate green — `pnpm -r
+  --workspace-concurrency=1 build`, `pnpm typecheck`, `pnpm test`: 2,598
+  tests across 174 files (protocol 279, domain 72, export 219, store 407,
+  sync 25, query 175, server 204, web 1,217); the migration core is pinned by
+  a new web suite (plan shapes, v1-hash resolution, element vs slot unsets,
+  idempotence, the validate-before-insert gate) run over the sql.js adapter.
+
+- **fix(web): system-class deployment self-heals binding rows past the
+  seed-spec fallback.** The pre-existing defeat: `deploySystemClass`'s
+  "already bound?" check read `getClassBindings`, which read-synthesizes the
+  designed system seeds for system classes — so a workspace that had a system
+  class node but no `class_property` registry rows (offline-first devices,
+  pre-seed workspaces) looked fully configured through the ClassView while
+  the registry-only effective-properties read (store `effective.ts`) saw
+  nothing, and the deploy authored no rows at all. The binding steps
+  (the spec family and the `SYSTEM_EXTRA_CLASS_BINDINGS` rows) now check the
+  registry only via a new honest read, `getRegistryBindings` (own
+  `class_property` rows, no extends inheritance, no fallback synthesis —
+  exposed on `WorkspaceClient`, `WorkerClient`, and the worker RPC), and
+  sequences continue after the own rows exactly like the server seed's
+  per-class counter; the birthday class-local `eventDate` row is no longer
+  masked by the inheritance visible once the event parent is deployed. The
+  fallback read itself is untouched — the meetingFamily/birthday present
+  gates and the calendar chip eligibility walk deliberately rely on it and
+  keep working. The shared binding-row mapping is factored into
+  `mapClassBindingRow` (no behavior change for `getClassBindings`).
+  **Verification:** new web suite `system-class-deploy-bindings.test.ts`
+  (4 tests: the pre-ruling workspace self-heals to registry rows with the
+  authored values becoming bound, re-deploy is a no-op; the birthday
+  class-local row materializes past inheritance; the event-root fallback
+  reliance stays fallback-only after the ensure; deploy composes with the
+  birthday ensure); the existing meeting/task/template-family and
+  class-create-modal suites unchanged and green; the full gate green
+  (2,598 tests, totals above).
+
 - **fix(web): the LinkEditModal is node-only — URL mode removed; external
   links navigate and are authored directly.** Owner ruling: the modal edits
   NODE links (and typed-link verbs) only. The mode toggle is Page/Block

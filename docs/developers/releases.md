@@ -59,17 +59,39 @@ Repo checkouts used for releases (both clean, tagged from `main`):
   + GitHub Release; `android.yml` produces debug-signed CI artifacts for
   try-out builds).
 
-**Current wire (owner review 2026-10-05):** envelope v3; Revision-11
+**Current wire (owner review 2026-10-05, wire node fields added 2026-10-07):** envelope v3; Revision-11
 render state; `object.restore`; the color grammar; the
 workspace-feature batch (`workspace.feature.set`, `code_block`/`hr`, `embed_ref.view`, PG5
 element ids, PC4 `active`, PC6 qualifiers); number formats; the
 property batch — **option `icon` (strip-safe additive JSON), and the render
 contracts `display`/`readonly`/`hideWhenEmpty` on the PROPERTY SCHEMA
 (`propertySchema.create/update`), with `required` staying on the class binding
-(owner ruling: per-class requirement is real)**. TS reference: main repo
-**v3.4.4** (store v15); GTK **v3.1.2** (store v12); Flutter **v3.1.2**
+(owner ruling: per-class requirement is real)**; the wire node fields —
+`object.update` gains optional nullable `coverAssetId`/`bannerAssetId`/`aliasedNodeId`
+(store v16; fixture `object-wire-fields.json`), superseding the retired
+cover/banner/aliasOf property schemas (live assertions migrate via
+`scripts/migrate-cover-banner-alias.mts`). **GTK/Flutter ports of the wire
+fields are a separate follow-up in the clients repo — pending at shipment, so
+the live migration run waits for them.** TS reference: main repo
+**v3.4.4** (store v16); GTK **v3.1.2** (store v12); Flutter **v3.1.2**
 (app DB v26). The GTK UI has no property rendering (protocol+store port
 only); Flutter renders the block-bullet value button.
+
+**The 2026-10-07 wire batch (second, third, and fourth changes of the day):**
+(1) the wire node fields (`object.update` optional nullable
+`coverAssetId`/`bannerAssetId`/`aliasedNodeId`, store v15→v16 — above);
+(2) the `class.create` conversion capability — `class.create` on an existing
+node declares it a class (the retired class-class ruling; no payload keys
+change, so pre-batch clients apply the registry upsert but never flip
+`is_class` — the live migration gates on the ports); (3) the `asset`
+property type (a new value in `propertySchema.create`'s strict type enum —
+pre-batch clients reject retype envelopes). Canonical fixtures
+`object-wire-fields.json`, `class-convert.json`, `property-asset-type.json`
+(gate 21→24). **GTK/Flutter ports of all three are a separate follow-up in
+the clients repo — pending at shipment.** Also shipped applier-side with no
+wire footprint: write-time alias-cycle validation (`CycleError`, the
+extends-DAG precedent) and the `Store.resolveAlias` chain walker; the alias
+read-path repointing stays the recorded follow-on.
 
 **The 2026-10-05/06 issue batch (#1–#14):** NO new op types and NO strict
 payload changes anywhere in the batch (including the flag pass) — the
@@ -99,6 +121,9 @@ this batch = bumping the package pins + releases, not code ports.
 | review pass + the palette query-wipe fix | 2026-10-06 | Owner screenshot pass: hamburger rail pinned to the body's top-left corner, classes pills at the content column's top (panel pushes them right, toggle stays), the weekday flag pinned to en-US; then the smoke caught the CommandPalette open-reset effect wiping the typed query on every shell re-render (deps included `onOpenNode`'s fresh inline identity) — reset on the open-transition only now, regression test added; verify-min polls for its search hit. Web-only; TS **v3.4.3** (store v15); **client alignment: none needed**; ghcr `notees-sync`/`notees-web` v3.4.3 + latest from the tag |
 | the main-layout grid | 2026-10-06 | The panelled layout finalized per owner review: the card's centered 960px cap drops (`.nt-page-card > .nt-node-view:has(.nt-page--panelled)`) so the 1/3 sidebar \| 2/3 nodeview split spans the full card; the second column becomes a three-row stack — nodeview top bar (hamburger + classes left, view switcher + "…" right) pinned to the top, the nodeview auto-height (the scrolling cell) between, the footer pinned to the bottom as a divided section; `PropertiesSidebar` replaces the reused table (name row + value-cell row per property, `bare` value rows, full right-click menu parity); the app top bar owns New/Search/the workspace selector exclusively and the sidebar starts at Navigation. Web-only; TS **v3.4.4** (store v15); **client alignment: none needed**; ghcr `notees-sync`/`notees-web` v3.4.4 + latest from the tag |
 | grid fix | 2026-10-06 | The column now stretches (`align-self: stretch` — the flex row's `align-items: flex-start` had kept it at content height), so the footer pins to the card bottom; the top bar's/footer's dividers start at the column edge (left insets removed — no more crossing the vertical divider or the properties scrollbar). Web-only; TS **v3.4.5** (store v15); **client alignment: none needed**; ghcr `notees-sync`/`notees-web` v3.4.5 + latest from the tag |
+| wire node fields | 2026-10-07 | `object.update` gains optional nullable `coverAssetId`/`bannerAssetId`/`aliasedNodeId` (store v15→v16; gate 21→22, `object-wire-fields.json`); the retired cover/banner/aliasOf property schemas superseded (`scripts/migrate-cover-banner-alias.mts` rewrites live assertions); query field predicates; JSON archive carries the fields — **GTK/Flutter ports pending in the clients repo** (strict-payload additive: the live migration run gates on them) |
+| class-class retirement + conversion | 2026-10-07 | the seeded `class` meta class (…0001) withdrawn — `class.create` on an existing node DECLARES it a class (the conversion capability; gate 22→23, `class-convert.json`); the has-template family relocates to a global-scope schema (no binding anywhere); `migrate-retire-class-class.mts` converts live workspaces; M12 write-time alias-cycle validation + `Store.resolveAlias` ship applier-side — **GTK/Flutter ports pending** (class identity is the lockstep gate) |
+| the asset property type | 2026-10-07 | `propertySchema.create`'s type enum gains `asset` (implicit asset-class filter; gate 23→24, `property-asset-type.json`); the attachments schema (…0011) retypes object→asset by `migrate-attachments-asset-type.mts` (values ride untouched) — **GTK/Flutter ports pending** (strict-enum additive) |
 
 ## 5. The SDK/repo splits (parked, owner)
 
