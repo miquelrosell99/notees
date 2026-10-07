@@ -33,9 +33,9 @@ import { ClassesRow, TagsRow } from "./components/MetadataSection.js";
 import { IconPickerPopup } from "./components/IconPickerPopup.js";
 import { CoverCard } from "./components/PageBanner.js";
 import { PageFooter } from "./components/PageFooter.js";
+import { BlockRow } from "./BlockRow.js";
 import { Icon } from "./Icon.js";
-import { TitleEditor } from "./TitleEditor.js";
-import { displayNameForSettings } from "./dateDisplay.js";
+import { displayNameForSettings, displayNameFromClient } from "./dateDisplay.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
@@ -106,7 +106,8 @@ export function NodeTopbar({
  * whole title row (driven by the variant's `dayIso`); every other page
  * renders the shared icon button + picker (the SINGLE icon+color edit
  * entry for every node kind — the curated class icon button and the color
- * dot are gone), the editable title (an embedded render gets the static
+ * dot are gone), the bullet-less title BlockRow (the shared row machinery
+ * over the page node itself — an embedded render gets the static
  * "open page" link instead), and the tags row. Right-click on the icon or
  * the title reports the pointer position through onHeaderMenu — the host
  * owns the node context menu state. Focus mode suppresses everything but
@@ -222,7 +223,16 @@ export function PageHeaderChrome({
                 {displayNameForSettings(page)}
               </button>
             ) : (
-              <TitleEditor page={page} />
+              /* The title is a bullet-less BlockRow over the page node itself
+                 (no children — the body tree stays the separate collection
+                 below): display renders the content's inline tokens (links,
+                 mentions), a click swaps in the full block editor. */
+              <BlockRow
+                variant="title"
+                tree={{ node: page, children: [] }}
+                client={client}
+                resolveName={(id) => displayNameFromClient(client, id)}
+              />
             )}
             </span>
               </>

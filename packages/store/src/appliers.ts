@@ -508,14 +508,12 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
   const values: unknown[] = [];
   // Promotion/demotion (Revision 11) is the presentAsMain toggle: the bit
   // joins the row-level LWW set; a 0 -> 1 flip (promotion) stringifies the
-  // rich token stream to text-only in the same op (content flatten
-  // invariant), while a 1 -> 0 demotion leaves the (already flattened)
-  // content untouched — demotion never un-flattens. On a class row the bit
-  // is inert (classes render ClassView regardless); applying it harmlessly
-  // keeps the op uniform.
-  let resultingPresentAsMain = row.present_as_main !== 0;
+  // rich token stream to text-only in the same op (the lossy boundary the
+  // UI warns about), while a 1 -> 0 demotion leaves the content untouched —
+  // demotion never un-flattens. On a class row the bit is inert (classes
+  // render ClassView regardless); applying it harmlessly keeps the op
+  // uniform.
   if (p.presentAsMain !== undefined) {
-    resultingPresentAsMain = p.presentAsMain;
     sets.push("present_as_main = ?");
     values.push(p.presentAsMain ? 1 : 0);
     if (p.presentAsMain && row.present_as_main === 0) {
@@ -533,9 +531,13 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
     values.push(p.color);
   }
   if (p.contentAst !== undefined) {
-    // Document-chrome content (class nodes and main-presenting nodes) is
-    // text-only; inline blocks keep the rich tokens they were sent.
-    const flatten = row.is_class === 1 || resultingPresentAsMain;
+    // Class content stays text-only; every other node keeps the rich token
+    // stream it was sent. A page's own content may carry inline tokens
+    // (mentions, external links) — the header title edits it with the full
+    // block editor — while display-name derivation still flattens to text
+    // for labels (SCHEMA.md title-is-content). Create-as-main and the
+    // promotion stringify above remain the lossy boundaries.
+    const flatten = row.is_class === 1;
     sets.push("content = ?");
     values.push(
       JSON.stringify(flatten ? stringifyContentAst(p.contentAst as never) : p.contentAst),
