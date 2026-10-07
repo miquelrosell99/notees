@@ -9,6 +9,59 @@ predating this file.
 
 ## 2026-10-07
 
+- **feat(web,server,store): the alias read-path repointing — the final
+  alias-program slice.** Every node-alias read now rides the
+  `aliasedNodeId` wire field (`node.aliased_node_id`), retiring the
+  property-based carrier (`aliasOf` self-heal, the `aliasOfTarget` edge
+  read, the properties-panel special cases) entirely.
+  **The universal redirect:** `resolveAliasOpen` repoints onto
+  `client.resolveAlias` (the store's cycle-safe chain walker, exposed on
+  both clients — WorkspaceClient + the WorkerClient read cache with the
+  conservative content-global invalidation, alias chains are not ancestor
+  relations) and moves INTO the App open funnels — `openPage` and
+  `openInSidebar` resolve, so every navigation surface (breadcrumbs, the
+  command palette, backlink/query result rows, graph clicks, mention
+  clicks, hover previews, floating editors, sidebar rows) lands on the
+  terminal through the single seam; browser deep links and back/forward
+  stay raw (identity-level), and the component-level wrappers dissolve
+  into plain funnel calls. **Backlinks roll-up:** a new recursive store
+  read `Store.aliasNodesOf` (reverse-walk over the column — every live
+  node whose alias-terminal is M, chains included; the materialized
+  resolved-target column stays the recorded later optimization) drives
+  the linked-references `kind: "alias"` union AND the unlinked-references
+  exclusion (a source linking an alias is already linked by alias).
+  **Graph exclusion:** alias nodes are not vertices; edges incident to an
+  alias render incident to the terminal and repointed parallels merge
+  into one weighted edge; the local-scope anchor steps through to the
+  terminal's neighborhood. **Server `/resolve`** folds node aliases to
+  the terminal via the same walker (the `aliasOfTarget` loop retires); the
+  REST `PATCH /objects/:id` body schema gains the three wire node fields
+  too — it predated them (the web writes via the op log, so the gap only
+  surfaced when the `/resolve` test drove the field over HTTP; the OpenAPI
+  body schema follows).
+  **Links keep the alias uuid** — authoring never rewrites; resolution
+  happens at navigation (pinned by a test). **The aliases UI:** the main
+  page's title row gains an **Aliases · N** button — the list popover
+  names every alias with a NAVIGATE button that opens the alias's OWN
+  view (the one deliberate bypass, via the new raw `openPageAt` funnel),
+  and ADD writes THE SELECTED node's `aliasedNodeId` (the backward write
+  — the picker filters already-aliased nodes and the main itself, the
+  page guard validates the pick); the alias's own view carries ONE
+  pseudo-property row — a node-typed **Aliased node** entry over the
+  field itself, re-pointable and clearable from the alias side, rendered
+  by the properties table and the properties sidebar alike.
+  **Verification:** the store suites pin `aliasNodesOf` (direct + chain,
+  live-only, self-excluded) and the graph exclusion (repointing, merged
+  parallels, chain collapse, the local anchor); the web suite re-seeds
+  the alias world onto the wire field — the roll-up (alias + chain +
+  additive own-view), the redirect seam, links-keeping-the-alias-uuid,
+  the unlinked exclusion, the banner, the guard, and the new UI end to
+  end (list, NAVIGATE bypass, the backward ADD write with the filter, the
+  pseudo-row's re-point + clear + the page gate); the server suite pins
+  the `/resolve` fold over the field; the full gate green — **2,678 tests
+  across 175 files** (protocol 301, domain 72, export 219, store 437,
+  sync 25, query 175, server 204, web 1,245).
+
 - **feat(web): the page banner — the `bannerAssetId` wire field's UI
   half.** A full-width collapsible banner ABOVE the header, inside the
   page card and spanning the content width; the cover card stays in the
