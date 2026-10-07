@@ -4,7 +4,8 @@
  * unknown tokens render nothing (never crash). Text marks map to
  * <strong>/<em>/<s>/<mark>/<code>; mentions and class chips render as chips
  * (names resolved through the optional resolveName callback, with graceful
- * fallbacks); mentions also notify the app-level hover coordinator
+ * fallbacks); external links render as plain hyperlinks (underline + link
+ * color, never a pill); mentions also notify the app-level hover coordinator
  * (NodeHoverPreview — dwell raises a bounded preview card; the card's pin
  * promotes to a floating editor window); quote recurses; embed_ref renders
  * the live subtree via the
@@ -30,6 +31,15 @@ import { notifyNodeHover } from "./components/NodeHoverPreview.js";
 export interface InlineTokensProps {
   tokens: readonly unknown[];
   resolveName?: ((nodeId: string) => string | null) | undefined;
+  /**
+   * Full-title resolver for node-link labels (owner ruling: mentions and
+   * node links render the COMPLETE title — resolveName is the capped
+   * display name, the dense-chrome budget). When provided, mention labels
+   * prefer it; when absent, resolveName stays the source (callers that
+   * have not been wired keep the capped form). A token's own displayText
+   * (a one-off custom label) always wins over both.
+   */
+  resolveFullTitle?: ((nodeId: string) => string | null) | undefined;
   /**
    * Live embed renderer for `embed_ref` tokens (EmbedView). Injected by the
    * row so this module stays pure; when absent, embed_ref falls back to the
@@ -141,6 +151,7 @@ function renderToken(
   token: unknown,
   key: number,
   resolveName: InlineTokensProps["resolveName"],
+  resolveFullTitle: InlineTokensProps["resolveFullTitle"],
   resolveVerb: InlineTokensProps["resolveVerb"],
   renderEmbed: InlineTokensProps["renderEmbed"],
   renderEmbedCard: InlineTokensProps["renderEmbedCard"],
@@ -184,7 +195,9 @@ function renderToken(
       const displayText = typeof t.displayText === "string" ? t.displayText : undefined;
       const name =
         displayText ??
-        (targetNodeId ? (resolveName?.(targetNodeId) ?? undefined) : undefined) ??
+        (targetNodeId
+          ? (resolveFullTitle?.(targetNodeId) ?? resolveName?.(targetNodeId) ?? undefined)
+          : undefined) ??
         (typeof t.text === "string" ? t.text : undefined) ??
         targetNodeId;
       if (!name) return null;
@@ -254,14 +267,16 @@ function renderToken(
       const children = Array.isArray(t.children) ? t.children : [];
       return (
         <span key={key} className="nt-quote">
-          <InlineTokens tokens={children} resolveName={resolveName} resolveVerb={resolveVerb} renderEmbed={renderEmbed} onOpenNode={onOpenNode} resolveColor={resolveColor} />
+          <InlineTokens tokens={children} resolveName={resolveName} resolveFullTitle={resolveFullTitle} resolveVerb={resolveVerb} renderEmbed={renderEmbed} onOpenNode={onOpenNode} resolveColor={resolveColor} />
         </span>
       );
     }
     case "external_link": {
       if (typeof t.href !== "string" || typeof t.text !== "string") return null;
+      // A plain hyperlink, not a chip (owner ruling): underline + link color
+      // only — no pill background/border/radius.
       return (
-        <a key={key} className="nt-external-link" href={t.href} target="_blank" rel="noreferrer">
+        <a key={key} className="nt-hyperlink" href={t.href} target="_blank" rel="noreferrer">
           {t.text}
         </a>
       );
@@ -328,7 +343,7 @@ function renderToken(
   }
 }
 
-export function InlineTokens({ tokens, resolveName, resolveVerb, renderEmbed, renderEmbedCard, renderQuery, renderWhiteboard, renderAsset, onOpenNode, resolveColor, onMentionMenu }: InlineTokensProps) {
+export function InlineTokens({ tokens, resolveName, resolveFullTitle, resolveVerb, renderEmbed, renderEmbedCard, renderQuery, renderWhiteboard, renderAsset, onOpenNode, resolveColor, onMentionMenu }: InlineTokensProps) {
   // SCHEMA.md:61 — an asset_ref alone in its stream renders full-bleed; the
   // flag reaches only the (single) asset token in that stream.
   const assetAlone =
@@ -339,7 +354,7 @@ export function InlineTokens({ tokens, resolveName, resolveVerb, renderEmbed, re
     (tokens[0] as { type?: unknown }).type === "asset_ref";
   return (
     <>
-      {tokens.map((token, index) => renderToken(token, index, resolveName, resolveVerb, renderEmbed, renderEmbedCard, renderQuery, renderWhiteboard, renderAsset, assetAlone, onOpenNode, resolveColor, onMentionMenu))}
+      {tokens.map((token, index) => renderToken(token, index, resolveName, resolveFullTitle, resolveVerb, renderEmbed, renderEmbedCard, renderQuery, renderWhiteboard, renderAsset, assetAlone, onOpenNode, resolveColor, onMentionMenu))}
     </>
   );
 }

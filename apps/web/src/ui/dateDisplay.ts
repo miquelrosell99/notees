@@ -8,7 +8,7 @@
  * chronological sorting and the compact lookup contract).
  */
 
-import { deriveDisplayName, parseDateNodeId, dateNodeLabel, plainTextExcerpt, type NodeLike } from "@notees/domain";
+import { deriveDisplayName, fullTitleOf, parseDateNodeId, dateNodeLabel, plainTextExcerpt, type NodeLike } from "@notees/domain";
 
 import { readDeviceSetting } from "./components/modals/deviceSettings.js";
 
@@ -165,4 +165,37 @@ export function displayNameFromClient(
   const node = client.getNode(id);
   if (node === undefined) return client.getDisplayName(id);
   return displayNameForSettings(node);
+}
+
+/**
+ * The full-title siblings (owner ruling: node links and mention chips
+ * render the COMPLETE title — a link must read as the page's whole title,
+ * never a truncation). Date pages keep the exact same deterministic-id
+ * formatting branch; every other node defers to fullTitleOf, the uncapped
+ * title-is-content derivation (dense chrome keeps reading
+ * displayNameFromClient, which stays capped).
+ */
+export function fullTitleForSettings(node: NodeLike): string {
+  const fromId = parseDateNodeId(node.id);
+  if (fromId !== null) {
+    const year = String(fromId.year);
+    const month = pad2(fromId.month);
+    const day = pad2(fromId.day);
+    if (fromId.precision === "year") return year;
+    if (fromId.precision === "month") return `${year}/${month}`;
+    return formatDateName(`${year}${month}${day}`) ?? fullTitleOf(node);
+  }
+  return fullTitleOf(node);
+}
+
+export function fullTitleFromClient(
+  client: Pick<
+    { getNode(id: string): NodeLike | undefined },
+    "getNode"
+  > & { getDisplayName(id: string): string | null },
+  id: string,
+): string | null {
+  const node = client.getNode(id);
+  if (node === undefined) return client.getDisplayName(id);
+  return fullTitleForSettings(node);
 }

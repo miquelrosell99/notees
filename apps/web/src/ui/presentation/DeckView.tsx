@@ -31,7 +31,7 @@ import { InlineTokens } from "../InlineTokens.js";
 import { QueryBlockView } from "../QueryBlockView.js";
 import { WhiteboardCanvas } from "../WhiteboardCanvas.js";
 import { AssetView } from "../AssetView.js";
-import { displayNameFromClient } from "../dateDisplay.js";
+import { displayNameFromClient, fullTitleFromClient } from "../dateDisplay.js";
 import { nodeIcon } from "../iconFor.js";
 import { OutlinerContext, useOutliner, useOutlinerValue } from "../outliner-context.js";
 import { assetImageUrl } from "../views/assetThumbs.js";
@@ -95,6 +95,7 @@ function DeckBlock({ tree }: { tree: BlockTreeNode }) {
         <InlineTokens
           tokens={node.contentAst}
           resolveName={(id) => displayNameFromClient(client, id)}
+          resolveFullTitle={(id) => fullTitleFromClient(client, id)}
           resolveVerb={(schemaId) =>
             client.listPropertySchemas().find((schema) => schema.id === schemaId)?.name ?? null
           }

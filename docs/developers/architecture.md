@@ -437,9 +437,15 @@ rows and inline token rendering (`App.tsx`, `PageView.tsx`, `BlockRow.tsx`,
 `InlineTokens.tsx`). Display names come from `deriveDisplayName` (`packages/domain/src/node.ts`) —
 **title-is-content (2026-10-01)**: the content excerpt for EVERY node type (pages,
 blocks AND classes; there is no stored `name`), date labels (`YYYYMMDD…`) formatted
-`YYYY/MM(/DD)`, truncated to 80 chars. Pages/classes carry text-only content
-(`stringifyContentAst`); the appliers flatten rich tokens on create and on
-block→page/class promotion. **Presentation mode (2026-10-03)** rides the same
+`YYYY/MM(/DD)`, capped at 80 chars for dense chrome. Node links and mention chips
+read `fullTitleOf` — the same derivation without the slice (owner ruling 2026-10-07:
+a link renders the page's complete title, never a truncation). A page's own content MAY carry inline rich
+tokens (mentions, external links — the header title is a bullet-less BlockRow with
+the full block editor, display and edit; owner ruling 2026-10-07); class content
+stays text-only (`stringifyContentAst`), and the appliers keep flattening rich
+tokens on create-as-main and on block→page/class promotion — `object.update`
+content writes preserve the token stream they are sent. Display-name derivation
+flattens to text regardless, so labels/breadcrumbs/export titles never change. **Presentation mode (2026-10-03)** rides the same
 read seam: `ui/presentation/deck.ts` is a pure page-subtree → slide-list builder (title
 slide, one section slide per `present_as_main=1` child, density-chunked intro runs for
 inline-body runs, trailing-image layouts, embed expansion with a visited-set cycle
