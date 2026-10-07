@@ -94,6 +94,44 @@ describe("App boot", () => {
     fireEvent.click(screen.getByRole("button", { name: /^continue$/i }));
     await waitFor(() => expect(screen.getByText(/HTTP 502/i)).toBeInTheDocument());
   });
+
+  it("an unreachable URL shows the error plus a suggestion — and never silently re-routes", async () => {
+    const origin = location.origin;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.startsWith(origin)) {
+        return Response.json({ setupRequired: false, version: "test", name: "notees-server" });
+      }
+      // Anything else: network-level failure (TypeError, no status).
+      throw new TypeError("Failed to fetch");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App />);
+    fireEvent.change(screen.getByRole("textbox", { name: /server url/i }), {
+      target: { value: "https://down.example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^continue$/i }));
+
+    // Error + hint surface…
+    await waitFor(() =>
+      expect(screen.getByText(/could not reach a sync server/i)).toBeInTheDocument(),
+    );
+    // …along with the suggestion button…
+    const suggestion = screen.getByRole("button", { name: `Try ${origin} instead` });
+    expect(suggestion).toBeInTheDocument();
+    // …but nothing connected on its own: the guess was never probed while
+    // untouched, and the form is still in the server phase.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: /^continue$/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^sign in$/i })).toBeNull();
+
+    // Clicking the suggestion is the only path to it: field updates, probe
+    // runs, and the flow advances to the login screen.
+    fireEvent.click(suggestion);
+    expect(await screen.findByRole("button", { name: /^sign in$/i })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("textbox", { name: /server url/i })).toHaveValue(origin);
+  });
 });
 
 describe("session resume", () => {

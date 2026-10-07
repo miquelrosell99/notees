@@ -206,6 +206,15 @@ select:focus-visible {
   font-size: 13px;
 }
 
+/* Explicit same-host suggestion after a failed probe: the only path to the
+   guess (the boot screen never re-routes on its own). */
+.nt-server-suggestion {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
 /* --- settings modal --------------------------------------------------------- */
 
 /* The shared dialog chrome (.nt-modal-backdrop/.nt-modal/…) lives in
