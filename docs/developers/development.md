@@ -50,6 +50,12 @@ gitignored `.worktrees/<slug>/` — `git worktree add .worktrees/<slug> -b <bran
 Never a random sibling folder: the fleet host accumulates checkouts otherwise,
 and forgotten siblings escape `git worktree list` hygiene.
 
+No transient-internal-doc pointers in the tree (owner 2026-10-07): code,
+tests, docs, and CHANGELOG entries never reference `.plans/` proposal
+folders, design docs, or other internal transient documentation — the
+durable text stands alone. Internal cross-references live inside the
+internal docs themselves.
+
 ## 3. The fixture gate — blocking, at full width
 
 The single most important process rule:
