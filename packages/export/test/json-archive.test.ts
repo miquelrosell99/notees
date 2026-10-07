@@ -174,6 +174,29 @@ describe("buildJsonArchive", () => {
       "The Left Hand of Darkness",
     );
   });
+
+  it("carries the wire node fields (cover/banner/alias), null when unset", () => {
+    const unset = buildJsonArchive([page(PAGE_ID)], makeCtx(), { now: NOW }).nodes[0]!;
+    expect([unset.coverAssetId, unset.bannerAssetId, unset.aliasedNodeId]).toEqual([
+      null,
+      null,
+      null,
+    ]);
+    const set = buildJsonArchive(
+      [
+        page(PAGE_ID, [], {
+          coverAssetId: ASSET_ID,
+          bannerAssetId: ASSET_ID,
+          aliasedNodeId: AUTHOR_ID,
+        }),
+      ],
+      makeCtx(),
+      { now: NOW },
+    ).nodes[0]!;
+    expect(set.coverAssetId).toBe(ASSET_ID);
+    expect(set.bannerAssetId).toBe(ASSET_ID);
+    expect(set.aliasedNodeId).toBe(AUTHOR_ID);
+  });
 });
 
 describe("renderJsonArchive", () => {

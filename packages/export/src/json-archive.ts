@@ -34,6 +34,12 @@
  * }
  * ```
  *
+ * Additive note (2026-10-07): each node record carries the three wire node
+ * fields — `coverAssetId`, `bannerAssetId`, `aliasedNodeId` (uuid or null) —
+ * the platform-fixed node fundamentals set via object.update (SCHEMA.md
+ * "Node structure"). The envelope version stays 1: the fields are additive,
+ * null when unset, and re-import harnesses ignore unknown keys.
+ *
  * Like {@link bundleMarkdown}, the caller decides the node set (selected
  * nodes, a subtree collection, a query result, the whole workspace walk) —
  * the builder stays pure and IO-free. Duplicate ids collapse to the first
@@ -89,6 +95,12 @@ export interface JsonArchiveNode {
    *  caller injects no children resolver). */
   children: readonly string[];
   edges: readonly JsonArchiveEdge[];
+  /** Wire node fields (the icon/color precedent): the page cover/banner
+   *  asset refs and the main page a node alias points at. Always present,
+   *  null when unset (additive 2026-10-07; see the format note above). */
+  coverAssetId: string | null;
+  bannerAssetId: string | null;
+  aliasedNodeId: string | null;
 }
 
 /** The versioned archive envelope. */
@@ -196,6 +208,9 @@ export function buildJsonArchive(
       properties: node.properties,
       children: ctx.childrenOf?.(node.id)?.map((child) => child.id) ?? [],
       edges: edgesOf(node),
+      coverAssetId: node.coverAssetId ?? null,
+      bannerAssetId: node.bannerAssetId ?? null,
+      aliasedNodeId: node.aliasedNodeId ?? null,
     });
   }
   return {
