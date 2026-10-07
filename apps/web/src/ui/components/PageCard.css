@@ -109,6 +109,41 @@
   --breadcrumb-clip-bg: var(--color-surface-container-low);
 }
 
+/* The reorder grip (the drag handle — the block-row grip precedent):
+   dragging IT reorders the card stack; the rest of the header stays a
+   drop target + click surface. */
+.nt-sidebar-card__grip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--height-xs);
+  height: var(--height-xs);
+  cursor: grab;
+  color: var(--color-on-surface-variant);
+  touch-action: none;
+}
+
+.nt-sidebar-card__grip:active {
+  cursor: grabbing;
+}
+
+/* The rail reorder drag's target edge: a primary line above or below the
+   header (the drop-active underline's reorder sibling). */
+.nt-sidebar-card__header--reorder-before {
+  box-shadow: inset 0 2px 0 0 var(--color-primary);
+}
+
+.nt-sidebar-card__header--reorder-after {
+  box-shadow: inset 0 -2px 0 0 var(--color-primary);
+}
+
+/* The dragged card stays in place, muted — the floating name chip is the
+   only preview (the block drag-source precedent). */
+.nt-sidebar-card--drag-source {
+  opacity: var(--opacity-40);
+}
+
 /* The workspace drag session's header drop target: a block dropped here
    appends as the card node's last child — the distinct active-drop state
    (a primary underline + tint, mirroring the row drop indicators). */
