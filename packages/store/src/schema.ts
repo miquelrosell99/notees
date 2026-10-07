@@ -22,8 +22,9 @@
  */
 
 import type { SqliteDB } from "./db.js";
+import { resolveEdgeTarget } from "./edges.js";
 
-export const SCHEMA_VERSION = 16;
+export const SCHEMA_VERSION = 17;
 
 /**
  * The render-path list-reads index: composite for the
@@ -39,6 +40,16 @@ export const LIST_READS_INDEX_DDL =
 
 /** FTS module for the search_index virtual table (backend capability). */
 export type FtsModule = "fts5" | "fts4";
+
+/**
+ * The v17 resolved-target read index on edge. Kept OUT of the canonical
+ * schema DDL on purpose: migrate()'s canonical exec runs before the version
+ * ladder, where pre-v17 edge tables don't have resolved_target_id yet
+ * (the LIST_READS_INDEX_DDL precedent). The ladder adds it after the
+ * column-guarded ALTER; the snapshot-repair path re-asserts it explicitly.
+ */
+export const RESOLVED_TARGET_INDEX_DDL =
+  "CREATE INDEX IF NOT EXISTS idx_edge_resolved_target ON edge (resolved_target_id);";
 
 const SEARCH_INDEX_DDL_FTS5 = `CREATE VIRTUAL TABLE IF NOT EXISTS search_index
     USING fts5(content, tokenize = 'unicode61');`;
@@ -302,11 +313,18 @@ CREATE TABLE IF NOT EXISTS property_value_tombstone (
 -- property. verb: the typed-link verb (string) or the bound propertySchemaId;
 -- NULL for plain mentions. target_id is NULL for typed_link marks (the
 -- target is unresolved by design — RECORD, DON'T RESOLVE).
+-- resolved_target_id (v17): the alias-terminal of target_id, materialized
+-- by the applier at edge-write time (resolveEdgeTarget — the live-aware
+-- chain walk; non-alias targets resolve to their own id; NULL stays NULL).
+-- The backlinks roll-up and the graph read this column instead of walking
+-- alias chains per query; maintained on alias writes and liveness flips by
+-- reresolveEdgeTargets, backfilled for pre-v17 databases by migrate().
 CREATE TABLE IF NOT EXISTS edge (
     id TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL,
     source_id TEXT NOT NULL,
     target_id TEXT,
+    resolved_target_id TEXT,
     type TEXT NOT NULL,
     verb TEXT,
     metadata TEXT,
@@ -743,5 +761,29 @@ export function migrate(
         ALTER TABLE node ADD COLUMN aliased_node_id TEXT;
       `);
     }
+  }
+  // v16 -> v17: the alias resolved-target materialization (the documented
+  // later optimization for the backlinks roll-up — the edge index gains
+  // resolved_target_id, the applier-maintained alias-terminal of target_id).
+  // Two guarded steps: (1) the additive column + index (a no-op for fresh
+  // v17 creates); (2) the backfill — every row re-resolved through the SAME
+  // live-aware chain walk the applier writes with (resolveEdgeTarget), so a
+  // migrated database is byte-identical to a wipe -> replay at v17. NULL
+  // targets (typed_link marks) backfill to NULL explicitly. Idempotent: a
+  // second migrate re-resolves to the same values.
+  if (current < 17) {
+    const edgeColumnsV17 = db.prepare("PRAGMA table_info(edge)").all() as { name: string }[];
+    if (!edgeColumnsV17.some((c) => c.name === "resolved_target_id")) {
+      db.exec("ALTER TABLE edge ADD COLUMN resolved_target_id TEXT;");
+    }
+    db.exec(RESOLVED_TARGET_INDEX_DDL);
+    const targets = db
+      .prepare("SELECT DISTINCT target_id FROM edge WHERE target_id IS NOT NULL")
+      .all() as Array<{ target_id: string }>;
+    const update = db.prepare("UPDATE edge SET resolved_target_id = ? WHERE target_id = ?");
+    for (const row of targets) {
+      update.run(resolveEdgeTarget(db, row.target_id), row.target_id);
+    }
+    db.exec("UPDATE edge SET resolved_target_id = NULL WHERE target_id IS NULL");
   }
   db.pragma(`user_version = ${SCHEMA_VERSION}`);}
