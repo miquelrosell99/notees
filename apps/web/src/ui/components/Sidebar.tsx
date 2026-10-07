@@ -26,7 +26,6 @@ import { Icon } from "../Icon.js";
 import { InlineTokens } from "../InlineTokens.js";
 import { nodeIcon } from "../iconFor.js";
 import { untitledLabelOf } from "../renderStateLabel.js";
-import { resolveAliasOpen } from "./aliasProperty.js";
 import { openNodeLinkMenu } from "./NodeLinkContextMenu.js";
 import { useNodePrefs, toggleNodeFavorite, removeSyncedRecent } from "./nodePrefs.js";
 import { SidebarItemMenu, type SidebarItemMenuState } from "./SidebarItemMenu.js";
@@ -236,7 +235,7 @@ export function Sidebar({
           resolveVerb={(schemaId) =>
             client.listPropertySchemas().find((schema) => schema.id === schemaId)?.name ?? null
           }
-          onOpenNode={(targetId) => openRow(resolveAliasOpen(client, targetId))}
+          onOpenNode={(targetId) => openRow(targetId)}
           onMentionMenu={(info) => openNodeLinkMenu({ blockId: node.id, ...info })}
           resolveColor={(id) => {
             const target = client.getNode(id);
