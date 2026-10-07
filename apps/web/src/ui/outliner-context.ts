@@ -134,7 +134,8 @@ export interface FocusRequest {
 }
 
 /**
- * Local read surface consumed by view projections (EmbedView, ClassView):
+ * Local read surface consumed by view projections (EmbedView, the class
+ * variant's section stack):
  * the live node, its subtree, name resolution, class facts (parents /
  * members / seed-derived bindings), the page/class lists and FTS search for
  * capture + pickers, plus the notify subscription that keeps a projection
@@ -384,7 +385,7 @@ export const OutlinerContext = createContext<OutlinerContextValue | null>(null);
 export function useOutliner(): OutlinerContextValue {
   const context = useContext(OutlinerContext);
   if (context === null) {
-    throw new Error("useOutliner must be used inside a view's OutlinerContext (PageView or ClassView)");
+    throw new Error("useOutliner must be used inside a view's OutlinerContext (a NodeView-rendered view)");
   }
   return context;
 }

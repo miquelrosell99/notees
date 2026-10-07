@@ -10,6 +10,11 @@
  *   - after it fires, the img renders and the fetch ran exactly once;
  *   - clicking the loaded cover opens the ImageModal lightbox (the
  *     AssetImage pattern), with the download + fullscreen + close buttons.
+ *
+ * The cover layouts are the gate: these tests pin the preference to
+ * a cover layout up front — under the device default ("no-cover") cards
+ * render text-only and the lazy machinery never engages (its own spec
+ * below).
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -21,6 +26,7 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { NodeCollection } from "../src/ui/views/index.js";
+import { writeCardLayoutPref } from "../src/ui/viewPrefs.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000e1";
 const ACTOR = "0192a000-0000-7000-8000-0000000000e2";
@@ -78,6 +84,7 @@ describe("card cover lazy loading", () => {
   it("renders placeholders without fetching; the viewport gate starts the fetch once", async () => {
     vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
     MockIntersectionObserver.instances = [];
+    writeCardLayoutPref("cover-top");
 
     const client = await seedClient();
     const assets: string[] = [];
@@ -115,6 +122,7 @@ describe("card cover lazy loading", () => {
   it("the loaded cover clicks open the lightbox (download + fullscreen + close)", async () => {
     vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
     MockIntersectionObserver.instances = [];
+    writeCardLayoutPref("cover-top");
     Object.defineProperty(document, "fullscreenEnabled", {
       value: true,
       configurable: true,
@@ -146,6 +154,7 @@ describe("card cover lazy loading", () => {
   });
 
   it("without IntersectionObserver (the jsdom default) the eager fallback loads immediately", async () => {
+    writeCardLayoutPref("cover-top");
     const client = await seedClient();
     const asset = await client.createObject({ presentAsMain: true, name: "eager.png" });
     await client.assignClass(asset, SYSTEM_CLASS_UUIDS.asset);
@@ -159,5 +168,44 @@ describe("card cover lazy loading", () => {
     );
     await screen.findByAltText("");
     expect(client.getAssetDataUrl).toHaveBeenCalledTimes(1);
+  });
+
+  it("the no-cover layout renders no cover element and never starts the lazy fetch; cover-top does", async () => {
+    vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
+    MockIntersectionObserver.instances = [];
+
+    const client = await seedClient();
+    const asset = await client.createObject({ presentAsMain: true, name: "hidden.png" });
+    await client.assignClass(asset, SYSTEM_CLASS_UUIDS.asset);
+    const fetchUrl = vi
+      .spyOn(client, "getAssetDataUrl")
+      .mockResolvedValue("data:image/png;base64,HIDDEN");
+    const { container } = render(
+      <NodeCollection
+        viewMode="cards"
+        client={client}
+        items={[{ node: client.getNode(asset)! }]}
+      />,
+    );
+    await act(async () => {});
+
+    // Device default is no-cover: no cover element, no observation, and
+    // firing the (empty) observer set still fetches nothing.
+    expect(container.querySelector(".node-card__cover")).toBeNull();
+    expect(MockIntersectionObserver.instances.length).toBe(0);
+    for (const instance of MockIntersectionObserver.instances) instance.trigger();
+    await act(async () => {});
+    expect(fetchUrl).not.toHaveBeenCalled();
+
+    // A cover layout brings the cover back: placeholder, then the lazy img.
+    act(() => writeCardLayoutPref("cover-top"));
+    expect(container.querySelectorAll(".node-card__cover--pending").length).toBe(1);
+    for (const instance of MockIntersectionObserver.instances) instance.trigger();
+    await act(async () => {});
+    await screen.findByAltText("");
+    expect(fetchUrl).toHaveBeenCalledTimes(1);
+    expect(container.querySelector(".node-card__cover")!.closest(".node-card")!.className).toContain(
+      "node-card--cover-top",
+    );
   });
 });
