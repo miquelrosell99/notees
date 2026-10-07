@@ -188,6 +188,46 @@ describe("whiteboard canvas (fullscreen page)", () => {
     expect(container.querySelector(".nt-wb-empty")).not.toBeNull();
   });
 
+  it("the main surface renders the canvas as the card's sole content: fullscreen, no page chrome around it", async () => {
+    const client = await seedClient();
+    const host = await seedWhiteboardPage(client);
+    const { container } = render(<PageView client={client} pageId={host} onOpenPage={() => {}} />);
+
+    // The fullscreen surface class owns the composition: no panelled
+    // columns, no nodeview top bar, no page header, no footer — the canvas
+    // fills the card edge to edge.
+    const page = container.querySelector(".nt-page")!;
+    expect(page.classList.contains("nt-page--whiteboard")).toBe(true);
+    expect(page.classList.contains("nt-page--panelled")).toBe(false);
+    expect(container.querySelector(".nt-node-topbar")).toBeNull();
+    expect(container.querySelector(".page-header-section")).toBeNull();
+    expect(container.querySelector(".nt-page-footer")).toBeNull();
+    expect(container.querySelector(".nt-page-body")).toBeNull();
+    expect(container.querySelector(".nt-backlinks")).toBeNull();
+    // The canvas is the page's only element child (its own toolset and
+    // surface inside) — the 65vh in-flow cap no longer applies.
+    const canvas = container.querySelector(".nt-wb.nt-wb-fullscreen")!;
+    expect(canvas.parentElement).toBe(page);
+  });
+
+  it("an embedded page render (a journal feed entry) keeps the in-flow canvas with the page chrome around it", async () => {
+    const client = await seedClient();
+    const host = await seedWhiteboardPage(client);
+    const { container } = render(
+      <PageView client={client} pageId={host} embedded onOpenPage={() => {}} />,
+    );
+
+    // Not the fullscreen surface: the regular page composition wraps the
+    // in-flow canvas (the 65vh cap stays for feed entries), and the page
+    // chrome (header + sections) renders around it. The in-block
+    // `.nt-wb-embedded` mini-canvas is the BlockRow path, covered below.
+    const page = container.querySelector(".nt-page")!;
+    expect(page.classList.contains("nt-page--whiteboard")).toBe(false);
+    expect(container.querySelector(".nt-page-header")).not.toBeNull();
+    expect(container.querySelector(".nt-backlinks")).not.toBeNull();
+    expect(container.querySelector(".nt-wb.nt-wb-fullscreen")).not.toBeNull();
+  });
+
   it("drag coalesces to ONE layout update at drag end (no per-mousemove ops)", async () => {
     const client = await seedClient();
     const cardId = "0192a000-0000-7000-8000-0000000000c1";

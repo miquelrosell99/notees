@@ -169,6 +169,21 @@ export interface NodeCollectionProps {
    */
   windowed?: boolean | undefined;
 
+  // --- create affordance -----------------------------------------------------
+
+  /**
+   * The collection's create affordance (a "+ Add …" kit button): renders
+   * only when the flag AND the callback are both set — and only where the
+   * container's context allows creation. In the empty state the button
+   * rides the kit EmptyState's action slot; containers that render a
+   * ViewToolbar place a second button in its children (left of the
+   * switcher). Both default off.
+   */
+  showAddButton?: boolean | undefined;
+  onAdd?: (() => void) | undefined;
+  /** The affordance's label (e.g. "Add child page"); defaults to "Add". */
+  addLabel?: string | undefined;
+
   className?: string | undefined;
 }
 

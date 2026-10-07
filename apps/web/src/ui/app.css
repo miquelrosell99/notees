@@ -430,6 +430,32 @@ select:focus-visible {
   min-height: 0;
 }
 
+/* The fullscreen whiteboard surface: the canvas is the card's sole
+   content. The page chrome (the panelled columns, the nodeview top bar,
+   the header, the footer) steps aside; the page padding goes and the
+   canvas frame loses its own border/radius and margin — the card frame
+   itself stays (it IS the main content container) and clips the canvas
+   at its corners. */
+.nt-page--whiteboard {
+  max-width: none;
+  height: 100%;
+  padding: 0;
+}
+
+.nt-page-card > .nt-node-view:has(.nt-page--whiteboard) {
+  max-width: none;
+  height: 100%;
+}
+
+.nt-page--whiteboard > .nt-wb.nt-wb-fullscreen {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
 .nt-page-side-panel {
   flex: 0 0 clamp(13rem, 24%, 22rem);
   min-width: 0;

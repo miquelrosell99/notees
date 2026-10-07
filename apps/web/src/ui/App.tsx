@@ -1724,7 +1724,12 @@ export function App() {
           ) : activeNav === "queries" ? (
             <QueriesHub client={client} onOpenNode={openPage} onOpenInSidebar={openInSidebar} />
           ) : activeNav === "graph" ? (
-            <GraphView client={client} onNodeClick={openPage} />
+            /* The graph hub renders edge-to-edge in the main content card —
+               the canvas is the card's sole content (the whiteboard-surface
+               treatment; the card frame itself stays). */
+            <div className="nt-graph-surface">
+              <GraphView client={client} onNodeClick={openPage} />
+            </div>
           ) : (
             <HubView client={client} nav={activeNav} onOpenNode={openPage} onOpenInSidebar={openInSidebar} />
           )}

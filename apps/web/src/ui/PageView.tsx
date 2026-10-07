@@ -436,7 +436,7 @@ export function PageView({
             <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
             {!preview && !focusMode && variantSystemSections}
             {!preview && !focusMode && (
-              <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} />
+              <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} embedded={embedded} />
             )}
           </>
         ) : (
@@ -521,7 +521,7 @@ export function PageView({
                 )}
                 {!preview && !focusMode && variantSystemSections}
                 {!preview && !focusMode && (
-                  <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} />
+                  <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} embedded={embedded} />
                 )}
               </DropLineContext.Provider>
               <DragOverlay dropAnimation={null}>
@@ -602,7 +602,19 @@ export function PageView({
    * top bar. Compact layouts render the same chrome full-width, header
    * first, with the top-right chrome in the absolute corner.
    */
-  const pageChrome = (
+  /**
+   * The fullscreen whiteboard surface: the MAIN surface's whiteboard page
+   * renders the canvas as the card's SOLE content — the page chrome (the
+   * panelled columns, the nodeview top bar, the header, the footer) steps
+   * aside entirely and the canvas fills the card edge to edge. Embedded
+   * feed entries and the preview seam keep the in-flow canvas (the capped
+   * branch in bodyContent below).
+   */
+  const fullscreenWhiteboard = whiteboardTokenIndex >= 0 && !embedded && !preview;
+
+  const pageChrome = fullscreenWhiteboard ? (
+    <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
+  ) : (
     <>
       {panelled ? (
         <div className="nt-page-body">
@@ -671,7 +683,11 @@ export function PageView({
           className={
             [
               "nt-page",
-              panelled ? "nt-page--panelled" : "",
+              fullscreenWhiteboard
+                ? "nt-page--whiteboard"
+                : panelled
+                  ? "nt-page--panelled"
+                  : "",
               variant.variant === "class" ? "nt-class" : "",
             ].filter(Boolean).join(" ")
           }

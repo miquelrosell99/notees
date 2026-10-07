@@ -1,0 +1,51 @@
+apps/web/src/ui/PageView.tsx:12: * S3b of the main-content restructure: the chrome LEAVES (NodeTopbar,
+apps/web/src/ui/PageView.tsx:19: * S5 (M13): the page mode is composed from DATA — `pageVariantOf`
+apps/web/src/ui/PageView.tsx:28: * S7 (M17/M18/M19 + the references dedupe check): the panelled main layout
+apps/web/src/ui/PageView.tsx:39: * The dedupe check (the S7 precondition): the right rail's
+apps/web/src/ui/PageView.tsx:50: * S7 (M15): the `preview` surface seam — NodeView's `preview` prop renders
+apps/web/src/ui/PageView.tsx:130: * The body items (S4/M1): the childQuery factory — children as siblings,
+apps/web/src/ui/PageView.tsx:234:   * S7 (M17): the context column's own device-local collapse — a per-column
+apps/web/src/ui/PageView.tsx:258:  // (usePageMachinery — S3a of the main-content restructure; constructed
+apps/web/src/ui/PageView.tsx:352:   * The editing machinery (S3a): outliner construction, selection surface,
+apps/web/src/ui/PageView.tsx:599:   * second, and the context column (S7, M17 — graph · TOC · Activity ·
+apps/web/src/ui/components/FloatingEditor.tsx:281: * editor instance. (Pre-S1 this was a second copy of App's dispatch; the
+apps/web/src/ui/components/useSectionData.ts:2: * useSectionData — the shared lazy-section data contract (the S2 machinery:
+apps/web/src/ui/components/useSectionData.ts:28: * stacks (S5+): a page variant declares an ordered list of descriptors; the
+apps/web/src/ui/components/useSectionData.ts:128: * descriptor yet beyond this file — the S2 slice ships the hook and the skin;
+apps/web/src/ui/components/useSectionData.ts:129: * the section stacks land slice by slice (S5 class/date variants).
+apps/web/src/ui/components/CollectionSection.tsx:9: * + the collection host. Nothing rides the skin yet in S2 — the current
+apps/web/src/ui/components/CollectionSection.tsx:11: * until S3+); the skin lands now as the single render target for the
+apps/web/src/ui/components/CollectionSection.tsx:12: * SectionSpec stacks (S5+).
+apps/web/src/ui/components/pageVariant.ts:11: * Shape (the S2 SectionSpec contract composed, not forked):
+apps/web/src/ui/components/pageVariant.ts:76: * filter/view extensions stay in the S2 contract), with `render` mounting
+apps/web/src/ui/components/ActivityLogSection.tsx:20: * contract rides useSectionData since S2); there is
+apps/web/src/ui/components/ActivityLogSection.tsx:139:   * useSectionData since S2 (active = expanded).
+apps/web/src/ui/components/CreatedSection.tsx:12: * per host page, never an op. S2: the query rides useSectionData.
+apps/web/src/ui/components/CreatedSection.tsx:60:  // section's pre-S2 contract, now riding useSectionData. A failed query
+apps/web/src/ui/components/sidebarSections.tsx:2: * Right-sidebar context sections → the page chrome's context column (S7 of
+apps/web/src/ui/components/sidebarSections.tsx:9: * The references dedupe check (the S7 precondition): the rail's
+apps/web/src/ui/components/childQuery.ts:3: * restructure, S4/M1): the body of both modes is the plain NodeCollection
+apps/web/src/ui/components/childQuery.ts:15: * landed with S7a).
+apps/web/src/ui/components/SystemSections.tsx:10: * live notification re-runs the loaded tabs' queries. S2: the tab caches
+apps/web/src/ui/components/SystemSections.tsx:16: * The workspace Activity feed left the stack at S7 (M18): it renders in the
+apps/web/src/ui/components/SystemSections.tsx:223:  // re-runs every LOADED tab's query (keepFresh — the pre-S2 contract: a
+apps/web/src/ui/PageChrome.tsx:2: * PageChrome — the page chrome leaf pieces (S3b of the main-content
+apps/web/src/ui/PageChrome.tsx:7: * lives in PageView, which owns the three-column composition since S7a.
+apps/web/src/ui/PageChrome.tsx:14: * S7 (M17/M18/M19 + the references dedupe check): the panelled composition
+apps/web/src/ui/PageChrome.tsx:18: * M18), and CommentsSection (M19). The dedupe check (the S7 precondition):
+apps/web/src/ui/NodeView.tsx:10: * S1) so every host (the main card, the right-rail cards, the floating
+apps/web/src/ui/NodeView.tsx:26: * menu. (A class node renders full chrome on every surface, the pre-S5
+apps/web/src/ui/NodeView.tsx:127:    /* Block mode (S4): the body is the plain collection — the node itself as
+apps/web/src/ui/NodeView.tsx:140:       embedded flag off (the pre-S5 ClassView rendered full chrome on every
+apps/web/src/ui/app.css:403:   the context column (S7, M17 — three columns). */
+apps/web/src/ui/app.css:448:/* The context column (S7, M17): graph · TOC · Activity · Comments — the
+apps/web/src/ui/Section.tsx:11: * S2: a thin chrome wrapper over useSectionData — the timing/cache contract
+apps/web/src/ui/Section.tsx:13: * its exact pre-S2 props and renders the collapsible chrome around
+apps/web/src/ui/usePageMachinery.ts:3: * surface, in one hook (the main-content restructure, S3a: the carve that
+apps/web/src/ui/usePageMachinery.ts:13: *   dnd-kit handlers) — moved as it exists today; S6 hoists the drag half
+apps/web/src/ui/usePageMachinery.ts:19: * true; secondary surfaces (workspace cards, S6/S7) pass false; embedded
+apps/web/test/child-query.test.ts:2: * childQuery (S4/M1+M19) — the body's item-resolution factory.
+apps/web/test/context-column.test.tsx:2: * The S7 context-column + cards-only-rail tests: the panelled main layout
+apps/web/test/context-column.test.tsx:61:describe("S7 context column (three-column panelled layout)", () => {
+apps/web/test/context-column.test.tsx:166:describe("S7 NodeView preview surface (M15)", () => {
+apps/web/test/context-column.test.tsx:207:describe("S7 NodeCardFrame (the cards-only rail)", () => {
