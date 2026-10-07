@@ -63,6 +63,7 @@ import { NAV_ENTRIES, Sidebar, recordRecent, type NavKey } from "./components/Si
 import { NodeLinkMenuHost } from "./components/NodeLinkContextMenu.js";
 import { FloatingEditorHost } from "./components/FloatingEditor.js";
 import { NodeHoverPreviewHost } from "./components/NodeHoverPreview.js";
+import { WorkspaceDndHost } from "./useWorkspaceDnd.js";
 import { resolveAliasOpen } from "./components/aliasProperty.js";
 import { JournalsView } from "./components/JournalsView.js";
 import { CalendarView } from "./components/CalendarView.js";
@@ -1731,6 +1732,11 @@ export function App() {
           openInSidebar={openInSidebar}
         >
         <NodeHoverPreviewHost client={client} openNode={(id) => openPage(resolveAliasOpen(client, id))}>
+        {/* The ONE workspace drag session: the host wraps the FloatingEditorHost
+            (which wraps the regions), so the main content card, the right
+            rail's workspace cards, and the floating editor windows (portals
+            keep the React context) all join the same drag — useWorkspaceDnd.ts. */}
+        <WorkspaceDndHost>
         <FloatingEditorHost client={client} openNode={(id) => openPage(resolveAliasOpen(client, id))}>
         <Sidebar
           client={client}
@@ -1818,6 +1824,7 @@ export function App() {
           </aside>
         )}
         </FloatingEditorHost>
+        </WorkspaceDndHost>
         </NodeHoverPreviewHost>
         </NodeLinkMenuHost>
       </div>

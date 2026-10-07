@@ -12,9 +12,18 @@
  * The main-content restructure: the chrome LEAVES (NodeTopbar,
  * PageHeaderChrome, PageFooterChrome) live in PageChrome.tsx; the editing
  * machinery lives in usePageMachinery.ts. What stays here is the composer:
- * the reads (page/tree/cover), the body (the block tree inside the drag
- * context), the notices + compact properties in mainChrome, and the
- * panelled/compact composition.
+ * the reads (page/tree/cover), the body (the block tree), the notices +
+ * compact properties in mainChrome, and the panelled/compact composition.
+ *
+ * Drag-and-drop: the page renders INSIDE the workspace drag session (the
+ * host in App — useWorkspaceDnd.ts) and joins it as a ZONE: this view
+ * registers the drag facts the machinery still owns (the measured page root
+ * + the outliner's live positions) and provides the drag scope around its
+ * tree, so block rows are draggable exactly on workspace surfaces. Without
+ * a host (standalone renders) the registration is a no-op and the rows stay
+ * editable but inert — the context-presence law. The drop indicator arrives
+ * through the host's DropLineContext; the overlay chip, the sensors, and
+ * the move-error banner are host-owned.
  *
  * The page mode is composed from DATA — `pageVariantOf`
  * (components/pageVariant.ts) derives the variant (plain / date-day /
@@ -67,9 +76,8 @@
  * directly in the editor — see editor-popups/).
  */
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
 import { rendersWithDocumentChrome, SYSTEM_CLASS_UUIDS } from "@notees/domain";
@@ -88,10 +96,8 @@ import { ClassPillsList } from "./components/ClassPillsList.js";
 import { pageVariantOf } from "./components/pageVariant.js";
 import { nodeIcon } from "./iconFor.js";
 
-import {
-  DropLineContext,
-  blockCollisionDetection,
-} from "./block-dnd.js";
+import { WorkspaceDragScopeContext } from "./block-dnd.js";
+import { useWorkspaceDndZone } from "./useWorkspaceDnd.js";
 import { PropertiesSection, PropertiesSidebar, ClassesRow } from "./components/MetadataSection.js";
 import { SelectionBar } from "./components/SelectionBar.js";
 import { SystemSections } from "./components/SystemSections.js";
@@ -181,6 +187,12 @@ export function PageView({
    * swap.
    */
   preview = false,
+  /**
+   * Document-level listeners (find/replace chord, fold chords). Defaults to
+   * the main-surface value (`!preview`); secondary surfaces (the right-rail
+   * workspace cards) pass false explicitly — the chords stay main-surface-only.
+   */
+  globalShortcuts = undefined,
 }: {
   client: WorkspaceClient | WorkerClient;
   pageId: string;
@@ -205,6 +217,7 @@ export function PageView({
   chromeRight?: ReactNode;
   shareTarget?: ShareTarget | undefined;
   preview?: boolean;
+  globalShortcuts?: boolean | undefined;
 }) {
   /**
    * Child-blocks view mode (the outline/prose/cards triad): durable display
@@ -356,10 +369,9 @@ export function PageView({
 
   /**
    * The editing machinery: outliner construction, selection surface,
-   * find/replace, the DnD wiring, and the fold chords — one hook so this
-   * component stays a chrome composer. `globalShortcuts: true` is the main
-   * surface; embedded renders imply false inside the hook; the preview
-   * surface passes false explicitly — a peek installs no document
+   * find/replace, and the fold chords — one hook so this component stays a
+   * chrome composer. Embedded renders imply no document listeners; the
+   * preview surface passes none explicitly — a peek installs no document
    * listeners.
    */
   const machinery = usePageMachinery({
@@ -369,7 +381,7 @@ export function PageView({
     embedded,
     forClass: variant.variant === "class",
     focusMode,
-    globalShortcuts: !preview,
+    globalShortcuts: globalShortcuts ?? !preview,
     onOpenPage,
     onOpenInSidebar,
   });
@@ -383,16 +395,21 @@ export function PageView({
     findDocs,
     handleFindReplace,
   } = machinery;
-  const {
-    sensors,
-    dropLine,
-    dragging,
-    moveError,
-    handleDragStart,
-    handleDragMove,
-    handleDragEnd,
-    handleDragCancel,
-  } = machinery.dnd;
+
+  /**
+   * The workspace drag session: this surface joins the host as a zone. The
+   * facts ride live getters (positions refresh per render; the host reads
+   * them at measure/resolve time) — no-op without a host.
+   */
+  const generatedZoneId = useId();
+  const positionsRef = useRef(outliner.positions);
+  positionsRef.current = outliner.positions;
+  useWorkspaceDndZone({
+    id: generatedZoneId,
+    rootRef: pageRootRef,
+    getPositions: () => positionsRef.current,
+    client,
+  });
 
   if (!page) {
     return <div className="nt-page-missing">Page not found.</div>;
@@ -428,8 +445,8 @@ export function PageView({
 
   /**
    * The page body: the whiteboard canvas, or the editable block tree + the
-   * aggregation/system sections (all inside the same drag context). In the
-   * panelled main layout this rides the content column beside the left
+   * aggregation/system sections (all inside the same workspace drag zone).
+   * In the panelled main layout this rides the content column beside the left
    * properties panel; compact layouts render it full-width.
    */
   const bodyContent = (
@@ -451,87 +468,73 @@ export function PageView({
       ) : (
         <>
           <EmbedBoundary rootId={pageId}>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={blockCollisionDetection}
-              onDragStart={handleDragStart}
-              onDragMove={handleDragMove}
-              onDragEnd={handleDragEnd}
-              onDragCancel={handleDragCancel}
-            >
-              <DropLineContext.Provider value={dropLine}>
-                <SortableContext items={tree.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
-                  <div
-                    ref={selectionRootRef}
-                    className={tree.length === 0 ? "nt-select-surface nt-select-surface--empty" : "nt-select-surface"}
-                    onMouseDownCapture={selectionSurface.onMouseDownCapture}
-                  >
-                    <NodeCollection
-                      viewMode={blocksMode}
-                      client={client}
-                      items={blockItems}
-                      tree
-                      editable={!preview}
-                      maxDepth={preview ? PREVIEW_BODY_DEPTH : undefined}
-                      onNodeClick={(id) => onOpenPage?.(id)}
-                      onNodeShiftClick={(id) => onOpenInSidebar?.(id)}
-                    />
-                    {/* ghost trailing block (owner refinement of
-                        ): the page root trails exactly ONE "+ Add
-                        block" ghost row as the last sibling of the main
-                        level — display-only until the click, which creates
-                        a real empty block after the last child and focuses
-                        it (never an op by itself). Blocks no longer trail
-                        their own ghosts at deeper levels, and focus mode
-                        keeps the body (hence this ghost) — only chrome
-                        steps aside. Prose mounts it too, gutter dropped
-                        (bullets are hidden in that transform). */}
-                    {ghostVisible && (
-                      <GhostRow
-                        parentId={pageId}
-                        prose={blocksMode === "prose"}
-                        onRealize={() => {
-                          void realizeGhost(client, outliner, pageId).catch((error: unknown) => {
-                            console.warn(`[outliner] ghost realize (${pageId}) failed:`, error);
-                          });
-                        }}
-                      />
-                    )}
-                  </div>
-                </SortableContext>
-                {/* The system sections join the same drag context: the Child
-                    pages section's read-only rows are droppable (zone-aware —
-                    a drop anchored on a main child promotes into the Pages
-                    zone, see handleDragEnd). The variant's section stack
-                    (the class sections) inserts its descriptors here —
-                    data, not a slot. */}
-                {variantSections}
-                {!preview && dayIso !== null && !embedded && (
-                  <DayPageSections
-                    client={client}
-                    pageId={pageId}
-                    iso={dayIso}
-                    onOpenPage={onOpenPage}
+            <SortableContext items={tree.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
+              <div
+                ref={selectionRootRef}
+                className={tree.length === 0 ? "nt-select-surface nt-select-surface--empty" : "nt-select-surface"}
+                onMouseDownCapture={selectionSurface.onMouseDownCapture}
+              >
+                <NodeCollection
+                  viewMode={blocksMode}
+                  client={client}
+                  items={blockItems}
+                  tree
+                  editable={!preview}
+                  maxDepth={preview ? PREVIEW_BODY_DEPTH : undefined}
+                  onNodeClick={(id) => onOpenPage?.(id)}
+                  onNodeShiftClick={(id) => onOpenInSidebar?.(id)}
+                />
+                {/* ghost trailing block (owner refinement of
+                    ): the page root trails exactly ONE "+ Add
+                    block" ghost row as the last sibling of the main
+                    level — display-only until the click, which creates
+                    a real empty block after the last child and focuses
+                    it (never an op by itself). Blocks no longer trail
+                    their own ghosts at deeper levels, and focus mode
+                    keeps the body (hence this ghost) — only chrome
+                    steps aside. Prose mounts it too, gutter dropped
+                    (bullets are hidden in that transform). */}
+                {ghostVisible && (
+                  <GhostRow
+                    parentId={pageId}
+                    prose={blocksMode === "prose"}
+                    onRealize={() => {
+                      void realizeGhost(client, outliner, pageId).catch((error: unknown) => {
+                        console.warn(`[outliner] ghost realize (${pageId}) failed:`, error);
+                      });
+                    }}
                   />
                 )}
-                {!preview && createdPeriod !== null && !embedded && (
-                  <CreatedSection
-                    client={client}
-                    pageId={pageId}
-                    after={createdPeriod.after}
-                    before={createdPeriod.before}
-                    onOpenPage={onOpenPage}
-                  />
-                )}
-                {!preview && !focusMode && variantSystemSections}
-                {!preview && !focusMode && (
-                  <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} embedded={embedded} />
-                )}
-              </DropLineContext.Provider>
-              <DragOverlay dropAnimation={null}>
-                {dragging !== null && <div className="nt-drag-ghost">{dragging.label}</div>}
-              </DragOverlay>
-            </DndContext>
+              </div>
+            </SortableContext>
+            {/* The system sections join the same drag zone: the Child
+                pages section's read-only rows are droppable (zone-aware —
+                a drop anchored on a main child promotes into the Pages
+                zone, see the host's drop resolution). The variant's
+                section stack (the class sections) inserts its descriptors
+                here — data, not a slot. */}
+            {variantSections}
+            {!preview && dayIso !== null && !embedded && (
+              <DayPageSections
+                client={client}
+                pageId={pageId}
+                iso={dayIso}
+                onOpenPage={onOpenPage}
+              />
+            )}
+            {!preview && createdPeriod !== null && !embedded && (
+              <CreatedSection
+                client={client}
+                pageId={pageId}
+                after={createdPeriod.after}
+                before={createdPeriod.before}
+                onOpenPage={onOpenPage}
+              />
+            )}
+            {!preview && !focusMode && variantSystemSections}
+            {!preview && !focusMode && (
+              <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} embedded={embedded} />
+            )}
           </EmbedBoundary>
         </>
       )}
@@ -560,14 +563,10 @@ export function PageView({
 
   /** Notices, the alias banner, the compact in-flow properties (compact
    *  layouts only), and the block body — everything after the header and
-   *  before the footer in both layout modes. */
+   *  before the footer in both layout modes. (The transient move-error
+   *  banner is host-owned — the workspace drag session renders it.) */
   const mainChrome = (
     <>
-        {moveError !== null && (
-          <div role="alert" className="nt-dnd-error">
-            {moveError}
-          </div>
-        )}
         {/* Issue #7 — an alias page names its main page and jumps to it;
             null for every ordinary page. */}
         {!embedded && !focusMode && (
@@ -683,6 +682,11 @@ export function PageView({
   return (
     <OutlinerContext.Provider value={outliner}>
       <LinkEditModalHost client={client}>
+        {/* The drag scope: inside it block rows are draggable (the workspace
+            session owns them); every PageView tree is a workspace editing
+            surface, standalone renders included — without a host the grips
+            stay inert (the context-presence law). */}
+        <WorkspaceDragScopeContext.Provider value={true}>
         <div
           className={
             [
@@ -725,6 +729,7 @@ export function PageView({
           )}
           {pageChrome}
         </div>
+        </WorkspaceDragScopeContext.Provider>
         <NodeContextMenu
           state={
             headerMenu === null

@@ -12,9 +12,20 @@
  * Card management (this slice): collapse toggles the body
  * (session-local — display state, never an op); reorder/dismiss gestures
  * beyond the close button are a registered follow-up.
+ *
+ * The workspace drag session: the card's header is a droppable — dropping
+ * a block on it moves the block as the LAST CHILD of the card's node
+ * (one code path with a child drop on that node; see useWorkspaceDnd),
+ * and the header renders its own distinct active-drop state while it is
+ * the drop target. A collapsed card under drag-hover transiently expands
+ * (drag-scoped — the session holds the temporary set; the collapse state
+ * here never mutates) and re-collapses at drag end. Without a host the
+ * header droppable is inert and the body renders exactly per the collapse
+ * state. The card also passes `globalShortcuts: false` down — the
+ * document-level chords (find/replace, fold) stay main-surface-only.
  */
 
-import { useState } from "react";
+import { useContext, useState } from "react";
 
 import { rendersAsInlineBlock } from "@notees/domain";
 
@@ -24,6 +35,11 @@ import type { WorkspaceClient } from "@/core/workspace-client.js";
 import { Breadcrumbs } from "./Breadcrumbs.js";
 import { Icon } from "../Icon.js";
 import { NodeView } from "../NodeView.js";
+import {
+  WorkspaceDndHostContext,
+  useWorkspaceDndHeader,
+  workspaceCardHeaderDroppableId,
+} from "../useWorkspaceDnd.js";
 
 export function NodeCardFrame({
   client,
@@ -40,9 +56,26 @@ export function NodeCardFrame({
   /** Session-local collapse — display state only (card management, first pass). */
   const [collapsed, setCollapsed] = useState(false);
   const node = client.getNode(nodeId);
+  /**
+   * The header droppable: registers with the workspace session (no-op
+   * without a host — the droppable stays inert) and attaches the measured
+   * node ref to the header element.
+   */
+  const headerDroppableId = workspaceCardHeaderDroppableId(nodeId);
+  const setHeaderRef = useWorkspaceDndHeader({ droppableId: headerDroppableId, nodeId, client });
+  /** Drag-scoped UI: the header's active-drop state + the transient expand. */
+  const dragUi = useContext(WorkspaceDndHostContext)?.dragUi ?? null;
+  const headerDropActive = dragUi !== null && dragUi.headerDropId === headerDroppableId;
+  const dragExpanded = dragUi !== null && dragUi.expandedNodeIds.has(nodeId);
   return (
     <section className="nt-sidebar-card" aria-label="Node preview">
-      <header className="nt-sidebar-card__header">
+      <header
+        className={
+          headerDropActive ? "nt-sidebar-card__header nt-sidebar-card__header--drop-active" : "nt-sidebar-card__header"
+        }
+        ref={setHeaderRef}
+        data-header-droppable={headerDroppableId}
+      >
         {node !== undefined && (
           <Breadcrumbs
             client={client}
@@ -90,7 +123,7 @@ export function NodeCardFrame({
           </button>
         </span>
       </header>
-      {!collapsed && (
+      {(!collapsed || dragExpanded) && (
         <div className="nt-sidebar-card__body">
           {node === undefined ? (
             <div className="nt-page-missing">Page not found.</div>
@@ -100,6 +133,7 @@ export function NodeCardFrame({
               nodeId={nodeId}
               onOpenNode={onOpenNode}
               onDeleted={() => onClose()}
+              globalShortcuts={false}
             />
           )}
         </div>
