@@ -62,12 +62,12 @@
  *
  * Editor chrome owned here: the find & replace widget (Ctrl/Cmd+Shift+F)
  * searching the block tree's prose projection, and the page-level
- * LinkEditModal host — read-mode clicks on external_link chips open the
- * modal, and the editor's slash "Add URL" flow opens it through the same
- * opener (see editor-popups/).
+ * LinkEditModal host for NODE links (owner ruling: external links navigate —
+ * they never open the modal; the slash "Add URL" flow authors the token
+ * directly in the editor — see editor-popups/).
  */
 
-import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -104,13 +104,19 @@ import { LocalGraphCard } from "./components/LocalGraphCard.js";
 import { TocSection } from "./components/sidebarSections.js";
 import { CommentsSection } from "./components/CommentsSection.js";
 import { EmbedBoundary } from "./EmbedView.js";
+import { Icon } from "./Icon.js";
+import { BlockRow } from "./BlockRow.js";
 import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
 import { OutlinerContext } from "./outliner-context.js";
 import { NodeCollection } from "./views/index.js";
 import type { ViewMode } from "./views/index.js";
 import { useViewModePreference } from "./viewPrefs.js";
 import { FindReplaceWidget } from "./editor-popups/FindReplaceWidget.js";
-import { LinkEditModalHost } from "./editor-popups/LinkEditModal.js";
+import {
+  LinkEditModalHost,
+} from "./editor-popups/LinkEditModal.js";
+import { replaceRangeInAst } from "./editor-popups/block-find-replace.js";
+import { ensureTemplateFamily } from "./components/templateFamily.js";
 import { GhostRow, realizeGhost } from "./GhostRow.js";
 import { usePageMachinery } from "./usePageMachinery.js";
 import { NodeTopbar, PageHeaderChrome, PageFooterChrome } from "./PageChrome.js";
@@ -188,9 +194,9 @@ export function PageView({
   onPresent?: ((pageId: string) => void) | undefined;
   /**
    * Embedded mode (journals feed): the title renders as a static button that
-   * navigates to the full page view instead of the inline TitleEditor, and
-   * the page-level find/replace shortcut stays off so stacked feeds don't
-   * install one document listener per entry.
+   * navigates to the full page view instead of the inline editable title
+   * row, and the page-level find/replace shortcut stays off so stacked
+   * feeds don't install one document listener per entry.
    */
   embedded?: boolean;
   layout?: "default" | "compact";
@@ -376,8 +382,6 @@ export function PageView({
     setFindOpen,
     findDocs,
     handleFindReplace,
-    handleExternalLinkClick,
-    linkOpenerRef,
   } = machinery;
   const {
     sensors,
@@ -678,7 +682,7 @@ export function PageView({
 
   return (
     <OutlinerContext.Provider value={outliner}>
-      <LinkEditModalHost client={client} openerRef={linkOpenerRef}>
+      <LinkEditModalHost client={client}>
         <div
           className={
             [
@@ -692,7 +696,6 @@ export function PageView({
             ].filter(Boolean).join(" ")
           }
           ref={pageRootRef}
-          onClick={handleExternalLinkClick}
         >
           {/* Classes: compact layouts pin the pills to the card's top-left
               corner; the panelled main layout carries them in the nodeview

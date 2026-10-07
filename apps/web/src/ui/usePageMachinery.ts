@@ -8,7 +8,6 @@
  *   chords) with the component's navigation/template/selection options,
  * - the selection surface (`useBlockSelectionSurface`),
  * - find/replace state + the shortcut listener + the prose docs,
- * - the external-link delegation + the LinkEditModal opener ref,
  * - the DnD wiring (sensors, dropLine/dragging/moveError state, the four
  *   dnd-kit handlers) — moved as it exists today; a later slice hoists the
  *   drag half to the workspace host (`useWorkspaceDnd`),
@@ -20,7 +19,7 @@
  * renders imply false. Nothing here renders — pure hooks + callbacks.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { DragEndEvent, DragMoveEvent, DragStartEvent } from "@dnd-kit/core";
 
@@ -47,7 +46,6 @@ import {
 import { ensureTemplateFamily } from "./components/templateFamily.js";
 import { displayNameFromClient } from "./dateDisplay.js";
 import { replaceRangeInAst } from "./editor-popups/block-find-replace.js";
-import type { LinkEditModalOpener } from "./editor-popups/LinkEditModal.js";
 import { useOutlinerValue } from "./outliner-context.js";
 import { useBlockSelectionSurface } from "./use-block-selection.js";
 
@@ -66,7 +64,7 @@ export interface UsePageMachineryOptions {
 }
 
 export interface PageMachinery {
-  /** Page root: find/replace highlights blocks inside it; link clicks delegate. */
+  /** Page root: find/replace highlights blocks inside it. */
   pageRootRef: React.RefObject<HTMLDivElement | null>;
   /** The block-tree selection surface (multi-selection gestures). */
   selectionRootRef: React.RefObject<HTMLDivElement | null>;
@@ -77,8 +75,6 @@ export interface PageMachinery {
   setFindOpen: (open: boolean) => void;
   findDocs: { id: string; prose: string }[];
   handleFindReplace: (blockId: string, start: number, end: number, text: string) => void;
-  handleExternalLinkClick: (event: MouseEvent<HTMLDivElement>) => void;
-  linkOpenerRef: React.RefObject<LinkEditModalOpener | null>;
   dnd: {
     sensors: ReturnType<typeof useBlockDndSensors>;
     dropLine: DropLine | null;
@@ -105,7 +101,6 @@ export function usePageMachinery({
   const shortcuts = globalShortcuts && !embedded;
   const pageRootRef = useRef<HTMLDivElement>(null);
   const selectionRootRef = useRef<HTMLDivElement>(null);
-  const linkOpenerRef = useRef<LinkEditModalOpener | null>(null);
 
   const [findOpen, setFindOpen] = useState(false);
 
@@ -134,41 +129,6 @@ export function usePageMachinery({
     },
     [client],
   );
-
-  /**
-   * Read-mode clicks on an external_link chip open the LinkEditModal for
-   * that token (the anchor's default navigation is suppressed only when the
-   * token resolves). The slash "Add URL" flow reaches the same modal through
-   * the opener while editing.
-   */
-  const handleExternalLinkClick = (event: MouseEvent<HTMLDivElement>) => {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    const anchor = target.closest("a.nt-external-link");
-    if (anchor === null) return;
-    const blockId = anchor.closest("[data-block-id]")?.getAttribute("data-block-id");
-    if (blockId === null || blockId === undefined) return;
-    const block = client.getNode(blockId);
-    if (block === undefined) return;
-    const href = anchor.getAttribute("href") ?? "";
-    const text = anchor.textContent ?? "";
-    const tokenIndex = block.contentAst.findIndex(
-      (token) =>
-        (token as { type?: string }).type === "external_link" &&
-        (token as { href?: string }).href === href &&
-        (token as { text?: string }).text === text,
-    );
-    if (tokenIndex < 0) return;
-    event.preventDefault();
-    linkOpenerRef.current?.({
-      kind: "external",
-      blockId,
-      tokenIndex,
-      insertAt: null,
-      initialUrl: href,
-      initialLabel: text,
-    });
-  };
 
   // --- drag-and-drop reordering (block-dnd.ts intent model) -------------------
   const sensors = useBlockDndSensors();
@@ -351,8 +311,6 @@ export function usePageMachinery({
     setFindOpen,
     findDocs,
     handleFindReplace,
-    handleExternalLinkClick,
-    linkOpenerRef,
     dnd: {
       sensors,
       dropLine,

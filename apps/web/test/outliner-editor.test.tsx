@@ -479,20 +479,30 @@ describe("outliner editor", () => {
     const pageId = await client.createObject({ presentAsMain: true, name: "Old Name" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
-    const title = container.querySelector<HTMLElement>(".nt-page-title");
-    if (title === null) throw new Error("title heading missing");
-    expect(title.textContent).toBe("Old Name");
+    const titleContent = container.querySelector<HTMLElement>(".nt-title-content");
+    if (titleContent === null) throw new Error("title content missing");
+    expect(titleContent.textContent).toBe("Old Name");
 
-    title.textContent = "Committed Via Enter";
-    fireEvent.keyDown(title, { key: "Enter" });
+    // Enter: commit + leave edit mode (the title is the page node — Enter
+    // never creates a body block).
+    fireEvent.click(titleContent);
+    let editor = titleContent.querySelector<HTMLElement>(".nt-block-text")!;
+    typeInto(editor, "Committed Via Enter");
+    fireEvent.keyDown(editor, { key: "Enter" });
+    await act(async () => {});
     expect(client.getPage(pageId)?.contentAst).toEqual([{ type: "text", text: "Committed Via Enter" }]);
+    expect(client.getChildren(pageId)).toHaveLength(0);
 
-    title.textContent = "Committed Via Blur";
-    fireEvent.blur(title);
+    // Blur: the same commit contract on the way out of a fresh edit session.
+    fireEvent.click(titleContent);
+    editor = titleContent.querySelector<HTMLElement>(".nt-block-text")!;
+    typeInto(editor, "Committed Via Blur");
+    fireEvent.blur(editor);
+    await act(async () => {});
     expect(client.getPage(pageId)?.contentAst).toEqual([{ type: "text", text: "Committed Via Blur" }]);
 
     // The header re-renders from the committed content.
-    expect(container.querySelector(".nt-page-title")!.textContent).toBe("Committed Via Blur");
+    expect(container.querySelector(".nt-title-content")!.textContent).toBe("Committed Via Blur");
   });
 
   it("an empty page offers the ghost add-block affordance that creates the first block", async () => {

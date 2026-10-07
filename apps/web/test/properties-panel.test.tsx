@@ -528,3 +528,67 @@ describe("the provenance flag (owner directive)", () => {
     expect(client.getEffectiveProperties(nodeS)).toEqual([]);
   });
 });
+
+describe("weblink extends source — inherited bindings + own-first resolution", () => {
+  it("a weblink-classed node inherits the source family (unset fields stay hidden); the own url binding beats an inherited one", async () => {
+    const { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } = await import("@notees/domain");
+    const client = await seedClient();
+    // The server-seed shape an existing workspace carries: the source root
+    // with its family, the weblink class with its own url binding — plus
+    // the extends edge this ruling adds (materialized on live workspaces
+    // by the web self-heal, ensureWeblinkExtendsSource).
+    await client.createClass("Source", { id: SYSTEM_CLASS_UUIDS.source });
+    await client.createClass("Web link", { id: SYSTEM_CLASS_UUIDS.weblink });
+    await client.createPropertySchema({
+      id: SYSTEM_PROPERTY_UUIDS.doi,
+      name: "DOI",
+      type: "text",
+      scope: "class",
+    });
+    await client.createPropertySchema({
+      id: SYSTEM_PROPERTY_UUIDS.url,
+      name: "URL",
+      type: "url",
+      scope: "class",
+    });
+    await client.setClassProperty(SYSTEM_CLASS_UUIDS.source, SYSTEM_PROPERTY_UUIDS.doi, {
+      sequence: 0,
+    });
+    await client.setClassProperty(SYSTEM_CLASS_UUIDS.weblink, SYSTEM_PROPERTY_UUIDS.url, {
+      sequence: 0,
+    });
+    await client.setClassExtends(SYSTEM_CLASS_UUIDS.weblink, [SYSTEM_CLASS_UUIDS.source]);
+    await flushWrites();
+
+    const weblinkId = SYSTEM_CLASS_UUIDS.weblink;
+    const sourceId = SYSTEM_CLASS_UUIDS.source;
+
+    // Sharpening of the seeded reality for the resolution rule: source
+    // ALSO binds url — a weblink node's own url row must still win
+    // (binding resolution is own-first: distance 0 beats distance 1).
+    await client.setClassProperty(sourceId, SYSTEM_PROPERTY_UUIDS.url, { sequence: 9 });
+
+    const pageId = await client.createObject({ presentAsMain: true, name: "A bookmark" });
+    await client.assignClass(pageId, weblinkId);
+    await flushWrites();
+
+    // Unset fields stay hidden — a fresh weblink node shows no effective
+    // rows (the inherited DOI binding has no default; url neither).
+    expect(client.getEffectiveProperties(pageId)).toEqual([]);
+
+    // Authored values surface through the INHERITED source bindings…
+    await client.setProperty(pageId, SYSTEM_PROPERTY_UUIDS.doi, "10.1000/example", 0);
+    await client.setProperty(pageId, SYSTEM_PROPERTY_UUIDS.url, "https://example.com", 0);
+    await flushWrites();
+    const rows = client.getEffectiveProperties(pageId);
+    expect(rows.find((r) => r.propertySchemaId === SYSTEM_PROPERTY_UUIDS.doi)).toMatchObject({
+      source: "authored",
+      boundBy: sourceId,
+    });
+    // …while the url winner is the class's OWN binding, not source's.
+    expect(rows.find((r) => r.propertySchemaId === SYSTEM_PROPERTY_UUIDS.url)).toMatchObject({
+      source: "authored",
+      boundBy: weblinkId,
+    });
+  });
+});

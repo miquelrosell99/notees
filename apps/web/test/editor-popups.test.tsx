@@ -1,8 +1,10 @@
 /**
  * Editor chrome popup tests: the ported FloatingToolbar's slash TriggerPopup
  * (quote / task / hard-break / text / Add URL), the find & replace widget
- * over the block tree, and the LinkEditModal for external_link tokens (both
- * the slash insert flow and read-mode chip clicks). Same harness as
+ * over the block tree, and the LinkEditModal for NODE links (owner ruling:
+ * the modal is node-only — opened via a mention's "Edit link…", mode set
+ * Page/Block/Verb; external links navigate and never open it, and the slash
+ * "Add URL" flow authors the external_link token directly). Same harness as
  * capture.test.tsx: PageView over the in-process WorkspaceClient +
  * MemoryRelay (jsdom).
  */
@@ -191,7 +193,7 @@ describe("slash trigger popup", () => {
     expect(editor.textContent).toBe("\nab");
   });
 
-  it("Add URL strips the trigger and opens the LinkEditModal; Save inserts the external_link token", async () => {
+  it("Add URL strips the trigger and authors the external_link token directly (no modal)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
     const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
@@ -199,29 +201,36 @@ describe("slash trigger popup", () => {
 
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "/");
-    typeWithCaret(editor, "/ur");
+    typeWithCaret(editor, "/url https://example.com");
     fireEvent.keyDown(editor, { key: "Enter" });
 
-    // Trigger stripped; the page-level modal opened (the editor stays mounted).
-    expect(editor.textContent).toBe("");
-    const dialog = screen.getByRole("dialog", { name: "Edit Link" });
-    const urlInput = within(dialog).getByRole("textbox", { name: "URL" });
-    fireEvent.change(urlInput, { target: { value: "https://example.com" } });
-    fireEvent.change(within(dialog).getByLabelText("Display Label"), {
-      target: { value: "Example" },
-    });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-
+    // The node-link modal never opens — the token is authored at the caret.
     expect(screen.queryByRole("dialog", { name: "Edit Link" })).toBeNull();
     expect(client.getNode(blockId)?.contentAst).toEqual([
-      { type: "external_link", href: "https://example.com", text: "Example" },
+      { type: "external_link", href: "https://example.com", text: "https://example.com" },
     ]);
-    // Read mode renders the chip as an external link.
+    // Read mode renders it as a plain hyperlink (no chip chrome).
     fireEvent.blur(editor);
-    const anchor = container.querySelector("a.nt-external-link");
+    const anchor = container.querySelector("a.nt-hyperlink");
     expect(anchor).not.toBeNull();
     expect(anchor!.getAttribute("href")).toBe("https://example.com");
-    expect(anchor!.textContent).toBe("Example");
+    expect(anchor!.classList.contains("nt-chip")).toBe(false);
+  });
+
+  it("Add URL with a non-URL query falls back to plain prose (no token, no modal)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "/");
+    typeWithCaret(editor, "/url not a url");
+    fireEvent.keyDown(editor, { key: "Enter" });
+
+    expect(screen.queryByRole("dialog", { name: "Edit Link" })).toBeNull();
+    // The sigil is stripped, the typed query falls back to plain prose.
+    expect(client.getNode(blockId)?.contentAst).toEqual([{ type: "text", text: "url not a url" }]);
   });
 });
 
@@ -299,11 +308,26 @@ describe("find & replace widget", () => {
   });
 });
 
-describe("link edit modal (external_link tokens)", () => {
-  it("clicking an external-link chip in read mode opens the modal; Save rewrites the token", async () => {
+/**
+ * Open the node-link modal through the honest UI seam: edit mode on a block
+ * holding a mention, right-click the pill, "Edit link…".
+ */
+function openModalViaMention(container: HTMLElement): HTMLElement {
+  const editor = clickIntoBlock(container);
+  const pill = editor.querySelector<HTMLElement>("[data-atom-key]");
+  if (pill === null) throw new Error("no mention pill in the editor");
+  fireEvent.contextMenu(pill, { clientX: 12, clientY: 12 });
+  const menu = document.body.querySelector<HTMLElement>(".context-menu");
+  if (menu === null) throw new Error("node-link menu did not open");
+  fireEvent.click(within(menu).getByText("Edit link…"));
+  return screen.getByRole("dialog", { name: "Edit Link" });
+}
+
+describe("link edit modal (node links only)", () => {
+  it("clicking an external-link hyperlink in read mode does NOT open the modal", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Links" });
-    const blockId = await client.createObject({
+    await client.createObject({
       parentId: pageId,
       contentAst: [
         { type: "text", text: "see " },
@@ -312,51 +336,132 @@ describe("link edit modal (external_link tokens)", () => {
     });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
-    const anchor = container.querySelector("a.nt-external-link")!;
+    const anchor = container.querySelector("a.nt-hyperlink")!;
     expect(anchor.getAttribute("href")).toBe("https://a.example");
+    // Owner ruling: a plain hyperlink click navigates — the LinkEditModal is
+    // node-only and never opens for external links.
     fireEvent.click(anchor);
-
-    const dialog = screen.getByRole("dialog", { name: "Edit Link" });
-    const urlInput = within(dialog).getByRole("textbox", { name: "URL" }) as HTMLInputElement;
-    expect(urlInput.value).toBe("https://a.example");
-    const labelInput = within(dialog).getByLabelText("Display Label") as HTMLInputElement;
-    expect(labelInput.value).toBe("Alpha");
-
-    fireEvent.change(urlInput, { target: { value: "https://b.example" } });
-    fireEvent.change(labelInput, { target: { value: "Beta" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-
     expect(screen.queryByRole("dialog", { name: "Edit Link" })).toBeNull();
-    const ast = client.getNode(blockId)?.contentAst as ContentAst;
-    expect(ast).toEqual([
-      { type: "text", text: "see " },
-      { type: "external_link", href: "https://b.example", text: "Beta" },
-    ]);
+    expect(screen.queryByRole("dialog", { name: "Edit Link Verb" })).toBeNull();
   });
 
-  it("Cancel closes without touching the token; the mode toggle switches to a live node picker", async () => {
+  it("Cancel closes without touching the mention; the mode toggle offers Page/Block only", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Links" });
+    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
     const blockId = await client.createObject({
       parentId: pageId,
-      contentAst: [{ type: "external_link", href: "https://a.example", text: "Alpha" }],
+      contentAst: [{ type: "mention", targetNodeId: targetId, text: "Target" }],
     });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
-    fireEvent.click(container.querySelector("a.nt-external-link")!);
-    const dialog = screen.getByRole("dialog", { name: "Edit Link" });
+    // Edit link… opens the node-link modal with the destination prefilled.
+    const dialog = openModalViaMention(container);
+    expect(within(dialog).getByRole("button", { name: "Page target" }).textContent).toContain("Target");
 
-    // The Page/Block modes render the archived toggle; the target section
-    // hosts the real node picker (an external link has no node destination).
-    fireEvent.click(within(dialog).getByRole("radio", { name: "Page" }));
-    expect(within(dialog).getByText("No target selected")).toBeInTheDocument();
-    expect(within(dialog).getByPlaceholderText("Search pages…")).toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole("radio", { name: "URL" }));
+    // The mode toggle offers Page / Block — URL is gone (the modal is
+    // node-only; external links navigate and are authored directly).
+    expect(within(dialog).getByRole("radio", { name: "Page" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("radio", { name: "Block" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("radio", { name: "URL" })).toBeNull();
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog", { name: "Edit Link" })).toBeNull();
     expect(client.getNode(blockId)?.contentAst).toEqual([
-      { type: "external_link", href: "https://a.example", text: "Alpha" },
+      { type: "mention", targetNodeId: targetId, text: "Target" },
     ]);
+  });
+
+  it("renders the mode tab row and the field regions as distinct, ordered elements (no collapsed overlap)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Links" });
+    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "mention", targetNodeId: targetId, text: "Target" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const dialog = openModalViaMention(container);
+
+    // The mode selector is a radiogroup row of two tabs (Page/Block — the
+    // modal is node-only, no URL tab); the target field is a separate
+    // labelled region below it. The regression this guards: the tab row
+    // collapsing into the field label/control — so the tab, the section
+    // label, and the control must be DISTINCT elements, the label must not
+    // live inside the tab row, and the tab row must precede the field
+    // region in document order.
+    const group = within(dialog).getByRole("radiogroup");
+    const pageTab = within(group).getByRole("radio", { name: "Page" });
+    const blockTab = within(group).getByRole("radio", { name: "Block" });
+    expect(new Set([pageTab, blockTab]).size).toBe(2);
+    expect(within(group).queryByRole("radio", { name: "URL" })).toBeNull();
+
+    const pageLabel = within(dialog).getByText("Page", { selector: ".link-edit-modal__label" });
+    const targetTrigger = within(dialog).getByRole("button", { name: "Page target" });
+    // Distinct elements, none nested in the tab row.
+    expect(pageLabel).not.toBe(pageTab);
+    expect(targetTrigger).not.toBe(pageTab);
+    expect(group.contains(pageLabel)).toBe(false);
+    expect(group.contains(targetTrigger)).toBe(false);
+    // The tab row sits in its own section, above the target field section.
+    const tabSection = group.closest(".link-edit-modal__section")!;
+    const fieldSection = pageLabel.closest(".link-edit-modal__section")!;
+    expect(tabSection).not.toBe(fieldSection);
+    expect(
+      tabSection.compareDocumentPosition(fieldSection) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    // Clicking the trigger opens the anchored dropdown (portaled to the
+    // body, outside the modal subtree).
+    fireEvent.click(targetTrigger);
+    expect(screen.getByPlaceholderText("Search pages…")).toBeInTheDocument();
+
+    // Dismissal rides the kit Modal: Escape (overlay stack) and backdrop
+    // click both close; Cancel reopens nothing.
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Edit Link" })).toBeNull();
+
+    openModalViaMention(container);
+    fireEvent.click(document.querySelector(".modal-backdrop")!);
+    expect(screen.queryByRole("dialog", { name: "Edit Link" })).toBeNull();
+  });
+
+  it("Page mode: ONE target control — clicking opens the anchored picker; picking replaces the selection", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Links" });
+    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "mention", targetNodeId: targetId, text: "Target" }],
+    });
+    const otherId = await client.createObject({ presentAsMain: true, name: "Target Page" });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const dialog = openModalViaMention(container);
+
+    // ONE target control: a single SelectTrigger reading the current
+    // selection — no separate always-expanded search field below it.
+    const trigger = within(dialog).getByRole("button", { name: "Page target" });
+    expect(trigger.textContent).toContain("Target");
+    expect(within(dialog).queryByPlaceholderText("Search pages…")).toBeNull();
+
+    // Clicking it opens the anchored picker dropdown (portaled to the body).
+    fireEvent.click(trigger);
+    const picker = screen.getByRole("dialog", { name: "Select node" });
+    const search = within(picker).getByPlaceholderText("Search pages…") as HTMLInputElement;
+    expect(search).not.toBeNull();
+
+    // Search + pick: the dropdown closes and the control updates in place.
+    fireEvent.change(search, { target: { value: "Target Page" } });
+    fireEvent.click(within(picker).getByText("Target Page").closest("button")!);
+    expect(screen.queryByRole("dialog", { name: "Select node" })).toBeNull();
+    expect(trigger.textContent).toContain("Target Page");
+
+    // Save retargets the mention to the picked page.
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    expect(screen.queryByRole("dialog", { name: "Edit Link" })).toBeNull();
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[0]).toMatchObject({ type: "mention", targetNodeId: otherId });
   });
 });

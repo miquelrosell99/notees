@@ -28,8 +28,9 @@
  *  - The base system stays always-on (F1): journals (year/month/day),
  *    assets, whiteboard, the structural + admonition classes, and the
  *    classes of the DROPPED pre-reshape features (readItLater/library/
- *    collections/people → highlight, weblink, collection, agent,
- *    organization, …) — never feature-managed.
+ *    collections/people → highlight, collection, agent, organization, …)
+ *    — never feature-managed. (`weblink` USED to live here — it now
+ *    extends `source` and rides the sources toggle with the family.)
  */
 
 import type { WorkspaceFeature } from "@notees/protocol";
@@ -82,9 +83,10 @@ export const WORKSPACE_FEATURE_MAP: Record<WorkspaceFeature, WorkspaceFeatureSpe
  * Always-on system classes (F1) — never feature-managed: the base system
  * (journals year/month/day, asset, query, code, card, template, comment,
  * table, cloze, whiteboard, the admonition set) plus the classes of the
- * DROPPED pre-reshape features (highlight, weblink, collection, agent,
- * organization). The five family bases (task/event/meeting/source/person)
- * and their extends-children are NOT here — they are the toggle set.
+ * DROPPED pre-reshape features (highlight, collection, agent, organization).
+ * The five family bases (task/event/meeting/source/person), their
+ * extends-children, and weblink (now a source-family child) are NOT here —
+ * they are the toggle set.
  */
 export const ALWAYS_ON_SYSTEM_CLASSES: readonly SystemClassName[] = [
   "class",
@@ -111,7 +113,6 @@ export const ALWAYS_ON_SYSTEM_CLASSES: readonly SystemClassName[] = [
   "organization",
   "collection",
   "highlight",
-  "weblink",
 ];
 
 const BASE_FEATURE_BY_CLASS = new Map<SystemClassName, WorkspaceFeature>(

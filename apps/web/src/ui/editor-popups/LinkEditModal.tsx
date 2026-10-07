@@ -1,31 +1,35 @@
 /**
- * LinkEditModal — modal for editing inline link pills.
+ * LinkEditModal — modal for editing inline NODE links.
  *
- * Ported from the archived editor chrome, which edited three link kinds
- * (node / block / URL) through a shared NodeSelector. Both node-ish kinds
- * are wired here: the target section hosts the NodeSelector picker (Page =
- * pages, Block = blocks) and the Display Label field sets an optional
- * per-link `displayText` override (empty = resolve the target's name). URL
- * mode authors external_link tokens. Verb mode edits a
- * typed_link mark: the verb field live-matches the workspace's property
- * schemas (an exact name hit saves bound to the existing schema; an unknown
- * name offers "Create property '…' and bind") plus the optional locator.
- * When the mention's target id resolves to no node, the target section
- * offers the "create page with this id" heal (the caller-id create
- * path — the mention heals in place, no retarget write). Enter inside the
- * modal saves (capture phase, so it beats button activation) — except
- * inside the embedded node picker, which owns Enter/Escape for its rows;
- * Esc/backdrop close.
+ * Owner ruling: the modal is for node links ONLY. It edits two node-ish
+ * kinds (node / block) plus the verb kind: the target section hosts ONE kit
+ * SelectTrigger whose anchored NodeSelector dropdown (portaled below the
+ * trigger) picks the target — click opens the dropdown, a pick replaces the
+ * selection in place (Page = pages, Block = blocks) — and the Display Label
+ * field sets an optional per-link `displayText` override (empty = resolve
+ * the target's name). Verb mode edits a typed_link mark: the verb field
+ * live-matches the workspace's property schemas (an exact name hit saves
+ * bound to the existing schema; an unknown name offers "Create property
+ * '…' and bind") plus the optional locator. External links are NOT edited
+ * here: they navigate in read mode, are authored directly by the slash
+ * "Add URL" command (which composes the external_link token at the caret),
+ * and carry labels through markdown [label](url) / raw-URL pasting. When
+ * the mention's target id resolves to no node, the target section offers
+ * the "create page with this id" heal (the caller-id create path — the
+ * mention heals in place, no retarget write). Enter inside the modal saves
+ * (capture phase, so it beats button activation); the anchored picker owns
+ * Enter/Escape for its rows. Esc/backdrop close ride the kit Modal's
+ * overlay stack.
  *
- * The modal shell keeps the archived DOM (`.modal-backdrop` > card >
- * `.modal` > `.modal__header` / `.modal__content` / `.modal__footer`); the
- * shell chrome this app shell does not ship is supplied scoped in
- * LinkEditModal.css.
+ * The shell composes the kit primitives (Modal for the backdrop/card/
+ * header/footer + Esc handling, SelectionButton for the mode toggle,
+ * Button for every action) — all chrome comes from components/ui/, and
+ * LinkEditModal.css carries only the namespaced `link-edit-modal__*`
+ * field styles.
  *
  * LinkEditModalHost (below) renders the modal at the page level and exposes
- * an opener through context: the slash-command flow (BlockTextEditor),
- * read-mode clicks on external-link chips (PageView), and the block
- * editor's node-link context menu all land here.
+ * an opener through context: the block editor's node-link context menu and
+ * typed-link verb flow land here.
  */
 
 import {
@@ -33,35 +37,29 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
-  type RefObject,
 } from "react";
-import { createPortal } from "react-dom";
 import { uuidv7 } from "uuidv7";
 
 import { rendersAsInlineBlock } from "@notees/domain";
 
-import { spliceTokens } from "@/editor/edit-apply.js";
 import { withCandidateSpans } from "@/editor/capture.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
-import { Icon } from "../Icon.js";
 import { displayNameFromClient } from "../dateDisplay.js";
 import { NodeSelector } from "../components/pickers/NodeSelector.js";
+import { Button, Modal, SelectTrigger, SelectionButton } from "../components/ui/index.js";
 import { notificationStore } from "../components/ui/notificationStore.js";
 import "./LinkEditModal.css";
 
-export type LinkMode = "node" | "block" | "url" | "verb";
+export type LinkMode = "node" | "block" | "verb";
 
 export interface LinkEditResult {
-  /** Link mode — node, block, URL, or verb. */
+  /** Link mode — node, block, or verb. */
   mode: LinkMode;
-  /** URL string (url mode only). */
-  url?: string;
   /**
    * Node/block modes: the newly picked target id — null when the user did
    * not pick (a label-only edit of the current link).
@@ -79,9 +77,8 @@ export interface LinkEditResult {
 }
 
 const LINK_MODE_OPTIONS = [
-  { value: "node" as const, icon: "mdi-link-variant", label: "Page" },
-  { value: "block" as const, icon: "mdi-text-box", label: "Block" },
-  { value: "url" as const, icon: "mdi-web", label: "URL" },
+  { value: "node", icon: "mdi-link-variant", label: "Page" },
+  { value: "block", icon: "mdi-text-box", label: "Block" },
 ];
 
 /** Minimal schema shape the verb row matches against (PG1). */
@@ -93,10 +90,8 @@ interface VerbSchemaOption {
 interface LinkEditModalProps {
   /** Whether the modal is open. */
   isOpen: boolean;
-  /** Workspace client driving the embedded node picker. */
+  /** Workspace client driving the anchored target picker. */
   client: WorkspaceClient | WorkerClient;
-  /** Current URL (for URL pills). */
-  currentUrl?: string | undefined;
   /** Current link target (node/block modes) — pre-fills the destination line. */
   currentNodeId?: string | null | undefined;
   /** Node id the picker must not offer (the block being edited). */
@@ -109,7 +104,7 @@ interface LinkEditModalProps {
   currentLocator?: string | undefined;
   /** Modal title — defaults to "Edit Link". */
   title?: string;
-  /** Override the initial link mode (default: url). */
+  /** Override the initial link mode (default: node). */
   initialMode?: LinkMode;
   /** Called when saving changes. */
   onSave: (result: LinkEditResult) => void;
@@ -117,76 +112,20 @@ interface LinkEditModalProps {
   onClose: () => void;
 }
 
-/** Mode toggle — the archived SelectionButton's DOM (indicator + option buttons). */
-function ModeSelectionButton({
-  value,
-  onChange,
-}: {
-  value: LinkMode;
-  onChange: (mode: LinkMode) => void;
-}) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [indicatorStyle, setIndicatorStyle] = useState<{ width?: number; transform?: string }>({});
-
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const options = container.querySelectorAll<HTMLElement>(".selection-button__option");
-    const selectedIndex = LINK_MODE_OPTIONS.findIndex((opt) => opt.value === value);
-    const selectedElement = options[selectedIndex];
-    if (selectedElement) {
-      setIndicatorStyle({
-        width: selectedElement.offsetWidth,
-        transform: `translateX(${selectedElement.offsetLeft - 4}px)`,
-      });
-    }
-  }, [value]);
-
-  return (
-    <div
-      ref={containerRef}
-      className="selection-button selection-button--horizontal selection-button--sm"
-      role="radiogroup"
-      aria-label="Link mode"
-    >
-      <div className="selection-button__indicator" style={indicatorStyle} />
-      {LINK_MODE_OPTIONS.map((opt) => (
-        <button
-          key={opt.value}
-          type="button"
-          role="radio"
-          aria-checked={value === opt.value}
-          className={`selection-button__option ${
-            value === opt.value ? "selection-button__option--selected" : ""
-          }`}
-          title={opt.label}
-          aria-label={opt.label}
-          onClick={() => onChange(opt.value)}
-        >
-          <Icon path={opt.icon} size={0.7} />
-          <span>{opt.label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export function LinkEditModal({
   isOpen,
   client,
-  currentUrl,
   currentNodeId,
   excludeNodeId,
   currentLabel,
   currentVerb,
   currentLocator,
   title = "Edit Link",
-  initialMode = "url",
+  initialMode = "node",
   onSave,
   onClose,
 }: LinkEditModalProps) {
   const [linkMode, setLinkMode] = useState<LinkMode>(initialMode);
-  const [url, setUrl] = useState(currentUrl ?? "");
   const [label, setLabel] = useState(currentLabel ?? "");
   /** Verb mode (PG1): the mark's verb + optional locator. */
   const [verb, setVerb] = useState("");
@@ -195,7 +134,9 @@ export function LinkEditModal({
   const [verbError, setVerbError] = useState<string | null>(null);
   /** Newly picked destination (node/block modes); null = keep the current target. */
   const [pickedNode, setPickedNode] = useState<ClientNode | null>(null);
-  const urlInputRef = useRef<HTMLInputElement>(null);
+  /** The anchored target picker dropdown (node/block modes). */
+  const [targetPickerOpen, setTargetPickerOpen] = useState(false);
+  const targetTriggerRef = useRef<HTMLDivElement>(null);
   const verbInputRef = useRef<HTMLInputElement>(null);
 
   /**
@@ -204,7 +145,6 @@ export function LinkEditModal({
    * mention heals in place instead of being retargeted.
    */
   const brokenTargetId =
-    linkMode !== "url" &&
     currentNodeId != null &&
     currentNodeId !== "" &&
     client.getNode(currentNodeId) === undefined
@@ -226,20 +166,17 @@ export function LinkEditModal({
   useEffect(() => {
     if (isOpen) {
       setLinkMode(initialMode);
-      setUrl(currentUrl ?? "");
       setLabel(currentLabel ?? "");
       setPickedNode(null);
+      setTargetPickerOpen(false);
       setVerb(currentVerb ?? "");
       setVerbLocator(currentLocator ?? "");
       setVerbPending(false);
       setVerbError(null);
     }
-  }, [isOpen, currentLabel, currentUrl, initialMode, currentVerb, currentLocator]);
+  }, [isOpen, currentLabel, initialMode, currentVerb, currentLocator]);
 
   useEffect(() => {
-    if (isOpen && linkMode === "url") {
-      urlInputRef.current?.focus();
-    }
     if (isOpen && linkMode === "verb") {
       verbInputRef.current?.focus();
     }
@@ -296,31 +233,10 @@ export function LinkEditModal({
       return;
     }
     const trimmedLabel = label.trim();
-    if (linkMode === "url") {
-      onSave({
-        mode: "url",
-        url: url.trim(),
-        label: trimmedLabel || null,
-      });
-    } else {
-      onSave({ mode: linkMode, nodeId: pickedNode?.id ?? null, label: trimmedLabel || null });
-    }
-  }, [linkMode, url, label, pickedNode, verbTrimmed, verbLocator, verbMatch, onSave, onClose]);
+    onSave({ mode: linkMode, nodeId: pickedNode?.id ?? null, label: trimmedLabel || null });
+  }, [linkMode, label, pickedNode, verbTrimmed, verbLocator, verbMatch, onSave, onClose]);
 
-  // Escape closes from anywhere while the modal is open (the archived modal
-  // delegated this to the global overlay stack).
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      e.stopPropagation();
-      onClose();
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [isOpen, onClose]);
-
+  // Escape + backdrop dismissal ride the kit Modal (the overlay stack).
   // Enter anywhere inside the modal = save (capture phase to beat button
   // activation).
   useEffect(() => {
@@ -332,9 +248,11 @@ export function LinkEditModal({
 
       const target = e.target as HTMLElement;
       if (!target.closest(".link-edit-modal")) return;
-      // The embedded node picker owns Enter (pick row) and Escape (close);
-      // the broken-link heal row and the verb create-and-bind row's buttons
-      // activate normally (click), they must not fall into the save path.
+      // The anchored node picker owns Enter (pick row) and Escape (close) —
+      // it portals to the body, outside the modal subtree, but the guard
+      // stays for either mounting; the broken-link heal row and the verb
+      // create-and-bind row's buttons activate normally (click), they must
+      // not fall into the save path.
       if (target.closest(".node-selector") || target.closest(".link-edit-modal__broken") || target.closest(".link-edit-modal__verb-bind")) return;
 
       e.preventDefault();
@@ -350,53 +268,38 @@ export function LinkEditModal({
 
   const footer = (
     <div className="link-edit-modal__footer">
-      <button type="button" className="btn btn--ghost" onClick={onClose}>
+      <Button variant="ghost" onClick={onClose}>
         Cancel
-      </button>
-      <button type="button" className="btn btn--primary" onClick={handleSave}>
+      </Button>
+      <Button variant="primary" onClick={handleSave}>
         Save
-      </button>
+      </Button>
     </div>
   );
 
-  const modal = (
-    // Backdrop click closes; the panel itself stops propagation.
-    <div
-      className="modal-backdrop"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={title}
+      size="sm"
+      className="link-edit-modal"
+      footer={footer}
     >
-      <div
-        className="card card--elevation-high card--radius-xl modal modal--sm link-edit-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="modal-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="modal__header">
-          <h2 id="modal-title" className="modal__title">
-            {title}
-          </h2>
-          <button
-            type="button"
-            aria-label="Close modal"
-            className="btn btn--ghost btn--sm btn--icon-only modal__close"
-            onClick={onClose}
-          >
-            <Icon path="mdi-close" size={0.7} className="btn__icon btn__icon--left" />
-          </button>
-        </div>
-
-        <div className="modal__content">
-          <div className="link-edit-modal__body" data-editor-companion>
-            {/* Mode toggle — verb targets arrive from the typed-link mark
-                editor and stay in verb mode (no mode switch). */}
-            {linkMode !== "verb" && (
-              <div className="link-edit-modal__section link-edit-modal__mode-section">
-                <ModeSelectionButton value={linkMode} onChange={setLinkMode} />
-              </div>
-            )}
+      <div className="link-edit-modal__body" data-editor-companion>
+        {/* Mode toggle — verb targets arrive from the typed-link mark
+            editor and stay in verb mode (no mode switch). */}
+        {linkMode !== "verb" && (
+          <div className="link-edit-modal__section link-edit-modal__mode-section">
+            <SelectionButton
+              options={LINK_MODE_OPTIONS}
+              value={linkMode}
+              onChange={(mode) => setLinkMode(mode as LinkMode)}
+              orientation="horizontal"
+              size="sm"
+            />
+          </div>
+        )}
 
             {/* Verb section (PG1): edit a typed-link mark's verb with the
                 same schema binding + create-and-bind row as the capture
@@ -440,16 +343,16 @@ export function LinkEditModal({
                         Saves bound to the "{verbMatch.name}" property.
                       </span>
                     ) : (
-                      <button
-                        type="button"
-                        className="btn btn--primary btn--sm"
+                      <Button
+                        variant="primary"
+                        size="sm"
                         disabled={verbPending}
                         onClick={runCreateAndBind}
                       >
                         {verbPending
                           ? `Creating property "${verbTrimmed}"…`
                           : `Create property "${verbTrimmed}" and bind`}
-                      </button>
+                      </Button>
                     )}
                   </div>
                 )}
@@ -467,55 +370,63 @@ export function LinkEditModal({
             {/* Link target section */}
             <div className="link-edit-modal__section">
               <label className="link-edit-modal__label">
-                {linkMode === "node" ? "Page" : linkMode === "block" ? "Block" : "URL"}
+                {linkMode === "node" ? "Page" : "Block"}
               </label>
-              {linkMode === "url" ? (
-                <input
-                  ref={urlInputRef}
-                  type="text"
-                  className="link-edit-modal__input"
-                  placeholder="https://..."
-                  aria-label="URL"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  autoComplete="off"
-                />
-              ) : (
                 <>
-                  <div className="link-edit-modal__target" aria-live="polite">
-                    {pickedNode !== null
-                      ? displayNameFromClient(client, pickedNode.id) ?? pickedNode.id
-                      : currentNodeId !== null && currentNodeId !== undefined
-                        ? (displayNameFromClient(client, currentNodeId) ?? currentNodeId)
-                        : "No target selected"}
+                  {/* ONE target control: the kit SelectTrigger shows the
+                      current selection; clicking it anchors the picker
+                      dropdown (portaled), and a pick replaces the selection
+                      in place. */}
+                  <div className="link-edit-modal__target" ref={targetTriggerRef}>
+                    <SelectTrigger
+                      isOpen={targetPickerOpen}
+                      onClick={() => setTargetPickerOpen((open) => !open)}
+                      ariaLabel={linkMode === "block" ? "Block target" : "Page target"}
+                    >
+                      <span
+                        className={
+                          pickedNode === null &&
+                          (currentNodeId === null || currentNodeId === undefined)
+                            ? "select-trigger__placeholder"
+                            : undefined
+                        }
+                      >
+                        {pickedNode !== null
+                          ? displayNameFromClient(client, pickedNode.id) ?? pickedNode.id
+                          : currentNodeId !== null && currentNodeId !== undefined
+                            ? (displayNameFromClient(client, currentNodeId) ?? currentNodeId)
+                            : "No target selected"}
+                      </span>
+                    </SelectTrigger>
                   </div>
                   {brokenTargetId !== null && (
                     <div className="link-edit-modal__broken">
                       <span className="link-edit-modal__broken-text">
                         This page doesn't exist yet.
                       </span>
-                      <button
-                        type="button"
-                        className="btn btn--primary btn--sm"
-                        onClick={createBrokenTarget}
-                      >
+                      <Button variant="primary" size="sm" onClick={createBrokenTarget}>
                         Create page with this id
-                      </button>
+                      </Button>
                     </div>
                   )}
-                  <NodeSelector
-                    client={client}
-                    trigger="inline"
-                    searchMode={linkMode === "block" ? "all" : "pages"}
-                    canAdd={(node) => linkMode !== "block" || rendersAsInlineBlock(node)}
-                    excludeNodeId={excludeNodeId}
-                    searchPlaceholder={
-                      linkMode === "block" ? "Search blocks…" : "Search pages…"
-                    }
-                    onAdd={(node) => setPickedNode(node)}
-                  />
+                  {targetPickerOpen && targetTriggerRef.current !== null && (
+                    <NodeSelector
+                      client={client}
+                      anchorEl={targetTriggerRef.current}
+                      searchMode={linkMode === "block" ? "all" : "pages"}
+                      canAdd={(node) => linkMode !== "block" || rendersAsInlineBlock(node)}
+                      excludeNodeId={excludeNodeId}
+                      searchPlaceholder={
+                        linkMode === "block" ? "Search blocks…" : "Search pages…"
+                      }
+                      onClose={() => setTargetPickerOpen(false)}
+                      onAdd={(node) => {
+                        setPickedNode(node);
+                        setTargetPickerOpen(false);
+                      }}
+                    />
+                  )}
                 </>
-              )}
             </div>
 
             {/* Custom label section */}
@@ -532,20 +443,14 @@ export function LinkEditModal({
                 autoComplete="off"
               />
               <span className="link-edit-modal__hint">
-                {linkMode === "url" ? "Leave empty to use the URL" : "Leave empty to use the node name"}
+                Leave empty to use the node name
               </span>
             </div>
             </>
             )}
-          </div>
-        </div>
-
-        <div className="modal__footer">{footer}</div>
       </div>
-    </div>
+    </Modal>
   );
-
-  return createPortal(modal, document.body);
 }
 
 export default LinkEditModal;
@@ -553,27 +458,16 @@ export default LinkEditModal;
 // ─── Host + opener context ──────────────────────────────────────────
 
 /**
- * A request to edit (or insert) a link token on a block.
+ * A request to edit a link token on a block — node links only (owner
+ * ruling): external links are never edited here.
  *
- * - `external` — an external_link token (URL mode).
- * - `node`     — a mention token: retarget it and/or set an optional custom
- *   label (`displayText`). `tokenIndex` identifies the token; `insertAt` is
- *   reserved for future insert flows.
- * - `verb`     — a typed_link mark (PG1): edit the verb (free string or
+ * - `node` — a mention token: retarget it and/or set an optional custom
+ *   label (`displayText`). `tokenIndex` identifies the token.
+ * - `verb` — a typed_link mark (PG1): edit the verb (free string or
  *   schema-bound via the create-and-bind row) and the optional locator. The
  *   marked word (`text`) is untouched.
  */
 export type LinkEditTarget =
-  | {
-      kind: "external";
-      blockId: string;
-      /** Index of the external_link token inside contentAst (edit flow). */
-      tokenIndex: number | null;
-      /** Prose offset for inserting a new token (slash flow). */
-      insertAt: number | null;
-      initialUrl: string;
-      initialLabel: string;
-    }
   | {
       kind: "node";
       blockId: string;
@@ -603,26 +497,6 @@ const LinkEditModalContext = createContext<LinkEditModalOpener>(() => {});
 /** Opens the page-level LinkEditModal (no-op without a host). */
 export function useLinkEditModalOpener(): LinkEditModalOpener {
   return useContext(LinkEditModalContext);
-}
-
-/** Write (or insert) the external_link token a modal save produced. */
-function writeExternalLink(
-  client: WorkspaceClient | WorkerClient,
-  target: LinkEditTarget & { kind: "external" },
-  url: string,
-  label: string | null,
-): void {
-  const node = client.getNode(target.blockId);
-  if (node === undefined) return;
-  const text = label !== null && label !== "" ? label : url;
-  const token = { type: "external_link" as const, href: url, text };
-  const next =
-    target.tokenIndex !== null
-      ? node.contentAst.map((t, i) => (i === target.tokenIndex ? token : t))
-      : target.insertAt !== null
-        ? spliceTokens(node.contentAst, target.insertAt, target.insertAt, [token])
-        : null;
-  if (next !== null) void client.updateObject(target.blockId, { contentAst: next });
 }
 
 /**
@@ -719,33 +593,19 @@ function writeVerbLink(
 export function LinkEditModalHost({
   client,
   children,
-  openerRef,
 }: {
   client: WorkspaceClient | WorkerClient;
   children: ReactNode;
-  /**
-   * Publishes the opener to an ancestor that cannot consume the context it
-   * renders (PageView owns the click delegation but renders this host).
-   */
-  openerRef?: RefObject<LinkEditModalOpener | null>;
 }) {
   const [target, setTarget] = useState<LinkEditTarget | null>(null);
 
   const open = useCallback<LinkEditModalOpener>((t) => setTarget(t), []);
-  useEffect(() => {
-    if (openerRef) openerRef.current = open;
-  }, [openerRef, open]);
   const close = useCallback(() => setTarget(null), []);
 
   const handleSave = useCallback(
     (result: LinkEditResult) => {
       if (target === null) return;
-      if (target.kind === "external") {
-        // An empty URL is an honest no-op (no token written).
-        if (result.url !== undefined && result.url.trim() !== "") {
-          writeExternalLink(client, target, result.url.trim(), result.label);
-        }
-      } else if (target.kind === "verb") {
+      if (target.kind === "verb") {
         if (result.verb !== undefined) {
           writeVerbLink(client, target, result.verb, result.locator ?? "");
         }
@@ -764,24 +624,21 @@ export function LinkEditModalHost({
         <LinkEditModal
           isOpen
           client={client}
-          currentUrl={target.kind === "external" ? target.initialUrl : undefined}
           currentNodeId={target.kind === "node" ? target.initialNodeId : null}
           currentVerb={target.kind === "verb" ? target.initialVerb : undefined}
           currentLocator={target.kind === "verb" ? target.initialLocator : undefined}
           excludeNodeId={target.blockId}
-          currentLabel={target.kind === "external" || target.kind === "node" ? target.initialLabel : null}
+          currentLabel={target.kind === "node" ? target.initialLabel : null}
           title={target.kind === "verb" ? "Edit Link Verb" : "Edit Link"}
           initialMode={
-            target.kind === "external"
-              ? "url"
-              : target.kind === "verb"
-                ? "verb"
-                : (() => {
-                    const targetNode = client.getNode(target.initialNodeId);
-                    return targetNode !== undefined && rendersAsInlineBlock(targetNode)
-                      ? "block"
-                      : "node";
-                  })()
+            target.kind === "verb"
+              ? "verb"
+              : (() => {
+                  const targetNode = client.getNode(target.initialNodeId);
+                  return targetNode !== undefined && rendersAsInlineBlock(targetNode)
+                    ? "block"
+                    : "node";
+                })()
           }
           onSave={handleSave}
           onClose={close}

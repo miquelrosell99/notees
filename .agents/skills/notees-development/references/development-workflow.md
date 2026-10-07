@@ -22,6 +22,16 @@ CI-equivalent gate (run before claiming done on anything non-trivial):
 changing a package's public API: build that package's dist first, then
 typecheck dependents.
 
+**Worktrees live in `.worktrees/`** (gitignored): `git worktree add
+.worktrees/<slug> -b <branch>`. Never a random sibling folder — the fleet
+host accumulates checkouts otherwise, and a forgotten sibling is invisible
+to `git worktree list` hygiene.
+
+**No transient-internal-doc pointers in the tree:** code, tests, docs, and
+CHANGELOG entries never reference `.plans/` proposal folders, design docs,
+or other internal transient documentation — the durable text stands alone.
+Internal cross-references live inside the internal docs themselves.
+
 ## The fixture gate (blocking)
 
 Op fixtures live in `packages/protocol/fixtures/` (envelope-minimal,

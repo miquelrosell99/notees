@@ -4,6 +4,8 @@ import {
   DEFAULT_PAGE_ICON,
   defaultIconFor,
   deriveDisplayName,
+  DISPLAY_NAME_MAX,
+  fullTitleOf,
   isClassNode,
   plainTextExcerpt,
   rendersAsInlineBlock,
@@ -263,6 +265,10 @@ describe("system seeds (ported)", () => {
     expect(systemClassAncestors("meeting").has("source")).toBe(false);
     expect(systemClassAncestors("meeting").has("task")).toBe(false);
     expect(systemClassAncestors("task").size).toBe(0);
+    // The web link IS a source: weblink inherits the ancestor (the sources
+    // toggle cascades to it); source does not see the child.
+    expect(systemClassAncestors("weblink").has("source")).toBe(true);
+    expect(systemClassAncestors("source").has("weblink")).toBe(false);
     // Persons stay always-on: the birthday family's person-typed filter does
     // NOT make person part of the event hierarchy (no person gating).
     expect(systemClassAncestors("person").has("event")).toBe(false);
@@ -281,6 +287,38 @@ describe("deriveDisplayName", () => {
     expect(
       deriveDisplayName({ ...page, contentAst: [{ type: "text", text: "x".repeat(200) }] }),
     ).toHaveLength(80);
+  });
+
+  it("fullTitleOf returns the complete title (no display budget); deriveDisplayName stays capped", () => {
+    // Owner ruling: node links and mention chips read the whole title —
+    // dense chrome keeps the capped display name.
+    const long = "y".repeat(200);
+    expect(fullTitleOf({ ...page, contentAst: [{ type: "text", text: long }] })).toBe(long);
+    expect(
+      deriveDisplayName({ ...page, contentAst: [{ type: "text", text: long }] }),
+    ).toBe(long.slice(0, DISPLAY_NAME_MAX));
+    // Exactly-at-budget content is identical through both reads.
+    const exact = "z".repeat(DISPLAY_NAME_MAX);
+    expect(fullTitleOf({ ...page, contentAst: [{ type: "text", text: exact }] })).toBe(exact);
+    expect(deriveDisplayName({ ...page, contentAst: [{ type: "text", text: exact }] })).toBe(exact);
+  });
+
+  it("fullTitleOf keeps the date-node formatting branch intact", () => {
+    const dayClass = "00000000-0000-0000-0001-000000000005";
+    expect(
+      fullTitleOf({
+        id: "d1",
+        classIds: [dayClass],
+        contentAst: [{ type: "text", text: "20290627" }],
+      }),
+    ).toBe("2029/06/27");
+    expect(
+      fullTitleOf({
+        id: "d2",
+        classIds: ["00000000-0000-0000-0001-000000000003"],
+        contentAst: [{ type: "text", text: "20290000" }],
+      }),
+    ).toBe("2029");
   });
 
   it("falls back to the content excerpt for unnamed blocks", () => {
@@ -452,7 +490,7 @@ describe("workspace feature map", () => {
     expect(managedClassIds("tasks")).toEqual([SYSTEM_CLASS_UUIDS.task]);
   });
 
-  it("the family set cascades through extends-children (events → meeting + birthday + trip; sources → the 9-strong family)", async () => {
+  it("the family set cascades through extends-children (events → meeting + birthday + trip; sources → the 10-strong family incl. weblink)", async () => {
     const { familyClassNames, managedClassIds } = await import("../src/index.js");
     expect(familyClassNames("events")).toEqual(["event", "birthday", "meeting", "trip"]);
     expect(familyClassNames("meetings")).toEqual(["meeting"]);
@@ -467,10 +505,11 @@ describe("workspace feature map", () => {
       "song",
       "thesis",
       "tv_series",
+      "weblink",
     ]);
     expect(familyClassNames("persons")).toEqual(["person"]);
     expect(managedClassIds("events")).toHaveLength(4);
-    expect(managedClassIds("sources")).toHaveLength(10);
+    expect(managedClassIds("sources")).toHaveLength(11);
   });
 
   it("chrome gating: own feature + managed ancestors (meeting ← meetings AND events; birthday ← events only)", async () => {
@@ -481,6 +520,8 @@ describe("workspace feature map", () => {
     expect(gatingFeaturesForClass("event")).toEqual(["events"]);
     expect(gatingFeaturesForClass("book")).toEqual(["sources"]);
     expect(gatingFeaturesForClass("conference")).toEqual(["sources"]);
+    // The web link rides the sources toggle through its source ancestor.
+    expect(gatingFeaturesForClass("weblink")).toEqual(["sources"]);
     expect(gatingFeaturesForClass("person")).toEqual(["persons"]);
     // Always-on / unmanaged classes gate on nothing.
     expect(gatingFeaturesForClass("day")).toEqual([]);
@@ -502,21 +543,22 @@ describe("workspace feature map", () => {
       expect(isAlwaysOnSystemClass(name)).toBe(true);
     }
     // Journals + assets stay always-on base system; the dropped features'
-    // classes (highlight/weblink/collection/agent/organization) are plain
-    // vocabulary now.
+    // classes (highlight/collection/agent/organization) are plain
+    // vocabulary now. weblink LEFT the list — it extends source and rides
+    // the sources toggle with the family.
     for (const name of [
       "year",
       "month",
       "day",
       "asset",
       "highlight",
-      "weblink",
       "collection",
       "agent",
       "organization",
     ] as const) {
       expect(ALWAYS_ON_SYSTEM_CLASSES).toContain(name);
     }
+    expect(ALWAYS_ON_SYSTEM_CLASSES).not.toContain("weblink");
     // whiteboard (class/token duality) stays always-on; the family bases don't.
     expect(ALWAYS_ON_SYSTEM_CLASSES).toContain("whiteboard");
     for (const name of ["task", "event", "meeting", "source", "person", "book", "birthday"] as const) {

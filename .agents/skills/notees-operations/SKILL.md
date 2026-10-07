@@ -7,8 +7,8 @@ description: Operate a Notees deployment — the notees-sync (:8377) + notees-we
 
 Production stack = two containers from `compose.yaml`:
 
-- `notees-sync` — image `ghcr.io/miquelrosell99/notees-sync:${NOTEES_SYNC_TAG:-latest}`, host port 8377, volume `./config/notees/sync:/data`
-- `notees-web` — image `ghcr.io/miquelrosell99/notees-web:${NOTEES_WEB_TAG:-latest}`, host port 8378 (nginx :80), `depends_on: service_healthy` on sync
+- `notees-sync` — image `ghcr.io/miquelrosell99/notees-sync`, host port 8377, volume `./config/notees/sync:/data`
+- `notees-web` — image `ghcr.io/miquelrosell99/notees-web`, host port 8378 (nginx :80), `depends_on: service_healthy` on sync
 
 Data layout under the bind-mounted data dir (canonical
 `docs/developers/deployment.md`): `relay.db` (**THE authority** — envelope
@@ -22,9 +22,11 @@ log, snapshot/compaction metadata, asset index, restore_epoch),
 
 1. **Never edit or copy `relay.db` while the server is running** — stop the
    container first (or use the snapshot endpoints).
-2. **Compose has no `build:` by design** — images come from ghcr (`:latest` by
-   default) or a local `docker build`; pin versions with `NOTEES_SYNC_TAG` /
-   `NOTEES_WEB_TAG`.
+2. **Compose carries the build contexts** — development flow: `docker compose
+   build && docker compose up -d`, so the deployment always runs the LOCAL
+   codebase (owner 2026-10-07: no stray tags). Hosts that haven't built pull
+   `:latest` from ghcr (default pull policy, left alone). Releases are
+   published to ghcr per `releases.md` for other users; never re-tag.
 3. **After any log-rewriting migration:** bump the restore epoch **and**
    `docker compose restart notees-sync` — ingest alone does not reapply to the
    running derived store (learned 2026-10-05, `migrations.md`).
