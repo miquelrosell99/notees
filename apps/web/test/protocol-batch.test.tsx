@@ -113,6 +113,55 @@ describe("InlineTokens protocol-batch tokens", () => {
   });
 });
 
+describe("InlineTokens mention labels (full titles for node links)", () => {
+  const longTitle = "A ".repeat(60).trimEnd(); // 119 chars — beyond the display-name budget
+  const capped = longTitle.slice(0, 80);
+  const mention = { type: "mention", targetNodeId: "n-long", text: capped, linkId: "l-1" };
+
+  it("a >80-char target title renders COMPLETE in a mention chip", () => {
+    const { container } = render(
+      <InlineTokens
+        tokens={[mention]}
+        resolveName={() => capped}
+        resolveFullTitle={() => longTitle}
+      />,
+    );
+    const chip = container.querySelector(".nt-mention");
+    expect(chip?.textContent).toBe(longTitle);
+  });
+
+  it("the linked mention (onOpenNode button) renders the complete title too", () => {
+    const { container } = render(
+      <InlineTokens
+        tokens={[mention]}
+        resolveName={() => capped}
+        resolveFullTitle={() => longTitle}
+        onOpenNode={() => {}}
+      />,
+    );
+    const link = container.querySelector("button.nt-link");
+    expect(link?.textContent).toBe(longTitle);
+  });
+
+  it("without resolveFullTitle the capped resolveName stays the label (unwired callers)", () => {
+    const { container } = render(
+      <InlineTokens tokens={[mention]} resolveName={() => capped} />,
+    );
+    expect(container.querySelector(".nt-mention")?.textContent).toBe(capped);
+  });
+
+  it("a custom displayText always wins over the full title", () => {
+    const { container } = render(
+      <InlineTokens
+        tokens={[{ ...mention, displayText: "the short label" }]}
+        resolveName={() => capped}
+        resolveFullTitle={() => longTitle}
+      />,
+    );
+    expect(container.querySelector(".nt-mention")?.textContent).toBe("the short label");
+  });
+});
+
 /** Minimal client mock for the Features tab (reads + the chips enumeration). */
 function featureClient(overrides: {
   enabled?: Record<string, boolean>;
@@ -293,6 +342,11 @@ describe("feature chrome gates", () => {
     // Sources off hides the whole source family; persons off the person class.
     expect(isClassFamilyEnabled(client(["sources"]), SYSTEM_CLASS_UUIDS.book)).toBe(false);
     expect(isClassFamilyEnabled(client(["sources"]), SYSTEM_CLASS_UUIDS.conference)).toBe(false);
+    // The web link rides the cascade (weblink extends source)…
+    expect(isClassFamilyEnabled(client(["sources"]), SYSTEM_CLASS_UUIDS.weblink)).toBe(false);
+    expect(isClassFamilyEnabled(client([]), SYSTEM_CLASS_UUIDS.weblink)).toBe(true);
+    // …while unrelated toggles leave it alone.
+    expect(isClassFamilyEnabled(client(["events"]), SYSTEM_CLASS_UUIDS.weblink)).toBe(true);
     expect(isClassFamilyEnabled(client(["persons"]), SYSTEM_CLASS_UUIDS.person)).toBe(false);
     // Always-on vocabulary and user classes gate on nothing.
     expect(isClassFamilyEnabled(client(["events"]), SYSTEM_CLASS_UUIDS.day)).toBe(true);
