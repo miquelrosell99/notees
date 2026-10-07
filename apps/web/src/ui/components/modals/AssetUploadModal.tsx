@@ -1,9 +1,9 @@
 /**
- * AssetUploadModal — the 1174 row's upload surface, at the v1
+ * AssetUploadModal — the 1174 row's upload surface, at the original
  * interaction's full parity: drag-drop OR click-to-browse, a clipboard
  * paste capture active while the modal is open (clipboardData.items — the
- * v1 modal-internal paste plumbing), type + size validation BEFORE the
- * upload starts (the v1 limits: 50 MB media / 100 MB documents, mirroring
+ * original modal-internal paste plumbing), type + size validation BEFORE the
+ * upload starts (the original limits: 50 MB media / 100 MB documents, mirroring
  * the server caps in apps/server/src/config.ts), an `acceptedTypes` filter
  * that narrows both the picker's accept list and the validation message,
  * and an `initialFile` prop so external paste plumbing can hand a captured
@@ -14,7 +14,7 @@
  *
  * The server still sniffs magic bytes and enforces the same caps, so
  * client-side validation stays presentational: it rejects the obviously
- * wrong early with the v1 wording, and the status line surfaces the
+ * wrong early with the original wording, and the status line surfaces the
  * server's rejection verbatim when bytes disagree.
  */
 
@@ -36,7 +36,7 @@ type UploadPhase = "idle" | "uploading" | "error";
 
 type AssetCategory = "image" | "audio" | "document";
 
-/** The v1 size caps, mirroring NOTEES_MAX_MEDIA_BYTES / NOTEES_MAX_DOCUMENT_BYTES. */
+/** The size caps, mirroring NOTEES_MAX_MEDIA_BYTES / NOTEES_MAX_DOCUMENT_BYTES. */
 const MAX_MEDIA_BYTES = 50 * 1024 * 1024;
 const MAX_DOCUMENT_BYTES = 100 * 1024 * 1024;
 
@@ -59,7 +59,7 @@ const CATEGORY_TYPES: Record<AssetCategory, string[]> = {
 };
 
 /** Extension fallback for files whose type is empty (drag-drop from some
- *  sources gives no MIME); mirrors the dotted entries of the v1 accept list. */
+ *  sources gives no MIME); mirrors the dotted entries of the original accept list. */
 const CATEGORY_EXTENSIONS: Record<AssetCategory, string[]> = {
   image: [".jpg", ".jpeg", ".png", ".webp"],
   audio: [".mp3", ".wav", ".ogg", ".opus", ".webm", ".flac", ".m4a", ".mp4"],
@@ -73,7 +73,7 @@ function categoryOf(file: File): AssetCategory {
 }
 
 /** The category a file is usable as, or null when its type (nor its name)
- *  is in the sniffed set — the v1 isSupportedAssetType gate. */
+ *  is in the sniffed set — the original isSupportedAssetType gate. */
 function supportedCategoryOf(file: File): AssetCategory | null {
   const byType = (Object.entries(CATEGORY_TYPES) as Array<[AssetCategory, string[]]>).find(
     ([, types]) => types.includes(file.type),
@@ -86,8 +86,8 @@ function supportedCategoryOf(file: File): AssetCategory | null {
   return byExtension !== undefined ? byExtension[0] : null;
 }
 
-/** The picker's accept attribute, narrowed by acceptedTypes (v1
- *  getAcceptString): undefined accepts the full sniffed set. */
+/** The picker's accept attribute, narrowed by acceptedTypes
+ *  (getAcceptString): undefined accepts the full sniffed set. */
 function acceptStringFor(acceptedTypes: AssetCategory[] | undefined): string {
   const categories: AssetCategory[] = acceptedTypes ?? ["image", "audio", "document"];
   return categories
@@ -119,7 +119,7 @@ export interface AssetUploadModalProps {
   /** Optional file to prefill the drop zone (external paste plumbing). */
   initialFile?: File | null;
   /**
-   * Optional category filter (the v1 prop): narrows the accept list and the
+   * Optional category filter: narrows the accept list and the
    * validation — a file outside the list is rejected with "Only … files are
    * accepted." before the upload starts.
    */
@@ -142,8 +142,8 @@ export function AssetUploadModal({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   /**
-   * The v1 validateFile gate, in the v1 order: supported type → accepted
-   * category → size cap (media 50 MB, documents 100 MB). Returns the v1
+   * The validateFile gate, in the original order: supported type → accepted
+   * category → size cap (media 50 MB, documents 100 MB). Returns the original
    * wording; null means the file can be selected.
    */
   const validateFile = (candidate: File): string | null => {
@@ -163,7 +163,7 @@ export function AssetUploadModal({
     if (next !== null) {
       const validationError = validateFile(next);
       if (validationError !== null) {
-        // Rejected up front (v1): the error shows, the previous selection
+        // Rejected up front: the error shows, the previous selection
         // is NOT replaced, no preview is minted.
         setError(validationError);
         return;
@@ -189,7 +189,7 @@ export function AssetUploadModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- selectFile closes over the open-time acceptedTypes; a mid-open prop change must not re-validate the user's selection.
   }, [isOpen, initialFile]);
 
-  // The v1 modal-internal paste capture: a document-level listener, active
+  // The modal-internal paste capture: a document-level listener, active
   // ONLY while the modal is open; the first clipboard file item becomes the
   // selection (validation included). The workspace's other paste surfaces
   // are element-level (title/block editors), so a modal-open capture never

@@ -5,8 +5,8 @@
  * meaning. The property value is the only authority; the card-view "Cover"
  * badge DERIVES from it (isCoverAsset — no class to keep in sync).
  *
- * M33: the empty card's "Add cover" gesture opens the AssetUploadModal
- * directly (image-only, validated, preview + progress — the v1 flow); the
+ * The empty card's "Add cover" gesture opens the AssetUploadModal
+ * directly (image-only, validated, preview + progress — the original flow); the
  * Change path keeps the CoverPicker (search existing assets, or "Upload new
  * cover…" which routes to the same modal).
  */
@@ -202,7 +202,7 @@ describe("covers", () => {
     expect(isCoverAsset(client, assetId)).toBe(false);
   });
 
-  it("the collapsible element renders EVEN WHEN EMPTY — collapsed to the chevron, expanding to the Add cover card (v1)", async () => {
+  it("the collapsible element renders EVEN WHEN EMPTY — collapsed to the chevron, expanding to the Add cover card", async () => {
     const client = await seedClient();
     await ensureCoverProperty(client);
     const pageId = await client.createObject({ presentAsMain: true, name: "Empty Page" });
@@ -236,7 +236,7 @@ describe("the dedicated header element", () => {
     ).toBeNull();
   });
 
-  it("an uncovered source page's Add cover strip opens the upload modal; uploading sets the cover (M33)", async () => {
+  it("an uncovered source page's Add cover strip opens the upload modal; uploading sets the cover", async () => {
     const client = await seedClient();
     vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,HEADER");
     await ensureCoverProperty(client);
@@ -258,7 +258,7 @@ describe("the dedicated header element", () => {
     });
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
-    // Empty → collapsed; expand to the Add cover card; the v1 gesture opens
+    // Empty → collapsed; expand to the Add cover card; the gesture opens
     // the upload modal directly (image-only).
     fireEvent.click(screen.getByRole("button", { name: "Expand cover" }));
     fireEvent.click(screen.getByRole("button", { name: "Add cover image" }));
@@ -296,7 +296,7 @@ describe("the dedicated header element", () => {
   });
 });
 
-describe("the global cover (owner bug 2026-10-04: any page, like v1)", () => {
+describe("the global cover (owner bug 2026-10-04: any page)", () => {
   it("a NON-source page offers Add cover (modal) and the banner once set", async () => {
     const client = await seedClient();
     vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,GLOBAL");
@@ -332,7 +332,7 @@ describe("the global cover (owner bug 2026-10-04: any page, like v1)", () => {
     await flushWrites();
 
     // The value rides unbound (no class binds cover on this page) but the
-    // card renders — the cover is header chrome for EVERY page, like v1.
+    // card renders — the cover is header chrome for EVERY page.
     const coverAsset = coverAssetIdOf(client, pageId)!;
     expect(coverAsset).not.toBeNull();
     expect(client.getNode(coverAsset)?.classIds).toContain(SYSTEM_CLASS_UUIDS.asset);
@@ -368,7 +368,7 @@ describe("the global cover (owner bug 2026-10-04: any page, like v1)", () => {
   });
 });
 
-describe("the v1-parity cover", () => {
+describe("the recovered cover", () => {
   it("a cover whose asset has NO image bytes renders the dashed shell naming the asset — never a silent void (the Wartortle case)", async () => {
     const client = await seedClient();
     // getAssetDataUrl resolves null: no node_asset bytes for this node.
@@ -392,7 +392,7 @@ describe("the v1-parity cover", () => {
     expect(coverAssetIdOf(client, pageId)).toBeNull();
   });
 
-  it("dropping an image file on the Add cover strip uploads and sets the cover (the v1 drag-and-drop)", async () => {
+  it("dropping an image file on the Add cover strip uploads and sets the cover (the original drag-and-drop)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Drop Target" });
     await ensureCoverProperty(client);

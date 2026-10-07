@@ -400,7 +400,7 @@ select:focus-visible {
 /* --- the panelled main layout (owner 2026-10-06, Capacities-style) -------- */
 
 /* The body row: the properties sidebar beside the nodeview column beside
-   the context column (S7, M17 — three columns). */
+   the context column (three columns). */
 .nt-page-body {
   display: flex;
   align-items: flex-start;
@@ -445,7 +445,7 @@ select:focus-visible {
   border-right: var(--border-width-default) solid var(--color-outline-variant);
 }
 
-/* The context column (S7, M17): graph · TOC · Activity · Comments — the
+/* The context column: graph · TOC · Activity · Comments — the
    node-relevant widgets relocated from the right rail, behind the same
    full-height divider (border-left this time) and its own device-local
    collapse from the nodeview top bar. */

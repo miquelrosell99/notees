@@ -9,34 +9,34 @@
  * the WorkerClient proxy — same surface) and re-renders on its (naive)
  * notifications.
  *
- * S3b of the main-content restructure: the chrome LEAVES (NodeTopbar,
+ * The main-content restructure: the chrome LEAVES (NodeTopbar,
  * PageHeaderChrome, PageFooterChrome) live in PageChrome.tsx; the editing
  * machinery lives in usePageMachinery.ts. What stays here is the composer:
  * the reads (page/tree/cover), the body (the block tree inside the drag
  * context), the notices + compact properties in mainChrome, and the
  * panelled/compact composition.
  *
- * S5 (M13): the page mode is composed from DATA — `pageVariantOf`
+ * The page mode is composed from DATA — `pageVariantOf`
  * (components/pageVariant.ts) derives the variant (plain / date-day /
  * date-period / class): the day/month/year facts, the class corner's
- * extends-pills relation config (ClassPillsList, M11), and the class
+ * extends-pills relation config (ClassPillsList), and the class
  * section stack ride the descriptor — no slots, no ClassView branch. The
- * deleted class chrome (M9/M12): no curated icon button, no color dot, no
+ * deleted class chrome: no curated icon button, no color dot, no
  * cycle banner — the shared header icon button is the single icon+color
  * entry.
  *
- * S7 (M17/M18/M19 + the references dedupe check): the panelled main layout
+ * The panelled main layout
  * is now THREE columns — NodeView · properties · context. The context
  * column (`.nt-page-context`) hosts, top-down: LocalGraphCard, TocSection,
- * the Activity section (relocated from the card-bottom stack per M18 —
+ * the Activity section (relocated from the card-bottom stack —
  * `SystemSections`' activity branch died with the move), and the Comments
- * section (M19 — the v1 model: child blocks classed `comment`, threaded,
+ * section (the original model: child blocks classed `comment`, threaded,
  * quick-add/reply). Column collapse: EACH panel column keeps its own
  * device-local collapse, toggled from the nodeview top bar (the
  * properties hamburger pattern, now a pair) — the `layout` prop stays
  * BINARY ("default"/"compact"); per-column device prefs replace the plan's
  * recorded "third state" option (registered choice, owner resolution).
- * The dedupe check (the S7 precondition): the right rail's
+ * The dedupe check (the layout precondition): the right rail's
  * ReferencesSection and the page's own Backlinks tab both rendered
  * getLinkedReferences — the SAME data — verdict: the rail's
  * ReferencesSection is DELETED (see components/sidebarSections.tsx); the
@@ -45,9 +45,9 @@
  * Activity + Comments ONLY. Embedded/journal/calendar surfaces and the
  * class/focus/compact variants render NO context column (main-surface
  * chrome only). The right rail is cards-only — the generic frame around
- * NodeView (components/NodeCardFrame.tsx; M15/M17).
+ * NodeView (components/NodeCardFrame.tsx).
  *
- * S7 (M15): the `preview` surface seam — NodeView's `preview` prop renders
+ * The `preview` surface seam — NodeView's `preview` prop renders
  * this view with NO corner menu, NO global listeners, a READ-ONLY body
  * capped at the page's first body level (maxDepth 1 — outline only; other
  * view modes render uncapped), and NO section stack: the hover/peek
@@ -120,15 +120,15 @@ import { NodeTopbar, PageHeaderChrome, PageFooterChrome } from "./PageChrome.js"
 export const BLOCKS_VIEW_MODES: ViewMode[] = ["outline", "prose", "cards"];
 
 /**
- * The preview surface's body cap (M15): the page's FIRST body level only —
+ * The preview surface's body cap: the page's FIRST body level only —
  * the outline view's maxDepth honors it; other view modes render uncapped
  * (the seam's honest limit until a view-mode-aware cap lands).
  */
 const PREVIEW_BODY_DEPTH = 1;
 
 /**
- * The body items (S4/M1): the childQuery factory — children as siblings,
- * comment-classed rows cut at every level (M19). The body itself is the
+ * The body items: the childQuery factory — children as siblings,
+ * comment-classed rows cut at every level. The body itself is the
  * plain NodeCollection dispatcher below.
  */
 
@@ -145,7 +145,7 @@ export function PageView({
    * "default" (the main content card) puts the properties in a collapsible
    * LEFT side panel inside the card, the classes pills at the content
    * column's top-left, and moves the blocks view switcher out to the card's
-   * top-right (the NodeView chrome). "compact" keeps the v1 in-flow chrome —
+   * top-right (the NodeView chrome). "compact" keeps the original in-flow chrome —
    * the properties as a list section under the header — for secondary
    * surfaces (sidebar peek cards; embedded renders keep their own slim
    * chrome). Focus mode always compacts.
@@ -168,7 +168,7 @@ export function PageView({
   /** shares: server coordinates for the "Share…" item + modal. */
   shareTarget = undefined,
   /**
-   * The preview surface seam (M15 — hover/peek): no chromeRight/corner
+   * The preview surface seam (hover/peek): no chromeRight/corner
    * menu (NodeView guarantees), no global listeners, a read-only body
    * capped at the first body level, and no section stack. Nothing renders
    * it yet — NodeHoverPreview keeps its bespoke card until the follow-up
@@ -223,7 +223,7 @@ export function PageView({
   /**
    * The Capacities-style main layout: left properties panel + classes at the
    * content top-left. Device-local collapse (never an op); the class variant
-   * (M13) and focus mode keep the compact in-flow chrome.
+   * and focus mode keep the compact in-flow chrome.
    */
   const variant = pageVariantOf(client, pageId);
   const [sidePanelCollapsed, setSidePanelCollapsed] = useDeviceSetting(
@@ -231,7 +231,7 @@ export function PageView({
     false,
   );
   /**
-   * S7 (M17): the context column's own device-local collapse — a per-column
+   * The context column's own device-local collapse — a per-column
    * pref like the properties panel's (the `layout` prop stays binary; the
    * "third state" option the plan recorded as open is resolved THIS way,
    * registered in the module doc).
@@ -255,10 +255,10 @@ export function PageView({
    */
 
   // --- editing machinery: outliner, selection, find/replace, DnD -------------
-  // (usePageMachinery — S3a of the main-content restructure; constructed
+  // (usePageMachinery — the main-content restructure; constructed
   // after the block-tree read below.)
 
-  // The page read accepts a class node (M13: the class page IS a page —
+  // The page read accepts a class node (the class page IS a page —
   // rendersWithDocumentChrome excludes classes by design; the class variant
   // re-admits the class node).
   const rawNode = client.getNode(pageId);
@@ -313,7 +313,7 @@ export function PageView({
 
   /**
    * Cover property self-heal: the cover schema + source binding
-   * are seed-manifest entries nothing else authors (the v1 migration is the
+   * are seed-manifest entries nothing else authors (the original migration is the
    * only other writer), so a fresh workspace self-heals them on first page
    * view — an idempotent no-op once present. The banner below then reads
    * the effective cover value; pages without one (date pages, whiteboard
@@ -341,7 +341,7 @@ export function PageView({
     page !== undefined && !embedded && whiteboardTokenIndex < 0
       ? coverAssetIdOf(client, pageId)
       : null;
-  /** the v1 element renders whenever the page can carry a cover —
+  /** The cover element renders whenever the page can carry a cover —
    *  set or empty (the card shows the Add affordance when empty). */
   const coverPossible =
     page !== undefined && !embedded && whiteboardTokenIndex < 0
@@ -349,11 +349,11 @@ export function PageView({
       : false;
 
   /**
-   * The editing machinery (S3a): outliner construction, selection surface,
+   * The editing machinery: outliner construction, selection surface,
    * find/replace, the DnD wiring, and the fold chords — one hook so this
    * component stays a chrome composer. `globalShortcuts: true` is the main
    * surface; embedded renders imply false inside the hook; the preview
-   * surface (M15) passes false explicitly — a peek installs no document
+   * surface passes false explicitly — a peek installs no document
    * listeners.
    */
   const machinery = usePageMachinery({
@@ -395,7 +395,7 @@ export function PageView({
   }
 
   /**
-   * The variant's section stacks (M13): the descriptor's SectionSpec-shaped
+   * The variant's section stacks: the descriptor's SectionSpec-shaped
    * entries mount their existing section components at the two placement
    * sites the old slots used — between the body and the date sections, and
    * ahead of the default <SystemSections/>. Empty for plain/date variants,
@@ -410,7 +410,7 @@ export function PageView({
   ));
 
   /**
-   * ghost (owner refinement of ): the page root trails exactly
+   * ghost (owner refinement): the page root trails exactly
    * ONE muted "add block" ghost row as the last sibling of the main level —
    * rendered ALWAYS in the child-blocks section (outline and prose,
    * non-embedded, focus mode included), including an empty body, as the
@@ -499,7 +499,7 @@ export function PageView({
                     pages section's read-only rows are droppable (zone-aware —
                     a drop anchored on a main child promotes into the Pages
                     zone, see handleDragEnd). The variant's section stack
-                    (M13: the class sections) inserts its descriptors here —
+                    (the class sections) inserts its descriptors here —
                     data, not a slot. */}
                 {variantSections}
                 {!preview && dayIso !== null && !embedded && (
@@ -535,7 +535,7 @@ export function PageView({
   );
 
   /**
-   * the v1 header layout (the PageHeaderChrome leaf): header left,
+   * the original header layout (the PageHeaderChrome leaf): header left,
    * the collapsible cover CARD right. Shared by both layout modes; the
    * day-header swap rides the variant's `dayIso`.
    */
@@ -569,7 +569,7 @@ export function PageView({
         {!embedded && !focusMode && (
           <AliasOfBanner client={client} aliasPageId={pageId} onOpenPage={onOpenPage} />
         )}
-        {/* The compact layouts keep the v1 in-flow properties list (the
+        {/* The compact layouts keep the original in-flow properties list (the
             panelled main layout moves it into the left side panel). */}
         {!focusMode && !panelled && (
           <>
@@ -596,7 +596,7 @@ export function PageView({
    * The page chrome composed per layout mode. The panelled main layout
    * (owner 2026-10-06) is a 3-column split: the properties sidebar rides the
    * first column, the whole node view (top bar / nodeview / footer) the
-   * second, and the context column (S7, M17 — graph · TOC · Activity ·
+   * second, and the context column (graph · TOC · Activity ·
    * Comments, each hidden by its own emptiness rules) the third. Each panel
    * column keeps its own device-local collapse, toggled from the nodeview
    * top bar. Compact layouts render the same chrome full-width, header
@@ -637,16 +637,16 @@ export function PageView({
           </div>
           {!contextPanelCollapsed && (
             <aside className="nt-page-context" aria-label="Context">
-              {/* M17: the node-relevant widgets, relocated from the right
+              {/* The node-relevant widgets, relocated from the right
                   rail (the rail is workspace cards only). The references
                   dedupe check rejected the rail's ReferencesSection — the
                   Backlinks tab owns that data (see the module doc). */}
               <LocalGraphCard client={client} nodeId={pageId} onOpenNode={(id) => onOpenPage?.(id)} />
               <TocSection client={client} pageId={pageId} activeId={pageId} onOpenNode={(id) => onOpenPage?.(id)} />
-              {/* M18: the Activity feed relocated from the card-bottom
+              {/* The Activity feed relocated from the card-bottom
                   stack; its useSectionData lazy contract rides along. */}
               <ActivityLogSection client={client} onOpenPage={onOpenPage} />
-              {/* M19: comments — child blocks classed `comment`, threaded. */}
+              {/* Comments — child blocks classed `comment`, threaded. */}
               <CommentsSection client={client} nodeId={pageId} onOpenNode={onOpenPage} />
             </aside>
           )}
@@ -681,7 +681,7 @@ export function PageView({
           {/* Classes: compact layouts pin the pills to the card's top-left
               corner; the panelled main layout carries them in the nodeview
               top bar. The class variant's corner is the extends relation's
-              ClassPillsList config (M11/M13) — data, not a slot. */}
+              ClassPillsList config — data, not a slot. */}
           {!panelled && !embedded && !focusMode && (
             <div className="nt-page-classes-corner">
               {variant.cornerPills !== undefined ? (

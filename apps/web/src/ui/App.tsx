@@ -1731,7 +1731,7 @@ export function App() {
         </PageCard>
         {rightPanelOpen && (
           <aside className="nt-right-card" aria-label="Right sidebar">
-            {/* The cards-only rail (M15/M17): the node-relevant widgets
+            {/* The cards-only rail: the node-relevant widgets
                 (graph/TOC/Activity/Comments) relocated into the page chrome's
                 context column; this rail hosts workspace cards exclusively —
                 the generic frame around NodeView. */}
@@ -1912,7 +1912,7 @@ export function HubView({
   // #14 — the Classes hub hosts the class-creation modal (blank + system
   // deploy); the header button opens it, and a created class opens.
   const [classCreateOpen, setClassCreateOpen] = useState(false);
-  // The Assets hub's creation path IS the upload modal (M33): the header
+  // The Assets hub's creation path IS the upload modal: the header
   // button opens it, and the uploaded asset node opens.
   const [assetUploadOpen, setAssetUploadOpen] = useState(false);
   // Top-level pages: subpages render in their parent's Pages zone, so the
@@ -1966,8 +1966,8 @@ export function HubView({
 
   if (nav === "assets") {
     // Any node classed asset, cards by default (owner rule). The header's
-    // "New asset" button opens the upload modal — uploading IS creating here
-    // (M33): the modal's CAS path mints the asset-classed node.
+    // "New asset" button opens the upload modal — uploading IS creating here:
+    // the modal's CAS path mints the asset-classed node.
     const members = client
       .getClassMembers(assetClassId)
       .map((node) => ({ node }));

@@ -1,12 +1,12 @@
 /**
  * ExtendsRow — the class page's corner cluster, now a thin adapter over
- * ClassPillsList (M11): the class's PARENT classes as colored pills (the
+ * ClassPillsList: the class's PARENT classes as colored pills (the
  * page-view Classes row's class-page analogue). × removes a parent, "+"
  * opens the class-only picker; both write through `class.setExtends`
  * (replace semantics) via the shared `extendsCornerPills` relation config
  * (pageVariant.ts). Extends order is deterministic — no drag-sort.
  *
- * M12: the transient cycle banner is gone (render assumes a DAG); the
+ * The transient cycle banner is gone (render assumes a DAG); the
  * store's loud cycle failure (the applier's CycleError) lands in `onError`
  * — the console by default.
  */

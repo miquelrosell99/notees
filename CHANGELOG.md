@@ -9,6 +9,16 @@ predating this file.
 
 ## 2026-10-06
 
+- **chore(web): the restructure branch meets the scrub law — era references
+  removed from comments and test titles.** The branch's new files predated
+  the tree-wide scrub, carrying plan-era citations, amendment and slice
+  labels, and product-generation references into comments and test titles.
+  All rewritten to stand alone (46 files, zero logic changes); genuine
+  version identifiers (the OFL license, the wire/protocol versions, code
+  ids) untouched. Transient internal-doc pointers dropped from the
+  changelog and runbooks per the standing rule. Full web suite green
+  (1206 tests), tsc clean.
+
 - **refactor(web): S7a of the main-content restructure — the context column,
   the cards-only rail, Comments (M19), Activity's relocation (M18), the
   preview seam (M15).** The panelled main layout is now THREE columns —
@@ -56,8 +66,7 @@ predating this file.
   context-column 8 new; the ReferencesSection rail test dies with the
   component per the dedupe verdict); `tsc --noEmit` clean in apps/web; the
   layout-probe selectors (`.nt-node-topbar` and children, `.nt-page-body`,
-  `.nt-page-side-panel`, `.nt-nodeview-body`) unchanged. Design:
-  `.plans/2026-10-06-1352-main-content-restructure/`.
+  `.nt-page-side-panel`, `.nt-nodeview-body`) unchanged.
 - **feat(web): text-property rows render as locked outline collections.**
   A text property's values are node-backed carrier blocks; the row's
   bespoke mini-outliner renderer is replaced by the shared dispatcher —
@@ -166,8 +175,7 @@ predating this file.
   (explicit `Entry` shape — the `ReturnType` self-reference was circular;
   non-null index reads) so the apps/web `tsc --noEmit` gate is clean.
   tsc clean, full web suite green (119 files / 1193 tests; the 9-file
-  verify list: 122 tests). Design:
-  `.plans/2026-10-06-1352-main-content-restructure/`.
+  verify list: 122 tests).
 - **feat(web): the v1-UI recovery batch — M33 upload-modal parity + cover/
   assets-hub triggers, M35 builder re-UI, M10 picker color, M38a noCreate.**
   Four view-layer slices, no wire/model change. **M33:** the
@@ -213,8 +221,7 @@ predating this file.
   comment-classed children are cut at every level (whole subtrees) — inert
   until the Comments section (S7) gives them a home. New unit coverage
   (test/child-query.test.ts); typecheck clean, 120 tests green across the
-  touched surface. Design:
-  `.plans/2026-10-06-1352-main-content-restructure/`.
+  touched surface.
 - **refactor(web): S3b of the main-content restructure — the chrome leaves
   move to `PageChrome`.** `ui/PageChrome.tsx` extracted from PageView: the
   `NodeTopbar` (sidebar toggle + classes corner + chromeRight), the
@@ -229,7 +236,6 @@ predating this file.
   (icon + label + the effective count) in the nodeview top bar's register.
   Pure move + the one additive header row: tsc clean, full web suite green
   (1175 tests, one properties-panel assertion added for the header).
-  Design: `.plans/2026-10-06-1352-main-content-restructure/`.
 - **refactor(web): S2 of the main-content restructure — one lazy-section
   contract behind `useSectionData`.** The four hand-rolled lazy idioms
   collapse into one hook: `components/useSectionData.ts` (first-activation
@@ -242,8 +248,7 @@ predating this file.
   ActivityLogSection converted with byte-identical exports; DayPageSections
   absorbed via Section. `SectionSpec` lands as the data-facing descriptor.
   Same-exports hard rule held — PageView didn't move. S2-surface tests
-  green (~95), tsc clean. Design:
-  `.plans/2026-10-06-1352-main-content-restructure/`.
+  green (~95), tsc clean.
 - **refactor(web): S3a of the main-content restructure — the page machinery
   moves behind `usePageMachinery`.** Outliner construction, the selection
   surface, find/replace (state, shortcut listener, prose docs), the
@@ -253,8 +258,7 @@ predating this file.
   JSX that hosts it stays. New `globalShortcuts` option (default true;
   embedded implies false) prefigures the workspace-card surfaces. Pure move:
   typecheck clean, 102 machinery-adjacent tests green. The drag half hoists
-  to the workspace host in S6. Design:
-  `.plans/2026-10-06-1352-main-content-restructure/`.
+  to the workspace host in S6.
 - **refactor(web): S1 of the main-content restructure — the NodeView shell
   extraction.** `ui/NodeView.tsx` (the mode dispatcher + chrome-right
   cluster builder + the new `embedded` surface prop) and
@@ -265,4 +269,3 @@ predating this file.
   copy remains. Pure move, no behavior change: typecheck clean, full web
   suite green (1175 tests). Design + the registered deviation
   (SidebarNodeCard deletion rides S7):
-  `.plans/2026-10-06-1352-main-content-restructure/`.
