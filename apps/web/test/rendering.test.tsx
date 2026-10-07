@@ -107,14 +107,15 @@ describe("PageView rendering", () => {
     expect(within(tree).getByText("nested child")).not.toBeNull();
     expect(tree.querySelector(".nt-block-children")).not.toBeNull();
 
-    // Unknown token types never crash the renderer.
+    // Unknown token types never crash the renderer. (Scoped to the tree:
+    // the context column's TOC lists the one-line text too.)
     await client.updateObject(nestedParent, {
       contentAst: [
         { type: "text", text: "parent" },
         { type: "future_token_v99", payload: { x: 1 } },
       ] as unknown as ContentAst,
     });
-    expect(screen.getByText("parent")).not.toBeNull();
+    expect(within(tree).getByText("parent")).not.toBeNull();
   });
 
   it("renders placeholder boxes for block-scale tokens", async () => {
