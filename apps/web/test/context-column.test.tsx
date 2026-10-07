@@ -1,8 +1,8 @@
 /**
- * The S7 context-column + cards-only-rail tests: the panelled main layout
+ * The context-column + cards-only-rail tests: the panelled main layout
  * composes THREE columns (NodeView · properties · context); the context
  * column hosts the node-relevant widgets relocated from the right rail —
- * LocalGraphCard, TocSection, the Activity section (M18), Comments (M19) —
+ * LocalGraphCard, TocSection, the Activity section, Comments —
  * with the references dedupe check's verdict recorded (the rail's
  * ReferencesSection rendered the same getLinkedReferences data as the
  * page's Backlinks tab, so it was deleted; the tab stays the one home).
@@ -10,7 +10,7 @@
  * nodeview top bar (the `layout` prop stays binary — per-column device
  * prefs replace the recorded "third state" option). Embedded/compact/class
  * surfaces render NO context column. The right rail hosts workspace cards
- * only — the generic NodeCardFrame around NodeView (M15/M17), whose
+ * only — the generic NodeCardFrame around NodeView, whose
  * collapse is session-local; reorder is a registered follow-up.
  */
 
@@ -58,7 +58,7 @@ async function flushWrites(): Promise<void> {
   await act(async () => {});
 }
 
-describe("S7 context column (three-column panelled layout)", () => {
+describe("the context column (three-column panelled layout)", () => {
   it("the panelled main layout renders three columns; the context column hosts graph, TOC, Activity, Comments", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Doc" });
@@ -126,7 +126,7 @@ describe("S7 context column (three-column panelled layout)", () => {
     expect(klass.container.querySelector(".nt-page-context")).toBeNull();
   });
 
-  it("Activity relocated (M18): one Activity section, living in the context column; the stack below the body is Child pages + backlinks", async () => {
+  it("Activity relocated: one Activity section, living in the context column; the stack below the body is Child pages + backlinks", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Doc" });
     await client.createObject({ presentAsMain: true, parentId: pageId, name: "Kid" });
@@ -163,7 +163,7 @@ describe("S7 context column (three-column panelled layout)", () => {
   });
 });
 
-describe("S7 NodeView preview surface (M15)", () => {
+describe("NodeView preview surface", () => {
   it("preview renders compact chrome: no corner menu, no top bar, a read-only first-level body, no sections", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Peeked" });
@@ -204,7 +204,7 @@ describe("S7 NodeView preview surface (M15)", () => {
   });
 });
 
-describe("S7 NodeCardFrame (the cards-only rail)", () => {
+describe("NodeCardFrame (the cards-only rail)", () => {
   it("the generic frame renders NodeView in its body with the breadcrumbs header; collapse is session-local", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Carded" });
@@ -222,7 +222,7 @@ describe("S7 NodeCardFrame (the cards-only rail)", () => {
     expect(card.querySelector(".node-breadcrumbs")).not.toBeNull();
     expect(card.querySelector(".nt-page")).not.toBeNull();
 
-    // Collapse hides the body (session-local card management v1)…
+    // Collapse hides the body (session-local card management)…
     fireEvent.click(within(card as HTMLElement).getByRole("button", { name: "Collapse card" }));
     expect(card.querySelector(".nt-sidebar-card__body")).toBeNull();
     fireEvent.click(within(card as HTMLElement).getByRole("button", { name: "Expand card" }));

@@ -101,8 +101,8 @@ describe("NodeView render cascade (Revision 11)", () => {
 
     const { container } = render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
 
-    // The class page renders the page chrome with the class variant data
-    // (M13): class root, the extends corner's class-only add affordance, and
+    // The class page renders the page chrome with the class variant data:
+    // class root, the extends corner's class-only add affordance, and
     // the Class properties row (renamed from "Property definitions" in the
     // class-page naming sweep — the class node has its own standard
     // Properties section, the definitions carry the distinct name).

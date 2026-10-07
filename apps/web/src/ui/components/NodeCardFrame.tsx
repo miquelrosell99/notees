@@ -1,6 +1,6 @@
 /**
  * NodeCardFrame — the generic frame around NodeView for the right rail's
- * workspace cards (M15/M17 of the main-content restructure): the
+ * workspace cards (the main-content restructure): the
  * `nt-sidebar-card` chrome (a breadcrumbs header — right-anchored, ending
  * at the node for pages/classes, at the containing main node for inline
  * blocks — plus the open-in-main, collapse, and close actions) with
@@ -9,7 +9,7 @@
  * around NodeView; `SidebarNodeCard` is deleted as a component (its body
  * render rides here unchanged).
  *
- * Card management v1 (this slice): collapse toggles the body
+ * Card management (this slice): collapse toggles the body
  * (session-local — display state, never an op); reorder/dismiss gestures
  * beyond the close button are a registered follow-up.
  */
@@ -37,7 +37,7 @@ export function NodeCardFrame({
   onOpenNode: (nodeId: string) => void;
   onClose: () => void;
 }) {
-  /** Session-local collapse — display state only (card management v1). */
+  /** Session-local collapse — display state only (card management, first pass). */
   const [collapsed, setCollapsed] = useState(false);
   const node = client.getNode(nodeId);
   return (

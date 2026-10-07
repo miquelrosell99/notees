@@ -1,5 +1,5 @@
 /**
- * ClassPillsList — ONE relation-parameterized pills row (M11 of the
+ * ClassPillsList — ONE relation-parameterized pills row (the
  * main-content restructure): `query` carries the relation's current node
  * ids and `add` / `remove` (optionally `reorder`) carry the relation's
  * mutations — the component owns NO relation semantics of its own. The

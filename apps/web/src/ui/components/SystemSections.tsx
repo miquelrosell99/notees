@@ -7,17 +7,17 @@
  * always showing both tabs even when empty. The tab label carries the eager
  * count; a tab's list query runs lazily on its first activation (the
  * SCHEMA.md lazy contract), the results cache across tab switches, and a
- * live notification re-runs the loaded tabs' queries. S2: the tab caches
+ * live notification re-runs the loaded tabs' queries: the tab caches
  * ride useSectionData — one hook instance per tab (the per-view rule),
  * keepFresh carrying the loaded-tabs re-derive contract. The tabbed panels
  * render headerless — the tab IS the section header (no duplicated
  * tabs-plus-section-headers chrome).
  *
- * The workspace Activity feed left the stack at S7 (M18): it renders in the
+ * The workspace Activity feed left the stack: it renders in the
  * page chrome's context column now — the `withActivity` prop and its branch
  * are gone; this component's contract is Child pages + the backlinks strip.
  *
- * Unlinked mentions carry the v1 action pair:
+ * Unlinked mentions carry the original action pair:
  * Promote rewrites the source block's literal name match into a mention
  * (./unlinkedRefs.ts — after the write the source moves to Backlinks, the
  * honest place for it); Ignore dismisses the source device-locally, per
@@ -108,7 +108,7 @@ export function ReferenceList({
    * bound propertySchemaId renders the schema's NAME (never the raw id) —
    * the surfaces the backlink arrived through ("supports", "cites"). Free
    * verbs never produce targeted edges (typed-link marks are targetless per
-   * the M2-deferred resolution ruling), so the badge only ever names a
+   * the deferred resolution ruling), so the badge only ever names a
    * schema; an unknown id renders raw, honestly.
    */
   const schemaNameById = useMemo(() => {
@@ -220,7 +220,7 @@ export function SystemSections({
   // re-clicks on the active tab, so the first load cannot ride onChange),
   // the other tab stays lazy until its first switch, rows cache across
   // switches (a switch is silent on the version), and a live notification
-  // re-runs every LOADED tab's query (keepFresh — the pre-S2 contract: a
+  // re-runs every LOADED tab's query (keepFresh — the pre-restructure contract: a
   // selected-again tab lands on fresh rows).
   const [refTab, setRefTab] = useState(REF_TAB_BACKLINKS);
   const backlinks = useSectionData<ReferenceEntry[]>({

@@ -1,32 +1,33 @@
 /**
  * CardsView — the card grid and the card chrome (token-only).
  *
- * M39 — the v1 card look recovery. v1's card mode ("looks great", owner)
+ * The card look recovery. The original card mode ("looks great", owner)
  * registered: an adaptive CSS-columns masonry on a RAISED container panel
  * (surface-container-high mat, spacing-4 padding, shape-large radius);
  * surface-level cards with a subtle-but-visible blended border
  * (outline at 50% over outline-variant), the 20px --shape-card radius, and
- * ZERO elevation shadow (the design-system mandate — v1's Card elevation
- * was deliberately "none"); row-based padding (the card itself unpadded —
- * v1's Card ran padding=false and each row carried spacing-2 spacing-3)
+ * ZERO elevation shadow (the design-system mandate — the original Card
+ * elevation was deliberately "none"); row-based padding (the card itself
+ * unpadded —
+ * the original Card ran padding=false and each row carried spacing-2 spacing-3)
  * with no interior dividers; the hover-reveal select checkbox riding the
  * top corner on a surface chip; and the selected wash = surface-container-high
  * + the primary focus ring. The cover is a matted slot (surface-container-high
  * background, spacing-2 inset — the image never bleeds to the card edge).
- * v2 machinery is untouched: useWindowed paging, selection export, the
+ * The newer machinery is untouched: useWindowed paging, selection export, the
  * CoverLayoutToggle, useLazyInView covers (the 16:9 cover slot
  * stays so the pending placeholder keeps its size before bytes arrive),
  * content-visibility skipping, and NodeCard shared with the kanban.
  */
 
-/* ─── The grid — v1's adaptive masonry on a raised panel ─────────── */
+/* ─── The grid — the original adaptive masonry on a raised panel ─── */
 
 .cards-grid {
-  /* v1: column count derives from available space and the card min width —
+  /* The column count derives from available space and the card min width —
      no fixed column counts. */
   column-width: var(--layout-size-6xl);
   column-gap: var(--spacing-4);
-  /* v1: the ungrouped grid rides on a raised container panel so the
+  /* The ungrouped grid rides on a raised container panel so the
      surface-level cards read against the page surface. */
   background: var(--color-surface-container-high);
   padding: var(--spacing-4);
@@ -35,7 +36,7 @@
   box-sizing: border-box;
 }
 
-/* v1: horizontal-cover cards are wider per column. */
+/* Horizontal-cover cards are wider per column. */
 .cards-grid:has(.node-card--cover-left, .node-card--cover-right) {
   column-width: min(var(--layout-size-9xl), 100%);
 }
@@ -45,19 +46,19 @@
   column-span: all;
 }
 
-/* ─── The card — v1's chrome ─────────────────────────────────────── */
+/* ─── The card — the original chrome ─────────────────────────────── */
 
 .node-card {
   position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
-  /* v1 Card padding=false: rows pad themselves; the masonry must not split
-     a card across columns. */
+  /* The original Card padding=false: rows pad themselves; the masonry must
+     not split a card across columns. */
   padding: 0;
   gap: 0;
   break-inside: avoid;
-  /* v1: "visible border in card view — the container background matches
+  /* "visible border in card view — the container background matches
      outline-variant, so blend outline and outline-variant for a subtle but
      visible edge." */
   border: var(--border-width-default) solid color-mix(in srgb, var(--color-outline) 50%, var(--color-outline-variant));
@@ -69,7 +70,7 @@
   contain-intrinsic-size: auto 180px;
 }
 
-/* v1: clip (not hidden) so the cover image inside doesn't create a BFC
+/* clip (not hidden) so the cover image inside doesn't create a BFC
    that constrains its sizing. */
 .node-card--cover-top,
 .node-card--cover-left,
@@ -89,7 +90,7 @@
 .node-card__cover {
   position: relative;
   box-sizing: border-box;
-  /* v1: the cover is a mat — the image floats on a surface-container-high
+  /* The cover is a mat — the image floats on a surface-container-high
      slot inset by spacing-2, never bleeding to the card edge. */
   padding: var(--spacing-2);
   background: var(--color-surface-container-high);
@@ -145,16 +146,16 @@
   object-fit: cover;
 }
 
-/* v1: the top cover keeps the image's slot at a stable ratio (v2 keeps the
-   16/9 so the pending placeholder holds its size before bytes). */
+/* The top cover keeps the image's slot at a stable ratio (the current code
+   keeps the 16/9 so the pending placeholder holds its size before bytes). */
 .node-card--cover-top .node-card__cover {
   width: 100%;
   aspect-ratio: 16 / 9;
 }
 
-/* v1's horizontal covers: a bounded column (the wide-card grid above gives
+/* The original horizontal covers: a bounded column (the wide-card grid above gives
    it room), a minimum height, and a hairline divider on the inner edge
-   (v1 drew the divider on the metadata rows — the full-height cover edge
+   (the divider rode the metadata rows — the full-height cover edge
    reads the same and never gaps). */
 .node-card--cover-left,
 .node-card--cover-right {
@@ -188,9 +189,9 @@
   margin-bottom: var(--spacing-2);
 }
 
-/* ─── Tree cards — title + body rows (the v1 header/body register) ── */
+/* ─── Tree cards — title + body rows (the original header/body register) ── */
 
-/* v1 header padding: spacing-2 spacing-3, typography carries the hierarchy
+/* Original header padding: spacing-2 spacing-3, typography carries the hierarchy
    — no background tint, no divider. */
 .node-card__title {
   border: none;
@@ -218,7 +219,7 @@
   font-style: italic;
 }
 
-/* v1 body: padded rows, NO divider — the border-top was a v2 invention. */
+/* Original body: padded rows, NO divider — the border-top was a later invention. */
 .node-card__body {
   padding: var(--spacing-2) var(--spacing-3) var(--spacing-3);
   font-size: var(--font-size-sm);
@@ -226,7 +227,7 @@
   overflow: hidden;
 }
 
-/* ─── Flat card head — the v1 header register ────────────────────── */
+/* ─── Flat card head — the original header register ──────────────── */
 
 .node-card__head {
   display: flex;
@@ -237,7 +238,7 @@
   background: none;
   padding: var(--spacing-2) var(--spacing-3);
   color: var(--color-on-surface);
-  /* v1 card title: font-weight 600, body-lg, 1.4 line height. */
+  /* Original card title: font-weight 600, body-lg, 1.4 line height. */
   font-size: var(--font-size-body-lg);
   font-weight: 600;
   line-height: 1.4;
@@ -270,7 +271,7 @@
   color: var(--color-on-surface-variant);
 }
 
-/* ─── Property rows — the v1 two-column register ─────────────────── */
+/* ─── Property rows — the original two-column register ───────────── */
 
 .node-card__properties {
   display: flex;
@@ -285,7 +286,7 @@
   align-items: center;
   gap: var(--spacing-2);
   min-width: 0;
-  /* v1 property-row: min-height spacing-9, label/value centered. */
+  /* Original property-row: min-height spacing-9, label/value centered. */
   min-height: var(--spacing-9);
 }
 
@@ -306,7 +307,7 @@
   white-space: nowrap;
 }
 
-/* ─── Cover badge — v1's cover bullet rode the TOP-LEFT corner
+/* ─── Cover badge — the original cover bullet rode the TOP-LEFT corner
    (the modal-open bullet), leaving the top-right for the select checkbox. */
 .node-card__cover-badge {
   position: absolute;
@@ -315,7 +316,7 @@
   z-index: var(--z-10);
 }
 
-/* ─── Selection — v1's hover-reveal corner checkbox ─────── */
+/* ─── Selection — the original hover-reveal corner checkbox ─────── */
 
 .node-card__select {
   position: absolute;
@@ -341,7 +342,7 @@
   pointer-events: auto;
 }
 
-/* v1 selected wash: the surface-container-high background + the primary
+/* Original selected wash: the surface-container-high background + the primary
    focus ring — not the primary-container fill. */
 .node-card--selected {
   background: var(--color-surface-container-high);

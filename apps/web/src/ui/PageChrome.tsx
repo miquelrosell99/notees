@@ -1,21 +1,21 @@
 /**
- * PageChrome — the page chrome leaf pieces (S3b of the main-content
+ * PageChrome — the page chrome leaf pieces (the main-content
  * restructure): the nodeview top bar, the day-aware page header (with the
  * cover card aside), and the footer wrapper. Extracted from PageView so the
  * component stays a chrome composer; the panelled/compact COMPOSITION (the
  * .nt-page-body grid, the .nt-nodeview-body stack, the compact corner)
- * lives in PageView, which owns the three-column composition since S7a.
- * The day-header swap is driven by the variant's `dayIso` (M13 — the page
+ * lives in PageView, which owns the three-column composition now.
+ * The day-header swap is driven by the variant's `dayIso` (the page
  * variant is data, see components/pageVariant.ts); the shared icon button
- * is the single icon+color edit entry for every node kind (M9). The styles
+ * is the single icon+color edit entry for every node kind. The styles
  * stay in app.css — every class hook is exactly the one PageView rendered
  * before the extraction.
  *
- * S7 (M17/M18/M19 + the references dedupe check): the panelled composition
+ * The panelled composition
  * is now THREE columns — NodeView · properties · context (PageView owns the
  * grid; the column-collapse choice is recorded there). The context column
- * hosts LocalGraphCard, TocSection, the Activity section (relocated per
- * M18), and CommentsSection (M19). The dedupe check (the S7 precondition):
+ * hosts LocalGraphCard, TocSection, the Activity section (relocated), and
+ * CommentsSection. The dedupe check (the layout precondition):
  * the right rail's ReferencesSection and the page's own Backlinks tab both
  * rendered getLinkedReferences — the SAME data — so the rail's
  * ReferencesSection is deleted (its lazy contract lived in the now-removed
@@ -104,7 +104,7 @@ export function NodeTopbar({
  * PageHeaderChrome — the .page-header-section: the header proper
  * beside the cover card aside. Day pages render the DayPageHeader as the
  * whole title row (driven by the variant's `dayIso`); every other page
- * renders the shared icon button + picker (M9: the SINGLE icon+color edit
+ * renders the shared icon button + picker (the SINGLE icon+color edit
  * entry for every node kind — the curated class icon button and the color
  * dot are gone), the editable title (an embedded render gets the static
  * "open page" link instead), and the tags row. Right-click on the icon or
@@ -193,8 +193,8 @@ export function PageHeaderChrome({
                         void client.updateObject(pageId, { icon: iconValue });
                       }}
                       onColorChange={(color) => {
-                        // M9/M10 — the single icon+color entry: null = "No
-                        // color" (object.update color:null clears, ).
+                        // The single icon+color entry: null = "No
+                        // color" (object.update color:null clears).
                         void client.updateObject(pageId, { color });
                       }}
                       onClose={() => setIconPickerOpen(false)}
@@ -243,7 +243,7 @@ export function PageHeaderChrome({
 
 /**
  * PageFooterChrome — the card-bottom wrapper: the word count + the
- * Created/Updated day-page stamps (PageFooter, L4 + M32 — the
+ * Created/Updated day-page stamps (PageFooter — the
  * defined bottom divider of the node view). Null for embedded renders and
  * focus mode: the chrome steps aside, the body stays.
  */

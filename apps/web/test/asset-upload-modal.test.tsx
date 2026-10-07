@@ -4,10 +4,10 @@
  * (image/audio/document), the upload runs the CAS path (uploadAsset → asset
  * node → attachAsset) with an explicit progress state, the caller receives
  * the asset node id, and a failure keeps the file selected with a retryable
- * error. The M33 additions: the modal-internal paste capture
+ * error. The additions: the modal-internal paste capture
  * (clipboardData.items) selects a pasted file, `initialFile` prefills
  * through the same validation, `acceptedTypes` narrows the accept list and
- * rejects other categories with the v1 wording, and the v1 size caps reject
+ * rejects other categories with the original wording, and the size caps reject
  * oversized files before the upload starts. Success path uses a stubbed
  * uploadAsset (the REST POST is outside the suite's scope; the
  * workspace-client's own tests cover the transport).
@@ -224,7 +224,7 @@ describe("AssetUploadModal", () => {
     expect(within(dialog).getByRole("button", { name: /upload/i })).not.toBeNull();
   });
 
-  it("M33: a clipboard paste inside the modal selects the file", async () => {
+  it("a clipboard paste inside the modal selects the file", async () => {
     const client = await seedClient();
     vi.stubGlobal("URL", {
       ...URL,
@@ -245,7 +245,7 @@ describe("AssetUploadModal", () => {
     expect(screen.getByText("Image")).not.toBeNull();
   });
 
-  it("M33: the paste capture ignores clipboard entries without files", async () => {
+  it("the paste capture ignores clipboard entries without files", async () => {
     const client = await seedClient();
     render(
       <AssetUploadModal
@@ -266,7 +266,7 @@ describe("AssetUploadModal", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("M33: initialFile prefills the drop zone (invalid files error, no selection)", async () => {
+  it("initialFile prefills the drop zone (invalid files error, no selection)", async () => {
     const client = await seedClient();
     const { rerender } = render(
       <AssetUploadModal
@@ -280,7 +280,7 @@ describe("AssetUploadModal", () => {
     );
     expect((await screen.findAllByText("prefill.pdf")).length).toBeGreaterThanOrEqual(1);
 
-    // An oversize initialFile is rejected up front with the v1 wording.
+    // An oversize initialFile is rejected up front with the original wording.
     rerender(
       <AssetUploadModal
         isOpen
@@ -296,7 +296,7 @@ describe("AssetUploadModal", () => {
     );
   });
 
-  it("M33: acceptedTypes narrows the accept list and rejects other categories", async () => {
+  it("acceptedTypes narrows the accept list and rejects other categories", async () => {
     const client = await seedClient();
     vi.stubGlobal("URL", {
       ...URL,
@@ -331,7 +331,7 @@ describe("AssetUploadModal", () => {
     expect(within(dialog).queryByRole("alert")).toBeNull();
   });
 
-  it("M33: the v1 size caps reject oversized files before the upload starts", async () => {
+  it("the size caps reject oversized files before the upload starts", async () => {
     const client = await seedClient();
     const upload = vi.spyOn(client, "uploadAsset").mockResolvedValue(uploadResult("big.jpg"));
     render(
@@ -358,7 +358,7 @@ describe("AssetUploadModal", () => {
     expect(upload).not.toHaveBeenCalled();
   });
 
-  it("M33: unsupported types are rejected with the v1 wording", async () => {
+  it("unsupported types are rejected with the original wording", async () => {
     const client = await seedClient();
     render(
       <AssetUploadModal

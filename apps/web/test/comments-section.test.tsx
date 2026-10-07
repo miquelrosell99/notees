@@ -1,12 +1,12 @@
 /**
- * CommentsSection tests (M19 of the main-content restructure — the v1
+ * CommentsSection tests (the original
  * comments model restored onto the context column): comments are DIRECT
  * CHILDREN classed `comment` (the seeded system class); the section is
  * NodeViewSection chrome ("Comments" + the direct-child count), hidden when
  * empty; the quick-add composer creates a child block classed comment with
  * the text as its content (title-is-content); a reply is a comment whose
  * parent is the comment; children nest in the thread (any child blocks);
- * a row click opens the comment node; each row carries the v1 Reply/Delete
+ * a row click opens the comment node; each row carries the original Reply/Delete
  * pair. Lazy per the section contract: threads resolve on the first expand
  * (useSectionData), re-deriving per notification while expanded.
  */
@@ -53,7 +53,7 @@ async function flushWrites(): Promise<void> {
   await act(async () => {});
 }
 
-/** Create a comment child (the v1 model: classed `comment`, parented). */
+/** Create a comment child (the original model: classed `comment`, parented). */
 async function createComment(
   client: WorkspaceClient,
   parentId: string,
@@ -142,7 +142,7 @@ describe("CommentsSection", () => {
     const pageId = await client.createObject({ presentAsMain: true, name: "Doc" });
     const parent = await createComment(client, pageId, "Parent comment");
     await createComment(client, parent, "Nested reply");
-    // Any child block nests (v1's recursion over comment.children) — even a
+    // Any child block nests (the original recursion over comment.children) — even a
     // non-comment child rides the thread.
     await client.createObject({ parentId: parent, name: "Ordinary child" });
 
@@ -180,7 +180,7 @@ describe("CommentsSection", () => {
     expect(within(row).getByRole("button", { name: "My reply" })).not.toBeNull();
   });
 
-  it("a row click opens the comment node; Delete trashes it (the v1 pair)", async () => {
+  it("a row click opens the comment node; Delete trashes it (the original pair)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Doc" });
     const commentId = await createComment(client, pageId, "Open me");

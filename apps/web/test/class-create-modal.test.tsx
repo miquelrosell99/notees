@@ -197,7 +197,7 @@ describe("class creation triggers (#14)", () => {
   });
 });
 
-describe("asset creation trigger (M33)", () => {
+describe("asset creation trigger", () => {
   it("the Assets hub header hosts the upload modal; uploading creates + opens the asset", async () => {
     const client = await seedClient();
     const opened: string[] = [];
