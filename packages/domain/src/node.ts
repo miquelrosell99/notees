@@ -33,6 +33,21 @@ export interface NodeLike {
 export const DISPLAY_NAME_MAX = 80;
 
 /**
+ * The node's FULL title — the same derivation as deriveDisplayName
+ * (title-is-content excerpt + the date-node formatting branch) WITHOUT the
+ * display budget slice. Dense chrome (breadcrumbs, pickers, sidebar rows)
+ * reads the capped deriveDisplayName; node links and mention chips render
+ * the complete name (owner ruling: a link must read as the page's whole
+ * title, never a truncation), so they read this.
+ */
+export function fullTitleOf(node: NodeLike): string {
+  const excerpt = plainTextExcerpt(node.contentAst).trim();
+  if (!excerpt) return "";
+  const dateFormatted = formatDateNodeName(excerpt, node.classIds);
+  return dateFormatted ?? excerpt;
+}
+
+/**
  * Plaintext excerpt of a content token stream (display-name and fallback
  * purposes; the search package owns the full FTS extraction spec).
  * Includes: text runs, typed-link text, mention captured text, a class
@@ -93,12 +108,12 @@ export function plainTextExcerpt(ast: ContentAst | null | undefined): string {
  * label as their CONTENT (and a content-addressed id); display formats it
  * per the workspace setting shape (default YYYY/MM/DD, zero-padded segments
  * dropped): 20290000 → 2029, 20290600 → 2029/06, 20290627 → 2029/06/27.
+ *
+ * The result is capped at DISPLAY_NAME_MAX — the dense-chrome budget.
+ * Node links/mention chips read fullTitleOf instead (the complete title).
  */
 export function deriveDisplayName(node: NodeLike): string {
-  const excerpt = plainTextExcerpt(node.contentAst).trim();
-  if (!excerpt) return "";
-  const dateFormatted = formatDateNodeName(excerpt, node.classIds);
-  return (dateFormatted ?? excerpt).slice(0, DISPLAY_NAME_MAX);
+  return fullTitleOf(node).slice(0, DISPLAY_NAME_MAX);
 }
 
 /**

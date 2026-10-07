@@ -214,6 +214,13 @@ export const SYSTEM_CLASS_EXTENDS: Partial<Record<SystemClassName, SystemClassNa
   // events-family toggle cascades to it (SYSTEM_CLASS_EXTENDS is the
   // cascade authority).
   trip: ["event"],
+  // The web link IS a source (owner ruling): a bookmarked page is a cited
+  // web source — the weblink class inherits the source family's
+  // bibliographic bindings, while its own `url` binding stays the
+  // class-local winner (effective binding resolution is own-first,
+  // packages/store/src/effective.ts). Disabling `source` hides weblinks
+  // with the rest of the family.
+  weblink: ["source"],
 };
 
 /**
