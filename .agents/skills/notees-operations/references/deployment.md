@@ -54,16 +54,19 @@ The bind-mounted data dir needs uid-1000 ownership (images run `USER node`).
 CLI env: `NOTEES_SERVER`, `NOTEES_API_KEY`, `NOTEES_WORKSPACE`,
 `NOTEES_STATE_FILE` (default `~/.notees/state.json`).
 
-## HTTPS topology (fleet host — deployment.md)
+## HTTPS topology (deployment.md)
 
-`tailscale serve` terminates TLS on the tailnet; compose ports bind
-loopback-only by default (8377/8378) with inert LAN shadows at
-`127.0.0.1:18377/18378`; `NOTEES_SYNC_LAN_PORT=<lan-ip>:8377` /
-`NOTEES_WEB_LAN_PORT=<lan-ip>:8378` re-expose plain HTTP on the LAN.
-The bare hostname has no TLS identity (handshake aborts) — green access is
-always the `https://<host>.<tailnet>.ts.net` name. Inspect with
-`tailscale serve status`; undo with `tailscale serve reset`. Never write real
-host/tailnet names into any artifact — `.env` only.
+HTTPS is OPTIONAL, behind the compose "edge" profile — a Caddy container
+(`notees-edge:local`, built from `deploy/Dockerfile.caddy`) with the tailscale
+plugin: `NOTEES_EDGE_NAME=<host>.<tailnet>.ts.net` in `.env` + `docker compose
+--profile edge up -d`. One published port (`NOTEES_EDGE_HTTP`, default 443);
+certs issue/renew via the mounted tailscaled socket; `/api/*` → sync and
+everything else → web over the compose network (the https page is
+same-origin). App publishes are remappable full `ip:port` envs
+(`NOTEES_SYNC_HTTP`, `NOTEES_WEB_HTTP`, `*_LAN_HTTP`) — fleet host pins
+loopback. The core stack runs fine without the edge (no https = in-process
+store banner). Undo: remove the profile. Never write real host/tailnet names
+into any artifact — `.env` only.
 
 ## After a data migration that rewrote the log
 
