@@ -1,10 +1,10 @@
 /**
  * Node-link clipboard tests: Ctrl/Cmd+C with no selection copies
  * `<origin>/<uuid>` (block editor and page title) with a confirmation
- * toast; pasting that link — or a bare uuid — inserts a mention token in a
- * block and the display name in a title, both with a toast. Text
- * selections and non-link clipboard text keep the browser default. The
- * jsdom harness mirrors outliner-editor.test.tsx.
+ * toast; pasting that link — or a bare uuid — inserts a mention token (the
+ * title row edits with the full block editor, so block and title share the
+ * contract), both with a toast. Text selections and non-link clipboard text
+ * keep the browser default. The jsdom harness mirrors outliner-editor.test.tsx.
  */
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -312,14 +312,23 @@ describe("block editor node-link clipboard", () => {
   });
 });
 
+/** Enter edit mode on the title row and return its editor. */
+function clickIntoTitle(container: HTMLElement): HTMLElement {
+  const content = container.querySelector<HTMLElement>(".nt-title-content");
+  if (content === null) throw new Error("no title content rendered");
+  fireEvent.click(content);
+  const editor = content.querySelector<HTMLElement>(".nt-block-text");
+  if (editor === null) throw new Error("title editor did not mount after click");
+  return editor;
+}
+
 describe("title node-link clipboard", () => {
   it("Ctrl+C with no selection copies the page's node link + toasts", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Title Page" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
-    const title = container.querySelector<HTMLElement>(".nt-title-editable");
-    if (title === null) throw new Error("no editable title rendered");
+    const title = clickIntoTitle(container);
     selectContents(title, "end");
     await act(async () => {
       fireEvent.keyDown(title, { key: "c", ctrlKey: true });
@@ -337,7 +346,7 @@ describe("title node-link clipboard", () => {
     const pageId = await client.createObject({ presentAsMain: true, name: "Title Page" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
-    const title = container.querySelector<HTMLElement>(".nt-title-editable")!;
+    const title = clickIntoTitle(container);
     selectContents(title, null);
     await act(async () => {
       fireEvent.keyDown(title, { key: "c", ctrlKey: true });
@@ -347,27 +356,34 @@ describe("title node-link clipboard", () => {
     expect(notificationStore.notifications).toHaveLength(0);
   });
 
-  it("pasting a node link inserts the display name as plain text + toasts", async () => {
+  it("pasting a node link inserts a mention token + toasts", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Title Page" });
     const targetId = await client.createObject({ presentAsMain: true, name: "Target Page" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
-    const title = container.querySelector<HTMLElement>(".nt-title-editable")!;
+    const title = clickIntoTitle(container);
     selectContents(title, "end");
     let allowed = true;
     act(() => {
       allowed = pasteWithClipboard(title, nodeLinkUrl(targetId));
     });
 
+    // The paste is intercepted: a mention pill replaces the link text.
     expect(allowed).toBe(false);
-    expect(title.textContent).toBe("Title PageTarget Page");
     expect(notificationStore.notifications.map((n) => n.title)).toContain("Node link pasted");
 
     fireEvent.blur(title);
-    expect(client.getNode(pageId)?.contentAst).toEqual([
-      { type: "text", text: "Title PageTarget Page" },
-    ]);
+    await act(async () => {});
+    const ast = client.getNode(pageId)!.contentAst;
+    expect(ast[0]).toMatchObject({ type: "text", text: "Title Page" });
+    expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: targetId });
+    // Display mode renders the pill in the header.
+    const pill = container
+      .querySelector<HTMLElement>(".nt-block--title")!
+      .querySelector<HTMLElement>(".nt-link");
+    expect(pill).not.toBeNull();
+    expect(pill!.textContent).toBe("Target Page");
   });
 
   it("plain-text paste in the title keeps the default", async () => {
@@ -375,7 +391,7 @@ describe("title node-link clipboard", () => {
     const pageId = await client.createObject({ presentAsMain: true, name: "Title Page" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
-    const title = container.querySelector<HTMLElement>(".nt-title-editable")!;
+    const title = clickIntoTitle(container);
     selectContents(title, "end");
     let allowed = true;
     act(() => {

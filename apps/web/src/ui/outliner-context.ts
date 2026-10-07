@@ -1,7 +1,8 @@
 /**
  * Outliner editing context — provided by PageView and ClassView, consumed by
- * BlockRow / BlockTextEditor / TitleEditor. `client` is the structural write
- * surface, satisfied by both WorkspaceClient and the WorkerClient proxy.
+ * BlockRow (body blocks and the page title row) and BlockTextEditor.
+ * `client` is the structural write surface, satisfied by both
+ * WorkspaceClient and the WorkerClient proxy.
  */
 
 import { createContext, useCallback, useContext, useRef, useState } from "react";
@@ -247,11 +248,12 @@ export interface OutlinerContextValue {
 
 /**
  * Builds the OutlinerContext value for a view rooted at `rootId` — shared by
- * PageView (block tree) and ClassView (page chrome + panels). The block-tree
- * facts (positions, focus hand-off, collapse) are inert for ClassView, which
- * renders no editable rows but reuses chrome (TitleEditor) that consumes the
- * context. `options.openNode` wires render-cascade navigation for projections
- * that navigate (query result lists); it defaults to a no-op.
+ * PageView (block tree + header title row) and ClassView (page chrome +
+ * panels). The block-tree facts (positions, focus hand-off, collapse) are
+ * inert for ClassView, which renders no editable rows but reuses chrome
+ * (the title row) that consumes the context. `options.openNode` wires
+ * render-cascade navigation for projections that navigate (query result
+ * lists); it defaults to a no-op.
  */
 export function useOutlinerValue(
   client: OutlinerClient & OutlinerReader,

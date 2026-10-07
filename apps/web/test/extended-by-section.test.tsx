@@ -4,12 +4,13 @@
  * transitive extenders once any do.
  *
  * The hide-when-empty early return sat BEFORE the useMemo — a
- * rules-of-hooks violation in the TitleEditor crash class. Empirically
- * React 19 does NOT crash on this instance's 0↔1-hook flip (a fiber that
- * rendered zero hooks is re-mounted, not updated), so this is behavior
- * coverage plus hygiene, not a red-checked crash regression: the day a
- * hook lands above the return, the same shape WOULD crash (TitleEditor
- * did — its early-return branch still called four hooks).
+ * rules-of-hooks violation in the historical title-editor crash class.
+ * Empirically React 19 does NOT crash on this instance's 0↔1-hook flip
+ * (a fiber that rendered zero hooks is re-mounted, not updated), so this
+ * is behavior coverage plus hygiene, not a red-checked crash regression:
+ * the day a hook lands above the return, the same shape WOULD crash (the
+ * old bespoke title editor did — its early-return branch still called
+ * four hooks).
  */
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";

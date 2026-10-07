@@ -1,13 +1,13 @@
 /**
  * Selection/caret helpers shared by the contentEditable surfaces
- * (BlockTextEditor, TitleEditor).
+ * (BlockTextEditor — body blocks and the page title row).
  *
  * The block editor's DOM is a flat run of text nodes interleaved with
  * atomic node-link pills (`editor/editable-dom.ts` — contenteditable="false"
- * spans); the title is a single text node. Every offset here is a PROSE
- * offset (summed text lengths, pills contributing their captured text), not
- * a DOM offset. Positions inside a pill map to the pill's start — the
- * boundary-only model: user selections and carets can never start inside a
+ * spans). Every offset here is a PROSE offset (summed text lengths, pills
+ * contributing their captured text), not a DOM offset. Positions inside a
+ * pill map to the pill's start — the boundary-only model: user selections
+ * and carets can never start inside a
  * contenteditable="false" element, so prose endpoints are always boundaries.
  */
 
