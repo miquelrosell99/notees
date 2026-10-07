@@ -167,8 +167,7 @@ CHECK (is_class = 0 OR parent_id IS NULL)
   fundamentals as properties; never answer property drift with
   reserved-schema machinery. Structural invariants (extends DAG, alias-chain
   acyclicity) are write-time invariants: validated at the operation level
-  with loud failure, never applied; render assumes them. Reasoning:
-  `.plans/2026-10-06-1352-main-content-restructure/`.
+  with loud failure, never applied; render assumes them.
 
 ## 5. Content grammar and the edge index
 
