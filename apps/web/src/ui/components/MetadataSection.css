@@ -442,6 +442,112 @@ span.pill__text {
   overflow-wrap: anywhere;
 }
 
+/* --- the asset property row ---------------------------------------------- */
+
+/* The value cell: the asset list and the authoring buttons stack in one
+   column (the buttons sit at the list's bottom in multi rows). */
+.nt-property-assets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  flex: 1;
+  min-width: 0;
+}
+
+.nt-asset-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.nt-asset-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: var(--height-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface);
+}
+
+.nt-asset-item--default {
+  opacity: 0.55;
+}
+
+.nt-asset-item__thumb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--shape-small);
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface-variant);
+  overflow: hidden;
+  object-fit: cover;
+}
+
+.nt-asset-item--broken .nt-asset-item__thumb,
+.nt-asset-item__thumb--broken {
+  background: transparent;
+  border: var(--border-width-default) dashed var(--color-outline-variant);
+}
+
+.nt-asset-item__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: var(--shape-small);
+}
+
+.nt-asset-item__name:hover {
+  color: var(--color-primary-hover);
+}
+
+.nt-asset-item__name--broken code {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-body-small);
+  overflow-wrap: anywhere;
+}
+
+.nt-asset-item__remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0 var(--spacing-1);
+  border: none;
+  background: none;
+  color: var(--color-on-surface-variant);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: var(--shape-small);
+  opacity: var(--opacity-60, 0.6);
+}
+
+.nt-asset-item:hover .nt-asset-item__remove,
+.nt-asset-item__remove:focus-visible {
+  opacity: var(--opacity-100);
+}
+
+.nt-asset-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
 /* PG16 settings-modal option rows: color dot + label input + remove. */
 .nt-property-settings__options {
   list-style: none;
