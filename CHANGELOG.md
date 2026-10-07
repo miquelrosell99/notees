@@ -9,6 +9,24 @@ predating this file.
 
 ## 2026-10-06
 
+- **fix(ops): the containers could not start — a wildcard app bind collided
+  with the tailnet edge; HTTPS moved from tailscale serve to an optional Caddy
+  edge.** Incident (2026-10-07): the sync/web containers sat in `Created`,
+  failing to bind `0.0.0.0:8377` — tailscaled's serve held the tailnet IP on
+  the same port number; the loopback pin had gone missing from the host's
+  `.env`. Root fix, per the owner's direction: app publishes are now remappable
+  full `ip:port` envs (`NOTEES_SYNC_HTTP`, `NOTEES_WEB_HTTP`, `*_LAN_HTTP`,
+  zero-config wildcard defaults); TLS moved off `tailscale serve` into an
+  optional compose **edge profile** — Caddy + the tailscale plugin, one
+  published port, ts.net certs via the mounted tailscaled socket, `/api/*` →
+  sync + everything else → web over the compose network so the https page is
+  same-origin (browser storage requires a secure context). The web client
+  guesses same-origin on https pages, same-host:8377 on plain http; a remapped
+  sync port is set from the UI's server field. No-https deployments keep
+  working (in-process store banner). Verified end-to-end on the fleet host:
+  `VERIFY-PASS`, https name serving the web UI + API. Runbook + ops skill
+  updated (deployment.md).
+
 - **chore(sync): the GTK/Flutter wire corpora re-vendored to byte-identity
   (21 fixtures).** The client copies of `packages/protocol/fixtures/` had
   drifted (missing `object-restore.json`, stale `class-property-defaults.json`);

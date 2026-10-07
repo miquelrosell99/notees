@@ -1,0 +1,9 @@
+# The Notees edge: Caddy with the Tailscale plugin — tailnet HTTPS via the
+# host's tailscaled (its socket is mounted at runtime), so the cert lifecycle
+# stays with tailscale and the edge config lives in the repo.
+FROM caddy:2-builder AS builder
+RUN xcaddy build \
+  --with github.com/tailscale/caddy-tailscale
+
+FROM caddy:2
+COPY --from=builder /usr/bin/caddy /usr/bin/caddy
