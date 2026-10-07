@@ -17,9 +17,24 @@
 import type { ReactNode, ComponentType } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ClientNode, EffectiveProperty, WorkspaceClient } from "@/core/workspace-client.js";
+import type { ClientNode, EffectiveProperty, HostedSectionKey, WorkspaceClient } from "@/core/workspace-client.js";
 
 export type AnyClient = WorkspaceClient | WorkerClient;
+
+/**
+ * Hosted-views activation: the section a collection backs, addressed by the
+ * page/class node it lives on + the section key. When present, NodeCollection
+ * renders the custom-tabs chrome: the default tab first (permanent, never
+ * closable), custom tabs additive in sequence order, "+" creating one via
+ * the FilterBuilderModal. Custom views are per-user prefs-channel state —
+ * the DEFAULT tab renders exactly the un-hosted behavior.
+ */
+export interface HostedViewsConfig {
+  /** The page/class node the section lives on. */
+  nodeId: string;
+  /** The section key (the server's pinned vocabulary). */
+  sectionKey: HostedSectionKey;
+}
 
 /** The collection view modes (graph = the workspace graph). */
 export type ViewMode = "outline" | "prose" | "cards" | "kanban" | "table" | "graph";
@@ -183,6 +198,14 @@ export interface NodeCollectionProps {
   onAdd?: (() => void) | undefined;
   /** The affordance's label (e.g. "Add child page"); defaults to "Add". */
   addLabel?: string | undefined;
+
+  /**
+   * Hosted custom views (the section's stored tabs): when set, the
+   * collection renders the tab chrome (default tab permanent + custom tabs
+   * additive, "+" opens the query builder) and the selected custom view's
+   * query_ast refines the items/groups passed in (see sectionViewResolve).
+   */
+  hostedViews?: HostedViewsConfig | undefined;
 
   className?: string | undefined;
 }

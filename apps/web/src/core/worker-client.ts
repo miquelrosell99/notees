@@ -49,6 +49,7 @@ import {
   postAssetUpload,
   readBlobAsDataUrl,
   type PrefsPatch,
+  type SectionView,
   type UserPrefs,
   type UserPrefsSource,
 } from "./workspace-client.js";
@@ -881,6 +882,52 @@ export class WorkerClient {
   /** Merge-patch per-user UI prefs (see WorkspaceClient.patchPrefs). */
   async patchPrefs(patch: PrefsPatch): Promise<UserPrefs & { source: UserPrefsSource }> {
     return (await this.call("patchPrefs", [patch])) as UserPrefs & { source: UserPrefsSource };
+  }
+
+  // --- per-user hosted section views (custom tabs — the prefs channel) --------
+
+  /** The section's custom views in tab order (REST through the worker). */
+  async listSectionViews(nodeId: string, sectionKey: string): Promise<SectionView[]> {
+    return (await this.call("listSectionViews", [nodeId, sectionKey])) as SectionView[];
+  }
+
+  /** POST a new view (appended; 409 = name collision). */
+  async createSectionView(input: {
+    nodeId: string;
+    sectionKey: string;
+    name: string;
+    queryAst: unknown;
+    viewMode?: string | null;
+  }): Promise<SectionView> {
+    return (await this.call("createSectionView", [input])) as SectionView;
+  }
+
+  /** PATCH a view's name (404 = missing/foreign). */
+  async renameSectionView(
+    nodeId: string,
+    sectionKey: string,
+    viewId: string,
+    name: string,
+  ): Promise<SectionView> {
+    return (await this.call("renameSectionView", [nodeId, sectionKey, viewId, name])) as SectionView;
+  }
+
+  /** PUT the full ordered id list; sequences rewrite 0..n-1. */
+  async reorderSectionViews(
+    nodeId: string,
+    sectionKey: string,
+    orderedIds: string[],
+  ): Promise<SectionView[]> {
+    return (await this.call("reorderSectionViews", [
+      nodeId,
+      sectionKey,
+      orderedIds,
+    ])) as SectionView[];
+  }
+
+  /** DELETE a view (204; 404 = missing/foreign). */
+  async deleteSectionView(nodeId: string, sectionKey: string, viewId: string): Promise<void> {
+    await this.call("deleteSectionView", [nodeId, sectionKey, viewId]);
   }
 
   // --- notifications ----------------------------------------------------------------------

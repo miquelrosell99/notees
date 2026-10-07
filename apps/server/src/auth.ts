@@ -97,8 +97,7 @@ export interface SessionUser {
   email: string;
   displayName: string | null;
   name: string | null;
-  surnames: string | null;
-  avatarUrl: string | null;
+  surnames: string | null;  avatarUrl: string | null;
   isAdmin: boolean;
 }
 
@@ -109,6 +108,56 @@ export interface WorkspaceListEntry {
   createdAt: number;
   envelopeCount: number;
   latestSeq: number;
+}
+
+/**
+ * One hosted custom view (a section's custom tab). queryAst is the
+ * serialized QueryAST v1 (parsed back to `unknown` — the server validates at
+ * the route, the client parses at resolution); viewMode is a nullable
+ * display pin (null = the container's own mode).
+ */
+export interface SectionViewRow {
+  id: string;
+  nodeId: string;
+  sectionKey: string;
+  name: string;
+  sequence: number;
+  queryAst: unknown;
+  viewMode: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+type SectionViewRaw = Omit<
+  SectionViewRow,
+  "nodeId" | "sectionKey" | "queryAst" | "viewMode" | "createdAt" | "updatedAt"
+> & {
+  node_id: string;
+  section_key: string;
+  query_ast: string;
+  view_mode: string | null;
+  created_at: number;
+  updated_at: number;
+};
+
+function toSectionViewRow(raw: SectionViewRaw): SectionViewRow {
+  let queryAst: unknown = null;
+  try {
+    queryAst = JSON.parse(raw.query_ast);
+  } catch {
+    // A corrupt row fails loud at the client's parse, never half-read here.
+  }
+  return {
+    id: raw.id,
+    nodeId: raw.node_id,
+    sectionKey: raw.section_key,
+    name: raw.name,
+    sequence: raw.sequence,
+    queryAst,
+    viewMode: raw.view_mode,
+    createdAt: raw.created_at,
+    updatedAt: raw.updated_at,
+  };
 }
 
 const DDL = `
@@ -180,6 +229,32 @@ CREATE TABLE IF NOT EXISTS user_prefs (
     recents TEXT NOT NULL DEFAULT '[]',
     updated_at INTEGER NOT NULL
 );
+
+-- Per-user hosted section views (custom tabs on collection-backed
+-- sections — linked-references / unlinked-mentions / classed-nodes): the
+-- same prefs-channel ruling as favorites/recents — cross-device UI state,
+-- never op-log state. One row per custom tab; the default view is
+-- derived-not-stored (the schema cannot express it: emptying the table
+-- restores factory behavior). query_ast is the serialized QueryAST v1 the
+-- FilterBuilderModal produces (validated at the route against the zod
+-- schema); view_mode is a nullable display pin (null = the container's
+-- mode). sequence is the dense 0..n-1 tab order (the client owns ordering,
+-- the reorder endpoint rewrites it wholesale). The name is unique per
+-- (user, node, section) — same-named views on the same section collide.
+CREATE TABLE IF NOT EXISTS section_view (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    node_id TEXT NOT NULL,
+    section_key TEXT NOT NULL,
+    name TEXT NOT NULL,
+    sequence INTEGER NOT NULL,
+    query_ast TEXT NOT NULL,
+    view_mode TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE (user_id, node_id, section_key, name)
+);
+CREATE INDEX IF NOT EXISTS idx_section_view_owner ON section_view (user_id, node_id, section_key);
 `;
 
 export async function hashPassword(password: string): Promise<string> {
@@ -729,6 +804,129 @@ export class AuthStorage {
       )
       .run(userId, JSON.stringify(favorites), JSON.stringify(recents), updatedAt);
     return { favorites, recents, updatedAt };
+  }
+
+  // --- per-user hosted section views (custom tabs — the prefs channel) --------
+
+  /**
+   * The section's custom views in tab order (dense sequence). Scoped to the
+   * user: one account never sees another's tabs on the same page.
+   */
+  listSectionViews(userId: string, nodeId: string, sectionKey: string): SectionViewRow[] {
+    return (
+      this.db
+        .prepare(
+          `SELECT id, node_id, section_key, name, sequence, query_ast, view_mode, created_at, updated_at
+           FROM section_view
+           WHERE user_id = ? AND node_id = ? AND section_key = ?
+           ORDER BY sequence ASC, created_at ASC`,
+        )
+        .all(userId, nodeId, sectionKey) as SectionViewRaw[]
+    ).map(toSectionViewRow);
+  }
+
+  /** The row when it belongs to the user (other users' rows do not exist). */
+  getSectionView(userId: string, viewId: string): SectionViewRow | null {
+    const row = this.db
+      .prepare(
+        `SELECT id, node_id, section_key, name, sequence, query_ast, view_mode, created_at, updated_at
+         FROM section_view WHERE id = ? AND user_id = ?`,
+      )
+      .get(viewId, userId) as SectionViewRaw | undefined;
+    return row === undefined ? null : toSectionViewRow(row);
+  }
+
+  /**
+   * Create a custom view, appended after the section's current last tab.
+   * The (user, node, section, name) unique key is the only collision source —
+   * the route maps it to 409.
+   */
+  createSectionView(input: {
+    userId: string;
+    nodeId: string;
+    sectionKey: string;
+    name: string;
+    queryAst: unknown;
+    viewMode?: string | null;
+  }): SectionViewRow {
+    const now = Date.now();
+    const id = uuidv7();
+    const last = this.db
+      .prepare(
+        `SELECT COALESCE(MAX(sequence), -1) AS last FROM section_view
+         WHERE user_id = ? AND node_id = ? AND section_key = ?`,
+      )
+      .get(input.userId, input.nodeId, input.sectionKey) as { last: number };
+    this.db
+      .prepare(
+        `INSERT INTO section_view (id, user_id, node_id, section_key, name, sequence, query_ast, view_mode, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        id,
+        input.userId,
+        input.nodeId,
+        input.sectionKey,
+        input.name,
+        last.last + 1,
+        JSON.stringify(input.queryAst),
+        input.viewMode ?? null,
+        now,
+        now,
+      );
+    return this.getSectionView(input.userId, id)!;
+  }
+
+  /** Rename a view; the unique key maps collisions to 409 at the route. */
+  renameSectionView(userId: string, viewId: string, name: string): SectionViewRow | null {
+    const current = this.getSectionView(userId, viewId);
+    if (current === null) return null;
+    this.db
+      .prepare("UPDATE section_view SET name = ?, updated_at = ? WHERE id = ? AND user_id = ?")
+      .run(name, Date.now(), viewId, userId);
+    return this.getSectionView(userId, viewId);
+  }
+
+  /**
+   * Reorder the section's tabs: the body is the full ordered id list (the
+   * client owns ordering, like the prefs lists); sequences are rewritten
+   * 0..n-1 in one transaction. Unknown ids fail loud at the route; a list
+   * that would drop a row fails loud here (the WHERE guards make dropped
+   * ids survive with their old sequence — detect and throw instead).
+   */
+  reorderSectionViews(
+    userId: string,
+    nodeId: string,
+    sectionKey: string,
+    orderedIds: string[],
+  ): SectionViewRow[] {
+    const reorder = this.db.transaction(() => {
+      orderedIds.forEach((viewId, index) => {
+        this.db
+          .prepare(
+            `UPDATE section_view SET sequence = ?, updated_at = ?
+             WHERE id = ? AND user_id = ? AND node_id = ? AND section_key = ?`,
+          )
+          .run(index, Date.now(), viewId, userId, nodeId, sectionKey);
+      });
+    });
+    reorder();
+    const views = this.listSectionViews(userId, nodeId, sectionKey);
+    const expected = new Set(orderedIds);
+    const sequences = views.map((view) => view.sequence);
+    const dense = sequences.every((seq, index) => seq === index);
+    if (!dense || views.some((view) => !expected.has(view.id))) {
+      throw new Error("section view reorder must name every view exactly once");
+    }
+    return views;
+  }
+
+  /** Delete a view; returns false when the row is not the user's (404 there). */
+  deleteSectionView(userId: string, viewId: string): boolean {
+    const result = this.db
+      .prepare("DELETE FROM section_view WHERE id = ? AND user_id = ?")
+      .run(viewId, userId);
+    return result.changes > 0;
   }
 
   close(): void {
