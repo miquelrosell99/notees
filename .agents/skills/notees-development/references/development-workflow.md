@@ -22,6 +22,11 @@ CI-equivalent gate (run before claiming done on anything non-trivial):
 changing a package's public API: build that package's dist first, then
 typecheck dependents.
 
+**Worktrees live in `.worktrees/`** (gitignored): `git worktree add
+.worktrees/<slug> -b <branch>`. Never a random sibling folder — the fleet
+host accumulates checkouts otherwise, and a forgotten sibling is invisible
+to `git worktree list` hygiene.
+
 ## The fixture gate (blocking)
 
 Op fixtures live in `packages/protocol/fixtures/` (envelope-minimal,
