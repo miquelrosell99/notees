@@ -13,7 +13,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
-import { ClassView } from "../src/ui/ClassView.js";
+import { NodeView } from "../src/ui/App.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -60,7 +60,7 @@ describe("Class View class properties editor", () => {
     const client = await seedClient();
     const classId = await client.createClass("Task");
     await client.createPropertySchema({ name: "priority", type: "select" });
-    render(<ClassView client={client} classId={classId} />);
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
 
     // Empty schema: the section starts expanded and invites setup.
     expect(screen.getByText("No property bindings.")).not.toBeNull();
@@ -87,7 +87,7 @@ describe("Class View class properties editor", () => {
   it("creates a new schema from the popup and binds it", async () => {
     const client = await seedClient();
     const classId = await client.createClass("Task");
-    render(<ClassView client={client} classId={classId} />);
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Add property" }));
     const dialog = screen.getByRole("dialog", { name: "Add property" });
@@ -108,7 +108,7 @@ describe("Class View class properties editor", () => {
     const classId = await client.createClass("Task");
     const schemaA = await client.createPropertySchema({ name: "priority", type: "select" });
     await client.setClassProperty(classId, schemaA, { sequence: 0, defaultValue: "medium" });
-    render(<ClassView client={client} classId={classId} />);
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     await expandDefinitions();
 
     // Patch only the default: required/sequence keep their existing values.
@@ -133,7 +133,7 @@ describe("Class View class properties editor", () => {
     const classId = await client.createClass("Task");
     const schemaId = await client.createPropertySchema({ name: "priority", type: "select" });
     await client.setClassProperty(classId, schemaId, { defaultValue: "medium" });
-    render(<ClassView client={client} classId={classId} />);
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     await expandDefinitions();
 
     expect(client.getClassBindings(classId)).toHaveLength(1);

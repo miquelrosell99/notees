@@ -20,7 +20,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
-import { ClassView } from "../src/ui/ClassView.js";
+import { NodeView } from "../src/ui/App.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -61,14 +61,14 @@ describe("ExtendedBySection", () => {
     const client = await seedClient();
     const parentId = await createTitledClass(client, "source");
     const childId = await createTitledClass(client, "episode");
-    const view = render(<ClassView client={client} classId={parentId} />);
+    const view = render(<NodeView client={client} nodeId={parentId} onOpenNode={() => {}} />);
     // Hidden while empty — no section chrome at all.
     expect(screen.queryByText("Extended by")).toBeNull();
     // The first extends edge lands (sync-equivalent write) and the SAME
-    // ClassView/section instance re-renders (see the file header for why
+    // The NodeView/section instance re-renders (see the file header for why
     // this is behavior coverage, not a red-checked crash regression).
     await client.setClassExtends(childId, [parentId]);
-    view.rerender(<ClassView client={client} classId={parentId} />);
+    view.rerender(<NodeView client={client} nodeId={parentId} onOpenNode={() => {}} />);
     expect(screen.getByText("Extended by")).not.toBeNull();
   });
 
@@ -79,7 +79,7 @@ describe("ExtendedBySection", () => {
     const leafId = await createTitledClass(client, "episode");
     await client.setClassExtends(midId, [parentId]);
     await client.setClassExtends(leafId, [midId]);
-    const view = render(<ClassView client={client} classId={parentId} />);
+    const view = render(<NodeView client={client} nodeId={parentId} onOpenNode={() => {}} />);
     const header = screen.getByText("Extended by");
     const section = header.closest(".nt-section");
     expect(section).not.toBeNull();

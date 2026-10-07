@@ -28,7 +28,7 @@ import { chainNodeIds, dayNodeId, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
-import { ClassView } from "../src/ui/ClassView.js";
+import { NodeView } from "../src/ui/App.js";
 import { PageView } from "../src/ui/PageView.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
@@ -332,7 +332,7 @@ describe("dates (SCHEMA.md)", () => {
     const classId = await client.createClass("Dated");
     await client.setClassProperty(classId, dateSchema, { sequence: 0 });
     await client.setClassProperty(classId, linkSchema, { sequence: 1 });
-    render(<ClassView client={client} classId={classId} />);
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
 
     // Non-empty schema: expand the section, then each row's config panel.
     fireEvent.click(screen.getByRole("button", { name: /class properties/i }));

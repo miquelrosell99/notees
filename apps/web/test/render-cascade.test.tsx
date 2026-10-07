@@ -94,18 +94,18 @@ describe("NodeView render cascade (Revision 11)", () => {
     expect(screen.queryByRole("heading")).toBeNull();
   });
 
-  it("class node → ClassView regardless of placement facts", async () => {
+  it("class node → the class page variant regardless of placement facts", async () => {
     const client = await seedClient();
     const classId = await client.createClass("Cascade Class");
     await client.updateObject(classId, { contentAst: [{ type: "text", text: "Cascade Class" }] });
 
     const { container } = render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
 
-    // The class page is a PageView composition: class root, the extends
-    // corner's class-only add affordance, and the Class properties row
-    // (renamed from "Property definitions" in the class-page naming
-    // sweep — the class node has its own standard Properties section, the
-    // definitions carry the distinct name).
+    // The class page renders the page chrome with the class variant data:
+    // class root, the extends corner's class-only add affordance, and
+    // the Class properties row (renamed from "Property definitions" in the
+    // class-page naming sweep — the class node has its own standard
+    // Properties section, the definitions carry the distinct name).
     expect(screen.getByRole("button", { name: "Add class extension" })).not.toBeNull();
     expect(screen.getByRole("button", { name: /class properties/i })).not.toBeNull();
     expect(container.querySelector(".nt-class")).not.toBeNull();

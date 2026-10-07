@@ -9,7 +9,7 @@
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import type { ContentAst } from "@notees/protocol";
@@ -199,10 +199,13 @@ describe("outliner editor", () => {
     vi.useRealTimers();
 
     // Blur after the debounced save is a no-op second write; read mode
-    // renders the saved tokens again.
+    // renders the saved tokens again. (Scoped to the tree: the context
+    // column's TOC lists short one-line blocks too.)
     fireEvent.blur(editor);
     expect(container.querySelector(".nt-block-text")).toBeNull();
-    expect(screen.getByText("hello world")).toBeInTheDocument();
+    expect(
+      within(container.querySelector(".nt-block-tree")!).getByText("hello world"),
+    ).toBeInTheDocument();
   });
 
   it("flushes a dirty draft on blur (no fake timers)", async () => {
@@ -446,7 +449,9 @@ describe("outliner editor", () => {
     expect(client.getNode(blockId)?.contentAst).toEqual([
       { type: "text", text: "hello world", marks: ["bold"] },
     ]);
-    expect(screen.getByText("hello world").tagName).toBe("STRONG");
+    expect(
+      within(container.querySelector(".nt-block-tree")!).getByText("hello world").tagName,
+    ).toBe("STRONG");
   });
 
   it("touching a mention-bearing block without changing its text does not flatten it", async () => {

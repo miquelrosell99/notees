@@ -16,7 +16,8 @@
  *
  * Lazy per the normative SCHEMA.md system-sections contract ("a collapsed
  * section executes no query"): the created query runs ONLY while expanded
- * (first expand, then re-derives per notification while expanded); there is
+ * (first expand, then re-derives per notification while expanded — the
+ * contract rides useSectionData); there is
  * no eager count badge — no materialized activity count exists, so like
  * unlinked references the header shows none. Hide-when-empty reads the
  * cheap active-node proxy (pages + classes); a blocks-only-under-trash
@@ -24,7 +25,7 @@
  * trashed-context activity is noise, not signal.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import type { QueryAst } from "@notees/query";
 
@@ -34,6 +35,7 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 import { Icon } from "../Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
 import { displayNameFromClient } from "../dateDisplay.js";
+import { useSectionData } from "./useSectionData.js";
 import "./ActivityLogSection.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -128,38 +130,29 @@ export interface ActivityLogSectionProps {
 }
 
 export function ActivityLogSection({ client, onOpenPage }: ActivityLogSectionProps) {
-  const [version, setVersion] = useState(0);
-  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
+  const [expanded, setExpanded] = useState(false);
 
   /**
    * The lazy contract: no query exists until the first expand. While
    * expanded, one created-query per notification; a failed/closed query
-   * keeps the previous rows (reference material, never a boot gate).
+   * keeps the previous rows (reference material, never a boot gate). Rides
+   * useSectionData (active = expanded).
    */
-  const [expanded, setExpanded] = useState(false);
-  const [createdRows, setCreatedRows] = useState<ClientNode[] | null>(null);
-  useEffect(() => {
-    if (!expanded) return;
-    let cancelled = false;
-    const run = async () => {
-      try {
-        const result = await Promise.resolve(client.runQueryAst(buildRecentCreatedAst()));
-        if (cancelled) return;
-        setCreatedRows(
-          result.rows
-            .slice(0, CREATED_ROW_LIMIT)
-            .map((row) => client.getNode(row.id))
-            .filter((node): node is ClientNode => node !== undefined),
-        );
-      } catch {
-        // Closed client / failed query: keep the previous rows.
-      }
-    };
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, [client, version, expanded]);
+  const runCreatedQuery = useCallback(
+    () =>
+      Promise.resolve(client.runQueryAst(buildRecentCreatedAst())).then((result) =>
+        result.rows
+          .slice(0, CREATED_ROW_LIMIT)
+          .map((row) => client.getNode(row.id))
+          .filter((node): node is ClientNode => node !== undefined),
+      ),
+    [client],
+  );
+  const { rows: createdRows } = useSectionData<ClientNode[]>({
+    client,
+    active: expanded,
+    query: runCreatedQuery,
+  });
 
   // Cheap hide-when-empty proxy (no materialized activity count exists):
   // active pages + classes. A blocks-only-under-trash workspace hides the

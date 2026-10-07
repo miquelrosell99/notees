@@ -108,6 +108,18 @@ describe("Properties panel (effective values)", () => {
     const panel = container.querySelector(".nt-page-side-panel");
     expect(panel).not.toBeNull();
     expect(panel!.querySelector(".nt-props-sidebar")).not.toBeNull();
+    // The column names itself: a muted "Properties" header row with the
+    // effective count. A plain node carries no property rows — the retired
+    // aliasOf carrier is gone (node aliases ride the aliasedNodeId wire
+    // field, never a property row).
+    const header = panel!.querySelector(".nt-props-sidebar__header")!;
+    expect(header).not.toBeNull();
+    expect(header.textContent).toContain("Properties");
+    const rowCount = panel!.querySelectorAll(".nt-props-sidebar__prop").length;
+    expect(header.querySelector(".nt-props-sidebar__count")!.textContent).toBe(String(rowCount));
+    expect(rowCount).toBe(0);
+    // The empty panel still hosts the "Add property" affordance.
+    expect(screen.getByRole("button", { name: /Add property/ })).not.toBeNull();
   });
 
   it("editing a default writes an authored value that shadows it", async () => {

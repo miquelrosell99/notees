@@ -303,6 +303,50 @@ describe("PageView system sections", () => {
     expect(onOpenPage).toHaveBeenCalledWith(childId);
   });
 
+  it("a childless main-surface page renders the Child pages section with the create affordance; the create lands in the Pages zone and focuses the new child", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Lonely Parent" });
+    const onOpenPage = vi.fn();
+
+    render(<PageView client={client} pageId={pageId} onOpenPage={onOpenPage} />);
+
+    // The section renders even with zero children: the kit EmptyState
+    // carries the create affordance (the collection contract: flag AND
+    // callback AND context — the main surface with a navigation target).
+    const childSection = section(/Child pages/);
+    expect(within(childSection).getByText("No child pages.")).not.toBeNull();
+    const addButton = within(childSection).getByRole("button", { name: "Add child page" });
+    // The zero count stays off the header (the tab-label convention).
+    expect(childSection.querySelector(".node-view-section__count")).toBeNull();
+
+    fireEvent.click(addButton);
+    await flushWrites();
+
+    // The create landed IN THE PAGES ZONE (presentAsMain child of the host)
+    // and the section's focus behavior opened the new child.
+    const children = client.getChildPages(pageId);
+    expect(children).toHaveLength(1);
+    expect(children[0]!.presentAsMain).toBe(true);
+    expect(onOpenPage).toHaveBeenCalledWith(children[0]!.id);
+    // The expanded section re-ran its query on the write notification: the
+    // new child is a row now, and the empty state is gone.
+    expect(within(section(/Child pages/)).queryByText("No child pages.")).toBeNull();
+  });
+
+  it("no navigation target, no create affordance: a childless page without onOpenPage keeps the section hidden", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Quiet Parent" });
+    const childSpy = vi.spyOn(client, "getChildPages");
+
+    render(<PageView client={client} pageId={pageId} />);
+
+    // The context conjunct fails (no focus target) — the section stays
+    // hidden exactly as before, and its list query never runs.
+    expect(screen.queryByRole("button", { name: /Child pages/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add child page" })).toBeNull();
+    expect(childSpy).not.toHaveBeenCalled();
+  });
+
   it("the main-children zone lists present-as-main children of any node type (Revision 11)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Zone Parent" });

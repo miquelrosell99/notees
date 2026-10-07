@@ -4,6 +4,12 @@
  * themselves (editable, children and all) — never repeated "label: value"
  * entries per value.
  *
+ * The carriers render through the shared collection dispatcher: a locked
+ * outline NodeCollection (no view switcher), one root item per carrier, each
+ * root row hosted in its own per-carrier outliner context — the same editing
+ * context the standalone subtree renderer used to host, so bullet navigation,
+ * collapse, and the keyboard gestures behave exactly as they did there.
+ *
  * Enter semantics ride the CarrierEnterContext (see textCarrier.ts):
  *  - multi-value: Enter on a value creates a SIBLING block registered as the
  *    next property value;
@@ -15,16 +21,20 @@
  * fresh carrier, empty-blur unsets the dead value.
  */
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { rendersAsInlineBlock } from "@notees/domain";
 
 import type { EffectiveProperty } from "@/core/workspace-client.js";
 
+import { NodeCollection, type NodeCollectionItem } from "../views/index.js";
 import type { AnyClient } from "../views/types.js";
 import { AddPill } from "./ui/AddPill.js";
-import { ReferenceSubtree } from "./ReferenceSubtree.js";
+import { OutlinerContext, useOutlinerValue } from "../outliner-context.js";
 import { CarrierEnterContext, type CarrierInfo } from "../textCarrier.js";
+
+/** Cycle-protection depth cap, mirroring the client's getBlockTree default. */
+const CARRIER_TREE_DEPTH_CAP = 64;
 
 /** Mirror of the metadata scalar branch's carrier resolution. */
 function carrierStateOf(
@@ -44,6 +54,62 @@ function carrierStateOf(
     return { kind: "dead" };
   }
   return { kind: "scalar" };
+}
+
+/** The carrier's editable subtree (recursive, depth-capped). */
+function carrierSubtreeOf(
+  client: AnyClient,
+  nodeId: string,
+  remaining = CARRIER_TREE_DEPTH_CAP,
+): NodeCollectionItem[] {
+  if (remaining <= 0) return [];
+  return client.getChildren(nodeId).map((child) => ({
+    node: child,
+    children: carrierSubtreeOf(client, child.id, remaining - 1),
+  }));
+}
+
+/**
+ * The (owner, schema) carrier resolution behind the locked collection: every
+ * authored value that resolves to a live carrier block becomes one root item
+ * — the carrier plus its editable subtree. Multi-value schemas can carry
+ * several; each renders as a root item. Dead refs and legacy scalar strings
+ * are NOT items — they stay the fallback input cells at the call site.
+ */
+function carrierItemsOf(client: AnyClient, rows: EffectiveProperty[]): NodeCollectionItem[] {
+  const items: NodeCollectionItem[] = [];
+  for (const row of rows) {
+    const state = carrierStateOf(client, row.value);
+    if (state.kind !== "carrier") continue;
+    const node = client.getNode(state.id);
+    if (node === undefined) continue;
+    items.push({ node, children: carrierSubtreeOf(client, state.id) });
+  }
+  return items;
+}
+
+/**
+ * One carrier root row's editing context: the per-carrier outliner value the
+ * standalone subtree renderer hosted (carrier-scoped positions and collapse,
+ * bullet click opens the node — the row never wired a sidebar peek). The
+ * collection's default row renders inside the provider, so BlockRow resolves
+ * THIS context instead of the enclosing page's.
+ */
+function CarrierRowHost({
+  client,
+  item,
+  onOpenPage,
+  children,
+}: {
+  client: AnyClient;
+  item: NodeCollectionItem;
+  onOpenPage?: ((pageId: string) => void) | undefined;
+  children: ReactNode;
+}) {
+  const outliner = useOutlinerValue(client, item.node.id, {
+    openNode: (id) => onOpenPage?.(id),
+  });
+  return <OutlinerContext.Provider value={outliner}>{children}</OutlinerContext.Provider>;
 }
 
 export function TextPropertyRow({
@@ -72,6 +138,12 @@ export function TextPropertyRow({
   const [addError, setAddError] = useState<string | null>(null);
   const addButtonRef = useRef<HTMLButtonElement | null>(null);
 
+  // The standalone subtree renderer carried its own subscription per carrier
+  // root so the cell stays live even outside a subscribing host; the row
+  // keeps that contract with one subscription for all its carriers.
+  const [, setVersion] = useState(0);
+  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
+
   /** Carrier lookup for the Enter semantics — only THIS row's carriers. */
   const carrierInfo = useMemo(() => {
     const map = new Map<string, CarrierInfo>();
@@ -83,6 +155,9 @@ export function TextPropertyRow({
     }
     return map;
   }, [client, ordered, nodeId, propertySchemaId, multi]);
+
+  /** The locked collection's root items — one per live carrier, in value order. */
+  const carrierItems = carrierItemsOf(client, ordered);
 
   const nextIdx = (() => {
     const authored = ordered.filter((row) => row.source === "authored").map((row) => row.idx);
@@ -123,18 +198,25 @@ export function TextPropertyRow({
         <CarrierEnterContext.Provider
           value={{ carrierOf: (blockId) => carrierInfo.get(blockId) ?? null }}
         >
+          {carrierItems.length > 0 && (
+            <NodeCollection
+              viewMode="outline"
+              client={client}
+              items={carrierItems}
+              tree
+              editable
+              renderItem={(item, row) => (
+                <CarrierRowHost client={client} item={item} onOpenPage={onOpenPage}>
+                  {row}
+                </CarrierRowHost>
+              )}
+            />
+          )}
           {ordered.map((row) => {
             const state = carrierStateOf(client, row.value);
-            if (state.kind === "carrier") {
-              return (
-                <ReferenceSubtree
-                  key={`${propertySchemaId}:${row.idx}`}
-                  client={client}
-                  rootId={state.id}
-                  onOpenNode={onOpenPage}
-                />
-              );
-            }
+            // Carrier values render as the locked collection's root items
+            // above; only the fallback cells ride this map.
+            if (state.kind === "carrier") return null;
             // Dead carrier (uuid value that no longer resolves): display
             // EMPTY, re-author a fresh carrier on edit, unset on empty blur.
             // Scalar values: the minimal text editor, writing the string.

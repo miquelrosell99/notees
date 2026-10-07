@@ -1,0 +1,122 @@
+/**
+ * QueryBuilderFields styles — the original ViewBuilder presentation: a scope
+ * bar on top, then the flat condition list as cards (uppercase header label
+ * + remove ✕ + the prose operator word). Token-only; values that track type
+ * metrics take the adaptive form (em/rem via the spacing/radius/font tokens).
+ *
+ * The cards live inside both the QueryBlockView popover (.nt-query-builder)
+ * and the FilterBuilderModal — the layout is single-column and wraps on
+ * narrow surfaces (the modal's md width and the popover's fixed width).
+ */
+
+.nt-vb {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-1) 0;
+}
+
+/* ── The scope bar ────────────────────────────────────────────────── */
+
+.nt-vb__scope {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  flex-wrap: wrap;
+  padding: var(--spacing-3);
+  background: var(--color-surface-variant);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-outline-variant);
+}
+
+.nt-vb__scope-label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  color: var(--color-on-surface-variant);
+  font-weight: 500;
+  font-size: var(--font-size-base);
+  flex-shrink: 0;
+}
+
+/* ── The filters section: one card per condition ──────────────────── */
+
+.nt-vb__filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+/* The empty note — names the consequence of an empty filter list. */
+.nt-vb__empty-note {
+  margin: 0;
+  padding: var(--spacing-4);
+  text-align: center;
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-base);
+}
+
+.nt-vb__card {
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+/* Unset condition: the dashed "add me" placeholder (a calm affordance). */
+.nt-vb__card--unset {
+  border-style: dashed;
+  background: transparent;
+}
+
+.nt-vb__card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3) var(--spacing-1);
+}
+
+.nt-vb__card-label {
+  font-size: var(--font-size-2xs);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-vb__card-body {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex-wrap: wrap;
+  padding: 0 var(--spacing-3) var(--spacing-3);
+}
+
+/* The fixed operator, prose style: lowercase connective word. */
+.nt-vb__word {
+  color: var(--color-on-surface-variant);
+  font-weight: 500;
+  font-size: var(--font-size-base);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.nt-vb__card-body select,
+.nt-vb__card-body input {
+  flex: 1;
+  min-width: 10ch;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-1) var(--spacing-2);
+  font-size: var(--font-size-sm);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+}
+
+/* Narrow surfaces: the prose row wraps, the control takes a full row. */
+@media (width <= 768px) {
+  .nt-vb__card-body select,
+  .nt-vb__card-body input {
+    flex-basis: 100%;
+  }
+}

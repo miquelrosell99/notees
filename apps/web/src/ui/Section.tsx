@@ -7,14 +7,21 @@
  * failure (e.g. the client closing mid-flight) keeps the previous results
  * instead of crashing the tree — a section is reference material, never a
  * boot gate.
+ *
+ * A thin chrome wrapper over useSectionData — the timing/cache contract
+ * moved into the hook (one instance per section view); this component keeps
+ * the established prop shape (the `renderWhenEmpty` opt-in extends it for
+ * containers owning their own empty state) and renders the collapsible
+ * chrome around `renderResults`.
  */
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client.js";
 
 import { NodeViewSection } from "./components/NodeViewSection.js";
+import { useSectionData } from "./components/useSectionData.js";
 
 export interface SectionProps<T> {
   client: WorkspaceClient | WorkerClient;
@@ -23,9 +30,10 @@ export interface SectionProps<T> {
   /**
    * Materialized count badge — renders unconditionally and is exempt from
    * the lazy-loading contract (reading it is reading a stored number).
-   * Omit for no badge: unlinked references never shows an eager count.
+   * Omit for no badge: unlinked references never shows an eager count (and
+   * an empty child-pages section suppresses the zero).
    */
-  badge?: number;
+  badge?: number | undefined;
   /** Collapsed on first render unless overridden. */
   defaultCollapsed?: boolean;
   /** The section query; MUST NOT be invoked while collapsed. */
@@ -34,6 +42,15 @@ export interface SectionProps<T> {
   renderResults: (results: T) => ReactNode;
   /** Text when the query came back empty. */
   emptyText: string;
+  /**
+   * Render `renderResults` for an EMPTY result set too (default false):
+   * the container owns its own empty state — e.g. a NodeCollection whose
+   * kit EmptyState carries the create affordance. The `emptyText` branch
+   * stays for every section without that chrome.
+   */
+  renderWhenEmpty?: boolean;
+  /** Optional chrome rendered above the results (an extension slot). */
+  children?: ReactNode;
 }
 
 export function Section<T>({
@@ -45,25 +62,11 @@ export function Section<T>({
   load,
   renderResults,
   emptyText,
+  renderWhenEmpty = false,
+  children,
 }: SectionProps<T>) {
   const [expanded, setExpanded] = useState(!defaultCollapsed);
-  const [results, setResults] = useState<T | null>(null);
-  /** Notification version at which `load` last ran; null = never ran. */
-  const lastRunAt = useRef<number | null>(null);
-  const [version, setVersion] = useState(0);
-
-  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
-
-  useEffect(() => {
-    if (!expanded) return;
-    if (lastRunAt.current === version) return; // cached result is still fresh
-    lastRunAt.current = version;
-    try {
-      setResults(load());
-    } catch {
-      // Closed client or a failed section query: keep the previous results.
-    }
-  }, [expanded, version, load]);
+  const { rows } = useSectionData<T>({ client, active: expanded, read: load });
 
   return (
     <NodeViewSection
@@ -74,10 +77,11 @@ export function Section<T>({
       expanded={expanded}
       onExpandedChange={setExpanded}
     >
-      {results === null ? null : Array.isArray(results) && results.length === 0 ? (
+      {children}
+      {rows === null ? null : Array.isArray(rows) && rows.length === 0 && !renderWhenEmpty ? (
         <div className="nt-section-empty">{emptyText}</div>
       ) : (
-        renderResults(results)
+        renderResults(rows)
       )}
     </NodeViewSection>
   );

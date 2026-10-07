@@ -13,6 +13,16 @@
  *
  * `local` scopes the topology to a node's neighborhood (the right-rail card);
  * `items` scopes it to a node collection (the registry mode).
+ *
+ * The chrome follows the reference graph UI: the settings toolbar's icon
+ * tools, mode selectors, and visibility toggles compose from the kit (the
+ * ghost-button tool idiom, the icon-radio mode selector, the boolean
+ * switch), the edge-family chips stay the rendering register, and the empty
+ * surfaces carry the reference wording — "Nothing to graph yet" for the
+ * empty workspace, the levels hint for an empty neighborhood, and the
+ * filtered-out state with its reset affordance on the full surface. The
+ * engine/renderer machinery (WebGL draw, physics, minimap, local mode,
+ * settings persistence) is unchanged.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -21,10 +31,15 @@ import type { GraphEdge, GraphEdgeKind, GraphTopology } from "@notees/store";
 
 import type { NodeCollectionProps } from "../types.js";
 import { registerView } from "../registry.js";
-import { Icon } from "../../Icon.js";
-import { EmptyState } from "../../components/ui/EmptyState.js";
-import { Slider } from "../../components/ui/Slider.js";
-import { ColorButton } from "../../components/ui/ColorButton.js";
+import {
+  BooleanToggle,
+  Button,
+  ColorButton,
+  EmptyState,
+  SearchField,
+  SelectionButton,
+  Slider,
+} from "../../components/ui/index.js";
 import { usePopupDismissal } from "../../components/ui/usePopupDismissal.js";
 import { resolveCssColor } from "../../components/ui/colorPresets.js";
 import { readDeviceSetting, writeDeviceSetting } from "../../components/modals/deviceSettings.js";
@@ -681,6 +696,20 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   const patch = (partial: Partial<GraphPrefs>): void =>
     setPrefs((prev) => ({ ...prev, ...partial }));
 
+  /**
+   * The filtered-out empty state's reset affordance: back to the shipped
+   * defaults (every family on, classes and orphans visible, the journal
+   * chain off). Scoped collections (the registry mode) offer no reset — the
+   * scope is the collection, not a user-toggled filter.
+   */
+  const resetFilters = (): void =>
+    patch({
+      showClasses: DEFAULT_GRAPH_SETTINGS.showClasses,
+      showJournal: DEFAULT_GRAPH_SETTINGS.showJournal,
+      showOrphans: DEFAULT_GRAPH_SETTINGS.showOrphans,
+      families: { ...DEFAULT_GRAPH_SETTINGS.families },
+    });
+
   // ── Render ─────────────────────────────────────────────────────────────────
   if (display === null || counts === null) {
     return (
@@ -705,57 +734,75 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     (prefs.families.semantic === true || prefs.families.temporal === true) &&
     local === undefined;
 
+  /**
+   * The reference empty surfaces: an empty workspace (the full surface
+   * only — a local neighborhood always has its anchor), an empty
+   * neighborhood (names the depth), and everything-filtered-out on the
+   * full surface (carries the reset). An empty display renders INSTEAD of
+   * the stage: no canvas mounts, so no renderer initializes on a graph
+   * with nothing to draw.
+   */
+  const graphEmpty = display.nodes.length === 0;
+  const nothingToGraph = local === undefined && topology !== null && topology.nodes.length === 0;
+
   return (
     <div className="nt-graph">
       <div className="nt-graph__toolbar" role="toolbar" aria-label="Graph settings">
-        <button type="button" className="nt-graph__tool" onClick={recenter} title="Recenter">
-          <Icon path="mdi-image-filter-center-focus" size={0.8} />
-        </button>
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="mdi mdi-image-filter-center-focus"
+          aria-label="Recenter"
+          title="Recenter"
+          onClick={recenter}
+        />
         {prefs.layoutMode === "force" && (
-          <button
-            type="button"
-            className={`nt-graph__tool${prefs.paused ? " nt-graph__tool--on" : ""}`}
-            onClick={() => patch({ paused: !prefs.paused })}
-            title={prefs.paused ? "Resume layout" : "Pause layout"}
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={prefs.paused ? "mdi mdi-play" : "mdi mdi-pause"}
+            active={prefs.paused}
             aria-pressed={prefs.paused}
-          >
-            <Icon path={prefs.paused ? "mdi-play" : "mdi-pause"} size={0.8} />
-          </button>
+            aria-label={prefs.paused ? "Resume layout" : "Pause layout"}
+            title={prefs.paused ? "Resume layout" : "Pause layout"}
+            onClick={() => patch({ paused: !prefs.paused })}
+          />
         )}
-        <select
-          className="nt-graph__select"
-          aria-label="Layout"
+        <SelectionButton
+          size="sm"
+          options={[
+            { value: "force", icon: "mdi mdi-atom", label: "Force" },
+            { value: "circle", icon: "mdi mdi-circle-outline", label: "Circle" },
+            { value: "tree", icon: "mdi mdi-file-tree-outline", label: "Tree" },
+          ]}
           value={prefs.layoutMode}
-          onChange={(event) => patch({ layoutMode: event.target.value as GraphLayoutMode })}
-        >
-          <option value="force">Force</option>
-          <option value="circle">Circle</option>
-          <option value="tree">Tree</option>
-        </select>
+          onChange={(value) => patch({ layoutMode: value as GraphLayoutMode })}
+        />
         {prefs.layoutMode === "force" && (
-          <select
-            className="nt-graph__select"
-            aria-label="Physics preset"
+          <SelectionButton
+            size="sm"
+            options={[
+              { value: "sparse", icon: "mdi mdi-arrow-expand", label: "Sparse" },
+              { value: "balanced", icon: "mdi mdi-scale-balance", label: "Balanced" },
+              { value: "compact", icon: "mdi mdi-arrow-collapse", label: "Compact" },
+              { value: "clustered", icon: "mdi mdi-group", label: "Clustered" },
+            ]}
             value={prefs.preset}
-            onChange={(event) => patch({ preset: event.target.value as PhysicsPreset })}
-          >
-            <option value="sparse">Sparse</option>
-            <option value="balanced">Balanced</option>
-            <option value="compact">Compact</option>
-            <option value="clustered">Clustered</option>
-          </select>
+            onChange={(value) => patch({ preset: value as PhysicsPreset })}
+          />
         )}
-        <button
-          type="button"
-          className={`nt-graph__tool${prefs.nodeSize === "connections" ? " nt-graph__tool--on" : ""}`}
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="mdi mdi-chart-bubble"
+          active={prefs.nodeSize === "connections"}
+          aria-pressed={prefs.nodeSize === "connections"}
+          aria-label="Size nodes by connections"
+          title="Size nodes by connections"
           onClick={() =>
             patch({ nodeSize: prefs.nodeSize === "connections" ? "uniform" : "connections" })
           }
-          title="Size nodes by connections"
-          aria-pressed={prefs.nodeSize === "connections"}
-        >
-          <Icon path="mdi-chart-bubble" size={0.8} />
-        </button>
+        />
         {local === undefined && (
           <>
             <span className="nt-graph__sep" aria-hidden="true" />
@@ -773,45 +820,43 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
               </button>
             ))}
             <span className="nt-graph__sep" aria-hidden="true" />
-            <label className="nt-graph__toggle">
-              <input
-                type="checkbox"
-                checked={prefs.showClasses}
-                onChange={(event) => patch({ showClasses: event.target.checked })}
-              />
-              Class nodes
-            </label>
-            <label className="nt-graph__toggle">
-              <input
-                type="checkbox"
-                checked={prefs.showJournal}
-                onChange={(event) => patch({ showJournal: event.target.checked })}
-              />
-              Journal
-            </label>
-            <label className="nt-graph__toggle">
-              <input
-                type="checkbox"
-                checked={prefs.showOrphans}
-                onChange={(event) => patch({ showOrphans: event.target.checked })}
-              />
-              Orphans
-            </label>
+            <BooleanToggle
+              size="sm"
+              label="Class nodes"
+              labelPosition="left"
+              checked={prefs.showClasses}
+              onChange={(event) => patch({ showClasses: event.target.checked })}
+            />
+            <BooleanToggle
+              size="sm"
+              label="Journal"
+              labelPosition="left"
+              checked={prefs.showJournal}
+              onChange={(event) => patch({ showJournal: event.target.checked })}
+            />
+            <BooleanToggle
+              size="sm"
+              label="Orphans"
+              labelPosition="left"
+              checked={prefs.showOrphans}
+              onChange={(event) => patch({ showOrphans: event.target.checked })}
+            />
           </>
         )}
         {local !== undefined && (
-          <label className="nt-graph__toggle">
+          <label className="nt-graph__depth">
             Depth
-            <select
-              className="nt-graph__select"
-              aria-label="Neighborhood depth"
+            <Slider
+              min={1}
+              max={3}
+              step={1}
               value={local.depth}
-              onChange={(event) => local.onDepthChange?.(Number(event.target.value))}
-            >
-              <option value={1}>1</option>
-              <option value={2}>2</option>
-              <option value={3}>3</option>
-            </select>
+              onChange={(value) => local.onDepthChange?.(value)}
+              aria-label="Neighborhood depth"
+            />
+            <span className="nt-graph__depth-value" aria-hidden="true">
+              {local.depth}
+            </span>
           </label>
         )}
         <span className="nt-graph__counts" aria-live="polite">
@@ -829,11 +874,10 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
             >
               Color groups
             </button>
-            <input
-              type="search"
-              className="nt-graph__search"
-              placeholder="Find node…"
+            <SearchField
+              className="nt-graph__search-field"
               aria-label="Find node"
+              placeholder="Find node…"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               onKeyDown={(event) => {
@@ -844,6 +888,29 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
           </>
         )}
       </div>
+      {nothingToGraph || graphEmpty ? (
+        <div className="nt-graph__stage nt-graph__stage--empty">
+          {nothingToGraph ? (
+            <EmptyState
+              title="Nothing to graph yet"
+              description="Add pages and blocks to see how they connect."
+            />
+          ) : local !== undefined ? (
+            <EmptyState
+              title={`No connected nodes within ${local.depth} ${local.depth === 1 ? "level" : "levels"}`}
+              description="Try increasing the levels to see more connections."
+            />
+          ) : (
+            <EmptyState
+              title="All nodes hidden by filters"
+              description="Adjust visibility filters or reset them to see the graph."
+              {...(scope === undefined
+                ? { actionLabel: "Reset filters", onAction: resetFilters }
+                : {})}
+            />
+          )}
+        </div>
+      ) : (
       <div className="nt-graph__stage" ref={containerRef}>
         <canvas
           ref={canvasRef}
@@ -1041,6 +1108,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
           </div>
         )}
       </div>
+      )}
       {semanticPanelVisible && (
         <div className="nt-graph__semantic-panel">
           <label className="nt-graph__semantic-slider">
