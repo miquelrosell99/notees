@@ -16,7 +16,7 @@ import { renderHook } from "@testing-library/react";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
-import { ClassView } from "../src/ui/ClassView.js";
+import { NodeView } from "../src/ui/App.js";
 import { CollectionHub } from "../src/ui/components/CollectionHub.js";
 import { PageView } from "../src/ui/PageView.js";
 import { NodeCollection } from "../src/ui/views/index.js";
@@ -149,7 +149,7 @@ describe("table windowing", () => {
   it("renders the first window with an honest remaining count; Show more grows", async () => {
     const client = await seedClient();
     const classId = await seedBigTable(client);
-    render(<ClassView client={client} classId={classId} />);
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     await expandClassedNodes();
 
     expect(rowCount()).toBe(100);
@@ -163,7 +163,7 @@ describe("table windowing", () => {
   it("a sort change resets the window", async () => {
     const client = await seedClient();
     const classId = await seedBigTable(client);
-    render(<ClassView client={client} classId={classId} />);
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     await expandClassedNodes();
 
     fireEvent.click(screen.getByRole("button", { name: "Show more (20 remaining)" }));
@@ -177,7 +177,7 @@ describe("table windowing", () => {
   it("select-all is labeled and covers the loaded window only", async () => {
     const client = await seedClient();
     const classId = await seedBigTable(client);
-    render(<ClassView client={client} classId={classId} />);
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     await expandClassedNodes();
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Select all loaded rows" }));
@@ -190,7 +190,7 @@ describe("table windowing", () => {
     const client = await seedClient();
     const classId = await seedBigTable(client);
     const download = stubDownload();
-    render(<ClassView client={client} classId={classId} />);
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     await expandClassedNodes();
 
     // The window shows 100; the export must still carry all 120 rows.
@@ -346,11 +346,13 @@ describe("outline tree windowing", () => {
       section.textContent?.includes("Child pages"),
     ) as HTMLElement;
     expect(childPages.querySelector(".node-view-section__count")!.textContent).toBe(String(BIG));
-    expect(screen.getByText("Sub 000")).not.toBeNull();
-    expect(screen.queryByText("Sub 119")).toBeNull();
+    // Scoped to the Child pages section: the context column's TOC lists the
+    // sub-pages too (a page is always a TOC entry).
+    expect(within(childPages).getByText("Sub 000")).not.toBeNull();
+    expect(within(childPages).queryByText("Sub 119")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Show more (20 remaining)" }));
-    expect(screen.getByText("Sub 119")).not.toBeNull();
+    expect(within(childPages).getByText("Sub 119")).not.toBeNull();
   });
 
   it("the editable outliner tree stays whole — no window on the editing surface", async () => {
@@ -362,12 +364,15 @@ describe("outline tree windowing", () => {
         contentAst: [{ type: "text", text: `blk ${i}` }],
       });
     }
-    render(<PageView client={client} pageId={pageId} onOpenPage={() => {}} />);
+    const { container } = render(<PageView client={client} pageId={pageId} onOpenPage={() => {}} />);
 
     // Every top-level block renders — a window could hide a just-created
     // block, so the editable tree is deliberately excluded from windowing.
-    expect(screen.getByText("blk 0")).not.toBeNull();
-    expect(screen.getByText(`blk ${BIG - 1}`)).not.toBeNull();
+    // (Scoped to the tree: the context column's TOC lists the one-line
+    // blocks too.)
+    const tree = container.querySelector(".nt-block-tree")!;
+    expect(within(tree as HTMLElement).getByText("blk 0")).not.toBeNull();
+    expect(within(tree as HTMLElement).getByText(`blk ${BIG - 1}`)).not.toBeNull();
     expect(screen.queryByRole("button", { name: /Show more/ })).toBeNull();
   });
 

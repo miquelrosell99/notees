@@ -15,9 +15,14 @@
  * switching back to outline restores the hidden subtrees.
  *
  * Drag-and-drop: each row is sortable within its sibling group (dnd-kit,
- * vertical strategy) via the bullet/chevron grip handle. Drops resolve to
- * `object.move` through the intent model in block-dnd.ts; the live drop
- * indicator arrives through DropLineContext.
+ * vertical strategy) via the bullet/chevron grip handle — only inside a
+ * workspace editing surface (the drag scope PageView provides; outside it
+ * the grip stays inert). Drops resolve to `object.move` through the intent
+ * model in block-dnd.ts; the drop indicator arrives through DropLineContext,
+ * proximity-snapped to the nearest valid location of the drag session.
+ * While its row drags, the source stays in place and renders muted (the
+ * drag-source class) — the floating DragOverlay chip is the only preview,
+ * so the layout never shifts under the pointer.
  *
  * Edit mode is also entered in response to a focus request from the
  * outliner gestures (Enter creates a sibling, Backspace-delete hands the
@@ -54,7 +59,7 @@ import { EmbedView } from "./EmbedView.js";
 import { EmbedCardView } from "./EmbedCardView.js";
 import { QueryBlockView } from "./QueryBlockView.js";
 import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
-import { DropLineContext } from "./block-dnd.js";
+import { DropLineContext, WorkspaceDragScopeContext } from "./block-dnd.js";
 import { useOutliner } from "./outliner-context.js";
 import { Button } from "./components/ui/index.js";
 import { InlineConfirmButton } from "./components/ui/InlineConfirmButton.js";
@@ -140,11 +145,13 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
   // Sortable within this row's sibling group; the bullet/chevron area is the
   // drag handle (whole-row drag would fight text editing). A small activation
   // distance keeps plain clicks untouched. The title row is never sortable
-  // (and renders outside the body's DndContext) — the disabled flag keeps
-  // the hook inert, the same pattern read-only projections use.
+  // (and renders outside the body's drag scope) and rows outside a workspace
+  // editing surface aren't either — the disabled flag keeps the hook inert,
+  // the same pattern read-only projections use.
+  const dragScope = useContext(WorkspaceDragScopeContext);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: node.id,
-    disabled: readOnly || isTitle,
+    disabled: readOnly || isTitle || !dragScope,
   });
 
   useEffect(() => {
@@ -199,6 +206,9 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
   const dropClass =
     dropLine !== null && dropLine.targetId === node.id ? ` nt-drop-${dropLine.intent}` : "";
   const selectedClass = selection.has(node.id) ? " nt-block--selected" : "";
+  // The dragged row stays in place (no drag transform) and reads muted; the
+  // floating name chip is the only preview.
+  const dragSourceClass = isDragging ? " nt-block--drag-source" : "";
 
   // A block carrying the table class renders its children (rows)
   // as a CSS grid instead of the outline list. The class says what-it-is
@@ -212,13 +222,12 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
   if (tableRow) {
     return (
       <div
-        className="nt-blocktable-row"
+        className={`nt-blocktable-row${dragSourceClass}`}
         ref={setNodeRef}
         data-block-id={node.id}
         style={{
-          transform: CSS.Transform.toString(transform),
-          transition,
-          opacity: isDragging ? 0.4 : undefined,
+          transform: isDragging ? undefined : CSS.Transform.toString(transform),
+          transition: isDragging ? undefined : transition,
         }}
       >
         <SortableContext items={children.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
@@ -442,13 +451,12 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
 
   return (
     <div
-      className={`nt-block${readOnly ? " nt-block--readonly" : ""}${editing ? " nt-block--editing" : ""}${dropClass}${selectedClass}`}
+      className={`nt-block${readOnly ? " nt-block--readonly" : ""}${editing ? " nt-block--editing" : ""}${dropClass}${selectedClass}${dragSourceClass}`}
       ref={setNodeRef}
       data-block-id={node.id}
       style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.4 : undefined,
+        transform: isDragging ? undefined : CSS.Transform.toString(transform),
+        transition: isDragging ? undefined : transition,
       }}
     >
       <div className="nt-block-row">

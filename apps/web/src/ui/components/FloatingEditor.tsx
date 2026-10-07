@@ -3,7 +3,8 @@
  * half of the node-hover work, issue #11). Where the hover preview is a
  * transient read-only card, pinning a node promotes it to an independent
  * floating window: the node's own view (the Revision-11 render cascade —
- * ClassView / FocusedBlockView / PageView in embedded mode) inside a small
+ * the class page variant / the focused block view / the Page View in
+ * embedded mode) inside a small
  * draggable window with a title bar (node title, "open in main", close).
  *
  * Design rulings:
@@ -28,18 +29,14 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-import { rendersAsInlineBlock } from "@notees/domain";
-
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client.js";
 
-import { ClassView } from "../ClassView.js";
 import { displayNameFromClient } from "../dateDisplay.js";
 import { nodeIcon } from "../iconFor.js";
 import { Icon } from "../Icon.js";
-import { PageView } from "../PageView.js";
+import { NodeView } from "../NodeView.js";
 import { Button } from "./ui/Button.js";
-import { FocusedBlockView } from "./FocusedBlockView.js";
 import "./FloatingEditor.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -276,12 +273,13 @@ export function FloatingEditorHost({
 }
 
 /**
- * The render cascade inside one floating window: a class renders the Class
- * View, an inline block the FocusedBlockView, everything else the Page View
- * in embedded mode — the journal-feed composition that suppresses exactly
- * the chrome a floating window carries itself (the page-level find/replace
- * chord, fold chords, cover card, footer). PageView/ClassView build their
- * own OutlinerContext, so the window is a fully independent editor instance.
+ * The render cascade inside one floating window — the shared NodeView
+ * dispatcher in embedded mode (the journal-feed composition that suppresses
+ * exactly the chrome a floating window carries itself: the page-level
+ * find/replace chord, fold chords, cover card, footer). Every view
+ * builds its own OutlinerContext, so the window is a fully independent
+ * editor instance. (Before the extraction this was a second copy of App's
+ * dispatch; the windows now reuse it — the main-content restructure.)
  */
 function FloatingNodeView({
   client,
@@ -292,21 +290,13 @@ function FloatingNodeView({
   nodeId: string;
   openNode: (nodeId: string) => void;
 }) {
-  const node = client.getNode(nodeId);
-  if (node === undefined) return <div className="nt-page-missing">Page not found.</div>;
-  if (node.isClass) {
-    return <ClassView client={client} classId={nodeId} onOpenClass={openNode} onOpenPage={openNode} />;
-  }
-  if (rendersAsInlineBlock(node)) {
-    return <FocusedBlockView client={client} blockId={nodeId} onOpenNode={openNode} />;
-  }
   return (
-    <PageView
+    <NodeView
       client={client}
-      pageId={nodeId}
-      embedded
-      onOpenPage={openNode}
+      nodeId={nodeId}
+      onOpenNode={openNode}
       onDeleted={() => closeFloatingEditor(nodeId)}
+      embedded
     />
   );
 }
