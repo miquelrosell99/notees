@@ -141,6 +141,7 @@ describe("resolveQuickCreate", () => {
         SYSTEM_CLASS_UUIDS.song,
         SYSTEM_CLASS_UUIDS.tv_series,
         SYSTEM_CLASS_UUIDS.conference,
+        SYSTEM_CLASS_UUIDS.weblink,
       ].sort(),
     );
   });
