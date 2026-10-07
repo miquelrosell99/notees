@@ -14,7 +14,7 @@
  * machinery lives in usePageMachinery.ts. What stays here is the composer:
  * the reads (page/tree/cover), the body (the block tree inside the drag
  * context), the notices + compact properties in mainChrome, and the
- * panelled/compact composition (S7 reworks the columns).
+ * panelled/compact composition.
  *
  * S5 (M13): the page mode is composed from DATA — `pageVariantOf`
  * (components/pageVariant.ts) derives the variant (plain / date-day /
@@ -24,6 +24,35 @@
  * deleted class chrome (M9/M12): no curated icon button, no color dot, no
  * cycle banner — the shared header icon button is the single icon+color
  * entry.
+ *
+ * S7 (M17/M18/M19 + the references dedupe check): the panelled main layout
+ * is now THREE columns — NodeView · properties · context. The context
+ * column (`.nt-page-context`) hosts, top-down: LocalGraphCard, TocSection,
+ * the Activity section (relocated from the card-bottom stack per M18 —
+ * `SystemSections`' activity branch died with the move), and the Comments
+ * section (M19 — the v1 model: child blocks classed `comment`, threaded,
+ * quick-add/reply). Column collapse: EACH panel column keeps its own
+ * device-local collapse, toggled from the nodeview top bar (the
+ * properties hamburger pattern, now a pair) — the `layout` prop stays
+ * BINARY ("default"/"compact"); per-column device prefs replace the plan's
+ * recorded "third state" option (registered choice, owner resolution).
+ * The dedupe check (the S7 precondition): the right rail's
+ * ReferencesSection and the page's own Backlinks tab both rendered
+ * getLinkedReferences — the SAME data — verdict: the rail's
+ * ReferencesSection is DELETED (see components/sidebarSections.tsx); the
+ * Backlinks tab stays the one home in the SectionStack, where the
+ * tab/filter machinery lands later. The context column keeps graph + TOC +
+ * Activity + Comments ONLY. Embedded/journal/calendar surfaces and the
+ * class/focus/compact variants render NO context column (main-surface
+ * chrome only). The right rail is cards-only — the generic frame around
+ * NodeView (components/NodeCardFrame.tsx; M15/M17).
+ *
+ * S7 (M15): the `preview` surface seam — NodeView's `preview` prop renders
+ * this view with NO corner menu, NO global listeners, a READ-ONLY body
+ * capped at the page's first body level (maxDepth 1 — outline only; other
+ * view modes render uncapped), and NO section stack: the hover/peek
+ * surface is a trampoline, not a page. Nothing renders it yet — swapping
+ * NodeHoverPreview's bespoke card for this seam is a registered follow-up.
  *
  * PageView also owns the OutlinerContext: the write surface, the per-render
  * outline position map (sibling/parent facts for Tab/Backspace), the focus
@@ -54,6 +83,7 @@ import type { ShareTarget } from "./components/NodeMenuButton.js";
 import { NodeContextMenu } from "./components/NodeContextMenu.js";
 import { DayPageSections } from "./components/DayPageSections.js";
 import { CreatedSection } from "./components/CreatedSection.js";
+import { ActivityLogSection } from "./components/ActivityLogSection.js";
 import { ClassPillsList } from "./components/ClassPillsList.js";
 import { pageVariantOf } from "./components/pageVariant.js";
 import { nodeIcon } from "./iconFor.js";
@@ -70,6 +100,9 @@ import { canHaveCoverOf, coverAssetIdOf, ensureCoverProperty } from "./component
 import { ensureAliasOfProperty, ensureAliasProperty } from "./components/aliasProperty.js";
 import { AliasOfBanner } from "./components/AliasOfBanner.js";
 import { useDeviceSetting } from "./components/modals/deviceSettings.js";
+import { LocalGraphCard } from "./components/LocalGraphCard.js";
+import { TocSection } from "./components/sidebarSections.js";
+import { CommentsSection } from "./components/CommentsSection.js";
 import { EmbedBoundary } from "./EmbedView.js";
 import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
 import { OutlinerContext } from "./outliner-context.js";
@@ -85,6 +118,13 @@ import { NodeTopbar, PageHeaderChrome, PageFooterChrome } from "./PageChrome.js"
 /** The child-blocks triad, in switcher order. Exported for the NodeView
  *  chrome, which hosts the switcher at the card's top-right. */
 export const BLOCKS_VIEW_MODES: ViewMode[] = ["outline", "prose", "cards"];
+
+/**
+ * The preview surface's body cap (M15): the page's FIRST body level only —
+ * the outline view's maxDepth honors it; other view modes render uncapped
+ * (the seam's honest limit until a view-mode-aware cap lands).
+ */
+const PREVIEW_BODY_DEPTH = 1;
 
 /**
  * The body items (S4/M1): the childQuery factory — children as siblings,
@@ -127,6 +167,14 @@ export function PageView({
   chromeRight = undefined,
   /** shares: server coordinates for the "Share…" item + modal. */
   shareTarget = undefined,
+  /**
+   * The preview surface seam (M15 — hover/peek): no chromeRight/corner
+   * menu (NodeView guarantees), no global listeners, a read-only body
+   * capped at the first body level, and no section stack. Nothing renders
+   * it yet — NodeHoverPreview keeps its bespoke card until the follow-up
+   * swap.
+   */
+  preview = false,
 }: {
   client: WorkspaceClient | WorkerClient;
   pageId: string;
@@ -150,6 +198,7 @@ export function PageView({
   onBlocksModeChange?: ((mode: ViewMode) => void) | undefined;
   chromeRight?: ReactNode;
   shareTarget?: ShareTarget | undefined;
+  preview?: boolean;
 }) {
   /**
    * Child-blocks view mode (the outline/prose/cards triad): durable display
@@ -181,8 +230,18 @@ export function PageView({
     "pageSidePanelCollapsed",
     false,
   );
+  /**
+   * S7 (M17): the context column's own device-local collapse — a per-column
+   * pref like the properties panel's (the `layout` prop stays binary; the
+   * "third state" option the plan recorded as open is resolved THIS way,
+   * registered in the module doc).
+   */
+  const [contextPanelCollapsed, setContextPanelCollapsed] = useDeviceSetting(
+    "pageContextPanelCollapsed",
+    false,
+  );
   const panelled =
-    layout === "default" && !embedded && !focusMode && variant.variant !== "class";
+    layout === "default" && !embedded && !focusMode && !preview && variant.variant !== "class";
   const [headerMenu, setHeaderMenu] = useState<{ x: number; y: number } | null>(null);
   const [exporting, setExporting] = useState<{ pageId: string; name: string } | null>(null);
   const [sharing, setSharing] = useState<{ pageId: string; name: string } | null>(null);
@@ -293,7 +352,9 @@ export function PageView({
    * The editing machinery (S3a): outliner construction, selection surface,
    * find/replace, the DnD wiring, and the fold chords — one hook so this
    * component stays a chrome composer. `globalShortcuts: true` is the main
-   * surface; embedded renders imply false inside the hook.
+   * surface; embedded renders imply false inside the hook; the preview
+   * surface (M15) passes false explicitly — a peek installs no document
+   * listeners.
    */
   const machinery = usePageMachinery({
     client,
@@ -302,7 +363,7 @@ export function PageView({
     embedded,
     forClass: variant.variant === "class",
     focusMode,
-    globalShortcuts: true,
+    globalShortcuts: !preview,
     onOpenPage,
     onOpenInSidebar,
   });
@@ -359,7 +420,7 @@ export function PageView({
    * card grid, not a block list — no ghost. The click realizes the ghost
    * into a real empty block at the end and focuses it.
    */
-  const ghostVisible = !embedded && blocksMode !== "cards";
+  const ghostVisible = !embedded && !preview && blocksMode !== "cards";
 
   /**
    * The page body: the whiteboard canvas, or the editable block tree + the
@@ -373,9 +434,9 @@ export function PageView({
         whiteboardTokenIndex >= 0 ? (
           <>
             <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
-            {!focusMode && variantSystemSections}
-            {!focusMode && (
-              <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} withActivity={!embedded} />
+            {!preview && !focusMode && variantSystemSections}
+            {!preview && !focusMode && (
+              <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} />
             )}
           </>
         ) : (
@@ -406,7 +467,8 @@ export function PageView({
                       client={client}
                       items={blockItems}
                       tree
-                      editable
+                      editable={!preview}
+                      maxDepth={preview ? PREVIEW_BODY_DEPTH : undefined}
                       onNodeClick={(id) => onOpenPage?.(id)}
                       onNodeShiftClick={(id) => onOpenInSidebar?.(id)}
                     />
@@ -440,7 +502,7 @@ export function PageView({
                     (M13: the class sections) inserts its descriptors here —
                     data, not a slot. */}
                 {variantSections}
-                {dayIso !== null && !embedded && (
+                {!preview && dayIso !== null && !embedded && (
                   <DayPageSections
                     client={client}
                     pageId={pageId}
@@ -448,7 +510,7 @@ export function PageView({
                     onOpenPage={onOpenPage}
                   />
                 )}
-                {createdPeriod !== null && !embedded && (
+                {!preview && createdPeriod !== null && !embedded && (
                   <CreatedSection
                     client={client}
                     pageId={pageId}
@@ -457,9 +519,9 @@ export function PageView({
                     onOpenPage={onOpenPage}
                   />
                 )}
-                {!focusMode && variantSystemSections}
-                {!focusMode && (
-                  <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} withActivity={!embedded} />
+                {!preview && !focusMode && variantSystemSections}
+                {!preview && !focusMode && (
+                  <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} />
                 )}
               </DropLineContext.Provider>
               <DragOverlay dropAnimation={null}>
@@ -532,13 +594,13 @@ export function PageView({
 
   /**
    * The page chrome composed per layout mode. The panelled main layout
-   * (owner 2026-10-06) is a 2-column, 1-row split: the properties sidebar
-   * rides the first column (1/3 of the space) and the whole node view rides
-   * the second (2/3) — behind a nodeview top bar (the sidebar collapse
-   * toggle + classes list left, the view switcher + node menu right, over a
-   * full-width divider border). Compact layouts render the same chrome
-   * full-width, header first, with the top-right chrome in the absolute
-   * corner.
+   * (owner 2026-10-06) is a 3-column split: the properties sidebar rides the
+   * first column, the whole node view (top bar / nodeview / footer) the
+   * second, and the context column (S7, M17 — graph · TOC · Activity ·
+   * Comments, each hidden by its own emptiness rules) the third. Each panel
+   * column keeps its own device-local collapse, toggled from the nodeview
+   * top bar. Compact layouts render the same chrome full-width, header
+   * first, with the top-right chrome in the absolute corner.
    */
   const pageChrome = (
     <>
@@ -550,16 +612,18 @@ export function PageView({
             </aside>
           )}
           <div className="nt-page-content">
-            {/* The nodeview top bar (PageChrome.tsx): the sidebar collapse
-                toggle and the classes pills on the left, the view-mode
-                switcher + the node menu on the right. Pinned to the top of
-                the column. */}
+            {/* The nodeview top bar (PageChrome.tsx): the properties +
+                context collapse toggles and the classes pills on the left,
+                the view-mode switcher + the node menu on the right. Pinned
+                to the top of the column. */}
             <NodeTopbar
               client={client}
               nodeId={pageId}
               classIds={page.classIds}
               sidePanelCollapsed={sidePanelCollapsed}
               onToggleSidePanel={() => setSidePanelCollapsed(!sidePanelCollapsed)}
+              contextPanelCollapsed={contextPanelCollapsed}
+              onToggleContextPanel={() => setContextPanelCollapsed(!contextPanelCollapsed)}
               chromeRight={chromeRight}
               onOpenPage={onOpenPage}
             />
@@ -571,6 +635,21 @@ export function PageView({
             </div>
             {footerChrome}
           </div>
+          {!contextPanelCollapsed && (
+            <aside className="nt-page-context" aria-label="Context">
+              {/* M17: the node-relevant widgets, relocated from the right
+                  rail (the rail is workspace cards only). The references
+                  dedupe check rejected the rail's ReferencesSection — the
+                  Backlinks tab owns that data (see the module doc). */}
+              <LocalGraphCard client={client} nodeId={pageId} onOpenNode={(id) => onOpenPage?.(id)} />
+              <TocSection client={client} pageId={pageId} activeId={pageId} onOpenNode={(id) => onOpenPage?.(id)} />
+              {/* M18: the Activity feed relocated from the card-bottom
+                  stack; its useSectionData lazy contract rides along. */}
+              <ActivityLogSection client={client} onOpenPage={onOpenPage} />
+              {/* M19: comments — child blocks classed `comment`, threaded. */}
+              <CommentsSection client={client} nodeId={pageId} onOpenNode={onOpenPage} />
+            </aside>
+          )}
         </div>
       ) : (
         <>

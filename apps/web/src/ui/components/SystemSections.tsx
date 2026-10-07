@@ -1,19 +1,21 @@
 /**
  * SystemSections — the card-bottom system sections. Below the page's own
- * content: the Child pages section (expanded) and the workspace Activity
- * feed (1167, mounted last; off for embedded renders via
- * `withActivity`) stay stacked sections as before; only the REFERENCES
- * rework rides the tab strip (owner 2026-10-06, the Capacities-style
- * layout): ONE tab bar in the old references-tab slot — Backlinks and
- * Unlinked mentions (renamed from "unlinked references") — always showing
- * both tabs even when empty. The tab label carries the eager count; a tab's
- * list query runs lazily on its first activation (the SCHEMA.md lazy
- * contract), the results cache across tab switches, and a live notification
- * re-runs the loaded tabs' queries. S2: the tab caches ride useSectionData —
- * one hook instance per tab (the per-view rule), keepFresh carrying the
- * loaded-tabs re-derive contract. The tabbed panels render headerless —
- * the tab IS the section header (no duplicated tabs-plus-section-headers
- * chrome).
+ * content: the Child pages section (expanded) stays stacked as before; only
+ * the REFERENCES rework rides the tab strip (owner 2026-10-06, the
+ * Capacities-style layout): ONE tab bar in the old references-tab slot —
+ * Backlinks and Unlinked mentions (renamed from "unlinked references") —
+ * always showing both tabs even when empty. The tab label carries the eager
+ * count; a tab's list query runs lazily on its first activation (the
+ * SCHEMA.md lazy contract), the results cache across tab switches, and a
+ * live notification re-runs the loaded tabs' queries. S2: the tab caches
+ * ride useSectionData — one hook instance per tab (the per-view rule),
+ * keepFresh carrying the loaded-tabs re-derive contract. The tabbed panels
+ * render headerless — the tab IS the section header (no duplicated
+ * tabs-plus-section-headers chrome).
+ *
+ * The workspace Activity feed left the stack at S7 (M18): it renders in the
+ * page chrome's context column now — the `withActivity` prop and its branch
+ * are gone; this component's contract is Child pages + the backlinks strip.
  *
  * Unlinked mentions carry the v1 action pair:
  * Promote rewrites the source block's literal name match into a mention
@@ -40,7 +42,6 @@ import { useIgnoredUnlinkedRefs, writeIgnoredUnlinkedRef } from "../viewPrefs.js
 import { promoteMentionInAst } from "./unlinkedRefs.js";
 import { NodeCollection, groupByContainingPage } from "../views/index.js";
 import type { NodeCollectionItem } from "../views/index.js";
-import { ActivityLogSection } from "./ActivityLogSection.js";
 import { useSectionData } from "./useSectionData.js";
 import "./SystemSections.css";
 
@@ -183,17 +184,10 @@ export function SystemSections({
   client,
   pageId,
   onOpenPage,
-  /**
-   * The workspace activity feed. Off for embedded renders —
-   * a journal feed mounts many PageViews and the feed's created-query gate
-   * would run once per mounted page per notification.
-   */
-  withActivity = true,
 }: {
   client: AnyClient;
   pageId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
-  withActivity?: boolean | undefined;
 }) {
   const loadLinkedRefs = useCallback(() => client.getLinkedReferences(pageId), [client, pageId]);
   const ignored = useIgnoredUnlinkedRefs(pageId);
@@ -307,7 +301,6 @@ export function SystemSections({
           </Tabs.Panel>
         </Tabs>
       </div>
-      {withActivity && <ActivityLogSection client={client} onOpenPage={onOpenPage} />}
     </div>
   );
 }

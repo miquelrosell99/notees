@@ -21,7 +21,7 @@
  *    SectionSpec identity field, `render` mounts the EXISTING section
  *    component unchanged (the classview renderers are not SectionSpec
  *    read/query strategies — the descriptor's job in this slice is
- *    placement as data, not a new rendering contract; S7 owns relocation).
+ *    placement as data, not a new rendering contract).
  */
 
 import { createElement, type ReactNode } from "react";

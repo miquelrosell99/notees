@@ -9,6 +9,55 @@ predating this file.
 
 ## 2026-10-06
 
+- **refactor(web): S7a of the main-content restructure — the context column,
+  the cards-only rail, Comments (M19), Activity's relocation (M18), the
+  preview seam (M15).** The panelled main layout is now THREE columns —
+  NodeView · properties · context. The context column (`.nt-page-context`)
+  hosts, top-down: LocalGraphCard, TocSection, the Activity section, and the
+  new Comments section; each panel column keeps its own device-local
+  collapse, toggled from the nodeview top bar (now a toggle pair), and the
+  `layout` prop stays BINARY — per-column device prefs
+  (`pageSidePanelCollapsed` / `pageContextPanelCollapsed`) replace the
+  recorded "third state" option (registered choice). **The references dedupe
+  check (the S7 precondition):** the rail's ReferencesSection and the page's
+  own Backlinks tab both rendered `getLinkedReferences` — the SAME data —
+  verdict: the rail's ReferencesSection is DELETED
+  (`components/sidebarSections.tsx` keeps TocSection only); the Backlinks tab
+  stays the one home in the SectionStack, where the tab/filter machinery
+  lands later. One home, no duplication. **M18:** `SystemSections`'s
+  `withActivity` prop + branch die; ActivityLogSection renders in the
+  context column (its useSectionData lazy contract rides along).
+  **M19:** `components/CommentsSection.tsx` — the v1 model restored:
+  comments are direct children classed `comment` (the seeded system class);
+  NodeViewSection chrome ("Comments" + direct-child count), hidden when
+  empty; the v1 quick-add/reply composer pair (a child block classed comment
+  + the text as its content — title-is-content); rows open the comment node;
+  each row carries Reply/Delete (the v1 pair); children nest in the thread
+  (any child blocks, v1's recursion). Lazy per the section contract via
+  useSectionData. **M15/M17:** `ui/SidebarNodeCard.tsx` is DELETED — replaced
+  by `components/NodeCardFrame.tsx`, the generic `nt-sidebar-card` frame
+  (breadcrumbs header + collapse/open-in-main/close; collapse is
+  session-local — reorder/dismiss gestures are a registered follow-up)
+  rendering NodeView (compact, no corner menu); App's rail hosts the frame
+  stack exclusively. `NodeView` gains `preview?: boolean` — no corner menu,
+  no global listeners, a read-only body capped at the first level
+  (`maxDepth` 1, outline), no section stack; nothing renders it yet —
+  swapping NodeHoverPreview's bespoke card for the seam is the registered
+  follow-up. Embedded/journal/calendar surfaces, focus mode, and the class
+  variant render NO context column (main-surface chrome only). jsdom test
+  setup stubs `HTMLCanvasElement.getContext` → null quietly (the context
+  column mounts a graph card with every page view; the graph's WebGL-missing
+  path already rendered its honest empty state — the stub silences jsdom's
+  per-call "Not implemented" scream). Tree-text assertions in seven existing
+  suites scope to `.nt-block-tree` / their section (the TOC legitimately
+  echoes short one-line blocks — the rail-era design, now in the column).
+  Docs: `usage.md` + `ux.md` re-home the context widgets. **Verification:**
+  the full apps/web suite green (121 files / 1206 tests — comments-section 6,
+  context-column 8 new; the ReferencesSection rail test dies with the
+  component per the dedupe verdict); `tsc --noEmit` clean in apps/web; the
+  layout-probe selectors (`.nt-node-topbar` and children, `.nt-page-body`,
+  `.nt-page-side-panel`, `.nt-nodeview-body`) unchanged. Design:
+  `.plans/2026-10-06-1352-main-content-restructure/`.
 - **feat(web): text-property rows render as locked outline collections.**
   A text property's values are node-backed carrier blocks; the row's
   bespoke mini-outliner renderer is replaced by the shared dispatcher —

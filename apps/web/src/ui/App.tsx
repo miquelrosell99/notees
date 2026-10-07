@@ -48,7 +48,7 @@ import {
 
 import { Icon } from "./Icon.js";
 import { NodeView } from "./NodeView.js";
-import { SidebarNodeCard } from "./SidebarNodeCard.js";
+import { NodeCardFrame } from "./components/NodeCardFrame.js";
 import { displayNameForSettings } from "./dateDisplay.js";
 import { DeckView } from "./presentation/DeckView.js";
 import { ThemeToggle } from "./ThemeToggle.js";
@@ -59,7 +59,6 @@ import { dayNodeId, rendersAsInlineBlock, rendersWithDocumentChrome, SYSTEM_CLAS
 import { CollectionHub } from "./components/CollectionHub.js";
 import type { TableColumn, ViewMode } from "./views/index.js";
 import { Breadcrumbs } from "./components/Breadcrumbs.js";
-import { TocSection, ReferencesSection } from "./components/sidebarSections.js";
 import { NAV_ENTRIES, Sidebar, recordRecent, type NavKey } from "./components/Sidebar.js";
 import { NodeLinkMenuHost } from "./components/NodeLinkContextMenu.js";
 import { FloatingEditorHost } from "./components/FloatingEditor.js";
@@ -74,7 +73,6 @@ import { CalendarPopup } from "./components/ui/CalendarPopup.js";
 import { HistoryMenuPopup } from "./components/HistoryMenuPopup.js";
 import { QueriesHub } from "./components/QueriesHub.js";
 import { GraphView } from "./views/graph/GraphView.js";
-import { LocalGraphCard } from "./components/LocalGraphCard.js";
 import { TopBar } from "./components/TopBar.js";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher.js";
 import { NodeSelector } from "./components/pickers/NodeSelector.js";
@@ -1733,34 +1731,15 @@ export function App() {
         </PageCard>
         {rightPanelOpen && (
           <aside className="nt-right-card" aria-label="Right sidebar">
-            {selectedPageId !== null &&
-              (() => {
-                const contextNode = client.getNode(selectedPageId);
-                if (contextNode === undefined || !rendersWithDocumentChrome(contextNode)) {
-                  return null;
-                }
-                return (
-                  <div className="nt-right-card-context">
-                    <LocalGraphCard client={client} nodeId={selectedPageId} onOpenNode={openPage} />
-                    <TocSection
-                      client={client}
-                      pageId={selectedPageId}
-                      activeId={selectedPageId}
-                      onOpenNode={openPage}
-                    />
-                    <ReferencesSection
-                      client={client}
-                      pageId={selectedPageId}
-                      onOpenNode={openPage}
-                    />
-                  </div>
-                );
-              })()}
+            {/* The cards-only rail (M15/M17): the node-relevant widgets
+                (graph/TOC/Activity/Comments) relocated into the page chrome's
+                context column; this rail hosts workspace cards exclusively —
+                the generic frame around NodeView. */}
             {sidebarCards.length === 0 ? (
               <div className="nt-right-card-placeholder" />
             ) : (
               sidebarCards.map((cardId) => (
-                <SidebarNodeCard
+                <NodeCardFrame
                   key={cardId}
                   client={client}
                   nodeId={cardId}
