@@ -7,6 +7,43 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-10-07
+
+- **feat(web): the collection create-button flag, the fullscreen whiteboard
+  container, and the graph view's reference chrome — the main-content
+  restructure's view-layer recoveries.** (a) The reusable collection
+  contract gains the create affordance: `showAddButton` + `onAdd` (+
+  `addLabel`) on `NodeCollectionProps`, rendered as a kit button in the
+  collection's empty state (the kit EmptyState's action slot) and in the
+  view toolbar where one exists — only when the flag AND the callback are
+  set AND the surface context allows it. Enabled in exactly two places:
+  the Child pages section (renders on the main surface even when empty;
+  "Add child page" creates a present-as-main child of the host page and
+  opens it — the section's row-click behavior; embedded feeds stay
+  read-only and hide a childless section) and the Classed nodes section
+  ("Add member" in the toolbar and the empty state creates a node classed
+  with the class — visible on an empty database). The `Section` primitive
+  gains the opt-in `renderWhenEmpty` for containers owning their empty
+  state. (b) A whiteboard page on the main surface renders the spatial
+  canvas as the content card's sole content — the page chrome (the
+  panelled columns, nodeview top bar, header, footer) steps aside and the
+  canvas fills the card edge to edge (`.nt-page--whiteboard`; the card
+  frame stays, the canvas's own border/radius/margin go). Embedded feed
+  entries and in-block boards keep the bounded in-flow canvas. (c) The
+  graph hub renders edge-to-edge in the content card (`.nt-graph-surface`)
+  and the graph chrome re-presents to the reference graph UI: the settings
+  toolbar composes from the kit (ghost icon tools, the icon-radio mode
+  selectors, boolean switches, the kit search field; the edge-family chips
+  stay the rendering register), the local neighborhood rides a labeled
+  depth slider, and the empty surfaces carry the reference wording —
+  "Nothing to graph yet" for the empty workspace, the levels hint for an
+  empty neighborhood, the filtered-out state with a Reset filters
+  affordance (back to the shipped defaults) on the full surface; an empty
+  display renders instead of the stage, so no renderer initializes on a
+  graph with nothing to draw. The WebGL renderer, physics engine, minimap,
+  local-graph mode, and settings persistence are unchanged. `npx tsc
+  --noEmit` clean; full web suite green (1215 tests).
+
 ## 2026-10-06
 
 - **chore(web): the restructure branch meets the scrub law — era references
