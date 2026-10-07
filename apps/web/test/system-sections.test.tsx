@@ -104,7 +104,11 @@ describe("PageView system sections", () => {
     // tab would be empty. The outgoing "References" tab no longer exists;
     // Child pages (no children here) stays hidden.
     expect(container.querySelector(".nt-backlinks")).not.toBeNull();
-    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+    // Scope to the strip's OWN tab list: the selected panel may host the
+    // collection's views chrome (its Default tab) alongside.
+    const refTabList = container.querySelector(".nt-ref-tabs > .tabs__list");
+    expect(refTabList).not.toBeNull();
+    expect(within(refTabList as HTMLElement).getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Backlinks 1",
       "Unlinked mentions 1",
     ]);
@@ -149,7 +153,9 @@ describe("PageView system sections", () => {
 
     const { container } = render(<PageView client={client} pageId={lonelyId} />);
     expect(container.querySelector(".nt-backlinks")).not.toBeNull();
-    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+    const refTabList = container.querySelector(".nt-ref-tabs > .tabs__list");
+    expect(refTabList).not.toBeNull();
+    expect(within(refTabList as HTMLElement).getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Backlinks",
       "Unlinked mentions",
     ]);
