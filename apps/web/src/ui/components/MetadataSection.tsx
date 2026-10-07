@@ -1286,16 +1286,18 @@ function propertyGroupsOf(
     );
 
   // Node-typed / date / date_range / boolean / text schemas render as one
-  // grouped row per schema; select AND multi_select schemas join them only
-  // when they declare options (without options the minimal text editor is
-  // the honest editor — there is nothing to pick; the shape routes
+  // grouped row per schema (the `asset` type — M38 — joins the node-ref
+  // family: the existing object row renders it; the dedicated upload/link
+  // chrome is a separate later task); select AND multi_select schemas join
+  // them only when they declare options (without options the minimal text
+  // editor is the honest editor — there is nothing to pick; the shape routes
   // multi_select to the selection control). Text groups render as a blocks
   // list (the carrier blocks themselves). Grouped rows appear at
   // their first occurrence so the panel order is unchanged.
   const optionsOf = (propertySchemaId: string) =>
     client.listPropertySchemas().find((s) => s.id === propertySchemaId)?.options;
   const isGroupedType = (type: string | undefined, propertySchemaId: string): boolean => {
-    if (type === "object" || type === "date" || type === "date_range" || type === "boolean" || type === "text") {
+    if (type === "object" || type === "asset" || type === "date" || type === "date_range" || type === "boolean" || type === "text") {
       return true;
     }
     if (type === "select" || type === "multi_select") {
