@@ -27,6 +27,11 @@ typecheck dependents.
 host accumulates checkouts otherwise, and a forgotten sibling is invisible
 to `git worktree list` hygiene.
 
+**No transient-internal-doc pointers in the tree:** code, tests, docs, and
+CHANGELOG entries never reference `.plans/` proposal folders, design docs,
+or other internal transient documentation — the durable text stands alone.
+Internal cross-references live inside the internal docs themselves.
+
 ## The fixture gate (blocking)
 
 Op fixtures live in `packages/protocol/fixtures/` (envelope-minimal,
