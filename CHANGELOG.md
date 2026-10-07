@@ -9,6 +9,72 @@ predating this file.
 
 ## 2026-10-07
 
+- **feat(web): the page banner — the `bannerAssetId` wire field's UI
+  half.** A full-width collapsible banner ABOVE the header, inside the
+  page card and spanning the content width; the cover card stays in the
+  header row — banner and cover coexist. The banner reads the
+  `bannerAssetId` node field straight off the ClientNode (the store's
+  `banner_asset_id` column, the wire-fields slice's read projection) and
+  writes through `object.update` — the client surface gains all three wire
+  fields (`coverAssetId` / `bannerAssetId` / `aliasedNodeId`) on
+  `UpdateObjectInput`, payload-mapped alongside icon/color (the worker RPC
+  rides the same input through, no handler change). Collapsed to a slim
+  full-width strip by default under the per-page device-local pref (the
+  cover-collapse precedent: `pageBannerCollapsed.<pageId>`); expanding
+  shows the fixed-height cover-fit image (the existing banner sizing
+  token) or the dashed Add affordance — the AssetUploadModal with an
+  image-only accept list, the landed asset node's id written to the field
+  plus its asset class (explicit ops, every client converges). A banner
+  landing while the strip is collapsed expands it (the cover precedent —
+  the new image is the feedback); the mount is excluded, so the pref
+  governs the first view. Hover reveals Collapse / Change / Remove (Remove
+  clears the field present-null; the asset stays). The page context menu
+  gains **Add banner** / **Change banner** — labeled by the current field
+  value — riding the same host-owned modal as the empty affordance, so
+  both entry points are one flow. Whiteboard pages and embedded renders
+  host no banner (the cover gating precedent). **Verification:** a new
+  page-banner suite pins the field round-trip (set/clear + the asset
+  class), collapsed-by-default, expand → image, the per-page pref
+  surviving a remount (a second page stays collapsed), the empty → upload
+  → field flow with the image-only accept asserted on the file input, the
+  context-menu entry and its Change label once set, and the
+  whiteboard/embedded gating; the full gate green — **2,668 tests across
+  175 files** (protocol 301, domain 72, export 219, store 433, sync 25,
+  query 175, server 204, web 1,239).
+
+- **feat(web): the `asset` property type's dedicated row chrome.** The
+  type (the attachments schema leads it) leaves the generic object row
+  behind: the row renders the linked assets as a LIST — the thumbnail
+  (image bytes through the session cache; a kind icon otherwise), the
+  `node_asset` original name (click downloads), and a per-item remove —
+  with TWO authoring buttons: **Upload** opens the AssetUploadModal
+  directly (its CAS flow creates the asset node; the property value links
+  it at the next free slot) and **Link** opens the node picker scoped to
+  asset-classed nodes with create disabled (the type IS the filter — a
+  picker-level create could mint a non-asset, so the row offers none).
+  Multi rows keep both buttons at the list's bottom; a single-value row
+  renders them only while empty — replacement goes through clearing
+  first. Broken targets render the dashed raw-id row (the broken-mention
+  policy), never a silent void. The row renders everywhere property rows
+  render (the properties table and the compact/sidebar surfaces share the
+  grouped-row switch). **The upload modal grows three capabilities the
+  chrome leans on:** an `accept` prop narrowing the selectable set (the
+  MIME / `type/*` / `.ext` grammar), clipboard-paste capture while open
+  (pick, drop, or paste ride one selection path), and client-side gates
+  mirroring the server — the accept list and the media (50MB) / document
+  (100MB) size caps — rejecting with a named error before anything leaves
+  the machine. **Verification:** the asset-attachments suite re-seeds the
+  attachments schema at its current wire shape (type `asset`, the filter
+  implicit in the type) and pins the new chrome end to end — the empty
+  Upload/Link buttons (no generic Add pill), the asset-scoped no-create
+  picker (filtering + search + the pick writing the value), the upload
+  setting the value to the fresh asset node (multipart POST + API key
+  headers intact), paste filling the modal, the accept gate rejecting
+  before any upload, the failed-upload error path, the multi list with the
+  buttons at the bottom + thumbnail rendering, the single clear-first
+  flow, item removal rewriting the list; the full gate green (2,668 tests
+  across 175 files — totals above).
+
 - **feat(protocol,store,domain): the `asset` property type — attachments
   leads the type out of `object`.** Owner ruling (M38): an asset-typed value
   is a node reference whose target must carry the ASSET class — the type IS

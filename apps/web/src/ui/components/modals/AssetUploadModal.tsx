@@ -12,7 +12,10 @@
  * The server sniffs magic bytes (jpeg/png/webp/pdf/epub/audio) and enforces
  * the media/document size caps, so client-side validation stays
  * presentational: the accept list mirrors the sniffed set and the status
- * line surfaces the server's rejection verbatim.
+ * line surfaces the server's rejection verbatim. The modal validates the
+ * same two gates before the upload runs (the accept list and the media /
+ * document size caps), and captures a pasted file from the clipboard while
+ * open — pick, drop, or paste, one validation path.
  */
 
 import { useEffect, useState } from "react";
@@ -36,6 +39,31 @@ type AssetCategory = "image" | "audio" | "document";
 const ACCEPT =
   "image/jpeg,image/png,image/webp,audio/mpeg,audio/mp3,audio/wav,audio/ogg,audio/opus,audio/webm," +
   ".pdf,.epub";
+
+/** The server-side caps (apps/server assets): media 50MB, documents 100MB. */
+const MEDIA_CAP_BYTES = 50 * 1024 * 1024;
+const DOCUMENT_CAP_BYTES = 100 * 1024 * 1024;
+
+function capFor(file: File): number {
+  const category = categoryOf(file);
+  return category === "document" ? DOCUMENT_CAP_BYTES : MEDIA_CAP_BYTES;
+}
+
+/**
+ * True when the file matches the accept list (a MIME entry, a `type/*`
+ * wildcard, or a `.ext` suffix against the file name).
+ */
+export function fileMatchesAccept(file: File, accept: string): boolean {
+  const entries = accept
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry !== "");
+  return entries.some((entry) => {
+    if (entry.startsWith(".")) return file.name.toLowerCase().endsWith(entry);
+    if (entry.endsWith("/*")) return file.type.toLowerCase().startsWith(entry.slice(0, -1));
+    return file.type.toLowerCase() === entry;
+  });
+}
 
 function categoryOf(file: File): AssetCategory {
   if (file.type.startsWith("image/")) return "image";
@@ -66,6 +94,13 @@ export interface AssetUploadModalProps {
   onUploaded: (assetNodeId: string) => void;
   /** Optional file to prefill the drop zone (e.g. a paste capture). */
   initialFile?: File | null;
+  /**
+   * The selectable set (MIME types, `type/*` wildcards, or `.ext` suffixes —
+   * the same grammar as the file input's `accept`). Defaults to the
+   * server-sniffed set; narrower surfaces (a page banner takes images only)
+   * pass their own list.
+   */
+  accept?: string;
 }
 
 export function AssetUploadModal({
@@ -75,6 +110,7 @@ export function AssetUploadModal({
   assetClassId,
   onUploaded,
   initialFile = null,
+  accept = ACCEPT,
 }: AssetUploadModalProps) {
   const [file, setFile] = useState<File | null>(initialFile);
   const [phase, setPhase] = useState<UploadPhase>("idle");
@@ -90,6 +126,22 @@ export function AssetUploadModal({
     setError(null);
   }, [isOpen, initialFile]);
 
+  // Clipboard capture: a pasted file while the modal is open rides the same
+  // selection path as pick/drop (one validation path).
+  useEffect(() => {
+    if (!isOpen) return;
+    const onPaste = (event: ClipboardEvent) => {
+      if (phase === "uploading") return;
+      const pasted = event.clipboardData?.files?.[0];
+      if (pasted === undefined) return;
+      event.preventDefault();
+      selectFile(pasted);
+    };
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectFile only reads setters.
+  }, [isOpen, phase]);
+
   // Revoke the stale object URL when the preview swaps or the modal unmounts
   // (the cleanup captures the previous value), so repeated uploads do not
   // leak blobs for the session. The typeof guard keeps jsdom (no
@@ -103,9 +155,28 @@ export function AssetUploadModal({
   }, [previewUrl]);
 
   const selectFile = (next: File | null) => {
-    setFile(next);
     setPhase("idle");
     setError(null);
+    // Client-side gates mirroring the server: the accept list and the
+    // media/document size caps. A rejected file is not selected — the error
+    // names the gate so the failure is retryable with a different file.
+    if (next !== null && !fileMatchesAccept(next, accept)) {
+      setFile(null);
+      setPreviewUrl(null);
+      setError(
+        `${next.name} is not an accepted type (${accept})`,
+      );
+      return;
+    }
+    if (next !== null && next.size > capFor(next)) {
+      setFile(null);
+      setPreviewUrl(null);
+      setError(
+        `${next.name} exceeds the ${categoryOf(next)} size cap (${formatSize(capFor(next))})`,
+      );
+      return;
+    }
+    setFile(next);
     const previewable =
       next !== null && (next.type.startsWith("image/") || next.type.startsWith("audio/"));
     setPreviewUrl(previewable && next !== null ? URL.createObjectURL(next) : null);
@@ -165,11 +236,11 @@ export function AssetUploadModal({
       <div className="asset-upload-modal">
         <FileDropZone
           file={file}
-          accept={ACCEPT}
+          accept={accept}
           onSelect={(next) => selectFile(next)}
           onClear={() => selectFile(null)}
           placeholder="Drop a file here"
-          hint="or click to browse"
+          hint="or click to browse — paste works too"
           icon={<Icon path="mdi-cloud-upload-outline" size={1.6} />}
           disabled={phase === "uploading"}
         />

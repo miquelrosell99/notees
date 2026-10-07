@@ -59,7 +59,8 @@ import {
 } from "./block-dnd.js";
 import { PropertiesSection, PropertiesSidebar, ClassesRow, TagsRow } from "./components/MetadataSection.js";
 import { IconPickerPopup } from "./components/IconPickerPopup.js";
-import { CoverCard } from "./components/PageBanner.js";
+import { BannerCard, CoverCard, bannerAssetIdOf, setNodeBanner } from "./components/PageBanner.js";
+import { AssetUploadModal } from "./components/modals/AssetUploadModal.js";
 import { PageFooter } from "./components/PageFooter.js";
 import { SelectionBar } from "./components/SelectionBar.js";
 import { SystemSections } from "./components/SystemSections.js";
@@ -368,6 +369,20 @@ export function PageView({
       ? canHaveCoverOf(client, pageId)
       : false;
 
+  /**
+   * The banner (the bannerAssetId wire field): the full-width element above
+   * the header. Renders whenever the page can carry one — set or empty —
+   * like the cover; whiteboard pages and embedded renders host none (the
+   * cover gating precedent). The upload modal is host-owned so the page
+   * context menu's Add banner rides the same flow as the empty affordance.
+   */
+  const bannerAssetId =
+    page !== undefined && !embedded && whiteboardTokenIndex < 0
+      ? bannerAssetIdOf(client, pageId)
+      : null;
+  const bannerPossible = page !== undefined && !embedded && whiteboardTokenIndex < 0;
+  const [bannerUploadOpen, setBannerUploadOpen] = useState(false);
+
   const outliner = useOutlinerValue(client, pageId, {
     // Render-cascade navigation for query result lists (App routes the id).
     openNode: (id) => onOpenPage?.(id),
@@ -631,12 +646,21 @@ export function PageView({
   );
 
   /**
-   * The header layout: header left, the collapsible cover CARD
-   * right (always rendered when the page can carry a cover, even empty).
+   * The header layout: the full-width banner above (when the page can carry
+   * one), then header left, the collapsible cover CARD right (always
+   * rendered when the page can carry a cover, even empty).
    * Shared by both layout modes.
    */
   const headerChrome = (
     <>
+          {bannerPossible && !focusMode && (
+            <BannerCard
+              client={client}
+              pageId={pageId}
+              assetId={bannerAssetId}
+              onUploadRequest={() => setBannerUploadOpen(true)}
+            />
+          )}
           <div className="page-header-section">
           <header className="nt-page-header">
           <div className="page-header__title-row">
@@ -890,6 +914,14 @@ export function PageView({
             setHeaderMenu(null);
             onOpenPage?.(id);
           }}
+          onAddBanner={
+            bannerPossible
+              ? () => {
+                  setHeaderMenu(null);
+                  setBannerUploadOpen(true);
+                }
+              : undefined
+          }
           onPresent={onPresent}
           onExport={(id, name) => {
             setHeaderMenu(null);
@@ -908,6 +940,19 @@ export function PageView({
             onDeleted?.(node);
           }}
         />
+        {/* The banner upload (the empty affordance + the context menu's
+            Add banner): image-only accept; the landed asset node's id
+            writes the bannerAssetId wire field. */}
+        {bannerUploadOpen && (
+          <AssetUploadModal
+            isOpen
+            client={client}
+            assetClassId={SYSTEM_CLASS_UUIDS.asset}
+            accept="image/jpeg,image/png,image/webp"
+            onClose={() => setBannerUploadOpen(false)}
+            onUploaded={(assetNodeId) => void setNodeBanner(client, pageId, assetNodeId)}
+          />
+        )}
         {/* Block multi-selection: the floating group-ops bar rides
             the page chrome while a selection is live. */}
         {outliner.selectionEnabled && <SelectionBar client={client} />}
