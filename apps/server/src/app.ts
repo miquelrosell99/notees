@@ -32,6 +32,7 @@ import { registerObjectRoutes } from "./routes-objects.js";
 import { registerPluginRoutes, requireAdmin } from "./routes-plugins.js";
 import { registerPrefsRoutes } from "./routes-prefs.js";
 import { registerRelayRoutes, authorizeWorkspace } from "./routes-relay.js";
+import { registerSectionViewRoutes } from "./routes-section-views.js";
 import { registerPublicShareRoute, registerShareRoutes } from "./routes-shares.js";
 import { registerWorkflowRoutes } from "./routes-workflows.js";
 import { buildOpenApiDocument, documentedRoutes } from "./openapi.js";
@@ -174,6 +175,7 @@ export async function buildServer(
     async (api) => {
       registerAuthRoutes(api, ctx);
       registerPrefsRoutes(api, ctx);
+      registerSectionViewRoutes(api, ctx);
     },
     { prefix: "/api" },
   );
