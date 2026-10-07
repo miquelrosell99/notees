@@ -481,6 +481,28 @@ describe("L4 breadcrumb edit gestures", () => {
     expect(client.getNode(child)!.parentId).toBeNull();
   });
 
+  it("crumbs keep the capped display name for a >80-char title (dense chrome budget)", async () => {
+    const client = await seedClient();
+    const longTitle = "Crumb ".repeat(20).trimEnd(); // 119 chars — beyond the display-name budget
+    const parent = await client.createObject({ presentAsMain: true, name: longTitle });
+    const child = await client.createObject({
+      parentId: parent,
+      presentAsMain: true,
+      name: "Child Page",
+    });
+
+    const { container } = render(
+      <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} showCurrent />,
+    );
+    // The breadcrumb reads the capped display name (80 chars) — and the
+    // per-crumb clip tightens it further; the complete title never renders
+    // (owner ruling: full titles are for node links, not dense chrome).
+    const crumbName = container.querySelector(".node-breadcrumb-name")?.textContent ?? "";
+    expect(crumbName.endsWith("…")).toBe(true);
+    expect(crumbName).toBe(`${longTitle.slice(0, 27)}…`);
+    expect(container.textContent).not.toContain(longTitle);
+  });
+
   it("reassign parent (from the parent crumb) moves the child under the picked page", async () => {
     const client = await seedClient();
     const firstParent = await client.createObject({ presentAsMain: true, name: "First" });
@@ -491,8 +513,7 @@ describe("L4 breadcrumb edit gestures", () => {
       name: "Child Page",
     });
 
-    render(
-      <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} showCurrent editable />,
+    render(      <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} showCurrent editable />,
     );
     fireEvent.contextMenu(screen.getByRole("button", { name: "First" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Reassign parent…" }));

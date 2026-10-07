@@ -460,6 +460,100 @@ implementation):**
     upload-for-asset-targets row logic in MetadataSection folds into the
     dedicated type's renderer.
 
+**Owner pass 25 — the no-cover bug + v1 cards/table UI recovery (same day,
+during implementation):**
+51. *M39 — `no-cover` must mean no cover; the cards and table views
+    re-UI'd to v1.* (a) Bug (found during implementation): `CardCover`
+    (`apps/web/src/ui/views/CardsView.tsx:102`) declares its `layout` prop
+    but never reads it — cards render covers (placeholder + image +
+    lightbox) under the "No cover" layout. Fix: "no-cover" renders nothing
+    and the lazy fetch never starts, with a regression test. (b) The cards
+    view and the table view are re-presented to v1's UI (`v1-archive:
+    frontend/src/features/views/components/` — TableView.tsx + the card
+    grid): the owner's verdict — "it looked great." v2's machinery
+    (windowing, selection export, inline editing, CSV export, lazy covers)
+    stays; this is presentation recovery, not feature removal.
+
+**Owner pass 26 — v1's collection create-button flag (same day, during
+implementation):**
+52. *M40 — the `showAddButton` visibility flag on NodeCollection, enabled
+    for the child-pages and classed-nodes sections.* v1's contract
+    (`v1-archive:frontend/src/features/content/components/nodes/
+    NodeCollection.tsx:349` — `effectiveShowAdd = showAddButton && onAdd &&
+    can_create`): the collection renders its create affordance only when the
+    flag AND the create callback AND the context allow it. v2 gains the
+    equivalent: a `showAddButton`/`onAdd` pair on the collection contract
+    (default off), with the button chrome in the empty state + toolbar.
+    Enabled, with context-correct create flows, for: the **Child pages**
+    section (creates a child in the Pages zone of the host) and the
+    **Classed nodes** section (creates a node classed with the class).
+    Queued behind S5 (ClassedNodesSection) and the M39 wave.
+
+**Owner pass 27 — the drag-session interaction model (same day, refining
+S6):**
+53. *M41 — muted source + divider line + proximity snapping; no more
+    layout-shifting previews.* The current drag feedback (the dragged
+    block rendered live at the would-be position) shifts the layout
+    constantly. The replacement: (a) **the source row stays in place,
+    muted** (`nt-block--drag-source`) — no floating block preview; at most
+    a minimal name chip rides the pointer. (b) **The indicator is a line
+    in the block-to-block divider**, following the pointer dynamically —
+    sibling intent draws the line at the divider; child intent draws it at
+    the row's child-offset (the existing CHILD_DROP_OFFSET x-model stays).
+    (c) **Horizontal disambiguation at hierarchy ends**: hovering the gap
+    after a hierarchy's last child resolves by x — near the parent's
+    gutter = sibling AFTER the parent; deeper right = child appended
+    inside; left = sibling of the last child — the line snaps to the
+    matching level. (d) **On drag start, compute the valid-location set**
+    (every visible divider as a sibling candidate; every visible row as a
+    child candidate; the dragged subtree's own descendants excluded — the
+    existing guard) and **snap the indicator to the nearest valid
+    location by pointer proximity**, replacing raw hit-test churn. The
+    resolution/execution semantics (resolveMove/executeMove, zone flips)
+    are UNCHANGED — this is the feedback layer. Folds into S6 (same files:
+    block-dnd.ts + the drag rendering + the machinery).
+
+**Owner pass 28 — the title is a rich block; weblink extends source;
+sidebar rows get the link UI (same day, during implementation):**
+54. *M42 — the PageChrome title renders and edits as a bullet-less BlockRow
+    (full editor powers: URLs and mentions in display AND edit mode). The
+    page's own contentAst may carry link/mention tokens; display-name
+    derivation keeps flattening to text (labels, breadcrumbs, export
+    titles unchanged). The bespoke TitleEditor is replaced by the shared
+    row machinery; day/embedded/class header variants preserved.*
+55. *M43 — `weblink` extends `source` (owner question, confirmed): a web
+    link is a lightweight source — it inherits the bibliographic family
+    (all optional; weblink's own `url` binding wins over the inherited
+    one), the citation quick-create, and the feature-gating cascade
+    (disabling sources hides web links). Seeds + the existing-workspace
+    ensure + client seed-convergence.*
+56. *M44 — sidebar recents/favorites rows render with the link UI (the
+    read-only BlockRow treatment: InlineTokens labels + the node context
+    menu), and the account-menu popup dismissal is fixed (outside click
+    closes; audit the row menus too).*
+57. *M45 — external links are hyperlinks, not chips (owner correction,
+    general ruling): read mode renders an external_link token as a plain
+    clickable hyperlink (anchor, underline + link color, no pill chrome) in
+    BlockRow EVERYWHERE — body rows and the title alike; edit mode shows the
+    raw markdown (`[label](url)`) as today. One shared rendering in
+    InlineTokens; no per-surface deviation.*
+58. *M46 — the link editor modal is for NODE links only (owner ruling): the
+    URL mode is REMOVED — URL links are not node links; they are authored as
+    markdown (`[label](url)`) or by pasting a raw URL, and with M45 they
+    render as plain hyperlinks whose click navigates. The modal keeps Page /
+    Block / Verb; the read-mode click that opened the modal for external
+    links is removed (hyperlinks navigate), and the node-link context menu
+    drops its "Edit link…" item for external-link targets.*
+
+**Lockstep debt (registered, awaiting owner ruling):** M42's rich titles
+required relaxing the TS store applier (the update path no longer flattens
+rich content for present-as-main nodes; create/promotion still flatten — no
+wire/fixture change, the whole fixture corpus stays green). The GTK/Flutter
+appliers still flatten, so derived stores diverge on rich-title updates
+until the next client alignment batch. Owner call: accept until the next
+lockstep batch (recommended — single-user fleet, no other client authors
+rich titles today) or hold the applier change.
+
 ## Problem
 
 `PageView.tsx` is one 908-line function that owns four jobs at once:
@@ -1235,12 +1329,30 @@ lands. Per the post-§34 records regime, shipped slices are recorded in
   the single root item; M19 comment exclusion at every level);
   `FocusedBlockView.tsx` deleted — the NodeView block branch renders
   ReferenceSubtree with the same chrome wrapper; new unit coverage.
-- **S5 — class subtraction + variants as data: IN FLIGHT** (subagent).
+- **S5 — class subtraction + variants as data: DONE** (commit `33cb80a8`).
   M11 ClassPillsList, M13 variant data (PageView slots deleted, ClassView
   deleted, `components/pageVariant.ts`), M9 chrome subtraction, M12's
   banner deletion.
-- **Recovery batch IN FLIGHT** (subagent): M33 upload modal, M35 v1 query
-  builder, M10 picker color, M38a NodeSelector `noCreate`.
-- Next after the in-flight wave: commit verifications, **S7** (three-column
-  context + cards-only rail; M19 Comments + M36 whiteboard + M37 graph
-  containers land inside it), then **S6** (workspace DnD hoist).
+- **Recovery batch DONE** (commits `5742859b`, `184f938f`, `bbef53fd`):
+  M33 upload modal, M35 v1 query builder, M10 picker color, M38a
+  NodeSelector `noCreate`.
+- **M39 DONE** (`0a6cbb5c`): the no-cover fix + the cards/table v1
+  presentation.
+- **REBASE DONE** (2026-10-07): all commits replayed onto the scrubbed
+  main (`94996963` + `a0e4b141`), plus the §-citation scrub-fidelity sweep
+  (`2bed5b49`). A full scrub-persistence sweep (M-labels, S-slices, v1/v2
+  prose — the branch's new files predated the scrub) follows S7a.
+- **M20 DONE** (`034200ce`): text-property carriers render through a
+  locked outline NodeCollection.
+- **S7a DONE** (`7bc499a3`): the three-column card (context = graph · TOC
+  · Activity · Comments; per-column collapse; layout stays binary), the
+  Comments section (v1 model), the cards-only rail (NodeCardFrame;
+  SidebarNodeCard + the rail ReferencesSection deleted per the dedupe
+  verdict — the Backlinks tab stays the one home), SystemSections'
+  withActivity dies, the preview surface lands unused.
+- **Environment note (2026-10-07):** the worktree moved to the repo's
+  gitignored `.worktrees/restructure` (owner convention, committed on
+  main as `64de271f` — AGENTS.md + skill + development runbook).
+- Next: the full scrub-persistence sweep (in flight), then **S7b** (M36
+  whiteboard + M37 v1 graph full-container recoveries + M40
+  `showAddButton`), then **S6** (workspace DnD hoist).
