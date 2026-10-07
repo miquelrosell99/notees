@@ -32,8 +32,11 @@ docker build -f apps/server/Dockerfile -t ghcr.io/miquelrosell99/notees-sync:lat
 && docker compose up -d
 ```
 
-Compose defaults to `:latest` (`NOTEES_SYNC_TAG`/`NOTEES_WEB_TAG` override for
-pinning; no `build:` section by design). Smoke afterwards:
+Compose defaults to `:latest` — but the compose file carries the build
+contexts, and the development flow is `docker compose build` + `docker
+compose up -d`: the deployment always runs the local codebase. A host that
+hasn't built pulls `:latest` from ghcr instead (the default pull policy,
+left alone). Smoke afterwards:
 `node scripts/screenshots/verify-min.mjs` from `scripts/screenshots/` with
 `NOTEES_ADMIN_PASSWORD` (on the fleet host: `export NOTEES_ADMIN_PASSWORD=$(cat config/notees/.admin_password)`).
 

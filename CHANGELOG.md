@@ -9,6 +9,25 @@ predating this file.
 
 ## 2026-10-06
 
+- **fix(ops): the web container proxies /api to the sync service — one
+  origin for UI+API; compose carries the build contexts (no more tag
+  envs).** Following the tailnet-edge migration (same day): the nginx config
+  in the web image now proxies `/api/*` to `notees-sync:8377` over the
+  compose network (websocket headers included), so browsers only ever talk
+  to the one web origin — no CORS, no separate sync URL to configure, https
+  over the optional edge wraps everything in one secure context (browser
+  storage requires it). The web client's default sync URL is now simply the
+  page origin (vite dev gained the same proxy). The edge's Caddyfile
+  simplifies to a single proxy. App publishes return to zero-config wildcard
+  defaults (the fleet host's loopback pins were serve-era only), the
+  `18xxx` LAN-shadow publishes are removed, and `NOTEES_SYNC_TAG` /
+  `NOTEES_WEB_TAG` are gone — compose carries the build contexts, so the
+  development flow is `docker compose build && docker compose up -d` (the
+  deployment always runs the local codebase; hosts that haven't built pull
+  `:latest`). Verified on the fleet host: `http://atlas:8378` serves,
+  `/api/version` answers same-origin through the proxy and through the
+  edge, `VERIFY-PASS`.
+
 - **fix(ops): the containers could not start — a wildcard app bind collided
   with the tailnet edge; HTTPS moved from tailscale serve to an optional Caddy
   edge.** Incident (2026-10-07): the sync/web containers sat in `Created`,

@@ -6,6 +6,11 @@ import { defineConfig } from "vite";
 const shim = (name: string) => fileURLToPath(new URL(`./src/shims/${name}`, import.meta.url));
 
 export default defineConfig({
+  server: {
+    // Same-origin API in dev: /api/* proxies to a local sync server (the
+    // deployed web container does the same in nginx — one origin for UI+API).
+    proxy: { "/api": "http://localhost:8377" },
+  },
   plugins: [react()],
   resolve: {
     alias: [

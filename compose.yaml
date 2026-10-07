@@ -7,14 +7,16 @@
 
 services:
   notees-sync:
-    image: ghcr.io/miquelrosell99/notees-sync:${NOTEES_SYNC_TAG:-latest}
+    image: ghcr.io/miquelrosell99/notees-sync
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
     container_name: notees-sync
     # Loopback only: the edge reaches this over the compose network by name;
     # loopback serves the verify-min smoke. The high LAN port re-exposes
     # plain HTTP for the LAN (docs/developers/deployment.md).
     ports:
       - "${NOTEES_SYNC_HTTP:-0.0.0.0:8377}:8377"
-      - "${NOTEES_SYNC_LAN_HTTP:-127.0.0.1:18377}:8377"
     volumes:
       - ./config/notees/sync:/data
     environment:
@@ -34,11 +36,13 @@ services:
     restart: unless-stopped
 
   notees-web:
-    image: ghcr.io/miquelrosell99/notees-web:${NOTEES_WEB_TAG:-latest}
+    image: ghcr.io/miquelrosell99/notees-web
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
     container_name: notees-web
     ports:
       - "${NOTEES_WEB_HTTP:-0.0.0.0:8378}:80"
-      - "${NOTEES_WEB_LAN_HTTP:-127.0.0.1:18378}:80"
     environment:
       # Optional prefill for non-standard sync topologies (the web client
       # guesses its sync URL from its own origin, which is right on every

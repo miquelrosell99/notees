@@ -48,7 +48,7 @@ Full file map: `docs/developers/architecture.md` · normative model & wire: `pac
 
 - Install: `pnpm install` · Build: `pnpm -r --workspace-concurrency=1 build` · Test: `pnpm test` (all green = blocking gate). Full command table, the fixture gate, and the add-an-op recipe: `docs/developers/development.md`.
 - **Dev-condition exports**: vitest reads `src`, `tsc` reads `dist` — after changing a package's public API, rebuild its dist before typechecking dependents.
-- Deploy: plain Docker, build + `docker compose up -d` from the repo root (web :8378, sync :8377; data under `./config/notees/`), then the `verify-min.mjs` smoke — **invoke the `notees-operations` skill first** (plus `deployment-runbook` for the deploy/rollback discipline). Full runbook, ghcr/CI publish path, and the client lockstep law: `docs/developers/releases.md` + `deployment.md`.
+- Deploy: plain Docker, `docker compose build` + `docker compose up -d` from the repo root (the compose build contexts pin the deployment to the local codebase; hosts that haven't built pull :latest) (web :8378, sync :8377; data under `./config/notees/`), then the `verify-min.mjs` smoke — **invoke the `notees-operations` skill first** (plus `deployment-runbook` for the deploy/rollback discipline). Full runbook, ghcr/CI publish path, and the client lockstep law: `docs/developers/releases.md` + `deployment.md`.
 
 ## Invariants (design law — read the linked homes before changing the model, wire, or appliers)
 
