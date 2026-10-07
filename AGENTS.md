@@ -71,6 +71,7 @@ All chrome MUST compose from `apps/web/src/ui/components/ui/` — one element pe
 - **Docs are part of the change**: any change to behavior, the model, the wire, or the UX updates the relevant documentation in the same pass — user-facing `docs/`, `packages/protocol/SCHEMA.md`, `AGENTS.md` / `.agents/` when they describe changed reality, and the `docs/developers/` runbooks.
 - **The changelog is the record** (owner 2026-10-06): what shipped and why lives in `CHANGELOG.md` at the repo root — one entry per shipped slice, newest first. `AGENTS.md` itself is static guidance: never append history, dates, or work-record entries to it; edit it only when the guidance changes. Before implementing, skim `CHANGELOG.md` for recent related work and check `.plans/` for an in-flight proposal folder. A change without its changelog + doc updates is not done.
 - **Fleet-agnostic artifacts** (owner 2026-10-06): never hardcode machine names (Tailscale device names), IPs, or tailnet names in code, templates, docs, or notes — write `<host>`, `<tailnet>`, `<lan-ip>`, `<tailscale-ip>`, or "the fleet host". Concrete values live only in gitignored host-local files (`.env`) and per-host operator config; example values in templates must be clearly generic (e.g. `192.168.1.10`).
+- **Worktrees live in `.worktrees/`** (owner 2026-10-07): git worktree work goes in the repo's own gitignored `.worktrees/<slug>/` — never a random sibling folder (`git worktree add .worktrees/<slug> -b <branch>`).
 
 ## Records index (scan, don't embed)
 
