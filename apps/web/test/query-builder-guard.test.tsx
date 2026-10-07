@@ -8,7 +8,12 @@
  * the editable form directly and round-trip.
  *
  * Coalesced live re-runs: a synchronous burst of notifications
- * costs exactly one re-run, not one per notification.
+ * costs exactly one re-run, not one per notification. The baseline is
+ * captured only after a full microtask drain (the flushSync idiom): the
+ * seeding writes kick floating engine pushes whose acks notify LATER, and
+ * a settle-phase notification landing after the baseline capture would
+ * count as an extra re-run — the load-sensitivity this suite had before
+ * the drain made the queue deterministic.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -46,6 +51,13 @@ async function seedClient(): Promise<WorkspaceClient> {
   clients.push(client);
   await client.bootstrapWorkspace(WS);
   return client;
+}
+
+/** Drain the microtasks a write's floating push+ack chain runs on — the
+ *  repo-wide flush idiom (node-aliases/class-create-modal and friends): six
+ *  awaited act ticks exhaust the notification -> re-run chain. */
+async function flushSync(): Promise<void> {
+  for (let i = 0; i < 6; i += 1) await act(async () => {});
 }
 
 function text(value: string): ContentAst {
@@ -290,6 +302,12 @@ describe("coalesced live re-runs", () => {
 
     render(<PageView client={client} pageId={host} />);
     await screen.findByText("Paris");
+    // Determinism gate: drain the whole settle phase BEFORE the baseline —
+    // every floating push ack has notified and every re-run it scheduled has
+    // EXECUTED, so nothing in flight can merge with (or add to) the burst's
+    // trailing run. Without this drain the count races the engine's ack
+    // microtasks under parallel-suite load.
+    await flushSync();
     const callsAfterSettle = runSpy.mock.calls.length;
     expect(callsAfterSettle).toBeGreaterThan(0);
 
