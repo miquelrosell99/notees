@@ -81,7 +81,7 @@ itself is not shipped.
 
 `packages/store` is the single semantic-store implementation. Across the five storage
 categories, the derived schema
-(`packages/store/src/schema.ts`, `SCHEMA_VERSION = 16`, DDL mirrored as `SCHEMA_SQL`; additive `PRAGMA user_version` migrations — v2 class_property LWW columns, v3 date columns, v4 FTS4→FTS5, v5 tags `tag_member_set` + `node.tag_ids`, v6 → v7 `node.class_order`, v7 → v8 the render-state model: `is_class` + `present_as_main` replace `node_type`, node table rebuilt in place, v16 the wire node fields `cover_asset_id`/`banner_asset_id`/`aliased_node_id` on `node`) holds:
+(`packages/store/src/schema.ts`, `SCHEMA_VERSION = 17`, DDL mirrored as `SCHEMA_SQL`; additive `PRAGMA user_version` migrations — v2 class_property LWW columns, v3 date columns, v4 FTS4→FTS5, v5 tags `tag_member_set` + `node.tag_ids`, v6 → v7 `node.class_order`, v7 → v8 the render-state model: `is_class` + `present_as_main` replace `node_type`, node table rebuilt in place, v16 the wire node fields `cover_asset_id`/`banner_asset_id`/`aliased_node_id` on `node`, v17 the alias resolved-target materialization: `edge.resolved_target_id`, the applier-maintained alias-terminal of each edge's target — the backlinks roll-up's alias family and the graph read the column instead of walking alias chains per query) holds:
 
 | Category | Tables | Notes |
 |---|---|---|
@@ -334,6 +334,23 @@ client hook surface; no WS *client* ships.
   `GET /nodes/:id/location`, `GET /server-info`.
   Workspace selection via `X-Workspace-Id` header, else a deterministic default
   workspace derived from the API key (`identity.ts`).
+- **Per-user prefs channel** (`src/routes-prefs.ts`, `src/routes-section-views.ts`,
+  prefix `/api`, `requireUser` — any user principal, the operator key is not a
+  user): cross-device **UI** state lives beside the account in `relay.db`,
+  never the op log ("device state is never an op"). `user_prefs` carries
+  favorites/recents (`GET/PUT /me/prefs`); `section_view` carries the hosted
+  custom views — a collection-backed section's tabs (a page's
+  `linked-references` / `unlinked-mentions`, a class's `classed-nodes`):
+  `GET/POST/PATCH/PUT/DELETE /me/nodes/:nodeId/sections/:sectionKey/views[/...]`
+  with the (user, node, section, name) unique key and a dense sequence the
+  reorder endpoint rewrites. The default view is derived-not-stored (no
+  `is_default`, no default row) — emptying the table restores factory
+  behavior. `query_ast` validates against the QueryAST v1 zod schema at the
+  route; resolution (the web's `sectionViewResolve`) refines the section's
+  base row set with it — base-column predicates on the materialized rows,
+  joined metadata (property/fts/linkedTo) through one `runQueryAst`
+  membership probe per leaf, scope and aggregation ignored (a tab refines
+  rows; the AST round-trips verbatim).
 - **Developer self-description** (`src/routes-meta.ts`, prefix
   `/api`, per-route auth): `GET /meta` (version, wire protocol versions, default
   workspace, setup state — auth-free), `GET /openapi.json` (the OpenAPI 3.1
@@ -461,6 +478,21 @@ thread `onPresent` from App through `NodeView` → `NodeMenuButton` / `PageView`
 `NodeContextMenu`, plus the global Ctrl/Cmd+Alt+Enter chord; the slide index resumes from
 `presentationSession.ts` — module memory, session-only, never an op.
 
+**The transient filter layer (2026-10-07)** rides the section data contract:
+`useSectionData` accepts a `FilterSpec` (components/filterSpec.ts) and applies it
+to the resolved rows post-resolution, pre-windowing — windowing sees the filtered
+set, the lazy cache is untouched (a spec change re-derives, never re-queries), and
+the eager count stays unfiltered ("0 of N", the section never vanishes). The spec
+is the documented flat-AND subset of the query AST (`{ text?, classId?,
+propertyPredicates[], dateRange? }`) — one grammar with the stored custom views
+(`filterSpecToQueryAst` / `queryAstToFilterSpec`, the subset reading back null
+rather than lossy defaults). State is component state, one instance per section
+view/tab, lost on reload. The bar chrome (components/FilterBar.tsx) rides each
+filterable section's body top — the linked-references and unlinked-mentions tabs
+and the classed-nodes table (`SectionSpec.filterable`, default off); the row
+predicate mirrors the query compiler's scalar semantics over the effective-values
+read model.
+
 **GTK / Flutter** (sibling repos `notees-gtk`, `notees-flutter`, branches `protocol-v2`). Lockstep clients: strict payload validators + local appliers mirroring `packages/store` (same OR-Set gating, same LWW rules). Current with the TS reference as of the 2026-10-01 batch (tags + `tag.unassign`, title-is-content, `class.reorder`); both tagged `v2.0.0-m1` with CI-published releases. Any new op requires the same three-way lockstep.
 
 **CLI** (standalone repo `notees-cli` — split from `apps/cli` 2026-10-05; consumes
@@ -521,11 +553,16 @@ code is narrower in these places:
    `Store.backlinksWithRollup(id)` rolls up at query time (the
    fan-out-vs-traversal choice resolved as traversal) with **source-side
    containment**: direct edges on the node plus outward links from inside its
-   subtree (source ∈ subtree, target outside it — a block inside France
-   linking Paris references France; intra-subtree links excluded), one row
-   per (source, kind) annotated `kind: direct|containment` + depth, direct
-   first. `backlinks(id)` and the `node_stats.backlink_count` badge stay
-   DIRECT (a containment-heavy page's list can exceed its badge); `refset`
+   subtree (source ∈ subtree, resolved target outside it — a block inside
+   France linking Paris references France; intra-subtree links excluded),
+   plus the **node-alias family** (edges whose target is a live page alias of
+   the node, `kind: "alias"` — riding the applier-materialized
+   `edge.resolved_target_id` column since store schema v17, the carrier
+   filter mirroring the SCHEMA.md page restriction), one row per
+   (source, kind) annotated `kind: direct|alias|containment` + depth,
+   direct/containment first, alias rows last. `backlinks(id)` and the
+   `node_stats.backlink_count` badge stay RAW-DIRECT (an alias- or
+   containment-heavy page's list can exceed its badge); `refset`
    filter inheritance is still owed.
 3. ~~**FTS search misses page titles.**~~ RECONCILED 2026-09-26, SUPERSEDED
    2026-10-01 (title-is-content): the indexed text is the content plaintext —

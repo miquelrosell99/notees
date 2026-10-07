@@ -156,7 +156,7 @@ there is no `notees export`.
 ## 7. Upgrades
 
 - **Store schema migrations** are `PRAGMA user_version`-gated
-  (`packages/store/src/schema.ts`, `migrate()`; `SCHEMA_VERSION = 15`). Opening a database
+  (`packages/store/src/schema.ts`, `migrate()`; `SCHEMA_VERSION = 17`). Opening a database
   newer than the code supports is a hard error ("newer store required") — downgrade by
   restoring a backup, not by forcing it.
 - **Additive changes are safe.** New optional fields and new op types do not bump

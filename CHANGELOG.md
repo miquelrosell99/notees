@@ -9,6 +9,216 @@ predating this file.
 
 ## 2026-10-07
 
+- **feat(store,server,web): the parked follow-ons batch — the alias
+  resolved-target materialization, the REST wire-field projection, and the
+  query-builder-guard coalescing-test stabilization.** Three small slices,
+  one verification pass.
+  **(1) The alias resolved-target materialization** (the documented later
+  optimization, store schema v16 → v17): the derived `edge` index gains
+  `resolved_target_id`, the alias-terminal of each edge's target,
+  materialized BY THE APPLIER — `resolveEdgeTarget` walks `aliased_node_id`
+  chains with the `resolveAlias` cycle rule (a revisit yields the starting
+  id unchanged) and a deliberate liveness gate (trashed/deleted rows never
+  resolve through; a missing/inactive row is its own terminal — so a
+  trashed alias's edges stay inert on the alias, exactly the live-only
+  semantics the recursive read gave the roll-up). Written at edge-derivation
+  time (`rebuildEdges`) and re-resolved by `reresolveEdgeTargets` wherever
+  chains can shift: `object.update {aliasedNodeId}` (the reverse closure —
+  pointer-based, invariant under the seed's own write), `object.delete`
+  (soft + permanent), `object.restore`, `class.delete`, the PB2
+  orphan-carrier trash, and the family-archival feature toggles. The
+  guarded migration (`PRAGMA table_info` column check + the
+  ladder-gated `idx_edge_resolved_target` index, the LIST_READS_INDEX_DDL
+  precedent, re-asserted on the snapshot-repair path) backfills pre-v17
+  databases through the SAME walk, so a migrated database is byte-identical
+  to a wipe → replay at v17. **The read switch:** `backlinksWithRollup`
+  answers the alias family from the column (one indexed probe replacing the
+  recursive alias-set walk + per-alias client union; `kind: "alias"` rows
+  carry the raw target; the carrier filter mirrors the SCHEMA.md page
+  restriction so non-page carriers still don't act as aliases; containment
+  tests the resolved target — an intra-subtree link via an alias is
+  content, not an outward link); `graphTopology`'s structural families read
+  it too; `backlinks()` and the `node_stats` badge stay raw-direct (the
+  alias page's own view + the badge contract, SCHEMA.md). No wire change
+  (derived-only) — the GTK/Flutter stores carry their own derived schemas;
+  their v17 follow-on (same column, same write-time semantics) is recorded
+  in SCHEMA.md "Node aliases" and does not gate this slice.
+  **(2) The REST `ApiObject` exposes the three wire node fields:**
+  `coverAssetId` / `bannerAssetId` / `aliasedNodeId` ride `nodeToApi` on
+  every object projection (get/list/children/PATCH response; null = unset,
+  present-null clears exactly like `color`); the OpenAPI object reads
+  document them (the PATCH body schema already carried them). The web
+  client's `getLinkedReferences` consumes the store's three-family read in
+  one pass — the client-side alias union dissolves into the store's `kind`
+  label plus the same both-ends own-subtree exclusion.
+  **(3) The query-builder-guard coalescing test is deterministic:** the
+  "a synchronous notification burst costs exactly one re-run" assertion
+  raced the seeding writes' floating push-ack notifications under
+  parallel-suite load (a settle-phase notification landing after the
+  baseline capture merged with or added to the burst's trailing run); the
+  baseline is now captured after the repo-standard six-tick `flushSync`
+  drain, so no notification or re-run is in flight when the burst fires.
+  **Verification:** the store suites pin the materialization on BOTH
+  adapters (write-time resolution, re-point/clear re-resolution, stale-LWW
+  no-op, trash/restore/permanent-delete, the v16 → v17 backfill against a
+  fresh v17 replay, wipe → replay byte-identity, the roll-up's
+  direct/alias/containment kinds, the page-carrier restriction) — store
+  457 (was 437); the server suite pins the wire-field projection (218,
+  +1 for the new test); the web alias suites re-green unchanged (the
+  roll-up semantics hold through the store read); the guard suite ran 3×
+  green, 3× more concurrently with the full gate (the load condition that
+  used to flake it). `pnpm -r build`, `pnpm typecheck`, and the full
+  `pnpm test` gate green — 2,818 tests across 184 files (protocol 301,
+  domain 72, export 219, store 457, sync 25, query 175, server 218,
+  web 1,351).
+
+- **feat(web): the transient filter layer — `filterable` sections filter
+  their rows post-resolution/pre-windowing.** The section data contract
+  (components/useSectionData.ts) gains the filter step: a `FilterSpec`
+  applies to a section's resolved rows AFTER the lazy resolution, BEFORE
+  the collection's windowing — windowing sees the filtered set (a windowed
+  table renders the filtered window, never the first-N-then-filtered), the
+  resolution cache is untouched (a spec change re-derives from the cached
+  rows and re-runs no query — pinned by a spy assertion), and the eager
+  count stays UNFILTERED: an active filter reads "0 of N" in the bar and
+  the section never vanishes. **The FilterSpec is one grammar with the
+  stored custom views** (components/filterSpec.ts): the documented flat-AND
+  subset of the query AST as plain serializable data —
+  `{ text?, classId?, propertyPredicates[], dateRange? }` — writing forward
+  through `filterSpecToQueryAst` and reading back through
+  `queryAstToFilterSpec` (an AST outside the subset reads back null, never
+  a lossy default); a strict `parseFilterSpec` fails loud on unknown keys
+  and bad shapes. The row predicate mirrors the compiler's scalar
+  semantics over the effective-values read model: title substring,
+  hierarchy-aware class membership (the class or anything extending it),
+  property ops (numeric-when-numeric, the ISO-date arms matching node-typed
+  values by their deterministic date id), the inclusive created window with
+  `{today}`-style placeholders resolving on the run clock. **The bar
+  chrome** (components/FilterBar.tsx + .css) rides each section's body top
+  (the section header is a single button — no nested controls; the skin's
+  CollectionSection gains the `filterable` prop + slot the same way) and
+  composes kit primitives only: SearchField for text, the structured panel
+  (class picker, property predicate rows, the created window with the
+  placeholder datalist — the query-builder precedent) behind a toggle, the
+  honest "N of M" count and a clear. **State is component state — one
+  FilterSpec instance per section view/tab, lost on reload, nothing
+  persisted.** Enabled on the three filterable sections: the linked-
+  references (Backlinks) and unlinked-mentions tabs (per-tab instances — a
+  switch never leaks a filter across) and the classed-nodes table (the
+  section now resolves through the hook directly — the Section wrapper's
+  load path cannot host a post-resolution step; chrome and contracts
+  unchanged); every other section renders no bar. `SectionSpec.filterable?:
+  boolean | FilterBarConfig` records the contract for the future stacks.
+  **Verification:** `npx tsc --noEmit` clean; new suites
+  `test/filter-spec.test.ts` (12) and `test/filter-layer.test.tsx` (7)
+  green; the sections/windowing/class-view/view-modes/css-drift suites pass;
+  the full web suite runs 1350 passed / 1 failed — the one failure is a
+  shared exact tab-list assertion in `test/system-sections.test.tsx` that the
+  concurrent stored-views slice's added Default tab breaks (not this slice),
+  and the known query-builder-guard load flake passed both in the full run
+  and isolated.
+- **feat(web,server): custom views as stored tabs — every collection-backed
+  section hosts custom views.** A page's backlinks, its unlinked mentions,
+  and a class's classed nodes each gain a tab bar — **Default** first
+  (permanent, never closable, never replaced — it renders exactly the
+  factory behavior) plus custom tabs in sequence order, with a **+** that
+  opens the FilterBuilderModal and persists the composed filter **verbatim**
+  as the view's stored query. **Storage (the prefs channel, the
+  favorites/recents ruling):** a new `section_view` table in `relay.db` —
+  id, user_id, node_id, section_key (`linked-references` |
+  `unlinked-mentions` | `classed-nodes`), name, sequence (dense tab order),
+  query_ast (JSON, validated against the QueryAST v1 zod schema at the
+  route), view_mode (nullable display pin), timestamps; `UNIQUE (user_id,
+  node_id, section_key, name)`; **no `is_default`, no default rows** — the
+  default view is derived-not-stored, so emptying the table restores
+  factory behavior and "Reset to default" is just "delete every row of the
+  section". Five REST endpoints under
+  `/api/me/nodes/:nodeId/sections/:sectionKey/views` (list/create/rename/
+  reorder/delete), `requireUser` auth like `/api/me/prefs` (per-user API
+  keys ride as their owner; the operator key is not a user → 401), unique
+  violations → 409, foreign rows → 404 (per-user scoping never leaks),
+  OpenAPI-documented (the coverage gate). **Web:** the `useSectionViews`
+  hook + module store (the nodePrefs precedent — one shared copy per
+  section, device-local cache for offline reads; writes are optimistic with
+  revert-on-failure, so offline the tabs are read-only — per-row writes
+  cannot replay honestly the way full-list prefs can); `NodeCollection`
+  gains the hosted-views chrome via an opt-in `hostedViews` prop
+  (`SectionViewTabs`: the kit Tabs bar, the active custom tab's
+  rename/reorder/delete manage row, the always-available Reset to default,
+  the FilterBuilderModal "+" flow — in this host the modal's Run also
+  persists, with an auto label); client plumbing on both `WorkspaceClient`
+  and the `WorkerClient` RPC. **Resolution (the composition rule):** the
+  section's base query produces the row set, then the stored AST refines it
+  — base-column predicates (`class` hierarchy-aware, `isClass`,
+  `presentAsMain`, the created window with `{today}` resolution, `content`
+  contains over the flattened title text, the cover/banner/aliasedNode
+  wire-field predicates) evaluate directly on the materialized rows; joined
+  metadata (`property`, `content` fts, `linkedTo`) falls back to one
+  `runQueryAst` membership probe per leaf intersected with the base set (the
+  FilterBuilderModal's representable subset never produces these — the
+  common tab evaluates wholly on the rows); the stored scope and aggregation
+  are ignored (the base set IS the scope; a tab refines rows and the AST
+  round-trips verbatim); sort applies with the compiler's semantics (name
+  NULLs-last, id tiebreak); groups refine alongside items so grouped
+  backlinks stay consistent. A custom tab's `view_mode`, when set and
+  registered, overrides the container's mode. The three sections wire the
+  prop: `SystemSections` (both reference tabs) and `ClassedNodesSection`.
+  **Verification:** the full root gate green — server 218/218 (the new
+  section-views suite pins the table, the five endpoints, the unique key,
+  per-user scoping, the validation taxonomy), web 1351/1351 including the 25
+  new section-views tests (resolution both paths, the store, the chrome:
+  default permanent + custom additive + reset, the "+" flow persisting the
+  AST verbatim, refinement on top of the base set, empty-table = factory
+  behavior); `pnpm -r build` + `pnpm typecheck` clean.
+
+- **feat(web): the rail's cards reorder by grip drag, and the hover preview
+  renders the shared NodeView in preview mode.** Two registered follow-ups
+  land together. **Rail card reorder:** the cards-only right rail's stack
+  order becomes user-authored — each card frame's header carries a drag
+  GRIP (the block-row grip precedent: a small distinct handle, so the
+  reorder gesture never conflicts with the header's block-drop gesture or
+  the breadcrumb clicks). The grip registers the card with the ONE
+  workspace drag session as a reorder source; a card drag runs its own
+  session kind — no zone measuring, no drop line, no transient expands —
+  with the overlay name chip + the target header's reorder edge (a line
+  above/below, the pointer's half of the header) as the feedback. At drop
+  the host reports { activeCard, targetCard, edge } to the App's
+  `onRailCardReorder`; the App owns the stack and its device-local
+  persistence — the recents-order precedent (`notees.sidebarCards`, the
+  `recordRecent` shape: a validated localStorage list, no server
+  counterpart, never an op), written by one effect on every open/close/
+  reorder, with ids the current workspace doesn't know filtered on
+  connect. The header drop stays exactly the append-as-last-child code
+  path — a block dragged onto a grip-bearing header still lands as the
+  card node's last child (one new suite pins both gestures side by side).
+  **The hover preview → NodeView swap:** `NodeHoverPreview`'s bespoke
+  card (icon/title/excerpt/backlink-count) is deleted; the card now
+  renders the shared `NodeView` in its `preview` mode — the real chrome
+  and the real read-only rendering (the title row, the body capped at the
+  first level), with the write machinery stepped aside on the preview
+  surface: no corner menu (already), and now no banner/cover affordances,
+  no properties list, no aliases/tags editors, no icon picker, no header
+  context menu, no whiteboard lazy-authoring, no block multi-selection —
+  plus two seam completions the swap surfaced: the page header's title row
+  and block targets' `ReferenceSubtree` accept read-only (a click
+  navigates, never edits — the trampoline contract), threaded from
+  NodeView's `preview` prop. The behavior contract is unchanged: the same
+  dwell/grace state machine, the same dismissal layer, the same
+  pin-to-floating-editor promotion, the broken-mention fallback, the
+  backlink count + Pin footer (now under the real view). Docs: `usage.md`
+  (the preview card + the rail paragraphs) and `ux.md` (the right-rail
+  paragraph, stale since the cards-only restructure) re-homed.
+  **Verification:** `npx tsc --noEmit` clean for the touched surface; the
+  three suites green — workspace-dnd 12 (the rail reorder suite: before/
+  after reports, the reorder-edge indicator, the self-drop no-op, the
+  append drop intact), rail-card-order 9 (the pure move + the
+  device-local persistence round-trip), node-hover-preview 19 (the real
+  chrome, the read-only title/body navigation, the block target's
+  read-only focused-block chrome, pin → floating editor). The full-suite
+  run at this commit also shows the in-flight hosted-views/filter work
+  area red (section-views, filter-layer, system-sections, node-aliases —
+  that slice is mid-implementation; this change touches none of it).
+
 - **feat(web,server,store): the alias read-path repointing — the final
   alias-program slice.** Every node-alias read now rides the
   `aliasedNodeId` wire field (`node.aliased_node_id`), retiring the
