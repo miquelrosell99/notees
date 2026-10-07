@@ -220,6 +220,12 @@ function initialServerUrl(): string {
  */
 function sameHostServerUrl(): string {
   if (typeof location !== "undefined" && location.hostname !== "") {
+    // Served over https (the tailnet edge or any reverse proxy terminating
+    // TLS): the API is same-origin behind the edge's /api/* route — secure
+    // contexts stay same-origin (browser storage requires https; mixing
+    // ports would break that). Plain-http origins (loopback/LAN) keep the
+    // direct :8377 guess.
+    if (location.protocol === "https:") return location.origin;
     return `${location.protocol}//${location.hostname}:8377`;
   }
   return "";
