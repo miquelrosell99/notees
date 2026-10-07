@@ -26,6 +26,7 @@ import { managedClassIds } from "@notees/domain";
 import { applyEnvelope, validateEnvelope, type ChangeSummary } from "./appliers.js";
 import type { SqliteDB, StoreBackend } from "./db.js";
 import { betterSqlite3Backend } from "./adapters/better-sqlite3.js";
+import { ALIAS_CHAIN_DEPTH_CAP } from "./edges.js";
 import { getEffectiveProperties, type EffectiveProperty } from "./effective.js";
 import { visiblePropertyValueRows } from "./property-values.js";
 import {
@@ -38,12 +39,7 @@ import {
   type SearchSnippet,
 } from "./search.js";
 import { MoveGuardError } from "./errors.js";
-import { LIST_READS_INDEX_DDL, migrate, schemaSql } from "./schema.js";
-
-/** M12: the alias-chain walker's depth cap (chains are user-built and tiny;
- *  the cap bounds pathological data — on exhaustion the furthest node is
- *  the best-effort terminal). */
-const ALIAS_CHAIN_DEPTH_CAP = 32;
+import { LIST_READS_INDEX_DDL, migrate, RESOLVED_TARGET_INDEX_DDL, schemaSql } from "./schema.js";
 
 export interface NodeRow {
   id: string;
@@ -387,7 +383,11 @@ export class Store {
     return row.count;
   }
 
-  /** Edges pointing at the node (backlinks), ordered deterministically. */
+  /** Edges pointing at the node (backlinks), ordered deterministically.
+   *  RAW target match, deliberately: the alias page's own view and the
+   *  unlinked-references exclusion read this — the alias roll-up into the
+   *  main page rides `backlinksWithRollup`'s materialized alias family
+   *  instead. */
   backlinks(nodeId: string) {
     return this.db
       .prepare(
@@ -401,29 +401,38 @@ export class Store {
    * query time — the fan-out-vs-traversal decision resolved). For target T the list is:
    *
    *  1. **direct** — edges `target_id = T` (any source);
-   *  2. **containment** — edges whose SOURCE is strictly inside T's subtree
+   *  2. **alias** — edges whose target is a LIVE PAGE alias of T (the edge's
+   *     raw target rides the chain to T — the applier-materialized
+   *     `resolved_target_id` column makes the roll-up a plain index read; the
+   *     carrier filter is the SCHEMA.md page restriction — non-page carriers
+   *     don't act as aliases);
+   *  3. **containment** — edges whose SOURCE is strictly inside T's subtree
    *     (recursive `parent_id` walk, distance = depth below T) and whose
-   *     TARGET is outside it — an outward link: a block inside France
-   *     linking Paris references France by containment. Intra-subtree links
-   *     (target also inside T's subtree, T included) are excluded to avoid
-   *     self-noise.
+   *     RESOLVED target is outside it — an outward link: a block inside
+   *     France linking Paris references France by containment. Intra-subtree
+   *     links (resolved target also inside T's subtree, T included) are
+   *     excluded to avoid self-noise.
    *
    * One row per (source_id, kind) — duplicate mention instances from one
-   * source collapse. Each row carries `kind: "direct" | "containment"` and
-   * `distance` (0 for direct). Ordered direct first, then containment by
-   * distance.
+   * source collapse. Each row carries `kind: "direct" | "alias" | "containment"`
+   * and `distance` (0 for direct and alias). Ordered direct+containment
+   * first (by distance), alias rows last — the precedence the client's
+   * single-row-per-source rule relies on.
    *
    * Performance: the subtree CTE walks `idx_node_parent (parent_id)` one
    * probe per level (child sets are small); direct edges probe
-   * `idx_edge_target (target_id, type)`, containment edges probe
+   * `idx_edge_target (target_id, type)`, alias edges probe
+   * `idx_edge_resolved_target (resolved_target_id)`, containment edges probe
    * `idx_edge_source (source_id, type)` per subtree id, with the
    * outside-subtree test as a NOT IN over the small subtree set; the dedupe
    * is a window over that set.
    *
    * NOTE — badge vs list divergence: `backlinks()` and the materialized
-   * `node_stats.backlink_count` (the gutter badge) stay DIRECT (edges
-   * targeting T only), so a containment-heavy page legitimately shows a
-   * longer linked-references LIST than its badge number.
+   * `node_stats.backlink_count` (the gutter badge) stay RAW-DIRECT (edges
+   * targeting T only), so a containment- or alias-heavy page legitimately
+   * shows a longer linked-references LIST than its badge number. The
+   * `backlinks()` read stays raw for the alias page's own view (it lists
+   * only edges targeting the alias itself — SCHEMA.md "Node aliases").
    */
   backlinksWithRollup(nodeId: string) {
     return this.db
@@ -437,25 +446,41 @@ export class Store {
          ranked AS (
            SELECT e.id, e.workspace_id, e.source_id, e.target_id, e.type, e.verb,
                   e.metadata, e.created_at,
-                  CASE WHEN e.target_id = ? THEN 'direct' ELSE 'containment' END AS kind,
-                  CASE WHEN e.target_id = ? THEN 0 ELSE s.distance END AS distance,
+                  CASE
+                    WHEN e.target_id = ? THEN 'direct'
+                    WHEN e.resolved_target_id = ? THEN 'alias'
+                    ELSE 'containment'
+                  END AS kind,
+                  CASE
+                    WHEN e.target_id = ? OR e.resolved_target_id = ? THEN 0
+                    ELSE s.distance
+                  END AS distance,
                   ROW_NUMBER() OVER (
                     PARTITION BY e.source_id,
-                    CASE WHEN e.target_id = ? THEN 'direct' ELSE 'containment' END
+                    CASE
+                      WHEN e.target_id = ? THEN 'direct'
+                      WHEN e.resolved_target_id = ? THEN 'alias'
+                      ELSE 'containment'
+                    END
                     ORDER BY e.id
                   ) AS rn
            FROM edge e
            LEFT JOIN subtree s ON s.id = e.source_id
+           LEFT JOIN node rt ON rt.id = e.target_id
            WHERE e.target_id = ?
-              OR (s.distance > 0 AND e.target_id NOT IN (SELECT id FROM subtree))
+              OR (e.resolved_target_id = ?
+                  AND rt.is_active = 1 AND rt.is_class = 0
+                  AND (rt.parent_id IS NULL OR rt.present_as_main = 1))
+              OR (s.distance > 0
+                  AND e.resolved_target_id NOT IN (SELECT id FROM subtree))
          )
          SELECT id, workspace_id, source_id, target_id, type, verb, metadata,
                 created_at, kind, distance
          FROM ranked
          WHERE rn = 1
-         ORDER BY distance, source_id, kind, id`,
+         ORDER BY CASE WHEN kind = 'alias' THEN 1 ELSE 0 END, distance, source_id, kind, id`,
       )
-      .all(nodeId, nodeId, nodeId, nodeId, nodeId);
+      .all(nodeId, nodeId, nodeId, nodeId, nodeId, nodeId, nodeId, nodeId, nodeId);
   }
 
   /** Edges derived from the node (outgoing references). */
@@ -468,12 +493,12 @@ export class Store {
   /**
    * Every node whose alias-terminal is `nodeId` (the reverse read of
    * resolveAlias): the recursive reverse-walk over `aliased_node_id` —
-   * nodeId itself excluded, LIVE rows only, id order. Drives the
-   * linked-references roll-up (edges targeting any of these reference the
-   * main node by alias) and the aliases listing. One indexed probe per
-   * alias-link level (chains are user-built and tiny); a materialized
-   * resolved-target column would make this a plain index read — the
-   * recorded later optimization, not needed at this scale.
+   * nodeId itself excluded, LIVE rows only, id order. Drives the aliases
+   * listing (the title-row "Aliases · N" UI) and the unlinked-references
+   * exclusion. The linked-references roll-up no longer needs this read —
+   * it rides the materialized `edge.resolved_target_id` column (the v17
+   * optimization); this stays for the listing and any consumer that needs
+   * the alias ids themselves.
    */
   aliasNodesOf(nodeId: string): string[] {
     const rows = this.db
@@ -811,6 +836,8 @@ export class Store {
       // canonical DDL (pre-v8 tables can't parse it), so the repair path
       // re-asserts it explicitly.
       next.exec(LIST_READS_INDEX_DDL);
+      // …and the v17 resolved-target index (same ladder-gated reason).
+      next.exec(RESOLVED_TARGET_INDEX_DDL);
       reindexAllSearch(next);
     }
     this.db.close?.();

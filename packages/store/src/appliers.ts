@@ -45,7 +45,7 @@ import {
 } from "@notees/domain";
 
 import { reindexNode, removeSearchIndexEntry } from "./search.js";
-import { rebuildEdges } from "./edges.js";
+import { rebuildEdges, reresolveEdgeTargets } from "./edges.js";
 import { rebuildNodeStats } from "./stats.js";
 import {
   assertValueForSchema,
@@ -621,6 +621,14 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
     reindexNode(db, p.objectId);
     rebuildEdges(db, p.objectId, env.timestamp);
   }
+  // An alias write re-points every alias chain through this node: re-resolve
+  // the resolved_target_id of all edge rows whose target chain touches it
+  // (this node's own edges re-derive on the next content rebuild; the
+  // closure covers every OTHER source's rows). Liveness-neutral: the
+  // reverse closure is pointer-based, invariant under this write.
+  if (p.aliasedNodeId !== undefined) {
+    reresolveEdgeTargets(db, [p.objectId]);
+  }
   return summary(opType, [p.objectId]);
 }
 
@@ -640,6 +648,11 @@ function applyObjectDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
     db.prepare(
       "INSERT OR REPLACE INTO trash (node_id, deleted_at, is_permanent) VALUES (?, ?, 0)",
     ).run(p.objectId, ts);
+    // Trashed nodes never resolve through (the edge resolution walk is
+    // live-aware): re-materialize the rows whose alias chains touch the
+    // subtree — a trashed alias's edges stay on the alias (inert), chains
+    // THROUGH a trashed node collapse to their last live link.
+    reresolveEdgeTargets(db, ids);
     rebuildNodeStats(db, [...affected]);
     return summary(opType, [...affected]);
   }
@@ -680,6 +693,10 @@ function applyObjectDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
   db.prepare(`DELETE FROM node_stats WHERE node_id IN (${placeholders})`).run(...ids);
   db.prepare(`DELETE FROM trash WHERE node_id IN (${placeholders}) AND node_id != ?`).run(...ids, p.objectId);
   for (const id of ids) removeSearchIndexEntry(db, id);
+  // Deleted rows are ghosts that never resolve through: re-materialize the
+  // rows whose alias chains touched the subtree (incoming edges keep their
+  // rows by design — PB1 — with the resolution their chain now yields).
+  reresolveEdgeTargets(db, ids);
   rebuildNodeStats(db, [...affected]);
   return summary(opType, [...affected]);
 }
@@ -748,6 +765,9 @@ function applyObjectRestore(db: StoreDatabase, env: Envelope): ChangeSummary {
   const placeholders = toReactivate.map(() => "?").join(",");
   db.prepare(`UPDATE node SET is_active = 1 WHERE id IN (${placeholders})`).run(...toReactivate);
   db.prepare("DELETE FROM trash WHERE node_id = ?").run(p.objectId);
+  // Restored rows re-enter alias chains (the resolution walk is live-aware):
+  // re-materialize every edge row whose chain touches the reactivated set.
+  reresolveEdgeTargets(db, toReactivate);
 
   const affected = new Set<string>([p.objectId, ...ancestorIds(db, p.objectId)]);
   rebuildNodeStats(db, [...affected]);
@@ -1036,6 +1056,9 @@ function applyClassDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
   }
   db.prepare("UPDATE class SET active = 0, updated_at = ? WHERE id = ?").run(env.timestamp, p.classId);
   db.prepare("UPDATE node SET is_active = 0, updated_at = ? WHERE id = ?").run(env.timestamp, p.classId);
+  // The archival flips node liveness, which gates alias-chain resolution —
+  // re-materialize the edge rows whose chains touch the class node.
+  reresolveEdgeTargets(db, [p.classId]);
   // The class leaves every node's class_ids: tombstone the membership rows
   // and recompute the affected nodes (otherwise pills render dangling ids).
   const affected = db
@@ -1804,6 +1827,9 @@ function trashTextCarrierIfOrphaned(
   db.prepare(
     "INSERT OR REPLACE INTO trash (node_id, deleted_at, is_permanent) VALUES (?, ?, 0)",
   ).run(target, timestamp);
+  // Liveness flip — the trashed carrier never resolves through an alias
+  // chain while inactive; re-materialize the touching edge rows.
+  reresolveEdgeTargets(db, ids);
   rebuildNodeStats(db, [target, ...ancestorIds(db, target)]);
 }
 
@@ -1933,6 +1959,9 @@ function deriveFamilyClassBits(db: StoreDatabase, workspaceId: string, feature: 
       enabled ? 1 : 0,
       classId,
     );
+    // The flip gates alias-chain resolution (the walk is live-aware) —
+    // re-materialize the edge rows whose chains touch the class node.
+    reresolveEdgeTargets(db, [classId]);
   }
 }
 

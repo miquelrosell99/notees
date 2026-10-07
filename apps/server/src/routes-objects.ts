@@ -214,6 +214,12 @@ interface ApiObject {
   name: string | null;
   icon: string | null;
   color: string | null;
+  /** Wire node fields (SCHEMA.md "Node structure", store schema v16): the
+   * asset nodes behind the page cover/banner chrome and the main page a
+   * node alias points at. null = unset (a present-null PATCH clears). */
+  coverAssetId: string | null;
+  bannerAssetId: string | null;
+  aliasedNodeId: string | null;
   isActive: boolean;
   createdAt: string | null;
   updatedAt: string | null;
@@ -242,6 +248,9 @@ function nodeToApi(row: NodeRow): ApiObject {
       }) || null,
     icon: row.icon,
     color: row.color,
+    coverAssetId: row.cover_asset_id,
+    bannerAssetId: row.banner_asset_id,
+    aliasedNodeId: row.aliased_node_id,
     isActive: row.is_active === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
