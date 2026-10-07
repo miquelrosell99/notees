@@ -1,19 +1,26 @@
 /**
- * Node aliases (issue #7) — the seeded single-value node-typed `aliasOf`
- * property (SCHEMA.md "Node aliases"):
+ * Node aliases (SCHEMA.md "Node aliases") — the `aliasedNodeId` wire node
+ * field (the retired `aliasOf` property carrier is gone):
  *
- *  - the ALIAS page carries {nodeId} of its MAIN page (one-way);
+ *  - the ALIAS page carries the field pointing at its MAIN page (one-way;
+ *    the main page holds nothing);
  *  - the main page's linked references roll up the alias's inbound edges
- *    (query-time union over the derived edge index — no derived-schema
- *    change); the alias page's own view lists ONLY its own edges;
- *  - the alias page's title is a name-equivalent of the main page
- *    (resolveNodeByName + unlinked references);
- *  - mention clicks targeting an alias open the MAIN page's view, while the
- *    alias page itself (opened as a node) shows its own view plus an
- *    "Alias of <main>" banner jumping to the main page;
- *  - the page restriction is enforced client-side: the alias row offers
- *    pages only and the write path rejects non-page targets with a visible
- *    error, never writing them.
+ *    (kind: "alias", additive — the alias page's own view lists ONLY its
+ *    own edges); the roll-up rides the store's recursive read over the
+ *    `aliased_node_id` column, chains included;
+ *  - an alias page's title is a name-equivalent of the main page (unlinked
+ *    references), while a source that LINKS the alias is NOT unlinked for
+ *    the main (it is already linked by alias);
+ *  - links keep the alias uuid at authoring — no rewriting; navigation
+ *    resolves (the App funnels route every open through resolveAliasOpen,
+ *    the client seam over the store's cycle-safe chain walker);
+ *  - the aliases UI: the title-row count/button on the main page lists the
+ *    aliases (NAVIGATE opens the alias's OWN view — the redirect bypass)
+ *    and ADD writes THE SELECTED node's field (the backward write); the
+ *    alias's own view carries the "Aliased node" pseudo-property row,
+ *    re-pointable and clearable from the alias side;
+ *  - the page restriction is enforced client-side: the write guard rejects
+ *    non-page targets with a visible error, never writing.
  *
  * jsdom over the in-process WorkspaceClient, like block-backlinks.test.tsx.
  * Every write kicks a floating engine push whose ack notifies later
@@ -24,20 +31,15 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
-import { SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { PropertiesTable } from "../src/ui/components/MetadataSection.js";
-import {
-  aliasOfPageTargetError,
-  ensureAliasOfProperty,
-} from "../src/ui/components/aliasProperty.js";
+import { aliasedNodeTargetError, resolveAliasOpen } from "../src/ui/components/aliasProperty.js";
 import { PageView } from "../src/ui/PageView.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
-const ALIAS_OF = SYSTEM_PROPERTY_UUIDS.aliasOf;
 
 let sqlModule: SqlJsStatic;
 
@@ -68,7 +70,7 @@ async function flushSync(): Promise<void> {
   for (let i = 0; i < 6; i += 1) await act(async () => {});
 }
 
-/** Page + alias page pointing at it (the aliasOf schema ensured first). */
+/** Page + alias page pointing at it (the wire-field write). */
 async function seedAliasPair(
   client: WorkspaceClient,
   mainName: string,
@@ -76,31 +78,34 @@ async function seedAliasPair(
 ): Promise<{ mainId: string; aliasId: string }> {
   const mainId = await client.createObject({ presentAsMain: true, name: mainName });
   const aliasId = await client.createObject({ presentAsMain: true, name: aliasName });
-  await ensureAliasOfProperty(client);
-  await client.setProperty(aliasId, ALIAS_OF, { nodeId: mainId }, 0);
+  await client.updateObject(aliasId, { aliasedNodeId: mainId });
   return { mainId, aliasId };
 }
 
+/** A page containing one mention of `targetId`. */
+async function seedMention(
+  client: WorkspaceClient,
+  name: string,
+  targetId: string,
+  text: string,
+): Promise<string> {
+  const pageId = await client.createObject({ presentAsMain: true, name });
+  await client.createObject({
+    parentId: pageId,
+    contentAst: [
+      { type: "text", text: "see " },
+      { type: "mention", targetNodeId: targetId, text, linkId: `l-${name}` },
+    ],
+  });
+  return pageId;
+}
+
 describe("node aliases: linked-references roll-up", () => {
-  it("the main page's linked references union the alias's inbound edges; the alias page lists only its own", async () => {
+  it("a link to an alias appears under the main's backlinks AND the alias's own (additive)", async () => {
     const client = await seedClient();
     const { mainId, aliasId } = await seedAliasPair(client, "Cat", "Cats");
-    const sourceAlias = await client.createObject({ presentAsMain: true, name: "Source A" });
-    await client.createObject({
-      parentId: sourceAlias,
-      contentAst: [
-        { type: "text", text: "see " },
-        { type: "mention", targetNodeId: aliasId, text: "Cats", linkId: "l1" },
-      ],
-    });
-    const sourceMain = await client.createObject({ presentAsMain: true, name: "Source B" });
-    await client.createObject({
-      parentId: sourceMain,
-      contentAst: [
-        { type: "text", text: "see " },
-        { type: "mention", targetNodeId: mainId, text: "Cat", linkId: "l2" },
-      ],
-    });
+    const sourceAlias = await seedMention(client, "Source A", aliasId, "Cats");
+    const sourceMain = await seedMention(client, "Source B", mainId, "Cat");
 
     const mainRefs = client.getLinkedReferences(mainId);
     // Entries carry the linking BLOCK as source — the page shows up as the
@@ -114,12 +119,22 @@ describe("node aliases: linked-references roll-up", () => {
     // The alias page's own view: only its own edges — the Source B edge
     // targets the main page, never the alias, so it stays off the alias.
     const aliasRefs = client.getLinkedReferences(aliasId);
-    const aliasPages = new Set(aliasRefs.map((entry) => entry.containingPageId));
-    expect(aliasPages.has(sourceAlias)).toBe(true);
+    const aliasPages = new Map(aliasRefs.map((entry) => [entry.containingPageId, entry.kind]));
+    expect(aliasPages.get(sourceAlias)).toBe("direct");
     expect(aliasPages.has(sourceMain)).toBe(false);
+  });
+
+  it("a CHAIN alias rolls up to the chain terminal's backlinks", async () => {
+    const client = await seedClient();
+    const { mainId, aliasId } = await seedAliasPair(client, "Cat", "Cats");
+    const chainId = await client.createObject({ presentAsMain: true, name: "Felines" });
+    await client.updateObject(chainId, { aliasedNodeId: aliasId });
+    const sourceChain = await seedMention(client, "Source C", chainId, "Felines");
+
+    const mainRefs = client.getLinkedReferences(mainId);
     expect(
-      aliasRefs.find((entry) => entry.containingPageId === sourceAlias)?.kind,
-    ).toBe("direct");
+      mainRefs.find((entry) => entry.containingPageId === sourceChain)?.kind,
+    ).toBe("alias");
   });
 
   it("a link from inside the alias's own subtree to the alias is content, not a main-page reference", async () => {
@@ -148,17 +163,67 @@ describe("node aliases: linked-references roll-up", () => {
     // content: it must not ALSO surface as an alias roll-up row.
     expect(mainRefs.some((entry) => entry.source.id === aliasSelf)).toBe(false);
   });
+
+  it("a source that LINKS the alias is not an unlinked reference of the main (already linked by alias)", async () => {
+    const client = await seedClient();
+    const { mainId, aliasId } = await seedAliasPair(client, "Cat", "Cats");
+    const linker = await seedMention(client, "Linker", aliasId, "Cats");
+    // A literal-text mention of the alias title (no link) IS unlinked.
+    const literal = await client.createObject({ presentAsMain: true, name: "Literal" });
+    await client.createObject({
+      parentId: literal,
+      contentAst: [{ type: "text", text: "Cats are great" }],
+    });
+
+    const unlinked = client.getUnlinkedReferences(mainId);
+    const pages = new Set(unlinked.map((entry) => entry.containingPageId));
+    expect(pages.has(literal)).toBe(true);
+    expect(pages.has(linker)).toBe(false);
+  });
+});
+
+describe("node aliases: the redirect seam (resolveAliasOpen)", () => {
+  it("resolves chains to the terminal; ordinary ids pass through unchanged", async () => {
+    const client = await seedClient();
+    const { mainId, aliasId } = await seedAliasPair(client, "Cat", "Cats");
+    const chainId = await client.createObject({ presentAsMain: true, name: "Felines" });
+    await client.updateObject(chainId, { aliasedNodeId: aliasId });
+
+    expect(resolveAliasOpen(client, chainId)).toBe(mainId);
+    expect(resolveAliasOpen(client, aliasId)).toBe(mainId);
+    expect(resolveAliasOpen(client, mainId)).toBe(mainId);
+    const plain = await client.createObject({ presentAsMain: true, name: "Dog" });
+    expect(resolveAliasOpen(client, plain)).toBe(plain);
+  });
+});
+
+describe("node aliases: links keep the alias uuid (no authoring rewrite)", () => {
+  it("a mention authored to the alias keeps the alias uuid as its target; the seam resolves", async () => {
+    const client = await seedClient();
+    const { mainId, aliasId } = await seedAliasPair(client, "Cat", "Cats");
+    await seedMention(client, "Source A", aliasId, "Cats");
+
+    // The derived edge index carries the ALIAS uuid as the target — the
+    // link is authored as-is, never rewritten to the main page.
+    const aliasBacklinks = client.getBacklinks(aliasId);
+    expect(aliasBacklinks.length).toBeGreaterThan(0);
+    expect(aliasBacklinks.every((edge) => edge.targetId === aliasId)).toBe(true);
+    // The Source A mention is NOT among the main page's direct backlinks…
+    const sourceBlock = client.getChildren(
+      (await client.resolveNodeByName("Source A"))!,
+    )[0]!;
+    const mainBacklinks = client.getBacklinks(mainId);
+    expect(mainBacklinks.every((edge) => edge.targetId === mainId)).toBe(true);
+    expect(mainBacklinks.some((edge) => edge.sourceId === sourceBlock.id)).toBe(false);
+    // …and the alias's direct backlinks include the mention edge.
+    expect(aliasBacklinks.some((edge) => edge.sourceId === sourceBlock.id)).toBe(true);
+
+    // Navigation resolves: the mention's target opens the MAIN page.
+    expect(resolveAliasOpen(client, aliasId)).toBe(mainId);
+  });
 });
 
 describe("node aliases: name equivalence", () => {
-  it("resolveNodeByName resolves the alias title to the alias page (the mention target)", async () => {
-    const client = await seedClient();
-    const { aliasId } = await seedAliasPair(client, "Cat", "Felines");
-    expect(client.resolveNodeByName("Felines")).toBe(aliasId);
-    expect(client.resolveNodeByName("felines")).toBe(aliasId);
-    expect(client.resolveNodeByName("Cat")).not.toBeNull();
-  });
-
   it("the alias title joins the main page's unlinked-reference names", async () => {
     const client = await seedClient();
     const { mainId } = await seedAliasPair(client, "Cat", "Felines");
@@ -171,28 +236,38 @@ describe("node aliases: name equivalence", () => {
     const unlinked = client.getUnlinkedReferences(mainId);
     expect(unlinked.some((entry) => entry.containingPageId === plain)).toBe(true);
   });
+
+  it("an alias page's own title resolves to the alias page (navigation redirects)", async () => {
+    const client = await seedClient();
+    const { aliasId } = await seedAliasPair(client, "Cat", "Felines");
+    expect(client.resolveNodeByName("Felines")).toBe(aliasId);
+    expect(client.resolveNodeByName("felines")).toBe(aliasId);
+    // …and the seam maps it to the main page for opening.
+    expect(resolveAliasOpen(client, client.resolveNodeByName("Felines")!)).not.toBe(aliasId);
+  });
 });
 
 describe("node aliases: navigation semantics", () => {
-  it("clicking a mention of the alias opens the MAIN page's view", async () => {
+  it("clicking a mention of the alias calls onOpenPage with the alias id; the funnel seam opens the MAIN page", async () => {
     const client = await seedClient();
     const { mainId, aliasId } = await seedAliasPair(client, "Cat", "Cats");
-    const sourceId = await client.createObject({ presentAsMain: true, name: "Source A" });
-    await client.createObject({
-      parentId: sourceId,
-      contentAst: [
-        { type: "text", text: "see " },
-        { type: "mention", targetNodeId: aliasId, text: "Cats", linkId: "l5" },
-      ],
-    });
+    const sourceId = await seedMention(client, "Source A", aliasId, "Cats");
     await flushSync();
 
-    const onOpenPage = vi.fn();
-    render(<PageView client={client} pageId={sourceId} onOpenPage={onOpenPage} />);
+    // The App funnel contract: onOpenPage IS the resolving seam
+    // (openPage = openPageAt(resolveAliasOpen(id))).
+    const opened: string[] = [];
+    render(
+      <PageView
+        client={client}
+        pageId={sourceId}
+        onOpenPage={(id) => opened.push(resolveAliasOpen(client, id))}
+      />,
+    );
     await flushSync();
 
     fireEvent.click(screen.getByRole("button", { name: "Cats" }));
-    expect(onOpenPage).toHaveBeenCalledWith(mainId);
+    expect(opened).toEqual([mainId]);
   });
 
   it("the alias view carries an 'Alias of <main>' banner that jumps to the main page", async () => {
@@ -229,7 +304,7 @@ describe("node aliases: navigation semantics", () => {
 });
 
 describe("node aliases: page restriction (client-side enforcement)", () => {
-  it("aliasOfPageTargetError rejects blocks and classes, accepts pages", async () => {
+  it("aliasedNodeTargetError rejects blocks and classes, accepts pages", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Cat" });
     const blockId = await client.createObject({
@@ -238,83 +313,128 @@ describe("node aliases: page restriction (client-side enforcement)", () => {
     });
     const classId = await client.createClass("A Class");
 
-    expect(aliasOfPageTargetError(client, pageId)).toBeNull();
-    expect(aliasOfPageTargetError(client, blockId)).toBe(
-      "Alias of: the target must be a page.",
+    expect(aliasedNodeTargetError(client, pageId)).toBeNull();
+    expect(aliasedNodeTargetError(client, blockId)).toBe(
+      "Aliased node: the target must be a page.",
     );
-    expect(aliasOfPageTargetError(client, classId)).toBe(
-      "Alias of: the target must be a page.",
+    expect(aliasedNodeTargetError(client, classId)).toBe(
+      "Aliased node: the target must be a page.",
     );
-    expect(aliasOfPageTargetError(client, "0192a000-0000-7000-8000-000000000099")).toBe(
-      "Alias of: the target must be a page.",
+    expect(aliasedNodeTargetError(client, "0192a000-0000-7000-8000-000000000099")).toBe(
+      "Aliased node: the target must be a page.",
     );
   });
+});
 
-  it("the alias row offers pages only and writes a valid pick through the picker", async () => {
+describe("node aliases: the aliases UI (the title-row affordance)", () => {
+  it("the main page's title row lists the aliases; NAVIGATE opens the alias's OWN view (bypass)", async () => {
     const client = await seedClient();
-    await ensureAliasOfProperty(client);
-    // A fresh alias page WITHOUT a value yet (single-value row hides its Add
-    // affordance once a pill exists).
-    const aliasId = await client.createObject({ presentAsMain: true, name: "Felines" });
-    const pageId = await client.createObject({ presentAsMain: true, name: "Dog" });
-    const hostId = await client.createObject({ presentAsMain: true, name: "Host" });
-    const blockId = await client.createObject({
-      parentId: hostId,
-      contentAst: [{ type: "text", text: "Blocky" }],
-    });
+    const { aliasId } = await seedAliasPair(client, "Cat", "Cats");
     await flushSync();
 
-    render(<PropertiesTable client={client} nodeId={aliasId} />);
+    const onOpenPage = vi.fn();
+    const onOpenPageRaw = vi.fn();
+    render(
+      <PageView
+        client={client}
+        pageId={(await client.resolveNodeByName("Cat"))!}
+        onOpenPage={onOpenPage}
+        onOpenPageRaw={onOpenPageRaw}
+      />,
+    );
+    await flushSync();
 
-    // The row label renders with the Add affordance.
-    const row = screen.getByText("Alias of").closest("li")!;
-    const addButton = within(row).getByRole("button", { name: "Add" });
-    fireEvent.click(addButton);
+    const trigger = screen.getByRole("button", { name: /Aliases · 1/ });
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole("dialog", { name: "Aliases" });
+    expect(within(dialog).getByText("Cats")).toBeInTheDocument();
 
-    // The picker offers PAGES only: "Dog" matches, the inline block "Blocky"
-    // never appears in the candidate set.
-    const searchInput = screen.getByLabelText("Search Alias of");
-    fireEvent.change(searchInput, { target: { value: "Dog" } });
-    expect(screen.getByText("Dog")).toBeInTheDocument();
-    fireEvent.change(searchInput, { target: { value: "Blocky" } });
-    expect(screen.queryByText("Blocky")).toBeNull();
-    expect(blockId).not.toBeNull(); // the block stayed a non-candidate above
+    fireEvent.click(within(dialog).getByRole("button", { name: /Navigate/ }));
+    // The bypass: the RAW open — the alias view, not the redirect.
+    expect(onOpenPageRaw).toHaveBeenCalledWith(aliasId);
+    expect(onOpenPage).not.toHaveBeenCalled();
+  });
 
+  it("ADD picks a node and writes THE SELECTED node's aliasedNodeId (the backward write); already-aliased nodes filter out", async () => {
+    const client = await seedClient();
+    const { mainId, aliasId } = await seedAliasPair(client, "Cat", "Cats");
+    const dogId = await client.createObject({ presentAsMain: true, name: "Dog" });
+    await flushSync();
+
+    const onOpenPage = vi.fn();
+    render(<PageView client={client} pageId={mainId} onOpenPage={onOpenPage} />);
+    await flushSync();
+
+    fireEvent.click(screen.getByRole("button", { name: /Aliases · 1/ }));
+    const dialog = screen.getByRole("dialog", { name: "Aliases" });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Add alias/ }));
+
+    const searchInput = screen.getByLabelText("Search pages…");
+    // The already-aliased "Cats" never appears as a candidate…
+    fireEvent.change(searchInput, { target: { value: "Cats" } });
+    expect(screen.queryByText("Cats")).toBeNull();
     fireEvent.change(searchInput, { target: { value: "Dog" } });
     fireEvent.click(screen.getByText("Dog").closest("button")!);
     await flushSync();
 
-    // Written: the authored aliasOf value names the picked page.
-    const authored = client
-      .getEffectiveProperties(aliasId)
-      .filter((entry) => entry.propertySchemaId === ALIAS_OF && entry.source === "authored");
-    expect(authored).toHaveLength(1);
-    expect(authored[0]!.value).toEqual({ nodeId: pageId });
+    // …and the pick lands on the SELECTED node's field — the main page's
+    // own field stays untouched (it holds nothing).
+    expect(client.getNode(dogId)?.aliasedNodeId).toBe(mainId);
+    expect(client.getNode(mainId)?.aliasedNodeId).toBeNull();
+    expect(client.getNode(aliasId)?.aliasedNodeId).toBe(mainId);
+    // The count follows on the next render.
+    expect(await screen.findByRole("button", { name: /Aliases · 2/ })).toBeInTheDocument();
+  });
+});
+
+describe("node aliases: the alias-side pseudo-property row", () => {
+  it("the alias view carries the 'Aliased node' row naming the main; Change re-points it; the pill clears it", async () => {
+    const client = await seedClient();
+    const { mainId, aliasId } = await seedAliasPair(client, "Cat", "Cats");
+    const otherId = await client.createObject({ presentAsMain: true, name: "Dog" });
+    await flushSync();
+
+    render(<PropertiesTable client={client} nodeId={aliasId} />);
+    const row = screen.getByText("Aliased node").closest("li")!;
+    expect(within(row).getByRole("button", { name: "Cat" })).toBeInTheDocument();
+
+    // Re-point: Change → pick "Dog" → the ALIAS's field moves.
+    fireEvent.click(within(row).getByRole("button", { name: /Change aliased node/ }));
+    const searchInput = screen.getByLabelText("Search Aliased node");
+    fireEvent.change(searchInput, { target: { value: "Dog" } });
+    fireEvent.click(screen.getByText("Dog").closest("button")!);
+    await flushSync();
+    expect(client.getNode(aliasId)?.aliasedNodeId).toBe(otherId);
+    expect(client.getNode(mainId)?.aliasedNodeId).toBeNull();
+
+    // Clear: the × writes present-null; the row renders null afterwards.
+    const rowAfter = screen.getByText("Aliased node").closest("li")!;
+    fireEvent.click(within(rowAfter).getByRole("button", { name: /Remove alias target/ }));
+    await flushSync();
+    expect(client.getNode(aliasId)?.aliasedNodeId).toBeNull();
   });
 
-  it("the alias row does not render for inline-block carriers", async () => {
+  it("an ordinary page renders no 'Aliased node' row; neither does a block carrier", async () => {
     const client = await seedClient();
-    await ensureAliasOfProperty(client);
-    const pageId = await client.createObject({ presentAsMain: true, name: "Host" });
+    const { mainId } = await seedAliasPair(client, "Cat", "Cats");
+    const pageId = await client.createObject({ presentAsMain: true, name: "Dog" });
+    const blockHost = await client.createObject({ presentAsMain: true, name: "Host" });
     const blockId = await client.createObject({
-      parentId: pageId,
+      parentId: blockHost,
       contentAst: [{ type: "text", text: "a block" }],
     });
-    // A stray value bypassing the panel (raw writer) — the row still hides.
-    await client.setProperty(blockId, ALIAS_OF, { nodeId: pageId }, 0);
+    // A stray field on the block (raw writer bypass): the row still hides —
+    // every read filters aliases to pages.
+    await client.updateObject(blockId, { aliasedNodeId: mainId });
     await flushSync();
 
-    const { container, unmount } = render(<PropertiesTable client={client} nodeId={blockId} />);
-    expect(container.textContent).not.toContain("Alias of");
+    const { container, unmount } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    expect(container.textContent).not.toContain("Aliased node");
     unmount();
 
-    // …while the page carrier renders the row (a "Cat" pointing at "Host").
-    const aliasId = await client.createObject({ presentAsMain: true, name: "Cat" });
-    await client.setProperty(aliasId, ALIAS_OF, { nodeId: pageId }, 0);
-    await flushSync();
-    const { container: pageContainer } = render(
-      <PropertiesTable client={client} nodeId={aliasId} />,
+    const { container: blockContainer } = render(
+      <PropertiesTable client={client} nodeId={blockId} />,
     );
-    expect(pageContainer.textContent).toContain("Alias of");
+    expect(blockContainer.textContent).not.toContain("Aliased node");
   });
 });

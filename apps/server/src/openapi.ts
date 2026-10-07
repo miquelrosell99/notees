@@ -185,6 +185,9 @@ const updateObjectBody: JsonSchema = {
     icon: { type: "string" },
     color: { description: "preset token or #RRGGBB; null clears (SCHEMA.md color grammar)" },
     contentAst: { type: "array", items: { type: "object", additionalProperties: true } },
+    coverAssetId: { ...objectIdField, nullable: true, description: "page cover asset node; null clears (wire node field)" },
+    bannerAssetId: { ...objectIdField, nullable: true, description: "page banner asset node; null clears (wire node field)" },
+    aliasedNodeId: { ...objectIdField, nullable: true, description: "the main page a node alias points at; null clears (wire node field)" },
     baseRevision: {
       type: "object",
       additionalProperties: false,

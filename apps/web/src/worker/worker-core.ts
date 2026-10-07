@@ -8,6 +8,7 @@
  *  - bootstraps the WorkspaceClient sync engine for the workspace;
  *  - exposes the worker API: applyBatch (remote frames), the read surface
  *    (getPage / listPages / getBlockTree / search / getBacklinks /
+ *    resolveAlias / aliasNodesOf /
  *    getLinkedReferences / getReferences / getReferenceCount /
  *    getUnlinkedReferences / getChildPages / getChildren
  *    / runQueryAst / runAggregateAst / getBacklinkCount / getChildPageCount / getDisplayName /
@@ -164,6 +165,8 @@ const READ_METHODS: ReadonlySet<string> = new Set([
   "resolveNodeByName",
   "getChildren",
   "getBacklinks",
+  "resolveAlias",
+  "aliasNodesOf",
   "getLinkedReferences",
   "getReferences",
   "getReferenceCount",
@@ -704,6 +707,10 @@ export class WorkerCore {
         );
       case "getBacklinks":
         return this.getBacklinks(args[0] as string);
+      case "resolveAlias":
+        return this.client.resolveAlias(args[0] as string);
+      case "aliasNodesOf":
+        return this.client.aliasNodesOf(args[0] as string);
       case "getLinkedReferences":
         return this.getLinkedReferences(args[0] as string);
       case "getReferences":

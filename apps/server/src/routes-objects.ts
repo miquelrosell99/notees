@@ -130,6 +130,14 @@ const updateBodySchema = z
     color: colorValueSchema.nullish(),
     contentAst: z.array(z.unknown()).optional(),
     /**
+     * The wire node fields (SCHEMA.md "Node structure" — the icon/color
+     * precedent): presence writes, null clears, exactly like the
+     * `object.update` payload they forward into.
+     */
+    coverAssetId: z.string().uuid().nullable().optional(),
+    bannerAssetId: z.string().uuid().nullable().optional(),
+    aliasedNodeId: z.string().uuid().nullable().optional(),
+    /**
      * optimistic-concurrency guard, HTTP-layer only (never
      * enters the op payload): the node's `hlc` as last seen by the caller.
      * The node row's (hlc_physical, hlc_logical) is the one natural
@@ -1042,19 +1050,11 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
       const matchesName = (api.name ?? "").toLowerCase() === wanted;
       const matchesAlias = aliases.some((alias) => alias.toLowerCase() === wanted);
       if (matchesName || matchesAlias) {
-        // a name hit on an ALIAS page answers the MAIN page
-        // (chain-collapsing, cycle-safe — the same semantics the web
-        // client's resolveNodeByName folds in via nameEquivalentsOf).
-        let resolvedId = hit.nodeId;
-        const seen = new Set<string>([resolvedId]);
-        for (;;) {
-          const target = store.aliasOfTarget(resolvedId);
-          if (target === undefined) break;
-          const targetRow = store.getNode(target);
-          if (targetRow === undefined || targetRow.is_active !== 1 || seen.has(target)) break;
-          seen.add(target);
-          resolvedId = target;
-        }
+        // A name hit on an ALIAS page answers the MAIN page: the store
+        // chain-walker collapses the alias chain to its terminal,
+        // cycle-safe with a depth cap (the web client's navigation seam
+        // resolves with the same walker).
+        const resolvedId = store.resolveAlias(hit.nodeId);
         const resolved = nodeToApi(store.getNode(resolvedId)!);
         return {
           name: resolved.name,

@@ -1742,12 +1742,13 @@ export class WorkspaceClient {
   /**
    * Name→id resolution: the local twin of GET /api/resolve —
    * case-insensitive EXACT display-name match over the ranked FTS candidates
-   * (blocks included). An exact case-insensitive ALIAS value is a
+   * (blocks included). An exact case-insensitive ALIAS VALUE is a
    * name-equivalent — the candidate pool already folds alias text into the
-   * FTS row (text-scalar indexing), so resolution follows search
-   * semantics. Issue #7: an alias PAGE's title is a name-equivalent of its
-   * MAIN page too (node aliases) — matching either resolves the main node.
-   * Null when no active node carries the name or alias.
+   * FTS row (text-scalar indexing), so resolution follows search semantics.
+   * An alias page's own title resolves to the ALIAS page (links keep the
+   * alias uuid — navigation redirects to the terminal; the server /resolve
+   * answers the terminal for API consumers). Null when no active node
+   * carries the name or alias.
    */
   resolveNodeByName(name: string): string | null {
     const wanted = name.toLowerCase();
@@ -1950,10 +1951,11 @@ export class WorkspaceClient {
    * its containing page (the actual linking block's chain) and a `kind`.
    * The section badge reads getBacklinkCount (direct only) — unchanged, so a
    * containment-heavy page shows a longer list than its badge number.
-   * Issue #7 adds the node-alias roll-up: edges whose target is an alias
-   * page of this node union in as `kind: "alias"` rows after the direct and
-   * containment sets (the alias page's own view is unchanged — it lists only
-   * its own edges; SCHEMA.md "Node aliases").
+   * The node-alias roll-up unions in edges whose target is any page whose
+   * alias-terminal is this node (the store's recursive read over
+   * `aliased_node_id`; chains included) as `kind: "alias"` rows after the
+   * direct and containment sets — the alias page's own view is unchanged
+   * (it lists only its own edges; SCHEMA.md "Node aliases").
    */
   getLinkedReferences(id: string): ReferenceEntry[] {
     const seen = new Set<string>();
@@ -1978,11 +1980,12 @@ export class WorkspaceClient {
         verb: row.verb === null || row.verb === undefined ? null : String(row.verb),
       });
     }
-    // Node-alias roll-up (issue #7): an edge targeting an alias page of this
-    // node references this node by alias — union the alias pages' DIRECT
-    // backlink sets in (query-time over the derived edge index; no derived
-    // schema change). Sources already claimed by the direct/containment
-    // sets stay single-row (one reference per source).
+    // Node-alias roll-up: an edge targeting an alias page of this node
+    // references this node by alias — union the alias pages' DIRECT backlink
+    // sets in (query-time over the derived edge index; no derived-schema
+    // change — the alias enumeration rides the store's recursive read).
+    // Sources already claimed by the direct/containment sets stay single-row
+    // (one reference per source).
     for (const aliasId of this.aliasPageIdsOf(id)) {
       for (const edge of this.getBacklinks(aliasId)) {
         const sourceId = edge.sourceId;
@@ -2065,10 +2068,16 @@ export class WorkspaceClient {
   private unlinkedReferenceIds(id: string): string[] {
     const node = this.getNode(id);
     if (!node || !rendersWithDocumentChrome(node)) return [];
+    // A source linking the node OR any of its alias pages is already linked
+    // (the linked-references set rolls alias-targeted edges in — see
+    // getLinkedReferences), so the unlinked list excludes both families.
     const linkedSources = new Set(this.getBacklinks(id).map((edge) => edge.sourceId));
-    // PG10 + issue #7 name-equivalents: the display name AND every text
-    // alias value AND every alias-page title each get a literal-text FTS
-    // pass (aliases are names for search).
+    for (const aliasId of this.aliasPageIdsOf(id)) {
+      for (const edge of this.getBacklinks(aliasId)) linkedSources.add(edge.sourceId);
+    }
+    // Name-equivalents: the display name AND every text alias value AND
+    // every alias-page title each get a literal-text FTS pass (aliases are
+    // names for search).
     const names = [deriveDisplayName(node), ...this.nameEquivalentsOf(id)].filter(
       (name): name is string => typeof name === "string" && name.length > 0,
     );
@@ -2085,32 +2094,52 @@ export class WorkspaceClient {
   }
 
   /**
-   * Alias pages of `id` (issue #7): the pages carrying an authored `aliasOf`
-   * value ({nodeId} of this node) — read off the derived edge index (the
-   * property-edge family, verb = the aliasOf schema), never from
-   * property_value directly, so the read sees exactly what backlink queries
-   * see. Live pages only, id order.
+   * Alias pages of `id`: every live document-chrome node whose alias-terminal
+   * is this node (the store's recursive reverse-walk over `aliased_node_id` —
+   * chains included). The page restriction is the client convention
+   * (SCHEMA.md "Node aliases"): non-page carriers don't act as aliases, so
+   * they filter out here.
    */
   private aliasPageIdsOf(id: string): string[] {
-    const rows = this.store.database
-      .prepare(
-        `SELECT DISTINCT source_id FROM edge
-         WHERE type = 'property' AND verb = ? AND target_id = ? ORDER BY source_id`,
-      )
-      .all(SYSTEM_PROPERTY_UUIDS.aliasOf, id) as Array<{ source_id: string }>;
     const ids: string[] = [];
-    for (const row of rows) {
-      const alias = this.getNode(row.source_id);
+    for (const aliasId of this.store.aliasNodesOf(id)) {
+      const alias = this.getNode(aliasId);
       if (alias === undefined || !rendersWithDocumentChrome(alias)) continue;
-      ids.push(row.source_id);
+      ids.push(aliasId);
     }
     return ids;
   }
 
   /**
-   * The node's name-equivalents (issue #7): every text alias value plus the
-   * title of every alias page of the node — an alias page's
-   * title names its main page for search (resolve + unlinked references).
+   * Every node whose alias-terminal is `id` (the aliases listing behind the
+   * title-row affordance): live ids from the store's recursive read, mapped
+   * to nodes. The main page itself never lists.
+   */
+  aliasNodesOf(id: string): ClientNode[] {
+    const nodes: ClientNode[] = [];
+    for (const aliasId of this.store.aliasNodesOf(id)) {
+      const alias = this.getNode(aliasId);
+      if (alias === undefined || !rendersWithDocumentChrome(alias)) continue;
+      nodes.push(alias);
+    }
+    return nodes;
+  }
+
+  /**
+   * The terminal of a node-alias chain (SCHEMA.md "Node aliases"): the id
+   * unchanged when the node is not an alias / the chain is cyclic; otherwise
+   * the final main node. The navigation seam — the App open funnels resolve
+   * every open through this read, so mentions, links, palette rows,
+   * breadcrumbs and graph clicks all land on the terminal.
+   */
+  resolveAlias(id: string): string {
+    return this.store.resolveAlias(id);
+  }
+
+  /**
+   * The node's name-equivalents: every text alias value plus the title of
+   * every alias page of the node — an alias page's title names its main page
+   * for search (resolve + unlinked references).
    */
   private nameEquivalentsOf(id: string): string[] {
     const names = aliasValuesOf(this, id);

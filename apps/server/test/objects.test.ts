@@ -259,12 +259,13 @@ describe("objects API", () => {
     server = await makeTestServer();
     const main = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Productivity" } })).json();
     const alias = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Getting Things Done" } })).json();
-    const link = await api("POST", `/api/objects/${alias.id}/properties`, {
-      payload: { propertySchemaId: SYSTEM_PROPERTY_UUIDS.aliasOf, value: { nodeId: main.id }, idx: 0 },
+    // The wire-field carrier: object.update {aliasedNodeId} on the ALIAS.
+    const link = await api("PATCH", `/api/objects/${alias.id}`, {
+      payload: { aliasedNodeId: main.id },
     });
     expect(link.statusCode).toBe(200);
-    // Resolving the ALIAS page's title answers the MAIN page — the same
-    // semantics the web client's resolveNodeByName folds in.
+    // Resolving the ALIAS page's title answers the MAIN page — the store
+    // chain-walker collapses the chain (cycle-safe, depth-capped).
     const res = await api("GET", `/api/resolve?name=${encodeURIComponent("getting things done")}`);
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ id: main.id, name: "Productivity" });

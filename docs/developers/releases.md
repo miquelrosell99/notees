@@ -91,7 +91,8 @@ pre-batch clients reject retype envelopes). Canonical fixtures
 the clients repo — pending at shipment.** Also shipped applier-side with no
 wire footprint: write-time alias-cycle validation (`CycleError`, the
 extends-DAG precedent) and the `Store.resolveAlias` chain walker; the alias
-read-path repointing stays the recorded follow-on.
+read-path repointing shipped the same day in the read-layer slice below — no
+wire change, no store schema change.
 
 **The 2026-10-05/06 issue batch (#1–#14):** NO new op types and NO strict
 payload changes anywhere in the batch (including the flag pass) — the
@@ -124,6 +125,7 @@ this batch = bumping the package pins + releases, not code ports.
 | wire node fields | 2026-10-07 | `object.update` gains optional nullable `coverAssetId`/`bannerAssetId`/`aliasedNodeId` (store v15→v16; gate 21→22, `object-wire-fields.json`); the retired cover/banner/aliasOf property schemas superseded (`scripts/migrate-cover-banner-alias.mts` rewrites live assertions); query field predicates; JSON archive carries the fields — **GTK/Flutter ports pending in the clients repo** (strict-payload additive: the live migration run gates on them) |
 | class-class retirement + conversion | 2026-10-07 | the seeded `class` meta class (…0001) withdrawn — `class.create` on an existing node DECLARES it a class (the conversion capability; gate 22→23, `class-convert.json`); the has-template family relocates to a global-scope schema (no binding anywhere); `migrate-retire-class-class.mts` converts live workspaces; M12 write-time alias-cycle validation + `Store.resolveAlias` ship applier-side — **GTK/Flutter ports pending** (class identity is the lockstep gate) |
 | the asset property type | 2026-10-07 | `propertySchema.create`'s type enum gains `asset` (implicit asset-class filter; gate 23→24, `property-asset-type.json`); the attachments schema (…0011) retypes object→asset by `migrate-attachments-asset-type.mts` (values ride untouched) — **GTK/Flutter ports pending** (strict-enum additive) |
+| alias read paths (the final alias-program slice) | 2026-10-07 | every alias read repointed onto the `aliased_node_id` column: the universal redirect (the App open funnels ride `resolveAliasOpen` over `Store.resolveAlias` — mentions, links, palette, breadcrumbs, graph clicks, backlink/query rows), the linked-references roll-up via a new recursive store read `Store.aliasNodesOf` (chains included; the property-based `aliasOfTarget` retires), graph exclusion (aliases are not vertices; incident edges repoint to the terminal and merge), the server `/resolve` chain fold, and the aliases UI (the title-row Aliases button/list with the backward write + the NAVIGATE bypass; the alias-side "Aliased node" pseudo-property row) — NO wire change, NO store schema change; store API delta: `aliasNodesOf` added / `aliasOfTarget` retired (clients on the store package ride `resolveAlias`/`aliasNodesOf`); web+server read layer, TS-only |
 
 ## 5. The SDK/repo splits (parked, owner)
 

@@ -4,10 +4,11 @@
  * dead without an author) links a CLASS node to its template nodes
  * (node-typed, multi, `targetClassFilter: ["template"]` — SCHEMA.md
  * "Templates", owner decision), authored as property values on the class
- * node itself. M47 (2026-10-07 — the class-class retirement): the schema is
+ * node itself. The class-class retirement (2026-10-07): the schema is
  * GLOBAL scope with NO class binding — the retired `class` meta class used
  * to host the binding (the only "every class" host), and no class can host
- * a universal binding (the aliasOf precedent). Authored values surface in
+ * a universal binding (the global-unbound-schema precedent — the same
+ * pattern the alias schemas established). Authored values surface in
  * the effective-properties read with or without a binding, so the read
  * paths (listClassTemplateBindings below, the TemplatesSection) are
  * unchanged; the write path is plain setProperty on the class node. The

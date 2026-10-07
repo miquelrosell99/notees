@@ -10,7 +10,8 @@
  *  - apply / applyMany: validate -> idempotency check (applied_envelope) ->
  *    dispatch -> record; applyMany wraps everything in one transaction;
  *  - query helpers: getNode, children, backlinks, backlinksWithRollup,
- *    referencesWithRollup, search (FTS prefix-AND);
+ *    referencesWithRollup, resolveAlias / aliasNodesOf (the node-alias
+ *    reads over the `aliased_node_id` column), search (FTS prefix-AND);
  *  - snapshot / restore: full-database bytes; the bytes carry their own
  *    user_version, so restore only re-applies connection-level setup;
  *  - reset: drop and recreate the schema at the same storage location.
@@ -20,7 +21,7 @@
  */
 
 import type { Envelope, WorkspaceFeature } from "@notees/protocol";
-import { managedClassIds, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import { managedClassIds } from "@notees/domain";
 
 import { applyEnvelope, validateEnvelope, type ChangeSummary } from "./appliers.js";
 import type { SqliteDB, StoreBackend } from "./db.js";
@@ -465,28 +466,38 @@ export class Store {
   }
 
   /**
-   * The node's node-alias target: the target of its `aliasOf`
-   * value (a node-typed property — an edge row, verb = the aliasOf schema),
-   * or undefined when the node is not an alias. Server `/resolve` parity:
-   * resolving an alias page's title answers the MAIN page.
+   * Every node whose alias-terminal is `nodeId` (the reverse read of
+   * resolveAlias): the recursive reverse-walk over `aliased_node_id` —
+   * nodeId itself excluded, LIVE rows only, id order. Drives the
+   * linked-references roll-up (edges targeting any of these reference the
+   * main node by alias) and the aliases listing. One indexed probe per
+   * alias-link level (chains are user-built and tiny); a materialized
+   * resolved-target column would make this a plain index read — the
+   * recorded later optimization, not needed at this scale.
    */
-  aliasOfTarget(nodeId: string): string | undefined {
-    const row = this.db
+  aliasNodesOf(nodeId: string): string[] {
+    const rows = this.db
       .prepare(
-        "SELECT target_id FROM edge WHERE source_id = ? AND type = 'property' AND verb = ? LIMIT 1",
+        `WITH RECURSIVE alias_set(id) AS (
+           SELECT ?
+           UNION
+           SELECT n.id FROM node n JOIN alias_set a ON n.aliased_node_id = a.id
+           WHERE n.is_active = 1
+         )
+         SELECT id FROM alias_set WHERE id != ? ORDER BY id`,
       )
-      .get(nodeId, SYSTEM_PROPERTY_UUIDS.aliasOf) as { target_id: string } | undefined;
-    return row?.target_id;
+      .all(nodeId, nodeId) as Array<{ id: string }>;
+    return rows.map((row) => row.id);
   }
 
   /**
    * The terminal of a node-alias chain: follow `aliased_node_id` links to
-   * the final main node (M12 — the wire-field read helper behind the alias
-   * semantics; the read-path repointing that consumes it is a follow-on
-   * slice). Cycle-safe by construction: a revisit yields the STARTING id
-   * unchanged (the SCHEMA.md navigation ruling — a cyclic alias is no
-   * alias), and a generous depth cap bounds pathological chains to the
-   * furthest node reached. Unset/unstored rows are their own terminal.
+   * the final main node — the navigation resolution behind the universal
+   * redirect (the App open funnels) and the server `/resolve` answer.
+   * Cycle-safe by construction: a revisit yields the STARTING id unchanged
+   * (the SCHEMA.md navigation ruling — a cyclic alias is no alias), and a
+   * generous depth cap bounds pathological chains to the furthest node
+   * reached. Unset/unstored rows are their own terminal.
    */
   resolveAlias(nodeId: string): string {
     const visited = new Set<string>();

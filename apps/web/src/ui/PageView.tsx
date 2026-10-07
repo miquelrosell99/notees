@@ -65,7 +65,8 @@ import { PageFooter } from "./components/PageFooter.js";
 import { SelectionBar } from "./components/SelectionBar.js";
 import { SystemSections } from "./components/SystemSections.js";
 import { canHaveCoverOf, coverAssetIdOf, ensureCoverProperty } from "./components/coverProperty.js";
-import { ensureAliasOfProperty, ensureAliasProperty } from "./components/aliasProperty.js";
+import { ensureAliasProperty } from "./components/aliasProperty.js";
+import { AliasesButton } from "./components/AliasesButton.js";
 import { AliasOfBanner } from "./components/AliasOfBanner.js";
 import { useDeviceSetting } from "./components/modals/deviceSettings.js";
 import { EmbedBoundary } from "./EmbedView.js";
@@ -98,6 +99,7 @@ export function PageView({
   client,
   pageId,
   onOpenPage,
+  onOpenPageRaw,
   onOpenInSidebar,
   onDeleted,
   onPresent,
@@ -154,6 +156,11 @@ export function PageView({
   pageId: string;
   /** Page navigation (child-pages rows, reference crumbs). */
   onOpenPage?: ((pageId: string) => void) | undefined;
+  /**
+   * The RAW page navigation (no alias redirect): the aliases UI's NAVIGATE
+   * opens an alias node's OWN view through this. Defaults to onOpenPage.
+   */
+  onOpenPageRaw?: ((pageId: string) => void) | undefined;
   /** Shift+click peek target: open the node as a card in the right sidebar. */
   onOpenInSidebar?: ((nodeId: string) => void) | undefined;
   /** Post-delete navigation (host routes to the parent / default view). */
@@ -345,16 +352,15 @@ export function PageView({
   }, [client]);
 
   /**
-   * Alias property self-heal (issue #7): the seeded
-   * multi-value `alias` text schema and the seeded single-value node-typed
-   * `aliasOf` schema (global scope, no class bindings) are authored
-   * idempotently on first page view — the server seed only runs on an
-   * empty workspace, so existing workspaces would never see them otherwise
-   * (the ensureCoverProperty precedent).
+   * Alias property self-heal: the seeded multi-value `alias` text schema
+   * (global scope, no class binding) is authored idempotently on first page
+   * view — the server seed only runs on an empty workspace, so existing
+   * workspaces would never see it otherwise (the ensureCoverProperty
+   * precedent). The node-alias carrier is the `aliasedNodeId` wire node
+   * field — no schema to ensure.
    */
   useEffect(() => {
     void ensureAliasProperty(client);
-    void ensureAliasOfProperty(client);
   }, [client]);
 
   /** The cover's asset target, when the page carries the property. */
@@ -747,6 +753,16 @@ export function PageView({
               />
             )}
             </span>
+            {/* The aliases affordance: every page whose alias-terminal is
+                this page, listed + added from the ALIASED node's own title
+                row (null chrome for embedded/focus renders). */}
+            {!embedded && !focusMode && (
+              <AliasesButton
+                client={client}
+                nodeId={pageId}
+                onOpenPageRaw={(id) => (onOpenPageRaw ?? onOpenPage)?.(id)}
+              />
+            )}
               </>
             )}
             {headerActions !== undefined && !focusMode && (
