@@ -5,7 +5,10 @@
  *
  * - Open / Open in sidebar — navigate to the link target.
  * - Edit link… — the page-level LinkEditModal: retarget the link and/or set
- *   (or edit) an optional custom label.
+ *   (or edit) an optional custom label. NODE LINKS ONLY (owner ruling): the
+ *   item renders only when the target token is a mention — an external_link
+ *   token never offers Edit (external links navigate; they are authored by
+ *   the slash "Add URL" command / markdown / raw-URL pasting).
  * - Remove link — unlink but keep the visible text (the custom label when
  *   one is set, otherwise the captured surface text).
  * - Delete link — drop the mention token from the block entirely.
@@ -142,22 +145,29 @@ function NodeLinkMenuInner({ client, openNode, openInSidebar, children }: NodeLi
             close();
             openInSidebar(id);
           }}
-          onEdit={() => {
-            const token = mentionTokenAt(client, request);
-            if (token === null) {
-              close();
-              return;
-            }
-            close();
-            openLinkEditor({
-              kind: "node",
-              blockId: request.blockId,
-              tokenIndex: request.tokenIndex,
-              insertAt: null,
-              initialNodeId: token.targetNodeId,
-              initialLabel: token.displayText ?? "",
-            });
-          }}
+          // Edit is a NODE-link action (owner ruling): offered only when the
+          // target token is still a mention. External links navigate — they
+          // are never edited (Remove/Delete stay available).
+          onEdit={
+            mentionTokenAt(client, request) === null
+              ? undefined
+              : () => {
+                  const token = mentionTokenAt(client, request);
+                  if (token === null) {
+                    close();
+                    return;
+                  }
+                  close();
+                  openLinkEditor({
+                    kind: "node",
+                    blockId: request.blockId,
+                    tokenIndex: request.tokenIndex,
+                    insertAt: null,
+                    initialNodeId: token.targetNodeId,
+                    initialLabel: token.displayText ?? "",
+                  });
+                }
+          }
           onRemove={() => {
             const node = client.getNode(request.blockId);
             const token = mentionTokenAt(client, request);
@@ -210,7 +220,8 @@ interface NodeLinkContextMenuProps {
   onClose(): void;
   onOpen(nodeId: string): void;
   onOpenInSidebar(nodeId: string): void;
-  onEdit(): void;
+  /** NODE links only (owner ruling) — absent for external-link targets. */
+  onEdit?: (() => void) | undefined;
   onRemove(): void;
   onDelete(): void;
 }
@@ -246,8 +257,12 @@ export function NodeLinkContextMenu({
           icon: "mdi-dock-right",
           onClick: () => onOpenInSidebar(state.targetNodeId),
         },
-        { id: "sep-edit", label: "", separator: true },
-        { id: "edit", label: "Edit link…", icon: "mdi-pencil", onClick: onEdit },
+        ...(onEdit !== undefined
+          ? [
+              { id: "sep-edit", label: "", separator: true } as const,
+              { id: "edit", label: "Edit link…", icon: "mdi-pencil", onClick: onEdit } as const,
+            ]
+          : []),
         { id: "sep-remove", label: "", separator: true },
         { id: "remove", label: "Remove link", icon: "mdi-link-variant-off", onClick: onRemove },
         {
