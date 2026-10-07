@@ -5,7 +5,9 @@
  * property can group) over the editable collection with one column per
  * property binding. Expanded by default; rows open the member (inline
  * blocks resolve to their containing main node) and the row × unassigns the
- * member from THIS class.
+ * member from THIS class. The toolbar (and the empty state's action button)
+ * carry the create affordance — a node classed with this class — visible
+ * even on an empty database.
  */
 
 import { rendersWithDocumentChrome } from "@notees/domain";
@@ -18,6 +20,7 @@ import { Icon } from "../../Icon.js";
 import { Section } from "../../Section.js";
 import { useViewModePreference } from "../../viewPrefs.js";
 import { refuseClassRemoval } from "../classRemoval.js";
+import { Button } from "../ui/Button.js";
 import { NodeCollection, ViewToolbar } from "../../views/index.js";
 import type { NodeCollectionItem, TableColumn, ViewMode } from "../../views/index.js";
 
@@ -90,6 +93,17 @@ export function ClassedNodesSection({
     onOpenPage?.(current !== undefined && rendersWithDocumentChrome(current) ? current.id : member.id);
   };
 
+  /**
+   * The class's create affordance: a node classed with THIS class — the
+   * section's member route (object.create carries the class assignment,
+   * the class.assign pair `unassignAction` tombstones). The expanded
+   * section re-runs its query on the write notification, so the new
+   * member row appears without a manual refresh.
+   */
+  const addMember = () => {
+    void client.createObject({ presentAsMain: true, classIds: [classId] });
+  };
+
   return (
     <Section
       client={client}
@@ -99,6 +113,10 @@ export function ClassedNodesSection({
       defaultCollapsed={false}
       load={() => client.getClassMembers(classId)}
       emptyText="No classed nodes."
+      // The container owns its empty state: the view toolbar (with the
+      // create affordance) and the kit EmptyState's action must render on
+      // an empty database, not the bare emptyText line.
+      renderWhenEmpty
       renderResults={(members) => {
         const memberItems: NodeCollectionItem[] = members.map((member) => ({ node: member }));
         const memberColumns: TableColumn[] = [
@@ -128,11 +146,19 @@ export function ClassedNodesSection({
         );
         return (
           <>
-            <ViewToolbar
-              modes={modes}
-              value={membersMode}
-              onChange={setMembersMode}
-            />
+            {/* The toolbar carries the create affordance left of the
+                switcher — visible on an empty database too. */}
+            <ViewToolbar modes={modes} value={membersMode} onChange={setMembersMode}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                icon="mdi mdi-plus"
+                onClick={addMember}
+              >
+                Add member
+              </Button>
+            </ViewToolbar>
             <NodeCollection
               viewMode={membersMode}
               client={client}
@@ -146,6 +172,10 @@ export function ClassedNodesSection({
                 if (member !== undefined) openMember(member);
               }}
               trailingAction={unassignAction}
+              emptyTitle="No classed nodes."
+              showAddButton
+              onAdd={addMember}
+              addLabel="Add member"
             />
           </>
         );
