@@ -86,17 +86,20 @@ describe("Class View", () => {
     expect(screen.queryByRole("button", { name: "Add class extension" })).toBeNull();
   });
 
-  it("commits the edited class name via the shared TitleEditor pattern", async () => {
+  it("commits the edited class name through the header title row", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "agent");
     const { container } = render(<ClassView client={client} classId={classId} />);
 
-    const title = container.querySelector<HTMLElement>(".nt-page-title");
-    if (title === null) throw new Error("title heading missing");
-    expect(title.textContent).toBe("agent");
+    const content = container.querySelector<HTMLElement>(".nt-title-content");
+    if (content === null) throw new Error("title content missing");
+    expect(content.textContent).toBe("agent");
 
-    title.textContent = "Contributor";
-    fireEvent.keyDown(title, { key: "Enter" });
+    fireEvent.click(content);
+    const editor = content.querySelector<HTMLElement>(".nt-block-text")!;
+    editor.textContent = "Contributor";
+    fireEvent.input(editor);
+    fireEvent.keyDown(editor, { key: "Enter" });
     await flushWrites();
     // Title-is-content: the rename committed as the class's text content.
     expect(deriveDisplayName(client.getNode(classId)!)).toBe("Contributor");
