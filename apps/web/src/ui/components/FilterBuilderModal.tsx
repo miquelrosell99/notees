@@ -1,10 +1,10 @@
 /**
- * FilterBuilderModal — V2's full-AST editor as a shell modal (the
+ * FilterBuilderModal — the full-AST editor as a shell modal (the
  * ad-hoc query composer behind the Queries hub's "New query"). It edits the
  * same representable subset as the token popover (queryBuilder.ts — flat AND
  * of class/bits/text/created-window, one sort, one aggregation
- * dimension+measure) through the shared QueryBuilderFields surface (M35: the
- * v1 ViewBuilder card-list presentation), and carries the C1 guard:
+ * dimension+measure) through the shared QueryBuilderFields surface (the
+ * original ViewBuilder card-list presentation), and carries the C1 guard:
  * an initial AST with constructs outside the subset renders the read-only
  * summary + explicit "edit anyway" opt-in, never silent defaults.
  *

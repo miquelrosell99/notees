@@ -1,7 +1,7 @@
 /**
- * useSectionData — the shared lazy-section data contract (the S2 machinery:
- * .plans/2026-10-06-1352-main-content-restructure/06-main-content-restructure.md
- * §"Diagram 5 — the section data contract"). ONE hook instance per section
+ * useSectionData — the shared lazy-section data contract (the shared
+ * machinery — the design's "Diagram 5 — the section data contract"). ONE
+ * hook instance per section
  * view/tab (the per-view rule, owner pass 2): a section's default view, each
  * backlinks tab, and (later) each custom tab each own their instance — never
  * one shared cache with view-switch invalidation, which would re-run queries
@@ -25,9 +25,9 @@
  * useWindowed stays the sole windowing authority.
  *
  * `SectionSpec` (below) is the data-facing descriptor for the future section
- * stacks (S5+): a page variant declares an ordered list of descriptors; the
+ * stacks: a page variant declares an ordered list of descriptors; the
  * hook owns WHEN resolution runs, the strategy owns WHAT it reads. The
- * transient filter layer (M3) and the hosted custom views (M4) are recorded
+ * transient filter layer and the hosted custom views are recorded
  * in the plan but deliberately NOT part of this descriptor yet.
  */
 
@@ -121,12 +121,13 @@ export function useSectionData<T>({
 }
 
 /**
- * SectionSpec — the data-facing section descriptor (the sketch in §Diagram 5):
+ * SectionSpec — the data-facing section descriptor (the design's "Diagram 5"
+ * sketch):
  * a section stack is DATA, not JSX branches. A page variant declares an
  * ordered list of these; each entry is consumed by one useSectionData
  * instance riding one skin (CollectionSection). Nothing consumes the
- * descriptor yet beyond this file — the S2 slice ships the hook and the skin;
- * the section stacks land slice by slice (S5 class/date variants).
+ * descriptor yet beyond this file — the first slice ships the hook and the
+ * skin; the section stacks land slice by slice (the class/date variants).
  */
 export interface SectionSpec {
   key: string;

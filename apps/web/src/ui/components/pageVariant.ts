@@ -1,19 +1,19 @@
 /**
- * pageVariant — the page variant descriptor (M13 of the main-content
- * restructure): after the M9–M12 subtraction there is NO class chrome that
+ * pageVariant — the page variant descriptor (the main-content
+ * restructure): after the curated-chrome subtraction there is NO class chrome that
  * needs slots or a hardcoded branch — the class page IS the normal page
  * path composed with variant DATA: page chrome (whose shared icon button
- * is the single icon+color edit entry, M9) + the ClassPillsList(extends)
- * corner configuration (M11) + the class section stack. `pageVariantOf`
+ * is the single icon+color edit entry) + the ClassPillsList(extends)
+ * corner configuration + the class section stack. `pageVariantOf`
  * derives the descriptor from the node (modes are derived, never propped —
  * a variant prop could contradict the node; Diagram 2 of the plan).
  *
- * Shape (the S2 SectionSpec contract composed, not forked):
+ * Shape (the SectionSpec contract composed, not forked):
  *  - `variant` — "plain" | "date-day" | "date-period" | "class".
  *  - `dayIso` / `createdPeriod` — the date variants' facts, consumed where
  *    PageView's inline day/month/year branches used to derive them (the
  *    DayPageHeader swap stays in PageHeaderChrome, driven by `dayIso`).
- *  - `cornerPills` — the corner's relation configuration (M11): which
+ *  - `cornerPills` — the corner's relation configuration: which
  *    nodes the relation holds + the add/remove mutations. Absent = the
  *    default instance-of ClassesRow corner.
  *  - `sections` / `systemSections` — SectionSpec-shaped stacks (the data
@@ -43,7 +43,7 @@ type AnyClient = WorkspaceClient | WorkerClient;
 export type PageVariantKind = "plain" | "date-day" | "date-period" | "class";
 
 /**
- * The corner pills relation configuration (M11): `query` is the relation's
+ * The corner pills relation configuration: `query` is the relation's
  * current node ids, `add` / `remove` are its mutations. The class variant's
  * extends relation is the first configuration; the page corner's
  * instance-of stays the default ClassesRow until a second relation needs
@@ -72,8 +72,8 @@ export interface CornerPillsConfig {
 
 /**
  * A section entry in a variant's stack — SectionSpec-shaped (the `key`
- * identity composes SectionSpec; the read/query strategies and the M3/M4
- * filter/view extensions stay in the S2 contract), with `render` mounting
+ * identity composes SectionSpec; the read/query strategies and the
+ * filter/view extensions stay in the SectionSpec contract), with `render` mounting
  * the existing section component at the variant's placement site.
  */
 export interface VariantSectionSpec extends Pick<SectionSpec, "key"> {
@@ -137,7 +137,7 @@ const CLASS_SYSTEM_SECTIONS: VariantSectionSpec[] = [
  * The extends corner relation (the class page's corner): class.setExtends
  * REPLACE semantics — the mutations re-read the parent set at event time
  * and replace it with the delta applied. The store fails loud on cycles
- * (the applier's CycleError — M12's operation-level DAG check): render
+ * (the applier's CycleError — the operation-level DAG check): render
  * assumes a DAG and no banner exists, so the rejection lands in `onError`
  * (the console by default), never UI.
  */

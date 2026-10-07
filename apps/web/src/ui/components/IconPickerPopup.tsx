@@ -5,7 +5,7 @@
  * original contract: the emoji character or a camelCase MDI key ("mdiCalendar") —
  * Icon's resolver normalizes both (plus legacy kebab/JSON forms) at render.
  *
- * M10 — the picker gains a color section: with `onColorChange` provided, the
+ * The picker gains a color section: with `onColorChange` provided, the
  * header hosts the kit ColorButton (swatch + palette picker + "no color"),
  * making this popup the single icon+color edit entry (one component, one
  * interaction). The section stays hidden when the prop is absent, so existing
@@ -200,7 +200,7 @@ export interface IconPickerPopupProps {
   /** Element the popup anchors to (bottom-start, flips above). */
   anchorEl: HTMLElement | null;
   /**
-   * M10 — the color section: provide `onColorChange` and the header hosts
+   * The color section: provide `onColorChange` and the header hosts
    * the color swatch + palette picker beside the clear action; the picker
    * becomes the single icon+color edit entry. Absent = section hidden.
    */
@@ -320,7 +320,7 @@ export function IconPickerPopup({
         </Tabs>
         <div className="ep-header-actions">
           {onColorChange !== undefined && (
-            // The M10 color section: the kit ColorButton's own picker
+            // The color section: the kit ColorButton's own picker
             // popover rides a portal; its pointerdown capture stop (inside
             // ColorButton) keeps this popup's outside-press dismissal from
             // firing while the user picks a swatch or types a hex.

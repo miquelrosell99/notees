@@ -610,7 +610,7 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     // Status asc: Backlog (Alpha), Doing (Beta); empty sinks last (Gamma).
     expect(rowNames()).toEqual(["Alpha", "Beta", "Gamma"]);
 
-    // The v1 header register (M39): every sorted column wears its direction
+    // The header register: every sorted column wears its direction
     // arrow and a multi-sort shows the priority index badges.
     expect(document.querySelectorAll(".nt-table-sort--active")).toHaveLength(2);
     expect(
@@ -1031,7 +1031,7 @@ describe("card covers and asset thumbnails", () => {
 
     render(<HubView client={client} nav="assets" onOpenNode={() => {}} />);
 
-    // Default layout is no-cover (M39): the layout prop is honored, so the
+    // Default layout is no-cover: the layout prop is honored, so the
     // card renders text-only — no cover element at all.
     expect(document.querySelector(".node-card__cover")).toBeNull();
 
