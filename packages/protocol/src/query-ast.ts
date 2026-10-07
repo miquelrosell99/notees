@@ -56,6 +56,13 @@ export const scopeSchema = z.discriminatedUnion("type", [
  */
 export type PropertyOp = "eq" | "neq" | "contains" | "exists" | "gt" | "gte" | "lt" | "lte";
 export type ContentOp = "contains" | "fts";
+/**
+ * The node wire-field predicates (coverAsset/bannerAsset/aliasedNode — the
+ * node-table columns the fields project to): eq/neq against a node id,
+ * exists for the set/unset bit. Range/substring ops don't fit uuid
+ * references; the wire fields are nullable, so `not exists` reads unset.
+ */
+export type NodeFieldOp = "eq" | "neq" | "exists";
 
 export type Condition =
   | { type: "class"; classId: string }
@@ -80,7 +87,13 @@ export type Condition =
   /** node.created_at >= timestamp (ISO-8601, inclusive, lexicographic). */
   | { type: "createdAfter"; timestamp: string }
   /** node.created_at <= timestamp (ISO-8601, inclusive, lexicographic). */
-  | { type: "createdBefore"; timestamp: string };
+  | { type: "createdBefore"; timestamp: string }
+  /** node.cover_asset_id comparison — the page cover's asset node (the wire field). */
+  | { type: "coverAsset"; op: NodeFieldOp; value?: string | undefined }
+  /** node.banner_asset_id comparison — the page banner's asset node (the wire field). */
+  | { type: "bannerAsset"; op: NodeFieldOp; value?: string | undefined }
+  /** node.aliased_node_id comparison — the main page a node alias points at. */
+  | { type: "aliasedNode"; op: NodeFieldOp; value?: string | undefined };
 
 export const conditionSchema = z.discriminatedUnion("type", [
   /** Hierarchy-aware: members of the class OR of any class extending it. */
@@ -110,6 +123,22 @@ export const conditionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("linkedTo"), nodeId: uuid }).strict(),
   z.object({ type: z.literal("createdAfter"), timestamp: z.string().min(1) }).strict(),
   z.object({ type: z.literal("createdBefore"), timestamp: z.string().min(1) }).strict(),
+  /** Wire-field predicates over the node-table columns (uuid refs; eq/neq/exists). */
+  z.object({
+    type: z.literal("coverAsset"),
+    op: z.enum(["eq", "neq", "exists"]),
+    value: uuid.optional(),
+  }).strict(),
+  z.object({
+    type: z.literal("bannerAsset"),
+    op: z.enum(["eq", "neq", "exists"]),
+    value: uuid.optional(),
+  }).strict(),
+  z.object({
+    type: z.literal("aliasedNode"),
+    op: z.enum(["eq", "neq", "exists"]),
+    value: uuid.optional(),
+  }).strict(),
 ]) satisfies z.ZodType<Condition>;
 
 // --- group / not -------------------------------------------------------------------

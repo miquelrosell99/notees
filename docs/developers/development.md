@@ -61,7 +61,9 @@ internal docs themselves.
 The single most important process rule:
 **an op type is not done until its fixture validates.** Canonical fixtures live in
 `packages/protocol/fixtures/` as JSON files of envelopes (or `{"envelopes": [...]}`
-groups). Eight exist today:
+groups). The exact file set is the contract — the gate test below asserts it
+verbatim (24 files after the 2026-10-07 batches); the core
+scenarios:
 
 | Fixture | Scenario it pins |
 |---|---|
@@ -73,6 +75,9 @@ groups). Eight exist today:
 | `typed-link-mark-deleted.json` | deleting the word deletes the mark (honest lifecycle) |
 | `class-extends-m2m.json` | multiple inheritance closure (diamond) |
 | `class-extends-cycle.json` | extends cycles must throw on apply |
+| `object-wire-fields.json` | the cover/banner/alias wire fields set + clear through `object.update` |
+| `class-convert.json` | `class.create` on an existing node declares it a class (the retired class-class ruling) |
+| `property-asset-type.json` | the `asset` property type through `propertySchema.create` + a coexisting update |
 
 The gate is enforced by `packages/protocol/test/protocol.test.ts`:
 
