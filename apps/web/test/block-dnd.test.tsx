@@ -24,6 +24,20 @@ import {
   type DragRowRect,
 } from "../src/ui/block-dnd.js";
 import { PageView } from "../src/ui/PageView.js";
+import { WorkspaceDndHost } from "../src/ui/useWorkspaceDnd.js";
+
+/**
+ * The page renders inside the workspace drag session (the host owns the
+ * DndContext now — PageView only registers its zone); every drag-driving
+ * render wraps with it, as App does.
+ */
+function renderPage(client: WorkspaceClient, pageId: string) {
+  return render(
+    <WorkspaceDndHost>
+      <PageView client={client} pageId={pageId} />
+    </WorkspaceDndHost>,
+  );
+}
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -217,7 +231,7 @@ describe("block drag-and-drop", () => {
     const client = await seedClient();
     const { pageId, ids } = await seedThreeBlocks(client);
     const [one, two, three] = ids;
-    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const { container } = renderPage(client, pageId);
     const moveSpy = vi.spyOn(client, "moveObject");
 
     // Drag "one" onto the lower half of "three": the drop line is below
@@ -236,7 +250,7 @@ describe("block drag-and-drop", () => {
     const client = await seedClient();
     const { pageId, ids } = await seedThreeBlocks(client);
     const [one, two, three] = ids;
-    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const { container } = renderPage(client, pageId);
     const moveSpy = vi.spyOn(client, "moveObject");
 
     // Drag "three" onto the upper half of "one": the drop line is above the
@@ -256,7 +270,7 @@ describe("block drag-and-drop", () => {
     const client = await seedClient();
     const { pageId, ids } = await seedThreeBlocks(client);
     const [one, two, three] = ids;
-    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const { container } = renderPage(client, pageId);
     const moveSpy = vi.spyOn(client, "moveObject");
 
     // Drag "two" onto the deep zone of "one": child intent.
@@ -284,7 +298,7 @@ describe("block drag-and-drop", () => {
       parentId: parent,
       contentAst: [{ type: "text", text: "child" }],
     });
-    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const { container } = renderPage(client, pageId);
     const moveSpy = vi.spyOn(client, "moveObject");
 
     // Drag "parent" onto its own child (deep zone → child intent).
@@ -304,7 +318,7 @@ describe("block drag-and-drop", () => {
     const client = await seedClient();
     const { pageId, ids } = await seedThreeBlocks(client);
     const [one, two, three] = ids;
-    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const { container } = renderPage(client, pageId);
     vi.spyOn(client, "moveObject").mockRejectedValueOnce(
       new MoveGuardError(
         "object.move: node 0192a000-0000-7000-8000-0000000000c1 is a class; classes are tree-external and cannot have children",
@@ -324,7 +338,7 @@ describe("block drag-and-drop", () => {
     const client = await seedClient();
     const { pageId, ids } = await seedThreeBlocks(client);
     const [one, two, three] = ids;
-    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const { container } = renderPage(client, pageId);
     const moveSpy = vi.spyOn(client, "moveObject");
 
     const grip = gripOf(rowEl(container, one));
@@ -352,7 +366,7 @@ describe("block drag-and-drop", () => {
     const client = await seedClient();
     const { pageId, ids } = await seedThreeBlocks(client);
     const [one] = ids;
-    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const { container } = renderPage(client, pageId);
 
     const fromRect = rowEl(container, one).getBoundingClientRect();
     const grip = gripOf(rowEl(container, one));

@@ -1700,9 +1700,16 @@ select:focus-visible {
   white-space: nowrap;
 }
 
-/* Transient guard message (refused drop, store MoveGuardError, …). */
+/* Transient guard message (refused drop, store MoveGuardError, …).
+   Host-owned now: it floats above the workspace regions so a drop refusal
+   surfaces no matter which surface the drag rode. */
 .nt-dnd-error {
-  margin: 4px 0 8px;
+  position: fixed;
+  top: var(--spacing-3);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-fixed);
+  margin: 0;
   padding: 6px 10px;
   border: 1px solid var(--color-error);
   border-radius: 6px;

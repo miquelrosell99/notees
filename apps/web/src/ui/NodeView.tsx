@@ -62,6 +62,12 @@ export function NodeView({
    * card for this seam is the registered follow-up.
    */
   preview = false,
+  /**
+   * Document-level listeners (find/replace chord, fold chords). Defaults to
+   * the main-surface value (`!preview`); the right-rail workspace cards pass
+   * false explicitly — the chords stay main-surface-only.
+   */
+  globalShortcuts = undefined,
 }: {
   client: WorkspaceClient | WorkerClient;
   nodeId: string;
@@ -84,6 +90,7 @@ export function NodeView({
   shareTarget?: ShareTarget | undefined;
   embedded?: boolean | undefined;
   preview?: boolean | undefined;
+  globalShortcuts?: boolean | undefined;
 }) {
   /**
    * The child-blocks view mode, owned here because the switcher rides this
@@ -127,9 +134,9 @@ export function NodeView({
     /* Block mode: the body is the plain collection — the node itself as
        the root row with its children under it (ReferenceSubtree builds the
        minimal outliner + SortableContext and renders the real editable
-       BlockRow; no drag context here, so rows are editable but not
-       draggable — the context-presence law). The wrapper keeps the
-       FocusedBlockView-era chrome class (nt-page nt-focused-block). */
+       BlockRow). The block view renders no drag scope, so rows are
+       editable but not draggable — the context-presence law. The wrapper
+       keeps the FocusedBlockView-era chrome class (nt-page nt-focused-block). */
     <div className="nt-page nt-focused-block">
       <ReferenceSubtree client={client} rootId={nodeId} onOpenNode={onOpenNode} />
     </div>
@@ -154,6 +161,7 @@ export function NodeView({
       blocksMode={blocksMode}
       onBlocksModeChange={setBlocksMode}
       chromeRight={chromeRight}
+      globalShortcuts={globalShortcuts}
     />
   );
   if (!cornerMenu || preview) return view;
