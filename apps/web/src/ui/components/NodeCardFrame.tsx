@@ -9,9 +9,17 @@
  * around NodeView; `SidebarNodeCard` is deleted as a component (its body
  * render rides here unchanged).
  *
- * Card management (this slice): collapse toggles the body
- * (session-local — display state, never an op); reorder/dismiss gestures
- * beyond the close button are a registered follow-up.
+ * Card management: collapse toggles the body (session-local — display
+ * state, never an op); the close button dismisses the card; REORDER rides
+ * the workspace drag session — the header's GRIP (the drag handle, the
+ * block-row grip precedent) registers the card as a reorder source, so
+ * the reorder gesture never conflicts with the header's drop gesture or
+ * the breadcrumb clicks: dragging a block ONTO the header still appends
+ * it as the card node's LAST CHILD (unchanged), while dragging the GRIP
+ * reorders the rail's card stack (the App owns the stack + its
+ * device-local persistence; the host reports the gesture, see
+ * useWorkspaceDnd). While a card drag hovers a header, the header renders
+ * its reorder edge (a line above/below, the pointer's half).
  *
  * The workspace drag session: the card's header is a droppable — dropping
  * a block on it moves the block as the LAST CHILD of the card's node
@@ -20,9 +28,10 @@
  * the drop target. A collapsed card under drag-hover transiently expands
  * (drag-scoped — the session holds the temporary set; the collapse state
  * here never mutates) and re-collapses at drag end. Without a host the
- * header droppable is inert and the body renders exactly per the collapse
- * state. The card also passes `globalShortcuts: false` down — the
- * document-level chords (find/replace, fold) stay main-surface-only.
+ * header droppable and the grip are inert and the body renders exactly
+ * per the collapse state. The card also passes `globalShortcuts: false`
+ * down — the document-level chords (find/replace, fold) stay
+ * main-surface-only.
  */
 
 import { useContext, useState } from "react";
@@ -38,7 +47,9 @@ import { NodeView } from "../NodeView.js";
 import {
   WorkspaceDndHostContext,
   useWorkspaceDndHeader,
+  useWorkspaceDndRailCard,
   workspaceCardHeaderDroppableId,
+  workspaceRailCardDraggableId,
 } from "../useWorkspaceDnd.js";
 
 export function NodeCardFrame({
@@ -59,7 +70,7 @@ export function NodeCardFrame({
   onOpenNodeRaw?: ((nodeId: string) => void) | undefined;
   onClose: () => void;
 }) {
-  /** Session-local collapse — display state only (card management, first pass). */
+  /** Session-local collapse — display state only (card management). */
   const [collapsed, setCollapsed] = useState(false);
   const node = client.getNode(nodeId);
   /**
@@ -69,19 +80,50 @@ export function NodeCardFrame({
    */
   const headerDroppableId = workspaceCardHeaderDroppableId(nodeId);
   const setHeaderRef = useWorkspaceDndHeader({ droppableId: headerDroppableId, nodeId, client });
-  /** Drag-scoped UI: the header's active-drop state + the transient expand. */
+  /**
+   * The reorder grip: registers the card as a rail reorder source (no-op
+   * without a host — the grip stays inert) and attaches the draggable ref
+   * + activator props to the grip element.
+   */
+  const railCardDraggableId = workspaceRailCardDraggableId(nodeId);
+  const { setGripRef, attributes, listeners, isDragging } = useWorkspaceDndRailCard({
+    draggableId: railCardDraggableId,
+    nodeId,
+    client,
+  });
+  /** Drag-scoped UI: the header's active-drop state, the transient
+   *  expand, and this card's reorder edge while a card drag is live. */
   const dragUi = useContext(WorkspaceDndHostContext)?.dragUi ?? null;
   const headerDropActive = dragUi !== null && dragUi.headerDropId === headerDroppableId;
   const dragExpanded = dragUi !== null && dragUi.expandedNodeIds.has(nodeId);
+  const reorderEdge =
+    dragUi !== null && dragUi.railReorder !== null && dragUi.railReorder.nodeId === nodeId
+      ? dragUi.railReorder.position
+      : null;
+  const headerClass = [
+    "nt-sidebar-card__header",
+    headerDropActive ? "nt-sidebar-card__header--drop-active" : "",
+    reorderEdge === "before" ? "nt-sidebar-card__header--reorder-before" : "",
+    reorderEdge === "after" ? "nt-sidebar-card__header--reorder-after" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   return (
-    <section className="nt-sidebar-card" aria-label="Node preview">
-      <header
-        className={
-          headerDropActive ? "nt-sidebar-card__header nt-sidebar-card__header--drop-active" : "nt-sidebar-card__header"
-        }
-        ref={setHeaderRef}
-        data-header-droppable={headerDroppableId}
-      >
+    <section
+      className={isDragging ? "nt-sidebar-card nt-sidebar-card--drag-source" : "nt-sidebar-card"}
+      aria-label="Node preview"
+    >
+      <header className={headerClass} ref={setHeaderRef} data-header-droppable={headerDroppableId}>
+        <span
+          ref={setGripRef}
+          className="nt-sidebar-card__grip"
+          title="Drag to reorder"
+          aria-label="Drag to reorder card"
+          {...attributes}
+          {...listeners}
+        >
+          <Icon path="mdi-drag-vertical" size={0.8} />
+        </span>
         {node !== undefined && (
           <Breadcrumbs
             client={client}
