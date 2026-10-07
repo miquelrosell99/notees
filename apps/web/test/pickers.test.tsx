@@ -315,7 +315,7 @@ describe("metadata pickers (ported popups)", () => {
   });
 });
 
-describe("icon picker color section (M10)", () => {
+describe("icon picker color section", () => {
   it("the section stays hidden when no onColorChange is provided", async () => {
     const client = await seedClient();
     render(
@@ -366,7 +366,7 @@ describe("icon picker color section (M10)", () => {
   });
 });
 
-describe("NodeSelector noCreate (M38a)", () => {
+describe("NodeSelector noCreate", () => {
   it("search-without-match shows the honest empty state instead of a create row", async () => {
     const client = await seedClient();
     await client.createObject({ presentAsMain: true, name: "Existing" });
