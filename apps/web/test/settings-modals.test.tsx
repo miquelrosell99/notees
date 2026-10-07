@@ -185,6 +185,9 @@ describe("UserSettingsModal", () => {
         token="session-token"
         user={USER}
         onSignOut={() => {}}
+        syncConnected
+        onForgetServer={() => {}}
+        onConnectServer={() => {}}
       />,
     );
     fireEvent.click(screen.getByRole("radio", { name: "Light theme" }));
@@ -201,6 +204,9 @@ describe("UserSettingsModal", () => {
         token="session-token"
         user={USER}
         onSignOut={() => {}}
+        syncConnected
+        onForgetServer={() => {}}
+        onConnectServer={() => {}}
       />,
     );
     fireEvent.click(screen.getByRole("radio", { name: "System stack" }));
@@ -220,6 +226,9 @@ describe("UserSettingsModal", () => {
         token="session-token"
         user={USER}
         onSignOut={() => {}}
+        syncConnected
+        onForgetServer={() => {}}
+        onConnectServer={() => {}}
       />,
     );
     fireEvent.click(screen.getByRole("switch", { name: /focus mode/i }));
@@ -239,6 +248,9 @@ describe("UserSettingsModal", () => {
         token="session-token"
         user={USER}
         onSignOut={() => {}}
+        syncConnected
+        onForgetServer={() => {}}
+        onConnectServer={() => {}}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Sage" }));
@@ -293,6 +305,9 @@ describe("UserSettingsModal", () => {
         token="session-token"
         user={USER}
         onSignOut={() => {}}
+        syncConnected
+        onForgetServer={() => {}}
+        onConnectServer={() => {}}
       />,
     );
     fireEvent.click(screen.getByRole("tab", { name: "Account" }));
@@ -330,11 +345,102 @@ describe("UserSettingsModal", () => {
         token="session-token"
         user={USER}
         onSignOut={onSignOut}
+        syncConnected
+        onForgetServer={() => {}}
+        onConnectServer={() => {}}
       />,
     );
     fireEvent.click(screen.getByRole("tab", { name: "Account" }));
     fireEvent.click(screen.getByRole("button", { name: "Log out" }));
     expect(onSignOut).toHaveBeenCalled();
+  });
+
+  it("shows the configured sync server and its reachability in the Sync tab", () => {
+    stubFetch({});
+    render(
+      <UserSettingsModal
+        serverUrl="https://notees.example.com"
+        isOpen
+        onClose={() => {}}
+        token="session-token"
+        user={USER}
+        onSignOut={() => {}}
+        syncConnected
+        onForgetServer={() => {}}
+        onConnectServer={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Sync" }));
+    expect(screen.getByText("https://notees.example.com")).toBeInTheDocument();
+    expect(screen.getByText("Connected")).toBeInTheDocument();
+  });
+
+  it("reports the server as unavailable when the parent says so", () => {
+    stubFetch({});
+    render(
+      <UserSettingsModal
+        serverUrl="https://notees.example.com"
+        isOpen
+        onClose={() => {}}
+        token="session-token"
+        user={USER}
+        onSignOut={() => {}}
+        syncConnected={false}
+        onForgetServer={() => {}}
+        onConnectServer={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Sync" }));
+    expect(screen.getByText("Unavailable")).toBeInTheDocument();
+    expect(screen.queryByText("Connected")).toBeNull();
+  });
+
+  it("disconnects only after the confirmation step", () => {
+    stubFetch({});
+    const onForgetServer = vi.fn();
+    render(
+      <UserSettingsModal
+        serverUrl="https://notees.example.com"
+        isOpen
+        onClose={() => {}}
+        token="session-token"
+        user={USER}
+        onSignOut={() => {}}
+        syncConnected
+        onForgetServer={onForgetServer}
+        onConnectServer={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Sync" }));
+    fireEvent.click(screen.getByRole("button", { name: /disconnect & forget this server/i }));
+    // The confirmation gate: nothing fires before the explicit confirm.
+    expect(onForgetServer).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /^disconnect$/i }));
+    expect(onForgetServer).toHaveBeenCalledTimes(1);
+  });
+
+  it("connects to a different server with the entered URL", () => {
+    stubFetch({});
+    const onConnectServer = vi.fn();
+    render(
+      <UserSettingsModal
+        serverUrl="https://old.example.com"
+        isOpen
+        onClose={() => {}}
+        token="session-token"
+        user={USER}
+        onSignOut={() => {}}
+        syncConnected
+        onForgetServer={() => {}}
+        onConnectServer={onConnectServer}
+      />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Sync" }));
+    const field = screen.getByRole("textbox", { name: /server url/i });
+    expect(field).toHaveValue("https://old.example.com");
+    fireEvent.change(field, { target: { value: "https://new.example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: /^connect$/i }));
+    expect(onConnectServer).toHaveBeenCalledWith("https://new.example.com");
   });
 
   it("marks profile, password, and security features as unavailable", () => {
@@ -347,6 +453,9 @@ describe("UserSettingsModal", () => {
         token="session-token"
         user={USER}
         onSignOut={() => {}}
+        syncConnected
+        onForgetServer={() => {}}
+        onConnectServer={() => {}}
       />,
     );
     fireEvent.click(screen.getByRole("tab", { name: "Account" }));
