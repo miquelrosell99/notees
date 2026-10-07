@@ -24,7 +24,7 @@ import type { ContentAst } from "@notees/protocol";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { PageView } from "../src/ui/PageView.js";
-import { NodeLinkMenuHost } from "../src/ui/components/NodeLinkContextMenu.js";
+import { NodeLinkMenuHost, openNodeLinkMenu } from "../src/ui/components/NodeLinkContextMenu.js";
 import { selectionOffsets } from "../src/editor/selection.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
@@ -413,12 +413,20 @@ describe("node-link context menu", () => {
     const modal = document.body.querySelector<HTMLElement>(".link-edit-modal");
     if (modal === null) throw new Error("link edit modal did not open");
     expect(modal.querySelector(".link-edit-modal__target")?.textContent).toBe("Target");
+    // Node-only modal (owner ruling): the mode toggle offers Page/Block —
+    // no URL mode (external links navigate; they are authored directly).
+    const modeGroup = within(modal).getByRole("radiogroup");
+    expect(within(modeGroup).getByRole("radio", { name: "Page" })).not.toBeNull();
+    expect(within(modeGroup).getByRole("radio", { name: "Block" })).not.toBeNull();
+    expect(within(modeGroup).queryByRole("radio", { name: "URL" })).toBeNull();
 
-    // Pick a different destination in the embedded picker.
-    const pickerInput = modal.querySelector<HTMLElement>(".node-selector__search");
+    // Open the anchored target picker (portaled to the body) and pick a
+    // different destination.
+    fireEvent.click(within(modal).getByRole("button", { name: "Page target" }));
+    const pickerInput = document.body.querySelector<HTMLElement>(".node-selector__search");
     if (pickerInput === null) throw new Error("no picker in the modal");
     fireEvent.change(pickerInput, { target: { value: "Else" } });
-    const row = modal.querySelector<HTMLElement>(".node-result-item");
+    const row = document.body.querySelector<HTMLElement>(".node-result-item");
     if (row === null) throw new Error("no picker rows in the modal");
     fireEvent.click(row);
 
@@ -533,6 +541,35 @@ describe("node-link context menu (read mode)", () => {
     expect(client.getNode(blockId)?.contentAst).toEqual([{ type: "text", text: "see  again" }]);
   });
 
+  it("the menu opened on an external_link token offers no Edit link… (node links only)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [
+        { type: "text", text: "see " },
+        { type: "external_link", href: "https://a.example", text: "Alpha" },
+      ],
+    });
+    renderHosted(client, pageId);
+
+    // Drive the host's opener at the external token (the UI hit-test never
+    // routes external links here — the guard is the component's contract).
+    act(() => {
+      openNodeLinkMenu({ blockId, tokenIndex: 1, x: 8, y: 8, targetNodeId: "" });
+    });
+
+    const menu = linkMenu();
+    if (menu === null) throw new Error("context menu did not open");
+    const items = within(menu)
+      .getAllByRole("menuitem")
+      .map((el) => el.textContent);
+    // Remove/Delete stay available; Edit is a node-link action only (owner
+    // ruling: external links navigate, they are never edited in the modal).
+    expect(items).toEqual(["Open", "Open in sidebar", "Remove link", "Delete link"]);
+    expect(items).not.toContain("Edit link…");
+  });
+
   it("Edit link… opens the modal from read mode and retargets", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
@@ -550,10 +587,12 @@ describe("node-link context menu (read mode)", () => {
 
     const modal = document.body.querySelector<HTMLElement>(".link-edit-modal");
     if (modal === null) throw new Error("link edit modal did not open from read mode");
-    const pickerInput = modal.querySelector<HTMLElement>(".node-selector__search");
+    // The anchored target picker opens on trigger click (portaled to body).
+    fireEvent.click(within(modal).getByRole("button", { name: "Page target" }));
+    const pickerInput = document.body.querySelector<HTMLElement>(".node-selector__search");
     if (pickerInput === null) throw new Error("no picker in the modal");
     fireEvent.change(pickerInput, { target: { value: "Else" } });
-    fireEvent.click(modal.querySelector<HTMLElement>(".node-result-item")!);
+    fireEvent.click(document.body.querySelector<HTMLElement>(".node-result-item")!);
     const save = Array.from(modal.querySelectorAll<HTMLButtonElement>("button.btn--primary")).find(
       (b) => b.textContent === "Save",
     );
