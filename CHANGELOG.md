@@ -300,6 +300,44 @@ predating this file.
   class-create-modal suites unchanged and green; the full gate green
   (2,598 tests, totals above).
 
+- **feat(web): one workspace drag session — the host hoists every surface's
+  drag, and the rail cards' headers become append-drop targets.** The
+  per-surface drag context is gone: a single workspace host
+  (`useWorkspaceDnd.tsx` — the `WorkspaceDndHost` provider + the
+  `useWorkspaceDnd` session hook) owns the dnd-kit context, the sensors, the
+  drop indicator context, the overlay name chip, and the transient
+  move-error banner. In App it wraps the floating-editor host (which wraps
+  the regions), so the main content card, the right rail's workspace cards,
+  and the floating editor windows — they portal, but stay inside the host's
+  React subtree — all join the SAME drag session. Every mounted editing
+  surface registers its drag facts with the host as a zone (the measured
+  root, the live positions getter, the client — `PageView` registers;
+  embedded renders, rail cards, and floating windows render PageView, so
+  they join automatically): at drag start the host measures every zone once
+  and merges the per-zone valid-location sets (`mergeZoneCandidates` — each
+  candidate tagged with its zone), pointer moves project onto the merged set
+  (the proximity snap model, the muted source row, and the hierarchy-end
+  disambiguation unchanged), and drops resolve against the zone under the
+  pointer. Cross-zone drops are always MOVE (re-parent) — never copy/link.
+  The machinery loses the DnD half (no sensors/handlers/drop state — it
+  keeps the outliner, selection, find/replace, and fold chords); block rows
+  are draggable only inside a workspace editing surface (the drag scope
+  PageView provides — the context-presence law, now explicit). Card frames
+  register their header as a droppable: dropping on a rail card's header
+  moves the block as the LAST CHILD of the card's node — one code path with
+  a child drop on that node — and the header renders its distinct
+  active-drop state while it is the target. A collapsed card under
+  drag-hover transiently expands to reveal the drop position and
+  re-collapses at drag end (drag-scoped — the session holds the temporary
+  set; the card's own collapse state never mutates). The cards also pass
+  `globalShortcuts: false` down — the find/replace and fold chords are
+  main-surface-only (they were leaking one document listener per card).
+  `npx tsc --noEmit` in apps/web clean; full web suite green (the block-dnd
+  suite renders inside the host now; the new workspace-dnd suite covers the
+  merge helper, the header append, the transient expand, the cross-zone
+  move, and the chords gate — its afterEach settles past dnd-kit's 50ms
+  post-drop click suppression).
+
 - **fix(web): the LinkEditModal is node-only — URL mode removed; external
   links navigate and are authored directly.** Owner ruling: the modal edits
   NODE links (and typed-link verbs) only. The mode toggle is Page/Block
@@ -506,6 +544,65 @@ predating this file.
   Verified: `npx tsc --noEmit` in apps/web clean; `settings-modals` +
   `app-smoke` (45 tests) and the App-rendering suites (136 tests) all green.
 
+- **feat(web): the drag-session interaction model — the muted source row and
+  the proximity-snapped drop line.** The outliner's drag feedback stops
+  reshaping the page. The dragged row no longer translates with the pointer:
+  it stays in place and renders muted (`.nt-block--drag-source` on the row
+  root, token-only opacity plus a surface tint — no layout change), and the
+  floating DragOverlay keeps only the small name chip as the preview. The
+  live hit-testing gives way to a proximity snap model: at drag start the
+  machinery measures the visible rows once and builds the valid-location set
+  (`dropCandidatesOf` — for every visible row except the dragged subtree, a
+  sibling above/below pair anchored at the row's divider at the row depth's
+  gutter x, plus a child candidate anchored at the row's center at the
+  child-offset x), and each pointer move projects the pointer onto the
+  nearest anchor within a 24px y band (`nearestCandidate`, x distance breaks
+  ties) — far from every anchor, no indicator renders. The hierarchy-end gap
+  below an expanded block's last child disambiguates across three nearby
+  candidates by x band: a sibling-after-parent at the parent's depth, a
+  sibling-after-last-child at the child's depth, and the child slot at the
+  child-offset x. The child intent's indicator bar now renders at that
+  child-offset position. The line stays the indicator: `resolveMove` /
+  `executeMove` / zone semantics are untouched, the event-driven path still
+  resolves keyboard drags and end-of-drop guard refusals (the own-subtree
+  banner included). `npx tsc --noEmit` clean; full web suite green (1221
+  tests).
+
+- **feat(web): the collection create-button flag, the fullscreen whiteboard
+  container, and the graph view's reference chrome — the main-content
+  restructure's view-layer recoveries.** (a) The reusable collection
+  contract gains the create affordance: `showAddButton` + `onAdd` (+
+  `addLabel`) on `NodeCollectionProps`, rendered as a kit button in the
+  collection's empty state (the kit EmptyState's action slot) and in the
+  view toolbar where one exists — only when the flag AND the callback are
+  set AND the surface context allows it. Enabled in exactly two places:
+  the Child pages section (renders on the main surface even when empty;
+  "Add child page" creates a present-as-main child of the host page and
+  opens it — the section's row-click behavior; embedded feeds stay
+  read-only and hide a childless section) and the Classed nodes section
+  ("Add member" in the toolbar and the empty state creates a node classed
+  with the class — visible on an empty database). The `Section` primitive
+  gains the opt-in `renderWhenEmpty` for containers owning their empty
+  state. (b) A whiteboard page on the main surface renders the spatial
+  canvas as the content card's sole content — the page chrome (the
+  panelled columns, nodeview top bar, header, footer) steps aside and the
+  canvas fills the card edge to edge (`.nt-page--whiteboard`; the card
+  frame stays, the canvas's own border/radius/margin go). Embedded feed
+  entries and in-block boards keep the bounded in-flow canvas. (c) The
+  graph hub renders edge-to-edge in the content card (`.nt-graph-surface`)
+  and the graph chrome re-presents to the reference graph UI: the settings
+  toolbar composes from the kit (ghost icon tools, the icon-radio mode
+  selectors, boolean switches, the kit search field; the edge-family chips
+  stay the rendering register), the local neighborhood rides a labeled
+  depth slider, and the empty surfaces carry the reference wording —
+  "Nothing to graph yet" for the empty workspace, the levels hint for an
+  empty neighborhood, the filtered-out state with a Reset filters
+  affordance (back to the shipped defaults) on the full surface; an empty
+  display renders instead of the stage, so no renderer initializes on a
+  graph with nothing to draw. The WebGL renderer, physics engine, minimap,
+  local-graph mode, and settings persistence are unchanged. `npx tsc
+  --noEmit` clean; full web suite green (1215 tests).
+
 ## 2026-10-06
 
 - **chore(ops): the edge's https port defaults to 8443 — :443 is not Notees's.**
@@ -547,6 +644,80 @@ predating this file.
   working (in-process store banner). Verified end-to-end on the fleet host:
   `VERIFY-PASS`, https name serving the web UI + API. Runbook + ops skill
   updated (deployment.md).
+
+- **chore(web): the restructure branch meets the scrub law — era references
+  removed from comments and test titles.** The branch's new files predated
+  the tree-wide scrub, carrying plan-era citations, amendment and slice
+  labels, and product-generation references into comments and test titles.
+  All rewritten to stand alone (46 files, zero logic changes); genuine
+  version identifiers (the OFL license, the wire/protocol versions, code
+  ids) untouched. Transient internal-doc pointers dropped from the
+  changelog and runbooks per the standing rule. Full web suite green
+  (1206 tests), tsc clean.
+
+- **refactor(web): S7a of the main-content restructure — the context column,
+  the cards-only rail, Comments (M19), Activity's relocation (M18), the
+  preview seam (M15).** The panelled main layout is now THREE columns —
+  NodeView · properties · context. The context column (`.nt-page-context`)
+  hosts, top-down: LocalGraphCard, TocSection, the Activity section, and the
+  new Comments section; each panel column keeps its own device-local
+  collapse, toggled from the nodeview top bar (now a toggle pair), and the
+  `layout` prop stays BINARY — per-column device prefs
+  (`pageSidePanelCollapsed` / `pageContextPanelCollapsed`) replace the
+  recorded "third state" option (registered choice). **The references dedupe
+  check (the S7 precondition):** the rail's ReferencesSection and the page's
+  own Backlinks tab both rendered `getLinkedReferences` — the SAME data —
+  verdict: the rail's ReferencesSection is DELETED
+  (`components/sidebarSections.tsx` keeps TocSection only); the Backlinks tab
+  stays the one home in the SectionStack, where the tab/filter machinery
+  lands later. One home, no duplication. **M18:** `SystemSections`'s
+  `withActivity` prop + branch die; ActivityLogSection renders in the
+  context column (its useSectionData lazy contract rides along).
+  **M19:** `components/CommentsSection.tsx` — the v1 model restored:
+  comments are direct children classed `comment` (the seeded system class);
+  NodeViewSection chrome ("Comments" + direct-child count), hidden when
+  empty; the v1 quick-add/reply composer pair (a child block classed comment
+  + the text as its content — title-is-content); rows open the comment node;
+  each row carries Reply/Delete (the v1 pair); children nest in the thread
+  (any child blocks, v1's recursion). Lazy per the section contract via
+  useSectionData. **M15/M17:** `ui/SidebarNodeCard.tsx` is DELETED — replaced
+  by `components/NodeCardFrame.tsx`, the generic `nt-sidebar-card` frame
+  (breadcrumbs header + collapse/open-in-main/close; collapse is
+  session-local — reorder/dismiss gestures are a registered follow-up)
+  rendering NodeView (compact, no corner menu); App's rail hosts the frame
+  stack exclusively. `NodeView` gains `preview?: boolean` — no corner menu,
+  no global listeners, a read-only body capped at the first level
+  (`maxDepth` 1, outline), no section stack; nothing renders it yet —
+  swapping NodeHoverPreview's bespoke card for the seam is the registered
+  follow-up. Embedded/journal/calendar surfaces, focus mode, and the class
+  variant render NO context column (main-surface chrome only). jsdom test
+  setup stubs `HTMLCanvasElement.getContext` → null quietly (the context
+  column mounts a graph card with every page view; the graph's WebGL-missing
+  path already rendered its honest empty state — the stub silences jsdom's
+  per-call "Not implemented" scream). Tree-text assertions in seven existing
+  suites scope to `.nt-block-tree` / their section (the TOC legitimately
+  echoes short one-line blocks — the rail-era design, now in the column).
+  Docs: `usage.md` + `ux.md` re-home the context widgets. **Verification:**
+  the full apps/web suite green (121 files / 1206 tests — comments-section 6,
+  context-column 8 new; the ReferencesSection rail test dies with the
+  component per the dedupe verdict); `tsc --noEmit` clean in apps/web; the
+  layout-probe selectors (`.nt-node-topbar` and children, `.nt-page-body`,
+  `.nt-page-side-panel`, `.nt-nodeview-body`) unchanged.
+- **feat(web): text-property rows render as locked outline collections.**
+  A text property's values are node-backed carrier blocks; the row's
+  bespoke mini-outliner renderer is replaced by the shared dispatcher —
+  one `NodeCollection` per row, viewMode pinned to the outline mode (no
+  switcher), `tree` + `editable`, each carrier one root item rendered
+  through the `BlockRow` machinery. Each root row keeps its own
+  per-carrier outliner context (carrier-scoped positions and collapse,
+  bullet click opens the node), and the row keeps the standalone
+  renderer's client subscription, so editing, navigation, and the
+  carrier Enter semantics (multi registers the sibling as the next
+  value; single nests a child) are unchanged. The dead-carrier-EMPTY
+  cell and the legacy scalar input fallback stay as-is; the panel and
+  the compact layouts both consume the row through the properties
+  table, so one change covers both. Gates green: the four property/
+  metadata/table web suites (48 tests) + `tsc --noEmit` clean for the
 
 - **chore(sync): the GTK/Flutter wire corpora re-vendored to byte-identity
   (21 fixtures).** The client copies of `packages/protocol/fixtures/` had

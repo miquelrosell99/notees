@@ -8,8 +8,8 @@
  *  - Page banner: renders above the title from the `cover` property,
  *    absent without one (and on whiteboard pages), collapse persists
  *    device-locally.
- *  - Sidebar context sections: TOC derivation (main children + the
- *    heading heuristic + one nesting level), the rail sections' hide rules.
+ *  - The context column's TOC: derivation (main children + the heading
+ *    heuristic + one nesting level) and the section's hide rules.
  *  - Page chrome: the page footer word count + Created/Updated day links,
  *    the unlinked-mentions promote/ignore pair.
  */
@@ -27,7 +27,7 @@ import { HubView } from "../src/ui/App.js";
 import { ensureTaskFamily } from "../src/ui/components/taskFamily.js";
 import { ensureCoverProperty } from "../src/ui/components/coverProperty.js";
 import { Breadcrumbs } from "../src/ui/components/Breadcrumbs.js";
-import { TocSection, ReferencesSection } from "../src/ui/components/sidebarSections.js";
+import { TocSection } from "../src/ui/components/sidebarSections.js";
 import { headingTextOf, tocEntriesOf } from "../src/ui/components/sidebarToc.js";
 import {
   readCardLayoutPref,
@@ -359,31 +359,6 @@ describe("L3 TOC derivation (sidebarToc)", () => {
     expect(onOpenNode).toHaveBeenCalledWith(head);
     fireEvent.click(activeEntry);
     expect(onOpenNode).toHaveBeenCalledWith(sub);
-  });
-
-  it("ReferencesSection hides at zero backlinks and lazy-loads on expand", async () => {
-    const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Zebra" });
-
-    const { unmount } = render(
-      <ReferencesSection client={client} pageId={pageId} onOpenNode={() => {}} />,
-    );
-    expect(screen.queryByRole("button", { name: /References/ })).toBeNull();
-    unmount();
-
-    const sourceId = await client.createObject({ presentAsMain: true, name: "Source" });
-    await client.createObject({
-      parentId: sourceId,
-      contentAst: [{ type: "mention", targetNodeId: pageId, text: "Zebra" }],
-    });
-    const spy = vi.spyOn(client, "getLinkedReferences");
-    render(<ReferencesSection client={client} pageId={pageId} onOpenNode={() => {}} />);
-
-    const header = screen.getByRole("button", { name: /References/ });
-    expect(spy).not.toHaveBeenCalled();
-    fireEvent.click(header);
-    expect(spy).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("button", { name: /Zebra/ })).not.toBeNull();
   });
 });
 

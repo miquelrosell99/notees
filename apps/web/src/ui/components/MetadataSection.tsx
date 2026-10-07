@@ -64,7 +64,7 @@ import { SelectionPropertyControl, type SelectionOption } from "./pickers/Select
 import { AssetUploadModal } from "./modals/AssetUploadModal.js";
 import { propertyLinkHref } from "../views/propertyDisplay.js";
 import { cssColorFor, resolveCssColor } from "./ui/colorPresets.js";
-import { NodePills } from "./NodePills.js";
+import { ClassPillsList } from "./ClassPillsList.js";
 import { ContextMenu } from "./ui/ContextMenu.js";
 import { Modal } from "./ui/Modal.js";
 import { Button } from "./ui/Button.js";
@@ -1229,7 +1229,9 @@ function BooleanPropertyRow({
 /**
  * The node's own classes: pills with an × that unassigns (class.unassign),
  * a right-click color-swatch menu (object.update color), and a "+ Add class"
- * ghost pill opening the node-selector popup (assignClass).
+ * ghost pill opening the node-selector popup (assignClass): the pills
+ * ride ClassPillsList — the instance-of relation's mutations passed as
+ * arguments, the row chrome (the label) stays here.
  */
 export function ClassesRow({
   client,
@@ -1245,7 +1247,15 @@ export function ClassesRow({
   return (
     <div className="node-metadata-row nt-classes-row">
       <div className="section-label">Classes:</div>
-      <NodePills client={client} nodeId={nodeId} classIds={classIds} onOpenPage={onOpenPage} />
+      <ClassPillsList
+        client={client}
+        nodeId={nodeId}
+        query={classIds}
+        add={(classId) => void client.assignClass(nodeId, classId)}
+        remove={(classId) => void client.unassignClass(nodeId, classId)}
+        reorder={(ordered) => void client.reorderClasses(nodeId, ordered)}
+        onOpenPage={onOpenPage}
+      />
     </div>
   );
 }
@@ -2094,7 +2104,9 @@ export function PropertiesSection({
  * PropertiesSidebar — the main layout's first column (owner 2026-10-06):
  * a set of rows, one per property — a property-name row followed by its
  * value-cell row — beside a continuous vertical divider (the sidebar's
- * right edge runs the card's full height, no top or bottom gap). The value
+ * right edge runs the card's full height, no top or bottom gap). The column
+ * opens with a small "Properties" header row (owner request): the first
+ * column names itself, in the nodeview top bar's muted register. The value
  * cells reuse the properties table's row components verbatim (only their
  * internal label/hints hide — the name row above carries them); only the
  * two-row stacking and the divider are this component's own. Clicking a
@@ -2109,7 +2121,9 @@ export function PropertiesSidebar({
   nodeId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
 }) {
-  const { rendered, emptyObjectBindings } = propertyGroupsOf(client, nodeId);
+  const groups = propertyGroupsOf(client, nodeId);
+  const { rendered, emptyObjectBindings } = groups;
+  const count = propertiesCountOf(groups);
   const [settingsFor, setSettingsFor] = useState<string | null>(null);
   const [viewFor, setViewFor] = useState<string | null>(null);
   const [historyFor, setHistoryFor] = useState<string | null>(null);
@@ -2199,6 +2213,14 @@ export function PropertiesSidebar({
 
   return (
     <div className="nt-props-sidebar">
+      {/* The column names itself (owner request): a muted label row in the
+          nodeview top bar's register — icon + "Properties" + the effective
+          row count. Not a control: the panel is always visible. */}
+      <div className="nt-props-sidebar__header">
+        <Icon path="mdi-tune-variant" size={0.8} />
+        <span className="nt-props-sidebar__heading">Properties</span>
+        <span className="nt-props-sidebar__count">{count}</span>
+      </div>
       {/* The alias-side pseudo-property rides the sidebar's row stack too
           (only when the node IS an alias — the row renders null otherwise
           and the wrapper must not leave an empty slot). */}

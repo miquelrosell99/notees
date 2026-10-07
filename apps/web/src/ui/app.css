@@ -408,8 +408,8 @@ select:focus-visible {
 
 /* --- the panelled main layout (owner 2026-10-06, Capacities-style) -------- */
 
-/* The body row: the properties sidebar (1/3) beside the nodeview column
-   (2/3). */
+/* The body row: the properties sidebar beside the nodeview column beside
+   the context column (three columns). */
 .nt-page-body {
   display: flex;
   align-items: flex-start;
@@ -439,8 +439,34 @@ select:focus-visible {
   min-height: 0;
 }
 
+/* The fullscreen whiteboard surface: the canvas is the card's sole
+   content. The page chrome (the panelled columns, the nodeview top bar,
+   the header, the footer) steps aside; the page padding goes and the
+   canvas frame loses its own border/radius and margin — the card frame
+   itself stays (it IS the main content container) and clips the canvas
+   at its corners. */
+.nt-page--whiteboard {
+  max-width: none;
+  height: 100%;
+  padding: 0;
+}
+
+.nt-page-card > .nt-node-view:has(.nt-page--whiteboard) {
+  max-width: none;
+  height: 100%;
+}
+
+.nt-page--whiteboard > .nt-wb.nt-wb-fullscreen {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
 .nt-page-side-panel {
-  flex: 0 0 33.3333%;
+  flex: 0 0 clamp(13rem, 24%, 22rem);
   min-width: 0;
   align-self: stretch;
   max-height: 100%;
@@ -452,6 +478,24 @@ select:focus-visible {
   margin: calc(-1 * var(--spacing-4)) 0;
   padding: var(--spacing-4) 0;
   border-right: var(--border-width-default) solid var(--color-outline-variant);
+}
+
+/* The context column: graph · TOC · Activity · Comments — the
+   node-relevant widgets relocated from the right rail, behind the same
+   full-height divider (border-left this time) and its own device-local
+   collapse from the nodeview top bar. */
+.nt-page-context {
+  flex: 0 0 clamp(15rem, 26%, 22rem);
+  min-width: 0;
+  align-self: stretch;
+  max-height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  margin: calc(-1 * var(--spacing-4)) 0;
+  padding: var(--spacing-4) 0 var(--spacing-4) var(--spacing-4);
+  border-left: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .nt-page--panelled .nt-page-content {
@@ -490,11 +534,11 @@ select:focus-visible {
   min-width: 0;
 }
 
-/* The nodeview top bar: the sidebar collapse toggle + the classes pills on
-   the left, the view-mode switcher + node menu on the right, over a
-   divider border like the sidebar's. The divider runs to the column's
-   right edge; on the left it starts at the column edge (no crossing into
-   the sidebar), and the vertical rhythm is balanced. */
+/* The nodeview top bar: the properties/context collapse toggles and the
+   classes pills on the left, the view-mode switcher + node menu on the
+   right, over a divider border like the sidebar's. The divider runs to the
+   column's right edge; on the left it starts at the column edge (no
+   crossing into the sidebar), and the vertical rhythm is balanced. */
 .nt-node-topbar {
   display: flex;
   align-items: center;
@@ -1477,29 +1521,6 @@ select:focus-visible {
   gap: 6px;
 }
 
-.nt-query-field {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--color-on-surface-variant);
-}
-
-.nt-query-field > span {
-  width: 96px;
-  flex-shrink: 0;
-}
-
-.nt-query-field select,
-.nt-query-field input {
-  flex: 1;
-  min-width: 0;
-  border: 1px solid var(--color-outline-variant);
-  border-radius: 4px;
-  padding: 2px 6px;
-  font-size: 12px;
-}
-
 .nt-query-builder-actions {
   display: flex;
   gap: 6px;
@@ -1636,8 +1657,8 @@ select:focus-visible {
   margin-left: 26px;
 }
 
-/* Drop indicator: a line at the drop line, or a left accent for the
-   child-indent intent. */
+/* Drop indicator: a line at the drop line, or a bar at the child-offset
+   position (48px — where a dropped child would sit) for the child intent. */
 .nt-block.nt-drop-above > .nt-block-row {
   box-shadow: 0 -2px 0 0 var(--color-primary);
 }
@@ -1647,7 +1668,20 @@ select:focus-visible {
 }
 
 .nt-block.nt-drop-child > .nt-block-row {
-  box-shadow: inset 3px 0 0 0 var(--color-primary);
+  background:
+    linear-gradient(var(--color-primary), var(--color-primary)) no-repeat left 48px top 0 / 3px 100%,
+    linear-gradient(var(--color-surface-container-high), var(--color-surface-container-high));
+  border-radius: 4px;
+}
+
+/* The dragged source stays in place and reads muted — the floating name
+   chip (DragOverlay) is the only drag preview, so nothing under the
+   pointer reshapes. */
+.nt-block--drag-source {
+  opacity: var(--opacity-45);
+}
+
+.nt-block--drag-source > .nt-block-row {
   background: var(--color-surface-container-high);
   border-radius: 4px;
 }
@@ -1666,9 +1700,16 @@ select:focus-visible {
   white-space: nowrap;
 }
 
-/* Transient guard message (refused drop, store MoveGuardError, …). */
+/* Transient guard message (refused drop, store MoveGuardError, …).
+   Host-owned now: it floats above the workspace regions so a drop refusal
+   surfaces no matter which surface the drag rode. */
 .nt-dnd-error {
-  margin: 4px 0 8px;
+  position: fixed;
+  top: var(--spacing-3);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-fixed);
+  margin: 0;
   padding: 6px 10px;
   border: 1px solid var(--color-error);
   border-radius: 6px;
@@ -1680,9 +1721,10 @@ select:focus-visible {
 /* --- class view ------------------------------------------------------------------ */
 /* The class view is a PageView composition:
    its chrome reuses the page rules above; the class sections ship co-located
-   CSS in components/classview/. The curated class-icon picker styles live in
-   ClassIconButton.css; the retired admin panels (extends/extended-by/templates
-   rows/color swatch strip/description shelf) left with the redesign. */
+   CSS in components/classview/. The curated class-icon picker left with the
+   redesign (the shared header icon button is the single icon+color entry);
+   the retired admin panels (extends/extended-by/templates
+   rows/color swatch strip/description shelf) left with it. */
 
 /* --- annotations section (asset chip affordance) ------------------------------
    Rendered by AnnotationsSection under an asset pill; the metadata rows,

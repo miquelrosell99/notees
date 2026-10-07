@@ -32,6 +32,32 @@
  *   a descendant; reorder intent into a group whose parent is inside its own
  *   subtree) — computed by walking the positions parent chain.
  * - Dropping exactly where the block already sits is a silent no-op.
+ *
+ * Drag-session feedback (pointer drags ride a snap model, not live
+ * hit-testing): at drag start the workspace host measures the visible rows
+ * of EVERY registered surface once and builds the valid-location set — per
+ * row a sibling pair (above/below) plus a child candidate, each anchored at
+ * a fixed point. Sibling anchors sit at the row's divider (y = the row
+ * boundary) at the row depth's gutter x; the child anchor sits at the row's
+ * vertical center at the child-offset x. The dragged block's own subtree is
+ * excluded. Each pointer move projects the pointer onto the nearest anchor
+ * within a y threshold (x distance breaks ties); far from every anchor, no
+ * indicator renders. The dragged row itself stays in place and renders
+ * muted (see BlockRow's drag-source class); the floating DragOverlay chip
+ * is the only preview. Keyboard drags (no pointer) keep the event-driven
+ * path below.
+ *
+ * The workspace session (useWorkspaceDnd.ts): ONE drag session owns the
+ * whole workspace — the host in App wraps the main content card, the right
+ * rail, and the floating editor windows (portals keep the React context),
+ * and every mounted editing surface registers its drag facts (measured
+ * root, positions map, client, move executor) as a ZONE. Per-zone candidate
+ * sets merge into one session set (mergeZoneCandidates — every candidate
+ * tagged with its zone; drops resolve against the zone under the pointer).
+ * Card frames additionally register a header droppable: dropping on a card
+ * header is one code path with a child drop on the card's node — move as
+ * the LAST CHILD of that node (append). Cross-zone drops are always MOVE
+ * (re-parent), never copy/link.
  */
 
 import { createContext } from "react";
@@ -60,8 +86,18 @@ export interface DropLine {
   intent: "above" | "below" | "child";
 }
 
-/** Live drop indicator, provided by PageView while a drag is in flight. */
+/** Live drop indicator, provided by the workspace host while a drag is in
+ *  flight. BlockRow reads it; surfaces never provide it themselves. */
 export const DropLineContext = createContext<DropLine | null>(null);
+
+/**
+ * The workspace drag-scope law: block rows are draggable ONLY inside a
+ * workspace editing surface (a PageView tree, which provides this context).
+ * Read-only projections and standalone reference trees render editable rows
+ * outside the scope — editable, never draggable (the context-presence law:
+ * outside the session there is nothing to drag into, so the grip stays inert).
+ */
+export const WorkspaceDragScopeContext = createContext(false);
 
 export function useBlockDndSensors() {
   return useSensors(
@@ -99,6 +135,20 @@ export function dropLineFromPointer(args: {
 }
 
 /**
+ * The live pointer position for a drag event: the activator origin + the
+ * drag delta (dnd-kit does not expose the pointer on the event itself).
+ * Keyboard drags have no pointer — null.
+ */
+export function dragPointerOf(event: {
+  delta: { x: number; y: number };
+  activatorEvent: unknown;
+}): { x: number; y: number } | null {
+  const origin = event.activatorEvent as Partial<PointerEvent>;
+  if (typeof origin.clientX !== "number" || typeof origin.clientY !== "number") return null;
+  return { x: origin.clientX + event.delta.x, y: origin.clientY + event.delta.y };
+}
+
+/**
  * The drop line for a drag event: pointer position = activator origin + delta
  * (dnd-kit does not expose the live pointer on the event). Keyboard-driven
  * drags have no pointer; they anchor below the over row (above when the over
@@ -108,10 +158,10 @@ export function dropLineFromDragEvent(
   event: DragMoveEvent | DragEndEvent,
   positions: OutlinePositionMap,
 ): DropLine | null {
-  const { active, over, delta, activatorEvent } = event;
+  const { active, over } = event;
   if (over === null || active === null) return null;
-  const origin = activatorEvent as Partial<PointerEvent>;
-  if (typeof origin.clientX !== "number" || typeof origin.clientY !== "number") {
+  const pointer = dragPointerOf(event);
+  if (pointer === null) {
     const previous = positions.get(String(active.id))?.previousSiblingId;
     return {
       targetId: String(over.id),
@@ -120,10 +170,165 @@ export function dropLineFromDragEvent(
   }
   return dropLineFromPointer({
     overId: String(over.id),
-    pointerX: origin.clientX + delta.x,
-    pointerY: origin.clientY + delta.y,
+    pointerX: pointer.x,
+    pointerY: pointer.y,
     overRect: over.rect,
   });
+}
+
+// --- drag-session snap model ------------------------------------------------------
+//
+// The feedback layer: the valid-location set for one drag session plus the
+// pointer projection that drives the drop indicator. Pure and unit-testable;
+// the machinery measures the rows once at drag start and memoizes the set
+// for the session.
+
+/** A visible row's measured rect for one drag session. */
+export interface DragRowRect {
+  id: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * One valid drop location: the drop line plus the anchor point the pointer
+ * snaps to. Sibling anchors sit at the row's divider (y = the row boundary)
+ * at the row depth's gutter x; the child anchor sits at the row's vertical
+ * center at the child-offset x.
+ */
+export interface DropCandidate {
+  targetId: string;
+  intent: DropLine["intent"];
+  anchorX: number;
+  anchorY: number;
+}
+
+/** Default y threshold for the pointer projection (see nearestCandidate). */
+export const DROP_SNAP_MAX_DY_PX = 24;
+
+/**
+ * Measures the rows that can receive a block drop during a drag session: the
+ * editable block rows and table-grid rows under the page root. Read-only
+ * projections (linked-reference chrome, embeds, the Child pages tree) are
+ * not droppable and stay out of the candidate set. Rows are measured in
+ * document order, once, at drag start.
+ */
+export function measureDragRows(root: HTMLElement | null): DragRowRect[] {
+  if (root === null) return [];
+  const rows: DragRowRect[] = [];
+  const seen = new Set<string>();
+  const elements = root.querySelectorAll<HTMLElement>(
+    "[data-block-id].nt-block, [data-block-id].nt-blocktable-row",
+  );
+  for (const el of elements) {
+    if (el.classList.contains("nt-block--readonly")) continue;
+    const id = el.getAttribute("data-block-id");
+    if (id === null || seen.has(id)) continue;
+    seen.add(id);
+    const rect = el.getBoundingClientRect();
+    rows.push({ id, left: rect.left, top: rect.top, width: rect.width, height: rect.height });
+  }
+  return rows;
+}
+
+/**
+ * The valid-location set for a drag session: for every visible row except
+ * the dragged subtree (the dragged block itself included — dropping onto it
+ * is a no-op the indicator should not suggest), a sibling pair above/below
+ * the row and a child candidate, each carrying its anchor point.
+ */
+export function dropCandidatesOf(
+  positions: OutlinePositionMap,
+  activeId: string,
+  rows: readonly DragRowRect[],
+): DropCandidate[] {
+  const inDraggedSubtree = (startId: string): boolean => {
+    let current: string | null | undefined = startId;
+    const seen = new Set<string>();
+    while (typeof current === "string" && !seen.has(current)) {
+      if (current === activeId) return true;
+      seen.add(current);
+      current = positions.get(current)?.parentId ?? null;
+    }
+    return false;
+  };
+  const candidates: DropCandidate[] = [];
+  for (const row of rows) {
+    if (inDraggedSubtree(row.id)) continue;
+    candidates.push({ targetId: row.id, intent: "above", anchorX: row.left, anchorY: row.top });
+    candidates.push({
+      targetId: row.id,
+      intent: "below",
+      anchorX: row.left,
+      anchorY: row.top + row.height,
+    });
+    candidates.push({
+      targetId: row.id,
+      intent: "child",
+      anchorX: row.left + CHILD_DROP_OFFSET_PX,
+      anchorY: row.top + row.height / 2,
+    });
+  }
+  return candidates;
+}
+
+/**
+ * The candidate whose anchor is nearest the pointer among those within the y
+ * threshold (default DROP_SNAP_MAX_DY_PX; maxDxPx gates horizontally, unbounded
+ * by default so a deep pointer still reaches its row's child anchor). Ties
+ * break by x distance, then by generation order. Null when nothing is near —
+ * the machinery renders no indicator then.
+ */
+export function nearestCandidate<T extends DropCandidate>(
+  pointer: { x: number; y: number },
+  candidates: readonly T[],
+  thresholds: { maxDyPx?: number; maxDxPx?: number } = {},
+): T | null {
+  const maxDyPx = thresholds.maxDyPx ?? DROP_SNAP_MAX_DY_PX;
+  const maxDxPx = thresholds.maxDxPx ?? Number.POSITIVE_INFINITY;
+  let best: T | null = null;
+  let bestDistSq = Number.POSITIVE_INFINITY;
+  let bestDx = Number.POSITIVE_INFINITY;
+  for (const candidate of candidates) {
+    const dy = Math.abs(candidate.anchorY - pointer.y);
+    if (dy > maxDyPx) continue;
+    const dx = Math.abs(candidate.anchorX - pointer.x);
+    if (dx > maxDxPx) continue;
+    const distSq = dx * dx + dy * dy;
+    if (distSq < bestDistSq || (distSq === bestDistSq && dx < bestDx)) {
+      best = candidate;
+      bestDistSq = distSq;
+      bestDx = dx;
+    }
+  }
+  return best;
+}
+
+/**
+ * A session candidate tagged with the zone it belongs to: the host merges
+ * every registered surface's set into one and resolves drops against the
+ * zone under the pointer.
+ */
+export interface ZoneDropCandidate extends DropCandidate {
+  zoneId: string;
+}
+
+/**
+ * The session's merged valid-location set: per-zone candidate lists merged
+ * in registration order, each candidate tagged with its zone. Pure —
+ * the host re-merges whenever a zone's set changes mid-session (a card
+ * body mounting on a transient expand).
+ */
+export function mergeZoneCandidates(
+  perZone: ReadonlyArray<{ zoneId: string; candidates: readonly DropCandidate[] }>,
+): ZoneDropCandidate[] {
+  const merged: ZoneDropCandidate[] = [];
+  for (const { zoneId, candidates } of perZone) {
+    for (const candidate of candidates) merged.push({ ...candidate, zoneId });
+  }
+  return merged;
 }
 
 export type MoveCommand =
@@ -301,4 +506,48 @@ export async function executeMoveFromClient(args: {
   if (firstId === undefined || firstId === activeId) return;
   await moveObject(activeId, command.parentId, firstId);
   await moveObject(firstId, command.parentId, activeId);
+}
+
+/**
+ * The client shape the zone move executor issues through: the cross-tree
+ * resolution reads (`ClientShape`) plus the write path and the render-bit
+ * facts the present-as-main flip reads.
+ */
+export interface MoveExecutionClient extends ClientShape {
+  getNode(
+    id: string,
+  ): { id: string; parentId: string | null; isClass: boolean; presentAsMain: boolean } | undefined;
+  moveObject: (id: string, parentId: string | null, afterId?: string) => Promise<void>;
+  updateObject: (id: string, patch: { presentAsMain: boolean }) => Promise<void>;
+}
+
+/**
+ * The zone move executor: issue the resolved move through the surface's
+ * client and flip the dragged node's present-as-main bit to the zone the
+ * drop landed in (`dropZoneOf` — a main-children anchored line promotes,
+ * everything else demotes/keeps the inline body). Every registered zone
+ * executes through this same contract; the host catches rejections and
+ * surfaces the transient banner.
+ */
+export async function executeZoneMove(args: {
+  activeId: string;
+  line: DropLine;
+  command: MoveCommand;
+  crossTree: boolean;
+  positions: OutlinePositionMap;
+  client: MoveExecutionClient;
+}): Promise<void> {
+  const { activeId, line, command, crossTree, positions, client } = args;
+  const moveObject = (id: string, parentId: string | null, afterId?: string) =>
+    afterId === undefined ? client.moveObject(id, parentId) : client.moveObject(id, parentId, afterId);
+  if (crossTree) {
+    await executeMoveFromClient({ activeId, command, client, moveObject });
+  } else {
+    await executeMove({ activeId, command, positions, moveObject });
+  }
+  const zone = dropZoneOf(line, (id) => client.getNode(id));
+  const dragged = client.getNode(activeId);
+  if (dragged !== undefined && dragged.presentAsMain !== (zone === "main")) {
+    await client.updateObject(activeId, { presentAsMain: zone === "main" });
+  }
 }

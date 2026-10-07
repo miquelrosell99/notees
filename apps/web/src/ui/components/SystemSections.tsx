@@ -1,28 +1,41 @@
 /**
  * SystemSections — the card-bottom system sections. Below the page's own
- * content: the Child pages section (expanded) and the workspace Activity
- * feed (mounted last; off for embedded renders via
- * `withActivity`) stay stacked sections as before; only the REFERENCES
- * rework rides the tab strip (owner 2026-10-06, the Capacities-style
- * layout): ONE tab bar in the old references-tab slot — Backlinks and
- * Unlinked mentions (renamed from "unlinked references") — always showing
- * both tabs even when empty. The tab label carries the eager count; a tab's
- * list query runs lazily on its first activation (the SCHEMA.md lazy
- * contract), the results cache across tab switches, and a live notification
- * re-runs the loaded tabs' queries. The tabbed panels render headerless —
- * the tab IS the section header (no duplicated tabs-plus-section-headers
- * chrome).
+ * content: the Child pages section (expanded) stays stacked as before; only
+ * the REFERENCES rework rides the tab strip (owner 2026-10-06, the
+ * Capacities-style layout): ONE tab bar in the old references-tab slot —
+ * Backlinks and Unlinked mentions (renamed from "unlinked references") —
+ * always showing both tabs even when empty. The tab label carries the eager
+ * count; a tab's list query runs lazily on its first activation (the
+ * SCHEMA.md lazy contract), the results cache across tab switches, and a
+ * live notification re-runs the loaded tabs' queries: the tab caches
+ * ride useSectionData — one hook instance per tab (the per-view rule),
+ * keepFresh carrying the loaded-tabs re-derive contract. The tabbed panels
+ * render headerless — the tab IS the section header (no duplicated
+ * tabs-plus-section-headers chrome).
  *
- * Unlinked mentions carry the action pair:
+ * The workspace Activity feed left the stack: it renders in the
+ * page chrome's context column now — the `withActivity` prop and its branch
+ * are gone; this component's contract is Child pages + the backlinks strip.
+ *
+ * Unlinked mentions carry the original action pair:
  * Promote rewrites the source block's literal name match into a mention
  * (./unlinkedRefs.ts — after the write the source moves to Backlinks, the
  * honest place for it); Ignore dismisses the source device-locally, per
  * page — device state, never an op (./viewPrefs.js).
  *
+ * The Child pages section renders when the page has main children OR the
+ * surface can create them: an empty main-surface page shows the section
+ * with the collection's create affordance in its empty state ("Add child
+ * page" — the create lands IN THE PAGES ZONE and focuses the new child by
+ * opening it, the section's row-click behavior; the expanded section's
+ * live re-query refreshes the list). Embedded feeds render the sections
+ * read-only: no create affordance, and a childless feed entry hides the
+ * section as before.
+ *
  * Extracted from PageView.tsx.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, ReferenceEntry, WorkspaceClient } from "@/core/workspace-client.js";
@@ -38,7 +51,7 @@ import { useIgnoredUnlinkedRefs, writeIgnoredUnlinkedRef } from "../viewPrefs.js
 import { promoteMentionInAst } from "./unlinkedRefs.js";
 import { NodeCollection, groupByContainingPage } from "../views/index.js";
 import type { NodeCollectionItem } from "../views/index.js";
-import { ActivityLogSection } from "./ActivityLogSection.js";
+import { useSectionData } from "./useSectionData.js";
 import "./SystemSections.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -100,11 +113,11 @@ export function ReferenceList({
     [client, unlinkedPageId],
   );
   /**
-   * Bound-verb backlinks: a linked-reference edge whose verb is a
+   * bound-verb backlinks: a linked-reference edge whose verb is a
    * bound propertySchemaId renders the schema's NAME (never the raw id) —
    * the surfaces the backlink arrived through ("supports", "cites"). Free
    * verbs never produce targeted edges (typed-link marks are targetless per
-   * the deferred-resolution ruling), so the badge only ever names a
+   * the deferred resolution ruling), so the badge only ever names a
    * schema; an unknown id renders raw, honestly.
    */
   const schemaNameById = useMemo(() => {
@@ -181,23 +194,23 @@ export function SystemSections({
   pageId,
   onOpenPage,
   /**
-   * The workspace activity feed. Off for embedded renders —
-   * a journal feed mounts many PageViews and the feed's created-query gate
-   * would run once per mounted page per notification.
+   * Embedded surfaces (journal feeds) render the sections read-only: the
+   * Child pages create affordance stays a main-surface privilege, same as
+   * the body's ghost row.
    */
-  withActivity = true,
+  embedded = false,
 }: {
   client: AnyClient;
   pageId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
-  withActivity?: boolean | undefined;
+  embedded?: boolean | undefined;
 }) {
   const loadLinkedRefs = useCallback(() => client.getLinkedReferences(pageId), [client, pageId]);
   const ignored = useIgnoredUnlinkedRefs(pageId);
   // The ignore-list hook hands back a FRESH array every render — key the
-  // callback on the joined value so its identity (and the refresh effect's
-  // deps below) stays stable between actual ignore-list changes; a churning
-  // identity re-runs that effect every render and loops on the fresh-array
+  // callback (and the hook's refreshKey below) on the joined value so its
+  // identity stays stable between actual ignore-list changes; a churning
+  // identity re-runs the effect every render and loops on the fresh-array
   // state installs (found by the test pass).
   const ignoredKey = ignored.join(" ");
   const loadUnlinkedRefs = useCallback(() => {
@@ -207,6 +220,23 @@ export function SystemSections({
       .filter((entry) => !dismissed.has(entry.source.id));
   }, [client, pageId, ignoredKey]);
   const loadChildPages = useCallback(() => client.getChildPages(pageId), [client, pageId]);
+  /**
+   * The Child pages create affordance — the collection contract's flag +
+   * callback + context: the context is the main surface (embedded feeds
+   * never create) WITH a navigation target (the create focuses the new
+   * child by opening it, the section's row-click behavior). The create
+   * lands IN THE PAGES ZONE (presentAsMain); the section's live re-query
+   * (an expanded section re-runs on the write notification) refreshes the
+   * list.
+   */
+  const addChildPage =
+    !embedded && onOpenPage !== undefined
+      ? () => {
+          void client
+            .createObject({ parentId: pageId, presentAsMain: true })
+            .then((childId) => onOpenPage(childId));
+        }
+      : undefined;
 
   // The eager counts ride the tab labels (the backlink count is a
   // materialized read; the unlinked count its memoized count query — the
@@ -216,81 +246,54 @@ export function SystemSections({
   const unlinkedCount = client.getUnlinkedReferenceCount(pageId);
   const childPageCount = client.getChildPageCount(pageId);
 
-  // The bottom backlinks strip: both tabs always visible (owner 2026-10-06),
-  // a tab's list query runs on its FIRST activation only (lazy per the
-  // SCHEMA.md contract), the rows cache across tab switches, and a live
-  // notification re-runs the loaded tabs' queries (the Section contract).
+  // The bottom backlinks strip: both tabs always visible (owner 2026-10-06).
+  // Each tab owns its useSectionData instance (the per-view rule — one
+  // instance per view, never a shared cache with tab-switch invalidation);
+  // the selected tab resolves on mount (the Tabs primitive swallows
+  // re-clicks on the active tab, so the first load cannot ride onChange),
+  // the other tab stays lazy until its first switch, rows cache across
+  // switches (a switch is silent on the version), and a live notification
+  // re-runs every LOADED tab's query (keepFresh — the pre-restructure contract: a
+  // selected-again tab lands on fresh rows).
   const [refTab, setRefTab] = useState(REF_TAB_BACKLINKS);
-  const [backlinkRows, setBacklinkRows] = useState<ReferenceEntry[] | null>(null);
-  const [unlinkedRows, setUnlinkedRows] = useState<ReferenceEntry[] | null>(null);
-  const [backlinksVersion, setBacklinksVersion] = useState(0);
-  useEffect(() => client.subscribe(() => setBacklinksVersion((v) => v + 1)), [client]);
-  useEffect(() => {
-    if (backlinkRows !== null) {
-      try {
-        setBacklinkRows(loadLinkedRefs());
-      } catch {
-        // Closed client / failed query: keep the previous rows.
-      }
-    }
-    if (unlinkedRows !== null) {
-      try {
-        setUnlinkedRows(loadUnlinkedRefs());
-      } catch {
-        // Closed client / failed query: keep the previous rows.
-      }
-    }
-    // Re-run the loaded tabs' queries per notification (the Section
-    // contract); the lazy tabs stay silent until their first activation.
-  }, [client, backlinksVersion, loadLinkedRefs, loadUnlinkedRefs]);
-  const activateRefTab = (tab: string) => {
-    setRefTab(tab);
-    try {
-      if (tab === REF_TAB_BACKLINKS && backlinkRows === null) {
-        setBacklinkRows(loadLinkedRefs());
-      }
-      if (tab === REF_TAB_UNLINKED && unlinkedRows === null) {
-        setUnlinkedRows(loadUnlinkedRefs());
-      }
-    } catch {
-      // Failed first load: the panel renders its empty state honestly.
-    }
-  };
-  /**
-   * The initially-selected tab is active from the first render, and the Tabs
-   * primitive swallows re-clicks on the active tab — so onChange can never
-   * fire for it and its first load must run here (without this the default
-   * tab's panel stayed blank until the user switched away and back). The
-   * other tab stays lazy until a real switch.
-   */
-  const initialTabLoaded = useRef(false);
-  useEffect(() => {
-    if (initialTabLoaded.current) return;
-    initialTabLoaded.current = true;
-    try {
-      if (refTab === REF_TAB_BACKLINKS) setBacklinkRows(loadLinkedRefs());
-      else setUnlinkedRows(loadUnlinkedRefs());
-    } catch {
-      // Failed first load: the panel renders its empty state honestly.
-    }
-  }, [refTab, loadLinkedRefs, loadUnlinkedRefs]);
+  const backlinks = useSectionData<ReferenceEntry[]>({
+    client,
+    active: refTab === REF_TAB_BACKLINKS,
+    keepFresh: true,
+    read: loadLinkedRefs,
+  });
+  const unlinked = useSectionData<ReferenceEntry[]>({
+    client,
+    active: refTab === REF_TAB_UNLINKED,
+    keepFresh: true,
+    // The device ignore list is not a client notification: key the refresh
+    // gate on it so an Ignore drops the row without waiting for one.
+    refreshKey: ignoredKey,
+    read: loadUnlinkedRefs,
+  });
 
   return (
     <div className="nt-page-sections">
-      {childPageCount > 0 && (
+      {/* The Child pages section: hidden only when the surface cannot create
+          (embedded feeds, no navigation target) AND the page has none — an
+          empty main-surface page renders the section with the collection's
+          create affordance in its empty state. */}
+      {(childPageCount > 0 || addChildPage !== undefined) && (
         <Section
           key={`child-${pageId}`}
           client={client}
           title="Child pages"
           icon={<Icon path="mdi-file-tree-outline" size={0.9} />}
-          badge={childPageCount}
+          badge={childPageCount > 0 ? childPageCount : undefined}
           defaultCollapsed={false}
           load={loadChildPages}
           emptyText="No child pages."
+          renderWhenEmpty={addChildPage !== undefined}
           renderResults={(pages) => (
             // The reusable outline view over the read-only child-page tree
             // (rows open the page via the row click, per the outline view's
-            // read-only tree path).
+            // read-only tree path). Empty on the main surface: the kit
+            // EmptyState carries the "Add child page" create affordance.
             <NodeCollection
               viewMode="outline"
               client={client}
@@ -298,6 +301,15 @@ export function SystemSections({
               tree
               readOnly
               onNodeClick={(id) => onOpenPage?.(id)}
+              {...(addChildPage !== undefined
+                ? {
+                    emptyTitle: "No child pages.",
+                    emptyHint: "Pages created here live under this page.",
+                    showAddButton: true,
+                    onAdd: addChildPage,
+                    addLabel: "Add child page",
+                  }
+                : {})}
             />
           )}
         />
@@ -307,7 +319,7 @@ export function SystemSections({
           tabs always show; the panel under a tab renders headerless (the
           tab is the header). The other system sections are untouched. */}
       <div className="nt-backlinks">
-        <Tabs className="nt-ref-tabs" value={refTab} onChange={activateRefTab}>
+        <Tabs className="nt-ref-tabs" value={refTab} onChange={setRefTab}>
           <Tabs.List>
             <Tabs.Tab value={REF_TAB_BACKLINKS}>
               Backlinks{backlinkCount > 0 ? ` ${backlinkCount}` : ""}
@@ -317,18 +329,18 @@ export function SystemSections({
             </Tabs.Tab>
           </Tabs.List>
           <Tabs.Panel value={REF_TAB_BACKLINKS}>
-            {backlinkRows === null ? null : backlinkRows.length === 0 ? (
+            {backlinks.rows === null ? null : backlinks.rows.length === 0 ? (
               <div className="nt-section-empty">No backlinks.</div>
             ) : (
-              <ReferenceList entries={backlinkRows} client={client} onOpenPage={onOpenPage} />
+              <ReferenceList entries={backlinks.rows} client={client} onOpenPage={onOpenPage} />
             )}
           </Tabs.Panel>
           <Tabs.Panel value={REF_TAB_UNLINKED}>
-            {unlinkedRows === null ? null : unlinkedRows.length === 0 ? (
+            {unlinked.rows === null ? null : unlinked.rows.length === 0 ? (
               <div className="nt-section-empty">No unlinked mentions.</div>
             ) : (
               <ReferenceList
-                entries={unlinkedRows}
+                entries={unlinked.rows}
                 client={client}
                 onOpenPage={onOpenPage}
                 unlinkedPageId={pageId}
@@ -337,7 +349,6 @@ export function SystemSections({
           </Tabs.Panel>
         </Tabs>
       </div>
-      {withActivity && <ActivityLogSection client={client} onOpenPage={onOpenPage} />}
     </div>
   );
 }
