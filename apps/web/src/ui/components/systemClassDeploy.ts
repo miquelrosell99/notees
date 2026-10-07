@@ -160,3 +160,22 @@ export async function deploySystemClass(
 
   return classId;
 }
+
+/**
+ * Heal the weblink→source extension on EXISTING workspaces (the owner
+ * ruling that made the web link a source-family class). The seed map
+ * carries the edge, so NEW workspaces receive it from the server seed;
+ * a workspace that already has the weblink class but predates the edge
+ * materializes it here — `deploySystemClass` is existence-checked per
+ * step (ancestors first: the source root, then the class node, the edge,
+ * the url family), so a converged workspace is a complete no-op and a
+ * re-run converges by idempotence.
+ *
+ * Declaration-first, the meetingFamily precedent: nothing calls this
+ * automatically — configure now, wire later.
+ */
+export async function ensureWeblinkExtendsSource(client: AnyClient): Promise<void> {
+  const current = client.getClassParents(SYSTEM_CLASS_UUIDS.weblink);
+  if (current.includes(SYSTEM_CLASS_UUIDS.source)) return;
+  await deploySystemClass(client, "weblink");
+}

@@ -157,6 +157,69 @@ describe("ClassCreateModal deploy mode (#14)", () => {
   });
 });
 
+describe("weblink→source extension heal (existing workspaces)", () => {
+  it("materializes the edge idempotently on the pre-ruling workspace shape", async () => {
+    const client = await seedClient();
+    const { ensureWeblinkExtendsSource } = await import(
+      "../src/ui/components/systemClassDeploy.js"
+    );
+    // The pre-ruling shape: the weblink class + its url family exist,
+    // the source edge predates the ruling.
+    await client.createClass("Web link", { id: SYSTEM_CLASS_UUIDS.weblink });
+    await client.createPropertySchema({
+      id: SYSTEM_PROPERTY_UUIDS.url,
+      name: "URL",
+      type: "url",
+      scope: "class",
+    });
+    await client.setClassProperty(SYSTEM_CLASS_UUIDS.weblink, SYSTEM_PROPERTY_UUIDS.url, {
+      sequence: 0,
+    });
+    await flushSync();
+    expect(client.getClassParents(SYSTEM_CLASS_UUIDS.weblink)).toEqual([]);
+
+    await ensureWeblinkExtendsSource(client);
+    await flushSync();
+
+    // The edge landed (deploySystemClass healed the source root first), and
+    // the weblink's own family is untouched.
+    expect(client.getClassParents(SYSTEM_CLASS_UUIDS.weblink)).toContain(
+      SYSTEM_CLASS_UUIDS.source,
+    );
+    expect(client.getNode(SYSTEM_CLASS_UUIDS.source)).not.toBeUndefined();
+    const bound = client
+      .getClassBindings(SYSTEM_CLASS_UUIDS.weblink)
+      .map((b) => b.propertySchemaId);
+    expect(bound).toContain(SYSTEM_PROPERTY_UUIDS.url);
+
+    // Idempotent: a second run is a complete no-op.
+    const snapshot = {
+      parents: [...client.getClassParents(SYSTEM_CLASS_UUIDS.weblink)].sort(),
+      schemas: client.listPropertySchemas().map((s) => s.id).sort(),
+    };
+    await ensureWeblinkExtendsSource(client);
+    await flushSync();
+    expect([...client.getClassParents(SYSTEM_CLASS_UUIDS.weblink)].sort()).toEqual(
+      snapshot.parents,
+    );
+    expect(client.listPropertySchemas().map((s) => s.id).sort()).toEqual(snapshot.schemas);
+  });
+
+  it("a converged (server-seeded) workspace skips the heal entirely", async () => {
+    const client = await seedClient();
+    const { deploySystemClass, ensureWeblinkExtendsSource } = await import(
+      "../src/ui/components/systemClassDeploy.js"
+    );
+    await deploySystemClass(client, "weblink");
+    await flushSync();
+    const seededParents = [...client.getClassParents(SYSTEM_CLASS_UUIDS.weblink)].sort();
+
+    await ensureWeblinkExtendsSource(client);
+    await flushSync();
+    expect([...client.getClassParents(SYSTEM_CLASS_UUIDS.weblink)].sort()).toEqual(seededParents);
+  });
+});
+
 describe("class creation triggers (#14)", () => {
   it("the Classes hub header hosts the modal and opens the created class", async () => {
     const client = await seedClient();

@@ -22,7 +22,7 @@ import type { BlockTreeNode } from "@/core/workspace-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client.js";
 
 import { BlockRow } from "./BlockRow.js";
-import { displayNameFromClient } from "./dateDisplay.js";
+import { displayNameFromClient, fullTitleFromClient } from "./dateDisplay.js";
 import { InlineTokens } from "./InlineTokens.js";
 import { openNodeLinkMenu } from "./components/NodeLinkContextMenu.js";
 import { tableClassIdOf } from "./components/tableFamily.js";
@@ -124,11 +124,14 @@ function EmbedBlock({
   tree,
   client,
   resolveName,
+  resolveFullTitle,
   resolveVerb,
 }: {
   tree: BlockTreeNode;
   client: AnyClient;
   resolveName: (nodeId: string) => string | null;
+  /** The uncapped-title resolver — mention chips render complete names. */
+  resolveFullTitle: (nodeId: string) => string | null;
   resolveVerb: (propertySchemaId: string) => string | null;
 }) {
   // A table-classed block renders through the BlockRow grid even
@@ -143,6 +146,7 @@ function EmbedBlock({
         <InlineTokens
           tokens={tree.node.contentAst}
           resolveName={resolveName}
+          resolveFullTitle={resolveFullTitle}
           resolveVerb={resolveVerb}
           renderEmbed={(id, _token, index) => (
             <EmbedView nodeId={id} hostId={tree.node.id} tokenIndex={index} />
@@ -153,7 +157,7 @@ function EmbedBlock({
       {tree.children.length > 0 && (
         <div className="nt-embed-block-children">
           {tree.children.map((child) => (
-            <EmbedBlock key={child.node.id} tree={child} client={client} resolveName={resolveName} resolveVerb={resolveVerb} />
+            <EmbedBlock key={child.node.id} tree={child} client={client} resolveName={resolveName} resolveFullTitle={resolveFullTitle} resolveVerb={resolveVerb} />
           ))}
         </div>
       )}
@@ -200,6 +204,7 @@ export function EmbedView({
   }
 
   const resolveName = (id: string) => displayNameFromClient(client, id);
+  const resolveFullTitle = (id: string) => fullTitleFromClient(client, id);
   const resolveVerb = (schemaId: string) =>
     client.listPropertySchemas().find((schema) => schema.id === schemaId)?.name ?? null;
   const name = displayNameFromClient(client, nodeId) ?? nodeId;
@@ -235,6 +240,7 @@ export function EmbedView({
             <InlineTokens
               tokens={node.contentAst}
               resolveName={resolveName}
+              resolveFullTitle={resolveFullTitle}
               resolveVerb={resolveVerb}
               renderEmbed={(id, _token, index) => (
                 <EmbedView nodeId={id} hostId={nodeId} tokenIndex={index} />
@@ -246,7 +252,7 @@ export function EmbedView({
         {childrenTree.length > 0 && (
           <div className="nt-embed-children">
             {childrenTree.map((child) => (
-              <EmbedBlock key={child.node.id} tree={child} client={client} resolveName={resolveName} resolveVerb={resolveVerb} />
+              <EmbedBlock key={child.node.id} tree={child} client={client} resolveName={resolveName} resolveFullTitle={resolveFullTitle} resolveVerb={resolveVerb} />
             ))}
           </div>
         )}

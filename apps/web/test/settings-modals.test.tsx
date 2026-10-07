@@ -12,7 +12,7 @@
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { WorkspaceSettingsModal } from "../src/ui/components/modals/WorkspaceSettingsModal.js";
 import { UserSettingsModal } from "../src/ui/components/modals/UserSettingsModal.js";
@@ -30,6 +30,21 @@ beforeAll(() => {
     disconnect() {}
   }
   vi.stubGlobal("ResizeObserver", ResizeObserverStub);
+  // jsdom has no PointerEvent either: a minimal polyfill so the popup
+  // dismissal layer's pointerdown listeners see first-class pointer events.
+  class PointerEventPolyfill extends MouseEvent {
+    pointerId: number;
+    pointerType: string;
+    isPrimary: boolean;
+
+    constructor(type: string, init: PointerEventInit = {}) {
+      super(type, init);
+      this.pointerId = init.pointerId ?? 0;
+      this.pointerType = init.pointerType ?? "mouse";
+      this.isPrimary = init.isPrimary ?? true;
+    }
+  }
+  window.PointerEvent = PointerEventPolyfill as unknown as typeof PointerEvent;
 });
 
 afterEach(() => {
@@ -185,6 +200,9 @@ describe("UserSettingsModal", () => {
         token="session-token"
         user={USER}
         onSignOut={() => {}}
+        syncConnected
+        onForgetServer={() => {}}
+        onConnectServer={() => {}}
       />,
     );
     fireEvent.click(screen.getByRole("radio", { name: "Light theme" }));
@@ -201,6 +219,9 @@ describe("UserSettingsModal", () => {
         token="session-token"
         user={USER}
         onSignOut={() => {}}
+        syncConnected
+        onForgetServer={() => {}}
+        onConnectServer={() => {}}
       />,
     );
     fireEvent.click(screen.getByRole("radio", { name: "System stack" }));
@@ -220,6 +241,9 @@ describe("UserSettingsModal", () => {
         token="session-token"
         user={USER}
         onSignOut={() => {}}
+        syncConnected
+        onForgetServer={() => {}}
+        onConnectServer={() => {}}
       />,
     );
     fireEvent.click(screen.getByRole("switch", { name: /focus mode/i }));
@@ -239,6 +263,9 @@ describe("UserSettingsModal", () => {
         token="session-token"
         user={USER}
         onSignOut={() => {}}
+        syncConnected
+        onForgetServer={() => {}}
+        onConnectServer={() => {}}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Sage" }));
@@ -293,6 +320,9 @@ describe("UserSettingsModal", () => {
         token="session-token"
         user={USER}
         onSignOut={() => {}}
+        syncConnected
+        onForgetServer={() => {}}
+        onConnectServer={() => {}}
       />,
     );
     fireEvent.click(screen.getByRole("tab", { name: "Account" }));
@@ -330,11 +360,102 @@ describe("UserSettingsModal", () => {
         token="session-token"
         user={USER}
         onSignOut={onSignOut}
+        syncConnected
+        onForgetServer={() => {}}
+        onConnectServer={() => {}}
       />,
     );
     fireEvent.click(screen.getByRole("tab", { name: "Account" }));
     fireEvent.click(screen.getByRole("button", { name: "Log out" }));
     expect(onSignOut).toHaveBeenCalled();
+  });
+
+  it("shows the configured sync server and its reachability in the Sync tab", () => {
+    stubFetch({});
+    render(
+      <UserSettingsModal
+        serverUrl="https://notees.example.com"
+        isOpen
+        onClose={() => {}}
+        token="session-token"
+        user={USER}
+        onSignOut={() => {}}
+        syncConnected
+        onForgetServer={() => {}}
+        onConnectServer={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Sync" }));
+    expect(screen.getByText("https://notees.example.com")).toBeInTheDocument();
+    expect(screen.getByText("Connected")).toBeInTheDocument();
+  });
+
+  it("reports the server as unavailable when the parent says so", () => {
+    stubFetch({});
+    render(
+      <UserSettingsModal
+        serverUrl="https://notees.example.com"
+        isOpen
+        onClose={() => {}}
+        token="session-token"
+        user={USER}
+        onSignOut={() => {}}
+        syncConnected={false}
+        onForgetServer={() => {}}
+        onConnectServer={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Sync" }));
+    expect(screen.getByText("Unavailable")).toBeInTheDocument();
+    expect(screen.queryByText("Connected")).toBeNull();
+  });
+
+  it("disconnects only after the confirmation step", () => {
+    stubFetch({});
+    const onForgetServer = vi.fn();
+    render(
+      <UserSettingsModal
+        serverUrl="https://notees.example.com"
+        isOpen
+        onClose={() => {}}
+        token="session-token"
+        user={USER}
+        onSignOut={() => {}}
+        syncConnected
+        onForgetServer={onForgetServer}
+        onConnectServer={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Sync" }));
+    fireEvent.click(screen.getByRole("button", { name: /disconnect & forget this server/i }));
+    // The confirmation gate: nothing fires before the explicit confirm.
+    expect(onForgetServer).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /^disconnect$/i }));
+    expect(onForgetServer).toHaveBeenCalledTimes(1);
+  });
+
+  it("connects to a different server with the entered URL", () => {
+    stubFetch({});
+    const onConnectServer = vi.fn();
+    render(
+      <UserSettingsModal
+        serverUrl="https://old.example.com"
+        isOpen
+        onClose={() => {}}
+        token="session-token"
+        user={USER}
+        onSignOut={() => {}}
+        syncConnected
+        onForgetServer={() => {}}
+        onConnectServer={onConnectServer}
+      />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Sync" }));
+    const field = screen.getByRole("textbox", { name: /server url/i });
+    expect(field).toHaveValue("https://old.example.com");
+    fireEvent.change(field, { target: { value: "https://new.example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: /^connect$/i }));
+    expect(onConnectServer).toHaveBeenCalledWith("https://new.example.com");
   });
 
   it("marks profile, password, and security features as unavailable", () => {
@@ -347,6 +468,9 @@ describe("UserSettingsModal", () => {
         token="session-token"
         user={USER}
         onSignOut={() => {}}
+        syncConnected
+        onForgetServer={() => {}}
+        onConnectServer={() => {}}
       />,
     );
     fireEvent.click(screen.getByRole("tab", { name: "Account" }));
@@ -380,6 +504,7 @@ describe("entry points", () => {
     listPages: () => [],
     // The sidebar nav reads the feature surface for the Tasks hub.
     isFeatureEnabled: () => true,
+    subscribe: () => () => {},
   } as unknown as AnyClient;
 
   it("account menu gains a Settings item opening the app settings", () => {
@@ -502,6 +627,46 @@ describe("entry points", () => {
     expect(onManageWorkspaces).toHaveBeenCalled();
     expect(screen.queryByRole("listbox")).toBeNull();
     expect(screen.queryByRole("button", { name: /sign out/i })).toBeNull();
+  });
+
+  it("the workspace popup closes on an outside pointer-down and on Escape", async () => {
+    stubFetch({
+      "/api/workspaces": () => ({ workspaces: [WS] }),
+    });
+    render(
+      <WorkspaceSwitcher
+        serverUrl="https://notees.example.com"
+        credential="session-token"
+        activeWorkspaceId="ws1"
+        activeName="Garden"
+        onSwitch={() => {}}
+      />,
+    );
+    const trigger = screen.getByRole("button", { name: /garden/i });
+    fireEvent.click(trigger);
+    const popup = await screen.findByRole("listbox");
+
+    // A press inside the popup (the search field) never dismisses.
+    fireEvent.pointerDown(within(popup).getByPlaceholderText(/search workspaces/i));
+    expect(screen.getByRole("listbox")).not.toBeNull();
+    // A press on the trigger is an anchor press, not an outside press.
+    fireEvent.pointerDown(trigger);
+    expect(screen.getByRole("listbox")).not.toBeNull();
+    // Escape originating inside the popup (the field holds focus) closes it.
+    fireEvent.keyDown(within(popup).getByPlaceholderText(/search workspaces/i), {
+      key: "Escape",
+    });
+    expect(screen.queryByRole("listbox")).toBeNull();
+
+    fireEvent.click(trigger);
+    await screen.findByRole("listbox");
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("listbox")).toBeNull();
+
+    fireEvent.click(trigger);
+    await screen.findByRole("listbox");
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("listbox")).toBeNull();
   });
 });
 

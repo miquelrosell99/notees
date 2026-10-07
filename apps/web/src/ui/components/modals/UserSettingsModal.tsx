@@ -23,6 +23,8 @@ import { Card } from "../ui/Card.js";
 import { BooleanToggle } from "../ui/BooleanToggle.js";
 import { SelectionButton } from "../ui/SelectionButton.js";
 import { Tabs } from "../ui/Tabs.js";
+import { TextField } from "../ui/TextField.js";
+import { ConfirmationModal } from "../ui/ConfirmationModal.js";
 import { Icon } from "../../Icon.js";
 import { ApiKeysSection } from "../../SettingsPanel.js";
 import {
@@ -47,12 +49,21 @@ export interface UserSettingsModalProps {
   token: string;
   user: AccountUser;
   onSignOut: () => void;
+  /** Reachability of the configured sync server, derived by the parent from
+   *  its sync status snapshot. */
+  syncConnected: boolean;
+  /** Disconnect & forget: clears the stored server + credentials and signs
+   *  out; the parent owns the transition back to the boot form. */
+  onForgetServer: () => void;
+  /** Connect to a different sync server; the parent owns the probe. */
+  onConnectServer: (url: string) => void;
 }
 
 type BuiltInSettingsTab =
   | "appearance"
   | "editor"
   | "general"
+  | "sync"
   | "account"
   | "security"
   | "support"
@@ -106,8 +117,16 @@ export function UserSettingsModal({
   token,
   user,
   onSignOut,
+  syncConnected,
+  onForgetServer,
+  onConnectServer,
 }: UserSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<BuiltInSettingsTab>("appearance");
+
+  // Sync — the server row is read-only; switching/forgetting delegate to the
+  // shell (it owns the probe and the credential storage).
+  const [syncServerDraft, setSyncServerDraft] = useState(serverUrl);
+  const [forgetConfirmOpen, setForgetConfirmOpen] = useState(false);
 
   // Appearance — device-local, applied live to <html> data-* attributes.
   const [theme, setTheme] = useDeviceSetting<ThemePreference>("theme", "system");
@@ -206,6 +225,7 @@ export function UserSettingsModal({
     { id: "appearance", label: "Appearance" },
     { id: "editor", label: "Editor" },
     { id: "general", label: "General" },
+    { id: "sync", label: "Sync" },
     { id: "account", label: "Account" },
     { id: "security", label: "Security" },
     { id: "support", label: "Support" },
@@ -597,6 +617,73 @@ export function UserSettingsModal({
             </div>
           )}
 
+          {activeTab === "sync" && (
+            <>
+              <div className="settings-section">
+                <h3 className="settings-section__title">Sync Server</h3>
+                <Card>
+                  <div className="settings-item">
+                    <div className="settings-item__info">
+                      <span className="settings-item__label">Current server</span>
+                      <p className="settings-item__description">{serverUrl}</p>
+                    </div>
+                    <span
+                      className={
+                        syncConnected
+                          ? "settings-meta-value settings-meta-value--active"
+                          : "settings-meta-value"
+                      }
+                    >
+                      {syncConnected ? "Connected" : "Unavailable"}
+                    </span>
+                  </div>
+                </Card>
+              </div>
+
+              <div className="settings-section">
+                <h3 className="settings-section__title">Disconnect</h3>
+                <Card>
+                  <p className="settings-section__description">
+                    Forgetting this server signs you out on this device; local data stays.
+                  </p>
+                  <Button
+                    variant="danger"
+                    size="md"
+                    onClick={() => setForgetConfirmOpen(true)}
+                  >
+                    Disconnect &amp; forget this server
+                  </Button>
+                </Card>
+              </div>
+
+              <div className="settings-section">
+                <h3 className="settings-section__title">Connect to a Different Server</h3>
+                <Card>
+                  <p className="settings-section__description">
+                    Probe a different sync server — on success you sign in there.
+                  </p>
+                  <div className="settings-item">
+                    <TextField
+                      label="Server URL"
+                      size="sm"
+                      value={syncServerDraft}
+                      onChange={(e) => setSyncServerDraft(e.target.value)}
+                      placeholder="https://notees.example.com"
+                    />
+                    <Button
+                      variant="primary"
+                      size="md"
+                      disabled={syncServerDraft.trim() === ""}
+                      onClick={() => onConnectServer(syncServerDraft.trim())}
+                    >
+                      Connect
+                    </Button>
+                  </div>
+                </Card>
+              </div>
+            </>
+          )}
+
           {activeTab === "account" && (
             <>
               <div className="settings-section">
@@ -831,6 +918,18 @@ export function UserSettingsModal({
           )}
         </div>
       </div>
+      <ConfirmationModal
+        isOpen={forgetConfirmOpen}
+        variant="danger"
+        title="Disconnect from this server?"
+        message="You will be signed out and this server's address forgotten on this device."
+        confirmLabel="Disconnect"
+        onConfirm={() => {
+          setForgetConfirmOpen(false);
+          onForgetServer();
+        }}
+        onCancel={() => setForgetConfirmOpen(false)}
+      />
     </Modal>
   );
 }
