@@ -9,6 +9,14 @@ predating this file.
 
 ## 2026-10-08
 
+- **fix(web): the day-page Today flag wears the solid primary pill.** The
+  flag styled itself with `--color-primary-container` (#f0f0f0 light) — on
+  the near-white page card it read as no background at all. It now takes the
+  calendar view's today-marker register: solid `--color-primary` pill,
+  `--color-on-primary` text, `--shape-full` radius, `micro/2` padding, so the
+  two Today surfaces render identically. Verification: `tsc --noEmit` clean;
+  web suite green (1361/1361).
+
 - **fix(web): the date pages' and calendar's Created section lists main nodes
   only.** The `createdAt` range query behind the Created section (day pages)
   and the calendar day view's Created tab matched every node created in the
