@@ -29,22 +29,29 @@
  * transient filter layer ships as part of this contract (`filterable`);
  * the hosted custom views remain the follow-up.
  *
- * The transient filter layer (components/filterSpec.ts): a `filter`
- * applies a FilterSpec to the resolved rows POST-RESOLUTION and
- * PRE-WINDOWING — the returned rows are the filtered set, so the
- * collection's windowing sees filtered rows; the resolution cache is
- * untouched (a spec change re-derives from the cached rows, it never
- * re-runs the query). The eager count stays UNFILTERED: `total` is the
- * resolved count before the filter, and an active filter renders "0 of N"
+ * The transient filter layer (components/filterQuery.ts): a `filter`
+ * applies a FilterQuery's composed query-AST group to the resolved rows
+ * POST-RESOLUTION and PRE-WINDOWING — the returned rows are the filtered
+ * set, so the collection's windowing sees filtered rows; the resolution
+ * cache is untouched (a query change re-derives from the cached rows, it
+ * never re-runs the query). The eager count stays UNFILTERED: `total` is
+ * the resolved count before the filter, and an active filter renders "0 of N"
  * rather than hiding the section.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import type { Group } from "@notees/query";
 
 import type { ClientNode } from "@/core/workspace-client.js";
 
 import type { AnyClient, NodeCollectionItem, NodeCollectionProps, ViewMode } from "../views/index.js";
-import { matchesNodeFilter, type FilterBarConfig, type FilterSpec } from "./filterSpec.js";
+import {
+  createSectionViewMatcher,
+  planSectionView,
+  type SectionViewPlan,
+} from "../views/sectionViewResolve.js";
+import type { FilterBarConfig } from "./filterQuery.js";
 
 /** The resolution context handed to every strategy. */
 export interface SectionCtx {
@@ -52,12 +59,13 @@ export interface SectionCtx {
 }
 
 /**
- * The transient filter a section applies to its resolved rows: the spec
- * plus the row→node accessor the predicates read (a backlinks row's node is
- * its source; a collection row's node is the item's node).
+ * The transient filter a section applies to its resolved rows: the composed
+ * query-AST root group plus the row→node accessor the conditions read (a
+ * backlinks row's node is its source; a collection row's node is the item's
+ * node).
  */
 export interface SectionRowFilter<Row> {
-  spec: FilterSpec;
+  group: Group;
   nodeOf: (row: Row) => ClientNode;
 }
 
@@ -85,7 +93,7 @@ export interface UseSectionDataOptions<T> {
   refreshKey?: unknown;
   /**
    * The transient filter layer (list-shaped row sets only): applied
-   * post-resolution, pre-windowing. The spec changes re-derive from the
+   * post-resolution, pre-windowing. The query changes re-derive from the
    * cached rows on the next render — it is never part of the resolution
    * signature, so a filter change re-runs no query.
    */
@@ -154,15 +162,44 @@ export function useSectionData<T>({
     };
   }, [client, active, keepFresh, version, refreshKey, read, query]);
 
-  // The transient filter step: post-resolution, pre-windowing. Derived on
-  // every render from the cached rows — a spec change re-filters without
-  // re-running the resolution above, and an inactive/absent filter keeps
-  // the resolved array's identity untouched.
+  // The transient filter step: post-resolution, pre-windowing. The query
+  // plans through the one evaluation implementation (a schema-invalid group
+  // plans to null — rows stay unfiltered, chrome never fails); the matcher
+  // memo closes over one EvalContext. A plan needing the probe channel
+  // (future kinds outside the bar's sync subset) keeps rows unfiltered and
+  // warns once, never throws.
+  const filterPlan = useMemo<SectionViewPlan | null>(() => {
+    if (filter === undefined) return null;
+    try {
+      return planSectionView({
+        version: 1,
+        scope: { type: "entire_workspace" },
+        root: filter.group,
+      });
+    } catch {
+      return null;
+    }
+  }, [filter]);
+  const probeWarned = useRef(false);
+  const matcher = useMemo(() => {
+    if (filter === undefined || filterPlan === null) return null;
+    if (filterPlan.needsProbe) {
+      if (!probeWarned.current) {
+        probeWarned.current = true;
+        console.warn(
+          "section filter: probe-path conditions are outside the transient filter subset; rows left unfiltered",
+        );
+      }
+      return null;
+    }
+    return createSectionViewMatcher(client, filterPlan);
+  }, [filter, filterPlan, client]);
+
   const filtered =
-    rows === null || filter === undefined || !Array.isArray(rows)
+    rows === null || filter === undefined || matcher === null || !Array.isArray(rows)
       ? rows
       : (rows as unknown as unknown[]).filter((row) =>
-          matchesNodeFilter(client, (filter as SectionRowFilter<unknown>).nodeOf(row), filter.spec),
+          matcher((filter as SectionRowFilter<unknown>).nodeOf(row)),
         );
   return { rows: filtered as T | null, total: Array.isArray(rows) ? rows.length : null };
 }
