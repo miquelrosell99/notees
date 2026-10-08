@@ -191,8 +191,10 @@
   min-width: 0;
 }
 
-/* Collapsed: the slim full-width strip is itself the expand control; the
-   chevron handle floats over the hairline, revealed on hover/focus. */
+/* Collapsed: the slim full-width strip is itself the expand control — the
+   cover-card chevron precedent: no fill (a filled strip read as a dark bar
+   against the page surface), the chevron persistent at rest opacity, full
+   color on hover/focus with the hover overlay marking the target. */
 .nt-bannercard__strip {
   position: relative;
   display: flex;
@@ -203,7 +205,7 @@
   padding: 0;
   border: none;
   border-radius: var(--shape-small);
-  background: var(--color-surface-container-low);
+  background: transparent;
   color: var(--color-on-surface-variant);
   opacity: var(--opacity-60);
   cursor: pointer;
@@ -213,6 +215,7 @@
 .nt-bannercard__strip:focus-visible {
   opacity: 1;
   color: var(--color-primary);
+  background: var(--color-hover-overlay);
 }
 
 .nt-bannercard__strip-handle {
@@ -224,13 +227,6 @@
   align-items: center;
   padding: 0 var(--spacing-1);
   border-radius: var(--shape-small);
-  background: var(--color-surface-container-low);
-  opacity: var(--opacity-0);
-}
-
-.nt-bannercard__strip:hover .nt-bannercard__strip-handle,
-.nt-bannercard__strip:focus-visible .nt-bannercard__strip-handle {
-  opacity: var(--opacity-100);
 }
 
 .nt-bannercard__card {
