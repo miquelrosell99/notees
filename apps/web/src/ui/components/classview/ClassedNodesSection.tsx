@@ -13,10 +13,10 @@
  * wrapper stays the lazy contract too, but the transient filter layer needs
  * the hook's post-resolution/pre-windowing step): the FilterBar rides the
  * view toolbar inline (left of the icon-only Add member button and the view
- * switcher — one chrome row), the section's FilterSpec filters the resolved
+ * switcher — one chrome row), the section's FilterQuery filters the resolved
  * members before the collection's windowing sees them, and the eager
  * member-count badge stays UNFILTERED — an active filter reads "0 of N" in
- * the bar and never hides the section. The spec is component state — one
+ * the bar and never hides the section. The query is component state — one
  * instance per class page, lost on reload, nothing persisted.
  */
 
@@ -34,7 +34,12 @@ import { useViewModePreference } from "../../viewPrefs.js";
 import { refuseClassRemoval } from "../classRemoval.js";
 import { Button } from "../ui/Button.js";
 import { FilterBar } from "../FilterBar.js";
-import { EMPTY_FILTER_SPEC, isFilterEmpty, type FilterSpec } from "../filterSpec.js";
+import {
+  EMPTY_FILTER_QUERY,
+  filterQueryToGroup,
+  isFilterInactive,
+  type FilterQuery,
+} from "../filterQuery.js";
 import { useSectionData, type SectionRowFilter } from "../useSectionData.js";
 import { NodeCollection, ViewToolbar } from "../../views/index.js";
 import type { NodeCollectionItem, TableColumn, ViewMode } from "../../views/index.js";
@@ -86,15 +91,16 @@ export function ClassedNodesSection({
   );
 
   /**
-   * The transient filter layer: one FilterSpec per class page (component
+   * The transient filter layer: one FilterQuery per class page (component
    * state, lost on reload), applied to the resolved members
    * post-resolution/pre-windowing through the hook. The eager badge below
    * stays UNFILTERED.
    */
-  const [memberFilter, setMemberFilter] = useState<FilterSpec>(EMPTY_FILTER_SPEC);
+  const [memberFilter, setMemberFilter] = useState<FilterQuery>(EMPTY_FILTER_QUERY);
   const memberFilterActive = useMemo<SectionRowFilter<ClientNode> | undefined>(() => {
-    if (isFilterEmpty(memberFilter)) return undefined;
-    return { spec: memberFilter, nodeOf: (member) => member };
+    if (isFilterInactive(memberFilter)) return undefined;
+    const group = filterQueryToGroup(memberFilter);
+    return group === null ? undefined : { group, nodeOf: (member) => member };
   }, [memberFilter]);
   const loadMembers = useCallback(() => client.getClassMembers(classId), [client, classId]);
   const [expanded, setExpanded] = useState(true);

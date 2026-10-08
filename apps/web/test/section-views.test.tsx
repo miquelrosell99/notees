@@ -4,11 +4,13 @@
  *  - resolution (sectionViewResolve): the stored AST refines the section's
  *    base row set — base-column predicates evaluate on the materialized rows
  *    (class hierarchy-aware, isClass/presentAsMain, the created window,
- *    content-contains over the flattened title, the wire-field predicates),
- *    joined metadata (property/fts/linkedTo) falls back to one membership
- *    probe per leaf through runQueryAst, the stored scope AND aggregation
- *    are ignored (a tab refines rows; the AST round-trips verbatim), sort
- *    applies with the compiler's semantics, groups refine consistently;
+ *    content-contains over the flattened title, the wire-field predicates,
+ *    property conditions over the effective-values read model — the
+ *    one-evaluation ruling, owner 2026-10-08), only fts/linkedTo fall back
+ *    to one membership probe per leaf through runQueryAst, the stored scope
+ *    AND aggregation are ignored (a tab refines rows; the AST round-trips
+ *    verbatim), sort applies with the compiler's semantics, groups refine
+ *    consistently;
  *  - the sectionViews store: load-once per section, optimistic create with
  *    server-row replacement, failure reverts + surfaces lastWriteError;
  *  - the chrome: Default permanent first, custom tabs additive in sequence,
@@ -100,6 +102,7 @@ function astOf(...children: unknown[]): unknown {
 function resolveClient(overrides: Partial<SectionViewResolveClient> = {}): SectionViewResolveClient {
   return {
     getClassChildren: () => [],
+    getEffectiveProperties: () => [],
     runQueryAst: async () => ({ ids: [] }),
     subscribe: () => () => {},
     ...overrides,
@@ -149,6 +152,32 @@ describe("section view resolution (sync path)", () => {
     const plan = planSectionView(astOf({ type: "content", op: "contains", value: "ALPHA" }));
     const result = applySectionView(resolveClient(), { items: [item(alpha), item(gamma)], groups: undefined }, plan);
     expect(result.items.map((entry) => entry.node.id)).toEqual([alpha.id]);
+  });
+
+  it("property conditions evaluate synchronously over the effective-values read model (no probe)", () => {
+    const hit = node({});
+    const miss = node({});
+    const client = resolveClient({
+      getEffectiveProperties: (id) =>
+        id === hit.id
+          ? [
+              {
+                propertySchemaId: CLASS_B,
+                idx: 0,
+                elementId: "el-1",
+                schema: null,
+                value: 9,
+                source: "authored",
+              } as never,
+            ]
+          : [],
+    });
+    const plan = planSectionView(astOf({ type: "property", schemaId: CLASS_B, op: "gte", value: 5 }));
+    // The one-evaluation ruling: needsProbe stays false — the property arm
+    // reads the same effective-values model the compiler reads.
+    expect(plan.needsProbe).toBe(false);
+    const result = applySectionView(client, { items: [item(hit), item(miss)], groups: undefined }, plan);
+    expect(result.items.map((entry) => entry.node.id)).toEqual([hit.id]);
   });
 
   it("the created window compares ISO timestamps inclusively", () => {
@@ -263,7 +292,7 @@ describe("section view resolution (sync path)", () => {
 // --- resolution: the probe (joined-metadata) fallback ------------------------------
 
 describe("section view resolution (probe fallback)", () => {
-  it("plans property conditions as probes and intersects the membership set", async () => {
+  it("plans linkedTo conditions as probes and intersects the membership set", async () => {
     const hit = node({});
     const miss = node({});
     const probeCalls: unknown[] = [];
@@ -274,7 +303,7 @@ describe("section view resolution (probe fallback)", () => {
       },
     });
     const plan = planSectionView(
-      astOf({ type: "property", schemaId: CLASS_B, op: "exists" }),
+      astOf({ type: "linkedTo", nodeId: CLASS_B }),
     );
     expect(plan.needsProbe).toBe(true);
     const result = await resolveSectionViewProbed(
@@ -305,7 +334,7 @@ describe("section view resolution (probe fallback)", () => {
         logic: "and",
         children: [
           { type: "class", classId: CLASS_A },
-          { type: "property", schemaId: CLASS_B, op: "exists" },
+          { type: "linkedTo", nodeId: CLASS_B },
         ],
       },
     };
@@ -783,7 +812,7 @@ describe("useSectionViewResolution hook", () => {
         return () => {};
       },
     });
-    const view = { id: "v", queryAst: astOf({ type: "property", schemaId: CLASS_B, op: "exists" }) };
+    const view = { id: "v", queryAst: astOf({ type: "linkedTo", nodeId: CLASS_B }) };
     const { result } = renderHook(() =>
       useSectionViewResolution(client, [item(hit), item(miss)], undefined, view),
     );
