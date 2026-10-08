@@ -1,5 +1,6 @@
 /* DayPageHeader — the day-page header: the weekday + Today flags above the
-   title, the ISO week flag after it. Token-only. */
+   title, the ISO week flag after it. The Today flag is the solid primary
+   pill — the calendar view's today-marker register. Token-only. */
 
 .day-page-header {
   display: flex;
@@ -20,14 +21,16 @@
 }
 
 .day-page-header__today {
+  /* The calendar view's today-marker register: solid primary pill, not the
+     near-invisible primary-container tint. */
   font: var(--font-label-small);
+  letter-spacing: var(--letter-spacing-label);
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-primary);
-  background: var(--color-primary-container);
-  border-radius: var(--radius-full);
-  padding: 0 var(--spacing-2);
+  color: var(--color-on-primary);
+  background: var(--color-primary);
+  border-radius: var(--shape-full);
+  padding: var(--spacing-micro) var(--spacing-2);
 }
 
 .day-page-header__title {
