@@ -131,7 +131,7 @@ export function UserSettingsModal({
   // Appearance — device-local, applied live to <html> data-* attributes.
   const [theme, setTheme] = useDeviceSetting<ThemePreference>("theme", "system");
   const [oledMode, setOledMode] = useDeviceSetting("oledMode", false);
-  const [accentColor, setAccentColor] = useDeviceSetting<AccentColor>("accentColor", "monochrome");
+  const [accentColor, setAccentColor] = useDeviceSetting<AccentColor>("accentColor", "margin");
   const [uiFont, setUiFont] = useDeviceSetting<UiFontPreference>("uiFont", "bundled");
   const [focusMode, setFocusMode] = useDeviceSetting("focusMode", false);
   const [customAccentHex, setCustomAccentHex] = useDeviceSetting("customAccentHex", "#404040");
@@ -284,14 +284,14 @@ export function UserSettingsModal({
                       Font
                     </label>
                     <p className="settings-item__description">
-                      Bundled ships Inter and JetBrains Mono with the app; System uses the
-                      platform&apos;s own font stack.
+                      Bundled ships Instrument Sans, Newsreader, and JetBrains Mono with
+                      the app; System uses the platform&apos;s own font stack.
                     </p>
                   </div>
                   <SelectionButton
                     id="user-ui-font"
                     options={[
-                      { value: "bundled", icon: "mdi-format-font", label: "Bundled (Inter)" },
+                      { value: "bundled", icon: "mdi-format-font", label: "Bundled (Instrument Sans)" },
                       { value: "system", icon: "mdi-monitor", label: "System stack" },
                     ]}
                     value={uiFont}
@@ -859,7 +859,9 @@ export function UserSettingsModal({
                 <h3 className="settings-section__title">About Notees</h3>
                 <Card>
                   <div className="settings-about">
-                    <img src="/notees-icon.svg" alt="" className="settings-about__logo" />
+                    {/* The brand's green-tile app icon — self-contained, so it
+                        reads on both the light and the dark surface. */}
+                    <img src="/app-icon-512.svg" alt="" className="settings-about__logo" />
                     <h4 className="settings-about__name">Notees</h4>
                     <p className="settings-about__description">
                       A self-hosted, privacy-first, local-first personal information environment:

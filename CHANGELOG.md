@@ -9,6 +9,24 @@ predating this file.
 
 ## 2026-10-08
 
+- **feat(web): the client aligns to the Margin Green brand — fonts, tokens,
+  accent default, icons.** The web client now carries the shipped identity
+  (brand submodule at `brand/`, v1.0.0): Instrument Sans (variable wght,
+  self-hosted woff2 via the @fontsource packages) takes the chrome/base and
+  display stacks; Newsreader (opsz + wght) carries the reading surfaces (the
+  outliner's block content; the header title row stays chrome); JetBrains
+  Mono stays for data. The light ground remaps to the brand's warm paper
+  (`#f7f4ec`) with iron-ink neutrals from the brand scale, the dark ground to
+  the warm near-black family (`#161412`); semantic, graph, and data-preset
+  colors are untouched. Advance Green (`#2e5e46`, night role `#6da789`) ships
+  as a new `margin` accent preset and becomes the default (the pre-paint
+  bootstrap, the device-settings read, and the settings modal all agree); the
+  monochrome preset and every other preset keep working. The app icon and
+  favicons are the brand mark (small symbol + 16/32/48 PNGs + the green-tile
+  app icon for the About surface), and `index.html` declares the
+  light/dark `theme-color`. `docs/usage.md`'s appearance line follows.
+  **Verification:** `pnpm -r --workspace-concurrency=1 build`, `pnpm -r
+  typecheck`, and `pnpm -r test` green on the shipping tree.
 - **fix(web): the empty page's ghost add-block row no longer overlaps the
   next section's separator.** On a page with no child blocks, the lone ghost
   row's bullet/label straddled the border-top of the following node-view
