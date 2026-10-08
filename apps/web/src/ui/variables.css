@@ -9,6 +9,11 @@
  */
 
 :root {
+  /* Native control chrome (input/button faces, spinners, scrollbars) must
+     follow the resolved theme — without this the UA renders light controls
+     under dark themes (white inputs, pale button faces). */
+  color-scheme: light;
+
   /* ==================== Primary (Monochrome) ==================== */
   --color-primary: #111;
   --color-on-primary: #fff;
@@ -692,6 +697,9 @@
 
 /* ==================== Dark Theme ==================== */
 [data-theme="dark"] {
+  /* Native control chrome follows the dark theme (see :root). */
+  color-scheme: dark;
+
   /* Primary */
   --color-primary: #e5e5e5;
   --color-on-primary: #111;
