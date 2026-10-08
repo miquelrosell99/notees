@@ -9,6 +9,19 @@ predating this file.
 
 ## 2026-10-08
 
+- **chore(web): drop the dead `.nt-hub-*` CSS and repair the screenshot
+  probes.** The hub rows moved to `.outline-row` (CollectionHub restructure)
+  but app.css still carried six unused `.nt-hub-list` / `.nt-hub-item` /
+  `.nt-hub-item-icon` / `.nt-hub-item-label` / `.nt-hub-empty` rules; they
+  are deleted. The `scripts/screenshots` probes were broken two ways: they
+  seeded/typed `http://127.0.0.1:8377` as the sync URL, which the server's
+  CORS allowlist (localhost origins) rejects — everything now uses
+  `localhost`, matching verify-min — and `page-probe` clicked the dead
+  `.nt-hub-item` selector (now `.outline-row`) with a placeholder-text
+  palette assertion that could never pass (now checks the palette's search
+  input). Verification: `page-probe` runs green end-to-end (opens a page,
+  screenshots, Ctrl+K palette opens); drift gate 5/5; `tsc` clean.
+
 - **feat(web): the page header title reads in Newsreader.** The brand type
   table puts the 28px H3 in the Text role (Newsreader), and the identity
   claim is "Newsreader for the words, Instrument Sans for the chrome" — the

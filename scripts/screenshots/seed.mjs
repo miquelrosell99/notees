@@ -7,7 +7,7 @@
 // packages/domain/src/seeds.ts (HARD RULE: never regenerated) — copied here so
 // the script stays free of workspace-package dependencies.
 
-const BASE = (process.env.API_URL ?? "http://127.0.0.1:8477").replace(/\/$/, "");
+const BASE = (process.env.API_URL ?? "http://localhost:8477").replace(/\/$/, "");
 const API_KEY = process.env.API_KEY;
 if (!API_KEY) throw new Error("API_KEY env var required");
 

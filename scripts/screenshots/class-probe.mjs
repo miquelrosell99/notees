@@ -2,14 +2,14 @@ import { chromium } from "playwright";
 const browser = await chromium.launch({ headless: true });
 const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 } });
 const page = await ctx.newPage();
-const login = await fetch("http://127.0.0.1:8377/api/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "miquelroselltarrago@gmail.com", password: process.env.NOTEES_ADMIN_PASSWORD ?? "" }) });
+const login = await fetch("http://localhost:8377/api/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "miquelroselltarrago@gmail.com", password: process.env.NOTEES_ADMIN_PASSWORD ?? "" }) });
 const { token } = await login.json();
 await page.addInitScript(([url, t, ws]) => {
   localStorage.setItem("notees.serverUrl", url);
   localStorage.setItem("notees.sessionToken", t);
   localStorage.setItem("notees.workspaceId", ws);
-}, ["http://127.0.0.1:8377", token, "3b30e070-039b-47bc-ad0d-2440a2f173c5"]);
-await page.goto(`http://127.0.0.1:8378/${process.env.PROBE_PAGE_ID}`, { waitUntil: "commit", timeout: 60_000 });
+}, ["http://localhost:8377", token, "3b30e070-039b-47bc-ad0d-2440a2f173c5"]);
+await page.goto(`http://localhost:8378/${process.env.PROBE_PAGE_ID}`, { waitUntil: "commit", timeout: 60_000 });
 await page.waitForTimeout(20000);
 const info = await page.evaluate(() => {
   const classesRow = document.querySelector(".nt-classes-row");

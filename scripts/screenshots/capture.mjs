@@ -10,8 +10,8 @@ import path from "node:path";
 
 import { chromium } from "playwright";
 
-const BASE = (process.env.BASE_URL ?? "http://127.0.0.1:8480").replace(/\/$/, "");
-const API = (process.env.API_URL ?? "http://127.0.0.1:8477").replace(/\/$/, "");
+const BASE = (process.env.BASE_URL ?? "http://localhost:8480").replace(/\/$/, "");
+const API = (process.env.API_URL ?? "http://localhost:8477").replace(/\/$/, "");
 const API_KEY = process.env.API_KEY;
 if (!API_KEY) throw new Error("API_KEY env var required");
 const OUT = process.env.OUT_DIR ?? new URL("../../docs/img/screenshots/", import.meta.url).pathname;
