@@ -98,6 +98,10 @@ function pageTreeOf(client: AnyClient, node: ClientNode, remaining = PAGE_TREE_D
  * unlinked section only): Promote converts the literal match into a mention;
  * Ignore dismisses the source for this page, device-locally.
  *
+ * Always rendered by its hosts — even empty: the hosted tab chrome stays
+ * visible on an empty section, and `emptyText` (the section-empty line)
+ * rides the selected tab's body.
+ *
  * Exported for the block-level backlink gutter (SCHEMA.md:117 — the expanded
  * linked-references section beneath a block row reuses this rendering).
  */
@@ -107,12 +111,15 @@ export function ReferenceList({
   onOpenPage,
   unlinkedPageId,
   hostedViews,
+  emptyText,
 }: {
   entries: ReferenceEntry[];
   client: AnyClient;
   onOpenPage?: ((nodeId: string) => void) | undefined;
   unlinkedPageId?: string | undefined;
   hostedViews?: HostedViewsConfig | undefined;
+  /** The section-empty line when there is nothing to list (rides the tab body for hosted collections). */
+  emptyText?: string | undefined;
 }) {
   const promote = useCallback(
     (source: ClientNode) => {
@@ -149,6 +156,7 @@ export function ReferenceList({
       items={items}
       groups={groups}
       {...(hostedViews !== undefined ? { hostedViews } : {})}
+      {...(emptyText !== undefined ? { emptyText } : {})}
       renderItem={(item) => {
         const containingPageId =
           typeof item.meta?.containingPageId === "string" ? item.meta.containingPageId : undefined;
@@ -367,14 +375,16 @@ export function SystemSections({
               matchCount={backlinks.rows === null ? null : backlinks.rows.length}
               totalCount={backlinks.total}
             />
-            {backlinks.rows === null ? null : backlinks.rows.length === 0 ? (
-              <div className="nt-section-empty">No backlinks.</div>
-            ) : (
+            {backlinks.rows === null ? null : (
+              // Always rendered — the hosted tab bar (Default + "+" and the
+              // custom views) stays visible on an empty section; the empty
+              // line rides the selected tab's body.
               <ReferenceList
                 entries={backlinks.rows}
                 client={client}
                 onOpenPage={onOpenPage}
                 hostedViews={{ nodeId: pageId, sectionKey: "linked-references" }}
+                emptyText="No backlinks."
               />
             )}
           </Tabs.Panel>
@@ -386,15 +396,14 @@ export function SystemSections({
               matchCount={unlinked.rows === null ? null : unlinked.rows.length}
               totalCount={unlinked.total}
             />
-            {unlinked.rows === null ? null : unlinked.rows.length === 0 ? (
-              <div className="nt-section-empty">No unlinked mentions.</div>
-            ) : (
+            {unlinked.rows === null ? null : (
               <ReferenceList
                 entries={unlinked.rows}
                 client={client}
                 onOpenPage={onOpenPage}
                 unlinkedPageId={pageId}
                 hostedViews={{ nodeId: pageId, sectionKey: "unlinked-mentions" }}
+                emptyText="No unlinked mentions."
               />
             )}
           </Tabs.Panel>
