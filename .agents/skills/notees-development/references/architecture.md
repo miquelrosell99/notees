@@ -37,7 +37,12 @@ Nodes carry two booleans + one CHECK: `is_class`, `present_as_main`,
 `CHECK (is_class = 0 OR parent_id IS NULL)`. "Page"/"block" are render states,
 not node kinds. **Title-is-content** (2026-10-01): no `name` on the wire — a
 node's title IS its text content; pages/classes carry text-only content
-(`stringifyContentAst`, `deriveDisplayName`).
+(`stringifyContentAst`, `deriveDisplayName`). **Date formatting is gated**
+(2026-10-08, owner ruling): only date-classed nodes format — a deterministic
+year/month/day id formats from the id, a compact date-label content only with
+a year/month/day class; 8-digit titles on ordinary nodes stay literal
+(`fullTitleOf`, `formatDateNodeName`; the web's `dateDisplay` applies the
+user's `dateFormat` setting on top).
 
 ## Node fields vs properties (boundary rule)
 

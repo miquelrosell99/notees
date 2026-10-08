@@ -21,7 +21,9 @@ import type { AccountUser } from "@/core/auth-api.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
-import { displayNameFromClient, fullTitleFromClient } from "../dateDisplay.js";
+import { parseDateNodeId } from "@notees/domain";
+
+import { displayNameForSettings, displayNameFromClient, fullTitleFromClient } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import { InlineTokens } from "../InlineTokens.js";
 import { nodeIcon } from "../iconFor.js";
@@ -223,8 +225,19 @@ export function Sidebar({
    * buttons cannot nest. Shift+click peeks the node in the right sidebar,
    * mirroring the block bullet's shift idiom.
    */
-  const renderRowLabel = (node: ClientNode) =>
-    node.contentAst.length === 0 ? (
+  const renderRowLabel = (node: ClientNode) => {
+    // Date pages: the content is the compact YYYYMMDD storage label — render
+    // the formatted date (the setting-aware display name) like every other
+    // surface; only literal date-classed ids take this branch (owner ruling:
+    // an 8-digit title on an ordinary page stays literal).
+    if (parseDateNodeId(node.id) !== null) {
+      return (
+        <span className="nt-side-item-label">
+          {displayNameForSettings(node) || untitledLabelOf(node)}
+        </span>
+      );
+    }
+    return node.contentAst.length === 0 ? (
       <span className="nt-side-item-label">{untitledLabelOf(node)}</span>
     ) : (
       <span className="nt-side-item-label">
@@ -244,6 +257,7 @@ export function Sidebar({
         />
       </span>
     );
+  };
 
   const renderRow = (node: ClientNode, icon?: string | null, list?: "favorites" | "recents") => (
     <li

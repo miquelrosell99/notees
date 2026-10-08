@@ -11,6 +11,8 @@
 
 import type { ContentAst, ContentToken } from "@notees/protocol";
 
+import { dateNodeDisplayLabel, parseDateNodeId } from "./dates.js";
+
 export interface NodeLike {
   id: string;
   /** Class identity bit — the ONLY identity marker (classes are always
@@ -39,8 +41,15 @@ export const DISPLAY_NAME_MAX = 80;
  * reads the capped deriveDisplayName; node links and mention chips render
  * the complete name (owner ruling: a link must read as the page's whole
  * title, never a truncation), so they read this.
+ *
+ * Date formatting applies ONLY to date nodes (owner ruling 2026-10-08): a
+ * deterministic date id (the year/month/day chain) formats from the id, and
+ * a compact YYYYMMDD-style excerpt formats only when the node carries a
+ * date class — an 8-digit title on an ordinary page stays literal.
  */
 export function fullTitleOf(node: NodeLike): string {
+  const fromId = parseDateNodeId(node.id);
+  if (fromId !== null) return dateNodeDisplayLabel(fromId, fromId.precision);
   const excerpt = plainTextExcerpt(node.contentAst).trim();
   if (!excerpt) return "";
   const dateFormatted = formatDateNodeName(excerpt, node.classIds);
@@ -108,6 +117,8 @@ export function plainTextExcerpt(ast: ContentAst | null | undefined): string {
  * label as their CONTENT (and a content-addressed id); display formats it
  * per the workspace setting shape (default YYYY/MM/DD, zero-padded segments
  * dropped): 20290000 → 2029, 20290600 → 2029/06, 20290627 → 2029/06/27.
+ * Date formatting applies ONLY to date-classed nodes (owner ruling
+ * 2026-10-08) — see fullTitleOf.
  *
  * The result is capped at DISPLAY_NAME_MAX — the dense-chrome budget.
  * Node links/mention chips read fullTitleOf instead (the complete title).
@@ -155,12 +166,15 @@ export function isTextOnlyContent(ast: unknown): boolean {
 const DATE_CLASS_IDS = new Set(["00000000-0000-0000-0001-000000000003", "00000000-0000-0000-0001-000000000004", "00000000-0000-0000-0001-000000000005"]);
 
 /**
- * Format a raw date-node name; null when the name is not the YYYYMMDD shape.
- * The class check is deliberately NOT required: migrated date pages may lack
- * the day/month/year classes, and an 8-digit name is unambiguous.
+ * Format a raw date-node name; null when the name is not the YYYYMMDD shape
+ * OR the node does not carry a date class (year/month/day). The class check
+ * is the owner ruling (2026-10-08): date formatting applies only to
+ * date-classed nodes — an ordinary page whose title happens to be 8 digits
+ * keeps its literal title everywhere. Nodes with a deterministic date id
+ * never reach this branch (fullTitleOf formats from the id first).
  */
 export function formatDateNodeName(name: string, classIds?: readonly string[]): string | null {
-  void classIds; // retained in the signature for callers that have it
+  if (classIds?.some((id) => DATE_CLASS_IDS.has(id)) !== true) return null;
   const digits = name.replace(/\D/g, "");
   if (!/^\d{8}$/.test(digits)) return null;
   const year = digits.slice(0, 4);

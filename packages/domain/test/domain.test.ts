@@ -471,6 +471,22 @@ describe("date node display names", () => {
       "Not a date",
     );
   });
+
+  it("an 8-digit title without a date class stays literal (owner ruling 2026-10-08)", () => {
+    const base = { id: "n", isClass: false, presentAsMain: true, parentId: null };
+    const text = (t: string) => ({ type: "text" as const, text: t });
+    expect(deriveDisplayName({ ...base, contentAst: [text("20290627")] })).toBe("20290627");
+    expect(fullTitleOf({ ...base, contentAst: [text("20290627")] })).toBe("20290627");
+  });
+
+  it("a deterministic date id formats from the id even without classes", () => {
+    expect(
+      fullTitleOf({ id: "00000000-0000-0000-00dd-202906270000", contentAst: [] }),
+    ).toBe("2029/06/27");
+    expect(
+      deriveDisplayName({ id: "00000000-0000-0000-00aa-202906000000", contentAst: [] }),
+    ).toBe("2029/06");
+  });
 });
 
 describe("workspace feature map", () => {
