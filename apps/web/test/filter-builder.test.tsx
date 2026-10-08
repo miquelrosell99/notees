@@ -79,10 +79,13 @@ function openPanel(section: HTMLElement): HTMLElement {
   return structuredPanel();
 }
 
-/** The panel's (or nested group's) add menu → pick one entry by label. */
+/** The panel's (or nested group's) add menu → pick one entry by label. The
+ * menu portals to document.body (never clipped by the group card), so the
+ * entry is queried inside the open menu panel, not the builder scope. */
 function addCondition(scope: HTMLElement, label: RegExp): void {
   fireEvent.click(within(scope).getByRole("button", { name: "Add condition" }));
-  fireEvent.click(within(scope).getByRole("button", { name: label }));
+  const menu = document.querySelector(".btn-panel") as HTMLElement;
+  fireEvent.click(within(menu).getByRole("button", { name: label }));
 }
 
 /** The values of every content-condition input, in row order. */

@@ -260,9 +260,11 @@ function GroupBlock({ group, onChange, onDelete, depth, facts, config, datalistI
             </>
           }
           buttonProps={{ size: "sm" }}
-          panelPosition="right"
+          panelPosition="bottom"
+          panelAlignment="start"
           panelWidth={280}
           showCloseButton={false}
+          usePortal
           aria-label="Add condition"
         >
           {(closePanel) => (

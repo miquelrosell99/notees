@@ -9,6 +9,18 @@ predating this file.
 
 ## 2026-10-08
 
+- **fix(web): the builder's add-condition menu is unclipped and readable in
+  dark mode.** Two defects in the new block query builder: the add menu
+  (`ButtonWithPanel`, non-portal) rendered inside the kit group Card, whose
+  `overflow: hidden` clipped it at the card edge; and the menu items had no
+  explicit `color` — `<button>` UA `color: buttontext` painted the
+  description text black in dark mode. The menu now portals to
+  `document.body` (viewport-clamped, positioned under the trigger), the items
+  carry token colors with hover/pressed/focus-visible states, and condition
+  rows gained a hover border. Verification: `pnpm typecheck` clean; web suite
+  green (1377/1377 — the two filter suites' menu helpers query the portaled
+  panel).
+
 - **feat(web): the filter bar's structured panel is the v1 query-builder,
   ported over the query AST — block condition rows, nested Match ALL/ANY
   groups, NOT wrappers, per-row reorder, live "N of M rows match".** The
