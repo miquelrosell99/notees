@@ -879,7 +879,8 @@ describe("table export: CSV view export + selection-scoped export", () => {
     render(<NodeView client={client} nodeId={seeded.classId} onOpenNode={() => {}} />);
     await expandClassedNodes();
 
-    fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+    fireEvent.click(screen.getByRole("button", { name: "More table actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Export CSV" }));
 
     expect(download.anchor?.download).toBe("table-export.csv");
     // The BOM rides the bytes; jsdom's readAsText strips a leading BOM per
@@ -912,7 +913,8 @@ describe("table export: CSV view export + selection-scoped export", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Columns" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Created" }));
-    fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+    fireEvent.click(screen.getByRole("button", { name: "More table actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Export CSV" }));
 
     const records = parseCsv(await readBlobText(download.blob!));
     expect(records[0]).toEqual(["Name", "Status", "Note"]);

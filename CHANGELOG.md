@@ -9,6 +9,31 @@ predating this file.
 
 ## 2026-10-08
 
+- **feat(web): one chrome row for the classed-nodes section, icon-only
+  buttons wear hover tooltips, and the table's data actions move behind a
+  "…" menu.** The class page's Classed nodes section stacked its chrome
+  three high: a full-width Filter bar, then the view toolbar (Add member +
+  view switcher), then the tabs. The FilterBar gains an `inline` layout
+  (control row joins a toolbar's flex line, capped at `42ch`; the
+  structured-filters panel drops below as a floating overlay anchored to
+  the bar, `z-popover`, same border/surface register — the zero-elevation
+  law), and ClassedNodesSection renders it inside the ViewToolbar left of
+  the now icon-only **+** (tooltip "Add member") and the view switcher.
+  Icon-only no-text buttons across the chrome gain hover tooltips (native
+  `title`, the codebase convention): the FilterBar's structured-filters
+  toggle ("More filters") and clear ("Clear filter"), the member-row ×
+  ("Remove from class"), and `Tabs.AddButton` (title defaults to its
+  aria-label — the section views' add-tab "+" gets "Add custom view"). The
+  table view's toolbar no longer carries three text buttons: **Export
+  CSV**, **Export Excel**, and **Import table…** move into a far-right
+  **…** menu (kit `Button` + `ContextMenu`, `alignRight`, at the
+  view-type level next to Columns/Sort) — the view-type level over the
+  global level because the exports are table-specific (they read the
+  table's sorted rows and visible columns; meaningless in outline/cards).
+  Selection-scoped exports stay inline by the selection count. Verification:
+  `pnpm typecheck` clean; web suite green; `docs/usage.md` + `docs/ux.md`
+  updated.
+
 - **fix(web): the day-page Today flag wears the solid primary pill.** The
   flag styled itself with `--color-primary-container` (#f0f0f0 light) — on
   the near-white page card it read as no background at all. It now takes the
