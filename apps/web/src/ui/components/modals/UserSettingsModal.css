@@ -44,6 +44,13 @@
   border: var(--border-width-thick) solid transparent;
 }
 
+/* Monochrome previews ink, not grey — the value is theme-dependent and lives
+   in variables.css (--color-accent-swatch-monochrome), mirroring the
+   [data-accent="monochrome"] accent overrides. */
+.settings-accent-swatch--monochrome {
+  background-color: var(--color-accent-swatch-monochrome);
+}
+
 .settings-accent-swatch__icon {
   font-size: var(--font-size-md);
   line-height: 1;
