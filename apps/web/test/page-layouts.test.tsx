@@ -164,13 +164,16 @@ describe("L1 view-mode persistence (deviceSettings)", () => {
     vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,AAAA");
 
     const first = render(<HubView client={client} nav="assets" onOpenNode={() => {}} />);
-    fireEvent.click(screen.getByRole("radio", { name: "Cover top" }));
+    // The hub defaults to cover-top without a persisted choice (re-clicking
+    // the active placement is a no-op), so pick a different placement to
+    // prove the choice persists across renders — and wins over the fallback.
+    fireEvent.click(screen.getByRole("radio", { name: "Cover left" }));
     first.unmount();
 
-    expect(readCardLayoutPref()).toBe("cover-top");
+    expect(readCardLayoutPref()).toBe("cover-left");
     render(<HubView client={client} nav="assets" onOpenNode={() => {}} />);
     const cover = await screen.findByAltText("");
-    expect(cover.closest(".node-card")!.className).toContain("node-card--cover-top");
+    expect(cover.closest(".node-card")!.className).toContain("node-card--cover-left");
 
     // And the device setting round-trips on its own.
     writeCardLayoutPref("no-cover");

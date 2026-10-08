@@ -318,7 +318,9 @@ export function CardsView(props: NodeCollectionProps) {
   const { items = [], tree = undefined } = props;
   // The cover layout persists device-locally — one preference
   // per device shared by every cards/kanban surface; never an op.
-  const [coverLayout, setCoverLayout] = useCardLayoutPreference("no-cover");
+  // A surface may only shape the unset fallback (defaultCoverLayout);
+  // a persisted choice wins everywhere.
+  const [coverLayout, setCoverLayout] = useCardLayoutPreference(props.defaultCoverLayout ?? "no-cover");
   // selection export — flat collections only (tree cards are block
   // contexts, not a node-set export surface).
   const selection = useViewSelection();
