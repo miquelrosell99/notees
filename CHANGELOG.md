@@ -9,6 +9,20 @@ predating this file.
 
 ## 2026-10-08
 
+- **fix(web): one divider, not two, above the backlinks strip — and no
+  dangling line on an empty sections stack.** The hide-when-empty rulings
+  left `.nt-backlinks` as the first child of `.nt-page-sections` whenever
+  the Child pages section was gated off, and both containers carried their
+  own top hairline — two adjacent lines read as a double divider. The
+  strip's hairline now suppresses when it is the wrapper's first child (the
+  wrapper's line is the separator); and `SystemSections` returns null when
+  all three counts are zero, so a childless, referenceless page no longer
+  renders the wrapper's hairline over nothing. The early return rides after
+  every hook — the component flips between null and rendered as counts
+  change, so the hook order must stay unconditional. Verification:
+  `pnpm typecheck` clean; the section/layout suites green
+  (system-sections, focus-mode, whiteboard-canvas, page-layouts).
+
 - **feat(web): the hide-when-empty ruling covers every system section —
   Child pages and the backlinks strip vanish at zero, and the strip's Add
   child page affordance is gone.** Owner ruling (2026-10-08): a page with
