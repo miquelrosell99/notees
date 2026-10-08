@@ -130,6 +130,13 @@ describe("the context column (three-column panelled layout)", () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Doc" });
     await client.createObject({ presentAsMain: true, parentId: pageId, name: "Kid" });
+    // A reference so the backlinks strip renders under the hide-when-empty
+    // gate.
+    const sourceId = await client.createObject({ presentAsMain: true, name: "Ref Source" });
+    await client.createObject({
+      parentId: sourceId,
+      contentAst: [{ type: "mention", targetNodeId: pageId, text: "Doc" }],
+    });
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
 

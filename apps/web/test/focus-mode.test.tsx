@@ -116,11 +116,13 @@ describe("focus mode page chrome (#12)", () => {
     expect(container.querySelector(".nt-node-topbar__classes")).not.toBeNull();
     expect(container.querySelector(".nt-tags-row")).not.toBeNull();
     expect(container.querySelector(".nt-page-footer")).not.toBeNull();
-    // The backlinks strip rides below the content; the mention here targets
-    // a block inside the page, so the page's own backlink count is 0 (the
-    // tab carries no count suffix).
-    expect(screen.getByRole("tab", { name: "Backlinks" })).not.toBeNull();
-    expect(screen.getByRole("tab", { name: "Unlinked mentions" })).not.toBeNull();
+    // The backlinks strip would ride below the content, but the hide-when-
+    // empty ruling keeps it off: the mention here targets a block inside the
+    // page (own-subtree, not a reference), so the page has neither backlinks
+    // nor unlinked mentions.
+    expect(container.querySelector(".nt-backlinks")).toBeNull();
+    expect(screen.queryByRole("tab", { name: "Backlinks" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "Unlinked mentions" })).toBeNull();
   });
 
   it("mode on: chrome is suppressed; the title and the editable body stay", async () => {
