@@ -356,8 +356,8 @@ export function UserSettingsModal({
                       <button
                         key={option.value}
                         type="button"
-                        className={`settings-accent-swatch ${accentColor === option.value ? "settings-accent-swatch--active" : ""}`}
-                        style={{ backgroundColor: option.hex }}
+                        className={`settings-accent-swatch ${option.value === "monochrome" ? "settings-accent-swatch--monochrome" : ""} ${accentColor === option.value ? "settings-accent-swatch--active" : ""}`}
+                        style={{ backgroundColor: option.value === "monochrome" ? undefined : option.hex }}
                         onClick={() => handleAccentColorChange(option.value)}
                         aria-label={option.label}
                         title={option.label}

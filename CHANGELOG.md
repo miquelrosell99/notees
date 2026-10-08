@@ -9,6 +9,18 @@ predating this file.
 
 ## 2026-10-08
 
+- **fix(web): the monochrome accent swatch previews ink, and the CSS
+  fallback accent is margin.** The settings Accent Color row rendered the
+  monochrome preset as a static grey circle (`#404040`); it now carries a
+  `--monochrome` modifier class fed by the theme-dependent token
+  `--color-accent-swatch-monochrome` (iron ink on paper by day, paper white
+  on the night ground by night), so the preview matches the preset it
+  selects. The stale `ACCENT_COLOR_OPTIONS` hex follows. The light block's
+  pre-attribute fallback accent also moved off the retired monochrome grey
+  to the brand margin green. Verification: `pnpm --filter @notees/web test`
+  — 1359/1359 incl. the css-token-drift gate (the new token lives in the
+  defining file); post-deploy screenshot probe of the swatch row in both
+  themes.
 - **feat(web): the night is accent-tinted and monochrome is ink.** The dark
   theme no longer rides a fixed warm-brown family: every dark surface, outline
   and muted text is now `color-mix`-derived from the active accent preset at
