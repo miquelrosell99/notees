@@ -9,6 +9,26 @@ predating this file.
 
 ## 2026-10-08
 
+- **feat(query): the wire node-field predicates get their search-grammar
+  spellings — `coverAsset:` / `bannerAsset:` / `aliasedNode:`.** The AST and
+  the SQL compiler gained the three node-field conditions with the
+  wire-fields slice, but the hand-written DSL parser had no production for
+  them — `notees search "coverAsset:"` died as an unknown field (the CLI
+  test had to POST the AST programmatically). `dsl.ts` now parses them
+  like the other fields: bare `:` is the set/unset probe (no value, also
+  before AND/OR/NOT — the `prop:` precedent), `=`/`:=` eq and `!=` neq take
+  a node reference — a uuid passes through verbatim, anything else
+  resolves by node NAME through the injected resolver (the `linked:`
+  precedent); range/contains operators are rejected (uuid references admit
+  only eq/neq/exists, and under SQL NULL semantics "is unset" reads
+  `NOT coverAsset:`, never `neq`). Docs: `packages/query/README.md`'s
+  grammar block. **Verification:** the dsl suite — new cases for the three
+  fields (exists/eq/neq, uuid passthrough, name resolution, the boolean-
+  keyword boundary, case-insensitive field names, the known-fields error
+  list, bad operators) — 40/40; the query package 177/177 with dist
+  rebuilt; and the page-banner suite's jsdom `URL.createObjectURL` gap
+  closed (the stub the covers suite already carried — the unhandled error
+  during the upload-modal test is gone, 9/9).
 - **docs(developers): worktree-per-session + landing flow for concurrent
   agents** — with multiple agent sessions expected to work concurrently on
   unrelated tasks, AGENTS.md, the `notees-development` skill, and the

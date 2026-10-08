@@ -85,11 +85,20 @@ isClass:true|false    class identity bit (Revision 11; "!=" negates)
 presentAsMain:t|f     render bit for parented nodes (main zone vs inline body)
 text:term             content contains (substring; bare words do the same)
 linked:Name           backlinksWithRollup to the named node ("!=" negates)
+coverAsset:<ref>      the cover wire node field: bare ":" = is set, "=" eq, "!=" neq
+bannerAsset:<ref>     the banner wire node field (same shape)
+aliasedNode:<ref>     the alias wire node field (same shape; "is unset" is NOT aliasedNode:)
 prop:name<op>val      property condition (no value → exists)
 <schema>:<op>val      shorthand: bare property-schema field (year:>2010)
 "quoted phrase"       content contains the phrase
 AND OR NOT ( )        boolean composition (juxtaposition = AND)
 ```
+
+Wire-field values are node references: a uuid passes through, anything
+else resolves by node NAME (the `linked:` resolver). Range/contains
+operators don't fit uuid references — the AST admits only eq/neq/exists
+(and an unset field matches neither eq nor neq under SQL NULL semantics,
+so the unset probe is `NOT coverAsset:`).
 
 Operators: `:` contains, `:=`/`=` eq, `!=` neq, `:>`/`>` gt, `:>=`/`>=` gte,
 `:<`/`<` lt, `:<=`/`<=` lte. Values coerce to numbers when numeric (numeric

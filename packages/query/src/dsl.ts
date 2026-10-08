@@ -23,6 +23,9 @@
  *     presentAsMain:true|false render bit for parented nodes; "!=" negates
  *     text:term         content contains (value required)
  *     linked:Name       backlinksWithRollup to the named node; "!=" negates
+ *     coverAsset:<ref>  the cover wire node field (uuid or node NAME via the
+ *     bannerAsset:<ref> banner/alias twins): bare ":" = is set, "=" eq, "!="
+ *     aliasedNode:<ref> neq — range/contains don't fit uuid references
  *     prop:name<op>val  property condition on the schema called `name`;
  *                       no value → exists
  *     <schema>:<op>val  shorthand: a bare field that resolves to a property
@@ -42,8 +45,9 @@
  * unresolvable names are hard errors, never silent text search.
  *
  * The parser emits only the supported AST — property conditions (all eight
- * ops), class, isClass, presentAsMain, content contains, linkedTo — no new
- * condition kinds.
+ * ops), class, isClass, presentAsMain, content contains, linkedTo and the
+ * wire node-field predicates (coverAsset/bannerAsset/aliasedNode, eq/neq/
+ * exists) — no new condition kinds.
  */
 
 import type { Child, Condition, Group, QueryAst, Scope } from "./ast.js";
@@ -79,7 +83,20 @@ export interface ParseQueryLanguageOptions {
 }
 
 /** Reserved field names; a bare word matching none of these must resolve as a property schema. */
-const RESERVED_FIELDS = ["class", "isclass", "presentasmain", "prop", "text", "linked"] as const;
+const RESERVED_FIELDS = [
+  "class",
+  "isclass",
+  "presentasmain",
+  "prop",
+  "text",
+  "linked",
+  "coverasset",
+  "bannerasset",
+  "aliasednode",
+] as const;
+
+/** Canonical uuid shape — a node-field value that IS a uuid skips name resolution. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // --- tokenizer ---------------------------------------------------------------
 
@@ -384,6 +401,12 @@ class Parser {
           type: "linkedTo",
           nodeId: this.resolveNode(String(this.readValue("a node name", "token"))),
         }));
+      case "coverasset":
+        return this.nodeFieldCondition("coverAsset", op);
+      case "bannerasset":
+        return this.nodeFieldCondition("bannerAsset", op);
+      case "aliasednode":
+        return this.nodeFieldCondition("aliasedNode", op);
       case "prop": {
         // `prop` is a prefix, not a condition: the schema name follows the
         // first colon, and a second operator (`prop:year:>2010`) is the real
@@ -403,6 +426,43 @@ class Parser {
     if (op === ":" || op === "=") return build();
     if (op === "!=") return { type: "not", child: build() };
     throw this.error(`operator '${op}' is not supported here (use ':', '=' or '!=')`);
+  }
+
+  /**
+   * A wire node-field predicate (coverAsset/bannerAsset/aliasedNode): bare
+   * ":" is the set/unset probe — no value (also before AND/OR/NOT) reads
+   * "is set", a value reads eq ("is unset" is `NOT coverAsset:`); "=" / ":="
+   * eq and "!=" neq take a node reference — a uuid passes through, anything
+   * else resolves through the node-name resolver (the linked: precedent).
+   * Range/contains ops don't fit uuid references (the AST admits only
+   * eq/neq/exists).
+   */
+  private nodeFieldCondition(
+    type: "coverAsset" | "bannerAsset" | "aliasedNode",
+    op: Op,
+  ): Child {
+    const readRef = () => this.readNodeRef();
+    if (op === ":") {
+      if (
+        this.lookahead.kind === "eof" ||
+        this.lookahead.kind === "rparen" ||
+        this.lookahead.kind === "and" ||
+        this.lookahead.kind === "or" ||
+        this.lookahead.kind === "not"
+      ) {
+        return { type, op: "exists" };
+      }
+      return { type, op: "eq", value: readRef() };
+    }
+    if (op === "=" || op === ":=") return { type, op: "eq", value: readRef() };
+    if (op === "!=") return { type, op: "neq", value: readRef() };
+    throw this.error(`operator '${op}' is not supported here (use ':', '=', '!=')`);
+  }
+
+  /** A node-field reference: uuid as-is, otherwise the display-name resolver. */
+  private readNodeRef(): string {
+    const raw = String(this.readValue("a node name or uuid"));
+    return UUID_RE.test(raw) ? raw : this.resolveNode(raw);
   }
 
   private requireContainsOp(op: Op, field: string): void {
