@@ -570,9 +570,11 @@ select:focus-visible {
 }
 
 /* The empty child-blocks list: the lone ghost row rides tight — no dead
-   space below it before the next section. */
+   space below it before the next section. The pull cancels exactly the
+   ghost row's own 2px bottom padding (.nt-ghost-row); any more pulls the
+   next section's border up through the ghost's bullet/label. */
 .nt-select-surface--empty {
-  margin-bottom: calc(-1 * var(--spacing-2));
+  margin-bottom: calc(-1 * var(--spacing-micro));
 }
 
 /* The main node view's top-right corner cluster (owner 2026-10-06): the
