@@ -1530,6 +1530,24 @@ export class WorkspaceClient {
   }
 
   /**
+   * Nodes whose `coverAssetId` wire field points at the asset (the card-view
+   * Cover badge's derivation — isCoverAsset). Direct node-column probe, the
+   * getAssetInfo precedent: the wire node fields are NOT mined into the edge
+   * index yet (the backlinks roll-up follow-on owns that), so the badge
+   * cannot ride getLinkedReferences. Pure read over the local store.
+   */
+  getCoverReferences(assetId: string): ClientNode[] {
+    const rows = this.store.database
+      .prepare(
+        `SELECT * FROM node
+         WHERE workspace_id = ? AND cover_asset_id = ? AND is_active = 1
+         ORDER BY id`,
+      )
+      .all(this.workspaceId, assetId) as NodeRow[];
+    return rows.map((row) => this.mapNodeCached(row));
+  }
+
+  /**
    * Asset metadata for a node reference (the derived node_asset rows that
    * asset.attach/detach maintain): the panel resolves attachment chips to
    * original names and download ids through this read. Purely local; the row

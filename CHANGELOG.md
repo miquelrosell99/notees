@@ -9,6 +9,31 @@ predating this file.
 
 ## 2026-10-08
 
+- **fix(web): the cover element rides the `coverAssetId` wire node field —
+  the web half of the wire-fields follow-on.** The wire-fields slice made
+  `coverAssetId` the authority (object.update field + the migration moved
+  every stored value onto it), but the web cover chrome still read/wrote the
+  retired image-typed `cover` property: a cover set through the field (the
+  CLI, the API, the migration) never showed in the page header, and a
+  UI-set cover wrote the dead property. `coverProperty.ts` now mirrors the
+  banner exactly: `coverAssetIdOf` reads the node column, `setNodeCover` /
+  `clearNodeCover` write `object.update { coverAssetId }` (present-null
+  clears) + the asset class, and the retired `ensureCoverProperty` /
+  `canHaveCoverOf` self-heal + schema gate are gone — the element renders
+  for every document-chrome page, set or empty (the `bannerPossible`
+  shape). `PageView` loses the cover self-heal effect; the card-view
+  **Cover** badge (`isCoverAsset`) switches from `getLinkedReferences` to a
+  new shared read, `getCoverReferences(assetId)` (WorkspaceClient SQL probe,
+  the `getAssetInfo` precedent; WorkerClient + the worker dispatch carry it)
+  because the wire node fields are not mined into the edge index yet — the
+  backlinks roll-up follow-on owns that. The cover still auto-expands the
+  card when set. Docs: `ux.md` + `usage.md` (the cover paragraphs now say
+  wire node field; the stale `prop:cover:` search example is corrected to
+  the `coverAsset` AST predicate). **Verification:** the covers (16) +
+  deck-view suites green on the wire field, page-layouts/block-backlinks/
+  query-block/verb-create-bind/focus-mode/render-cascade/card-lazy-images/
+  view-modes suites green (104 tests); the full monorepo gate green (1359
+  web tests across 132 files).
 - **refactor(web): the kanban view mode merged into cards.** Kanban was the
   card view with a property-dimension groupBy enabled and between-column
   drag-and-drop — a separate view mode no longer earns its place. `KanbanView`

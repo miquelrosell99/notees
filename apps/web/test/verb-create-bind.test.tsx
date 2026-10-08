@@ -181,7 +181,7 @@ describe("verb create-and-bind", () => {
     const { container } = render(<PageView client={client} pageId={pageId} />);
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "Smith argues");
-    // The view's self-heals (cover/alias families) settle before the count.
+    // The view's self-heal (the alias schema) settles before the count.
     await waitFor(() => {
       expect(client.getNode(blockId)?.contentAst).toEqual([{ type: "text", text: "Smith argues" }]);
     });
@@ -215,7 +215,7 @@ describe("verb create-and-bind", () => {
 
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "Smith argues");
-    // The view's self-heals (cover/alias families) settle before the count.
+    // The view's self-heal (the alias schema) settles before the count.
     await waitFor(() => {
       expect(client.getNode(blockId)?.contentAst).toEqual([{ type: "text", text: "Smith argues" }]);
     });
