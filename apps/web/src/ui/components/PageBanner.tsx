@@ -7,7 +7,9 @@
  * (the .page-header-section grid); ALWAYS renders when the page can carry
  * a cover — collapsed to the slim chevron strip by default, expanding to
  * the card: the cover image, a dashed placeholder naming a byte-less
- * asset, or the dashed "Add cover" affordance when empty.
+ * asset, or the dashed "Add cover" affordance when empty. The assetId
+ * prop is the node's `coverAssetId` wire field (coverProperty.ts — the
+ * retired cover property is superseded; the node column is the one read).
  *
  * BannerCard — the full-width banner ABOVE the header (the wire
  * `bannerAssetId` node field, written through object.update; the
@@ -21,8 +23,8 @@
  * The collapse state derives from whether a cover is set (no per-node
  * persistence; the toggle is session-local). The card accepts a dropped
  * image file (the AddCoverButton gesture); hover reveals Change/Remove.
- * Selection writes through coverProperty: value + the cover/asset classes
- * (explicit ops — every client converges).
+ * Selection writes through coverProperty: the coverAssetId wire field +
+ * the cover/asset classes (explicit ops — every client converges).
  *
  * The upload gesture: clicking the empty "Add cover" element opens
  * the AssetUploadModal directly — image-only (accept="image/*"), validated,

@@ -8,7 +8,7 @@
  * treat an exact case-insensitive alias hit as the node's name. Values are
  * plain strings — no carrier blocks (an alias is a name, not a document).
  * The schema self-heals here (the server seed runs only on a completely
- * empty workspace — the ensureCoverProperty precedent): global scope, NO
+ * empty workspace — the ensureTaskFamily precedent): global scope, NO
  * class binding — aliases are page metadata and "page" is not a class in
  * the render-state model.
  *

@@ -109,6 +109,7 @@ const READ_INVALIDATION: Record<string, "change" | "structure" | "scope"> = {
   getUnlinkedReferences: "change",
   getUnlinkedReferenceCount: "change",
   getPropertyReferences: "change",
+  getCoverReferences: "change",
   listPages: "change",
   roots: "change",
   // Structural-global reads: definitions/membership/pure-of-args functions.
@@ -464,6 +465,11 @@ export class WorkerClient {
   /** Nodes carrying an authored value for the schema (the PropertyView references). */
   getPropertyReferences(schemaId: string): ClientNode[] {
     return this.cachedRead<ClientNode[]>("getPropertyReferences", [schemaId], []);
+  }
+
+  /** Nodes whose coverAssetId wire field points at the asset (the Cover badge). */
+  getCoverReferences(assetId: string): ClientNode[] {
+    return this.cachedRead<ClientNode[]>("getCoverReferences", [assetId], []);
   }
 
   /** Asset metadata for a node reference (derived node_asset rows). */

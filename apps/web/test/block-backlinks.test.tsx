@@ -88,7 +88,7 @@ describe("block-level backlink gutter", () => {
 
     const refsSpy = vi.spyOn(client, "getLinkedReferences");
     render(<PageView client={client} pageId={pageId} />);
-    // PageView's first mount idempotently writes the cover-property schema
+    // PageView's first mount idempotently writes the alias schema
     // (self-heal) and kicks pushes — settle those notifications so the
     // collapsed panel (which executes nothing) sees a quiet client. (The
     // page-level backlinks strip's mount load may call the same query for
