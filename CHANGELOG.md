@@ -9,6 +9,18 @@ predating this file.
 
 ## 2026-10-08
 
+- **fix(web): the empty page's ghost add-block row no longer overlaps the
+  next section's separator.** On a page with no child blocks, the lone ghost
+  row's bullet/label straddled the border-top of the following node-view
+  section (e.g. Class properties). The empty child-blocks surface pulled
+  itself up by a full `--spacing-2` (8px) while the ghost row only owns 2px
+  of bottom padding, so the next section's border cut 6px into the row. The
+  pull now cancels exactly the ghost's bottom padding (`--spacing-micro`):
+  the section border sits flush below the ghost's content, matching the
+  tight rhythm the rule was written for. **Verification:** a fixture
+  replicating the empty-surface DOM against the built app CSS measured
+  before/after (border 1px above the bullet bottom before; 5px clear
+  after); the full monorepo gate green (132 files / 1359 web tests).
 - **chore(env): `.env.example` documents the optional edge envs.** The
   `notees-edge` profile's required `NOTEES_EDGE_NAME` (and the
   `NOTEES_EDGE_HTTP` port remap) were missing from the template — any
