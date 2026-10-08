@@ -100,13 +100,17 @@
   --color-focus-overlay: rgb(0 0 0 / 8%);
   --color-pressed-overlay: rgb(0 0 0 / 12%);
 
-  /* ==================== Accent (monochrome default) ==================== */
-  --color-accent: #404040;
+  /* ==================== Accent (margin default) ==================== */
+  --color-accent: #2e5e46;
   --color-on-accent: #fff;
   --color-accent-hover: color-mix(in srgb, var(--color-accent) 90%, black);
   --color-accent-active: color-mix(in srgb, var(--color-accent) 80%, black);
-  --color-accent-subtle: #737373;
+  --color-accent-subtle: #518a6d;
   --color-surface-tint: transparent;
+  /* The settings swatch previews the monochrome preset per scheme (ink on
+     paper by day, paper white on the night ground) — see
+     [data-accent="monochrome"] for the accent itself. */
+  --color-accent-swatch-monochrome: #1c1a16;
 
   /* ==================== Data-level preset colors ====================
      Application data colors (node/class/tag colors, selection options):
@@ -784,6 +788,7 @@
   --color-accent: #6da789;
   --color-accent-subtle: #80bb9b;
   --color-on-accent: #140e08;
+  --color-accent-swatch-monochrome: #f4f3f1;
 
   /* Graph view tokens */
   --graph-node-default: #b8b8b8;
