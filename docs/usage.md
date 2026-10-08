@@ -383,6 +383,10 @@ A day page is an ordinary page (the journal is the feed of them), and it carries
 
 The **Tasks** hub keeps its table/kanban collection and now leads with a collapsible **Buckets** section: **Overdue / Today / Upcoming / Unscheduled / Completed**. A task lands in exactly one open bucket by its earliest Scheduled/Deadline day; Completed is the whole closed set. Rows carry the same done checkbox as everywhere else — closing a task moves it into Completed under your hands. The section's collapsed state is device-local.
 
+### The Assets hub's cover-first cards
+
+The **Assets** hub lists every asset-classed node as cards by default, and its cards default to the **cover top** layout (image assets read as a thumbnail gallery). Every other cards surface defaults to **no cover** until you pick a layout — and the moment you pick one anywhere, that choice becomes the single device-wide cover layout (see "View modes stick" above): the per-surface rule governs only the default before any choice exists.
+
 ## Templates
 
 A **template** is an ordinary node carrying the `template` class — its child blocks are the body that gets copied. Templates are bound to classes (the **Templates** cards on a class page, ＋ Bind template) and instantiated where objects are created: class pickers and the calendar's quick-create can offer a bound template, and the copy opens as a fresh node stamped with a `generated-from` provenance link back to the template (edit the copy freely — nothing writes back to the template). Unbinding a template from a class never touches copies already made.

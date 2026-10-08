@@ -169,6 +169,13 @@ export interface NodeCollectionProps {
   /** Cards: property schemas shown on flat node cards, in order. */
   cardProperties?: string[] | undefined;
   /**
+   * Cards: the cover layout this surface falls back to when the device has
+   * no persisted `cards.coverLayout` choice yet (default "no-cover"; the
+   * Assets hub passes "cover-top" — its cards read as an image gallery).
+   * A persisted choice wins on every surface — the preference stays global.
+   */
+  defaultCoverLayout?: CardLayout | undefined;
+  /**
    * Kanban: the single-select property schema whose options seed the board
    * columns (the property-dimension groupBy). Items whose value is empty or
    * not among the options land in the trailing "None" column; dragging a

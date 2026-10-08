@@ -1031,15 +1031,43 @@ describe("card covers and asset thumbnails", () => {
 
     render(<HubView client={client} nav="assets" onOpenNode={() => {}} />);
 
-    // Default layout is no-cover: the layout prop is honored, so the
-    // card renders text-only — no cover element at all.
-    expect(document.querySelector(".node-card__cover")).toBeNull();
-
-    // Switch to cover-top: the thumbnail appears in the top placement.
-    fireEvent.click(screen.getByRole("radio", { name: "Cover top" }));
+    // Assets default to cover-top (owner rule): the thumbnail renders in
+    // the top placement before any device choice exists.
     const cover = await screen.findByAltText("");
     expect(cover.tagName).toBe("IMG");
     expect(cover.getAttribute("src")).toContain("data:image/png");
     expect(cover.closest(".node-card")!.className).toContain("node-card--cover-top");
+
+    // Switch to no-cover: the layout prop is honored, so the card renders
+    // text-only — no cover element at all.
+    fireEvent.click(screen.getByRole("radio", { name: "No cover" }));
+    expect(document.querySelector(".node-card__cover")).toBeNull();
+  });
+
+  it("cards surfaces without a cover default stay no-cover until a choice is made", async () => {
+    const client = await seedClient();
+    const host = await client.createObject({ presentAsMain: true, name: "Attachments" });
+    const asset = await client.createObject({
+      parentId: host,
+      contentAst: [{ type: "text", text: "photo.png" }],
+    });
+    await client.assignClass(asset, SYSTEM_CLASS_UUIDS.asset);
+    vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,AAAA");
+
+    render(
+      <CollectionHub
+        client={client}
+        icon="mdi-folder-multiple-image"
+        title="Loose assets"
+        items={client.getClassMembers(SYSTEM_CLASS_UUIDS.asset).map((node) => ({ node }))}
+        modes={["cards"]}
+        defaultMode="cards"
+        onOpenNode={() => {}}
+      />,
+    );
+
+    // No defaultCoverLayout: the fallback stays the shipped "no-cover" —
+    // the cover-top default is the Assets hub's alone.
+    expect(document.querySelector(".node-card__cover")).toBeNull();
   });
 });
