@@ -2,10 +2,10 @@ import { chromium } from "playwright";
 const browser = await chromium.launch({ headless: true });
 const page = await (await browser.newContext({ viewport: { width: 1500, height: 950 } })).newPage();
 page.on("pageerror", (e) => console.log("page error:", String(e).slice(0, 200)));
-await page.goto("http://127.0.0.1:8378/login", { waitUntil: "commit", timeout: 60_000 });
+await page.goto("http://localhost:8378/login", { waitUntil: "commit", timeout: 60_000 });
 const urlBox = page.getByRole("textbox", { name: /server url/i });
 await urlBox.waitFor({ timeout: 30_000 });
-await urlBox.fill("http://127.0.0.1:8377");
+await urlBox.fill("http://localhost:8377");
 await page.getByRole("button", { name: /^continue$/i }).click();
 await page.getByRole("textbox", { name: /email/i }).waitFor({ timeout: 15_000 });
 await page.getByRole("textbox", { name: /email/i }).fill("miquelroselltarrago@gmail.com");
@@ -39,7 +39,7 @@ console.log("url after picking today:", page.url());
 console.log("page view title:", await page.locator(".nt-page-title, .nt-page-title-link").first().textContent());
 
 // 3. /journal route + reload
-await page.goto("http://127.0.0.1:8378/journal");
+await page.goto("http://localhost:8378/journal");
 await page.waitForTimeout(5000);
 console.log("url at /journal:", page.url());
 console.log("journals visible at /journal:", await page.locator(".journals-view").isVisible());
@@ -49,7 +49,7 @@ console.log("url after reload:", page.url());
 console.log("journals visible after reload:", await page.locator(".journals-view").isVisible());
 
 // 4. /inbox route + reload
-await page.goto("http://127.0.0.1:8378/inbox");
+await page.goto("http://localhost:8378/inbox");
 await page.waitForTimeout(4000);
 console.log("inbox hub:", await page.locator(".nt-hub").isVisible());
 await page.reload({ waitUntil: "commit" });

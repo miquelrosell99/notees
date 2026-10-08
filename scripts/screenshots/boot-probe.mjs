@@ -4,9 +4,9 @@ for (const theme of ["dark", "light"]) {
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 } });
   const page = await ctx.newPage();
   await page.addInitScript((t) => localStorage.setItem("notees.theme", t), theme);
-  await page.goto("http://127.0.0.1:8378", { waitUntil: "commit", timeout: 60_000 });
+  await page.goto("http://localhost:8378", { waitUntil: "commit", timeout: 60_000 });
   await page.getByRole("textbox", { name: /server url/i }).waitFor({ timeout: 30_000 });
-  await page.getByRole("textbox", { name: /server url/i }).fill("http://127.0.0.1:8377");
+  await page.getByRole("textbox", { name: /server url/i }).fill("http://localhost:8377");
   await page.getByRole("button", { name: /^continue$/i }).click();
   await page.getByRole("textbox", { name: /email/i }).waitFor({ timeout: 15_000 });
   await page.getByRole("textbox", { name: /email/i }).fill("miquelroselltarrago@gmail.com");
