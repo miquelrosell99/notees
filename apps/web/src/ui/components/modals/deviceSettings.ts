@@ -88,7 +88,7 @@ export type UiFontPreference = "bundled" | "system";
 
 export const ACCENT_COLOR_OPTIONS: { value: AccentColor; label: string; hex: string }[] = [
   { value: "margin", label: "Margin", hex: "#2e5e46" },
-  { value: "monochrome", label: "Monochrome", hex: "#404040" },
+  { value: "monochrome", label: "Monochrome", hex: "#1c1a16" },
   { value: "sage", label: "Sage", hex: "#527051" },
   { value: "teal", label: "Teal", hex: "#2D6B5B" },
   { value: "rose", label: "Rose", hex: "#8B5B5B" },
