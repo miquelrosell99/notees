@@ -337,7 +337,7 @@ describe("sidebar row labels render as read-only block content", () => {
     const rich = richTitleNode();
     localStorage.setItem("notees.favorites", JSON.stringify([rich.id]));
     const rendered = renderSidebar(stubSidebarClient([rich, target]), extras);
-    // The row body (role=button) — the focus target for keyboard nav.
+    // The row body (a real <button>) — the focus target for keyboard nav.
     const row = screen.getAllByRole("button", { name: /notes on target/i })[0] as HTMLElement;
     return { ...rendered, row, rich, target };
   }
@@ -378,8 +378,10 @@ describe("sidebar row labels render as read-only block content", () => {
     const onOpenPage = vi.fn();
     const onOpenInSidebar = vi.fn();
     const { row } = renderRichRow({ onOpenPage, onOpenInSidebar });
-    fireEvent.keyDown(row, { key: "Enter" });
-    expect(onOpenPage).toHaveBeenCalledWith("rich-1");
+    // The row is a REAL <button>: Enter/Space activation is platform-native
+    // (jsdom does not derive a click from keydown, and there is no JS
+    // keydown handler anymore) — the contract to assert is the element itself.
+    expect(row.tagName).toBe("BUTTON");
     fireEvent.click(row, { shiftKey: true });
     expect(onOpenInSidebar).toHaveBeenCalledWith("rich-1");
     fireEvent.click(row);

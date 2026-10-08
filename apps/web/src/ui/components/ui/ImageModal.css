@@ -12,10 +12,6 @@
   z-index: var(--z-10000);
 }
 
-.image-modal-backdrop:focus-visible {
-  outline: none;
-}
-
 .image-modal-actions {
   position: fixed;
   top: var(--spacing-4);

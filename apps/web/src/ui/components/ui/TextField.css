@@ -16,7 +16,9 @@
 
 .text-field {
   width: 100%;
-  height: var(--height-lg);
+  /* The 44px touch-target floor: the default rides --height-xl (46px) so the
+     underline field stays tappable on touch screens. */
+  height: var(--height-xl);
   padding: var(--spacing-2) 0;
   font-size: var(--font-size-sm);
   color: var(--color-on-surface);

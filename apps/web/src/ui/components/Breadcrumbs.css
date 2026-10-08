@@ -102,7 +102,7 @@
   overflow-y: auto;
   background: var(--color-surface);
   border: var(--border-width-default) solid var(--color-outline-variant);
-  border-radius: var(--shape-medium);
+  border-radius: var(--shape-floating-panel);
   padding: var(--spacing-1);
   box-shadow: var(--shadow-elevation-2);
 }

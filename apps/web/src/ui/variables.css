@@ -133,6 +133,8 @@
   --graph-node-default: #737373;
   --graph-edge-color: #d4d4d4;
   --graph-bg: transparent;
+  --graph-minimap-dot: #8c857d;
+  --graph-minimap-viewport: #5c544c;
 
   /* Graph semantic colors */
   --graph-edge-cooccurrence: #8a6cc9;
@@ -199,7 +201,7 @@
   --bullet-size-md: 6px;
   --bullet-ring-size: 16px;
   --ghost-card-opacity: var(--opacity-55);
-  --tactile-press-scale: 0.88;
+  --tactile-press-scale: 0.96;
 
   /* Icon sizes (width/height for icon buttons, avatars, etc.) */
   --icon-size-xs: 14px;
@@ -794,6 +796,8 @@
   --graph-node-default: #b8b8b8;
   --graph-edge-color: #3a3a3a;
   --graph-bg: transparent;
+  --graph-minimap-dot: #a9a59f;
+  --graph-minimap-viewport: #d4d4d4;
 
   /* Graph semantic colors */
   --graph-edge-cooccurrence: #a78bd4;

@@ -6,20 +6,20 @@
 .activity-log {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-4, 16px);
+  gap: var(--spacing-4);
 }
 
 .activity-log__group {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-1, 4px);
+  gap: var(--spacing-1);
 }
 
 .activity-log__group-title {
   margin: 0;
-  font-size: var(--font-size-2xs, 10px);
+  font-size: var(--font-size-2xs);
   font-weight: var(--font-weight-semibold);
-  letter-spacing: var(--letter-spacing-section, 0.08em);
+  letter-spacing: var(--letter-spacing-section);
   text-transform: uppercase;
   color: var(--color-on-surface-variant);
 }
@@ -36,10 +36,10 @@
 .activity-log__row {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2, 8px);
-  min-height: var(--height-md, 32px);
-  padding: 0 var(--spacing-1, 4px);
-  border-radius: var(--shape-small, 6px);
+  gap: var(--spacing-2);
+  min-height: var(--height-md);
+  padding: 0 var(--spacing-1);
+  border-radius: var(--shape-small);
 }
 
 .activity-log__row:hover {
@@ -54,7 +54,7 @@
   border: none;
   background: none;
   padding: 0;
-  font-size: var(--font-size-sm, 13px);
+  font-size: var(--font-size-sm);
   color: var(--color-on-surface);
   text-align: left;
 }
@@ -65,29 +65,29 @@
 
 .activity-log__chips {
   display: inline-flex;
-  gap: var(--spacing-1, 4px);
+  gap: var(--spacing-1);
   flex-shrink: 0;
 }
 
 .activity-log__chip {
-  padding: 0 var(--spacing-2, 8px);
-  border-radius: var(--shape-full, 999px);
+  padding: 0 var(--spacing-2);
+  border-radius: var(--shape-full);
   background: var(--color-surface-container-high);
   color: var(--color-on-surface-variant);
-  font-size: var(--font-size-2xs, 10px);
-  letter-spacing: var(--letter-spacing-badge, 0.5px);
+  font-size: var(--font-size-2xs);
+  letter-spacing: var(--letter-spacing-badge);
   text-transform: uppercase;
 }
 
 .activity-log__stamp {
   flex-shrink: 0;
   margin-left: auto;
-  font-size: var(--font-size-2xs, 10px);
+  font-size: var(--font-size-2xs);
   color: var(--color-on-surface-variant);
 }
 
 .activity-log__note {
-  margin: var(--spacing-1, 4px) 0 0;
-  font-size: var(--font-size-2xs, 10px);
+  margin: var(--spacing-1) 0 0;
+  font-size: var(--font-size-2xs);
   color: var(--color-on-surface-variant);
 }

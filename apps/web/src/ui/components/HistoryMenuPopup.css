@@ -14,9 +14,9 @@
   flex-direction: column;
   gap: var(--spacing-1);
   padding: var(--spacing-2) var(--spacing-2);
-  background: var(--color-surface-container-high, var(--color-surface));
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
-  border-radius: var(--shape-medium, 8px);
+  background: var(--color-surface-container-high);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-floating-panel);
   box-shadow: var(--shadow-elevation-2);
   color: var(--color-on-surface);
 }
@@ -80,13 +80,13 @@
 
 .history-popup__row-time {
   flex-shrink: 0;
-  font-size: 11.5px;
+  font-size: var(--font-size-xs);
   color: var(--color-on-surface-variant);
 }
 
 .history-popup__hint {
   padding: var(--spacing-1) var(--spacing-2) 0;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--color-on-surface-variant);
-  border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
 }

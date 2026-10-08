@@ -47,6 +47,10 @@ export interface GraphTheme extends LabelColors {
   edgeDefault: [number, number, number];
   /** Semantic (co-occurrence) edge stroke — the --graph-edge-cooccurrence token. */
   semanticEdge: [number, number, number];
+  /** Minimap node dots — the --graph-minimap-dot token at low alpha. */
+  minimapDot: string;
+  /** Minimap viewport rectangle — the --graph-minimap-viewport token. */
+  minimapViewport: string;
 }
 
 let cache: GraphTheme | null = null;
@@ -61,6 +65,8 @@ export function graphTheme(): GraphTheme {
     nodeDefault: hexVarToRgbaTuple("--graph-node-default", 1.0, [0.62, 0.62, 0.66, 1.0]),
     edgeDefault: hexVarToRgbTriple("--graph-edge-color", [0.83, 0.83, 0.83]),
     semanticEdge: hexVarToRgbTriple("--graph-edge-cooccurrence", [0.54, 0.42, 0.79]),
+    minimapDot: hexVarToRgba("--graph-minimap-dot", 0.55, "rgba(140,140,140,0.55)"),
+    minimapViewport: hexVarToRgba("--graph-minimap-viewport", 0.9, "rgba(92,84,76,0.9)"),
   };
   if (observer === null && typeof MutationObserver !== "undefined") {
     observer = new MutationObserver(() => {
@@ -68,7 +74,9 @@ export function graphTheme(): GraphTheme {
     });
     observer.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ["data-theme"],
+      // Accent tints the dark surfaces and OLED flips the ground, so a
+      // token re-resolve is needed on those flips too.
+      attributeFilter: ["data-theme", "data-accent", "data-oled"],
     });
   }
   return cache;

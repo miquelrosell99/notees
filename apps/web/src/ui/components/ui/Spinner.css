@@ -48,6 +48,28 @@
   font: var(--font-body-medium);
 }
 
+/* Reduced motion: the global blanket freezes the spin keyframe, leaving a
+   static arc. Swap the arc for an honest "still working" text cue — the
+   role=status announcement continues regardless. */
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+    border-top-color: var(--color-outline-variant);
+    position: relative;
+    width: auto;
+    min-width: var(--icon-size-sm);
+    height: auto;
+    border-width: 0;
+  }
+
+  .spinner::after {
+    content: '…';
+    color: var(--color-on-surface-variant);
+    font: var(--font-title-medium);
+    line-height: 1;
+  }
+}
+
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }

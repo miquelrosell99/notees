@@ -156,7 +156,7 @@
   padding: var(--spacing-1);
   background: var(--color-surface);
   border: var(--border-width-default) solid var(--color-outline-variant);
-  border-radius: var(--shape-medium);
+  border-radius: var(--shape-floating-panel);
   box-shadow: var(--elevation-2);
 }
 

@@ -2,15 +2,22 @@
  * css-token-drift — the design-token gate.
  *
  * The audit batch emptied component CSS of hex/rgb
- * color literals, bare box-shadows, and sub-10px px font sizes; everything
- * resolves to a custom property from variables.css. This gate fails the
- * build if a future change drifts any of those classes back in:
+ * color literals, bare box-shadows, and px font-size/radius literals;
+ * everything resolves to a custom property from variables.css. This gate
+ * fails the build if a future change drifts any of those classes back in:
  *
  *   1. every `var(--token)` reference names a token that variables.css
  *      actually defines (or an explicit JS-scoped allowlist entry);
  *   2. no bare color literal outside variables.css/fonts.css — a literal
  *      is allowed only inside a var(...) fallback span;
- *   3. no px font-size literal below 10px outside variables.css/fonts.css.
+ *   3. no px font-size literal outside variables.css/fonts.css (any size —
+ *      the scale is rem-token based);
+ *   4. no px border-radius literal outside variables.css/fonts.css (the
+ *      --shape-* scale owns corners);
+ *   5. no color literal inside a var(...) fallback outside the defining
+ *      files — a fallback that always wins is a hardcoded color (fallbacks
+ *      must only fire in tests; legitimate defaults are var() chains or
+ *      unitless numbers like 0/1).
  *
  * House rule (AGENTS.md): the library's CSS is token-only.
  */
@@ -146,15 +153,46 @@ describe("css token drift gate", () => {
     }
   });
 
-  it("3. no sub-10px px font-size literal outside the defining files", () => {
+  it("3. no px font-size literal outside the defining files", () => {
     for (const file of cssFiles) {
       if (DEFINING_FILES.has(path.basename(file))) continue;
       const css = fs.readFileSync(file, "utf8");
       for (const match of css.matchAll(/font-size\s*:\s*([0-9.]+)px/g)) {
-        const px = Number(match[1]);
-        if (Number.isFinite(px) && px < 10) {
-          expect.fail(`${path.relative(UI_DIR, file)} sets a ${px}px font-size at offset ${match.index!}`);
-        }
+        expect.fail(
+          `${path.relative(UI_DIR, file)} sets a ${match[1]}px font-size at offset ${match.index!} — use the --font-size-* scale`,
+        );
+      }
+    }
+  });
+
+  it("4. no px border-radius literal outside the defining files", () => {
+    for (const file of cssFiles) {
+      if (DEFINING_FILES.has(path.basename(file))) continue;
+      const css = fs.readFileSync(file, "utf8");
+      for (const match of css.matchAll(/border-radius\s*:\s*([0-9.]+)px/g)) {
+        expect.fail(
+          `${path.relative(UI_DIR, file)} sets a ${match[1]}px border-radius at offset ${match.index!} — use the --shape-* scale`,
+        );
+      }
+    }
+  });
+
+  it("5. no color literal inside a var(...) fallback outside the defining files", () => {
+    for (const file of cssFiles) {
+      if (DEFINING_FILES.has(path.basename(file))) continue;
+      const css = stripComments(fs.readFileSync(file, "utf8"));
+      const spans = parenSpans(css);
+      for (const match of css.matchAll(COLOR_LITERAL)) {
+        if (!inSpans(match.index!, spans)) continue; // bare literals are test 2
+        // Inside var(...): only var() chains and unitless numeric defaults
+        // (0/1) are honest fallbacks — a color literal fallback would win
+        // whenever the token is unset.
+        const lineStart = css.lastIndexOf("\n", match.index!) + 1;
+        const line = css.slice(lineStart, css.indexOf("\n", match.index!));
+        if (/var\([^)]*var\(/.test(line) || /var\([^)]*,\s*-?[01]\s*\)/.test(line)) continue;
+        expect.fail(
+          `${path.relative(UI_DIR, file)} has a color literal inside a var() fallback: ${line.trim()}`,
+        );
       }
     }
   });

@@ -91,7 +91,7 @@ button.property-cell {
   z-index: var(--z-floating);
   background: var(--color-surface);
   border: var(--border-width-default) solid var(--color-outline-variant);
-  border-radius: var(--shape-medium);
+  border-radius: var(--shape-floating-panel);
   max-height: var(--layout-size-7xl);
   overflow-y: auto;
   min-width: var(--layout-size-2xl);

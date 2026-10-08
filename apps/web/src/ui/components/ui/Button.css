@@ -400,6 +400,6 @@
   color: var(--color-on-primary);
   font-size: var(--font-size-xs);
   font-weight: 600;
-  line-height: var(--spacing-4);
+  line-height: 1;
   opacity: var(--opacity-70);
 }

@@ -320,7 +320,7 @@
   border-radius: var(--shape-full);
   background: var(--color-surface);
   color: var(--color-on-surface);
-  font-size: 13px;
+  font-size: var(--font-size-button);
   cursor: pointer;
 }
 
@@ -357,15 +357,15 @@
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
-  z-index: var(--z-dropdown, 60);
+  z-index: var(--z-dropdown);
   min-width: 180px;
   display: flex;
   flex-direction: column;
   gap: 2px;
   padding: var(--spacing-2);
-  background: var(--color-surface-container-high, var(--color-surface));
+  background: var(--color-surface-container-high);
   border: var(--border-width-default) solid var(--color-outline-variant);
-  border-radius: var(--shape-medium);
+  border-radius: var(--shape-floating-panel);
   box-shadow: var(--shadow-elevation-2);
 }
 
@@ -379,7 +379,7 @@
   border-radius: var(--shape-small);
   background: transparent;
   color: var(--color-on-surface);
-  font-size: 13px;
+  font-size: var(--font-size-button);
   text-align: left;
   cursor: pointer;
 }
@@ -400,12 +400,12 @@
   border-radius: var(--shape-card);
   background: transparent;
   color: var(--color-on-surface-variant);
-  font-size: 13.5px;
+  font-size: var(--font-size-base);
   cursor: pointer;
   transition:
-    background var(--motion-duration-short, 120ms) ease,
-    color var(--motion-duration-short, 120ms) ease,
-    border-color var(--motion-duration-short, 120ms) ease;
+    background var(--motion-duration-short) ease,
+    color var(--motion-duration-short) ease,
+    border-color var(--motion-duration-short) ease;
 }
 
 .workspace-management__card--create:hover {

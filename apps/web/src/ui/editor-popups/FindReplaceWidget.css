@@ -61,9 +61,9 @@
 }
 
 .find-replace-btn.active {
-  background: var(--accent-color, var(--color-accent));
+  background: var(--accent-color);
   color: var(--color-on-accent);
-  border-color: var(--accent-color, var(--color-accent));
+  border-color: var(--accent-color);
 }
 
 .find-replace-btn.btn--icon-only {

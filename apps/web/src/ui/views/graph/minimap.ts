@@ -3,7 +3,12 @@
  * Canvas 2D projection of the SAME positions the main renderer draws, with
  * the camera's viewport rectangle and click/drag navigation. No second
  * physics — the minimap mirrors the live frame, so it can never drift.
+ *
+ * Paint comes from the design tokens via renderer/theme.ts (no literals of
+ * our own), so the minimap tracks theme, accent, and OLED flips.
  */
+
+import { graphTheme } from './renderer/theme.js';
 
 export interface MinimapCamera {
   x: number;
@@ -61,7 +66,7 @@ export const GraphMinimap = {
     const toMiniX = (wx: number): number => offsetX + (wx - b.minX) * scale;
     const toMiniY = (wy: number): number => offsetY + (wy - b.minY) * scale;
 
-    ctx.fillStyle = "rgba(140, 140, 150, 0.55)";
+    ctx.fillStyle = graphTheme().minimapDot;
     for (let i = 0; i < count; i++) {
       ctx.fillRect(toMiniX(positions[i * 2]!) - 1, toMiniY(positions[i * 2 + 1]!) - 1, 2, 2);
     }
@@ -70,7 +75,7 @@ export const GraphMinimap = {
     // units across; both the dots and the rect ride the same linear map.
     const viewW = viewWidthPx / Math.max(0.05, camera.zoom);
     const viewH = viewHeightPx / Math.max(0.05, camera.zoom);
-    ctx.strokeStyle = "rgba(90, 90, 100, 0.9)";
+    ctx.strokeStyle = graphTheme().minimapViewport;
     ctx.lineWidth = 1;
     ctx.strokeRect(
       toMiniX(camera.x - viewW / 2),

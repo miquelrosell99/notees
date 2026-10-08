@@ -7,7 +7,7 @@
 .workspace-switcher__row {
   display: flex;
   align-items: center;
-  gap: var(--spacing-1, 4px);
+  gap: var(--spacing-1);
 }
 
 .workspace-switcher__trigger {
@@ -16,10 +16,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--spacing-1, 4px);
-  padding: 6px var(--spacing-2, 8px);
+  gap: var(--spacing-1);
+  padding: 6px var(--spacing-2);
   border: none;
-  border-radius: var(--shape-medium, 8px);
+  border-radius: var(--shape-medium);
   background: transparent;
   color: var(--color-on-surface-variant);
 }
@@ -31,7 +31,7 @@
 
 .workspace-switcher__name {
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--font-size-button);
   letter-spacing: 0.05em;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -40,13 +40,13 @@
 
 .workspace-switcher__popup {
   position: absolute;
-  top: calc(100% + var(--spacing-1, 4px));
+  top: calc(100% + var(--spacing-1));
   left: 0;
   right: 0;
   z-index: 60;
-  background: var(--color-surface-container-high, var(--color-surface));
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
-  border-radius: var(--shape-medium, 8px);
+  background: var(--color-surface-container-high);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-floating-panel);
   box-shadow: var(--shadow-elevation-2);
   overflow: hidden;
   max-height: 18.75rem;
@@ -55,30 +55,30 @@
 }
 
 .workspace-switcher__search {
-  padding: var(--spacing-2, 8px);
-  border-bottom: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  padding: var(--spacing-2);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .workspace-switcher__search-input {
   width: 100%;
-  padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   background: var(--color-surface);
   color: var(--color-on-surface);
-  font-size: 13px;
+  font-size: var(--font-size-button);
 }
 
 .workspace-switcher__list {
   list-style: none;
   margin: 0;
-  padding: var(--spacing-1, 4px);
+  padding: var(--spacing-1);
   overflow-y: auto;
 }
 
 .workspace-switcher__row-item {
   display: flex;
   align-items: center;
-  gap: var(--spacing-1, 4px);
+  gap: var(--spacing-1);
 }
 
 .workspace-switcher__row-item .workspace-switcher__item {
@@ -100,11 +100,11 @@
   width: 28px;
   height: 28px;
   border: none;
-  border-radius: var(--shape-medium, 8px);
+  border-radius: var(--shape-medium);
   background: transparent;
   color: var(--color-on-surface-variant);
   opacity: 0;
-  transition: opacity var(--motion-duration-short, 150ms) var(--motion-easing-standard, ease);
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .workspace-switcher__settings-btn:hover {
@@ -116,13 +116,13 @@
   width: 100%;
   display: flex;
   align-items: center;
-  gap: var(--spacing-2, 8px);
-  padding: 7px var(--spacing-2, 8px);
+  gap: var(--spacing-2);
+  padding: 7px var(--spacing-2);
   border: none;
-  border-radius: var(--shape-small, 6px);
+  border-radius: var(--shape-small);
   background: transparent;
   color: var(--color-on-surface);
-  font-size: 13px;
+  font-size: var(--font-size-button);
   text-align: left;
 }
 
@@ -146,9 +146,9 @@
 
 .workspace-switcher__item-badge {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   padding: 1px 8px;
-  border-radius: var(--shape-full, 999px);
+  border-radius: var(--shape-full);
   background: var(--color-primary-container);
   color: var(--color-on-primary-container);
 }
@@ -163,8 +163,8 @@
 }
 
 .workspace-switcher__empty {
-  padding: var(--spacing-3, 12px);
-  font-size: 12.5px;
+  padding: var(--spacing-3);
+  font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
 }
 
@@ -176,12 +176,12 @@
 .workspace-switcher__manage {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2, 8px);
-  padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
   border: none;
   background: transparent;
   color: var(--color-on-surface-variant);
-  font-size: 12.5px;
+  font-size: var(--font-size-sm);
 }
 
 .workspace-switcher__manage:hover {
@@ -191,7 +191,7 @@
 
 .workspace-switcher__error {
   margin: 0;
-  padding: 0 var(--spacing-3, 12px) var(--spacing-2, 8px);
-  font-size: 12px;
+  padding: 0 var(--spacing-3) var(--spacing-2);
+  font-size: var(--font-size-sm);
   color: var(--color-error);
 }

@@ -263,9 +263,8 @@ export function Sidebar({
         setRowMenu({ x: event.clientX, y: event.clientY, node, list });
       }}
     >
-      <div
-        role="button"
-        tabIndex={0}
+      <button
+        type="button"
         className={node.id === selectedPageId ? "nt-side-item nt-side-item-active" : "nt-side-item"}
         onClick={(event) => {
           if (event.shiftKey) {
@@ -273,12 +272,6 @@ export function Sidebar({
             return;
           }
           openRow(node.id);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            openRow(node.id);
-          }
         }}
       >
         {icon !== null && icon !== undefined && (
@@ -290,7 +283,7 @@ export function Sidebar({
             class
           </span>
         )}
-      </div>
+      </button>
       <button
         type="button"
         className="nt-side-star"

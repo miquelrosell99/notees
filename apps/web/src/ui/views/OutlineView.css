@@ -3,7 +3,7 @@
 .outline-flat {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-1, 4px);
+  gap: var(--spacing-1);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -12,39 +12,39 @@
 .outline-row {
   display: flex;
   align-items: center;
-  gap: var(--spacing-1, 4px);
+  gap: var(--spacing-1);
   min-width: 0;
 }
 
 .outline-row__main {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2, 8px);
+  gap: var(--spacing-2);
   flex: 1 1 auto;
   min-width: 0;
-  padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
+  padding: var(--spacing-1) var(--spacing-2);
   border: none;
-  border-radius: var(--radius-sm, 6px);
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--color-on-surface);
-  font-size: var(--font-size-md, 0.95rem);
+  font-size: var(--font-size-md);
   text-align: left;
   cursor: pointer;
-  transition: background-color var(--motion-duration-short, 120ms) var(--motion-easing-standard, ease);
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .outline-row__main:hover {
-  background-color: var(--color-hover-overlay, rgba(0, 0, 0, 0.04));
+  background-color: var(--color-hover-overlay);
 }
 
 .outline-row__bullet {
   flex-shrink: 0;
-  color: var(--color-on-surface-variant, currentColor);
+  color: var(--color-on-surface-variant);
 }
 
 .outline-row__icon {
   flex-shrink: 0;
-  color: var(--color-on-surface-variant, currentColor);
+  color: var(--color-on-surface-variant);
   display: inline-flex;
 }
 
@@ -58,8 +58,8 @@
 
 .outline-row__type {
   flex-shrink: 0;
-  font-size: var(--font-size-xs, 0.75rem);
-  color: var(--color-on-surface-variant, currentColor);
+  font-size: var(--font-size-xs);
+  color: var(--color-on-surface-variant);
   text-transform: lowercase;
 }
 
@@ -69,13 +69,13 @@
 .outline-groups {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2, 8px);
+  gap: var(--spacing-2);
 }
 
 .outline-group__header {
   display: flex;
   align-items: center;
-  gap: var(--spacing-1, 4px);
+  gap: var(--spacing-1);
   min-width: 0;
 }
 
@@ -84,33 +84,33 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: var(--icon-size-md, 20px);
-  height: var(--icon-size-md, 20px);
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
   padding: 0;
   border: none;
-  border-radius: var(--shape-small, 6px);
+  border-radius: var(--shape-small);
   background: transparent;
-  color: var(--color-on-surface-variant, currentColor);
+  color: var(--color-on-surface-variant);
   cursor: pointer;
 }
 
 .outline-group__toggle:hover {
-  background: var(--color-hover-overlay, rgba(0, 0, 0, 0.04));
-  color: var(--color-on-surface, currentColor);
+  background: var(--color-hover-overlay);
+  color: var(--color-on-surface);
 }
 
 .outline-group__label {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2, 8px);
+  gap: var(--spacing-2);
   flex: 1 1 auto;
   min-width: 0;
-  padding: 3px var(--spacing-1, 4px);
+  padding: 3px var(--spacing-1);
   border: none;
-  border-radius: var(--shape-small, 6px);
+  border-radius: var(--shape-small);
   background: transparent;
   color: var(--color-on-surface);
-  font-size: var(--font-size-sm, 0.85rem);
+  font-size: var(--font-size-sm);
   font-weight: 500;
   text-align: left;
 }
@@ -120,12 +120,12 @@ button.outline-group__label {
 }
 
 button.outline-group__label:hover {
-  background: var(--color-hover-overlay, rgba(0, 0, 0, 0.04));
+  background: var(--color-hover-overlay);
 }
 
 .outline-group__icon {
   flex-shrink: 0;
-  color: var(--color-on-surface-variant, currentColor);
+  color: var(--color-on-surface-variant);
   display: inline-flex;
 }
 
@@ -139,18 +139,18 @@ button.outline-group__label:hover {
 
 .outline-group__count {
   flex-shrink: 0;
-  font-size: 11px;
-  color: var(--color-on-surface-variant, currentColor);
+  font-size: var(--font-size-xs);
+  color: var(--color-on-surface-variant);
 }
 
 .outline-group__items {
   list-style: none;
-  margin: 0 0 0 var(--spacing-2, 8px);
-  padding: 0 0 0 var(--spacing-3, 12px);
-  border-left: 1px solid var(--color-outline-variant, currentColor);
+  margin: 0 0 0 var(--spacing-2);
+  padding: 0 0 0 var(--spacing-3);
+  border-left: 1px solid var(--color-outline-variant);
 }
 
 /* The window affordance aligns with the indented group rows. */
 .outline-group > .nt-window-more {
-  margin-inline-start: calc(var(--spacing-2, 8px) + var(--spacing-3, 12px));
+  margin-inline-start: calc(var(--spacing-2) + var(--spacing-3));
 }

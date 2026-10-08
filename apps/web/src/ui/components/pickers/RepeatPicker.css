@@ -4,17 +4,17 @@
 .nt-repeat-trigger {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-1, 4px);
-  color: var(--text-muted, currentColor);
+  gap: var(--spacing-1);
+  color: var(--text-muted);
   cursor: pointer;
 }
 
 .nt-repeat-trigger:hover {
-  color: var(--color-on-surface, currentColor);
+  color: var(--color-on-surface);
 }
 
 .nt-repeat-trigger-label {
-  font-size: var(--font-size-sm, inherit);
+  font-size: var(--font-size-sm);
 }
 
 .nt-repeat-trigger--icon {
@@ -22,7 +22,7 @@
 }
 
 .nt-repeat-trigger--active {
-  color: var(--color-primary, currentColor);
+  color: var(--color-primary);
 }
 
 /* The icon-only trigger's accessible name (the Dropdown owns the wrapper

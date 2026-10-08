@@ -141,7 +141,7 @@
   gap: var(--spacing-2);
   padding: var(--spacing-2) var(--spacing-3);
   margin: var(--spacing-2) 0;
-  background: var(--color-secondary-container, var(--color-surface-container-high));
+  background: var(--color-secondary-container);
   color: var(--color-on-surface);
   border-radius: var(--shape-medium);
   font: var(--font-body-small);
