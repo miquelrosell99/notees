@@ -5,9 +5,14 @@
  * with a
  * Suspense boundary and (when the entry opts in) the kit ErrorBoundary. The
  * empty collection renders the kit EmptyState when the container offers a
- * title; otherwise nothing. The create affordance (the view contract's
- * `showAddButton` + `onAdd`) rides the empty state's action slot — the
- * button renders only when BOTH the flag and the callback are set.
+ * title; otherwise, when the collection is hosted (custom tabs) or the
+ * container passes `emptyText`, the subtle `nt-section-empty` line renders in
+ * the selected tab's body — the tabs and the "+" affordance stay visible on
+ * an empty section — naming the container's empty on the default tab and
+ * "No matching rows." on a custom tab refined to empty; with neither,
+ * nothing. The create affordance (the view contract's `showAddButton` +
+ * `onAdd`) rides the empty state's action slot — the button renders only
+ * when BOTH the flag and the callback are set.
  *
  * Hosted views (the `hostedViews` prop): the collection gains the
  * custom-tabs chrome (SectionViewTabs) — the default tab renders exactly
@@ -77,6 +82,12 @@ export function NodeCollection({
   const resolvedGroups = hosted !== null ? resolution.groups : props.groups;
   const viewProps = { ...props, items: resolvedItems, groups: resolvedGroups };
   const showAdd = props.showAddButton === true && props.onAdd !== undefined;
+  // A custom tab refined to empty answers for itself; the default tab (or an
+  // unrefined collection) names the container's empty line.
+  const emptyLine =
+    hosted !== null && selectedView !== undefined
+      ? "No matching rows."
+      : (props.emptyText ?? "No matching rows.");
   const body =
     resolution.error !== null && hosted !== null ? (
       <div className="nt-error" role="alert">
@@ -90,11 +101,10 @@ export function NodeCollection({
         description={props.emptyHint}
         {...(showAdd ? { actionLabel: props.addLabel ?? "Add", onAction: props.onAdd } : {})}
       />
-    ) : viewProps.items.length === 0 && hosted !== null && effectiveEntry.id !== "graph" ? (
-      // A hosted tab refined to empty: the containers render their own
-      // empty text around un-hosted collections; a custom tab answers for
-      // itself (the section-empty convention).
-      <div className="nt-section-empty">No matching rows.</div>
+    ) : viewProps.items.length === 0 &&
+      effectiveEntry.id !== "graph" &&
+      (hosted !== null || props.emptyText !== undefined) ? (
+      <div className="nt-section-empty">{emptyLine}</div>
     ) : (
       <Suspense fallback={<Spinner />}>
         <View {...viewProps} />

@@ -43,7 +43,7 @@ export interface CollectionSectionProps {
   count?: number | undefined;
   /** Collapsed on first render unless overridden. */
   defaultCollapsed?: boolean;
-  /** Text when the resolution came back empty. */
+  /** Text when the resolution came back empty — rides the collection's empty slot (inside the selected tab for hosted collections). */
   emptyText: string;
   /** The view the collection renders in. */
   viewMode: ViewMode;
@@ -118,14 +118,13 @@ export function CollectionSection({
       {toolbar !== undefined && (
         <div className="nt-collection-section__toolbar">{toolbar}</div>
       )}
-      {rows === null ? null : rows.length === 0 ? (
-        <div className="nt-section-empty">{emptyText}</div>
-      ) : (
+      {rows === null ? null : (
         <NodeCollection
           viewMode={viewMode}
           client={client}
           items={rows}
           {...collection}
+          emptyText={emptyText}
         />
       )}
     </NodeViewSection>
