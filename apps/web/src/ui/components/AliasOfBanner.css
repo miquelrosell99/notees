@@ -20,7 +20,7 @@
 }
 
 .nt-alias-banner:focus-visible {
-  outline: var(--border-width-thick, 2px) solid var(--color-primary);
+  outline: var(--border-width-thick) solid var(--color-primary);
   outline-offset: var(--focus-outline-offset);
   border-radius: var(--shape-small);
 }

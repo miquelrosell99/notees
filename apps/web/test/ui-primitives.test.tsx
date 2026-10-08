@@ -35,12 +35,22 @@ describe("Button", () => {
     expect(screen.getByRole("button", { name: /settings/i })).toHaveClass("btn--icon-text");
   });
 
-  it("renders icon-only with the icon-only class and spinner while loading", () => {
-    render(<Button icon="mdi mdi-cog" aria-label="Settings" loading />);
-    const button = screen.getByRole("button", { name: "Settings" });
-    expect(button).toHaveClass("btn--icon-only", "btn--loading");
-    expect(button).toBeDisabled();
-    expect(button.querySelector(".spinner")).not.toBeNull();
+  it("renders icon-only with the icon-only class; the spinner waits out the 300ms rule", () => {
+    vi.useFakeTimers();
+    try {
+      render(<Button icon="mdi mdi-cog" aria-label="Settings" loading />);
+      const button = screen.getByRole("button", { name: "Settings" });
+      expect(button).toHaveClass("btn--icon-only", "btn--loading");
+      expect(button).toBeDisabled();
+      // The loading-timing rule: nothing for <300ms, spinner after.
+      expect(button.querySelector(".spinner")).toBeNull();
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+      expect(button.querySelector(".spinner")).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("calls onClick when activated", () => {

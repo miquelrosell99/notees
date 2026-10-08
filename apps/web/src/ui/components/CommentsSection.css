@@ -38,7 +38,7 @@
   flex: 1;
   min-width: 0;
   padding: var(--spacing-1) var(--spacing-2);
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-small);
   background: var(--color-surface);
   color: var(--color-on-surface);
@@ -58,7 +58,7 @@
 .nt-comments__list--nested {
   margin-inline-start: var(--spacing-4);
   padding-inline-start: var(--spacing-2);
-  border-left: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-left: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .nt-comments__item {

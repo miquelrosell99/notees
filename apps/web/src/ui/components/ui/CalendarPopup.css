@@ -4,7 +4,7 @@
   position: fixed;
   background: var(--color-surface);
   border: var(--border-width-default) solid var(--color-outline-variant);
-  border-radius: var(--shape-medium);
+  border-radius: var(--shape-floating-panel);
   padding: var(--spacing-3);
   z-index: var(--z-popover);
   min-width: var(--layout-size-4xl);

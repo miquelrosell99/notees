@@ -33,6 +33,8 @@ export interface ModalProps {
   onClose: () => void;
   /** Modal title (shown in header) */
   title?: string | undefined;
+  /** Accessible name when there is no visible `title` header. */
+  ariaLabel?: string | undefined;
   /** Optional element to render left of the title (e.g., button) */
   headerLeftElement?: ReactNode | undefined;
   /** Modal size */
@@ -63,6 +65,7 @@ export function Modal({
   isOpen,
   onClose,
   title,
+  ariaLabel,
   headerLeftElement,
   size = 'md',
   variant = 'auto',
@@ -268,6 +271,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? 'modal-title' : undefined}
+        aria-label={title ? undefined : ariaLabel}
       >
         {isSheet && (
           <div className="modal__drag-handle" aria-hidden="true" />

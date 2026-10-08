@@ -8,7 +8,7 @@
  * - Icon only: <Button icon="mdi mdi-cog" aria-label="Settings" />
  * - Text only: <Button>Click me</Button>
  * - Icon + Text: <Button icon="mdi mdi-cog">Settings</Button>
- * - With confirmation: <Button confirm confirmMessage="Are you sure?" onClick={...}>Delete</Button>
+ * - Destructive action with inline confirmation: compose InlineConfirmButton.
  */
 import {
   forwardRef,
@@ -25,6 +25,7 @@ import './Button.css';
 import { Icon } from '../../Icon.js';
 import { Spinner } from './Spinner.js';
 import { useReducedMotion } from './overlay-hooks.js';
+import { useDelayedVisible } from './useDelayedVisible.js';
 import { cn } from './cn';
 
 export type ButtonVariant = 'default' | 'primary' | 'outline' | 'ghost' | 'danger' | 'danger-solid';
@@ -115,6 +116,9 @@ export const Button = forwardRef<HTMLButtonElement | HTMLAnchorElement, ButtonPr
   ref
 ) {
   const prefersReducedMotion = useReducedMotion();
+  // The loading-timing rule (<300ms nothing): the disabled/aria-busy state is
+  // immediate, but the spinner only appears once loading has run 300ms.
+  const showSpinner = useDelayedVisible(loading);
 
   const handleClick = useCallback((e: MouseEvent<HTMLButtonElement | HTMLAnchorElement>) => {
     // Tactile feedback on mobile — design-system haptic map.
@@ -152,7 +156,7 @@ export const Button = forwardRef<HTMLButtonElement | HTMLAnchorElement, ButtonPr
 
   const content = (
     <>
-      {loading ? (
+      {showSpinner ? (
         <Spinner size={spinnerSize} className="btn__icon btn__icon--left" />
       ) : (
         icon && iconPosition === 'left' && (
@@ -160,7 +164,7 @@ export const Button = forwardRef<HTMLButtonElement | HTMLAnchorElement, ButtonPr
         )
       )}
       {hasText && <span className="btn__text">{children}</span>}
-      {!loading && icon && iconPosition === 'right' && (
+      {!showSpinner && icon && iconPosition === 'right' && (
         <Icon path={icon} size={resolvedIconSize} className="btn__icon btn__icon--right" />
       )}
       {hasBadges && badges.map((badge, i) => {
@@ -185,14 +189,17 @@ export const Button = forwardRef<HTMLButtonElement | HTMLAnchorElement, ButtonPr
   );
 
   if (as === 'a') {
+    const anchorDisabled = disabled || loading;
     return (
       <a
         ref={ref as Ref<HTMLAnchorElement>}
-        href={href}
+        href={anchorDisabled ? undefined : href}
         target={target}
         rel={rel}
         className={classNames}
-        onClick={handleClick}
+        onClick={anchorDisabled ? undefined : handleClick}
+        aria-disabled={anchorDisabled || undefined}
+        aria-busy={loading || undefined}
         {...(props as HTMLAttributes<HTMLAnchorElement>)}
       >
         {content}

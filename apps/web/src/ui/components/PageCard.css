@@ -35,11 +35,11 @@
   flex: 1;
   min-width: 0;
   min-height: 0;
-  margin: var(--spacing-3, 12px) var(--spacing-3, 12px) var(--spacing-3, 12px) 0;
+  margin: var(--spacing-3) var(--spacing-3) var(--spacing-3) 0;
   background: var(--color-surface);
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
-  border-radius: var(--shape-card, 14px);
-  box-shadow: var(--shadow-elevation-1, 0 2px 8px rgba(0, 0, 0, 0.18));
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-card);
+  box-shadow: var(--shadow-elevation-1);
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -52,7 +52,7 @@
 
 
 .nt-page-card > * {
-  max-width: var(--layout-size-13xl, 960px);
+  max-width: var(--layout-size-13xl);
   margin-left: auto;
   margin-right: auto;
 }
@@ -78,10 +78,10 @@
 .nt-right-card {
   width: 340px;
   flex-shrink: 0;
-  margin: var(--spacing-3, 12px) var(--spacing-3, 12px) var(--spacing-3, 12px) 0;
+  margin: var(--spacing-3) var(--spacing-3) var(--spacing-3) 0;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-3, 12px);
+  gap: var(--spacing-3);
   min-height: 0;
   overflow-y: auto;
 }
@@ -92,9 +92,9 @@
   flex-direction: column;
   max-height: 70%;
   background: var(--color-surface-container-low);
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
-  border-radius: var(--shape-card, 14px);
-  box-shadow: var(--shadow-elevation-1, 0 2px 8px rgba(0, 0, 0, 0.18));
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-card);
+  box-shadow: var(--shadow-elevation-1);
   overflow: hidden;
 }
 
@@ -187,7 +187,7 @@
   overflow-y: auto;
   margin: 0 var(--spacing-2) var(--spacing-2);
   background: var(--color-surface);
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
 }
 
@@ -199,9 +199,9 @@
 .nt-right-card-placeholder {
   flex: 1;
   background: var(--color-surface-container-low);
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
-  border-radius: var(--shape-card, 14px);
-  box-shadow: var(--shadow-elevation-1, 0 2px 8px rgba(0, 0, 0, 0.18));
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-card);
+  box-shadow: var(--shadow-elevation-1);
 }
 
 /* Focus mode (#12): the shell chrome dims to a whisper while the page card
@@ -222,7 +222,7 @@
   }
 }
 
-@media (max-width: 1100px) {
+  @media (max-width: 1024px) {
   .nt-right-card {
     display: none;
   }

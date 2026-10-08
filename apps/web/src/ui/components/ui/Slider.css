@@ -131,6 +131,11 @@
   outline-offset: var(--spacing-micro);
 }
 
+.slider__input:focus-visible::-moz-range-thumb {
+  outline: var(--border-width-thick) solid var(--color-primary);
+  outline-offset: var(--spacing-micro);
+}
+
 /* ─── Size variants ───────────────────────────────────────────────── */
 
 .slider--sm .slider__input::-webkit-slider-thumb {
@@ -145,7 +150,7 @@
 
 .slider--sm .slider__filled,
 .slider--sm .slider__bg {
-  height: 3px;
+  height: var(--spacing-tiny);
 }
 
 .slider--sm .slider__input {

@@ -4,10 +4,10 @@
 .nt-aliases-button {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-1, 4px);
-  padding: 2px var(--spacing-2, 8px);
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
-  border-radius: var(--shape-full, 999px);
+  gap: var(--spacing-1);
+  padding: 2px var(--spacing-2);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-full);
   background: transparent;
   color: var(--color-on-surface-variant);
   font-size: 0.8em;
@@ -26,7 +26,7 @@
 }
 
 .nt-aliases-button:focus-visible {
-  outline: var(--border-width-thick, 2px) solid var(--color-primary);
+  outline: var(--border-width-thick) solid var(--color-primary);
   outline-offset: var(--focus-outline-offset);
 }
 
@@ -35,20 +35,20 @@
   z-index: 70;
   visibility: hidden;
   width: max(16em, 240px);
-  max-width: calc(100vw - 2 * var(--spacing-4, 16px));
+  max-width: calc(100vw - 2 * var(--spacing-4));
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2, 8px);
-  padding: var(--spacing-2, 8px);
-  background: var(--color-surface-container-high, var(--color-surface));
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
-  border-radius: var(--shape-medium, 8px);
+  gap: var(--spacing-2);
+  padding: var(--spacing-2);
+  background: var(--color-surface-container-high);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-floating-panel);
   box-shadow: var(--shadow-elevation-2);
 }
 
 .nt-aliases-empty {
   margin: 0;
-  padding: var(--spacing-2, 8px);
+  padding: var(--spacing-2);
   color: var(--color-on-surface-variant);
   font-size: 0.85em;
   text-align: center;
@@ -69,9 +69,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--spacing-2, 8px);
-  padding: 4px var(--spacing-2, 8px);
-  border-radius: var(--shape-small, 6px);
+  gap: var(--spacing-2);
+  padding: 4px var(--spacing-2);
+  border-radius: var(--shape-small);
 }
 
 .nt-aliases-row:hover {
@@ -81,7 +81,7 @@
 .nt-aliases-row-name {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-1, 4px);
+  gap: var(--spacing-1);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -93,10 +93,10 @@
 .nt-aliases-add {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-1, 4px);
-  padding: 2px var(--spacing-2, 8px);
+  gap: var(--spacing-1);
+  padding: 2px var(--spacing-2);
   border: none;
-  border-radius: var(--shape-small, 6px);
+  border-radius: var(--shape-small);
   background: transparent;
   color: var(--color-on-surface-variant);
   font-size: 0.8em;
@@ -115,6 +115,6 @@
 .nt-aliases-actions {
   display: flex;
   justify-content: flex-start;
-  border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
-  padding-top: var(--spacing-1, 4px);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
+  padding-top: var(--spacing-1);
 }

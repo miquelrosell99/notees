@@ -19,7 +19,7 @@ import {
   type ApiKeyEntry,
 } from "@/core/auth-api.js";
 
-import "./components/Modal.css";
+import { Modal } from "./components/ui/Modal.js";
 
 export function ApiKeysSection({ serverUrl, token }: { serverUrl: string; token: string }) {
   const [keys, setKeys] = useState<ApiKeyEntry[]>([]);
@@ -168,25 +168,12 @@ export function SettingsPanel({
   onClose: () => void;
 }) {
   return (
-    <div className="nt-modal-backdrop" onClick={onClose}>
-      <div
-        className="nt-modal nt-settings"
-        role="dialog"
-        aria-label="Settings"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="nt-modal-header">
-          <h2 className="nt-modal-title">Settings</h2>
-          <button type="button" className="nt-modal-close" onClick={onClose} aria-label="Close">
-            ×
-          </button>
-        </div>
-        <p className="nt-settings-account">
-          Signed in as <strong>{user.email}</strong>
-          {user.isAdmin ? " (admin)" : ""}
-        </p>
-        <ApiKeysSection serverUrl={serverUrl} token={token} />
-      </div>
-    </div>
+    <Modal isOpen onClose={onClose} title="Settings" size="md" className="nt-settings">
+      <p className="nt-settings-account">
+        Signed in as <strong>{user.email}</strong>
+        {user.isAdmin ? " (admin)" : ""}
+      </p>
+      <ApiKeysSection serverUrl={serverUrl} token={token} />
+    </Modal>
   );
 }

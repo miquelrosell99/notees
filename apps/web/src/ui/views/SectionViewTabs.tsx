@@ -155,44 +155,40 @@ export function SectionViewTabs({ client, nodeId, sectionKey, selected, onSelect
       {selectedView !== undefined && (
         <div className="nt-section-views__manage">
           <span className="nt-section-views__manage-name">{selectedView.name}</span>
-          <button
-            type="button"
-            className="nt-section-views__action"
+          <Button
+            variant="ghost"
+            size="xs"
+            icon="mdi-pencil-outline"
             aria-label={`Rename ${selectedView.name}`}
             title="Rename"
             onClick={() => openRename(selectedView)}
-          >
-            <Icon path="mdi-pencil-outline" size={0.8} />
-          </button>
-          <button
-            type="button"
-            className="nt-section-views__action"
+          />
+          <Button
+            variant="ghost"
+            size="xs"
+            icon="mdi-arrow-left"
             aria-label={`Move ${selectedView.name} left`}
             title="Move left"
             disabled={selectedIndex <= 0}
             onClick={() => void move(selectedView, -1)}
-          >
-            <Icon path="mdi-arrow-left" size={0.8} />
-          </button>
-          <button
-            type="button"
-            className="nt-section-views__action"
+          />
+          <Button
+            variant="ghost"
+            size="xs"
+            icon="mdi-arrow-right"
             aria-label={`Move ${selectedView.name} right`}
             title="Move right"
             disabled={selectedIndex < 0 || selectedIndex >= views.length - 1}
             onClick={() => void move(selectedView, 1)}
-          >
-            <Icon path="mdi-arrow-right" size={0.8} />
-          </button>
-          <button
-            type="button"
-            className="nt-section-views__action nt-section-views__action--danger"
+          />
+          <Button
+            variant="danger"
+            size="xs"
+            icon="mdi-close"
             aria-label={`Delete ${selectedView.name}`}
             title="Delete view"
             onClick={() => setConfirmDelete(selectedView)}
-          >
-            <Icon path="mdi-close" size={0.8} />
-          </button>
+          />
         </div>
       )}
 

@@ -6,14 +6,14 @@
 .sync-details {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3, var(--spacing-4));
+  gap: var(--space-3);
   min-width: min(42ch, 100%);
 }
 
 .sync-details-grid {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1, var(--spacing-2));
+  gap: var(--space-1);
   margin: 0;
 }
 
@@ -21,11 +21,11 @@
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  gap: var(--space-2, var(--spacing-3));
+  gap: var(--space-2);
 }
 
 .sync-details-row dt {
-  color: var(--color-text-secondary, var(--color-on-surface-variant));
+  color: var(--color-text-secondary);
   font-size: 0.9em;
 }
 
@@ -36,23 +36,23 @@
 }
 
 .sync-details-row-error dd {
-  color: var(--color-error, #e05252);
+  color: var(--color-error);
 }
 
 .sync-details-actions {
   display: flex;
   align-items: center;
-  gap: var(--space-2, var(--spacing-3));
+  gap: var(--space-2);
 }
 
 .sync-details-hint {
-  color: var(--color-text-tertiary, var(--color-on-surface-variant));
+  color: var(--color-text-tertiary);
   font-size: 0.85em;
 }
 
 .sync-details-error {
   margin: 0;
-  color: var(--color-error, #e05252);
+  color: var(--color-error);
   font-size: 0.9em;
 }
 
@@ -65,7 +65,7 @@
 .sync-details-conflicts {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2, var(--spacing-3));
+  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -77,10 +77,10 @@
   display: flex;
   flex-direction: column;
   gap: 0.15em;
-  padding: var(--space-1, var(--spacing-2)) var(--space-2, var(--spacing-3));
-  border: var(--border-width-default, 1px) solid
-    var(--color-border, var(--color-outline-variant));
-  border-radius: var(--radius-md, var(--shape-medium));
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width-default) solid
+    var(--color-border);
+  border-radius: var(--radius-md);
 }
 
 .sync-details-conflict-name {
@@ -89,11 +89,11 @@
 }
 
 .sync-details-conflict-type {
-  color: var(--color-text-secondary, var(--color-on-surface-variant));
+  color: var(--color-text-secondary);
   font-size: 0.9em;
 }
 
 .sync-details-conflict-meta {
-  color: var(--color-text-tertiary, var(--color-on-surface-variant));
+  color: var(--color-text-tertiary);
   font-size: 0.8em;
 }

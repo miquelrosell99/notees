@@ -22,13 +22,15 @@
 
 .empty-state__title {
   font: var(--font-title-medium);
-  color: var(--color-on-surface);
+  color: var(--color-on-surface-variant);
   margin: 0;
 }
 
 .empty-state__description {
   font: var(--font-body-medium);
   color: var(--color-on-surface-variant);
+  /* The ~60% subtitle step of the empty-state recipe. */
+  opacity: var(--opacity-60);
   max-width: 40ch;
   margin: 0;
 }

@@ -81,6 +81,7 @@ export function ConfirmationModal({
       isOpen={isOpen}
       onClose={onCancel}
       size="sm"
+      ariaLabel={title}
       showCloseButton={false}
       className={`confirmation-modal confirmation-modal--${variant}`}
     >

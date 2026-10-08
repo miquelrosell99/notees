@@ -18,8 +18,8 @@
   max-height: 280px;
   overflow-y: auto;
   background: var(--color-surface);
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
-  border-radius: var(--shape-medium);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-floating-panel);
   box-shadow: var(--shadow-elevation-2);
   padding: var(--spacing-1);
 }

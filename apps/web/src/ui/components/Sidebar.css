@@ -2,7 +2,7 @@
  * Sidebar styles — 260px transparent navigator on the background canvas.
  *
  * Desktop: no surface fill, only a hairline right border (the canvas hosts
- * the chrome directly). Mobile (≤800px): the sidebar becomes a fixed
+ * the chrome directly). Mobile (≤768px): the sidebar becomes a fixed
  * overlay drawer and needs a real surface + shadow to read above content.
  * The hamburger that reveals it lives in the TopBar.
  */
@@ -116,8 +116,10 @@
   border-radius: var(--shape-medium);
   background: transparent;
   color: var(--color-on-surface-variant);
+  font-family: var(--font-family-base);
   font-size: var(--font-size-sm);
   text-align: left;
+  cursor: pointer;
 }
 
 .nt-side-item:hover {
@@ -125,10 +127,25 @@
   color: var(--color-on-surface);
 }
 
+/* Active row: the hover-fill step + a small accent bar at the row's left
+   edge (the design-system "small accent signal" — never a full accent fill). */
 .nt-side-item-active,
 .nt-side-item-active:hover {
+  position: relative;
   background: var(--color-surface-container-high);
   color: var(--color-on-surface);
+}
+
+.nt-side-item-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  border-radius: var(--shape-full);
+  background: var(--color-accent);
 }
 
 .nt-side-item-icon {
@@ -200,7 +217,7 @@
 .nt-sidebar-open .nt-sidebar {
   display: flex;
 }
-@media (max-width: 800px) {
+  @media (max-width: 768px) {
   .nt-sidebar-open .nt-sidebar {
     position: fixed;
     top: var(--topbar-height);
@@ -215,31 +232,31 @@
 .nt-sidebar-bottom {
   display: flex;
   align-items: center;
-  gap: var(--spacing-1, 4px);
-  padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
-  border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  gap: var(--spacing-1);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
   position: relative;
 }
 
 .nt-account-menu {
   position: absolute;
   bottom: calc(100% + 4px);
-  left: var(--spacing-2, 8px);
+  left: var(--spacing-2);
   z-index: 60;
   min-width: 180px;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: var(--spacing-2, 8px);
-  background: var(--color-surface-container-high, var(--color-surface));
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
-  border-radius: var(--shape-medium, 8px);
+  padding: var(--spacing-2);
+  background: var(--color-surface-container-high);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-floating-panel);
   box-shadow: var(--shadow-elevation-2);
 }
 
 .nt-account-email {
-  padding: 4px var(--spacing-2, 8px);
-  font-size: 12px;
+  padding: 4px var(--spacing-2);
+  font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -249,14 +266,14 @@
 .nt-account-menu button {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2, 8px);
+  gap: var(--spacing-2);
   width: 100%;
-  padding: 6px var(--spacing-2, 8px);
+  padding: 6px var(--spacing-2);
   border: none;
-  border-radius: var(--shape-small, 6px);
+  border-radius: var(--shape-small);
   background: transparent;
   color: var(--color-on-surface);
-  font-size: 13px;
+  font-size: var(--font-size-button);
   text-align: left;
 }
 
@@ -270,10 +287,10 @@
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: var(--spacing-2, 8px);
-  padding: 4px var(--spacing-2, 8px);
+  gap: var(--spacing-2);
+  padding: 4px var(--spacing-2);
   border: none;
-  border-radius: var(--shape-medium, 8px);
+  border-radius: var(--shape-medium);
   background: transparent;
   text-align: left;
 }
@@ -287,12 +304,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  /* fixed: 30px avatar — no token at this size; the nearest spacing token (28px) would shrink it */
   width: 30px;
   height: 30px;
-  border-radius: var(--shape-full, 999px);
+  border-radius: var(--shape-full);
   background: var(--color-surface-container-high);
   color: var(--color-on-surface-variant);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   overflow: hidden;
 }
@@ -312,7 +330,7 @@
 }
 
 .nt-profile-name {
-  font-size: 13px;
+  font-size: var(--font-size-button);
   font-weight: 600;
   color: var(--color-on-surface);
   overflow: hidden;
@@ -321,7 +339,7 @@
 }
 
 .nt-profile-email {
-  font-size: 11.5px;
+  font-size: var(--font-size-xs);
   color: var(--color-on-surface-variant);
   opacity: 0.75;
   overflow: hidden;
@@ -333,12 +351,12 @@
    nodes in the sidebar lists. */
 .nt-side-item-flag {
   flex-shrink: 0;
-  padding: 0 var(--spacing-1, 4px);
-  border-radius: var(--radius-full, 999px);
-  background: var(--color-surface-variant, transparent);
-  color: var(--color-on-surface-variant, currentColor);
-  font-size: var(--font-size-xs, 10px);
-  line-height: 16px;
+  padding: 0 var(--spacing-1);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
