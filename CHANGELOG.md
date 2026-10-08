@@ -9,6 +9,20 @@ predating this file.
 
 ## 2026-10-08
 
+- **docs(developers): parallel-session hardening — commit-early, landing
+  collisions, dev ports, orphan worktrees, trivial-slice exemption** — five
+  refinements to the concurrent-agent rules shipped earlier today, each from
+  a gap the first live multi-session collision exposed: (1) uncommitted work
+  is one rebase away from gone — snapshot-commit coherent files early,
+  per-file, verification in the commit body; (2) the landing flow handles
+  contention — main moved or `.git/index.lock` present means another landing
+  is in flight: wait, re-fetch, redo the rebase; (3) worktrees don't isolate
+  dev servers — concurrent sessions take distinct dev ports; (4) a stale
+  `git worktree list` entry from a crashed session gets pruned once
+  confirmed dead — never a live, unfamiliar sibling; (5) a solo session or a
+  trivial docs-only slice may stay in the main checkout. AGENTS.md, the
+  `notees-development` skill, and `development.md` updated in lockstep.
+  **Verification:** docs-only guidance change; no code touched.
 - **feat(query): the wire node-field predicates get their search-grammar
   spellings — `coverAsset:` / `bannerAsset:` / `aliasedNode:`.** The AST and
   the SQL compiler gained the three node-field conditions with the

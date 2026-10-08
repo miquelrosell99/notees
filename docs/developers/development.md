@@ -51,26 +51,36 @@ the repo's own gitignored `.worktrees/<slug>/` — `git worktree add
 each default to their own worktree: own branch off main, own `pnpm install`
 (the shared pnpm store makes repeat installs cheap), own gate runs — a
 half-done slice in one worktree cannot break another session's typecheck or
-tests. The main checkout is where slices land, not where concurrent
-development happens. Never a random sibling folder: the fleet host
-accumulates checkouts otherwise, and forgotten siblings escape
-`git worktree list` hygiene.
+tests. Dev servers are NOT isolated by worktrees: each session's
+`pnpm --filter ... dev` must take distinct ports (Vite auto-increments when
+the default is taken; note which ports a session uses). The main checkout is
+where slices land, not where concurrent development happens — but a solo
+session, or a trivial docs-only slice while others are landing, may work
+directly in the main checkout and commit promptly. Never a random sibling
+folder: the fleet host accumulates checkouts otherwise, and forgotten
+siblings escape `git worktree list` hygiene.
 
 Commit and push when done (owner 2026-10-08): a finished slice — gate green,
-`CHANGELOG.md` entry in — is committed and pushed before the session moves on.
-Stage per-file (`git add <path>`), Conventional Commits, then `git push` to
+`CHANGELOG.md` entry in — is committed and pushed before the session moves
+on. Uncommitted work in a shared repo is one rebase away from gone: commit
+coherent per-file snapshots early (Conventional Commits, verification noted
+in the body), rather than holding a batch of edits uncommitted while other
+sessions operate on the same checkout. Stage per-file (`git add <path>`),
+Conventional Commits, then `git push` to
 the current branch: pushing is standing authorization in this repo, so the
 `agent-repo-workflow` skill's per-push confirmation rule does not apply here.
 If the remote has moved, integrate first (`git pull --rebase`) — never force.
 
 Landing a worktree slice (owner 2026-10-08): with several worktree branches
-in flight, slices land one at a time in the main checkout — pull main,
-rebase the session branch onto it, fast-forward merge, push. Land promptly
-after the gate is green; frequent small merges keep divergence — and
-CHANGELOG conflicts — small. When the slice has landed, clean up: remove the
-worktree (`git worktree remove .worktrees/<slug>`) and delete the merged
-branch (`git branch -d <slug>` — the safe delete only succeeds once the
-slice is fully merged), so `git worktree list` stays truthful.
+in flight, slices land one at a time in the main checkout — fetch, rebase
+the session branch onto the freshest main, fast-forward merge, push. If main
+moved between your rebase and your merge — or `.git/index.lock` is present —
+another landing is in flight: wait, re-fetch, redo the rebase, try again.
+Land promptly after the gate is green; frequent small merges keep divergence
+— and CHANGELOG conflicts — small. When the slice has landed, clean up:
+remove the worktree (`git worktree remove .worktrees/<slug>`) and delete the
+merged branch (`git branch -d <slug>` — the safe delete only succeeds once
+the slice is fully merged), so `git worktree list` stays truthful.
 
 Shared record files (owner 2026-10-08): `CHANGELOG.md`, `README.md`, `docs/`,
 and `AGENTS.md` are touched by nearly every slice, so they conflict at merge
@@ -94,7 +104,10 @@ Detect at session start, and again before any shared-state operation:
   another session's in-flight work.
 - `git log --oneline -5` — unfamiliar recent commits mean another session has
   been landing slices.
-- `git worktree list` — parallel feature work lives in `.worktrees/<slug>/`.
+- `git worktree list` — parallel feature work lives in `.worktrees/<slug>/`;
+  a stale entry from a crashed session gets pruned once confirmed dead
+  (`git worktree remove --force .worktrees/<slug>` + `git branch -D <slug>`)
+  — never against a live, unfamiliar sibling.
 - a present `.git/index.lock` — a git operation is in flight right now; wait
   for it to clear (or confirm the owning process is gone), never delete it
   reflexively.
@@ -119,7 +132,8 @@ Handle:
   environment; prefer scoped commands (single-service restart, targeted
   tests).
 - Snapshot-commit your own verified stable states — per-file, Conventional
-  Commits — so your work is recoverable and visible to other sessions.
+  Commits — so your work is recoverable and visible to other sessions;
+  uncommitted work is one rebase away from gone.
 
 Base discipline: the `agent-repo-workflow` user skill (concurrent agents,
 snapshot commits, verify before finishing).
