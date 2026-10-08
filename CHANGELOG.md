@@ -9,6 +9,42 @@ predating this file.
 
 ## 2026-10-08
 
+- **fix(web, domain): date formatting applies only to date-classed nodes, and
+  date pages format everywhere they render.** Two halves of one ruling. (1)
+  Until now ANY node whose title excerpt matched the 8-digit shape was
+  formatted as a date — the sidebar Recents/Favorites rows render the raw
+  content tokens (so date pages showed the compact `20261008`), while Table
+  view and every `deriveDisplayName`/`fullTitleOf` reader reformatted
+  ordinary pages with ISO-style titles. Now the domain derivation formats
+  only date NODES: a deterministic year/month/day id formats from the id
+  (`dateNodeDisplayLabel`, canonical `YYYY/MM/DD` shape — the web's
+  `dateDisplay` funnel keeps applying the user's `dateFormat` setting), and
+  the compact-label content branch (`formatDateNodeName`) requires a
+  year/month/day class in `classIds`; everything else keeps its literal
+  title. The web's `isDatePageNode` drops the name-shape fallback (the
+  deterministic id covers migrated date pages), so an 8-digit-titled page no
+  longer lands in the palette's Date Pages pool either. (2) Sidebar
+  Favorites/Recents rows render date pages through the same setting-aware
+  display name as every other surface instead of the raw content tokens.
+  **Verification:** new domain cases (literal 8-digit title without a date
+  class; id-only formatting) and web `date-display` cases (name shape alone
+  is not a date page); measured against the live sidebar Recents and the
+  Pokemon class page; full monorepo gate green.
+
+- **fix(web): the child-blocks ghost row gets real clearance before the next
+  section's separator — the negative-margin cancellation is gone.** The
+  2026-10-08 morning fix pulled the empty child-blocks surface up by exactly
+  the ghost row's 2px bottom padding so the next section's border sat "flush"
+  — flush turned out to mean the hairline touches the `+ Add block` label's
+  line box, which in dark theme reads as the label sitting on (overlapping)
+  the separator, on every surface (class view's Class properties, the day
+  page's Created section). The `.nt-select-surface--empty` pull and its
+  PageView class toggle are removed: the ghost keeps its own bottom padding,
+  so empty and non-empty surfaces share one rhythm and the separator has
+  genuine clearance. **Verification:** the throwaway probe stack measured the
+  day page and the class page before/after (border flush against the label
+  box before, ~4px clear after); full monorepo gate green.
+
 - **feat(web): one chrome row for the classed-nodes section, icon-only
   buttons wear hover tooltips, and the table's data actions move behind a
   "…" menu.** The class page's Classed nodes section stacked its chrome
