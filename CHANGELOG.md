@@ -9,6 +9,18 @@ predating this file.
 
 ## 2026-10-08
 
+- **fix(web): the collapsed banner strip loses the dark bar and keeps its
+  chevron — cover-card parity.** The collapsed banner rendered as a filled
+  `--color-surface-container-low` band across the page card, which in dark
+  mode (and pure black under OLED) read as a black bar, and its chevron was
+  `opacity: 0` until hover. The cover card's collapse chevron — persistent at
+  `--opacity-60`, full color on hover, transparent background — is the
+  established register, so the strip now matches: transparent background (the
+  hover overlay marks the target on hover/focus), chevron always visible at
+  rest opacity. Verification: `pnpm typecheck` clean; web suite green
+  (1361/1361; a pre-existing "Database closed" teardown flake in
+  `journals-view.test.tsx` passes in isolation).
+
 - **chore(web): drop the dead `.nt-hub-*` CSS and repair the screenshot
   probes.** The hub rows moved to `.outline-row` (CollectionHub restructure)
   but app.css still carried six unused `.nt-hub-list` / `.nt-hub-item` /
