@@ -1,6 +1,6 @@
-/* KanbanView — the board: property-dimension columns + card drops. */
+/* CardsBoard — the cards view's grouped board: property-dimension columns + card drops. */
 
-.kanban-board {
+.board {
   display: flex;
   align-items: flex-start;
   gap: var(--spacing-3, 12px);
@@ -8,7 +8,7 @@
   padding-bottom: var(--spacing-2, 8px);
 }
 
-.kanban-column {
+.board-column {
   flex: 0 0 260px;
   display: flex;
   flex-direction: column;
@@ -20,18 +20,18 @@
   padding: var(--spacing-2, 8px);
 }
 
-.kanban-column--over {
+.board-column--over {
   border-color: var(--color-primary, currentColor);
 }
 
-.kanban-column__header {
+.board-column__header {
   display: flex;
   align-items: center;
   gap: var(--spacing-1, 4px);
   padding: 0 var(--spacing-1, 4px);
 }
 
-.kanban-column__toggle {
+.board-column__toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -46,18 +46,18 @@
   cursor: pointer;
 }
 
-.kanban-column__toggle:hover {
+.board-column__toggle:hover {
   background: var(--color-hover-overlay, rgba(0, 0, 0, 0.04));
   color: var(--color-on-surface, currentColor);
 }
 
-.kanban-toolbar {
+.board-toolbar {
   display: flex;
   justify-content: flex-end;
   margin-bottom: var(--spacing-2, 8px);
 }
 
-.kanban-column__title {
+.board-column__title {
   flex: 1 1 auto;
   min-width: 0;
   font-size: var(--font-size-sm, 0.85rem);
@@ -68,38 +68,38 @@
   white-space: nowrap;
 }
 
-.kanban-column__count {
+.board-column__count {
   flex-shrink: 0;
   font-size: 11px;
   color: var(--color-on-surface-variant, currentColor);
 }
 
-.kanban-column__body {
+.board-column__body {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2, 8px);
   min-height: 40px;
 }
 
-.kanban-column__empty {
+.board-column__empty {
   min-height: 40px;
   border: var(--border-width-default, 1px) dashed var(--color-outline-variant, currentColor);
   border-radius: var(--radius-sm, 6px);
 }
 
-.kanban-card {
+.board-card {
   cursor: grab;
 }
 
-.kanban-card:active {
+.board-card:active {
   cursor: grabbing;
 }
 
-.kanban-card--dragging {
+.board-card--dragging {
   opacity: 0.4;
 }
 
-.kanban-ghost {
+.board-ghost {
   padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
   border-radius: var(--radius-md, 10px);
   background: var(--color-surface-container-high, rgba(0, 0, 0, 0.08));
