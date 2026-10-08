@@ -41,6 +41,7 @@ const clients: WorkspaceClient[] = [];
 afterEach(() => {
   while (clients.length > 0) clients.pop()!.close();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   localStorage.clear();
 });
 
@@ -156,6 +157,13 @@ describe("the page banner (the bannerAssetId wire field)", () => {
     expect(input.accept).toBe("image/jpeg,image/png,image/webp");
 
     const file = new File(["bytes"], "uploaded.png", { type: "image/png" });
+    // jsdom has no URL.createObjectURL — the preview path needs the stub
+    // (the covers suite precedent).
+    vi.stubGlobal("URL", {
+      ...URL,
+      createObjectURL: vi.fn(() => "blob:preview"),
+      revokeObjectURL: vi.fn(),
+    });
     fireEvent.change(input, { target: { files: [file] } });
     await within(dialog).findAllByText("uploaded.png");
     fireEvent.click(within(dialog).getByRole("button", { name: /upload/i }));
