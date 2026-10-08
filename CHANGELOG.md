@@ -23,6 +23,14 @@ predating this file.
   typecheck clean; the view-modes suite green — the cover test now asserts
   the cover-top default + the no-cover switch, and a guard test pins the
   no-cover fallback for surfaces without the prop.
+- **docs(developers): commit-and-push standing rule** — AGENTS.md, the
+  `notees-development` skill, and the `development.md` runbook now record
+  that a finished slice (gate green, changelog entry in) is committed —
+  per-file staging, Conventional Commits — and pushed to the current
+  branch before the session ends. Pushing is standing authorization in
+  this repo, overriding the `agent-repo-workflow` per-push confirmation;
+  if the remote moved, integrate (`git pull --rebase`), never force.
+  Verified: docs-only guidance change; no code touched.
 
 ## 2026-10-07
 
