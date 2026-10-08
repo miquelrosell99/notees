@@ -11,6 +11,14 @@
   cursor: pointer;
   user-select: none;
   position: relative;
+  /* The root is a <button>: without an explicit reset the UA button face
+     (a light pill under dark themes, regardless of color-scheme) shows
+     through around the track — only the track is a surface. */
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
 }
 
 /* Invisible minimum hit-area overlay: the visible track is well under the
