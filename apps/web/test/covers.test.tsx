@@ -1,9 +1,12 @@
 /**
  * Covers: a cover IS an ordinary
  * asset-classed node — the dedicated `cover` system class was
- * withdrawn the same day it shipped: it duplicated the cover PROPERTY's
- * meaning. The property value is the only authority; the card-view "Cover"
- * badge DERIVES from it (isCoverAsset — no class to keep in sync).
+ * withdrawn the same day it shipped, and the retired image-typed `cover`
+ * PROPERTY is superseded too: the cover rides the `coverAssetId` WIRE
+ * NODE FIELD (object.update; the migrate-cover-banner-alias log rewrite
+ * moved every stored value onto it). The node field is the only authority
+ * and the card-view "Cover" badge DERIVES from it (isCoverAsset — no
+ * class to keep in sync).
  *
  * The empty card's "Add cover" gesture opens the AssetUploadModal
  * directly (image-only, validated, preview + progress — the original flow); the
@@ -16,7 +19,7 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
-import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { PageView } from "../src/ui/PageView.js";
@@ -24,7 +27,6 @@ import { NodeCollection } from "../src/ui/views/index.js";
 import {
   clearNodeCover,
   coverAssetIdOf,
-  ensureCoverProperty,
   isCoverAsset,
   setNodeCover,
 } from "../src/ui/components/coverProperty.js";
@@ -63,8 +65,16 @@ async function flushWrites(): Promise<void> {
   await act(async () => {});
 }
 
+/** Authors the asset class row (the server seed provides it in production). */
+async function seedAssetClass(client: WorkspaceClient): Promise<void> {
+  if (client.getNode(SYSTEM_CLASS_UUIDS.asset) === undefined) {
+    await client.createClass("asset", { id: SYSTEM_CLASS_UUIDS.asset, icon: "mdiPaperclip" });
+  }
+}
+
 /** A source-classed page plus a bare asset node; returns [pageId, assetId]. */
 async function seedPageAndAsset(client: WorkspaceClient): Promise<[string, string]> {
+  await seedAssetClass(client);
   const asset = await client.createObject({
     presentAsMain: true,
     name: "cover.png",
@@ -75,29 +85,23 @@ async function seedPageAndAsset(client: WorkspaceClient): Promise<[string, strin
 }
 
 describe("covers", () => {
-  it("ensureCoverProperty authors the schema + class roots, NO source binding, NO cover class (owner ruling 2026-10-05: a cover makes no sense on sources)", async () => {
+  it("the cover rides the coverAssetId wire node field; the retired cover property is not read", async () => {
     const client = await seedClient();
-    await ensureCoverProperty(client);
-    await flushWrites();
+    const [pageId, assetId] = await seedPageAndAsset(client);
 
-    expect(
-      client.listPropertySchemas().some((s) => s.id === SYSTEM_PROPERTY_UUIDS.cover),
-    ).toBe(true);
-    // The cover→source binding row is removed from the seeds and must never
-    // be re-authored here (scripts/migrate-system-names.mts clears it live).
-    expect(
-      client
-        .getClassBindings(SYSTEM_CLASS_UUIDS.source)
-        .some((b) => b.propertySchemaId === SYSTEM_PROPERTY_UUIDS.cover),
-    ).toBe(false);
+    // Any client sets the field through object.update (the CLI, the API…).
+    await client.updateObject(pageId, { coverAssetId: assetId });
+    await flushWrites();
+    expect(coverAssetIdOf(client, pageId)).toBe(assetId);
+
     // The withdrawn cover class is never authored (…0042 minted
     // withdrawn a cover is a plain asset).
     expect(client.getNode(WITHDRAWN_COVER_CLASS)).toBeUndefined();
-
-    // Idempotent: a second ensure authors nothing new.
-    await ensureCoverProperty(client);
-    await flushWrites();
-    expect(client.getNode(WITHDRAWN_COVER_CLASS)).toBeUndefined();
+    // The retired cover property schema is never self-healed either — the
+    // web dropped the ensure with the wire-fields switch.
+    expect(
+      client.listPropertySchemas().some((s) => s.id === "00000000-0000-0000-0000-000000000005"),
+    ).toBe(false);
   });
 
   it("setNodeCover writes the value and classes the asset (explicit ops)", async () => {
@@ -137,7 +141,7 @@ describe("covers", () => {
     expect(members.map((m) => m.id)).toContain(assetId);
   });
 
-  it("isCoverAsset derives from the property: true while referenced, false once cleared", async () => {
+  it("isCoverAsset derives from the wire field: true while referenced, false once cleared", async () => {
     const client = await seedClient();
     const [pageId, assetId] = await seedPageAndAsset(client);
     await setNodeCover(client, pageId, assetId);
@@ -204,7 +208,7 @@ describe("covers", () => {
 
   it("the collapsible element renders EVEN WHEN EMPTY — collapsed to the chevron, expanding to the Add cover card", async () => {
     const client = await seedClient();
-    await ensureCoverProperty(client);
+    await seedAssetClass(client);
     const pageId = await client.createObject({ presentAsMain: true, name: "Empty Page" });
     await flushWrites();
 
@@ -239,7 +243,7 @@ describe("the dedicated header element", () => {
   it("an uncovered source page's Add cover strip opens the upload modal; uploading sets the cover", async () => {
     const client = await seedClient();
     vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,HEADER");
-    await ensureCoverProperty(client);
+    await seedAssetClass(client);
     const [pageId] = await seedPageAndAsset(client);
     await flushWrites();
 
@@ -286,13 +290,14 @@ describe("the dedicated header element", () => {
     expect(container.querySelector(".nt-covercard__empty")).toBeNull();
   });
 
-  it("a page whose classes bind no cover schema shows no strip", async () => {
+  it("EVERY document-chrome page hosts the cover element — no schema gate (the banner precedent)", async () => {
     const client = await seedClient();
+    // A plain page: no classes, no cover — the element still renders.
     const pageId = await client.createObject({ presentAsMain: true, name: "Plain" });
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
-    expect(screen.queryByRole("button", { name: "Expand cover" })).toBeNull();
-    expect(container.querySelector(".nt-covercard")).toBeNull();
+    expect(screen.getByRole("button", { name: "Expand cover" })).not.toBeNull();
+    expect(container.querySelector(".nt-covercard")).not.toBeNull();
   });
 });
 
@@ -300,7 +305,7 @@ describe("the global cover (owner bug 2026-10-04: any page)", () => {
   it("a NON-source page offers Add cover (modal) and the banner once set", async () => {
     const client = await seedClient();
     vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,GLOBAL");
-    await ensureCoverProperty(client);
+    await seedAssetClass(client);
     const pageId = await client.createObject({ presentAsMain: true, name: "Wartortle" });
     await flushWrites();
 
@@ -331,8 +336,9 @@ describe("the global cover (owner bug 2026-10-04: any page)", () => {
     });
     await flushWrites();
 
-    // The value rides unbound (no class binds cover on this page) but the
-    // card renders — the cover is header chrome for EVERY page.
+    // The coverAssetId wire field lands (no schema, no binding — the field
+    // is platform-fixed) and the card renders — the cover is header chrome
+    // for EVERY page.
     const coverAsset = coverAssetIdOf(client, pageId)!;
     expect(coverAsset).not.toBeNull();
     expect(client.getNode(coverAsset)?.classIds).toContain(SYSTEM_CLASS_UUIDS.asset);
@@ -343,7 +349,7 @@ describe("the global cover (owner bug 2026-10-04: any page)", () => {
   it("the Change path keeps the pick-existing flow (the CoverPicker)", async () => {
     const client = await seedClient();
     vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,CHANGE");
-    await ensureCoverProperty(client);
+    await seedAssetClass(client);
     const [pageId, firstAsset] = await seedPageAndAsset(client);
     const secondAsset = await client.createObject({ presentAsMain: true, name: "other.png" });
     await client.assignClass(firstAsset, SYSTEM_CLASS_UUIDS.asset);
@@ -395,7 +401,7 @@ describe("the recovered cover", () => {
   it("dropping an image file on the Add cover strip uploads and sets the cover (the original drag-and-drop)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Drop Target" });
-    await ensureCoverProperty(client);
+    await seedAssetClass(client);
     await flushWrites();
 
     const upload = vi.spyOn(client, "uploadAsset").mockResolvedValue({

@@ -105,7 +105,7 @@ import { AssetUploadModal } from "./components/modals/AssetUploadModal.js";
 import { SelectionBar } from "./components/SelectionBar.js";
 import { SystemSections } from "./components/SystemSections.js";
 import { childQuery } from "./components/childQuery.js";
-import { canHaveCoverOf, coverAssetIdOf, ensureCoverProperty } from "./components/coverProperty.js";
+import { coverAssetIdOf } from "./components/coverProperty.js";
 import { ensureAliasProperty } from "./components/aliasProperty.js";
 import { AliasesButton } from "./components/AliasesButton.js";
 import { AliasOfBanner } from "./components/AliasOfBanner.js";
@@ -343,22 +343,10 @@ export function PageView({
   }, [client, page, embedded, preview, whiteboardTokenIndex, whiteboardClassed]);
 
   /**
-   * Cover property self-heal: the cover schema + source binding
-   * are seed-manifest entries nothing else authors (the original migration is the
-   * only other writer), so a fresh workspace self-heals them on first page
-   * view — an idempotent no-op once present. The banner below then reads
-   * the effective cover value; pages without one (date pages, whiteboard
-   * pages, everything not classed `source`) render no banner at all.
-   */
-  useEffect(() => {
-    void ensureCoverProperty(client);
-  }, [client]);
-
-  /**
    * Alias property self-heal: the seeded multi-value `alias` text schema
    * (global scope, no class binding) is authored idempotently on first page
    * view — the server seed only runs on an empty workspace, so existing
-   * workspaces would never see it otherwise (the ensureCoverProperty
+   * workspaces would never see it otherwise (the ensureTaskFamily
    * precedent). The node-alias carrier is the `aliasedNodeId` wire node
    * field — no schema to ensure.
    */
@@ -366,18 +354,22 @@ export function PageView({
     void ensureAliasProperty(client);
   }, [client]);
 
-  /** The cover's asset target, when the page carries the property. */
+  /**
+   * The cover (the coverAssetId wire node field, the banner's twin): the
+   * header-row card reads the node column, so a cover set by any client
+   * shows here. No schema to self-heal — the retired cover property is
+   * superseded; the field is platform-fixed.
+   */
   const coverAssetId =
     page !== undefined && !embedded && !preview && whiteboardTokenIndex < 0
       ? coverAssetIdOf(client, pageId)
       : null;
   /** The cover element renders whenever the page can carry a cover —
-   *  set or empty (the card shows the Add affordance when empty). The
-   *  preview surface hosts none (the Add/Change upload is machinery). */
+   *  any document-chrome page, set or empty (the card shows the Add
+   *  affordance when empty). The preview surface hosts none (the
+   *  Add/Change upload is machinery). */
   const coverPossible =
-    page !== undefined && !embedded && !preview && whiteboardTokenIndex < 0
-      ? canHaveCoverOf(client, pageId)
-      : false;
+    page !== undefined && !embedded && !preview && whiteboardTokenIndex < 0;
 
   /**
    * The banner (the bannerAssetId wire field): the full-width element above
