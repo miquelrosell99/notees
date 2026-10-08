@@ -456,8 +456,12 @@ workspace id, remembered in localStorage), a page-list sidebar, and a PageView w
 rows and inline token rendering (`App.tsx`, `PageView.tsx`, `BlockRow.tsx`,
 `InlineTokens.tsx`). Display names come from `deriveDisplayName` (`packages/domain/src/node.ts`) —
 **title-is-content (2026-10-01)**: the content excerpt for EVERY node type (pages,
-blocks AND classes; there is no stored `name`), date labels (`YYYYMMDD…`) formatted
-`YYYY/MM(/DD)`, capped at 80 chars for dense chrome. Node links and mention chips
+blocks AND classes; there is no stored `name`), capped at 80 chars for dense chrome.
+**Date formatting applies only to date-classed nodes (owner ruling 2026-10-08):** a
+deterministic year/month/day id formats from the id (`dateNodeDisplayLabel`,
+canonical `YYYY/MM(/DD)`), and a compact date-label content (`YYYYMMDD…`) formats
+only when the node carries a year/month/day class — an ordinary page whose title
+happens to be 8 digits keeps its literal title. Node links and mention chips
 read `fullTitleOf` — the same derivation without the slice (owner ruling 2026-10-07:
 a link renders the page's complete title, never a truncation). A page's own content MAY carry inline rich
 tokens (mentions, external links — the header title is a bullet-less BlockRow with

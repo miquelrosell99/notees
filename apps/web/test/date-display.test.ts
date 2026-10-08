@@ -90,13 +90,17 @@ describe("displayNameFromClient", () => {
 });
 
 describe("isDatePageNode / readDateFormat", () => {
-  it("detects date pages by id, class, or name shape", () => {
+  it("detects date pages by deterministic id or date class only", () => {
     expect(isDatePageNode({ id: DAY_ID, name: null })).toBe(true);
     expect(
       isDatePageNode({ id: "x", name: null, classIds: ["00000000-0000-0000-0001-000000000005"] }),
     ).toBe(true);
-    expect(isDatePageNode({ id: "x", name: "20290627" })).toBe(true);
     expect(isDatePageNode({ id: "x", name: "Plain" })).toBe(false);
+  });
+
+  it("an 8-digit title alone is NOT a date page (owner ruling 2026-10-08)", () => {
+    expect(isDatePageNode({ id: "x", name: "20290627" })).toBe(false);
+    expect(isDatePageNode({ id: "x", name: null })).toBe(false);
   });
 
   it("falls back to the hyphen default for unknown or missing settings", () => {

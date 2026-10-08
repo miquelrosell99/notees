@@ -8,7 +8,7 @@
  * chronological sorting and the compact lookup contract).
  */
 
-import { deriveDisplayName, fullTitleOf, parseDateNodeId, dateNodeLabel, plainTextExcerpt, type NodeLike } from "@notees/domain";
+import { deriveDisplayName, fullTitleOf, parseDateNodeId, dateNodeLabel, type NodeLike } from "@notees/domain";
 
 import { readDeviceSetting } from "./components/modals/deviceSettings.js";
 
@@ -75,21 +75,12 @@ export function formatDateName(
 }
 
 /**
- * True when the node's CONTENT holds a compact date label (title-is-content:
- * migrated date pages carry YYYYMMDD-style text as their content).
- */
-export function isDateNamed(node: { name: string | null; contentAst?: unknown }): boolean {
-  if (node.name !== null && formatDateName(node.name) !== null) return true;
-  const excerpt = node.contentAst
-    ? plainTextExcerpt(node.contentAst as never)
-    : "";
-  return excerpt !== "" && formatDateName(excerpt) !== null;
-}
-
-/**
  * True when the node IS a date page: the deterministic date id is the
- * primary test (migrated pages may carry the compact label in their
- * CONTENT with a null name), then the date classes, then the name shape.
+ * primary test, then the date classes. The compact-label NAME shape is
+ * deliberately NOT a test (owner ruling 2026-10-08): date formatting
+ * applies only to date-classed nodes — an ordinary page whose title
+ * happens to be 8 digits is not a date page. Migrated date pages carry the
+ * deterministic date id, so the id test covers them.
  */
 export function isDatePageNode(node: {
   id: string;
@@ -102,8 +93,7 @@ export function isDatePageNode(node: {
     "00000000-0000-0000-0001-000000000004", // month
     "00000000-0000-0000-0001-000000000005", // day
   ];
-  if (node.classIds?.some((c) => DATE_CLASSES.includes(c)) === true) return true;
-  return isDateNamed(node);
+  return node.classIds?.some((c) => DATE_CLASSES.includes(c)) === true;
 }
 
 function pad2(value: number): string {

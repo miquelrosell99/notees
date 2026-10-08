@@ -109,6 +109,19 @@ export function dateNodeLabel(parts: DateParts, precision: DatePrecision): strin
   }
 }
 
+/**
+ * The canonical DISPLAY form of a parsed date-node id (the domain's fixed
+ * slash layout; UI layers with a user dateFormat setting reformat the day
+ * shape themselves): year `YYYY`, month `YYYY/MM`, day `YYYY/MM/DD`.
+ */
+export function dateNodeDisplayLabel(parts: DateParts, precision: DatePrecision): string {
+  const year = pad(parts.year, 4);
+  if (precision === "year") return year;
+  const month = pad(parts.month, 2);
+  if (precision === "month") return `${year}/${month}`;
+  return `${year}/${month}/${pad(parts.day, 2)}`;
+}
+
 export interface ParsedDateNodeId extends DateParts {
   precision: DatePrecision;
 }
