@@ -1,9 +1,10 @@
 /* FilterBar — the transient filter layer's body-top chrome: one control row
    (text search + the structured-facet toggle + the honest "N of M" count +
-   clear) with the structured panel expanding beneath it as an in-flow
-   region — the app has no persistent floating surfaces (floats are
-   transient pickers), so the builder takes its place in the layout, full
-   width, one hairline above it. Token-only. */
+   clear) with the structured panel expanding beneath it as an in-flow,
+   full-width region. The region keeps its bordered box (owner 2026-10-08:
+   the frame pairs with the filter search box in the control row) — an
+   in-flow box, not a floating overlay; the app only floats transient
+   pickers. Token-only. */
 
 .nt-filter-bar {
   display: flex;
@@ -48,15 +49,18 @@
   white-space: nowrap;
 }
 
-/* The structured panel: an open region, not a boxed card — hairline above,
-   quiet vertical padding, transparent ground. The kit Card lives only on
-   the transient add menu. */
+/* The structured panel: a bordered region framing the builder — in-flow
+   (never an overlay), full width; the box pairs with the search box in the
+   control row above it. The kit Card inside stays only on the transient
+   add menu. */
 .nt-filter-bar__panel {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
-  padding: var(--spacing-2) 0;
-  border-top: var(--spacing-hairline) solid var(--color-outline-variant);
+  padding: var(--spacing-2);
+  border: var(--spacing-hairline) solid var(--color-outline-variant);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-container);
 }
 
 .nt-filter-bar__result {
