@@ -9,6 +9,25 @@ predating this file.
 
 ## 2026-10-08
 
+- **feat(web): the hosted-views tab bar always shows — even on an empty
+  section; the empty line rides the selected tab's body.** Three containers
+  short-circuited the empty state before `NodeCollection` ever rendered, so
+  the section tabs (Default + "+" + the custom views) vanished exactly when
+  there was nothing to list: `CollectionSection` and the backlinks/unlinked
+  strips rendered their own `nt-section-empty` div instead of the
+  collection (the classed-nodes section already rendered the collection —
+  unchanged, it keeps its EmptyState create affordance). `NodeCollection`
+  gains an `emptyText` prop: when the collection is empty and no EmptyState
+  is configured, the subtle empty line renders in the selected tab's body —
+  the container's text ("No backlinks.") on the default tab, the honest
+  "No matching rows." on a custom tab refined to empty. `CollectionSection`
+  and `ReferenceList` now always render the collection and pass their
+  `emptyText` through; the block-level backlink gutter (unhosted, no
+  emptyText) is untouched. Verification: `pnpm typecheck` clean; web suite
+  green (1364/1364 — two section-views tests added: tabs + empty line on an
+  empty collection, "No matching rows." on a refinement-emptied custom tab);
+  `docs/ux.md` updated.
+
 - **fix(web, domain): date formatting applies only to date-classed nodes, and
   date pages format everywhere they render.** Two halves of one ruling. (1)
   Until now ANY node whose title excerpt matched the 8-digit shape was
