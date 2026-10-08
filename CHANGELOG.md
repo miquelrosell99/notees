@@ -9,6 +9,24 @@ predating this file.
 
 ## 2026-10-08
 
+- **fix(web): native control chrome follows the theme — the property
+  settings modal, the ToggleSwitch white pill, and the table number
+  spinners are dark-true.** Reproduced on a throwaway stack (playwright
+  probe, verified by screenshot): the app themed via CSS variables but
+  never declared `color-scheme`, so every UA-rendered control part stayed
+  light under dark themes — the settings modal's inputs (its
+  `__field/__label/__input` classes had no styles at all, ever), the
+  ToggleSwitch root (a `<button>` showing the light UA button-face around
+  the track — the "white pill"), and the number spinners in table cells.
+  Three fixes: `color-scheme: light/dark` on `:root`/`[data-theme="dark"]`
+  (one line kills the whole bug class — inputs, spinners, scrollbars,
+  button faces), an explicit reset on `.toggle-switch` (transparent root —
+  only the track is a surface), and the missing property-settings field
+  chrome (label-above-control register, token inputs, focus ring). The
+  modal's ToggleSwitch rows also gain real layout (the fields were inline
+  labels that wrapped mid-row). Verification: throwaway-stack screenshots
+  before/after (modal + number-cell zoom); web suite green.
+
 - **fix(web): the structured panel keeps its bordered box.** Owner review on
   the in-flow redesign: the open hairline region read flatter than the rest
   of the chrome — the border + surface frame pairs with the filter search
