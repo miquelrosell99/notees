@@ -28,7 +28,7 @@ import { NodeView } from "../src/ui/App.js";
 import { CollectionHub } from "../src/ui/components/CollectionHub.js";
 import { ensureTaskFamily } from "../src/ui/components/taskFamily.js";
 import { getViewDefinition, getViewModeOptions } from "../src/ui/views/index.js";
-import { applyKanbanDrop } from "../src/ui/views/KanbanView.js";
+import { applyCardGroupDrop } from "../src/ui/views/CardsBoard.js";
 import { writeViewModePref } from "../src/ui/viewPrefs.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
@@ -64,7 +64,7 @@ async function flushWrites(): Promise<void> {
 }
 
 /**
- * The tasks hub authors the task family on open, so its kanban
+ * The tasks hub authors the task family on open, so its cards
  * board groups by the fixed-id taskStatus schema — tests ensure the family
  * up front for a deterministic first render (and no in-flight writes at
  * teardown), reading the fresh option ids back from the authored schema.
@@ -266,7 +266,7 @@ describe("tasks hub", () => {
   });
 });
 
-describe("kanban board (property-dimension groupBy)", () => {
+describe("cards board (property-dimension groupBy)", () => {
   const OPTION_A = "00000000-0000-0000-0005-000000000001";
   const OPTION_C = "00000000-0000-0000-0005-000000000003";
 
@@ -290,7 +290,7 @@ describe("kanban board (property-dimension groupBy)", () => {
   }
 
   function column(id: string): HTMLElement {
-    const el = document.querySelector(`.kanban-column[data-column-id="${id}"]`);
+    const el = document.querySelector(`.board-column[data-column-id="${id}"]`);
     if (el === null) throw new Error(`no column ${id}`);
     return el as HTMLElement;
   }
@@ -298,7 +298,7 @@ describe("kanban board (property-dimension groupBy)", () => {
   it("groups cards into option columns plus a None column, and the drop writes the property", async () => {
     const client = await seedClient();
     // The board's dimension is the authored task status schema (fixed seed
-    // id — the hub's kanban preference), not a workspace-local one.
+    // id — the hub's grouping property), not a workspace-local one.
     const { schemaId, optionId } = await ensureTaskStatus(client);
     const inBacklog = await seedTask(client, "Task Backlog");
     const inDone = await seedTask(client, "Task Done");
@@ -308,11 +308,13 @@ describe("kanban board (property-dimension groupBy)", () => {
 
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
 
-    fireEvent.click(screen.getByRole("radio", { name: "Kanban" }));
+    // The hub defaults to table; cards mode IS the board when the grouping
+    // property (the task status schema) exists — kanban is not a mode.
+    fireEvent.click(screen.getByRole("radio", { name: "Cards" }));
 
     // Status option columns + None, counts in the headers.
     const titles = () =>
-      [...document.querySelectorAll(".kanban-column__title")].map((el) => el.textContent);
+      [...document.querySelectorAll(".board-column__title")].map((el) => el.textContent);
     for (const label of ["Backlog", "Pending", "Doing", "Reviewing", "Done", "Cancelled", "None"]) {
       expect(titles()).toContain(label);
     }
@@ -324,37 +326,49 @@ describe("kanban board (property-dimension groupBy)", () => {
 
     // The drop write (what the drag handler calls): move the unset task into
     // the Doing column; the client notification re-renders the board.
-    await applyKanbanDrop(client, unscheduled, schemaId, optionId("Doing"), undefined);
+    await applyCardGroupDrop(client, unscheduled, schemaId, optionId("Doing"), undefined);
     await flushWrites();
     expect(within(column(optionId("Doing"))).getByText("Task Unset")).not.toBeNull();
     expect(within(column("__none__")).queryByText("Task Unset")).toBeNull();
 
     // Drop on None clears the value again.
-    await applyKanbanDrop(client, unscheduled, schemaId, null, 0);
+    await applyCardGroupDrop(client, unscheduled, schemaId, null, 0);
     await flushWrites();
     expect(within(column("__none__")).getByText("Task Unset")).not.toBeNull();
   });
 
-  it("kanban rides the authored task family; hubs without a grouping select offer no kanban", async () => {
+  it("the tasks hub cards mode rides the authored task family; hubs without a grouping select render the flat grid", async () => {
     const client = await seedClient();
     await seedTask(client, "Lonely Task");
     // The hub authors the task family on open, so the status
-    // schema (a usable select) always exists and kanban is always offered.
+    // schema (a usable select) always exists and the cards mode renders
+    // the board.
     await ensureTaskFamily(client);
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
 
-    expect(screen.getByRole("radio", { name: "Kanban" })).not.toBeNull();
-    // The other modes are unaffected.
+    // Kanban is gone from the switcher; the triad is unchanged.
+    expect(screen.queryByRole("radio", { name: "Kanban" })).toBeNull();
     for (const label of ["Outline", "Cards", "Table"]) {
       expect(screen.getByRole("radio", { name: label })).not.toBeNull();
     }
+    fireEvent.click(screen.getByRole("radio", { name: "Cards" }));
+    expect(document.querySelector(".board")).not.toBeNull();
 
-    // A hub whose members carry no usable select property never offers it.
+    // A hub whose members carry no usable select property renders the flat
+    // cards grid instead (the Assets hub defaults to cards).
+    const host = await client.createObject({ presentAsMain: true, name: "Attachments" });
+    const asset = await client.createObject({
+      parentId: host,
+      contentAst: [{ type: "text", text: "scanned-receipt.pdf" }],
+    });
+    await client.assignClass(asset, SYSTEM_CLASS_UUIDS.asset);
     const assets = render(<HubView client={client} nav="assets" onOpenNode={() => {}} />);
     expect(within(assets.container).queryByRole("radio", { name: "Kanban" })).toBeNull();
+    expect(assets.container.querySelector(".board")).toBeNull();
+    expect(assets.container.querySelector(".cards-grid")).not.toBeNull();
   });
 
-  it("classed nodes offer kanban when a bound select property has options", async () => {
+  it("classed nodes render the cards board when a bound select property has options", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "project");
     const schemaId = await seedStatusSchema(client);
@@ -370,9 +384,9 @@ describe("kanban board (property-dimension groupBy)", () => {
       await flushWrites();
     }
 
-    // The section default stays table; kanban rides the switcher.
+    // The section default stays table; cards mode renders the board.
     expect(screen.getByRole("table")).not.toBeNull();
-    fireEvent.click(screen.getByRole("radio", { name: "Kanban" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Cards" }));
     expect(screen.getByText("Backlog")).not.toBeNull();
     expect(within(column("__none__")).getByText("Member")).not.toBeNull();
   });
@@ -946,11 +960,11 @@ describe("table export: CSV view export + selection-scoped export", () => {
   }
 });
 
-describe("kanban polish: multi-select grouping, collapsible columns", () => {
+describe("cards board polish: multi-select grouping, collapsible columns", () => {
   it("multi-select schemas make a card ride every column it carries; drops merge", async () => {
     const client = await seedClient();
     // PG6 one-shape-per-type: array values live on multi_select (multi:true
-    // keeps KanbanView's multi-membership path keyed off the schema flag).
+    // keeps the board's multi-membership path keyed off the schema flag).
     const statusId = await client.createPropertySchema({
       name: "Status",
       type: "multi_select",
@@ -977,20 +991,20 @@ describe("kanban polish: multi-select grouping, collapsible columns", () => {
         icon="mdi-format-list-checks"
         title="Tasks"
         items={items}
-        modes={["kanban"]}
-        defaultMode="kanban"
-        kanbanProperty={statusId}
+        modes={["cards"]}
+        defaultMode="cards"
+        groupByProperty={statusId}
         emptyTitle="No tasks"
         onOpenNode={() => {}}
       />,
     );
 
-    const col = (id: string) => document.querySelector(`.kanban-column[data-column-id="${id}"]`) as HTMLElement;
+    const col = (id: string) => document.querySelector(`.board-column[data-column-id="${id}"]`) as HTMLElement;
     expect(within(col("00000000-0000-0000-0005-000000000021")).getByText("Both")).not.toBeNull();
     expect(within(col("__none__")).getByText("Other")).not.toBeNull();
 
     // Drop Other onto Backlog (multi merge) — the write the drag handler calls.
-    await applyKanbanDrop(client, other, statusId, "00000000-0000-0000-0005-000000000021", undefined, true);
+    await applyCardGroupDrop(client, other, statusId, "00000000-0000-0000-0005-000000000021", undefined, true);
     await flushWrites();
     const value = client.getEffectiveProperties(other).find((p) => p.propertySchemaId === statusId)?.value;
     expect(value).toEqual(["00000000-0000-0000-0005-000000000021"]);
@@ -1004,11 +1018,11 @@ describe("kanban polish: multi-select grouping, collapsible columns", () => {
     await client.setProperty(task, schemaId, optionId("Backlog"), 0);
 
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
-    fireEvent.click(screen.getByRole("radio", { name: "Kanban" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Cards" }));
 
     // The bucket section also lists "Solo"; the collapse
     // assertions scope to the board itself.
-    const board = () => document.querySelector(".kanban-board") as HTMLElement;
+    const board = () => document.querySelector(".board") as HTMLElement;
     fireEvent.click(screen.getByRole("button", { name: "Collapse column Backlog" }));
     expect(within(board()).queryByText("Solo")).toBeNull();
     expect(screen.getByRole("button", { name: "Expand column Backlog" })).not.toBeNull();

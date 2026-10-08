@@ -2,7 +2,7 @@
  * Windowing tests: the shared useWindowed engine + the
  * ShowMoreButton affordance integrated per surface — the table (window
  * growth, reset-on-sort, the honest select-all label, and the CSV full-set
- * invariant), cards, kanban columns, the flat outline, the grouped outline
+ * invariant), cards grids, board columns, the flat outline, the grouped outline
  * sections (the references grouping), and the read-only outline tree (with
  * the editable outliner tree deliberately staying whole). jsdom over the
  * in-process WorkspaceClient + MemoryRelay (the view-modes precedent).
@@ -233,7 +233,7 @@ describe("cards windowing", () => {
   });
 });
 
-describe("kanban column windowing", () => {
+describe("board column windowing", () => {
   it("windows each column independently; the count badge stays full", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({
@@ -253,22 +253,22 @@ describe("kanban column windowing", () => {
         icon="mdi-view-grid"
         title="Board"
         items={items}
-        modes={["kanban"]}
-        defaultMode="kanban"
-        kanbanProperty={schemaId}
+        modes={["cards"]}
+        defaultMode="cards"
+        groupByProperty={schemaId}
         onOpenNode={() => {}}
       />,
     );
 
     const column = document.querySelector(
-      '.kanban-column[data-column-id="00000000-0000-0000-00c7-000000000001"]',
+      '.board-column[data-column-id="00000000-0000-0000-00c7-000000000001"]',
     ) as HTMLElement;
     // Full bucket count in the header; the loaded window on the board.
     expect(within(column).getByText(String(BIG))).not.toBeNull();
-    expect(column.querySelectorAll(".kanban-card")).toHaveLength(100);
+    expect(column.querySelectorAll(".board-card")).toHaveLength(100);
 
     fireEvent.click(within(column).getByRole("button", { name: "Show more (20 remaining)" }));
-    expect(column.querySelectorAll(".kanban-card")).toHaveLength(BIG);
+    expect(column.querySelectorAll(".board-card")).toHaveLength(BIG);
   });
 });
 

@@ -3,8 +3,8 @@
  * bottom (each view file imports this and calls `registerView`); the barrel
  * (`./index.js`) imports every view module for the registration side effect,
  * then re-exports the lookup API. Containers and the switcher introspect the
- * registry instead of switching on mode ids, so future modes (graph, kanban,
- * …) plug in without touching call sites.
+ * registry instead of switching on mode ids, so future modes plug in
+ * without touching call sites.
  */
 
 import type { ViewCapabilities, ViewMode, ViewRegistryEntry } from "./types.js";

@@ -82,11 +82,14 @@ describe("L1 view-mode persistence (deviceSettings)", () => {
     );
   });
 
-  it("a mode the surface no longer offers reads back as null (falls to the default)", () => {
-    writeViewModePref("hub.x", "kanban");
-    // Kanban disappears (no grouping select) → the persisted value is stale.
-    expect(readViewModePref("hub.x", ["outline", "cards", "table"])).toBeNull();
-    expect(readViewModePref("hub.x", ["outline", "cards", "kanban", "table"])).toBe("kanban");
+  it("the retired kanban mode reads back as cards (the board merged into cards)", () => {
+    // A device that persisted kanban before the merge (raw legacy value —
+    // the typed API no longer accepts it).
+    localStorage.setItem(`${DEVICE_SETTINGS_PREFIX}viewMode.hub.x`, '"kanban"');
+    // Kanban is cards now — the persisted choice survives as cards.
+    expect(readViewModePref("hub.x", ["outline", "cards", "table"])).toBe("cards");
+    // A surface that offers no cards mode still falls back to the default.
+    expect(readViewModePref("hub.x", ["outline", "table"])).toBeNull();
   });
 
   it("garbage in localStorage reads as null, never crashes", () => {

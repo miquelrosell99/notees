@@ -34,6 +34,7 @@ import { assetImageUrl, cardImageAssetId } from "./assetThumbs.js";
 import { isCoverAsset } from "../components/coverProperty.js";
 import { Badge } from "../components/ui/Badge.js";
 import { useCardLayoutPreference } from "../viewPrefs.js";
+import { CardsBoard } from "./CardsBoard.js";
 import { useViewSelection, SelectionExportControls } from "./selectionExport.js";
 import type { CardLayout, NodeCollectionItem, NodeCollectionProps } from "./types.js";
 import "./CardsView.css";
@@ -164,7 +165,7 @@ function CardCover({ item, props, layout }: { item: NodeCollectionItem; props: N
   );
 }
 
-/** One flat node card — also the kanban board's card body. */
+/** One flat node card — also the grouped board's card body. */
 export function NodeCard({
   item,
   props,
@@ -315,9 +316,9 @@ function FlatCards({
 }
 
 export function CardsView(props: NodeCollectionProps) {
-  const { items = [], tree = undefined } = props;
+  const { client, items = [], tree = undefined, groupByProperty } = props;
   // The cover layout persists device-locally — one preference
-  // per device shared by every cards/kanban surface; never an op.
+  // per device shared by every cards surface; never an op.
   // A surface may only shape the unset fallback (defaultCoverLayout);
   // a persisted choice wins everywhere.
   const [coverLayout, setCoverLayout] = useCardLayoutPreference(props.defaultCoverLayout ?? "no-cover");
@@ -326,6 +327,16 @@ export function CardsView(props: NodeCollectionProps) {
   const selection = useViewSelection();
   if (items.length === 0) return null;
   if (tree === true || hasChildren(items)) return <TreeCards items={items} props={props} />;
+  // The grouped board IS cards mode with a property-dimension groupBy: the
+  // container passes a usable select schema → the same cards render as board
+  // columns with between-column drops; otherwise the flat grid.
+  const grouping =
+    groupByProperty !== undefined
+      ? client.listPropertySchemas().find((s) => s.id === groupByProperty)
+      : undefined;
+  if (grouping !== undefined && grouping.options !== null && grouping.options.length > 0) {
+    return <CardsBoard props={props} />;
+  }
   return (
     <FlatCards
       items={items}
@@ -342,5 +353,5 @@ registerView({
   label: "Cards",
   icon: "mdi-view-grid-outline",
   component: CardsView,
-  capabilities: { sorting: true, cardLayout: true },
+  capabilities: { sorting: true, cardLayout: true, groupBy: true },
 });

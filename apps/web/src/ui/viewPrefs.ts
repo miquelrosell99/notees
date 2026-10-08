@@ -7,25 +7,30 @@
  *   - a page's child-blocks triad      → `viewMode.nodeBlocks.<pageId>`
  *   - a hub's collection mode          → `viewMode.hub.<hubKey>`
  *   - a class's classed-nodes mode     → `viewMode.classMembers.<classId>`
- *   - the card cover layout (cards +  → `cards.coverLayout` (one global
- *     kanban share one preference)       preference per device)
+ *   - the card cover layout (one       → `cards.coverLayout` (one global
+ *     global preference per device)      preference per device)
  *
  * Values are validated against the modes the surface currently offers, so a
  * stale or hand-edited localStorage entry can never select a mode the
- * switcher doesn't have (a persisted kanban survives as table when the
- * grouping select disappears — the read falls back to the surface default).
+ * switcher doesn't have (the read falls back to the surface default). The
+ * retired kanban mode merged into cards — the board is cards + property
+ * groupBy — so a persisted "kanban" reads back as "cards".
  */
 
 import { readDeviceSetting, useDeviceSetting, writeDeviceSetting } from "./components/modals/deviceSettings.js";
 import type { CardLayout, ViewMode } from "./views/types.js";
 
-const VIEW_MODES: readonly ViewMode[] = ["outline", "prose", "cards", "kanban", "table"];
+const VIEW_MODES: readonly ViewMode[] = ["outline", "prose", "cards", "table"];
 const CARD_LAYOUTS: readonly CardLayout[] = ["no-cover", "cover-top", "cover-left", "cover-right"];
 
 function sanitizeViewMode(value: unknown, allowed: readonly ViewMode[]): ViewMode | null {
-  return typeof value === "string" && (VIEW_MODES as readonly string[]).includes(value)
-    ? (allowed as readonly string[]).includes(value)
-      ? (value as ViewMode)
+  if (typeof value !== "string") return null;
+  // The retired kanban mode is cards now (its board renders when the
+  // surface groups by a select property) — preserve the persisted choice.
+  const mode = value === "kanban" ? "cards" : value;
+  return (VIEW_MODES as readonly string[]).includes(mode)
+    ? (allowed as readonly string[]).includes(mode)
+      ? (mode as ViewMode)
       : null
     : null;
 }
