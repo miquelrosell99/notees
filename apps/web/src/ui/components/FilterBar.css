@@ -10,6 +10,18 @@
   font: var(--font-body-small);
 }
 
+/* Inline layout: the bar is a ViewToolbar child — the control row joins the
+   toolbar's flex line (the search field flexes, capped so the row's actions
+   keep the right side), and the structured panel drops below as a floating
+   overlay anchored to the bar. */
+.nt-filter-bar--inline {
+  position: relative;
+  flex: 1 1 auto;
+  max-width: 42ch;
+  min-width: 12ch;
+  margin-bottom: 0;
+}
+
 .nt-filter-bar__row {
   display: flex;
   align-items: center;
@@ -34,6 +46,19 @@
   border: var(--spacing-hairline) solid var(--color-outline-variant);
   border-radius: var(--radius-md);
   background: var(--color-surface-container);
+}
+
+/* The inline layout's structured panel: an overlay under the control row
+   (the toolbar row itself stays one line — the panel never flex-expands it).
+   Same border + surface register as the block panel (the design system's
+   zero-elevation law — no shadow). */
+.nt-filter-bar__panel--floating {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: var(--z-popover);
+  margin-top: var(--spacing-1);
 }
 
 .nt-filter-bar__field {

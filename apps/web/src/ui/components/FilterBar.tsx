@@ -55,9 +55,16 @@ export interface FilterBarProps {
   matchCount: number | null;
   /** The UNFILTERED row count the spec runs over — null while unresolved. */
   totalCount: number | null;
+  /**
+   * "block" (default) renders the bar as its own body-top row; "inline"
+   * renders it inside a toolbar row (ViewToolbar) — the control row joins
+   * the row's flex line and the structured panel drops below as a floating
+   * overlay anchored to the bar.
+   */
+  layout?: "block" | "inline" | undefined;
 }
 
-export function FilterBar({ client, value, onChange, config, matchCount, totalCount }: FilterBarProps) {
+export function FilterBar({ client, value, onChange, config, matchCount, totalCount, layout = "block" }: FilterBarProps) {
   const facts = useBuilderFacts(client);
   const datalistId = useId();
   const [panelOpen, setPanelOpen] = useState(false);
@@ -91,7 +98,7 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
   };
 
   return (
-    <div className="nt-filter-bar">
+    <div className={`nt-filter-bar${layout === "inline" ? " nt-filter-bar--inline" : ""}`}>
       <div className="nt-filter-bar__row">
         {showText && (
           <SearchField
@@ -109,6 +116,7 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
             size="sm"
             icon="mdi mdi-filter-variant"
             aria-label="Structured filters"
+            title="More filters"
             aria-expanded={panelOpen}
             active={panelOpen || structuredActive}
             onClick={() => setPanelOpen((open) => !open)}
@@ -126,6 +134,7 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
             size="xs"
             icon="mdi mdi-filter-remove-outline"
             aria-label="Clear filter"
+            title="Clear filter"
             onClick={() => {
               onChange(EMPTY_FILTER_SPEC);
               setPanelOpen(false);
@@ -134,7 +143,11 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
         )}
       </div>
       {panelOpen && (
-        <div className="nt-filter-bar__panel" role="group" aria-label="Structured filters">
+        <div
+          className={`nt-filter-bar__panel${layout === "inline" ? " nt-filter-bar__panel--floating" : ""}`}
+          role="group"
+          aria-label="Structured filters"
+        >
           {showClass && (
             <label className="nt-filter-bar__field">
               <span className="nt-filter-bar__label">Class</span>
