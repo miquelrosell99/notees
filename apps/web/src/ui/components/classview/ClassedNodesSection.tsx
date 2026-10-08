@@ -11,12 +11,13 @@
  *
  * The section resolves through useSectionData directly (the Section chrome
  * wrapper stays the lazy contract too, but the transient filter layer needs
- * the hook's post-resolution/pre-windowing step): a FilterBar rides the
- * body top, the section's FilterSpec filters the resolved members before
- * the collection's windowing sees them, and the eager member-count badge
- * stays UNFILTERED — an active filter reads "0 of N" in the bar and never
- * hides the section. The spec is component state — one instance per class
- * page, lost on reload, nothing persisted.
+ * the hook's post-resolution/pre-windowing step): the FilterBar rides the
+ * view toolbar inline (left of the icon-only Add member button and the view
+ * switcher — one chrome row), the section's FilterSpec filters the resolved
+ * members before the collection's windowing sees them, and the eager
+ * member-count badge stays UNFILTERED — an active filter reads "0 of N" in
+ * the bar and never hides the section. The spec is component state — one
+ * instance per class page, lost on reload, nothing persisted.
  */
 
 import { useCallback, useMemo, useState } from "react";
@@ -151,6 +152,7 @@ export function ClassedNodesSection({
       type="button"
       className="nt-class-member-remove"
       aria-label={`Remove ${displayNameForSettings(item.node) || item.node.id} from ${displayNameForSettings(client.getNode(classId)!) || "this class"}`}
+      title="Remove from class"
       onClick={() => {
         // System/journal classes refuse membership removal.
         if (refuseClassRemoval(classId)) return;
@@ -170,48 +172,49 @@ export function ClassedNodesSection({
       expanded={expanded}
       onExpandedChange={setExpanded}
     >
-      <FilterBar
-        client={client}
-        value={memberFilter}
-        onChange={setMemberFilter}
-        matchCount={members === null ? null : members.length}
-        totalCount={total}
-      />
+      {/* One chrome row: the transient filter layer rides the toolbar's
+          left (inline — its structured panel drops below as an overlay),
+          the create affordance + view switcher cluster right. The Add
+          member button is icon-only with a hover tooltip. */}
+      <ViewToolbar modes={modes} value={membersMode} onChange={setMembersMode}>
+        <FilterBar
+          client={client}
+          layout="inline"
+          value={memberFilter}
+          onChange={setMemberFilter}
+          matchCount={members === null ? null : members.length}
+          totalCount={total}
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          icon="mdi mdi-plus"
+          aria-label="Add member"
+          title="Add member"
+          onClick={addMember}
+        />
+      </ViewToolbar>
       {members === null ? null : (
-        <>
-          {/* The toolbar carries the create affordance left of the
-              switcher — visible on an empty database too. */}
-          <ViewToolbar modes={modes} value={membersMode} onChange={setMembersMode}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              icon="mdi mdi-plus"
-              onClick={addMember}
-            >
-              Add member
-            </Button>
-          </ViewToolbar>
-          <NodeCollection
-            viewMode={membersMode}
-            client={client}
-            items={memberItems}
-            tableColumns={memberColumns}
-            propertiesOf={(id) => client.getEffectiveProperties(id)}
-            tableEditable
-            groupByProperty={groupByProperty}
-            onNodeClick={(id) => {
-              const member = client.getNode(id);
-              if (member !== undefined) openMember(member);
-            }}
-            trailingAction={unassignAction}
-            emptyTitle="No classed nodes."
-            showAddButton
-            onAdd={addMember}
-            addLabel="Add member"
-            hostedViews={{ nodeId: classId, sectionKey: "classed-nodes" }}
-          />
-        </>
+        <NodeCollection
+          viewMode={membersMode}
+          client={client}
+          items={memberItems}
+          tableColumns={memberColumns}
+          propertiesOf={(id) => client.getEffectiveProperties(id)}
+          tableEditable
+          groupByProperty={groupByProperty}
+          onNodeClick={(id) => {
+            const member = client.getNode(id);
+            if (member !== undefined) openMember(member);
+          }}
+          trailingAction={unassignAction}
+          emptyTitle="No classed nodes."
+          showAddButton
+          onAdd={addMember}
+          addLabel="Add member"
+          hostedViews={{ nodeId: classId, sectionKey: "classed-nodes" }}
+        />
       )}
     </NodeViewSection>
   );

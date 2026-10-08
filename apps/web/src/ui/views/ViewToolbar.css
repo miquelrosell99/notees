@@ -1,4 +1,7 @@
 .view-toolbar {
+  /* The relative anchor for floating toolbar children (the inline FilterBar's
+     structured panel overlays content below the row). */
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: flex-end;

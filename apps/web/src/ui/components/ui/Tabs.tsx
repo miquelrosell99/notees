@@ -248,7 +248,9 @@ export interface TabsAddButtonProps extends Omit<ButtonHTMLAttributes<HTMLButton
   'aria-label': string;
 }
 
-function TabsAddButton({ className = '', ...props }: TabsAddButtonProps) {
+function TabsAddButton({ className = '', title, ...props }: TabsAddButtonProps) {
+  // The add button is icon-only: the accessible name doubles as the hover
+  // tooltip unless the caller names it explicitly.
   return (
     <div className={cn('tabs__add-slot', className)}>
       <span className="tabs__section-divider" aria-hidden="true" />
@@ -257,6 +259,7 @@ function TabsAddButton({ className = '', ...props }: TabsAddButtonProps) {
         size="xs"
         icon="mdi mdi-plus"
         className="tabs__add-button"
+        title={title ?? props['aria-label']}
         {...props}
       />
     </div>

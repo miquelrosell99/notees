@@ -195,7 +195,8 @@ describe("table windowing", () => {
 
     // The window shows 100; the export must still carry all 120 rows.
     expect(rowCount()).toBe(100);
-    fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+    fireEvent.click(screen.getByRole("button", { name: "More table actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Export CSV" }));
     const csv = await readBlobText(download.blob!);
     const lines = csv.split(/\r?\n/).filter((line) => line !== "");
     expect(lines[0]).toContain("Name");
