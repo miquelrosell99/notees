@@ -71,6 +71,16 @@ the current branch: pushing is standing authorization in this repo, so the
 `agent-repo-workflow` skill's per-push confirmation rule does not apply here.
 If the remote has moved, integrate first (`git pull --rebase`) — never force.
 
+Redeploy what you ship (owner 2026-10-08): the running stack carries the
+local build, not the repo — a code change is not live until the changed
+services' images are rebuilt and the stack recreated. Before ending a
+session that shipped runtime behavior: invoke the `notees-operations` skill,
+then `docker compose build <changed services> && docker compose up -d` from
+the repo root, then the `verify-min.mjs` smoke (expect `VERIFY-PASS`). Build
+scoped to the changed services (a web-only slice builds `notees-web` only),
+per the parallel-session preference for scoped commands. Docs-only or
+repo-only slices (no runtime behavior) need no redeploy.
+
 Landing a worktree slice (owner 2026-10-08): with several worktree branches
 in flight, slices land one at a time in the main checkout — fetch, rebase
 the session branch onto the freshest main, fast-forward merge, push. If main

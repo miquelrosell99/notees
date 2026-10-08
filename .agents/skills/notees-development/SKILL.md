@@ -55,6 +55,14 @@ Conventional Commits) and `git push` to the current branch. Pushing is
 standing authorization in this repo — the `agent-repo-workflow` skill's
 per-push confirmation does not apply here.
 
+**Redeploy what you ship** (owner 2026-10-08): the running stack carries the
+LOCAL build, not the repo — a code change is not live until the image is
+rebuilt and the stack recreated. Before ending the session:
+`docker compose build <changed services> && docker compose up -d`, then the
+`verify-min.mjs` smoke — **invoke the `notees-operations` skill first**
+(deployment discipline + rollback law). Docs-only or repo-only slices (no
+runtime behavior) need no redeploy.
+
 ## Read by topic
 
 - **Architecture** → `references/architecture.md`
