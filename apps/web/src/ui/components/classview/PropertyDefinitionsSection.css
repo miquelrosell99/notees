@@ -2,7 +2,7 @@
 
 .nt-propdefs-empty {
   color: var(--color-on-surface-variant);
-  font-size: 13px;
+  font-size: var(--font-size-button);
   padding: 4px 8px 4px 20px;
 }
 
@@ -21,7 +21,7 @@
   gap: var(--spacing-2);
   padding: 3px var(--spacing-2);
   border-radius: var(--shape-small);
-  font-size: 14px;
+  font-size: var(--font-size-base);
 }
 
 .nt-propdef-row:hover {
@@ -60,10 +60,10 @@
   border: none;
   background: transparent;
   padding: 1px var(--spacing-2);
-  border-radius: var(--shape-full, 999px);
+  border-radius: var(--shape-full);
   background: var(--color-surface-container-high);
   color: var(--color-on-surface-variant);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   white-space: nowrap;
 }
 
@@ -131,7 +131,7 @@
   border: none;
   background: transparent;
   padding: 2px 6px;
-  font-size: 13px;
+  font-size: var(--font-size-button);
   color: var(--color-on-surface-variant);
 }
 
@@ -147,7 +147,7 @@
   gap: var(--spacing-2);
   margin: 2px 0 var(--spacing-3) 44px;
   padding: var(--spacing-3);
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   background: var(--color-surface-container-high);
 }
@@ -167,9 +167,9 @@
 
 .nt-propdef-input {
   font: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-button);
   padding: 3px 8px;
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-small);
   background: var(--color-surface);
   color: var(--color-on-surface);
@@ -178,7 +178,7 @@
 
 .nt-propdef-meta {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
 }
 
@@ -193,7 +193,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-2);
-  font-size: 13px;
+  font-size: var(--font-size-button);
   color: var(--color-on-surface);
 }
 
@@ -214,17 +214,17 @@
   gap: 4px;
   padding: var(--spacing-2);
   background: var(--color-surface);
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
-  border-radius: var(--shape-medium);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-floating-panel);
   box-shadow: var(--shadow-elevation-2);
 }
 
 .nt-propdef-picker input {
   padding: 6px 10px;
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   background: var(--color-surface);
   color: var(--color-on-surface);
-  font-size: 12.5px;
+  font-size: var(--font-size-sm);
 }
 
 .nt-propdef-picker ul {
@@ -245,7 +245,7 @@
   background: transparent;
   padding: 5px 8px;
   border-radius: var(--shape-small);
-  font-size: 13px;
+  font-size: var(--font-size-button);
   color: var(--color-on-surface);
   text-align: left;
 }
@@ -256,15 +256,15 @@
 
 .nt-propdef-picker-type {
   color: var(--color-on-surface-variant);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
 }
 
 .nt-propdef-picker-create {
   border: none;
-  border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
   background: transparent;
   padding: 6px 8px;
-  font-size: 12.5px;
+  font-size: var(--font-size-sm);
   color: var(--color-primary-hover);
   text-align: left;
 }

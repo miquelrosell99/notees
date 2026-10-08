@@ -9,6 +9,50 @@ predating this file.
 
 ## 2026-10-08
 
+- **fix(web): the design-system audit batch — every finding from the
+  RosellRamos audit ships.** The audit (`.audits/design-system-2026-10-08.md`)
+  found one Critical, 18 warnings, and a notes list; all are fixed. Critical:
+  `--tactile-press-scale` was 0.88 (a 12% collapse on every Button press) and
+  is now 0.96, with the Pill literals moved onto the token. Warnings: the
+  graph minimap's two hardcoded rgba grays now ride new
+  `--graph-minimap-dot` / `--graph-minimap-viewport` tokens (the renderer
+  re-resolves on theme/accent/OLED flips, not just theme); the PDF export
+  palette's Notes theme now actually matches the light-token values it
+  claimed to mirror (accent stays a documented neutral ink — an export
+  can't know the live accent); `SettingsPanel` composes the `Modal`
+  primitive (focus trap, overlay-stack Escape); `Modal` gained an `ariaLabel`
+  path and `ConfirmationModal` labels its dialog (no more unnamed
+  destructive confirms); a "Skip to content" link leads the shell's tab
+  order to the content card; the Slider has a Firefox
+  `::-moz-range-thumb` focus ring; a new `useDelayedVisible` hook implements
+  the <300ms loading rule (Button's spinner waits 300ms, disabled/`aria-busy`
+  stay immediate); sidebar rows are real `<button>`s with a ≤3px accent
+  indicator on the active row (previously active ≈ hover); NodePill is two
+  real sibling buttons (no `role="button"`, no nested button) with the
+  hit-area overlay on the open button; ToggleSwitch gained the invisible
+  44×44 hit overlay and TextField's default height rides the 46px token;
+  the topbar `ThemeToggle` delegates to `applyAppearance()` +
+  `writeDeviceSetting` (OLED/settings no longer go stale); anchor-rendered
+  Buttons now honor `disabled`/`loading` (`aria-disabled`, no href, no
+  click); EmptyState follows the recipe (on-surface-variant title, ~60%
+  subtitle); AddPill's documented dashed affordance is restored (and its
+  duplicated hover rule merged); Button's stale `confirm` JSDoc is gone;
+  SectionViewTabs' manage row composes `Button` (ghost/danger, xs); the
+  auth-tab and whiteboard-card shadow leaks are gone; inline-edit and
+  datepicker cells get an accent focus-visible ring distinct from hover;
+  dead focus-suppression rules on non-focusable backdrops are deleted; the
+  Spinner has an honest "…" fallback under reduced motion. Notes: 112 px
+  font sizes → the `--font-size-*` scale, 61 px radii → `--shape-*`, 17
+  floating popovers → `--shape-floating-panel`, 572 stale `var(--token,
+  literal)` fallbacks stripped, the three off-lattice breakpoints nudged to
+  768/768/1024, out-of-band line-heights normalized, and px line-heights
+  converted. The drift gate grew from 3 checks to 5: px `font-size`, px
+  `border-radius`, and color literals inside `var()` fallbacks now fail the
+  build (the minimap literals were the live proof the CSS-only gate had TS
+  holes — canvas paint stays a review duty). Verification: `pnpm typecheck` +
+  `pnpm test` green; three tests updated to the new contracts (PDF paper
+  hex, real-button sidebar row, delayed spinner).
+
 - **fix(web): the brand accent reads as a colour in settings.** The
   default accent's settings label was "Margin" — a layout word, not a colour;
   it is now "Advance Green", the brand colour name. The stored setting value

@@ -16,9 +16,9 @@
 
 .nt-cover-picker__upload {
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--font-size-sm);
   padding: 6px 10px;
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-small);
   background: var(--color-surface);
   color: var(--color-primary-hover);
@@ -37,7 +37,7 @@
   border-radius: var(--shape-small);
   background: var(--color-error-container);
   color: var(--color-error);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 /* --- the cover card -------------------------------------------------- */
@@ -55,13 +55,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--icon-size-lg, 24px);
+  width: var(--icon-size-lg);
   padding: 0;
   border: none;
   background: transparent;
   border-radius: var(--shape-small);
   color: var(--color-on-surface-variant);
-  opacity: var(--opacity-60, 0.6);
+  opacity: var(--opacity-60);
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -79,7 +79,7 @@
   border-radius: var(--shape-medium);
   overflow: hidden;
   background: var(--color-surface-container-low);
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .nt-covercard__zoom {
@@ -92,8 +92,8 @@
 }
 
 .nt-covercard__zoom:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-primary, currentColor);
-  outline-offset: calc(-1 * var(--spacing-1, 2px));
+  outline: var(--border-width-thick) solid var(--color-primary);
+  outline-offset: calc(-1 * var(--spacing-1));
 }
 
 .nt-covercard__img {
@@ -117,7 +117,7 @@
   border: none;
   background: transparent;
   color: var(--color-outline);
-  font: var(--font-body-small, inherit);
+  font: var(--font-body-small);
   cursor: pointer;
 }
 
@@ -135,7 +135,7 @@
   height: 100%;
   min-width: 132px;
   padding: 0 var(--spacing-3);
-  border: var(--border-width-default, 1px) dashed var(--color-outline-variant);
+  border: var(--border-width-default) dashed var(--color-outline-variant);
   color: var(--color-on-surface-variant);
   font-size: var(--font-size-xs);
   box-sizing: border-box;
@@ -205,7 +205,7 @@
   border-radius: var(--shape-small);
   background: var(--color-surface-container-low);
   color: var(--color-on-surface-variant);
-  opacity: var(--opacity-60, 0.6);
+  opacity: var(--opacity-60);
   cursor: pointer;
 }
 
@@ -241,7 +241,7 @@
   border-radius: var(--shape-medium);
   overflow: hidden;
   background: var(--color-surface-container-low);
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .nt-bannercard__zoom {
@@ -255,8 +255,8 @@
 }
 
 .nt-bannercard__zoom:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-primary, currentColor);
-  outline-offset: calc(-1 * var(--spacing-1, 2px));
+  outline: var(--border-width-thick) solid var(--color-primary);
+  outline-offset: calc(-1 * var(--spacing-1));
 }
 
 /* The fixed-height cover-fit register: the image spans the full width. */
@@ -278,7 +278,7 @@
   border: none;
   background: transparent;
   color: var(--color-outline);
-  font: var(--font-body-small, inherit);
+  font: var(--font-body-small);
   cursor: pointer;
 }
 
@@ -294,7 +294,7 @@
   gap: var(--spacing-2);
   height: 100%;
   padding: 0 var(--spacing-3);
-  border: var(--border-width-default, 1px) dashed var(--color-outline-variant);
+  border: var(--border-width-default) dashed var(--color-outline-variant);
   box-sizing: border-box;
   color: var(--color-on-surface-variant);
   font-size: var(--font-size-xs);

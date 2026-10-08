@@ -128,15 +128,15 @@ span.pill__text {
    above, outside the table. */
 .nt-properties-list {
   list-style: none;
-  margin: var(--spacing-2, 8px) 0 0;
+  margin: var(--spacing-2) 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .nt-properties-list > li {
-  border-bottom: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
   padding: 6px 0;
   margin: 0;
 }
@@ -243,13 +243,18 @@ span.pill__text {
 }
 
 .nt-property-value:hover {
-  background: var(--color-hover-overlay, transparent);
+  background: var(--color-hover-overlay);
 }
 
 .nt-property-value:focus,
 .nt-property-value:focus-visible {
   outline: none;
-  background: var(--color-hover-overlay, transparent);
+  background: var(--color-hover-overlay);
+}
+
+.nt-property-value:focus-visible {
+  /* Keyboard focus gets the accent ring — visually distinct from hover. */
+  box-shadow: var(--shadow-focus-ring);
 }
 
 /* url/email rows: the external-link affordance beside the text editor. */
@@ -354,9 +359,9 @@ span.pill__text {
   align-self: stretch;
   display: flex;
   align-items: center;
-  border-right: var(--border-width-default, 1px) solid var(--color-outline-variant);
-  padding-right: var(--spacing-3, 12px);
-  margin-right: var(--spacing-3, 12px);
+  border-right: var(--border-width-default) solid var(--color-outline-variant);
+  padding-right: var(--spacing-3);
+  margin-right: var(--spacing-3);
 }
 
 .nt-property-default {
@@ -365,14 +370,14 @@ span.pill__text {
 
 /* Hairline between the metadata section and the child blocks. */
 .nt-metadata-divider {
-  border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
-  margin: var(--spacing-3, 12px) 0 var(--spacing-4, 16px);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
+  margin: var(--spacing-3) 0 var(--spacing-4);
 }
 
 /* "+ Add property": ghost button under the table + anchored picker popup. */
 .nt-add-property {
   position: relative;
-  margin-top: var(--spacing-2, 8px);
+  margin-top: var(--spacing-2);
 }
 
 .nt-add-property-popup {
@@ -384,19 +389,19 @@ span.pill__text {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: var(--spacing-2, 8px);
-  background: var(--color-surface-container-high, var(--color-surface));
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
-  border-radius: var(--shape-medium, 8px);
+  padding: var(--spacing-2);
+  background: var(--color-surface-container-high);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-floating-panel);
   box-shadow: var(--shadow-elevation-2);
 }
 
 .nt-add-property-popup input {
   padding: 6px 10px;
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   background: var(--color-surface);
   color: var(--color-on-surface);
-  font-size: 12.5px;
+  font-size: var(--font-size-sm);
 }
 
 .nt-add-property-popup ul {
@@ -411,13 +416,13 @@ span.pill__text {
   width: 100%;
   display: flex;
   justify-content: space-between;
-  gap: var(--spacing-2, 8px);
-  padding: 6px var(--spacing-2, 8px);
+  gap: var(--spacing-2);
+  padding: 6px var(--spacing-2);
   border: none;
-  border-radius: var(--shape-small, 6px);
+  border-radius: var(--shape-small);
   background: transparent;
   color: var(--color-on-surface);
-  font-size: 13px;
+  font-size: var(--font-size-button);
   text-align: left;
 }
 
@@ -427,16 +432,16 @@ span.pill__text {
 
 .nt-add-property-type {
   color: var(--color-on-surface-variant);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
 }
 
 .nt-add-property-create {
   border: none;
-  border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
   background: transparent;
   color: var(--color-on-surface-variant);
-  padding: 6px var(--spacing-2, 8px);
-  font-size: 12.5px;
+  padding: 6px var(--spacing-2);
+  font-size: var(--font-size-sm);
   text-align: left;
 }
 
@@ -551,7 +556,7 @@ span.pill__text {
   line-height: 1;
   cursor: pointer;
   border-radius: var(--shape-small);
-  opacity: var(--opacity-60, 0.6);
+  opacity: var(--opacity-60);
 }
 
 .nt-asset-item:hover .nt-asset-item__remove,

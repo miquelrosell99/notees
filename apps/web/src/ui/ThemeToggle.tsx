@@ -1,43 +1,36 @@
 /**
  * ThemeToggle — flips the app between the dark (default) and light themes.
  *
- * Reads/writes the device-local setting (`notees.settings.theme`) and
- * applies `data-theme` on <html>; index.html applies the stored choice
- * before first paint so there is no theme flash on reload. Flipping from
- * "system" picks the opposite of the currently resolved theme.
+ * The single writer seam is the device-settings layer
+ * (`writeDeviceSetting("theme", …)` + `applyAppearance()`): the data
+ * attributes, the OLED guard, the `notees-settings-changed` broadcast (so
+ * Settings → Appearance re-syncs), and persistence all stay consistent.
+ * Flipping from "system" picks the opposite of the currently resolved theme.
  */
 
-import { useState } from "react";
+import { applyAppearance, resolveTheme, useDeviceSetting, writeDeviceSetting, type ThemePreference } from "./components/modals/deviceSettings.js";
 
 import { Icon } from "./Icon.js";
 
-function currentTheme(): "dark" | "light" {
-  return document.documentElement.dataset.theme === "light" ? "light" : "dark";
-}
-
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<"dark" | "light">(currentTheme);
+  const [theme] = useDeviceSetting<ThemePreference>("theme", "system");
+  const resolved = resolveTheme(theme);
 
   const toggle = () => {
-    const next: "dark" | "light" = theme === "dark" ? "light" : "dark";
-    document.documentElement.dataset.theme = next;
-    try {
-      localStorage.setItem("notees.settings.theme", JSON.stringify(next));
-    } catch {
-      // Storage unavailable; the flip just won't persist.
-    }
-    setTheme(next);
+    const next: ThemePreference = resolved === "dark" ? "light" : "dark";
+    writeDeviceSetting("theme", next);
+    applyAppearance();
   };
 
   return (
     <button
       type="button"
       className="nt-icon-btn"
-      title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+      title={resolved === "dark" ? "Switch to light theme" : "Switch to dark theme"}
       aria-label="Toggle theme"
       onClick={toggle}
     >
-      <Icon path={theme === "dark" ? "mdi-weather-night" : "mdi-white-balance-sunny"} size={1} />
+      <Icon path={resolved === "dark" ? "mdi-weather-night" : "mdi-white-balance-sunny"} size={1} />
     </button>
   );
 }

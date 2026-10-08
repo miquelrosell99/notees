@@ -7,19 +7,19 @@
 .quick-create-modal {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-3, 12px);
-  padding: var(--spacing-1, 4px) 0;
+  gap: var(--spacing-3);
+  padding: var(--spacing-1) 0;
 }
 
 .quick-create-modal__field {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-1, 4px);
+  gap: var(--spacing-1);
 }
 
 .quick-create-modal__row {
   display: flex;
-  gap: var(--spacing-3, 12px);
+  gap: var(--spacing-3);
 }
 
 .quick-create-modal__row .quick-create-modal__field {
@@ -29,6 +29,6 @@
 
 .quick-create-modal__error {
   margin: 0;
-  font-size: var(--font-size-sm, 13px);
+  font-size: var(--font-size-sm);
   color: var(--color-error);
 }

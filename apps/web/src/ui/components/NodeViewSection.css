@@ -83,7 +83,7 @@
 
 .node-view-section__count {
   font: var(--font-label-medium);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   line-height: 1;
   color: var(--color-on-surface-variant);
   background: var(--color-surface-container-high);
