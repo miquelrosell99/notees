@@ -9,6 +9,25 @@ predating this file.
 
 ## 2026-10-08
 
+- **feat(web): the hide-when-empty ruling covers every system section —
+  Child pages and the backlinks strip vanish at zero, and the strip's Add
+  child page affordance is gone.** Owner ruling (2026-10-08): a page with
+  nothing to show shows nothing. The Child pages section now gates on
+  `childPageCount > 0` alone (previously `> 0 || can-create`) — its empty
+  state's **Add child page** button died with it (the `embedded` prop's only
+  other use; it is gone from `SystemSections` and the two `PageView` call
+  sites), while the `Section` component's `emptyText` ("No child pages.")
+  stays as the honest rows-empty branch. The backlinks strip (Backlinks +
+  Unlinked mentions) renders only while `backlinkCount > 0 ||
+  unlinkedCount > 0` — the "both tabs always show" ruling (owner
+  2026-10-06) now applies once the strip renders, and a live filter emptying
+  a tab keeps the chrome (the gate reads the UNFILTERED counts). The
+  always-mounted hosted-views chrome from the previous slice is unchanged —
+  it governs the rendered strip, not the gate. Verification: `pnpm typecheck`
+  clean; web suite green (1366/1366 — the childless-page tests rewritten for
+  the gate plus two new reveal tests: first child page, first backlink);
+  `docs/usage.md` + `docs/ux.md` updated.
+
 - **feat(web): the hosted-views tab bar always shows — even on an empty
   section; the empty line rides the selected tab's body.** Three containers
   short-circuited the empty state before `NodeCollection` ever rendered, so

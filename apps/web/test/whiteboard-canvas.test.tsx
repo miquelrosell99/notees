@@ -224,7 +224,9 @@ describe("whiteboard canvas (fullscreen page)", () => {
     const page = container.querySelector(".nt-page")!;
     expect(page.classList.contains("nt-page--whiteboard")).toBe(false);
     expect(container.querySelector(".nt-page-header")).not.toBeNull();
-    expect(container.querySelector(".nt-backlinks")).not.toBeNull();
+    // The backlinks strip is part of the chrome but hides at zero references
+    // (the hide-when-empty ruling) — this fixture page has none.
+    expect(container.querySelector(".nt-backlinks")).toBeNull();
     expect(container.querySelector(".nt-wb.nt-wb-fullscreen")).not.toBeNull();
   });
 

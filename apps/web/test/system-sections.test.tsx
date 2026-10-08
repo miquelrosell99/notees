@@ -147,24 +147,36 @@ describe("PageView system sections", () => {
     expect(screen.getByText("No backlinks.")).toBeInTheDocument();
   });
 
-  it("the strip renders on a page nobody references, and both empty tabs show their empty text", async () => {
+  it("the strip hides on a page nobody references — hide-when-empty covers it like every system section", async () => {
     const client = await seedClient();
     const lonelyId = await client.createObject({ presentAsMain: true, name: "Xylophone QV" });
 
     const { container } = render(<PageView client={client} pageId={lonelyId} />);
-    expect(container.querySelector(".nt-backlinks")).not.toBeNull();
-    const refTabList = container.querySelector(".nt-ref-tabs > .tabs__list");
-    expect(refTabList).not.toBeNull();
-    expect(within(refTabList as HTMLElement).getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
-      "Backlinks",
-      "Unlinked mentions",
-    ]);
+    expect(container.querySelector(".nt-backlinks")).toBeNull();
+    expect(screen.queryByRole("tab", { name: "Backlinks" })).toBeNull();
+    expect(screen.queryByText("No backlinks.")).toBeNull();
     expect(screen.queryByRole("button", { name: /Child pages/ })).toBeNull();
-    // The selected Backlinks tab shows its empty text right on mount…
-    expect(screen.getByText("No backlinks.")).toBeInTheDocument();
-    // …the lazy tab shows its after its first activation.
-    activateUnlinkedMentions();
-    expect(screen.getByText("No unlinked mentions.")).toBeInTheDocument();
+  });
+
+  it("a page's first backlink reveals the strip: the count gate re-reads on the write notification", async () => {
+    const client = await seedClient();
+    const targetId = await client.createObject({ presentAsMain: true, name: "Stripped Target" });
+    const sourceId = await client.createObject({ presentAsMain: true, name: "Stripped Source" });
+    const { container } = render(<PageView client={client} pageId={targetId} />);
+    expect(container.querySelector(".nt-backlinks")).toBeNull();
+
+    await client.createObject({
+      parentId: sourceId,
+      contentAst: [{ type: "mention", targetNodeId: targetId, text: "Stripped Target" }],
+    });
+
+    // The count re-ran on the write notification: the strip appears with the
+    // count suffix; the lazy rows resolve in the same beat.
+    const stripTab = await screen.findByRole("tab", { name: "Backlinks 1" });
+    expect(stripTab).not.toBeNull();
+    expect(await screen.findByText("Stripped Source")).not.toBeNull();
+    // The lazy Unlinked tab was never activated: its empty line never renders.
+    expect(screen.queryByText("No unlinked mentions.")).toBeNull();
   });
 
   it("the selected tab loads on mount and caches across switches; mentions link, literal text does not", async () => {
@@ -309,34 +321,35 @@ describe("PageView system sections", () => {
     expect(onOpenPage).toHaveBeenCalledWith(childId);
   });
 
-  it("a childless main-surface page renders the Child pages section with the create affordance; the create lands in the Pages zone and focuses the new child", async () => {
+  it("a childless page hides the Child pages section entirely — no empty state, no create affordance (owner 2026-10-08)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Lonely Parent" });
     const onOpenPage = vi.fn();
+    const childSpy = vi.spyOn(client, "getChildPages");
 
     render(<PageView client={client} pageId={pageId} onOpenPage={onOpenPage} />);
 
-    // The section renders even with zero children: the kit EmptyState
-    // carries the create affordance (the collection contract: flag AND
-    // callback AND context — the main surface with a navigation target).
-    const childSection = section(/Child pages/);
-    expect(within(childSection).getByText("No child pages.")).not.toBeNull();
-    const addButton = within(childSection).getByRole("button", { name: "Add child page" });
-    // The zero count stays off the header (the tab-label convention).
-    expect(childSection.querySelector(".node-view-section__count")).toBeNull();
+    // The count gate is the whole rule now: zero children, no section — no
+    // EmptyState create affordance either, and the list query never runs.
+    expect(screen.queryByRole("button", { name: /Child pages/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add child page" })).toBeNull();
+    expect(screen.queryByText("No child pages.")).toBeNull();
+    expect(childSpy).not.toHaveBeenCalled();
+  });
 
-    fireEvent.click(addButton);
-    await flushWrites();
+  it("creating the first child page reveals the section: the write notification re-runs the count gate", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Soon Parent" });
+    render(<PageView client={client} pageId={pageId} onOpenPage={() => {}} />);
 
-    // The create landed IN THE PAGES ZONE (presentAsMain child of the host)
-    // and the section's focus behavior opened the new child.
-    const children = client.getChildPages(pageId);
-    expect(children).toHaveLength(1);
-    expect(children[0]!.presentAsMain).toBe(true);
-    expect(onOpenPage).toHaveBeenCalledWith(children[0]!.id);
-    // The expanded section re-ran its query on the write notification: the
-    // new child is a row now, and the empty state is gone.
-    expect(within(section(/Child pages/)).queryByText("No child pages.")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Child pages/ })).toBeNull();
+
+    await client.createObject({ presentAsMain: true, parentId: pageId, name: "First Kid" });
+
+    // The count read re-runs on the write notification: the section appears
+    // with its single row.
+    expect(await screen.findByRole("button", { name: /Child pages/ })).not.toBeNull();
+    expect(screen.getByText("First Kid")).not.toBeNull();
   });
 
   it("no navigation target, no create affordance: a childless page without onOpenPage keeps the section hidden", async () => {
@@ -346,8 +359,8 @@ describe("PageView system sections", () => {
 
     render(<PageView client={client} pageId={pageId} />);
 
-    // The context conjunct fails (no focus target) — the section stays
-    // hidden exactly as before, and its list query never runs.
+    // The count gate hides the section for a childless page — with or
+    // without a navigation target — and its list query never runs.
     expect(screen.queryByRole("button", { name: /Child pages/ })).toBeNull();
     expect(screen.queryByRole("button", { name: "Add child page" })).toBeNull();
     expect(childSpy).not.toHaveBeenCalled();
@@ -443,8 +456,9 @@ describe("PageView system sections", () => {
     render(<PageView client={client} pageId={franceId} />);
 
     // Owner rule: France's own-subtree links are content, not references —
-    // no edge targets France yet, so the Backlinks tab carries no count.
-    expect(screen.getByRole("tab", { name: "Backlinks" })).toBeInTheDocument();
+    // no edge targets France yet, so the hide-when-empty gate keeps the
+    // whole strip off the page.
+    expect(screen.queryByRole("tab", { name: "Backlinks" })).toBeNull();
     expect(client.getLinkedReferences(parisId).map((r) => r.kind)).toEqual(["direct"]);
     // Paris still sees the direct reference from inside France.
     expect(client.getLinkedReferences(parisId).map((r) => r.containingPageName)).toEqual(["France"]);
