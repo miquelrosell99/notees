@@ -50,6 +50,11 @@ summary here.
 pnpm install && pnpm typecheck && pnpm test   # from repo root; all green = blocking gate
 ```
 
+Green gate + changelog entry in → commit the slice (per-file staging,
+Conventional Commits) and `git push` to the current branch. Pushing is
+standing authorization in this repo — the `agent-repo-workflow` skill's
+per-push confirmation does not apply here.
+
 ## Read by topic
 
 - **Architecture** → `references/architecture.md`
