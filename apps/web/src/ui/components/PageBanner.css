@@ -193,8 +193,8 @@
 
 /* Collapsed: the slim full-width strip is itself the expand control — the
    cover-card chevron precedent: no fill (a filled strip read as a dark bar
-   against the page surface), the chevron persistent at rest opacity, full
-   color on hover/focus with the hover overlay marking the target. */
+   against the page surface), no hover overlay (the cover arrow has none),
+   the chevron persistent at rest opacity, full color on hover/focus. */
 .nt-bannercard__strip {
   position: relative;
   display: flex;
@@ -215,7 +215,6 @@
 .nt-bannercard__strip:focus-visible {
   opacity: 1;
   color: var(--color-primary);
-  background: var(--color-hover-overlay);
 }
 
 .nt-bannercard__strip-handle {

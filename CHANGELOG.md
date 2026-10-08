@@ -15,9 +15,9 @@ predating this file.
   mode (and pure black under OLED) read as a black bar, and its chevron was
   `opacity: 0` until hover. The cover card's collapse chevron — persistent at
   `--opacity-60`, full color on hover, transparent background — is the
-  established register, so the strip now matches: transparent background (the
-  hover overlay marks the target on hover/focus), chevron always visible at
-  rest opacity. Verification: `pnpm typecheck` clean; web suite green
+  established register, so the strip now matches: transparent background, no
+  hover fill (the cover arrow has none), chevron always visible at rest
+  opacity. Verification: `pnpm typecheck` clean; web suite green
   (1361/1361; a pre-existing "Database closed" teardown flake in
   `journals-view.test.tsx` passes in isolation).
 
