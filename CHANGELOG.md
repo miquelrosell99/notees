@@ -9,6 +9,22 @@ predating this file.
 
 ## 2026-10-08
 
+- **refactor(web): the kanban view mode merged into cards.** Kanban was the
+  card view with a property-dimension groupBy enabled and between-column
+  drag-and-drop — a separate view mode no longer earns its place. `KanbanView`
+  is gone; the board now lives in `CardsBoard` (the cards view's grouped
+  rendering, dispatched when the container's `groupByProperty` resolves to a
+  usable select schema — the prop replaces `kanbanProperty`), the CSS classes
+  renamed `kanban-*` → `board-*`, and the Tasks hub / classed-nodes section
+  offer the outline/cards/table triad unconditionally (cards IS the board
+  where a grouping select exists, the flat grid elsewhere). A persisted
+  `viewMode.* = "kanban"` reads back as `"cards"`. Drag drops still write the
+  property (`applyCardGroupDrop`, the former `applyKanbanDrop`); columns,
+  windowing, covers, and selection export are unchanged. Verified: the web
+  typecheck clean and the full `apps/web` suite green (1359 tests) with the
+  merge in; the kanban-merge suites (`view-modes`, `windowing`,
+  `selection-export`, the `page-layouts` L1 persistence block) green
+  standalone.
 - **feat(web): palette Properties section + the owner-mandated search order.**
   The command palette's search results now rank **Classes → Properties →
   Pages → Content**, then Date Pages and Commands (the flatten step is a
