@@ -1,0 +1,186 @@
+/* FilterBlockBuilder — the structured panel's block query builder: the v1
+   group/condition/not registers ported over the v2 query AST, token-only.
+   Neutral surface/outline tokens throughout — the v1 per-type accent colors
+   are deliberately gone. Depth indent rides the --nt-fb-depth custom
+   property (the v1 --group-depth register). */
+
+.nt-fb {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  font: var(--font-body-small);
+}
+
+/* --- the group card -------------------------------------------------------- */
+
+.nt-fb-group {
+  display: flex;
+  flex-direction: column;
+  margin-left: calc(var(--nt-fb-depth, 0) * var(--spacing-3));
+  transition: border-color 0.15s ease-out;
+}
+
+.nt-fb-group--nested {
+  border-left: 2px solid var(--color-outline-variant);
+}
+
+.nt-fb-group__header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-surface-container-low);
+  border-bottom: var(--spacing-hairline) solid var(--color-outline-variant);
+}
+
+.nt-fb-group__count {
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+  white-space: nowrap;
+}
+
+.nt-fb-group__spacer {
+  flex: 1;
+}
+
+.nt-fb-group__children {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+}
+
+.nt-fb-group__empty {
+  margin: 0;
+  padding: var(--spacing-3);
+  text-align: center;
+  font-style: italic;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-fb-group__footer {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-top: var(--spacing-hairline) solid var(--color-outline-variant);
+}
+
+/* --- the NOT wrapper --------------------------------------------------------- */
+
+.nt-fb-not {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2);
+  border: var(--spacing-hairline) dashed var(--color-outline);
+  border-radius: var(--radius-sm);
+}
+
+.nt-fb-not__badge {
+  flex-shrink: 0;
+  padding: var(--spacing-1) var(--spacing-2);
+  border: var(--spacing-hairline) solid var(--color-outline);
+  border-radius: var(--radius-sm);
+  font: var(--font-label-small);
+  letter-spacing: 0.08em;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-fb-not__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.nt-fb-not__body > .nt-fb-group {
+  margin-left: 0;
+}
+
+/* --- the condition row --------------------------------------------------------- */
+
+.nt-fb-condition {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-surface-container-lowest);
+  border: var(--spacing-hairline) solid var(--color-outline-variant);
+  border-radius: var(--radius-sm);
+}
+
+.nt-fb-condition__icon {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.nt-fb-condition__label {
+  flex-shrink: 0;
+  font-weight: 500;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-fb-condition__word {
+  flex-shrink: 0;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-fb-condition__spacer {
+  flex: 1;
+}
+
+.nt-fb-condition input,
+.nt-fb-condition select {
+  flex: 1;
+  min-width: 8ch;
+  font: var(--font-body-small);
+}
+
+/* --- the add menu --------------------------------------------------------------- */
+
+.nt-fb-menu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1);
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.nt-fb-menu__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-1-5) var(--spacing-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nt-fb-menu__item:hover,
+.nt-fb-menu__item:focus-visible {
+  background: var(--color-surface-container-high);
+}
+
+.nt-fb-menu__icon {
+  flex-shrink: 0;
+  margin-top: 0.15em;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-fb-menu__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.nt-fb-menu__label {
+  font: var(--font-body-small);
+}
+
+.nt-fb-menu__desc {
+  font-size: 0.85em;
+  color: var(--color-on-surface-variant);
+}

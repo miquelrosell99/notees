@@ -12,10 +12,10 @@
  * SectionSpec stacks.
  *
  * The transient filter layer: `filterable` renders the FilterBar at the
- * body top and applies its FilterSpec through the hook — post-resolution,
+ * body top and applies its FilterQuery through the hook — post-resolution,
  * pre-windowing. The count badge stays UNFILTERED (the hook's `total` is
  * the pre-filter resolved count): an active filter shows "0 of N" in the
- * bar and never hides the section. The spec is this component's state —
+ * bar and never hides the section. The query is this component's state —
  * one skin instance per section view, lost on reload, nothing persisted.
  */
 
@@ -25,7 +25,13 @@ import type { AnyClient, NodeCollectionItem, NodeCollectionProps, ViewMode } fro
 import { NodeCollection } from "../views/index.js";
 
 import { FilterBar } from "./FilterBar.js";
-import { isFilterEmpty, EMPTY_FILTER_SPEC, type FilterBarConfig, type FilterSpec } from "./filterSpec.js";
+import {
+  EMPTY_FILTER_QUERY,
+  filterQueryToGroup,
+  isFilterInactive,
+  type FilterBarConfig,
+  type FilterQuery,
+} from "./filterQuery.js";
 import { NodeViewSection } from "./NodeViewSection.js";
 import { useSectionData, type SectionCtx, type SectionRowFilter } from "./useSectionData.js";
 import "./CollectionSection.css";
@@ -80,11 +86,12 @@ export function CollectionSection({
   hideWhenEmpty = false,
 }: CollectionSectionProps) {
   const [expanded, setExpanded] = useState(!defaultCollapsed);
-  const [filterSpec, setFilterSpec] = useState<FilterSpec>(EMPTY_FILTER_SPEC);
+  const [filterQuery, setFilterQuery] = useState<FilterQuery>(EMPTY_FILTER_QUERY);
   const filter = useMemo<SectionRowFilter<NodeCollectionItem> | undefined>(() => {
-    if (filterable === false || isFilterEmpty(filterSpec)) return undefined;
-    return { spec: filterSpec, nodeOf: (item) => item.node };
-  }, [filterable, filterSpec]);
+    if (filterable === false || isFilterInactive(filterQuery)) return undefined;
+    const group = filterQueryToGroup(filterQuery);
+    return group === null ? undefined : { group, nodeOf: (item) => item.node };
+  }, [filterable, filterQuery]);
   const { rows, total } = useSectionData<NodeCollectionItem[]>({
     client,
     active: expanded,
@@ -108,8 +115,8 @@ export function CollectionSection({
       {filterable !== false && (
         <FilterBar
           client={client}
-          value={filterSpec}
-          onChange={setFilterSpec}
+          value={filterQuery}
+          onChange={setFilterQuery}
           config={typeof filterable === "object" ? filterable : undefined}
           matchCount={rows === null ? null : rows.length}
           totalCount={count ?? total}

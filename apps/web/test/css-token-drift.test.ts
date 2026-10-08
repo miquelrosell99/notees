@@ -37,6 +37,7 @@ const JS_SCOPED = new Map<string, string>([
   ["--sheet-drag-offset", "Modal.tsx"],
   ["--sheet-scrim-opacity", "Modal.tsx"],
   ["--nt-float-raise", "FloatingEditor.tsx"],
+  ["--nt-fb-depth", "FilterBlockBuilder.tsx"],
 ]);
 
 function walkFiles(dir: string, out: string[] = []): string[] {
