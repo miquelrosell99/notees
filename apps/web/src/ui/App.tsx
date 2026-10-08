@@ -2160,9 +2160,10 @@ export function HubView({
   }
 
   if (nav === "assets") {
-    // Any node classed asset, cards by default (owner rule). The header's
-    // "New asset" button opens the upload modal — uploading IS creating here:
-    // the modal's CAS path mints the asset-classed node.
+    // Any node classed asset, cards by default with a cover-top cover
+    // fallback (owner rule — asset cards read as an image gallery). The
+    // header's "New asset" button opens the upload modal — uploading IS
+    // creating here: the modal's CAS path mints the asset-classed node.
     const members = client
       .getClassMembers(assetClassId)
       .map((node) => ({ node }));
@@ -2185,6 +2186,7 @@ export function HubView({
           items={members}
           modes={["cards", "table"]}
           defaultMode="cards"
+          defaultCoverLayout="cover-top"
           persistKey="hub.assets"
           tableColumns={HUB_ASSET_COLUMNS}
           emptyTitle="No assets yet"

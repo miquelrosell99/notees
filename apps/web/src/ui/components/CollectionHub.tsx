@@ -4,7 +4,7 @@
  * View mode persists per hub device-locally when `persistKey` is given
  * (never an op); without a key it stays session-local. The
  * pages/classes hubs ride the outline mode; tasks defaults to table; assets
- * to cards (owner rules).
+ * to cards with a cover-top cover fallback (owner rules).
  */
 
 import { useEffect, useState, type ReactNode } from "react";
@@ -13,7 +13,7 @@ import { Icon } from "../Icon.js";
 import { useViewModePreference } from "../viewPrefs.js";
 import { NodeCollection, ViewToolbar } from "../views/index.js";
 import type { NodeCollectionItem, TableColumn, ViewMode } from "../views/index.js";
-import type { AnyClient } from "../views/types.js";
+import type { AnyClient, CardLayout } from "../views/types.js";
 
 export interface CollectionHubProps {
   client: AnyClient;
@@ -31,6 +31,11 @@ export interface CollectionHubProps {
   persistKey?: string | undefined;
   tableColumns?: TableColumn[] | undefined;
   cardProperties?: string[] | undefined;
+  /**
+   * Cards: the cover layout this hub's cards fall back to when the device
+   * has no persisted cover choice yet (the Assets hub passes "cover-top").
+   */
+  defaultCoverLayout?: CardLayout | undefined;
   tableEditable?: boolean | undefined;
   /** Kanban: the select property whose options seed the board columns. */
   kanbanProperty?: string | undefined;
@@ -51,6 +56,7 @@ export function CollectionHub({
   persistKey,
   tableColumns,
   cardProperties,
+  defaultCoverLayout,
   tableEditable = false,
   kanbanProperty,
   emptyTitle,
@@ -84,6 +90,7 @@ export function CollectionHub({
         items={items}
         tableColumns={tableColumns}
         cardProperties={cardProperties}
+        defaultCoverLayout={defaultCoverLayout}
         propertiesOf={(id) => client.getEffectiveProperties(id)}
         tableEditable={tableEditable}
         kanbanProperty={kanbanProperty}

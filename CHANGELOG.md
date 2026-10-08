@@ -7,6 +7,23 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-10-08
+
+- **feat(web): the Assets hub's cards default to cover top.** The assets
+  sidebar entry's cards read as an image gallery, so the surface now passes
+  a `defaultCoverLayout="cover-top"` fallback (new optional
+  `NodeCollectionProps.defaultCoverLayout`, threaded through
+  `CollectionHub` and honored by the cards view's
+  `useCardLayoutPreference` fallback). The rule shapes ONLY the unset
+  fallback: `cards.coverLayout` stays one global device-local preference —
+  the moment the user picks a layout anywhere, that choice wins on every
+  surface. Every other cards surface keeps the shipped "no-cover"
+  default. Docs: `usage.md` (the new "The Assets hub's cover-first cards"
+  section beside the Tasks-hub one). **Verification:** `apps/web`
+  typecheck clean; the view-modes suite green — the cover test now asserts
+  the cover-top default + the no-cover switch, and a guard test pins the
+  no-cover fallback for surfaces without the prop.
+
 ## 2026-10-07
 
 - **feat(store,server,web): the parked follow-ons batch — the alias
