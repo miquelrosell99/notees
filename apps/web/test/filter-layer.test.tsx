@@ -1,13 +1,16 @@
 /**
  * The transient filter layer, end to end (jsdom over the in-process
- * WorkspaceClient + MemoryRelay): the FilterSpec applies
+ * WorkspaceClient + MemoryRelay): the FilterQuery applies
  * POST-RESOLUTION/PRE-WINDOWING (a windowed section renders the filtered
  * window, never the first-N-then-filtered), the eager count stays
  * UNFILTERED (an active filter reads "0 of N" and never hides the
- * section), the spec is one instance per section view/tab (two backlinks
+ * section), the query is one instance per section view/tab (two backlinks
  * tabs never share), and the three filterable sections — linked
  * references, unlinked mentions, classed nodes — render the bar while a
- * non-filterable section (Child pages) renders none.
+ * non-filterable section (Child pages) renders none. The structured panel
+ * is the block query builder — these tests drive its add menu, rows and
+ * wire controls end to end (the pure builder interactions live in
+ * filter-builder.test.tsx).
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -159,7 +162,7 @@ describe("the classed-nodes filter bar", () => {
     expect(within(section).queryByText(/of 120/)).toBeNull();
   });
 
-  it("the structured panel's class facet filters through the extends closure", async () => {
+  it("the structured panel's class condition filters through the extends closure", async () => {
     const client = await seedClient();
     const projectId = await seedClass(client, "project");
     const clientId = await seedClass(client, "client");
@@ -175,6 +178,9 @@ describe("the classed-nodes filter bar", () => {
 
     fireEvent.click(within(section).getByRole("button", { name: "Structured filters" }));
     const panel = structuredPanel();
+    // The builder's add menu → a class condition row.
+    fireEvent.click(within(panel).getByRole("button", { name: "Add condition" }));
+    fireEvent.click(within(panel).getByRole("button", { name: /^Class/ }));
     fireEvent.change(within(panel).getByLabelText("Class"), { target: { value: clientId } });
 
     // Only the client-classed member survives; the bar names 1 of 3.
@@ -185,7 +191,7 @@ describe("the classed-nodes filter bar", () => {
     expect(within(table).queryByText("Alpha")).toBeNull();
   });
 
-  it("a property predicate row narrows the table through the bar", async () => {
+  it("a property condition row narrows the table through the builder", async () => {
     const client = await seedClient();
     const classId = await seedClass(client, "task");
     const schemaId = await client.createPropertySchema({ name: "impact", type: "number" });
@@ -203,12 +209,11 @@ describe("the classed-nodes filter bar", () => {
 
     fireEvent.click(within(section).getByRole("button", { name: "Structured filters" }));
     const panel = structuredPanel();
-    fireEvent.click(within(panel).getByRole("button", { name: "Add property filter" }));
-    // The predicate row seeds itself with the first bound property — point
-    // it at "impact" explicitly (system classes bind designed schemas too).
-    fireEvent.change(within(panel).getByLabelText("Property 1"), { target: { value: schemaId } });
-    fireEvent.change(within(panel).getByLabelText("Operator 1"), { target: { value: "gte" } });
-    fireEvent.change(within(panel).getByLabelText("Value 1"), { target: { value: "5" } });
+    fireEvent.click(within(panel).getByRole("button", { name: "Add condition" }));
+    fireEvent.click(within(panel).getByRole("button", { name: /^Property/ }));
+    fireEvent.change(within(panel).getByLabelText("Property"), { target: { value: schemaId } });
+    fireEvent.change(within(panel).getByLabelText("Operator"), { target: { value: "gte" } });
+    fireEvent.change(within(panel).getByLabelText("Value"), { target: { value: "5" } });
 
     expect(tableRowCount()).toBe(1);
     expect(within(section).getByText("1 of 2")).not.toBeNull();
@@ -216,8 +221,8 @@ describe("the classed-nodes filter bar", () => {
     expect(within(table).getByText("High impact")).not.toBeNull();
     expect(within(table).queryByText("Low impact")).toBeNull();
 
-    // Removing the predicate row restores the full set.
-    fireEvent.click(within(panel).getByRole("button", { name: "Remove property filter 1" }));
+    // Removing the condition row restores the full set.
+    fireEvent.click(within(panel).getByRole("button", { name: "Remove Property condition" }));
     expect(tableRowCount()).toBe(2);
   });
 });

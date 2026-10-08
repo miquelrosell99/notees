@@ -24,14 +24,18 @@
  *    substring over the flattened title text, the same plaintext the derived
  *    search index holds), and the three wire-field predicates
  *    (`coverAsset`/`bannerAsset`/`aliasedNode`).
- *  - Joined-metadata conditions — `property` (the effective-values read
- *    model), `content` fts (the FTS index), `linkedTo` (the edge roll-up) —
- *    fall back to ONE membership probe per leaf through the established
- *    `runQueryAst` channel over the workspace, intersected with the base set.
- *    The derived store owns those read models; re-deriving them here would
- *    duplicate the query package. The FilterBuilderModal's representable
- *    subset never produces these (its guard names them unsupported), so the
- *    common custom tab evaluates wholly on the materialized rows.
+ *  - `property` conditions (the effective-values read model) evaluate
+ *    synchronously on the row too (owner 2026-10-08, the one-evaluation
+ *    ruling): the client's `getEffectiveProperties` is the same read model
+ *    the compiler's property arm reads, so the hosted custom tabs stop
+ *    probing for them. Only `content` fts (the FTS index) and `linkedTo`
+ *    (the edge roll-up) remain probe-path leaves — one membership probe per
+ *    leaf through the established `runQueryAst` channel over the workspace,
+ *    intersected with the base set. The derived store owns those read
+ *    models; re-deriving them here would duplicate the query package. The
+ *    FilterBuilderModal's representable subset never produces these (its
+ *    guard names them unsupported), so the common custom tab evaluates
+ *    wholly on the materialized rows.
  *
  * Sort applies client-side with the compiler's semantics: `name` orders by
  * the flattened title text (empty falls last), `createdAt` lexicographic,
@@ -43,16 +47,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { plainTextExcerpt } from "@notees/domain";
-import { parseQueryAst, resolveTimestampPlaceholder, type QueryAst } from "@notees/query";
+import { plainTextExcerpt, parseDateNodeId } from "@notees/domain";
+import { parseQueryAst, resolveTimestampPlaceholder, type PropertyOp, type QueryAst } from "@notees/query";
 
-import type { ClientNode } from "@/core/workspace-client.js";
+import type { ClientNode, EffectiveProperty } from "@/core/workspace-client.js";
 
 import type { CollectionGroup, NodeCollectionItem } from "./types.js";
 
 /** The client surface resolution needs (both client classes satisfy it). */
 export interface SectionViewResolveClient {
   getClassChildren(classId: string): ClientNode[];
+  /** The effective-values read model (the property condition's sync arm). */
+  getEffectiveProperties(id: string): EffectiveProperty[];
   runQueryAst(rawAst: unknown):
     | { ids: string[] }
     | Promise<{ ids: string[] }>;
@@ -67,7 +73,7 @@ export interface SectionViewResolution {
   error: string | null;
 }
 
-interface SectionViewPlan {
+export interface SectionViewPlan {
   ast: QueryAst;
   /** True when the root tree contains joined-metadata leaves (probe path). */
   needsProbe: boolean;
@@ -94,7 +100,6 @@ function treeNeedsProbe(children: QueryAst["root"]["children"]): boolean {
 }
 
 function leafNeedsProbe(condition: QueryAst["root"]["children"][number]): boolean {
-  if (condition.type === "property") return true;
   if (condition.type === "linkedTo") return true;
   if (condition.type === "content" && condition.op === "fts") return true;
   return false;
@@ -145,6 +150,161 @@ function wireFieldMatches(
   return op === "eq" ? actual === value : actual !== value;
 }
 
+// --- property scalar semantics (the compiler's arms, verbatim) ----------------
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Strict scalar equality, plus the numeric-string arm for the bar's text input. */
+function scalarEquals(value: unknown, bound: unknown): boolean {
+  if (value === bound) return true;
+  if (typeof value === "number" && typeof bound === "string") {
+    const trimmed = bound.trim();
+    return trimmed !== "" && Number(trimmed) === value;
+  }
+  return false;
+}
+
+function numericBound(bound: unknown): number | null {
+  if (typeof bound === "number") return bound;
+  if (typeof bound === "string" && bound.trim() !== "" && !Number.isNaN(Number(bound))) {
+    return Number(bound);
+  }
+  return null;
+}
+
+/** gt/gte/lt/lte — numeric when both sides are, lexicographic otherwise. */
+function scalarOrder(value: unknown, op: PropertyOp, bound: unknown): boolean {
+  const numBound = numericBound(bound);
+  if (typeof value === "number" && numBound !== null) {
+    switch (op) {
+      case "gt":
+        return value > numBound;
+      case "gte":
+        return value >= numBound;
+      case "lt":
+        return value < numBound;
+      case "lte":
+        return value <= numBound;
+      default:
+        return false;
+    }
+  }
+  const left = String(value);
+  const right = String(bound);
+  switch (op) {
+    case "gt":
+      return left > right;
+    case "gte":
+      return left >= right;
+    case "lt":
+      return left < right;
+    case "lte":
+      return left <= right;
+    default:
+      return false;
+  }
+}
+
+/**
+ * The date-ref containment arm the compiler emits for an ISO-date bound
+ * against a node-typed value: a day node matches its exact day, a month node
+ * the days it contains, a year node the days of its year.
+ */
+function dateRefEquals(nodeId: string, boundIso: string): boolean {
+  const parsed = parseDateNodeId(nodeId);
+  if (parsed === null) return false;
+  const [year, month, day] = boundIso.split("-").map(Number) as [number, number, number];
+  if (parsed.precision === "year") return parsed.year === year;
+  if (parsed.precision === "month") return parsed.year === year && parsed.month === month;
+  return parsed.year === year && parsed.month === month && parsed.day === day;
+}
+
+/** The date-ref ordering arm: the id's 12-digit payload vs the padded bound. */
+function dateRefOrder(nodeId: string, op: PropertyOp, boundIso: string): boolean {
+  const parsed = parseDateNodeId(nodeId);
+  if (parsed === null) return false;
+  const payload = nodeId.slice(24);
+  const bound = `${boundIso.replace(/-/g, "")}0000`;
+  switch (op) {
+    case "gt":
+      return payload > bound;
+    case "gte":
+      return payload >= bound;
+    case "lt":
+      return payload < bound;
+    case "lte":
+      return payload <= bound;
+    default:
+      return false;
+  }
+}
+
+/** A node-typed property value's target id, when the value carries one. */
+function refNodeIdOf(value: unknown): string | null {
+  if (typeof value !== "object" || value === null) return null;
+  const nodeId = (value as { nodeId?: unknown }).nodeId;
+  return typeof nodeId === "string" ? nodeId : null;
+}
+
+/**
+ * One effective value against one op — the compiler's scalar semantics plus
+ * its ISO-date arms for node-typed (date) values.
+ */
+function valueMatches(value: unknown, op: PropertyOp, bound: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  const boundIso = typeof bound === "string" && ISO_DATE_RE.test(bound) ? bound : null;
+  if (boundIso !== null && typeof value === "object") {
+    // The compiler gates the scalar arm off for object values under a date
+    // bound — only the date-ref arms speak; a non-date ref matches nothing
+    // but neq (the JSON text never equals the dashed ISO bound).
+    const nodeId = refNodeIdOf(value);
+    if (nodeId === null) return op === "neq";
+    if (op === "eq") return dateRefEquals(nodeId, boundIso);
+    if (op === "neq") return !dateRefEquals(nodeId, boundIso);
+    if (op === "contains") {
+      return (
+        dateRefEquals(nodeId, boundIso) ||
+        String(value).toLowerCase().includes(String(bound).toLowerCase())
+      );
+    }
+    return dateRefOrder(nodeId, op, boundIso);
+  }
+  switch (op) {
+    case "eq":
+      return scalarEquals(value, bound);
+    case "neq":
+      return !scalarEquals(value, bound);
+    case "contains":
+      return String(value).toLowerCase().includes(String(bound).toLowerCase());
+    case "gt":
+    case "gte":
+    case "lt":
+    case "lte":
+      return scalarOrder(value, op, bound);
+    default:
+      return false;
+  }
+}
+
+/** One property condition against the node's effective rows (any row may match). */
+function propertyMatches(
+  ctx: EvalContext,
+  nodeId: string,
+  condition: Extract<QueryAst["root"]["children"][number], { type: "property" }>,
+): boolean {
+  let rows = ctx.client
+    .getEffectiveProperties(nodeId)
+    .filter((row) => row.propertySchemaId === condition.schemaId);
+  if (condition.includeDefaults === false) {
+    rows = rows.filter((row) => row.source === "authored");
+  }
+  if (condition.op === "exists") return rows.length > 0;
+  // Value ops require a non-null bound (the compile law); without one the
+  // condition can match nothing.
+  if (condition.value === undefined || condition.value === null) return false;
+  return rows.some((row) => valueMatches(row.value, condition.op, condition.value));
+}
+
 interface EvalContext {
   client: SectionViewResolveClient;
   /** Memoized class closures per classId (one getClassChildren per refinement). */
@@ -171,6 +331,11 @@ function conditionMatches(ctx: EvalContext, condition: QueryAst["root"]["childre
     case "content":
       // contains only — fts rides the probe path (treeNeedsProbe).
       return asciiLower(titleTextOf(node)).includes(asciiLower(condition.value));
+    case "property":
+      // The one-evaluation ruling (owner 2026-10-08): property conditions
+      // evaluate synchronously over the effective-values read model — the
+      // same read the compiler's property arm makes in the derived store.
+      return propertyMatches(ctx, node.id, condition);
     case "createdAfter":
     case "createdBefore": {
       const key = `${condition.type}:${condition.timestamp}`;
@@ -213,6 +378,22 @@ function childMatches(ctx: EvalContext, child: QueryAst["root"]["children"][numb
     return !inner;
   }
   return conditionMatches(ctx, child, item);
+}
+
+/**
+ * The shared row predicate for a planned AST: one EvalContext (memoized
+ * class closures and placeholder bounds) closing over the root group. The
+ * transient filter layer and any synchronous consumer filter rows with this —
+ * the same conditionMatches/groupMatches the resolution uses, never a
+ * second evaluator. Only valid for plans WITHOUT probe leaves (the bar's
+ * subset); a probe leaf would throw here by design.
+ */
+export function createSectionViewMatcher(
+  client: SectionViewResolveClient,
+  plan: SectionViewPlan,
+): (node: ClientNode) => boolean {
+  const ctx: EvalContext = { client, closures: new Map(), bounds: new Map() };
+  return (node) => groupMatches(ctx, plan.ast.root.children, plan.ast.root.logic, { node });
 }
 
 // --- sort --------------------------------------------------------------------------

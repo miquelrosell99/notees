@@ -25,9 +25,9 @@
  *
  * The transient filter layer (owner 2026-10-07): both tabs are filterable —
  * a FilterBar rides each panel's body top (the tab IS the header; the bar
- * cannot nest in it), each tab owning its FilterSpec instance (component
+ * cannot nest in it), each tab owning its FilterQuery instance (component
  * state — a switch never leaks a filter across tabs, nothing persisted).
- * The spec filters the tab's resolved rows post-resolution/pre-windowing;
+ * The query filters the tab's resolved rows post-resolution/pre-windowing;
  * the eager counts on the tab labels stay UNFILTERED — an active filter
  * reads "0 of N" in the bar and never empties the tab away.
  *
@@ -58,7 +58,12 @@ import { untitledLabelOf } from "../renderStateLabel.js";
 import { useIgnoredUnlinkedRefs, writeIgnoredUnlinkedRef } from "../viewPrefs.js";
 import { promoteMentionInAst } from "./unlinkedRefs.js";
 import { FilterBar } from "./FilterBar.js";
-import { EMPTY_FILTER_SPEC, isFilterEmpty, type FilterSpec } from "./filterSpec.js";
+import {
+  EMPTY_FILTER_QUERY,
+  filterQueryToGroup,
+  isFilterInactive,
+  type FilterQuery,
+} from "./filterQuery.js";
 import { NodeCollection, groupByContainingPage } from "../views/index.js";
 import type { HostedViewsConfig, NodeCollectionItem } from "../views/index.js";
 import { useSectionData, type SectionRowFilter } from "./useSectionData.js";
@@ -256,20 +261,22 @@ export function SystemSections({
   // selected-again tab lands on fresh rows).
   const [refTab, setRefTab] = useState(REF_TAB_BACKLINKS);
   /**
-   * The transient filter layer: one FilterSpec per tab (the per-view rule —
-   * two useState instances, never one shared spec; a tab switch keeps each
+   * The transient filter layer: one FilterQuery per tab (the per-view rule —
+   * two useState instances, never one shared query; a tab switch keeps each
    * tab's own filter and never leaks it across). Component state, lost on
    * reload.
    */
-  const [backlinkFilter, setBacklinkFilter] = useState<FilterSpec>(EMPTY_FILTER_SPEC);
-  const [unlinkedFilter, setUnlinkedFilter] = useState<FilterSpec>(EMPTY_FILTER_SPEC);
+  const [backlinkFilter, setBacklinkFilter] = useState<FilterQuery>(EMPTY_FILTER_QUERY);
+  const [unlinkedFilter, setUnlinkedFilter] = useState<FilterQuery>(EMPTY_FILTER_QUERY);
   const backlinkRowFilter = useMemo<SectionRowFilter<ReferenceEntry> | undefined>(() => {
-    if (isFilterEmpty(backlinkFilter)) return undefined;
-    return { spec: backlinkFilter, nodeOf: (entry) => entry.source };
+    if (isFilterInactive(backlinkFilter)) return undefined;
+    const group = filterQueryToGroup(backlinkFilter);
+    return group === null ? undefined : { group, nodeOf: (entry) => entry.source };
   }, [backlinkFilter]);
   const unlinkedRowFilter = useMemo<SectionRowFilter<ReferenceEntry> | undefined>(() => {
-    if (isFilterEmpty(unlinkedFilter)) return undefined;
-    return { spec: unlinkedFilter, nodeOf: (entry) => entry.source };
+    if (isFilterInactive(unlinkedFilter)) return undefined;
+    const group = filterQueryToGroup(unlinkedFilter);
+    return group === null ? undefined : { group, nodeOf: (entry) => entry.source };
   }, [unlinkedFilter]);
   const backlinks = useSectionData<ReferenceEntry[]>({
     client,

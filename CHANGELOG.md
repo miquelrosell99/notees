@@ -9,6 +9,40 @@ predating this file.
 
 ## 2026-10-08
 
+- **feat(web): the filter bar's structured panel is the v1 query-builder,
+  ported over the query AST — block condition rows, nested Match ALL/ANY
+  groups, NOT wrappers, per-row reorder, live "N of M rows match".** The
+  flat-AND FilterSpec grammar (and its one-field-per-facet panel) is gone;
+  the bar's state is now a `FilterQuery` — the quick-search text plus a draft
+  query-AST root group the new `FilterBlockBuilder` edits (the v1
+  FilterBlocks/ConditionGroupBlock/AddFilterButton registers, adapted to the
+  v2 kit: SelectionButton logic toggle, ButtonWithPanel add menu, Card group
+  cards, token-only CSS — the v1 per-type accent colors are gone). The draft
+  prunes into the schema-valid composed group (`filterQueryToGroup`: blank
+  content values, unpicked classes/properties, blank timestamps drop; the
+  text unshifts as a content-contains condition), and the one evaluation
+  implementation (`sectionViewResolve`) consumes it through a new exported
+  `createSectionViewMatcher` — no second evaluator. **The one-evaluation
+  ruling:** property conditions now evaluate synchronously over the
+  effective-values read model in `sectionViewResolve` (`getEffectiveProperties`
+  joined the resolve-client surface; the scalar/ISO-date arms moved verbatim
+  from the deleted filterSpec.ts), so hosted custom tabs stop probing the
+  server for them — only content-fts and linkedTo remain probe-path leaves,
+  and the bar's add menu deliberately does not offer them (nor linkedTo)
+  because the transient layer must evaluate on every keystroke.
+  `useSectionData`'s filter is now `{ group, nodeOf }`; a plan needing the
+  probe channel keeps rows unfiltered and warns once, never throws. The
+  offered kinds: class, type (isClass), placement (presentAsMain), content
+  contains, property, created after/before, has cover, has banner, is alias,
+  plus All of (AND) / Any of (OR) / Exclude (NOT) constructors; the
+  FilterBarConfig facets gate the text field and the class/property/date
+  kinds. Verification: `pnpm typecheck` clean; full gate green (133 files /
+  1377 tests — new `filter-query.test.ts` prune + semantics battery through
+  the matcher, new `filter-builder.test.tsx` e2e, `filter-layer` +
+  `section-views` reworked, the CSS token-drift allowlist gained the
+  `--nt-fb-depth` JS-scoped entry); `docs/usage.md` §Section filters
+  rewritten.
+
 - **fix(web): one divider, not two, above the backlinks strip — and no
   dangling line on an empty sections stack.** The hide-when-empty rulings
   left `.nt-backlinks` as the first child of `.nt-page-sections` whenever
