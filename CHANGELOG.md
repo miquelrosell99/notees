@@ -9,6 +9,14 @@ predating this file.
 
 ## 2026-10-08
 
+- **fix(web): the structured panel keeps its bordered box.** Owner review on
+  the in-flow redesign: the open hairline region read flatter than the rest
+  of the chrome — the border + surface frame pairs with the filter search
+  box in the control row. The panel is again a boxed region (border,
+  `radius-md`, surface-container), still in-flow and full width; the
+  builder internals stay un-carded and the add menu stays portaled.
+  Verification: web suite green.
+
 - **feat(web): the query builder is an in-flow region with flat list chrome
   — the boxed floating panel is gone (owner review).** The structured panel
   had read as a modal: a bordered floating overlay (a persistent float,
