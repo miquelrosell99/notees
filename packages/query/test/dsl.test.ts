@@ -121,6 +121,46 @@ describe("parseQueryLanguage: fields", () => {
       value: "revolution",
     });
   });
+
+  it("coverAsset:/bannerAsset:/aliasedNode: bare is the set probe, a value is eq (uuid passthrough or node-name resolution)", () => {
+    const ASSET_UUID = "0192a000-0000-7000-8000-000000000501";
+    const OTHER_UUID = "0192a000-0000-7000-8000-000000000502";
+    expect(only(parse("coverAsset:"))).toEqual({ type: "coverAsset", op: "exists" });
+    // Bare colon before a boolean keyword still reads exists (the prop: precedent).
+    expect(parse("coverAsset: NOT bannerAsset:").root).toEqual({
+      type: "group",
+      logic: "and",
+      children: [
+        { type: "coverAsset", op: "exists" },
+        { type: "not", child: { type: "bannerAsset", op: "exists" } },
+      ],
+    });
+    // A uuid value skips name resolution.
+    expect(only(parse(`coverAsset:${ASSET_UUID}`))).toEqual({
+      type: "coverAsset",
+      op: "eq",
+      value: ASSET_UUID,
+    });
+    expect(only(parse(`bannerAsset:=${ASSET_UUID}`))).toEqual({
+      type: "bannerAsset",
+      op: "eq",
+      value: ASSET_UUID,
+    });
+    // A non-uuid value resolves through the node-name resolver (linked: precedent).
+    expect(only(parse("aliasedNode:Paris"))).toEqual({
+      type: "aliasedNode",
+      op: "eq",
+      value: NODE_PARIS,
+    });
+    // "!=" is neq (SQL NULL semantics: unset matches neither — "is unset" is NOT coverAsset:).
+    expect(only(parse(`coverAsset!=${OTHER_UUID}`))).toEqual({
+      type: "coverAsset",
+      op: "neq",
+      value: OTHER_UUID,
+    });
+    // Field names are case-insensitive like the rest of the grammar.
+    expect(only(parse("CoverAsset:"))).toEqual({ type: "coverAsset", op: "exists" });
+  });
 });
 
 describe("parseQueryLanguage: operators", () => {
@@ -286,7 +326,7 @@ describe("parseQueryLanguage: errors (fail loud)", () => {
     } catch (error) {
       expect(error).toBeInstanceOf(QueryLanguageError);
       expect((error as QueryLanguageError).message).toBe(
-        "unknown field 'wobble' (known fields: class, isclass, presentasmain, prop, text, linked, year, title)",
+        "unknown field 'wobble' (known fields: class, isclass, presentasmain, prop, text, linked, coverasset, bannerasset, aliasednode, year, title)",
       );
     }
   });
@@ -295,6 +335,12 @@ describe("parseQueryLanguage: errors (fail loud)", () => {
     expect(() => parse("class:galaxy")).toThrow(/unknown class 'galaxy'/);
     expect(() => parse("prop:mass:>1")).toThrow(/unknown field 'mass'/);
     expect(() => parse("linked:Berlin")).toThrow(/unknown node 'Berlin'/);
+    expect(() => parse("coverAsset:Berlin")).toThrow(/unknown node 'Berlin'/);
+  });
+
+  it("wire node-field predicates reject operators that don't fit uuid references", () => {
+    expect(() => parse("coverAsset:>x")).toThrow(/not supported here/);
+    expect(() => parse("bannerAsset:x contains y")).toThrow(/unknown node 'x'/);
   });
 
   it("unresolvable names surface the resolver miss even case-insensitively", () => {
