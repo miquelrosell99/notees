@@ -37,8 +37,8 @@ export interface CollectionHubProps {
    */
   defaultCoverLayout?: CardLayout | undefined;
   tableEditable?: boolean | undefined;
-  /** Kanban: the select property whose options seed the board columns. */
-  kanbanProperty?: string | undefined;
+  /** Cards board: the select property whose options seed the board columns. */
+  groupByProperty?: string | undefined;
   emptyTitle?: string | undefined;
   /** Right-aligned header extras (#14's "New class" button et al.). */
   headerActions?: ReactNode;
@@ -58,7 +58,7 @@ export function CollectionHub({
   cardProperties,
   defaultCoverLayout,
   tableEditable = false,
-  kanbanProperty,
+  groupByProperty,
   emptyTitle,
   headerActions,
   onOpenNode,
@@ -93,7 +93,7 @@ export function CollectionHub({
         defaultCoverLayout={defaultCoverLayout}
         propertiesOf={(id) => client.getEffectiveProperties(id)}
         tableEditable={tableEditable}
-        kanbanProperty={kanbanProperty}
+        groupByProperty={groupByProperty}
         emptyTitle={emptyTitle}
         onNodeClick={onOpenNode}
         onNodeShiftClick={onOpenInSidebar}

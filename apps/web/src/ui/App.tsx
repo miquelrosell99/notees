@@ -2059,7 +2059,7 @@ function taskTableColumns(client: AnyClient): TableColumn[] {
   ];
 }
 
-/** A select schema with options — usable as the kanban grouping (single or multi). */
+/** A select schema with options — usable as the cards-board grouping (single or multi). */
 function usableGroupingSchema(
   schemas: Array<{ id: string; type: string; multi: boolean; options: Array<{ id: string; label: string }> | null }>,
   id: string,
@@ -2071,12 +2071,13 @@ function usableGroupingSchema(
 }
 
 /**
- * The tasks-hub kanban grouping: the task status schema when it exists with
- * options (fixed seed id), else any select property at least one task
+ * The tasks-hub cards-board grouping: the task status schema when it exists
+ * with options (fixed seed id), else any select property at least one task
  * actually carries (migrated workspaces may hold the status schema under
- * another id). Undefined → the hub offers no kanban mode.
+ * another id). Undefined → the hub's cards mode renders the flat grid
+ * (no board without a grouping select).
  */
-function taskKanbanProperty(client: AnyClient, members: ClientNode[]): string | undefined {
+function taskGroupingProperty(client: AnyClient, members: ClientNode[]): string | undefined {
   const schemas = client.listPropertySchemas();
   const status = usableGroupingSchema(schemas, SYSTEM_PROPERTY_UUIDS.taskStatus);
   if (status !== undefined) return status.id;
@@ -2142,13 +2143,10 @@ export function HubView({
   if (nav === "tasks") {
     // Any node classed task — pages AND blocks (owner rule), table default.
     const members = client.getClassMembers(SYSTEM_CLASS_UUIDS.task);
-    // The kanban board groups by the status property; offered only when a
-    // usable select schema exists (task family is authored on demand).
-    const kanbanProperty = taskKanbanProperty(client, members);
-    const modes: ViewMode[] =
-      kanbanProperty !== undefined
-        ? ["outline", "cards", "kanban", "table"]
-        : ["outline", "cards", "table"];
+    // The cards board groups by the status property; the cards mode renders
+    // it when a usable select schema exists (task family is authored on demand).
+    const groupByProperty = taskGroupingProperty(client, members);
+    const modes: ViewMode[] = ["outline", "cards", "table"];
     return (
       <div className="nt-hub-tasks">
         {/* The bucketed surface (Overdue/Today/Upcoming/
@@ -2165,7 +2163,7 @@ export function HubView({
           tableColumns={taskTableColumns(client)}
           cardProperties={TASK_PROPERTY_COLUMNS.map((col) => col.id)}
           tableEditable
-          kanbanProperty={kanbanProperty}
+          groupByProperty={groupByProperty}
           emptyTitle="No tasks yet"
           onOpenNode={onOpenNode}
           onOpenInSidebar={onOpenInSidebar}
