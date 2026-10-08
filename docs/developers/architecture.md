@@ -482,20 +482,33 @@ thread `onPresent` from App through `NodeView` → `NodeMenuButton` / `PageView`
 `NodeContextMenu`, plus the global Ctrl/Cmd+Alt+Enter chord; the slide index resumes from
 `presentationSession.ts` — module memory, session-only, never an op.
 
-**The transient filter layer (2026-10-07)** rides the section data contract:
-`useSectionData` accepts a `FilterSpec` (components/filterSpec.ts) and applies it
-to the resolved rows post-resolution, pre-windowing — windowing sees the filtered
-set, the lazy cache is untouched (a spec change re-derives, never re-queries), and
-the eager count stays unfiltered ("0 of N", the section never vanishes). The spec
-is the documented flat-AND subset of the query AST (`{ text?, classId?,
-propertyPredicates[], dateRange? }`) — one grammar with the stored custom views
-(`filterSpecToQueryAst` / `queryAstToFilterSpec`, the subset reading back null
-rather than lossy defaults). State is component state, one instance per section
-view/tab, lost on reload. The bar chrome (components/FilterBar.tsx) rides each
-filterable section's body top — the linked-references and unlinked-mentions tabs
-and the classed-nodes table (`SectionSpec.filterable`, default off); the row
-predicate mirrors the query compiler's scalar semantics over the effective-values
-read model.
+**The transient filter layer (2026-10-07; the panel is the v1 block builder
+2026-10-08)** rides the section data contract:
+`useSectionData` accepts a `SectionRowFilter` (`{ group, nodeOf }` — components/
+filterQuery.ts) and applies the composed query-AST group to the resolved rows
+post-resolution, pre-windowing — windowing sees the filtered set, the lazy
+cache is untouched (a query change re-derives, never re-queries), and the
+eager count stays unfiltered ("0 of N", the section never vanishes). The
+bar's state is a `FilterQuery` — the quick-search text plus a DRAFT query-AST
+root group the structured panel's `FilterBlockBuilder` edits (the v1
+query-builder block UI ported over the AST: condition rows, nested Match
+ALL/ANY groups, NOT wrappers, per-row reorder, the add menu; v1's per-type
+accent colors are gone — token-only CSS). The draft prunes into the
+schema-valid composed root (`filterQueryToGroup` — half-typed rows drop, the
+text unshifts as content-contains, null when nothing survives), and the ONE
+evaluation implementation consumes it: `sectionViewResolve`'s
+`createSectionViewMatcher` plans the group through `planSectionView` and
+matches rows with the same `conditionMatches`/`groupMatches` the hosted-view
+resolution uses — property conditions evaluate synchronously over the
+effective-values read model (the one-evaluation ruling, owner 2026-10-08), so
+only content-fts/linkedTo remain probe leaves; the builder deliberately does
+not offer them (the transient layer must evaluate on every keystroke), and a
+plan needing the probe channel keeps rows unfiltered and warns once. State is
+component state, one instance per section view/tab, lost on reload. The bar
+chrome (components/FilterBar.tsx) rides each filterable section's body top —
+the linked-references and unlinked-mentions tabs and the classed-nodes table
+(`SectionSpec.filterable`, default off), with the live "N of M rows match"
+preview in the panel.
 
 **GTK / Flutter** (sibling repos `notees-gtk`, `notees-flutter`, branches `protocol-v2`). Lockstep clients: strict payload validators + local appliers mirroring `packages/store` (same OR-Set gating, same LWW rules). Current with the TS reference as of the 2026-10-01 batch (tags + `tag.unassign`, title-is-content, `class.reorder`); both tagged `v2.0.0-m1` with CI-published releases. Any new op requires the same three-way lockstep.
 
