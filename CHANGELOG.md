@@ -9,6 +9,28 @@ predating this file.
 
 ## 2026-10-08
 
+- **feat(web): the shared hub's header creation button per mode — New page /
+  New whiteboard.** The collection hub's header action existed only for
+  Classes ("New class"); Pages and Whiteboards had no creation affordance
+  from the hub itself. `HubView`'s header action is now per-mode: Pages
+  writes one main page (the command palette's New-page write) and opens it;
+  Whiteboards reuses the sidebar New flow's write with the whiteboard system
+  class picked (the created node lists in the hub's members); Inbox — a
+  filtered view of the unclassed — deliberately offers none. New
+  `hub-create-buttons` suite pins the three modes (3 tests).
+  **Verification:** the hub-create-buttons suite green; the full monorepo
+  gate green on the shipping tree (132 files / 1359 web tests) — landed by
+  the owner's order from a sibling session's verified in-flight slice.
+- **fix(web): the section views' Reset-to-default renders only when custom
+  views exist.** The hosted-views chrome rendered the reset button always,
+  disabled when there was nothing to reset — a permanently disabled control
+  in the factory state. `SectionViewTabs` now renders it only when
+  `views.length > 0` (the disabled styles go with it); the section-views
+  suite's two reset assertions switch from the disabled property to
+  presence/null. **Verification:** the section-views suite green; the full
+  monorepo gate green on the shipping tree (132 files / 1359 web tests) —
+  landed by the owner's order from a sibling session's verified in-flight
+  slice.
 - **docs(developers): parallel-session hardening — commit-early, landing
   collisions, dev ports, orphan worktrees, trivial-slice exemption** — five
   refinements to the concurrent-agent rules shipped earlier today, each from

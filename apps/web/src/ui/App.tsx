@@ -2231,7 +2231,11 @@ export function HubView({
         : nav === "inbox"
           ? pages.filter((page) => !sectionIds.has(page.id) && page.classIds.length === 0)
           : pages.filter((page) => !sectionIds.has(page.id));
-  const newClassAction =
+  // The shared hub's header creation button: each mode's idiom — Classes
+  // opens the class-creation modal; Pages writes one main page (the palette's
+  // New-page write); Whiteboards reuses the "New" flow's write with the
+  // whiteboard system class picked. The created node opens.
+  const headerAction =
     nav === "classes" ? (
       <Button
         size="sm"
@@ -2240,6 +2244,33 @@ export function HubView({
         onClick={() => setClassCreateOpen(true)}
       >
         New class
+      </Button>
+    ) : nav === "pages" ? (
+      <Button
+        size="sm"
+        variant="outline"
+        icon="mdiNotePlusOutline"
+        onClick={() => {
+          void client
+            .createObject({ presentAsMain: true, name: "Untitled" })
+            .then((id) => onOpenNode(id))
+            .catch((error: unknown) => {
+              console.warn("[new-node] creation failed:", error);
+            });
+        }}
+      >
+        New page
+      </Button>
+    ) : nav === "whiteboards" ? (
+      <Button
+        size="sm"
+        variant="outline"
+        icon="mdiPresentation"
+        onClick={() =>
+          createNodesWithClasses(client, [SYSTEM_CLASS_UUIDS.whiteboard], onOpenNode)
+        }
+      >
+        New whiteboard
       </Button>
     ) : undefined;
   return (
@@ -2253,7 +2284,7 @@ export function HubView({
         defaultMode="outline"
         persistKey={`hub.${nav}`}
         emptyTitle="Nothing here yet."
-        headerActions={newClassAction}
+        headerActions={headerAction}
         onOpenNode={onOpenNode}
         onOpenInSidebar={onOpenInSidebar}
       />
