@@ -564,6 +564,60 @@ describe("the hosted-views chrome", () => {
     expect(screen.queryByRole("button", { name: "Reset to default" })).toBeNull();
   });
 
+  it("an empty collection keeps the tabs visible — the container's empty line rides the selected tab's body", async () => {
+    stubViewsFetch();
+    const client = await seedClient();
+    const { cityId } = await seedClassWorld(client);
+    render(
+      <NodeCollection
+        viewMode="table"
+        client={client}
+        items={[]}
+        hostedViews={{ nodeId: cityId, sectionKey: "classed-nodes" }}
+        emptyText="No classed nodes yet."
+      />,
+    );
+    const defaultTab = await screen.findByRole("tab", { name: "Default" });
+    expect(defaultTab.getAttribute("aria-selected")).toBe("true");
+    // The tabs chrome survives the empty section: the "+" affordance stays
+    // and the container's empty line renders inside the tab body.
+    expect(screen.getByRole("button", { name: "Add custom view" })).not.toBeNull();
+    expect(screen.getByText("No classed nodes yet.")).not.toBeNull();
+  });
+
+  it("a custom tab refined to empty answers 'No matching rows.' inside the tab", async () => {
+    stubViewsFetch();
+    const client = await seedClient();
+    const { cityId, members } = await seedClassWorld(client);
+    const ghostId = await client.createClass("Ghost"); // no members — the refinement empties the tab
+    render(
+      <NodeCollection
+        viewMode="table"
+        client={client}
+        items={memberItemsOf(client, members)}
+        hostedViews={{ nodeId: cityId, sectionKey: "classed-nodes" }}
+        emptyText="No classed nodes yet."
+      />,
+    );
+    await screen.findByRole("tab", { name: "Default" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Add custom view" }));
+    const dialog = await screen.findByRole("dialog", { name: "Query builder" });
+    fireEvent.change(within(dialog).getByLabelText("Class"), { target: { value: ghostId } });
+    fireEvent.change(within(dialog).getByLabelText("View name"), { target: { value: "Ghosts" } });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Save as view" }));
+    });
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Ghosts" }));
+    // The refinement emptied the tab: the honest line, not the container's default-empty text.
+    expect(await screen.findByText("No matching rows.")).not.toBeNull();
+    expect(screen.queryByText("No classed nodes yet.")).toBeNull();
+    // The Default tab keeps the factory rows.
+    fireEvent.click(screen.getByRole("tab", { name: "Default" }));
+    expect(await screen.findByText("Paris")).not.toBeNull();
+  });
+
   it("the '+' flow persists the FilterBuilderModal's composed AST verbatim and the tab refines the rows", async () => {
     stubViewsFetch();
     const client = await seedClient();
