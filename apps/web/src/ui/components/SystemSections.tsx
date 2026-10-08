@@ -214,17 +214,10 @@ export function SystemSections({
   client,
   pageId,
   onOpenPage,
-  /**
-   * Embedded surfaces (journal feeds) render the sections read-only: the
-   * Child pages create affordance stays a main-surface privilege, same as
-   * the body's ghost row.
-   */
-  embedded = false,
 }: {
   client: AnyClient;
   pageId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
-  embedded?: boolean | undefined;
 }) {
   const loadLinkedRefs = useCallback(() => client.getLinkedReferences(pageId), [client, pageId]);
   const ignored = useIgnoredUnlinkedRefs(pageId);
@@ -241,23 +234,6 @@ export function SystemSections({
       .filter((entry) => !dismissed.has(entry.source.id));
   }, [client, pageId, ignoredKey]);
   const loadChildPages = useCallback(() => client.getChildPages(pageId), [client, pageId]);
-  /**
-   * The Child pages create affordance — the collection contract's flag +
-   * callback + context: the context is the main surface (embedded feeds
-   * never create) WITH a navigation target (the create focuses the new
-   * child by opening it, the section's row-click behavior). The create
-   * lands IN THE PAGES ZONE (presentAsMain); the section's live re-query
-   * (an expanded section re-runs on the write notification) refreshes the
-   * list.
-   */
-  const addChildPage =
-    !embedded && onOpenPage !== undefined
-      ? () => {
-          void client
-            .createObject({ parentId: pageId, presentAsMain: true })
-            .then((childId) => onOpenPage(childId));
-        }
-      : undefined;
 
   // The eager counts ride the tab labels (the backlink count is a
   // materialized read; the unlinked count its memoized count query — the
@@ -267,7 +243,9 @@ export function SystemSections({
   const unlinkedCount = client.getUnlinkedReferenceCount(pageId);
   const childPageCount = client.getChildPageCount(pageId);
 
-  // The bottom backlinks strip: both tabs always visible (owner 2026-10-06).
+  // The bottom backlinks strip: hidden while the page has neither backlinks
+  // nor unlinked mentions (owner 2026-10-08, the hide-when-empty ruling);
+  // both tabs always show once it renders (owner 2026-10-06).
   // Each tab owns its useSectionData instance (the per-view rule — one
   // instance per view, never a shared cache with tab-switch invalidation);
   // the selected tab resolves on mount (the Tabs primitive swallows
@@ -313,11 +291,10 @@ export function SystemSections({
 
   return (
     <div className="nt-page-sections">
-      {/* The Child pages section: hidden only when the surface cannot create
-          (embedded feeds, no navigation target) AND the page has none — an
-          empty main-surface page renders the section with the collection's
-          create affordance in its empty state. */}
-      {(childPageCount > 0 || addChildPage !== undefined) && (
+      {/* The Child pages section hides entirely when the page has none
+          (owner 2026-10-08) — childless pages keep the bottom stack to the
+          backlinks strip. */}
+      {childPageCount > 0 && (
         <Section
           key={`child-${pageId}`}
           client={client}
@@ -327,12 +304,10 @@ export function SystemSections({
           defaultCollapsed={false}
           load={loadChildPages}
           emptyText="No child pages."
-          renderWhenEmpty={addChildPage !== undefined}
           renderResults={(pages) => (
             // The reusable outline view over the read-only child-page tree
             // (rows open the page via the row click, per the outline view's
-            // read-only tree path). Empty on the main surface: the kit
-            // EmptyState carries the "Add child page" create affordance.
+            // read-only tree path).
             <NodeCollection
               viewMode="outline"
               client={client}
@@ -340,23 +315,18 @@ export function SystemSections({
               tree
               readOnly
               onNodeClick={(id) => onOpenPage?.(id)}
-              {...(addChildPage !== undefined
-                ? {
-                    emptyTitle: "No child pages.",
-                    emptyHint: "Pages created here live under this page.",
-                    showAddButton: true,
-                    onAdd: addChildPage,
-                    addLabel: "Add child page",
-                  }
-                : {})}
             />
           )}
         />
       )}
       {/* The backlinks strip — the page's references (Backlinks + Unlinked
-          mentions) ride one tab bar in the old references-tab slot. Both
-          tabs always show; the panel under a tab renders headerless (the
-          tab is the header). The other system sections are untouched. */}
+          mentions) ride one tab bar in the old references-tab slot. It hides
+          entirely while the page has neither (owner 2026-10-08, the
+          hide-when-empty ruling that covers every system section); once it
+          renders, both tabs always show and the panel under a tab renders
+          headerless (the tab is the header). An active filter emptying a
+          tab keeps the chrome — the count gate reads the UNFILTERED rows. */}
+      {(backlinkCount > 0 || unlinkedCount > 0) && (
       <div className="nt-backlinks">
         <Tabs className="nt-ref-tabs" value={refTab} onChange={setRefTab}>
           <Tabs.List>
@@ -409,6 +379,7 @@ export function SystemSections({
           </Tabs.Panel>
         </Tabs>
       </div>
+      )}
     </div>
   );
 }
