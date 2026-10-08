@@ -14,6 +14,11 @@ SYNC_IMAGE="${NOTEES_SYNC_IMAGE:-ghcr.io/miquelrosell99/notees-sync:2.0.0-m1}"
 WEB_IMAGE="${NOTEES_WEB_IMAGE:-ghcr.io/miquelrosell99/notees-web:2.0.0-m1}"
 SYNC_CONTAINER="notees-screenshots-sync"
 WEB_CONTAINER="notees-screenshots-web"
+# The web image's nginx config hardcodes the sync upstream host name
+# "notees-sync"; the default bridge does not resolve container names, so the
+# throwaway pair shares a user-defined network with the sync container
+# carrying that alias.
+NETWORK="notees-screenshots-net"
 RUNTIME="$DIR/.runtime"
 DATA="$RUNTIME/data"
 OUT="$REPO_ROOT/docs/img/screenshots"
@@ -46,12 +51,15 @@ fi
 
 cleanup() {
   docker rm -f "$SYNC_CONTAINER" "$WEB_CONTAINER" >/dev/null 2>&1 || true
+  docker network rm "$NETWORK" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 cleanup
+docker network create "$NETWORK" >/dev/null
 
 echo ">> starting throwaway sync server on 127.0.0.1:$SYNC_PORT ($SYNC_IMAGE)"
 docker run -d --name "$SYNC_CONTAINER" --rm \
+  --network "$NETWORK" --network-alias notees-sync \
   -p "127.0.0.1:${SYNC_PORT}:8377" \
   -v "$DATA:/data" \
   -e "NOTEES_CORS_ORIGIN=http://127.0.0.1:${WEB_PORT}" \
@@ -80,6 +88,7 @@ echo ">> api key acquired"
 
 echo ">> starting throwaway web client on 127.0.0.1:$WEB_PORT ($WEB_IMAGE)"
 docker run -d --name "$WEB_CONTAINER" --rm \
+  --network "$NETWORK" \
   -p "127.0.0.1:${WEB_PORT}:80" \
   -e "NOTEES_SERVER_URL=http://127.0.0.1:${SYNC_PORT}" \
   "$WEB_IMAGE" >/dev/null

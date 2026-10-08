@@ -25,6 +25,26 @@ in via `/api/auth/login`, seeds localStorage, asserts no sync error in the
 footer + a known search hit renders + no raw JSON in the body. Prints
 `VERIFY-PASS` / `VERIFY-FAIL`; exit 1 on fail.
 
+## Headless UI probes (playwright)
+
+- **Sign in through the bootstrap's API-key tab** with the operator key
+  (`config/notees/sync/api_key.txt`) when the admin password is not at hand —
+  no password needed, and no lockout risk.
+- **Never brute-force the sign-in**: repeated bad passwords return 401 and
+  trip a per-email rate limit (429, "try again in 15 minutes"). A lockout
+  only affects the attacked email, but it still costs a quarter hour.
+- **Origin pinning:** the live stack's `NOTEES_CORS_ORIGIN` is pinned to
+  `http://localhost:8378` — probes must browse `http://localhost:8378`, not
+  `http://127.0.0.1:8378` (different origin, CORS-preflight fails with
+  opaque network errors).
+- **Throwaway probe stack** (`scripts/screenshots/run.sh` pattern): the web
+  image's nginx config hardcodes the sync upstream host name `notees-sync`,
+  so the throwaway pair must share a user-defined network with the sync
+  container carrying `--network-alias notees-sync` — the default bridge does
+  not resolve container names. Rendering probes are read-only (recents write
+  browser-local storage only); keep them off the production stack unless
+  reading live layout, and never run write probes against it.
+
 ## Quick manual matrix
 
 ```sh

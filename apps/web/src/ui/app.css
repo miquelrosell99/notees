@@ -595,13 +595,11 @@ select:focus-visible {
   gap: var(--spacing-2);
 }
 
-/* The empty child-blocks list: the lone ghost row rides tight — no dead
-   space below it before the next section. The pull cancels exactly the
-   ghost row's own 2px bottom padding (.nt-ghost-row); any more pulls the
-   next section's border up through the ghost's bullet/label. */
-.nt-select-surface--empty {
-  margin-bottom: calc(-1 * var(--spacing-micro));
-}
+/* The empty child-blocks list needs no pull: the ghost row owns its own
+   bottom padding (GhostRow.css), so the next section's border already has
+   real clearance below the "+ Add block" label. A negative-margin
+   cancellation here pulls the border up INTO the label's line box (owner
+   2026-10-08: it read as an overlap in dark theme, on every surface). */
 
 /* The main node view's top-right corner cluster (owner 2026-10-06): the
    blocks view switcher sits left of the "…" node menu, both pinned to the

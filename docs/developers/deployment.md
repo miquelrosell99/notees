@@ -232,6 +232,17 @@ to the running store — see `migrations.md`). Smoke:
 `node scripts/screenshots/verify-min.mjs` from `scripts/screenshots/` with
 `NOTEES_ADMIN_PASSWORD` (`config/notees/.admin_password` on the fleet host).
 
+Headless UI probes (playwright; the screenshot tooling in
+`scripts/screenshots/`): sign in through the bootstrap's **API-key tab** with
+the operator key when the admin password is not at hand, and never
+brute-force the sign-in — repeated bad passwords trip a per-email rate limit
+(429, 15-minute lockout). A pinned `NOTEES_CORS_ORIGIN` is origin-exact:
+browse `http://localhost:8378`, not `127.0.0.1` (CORS preflight fails
+otherwise). A throwaway probe stack must put the sync and web containers on
+a user-defined network with the sync container aliased `notees-sync` — the
+web image's nginx upstream is that fixed host name and the default bridge
+does not resolve container names.
+
 - Ports: `NOTEES_SYNC_HTTP` / `NOTEES_WEB_HTTP` (full `ip:port` per publish, defaults `0.0.0.0:8377` / `0.0.0.0:8378` — zero-config wildcard).
 - Data: bind mount `./config/notees/sync` → `/data` (relay.db, snapshots,
   derived/, workspaces/, `api_key.txt`).

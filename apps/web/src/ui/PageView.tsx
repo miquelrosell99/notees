@@ -491,7 +491,7 @@ export function PageView({
             <SortableContext items={tree.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
               <div
                 ref={selectionRootRef}
-                className={tree.length === 0 ? "nt-select-surface nt-select-surface--empty" : "nt-select-surface"}
+                className="nt-select-surface"
                 onMouseDownCapture={selectionSurface.onMouseDownCapture}
               >
                 <NodeCollection
