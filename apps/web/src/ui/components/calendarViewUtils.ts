@@ -144,7 +144,11 @@ export function createdPeriodBounds(parts: {
   };
 }
 
-/** The created-in-period query over node.created_at (UTC ISO-8601 bounds). */
+/**
+ * The created-in-period query over node.created_at (UTC ISO-8601 bounds).
+ * Only main nodes list (owner 2026-10-08): a class or a present-as-main node
+ * — blocks created in the window are inline scaffolding, never content.
+ */
 export function buildCreatedInPeriodAst(after: string, before: string): QueryAst {
   return {
     version: 1,
@@ -155,6 +159,14 @@ export function buildCreatedInPeriodAst(after: string, before: string): QueryAst
       children: [
         { type: "createdAfter", timestamp: after },
         { type: "createdBefore", timestamp: before },
+        {
+          type: "group",
+          logic: "or",
+          children: [
+            { type: "isClass", isClass: true },
+            { type: "presentAsMain", presentAsMain: true },
+          ],
+        },
       ],
     },
   };

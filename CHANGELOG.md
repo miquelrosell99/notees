@@ -9,6 +9,15 @@ predating this file.
 
 ## 2026-10-08
 
+- **fix(web): the date pages' and calendar's Created section lists main nodes
+  only.** The `createdAt` range query behind the Created section (day pages)
+  and the calendar day view's Created tab matched every node created in the
+  window — including blocks, which are inline scaffolding, not content. The
+  AST now carries an "isClass OR presentAsMain" arm (the graph's main-node
+  predicate — root nodes default to main at projection time, so nothing that
+  should list is lost). Verification: web suite green
+  (`calendar-view-utils.test.ts` extended to assert the main-nodes arm);
+  `docs/usage.md` + `docs/ux.md` updated.
 - **fix(web): the collapsed banner strip loses the dark bar and keeps its
   chevron — cover-card parity.** The collapsed banner rendered as a filled
   `--color-surface-container-low` band across the page card, which in dark
