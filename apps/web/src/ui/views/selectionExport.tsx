@@ -1,6 +1,7 @@
 /**
- * Selection export — the cards/kanban counterpart of the table's row
- * selection ("selection export beyond tables"). One session-local selection
+ * Selection export — the cards counterpart of the table's row
+ * selection ("selection export beyond tables") — the flat grid and the
+ * grouped board alike. One session-local selection
  * state + one export affordance
  * shared by every flat collection view:
  *
