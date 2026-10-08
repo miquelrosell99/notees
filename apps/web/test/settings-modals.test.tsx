@@ -227,7 +227,7 @@ describe("UserSettingsModal", () => {
     fireEvent.click(screen.getByRole("radio", { name: "System stack" }));
     expect(document.documentElement.dataset.font).toBe("system");
     expect(localStorage.getItem("notees.settings.uiFont")).toBe('"system"');
-    fireEvent.click(screen.getByRole("radio", { name: "Bundled (Inter)" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Bundled (Instrument Sans)" }));
     expect(document.documentElement.dataset.font).toBe("bundled");
     expect(localStorage.getItem("notees.settings.uiFont")).toBe('"bundled"');
   });

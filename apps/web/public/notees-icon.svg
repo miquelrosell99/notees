@@ -1,12 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
-  <rect width="192" height="192" rx="24" fill="#111111"/>
-  <!-- Notepad body -->
-  <rect x="48" y="36" width="96" height="120" rx="8" fill="white"/>
-  <!-- Lines -->
-  <line x1="64" y1="68" x2="128" y2="68" stroke="#111111" stroke-width="5" stroke-linecap="round"/>
-  <line x1="64" y1="88" x2="128" y2="88" stroke="#111111" stroke-width="5" stroke-linecap="round"/>
-  <line x1="64" y1="108" x2="104" y2="108" stroke="#111111" stroke-width="5" stroke-linecap="round"/>
-  <!-- Pencil -->
-  <polygon points="124,100 140,116 134,122 118,106" fill="#111111"/>
-  <polygon points="118,106 114,122 134,122" fill="#111111"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" data-kind="symbol" data-ink="38 16 82 84" data-anchors="18">
+  <!-- Notees brand symbol (Margin Green) — master-symbol-small from the brand
+       submodule, with the light fills from the brand's own favicon renders
+       (text = neutral-900 #221a13, accent = Advance Green #2e5e46). -->
+  <path id="margin" data-color="text" fill="#221a13" d="M44.5 16L44.5 16C48.09 16 51 18.91 51 22.5L51 77.5C51 81.09 48.09 84 44.5 84L44.5 84C40.91 84 38 81.09 38 77.5L38 22.5C38 18.91 40.91 16 44.5 16Z"/>
+  <path id="note-1" data-color="accent" fill="#2e5e46" d="M66 32L76 32C79.314 32 82 34.686 82 38L82 38C82 41.314 79.314 44 76 44L66 44C62.686 44 60 41.314 60 38L60 38C60 34.686 62.686 32 66 32Z"/>
 </svg>
