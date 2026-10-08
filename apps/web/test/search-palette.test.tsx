@@ -3,8 +3,10 @@
  * over the in-process WorkspaceClient:
  *
  *  - CommandPalette sections: Recent (device-local recents, empty query
- *    only), Date Pages, Pages, Classes, Content, Commands
- *    (the action registry, with the query-scoped typed create);
+ *    only), Date Pages, Pages, Classes, Properties, Content, Commands
+ *    (the action registry, with the query-scoped typed create); search
+ *    results rank Classes → Properties → Pages → Content, then Date Pages
+ *    and Commands; the empty-query home keeps Recent → Random → Commands;
  *  - the Content group debounces the ranked FTS, renders match snippets, and
  *    labels block hits with their containing page;
  *  - the `is_daily:` prefix scopes the palette to the Date Pages section,
@@ -100,11 +102,13 @@ function renderPalette(
   handlers: {
     onOpenNode?: (id: string) => void;
     onNewPage?: (title?: string) => void;
+    onOpenProperty?: (id: string) => void;
     undoState?: UndoUiState;
   } = {},
 ) {
   const opened: string[] = [];
   const created: Array<string | undefined> = [];
+  const openedProperties: string[] = [];
   const undoCalls: string[] = [];
   render(
     <CommandPalette
@@ -114,6 +118,7 @@ function renderPalette(
       onClose={() => {}}
       onOpenNode={handlers.onOpenNode ?? ((id) => opened.push(id))}
       onNewPage={handlers.onNewPage ?? ((title) => created.push(title))}
+      onOpenProperty={handlers.onOpenProperty ?? ((id) => openedProperties.push(id))}
       onSignOut={() => {}}
       undoState={handlers.undoState ?? EMPTY_UNDO_STATE}
       onUndo={() => undoCalls.push("undo")}
@@ -121,7 +126,7 @@ function renderPalette(
       cacheVersion={0}
     />,
   );
-  return { opened, created, undoCalls };
+  return { opened, created, openedProperties, undoCalls };
 }
 
 const typeInPalette = (text: string): void => {
@@ -289,6 +294,58 @@ describe("CommandPalette Content group", () => {
     expect(screen.getByText("Pages")).not.toBeNull();
     expect(screen.getByText("Tulip Catalog")).not.toBeNull();
     expect(document.querySelectorAll(".nt-palette-snippet")).toHaveLength(1);
+  });
+});
+
+describe("CommandPalette Properties section", () => {
+  it("lists property schemas and opens the picked one via onOpenProperty", async () => {
+    const { client } = await seedPaletteWorld();
+    const schemaId = await client.createPropertySchema({ name: "Genre", type: "select" });
+    const { openedProperties } = renderPalette(client);
+    typeInPalette("genre");
+    expect(await screen.findByText("Properties")).not.toBeNull();
+    const row = screen.getByText("Genre");
+    fireEvent.click(row);
+    expect(openedProperties).toEqual([schemaId]);
+  });
+
+  it("matches property schemas by type keyword", async () => {
+    const { client } = await seedPaletteWorld();
+    await client.createPropertySchema({ name: "First read", type: "date" });
+    renderPalette(client);
+    typeInPalette("date");
+    expect(await screen.findByText("Properties")).not.toBeNull();
+    expect(screen.getByText("First read")).not.toBeNull();
+  });
+
+  it("stays quiet on the empty query and under is_daily:", async () => {
+    const { client } = await seedPaletteWorld();
+    await client.createPropertySchema({ name: "Genre", type: "select" });
+    // A date page must exist for the is_daily: scoping to list the section.
+    await client.ensureDateChain("2026-03-05");
+    renderPalette(client);
+    expect(screen.queryByText("Properties")).toBeNull();
+    typeInPalette("is_daily:");
+    expect(await screen.findByText("Date Pages")).not.toBeNull();
+    expect(screen.queryByText("Properties")).toBeNull();
+  });
+
+  it("search sections rank Classes, Properties, Pages, Content", async () => {
+    const { client } = await seedPaletteWorld();
+    await createTitledClass(client, "Tulip");
+    await client.createPropertySchema({ name: "Tulip rating", type: "number" });
+    renderPalette(client);
+    typeInPalette("tulip");
+    // Content is debounced — wait for the last of the four groups.
+    expect(await screen.findByText("Content")).not.toBeNull();
+    const labels = [...document.querySelectorAll(".nt-palette-group-label")].map(
+      (el) => el.textContent,
+    );
+    const rankOf = (label: string) => labels.indexOf(label);
+    expect(rankOf("Classes")).toBeGreaterThanOrEqual(0);
+    expect(rankOf("Properties")).toBeGreaterThan(rankOf("Classes"));
+    expect(rankOf("Pages")).toBeGreaterThan(rankOf("Properties"));
+    expect(rankOf("Content")).toBeGreaterThan(rankOf("Pages"));
   });
 });
 
