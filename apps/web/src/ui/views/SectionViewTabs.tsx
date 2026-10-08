@@ -12,9 +12,10 @@
  *    with an auto label when the name field is empty;
  *  - the active custom tab carries its management affordances: rename,
  *    reorder (move left/right), delete;
- *  - "Reset to default" is always available: it deletes every custom view
- *    of the section — the default view is derived-not-stored, so emptying
- *    the table IS the factory state (the schema cannot express a default).
+ *  - "Reset to default" (rendered only when custom views exist) deletes
+ *    every custom view of the section — the default view is
+ *    derived-not-stored, so emptying the table IS the factory state (the
+ *    schema cannot express a default).
  *
  * The bar renders even while the views load (the Default tab + "+" are
  * usable immediately) and on an empty collection (the create affordance
@@ -137,17 +138,18 @@ export function SectionViewTabs({ client, nodeId, sectionKey, selected, onSelect
             />
           </Tabs.List>
         </Tabs>
-        {/* Reset to default: always available, disabled when there is
-            nothing to reset — the factory state needs no confirmation. */}
-        <button
-          type="button"
-          className="nt-section-views__reset"
-          disabled={views.length === 0}
-          title="Remove all custom views from this section"
-          onClick={() => setConfirmReset(true)}
-        >
-          Reset to default
-        </button>
+        {/* Reset to default: only when there are custom views to reset —
+            the factory state needs no reset affordance. */}
+        {views.length > 0 && (
+          <button
+            type="button"
+            className="nt-section-views__reset"
+            title="Remove all custom views from this section"
+            onClick={() => setConfirmReset(true)}
+          >
+            Reset to default
+          </button>
+        )}
       </div>
 
       {selectedView !== undefined && (

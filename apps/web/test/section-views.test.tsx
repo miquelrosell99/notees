@@ -561,7 +561,7 @@ describe("the hosted-views chrome", () => {
     expect(screen.getByText("London")).not.toBeNull();
     // No custom tabs, nothing to reset; the add affordance is present.
     expect(screen.getByRole("button", { name: "Add custom view" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Reset to default" })).toHaveProperty("disabled", true);
+    expect(screen.queryByRole("button", { name: "Reset to default" })).toBeNull();
   });
 
   it("the '+' flow persists the FilterBuilderModal's composed AST verbatim and the tab refines the rows", async () => {
@@ -632,7 +632,7 @@ describe("the hosted-views chrome", () => {
       fireEvent.click(within(dialog).getByRole("button", { name: "Save as view" }));
     });
     await screen.findByRole("tab", { name: "Cities" });
-    expect(screen.getByRole("button", { name: "Reset to default" })).toHaveProperty("disabled", false);
+    expect(screen.getByRole("button", { name: "Reset to default" })).not.toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Reset to default" }));
     const confirm = await screen.findByRole("dialog");
