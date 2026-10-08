@@ -289,6 +289,13 @@ export function SystemSections({
     filter: unlinkedRowFilter,
   });
 
+  // The hide-when-empty rulings gate every child of the sections wrapper —
+  // when all three counts are zero the wrapper would render nothing but its
+  // own top hairline (a dangling divider), so it renders at all only with
+  // content. AFTER every hook: the component flips between null and rendered
+  // as counts change, so the hook order must stay unconditional.
+  if (childPageCount === 0 && backlinkCount === 0 && unlinkedCount === 0) return null;
+
   return (
     <div className="nt-page-sections">
       {/* The Child pages section hides entirely when the page has none

@@ -150,8 +150,16 @@
 }
 
 /* The strip rides the old references-tab slot: a hairline above it reads it
-   as a section (the panels render headerless — the tab IS the header). */
+   as a section (the panels render headerless — the tab IS the header). When
+   it is the wrapper's FIRST child (the Child pages section hidden by the
+   hide-when-empty gate), the wrapper's own top hairline is the separator —
+   a second line here reads as a double divider. */
 .nt-backlinks {
   border-top: var(--border-width-default) solid var(--color-outline-variant);
   padding-top: var(--spacing-2);
+}
+
+.nt-page-sections > .nt-backlinks:first-child {
+  border-top: none;
+  padding-top: 0;
 }
