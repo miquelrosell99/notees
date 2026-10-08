@@ -54,16 +54,19 @@ export const PDF_THEMES: Record<PdfLayout, PdfTheme> = {
     fonts: { heading: "Helvetica", body: "Gentium", mono: "Courier" },
     type: { bodySize: 10.5, bodyLineHeight: 1.6, titleSize: 22, outlineTitleSize: 13 },
     colors: {
-      // Mirrors variables.css light tokens (--color-background/on-surface/
-      // on-surface-variant/accent/outline-variant/surface-variant/primary).
-      text: "#1a1a1a",
-      muted: "#5c5c5c",
+      // The app's light-token values (--color-on-surface / on-surface-variant
+      // / background / surface-variant / outline-variant), inlined because
+      // react-pdf has no stylesheet access. The accent is deliberately a
+      // neutral ink, not --color-accent: an exported document cannot know
+      // the reader's live accent preset.
+      text: "#221a13",
+      muted: "#5c544c",
       accent: "#404040",
-      paper: "#f5f3ef",
-      surfaceVariant: "#f0ede8",
-      pill: "#f0ede8",
-      pillText: "#5c5c5c",
-      rule: "#e3ded6",
+      paper: "#f7f4ec",
+      surfaceVariant: "#edeae2",
+      pill: "#edeae2",
+      pillText: "#5c544c",
+      rule: "#e8e6e3",
       highlight: "#ece4b8",
     },
     twoColumnBody: false,

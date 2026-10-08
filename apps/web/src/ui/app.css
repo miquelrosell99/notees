@@ -3,7 +3,7 @@
 
 body {
   margin: 0;
-  font-family: var(--font-family-base, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+  font-family: var(--font-family-base);
   background: var(--color-background);
   color: var(--color-on-surface);
 }
@@ -18,13 +18,13 @@ button {
 }
 
 :focus-visible {
-  outline: var(--border-width-thick, 2px) solid var(--color-primary);
-  outline-offset: var(--focus-outline-offset, 2px);
+  outline: var(--border-width-thick) solid var(--color-primary);
+  outline-offset: var(--focus-outline-offset);
 }
 
 button:focus-visible {
-  outline: var(--border-width-thick, 2px) solid var(--color-primary);
-  outline-offset: var(--spacing-micro, 2px);
+  outline: var(--border-width-thick) solid var(--color-primary);
+  outline-offset: var(--spacing-micro);
 }
 
 input,
@@ -33,14 +33,14 @@ select {
   font-family: inherit;
   font-size: inherit;
   caret-color: var(--color-on-surface);
-  border-radius: var(--shape-extra-large, 999px);
+  border-radius: var(--shape-extra-large);
 }
 
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
   outline: none;
-  box-shadow: var(--shadow-focus-ring, 0 0 0 2px var(--color-primary));
+  box-shadow: var(--shadow-focus-ring);
 }
 
 ::selection {
@@ -49,8 +49,8 @@ select:focus-visible {
 }
 
 ::-webkit-scrollbar {
-  width: var(--shape-large, 10px);
-  height: var(--shape-large, 10px);
+  width: var(--shape-large);
+  height: var(--shape-large);
 }
 
 ::-webkit-scrollbar-track {
@@ -59,7 +59,7 @@ select:focus-visible {
 
 ::-webkit-scrollbar-thumb {
   background: var(--color-outline-variant);
-  border-radius: var(--shape-full, 999px);
+  border-radius: var(--shape-full);
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -77,6 +77,33 @@ select:focus-visible {
   }
 }
 
+/* --- skip link ------------------------------------------------------------- */
+
+/* The first focusable element of the shell: keyboard users jump straight to
+   the content card, past the top bar, sidebar, and rail. Off-screen until
+   focused (the translate keeps it out of view, not display:none, so it stays
+   in the tab order). */
+.nt-skip-link {
+  position: fixed;
+  top: var(--spacing-2);
+  left: var(--spacing-2);
+  z-index: var(--z-skip-link);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  border-radius: var(--shape-button-small);
+  font: var(--font-label-large);
+  text-decoration: none;
+  transform: translateY(calc(-100% - var(--spacing-4)));
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-skip-link:focus-visible {
+  transform: translateY(0);
+  outline: var(--border-width-thick) solid var(--color-on-accent);
+  outline-offset: var(--focus-outline-offset);
+}
+
 /* --- bootstrap screen ------------------------------------------------------ */
 
 .nt-bootstrap {
@@ -90,7 +117,7 @@ select:focus-visible {
 .nt-bootstrap-form {
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
-  border-radius: var(--shape-large, 16px);
+  border-radius: var(--shape-large);
   padding: 28px;
   width: 360px;
   max-width: 100%;
@@ -112,21 +139,21 @@ select:focus-visible {
   justify-content: center;
   width: 30px;
   height: 30px;
-  border-radius: var(--shape-medium, 8px);
+  border-radius: var(--shape-medium);
   background: var(--color-primary);
   color: var(--color-on-primary);
-  font-size: 16px;
+  font-size: var(--font-size-md);
 }
 
 .nt-bootstrap-title {
   margin: 0;
-  font-size: 21px;
+  font-size: var(--font-size-lg);
   letter-spacing: -0.01em;
 }
 
 .nt-bootstrap-subtitle {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--font-size-button);
   color: var(--color-on-surface-variant);
 }
 
@@ -142,17 +169,17 @@ select:focus-visible {
   padding: 3px;
   background: var(--color-surface-container-high);
   border: 1px solid var(--color-outline-variant);
-  border-radius: 9px;
+  border-radius: var(--shape-large); /* 9px is off the shape scale; nearest token */
 }
 
 .nt-tab {
   flex: 1;
   padding: 6px 10px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   background: transparent;
   color: var(--color-on-surface-variant);
-  font-size: 13px;
+  font-size: var(--font-size-button);
 }
 
 .nt-tab:hover {
@@ -163,14 +190,13 @@ select:focus-visible {
 .nt-tab-active:hover {
   background: var(--color-surface);
   color: var(--color-on-surface);
-  box-shadow: var(--shadow-elevation-1);
 }
 
 .nt-field {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  font-size: 13px;
+  font-size: var(--font-size-button);
   color: var(--color-on-surface-variant);
 }
 
@@ -178,7 +204,7 @@ select:focus-visible {
   font: inherit;
   padding: 8px 12px;
   border: 1px solid var(--color-outline);
-  border-radius: var(--shape-extra-large, 999px);
+  border-radius: var(--shape-extra-large);
   background: var(--color-background);
   color: var(--color-on-surface);
 }
@@ -189,7 +215,7 @@ select:focus-visible {
 
 .nt-hint {
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
   border-left: 3px solid var(--color-outline);
   padding-left: 10px;
@@ -203,7 +229,7 @@ select:focus-visible {
 .nt-error {
   margin: 0;
   color: var(--color-error);
-  font-size: 13px;
+  font-size: var(--font-size-button);
 }
 
 /* Explicit same-host suggestion after a failed probe: the only path to the
@@ -222,7 +248,7 @@ select:focus-visible {
 
 .nt-settings-account {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--font-size-button);
   color: var(--color-on-surface-variant);
 }
 
@@ -234,12 +260,12 @@ select:focus-visible {
 
 .nt-settings-heading {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--font-size-base);
 }
 
 .nt-settings-hint {
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
 }
 
@@ -258,8 +284,8 @@ select:focus-visible {
   gap: 10px;
   padding: 8px 10px;
   border: 1px solid var(--color-outline-variant);
-  border-radius: 8px;
-  font-size: 13px;
+  border-radius: var(--shape-large);
+  font-size: var(--font-size-button);
   flex-wrap: wrap;
 }
 
@@ -273,13 +299,13 @@ select:focus-visible {
 
 .nt-apikey-prefix {
   color: var(--color-on-surface-variant);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .nt-apikey-meta {
   margin-left: auto;
   color: var(--color-on-surface-variant);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .nt-apikey-revoke,
@@ -287,9 +313,9 @@ select:focus-visible {
   border: 1px solid var(--color-outline);
   background: transparent;
   color: var(--color-error);
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   padding: 3px 8px;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .nt-apikey-revoke:hover,
@@ -301,13 +327,13 @@ select:focus-visible {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-error);
 }
 
 .nt-apikey-empty {
   color: var(--color-on-surface-variant);
-  font-size: 13px;
+  font-size: var(--font-size-button);
 }
 
 .nt-apikey-new {
@@ -320,7 +346,7 @@ select:focus-visible {
   font: inherit;
   padding: 8px 12px;
   border: 1px solid var(--color-outline);
-  border-radius: var(--shape-extra-large, 999px);
+  border-radius: var(--shape-extra-large);
   background: var(--color-background);
   color: var(--color-on-surface);
 }
@@ -329,9 +355,9 @@ select:focus-visible {
   border: 1px solid var(--color-primary);
   background: var(--color-primary);
   color: var(--color-on-primary);
-  border-radius: 8px;
+  border-radius: var(--shape-large);
   padding: 8px 12px;
-  font-size: 13px;
+  font-size: var(--font-size-button);
 }
 
 .nt-apikey-new button:disabled {
@@ -340,12 +366,12 @@ select:focus-visible {
 
 .nt-apikey-fresh {
   border: 1px solid var(--color-primary);
-  border-radius: 8px;
+  border-radius: var(--shape-large);
   padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--font-size-button);
 }
 
 .nt-apikey-fresh p {
@@ -355,9 +381,9 @@ select:focus-visible {
 .nt-apikey-token {
   word-break: break-all;
   background: var(--color-surface-container-high);
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   padding: 8px;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .nt-apikey-fresh-actions {
@@ -369,9 +395,9 @@ select:focus-visible {
   border: 1px solid var(--color-outline);
   background: transparent;
   color: var(--color-on-surface);
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   padding: 5px 10px;
-  font-size: 12.5px;
+  font-size: var(--font-size-sm);
 }
 
 /* --- shared icon-button primitive -------------------------------------------
@@ -645,7 +671,7 @@ select:focus-visible {
   white-space: pre-wrap;
   word-break: break-word;
   cursor: text;
-  border-radius: 4px;
+  border-radius: var(--shape-small);
   outline: none;
 }
 
@@ -738,9 +764,9 @@ select:focus-visible {
 .nt-view-toggle {
   border: 1px solid var(--color-outline);
   background: var(--color-surface);
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   padding: 2px 10px;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
 }
 
@@ -929,7 +955,7 @@ select:focus-visible {
   text-align: center;
   user-select: none;
   opacity: 0;
-  transition: opacity var(--motion-duration-short, 120ms) var(--motion-easing-standard, ease);
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
   font: inherit;
   line-height: inherit;
 }
@@ -952,7 +978,7 @@ select:focus-visible {
   white-space: pre-wrap;
   word-break: break-word;
   cursor: text;
-  border-radius: 4px;
+  border-radius: var(--shape-small);
 }
 
 /* Read-only block projections (Child pages tree, Class View "Extended by"):
@@ -996,10 +1022,10 @@ select:focus-visible {
 .nt-mark-button {
   border: none;
   background: transparent;
-  border-radius: 4px;
+  border-radius: var(--shape-small);
   min-width: 24px;
   padding: 2px 6px;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-family: inherit;
   color: var(--color-on-surface-variant);
   cursor: pointer;
@@ -1038,7 +1064,7 @@ select:focus-visible {
   padding: 8px;
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   box-shadow: var(--shadow-elevation-2);
   z-index: 50;
 }
@@ -1047,15 +1073,15 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--color-on-surface-variant);
 }
 
 .nt-verb-field input {
-  font-size: 13px;
+  font-size: var(--font-size-button);
   padding: 3px 6px;
   border: 1px solid var(--color-outline);
-  border-radius: 4px;
+  border-radius: var(--shape-small);
   color: var(--color-on-surface);
 }
 
@@ -1068,9 +1094,9 @@ select:focus-visible {
 .nt-verb-apply,
 .nt-verb-cancel {
   border: none;
-  border-radius: 4px;
+  border-radius: var(--shape-small);
   padding: 3px 10px;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-family: inherit;
   cursor: pointer;
 }
@@ -1099,18 +1125,18 @@ select:focus-visible {
 .nt-verb-bind-row {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-1, 4px);
+  gap: var(--spacing-1);
 }
 
 .nt-verb-bind {
   border: none;
-  border-radius: var(--shape-small, 4px);
-  padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
-  font-size: var(--font-size-xs, 12px);
+  border-radius: var(--shape-small);
+  padding: var(--spacing-1) var(--spacing-2);
+  font-size: var(--font-size-xs);
   font-family: inherit;
   text-align: left;
   cursor: pointer;
-  background: var(--color-secondary-container, var(--color-primary-container));
+  background: var(--color-secondary-container);
   color: var(--color-on-surface);
 }
 
@@ -1124,18 +1150,18 @@ select:focus-visible {
 }
 
 .nt-verb-bind-error {
-  font-size: var(--font-size-xs, 12px);
-  color: var(--color-error, var(--color-on-surface-variant));
+  font-size: var(--font-size-xs);
+  color: var(--color-error);
 }
 
 .nt-add-block {
   margin-top: 4px;
   border: 1px dashed var(--color-outline);
   background: transparent;
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   padding: 4px 12px;
   color: var(--color-on-surface-variant);
-  font-size: 13px;
+  font-size: var(--font-size-button);
 }
 
 .nt-add-block:hover {
@@ -1148,31 +1174,31 @@ select:focus-visible {
    session-local). The floating action bar rides the bottom of the viewport
    while a selection is live. */
 .nt-block--selected > .nt-block-row {
-  background: color-mix(in srgb, var(--color-primary-container, var(--color-surface-container-high)) 45%, transparent);
-  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-primary-container) 45%, transparent);
+  border-radius: var(--shape-medium);
 }
 
 .nt-selection-bar {
   position: fixed;
-  bottom: var(--spacing-4, 16px);
+  bottom: var(--spacing-4);
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: var(--spacing-2, 8px);
-  padding: 6px 10px;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1-5) var(--spacing-2-5);
   background: var(--color-surface-container-high);
   color: var(--color-on-surface);
-  border: 1px solid var(--color-outline-variant, var(--color-outline));
-  border-radius: 999px;
-  box-shadow: var(--shadow-2, 0 4px 16px rgb(0 0 0 / 18%));
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-full);
+  box-shadow: var(--shadow-2);
   z-index: var(--z-1000);
 }
 
 .nt-selection-bar__count {
   font: var(--font-label-medium);
   color: var(--color-on-surface-variant);
-  padding: 0 var(--spacing-1, 4px);
+  padding: 0 var(--spacing-1);
   white-space: nowrap;
 }
 
@@ -1182,7 +1208,7 @@ select:focus-visible {
   color: var(--color-on-surface);
   font: var(--font-label-medium);
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: var(--shape-full);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -1214,12 +1240,12 @@ select:focus-visible {
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  min-height: var(--height-sm, 28px);
+  min-height: var(--height-sm);
   margin-bottom: 0;
   /* Owner refinement: the switcher rides the title row, directly left of
      the floating ⋯ menu button. */
   margin-left: auto;
-  padding-right: var(--spacing-4, 16px);
+  padding-right: var(--spacing-4);
 }
 
 /* --- view transforms: prose mode -------------------------------------------------
@@ -1257,7 +1283,7 @@ select:focus-visible {
   margin: 4px 0;
   border: 1px solid var(--color-outline-variant);
   border-left: 3px solid var(--color-primary);
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   padding: 6px 10px;
   background: var(--color-surface-container-high);
 }
@@ -1265,8 +1291,8 @@ select:focus-visible {
 .nt-embed-header {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2, 8px);
-  font-size: 12px;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-on-surface-variant);
   margin-bottom: 2px;
@@ -1286,15 +1312,15 @@ select:focus-visible {
   display: inline-flex;
   flex: none;
   gap: 0;
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
-  border-radius: var(--shape-medium, 8px);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
   overflow: hidden;
 }
 
 .nt-embed-view-switch__btn {
   border: none;
-  padding: 1px var(--spacing-2, 8px);
-  font-size: var(--font-size-2xs, 10px);
+  padding: 1px var(--spacing-2);
+  font-size: var(--font-size-2xs);
   font-family: inherit;
   background: transparent;
   color: var(--color-on-surface-variant);
@@ -1302,7 +1328,7 @@ select:focus-visible {
 }
 
 .nt-embed-view-switch__btn + .nt-embed-view-switch__btn {
-  border-left: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  border-left: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .nt-embed-view-switch__btn--active {
@@ -1313,7 +1339,7 @@ select:focus-visible {
 .nt-embed-card-wrap {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-1, 4px);
+  gap: var(--spacing-1);
   max-width: 100%;
 }
 
@@ -1349,7 +1375,7 @@ select:focus-visible {
   margin: 4px 0;
   border: 1px solid var(--color-outline-variant);
   border-left: 3px solid var(--color-query-accent);
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   padding: 6px 10px;
   background: var(--color-surface-container-high);
 }
@@ -1361,7 +1387,7 @@ select:focus-visible {
 }
 
 .nt-query-title {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-on-surface-variant);
 }
@@ -1369,7 +1395,7 @@ select:focus-visible {
 .nt-query-badge {
   background: var(--color-surface-container-highest);
   border: 1px solid var(--color-outline-variant);
-  border-radius: 10px;
+  border-radius: var(--shape-button-compact);
   padding: 0 8px;
   font-size: 0.82em;
   line-height: 1.5;
@@ -1385,10 +1411,10 @@ select:focus-visible {
 
 .nt-query-action {
   border: 1px solid var(--color-outline-variant);
-  border-radius: 4px;
+  border-radius: var(--shape-small);
   background: var(--color-surface);
   color: var(--color-on-surface-variant);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   padding: 1px 8px;
   cursor: pointer;
 }
@@ -1406,7 +1432,7 @@ select:focus-visible {
 .nt-query-more,
 .nt-query-empty {
   color: var(--color-on-surface-variant);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   padding: 2px 4px;
 }
 
@@ -1427,14 +1453,14 @@ select:focus-visible {
    constructs the builder can't represent. */
 .nt-query-guard {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-error);
 }
 
 .nt-query-summary {
   margin: 0;
   padding: 0 0 0 18px;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
   display: flex;
   flex-direction: column;
@@ -1482,7 +1508,7 @@ select:focus-visible {
   background: none;
   cursor: pointer;
   color: var(--color-on-surface-variant);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   padding: 0 4px;
 }
 
@@ -1492,7 +1518,7 @@ select:focus-visible {
 
 .nt-queries-host {
   margin: 12px 0 0;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
 }
 
@@ -1508,18 +1534,18 @@ select:focus-visible {
 
 .nt-query-invalid {
   border: 1px dashed var(--color-outline);
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   margin: 4px 0 0;
   padding: 2px 10px;
   color: var(--color-error);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   background: var(--color-surface);
 }
 
 .nt-query-builder {
   margin-top: 6px;
   border: 1px solid var(--color-outline-variant);
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   background: var(--color-surface);
   padding: 8px 10px;
   display: flex;
@@ -1535,10 +1561,10 @@ select:focus-visible {
 
 .nt-query-builder-actions button {
   border: 1px solid var(--color-outline-variant);
-  border-radius: 4px;
+  border-radius: var(--shape-small);
   background: var(--color-surface);
   color: var(--color-on-surface-variant);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   padding: 2px 10px;
   cursor: pointer;
 }
@@ -1559,13 +1585,13 @@ select:focus-visible {
   width: 100%;
   margin: 4px 0 0;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--font-size-button);
   color: var(--color-on-surface-variant);
 }
 
 .nt-query-table th {
   text-align: left;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   color: var(--color-on-surface-variant);
   border-bottom: 1px solid var(--color-outline-variant);
@@ -1637,9 +1663,9 @@ select:focus-visible {
   font: inherit;
   line-height: inherit;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   opacity: 0.7;
-  transition: opacity var(--motion-duration-short, 120ms) var(--motion-easing-standard, ease);
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .nt-block-backlink-toggle:hover,
@@ -1677,7 +1703,7 @@ select:focus-visible {
   background:
     linear-gradient(var(--color-primary), var(--color-primary)) no-repeat left 48px top 0 / 3px 100%,
     linear-gradient(var(--color-surface-container-high), var(--color-surface-container-high));
-  border-radius: 4px;
+  border-radius: var(--shape-small);
 }
 
 /* The dragged source stays in place and reads muted — the floating name
@@ -1689,7 +1715,7 @@ select:focus-visible {
 
 .nt-block--drag-source > .nt-block-row {
   background: var(--color-surface-container-high);
-  border-radius: 4px;
+  border-radius: var(--shape-small);
 }
 
 /* The row clone that follows the pointer (DragOverlay). */
@@ -1697,9 +1723,9 @@ select:focus-visible {
   padding: 2px 8px;
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   box-shadow: var(--shadow-elevation-2);
-  font-size: 14px;
+  font-size: var(--font-size-base);
   max-width: 480px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1718,10 +1744,10 @@ select:focus-visible {
   margin: 0;
   padding: 6px 10px;
   border: 1px solid var(--color-error);
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   background: var(--color-error-container);
   color: var(--color-error);
-  font-size: 13px;
+  font-size: var(--font-size-button);
 }
 
 /* --- class view ------------------------------------------------------------------ */
@@ -1768,10 +1794,10 @@ select:focus-visible {
 
 .nt-annotation-form input {
   font: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-button);
   padding: 3px 8px;
   border: 1px solid var(--color-outline);
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   background: var(--color-surface);
 }
 
@@ -1789,11 +1815,11 @@ select:focus-visible {
 
 .nt-annotation-add {
   font: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-button);
   color: var(--color-on-surface-variant);
   background: none;
   border: 1px solid var(--color-outline);
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   padding: 3px 10px;
 }
 
@@ -1805,7 +1831,7 @@ select:focus-visible {
   margin: 0;
   padding-left: 20px;
   color: var(--color-error-hover);
-  font-size: 13px;
+  font-size: var(--font-size-button);
 }
 
 /* --- date picker (zoom grids) ------------------------------------------------ */
@@ -1821,7 +1847,7 @@ select:focus-visible {
   width: 280px;
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
-  border-radius: 8px;
+  border-radius: var(--shape-large);
   box-shadow: var(--shadow-elevation-2);
   padding: 8px;
 }
@@ -1836,11 +1862,11 @@ select:focus-visible {
 .nt-datepicker-nav,
 .nt-datepicker-close {
   font: inherit;
-  font-size: 14px;
+  font-size: var(--font-size-base);
   color: var(--color-on-surface-variant);
   background: none;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   padding: 2px 8px;
   cursor: pointer;
 }
@@ -1853,14 +1879,14 @@ select:focus-visible {
 .nt-datepicker-breadcrumb {
   flex: 1;
   text-align: center;
-  font-size: 13px;
+  font-size: var(--font-size-button);
   font-weight: 600;
   color: var(--color-on-surface-variant);
 }
 
 .nt-datepicker-crumb {
   font: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-button);
   font-weight: 600;
   color: var(--color-primary-hover);
   background: none;
@@ -1881,7 +1907,7 @@ select:focus-visible {
 
 .nt-datepicker-weekday {
   text-align: center;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--color-on-surface-variant);
   padding: 2px 0;
 }
@@ -1889,7 +1915,7 @@ select:focus-visible {
 .nt-datepicker-cellbox {
   display: flex;
   align-items: stretch;
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
 }
 
 .nt-datepicker-cellbox:hover {
@@ -1899,11 +1925,11 @@ select:focus-visible {
 .nt-datepicker-cell {
   flex: 1;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-button);
   color: var(--color-on-surface-variant);
   background: none;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   padding: 5px 0 5px 4px;
   cursor: pointer;
   text-align: center;
@@ -1913,6 +1939,11 @@ select:focus-visible {
 .nt-datepicker-cell:focus {
   background: var(--color-surface-container-high);
   outline: none;
+}
+
+.nt-datepicker-cell:focus-visible {
+  /* Keyboard focus gets the accent ring — visually distinct from hover. */
+  box-shadow: var(--shadow-focus-ring);
 }
 
 .nt-datepicker-cell-selected,
@@ -1928,7 +1959,7 @@ select:focus-visible {
   color: var(--color-on-surface-variant);
   background: none;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   padding: 0 3px;
   cursor: pointer;
 }
@@ -1967,10 +1998,10 @@ select:focus-visible {
   text-align: left;
   border: none;
   background: transparent;
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   padding: 4px 8px 4px 20px;
   color: var(--color-on-surface);
-  font-size: 14px;
+  font-size: var(--font-size-base);
 }
 
 .nt-section-item:hover {
@@ -1993,7 +2024,7 @@ select:focus-visible {
   border: none;
   background: transparent;
   padding: 4px 10px;
-  font-size: 14px;
+  font-size: var(--font-size-base);
   color: var(--color-on-surface-variant);
 }
 
@@ -2023,7 +2054,7 @@ select:focus-visible {
 
 .nt-section-empty {
   color: var(--color-on-surface-variant);
-  font-size: 13px;
+  font-size: var(--font-size-button);
   padding: 4px 8px 4px 20px;
 }
 
@@ -2033,7 +2064,7 @@ select:focus-visible {
   display: inline-block;
   background: var(--color-surface-container-highest);
   border: 1px solid var(--color-outline-variant);
-  border-radius: 10px;
+  border-radius: var(--shape-button-compact);
   padding: 0 8px;
   font-size: 0.92em;
   line-height: 1.5;
@@ -2070,7 +2101,7 @@ select:focus-visible {
 .nt-placeholder {
   display: inline-block;
   border: 1px dashed var(--color-outline);
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   padding: 0 10px;
   margin: 1px 0;
   color: var(--color-on-surface-variant);
@@ -2092,7 +2123,7 @@ select:focus-visible {
   font-size: 0.72em;
   line-height: 1.4;
   padding: 0 8px;
-  border-radius: 6px 6px 0 0;
+  border-radius: var(--shape-medium) 6px 0 0;
   background: var(--color-surface-container-highest);
   color: var(--color-on-surface-variant);
   border: 1px solid var(--color-outline-variant);
@@ -2103,7 +2134,7 @@ select:focus-visible {
   margin: 0;
   padding: 8px 12px;
   border: 1px solid var(--color-outline-variant);
-  border-radius: 8px;
+  border-radius: var(--shape-large);
   background: var(--color-surface-container-low);
   font-family: var(--font-family-mono);
   font-size: 0.85em;
@@ -2124,9 +2155,9 @@ select:focus-visible {
   display: block;
   width: 100%;
   margin: 0;
-  padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant);
-  border-radius: var(--shape-medium, 8px);
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
   background: var(--color-surface-container-low);
   color: var(--color-on-surface);
   font-family: var(--font-family-mono);
@@ -2154,7 +2185,7 @@ select:focus-visible {
   margin: 2px 0;
   padding: 4px 10px;
   border: 1px solid var(--color-outline-variant);
-  border-radius: 8px;
+  border-radius: var(--shape-large);
   background: var(--color-surface-container);
   color: var(--color-on-surface);
   font: inherit;
@@ -2210,7 +2241,7 @@ select:focus-visible {
 
 .nt-asset--image {
   display: inline-block;
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   overflow: hidden;
   vertical-align: middle;
   line-height: 0;
@@ -2241,7 +2272,7 @@ select:focus-visible {
   gap: var(--spacing-1);
   max-width: 100%;
   border: 1px solid var(--color-outline-variant);
-  border-radius: 8px;
+  border-radius: var(--shape-large);
   background: var(--color-surface-container-high);
   color: var(--color-on-surface-variant);
   padding: 0 var(--spacing-2);
@@ -2282,14 +2313,14 @@ select:focus-visible {
 
 code {
   background: var(--color-surface-container-highest);
-  border-radius: 4px;
+  border-radius: var(--shape-small);
   padding: 0 4px;
   font-size: 0.92em;
 }
 
 mark {
   background: var(--color-warning-container);
-  border-radius: 2px;
+  border-radius: var(--shape-extra-small);
   padding: 0 2px;
 }
 
@@ -2299,7 +2330,7 @@ mark {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--color-outline-variant);
-  border-radius: 8px;
+  border-radius: var(--shape-large);
   background: var(--color-surface-container-high);
   overflow: hidden;
 }
@@ -2317,7 +2348,7 @@ mark {
   padding: 6px 10px;
   border-bottom: 1px solid var(--color-outline-variant);
   background: var(--color-surface);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .nt-wb-toolbar-sep {
@@ -2381,7 +2412,7 @@ mark {
 
 .nt-wb-shape text {
   fill: var(--color-on-surface-variant);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   pointer-events: none;
 }
 
@@ -2423,7 +2454,7 @@ mark {
 .nt-wb-menu-color {
   display: flex;
   align-items: center;
-  padding: var(--spacing-1, 4px) var(--spacing-2, 8px);
+  padding: var(--spacing-1) var(--spacing-2);
 }
 
 .nt-wb-drawing {
@@ -2449,8 +2480,7 @@ mark {
   flex-direction: column;
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
-  border-radius: 6px;
-  box-shadow: var(--shadow-elevation-1);
+  border-radius: var(--shape-medium);
   overflow: hidden;
 }
 
@@ -2472,7 +2502,7 @@ mark {
   padding: 3px 8px;
   background: var(--color-surface-container-highest);
   border-bottom: 1px solid var(--color-outline-variant);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-on-surface-variant);
   cursor: grab;
@@ -2492,7 +2522,7 @@ mark {
   color: var(--color-on-surface-variant);
   padding: 0 2px;
   line-height: 1;
-  font-size: 14px;
+  font-size: var(--font-size-base);
 }
 
 .nt-wb-card-delete:hover {
@@ -2502,7 +2532,7 @@ mark {
 .nt-wb-card-body {
   flex: 1;
   padding: 6px 8px;
-  font-size: 13px;
+  font-size: var(--font-size-button);
   overflow: auto;
   cursor: text;
 }
@@ -2514,10 +2544,10 @@ mark {
 
 .nt-wb-label-input {
   position: absolute;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   padding: 1px 4px;
   border: 1px solid var(--color-primary);
-  border-radius: 4px;
+  border-radius: var(--shape-small);
 }
 
 .nt-wb-empty {
@@ -2526,9 +2556,9 @@ mark {
   top: 32px;
   padding: 24px 32px;
   border: 2px dashed var(--color-outline);
-  border-radius: 10px;
+  border-radius: var(--shape-button-compact);
   color: var(--color-on-surface-variant);
-  font-size: 13px;
+  font-size: var(--font-size-button);
   white-space: nowrap;
   pointer-events: none;
 }
@@ -2547,10 +2577,10 @@ mark {
   gap: 2px;
   padding: 3px 6px;
   border: 1px solid var(--color-outline-variant);
-  border-radius: 8px;
+  border-radius: var(--shape-large);
   background: var(--color-surface);
   box-shadow: var(--shadow-elevation-1);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .nt-wb-zoom-level {
@@ -2565,7 +2595,7 @@ mark {
   right: 10px;
   bottom: 10px;
   border: 1px solid var(--color-outline-variant);
-  border-radius: 8px;
+  border-radius: var(--shape-large);
   background: var(--color-surface);
   box-shadow: var(--shadow-elevation-1);
   overflow: hidden;
@@ -2606,10 +2636,10 @@ mark {
   flex: 1;
   min-width: 0;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-button);
   padding: 5px 8px;
   border: 1px solid var(--color-outline);
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   color: var(--color-on-surface);
   background: var(--color-surface);
 }
@@ -2617,9 +2647,9 @@ mark {
 .nt-search-syntax {
   border: 1px solid var(--color-outline);
   background: var(--color-surface);
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   width: 28px;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
 }
 
@@ -2628,24 +2658,24 @@ mark {
 }
 
 .nt-search-help {
-  font-size: 11px;
-  line-height: 1.6;
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
   color: var(--color-on-surface-variant);
   background: var(--color-background);
   border: 1px solid var(--color-outline-variant);
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   padding: 6px 8px;
 }
 
 .nt-search-help code {
   background: var(--color-surface-container-highest);
-  border-radius: 4px;
+  border-radius: var(--shape-small);
   padding: 0 3px;
 }
 
 .nt-search-error {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-error);
 }
 
@@ -2667,7 +2697,7 @@ mark {
   z-index: 30;
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   box-shadow: var(--shadow-elevation-2);
 }
 
@@ -2680,10 +2710,10 @@ mark {
   border: none;
   background: transparent;
   text-align: left;
-  font-size: 13px;
+  font-size: var(--font-size-button);
   color: var(--color-on-surface-variant);
   padding: 3px 6px;
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
 }
 
 .nt-search-hit:hover {
@@ -2705,7 +2735,7 @@ mark {
 }
 
 .nt-search-snippet {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   line-height: 1.4;
   color: var(--color-on-surface-variant);
   overflow: hidden;
@@ -2717,7 +2747,7 @@ mark {
 .nt-search-mark {
   background: var(--color-primary-container);
   color: inherit;
-  border-radius: 3px;
+  border-radius: var(--shape-tiny);
   padding: 0 1px;
 }
 
@@ -2726,10 +2756,10 @@ mark {
   border: none;
   background: transparent;
   text-align: center;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-primary);
   padding: 4px 6px;
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
 }
 
 .nt-search-more:hover:not(:disabled) {
@@ -2742,7 +2772,7 @@ mark {
 
 .nt-search-empty {
   color: var(--color-on-surface-variant);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   padding: 2px 4px;
 }
 
@@ -2809,7 +2839,7 @@ mark {
 
 /* Nav hubs (Journal / Inbox / Pages / Whiteboards / Tasks). */
 .nt-hub {
-  padding: var(--spacing-8, 32px) var(--spacing-6, 24px);
+  padding: var(--spacing-8) var(--spacing-6);
 }
 
 /* The tasks hub stacks the bucket section above its collection;
@@ -2817,7 +2847,7 @@ mark {
 .nt-hub-tasks {
   height: 100%;
   overflow-y: auto;
-  padding: var(--spacing-8, 32px) var(--spacing-6, 24px);
+  padding: var(--spacing-8) var(--spacing-6);
 }
 
 .nt-hub-tasks .nt-hub {
@@ -2827,8 +2857,8 @@ mark {
 .nt-hub-header {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2, 8px);
-  margin-bottom: var(--spacing-4, 16px);
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-4);
   color: var(--color-on-surface);
 }
 
@@ -2839,7 +2869,7 @@ mark {
 
 .nt-hub-count {
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
 }
 
@@ -2854,7 +2884,7 @@ mark {
 .nt-hub-actions {
   margin-left: auto;
   display: inline-flex;
-  gap: var(--spacing-2, 8px);
+  gap: var(--spacing-2);
 }
 
 .nt-hub-switcher + .nt-hub-actions {
@@ -2874,13 +2904,13 @@ mark {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: var(--spacing-2, 8px);
-  padding: 6px var(--spacing-2, 8px);
+  gap: var(--spacing-2);
+  padding: 6px var(--spacing-2);
   border: none;
-  border-radius: var(--shape-medium, 8px);
+  border-radius: var(--shape-medium);
   background: transparent;
   color: var(--color-on-surface-variant);
-  font-size: 13.5px;
+  font-size: var(--font-size-base);
   text-align: left;
 }
 
@@ -2905,18 +2935,18 @@ mark {
 
 .nt-hub-empty {
   color: var(--color-on-surface-variant);
-  font-size: 13px;
-  padding: var(--spacing-3, 12px) var(--spacing-2, 8px);
+  font-size: var(--font-size-button);
+  padding: var(--spacing-3) var(--spacing-2);
 }
 
 /* Sidebar section header toggle (transparent, archive-style). */
 .nt-side-header-toggle {
-  width: calc(100% - var(--spacing-1, 4px));
+  width: calc(100% - var(--spacing-1));
   display: flex;
   align-items: center;
   gap: 3px;
-  padding: 3px var(--spacing-1, 4px);
-  margin: var(--spacing-2) var(--spacing-1, 4px) var(--spacing-1);
+  padding: 3px var(--spacing-1);
+  margin: var(--spacing-2) var(--spacing-1) var(--spacing-1);
   border: none;
   border-radius: var(--shape-small);
   background: transparent;
@@ -2945,8 +2975,8 @@ mark {
   display: flex;
   align-items: center;
   gap: 3px;
-  margin-top: var(--spacing-2, 8px);
-  padding: 4px var(--spacing-2, 8px);
+  margin-top: var(--spacing-2);
+  padding: 4px var(--spacing-2);
   border: none;
   border-radius: var(--shape-small);
   background: transparent;
@@ -2965,9 +2995,9 @@ mark {
 
 .nt-ws-offline {
   flex: 1;
-  padding: 6px var(--spacing-2, 8px);
+  padding: 6px var(--spacing-2);
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--font-size-button);
   letter-spacing: 0.05em;
   color: var(--color-on-surface-variant);
 }
@@ -2993,7 +3023,7 @@ mark {
   .nt-sidebar-open .nt-sidebar {
     width: min(280px, 85vw);
     background: var(--color-surface-container-low);
-    border-right: var(--border-width-default, 1px) solid var(--color-outline-variant);
+    border-right: var(--border-width-default) solid var(--color-outline-variant);
   }
 
   /* The quick-create FAB: a floating action button over the content card. */
@@ -3002,16 +3032,16 @@ mark {
     align-items: center;
     justify-content: center;
     position: fixed;
-    right: var(--spacing-4, 16px);
-    bottom: calc(var(--spacing-4, 16px) + env(safe-area-inset-bottom, 0px));
-    width: var(--height-button-lg, 44px);
-    height: var(--height-button-lg, 44px);
-    min-width: var(--height-button-lg, 44px);
+    right: var(--spacing-4);
+    bottom: calc(var(--spacing-4) + env(safe-area-inset-bottom, 0px));
+    width: var(--height-button-lg);
+    height: var(--height-button-lg);
+    min-width: var(--height-button-lg);
     border: none;
-    border-radius: var(--shape-large, 16px);
+    border-radius: var(--shape-large);
     background: var(--color-primary-container);
     color: var(--color-on-surface);
-    box-shadow: var(--shadow-elevation-2, 0 2px 8px rgba(0, 0, 0, 0.22));
+    box-shadow: var(--shadow-elevation-2);
     cursor: pointer;
     z-index: 40;
   }
@@ -3019,24 +3049,24 @@ mark {
   /* Touch targets: sidebar rows (28px desktop) and the shell icon buttons
      (32px) grow to the 44px button token floor. */
   .nt-side-item {
-    min-height: var(--height-button-lg, 44px);
+    min-height: var(--height-button-lg);
   }
 
   .nt-side-star {
     /* No hover on touch: the favorite toggle stays visible and tappable. */
     display: inline-flex;
-    width: var(--height-button-lg, 44px);
-    height: var(--height-button-lg, 44px);
+    width: var(--height-button-lg);
+    height: var(--height-button-lg);
   }
 
   .nt-icon-btn {
-    width: var(--height-button-lg, 44px);
-    height: var(--height-button-lg, 44px);
+    width: var(--height-button-lg);
+    height: var(--height-button-lg);
   }
 
   /* Collapsible section headers stay comfortable to tap. */
   .nt-side-header-toggle {
-    min-height: var(--height-button-lg, 44px);
+    min-height: var(--height-button-lg);
     display: flex;
     align-items: center;
   }
@@ -3048,11 +3078,11 @@ mark {
 
   /* The content column and card breathe at phone/tablet widths. */
   .nt-page {
-    padding: var(--spacing-5, 20px) var(--spacing-4, 16px) var(--spacing-8, 32px);
+    padding: var(--spacing-5) var(--spacing-4) var(--spacing-8);
   }
 
   .nt-page-card {
-    margin: var(--spacing-2, 8px) var(--spacing-2, 8px) var(--spacing-2, 8px) 0;
+    margin: var(--spacing-2) var(--spacing-2) var(--spacing-2) 0;
   }
 }
 
@@ -3070,12 +3100,12 @@ mark {
     width: 100%;
     max-height: 75vh;
     margin: 0;
-    padding: var(--spacing-2, 8px);
-    padding-bottom: calc(var(--spacing-2, 8px) + env(safe-area-inset-bottom, 0px));
+    padding: var(--spacing-2);
+    padding-bottom: calc(var(--spacing-2) + env(safe-area-inset-bottom, 0px));
     background: var(--color-surface-container-low);
-    border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
-    border-radius: var(--shape-large, 16px) var(--shape-large, 16px) 0 0;
-    box-shadow: var(--shadow-elevation-2, 0 -4px 16px rgba(0, 0, 0, 0.22));
+    border-top: var(--border-width-default) solid var(--color-outline-variant);
+    border-radius: var(--shape-large) var(--shape-large) 0 0;
+    box-shadow: var(--shadow-elevation-2);
     z-index: 40;
   }
 }
@@ -3094,9 +3124,9 @@ mark {
   display: grid;
   /* grid-template-columns is set inline from the first row's cell count. */
   grid-auto-columns: minmax(0, 1fr);
-  margin: var(--spacing-1, 4px) 0;
-  border-top: var(--border-width-default, 1px) solid var(--color-outline-variant);
-  border-left: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  margin: var(--spacing-1) 0;
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
+  border-left: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .nt-blocktable-row {
@@ -3108,9 +3138,9 @@ mark {
 /* A cell: the ordinary block root becomes the grid cell. */
 .nt-blocktable-row > .nt-block {
   min-width: 0;
-  padding: 2px var(--spacing-2, 8px);
-  border-right: var(--border-width-default, 1px) solid var(--color-outline-variant);
-  border-bottom: var(--border-width-default, 1px) solid var(--color-outline-variant);
+  padding: 2px var(--spacing-2);
+  border-right: var(--border-width-default) solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 /* Cells keep their usual chrome but the grip only surfaces on hover —
@@ -3129,8 +3159,8 @@ mark {
    :has keeps it scoped). */
 .nt-blocktable-toolbar {
   display: flex;
-  gap: var(--spacing-1, 4px);
-  margin: var(--spacing-1, 4px) 0;
+  gap: var(--spacing-1);
+  margin: var(--spacing-1) 0;
   opacity: 0;
   transition: opacity 120ms ease;
 }
