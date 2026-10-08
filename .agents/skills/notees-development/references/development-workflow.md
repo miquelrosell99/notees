@@ -23,9 +23,39 @@ changing a package's public API: build that package's dist first, then
 typecheck dependents.
 
 **Worktrees live in `.worktrees/`** (gitignored): `git worktree add
-.worktrees/<slug> -b <branch>`. Never a random sibling folder — the fleet
-host accumulates checkouts otherwise, and a forgotten sibling is invisible
-to `git worktree list` hygiene.
+.worktrees/<slug> -b <slug> main`. Concurrent sessions on unrelated tasks
+each default to their own worktree — own branch, own `pnpm install` (shared
+store makes it cheap), own gate runs — so one session's half-done slice
+cannot break another's typecheck or tests; the main checkout is where slices
+land, not where concurrent development happens. Never a random sibling
+folder — the fleet host accumulates checkouts otherwise, and a forgotten
+sibling is invisible to `git worktree list` hygiene.
+
+**Landing + shared record files** (owner 2026-10-08): slices land one at a
+time in the main checkout — rebase the session branch onto main,
+fast-forward merge, push, promptly after the gate is green — then clean up:
+`git worktree remove .worktrees/<slug>` + `git branch -d <slug>` (the safe
+delete only succeeds once the slice is fully merged). `CHANGELOG.md`,
+`README.md`, `docs/`, `AGENTS.md` are touched by nearly every slice: keep
+edits minimal and anchored (changelog entries prepend under the current
+date; never reorder existing entries) and resolve conflicts there by keeping
+both blocks — never drop another slice's entry. Full rules:
+`docs/developers/development.md` (Parallel sessions).
+
+**Parallel sessions** (owner 2026-10-08; canonical:
+`docs/developers/development.md`): other sessions may be working in this repo
+— and against the same dev environment — concurrently. Assume it by default.
+
+Detect: `git status --porcelain` + `git log --oneline -5` at session start,
+`git worktree list`, a present `.git/index.lock`, `docker compose ps`, plus a
+`.plans/` and newest-`CHANGELOG.md` skim.
+
+Handle: never revert/stage/commit files outside your task (per-file staging
+only — no `git add -A` / `git commit -a`); treat red tests in untouched files
+as another session's in-flight work (report, don't fix); avoid stack-wide
+commands (`compose down`, rebuilds, DB resets under `config/notees/`) without
+checking; re-read files that change under you; snapshot-commit your own
+verified states. Base discipline: the `agent-repo-workflow` user skill.
 
 **Commit and push when done** (owner 2026-10-08; canonical:
 `docs/developers/development.md`): a finished slice — gate green, changelog

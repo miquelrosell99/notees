@@ -45,10 +45,16 @@ Dev-condition exports: vitest reads `src`, `tsc` reads `dist`. After changing
 a package's public API, rebuild its dist before typechecking dependents, or
 the typecheck sees stale types.
 
-Worktrees (owner 2026-10-07): git worktree work lives in the repo's own
-gitignored `.worktrees/<slug>/` — `git worktree add .worktrees/<slug> -b <branch>`.
-Never a random sibling folder: the fleet host accumulates checkouts otherwise,
-and forgotten siblings escape `git worktree list` hygiene.
+Worktrees (owner 2026-10-07, extended 2026-10-08): git worktree work lives in
+the repo's own gitignored `.worktrees/<slug>/` — `git worktree add
+.worktrees/<slug> -b <slug> main`. Concurrent sessions on unrelated tasks
+each default to their own worktree: own branch off main, own `pnpm install`
+(the shared pnpm store makes repeat installs cheap), own gate runs — a
+half-done slice in one worktree cannot break another session's typecheck or
+tests. The main checkout is where slices land, not where concurrent
+development happens. Never a random sibling folder: the fleet host
+accumulates checkouts otherwise, and forgotten siblings escape
+`git worktree list` hygiene.
 
 Commit and push when done (owner 2026-10-08): a finished slice — gate green,
 `CHANGELOG.md` entry in — is committed and pushed before the session moves on.
@@ -56,6 +62,67 @@ Stage per-file (`git add <path>`), Conventional Commits, then `git push` to
 the current branch: pushing is standing authorization in this repo, so the
 `agent-repo-workflow` skill's per-push confirmation rule does not apply here.
 If the remote has moved, integrate first (`git pull --rebase`) — never force.
+
+Landing a worktree slice (owner 2026-10-08): with several worktree branches
+in flight, slices land one at a time in the main checkout — pull main,
+rebase the session branch onto it, fast-forward merge, push. Land promptly
+after the gate is green; frequent small merges keep divergence — and
+CHANGELOG conflicts — small. When the slice has landed, clean up: remove the
+worktree (`git worktree remove .worktrees/<slug>`) and delete the merged
+branch (`git branch -d <slug>` — the safe delete only succeeds once the
+slice is fully merged), so `git worktree list` stays truthful.
+
+Shared record files (owner 2026-10-08): `CHANGELOG.md`, `README.md`, `docs/`,
+and `AGENTS.md` are touched by nearly every slice, so they conflict at merge
+time by construction. Rules: keep the edit minimal and anchored (changelog
+entries prepend under the current date heading — never renumber or reorder
+existing entries); resolve a conflict there by keeping BOTH blocks — never
+drop another slice's entry; docs edits stay inside the paragraph the change
+actually touches.
+
+Parallel sessions (owner 2026-10-08): more than one agent (or human) session
+may be working in this repo — and against the same dev environment — at the
+same time. Assume it. Git-tree contention is handled by worktree isolation
+(Worktrees and Landing above); the detect/handle rules below cover what
+worktrees do NOT isolate — the shared environment (deployed stack, dev
+ports, `config/notees/` data) — and any session that shares a checkout.
+Never clobber another session's in-flight work.
+
+Detect at session start, and again before any shared-state operation:
+
+- `git status --porcelain` — modified or untracked files you did not make are
+  another session's in-flight work.
+- `git log --oneline -5` — unfamiliar recent commits mean another session has
+  been landing slices.
+- `git worktree list` — parallel feature work lives in `.worktrees/<slug>/`.
+- a present `.git/index.lock` — a git operation is in flight right now; wait
+  for it to clear (or confirm the owning process is gone), never delete it
+  reflexively.
+- `docker compose ps` / already-bound dev ports — the shared stack (:8377,
+  :8378) or dev servers may belong to another session.
+- `.plans/` and the newest `CHANGELOG.md` entries — in-flight proposals and
+  freshly shipped slices you haven't seen yet.
+
+Handle:
+
+- Keep writes inside your task's files; stage per-file (`git add <path>`),
+  never `git add -A` / `git commit -a`.
+- Never revert, delete, reformat, or "tidy" files you didn't create — even
+  when they look broken or leftover.
+- Red tests or lint errors in files you didn't touch are presumed to be
+  another session's in-progress work: report them, don't fix them.
+- If a file changes under you (an edit or typecheck fails on content you
+  didn't write), re-read it — another session may have just landed work;
+  integrate, don't overwrite.
+- Avoid stack-wide actions (`compose down`, image rebuilds, DB resets under
+  `config/notees/`, killing processes) without checking who else is using the
+  environment; prefer scoped commands (single-service restart, targeted
+  tests).
+- Snapshot-commit your own verified stable states — per-file, Conventional
+  Commits — so your work is recoverable and visible to other sessions.
+
+Base discipline: the `agent-repo-workflow` user skill (concurrent agents,
+snapshot commits, verify before finishing).
 
 No transient-internal-doc pointers in the tree (owner 2026-10-07): code,
 tests, docs, and CHANGELOG entries never reference `.plans/` proposal

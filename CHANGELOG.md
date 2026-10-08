@@ -9,6 +9,22 @@ predating this file.
 
 ## 2026-10-08
 
+- **docs(developers): worktree-per-session + landing flow for concurrent
+  agents** — with multiple agent sessions expected to work concurrently on
+  unrelated tasks, AGENTS.md, the `notees-development` skill, and the
+  `development.md` runbook now make a worktree per concurrent session the
+  default (own branch off main, own install, own gate, in gitignored
+  `.worktrees/<slug>/`), define the landing flow (slices land one at a time
+  in the main checkout: rebase onto main, fast-forward merge, push,
+  promptly), and require cleanup after landing (`git worktree remove` + safe
+  `git branch -d`, so `git worktree list` stays truthful). Shared record
+  files (`CHANGELOG.md`, `README.md`, `docs/`, `AGENTS.md`) get their own
+  discipline: minimal anchored edits, changelog entries prepend under the
+  current date, conflicts resolved by keeping both blocks — never dropping
+  another slice's entry. The parallel-session detect-and-coexist rules stay,
+  scoped to what worktrees don't isolate (deployed stack, dev ports,
+  `config/notees/` data). **Verification:** docs-only guidance change; no
+  code touched.
 - **fix(web): the cover element rides the `coverAssetId` wire node field —
   the web half of the wire-fields follow-on.** The wire-fields slice made
   `coverAssetId` the authority (object.update field + the migration moved
