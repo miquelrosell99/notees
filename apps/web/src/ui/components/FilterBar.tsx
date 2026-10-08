@@ -45,9 +45,9 @@ export interface FilterBarProps {
   totalCount: number | null;
   /**
    * "block" (default) renders the bar as its own body-top row; "inline"
-   * renders it inside a toolbar row (ViewToolbar) — the control row joins
-   * the row's flex line and the structured panel drops below as a floating
-   * overlay anchored to the bar.
+   * renders it inside a toolbar row (ViewToolbar) via `display: contents` —
+   * the control row joins the row's flex line and the structured panel
+   * takes a full-width wrapped line beneath it (in-flow, no overlay).
    */
   layout?: "block" | "inline" | undefined;
 }
@@ -110,7 +110,7 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
       </div>
       {panelOpen && (
         <div
-          className={`nt-filter-bar__panel${layout === "inline" ? " nt-filter-bar__panel--floating" : ""}`}
+          className="nt-filter-bar__panel"
           role="group"
           aria-label="Structured filters"
         >

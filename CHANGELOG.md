@@ -9,6 +9,24 @@ predating this file.
 
 ## 2026-10-08
 
+- **feat(web): the query builder is an in-flow region with flat list chrome
+  — the boxed floating panel is gone (owner review).** The structured panel
+  had read as a modal: a bordered floating overlay (a persistent float,
+  where the app only floats transient pickers) containing a kit Card with
+  header/footer bands — card-in-card. Now: the panel expands IN the layout
+  between the toolbar row and the collection, full width, one hairline
+  above it (in the classed-nodes toolbar the inline FilterBar renders with
+  `display: contents` — control row on the flex line, panel on a wrapped
+  full-width line; `ViewToolbar` wraps). Inside, the group cards are
+  un-carded: the root group is a bare column (logic toggle + count on one
+  quiet line), nested groups indent under a left hairline, condition rows
+  are transparent list rows with a hover fill (the sidebar-row register),
+  and the kit Card survives only on the transient add-menu popover — the
+  one surface elevation is legal. The region change also frees the builder
+  from the `42ch` search-box cap (deep nesting breathes) and deletes the
+  whole overlay-clipping bug class. Verification: `pnpm typecheck` clean;
+  web suite green (1377/1377).
+
 - **fix(web): the builder's add-condition menu is unclipped and readable in
   dark mode.** Two defects in the new block query builder: the add menu
   (`ButtonWithPanel`, non-portal) rendered inside the kit group Card, whose

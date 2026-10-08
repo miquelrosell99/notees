@@ -4,6 +4,13 @@
  * One feature file pair with FilterBlockBuilder.css (the SectionViewTabs
  * precedent), composed from kit primitives only.
  *
+ * The chrome is FLAT, matching the app's list surfaces — no containing
+ * cards (owner review 2026-10-08: card-in-card read as a modal; the kit Card
+ * lives only on the transient add-menu popover, the one surface elevation
+ * is legal): the root group is a bare column (logic toggle + count on one
+ * quiet line), nested groups indent under a left hairline, and condition
+ * rows are list rows — transparent with a hover fill.
+ *
  * The registers are the v1 ones — a root group card whose header carries the
  * Match ALL/ANY logic toggle (kit SelectionButton), a "N conditions" label
  * and (for nested groups) a delete; a children list rendering each child as
@@ -30,7 +37,6 @@ import type { AnyClient } from "../views/index.js";
 
 import { Icon } from "../Icon.js";
 import { Button } from "./ui/Button.js";
-import { Card } from "./ui/Card.js";
 import { ButtonWithPanel } from "./ui/ButtonWithPanel.js";
 import { SelectionButton, type SelectionButtonOption } from "./ui/SelectionButton.js";
 import { useBuilderFacts, type BuilderFacts } from "./QueryBuilderFields.js";
@@ -168,11 +174,8 @@ function GroupBlock({ group, onChange, onDelete, depth, facts, config, datalistI
   const menuEntries = filterKindOptionsForConfig(config);
 
   return (
-    <Card
+    <div
       className={`nt-fb-group${nested ? " nt-fb-group--nested" : ""}`}
-      variant={nested ? "outlined" : "filled"}
-      padding={false}
-      radius="md"
       style={{ "--nt-fb-depth": depth } as CSSProperties}
     >
       <div className="nt-fb-group__header">
@@ -300,7 +303,7 @@ function GroupBlock({ group, onChange, onDelete, depth, facts, config, datalistI
           Add group
         </Button>
       </div>
-    </Card>
+    </div>
   );
 }
 
