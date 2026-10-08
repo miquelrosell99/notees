@@ -18,7 +18,7 @@
  *   reference (ensureDateChain); node cells open the anchored NodeSelector.
  *   Multi-value properties stay read-only.
  * - Name cell: row click opens, shift+click peeks.
- * - CSV export: the toolbar's "Export CSV"
+ * - CSV export: the toolbar "…" menu's "Export CSV"
  *   downloads the CURRENT view — the visible columns × the full sorted
  *   result set (the window is display-only, never an export cut) — through
  *   @notees/export's renderCsv (RFC-4180 quoting + UTF-8 BOM for Excel), and
@@ -26,18 +26,21 @@
  *   columns scoped to exactly the checked rows. A selection also offers
  *   "Export selected…": the export modal's batch path over just the checked
  *   row ids (the parked "selection-scoped export").
- * - Excel export + import (issue #9): "Export Excel" writes the same view
- *   as a minimal .xlsx (a leading uuid column then the visible labels, typed
- *   number cells) so the sheet round-trips through "Import table…", which
- *   reads .csv/.xlsx back — uuid rows update properties, rows without one
- *   create nodes — through the ImportTableModal.
+ * - Excel export + import (issue #9): the "…" menu's "Export Excel" writes
+ *   the same view as a minimal .xlsx (a leading uuid column then the visible
+ *   labels, typed number cells) so the sheet round-trips through
+ *   "Import table…", which reads .csv/.xlsx back — uuid rows update
+ *   properties, rows without one create nodes — through the ImportTableModal.
+ * - The toolbar's far-right "…" menu carries the table's data actions
+ *   (Export CSV / Export Excel / Import table…) at the view-type level,
+ *   next to the Columns/Sort configurators.
  */
 
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { parseDateNodeId } from "@notees/domain";
 import { renderCsv, renderXlsx, type XlsxCell } from "@notees/export";
 
-import { BooleanToggle, Button, ButtonWithPanel, Checkbox } from "../components/ui/index.js";
+import { BooleanToggle, Button, ButtonWithPanel, Checkbox, ContextMenu } from "../components/ui/index.js";
 import { Icon } from "../Icon.js";
 import { NodeSelector } from "../components/pickers/NodeSelector.js";
 import { DateSlotControl } from "../components/pickers/DateSlotControl.js";
@@ -645,6 +648,8 @@ export function TableView(props: NodeCollectionProps) {
   const [extraColumns, setExtraColumns] = useState<ReadonlySet<string>>(new Set());
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [exportSelection, setExportSelection] = useState<string[] | null>(null);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
   const selectable = props.selectable ?? true;
 
   const rows = useMemo<TableRow[]>(
@@ -877,38 +882,6 @@ export function TableView(props: NodeCollectionProps) {
             </Button>
           </span>
         )}
-        <Button
-          variant="ghost"
-          size="sm"
-          icon="mdi mdi-file-delimited-outline"
-          onClick={() => handleExportCsv(sorted, baseStem)}
-          aria-label="Export CSV"
-          title="Download the current view's rows as CSV"
-        >
-          Export CSV
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          icon="mdi mdi-microsoft-excel"
-          onClick={() => handleExportExcel(sorted, baseStem)}
-          aria-label="Export Excel"
-          title="Download the current view's rows as Excel (.xlsx, uuid column first)"
-        >
-          Export Excel
-        </Button>
-        {tableEditable && (
-          <Button
-            variant="ghost"
-            size="sm"
-            icon="mdi mdi-table-arrow-down"
-            onClick={() => setImportOpen(true)}
-            aria-label="Import table"
-            title="Import rows from a .csv or .xlsx file (uuid column updates existing rows)"
-          >
-            Import table…
-          </Button>
-        )}
         <ButtonWithPanel
           icon="mdi-view-column"
           variant="ghost"
@@ -950,6 +923,52 @@ export function TableView(props: NodeCollectionProps) {
         >
           {() => <SortPanel sort={sort} onChange={setSort} columns={visibleColumns} />}
         </ButtonWithPanel>
+        {/* The "…" menu — the table's data actions (export/import) live
+            here at the far right of the view-type toolbar, next to the
+            Columns/Sort configurators. */}
+        <Button
+          ref={moreButtonRef}
+          variant="ghost"
+          size="sm"
+          icon="mdi mdi-dots-vertical"
+          aria-label="More table actions"
+          title="More actions"
+          aria-haspopup="menu"
+          aria-expanded={moreMenuOpen}
+          active={moreMenuOpen}
+          onClick={() => setMoreMenuOpen(true)}
+        />
+        {moreMenuOpen && (
+          <ContextMenu
+            anchorEl={moreButtonRef.current}
+            alignRight
+            onClose={() => setMoreMenuOpen(false)}
+            items={[
+              {
+                id: "export-csv",
+                label: "Export CSV",
+                icon: "mdi-file-delimited-outline",
+                onClick: () => handleExportCsv(sorted, baseStem),
+              },
+              {
+                id: "export-excel",
+                label: "Export Excel",
+                icon: "mdi-microsoft-excel",
+                onClick: () => handleExportExcel(sorted, baseStem),
+              },
+              ...(tableEditable
+                ? [
+                    {
+                      id: "import-table",
+                      label: "Import table…",
+                      icon: "mdi-table-arrow-down",
+                      onClick: () => setImportOpen(true),
+                    },
+                  ]
+                : []),
+            ]}
+          />
+        )}
       </div>
       <table className="nt-table">
         <thead>

@@ -145,7 +145,8 @@ describe("table CSV — the optional selected-rows scope", () => {
     expect(scoped.map((row) => row[0])).toEqual(["Name", "Alpha", "Beta"]);
 
     // The whole-view export is untouched: all three rows.
-    fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+    fireEvent.click(screen.getByRole("button", { name: "More table actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Export CSV" }));
     const whole = parseCsv(await readBlobText(download.blob!));
     expect(whole.map((row) => row[0])).toEqual(["Name", "Alpha", "Beta", "Gamma"]);
     download.restore();
