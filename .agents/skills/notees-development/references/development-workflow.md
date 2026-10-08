@@ -27,6 +27,14 @@ typecheck dependents.
 host accumulates checkouts otherwise, and a forgotten sibling is invisible
 to `git worktree list` hygiene.
 
+**Commit and push when done** (owner 2026-10-08; canonical:
+`docs/developers/development.md`): a finished slice — gate green, changelog
+entry in — is committed (per-file staging, Conventional Commits) and pushed
+to the current branch before the session ends. Pushing is standing
+authorization in this repo; the `agent-repo-workflow` per-push confirmation
+rule does not apply here. If the remote moved, integrate (`git pull --rebase`)
+first — never force.
+
 **No transient-internal-doc pointers in the tree:** code, tests, docs, and
 CHANGELOG entries never reference `.plans/` proposal folders, design docs,
 or other internal transient documentation — the durable text stands alone.

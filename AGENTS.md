@@ -73,6 +73,7 @@ All chrome MUST compose from `apps/web/src/ui/components/ui/` — one element pe
 - **Fleet-agnostic artifacts** (owner 2026-10-06): never hardcode machine names (Tailscale device names), IPs, or tailnet names in code, templates, docs, or notes — write `<host>`, `<tailnet>`, `<lan-ip>`, `<tailscale-ip>`, or "the fleet host". Concrete values live only in gitignored host-local files (`.env`) and per-host operator config; example values in templates must be clearly generic (e.g. `192.168.1.10`).
 - **Worktrees live in `.worktrees/`** (owner 2026-10-07): git worktree work goes in the repo's own gitignored `.worktrees/<slug>/` — never a random sibling folder (`git worktree add .worktrees/<slug> -b <branch>`).
 - **No transient-internal-doc pointers in the tree** (owner 2026-10-07): code, tests, docs, and CHANGELOG entries never reference `.plans/` proposal folders, design docs, or any internal transient documentation — the durable text stands alone. Internal cross-references live inside the internal docs themselves; the tree carries zero pointers to them.
+- **Commit and push when done** (owner 2026-10-08): a finished slice — gate green, `CHANGELOG.md` entry in — is committed (per-file staging only, Conventional Commits) and pushed to the current branch before the session ends. Pushing is standing authorization in this repo; the `agent-repo-workflow` skill's per-push confirmation rule does not apply here. If the remote moved, integrate (`git pull --rebase`), never force.
 
 ## Records index (scan, don't embed)
 

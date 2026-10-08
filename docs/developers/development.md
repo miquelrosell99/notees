@@ -50,6 +50,13 @@ gitignored `.worktrees/<slug>/` — `git worktree add .worktrees/<slug> -b <bran
 Never a random sibling folder: the fleet host accumulates checkouts otherwise,
 and forgotten siblings escape `git worktree list` hygiene.
 
+Commit and push when done (owner 2026-10-08): a finished slice — gate green,
+`CHANGELOG.md` entry in — is committed and pushed before the session moves on.
+Stage per-file (`git add <path>`), Conventional Commits, then `git push` to
+the current branch: pushing is standing authorization in this repo, so the
+`agent-repo-workflow` skill's per-push confirmation rule does not apply here.
+If the remote has moved, integrate first (`git pull --rebase`) — never force.
+
 No transient-internal-doc pointers in the tree (owner 2026-10-07): code,
 tests, docs, and CHANGELOG entries never reference `.plans/` proposal
 folders, design docs, or other internal transient documentation — the
