@@ -9,6 +9,23 @@ predating this file.
 
 ## 2026-10-08
 
+- **feat(web): palette Properties section + the owner-mandated search order.**
+  The command palette's search results now rank **Classes → Properties →
+  Pages → Content**, then Date Pages and Commands (the flatten step is a
+  stable sort on a mode-dependent group rank, so score order inside a group
+  survives; the empty-query home keeps Recent → Random → Commands). The new
+  **Properties** section fuzzy-matches the workspace's property schemas
+  (`client.listPropertySchemas`, both client kinds carry it) by name, with
+  the type name as keyword ("date"/"select"/… find the family) and a
+  per-type mdi glyph mirroring the Class View's TYPE_GLYPHS; a pick calls the
+  new `onOpenProperty` contribution point, which the App hosts as the
+  existing PropertyView modal (metadata, bound classes, value carriers).
+  Search-mode only, like Pages/Classes — quiet on the empty query and under
+  `is_daily:`. Docs: `usage.md` (the palette paragraph's section list and
+  order). **Verification:** the search-palette suite — four new tests
+  (section + pick wiring, type-keyword match, the empty-query/`is_daily:`
+  quiet rule, the Classes → Properties → Pages → Content rank assertion) —
+  green; `apps/web` typecheck clean for the touched files.
 - **feat(web): the Assets hub's cards default to cover top.** The assets
   sidebar entry's cards read as an image gallery, so the surface now passes
   a `defaultCoverLayout="cover-top"` fallback (new optional

@@ -80,6 +80,7 @@ import { NodeSelector } from "./components/pickers/NodeSelector.js";
 import { createNodesWithClasses } from "./components/createNodesWithClasses.js";
 import { QuickAddModal } from "./components/modals/QuickAddModal.js";
 import { ClassCreateModal } from "./components/modals/ClassCreateModal.js";
+import { PropertyView } from "./components/PropertyView.js";
 import { AssetUploadModal } from "./components/modals/AssetUploadModal.js";
 import { QuickCreateFab } from "./components/QuickCreateFab.js";
 import { WorkspacesView } from "./components/WorkspacesView.js";
@@ -677,6 +678,8 @@ export function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   /** #14 — the palette's "New class…" command opens the creation modal. */
   const [classCreateOpen, setClassCreateOpen] = useState(false);
+  /** The palette's Properties section: the picked schema's PropertyView. */
+  const [propertyViewFor, setPropertyViewFor] = useState<string | null>(null);
   /**
    * The session undo journal's chrome state (availability + labels).
    * Refreshed on a macrotask coalescer off every client notification (the
@@ -1954,6 +1957,7 @@ export function App() {
         onOpenNode={openPage}
         onNewPage={(title) => void handleNewPage(title)}
         onOpenClassCreate={() => setClassCreateOpen(true)}
+        onOpenProperty={(schemaId) => setPropertyViewFor(schemaId)}
         onSignOut={() => void handleSignOut()}
         undoState={undoUi}
         onUndo={() => {
@@ -1992,6 +1996,17 @@ export function App() {
           client={client}
           onClose={() => setClassCreateOpen(false)}
           onCreated={(id) => openPage(id)}
+        />
+      )}
+      {propertyViewFor !== null && (
+        <PropertyView
+          client={client}
+          propertySchemaId={propertyViewFor}
+          onClose={() => setPropertyViewFor(null)}
+          onOpenPage={(id) => {
+            setPropertyViewFor(null);
+            openPage(id);
+          }}
         />
       )}
       {/* The mobile quick-create FAB: hosts its own

@@ -19,9 +19,17 @@
  *               palette to this section.
  *  - Pages      (client.listPages, asset-classed pages excluded)
  *  - Classes    (client.listClasses)
+ *  - Properties (client.listPropertySchemas; the host's `onOpenProperty`
+ *               hosts the PropertyView modal — a contribution point, like
+ *               `onOpenClassCreate`)
  *  - Content    debounced ranked FTS (client.searchPage) with match
  *               snippets; block hits carry their containing-page label
  *               (label helper shared with the picker)
+ *
+ * Section order: the search sections rank Classes, Properties, Pages,
+ * Content (owner-mandated), then Date Pages and Commands; the empty-query
+ * home keeps Recent → Random → Commands. The flatten step is a stable sort
+ * on the mode-dependent group rank, so score order inside a group survives.
  *  - Commands   the action registry: New page, New class… (#14, where the
  *               host provides it), a typed "Create page …" row, Focus mode
  *               (#12), Toggle theme, Sign out (a contribution point)
@@ -57,7 +65,7 @@ const RECENTS_KEY = "notees.recents";
 /** The Random section's row count (the original section's slice size). */
 const RANDOM_PAGE_COUNT = 5;
 
-type Group = "Recent" | "Random" | "Date Pages" | "Pages" | "Classes" | "Content" | "Commands";
+type Group = "Recent" | "Random" | "Date Pages" | "Pages" | "Classes" | "Properties" | "Content" | "Commands";
 
 interface PaletteItem {
   key: string;
@@ -147,6 +155,20 @@ function SnippetLine({ snippet }: { snippet: SearchSnippetData }) {
   return <span className="nt-search-snippet nt-palette-snippet">{parts}</span>;
 }
 
+/** One mdi glyph per property type (mirrors the Class View's TYPE_GLYPHS). */
+const PROPERTY_TYPE_GLYPHS: Record<string, string> = {
+  text: "mdi-format-letter-case",
+  number: "mdi-pound",
+  url: "mdi-link-variant",
+  email: "mdi-email-outline",
+  date: "mdi-calendar",
+  date_range: "mdi-calendar-range",
+  select: "mdi-form-select",
+  object: "mdi-target",
+  image: "mdi-image",
+  boolean: "mdi-check-circle-outline",
+};
+
 /** Containing-page breadcrumb for a block hit. */
 function containingPageLabel(client: AnyClient, node: ClientNode): string | null {
   let currentId = node.parentId;
@@ -226,6 +248,7 @@ export function CommandPalette({
   onOpenNode,
   onNewPage,
   onOpenClassCreate = undefined,
+  onOpenProperty = undefined,
   onSignOut,
   undoState,
   onUndo,
@@ -243,6 +266,9 @@ export function CommandPalette({
   /** #14 — open the class-creation modal (blank + system deploy); the row
    *  appears only where the host provides it. */
   onOpenClassCreate?: (() => void) | undefined;
+  /** Open a property schema's PropertyView inspector — the row appears only
+   *  where the host provides it (a contribution point, like the class create). */
+  onOpenProperty?: ((propertySchemaId: string) => void) | undefined;
   onSignOut: () => void;
   /** The session undo journal state; rows appear only when available. */
   undoState: UndoUiState;
@@ -417,6 +443,20 @@ export function CommandPalette({
           run: () => onOpenNode(cls.id),
         })),
       );
+      if (onOpenProperty !== undefined) {
+        // Property schemas are registry rows, not nodes; the type name stays
+        // a keyword so "date"/"select"/… finds the family.
+        addFuzzy(
+          "Properties",
+          client.listPropertySchemas().map((schema) => ({
+            id: schema.id,
+            label: schema.name,
+            icon: PROPERTY_TYPE_GLYPHS[schema.type] ?? "mdi-format-list-bulleted",
+            keywords: `${schema.type} property`,
+            run: () => onOpenProperty(schema.id),
+          })),
+        );
+      }
     }
 
     // Action registry: static rows + a query-scoped typed creation +
@@ -516,7 +556,7 @@ export function CommandPalette({
     return items;
     // cacheVersion: the cached reads resolve asynchronously after their seed;
     // re-derive the sections when the worker cache refreshes.
-  }, [client, dailyOnly, text, onOpenNode, onNewPage, onOpenClassCreate, onSignOut, onClose, recentIds, cacheVersion, undoState, onUndo, onRedo]);
+  }, [client, dailyOnly, text, onOpenNode, onNewPage, onOpenClassCreate, onOpenProperty, onSignOut, onClose, recentIds, cacheVersion, undoState, onUndo, onRedo]);
 
   // --- Content section: debounced ranked FTS with snippets ------------------
 
@@ -564,12 +604,14 @@ export function CommandPalette({
     return () => clearTimeout(timer);
   }, [open, dailyOnly, text, client, onOpenNode, cacheVersion]);
 
-  // Dedupe + flatten: sync sections first (group order), stale content pages
+  // Dedupe + flatten: the cross-group node-id dedupe, stale content pages
   // (answered query ≠ current) dropped, content ids already surfaced as
-  // title/date matches skipped.
+  // title/date matches skipped. A stable sort on the mode-dependent group
+  // rank then orders the sections (score order inside a group survives):
+  // search answers Classes → Properties → Pages → Content, then Date Pages
+  // and Commands; the empty-query home keeps Recent → Random → Commands.
   const filtered = useMemo(() => {
     const seenIds = new Set<string>();
-    let randomInserted = false;
     const out: PaletteItem[] = [];
     const push = (item: PaletteItem) => {
       // Commands carry no node id; Random re-picks per open and always shows
@@ -581,22 +623,25 @@ export function CommandPalette({
       }
       out.push(item);
     };
-    for (const item of syncItems) {
-      // Section registry order: the Random group sits after the node
-      // sections (Recent) and before Commands (#8). Commands is always
-      // present, so the post-loop fallback is defensive only.
-      if (!randomInserted && item.group === "Commands" && text === "" && !dailyOnly) {
-        out.push(...randomRows);
-        randomInserted = true;
-      }
-      push(item);
-    }
-    if (!randomInserted && text === "" && !dailyOnly) out.push(...randomRows);
+    for (const item of syncItems) push(item);
+    if (text === "" && !dailyOnly) out.push(...randomRows);
     for (const item of contentItems) {
       if (item.queryTag !== text) continue;
       push(item);
     }
-    return out;
+    const emptyQuery = text === "" && !dailyOnly;
+    const groupRank = (group: Group): number => {
+      if (emptyQuery) return group === "Recent" ? 0 : group === "Random" ? 1 : 2;
+      switch (group) {
+        case "Classes": return 0;
+        case "Properties": return 1;
+        case "Pages": return 2;
+        case "Content": return 3;
+        case "Date Pages": return 4;
+        default: return 5;
+      }
+    };
+    return out.sort((a, b) => groupRank(a.group) - groupRank(b.group));
   }, [syncItems, contentItems, text, randomRows, dailyOnly]);
 
   const clampedActive = Math.min(activeIndex, Math.max(0, filtered.length - 1));
