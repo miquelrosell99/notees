@@ -941,6 +941,10 @@ select:focus-visible {
 .nt-block-content {
   flex: 1;
   min-width: 0;
+  /* Reading text rides the content face (Newsreader; the opsz axis tracks the
+     set size). The header title row (.nt-title-content) stays chrome. */
+  font-family: var(--font-family-content);
+  font-optical-sizing: auto;
   /* An empty block renders no line box, so without this floor the wrapper
      (the click-to-edit target) collapses to zero height and clicks anywhere
      along the row miss it. 1lh = one line in the content's own font. */

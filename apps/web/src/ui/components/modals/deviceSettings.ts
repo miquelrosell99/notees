@@ -81,12 +81,13 @@ export function useDeviceSetting<T>(
 // --- Appearance (theme / OLED / accent / font) ----------------------------------
 
 export type ThemePreference = "light" | "dark" | "system";
-export type AccentColor = "monochrome" | "sage" | "teal" | "rose" | "navy" | "custom";
-/** The UI font family: bundled (Inter/JetBrains Mono,
+export type AccentColor = "margin" | "monochrome" | "sage" | "teal" | "rose" | "navy" | "custom";
+/** The UI font family: bundled (Instrument Sans/Newsreader/JetBrains Mono,
  * self-hosted in fonts.css) or the platform system stack. */
 export type UiFontPreference = "bundled" | "system";
 
 export const ACCENT_COLOR_OPTIONS: { value: AccentColor; label: string; hex: string }[] = [
+  { value: "margin", label: "Margin", hex: "#2e5e46" },
   { value: "monochrome", label: "Monochrome", hex: "#404040" },
   { value: "sage", label: "Sage", hex: "#527051" },
   { value: "teal", label: "Teal", hex: "#2D6B5B" },
@@ -155,7 +156,7 @@ export function applyAppearance(): void {
   const oled = readDeviceSetting("oledMode", false);
   document.documentElement.dataset.oled = oled && resolved === "dark" ? "true" : "false";
 
-  const accent = readDeviceSetting<AccentColor>("accentColor", "monochrome");
+  const accent = readDeviceSetting<AccentColor>("accentColor", "margin");
   document.documentElement.dataset.accent = accent;
 
   // The UI font rides the same pre-paint data-attribute path.
