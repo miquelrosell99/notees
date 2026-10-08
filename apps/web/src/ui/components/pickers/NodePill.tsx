@@ -41,7 +41,7 @@ export function NodePill({
   className = "",
 }: NodePillProps) {
   const [colorMenu, setColorMenu] = useState<{ x: number; y: number } | null>(null);
-  const pillRef = useRef<HTMLDivElement>(null);
+  const pillRef = useRef<HTMLSpanElement>(null);
   const colorMenuRef = useRef<HTMLDivElement>(null);
 
   // Dismissal: Escape closes the portaled color row; the backdrop
@@ -71,25 +71,18 @@ export function NodePill({
 
   return (
     <>
-      <div
-        role="button"
-        tabIndex={0}
+      <span
         ref={pillRef}
         className={`node-pill ${className}`}
-        onClick={onClick}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onClick?.();
-          }
-        }}
         onContextMenu={handleContextMenu}
-        title={title}
-        aria-label={title}
       >
-        <div
+        <button
+          type="button"
           className={`pill ${rightIconHoverReveal ? "pill--hover-reveal-right" : ""}`}
           style={node.color ? { background: node.color } : undefined}
+          onClick={onClick}
+          title={title}
+          aria-label={title}
         >
           {node.icon !== null && (
             <span className="pill__left-icon">
@@ -97,21 +90,21 @@ export function NodePill({
             </span>
           )}
           <span className="pill__text">{displayText}</span>
-          {!readOnly && onRemove && (
-            <button
-              type="button"
-              className="pill__right-button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onRemove();
-              }}
-              aria-label="Remove"
-            >
-              <Icon path="mdi-close" size={0.55} />
-            </button>
-          )}
-        </div>
-      </div>
+        </button>
+        {!readOnly && onRemove && (
+          <button
+            type="button"
+            className="pill__right-button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove();
+            }}
+            aria-label={`Remove ${displayText}`}
+          >
+            <Icon path="mdi-close" size={0.55} />
+          </button>
+        )}
+      </span>
 
       {colorMenu && onColorChange && !readOnly && (
         <>

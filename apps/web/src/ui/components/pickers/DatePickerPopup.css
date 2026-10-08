@@ -8,7 +8,7 @@
   position: fixed;
   background: var(--color-surface);
   border: var(--border-width-default) solid var(--color-outline-variant);
-  border-radius: var(--shape-medium);
+  border-radius: var(--shape-floating-panel);
 
   /* Design system: zero visual noise — no elevation shadows */
   padding: var(--spacing-3);
@@ -73,7 +73,7 @@
   color: var(--color-error);
   padding: var(--spacing-1) var(--spacing-2);
   margin-bottom: var(--spacing-2);
-  background: var(--color-error-container, var(--color-surface-container));
+  background: var(--color-error-container);
   border-radius: var(--shape-small);
   overflow-wrap: break-word;
 }

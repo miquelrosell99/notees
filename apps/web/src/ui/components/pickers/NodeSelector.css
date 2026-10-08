@@ -303,7 +303,7 @@
   max-width: var(--layout-size-6xl);
   background: var(--color-surface);
   border: var(--border-width-default) solid var(--color-outline-variant);
-  border-radius: var(--shape-medium);
+  border-radius: var(--shape-floating-panel);
   overflow: hidden;
 }
 
@@ -586,7 +586,7 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-3, 0.75rem);
+  padding: var(--spacing-2) var(--spacing-3);
   border-top: 1px solid var(--color-outline-variant);
   color: var(--color-on-surface-variant);
   font: var(--font-label-small);
@@ -599,5 +599,5 @@
 
 .node-selector__multi-hint {
   white-space: nowrap;
-  opacity: var(--opacity-70, 0.7);
+  opacity: var(--opacity-70);
 }
