@@ -1,8 +1,11 @@
 /**
  * Design System Variables
  *
- * Minimal monochrome design tokens for the Notees app.
- * Clean black/grey/white palette for both light and dark modes.
+ * Margin Green brand tokens: warm paper light ground (#f7f4ec), warm
+ * near-black dark ground (#161412), iron-ink neutrals from the brand scale;
+ * Advance Green (#2e5e46) enters through the accent presets (see the
+ * [data-accent] blocks below). The canonical brand values live in the brand
+ * submodule (brand/assets/tokens/tokens.css).
  */
 
 :root {
@@ -56,28 +59,29 @@
 
   /* ==================== Background & Surface ==================== */
 
-  /* Warm paper workspace — identity foundation for Notees */
-  --color-background: #f5f3ef;
-  --color-on-background: #1a1a1a;
+  /* Warm paper workspace — the Margin Green identity ground (#f7f4ec, brand
+     role --bi-background); surfaces and ink come from the brand neutral scale. */
+  --color-background: #f7f4ec;
+  --color-on-background: #221a13;
   --color-surface: #fff;
-  --color-on-surface: #1a1a1a;
-  --color-surface-variant: #f0ede8;
-  --color-on-surface-variant: #5c5c5c;
-  --color-surface-dim: #e5e1d9;
+  --color-on-surface: #221a13;
+  --color-surface-variant: #edeae2;
+  --color-on-surface-variant: #5c544c;
+  --color-surface-dim: #e8e6e3;
   --color-surface-bright: #fff;
-  --color-surface-container: #faf8f4;
+  --color-surface-container: #fcfaf8;
   --color-surface-container-active: color-mix(in srgb, var(--color-surface-container) 75%, black);
-  --color-surface-container-low: #f5f3ef;
-  --color-surface-container-high: #eae6df;
-  --color-surface-container-highest: #dad6cf;
+  --color-surface-container-low: #f4f3f1;
+  --color-surface-container-high: #edeae2;
+  --color-surface-container-highest: #e8e6e3;
   --color-surface-container-lowest: #fff;
-  --color-inverse-surface: #1a1a1a;
-  --color-inverse-on-surface: #f5f3ef;
-  --color-inverse-primary: #a8a29e;
+  --color-inverse-surface: #221a13;
+  --color-inverse-on-surface: #f7f4ec;
+  --color-inverse-primary: #a6a09a;
 
   /* ==================== Outline & Utility ==================== */
-  --color-outline: #c4bfb6;
-  --color-outline-variant: #e3ded6;
+  --color-outline: #d8d3c7;
+  --color-outline-variant: #e8e6e3;
   --color-shadow: rgb(0 0 0 / 8%);
   --color-scrim: rgb(0 0 0 / 50%);
 
@@ -202,8 +206,9 @@
   --icon-size-2xl: 40px;
 
   /* ==================== Typography ==================== */
-  --font-family-base: 'Inter', -apple-system, blinkmacsystemfont, 'Segoe UI', roboto, sans-serif;
-  --font-family-display: georgia, 'Times New Roman', serif;
+  --font-family-base: 'Instrument Sans', -apple-system, blinkmacsystemfont, 'Segoe UI', roboto, sans-serif;
+  --font-family-display: 'Instrument Sans', -apple-system, blinkmacsystemfont, 'Segoe UI', roboto, sans-serif;
+  --font-family-content: 'Newsreader', georgia, serif;
   --font-family-mono: 'JetBrains Mono', 'Fira Code', consolas, monospace;
 
 /* Settings → Appearance → Font. The bundled faces above are
@@ -220,12 +225,12 @@
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
 
-  /* Display — editorial serif for hero moments */
+  /* Display — Instrument Sans for hero moments */
   --font-display-large: 400 3.5rem/1.1 var(--font-family-display);
   --font-display-medium: 400 2.75rem/1.15 var(--font-family-display);
   --font-display-small: 400 2.25rem/1.2 var(--font-family-display);
 
-  /* Headline — editorial serif for section/page titles */
+  /* Headline — Instrument Sans for section/page titles */
   --font-headline-large: 600 2rem/1.25 var(--font-family-display);
   --font-headline-medium: 600 1.75rem/1.3 var(--font-family-display);
   --font-headline-small: 600 1.5rem/1.35 var(--font-family-display);
@@ -721,27 +726,28 @@
   --color-success-container: #14532d;
   --color-on-success-container: #d1fae5;
 
-  /* Background & Surface — warm dark workspace */
-  --color-background: #121211;
-  --color-on-background: #e8e6e1;
-  --color-surface: #1a1a18;
-  --color-on-surface: #e8e6e1;
-  --color-surface-variant: #262623;
-  --color-on-surface-variant: #a8a29e;
-  --color-surface-dim: #0a0a09;
-  --color-surface-bright: #262623;
-  --color-surface-container: #1a1a18;
-  --color-surface-container-low: #121211;
-  --color-surface-container-high: #262623;
-  --color-surface-container-highest: #3d3d39;
-  --color-surface-container-lowest: #121211;
-  --color-inverse-surface: #e8e6e1;
-  --color-inverse-on-surface: #121211;
-  --color-inverse-primary: #52504a;
+  /* Background & Surface — warm near-black night ground (#161412, brand dark
+     role --bi-background); surfaces from the brand's dark ground family. */
+  --color-background: #161412;
+  --color-on-background: #f4f3f1;
+  --color-surface: #221a13;
+  --color-on-surface: #f4f3f1;
+  --color-surface-variant: #312a22;
+  --color-on-surface-variant: #a6a09a;
+  --color-surface-dim: #140e08;
+  --color-surface-bright: #312a22;
+  --color-surface-container: #221a13;
+  --color-surface-container-low: #161412;
+  --color-surface-container-high: #312a22;
+  --color-surface-container-highest: #483f37;
+  --color-surface-container-lowest: #140e08;
+  --color-inverse-surface: #f4f3f1;
+  --color-inverse-on-surface: #161412;
+  --color-inverse-primary: #5c544c;
 
   /* Outline & Utility */
-  --color-outline: #6b6962;
-  --color-outline-variant: #2a2926;
+  --color-outline: #483f37;
+  --color-outline-variant: #312a22;
   --color-shadow: rgb(0 0 0 / 50%);
   --color-scrim: rgb(0 0 0 / 70%);
 
@@ -770,10 +776,11 @@
   --color-focus-overlay: rgb(255 255 255 / 8%);
   --color-pressed-overlay: rgb(255 255 255 / 12%);
 
-  /* Accent — default to sage in dark mode so primary actions stay readable */
-  --color-accent: #7FB285;
-  --color-accent-subtle: #648868;
-  --color-on-accent: #121211;
+  /* Accent — the dark-mode baseline rides the brand's night-green roles so
+     primary actions stay readable before the accent attribute resolves. */
+  --color-accent: #6da789;
+  --color-accent-subtle: #80bb9b;
+  --color-on-accent: #140e08;
 
   /* Graph view tokens */
   --graph-node-default: #b8b8b8;
@@ -803,7 +810,7 @@
 /* ==================== OLED Pure-Black Overrides ==================== */
 [data-oled="true"] {
   --color-background: #000;
-  --color-on-background: #e5e5e5;
+  --color-on-background: #f4f3f1;
   --color-surface: #000;
   --color-surface-variant: #0a0a0a;
   --color-surface-dim: #000;
@@ -811,9 +818,9 @@
   --color-surface-container: #000;
   --color-surface-container-low: #000;
   --color-surface-container-high: #0a0a0a;
-  --color-surface-container-highest: #171717;
+  --color-surface-container-highest: #17130e;
   --color-surface-container-lowest: #000;
-  --color-outline-variant: #1a1a1a;
+  --color-outline-variant: #221c15;
 
   /* Presentation stage — dark in every theme (see the light block). */
   --color-presentation-stage: #000;
@@ -828,6 +835,13 @@
 [data-accent="monochrome"] {
   --color-accent: #404040;
   --color-accent-subtle: #737373;
+  --color-on-accent: #fff;
+}
+
+/* Margin — the brand accent: Advance Green (#2e5e46), the act of adding. */
+[data-accent="margin"] {
+  --color-accent: #2e5e46;
+  --color-accent-subtle: #518a6d;
   --color-on-accent: #fff;
 }
 
@@ -868,6 +882,12 @@
   --color-accent: #7FB285;
   --color-accent-subtle: #648868;
   --color-on-accent: #000;
+}
+
+[data-theme="dark"][data-accent="margin"] {
+  --color-accent: #6da789;
+  --color-accent-subtle: #80bb9b;
+  --color-on-accent: #140e08;
 }
 
 [data-theme="dark"][data-accent="teal"] {

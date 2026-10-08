@@ -1,49 +1,47 @@
 /**
- * Bundled UI fonts — Inter (UI sans) + JetBrains Mono (code), both
- * SIL OFL 1.1 (licenses beside the binaries: OFL-inter.txt,
- * OFL-jetbrains-mono.txt under src/assets/fonts/). Self-hosted so the app
- * never hits a font CDN and the "bundled" font choice is real.
- * Latin subsets cover the UI; non-latin glyphs fall through to the next
- * stack entry, and the "system" font choice swaps the whole stack anyway.
+ * Bundled UI fonts — the Margin Green identity faces, all SIL OFL 1.1
+ * (licenses beside the binaries under src/assets/fonts/: OFL-instrument-sans.txt,
+ * OFL-newsreader.txt, OFL-jetbrains-mono.txt). Self-hosted so the app never
+ * hits a font CDN and the "bundled" font choice is real.
+ *
+ * The woff2 files are the untouched @fontsource(-variable) binaries
+ * (devDependencies of @notees/web) — Instrument Sans (chrome, wght axis
+ * 400–700, normal + italic), Newsreader (reading text, opsz + wght axes;
+ * browsers pick the optical size from the set size via font-optical-sizing),
+ * JetBrains Mono (data/code, 400 + 700). Latin subsets cover the UI;
+ * non-latin glyphs fall through to the next stack entry, and the "system"
+ * font choice swaps the whole stack anyway.
  */
 @font-face {
-  font-family: 'Inter';
+  font-family: 'Instrument Sans';
   font-style: normal;
-  font-weight: 400;
+  font-weight: 400 700;
   font-display: swap;
-  src: url('../assets/fonts/inter-latin-400-normal.woff2') format('woff2');
+  src: url('../assets/fonts/instrument-sans-latin-wght-normal.woff2') format('woff2');
 }
 
 @font-face {
-  font-family: 'Inter';
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url('../assets/fonts/inter-latin-500-normal.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Inter';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url('../assets/fonts/inter-latin-600-normal.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Inter';
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url('../assets/fonts/inter-latin-700-normal.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Inter';
+  font-family: 'Instrument Sans';
   font-style: italic;
-  font-weight: 400;
+  font-weight: 400 700;
   font-display: swap;
-  src: url('../assets/fonts/inter-latin-400-italic.woff2') format('woff2');
+  src: url('../assets/fonts/instrument-sans-latin-wght-italic.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Newsreader';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('../assets/fonts/newsreader-latin-opsz-normal.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Newsreader';
+  font-style: italic;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('../assets/fonts/newsreader-latin-opsz-italic.woff2') format('woff2');
 }
 
 @font-face {
