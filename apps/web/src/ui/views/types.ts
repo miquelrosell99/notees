@@ -108,6 +108,15 @@ export interface NodeCollectionProps {
   /** Zero-data chrome (kit EmptyState) — omitted renders nothing. */
   emptyTitle?: string | undefined;
   emptyHint?: string | undefined;
+  /**
+   * The subtle empty line (the `.nt-section-empty` register) rendered in
+   * place of the view when the collection is empty and no EmptyState is
+   * configured. For hosted collections it renders inside the selected tab's
+   * body — the tabs (and the "+" affordance) stay visible on an empty
+   * section — and names the DEFAULT tab's empty ("No backlinks."); a custom
+   * tab refined to empty always reads "No matching rows.".
+   */
+  emptyText?: string | undefined;
 
   // --- outline / tree flags (ported subset) ---------------------------------
 
