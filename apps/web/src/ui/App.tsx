@@ -1729,6 +1729,9 @@ export function App() {
 
   return (
     <div className={sidebarOpen ? "nt-app nt-sidebar-open" : "nt-app"}>
+      <a className="nt-skip-link" href="#nt-main-content">
+        Skip to content
+      </a>
       <TopBar
         syncStatus={syncStatus}
         onOpenSyncDetails={() => setSyncDetailsOpen(true)}

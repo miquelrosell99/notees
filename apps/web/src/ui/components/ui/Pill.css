@@ -25,7 +25,7 @@
 }
 
 .pill:active {
-  transform: scale(0.96);
+  transform: scale(var(--tactile-press-scale));
   box-shadow: none;
 }
 
@@ -134,7 +134,7 @@
 .pill--link-page:active,
 .pill--link-block:active,
 .pill--link-class:active {
-  transform: scale(0.97);
+  transform: scale(var(--tactile-press-scale));
   box-shadow: none;
 }
 
@@ -185,7 +185,7 @@
   font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
   background: none;
-  border: none;
+  border: var(--border-width-default) dashed var(--color-outline-variant);
   border-radius: var(--shape-full);
   padding: var(--spacing-1) var(--spacing-2);
   cursor: pointer;
@@ -199,10 +199,6 @@
 /* …and reveal the add affordance only when the group is hovered. */
 .nt-property-chips:not(:hover) .pill--add.pill--icon-only {
   opacity: 0;
-}
-
-.pill--add:hover {
-  color: var(--color-on-surface);
 }
 
 .pill--add:hover {

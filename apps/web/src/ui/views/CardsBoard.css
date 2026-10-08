@@ -3,32 +3,32 @@
 .board {
   display: flex;
   align-items: flex-start;
-  gap: var(--spacing-3, 12px);
+  gap: var(--spacing-3);
   overflow-x: auto;
-  padding-bottom: var(--spacing-2, 8px);
+  padding-bottom: var(--spacing-2);
 }
 
 .board-column {
   flex: 0 0 260px;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2, 8px);
+  gap: var(--spacing-2);
   min-height: 120px;
-  border: var(--border-width-default, 1px) solid var(--color-outline-variant, currentColor);
-  border-radius: var(--radius-md, 10px);
-  background: var(--color-surface-container-low, transparent);
-  padding: var(--spacing-2, 8px);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-container-low);
+  padding: var(--spacing-2);
 }
 
 .board-column--over {
-  border-color: var(--color-primary, currentColor);
+  border-color: var(--color-primary);
 }
 
 .board-column__header {
   display: flex;
   align-items: center;
-  gap: var(--spacing-1, 4px);
-  padding: 0 var(--spacing-1, 4px);
+  gap: var(--spacing-1);
+  padding: 0 var(--spacing-1);
 }
 
 .board-column__toggle {
@@ -36,31 +36,31 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: var(--icon-size-md, 20px);
-  height: var(--icon-size-md, 20px);
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
   padding: 0;
   border: none;
-  border-radius: var(--shape-small, 6px);
+  border-radius: var(--shape-small);
   background: transparent;
-  color: var(--color-on-surface-variant, currentColor);
+  color: var(--color-on-surface-variant);
   cursor: pointer;
 }
 
 .board-column__toggle:hover {
-  background: var(--color-hover-overlay, rgba(0, 0, 0, 0.04));
-  color: var(--color-on-surface, currentColor);
+  background: var(--color-hover-overlay);
+  color: var(--color-on-surface);
 }
 
 .board-toolbar {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: var(--spacing-2, 8px);
+  margin-bottom: var(--spacing-2);
 }
 
 .board-column__title {
   flex: 1 1 auto;
   min-width: 0;
-  font-size: var(--font-size-sm, 0.85rem);
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-on-surface);
   overflow: hidden;
@@ -70,21 +70,21 @@
 
 .board-column__count {
   flex-shrink: 0;
-  font-size: 11px;
-  color: var(--color-on-surface-variant, currentColor);
+  font-size: var(--font-size-xs);
+  color: var(--color-on-surface-variant);
 }
 
 .board-column__body {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2, 8px);
+  gap: var(--spacing-2);
   min-height: 40px;
 }
 
 .board-column__empty {
   min-height: 40px;
-  border: var(--border-width-default, 1px) dashed var(--color-outline-variant, currentColor);
-  border-radius: var(--radius-sm, 6px);
+  border: var(--border-width-default) dashed var(--color-outline-variant);
+  border-radius: var(--radius-sm);
 }
 
 .board-card {
@@ -100,12 +100,12 @@
 }
 
 .board-ghost {
-  padding: var(--spacing-2, 8px) var(--spacing-3, 12px);
-  border-radius: var(--radius-md, 10px);
-  background: var(--color-surface-container-high, rgba(0, 0, 0, 0.08));
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-container-high);
   color: var(--color-on-surface);
-  font-size: var(--font-size-sm, 0.85rem);
-  box-shadow: var(--shadow-md, 0 2px 8px rgba(0, 0, 0, 0.2));
+  font-size: var(--font-size-sm);
+  box-shadow: var(--shadow-md);
   max-width: 260px;
   overflow: hidden;
   text-overflow: ellipsis;

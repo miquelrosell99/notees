@@ -134,3 +134,5 @@ export type { PresentationOverlayProps } from './PresentationOverlay.js';
 
 export { usePopupDismissal } from './usePopupDismissal.js';
 export type { UsePopupDismissalOptions } from './usePopupDismissal.js';
+
+export { useDelayedVisible } from './useDelayedVisible.js';

@@ -10,6 +10,20 @@
   gap: var(--spacing-2);
   cursor: pointer;
   user-select: none;
+  position: relative;
+}
+
+/* Invisible minimum hit-area overlay: the visible track is well under the
+   44×44 floor; this keeps the whole control tappable without changing
+   layout (same pattern as .btn--icon-only::after). */
+.toggle-switch::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
 }
 
 .toggle-switch--disabled {

@@ -13,7 +13,7 @@
   font-weight: 500;
   position: sticky;
   top: 0;
-  z-index: var(--z-toast, var(--z-100));
+  z-index: var(--z-toast);
 }
 
 .in-process-banner__icon {
