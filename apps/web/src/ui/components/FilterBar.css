@@ -1,6 +1,9 @@
 /* FilterBar — the transient filter layer's body-top chrome: one control row
    (text search + the structured-facet toggle + the honest "N of M" count +
-   clear) with the structured panel expanding beneath it. Token-only. */
+   clear) with the structured panel expanding beneath it as an in-flow
+   region — the app has no persistent floating surfaces (floats are
+   transient pickers), so the builder takes its place in the layout, full
+   width, one hairline above it. Token-only. */
 
 .nt-filter-bar {
   display: flex;
@@ -10,16 +13,23 @@
   font: var(--font-body-small);
 }
 
-/* Inline layout: the bar is a ViewToolbar child — the control row joins the
-   toolbar's flex line (the search field flexes, capped so the row's actions
-   keep the right side), and the structured panel drops below as a floating
-   overlay anchored to the bar. */
+/* Inline layout: the bar is a ViewToolbar child and renders with
+   `display: contents` — its control row joins the toolbar's flex line (the
+   search field flexes, capped so the row's actions keep the right side)
+   while the structured panel takes a full-width wrapped line beneath the
+   row (the toolbar wraps). No overlay: the region is in the flow. */
 .nt-filter-bar--inline {
-  position: relative;
+  display: contents;
+}
+
+.nt-filter-bar--inline .nt-filter-bar__row {
   flex: 1 1 auto;
   max-width: 42ch;
   min-width: 12ch;
-  margin-bottom: 0;
+}
+
+.nt-filter-bar--inline .nt-filter-bar__panel {
+  flex-basis: 100%;
 }
 
 .nt-filter-bar__row {
@@ -38,27 +48,15 @@
   white-space: nowrap;
 }
 
+/* The structured panel: an open region, not a boxed card — hairline above,
+   quiet vertical padding, transparent ground. The kit Card lives only on
+   the transient add menu. */
 .nt-filter-bar__panel {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2);
-  padding: var(--spacing-2);
-  border: var(--spacing-hairline) solid var(--color-outline-variant);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-container);
-}
-
-/* The inline layout's structured panel: an overlay under the control row
-   (the toolbar row itself stays one line — the panel never flex-expands it).
-   Same border + surface register as the block panel (the design system's
-   zero-elevation law — no shadow). */
-.nt-filter-bar__panel--floating {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  z-index: var(--z-popover);
-  margin-top: var(--spacing-1);
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) 0;
+  border-top: var(--spacing-hairline) solid var(--color-outline-variant);
 }
 
 .nt-filter-bar__result {

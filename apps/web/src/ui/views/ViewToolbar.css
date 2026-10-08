@@ -1,8 +1,10 @@
 .view-toolbar {
-  /* The relative anchor for floating toolbar children (the inline FilterBar's
-     structured panel overlays content below the row). */
+  /* Wraps so an inline FilterBar's structured panel can take a full-width
+     line beneath the control row; also the anchor for floating toolbar
+     children. */
   position: relative;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: var(--spacing-2);
