@@ -9,6 +9,11 @@ predating this file.
 
 ## 2026-10-08
 
+- **fix(web): the brand accent reads as a colour in settings.** The
+  default accent's settings label was "Margin" — a layout word, not a colour;
+  it is now "Advance Green", the brand colour name. The stored setting value
+  stays `margin` (existing user settings keep working). Verification:
+  `pnpm --filter @notees/web test` — 1359/1359.
 - **fix(web): the monochrome accent swatch previews ink, and the CSS
   fallback accent is margin.** The settings Accent Color row rendered the
   monochrome preset as a static grey circle (`#404040`); it now carries a
