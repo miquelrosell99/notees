@@ -1,7 +1,8 @@
 /* SectionViewTabs — the hosted-views chrome riding a hosted NodeCollection:
    the tab bar row (Default permanent first, custom tabs by sequence, the
-   "+" add-slot, the always-available reset), the active custom tab's manage
-   row (rename / move / delete), and the write-error line. Token-only. */
+   "+" add-slot, the reset rendered only when custom views exist), the
+   active custom tab's manage row (rename / move / delete), and the
+   write-error line. Token-only. */
 
 .nt-section-views {
   display: flex;
@@ -37,14 +38,9 @@
   white-space: nowrap;
 }
 
-.nt-section-views__reset:hover:not(:disabled) {
+.nt-section-views__reset:hover {
   background: var(--color-hover-overlay);
   color: var(--color-on-surface);
-}
-
-.nt-section-views__reset:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 
 .nt-section-views__manage {
