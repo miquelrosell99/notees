@@ -9,6 +9,17 @@ predating this file.
 
 ## 2026-10-08
 
+- **feat(web): the page header title reads in Newsreader.** The brand type
+  table puts the 28px H3 in the Text role (Newsreader), and the identity
+  claim is "Newsreader for the words, Instrument Sans for the chrome" — the
+  header title is the top of the reading experience, not chrome, so
+  `.nt-title-content` rides the content face (`--font-family-content`, opsz
+  auto) like the body rows. The old "stays chrome" comment (a holdover from
+  the title-as-BlockRow restructure) is corrected. The design-system skill's
+  tokens note ("page header titles may use the content serif") was already
+  written for this. Verification: web suite green; post-deploy screenshot
+  probe of a document page in both themes.
+
 - **fix(web): the design-system audit batch — every finding from the
   RosellRamos audit ships.** The audit (`.audits/design-system-2026-10-08.md`)
   found one Critical, 18 warnings, and a notes list; all are fixed. Critical:
