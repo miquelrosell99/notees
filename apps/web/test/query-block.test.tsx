@@ -335,10 +335,10 @@ describe("query block (live query token)", () => {
     // Non-class workspace contents: 5 nodes (host page, Paris, London, the
     // body block + the query block itself — the isClass bit is 0). The
     // class-side count is NOT pinned: merely rendering the page runs the
-    // cover/alias self-heals, which author
-    // system classes (asset/source/cover/alias) on first view — the
-    // workspace-wide aggregate legitimately sees them. The seeded City is
-    // one of them; the group count stays 2 (the two bit values).
+    // alias self-heal, which authors the alias property schema on first
+    // view — the workspace-wide aggregate legitimately sees the write. The
+    // seeded City is one of them; the group count stays 2 (the two bit
+    // values).
     const cells = Array.from(container.querySelectorAll(".nt-query-table td")).map(
       (td) => td.textContent,
     );

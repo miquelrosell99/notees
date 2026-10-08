@@ -19,13 +19,12 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
-import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { PageView } from "../src/ui/PageView.js";
 import { HubView } from "../src/ui/App.js";
 import { ensureTaskFamily } from "../src/ui/components/taskFamily.js";
-import { ensureCoverProperty } from "../src/ui/components/coverProperty.js";
 import { Breadcrumbs } from "../src/ui/components/Breadcrumbs.js";
 import { TocSection } from "../src/ui/components/sidebarSections.js";
 import { headingTextOf, tocEntriesOf } from "../src/ui/components/sidebarToc.js";
@@ -187,9 +186,11 @@ describe("L1 view-mode persistence (deviceSettings)", () => {
 // --- L2: page banner --------------------------------------------------------------
 
 describe("L2 page banner", () => {
-  /** A source-classed page with the cover property pointing at an asset. */
+  /** A source-classed page with the coverAssetId wire field pointing at an asset. */
   async function seedCoveredPage(client: WorkspaceClient): Promise<string> {
-    await ensureCoverProperty(client);
+    if (client.getNode(SYSTEM_CLASS_UUIDS.asset) === undefined) {
+      await client.createClass("asset", { id: SYSTEM_CLASS_UUIDS.asset, icon: "mdiPaperclip" });
+    }
     const host = await client.createObject({ presentAsMain: true, name: "Assets" });
     const asset = await client.createObject({
       parentId: host,
@@ -198,7 +199,7 @@ describe("L2 page banner", () => {
     await client.assignClass(asset, SYSTEM_CLASS_UUIDS.asset);
     const pageId = await client.createObject({ presentAsMain: true, name: "Covered" });
     await client.assignClass(pageId, SYSTEM_CLASS_UUIDS.source);
-    await client.setProperty(pageId, SYSTEM_PROPERTY_UUIDS.cover, { nodeId: asset }, 0);
+    await client.updateObject(pageId, { coverAssetId: asset });
     return pageId;
   }
 

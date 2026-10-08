@@ -11,13 +11,12 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
-import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { DeckView } from "../src/ui/presentation/DeckView.js";
 import { clearAllResumeIndexes } from "../src/ui/presentation/presentationSession.js";
 import { NodeMenuButton } from "../src/ui/components/NodeMenuButton.js";
-import { ensureCoverProperty } from "../src/ui/components/coverProperty.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -287,13 +286,12 @@ describe("DeckView — assets, images, and covers in presentation mode", () => {
 
   it("the presented page's cover renders as the title slide's hero", async () => {
     const client = await seedClient();
-    await ensureCoverProperty(client);
     const coverAsset = await client.createObject({ presentAsMain: true, name: "hero.png" });
     await client.assignClass(coverAsset, SYSTEM_CLASS_UUIDS.asset);
     vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,HERO");
 
     const pageId = await client.createObject({ presentAsMain: true, name: "Covered Deck" });
-    await client.setProperty(pageId, SYSTEM_PROPERTY_UUIDS.cover, { nodeId: coverAsset }, 0);
+    await client.updateObject(pageId, { coverAssetId: coverAsset });
 
     render(<DeckView client={client} pageId={pageId} onOpenNode={() => {}} onClose={() => {}} />);
     await act(async () => {});
@@ -304,14 +302,13 @@ describe("DeckView — assets, images, and covers in presentation mode", () => {
 
   it("a section with a cover but no image block gets the cover in the right column, text intact", async () => {
     const client = await seedClient();
-    await ensureCoverProperty(client);
     const coverAsset = await client.createObject({ presentAsMain: true, name: "section.png" });
     await client.assignClass(coverAsset, SYSTEM_CLASS_UUIDS.asset);
     vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,SECTION");
 
     const pageId = await client.createObject({ presentAsMain: true, name: "Section Cover Deck" });
     const section = await client.createObject({ parentId: pageId, presentAsMain: true, name: "Covered Section" });
-    await client.setProperty(section, SYSTEM_PROPERTY_UUIDS.cover, { nodeId: coverAsset }, 0);
+    await client.updateObject(section, { coverAssetId: coverAsset });
     await client.createObject({
       parentId: section,
       contentAst: [

@@ -158,6 +158,7 @@ const READ_METHODS: ReadonlySet<string> = new Set([
   "getRegistryBindings",
   "getEffectiveProperties",
   "getPropertyReferences",
+  "getCoverReferences",
   "getAssetInfo",
   "getAnnotationsForAsset",
   "listPropertySchemas",
@@ -745,6 +746,8 @@ export class WorkerCore {
         return this.getEffectiveProperties(args[0] as string);
       case "getPropertyReferences":
         return this.client.getPropertyReferences(args[0] as string);
+      case "getCoverReferences":
+        return this.client.getCoverReferences(args[0] as string);
       case "getAssetInfo":
         return this.getAssetInfo(args[0] as string);
       case "getAnnotationsForAsset":
