@@ -4,10 +4,10 @@ if (!ADMIN_EMAIL) throw new Error("NOTEES_ADMIN_EMAIL is required (the admin log
 const PAGE = process.env.PROBE_PAGE;
 const browser = await chromium.launch({ headless: true });
 const page = await (await browser.newContext({ viewport: { width: 1500, height: 950 } })).newPage();
-await page.goto("http://127.0.0.1:8378/login", { waitUntil: "commit", timeout: 60_000 });
+await page.goto("http://localhost:8378/login", { waitUntil: "commit", timeout: 60_000 });
 const urlBox = page.getByRole("textbox", { name: /server url/i });
 await urlBox.waitFor({ timeout: 30_000 });
-await urlBox.fill("http://127.0.0.1:8377");
+await urlBox.fill("http://localhost:8377");
 await page.getByRole("button", { name: /^continue$/i }).click();
 await page.getByRole("textbox", { name: /email/i }).waitFor({ timeout: 15_000 });
 await page.getByRole("textbox", { name: /email/i }).fill(ADMIN_EMAIL);
@@ -17,7 +17,7 @@ await page.waitForURL(/\/workspaces$/, { timeout: 20_000 });
 await page.getByRole("button", { name: /open notas/i }).click();
 await page.waitForSelector(".nt-topbar", { timeout: 40_000 });
 await page.waitForTimeout(5000);
-await page.goto(`http://127.0.0.1:8378/${PAGE}`);
+await page.goto(`http://localhost:8378/${PAGE}`);
 await page.waitForTimeout(5000);
 const info = await page.evaluate(() => {
   const blocks = Array.from(document.querySelectorAll("[data-block-id]")).map((el) => {
