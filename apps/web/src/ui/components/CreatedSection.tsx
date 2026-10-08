@@ -7,7 +7,8 @@
  * re-runs per notification, independent of expansion), a failed query keeps
  * the previous rows (the Section contract), and the date-chain nodes are
  * excluded (their ids are deterministic auto-created chain pages, never
- * "created that day" content). Rows default to the cards view mode
+ * "created that day" content). Only main nodes list (blocks are inline
+ * scaffolding, owner 2026-10-08). Rows default to the cards view mode
  * (owner 2026-10-06), outline one click away; the choice is device-local
  * per host page, never an op. The query rides useSectionData.
  */
