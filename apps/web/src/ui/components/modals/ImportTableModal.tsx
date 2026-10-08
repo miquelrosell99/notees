@@ -125,7 +125,7 @@ function optionNames(schema: ClientPropertySchema): string {
 /**
  * Cell text → typed property value for one schema. Multi columns split on
  * commas and return an ARRAY (the canonical multi shape: one value at idx 0,
- * the KanbanView/pickers precedent); single columns return the scalar.
+ * the CardsBoard/pickers precedent); single columns return the scalar.
  * Node-typed cells resolve by display name; select cells match option labels
  * to stored ids; dates must be ISO day strings (the caller turns them into
  * day-node refs via ensureDateChain); numbers must parse finite (integers

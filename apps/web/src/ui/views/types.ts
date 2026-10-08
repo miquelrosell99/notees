@@ -37,7 +37,7 @@ export interface HostedViewsConfig {
 }
 
 /** The collection view modes (graph = the workspace graph). */
-export type ViewMode = "outline" | "prose" | "cards" | "kanban" | "table" | "graph";
+export type ViewMode = "outline" | "prose" | "cards" | "table" | "graph";
 
 export type SortDirection = "asc" | "desc";
 
@@ -153,7 +153,8 @@ export interface NodeCollectionProps {
   /**
    * Table: row checkboxes with a tri-state header box (default true). The
    * selection is session state; bulk actions over the selection are a
-   * separate feature. Cards/kanban (flat node sets): a per-card checkbox
+   * separate feature. Cards (flat node sets, the grouped board included):
+   * a per-card checkbox
    * with the same session-selection semantics + the "Export selected…"
    * affordance; tree card contexts never render checkboxes.
    */
@@ -176,12 +177,15 @@ export interface NodeCollectionProps {
    */
   defaultCoverLayout?: CardLayout | undefined;
   /**
-   * Kanban: the single-select property schema whose options seed the board
-   * columns (the property-dimension groupBy). Items whose value is empty or
-   * not among the options land in the trailing "None" column; dragging a
-   * card onto a column writes the property (drop on "None" clears it).
+   * Cards board: the select property schema whose options seed the board
+   * columns (the property-dimension groupBy; single- or multi-select). The
+   * cards view dispatches to the board when this resolves to a usable select
+   * schema — kanban is not a separate mode, it is cards + groupBy.
+   * Items whose value is empty or not among the options land in the trailing
+   * "None" column; dragging a card onto a column writes the property (drop on
+   * "None" clears it).
    */
-  kanbanProperty?: string | undefined;
+  groupByProperty?: string | undefined;
 
   /**
    * Windowing opt-out: the views window their list by default (the
@@ -232,9 +236,9 @@ export interface ViewCapabilities {
   tableColumns?: boolean;
   /** Supports explicit sorting. */
   sorting?: boolean;
-  /** Supports groupBy (containing-page groups / kanban property columns). */
+  /** Supports groupBy (containing-page groups / the cards-board property columns). */
   groupBy?: boolean;
-  /** Supports cover layouts (cards/kanban; the choice persists device-locally). */
+  /** Supports cover layouts (cards surfaces; the choice persists device-locally). */
   cardLayout?: boolean;
   /** Wrap in the ErrorBoundary when rendered inside chrome. */
   errorBoundary?: boolean;

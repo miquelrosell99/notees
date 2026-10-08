@@ -488,7 +488,6 @@
   --whiteboard-rotation-handle-offset: 30px;
   --whiteboard-toolbar-min-width: 11.25rem;
   --whiteboard-shortcuts-max-width: 30rem;
-  --kanban-view-header-offset: 200px;
 
   /* Loading skeleton */
   --skeleton-shimmer-duration: 1400ms;

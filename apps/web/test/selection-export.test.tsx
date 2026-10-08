@@ -1,6 +1,6 @@
 /**
- * Selection export beyond tables: flat
- * cards and kanban collections gain the table's selection machinery (a
+ * Selection export beyond tables: cards collections — the flat grid and
+ * the grouped board alike — gain the table's selection machinery (a
  * per-card checkbox, session state) and the same "Export selected…"
  * affordance (the ExportPageModal batch path over the checked ids). The
  * table's CSV export gains the optional selected-rows scope. Harness:
@@ -189,7 +189,7 @@ describe("cards selection export", () => {
   });
 });
 
-describe("kanban selection export", () => {
+describe("cards board selection export", () => {
   it("board cards check + export through the same affordance", async () => {
     const client = await seedClient();
     const statusId = await client.createPropertySchema({
@@ -209,10 +209,10 @@ describe("kanban selection export", () => {
     );
     render(
       <NodeCollection
-        viewMode="kanban"
+        viewMode="cards"
         client={client}
         items={items}
-        kanbanProperty={statusId}
+        groupByProperty={statusId}
         propertiesOf={(nodeId) => client.getEffectiveProperties(nodeId)}
       />,
     );

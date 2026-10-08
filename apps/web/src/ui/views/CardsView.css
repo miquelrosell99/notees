@@ -17,7 +17,7 @@
  * The newer machinery is untouched: useWindowed paging, selection export, the
  * CoverLayoutToggle, useLazyInView covers (the 16:9 cover slot
  * stays so the pending placeholder keeps its size before bytes arrive),
- * content-visibility skipping, and NodeCard shared with the kanban.
+ * content-visibility skipping, and NodeCard shared with the grouped board.
  */
 
 /* ─── The grid — the original adaptive masonry on a raised panel ─── */

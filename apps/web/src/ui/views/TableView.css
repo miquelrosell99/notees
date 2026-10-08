@@ -398,7 +398,7 @@
   background: var(--color-hover-overlay);
 }
 
-/* The shared selection-export chrome (cards/kanban toolbars use the
+/* The shared selection-export chrome (cards/board toolbars use the
    same classes): count + Export selected…, quiet until a selection exists. */
 .selection-export {
   display: inline-flex;

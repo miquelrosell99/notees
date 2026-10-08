@@ -6,7 +6,6 @@
 import "./OutlineView.js";
 import "./ProseView.js";
 import "./CardsView.js";
-import "./KanbanView.js";
 import "./TableView.js";
 import "./graph/GraphView.js";
 

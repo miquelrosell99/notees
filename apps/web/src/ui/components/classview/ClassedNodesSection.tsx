@@ -1,9 +1,9 @@
 /**
  * ClassedNodesSection — the class's instances, the class page's centerpiece
  * (the Capacities database / Tana supertag table): the view toolbar (table
- * by default per the owner rule; outline/cards/kanban when a bound select
- * property can group) over the editable collection with one column per
- * property binding. Expanded by default; rows open the member (inline
+ * by default per the owner rule; outline/cards switchable — the cards mode
+ * renders the property board when a bound select property can group) over
+ * the editable collection with one column per property binding. Expanded by default; rows open the member (inline
  * blocks resolve to their containing main node) and the row × unassigns the
  * member from THIS class. The toolbar (and the empty state's action button)
  * carry the create affordance — a node classed with this class — visible
@@ -43,8 +43,8 @@ type AnyClient = WorkspaceClient | WorkerClient;
 /** The classed-nodes modes, in switcher order (table is the section default). */
 const MEMBERS_VIEW_MODES: ViewMode[] = ["outline", "cards", "table"];
 
-/** The first bound select property with options — the kanban grouping (single or multi). */
-function kanbanBindingFor(
+/** The first bound select property with options — the cards-board grouping (single or multi). */
+function groupingBindingFor(
   client: AnyClient,
   bindings: Array<{ propertySchemaId: string }>,
 ): string | undefined {
@@ -71,16 +71,12 @@ export function ClassedNodesSection({
   onOpenPage?: ((pageId: string) => void) | undefined;
 }) {
   const bindings = client.getClassBindings(classId);
-  const kanbanProperty = kanbanBindingFor(client, bindings);
-  const modes: ViewMode[] =
-    kanbanProperty !== undefined
-      ? ["outline", "cards", "kanban", "table"]
-      : MEMBERS_VIEW_MODES;
+  const groupByProperty = groupingBindingFor(client, bindings);
+  const modes: ViewMode[] = MEMBERS_VIEW_MODES;
   /**
    * Durable display state per class — device-local, never an
    * op; table stays the default per the owner rule, and a persisted mode
-   * the switcher no longer offers (kanban without a grouping select) falls
-   * back to the default.
+   * the surface no longer offers falls back to the default.
    */
   const [membersMode, setMembersMode] = useViewModePreference(
     `classMembers.${classId}`,
@@ -203,7 +199,7 @@ export function ClassedNodesSection({
             tableColumns={memberColumns}
             propertiesOf={(id) => client.getEffectiveProperties(id)}
             tableEditable
-            kanbanProperty={kanbanProperty}
+            groupByProperty={groupByProperty}
             onNodeClick={(id) => {
               const member = client.getNode(id);
               if (member !== undefined) openMember(member);
