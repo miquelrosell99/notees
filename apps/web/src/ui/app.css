@@ -668,6 +668,11 @@ select:focus-visible {
      click-to-edit target collapses to zero height (same contract as
      .nt-block-content). 1lh = one line in the content's own font. */
   min-height: 1lh;
+  /* The page title reads as text, not chrome: the brand type table puts the
+     28px H3 in Newsreader (Text role), and the identity claim is "Newsreader
+     for the words". The opsz axis tracks the set size. */
+  font-family: var(--font-family-content);
+  font-optical-sizing: auto;
   white-space: pre-wrap;
   word-break: break-word;
   cursor: text;
@@ -968,7 +973,7 @@ select:focus-visible {
   flex: 1;
   min-width: 0;
   /* Reading text rides the content face (Newsreader; the opsz axis tracks the
-     set size). The header title row (.nt-title-content) stays chrome. */
+     set size) — body rows and the header title row (.nt-title-content) alike. */
   font-family: var(--font-family-content);
   font-optical-sizing: auto;
   /* An empty block renders no line box, so without this floor the wrapper
