@@ -726,28 +726,31 @@
   --color-success-container: #14532d;
   --color-on-success-container: #d1fae5;
 
-  /* Background & Surface — warm near-black night ground (#161412, brand dark
-     role --bi-background); surfaces from the brand's dark ground family. */
-  --color-background: #161412;
-  --color-on-background: #f4f3f1;
-  --color-surface: #221a13;
-  --color-on-surface: #f4f3f1;
-  --color-surface-variant: #312a22;
-  --color-on-surface-variant: #a6a09a;
-  --color-surface-dim: #140e08;
-  --color-surface-bright: #312a22;
-  --color-surface-container: #221a13;
-  --color-surface-container-low: #161412;
-  --color-surface-container-high: #312a22;
-  --color-surface-container-highest: #483f37;
-  --color-surface-container-lowest: #140e08;
+  /* Background & Surface — the night is accent-tinted: a neutral dark family
+     washed with ~4–13% of the active accent (color-mix resolves per accent
+     preset, monochrome included). The monochrome accent is near-achromatic,
+     so its dark mode lands on untinted graphite. The light ground stays the
+     brand paper regardless of accent. */
+  --color-background: color-mix(in oklab, var(--color-accent) 6%, #141414);
+  --color-on-background: color-mix(in oklab, var(--color-accent) 3%, #f4f3f1);
+  --color-surface: color-mix(in oklab, var(--color-accent) 8%, #1b1b1a);
+  --color-on-surface: color-mix(in oklab, var(--color-accent) 3%, #f4f3f1);
+  --color-surface-variant: color-mix(in oklab, var(--color-accent) 10%, #212120);
+  --color-on-surface-variant: color-mix(in oklab, var(--color-accent) 7%, #a9a59f);
+  --color-surface-dim: color-mix(in oklab, var(--color-accent) 4%, #100f0e);
+  --color-surface-bright: color-mix(in oklab, var(--color-accent) 10%, #212120);
+  --color-surface-container: color-mix(in oklab, var(--color-accent) 8%, #1b1b1a);
+  --color-surface-container-low: color-mix(in oklab, var(--color-accent) 6%, #141414);
+  --color-surface-container-high: color-mix(in oklab, var(--color-accent) 10%, #212120);
+  --color-surface-container-highest: color-mix(in oklab, var(--color-accent) 13%, #292925);
+  --color-surface-container-lowest: color-mix(in oklab, var(--color-accent) 4%, #100f0e);
   --color-inverse-surface: #f4f3f1;
-  --color-inverse-on-surface: #161412;
+  --color-inverse-on-surface: color-mix(in oklab, var(--color-accent) 6%, #141414);
   --color-inverse-primary: #5c544c;
 
   /* Outline & Utility */
-  --color-outline: #483f37;
-  --color-outline-variant: #312a22;
+  --color-outline: color-mix(in oklab, var(--color-accent) 13%, #292925);
+  --color-outline-variant: color-mix(in oklab, var(--color-accent) 10%, #212120);
   --color-shadow: rgb(0 0 0 / 50%);
   --color-scrim: rgb(0 0 0 / 70%);
 
@@ -832,10 +835,12 @@
 
 /* Placed after the dark theme so user-selected accent colors win in both
    light and dark modes. */
+/* Monochrome — ink, not grey: iron ink on paper by day, paper white on the
+   night ground by night (the dark value lives in the override below). */
 [data-accent="monochrome"] {
-  --color-accent: #404040;
-  --color-accent-subtle: #737373;
-  --color-on-accent: #fff;
+  --color-accent: #1c1a16;
+  --color-accent-subtle: #6b6560;
+  --color-on-accent: #f7f4ec;
 }
 
 /* Margin — the brand accent: Advance Green (#2e5e46), the act of adding. */
@@ -878,6 +883,12 @@
 /* ==================== Dark-mode accent overrides ==================== */
 
 /* Lightened/desaturated accents so primary buttons remain readable on dark surfaces. */
+[data-theme="dark"][data-accent="monochrome"] {
+  --color-accent: #f4f3f1;
+  --color-accent-subtle: #9c978f;
+  --color-on-accent: #161412;
+}
+
 [data-theme="dark"][data-accent="sage"] {
   --color-accent: #7FB285;
   --color-accent-subtle: #648868;

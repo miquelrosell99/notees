@@ -9,6 +9,21 @@ predating this file.
 
 ## 2026-10-08
 
+- **feat(web): the night is accent-tinted and monochrome is ink.** The dark
+  theme no longer rides a fixed warm-brown family: every dark surface, outline
+  and muted text is now `color-mix`-derived from the active accent preset at
+  3–13% in OKLab over a neutral dark family, so each accent (margin, sage,
+  teal, rose, navy, custom) washes the night with its own hue at low chroma —
+  and the light ground stays the brand paper regardless of accent. The
+  monochrome preset is no longer grey: it is iron ink `#1c1a16` on paper in
+  light mode and paper white `#f4f3f1` on the night ground in dark mode (new
+  `[data-theme="dark"][data-accent="monochrome"]` override), so a monochrome
+  choice lands on effectively untinted graphite dark. The dark-mode accent
+  baseline already rode the margin night-green roles. OLED pure-black is
+  untouched. Verification: `pnpm --filter @notees/web test` + `build` green;
+  four-variant screenshot probe (margin/teal/monochrome dark + monochrome
+  light) against the live app confirmed the per-accent tints and the ink
+  monochrome.
 - **feat(web): the client aligns to the Margin Green brand — fonts, tokens,
   accent default, icons.** The web client now carries the shipped identity
   (brand submodule at `brand/`, v1.0.0): Instrument Sans (variable wght,
