@@ -9,6 +9,14 @@ predating this file.
 
 ## 2026-10-08
 
+- **chore(env): `.env.example` documents the optional edge envs.** The
+  `notees-edge` profile's required `NOTEES_EDGE_NAME` (and the
+  `NOTEES_EDGE_HTTP` port remap) were missing from the template — any
+  `docker compose` command failed interpolation without the real `.env`
+  value, discovered at redeploy time. Generic `<host>.<tailnet>.ts.net`
+  placeholder, per the fleet-agnostic rule; the real value lives only in
+  `.env`. **Verification:** `docker compose config --quiet` clean;
+  dev-only template change.
 - **feat(web): the shared hub's header creation button per mode — New page /
   New whiteboard.** The collection hub's header action existed only for
   Classes ("New class"); Pages and Whiteboards had no creation affordance
