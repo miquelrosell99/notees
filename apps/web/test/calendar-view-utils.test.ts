@@ -71,17 +71,26 @@ describe("createdTodayBounds", () => {
     expect(after.endsWith("Z")).toBe(true);
   });
 
-  it("buildCreatedTodayAst carries the window over createdAfter/createdBefore", () => {
+  it("buildCreatedTodayAst carries the window over createdAfter/createdBefore and keeps main nodes only", () => {
     const ast = buildCreatedTodayAst("2026-10-02");
     expect(ast.root.logic).toBe("and");
     const children = ast.root.children;
-    expect(children).toHaveLength(2);
+    expect(children).toHaveLength(3);
     const after = children[0] as { type: string; timestamp: string };
     const before = children[1] as { type: string; timestamp: string };
     expect(after.type).toBe("createdAfter");
     expect(before.type).toBe("createdBefore");
     expect(after.timestamp).toBe(createdTodayBounds("2026-10-02").after);
     expect(before.timestamp).toBe(createdTodayBounds("2026-10-02").before);
+    // Main nodes only: classes or present-as-main — blocks never list.
+    expect(children[2]).toEqual({
+      type: "group",
+      logic: "or",
+      children: [
+        { type: "isClass", isClass: true },
+        { type: "presentAsMain", presentAsMain: true },
+      ],
+    });
   });
 });
 

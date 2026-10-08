@@ -365,7 +365,7 @@ The sidebar's **Calendar** entry (hide it from Workspace Settings → Sidebar Vi
 - **Daily note** — the selected day's page embedded inline (edit it where it renders). No page yet? The "+ Daily Note" button creates it in place.
 - **Tasks** — open tasks scheduled for the day, with overdue ones grouped above in muted red. The checkbox closes a task (and reopens it) exactly like the Tasks hub; "New" creates a task scheduled for the selected day. A task appears here when its **Scheduled** property points at this day; Done and Cancelled tasks never list.
 - **Dated** — everything else that references this day through a date property (a meeting held that day, a range ending on it).
-- **Created** — objects created on the selected day, newest first.
+- **Created** — objects created on the selected day, newest first. Main objects only — blocks created that day are inline scaffolding, not listed.
 - **Month grid** (right column) — the selected month with today highlighted, days that have a note dotted, and prev/next arrows; click any day to select it. The Days/Months/Years switch zooms the grid, and its Today button returns to today. A day some object **references** through a date property (a meeting held that day, a range end) is dotted too — not just days that already have a note. Under the grid, the **week strip** shows the selected day's week (click to jump) and the **agenda** lists that week's dated objects day by day.
 - **Reviewed days** — a day page carries a **Reviewed** boolean property (set it from the day page's Properties). Reviewed days wear a small tint on every calendar grid, so a skim shows which daily notes you already went over. The flag is an ordinary boolean property — it syncs like everything else.
 
@@ -376,7 +376,7 @@ Filter tabs (All / Daily note / Tasks / Dated / Created) narrow the left column 
 A day page is an ordinary page (the journal is the feed of them), and it carries its own chrome:
 
 - **The date header** — the weekday and a Today flag ride a small line above the title; the title itself is the date in your date-format setting, with the day's **ISO week number** as a small flag after it. (The old ‹ / Today / › stepping bar is gone — step days from the calendar popup or the top-bar calendar; the **Reviewed** checkbox lived on that bar and is set from the page's Properties now.)
-- **Three sections**, below the page's own content and collapsed like every system section — hidden entirely when there's nothing to show: **Tasks** (open tasks scheduled for this day, overdue above, with the same done checkbox as the Tasks hub), **Dated** (everything else that references the day), and **Created** (objects created that day, newest first, cards by default with an outline switch). **Month and year pages carry the same Created section** — everything created inside that month/year.
+- **Three sections**, below the page's own content and collapsed like every system section — hidden entirely when there's nothing to show: **Tasks** (open tasks scheduled for this day, overdue above, with the same done checkbox as the Tasks hub), **Dated** (everything else that references the day), and **Created** (objects created that day — main objects only, blocks are inline scaffolding and never listed — newest first, cards by default with an outline switch). **Month and year pages carry the same Created section** — everything created inside that month/year.
 - **Ctrl/Cmd+Shift+T** (or the sidebar's **Today** row) opens today's page from anywhere in the app.
 
 ### The Tasks hub's buckets
