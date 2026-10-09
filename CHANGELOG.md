@@ -9,6 +9,18 @@ predating this file.
 
 ## 2026-10-09
 
+- **feat(web): the references strip's filter chrome rides the tab row.**
+  Owner 2026-10-09: the Backlinks/Unlinked mentions strip's FilterBars (one
+  per panel body) give way to strip-level chrome on the tab row itself, far
+  right — an icon-only magnifier folds/unfolds the quick-search field, and
+  the structured-filters toggle opens the query builder in a full-width
+  region below the row. The chrome is strip-level: it survives a tab switch
+  and binds live to the ACTIVE tab's FilterQuery and counts (an open builder
+  follows a switch and edits the newly active tab's draft), while each tab
+  still owns its query instance — a switch never leaks a filter across. The
+  classed-nodes table and the other FilterBar consumers are untouched.
+  Verified: web suites green.
+
 - **fix(web): date pages carry no Unlinked mentions tab.** The whole
   deterministic day/month/year family drops the Unlinked mentions tab from
   the bottom references strip (owner 2026-10-09): the literal date text

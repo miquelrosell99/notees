@@ -111,7 +111,7 @@ describe("PageView system sections", () => {
     expect(container.querySelector(".nt-backlinks")).not.toBeNull();
     // Scope to the strip's OWN tab list: the selected panel may host the
     // collection's views chrome (its Default tab) alongside.
-    const refTabList = container.querySelector(".nt-ref-tabs > .tabs__list");
+    const refTabList = container.querySelector(".nt-ref-tabs .tabs__list");
     expect(refTabList).not.toBeNull();
     expect(within(refTabList as HTMLElement).getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Backlinks 1",
