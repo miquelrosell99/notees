@@ -725,6 +725,23 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
         {children.length > 0 && !isCollapsed && (
           <SortableContext items={children.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
             <div className="nt-block-children">
+              {/* The vertical indent line is itself the collapse control (the
+                  v1 pattern): clicking anywhere on the full-height rail hides
+                  the direct children of the node the line starts from — the
+                  same session-local collapse the chevron toggles. */}
+              {!ignoreCollapse && (
+                <button
+                  type="button"
+                  className="nt-block-children__rail"
+                  aria-label="Collapse children"
+                  title="Collapse children"
+                  onClick={(event) => {
+                    // A display toggle, not content editing.
+                    event.stopPropagation();
+                    toggleCollapse(node.id);
+                  }}
+                />
+              )}
               {children.map((child) => (
                 <BlockRow
                   key={child.node.id}
