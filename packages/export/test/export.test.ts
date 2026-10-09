@@ -23,12 +23,16 @@ const PERSON_CLASS_ID = "33333333-3333-4333-8333-333333333333";
 const PUBLISHED_SCHEMA_ID = "44444444-4444-4444-8444-444444444444";
 const ASSET_ID = "55555555-5555-4555-8555-555555555555";
 const EMBED_ID = "66666666-6666-4666-8666-666666666666";
+const DAY_ID = "00000000-0000-0000-00dd-202610090000";
+const DAY2_ID = "00000000-0000-0000-00dd-202610100000";
 
 const NAMES = new Map<string, string>([
   [AUTHOR_ID, "Ursula K. Le Guin"],
   [REPUBLIC_ID, "The Republic"],
   [PERSON_CLASS_ID, "person"],
   [PUBLISHED_SCHEMA_ID, "published in"],
+  [DAY_ID, "2026/10/09"],
+  [DAY2_ID, "2026/10/10"],
 ]);
 
 function makeCtx(overrides: Partial<ExportContext> = {}): ExportContext {
@@ -227,7 +231,7 @@ describe("frontmatter", () => {
     expect(fm).toContain('"tricky: key": "true"');
   });
 
-  it("PG15: date_range values emit start/end maps (open side null), not raw JSON", () => {
+  it("PG15: datetime range values emit start/end maps (open side null), not raw JSON", () => {
     const node = page("aaaaaaaa-0000-4000-8000-000000000020", "Range", [
       { type: "text", text: "Range" },
     ], {
@@ -235,13 +239,13 @@ describe("frontmatter", () => {
         {
           schemaId: PUBLISHED_SCHEMA_ID,
           schemaName: "published in",
-          schemaType: "date_range",
+          schemaType: "datetime",
           value: { start: { nodeId: REPUBLIC_ID }, end: { nodeId: AUTHOR_ID } },
         },
         {
           schemaId: "99999999-9999-4999-8999-999999999999",
           schemaName: "ongoing",
-          schemaType: "date_range",
+          schemaType: "datetime",
           value: { start: { nodeId: REPUBLIC_ID }, end: null },
         },
       ],
@@ -255,6 +259,80 @@ describe("frontmatter", () => {
     expect(fm).toContain("    start: The Republic");
     expect(fm).toContain("    end: null");
     expect(fm).not.toContain('{"start"');
+  });
+
+  it("unified datetime: a timed point renders its time in the frontmatter scalar and the IR display", () => {
+    const node = page("aaaaaaaa-0000-4000-8000-000000000023", "Timed", [
+      { type: "text", text: "Timed" },
+    ], {
+      properties: [
+        {
+          schemaId: "aaaaaaaa-1111-4111-8111-111111111112",
+          schemaName: "when",
+          schemaType: "datetime",
+          value: { nodeId: DAY_ID, time: "14:30" },
+        },
+      ],
+    });
+    // The time's colon takes the value out of the YAML plain-scalar subset —
+    // it round-trips as a quoted string.
+    const fm = nodeToMarkdown(node, makeCtx()).split("---\n")[1] ?? "";
+    expect(fm).toContain('  when: "2026/10/09 14:30"');
+    const document = buildExportDocument(node, makeCtx(), resolveExportOptions({}));
+    expect(document.properties[0]?.display).toBe("2026/10/09 14:30");
+  });
+
+  it("unified datetime: a full-day point stays a bare label (no time segment)", () => {
+    const node = page("aaaaaaaa-0000-4000-8000-000000000024", "Full day", [
+      { type: "text", text: "Full day" },
+    ], {
+      properties: [
+        {
+          schemaId: "aaaaaaaa-1111-4111-8111-111111111112",
+          schemaName: "when",
+          schemaType: "datetime",
+          value: { nodeId: DAY_ID },
+        },
+      ],
+    });
+    const fm = nodeToMarkdown(node, makeCtx()).split("---\n")[1] ?? "";
+    expect(fm).toContain("  when: 2026/10/09");
+    expect(fm).not.toContain("14:30");
+  });
+
+  it("unified datetime: timed range ends carry their time; open sides stay … in the display and null in the map", () => {
+    const node = page("aaaaaaaa-0000-4000-8000-000000000025", "Timed range", [
+      { type: "text", text: "Timed range" },
+    ], {
+      properties: [
+        {
+          schemaId: PUBLISHED_SCHEMA_ID,
+          schemaName: "published in",
+          schemaType: "datetime",
+          value: {
+            start: { nodeId: DAY_ID, time: "08:15" },
+            end: { nodeId: DAY2_ID, time: "09:45" },
+          },
+        },
+        {
+          schemaId: "99999999-9999-4999-8999-999999999999",
+          schemaName: "open start",
+          schemaType: "datetime",
+          value: { start: null, end: { nodeId: DAY2_ID } },
+        },
+      ],
+    });
+    const document = buildExportDocument(node, makeCtx(), resolveExportOptions({}));
+    expect(document.properties[0]?.display).toBe("2026/10/09 08:15 → 2026/10/10 09:45");
+    expect(document.properties[0]?.displayEntries).toEqual(["2026/10/09 08:15", "2026/10/10 09:45"]);
+    expect(document.properties[1]?.display).toBe("… → 2026/10/10");
+    expect(document.properties[1]?.displayEntries).toEqual([null, "2026/10/10"]);
+    const fm = nodeToMarkdown(node, makeCtx()).split("---\n")[1] ?? "";
+    expect(fm).toContain('    start: "2026/10/09 08:15"');
+    expect(fm).toContain('    end: "2026/10/10 09:45"');
+    expect(fm).toContain("  open start:");
+    expect(fm).toContain("    start: null");
+    expect(fm).toContain("    end: 2026/10/10");
   });
 
   it("PG15: multi-select arrays emit label lists; single selects emit a label scalar", () => {
