@@ -53,10 +53,15 @@
 }
 
 /* Focus feedback is the border + background shift (owner 2026-10-09: no
-   accent glow — the ring read as noise against the quiet panels). */
+   accent glow — the ring read as noise against the quiet panels). The
+   input itself must also drop the global accent focus ring. */
 .search-field:has(.search-field__input:focus-visible) {
   outline: none;
   border-color: var(--color-on-surface-variant);
+}
+
+.search-field__input:focus-visible {
+  box-shadow: none;
 }
 
 .search-field__input::placeholder {

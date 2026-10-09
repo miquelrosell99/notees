@@ -497,6 +497,17 @@ span.pill__text {
   font-size: var(--font-size-sm);
 }
 
+/* Quiet focus like every other search bar — no accent ring (owner
+   2026-10-09). */
+.nt-add-property-popup input:focus {
+  border-color: var(--color-outline);
+}
+
+.nt-add-property-popup input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
 .nt-add-property-popup ul {
   list-style: none;
   margin: 0;

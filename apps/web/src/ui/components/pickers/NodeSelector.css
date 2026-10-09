@@ -309,7 +309,7 @@
 
 .node-selector__picker:focus-within,
 .node-selector__dropdown:focus-within {
-  box-shadow: var(--shadow-focus-ring);
+  border-color: var(--color-outline);
 }
 
 .node-selector__search {

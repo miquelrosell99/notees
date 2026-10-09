@@ -33,8 +33,15 @@
   box-sizing: border-box;
 }
 
+/* Quiet focus like every other search bar — the border shift, no accent
+   tint or ring (owner 2026-10-09). */
 .duplicate-page-modal__input:focus {
-  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-outline-variant));
+  border-color: var(--color-outline);
+}
+
+.duplicate-page-modal__input:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .duplicate-page-modal__class-list {
