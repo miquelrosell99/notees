@@ -117,9 +117,12 @@ describe("the header icon element (hide-when-none)", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "😀" }));
     await flushSync();
 
-    // The defined icon makes the element appear; the generic default never does.
+    // The defined icon makes the element appear; the generic default never
+    // does — and the "Add icon" action retires (the icon element is the
+    // picker entry now).
     expect(client.getNode(pageId)?.icon).toBe("😀");
     expect(container.querySelector(".page-icon-btn")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /Add icon/ })).toBeNull();
   });
 
   it("an icon defined by a class shows the element; clearing the last definition hides it", async () => {
@@ -135,10 +138,12 @@ describe("the header icon element (hide-when-none)", () => {
     // Class-contributed icon: the element renders…
     expect(container.querySelector(".page-icon-btn")).not.toBeNull();
 
-    // …until the class unassigns — no own icon, no class icon, element gone.
+    // …until the class unassigns — no own icon, no class icon, element gone
+    // and the "Add icon" action back.
     await client.unassignClass(pageId, classId);
     await flushSync();
     expect(container.querySelector(".page-icon-btn")).toBeNull();
+    expect(screen.getByRole("button", { name: /Add icon/ })).not.toBeNull();
   });
 });
 
@@ -196,8 +201,29 @@ describe("the header alias action (the shared backward write)", () => {
     fireEvent.click(within(picker).getByText("Dog").closest("button")!);
     await flushSync();
 
-    // THE backward write: the picked node aliases the main (never the reverse).
+    // THE backward write: the picked node aliases the main (never the reverse)…
     expect(client.getNode(dogId)?.aliasedNodeId).toBe(mainId);
     expect(client.getNode(mainId)?.aliasedNodeId).toBeNull();
+    // …and the "Add aliases" action retires — the metadata panel's row is
+    // the entry from here.
+    expect(screen.queryByRole("button", { name: /Add aliases/ })).toBeNull();
+  });
+
+  it("the whole row disappears once every gap is filled", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Complete" });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    await flushSync();
+    expect(container.querySelector(".page-header-actions")).not.toBeNull();
+
+    await client.updateObject(pageId, { icon: "😀", description: "Done" });
+    const aliasId = await client.createObject({ presentAsMain: true, name: "Also" });
+    await client.updateObject(aliasId, { aliasedNodeId: pageId });
+    await flushSync();
+
+    expect(container.querySelector(".page-header-actions")).toBeNull();
+    // The chrome itself is all present: icon element + subtitle.
+    expect(container.querySelector(".page-icon-btn")).not.toBeNull();
+    expect(container.querySelector(".page-header-description")?.textContent).toBe("Done");
   });
 });
