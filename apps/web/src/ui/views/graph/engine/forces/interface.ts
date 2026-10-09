@@ -10,6 +10,10 @@ import type { GraphEngine } from '../engine.js';
 export interface ForcePlugin {
   /** Called once when the engine topology changes. */
   initialize(engine: GraphEngine): void;
-  /** Called every tick. Alpha is the current cooling parameter (0..1). */
-  apply(alpha: number): void;
+  /**
+   * Called every tick. Each force scales its contribution by the per-node
+   * activity alpha (`engine.alphaArr`) — a node at alpha 0 feels no force,
+   * which is what keeps settled regions frozen during a local reheat.
+   */
+  apply(): void;
 }

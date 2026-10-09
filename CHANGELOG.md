@@ -9,6 +9,38 @@ predating this file.
 
 ## 2026-10-09
 
+- **feat(web): the graph physics reaches a true equilibrium and freezes —
+  per-node activity alpha, energy-gated settling, and reheat locality (a
+  drag perturbs only its neighborhood).** The engine docstring always
+  promised "alpha cooling for natural settling" but `step()` passed a
+  hardcoded `1.0` every tick and all six forces ignored the parameter; the
+  sim ran at 60 fps forever and stillness was faked by a per-tick ×0.92
+  velocity multiplier, a 1e-4 sleep clamp, and a velocity cap. Now: (1)
+  every node carries an activity alpha that decays exponentially per tick
+  and scales every force — the long-ignored `apply(alpha)` contract is real,
+  via `engine.alphaArr`. (2) The integrator uses constant dissipative drag
+  (`drag: 0.9`, replacing `friction`/`damping`, the latter dead) — at
+  equilibrium forces scale to zero with alpha so velocity bleeds out at a
+  true force balance instead of being frozen mid-tension by damping. (3) A
+  settle gate (every active node below `alphaMin` AND mean kinetic energy
+  below epsilon for 30 consecutive ticks) declares the graph `settled` and
+  zeroes velocities, accelerations, and every alpha — frozen means frozen,
+  not merely quiet. (4) The worker STOPS its self-ticking clock at settle
+  (no more permanent 60 fps wakeups on a converged graph) and interaction
+  reheats: topology/config changes globally, drags LOCALLY — `reheatLocal`
+  injects activity only within `influenceRadius` (400) of the pointer, so
+  moving a node slightly never makes distant nodes budge; distant nodes hold
+  exact position, verified to the float. The cluster-centroid force is
+  distributed per member as `clFx/√cnt` instead of `/cnt` so a large
+  community moves as a unit instead of having its push diluted away. The
+  `settled` flag rides the frame message (both the postMessage and
+  SharedArrayBuffer paths) and the main-thread fallback mirrors the
+  worker's reheat semantics. Verified: `pnpm typecheck` + `pnpm test` green
+  (new engine specs: settle-then-freeze is bit-exact, alpha decays, local
+  reheat leaves the far node unmoved with alpha 0, global reheat restarts);
+  the six graph suites (engine/controller/sizing/view/renderer/followups)
+  green. Docs: the engine docstring now describes real behavior.
+
 - **fix(web): block-row property icons ride the bullet's first line —
   never centered against a multi-line block.**
   Owner 2026-10-09: the value-display icon groups (the schema "bullet" /

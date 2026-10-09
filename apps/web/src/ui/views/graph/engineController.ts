@@ -19,6 +19,7 @@ export interface EngineFrame {
   nodeCount: number;
   energy: number;
   ticks: number;
+  settled: boolean;
 }
 
 interface WorkerToMain {
@@ -28,13 +29,16 @@ interface WorkerToMain {
   nodeCount?: number;
   energy?: number;
   ticks?: number;
+  settled?: boolean;
 }
 
 export class EngineController {
   private worker: Worker | null = null;
   private mainThread: GraphEngine | null = null;
+  private mainThreadDragWasPinned = false;
   private onFrame: (frame: EngineFrame) => void;
   private ready = false;
+  private settled = false;
   private pending: Array<Record<string, unknown>> = [];
 
   constructor(onFrame: (frame: EngineFrame) => void) {
@@ -59,12 +63,14 @@ export class EngineController {
             return;
           }
           if (msg.type === "frame" && msg.positions !== undefined) {
+            this.settled = msg.settled ?? false;
             this.onFrame({
               positions: msg.positions,
               nodeIds: msg.nodeIds ?? [],
               nodeCount: msg.nodeCount ?? 0,
               energy: msg.energy ?? 0,
               ticks: msg.ticks ?? 0,
+              settled: this.settled,
             });
           }
         };
@@ -100,8 +106,13 @@ export class EngineController {
   }
 
   setConfig(physics: GraphEnginePhysicsConfig): void {
-    if (this.mainThread !== null) this.mainThread.setConfig(buildGraphEngineConfig(physics));
-    else this.send({ type: "setConfig", config: physics });
+    if (this.mainThread !== null) {
+      this.mainThread.setConfig(buildGraphEngineConfig(physics));
+      // Owner-facing physics change: re-animate so the new constants show.
+      this.mainThread.reheat();
+    } else {
+      this.send({ type: "setConfig", config: physics });
+    }
   }
 
   /** Pause/resume the worker's self-ticking clock (main-thread stepping is gated by the render loop). */
@@ -111,17 +122,27 @@ export class EngineController {
 
   /** Advance one physics step (main-thread path only; the worker self-ticks). */
   step(): void {
-    this.mainThread?.step();
+    if (this.mainThread === null || this.mainThread.settled) return;
+    const s0 = this.mainThread.getState();
+    this.settled = s0.settled;
+    this.mainThread.step();
     if (this.mainThread !== null) {
       const s = this.mainThread.getState();
+      this.settled = s.settled;
       this.onFrame({
         positions: new Float32Array(s.posX),
         nodeIds: s.nodeIdArr.slice(0, s.nodeCount),
         nodeCount: s.nodeCount,
         energy: s.energy,
         ticks: s.ticks,
+        settled: s.settled,
       });
     }
+  }
+
+  /** True when the engine has converged and frozen (no force is acting). */
+  get isSettled(): boolean {
+    return this.settled;
   }
 
   /** True when the engine runs on the main thread (the worker self-ticks). */
@@ -129,9 +150,19 @@ export class EngineController {
     return this.mainThread !== null;
   }
 
+  /** Reheat only the neighborhood of a node (main-thread path). */
+  private reheatAround(nodeId: string): void {
+    if (this.mainThread === null) return;
+    const pos = this.mainThread.getNodePosition(nodeId);
+    if (pos === undefined) return;
+    this.mainThread.reheatLocal(pos.x, pos.y, this.mainThread.config.influenceRadius, this.mainThread.config.reheatAlpha);
+  }
+
   dragStart(nodeId: string): void {
     if (this.mainThread !== null) {
+      this.mainThreadDragWasPinned = this.mainThread.isPinned(nodeId);
       this.mainThread.pinNode(nodeId);
+      this.reheatAround(nodeId);
     } else {
       this.send({ type: "dragStart", nodeUuid: nodeId });
     }
@@ -140,6 +171,7 @@ export class EngineController {
   dragMove(nodeId: string, x: number, y: number): void {
     if (this.mainThread !== null) {
       this.mainThread.moveNode(nodeId, x, y);
+      this.reheatAround(nodeId);
     } else {
       this.send({ type: "dragMove", nodeUuid: nodeId, x, y });
     }
@@ -147,7 +179,12 @@ export class EngineController {
 
   dragEnd(nodeId: string): void {
     if (this.mainThread !== null) {
-      this.mainThread.unpinNode(nodeId);
+      // Only unpin nodes that were not already pinned by the user.
+      if (!this.mainThreadDragWasPinned) {
+        this.mainThread.unpinNode(nodeId);
+      }
+      this.mainThreadDragWasPinned = false;
+      this.reheatAround(nodeId);
     } else {
       this.send({ type: "dragEnd", nodeUuid: nodeId });
     }
@@ -156,6 +193,15 @@ export class EngineController {
   pin(nodeId: string): void {
     if (this.mainThread !== null) this.mainThread.pinNode(nodeId);
     else this.send({ type: "pin", nodeUuid: nodeId });
+  }
+
+  unpin(nodeId: string): void {
+    if (this.mainThread !== null) {
+      this.mainThread.unpinNode(nodeId);
+      this.reheatAround(nodeId);
+    } else {
+      this.send({ type: "unpin", nodeUuid: nodeId });
+    }
   }
 
   dispose(): void {
