@@ -88,7 +88,7 @@ async function seedClient(relay: MemoryRelay = seededRelay()): Promise<Workspace
 
 /** A user class with a day-precision date binding ("gathering" — meeting is system vocabulary). */
 async function eventFamily(client: WorkspaceClient): Promise<{ classId: string; schemaId: string }> {
-  const schemaId = await client.createPropertySchema({ name: "When", type: "date" });
+  const schemaId = await client.createPropertySchema({ name: "When", type: "datetime" });
   const classId = await client.createClass("gathering");
   await client.setClassProperty(classId, schemaId, {});
   return { classId, schemaId };
@@ -103,7 +103,7 @@ async function createEvent(
   repeat?: string,
 ): Promise<string> {
   const id = await client.createObject({ presentAsMain: true, name, classIds: [classId] });
-  await client.setDateProperty(id, schemaId, iso, 0, repeat !== undefined ? { repeat } : undefined);
+  await client.setDatetimeProperty(id, schemaId, { iso }, 0, repeat !== undefined ? { repeat } : undefined);
   return id;
 }
 
@@ -186,10 +186,10 @@ describe("CalendarView recurrence", () => {
         name,
         classIds: [SYSTEM_CLASS_UUIDS.task],
       });
-      await client.setDateProperty(
+      await client.setDatetimeProperty(
         id,
         SYSTEM_PROPERTY_UUIDS.taskScheduled,
-        iso,
+        { iso },
         0,
         repeat !== undefined ? { repeat } : undefined,
       );

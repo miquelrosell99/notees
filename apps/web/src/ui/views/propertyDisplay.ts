@@ -7,7 +7,7 @@
 
 import type { AnyClient } from "./types.js";
 import type { EffectiveProperty } from "@/core/workspace-client.js";
-import { displayNameFromClient } from "../dateDisplay.js";
+import { displayNameFromClient, datetimeValueText } from "../dateDisplay.js";
 
 export function isEmptyPropertyValue(value: unknown): boolean {
   if (value === undefined || value === null) return true;
@@ -28,11 +28,11 @@ function isSelectionType(type: string | undefined): boolean {
   return type === "select" || type === "multi_select";
 }
 
-/** Node-typed schemas (date/object/asset): values are node refs — canonical
+/** Node-typed schemas (datetime/object/asset): values are node refs — canonical
  *  `{ nodeId }` objects or, on v1-migrated data, BARE uuid strings (SCHEMA.md
  *  PB2 read-leniency: legacy encodings ride the log and every display reads
  *  them as refs). Scalar-typed schemas never take this path. */
-const NODE_TYPED_SCHEMAS = new Set(["date", "object", "asset"]);
+const NODE_TYPED_SCHEMAS = new Set(["datetime", "object", "asset"]);
 
 function nodeRefText(client: AnyClient, value: unknown): string {
   // Accepts both the canonical { nodeId } ref and the legacy bare-uuid
@@ -47,7 +47,7 @@ function nodeRefText(client: AnyClient, value: unknown): string {
   return displayNameFromClient(client, nodeId) ?? nodeId;
 }
 
-/** date_range display: `start → end`, either side open → `…`; refs resolve
+/** datetime range display: `start → end`, either side open → `…`; refs resolve
  *  like the scalar node-typed branches (bare-string leniency included).
  *  Null when the value is not range-shaped. */
 function dateRangeText(client: AnyClient, value: unknown): string | null {
@@ -125,6 +125,12 @@ export function propertyDisplayText(client: AnyClient, prop: EffectiveProperty |
   }
   if (isSelectionType(schemaType)) return optionLabel(client, prop.propertySchemaId, value);
   if (schemaType === "boolean") return value === true ? "☑" : "☐";
+  if (schemaType === "datetime") {
+    // The unified union rides the slot formatter (point `label HH:MM`,
+    // range `start → end` with `…` for open sides).
+    const text = datetimeValueText(value);
+    if (text !== null) return text;
+  }
   const range = dateRangeText(client, value);
   if (range !== null) return range;
   // A canonical { nodeId } ref resolves unconditionally (any schema shape);

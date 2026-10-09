@@ -236,8 +236,8 @@ describe("dateChipCandidates", () => {
         { id: "cls-c", name: "Plain" },
       ],
       bindingsOf({
-        "cls-b": [{ propertySchemaId: "sch-when", type: "date", name: "When" }],
-        "cls-a": [{ propertySchemaId: "sch-date", type: "date", name: "Date" }],
+        "cls-b": [{ propertySchemaId: "sch-when", type: "datetime", name: "When" }],
+        "cls-a": [{ propertySchemaId: "sch-date", type: "datetime", name: "Date" }],
         "cls-c": [{ propertySchemaId: "sch-note", type: "text" }],
       }),
     );
@@ -252,9 +252,9 @@ describe("dateChipCandidates", () => {
       [{ id: SYSTEM_CLASS_UUIDS.task, name: "task" }],
       bindingsOf({
         [SYSTEM_CLASS_UUIDS.task]: [
-          { propertySchemaId: "sch-other-date", type: "date" },
-          { propertySchemaId: SYSTEM_PROPERTY_UUIDS.taskScheduled, type: "date" },
-          { propertySchemaId: "sch-aaa", type: "date" },
+          { propertySchemaId: "sch-other-date", type: "datetime" },
+          { propertySchemaId: SYSTEM_PROPERTY_UUIDS.taskScheduled, type: "datetime" },
+          { propertySchemaId: "sch-aaa", type: "datetime" },
         ],
       }),
     );
@@ -268,8 +268,8 @@ describe("dateChipCandidates", () => {
       [{ id: "cls-x", name: "X" }],
       bindingsOf({
         "cls-x": [
-          { propertySchemaId: "sch-zzz", type: "date" },
-          { propertySchemaId: "sch-aaa", type: "date" },
+          { propertySchemaId: "sch-zzz", type: "datetime" },
+          { propertySchemaId: "sch-aaa", type: "datetime" },
         ],
       }),
     );
@@ -284,7 +284,7 @@ describe("dateChipCandidates", () => {
         { id: SYSTEM_CLASS_UUIDS.day, name: "day" },
         { id: "cls-ok", name: "OK" },
       ],
-      () => [{ propertySchemaId: "sch-date", type: "date" }],
+      () => [{ propertySchemaId: "sch-date", type: "datetime" }],
     );
     expect(chips.map((chip) => chip.classId)).toEqual(["cls-ok"]);
   });

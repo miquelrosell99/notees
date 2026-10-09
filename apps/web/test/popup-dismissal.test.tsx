@@ -404,7 +404,14 @@ describe("regression: pickers/CalendarPopup gains Escape", () => {
 describe("regression: DatePickerPopup gains document-level Escape", () => {
   it("Escape closes from the document and from the text input", () => {
     const onClose = vi.fn();
-    render(<DatePickerPopup onSelect={() => {}} onClose={onClose} firstDayOfWeek={1} />);
+    render(
+      <DatePickerPopup
+        value={{ isRange: false, start: null, end: null }}
+        onCommit={() => {}}
+        onClose={onClose}
+        firstDayOfWeek={1}
+      />,
+    );
     // jsdom gives the popup no size, so it stays visibility:hidden until
     // positioned — assert presence on the DOM, not the (empty) a11y name.
     expect(document.body.querySelector(".date-picker-popup")).not.toBeNull();

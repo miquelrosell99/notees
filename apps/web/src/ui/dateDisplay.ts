@@ -8,7 +8,15 @@
  * chronological sorting and the compact lookup contract).
  */
 
-import { deriveDisplayName, fullTitleOf, parseDateNodeId, dateNodeLabel, type NodeLike } from "@notees/domain";
+import {
+  deriveDisplayName,
+  fullTitleOf,
+  isRangeDatetimeValue,
+  isValidTimeOfDay,
+  parseDateNodeId,
+  dateNodeLabel,
+  type NodeLike,
+} from "@notees/domain";
 
 import { readDeviceSetting } from "./components/modals/deviceSettings.js";
 
@@ -188,4 +196,67 @@ export function fullTitleFromClient(
   const node = client.getNode(id);
   if (node === undefined) return client.getDisplayName(id);
   return fullTitleForSettings(node);
+}
+
+// --- datetime property values (SCHEMA.md "Datetime" — the unified date type) ----
+
+/**
+ * One anchored endpoint's label: the date-node formatting pipeline
+ * (settings-aware for day refs via the user's dateFormat; the canonical
+ * `YYYY` / `YYYY/MM` shapes for year/month refs), with ` HH:MM` appended when
+ * a valid wall-clock time rides the slot. A non-date ref passes through.
+ */
+export function datetimeSlotText(slot: { nodeId: string; time?: unknown }): string {
+  const label = dateLabelFromId(slot.nodeId);
+  return isValidTimeOfDay(slot.time) ? `${label} ${slot.time}` : label;
+}
+
+/**
+ * The user-facing text of one datetime VALUE (the union): a point renders its
+ * single slot; a range renders `start → end` with `…` for an open side
+ * (either side may be null). Legacy bare-uuid refs read leniently, on both
+ * the point and the range arms. Null when the value carries no date ref at
+ * all — callers fall back honestly.
+ */
+export function datetimeValueText(value: unknown): string | null {
+  if (isRangeDatetimeValue(value)) {
+    const range = value as { start?: unknown; end?: unknown };
+    const side = (slot: unknown): string => {
+      if (slot === null || slot === undefined) return "…";
+      if (typeof slot === "string") return dateLabelFromId(slot);
+      if (typeof slot === "object") return datetimeSlotText(slot as { nodeId: string; time?: unknown });
+      return "…";
+    };
+    return `${side(range.start)} → ${side(range.end)}`;
+  }
+  const ref =
+    typeof value === "string"
+      ? value.length > 0
+        ? value
+        : null
+      : typeof value === "object" && value !== null && typeof (value as { nodeId?: unknown }).nodeId === "string"
+        ? (value as { nodeId: string }).nodeId
+        : null;
+  if (ref === null) return null;
+  const time =
+    typeof value === "object" && value !== null
+      ? (value as { time?: unknown }).time
+      : undefined;
+  return datetimeSlotText({ nodeId: ref, time });
+}
+
+/**
+ * The settings-aware label of a date-node id (the id-first branch of
+ * displayNameForSettings, usable without a node lookup — property values
+ * reference chain nodes that always carry deterministic ids).
+ */
+function dateLabelFromId(id: string): string {
+  const parsed = parseDateNodeId(id);
+  if (parsed === null) return id;
+  const year = String(parsed.year);
+  const month = pad2(parsed.month);
+  const day = pad2(parsed.day);
+  if (parsed.precision === "year") return year;
+  if (parsed.precision === "month") return `${year}/${month}`;
+  return formatDateName(`${year}${month}${day}`) ?? `${year}-${month}-${day}`;
 }

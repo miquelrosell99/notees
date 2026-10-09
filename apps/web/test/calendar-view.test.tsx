@@ -127,7 +127,7 @@ describe("CalendarView", () => {
 
   it("quick-create chips follow the per-workspace setting", async () => {
     const client = await seedClient();
-    const schemaId = await client.createPropertySchema({ name: "When", type: "date" });
+    const schemaId = await client.createPropertySchema({ name: "When", type: "datetime" });
     // A generic user class — "meeting" is system-class vocabulary.
     const classId = await client.createClass("gathering");
     await client.setClassProperty(classId, schemaId, {});
@@ -149,7 +149,7 @@ describe("CalendarView", () => {
 
   it("quick-create chip authors a classed object with the date property and opens it", async () => {
     const client = await seedClient();
-    const schemaId = await client.createPropertySchema({ name: "When", type: "date" });
+    const schemaId = await client.createPropertySchema({ name: "When", type: "datetime" });
     // A generic user class — "meeting" is system-class vocabulary.
     const classId = await client.createClass("gathering");
     await client.setClassProperty(classId, schemaId, {});
@@ -185,7 +185,7 @@ describe("CalendarView", () => {
         name,
         classIds: [SYSTEM_CLASS_UUIDS.task],
       });
-      await client.setDateProperty(id, SYSTEM_PROPERTY_UUIDS.taskScheduled, iso);
+      await client.setDatetimeProperty(id, SYSTEM_PROPERTY_UUIDS.taskScheduled, { iso });
       await client.setProperty(id, SYSTEM_PROPERTY_UUIDS.taskStatus, statusId, 0);
       return id;
     };
