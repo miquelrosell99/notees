@@ -5,7 +5,8 @@
  * LocalGraphCard, TocSection, the Activity section, Comments —
  * with the references dedupe check's verdict recorded (the rail's
  * ReferencesSection rendered the same getLinkedReferences data as the
- * page's Backlinks tab, so it was deleted; the tab stays the one home).
+ * page's Backlinks section, so it was deleted; the section stays the one
+ * home).
  * Each panel column keeps its own device-local collapse, toggled from the
  * nodeview top bar (the `layout` prop stays binary — per-column device
  * prefs replace the recorded "third state" option). Embedded/compact/class
@@ -150,14 +151,14 @@ describe("the context column (three-column panelled layout)", () => {
     expect(activityHeaders).toHaveLength(1);
     expect(activityHeaders[0]!.closest(".nt-page-context")).not.toBeNull();
 
-    // The card-bottom stack: Child pages + the backlinks strip — no
+    // The card-bottom stack: Child pages + the Backlinks section — no
     // duplicate Activity, no references section.
     expect(screen.getByRole("button", { name: /Child pages/ })).not.toBeNull();
-    expect(container.querySelector(".nt-backlinks")).not.toBeNull();
+    expect(screen.getByRole("button", { name: /Backlinks/ })).not.toBeNull();
     expect(container.querySelector(".nt-rail-ref__list")).toBeNull();
   });
 
-  it("the references dedupe verdict: the context column renders no references list; the Backlinks tab owns the getLinkedReferences data", async () => {
+  it("the references dedupe verdict: the context column renders no references list; the Backlinks section owns the getLinkedReferences data", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Zebra" });
     const sourceId = await client.createObject({ presentAsMain: true, name: "Source" });
@@ -167,11 +168,11 @@ describe("the context column (three-column panelled layout)", () => {
     });
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
-    // One home: the Backlinks tab of the section stack (which renders the
-    // linked references on selection). No rail-style references section
-    // anywhere in the composition.
+    // One home: the Backlinks section of the section stack (expanded by
+    // default — it renders the linked references on mount). No rail-style
+    // references section anywhere in the composition.
     expect(container.querySelector(".nt-rail-ref__list")).toBeNull();
-    expect(screen.getByRole("tab", { name: "Backlinks 1" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Backlinks 1" })).not.toBeNull();
     expect(screen.queryByRole("button", { name: /^References/ })).toBeNull();
   });
 });
@@ -212,7 +213,8 @@ describe("NodeView preview surface", () => {
     expect(tree.textContent).not.toContain("deep level");
 
     // No section stack, no ghost add-row.
-    expect(container.querySelector(".nt-backlinks")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Backlinks/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Unlinked mentions/ })).toBeNull();
     expect(container.querySelector(".nt-ghost-row")).toBeNull();
   });
 });

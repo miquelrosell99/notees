@@ -1,44 +1,41 @@
 /**
  * SystemSections — the card-bottom system sections. Below the page's own
- * content: the Child pages section (expanded) stays stacked as before; only
- * the REFERENCES rework rides the tab strip (owner 2026-10-06, the
- * Capacities-style layout): ONE tab bar in the old references-tab slot —
- * Backlinks and Unlinked mentions (renamed from "unlinked references") —
- * always showing both tabs even when empty, EXCEPT on date pages (owner
- * 2026-10-09): the deterministic day/month/year family carries no Unlinked
- * mentions tab at all — the literal date text those pages accumulate is
- * noise, never a discovery surface — and the unlinked count read (a full
- * FTS pass) is skipped there. The tab label carries the eager
- * count; a tab's list query runs lazily on its first activation (the
- * SCHEMA.md lazy contract), the results cache across tab switches, and a
- * live notification re-runs the loaded tabs' queries: the tab caches
- * ride useSectionData — one hook instance per tab (the per-view rule),
- * keepFresh carrying the loaded-tabs re-derive contract. The tabbed panels
- * render headerless — the tab IS the section header (no duplicated
- * tabs-plus-section-headers chrome).
+ * content, in order: the Child pages section (expanded, the create
+ * affordance), then the page's references as TWO normal NodeCollection
+ * sections (owner 2026-10-09, the tab strip's retirement): Backlinks and
+ * Unlinked mentions each ride the shared collapsible-section chrome — the
+ * NodeViewSection header IS the section header, the tab row is gone — with
+ * the eager count badge, the hosted view chrome, the transient FilterBar,
+ * and the lazy useSectionData contract every other section has. Each
+ * section owns its hook instances and its FilterQuery (the per-view rule);
+ * the date-page ruling stands — the deterministic day/month/year family
+ * carries no Unlinked mentions section at all (the literal date text those
+ * pages accumulate is noise, never a discovery surface) and the unlinked
+ * count read (a full FTS pass) is skipped there.
  *
- * The workspace Activity feed left the stack: it renders in the
- * page chrome's context column now — the `withActivity` prop and its branch
- * are gone; this component's contract is Child pages + the backlinks strip.
+ * The hide-when-empty ruling covers both reference sections: each renders
+ * only while its eager count reads > 0 (Child pages stays the deliberate
+ * main-surface exception, embedded feeds keep the old ruling). Backlinks
+ * starts EXPANDED — its read is cheap and it is the incoming direction
+ * (the old selected tab resolved on mount). Unlinked mentions starts
+ * COLLAPSED — its list query is the expensive FTS pass, previously gated
+ * behind the first tab switch; the collapsed start keeps that economics.
+ * A collapsed section executes no query and caches its rows across a
+ * collapse/expand at an unchanged version (the Section SCHEMA.md
+ * contract); an expanded section re-derives per client notification.
  *
- * Unlinked mentions carry the original action pair:
- * Promote rewrites the source block's literal name match into a mention
- * (./unlinkedRefs.ts — after the write the source moves to Backlinks, the
- * honest place for it); Ignore dismisses the source device-locally, per
- * page — device state, never an op (./viewPrefs.js).
+ * Unlinked mentions carry the original action pair: Promote rewrites the
+ * source block's literal name match into a mention (./unlinkedRefs.ts —
+ * after the write the source moves to Backlinks, the honest place for
+ * it); Ignore dismisses the source device-locally, per page — device
+ * state, never an op (./viewPrefs.js).
  *
- * The transient filter layer (owner 2026-10-07; reworked 2026-10-09): both
- * tabs are filterable — the chrome rides the TAB ROW itself, far right: an
- * icon-only magnifier folds/unfolds the quick-search field, the
- * structured-filters toggle opens the query builder in a full-width region
- * BELOW the row (in-flow, never an overlay). The chrome is STRIP-level —
- * it survives a tab switch and binds to the ACTIVE tab's FilterQuery,
- * which each tab still owns (component state — a switch never leaks a
- * filter across tabs, nothing persisted; an open builder edits whichever
- * tab is active). The query filters the tab's resolved rows
- * post-resolution/pre-windowing; the eager counts on the tab labels stay
- * UNFILTERED — an active filter reads "0 of N" in the chrome and never
- * empties the tab away.
+ * The transient filter layer (owner 2026-10-07) rides each section's body
+ * top through the shared FilterBar (./FilterBar.js — the same chrome the
+ * classed-nodes section renders): one FilterQuery per section (the
+ * per-view rule, component state — nothing persisted), applied
+ * post-resolution/pre-windowing; the eager count badge stays UNFILTERED —
+ * an active filter reads "0 of N" in the bar and never hides the section.
  *
  * The Child pages section renders when the page has main children OR the
  * surface can create them: an empty main-surface page shows the section
@@ -52,7 +49,7 @@
  * Extracted from PageView.tsx.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 
 import { parseDateNodeId } from "@notees/domain";
 
@@ -63,14 +60,11 @@ import { Icon } from "../Icon.js";
 import { Breadcrumbs } from "./Breadcrumbs.js";
 import { ReferenceSubtree } from "./ReferenceSubtree.js";
 import { Section } from "../Section.js";
-import { Tabs } from "./ui/index.js";
 import { displayNameForSettings } from "../dateDisplay.js";
 import { untitledLabelOf } from "../renderStateLabel.js";
 import { useIgnoredUnlinkedRefs, writeIgnoredUnlinkedRef } from "../viewPrefs.js";
 import { promoteMentionInAst } from "./unlinkedRefs.js";
-import { FilterBlockBuilder } from "./FilterBlockBuilder.js";
-import { Button } from "./ui/Button.js";
-import { SearchField } from "./ui/SearchField.js";
+import { FilterBar } from "./FilterBar.js";
 import {
   EMPTY_FILTER_QUERY,
   filterQueryToGroup,
@@ -79,6 +73,7 @@ import {
 } from "./filterQuery.js";
 import { NodeCollection, groupByContainingPage } from "../views/index.js";
 import type { HostedViewsConfig, NodeCollectionItem } from "../views/index.js";
+import { NodeViewSection } from "./NodeViewSection.js";
 import { useSectionData, type SectionRowFilter } from "./useSectionData.js";
 import "./SystemSections.css";
 
@@ -86,10 +81,6 @@ type AnyClient = WorkspaceClient | WorkerClient;
 
 /** Cycle-protection depth cap for the recursive page tree. */
 const PAGE_TREE_DEPTH_CAP = 64;
-
-/** The bottom backlinks strip's tab values. */
-const REF_TAB_BACKLINKS = "backlinks";
-const REF_TAB_UNLINKED = "unlinked";
 
 /** A main node plus its main CHILDREN (inline body blocks filtered out), recursive. */
 function pageTreeOf(client: AnyClient, node: ClientNode, remaining = PAGE_TREE_DEPTH_CAP): NodeCollectionItem {
@@ -116,9 +107,9 @@ function pageTreeOf(client: AnyClient, node: ClientNode, remaining = PAGE_TREE_D
  * unlinked section only): Promote converts the literal match into a mention;
  * Ignore dismisses the source for this page, device-locally.
  *
- * Always rendered by its hosts — even empty: the hosted tab chrome stays
+ * Always rendered by its hosts — even empty: the hosted view chrome stays
  * visible on an empty section, and `emptyText` (the section-empty line)
- * rides the selected tab's body.
+ * rides the collection's empty state.
  *
  * Exported for the block-level backlink gutter (SCHEMA.md:117 — the expanded
  * linked-references section beneath a block row reuses this rendering).
@@ -136,7 +127,7 @@ export function ReferenceList({
   onOpenPage?: ((nodeId: string) => void) | undefined;
   unlinkedPageId?: string | undefined;
   hostedViews?: HostedViewsConfig | undefined;
-  /** The section-empty line when there is nothing to list (rides the tab body for hosted collections). */
+  /** The section-empty line when there is nothing to list (rides the collection's empty state). */
   emptyText?: string | undefined;
 }) {
   const promote = useCallback(
@@ -228,6 +219,96 @@ function displayNameOf(node: ClientNode): string {
   return displayNameForSettings(node) || untitledLabelOf(node);
 }
 
+/**
+ * ReferenceSection — ONE of the page's reference sections (Backlinks /
+ * Unlinked mentions) as a normal collapsible NodeCollection section: the
+ * shared NodeViewSection chrome (title + icon + eager UNFILTERED count
+ * badge), the transient FilterBar at the body top, and the ReferenceList
+ * collection beneath (its hosted view chrome included). The lazy contract
+ * lives in useSectionData — one instance per section (the per-view rule):
+ * no query while collapsed, cached rows across a silent collapse/expand,
+ * a re-derive per client notification while expanded. `refreshKey` carries
+ * the device-only values the read closes over (the unlinked ignore list —
+ * not a client notification).
+ */
+function ReferenceSection({
+  client,
+  pageId,
+  title,
+  icon,
+  count,
+  load,
+  refreshKey,
+  unlinkedPageId,
+  sectionKey,
+  emptyText,
+  defaultExpanded = false,
+  onOpenPage,
+}: {
+  client: AnyClient;
+  pageId: string;
+  title: string;
+  icon: ReactNode;
+  /** The eager UNFILTERED count (a materialized read, exempt from the lazy contract). */
+  count: number;
+  load: () => ReferenceEntry[];
+  /** Values the read closes over that change without a client notification. */
+  refreshKey?: unknown;
+  /** Enables the Promote/Ignore row actions (the unlinked section only). */
+  unlinkedPageId?: string | undefined;
+  /** The hosted custom views' section key (per-section saved views). */
+  sectionKey: HostedViewsConfig["sectionKey"];
+  emptyText: string;
+  /** Backlinks starts expanded (the cheap incoming-direction read); Unlinked mentions stays collapsed. */
+  defaultExpanded?: boolean;
+  onOpenPage?: ((pageId: string) => void) | undefined;
+}) {
+  /** The transient filter layer: this section's own FilterQuery (component state, lost on reload). */
+  const [filterQuery, setFilterQuery] = useState<FilterQuery>(EMPTY_FILTER_QUERY);
+  const rowFilter = useMemo<SectionRowFilter<ReferenceEntry> | undefined>(() => {
+    if (isFilterInactive(filterQuery)) return undefined;
+    const group = filterQueryToGroup(filterQuery);
+    return group === null ? undefined : { group, nodeOf: (entry) => entry.source };
+  }, [filterQuery]);
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  const { rows, total } = useSectionData<ReferenceEntry[]>({
+    client,
+    active: expanded,
+    refreshKey,
+    read: load,
+    filter: rowFilter,
+  });
+
+  return (
+    <NodeViewSection
+      title={title}
+      icon={icon}
+      count={count}
+      className="nt-section"
+      expanded={expanded}
+      onExpandedChange={setExpanded}
+    >
+      <FilterBar
+        client={client}
+        value={filterQuery}
+        onChange={setFilterQuery}
+        matchCount={rows === null ? null : rows.length}
+        totalCount={total}
+      />
+      {rows === null ? null : (
+        <ReferenceList
+          entries={rows}
+          client={client}
+          onOpenPage={onOpenPage}
+          {...(unlinkedPageId !== undefined ? { unlinkedPageId } : {})}
+          hostedViews={{ nodeId: pageId, sectionKey }}
+          emptyText={emptyText}
+        />
+      )}
+    </NodeViewSection>
+  );
+}
+
 export function SystemSections({
   client,
   pageId,
@@ -247,10 +328,10 @@ export function SystemSections({
   const loadLinkedRefs = useCallback(() => client.getLinkedReferences(pageId), [client, pageId]);
   const ignored = useIgnoredUnlinkedRefs(pageId);
   // The ignore-list hook hands back a FRESH array every render — key the
-  // callback (and the hook's refreshKey below) on the joined value so its
-  // identity stays stable between actual ignore-list changes; a churning
-  // identity re-runs the effect every render and loops on the fresh-array
-  // state installs (found by the test pass).
+  // callback (and the section's refreshKey below) on the joined value so
+  // its identity stays stable between actual ignore-list changes; a
+  // churning identity re-runs the resolution every render and loops on the
+  // fresh-array state installs (found by the test pass).
   const ignoredKey = ignored.join(" ");
   const loadUnlinkedRefs = useCallback(() => {
     const dismissed = new Set(ignoredKey === "" ? [] : ignoredKey.split(" "));
@@ -260,86 +341,23 @@ export function SystemSections({
   }, [client, pageId, ignoredKey]);
   const loadChildPages = useCallback(() => client.getChildPages(pageId), [client, pageId]);
 
-  // The eager counts ride the tab labels (the backlink count is a
+  // The eager counts ride the section badges (the backlink count is a
   // materialized read; the unlinked count its memoized count query — the
-  // SystemSections precedent, so the labels know emptiness without running
+  // SystemSections precedent, so the badges know emptiness without running
   // the list queries). Date pages are the exception (owner 2026-10-09):
   // the whole deterministic day/month/year family hides the Unlinked
-  // mentions tab — the literal date text those pages accumulate is noise,
-  // never a discovery surface — so the count reads 0 there and the FTS
-  // pass it pays is skipped entirely (the journal feed renders one
+  // mentions section — the literal date text those pages accumulate is
+  // noise, never a discovery surface — so the count reads 0 there and the
+  // FTS pass it pays is skipped entirely (the journal feed renders one
   // embedded day page per entry).
   const isDatePage = parseDateNodeId(pageId) !== null;
   const backlinkCount = client.getBacklinkCount(pageId);
   const unlinkedCount = isDatePage ? 0 : client.getUnlinkedReferenceCount(pageId);
   const childPageCount = client.getChildPageCount(pageId);
 
-  // The bottom backlinks strip: hidden while the page has neither backlinks
-  // nor unlinked mentions (owner 2026-10-08, the hide-when-empty ruling);
-  // both tabs always show once it renders (owner 2026-10-06).
-  // Each tab owns its useSectionData instance (the per-view rule — one
-  // instance per view, never a shared cache with tab-switch invalidation);
-  // the selected tab resolves on mount (the Tabs primitive swallows
-  // re-clicks on the active tab, so the first load cannot ride onChange),
-  // the other tab stays lazy until its first switch, rows cache across
-  // switches (a switch is silent on the version), and a live notification
-  // re-runs every LOADED tab's query (keepFresh — the pre-restructure contract: a
-  // selected-again tab lands on fresh rows).
-  const [refTab, setRefTab] = useState(REF_TAB_BACKLINKS);
-  /**
-   * The transient filter layer: one FilterQuery per tab (the per-view rule —
-   * two useState instances, never one shared query; a tab switch keeps each
-   * tab's own filter and never leaks it across). Component state, lost on
-   * reload.
-   */
-  const [backlinkFilter, setBacklinkFilter] = useState<FilterQuery>(EMPTY_FILTER_QUERY);
-  const [unlinkedFilter, setUnlinkedFilter] = useState<FilterQuery>(EMPTY_FILTER_QUERY);
-  /**
-   * The chrome's fold state — strip-level, NOT per tab: the unfolded search
-   * field and the open builder survive a tab switch (owner 2026-10-09).
-   */
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [builderOpen, setBuilderOpen] = useState(false);
-  const backlinkRowFilter = useMemo<SectionRowFilter<ReferenceEntry> | undefined>(() => {
-    if (isFilterInactive(backlinkFilter)) return undefined;
-    const group = filterQueryToGroup(backlinkFilter);
-    return group === null ? undefined : { group, nodeOf: (entry) => entry.source };
-  }, [backlinkFilter]);
-  const unlinkedRowFilter = useMemo<SectionRowFilter<ReferenceEntry> | undefined>(() => {
-    if (isFilterInactive(unlinkedFilter)) return undefined;
-    const group = filterQueryToGroup(unlinkedFilter);
-    return group === null ? undefined : { group, nodeOf: (entry) => entry.source };
-  }, [unlinkedFilter]);
-  const backlinks = useSectionData<ReferenceEntry[]>({
-    client,
-    active: refTab === REF_TAB_BACKLINKS,
-    keepFresh: true,
-    read: loadLinkedRefs,
-    filter: backlinkRowFilter,
-  });
-  const unlinked = useSectionData<ReferenceEntry[]>({
-    client,
-    active: refTab === REF_TAB_UNLINKED,
-    keepFresh: true,
-    // The device ignore list is not a client notification: key the refresh
-    // gate on it so an Ignore drops the row without waiting for one.
-    refreshKey: ignoredKey,
-    read: loadUnlinkedRefs,
-    filter: unlinkedRowFilter,
-  });
-
-  // The chrome binds to the ACTIVE tab's FilterQuery and result counts:
-  // each tab still owns its query instance (the per-view rule — a switch
-  // never leaks a filter across tabs), but the strip-level controls edit
-  // whichever tab is active, so an open builder follows a tab switch.
-  const activeFilter = refTab === REF_TAB_BACKLINKS ? backlinkFilter : unlinkedFilter;
-  const setActiveFilter = refTab === REF_TAB_BACKLINKS ? setBacklinkFilter : setUnlinkedFilter;
-  const activeRows = refTab === REF_TAB_BACKLINKS ? backlinks.rows : unlinked.rows;
-  const activeMatchCount = activeRows === null ? null : activeRows.length;
-  const activeTotalCount = refTab === REF_TAB_BACKLINKS ? backlinks.total : unlinked.total;
-  const filterActive = !isFilterInactive(activeFilter);
-
-  // The hide-when-empty rulings gate the backlinks strip; the Child pages
+  // The hide-when-empty rulings gate the reference sections — each hides
+  // while its OWN count reads 0 (owner 2026-10-09, the tab strip's
+  // retirement: the strip-level gate becomes per-section); the Child pages
   // section renders on the MAIN surface even when childless (owner
   // 2026-10-09) — its header carries the create action, so the affordance
   // must be reachable exactly when there is nothing to list. Embedded
@@ -347,7 +365,9 @@ export function SystemSections({
   // hook: the component flips between null and rendered as counts change,
   // so the hook order must stay unconditional.
   const showChildPages = !embedded || childPageCount > 0;
-  if (!showChildPages && backlinkCount === 0 && unlinkedCount === 0) return null;
+  const showBacklinks = backlinkCount > 0;
+  const showUnlinked = !isDatePage && unlinkedCount > 0;
+  if (!showChildPages && !showBacklinks && !showUnlinked) return null;
 
   return (
     <div className="nt-page-sections">
@@ -389,150 +409,44 @@ export function SystemSections({
           )}
         />
       )}
-      {/* The backlinks strip — the page's references (Backlinks + Unlinked
-          mentions) ride one tab bar in the old references-tab slot. It hides
-          entirely while the page has neither (owner 2026-10-08, the
-          hide-when-empty ruling that covers every system section); once it
-          renders, both tabs always show (on date pages: only Backlinks —
-          the Unlinked mentions tab never rides a date page) and the panel
-          under a tab renders headerless (the tab is the header). The
-          transient filter chrome rides the tab ROW, far right (owner
-          2026-10-09): the magnifier folds/unfolds the quick search, the
-          structured-filters toggle opens the builder below the row — both
-          strip-level, binding to the active tab's query. An active filter
-          emptying a tab keeps the chrome — the count gate reads the
-          UNFILTERED rows. */}
-      {(backlinkCount > 0 || unlinkedCount > 0) && (
-      <div className="nt-backlinks">
-        <Tabs className="nt-ref-tabs" value={refTab} onChange={setRefTab}>
-          {/* The tab row: the tab bar left, the filter chrome far right. */}
-          <div className="nt-ref-tabs-row">
-            <Tabs.List>
-              <Tabs.Tab value={REF_TAB_BACKLINKS}>
-                Backlinks{backlinkCount > 0 ? ` ${backlinkCount}` : ""}
-              </Tabs.Tab>
-              {/* Date pages (the day/month/year family) carry no Unlinked
-                  mentions tab — the literal-date matches are noise, and the
-                  count is forced to 0 above, so the strip's gates read as if
-                  the page had none. */}
-              {!isDatePage && (
-                <Tabs.Tab value={REF_TAB_UNLINKED}>
-                  Unlinked mentions{unlinkedCount > 0 ? ` ${unlinkedCount}` : ""}
-                </Tabs.Tab>
-              )}
-            </Tabs.List>
-            <div className="nt-ref-chrome">
-              {/* The quick search folds behind the icon-only magnifier:
-                  unfolded it rides the row, capped so the tabs keep the
-                  left side; folding away never drops the text (the toggle
-                  stays highlighted while the active tab's text filter is
-                  set). */}
-              {searchOpen && (
-                <SearchField
-                  className="nt-ref-chrome__search"
-                  aria-label="Filter by text"
-                  placeholder="Filter…"
-                  value={activeFilter.text ?? ""}
-                  onChange={(event) => setActiveFilter({ ...activeFilter, text: event.target.value })}
-                  onClear={() => setActiveFilter({ ...activeFilter, text: "" })}
-                />
-              )}
-              {filterActive && activeMatchCount !== null && activeTotalCount !== null && (
-                <span className="nt-filter-bar__count">
-                  {activeMatchCount} of {activeTotalCount}
-                </span>
-              )}
-              {filterActive && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="xs"
-                  icon="mdi mdi-filter-remove-outline"
-                  aria-label="Clear filter"
-                  title="Clear filter"
-                  onClick={() => {
-                    setActiveFilter(EMPTY_FILTER_QUERY);
-                    setBuilderOpen(false);
-                  }}
-                />
-              )}
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                icon="mdi mdi-magnify"
-                aria-label="Search references"
-                title="Filter by text"
-                aria-expanded={searchOpen}
-                active={searchOpen || (activeFilter.text?.trim() ?? "") !== ""}
-                onClick={() => setSearchOpen((open) => !open)}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                icon="mdi mdi-filter-variant"
-                aria-label="Structured filters"
-                title="More filters"
-                aria-expanded={builderOpen}
-                active={builderOpen || filterActive}
-                onClick={() => setBuilderOpen((open) => !open)}
-              />
-            </div>
-          </div>
-          {/* The structured builder: an in-flow full-width region below the
-              tab row (never an overlay), bound to the ACTIVE tab's draft
-              group — left open across a tab switch, it edits the newly
-              active tab's query. The region reuses the FilterBar's panel
-              box (paired frame, the 2026-10-08 ruling). */}
-          {builderOpen && (
-            <div
-              className="nt-filter-bar__panel"
-              role="group"
-              aria-label="Structured filters"
-            >
-              {activeMatchCount !== null && activeTotalCount !== null && (
-                <p className="nt-filter-bar__result">
-                  {activeMatchCount} of {activeTotalCount} rows match
-                </p>
-              )}
-              <FilterBlockBuilder
-                client={client}
-                group={activeFilter.group}
-                onChange={(group) => setActiveFilter({ ...activeFilter, group })}
-              />
-            </div>
-          )}
-          <Tabs.Panel value={REF_TAB_BACKLINKS}>
-            {backlinks.rows === null ? null : (
-              // Always rendered — the hosted tab bar (Default + "+" and the
-              // custom views) stays visible on an empty section; the empty
-              // line rides the selected tab's body.
-              <ReferenceList
-                entries={backlinks.rows}
-                client={client}
-                onOpenPage={onOpenPage}
-                hostedViews={{ nodeId: pageId, sectionKey: "linked-references" }}
-                emptyText="No backlinks."
-              />
-            )}
-          </Tabs.Panel>
-          {!isDatePage && (
-            <Tabs.Panel value={REF_TAB_UNLINKED}>
-              {unlinked.rows === null ? null : (
-                <ReferenceList
-                  entries={unlinked.rows}
-                  client={client}
-                  onOpenPage={onOpenPage}
-                  unlinkedPageId={pageId}
-                  hostedViews={{ nodeId: pageId, sectionKey: "unlinked-mentions" }}
-                  emptyText="No unlinked mentions."
-                />
-              )}
-            </Tabs.Panel>
-          )}
-        </Tabs>
-      </div>
+      {/* Backlinks: the incoming direction, expanded by default (its read
+          is cheap; the old tab strip's selected tab resolved on mount).
+          Hides while the count reads 0 — the hide-when-empty ruling covers
+          every reference section. */}
+      {showBacklinks && (
+        <ReferenceSection
+          key={`backlinks-${pageId}`}
+          client={client}
+          pageId={pageId}
+          title="Backlinks"
+          icon={<Icon path="mdi-link-variant" size={0.9} />}
+          count={backlinkCount}
+          load={loadLinkedRefs}
+          sectionKey="linked-references"
+          emptyText="No backlinks."
+          defaultExpanded
+          onOpenPage={onOpenPage}
+        />
+      )}
+      {/* Unlinked mentions: collapsed by default — the list query is the
+          expensive FTS pass, and the collapsed start keeps it lazy behind
+          the first expand (the old unselected tab's contract). Date pages
+          carry no section at all (the gate above forces the count to 0). */}
+      {showUnlinked && (
+        <ReferenceSection
+          key={`unlinked-${pageId}`}
+          client={client}
+          pageId={pageId}
+          title="Unlinked mentions"
+          icon={<Icon path="mdi-text-search" size={0.9} />}
+          count={unlinkedCount}
+          load={loadUnlinkedRefs}
+          refreshKey={ignoredKey}
+          unlinkedPageId={pageId}
+          sectionKey="unlinked-mentions"
+          emptyText="No unlinked mentions."
+          onOpenPage={onOpenPage}
+        />
       )}
     </div>
   );

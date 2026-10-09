@@ -23,11 +23,12 @@ import { NodeCollection } from "../src/ui/views/index.js";
 import { useWindowed } from "../src/ui/views/useWindowed.js";
 import type { NodeCollectionItem } from "../src/ui/views/index.js";
 
-/** The `.nt-backlinks` strip (the selected tab's rows load on mount). */
-function backlinksStrip(): HTMLElement {
-  const strip = document.querySelector(".nt-backlinks");
-  if (strip === null) throw new Error("no .nt-backlinks strip rendered");
-  return strip as HTMLElement;
+/** The Backlinks section (expanded by default — its rows load on mount). */
+function backlinksSection(): HTMLElement {
+  const header = screen.getByRole("button", { name: /Backlinks/ });
+  const el = header.closest("section");
+  if (el === null) throw new Error("no Backlinks section rendered");
+  return el as HTMLElement;
 }
 
 const WS = "0192a000-0000-7000-8000-000000000001";
@@ -314,8 +315,8 @@ describe("grouped outline sections — the references grouping", () => {
     }
     render(<PageView client={client} pageId={targetId} onOpenPage={() => {}} />);
 
-    // The selected Backlinks tab loaded its rows on mount.
-    const linked = backlinksStrip();
+    // The expanded Backlinks section loaded its rows on mount.
+    const linked = backlinksSection();
 
     // One group, its header count honest at 120, its rows windowed at 100.
     expect(linked.querySelectorAll(".outline-group")).toHaveLength(1);

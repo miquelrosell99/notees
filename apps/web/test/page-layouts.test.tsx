@@ -593,8 +593,9 @@ describe("L4 unlinked mentions promote/ignore", () => {
     });
 
     render(<PageView client={client} pageId={pageId} />);
-    // The Unlinked mentions tab is lazy: one click activates it.
-    fireEvent.click(screen.getByRole("tab", { name: /Unlinked mentions/ }));
+    // The Unlinked mentions section is collapsed by default: one click on
+    // the header expands it (and runs its lazy query).
+    fireEvent.click(screen.getByRole("button", { name: /Unlinked mentions/ }));
     fireEvent.click(screen.getByRole("button", { name: /Promote/ }));
     await flushWrites();
 
@@ -621,7 +622,7 @@ describe("L4 unlinked mentions promote/ignore", () => {
     });
 
     const { unmount } = render(<PageView client={client} pageId={pageId} />);
-    fireEvent.click(screen.getByRole("tab", { name: /Unlinked mentions/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Unlinked mentions/ }));
     fireEvent.click(screen.getByRole("button", { name: /Ignore/ }));
     await flushWrites();
     unmount();
@@ -631,7 +632,7 @@ describe("L4 unlinked mentions promote/ignore", () => {
     // Reopen: the section's query result is filtered — the dismissed source
     // stays out and the empty text renders.
     render(<PageView client={client} pageId={pageId} />);
-    fireEvent.click(screen.getByRole("tab", { name: /Unlinked mentions/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Unlinked mentions/ }));
     expect(screen.getByText("No unlinked mentions.")).not.toBeNull();
     void sourceId;
   });

@@ -9,6 +9,31 @@ predating this file.
 
 ## 2026-10-09
 
+- **feat(web): Backlinks and Unlinked mentions are two normal
+  NodeCollection sections — the references tab strip is retired.**
+  Owner 2026-10-09: below the page content the two references leave the
+  shared tab bar and each rides the normal collapsible-section chrome
+  (NodeViewSection header + eager count badge + hosted view chrome + the
+  shared FilterBar at the body top, one FilterQuery per section) with the
+  lazy useSectionData contract every other section has. The hide-when-empty
+  ruling becomes per-section: each renders only while its own count reads
+  > 0 (promoting the last unlinked source retires the section rather than
+  leaving an empty tab). Backlinks starts EXPANDED — its read is cheap and
+  it is the incoming direction (the old selected tab resolved on mount);
+  Unlinked mentions starts COLLAPSED — its list query is the expensive FTS
+  pass, and the collapsed start keeps it lazy behind the first expand.
+  Filter chrome: the strip-level magnifier/builder row (shipped earlier
+  today) gives way to the shared FilterBar per section — the quick search
+  is always visible, the builder opens below the bar. The date-page ruling
+  stands (no Unlinked mentions section, the count read skipped) and Child
+  pages is untouched. The strip's `.nt-backlinks`/`.nt-ref-*` CSS, the
+  Tabs primitive usage, and useSectionData's now-orphaned `keepFresh`
+  option (the loaded-tabs contract died with the tabs — the
+  collapsible-section contract re-runs only while expanded) are gone;
+  ReferenceList (the block-level backlink gutter's shared rendering) is
+  unchanged.
+  Verified: web suites green.
+
 - **feat(web): the references strip's filter chrome rides the tab row.**
   Owner 2026-10-09: the Backlinks/Unlinked mentions strip's FilterBars (one
   per panel body) give way to strip-level chrome on the tab row itself, far
