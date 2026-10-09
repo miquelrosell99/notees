@@ -531,7 +531,8 @@ describe("Asset attachments (the asset property row)", () => {
     expandProperties();
     const row = screen.getByText("mentor").closest(".nt-props-sidebar__prop, .nt-property-object") as HTMLElement;
     expect(row.textContent).not.toContain("default");
-    fireEvent.click(within(row).getByRole("button", { name: "Add" }));
+    // The single-value binding renders the "Select" placeholder trigger.
+    fireEvent.click(within(row).getByRole("button", { name: "Set mentor" }));
 
     // Picker-only: filtered to persons, no upload affordance.
     expect(screen.getByText("Ada Lovelace")).not.toBeNull();
