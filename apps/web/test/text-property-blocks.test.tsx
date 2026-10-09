@@ -130,16 +130,38 @@ describe("text properties as a blocks list", () => {
     expect(children.length).toBe(1);
   });
 
-  it("a dead carrier renders empty and re-authors a fresh carrier on edit", async () => {
+  it("a dead carrier whose node is gone auto-unsets (the slot returns to empty)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
     const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
     await client.setProperty(pageId, schemaId, { nodeId: "0192a000-0000-7000-8000-000000000099" }, 0);
 
     const { container } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    await flushWrites();
+    await flushWrites();
+
+    // No lingering dead cell — the value is unset. (The table host re-renders
+    // on its own subscription; here we assert the client state, the truth the
+    // next render reflects.)
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(0);
+  });
+
+  it("a dead ref to a node that still exists keeps the re-author cell", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
+    // A page (present_as_main) is a real node that no longer renders as an
+    // inline block — the recovery cell, not auto-unset.
+    const promoted = await client.createObject({ presentAsMain: true, name: "Promoted" });
+    await client.setProperty(pageId, schemaId, { nodeId: promoted }, 0);
+
+    const { container } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    await flushWrites();
+
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(1);
     const input = container.querySelector<HTMLInputElement>(".nt-property-textcell .nt-property-value");
     expect(input).not.toBeNull();
-    expect(input!.value).toBe("");
+    expect(input!.placeholder).not.toBe("Type something");
 
     fireEvent.change(input!, { target: { value: "resurrected" } });
     fireEvent.blur(input!);
@@ -149,9 +171,125 @@ describe("text properties as a blocks list", () => {
     const rows = authoredTextRows(client, pageId, schemaId);
     expect(rows.length).toBe(1);
     const revived = (rows[0]!.value as { nodeId: string }).nodeId;
+    expect(revived).not.toBe(promoted);
     expect(client.getNode(revived)?.parentId).toBe(pageId);
-    // The revived carrier holds the typed text.
     const first = client.getNode(revived)?.contentAst[0] as { text?: string } | undefined;
     expect(first?.text).toBe("resurrected");
+  });
+});
+
+describe("auto-unset of contentless text values", () => {
+  it("a carrier with no content and no children is unset when the row renders over it", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
+    const carrier = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "" }] });
+    await client.setProperty(pageId, schemaId, { nodeId: carrier }, 0);
+
+    render(<PropertiesTable client={client} nodeId={pageId} />);
+    await flushWrites();
+    await flushWrites();
+
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(0);
+    // The unset trashes the now-unreferenced carrier (getNode hides trashed).
+    expect(client.getNode(carrier)).toBeUndefined();
+  });
+
+  it("a carrier with content keeps its value", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
+    const carrier = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "kept" }] });
+    await client.setProperty(pageId, schemaId, { nodeId: carrier }, 0);
+
+    render(<PropertiesTable client={client} nodeId={pageId} />);
+    await flushWrites();
+
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(1);
+  });
+
+  it("a carrier with empty content but a child keeps its value", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
+    const carrier = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "" }] });
+    await client.createObject({ parentId: carrier, contentAst: [{ type: "text", text: "child line" }] });
+    await client.setProperty(pageId, schemaId, { nodeId: carrier }, 0);
+
+    render(<PropertiesTable client={client} nodeId={pageId} />);
+    await flushWrites();
+
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(1);
+  });
+
+  it("a carrier emptied while its editor holds the caret is kept; leaving the row unsets it", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
+    const carrier = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "soon gone" }] });
+    await client.setProperty(pageId, schemaId, { nodeId: carrier }, 0);
+
+    const { container } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    const editor = clickIntoBlock(container, 0);
+    expect(document.activeElement).toBe(editor);
+
+    // The flush lands (select-all + delete): the carrier is now contentless,
+    // but the caret is still in the row — the value survives.
+    await act(async () => {
+      await client.updateObject(carrier, { contentAst: [{ type: "text", text: "" }] });
+    });
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(1);
+
+    // Leaving the row (focus moves outside) runs the pass: the value is
+    // unset and the carrier trashed.
+    const outside = document.createElement("button");
+    document.body.appendChild(outside);
+    act(() => {
+      outside.focus();
+    });
+    await flushWrites();
+    await flushWrites();
+
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(0);
+    expect(client.getNode(carrier)).toBeUndefined();
+  });
+
+  it("an empty scalar value auto-unsets", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Citekey", type: "text" });
+    await client.setProperty(pageId, schemaId, "", 0);
+
+    render(<PropertiesTable client={client} nodeId={pageId} />);
+    await flushWrites();
+    await flushWrites();
+
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(0);
+  });
+
+  it("the Add pill's fresh empty carrier survives while the row holds focus", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const schemaId = await client.createPropertySchema({ name: "Notes", type: "text", multi: true });
+    const carrierA = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "first" }] });
+    await client.setProperty(pageId, schemaId, { nodeId: carrierA }, 0);
+
+    const { container } = render(<PropertiesTable client={client} nodeId={pageId} />);
+    // TextPropertyRow's Add pill (a direct child of the textcell — buttons
+    // inside the carrier rows are block chrome).
+    const addButton = container.querySelector<HTMLButtonElement>(
+      ".nt-property-text .nt-property-textcell > button.pill--add",
+    );
+    expect(addButton).not.toBeNull();
+    // A real click focuses the button — inside the row — so the pass must
+    // not unset the empty value the click is about to mint.
+    act(() => {
+      addButton!.focus();
+    });
+    fireEvent.click(addButton!);
+    await flushWrites();
+    await flushWrites();
+
+    expect(authoredTextRows(client, pageId, schemaId).length).toBe(2);
   });
 });
