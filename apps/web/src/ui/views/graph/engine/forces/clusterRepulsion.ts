@@ -19,7 +19,7 @@ export class ClusterRepulsionForce implements ForcePlugin {
     this.engine = engine;
   }
 
-  apply(_alpha: number): void {
+  apply(): void {
     const e = this.engine;
     const cfg = e.config;
     const repelStr = cfg.clusterRepelStrength;
@@ -45,10 +45,12 @@ export class ClusterRepulsionForce implements ForcePlugin {
       directClusterRepulsion(e.clCx, e.clCy, e.clCount, bigIds, bigK, clFx, clFy, repelStr);
     }
 
-    // Distribute to member nodes
+    // Distribute to member nodes — √cnt, not cnt, so a large community moves
+    // as a unit instead of having its push diluted per member.
     const clId = e.clIdArr;
     const clCC = e.clCount;
     const ax = e.axBuf, ay = e.ayBuf;
+    const alphas = e.alphaArr;
     const activeIdx = e.activeNodeIndices;
     const activeCount = e.activeCount;
 
@@ -57,8 +59,11 @@ export class ClusterRepulsionForce implements ForcePlugin {
       const c = clId[i]!;
       const cnt = clCC[c]!;
       if (cnt <= 1) continue;
-      ax[i]! += clFx[c]! / cnt;
-      ay[i]! += clFy[c]! / cnt;
+      const a = alphas[i]!;
+      if (a <= 0) continue;
+      const share = a / Math.sqrt(cnt);
+      ax[i]! += clFx[c]! * share;
+      ay[i]! += clFy[c]! * share;
     }
   }
 }
