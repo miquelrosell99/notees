@@ -5,24 +5,35 @@
  *  - the node's classes as colored pills (× unassigns; right-click opens the
  *    color-swatch menu) + a "+ Add class" ghost pill opening the ported
  *    node-selector popup (search / create / pick, client.assignClass);
- *  - node-typed / date / date_range values render as pills; the object picker
- *    is the ported NodeSelector popup (search + create, filtered by the
- *    schema's target classes, upload for asset targets), date rows open the
- *    ported DatePickerPopup (drill-down calendar + typed-date input);
+ *  - MULTI-value node-typed values render as pills — the same NodePill
+ *    element the nodeview classes list renders, tinted with the linked
+ *    node's effective color; the picker is the ported NodeSelector popup
+ *    (search + create, filtered by the schema's target classes, upload for
+ *    asset targets);
+ *  - SINGLE-value node-typed and date values render as the full-width
+ *    selection dropdown (PropertySelectCell): the content area shows the
+ *    selected node as a read-only block row (the date's display name —
+ *    never a pill), empty shows the muted "Select" placeholder; the picker
+ *    (NodeSelector / DatePickerPopup) anchors at the trigger, the clear
+ *    affordance unsets the slot;
  *  - asset values render as the dedicated asset list (thumbnail + name +
  *    remove) with the Upload / Link authoring buttons (the asset picker is
  *    asset-scoped with create disabled; the upload runs in the
  *    AssetUploadModal);
  *  - select schemas with options render the ported options control
  *    (pills + picker), booleans a checkbox, everything else the minimal
- *    text editor. Derived defaults stay dimmed with a "default" hint, authored
- *    values win, unbound survivors are marked.
+ *    text editor; empty text cells render the full-width "Type something"
+ *    placeholder input. Derived defaults stay dimmed with a "default" hint,
+ *    authored values win, unbound survivors are marked.
+ *  - the properties sidebar separates its properties with a hairline under
+ *    each row; empty value cells keep the column's full width so they read
+ *    as empty fields.
  *
  * The nt-* class hooks the tests assert on (.nt-properties-panel,
  * .nt-property-*, .nt-classes-row, …) are unchanged.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import {
@@ -65,6 +76,7 @@ import { AssetUploadModal } from "./modals/AssetUploadModal.js";
 import { propertyLinkHref } from "../views/propertyDisplay.js";
 import { cssColorFor, resolveCssColor } from "./ui/colorPresets.js";
 import { ClassPillsList } from "./ClassPillsList.js";
+import { NodePill } from "./NodePills.js";
 import { ContextMenu } from "./ui/ContextMenu.js";
 import { Modal } from "./ui/Modal.js";
 import { Button } from "./ui/Button.js";
@@ -178,6 +190,108 @@ function contrastFor(color: string): string {
 }
 
 /**
+ * PropertySelectCell — the single-value selection control (owner 2026-10-09):
+ * a full-width dropdown trigger whose content shows the selected node as a
+ * READ-ONLY block row (never a pill); an empty cell renders the muted
+ * "Select" placeholder so the empty value still reads as a field spanning
+ * the value cell. The owner popup (node picker / date picker) anchors at the
+ * trigger; the clear affordance unsets the authored slot; trailing chrome
+ * (repeat picker, link qualifiers, asset annotations) rides beside it.
+ * The trigger is a div[role=button], not a native button: the content area
+ * hosts the block row's own interactive bits, which a <button> could not
+ * legally wrap.
+ */
+function PropertySelectCell({
+  client,
+  /** The selected node's id; null renders the placeholder. */
+  valueRef,
+  ariaLabel,
+  placeholder = "Select",
+  isOpen,
+  /** The trigger hands its element to the parent (the popup anchors at it). */
+  onToggle,
+  clearLabel,
+  onClear,
+  /** Trailing chrome beside the trigger (repeat picker, qualifier range). */
+  trailing,
+  /** The selected value's content — a read-only block row by contract. */
+  children,
+}: {
+  client: AnyClient;
+  valueRef: string | null;
+  ariaLabel: string;
+  placeholder?: string;
+  isOpen: boolean;
+  onToggle: (anchor: HTMLElement) => void;
+  clearLabel: string;
+  onClear: (() => void) | undefined;
+  trailing?: ReactNode;
+  children?: ReactNode;
+}) {
+  const linkedNode = valueRef !== null ? client.getNode(valueRef) : undefined;
+  const open = (anchor: HTMLElement) => onToggle(anchor);
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      open(event.currentTarget);
+    }
+  };
+  return (
+    <div className="nt-property-select">
+      <div
+        role="button"
+        tabIndex={0}
+        className="nt-property-select__trigger"
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        aria-label={ariaLabel}
+        onClick={(event) => open(event.currentTarget)}
+        onKeyDown={onKeyDown}
+      >
+        <div className="nt-property-select__content">
+          {valueRef === null ? (
+            <span className="nt-property-select__placeholder">{placeholder}</span>
+          ) : linkedNode === undefined ? (
+            // PB1 honest broken reference: the raw id, never a silent void.
+            <span
+              className="nt-property-select__broken"
+              title={`Broken reference: ${valueRef}`}
+            >
+              <code>{valueRef}</code>
+            </span>
+          ) : (
+            // The row's own click gestures (open the node) stay suppressed:
+            // inside the dropdown the click means "open the picker". The
+            // capture wrapper stops the read-only row's navigation before
+            // the event reaches the trigger's own handler.
+            <div
+              className="nt-property-select__blockrow"
+              onClickCapture={(event) => event.stopPropagation()}
+            >
+              {children}
+            </div>
+          )}
+        </div>
+        <span className="nt-property-select__chevron" aria-hidden="true">
+          <Icon path="mdi-chevron-down" size={0.7} />
+        </span>
+      </div>
+      {onClear !== undefined && valueRef !== null && (
+        <button
+          type="button"
+          className="nt-property-select__clear"
+          aria-label={clearLabel}
+          onClick={onClear}
+        >
+          ×
+        </button>
+      )}
+      {trailing}
+    </div>
+  );
+}
+
+/**
  * One node-typed property: pills of the linked nodes + the add/upload picker.
  * `rows` are the effective rows of this schema on the node (authored pills
  * and, dimmed, any derived default) — empty when the binding has no values
@@ -212,7 +326,9 @@ function ObjectPropertyRow({
   const [uploadOpen, setUploadOpen] = useState(false);
   /** Pill ref whose annotations section is open (one at a time), null = none. */
   const [annotatingRef, setAnnotatingRef] = useState<string | null>(null);
-  const addButtonRef = useRef<HTMLButtonElement | null>(null);
+  // HTMLElement: the multi branch anchors at the Add pill (a button), the
+  // single branch at the select trigger (a div[role=button]).
+  const addButtonRef = useRef<HTMLElement | null>(null);
 
   const targetClassIds = resolveTargetClassIds(client, propertySchemaId, bindingFilter);
   const assetClassId = targetClassIds?.find((id) => isAssetClass(client, id));
@@ -237,8 +353,10 @@ function ObjectPropertyRow({
     return displayNameFromClient(client, ref) ?? ref;
   };
 
-  const linkNode = async (target: string): Promise<void> => {
-    await client.setProperty(nodeId, propertySchemaId, { nodeId: target }, nextIdx);
+  const linkNode = async (target: string, idx: number = nextIdx): Promise<void> => {
+    // Multi appends at the next free idx; single-value REPLACES the existing
+    // authored slot (the selection dropdown re-picks in place).
+    await client.setProperty(nodeId, propertySchemaId, { nodeId: target }, idx);
     // A cover value written through the generic panel still classes
     // the target as an asset (explicit ops — every client converges on
     // classIds; the property value stays the authority).
@@ -273,6 +391,145 @@ function ObjectPropertyRow({
   const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
   const unbound = rows.some((row) => row.source === "authored" && row.boundBy === null);
 
+  const qualifierOf = (row: EffectiveProperty, ref: string) =>
+    dateQualified ? (
+      <QualifierRange
+        client={client}
+        start={qualifierIsoOf(row.metadata?.startDate)}
+        end={qualifierIsoOf(row.metadata?.endDate)}
+        ariaLabel={pillLabel(ref)}
+        onCommit={(startIso, endIso) => {
+          const metadata: Record<string, unknown> = { ...(row.metadata ?? {}) };
+          if (startIso === "") delete metadata.startDate;
+          else metadata.startDate = startIso;
+          if (endIso === "") delete metadata.endDate;
+          else metadata.endDate = endIso;
+          void client.setProperty(nodeId, propertySchemaId, row.value, row.idx, metadata);
+        }}
+      />
+    ) : null;
+
+  /** The ❝ annotations toggle — an asset-pill primary action, never hidden. */
+  const annotationsToggle = (ref: string) =>
+    isAssetTarget ? (
+      <button
+        type="button"
+        className="pill__right-button nt-chip-annotations"
+        title="Annotations"
+        aria-label={`Annotate ${pillLabel(ref)}`}
+        aria-expanded={annotatingRef === ref}
+        onClick={() => setAnnotatingRef((cur) => (cur === ref ? null : ref))}
+      >
+        ❝
+      </button>
+    ) : null;
+
+  // Single-value: the selection dropdown (owner 2026-10-09) — the content
+  // area shows the selected node as a read-only block row, never a pill;
+  // empty renders the "Select" placeholder across the full value cell.
+  if (multi === false) {
+    // An authored value shadows a derived default at another slot — the
+    // dropdown shows the authored one.
+    const single = [...pills].reverse().find((pill) => pill.row.source === "authored") ?? pills[0];
+    const singleRow = single?.row;
+    const singleRef = single?.ref ?? null;
+    const replaceIdx =
+      singleRow !== undefined && singleRow.source === "authored" ? singleRow.idx : nextIdx;
+    return (
+      <li
+        className={
+          allDefault
+            ? "nt-property nt-property-default nt-property-object node-metadata-row"
+            : "nt-property nt-property-object node-metadata-row"
+        }
+      >
+        {!bare && (
+          <>
+            <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
+            {allDefault && <span className="nt-property-hint">default</span>}
+            {unbound && <span className="nt-property-hint">unbound</span>}
+          </>
+        )}
+        <PropertySelectCell
+          client={client}
+          valueRef={singleRef}
+          ariaLabel={`Set ${label}`}
+          placeholder="Select"
+          isOpen={pickerOpen}
+          onToggle={(anchor) => {
+            addButtonRef.current = anchor;
+            setPickerOpen((open) => !open);
+          }}
+          clearLabel={`Clear ${label}`}
+          onClear={
+            singleRow !== undefined && singleRow.source === "authored"
+              ? () => void unlink(singleRow.idx)
+              : undefined
+          }
+          trailing={
+            <>
+              {singleRef !== null && annotationsToggle(singleRef)}
+              {single !== undefined && qualifierOf(single.row, single.ref)}
+            </>
+          }
+        >
+          {singleRef !== null && (
+            <ReferenceSubtree client={client} rootId={singleRef} readOnly />
+          )}
+        </PropertySelectCell>
+        {annotatingRef !== null && (
+          <AnnotationsSection client={client} assetId={annotatingRef} onOpenPage={onOpenPage} />
+        )}
+        {pickerOpen && (
+          <NodeSelector
+            client={client}
+            searchMode={isAssetTarget ? "all" : "pages"}
+            classFilters={targetClassIds ?? undefined}
+            excludeNodeId={nodeId}
+            anchorEl={addButtonRef.current}
+            onClose={() => setPickerOpen(false)}
+            searchPlaceholder={`Search ${label}`}
+            onAdd={(node) => void linkNode(node.id, replaceIdx)}
+            // Asset targets: the create row IS the upload action (allowCreate
+            // must stay true or alwaysShowCreate below can never render — the
+            // row answers "Upload file…" via onCreateNew, never a bare create).
+            alwaysShowCreate={isAssetTarget}
+            createLabel={isAssetTarget ? "Upload file…" : undefined}
+            onCreateNew={
+              isAssetTarget
+                ? () => {
+                    // The upload runs in the AssetUploadModal
+                    // (drag-drop + preview + progress), not a bare file input.
+                    setPickerOpen(false);
+                    setUploadOpen(true);
+                  }
+                : (name) =>
+                    client.createObject({
+                      presentAsMain: true,
+                      name,
+                      ...(targetClassIds !== null ? { classIds: targetClassIds } : {}),
+                    })
+            }
+          />
+        )}
+        {uploadOpen && assetClassId !== undefined && (
+          <AssetUploadModal
+            isOpen
+            client={client}
+            assetClassId={assetClassId}
+            onClose={() => setUploadOpen(false)}
+            onUploaded={(assetNodeId) => void linkUploadedAsset(assetNodeId)}
+          />
+        )}
+        {error !== null && (
+          <p role="alert" className="nt-picker-error">
+            {error}
+          </p>
+        )}
+      </li>
+    );
+  }
+
   return (
     <li
       className={
@@ -301,90 +558,101 @@ function ObjectPropertyRow({
           // raw id in a dashed pill (the broken-mention policy), never a
           // silently empty chip.
           const broken = linkedNode === undefined;
-          return (
-            <span
-              key={`${propertySchemaId}:${row.idx}`}
-              className={
-                row.source === "default"
-                  ? "pill pill--default"
-                  : `pill pill--hover-reveal-right${broken ? " pill--broken" : ""}`
-              }
-              title={broken ? `Broken reference: ${ref}` : undefined}
-            >
-              {linkedNode?.icon !== null && linkedNode?.icon !== undefined && (
-                <span className="pill__left-icon">
-                  <Icon path={linkedNode.icon} size={0.7} />
-                </span>
-              )}
-              {broken ? (
+          const trailing = (
+            <>
+              {annotationsToggle(ref)}
+              {qualifierOf(row, ref)}
+            </>
+          );
+          if (broken) {
+            return (
+              <span
+                key={`${propertySchemaId}:${row.idx}`}
+                className={
+                  row.source === "default"
+                    ? "pill pill--default"
+                    : "pill pill--hover-reveal-right pill--broken"
+                }
+                title={`Broken reference: ${ref}`}
+              >
                 <span className="pill__text nt-chip-label nt-chip-label--broken">
                   <code>{ref}</code>
                 </span>
-              ) : isAssetTarget ? (
-                <button type="button" className="pill__text nt-chip-label" title="Download" onClick={download}>
-                  {pillLabel(ref)}
-                </button>
-              ) : linkedNode !== undefined && rendersAsInlineBlock(linkedNode) ? (
-                // Text properties are node-backed carrier blocks: the value
-                // cell renders the block itself, editable — never a raw id.
+                {row.source === "authored" && (
+                  <button
+                    type="button"
+                    className="pill__right-button nt-chip-remove"
+                    aria-label={removeLabel}
+                    onClick={() => void unlink(row.idx)}
+                  >
+                    ×
+                  </button>
+                )}
+                {trailing}
+              </span>
+            );
+          }
+          if (rendersAsInlineBlock(linkedNode)) {
+            // Text properties are node-backed carrier blocks: the value
+            // cell renders the block itself, editable — never a raw id.
+            return (
+              <span
+                key={`${propertySchemaId}:${row.idx}`}
+                className={
+                  row.source === "default" ? "pill pill--default" : "pill pill--hover-reveal-right"
+                }
+              >
+                {linkedNode.icon !== null && (
+                  <span className="pill__left-icon">
+                    <Icon path={linkedNode.icon} size={0.7} />
+                  </span>
+                )}
                 <span className="nt-property-blockcell">
                   <ReferenceSubtree client={client} rootId={ref} onOpenNode={onOpenPage} />
                 </span>
-              ) : (
-                <span className="pill__text nt-chip-label">{pillLabel(ref)}</span>
-              )}
-              {row.source === "authored" && (
-                <button
-                  type="button"
-                  className="pill__right-button nt-chip-remove"
-                  aria-label={removeLabel}
-                  onClick={() => void unlink(row.idx)}
-                >
-                  ×
-                </button>
-              )}
-              {isAssetTarget && (
-                <button
-                  type="button"
-                  className="pill__right-button nt-chip-annotations"
-                  title="Annotations"
-                  aria-label={`Annotate ${pillLabel(ref)}`}
-                  aria-expanded={annotatingRef === ref}
-                  onClick={() => setAnnotatingRef((cur) => (cur === ref ? null : ref))}
-                >
-                  ❝
-                </button>
-              )}
-              {dateQualified && (
-                <QualifierRange
-                  client={client}
-                  start={qualifierIsoOf(row.metadata?.startDate)}
-                  end={qualifierIsoOf(row.metadata?.endDate)}
-                  ariaLabel={pillLabel(ref)}
-                  onCommit={(startIso, endIso) => {
-                    const metadata: Record<string, unknown> = { ...(row.metadata ?? {}) };
-                    if (startIso === "") delete metadata.startDate;
-                    else metadata.startDate = startIso;
-                    if (endIso === "") delete metadata.endDate;
-                    else metadata.endDate = endIso;
-                    void client.setProperty(nodeId, propertySchemaId, row.value, row.idx, metadata);
-                  }}
-                />
-              )}
-            </span>
+                {row.source === "authored" && (
+                  <button
+                    type="button"
+                    className="pill__right-button nt-chip-remove"
+                    aria-label={removeLabel}
+                    onClick={() => void unlink(row.idx)}
+                  >
+                    ×
+                  </button>
+                )}
+                {trailing}
+              </span>
+            );
+          }
+          // The standard value pill — the SAME element the nodeview classes
+          // list renders (NodePill), tinted with the linked node's effective
+          // color (own color, else its classes').
+          return (
+            <NodePill
+              key={`${propertySchemaId}:${row.idx}`}
+              color={client.effectiveNodeColor(linkedNode)}
+              icon={linkedNode.icon}
+              label={pillLabel(ref)}
+              className={row.source === "default" ? "pill--default" : ""}
+              hoverReveal={row.source !== "default"}
+              onOpen={isAssetTarget ? download : () => onOpenPage?.(ref)}
+              onRemove={row.source === "authored" ? () => void unlink(row.idx) : undefined}
+              removeLabel={removeLabel}
+              trailing={trailing}
+            />
           );
         })}
-        {!(multi === false && pills.length > 0) && (
-          <AddPill
-            ref={addButtonRef}
-            label="Add"
-            aria-expanded={pickerOpen}
-            onClick={(element) => {
-              addButtonRef.current = element;
-              setPickerOpen((open) => !open);
-            }}
-          />
-        )}
+        <AddPill
+          ref={(element) => {
+            addButtonRef.current = element;
+          }}
+          label="Add"
+          aria-expanded={pickerOpen}
+          onClick={(element) => {
+            addButtonRef.current = element;
+            setPickerOpen((open) => !open);
+          }}
+        />
       </span>
       {annotatingRef !== null && (
         <AnnotationsSection client={client} assetId={annotatingRef} onOpenPage={onOpenPage} />
@@ -756,6 +1024,81 @@ function DatePropertyRow({
   const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
   const unbound = rows.some((row) => row.source === "authored" && row.boundBy === null);
 
+  // Single-value: the selection dropdown (owner 2026-10-09) — empty renders
+  // the "Select" placeholder across the full value cell; the committed date
+  // rides the trigger content as the date node's DISPLAY name (a raw block
+  // row would leak the chain's compact storage label, the YYYYMMDD leak
+  // dateDisplay.ts exists to prevent). Re-picking overwrites the same slot.
+  if (multi === false) {
+    const single =
+      [...ordered].reverse().find((row) => row.source === "authored") ?? ordered[0];
+    const singleRef = single !== undefined ? nodeRefOf(single.value) : null;
+    return (
+      <li
+        className={
+          allDefault
+            ? "nt-property nt-property-default nt-property-date node-metadata-row"
+            : "nt-property nt-property-date node-metadata-row"
+        }
+      >
+        {!bare && (
+          <>
+            <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
+            {allDefault && <span className="nt-property-hint">default</span>}
+            {unbound && <span className="nt-property-hint">unbound</span>}
+          </>
+        )}
+        <PropertySelectCell
+          client={client}
+          valueRef={singleRef}
+          ariaLabel={`Set ${label}`}
+          isOpen={pickerFor !== null}
+          onToggle={(anchor) => {
+            anchorRef.current = anchor;
+            setPickerFor((cur) =>
+              cur === null ? (single !== undefined ? single.idx : "new") : null,
+            );
+          }}
+          clearLabel={`Clear ${label}`}
+          onClear={
+            single !== undefined && single.source === "authored"
+              ? () => void client.unsetProperty(nodeId, propertySchemaId, single.idx)
+              : undefined
+          }
+          trailing={
+            single !== undefined && single.source === "authored" && precision === "day" ? (
+              <RepeatPicker
+                value={typeof single.metadata?.repeat === "string" ? single.metadata.repeat : null}
+                onChange={(rule) => void setRepeat(single, rule)}
+                ariaLabel={`Repeat for ${label}`}
+                iconOnly
+              />
+            ) : undefined
+          }
+        >
+          {singleRef !== null
+            ? (displayNameFromClient(client, singleRef) ?? dateLabelOf(singleRef))
+            : null}
+        </PropertySelectCell>
+        {pickerFor !== null && (
+          <DatePickerPopup
+            value={
+              pickerFor === "new"
+                ? ""
+                : (isoOfRef(nodeRefOf(ordered.find((row) => row.idx === pickerFor)?.value ?? null)) ?? "")
+            }
+            onSelect={(iso) => commit(iso, pickerFor === "new" ? nextIdx : pickerFor)}
+            onClose={() => setPickerFor(null)}
+            anchorRef={anchorRef}
+            initialMode={precision === "year" ? "years" : precision === "month" ? "months" : "days"}
+            firstDayOfWeek={1}
+            markedDates={markedDates}
+          />
+        )}
+      </li>
+    );
+  }
+
   return (
     <li
       className={
@@ -815,16 +1158,14 @@ function DatePropertyRow({
             )}
           </span>
         ))}
-        {!(multi === false && ordered.length > 0) && (
-          <AddPill
-            label="Add"
-            aria-expanded={pickerFor === "new"}
-            onClick={(element) => {
-              anchorRef.current = element;
-              setPickerFor((cur) => (cur === "new" ? null : "new"));
-            }}
-          />
-        )}
+        <AddPill
+          label="Add"
+          aria-expanded={pickerFor === "new"}
+          onClick={(element) => {
+            anchorRef.current = element;
+            setPickerFor((cur) => (cur === "new" ? null : "new"));
+          }}
+        />
       </span>
       {pickerFor !== null && (
         <DatePickerPopup

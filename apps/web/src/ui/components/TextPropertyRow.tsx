@@ -18,7 +18,9 @@
  *
  * Values that don't resolve to a carrier block (legacy scalar strings) keep
  * the minimal text input fallback; editing a dead-carrier cell re-authors a
- * fresh carrier, empty-blur unsets the dead value.
+ * fresh carrier, empty-blur unsets the dead value. A bound-but-empty row
+ * renders the full-width "Type something" placeholder input so the empty
+ * value cell still reads as a field; typing authors the first carrier.
  */
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -256,7 +258,30 @@ export function TextPropertyRow({
               />
             );
           })}
-          {multi && (
+          {ordered.length === 0 && (
+            // The empty cell still spans the full value width (owner
+            // 2026-10-09) — the muted placeholder names the field empty;
+            // typing authors the first carrier block, like the Add pill but
+            // with the text riding in directly.
+            <input
+              type="text"
+              className="nt-property-value"
+              placeholder="Type something"
+              aria-label={`Property ${label}`}
+              onBlur={(event) => {
+                const text = event.target.value;
+                if (text.trim() === "") return;
+                void (async () => {
+                  const carrierId = await client.createObject({
+                    parentId: nodeId,
+                    contentAst: [{ type: "text", text }],
+                  });
+                  await client.setProperty(nodeId, propertySchemaId, { nodeId: carrierId }, 0);
+                })();
+              }}
+            />
+          )}
+          {multi && ordered.length > 0 && (
             <AddPill
               ref={addButtonRef}
               label="Add"

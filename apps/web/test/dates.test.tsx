@@ -188,11 +188,12 @@ describe("dates (SCHEMA.md)", () => {
     render(<PageView client={client} pageId={pageId} />);
     expandProperties();
 
-    // The unvalued date binding renders the add affordance; the popup opens
-    // at the day grid (day precision). (Scoped to the date row — every page
-    // also carries the unvalued "Alias of" system row since issue #7.)
+    // The unvalued single-value binding renders the "Select" placeholder
+    // trigger; clicking it opens the popup at the day grid (day precision).
+    // (Scoped to the date row — every page also carries the unvalued "Alias
+    // of" system row since issue #7.)
     const row = screen.getByText("published").closest<HTMLElement>(".nt-props-sidebar__prop, li")!;
-    fireEvent.click(within(row).getByRole("button", { name: "Add" }));
+    fireEvent.click(within(row).getByRole("button", { name: "Set published" }));
     expect(screen.getByRole("dialog", { name: "Date picker" })).not.toBeNull();
 
     // The typed-date input parses with a preview and commits on Enter.
@@ -204,8 +205,10 @@ describe("dates (SCHEMA.md)", () => {
     expect(valueOf(client, pageId, schemaId)).toEqual({
       nodeId: chainNodeIds("2026-02-14").day,
     });
-    // The chip renders the committed date.
-    expect(screen.getByRole("button", { name: "Set published" }).textContent).toBe("2026-02-14");
+    // The dropdown's content area renders the committed date's display name.
+    expect(
+      within(screen.getByRole("button", { name: "Set published" })).getByText("2026-02-14"),
+    ).not.toBeNull();
 
     // Editing the existing pill reopens the popup on the value's month;
     // the zoom selector drills out and back, then a day click overwrites
@@ -237,10 +240,11 @@ describe("dates (SCHEMA.md)", () => {
     expandProperties();
 
     const foundedRow = screen.getByText("founded").closest<HTMLElement>(".nt-props-sidebar__prop, li")!;
-    fireEvent.click(within(foundedRow).getByRole("button", { name: "Add" }));
-    // Year precision opens at the YEAR grid; clicking a year resolves the
+    // The single-value binding's "Select" trigger opens the popup; year
+    // precision opens at the YEAR grid; clicking a year resolves the
     // canonical ISO and the data layer links the YEAR node at the schema's
     // precision (the commit ceiling).
+    fireEvent.click(within(foundedRow).getByRole("button", { name: "Set founded" }));
     fireEvent.click(screen.getByRole("button", { name: "2026" }));
     await flushWrites();
 

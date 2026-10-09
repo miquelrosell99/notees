@@ -276,12 +276,14 @@ describe("CalendarView recurrence", () => {
 
     render(<PropertiesSection client={client} nodeId={id} onOpenPage={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /^Properties/ }));
-    const pill = (await screen.findByRole("button", { name: "Set When" })).closest(
-      ".pill",
+    // The single-value date renders the selection dropdown (owner
+    // 2026-10-09); the repeat picker rides the cell's trailing chrome.
+    const cell = (await screen.findByRole("button", { name: "Set When" })).closest(
+      ".nt-property-select",
     ) as HTMLElement;
 
-    // Pick Monthly through the pill's repeat picker.
-    fireEvent.click(within(pill).getByText("Repeat for When"));
+    // Pick Monthly through the cell's repeat picker.
+    fireEvent.click(within(cell).getByText("Repeat for When"));
     await repeatPickerOption("Monthly");
     await waitFor(() => {
       expect(
@@ -292,7 +294,7 @@ describe("CalendarView recurrence", () => {
     });
 
     // Re-pick the date (Today in the popup) — the rule survives the commit.
-    fireEvent.click(within(pill).getByRole("button", { name: "Set When" }));
+    fireEvent.click(within(cell).getByRole("button", { name: "Set When" }));
     fireEvent.click(await screen.findByRole("button", { name: "Go to today" }));
     await waitFor(() => {
       const when = client

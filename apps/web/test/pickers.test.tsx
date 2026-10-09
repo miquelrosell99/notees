@@ -13,7 +13,10 @@
  *    minimal text editor;
  *  - boolean schemas render the checkbox toggle writing true/false;
  *  - the object picker's search/create rows find and create pages (created
- *    pages carry the schema's target classes).
+ *    pages carry the schema's target classes); a single-value node property
+ *    renders the selection dropdown — the selected node shows as a read-only
+ *    block row with a clear affordance — while multi-value pills ride the
+ *    shared NodePill element tinted with the linked node's effective color.
  */
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -295,8 +298,10 @@ describe("metadata pickers (ported popups)", () => {
     render(<PageView client={client} pageId={teamId} />);
     expandProperties();
 
+    // The single-value binding renders the "Select" placeholder trigger;
+    // clicking it opens the picker (create row included).
     const row = screen.getByText("mentor").closest(".nt-props-sidebar__prop, .nt-property-object") as HTMLElement;
-    fireEvent.click(within(row).getByRole("button", { name: "Add" }));
+    fireEvent.click(within(row).getByRole("button", { name: "Set mentor" }));
     fireEvent.change(screen.getByLabelText("Search mentor"), { target: { value: "Ada" } });
     fireEvent.click(screen.getByText('Create "Ada"'));
     await flushWrites();
@@ -312,6 +317,50 @@ describe("metadata pickers (ported popups)", () => {
         source: "authored",
       }),
     ]);
+
+    // The single-value cell renders the selection dropdown (owner 2026-10-09):
+    // the selected node rides the content area as a READ-ONLY block row,
+    // never a pill — and the clear affordance unsets the slot.
+    const rowAfter = screen.getByText("mentor").closest(".nt-props-sidebar__prop, .nt-property-object") as HTMLElement;
+    expect(rowAfter.querySelector(".nt-property-select__blockrow .nt-block--readonly")).not.toBeNull();
+    expect(within(rowAfter).getByText("Ada")).not.toBeNull();
+    fireEvent.click(within(rowAfter).getByRole("button", { name: "Clear mentor" }));
+    await flushWrites();
+    expect(client.getEffectiveProperties(teamId)).toEqual([]);
+  });
+
+  it("multi-value node property pills ride the shared NodePill element, tinted with the linked node's effective color", async () => {
+    const client = await seedClient();
+    const personClass = await createTitledClass(client, "person");
+    const castSchema = await client.createPropertySchema({
+      name: "cast",
+      type: "object",
+      multi: true,
+      targetClassFilter: [personClass],
+    });
+    const filmClass = await client.createClass("Film");
+    await client.setClassProperty(filmClass, castSchema, { sequence: 0 });
+    const filmId = await client.createObject({ presentAsMain: true, name: "Arrival" });
+    await client.assignClass(filmId, filmClass);
+    // Amy carries her OWN color; Bob is person-classed (the write-time filter)
+    // but uncolored — the neutral pill.
+    const amyId = await client.createObject({ presentAsMain: true, name: "Amy", classIds: [personClass] });
+    await client.updateObject(amyId, { color: "red" });
+    const bobId = await client.createObject({ presentAsMain: true, name: "Bob", classIds: [personClass] });
+    await client.setProperty(filmId, castSchema, { nodeId: amyId }, 0);
+    await client.setProperty(filmId, castSchema, { nodeId: bobId }, 1);
+
+    const { container } = render(<PageView client={client} pageId={filmId} />);
+    expandProperties();
+    const pills = container.querySelectorAll<HTMLElement>(".nt-property-object .pill:not(.pill--add)");
+    expect(pills.length).toBe(2);
+    const amyPill = [...pills].find((pill) => pill.textContent?.includes("Amy"))!;
+    const bobPill = [...pills].find((pill) => pill.textContent?.includes("Bob"))!;
+    // The linked node's effective color tints the pill surface (the same
+    // NodePill element the classes list renders); the uncolored node keeps
+    // the neutral pill.
+    expect(amyPill.style.background).not.toBe("");
+    expect(bobPill.style.background).toBe("");
   });
 });
 

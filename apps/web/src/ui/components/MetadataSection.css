@@ -148,8 +148,9 @@ span.pill__text {
 /* --- the properties sidebar (the main layout's first column) -------------- */
 
 /* A set of rows, one per property: a property-name row followed by its
-   value-cell row. No horizontal rules — the vertical divider on the
-   sidebar container is the only separator. */
+   value-cell row. A hairline under each property is the only horizontal
+   separator (owner 2026-10-09) — the value cells below span the column's
+   full width, so the empty ones read as empty fields. */
 .nt-props-sidebar {
   display: flex;
   flex-direction: column;
@@ -157,9 +158,14 @@ span.pill__text {
   min-width: 0;
 }
 
+.nt-props-sidebar__prop {
+  padding-bottom: var(--spacing-2);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+}
+
 /* The column names itself (owner request): a small muted label row — the
-   nodeview top bar's visual register. No hairline: the vertical divider on
-   the sidebar container remains the only separator. */
+   nodeview top bar's visual register. The hairlines under each property
+   row are the only horizontal separators. */
 .nt-props-sidebar__header {
   display: flex;
   align-items: center;
@@ -194,6 +200,9 @@ span.pill__text {
 .nt-props-sidebar__value {
   margin-top: var(--spacing-1);
   min-width: 0;
+  /* The value cell spans the column's full width even when empty
+     (owner 2026-10-09) — an empty property reads as an empty field. */
+  width: 100%;
 }
 
 /* The reused value-row components keep their own li chrome — strip the
@@ -321,6 +330,98 @@ span.pill__text {
   flex: 1;
   min-width: 0;
   padding: 2px 0;
+}
+
+/* --- the single-value selection cell (node-typed / date properties) ------- */
+
+/* The full-width dropdown control: the trigger spans the value cell, the
+   selected node rides the content area as a read-only block row (never a
+   pill), empty shows the muted "Select" placeholder. */
+.nt-property-select {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex: 1;
+  min-width: 0;
+}
+
+.nt-property-select__trigger {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: var(--height-sm);
+  padding: 2px var(--spacing-2);
+  border-radius: var(--shape-medium);
+  cursor: pointer;
+  color: var(--color-on-surface);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-property-select__trigger:hover {
+  background: var(--color-hover-overlay);
+}
+
+.nt-property-select__trigger:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus-ring);
+}
+
+.nt-property-select__content {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+}
+
+.nt-property-select__placeholder {
+  color: var(--color-on-surface-variant);
+  font-style: italic;
+}
+
+.nt-property-select__chevron {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-on-surface-variant);
+}
+
+.nt-property-select__blockrow .nt-refblock-tree {
+  padding: 0;
+}
+
+.nt-property-select__clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0 var(--spacing-1);
+  border: none;
+  background: none;
+  color: var(--color-on-surface-variant);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: var(--shape-small);
+  opacity: var(--opacity-60);
+}
+
+.nt-property-select__clear:hover,
+.nt-property-select__clear:focus-visible {
+  opacity: var(--opacity-100);
+  color: var(--color-on-surface);
+}
+
+.nt-property-select__broken code {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-body-small);
+  overflow-wrap: anywhere;
+  color: var(--color-on-surface-variant);
+}
+
+/* Empty text property: the muted placeholder rides the full-width cell. */
+.nt-property-value::placeholder {
+  color: var(--color-on-surface-variant);
+  font-style: italic;
 }
 
 .nt-property-blockcell .nt-refblock-tree {
