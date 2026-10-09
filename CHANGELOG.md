@@ -9,6 +9,16 @@ predating this file.
 
 ## 2026-10-09
 
+- **fix(web): date pages carry no Unlinked mentions tab.** The whole
+  deterministic day/month/year family drops the Unlinked mentions tab from
+  the bottom references strip (owner 2026-10-09): the literal date text
+  those pages accumulate is noise, never a discovery surface — a date page's
+  strip shows Backlinks only, and hides entirely when it has none. The
+  unlinked count read (a full FTS pass per render) is skipped for date pages
+  too — the journal feed renders one embedded day page per entry. Ordinary
+  pages are unchanged (both tabs always show once the strip renders).
+  Verified: web suites green.
+
 - **fix(web): the journal and calendar day feeds no longer render an empty
   "Metadata 0" section on property-less pages.** Embedded `PageView` renders
   (the journal feed, the calendar's day pages) now drop the in-flow

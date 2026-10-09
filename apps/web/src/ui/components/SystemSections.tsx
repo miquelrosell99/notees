@@ -4,7 +4,11 @@
  * the REFERENCES rework rides the tab strip (owner 2026-10-06, the
  * Capacities-style layout): ONE tab bar in the old references-tab slot —
  * Backlinks and Unlinked mentions (renamed from "unlinked references") —
- * always showing both tabs even when empty. The tab label carries the eager
+ * always showing both tabs even when empty, EXCEPT on date pages (owner
+ * 2026-10-09): the deterministic day/month/year family carries no Unlinked
+ * mentions tab at all — the literal date text those pages accumulate is
+ * noise, never a discovery surface — and the unlinked count read (a full
+ * FTS pass) is skipped there. The tab label carries the eager
  * count; a tab's list query runs lazily on its first activation (the
  * SCHEMA.md lazy contract), the results cache across tab switches, and a
  * live notification re-runs the loaded tabs' queries: the tab caches
@@ -44,6 +48,8 @@
  */
 
 import { useCallback, useMemo, useState } from "react";
+
+import { parseDateNodeId } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, ReferenceEntry, WorkspaceClient } from "@/core/workspace-client.js";
@@ -250,9 +256,15 @@ export function SystemSections({
   // The eager counts ride the tab labels (the backlink count is a
   // materialized read; the unlinked count its memoized count query — the
   // SystemSections precedent, so the labels know emptiness without running
-  // the list queries).
+  // the list queries). Date pages are the exception (owner 2026-10-09):
+  // the whole deterministic day/month/year family hides the Unlinked
+  // mentions tab — the literal date text those pages accumulate is noise,
+  // never a discovery surface — so the count reads 0 there and the FTS
+  // pass it pays is skipped entirely (the journal feed renders one
+  // embedded day page per entry).
+  const isDatePage = parseDateNodeId(pageId) !== null;
   const backlinkCount = client.getBacklinkCount(pageId);
-  const unlinkedCount = client.getUnlinkedReferenceCount(pageId);
+  const unlinkedCount = isDatePage ? 0 : client.getUnlinkedReferenceCount(pageId);
   const childPageCount = client.getChildPageCount(pageId);
 
   // The bottom backlinks strip: hidden while the page has neither backlinks
@@ -357,9 +369,11 @@ export function SystemSections({
           mentions) ride one tab bar in the old references-tab slot. It hides
           entirely while the page has neither (owner 2026-10-08, the
           hide-when-empty ruling that covers every system section); once it
-          renders, both tabs always show and the panel under a tab renders
-          headerless (the tab is the header). An active filter emptying a
-          tab keeps the chrome — the count gate reads the UNFILTERED rows. */}
+          renders, both tabs always show (on date pages: only Backlinks —
+          the Unlinked mentions tab never rides a date page) and the panel
+          under a tab renders headerless (the tab is the header). An active
+          filter emptying a tab keeps the chrome — the count gate reads the
+          UNFILTERED rows. */}
       {(backlinkCount > 0 || unlinkedCount > 0) && (
       <div className="nt-backlinks">
         <Tabs className="nt-ref-tabs" value={refTab} onChange={setRefTab}>
@@ -367,9 +381,15 @@ export function SystemSections({
             <Tabs.Tab value={REF_TAB_BACKLINKS}>
               Backlinks{backlinkCount > 0 ? ` ${backlinkCount}` : ""}
             </Tabs.Tab>
-            <Tabs.Tab value={REF_TAB_UNLINKED}>
-              Unlinked mentions{unlinkedCount > 0 ? ` ${unlinkedCount}` : ""}
-            </Tabs.Tab>
+            {/* Date pages (the day/month/year family) carry no Unlinked
+                mentions tab — the literal-date matches are noise, and the
+                count is forced to 0 above, so the strip's gates read as if
+                the page had none. */}
+            {!isDatePage && (
+              <Tabs.Tab value={REF_TAB_UNLINKED}>
+                Unlinked mentions{unlinkedCount > 0 ? ` ${unlinkedCount}` : ""}
+              </Tabs.Tab>
+            )}
           </Tabs.List>
           <Tabs.Panel value={REF_TAB_BACKLINKS}>
             <FilterBar
@@ -392,25 +412,27 @@ export function SystemSections({
               />
             )}
           </Tabs.Panel>
-          <Tabs.Panel value={REF_TAB_UNLINKED}>
-            <FilterBar
-              client={client}
-              value={unlinkedFilter}
-              onChange={setUnlinkedFilter}
-              matchCount={unlinked.rows === null ? null : unlinked.rows.length}
-              totalCount={unlinked.total}
-            />
-            {unlinked.rows === null ? null : (
-              <ReferenceList
-                entries={unlinked.rows}
+          {!isDatePage && (
+            <Tabs.Panel value={REF_TAB_UNLINKED}>
+              <FilterBar
                 client={client}
-                onOpenPage={onOpenPage}
-                unlinkedPageId={pageId}
-                hostedViews={{ nodeId: pageId, sectionKey: "unlinked-mentions" }}
-                emptyText="No unlinked mentions."
+                value={unlinkedFilter}
+                onChange={setUnlinkedFilter}
+                matchCount={unlinked.rows === null ? null : unlinked.rows.length}
+                totalCount={unlinked.total}
               />
-            )}
-          </Tabs.Panel>
+              {unlinked.rows === null ? null : (
+                <ReferenceList
+                  entries={unlinked.rows}
+                  client={client}
+                  onOpenPage={onOpenPage}
+                  unlinkedPageId={pageId}
+                  hostedViews={{ nodeId: pageId, sectionKey: "unlinked-mentions" }}
+                  emptyText="No unlinked mentions."
+                />
+              )}
+            </Tabs.Panel>
+          )}
         </Tabs>
       </div>
       )}
