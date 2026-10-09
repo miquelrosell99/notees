@@ -144,8 +144,8 @@ function rowEl(container: HTMLElement, blockId: string): HTMLElement {
 }
 
 function gripOf(row: HTMLElement): HTMLElement {
-  const el = row.querySelector<HTMLElement>(".nt-block-grip");
-  if (el === null) throw new Error("no drag grip in row");
+  const el = row.querySelector<HTMLElement>(".nt-bullet");
+  if (el === null) throw new Error("no drag handle (bullet) in row");
   return el;
 }
 
@@ -182,10 +182,10 @@ async function flushMoves(): Promise<void> {
 }
 
 /**
- * Simulate a pointer drag of `fromId`'s grip onto `targetId`'s row.
- * `offsetX` within the shallow zone (< 48px) keeps the reorder intent;
- * `offsetX` 60 sits in the deep zone (child intent). `half` picks the drop
- * line within the row for reorder intents.
+ * Simulate a pointer drag of `fromId`'s drag handle (the bullet) onto
+ * `targetId`'s row. `offsetX` within the shallow zone (< 48px) keeps the
+ * reorder intent; `offsetX` 60 sits in the deep zone (child intent). `half`
+ * picks the drop line within the row for reorder intents.
  */
 function dragOnto(
   container: HTMLElement,
