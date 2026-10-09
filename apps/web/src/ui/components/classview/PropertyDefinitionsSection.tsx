@@ -61,8 +61,7 @@ const TYPE_GLYPHS: Record<string, string> = {
   number: "mdi-pound",
   url: "mdi-link-variant",
   email: "mdi-email-outline",
-  date: "mdi-calendar",
-  date_range: "mdi-calendar-range",
+  datetime: "mdi-calendar",
   select: "mdi-form-select",
   object: "mdi-target",
   image: "mdi-image",
@@ -133,7 +132,7 @@ function BindingRow({
   const filterEntries = schemaRow?.targetClassFilter ?? binding.targetClassFilter;
   const filterIds = filterIdsOf(client, filterEntries);
   const filterNames = filterNamesOf(client, filterEntries);
-  const isDate = binding.type === "date" || binding.type === "date_range";
+  const isDate = binding.type === "datetime";
 
   return (
     <li

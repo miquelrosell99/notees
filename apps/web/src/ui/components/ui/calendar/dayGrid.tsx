@@ -51,7 +51,7 @@ export function useWeekdayHeader(firstDayOfWeek: number): string[] {
 export interface CalendarDayExtraMarks {
   /**
    * Range-aware dots: objects reference this day (date refs and
-   * date_range ends fan out to the deterministic day node) — set when the
+   * range ends fan out to the deterministic day node) — set when the
    * day has dated activity but no page of its own.
    */
   dated?: boolean;

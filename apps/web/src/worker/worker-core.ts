@@ -53,6 +53,7 @@ import {
   type CreateObjectInput,
   type CreatePropertySchemaInput,
   type DeleteObjectOptions,
+  type DatetimeValueInput,
   type EffectiveProperty,
   type PrefsPatch,
   type ReferenceEntry,
@@ -787,21 +788,13 @@ export class WorkerCore {
         );
       case "ensureDateChain":
         return this.client.ensureDateChain(args[0] as string);
-      case "setDateProperty":
-        return this.client.setDateProperty(
+      case "setDatetimeProperty":
+        return this.client.setDatetimeProperty(
           args[0] as string,
           args[1] as string,
-          args[2] as string,
+          args[2] as DatetimeValueInput,
           args[3] as number | undefined,
           args[4] as Record<string, unknown> | undefined,
-        );
-      case "setDateRangeProperty":
-        return this.client.setDateRangeProperty(
-          args[0] as string,
-          args[1] as string,
-          args[2] as string | null,
-          args[3] as string | null,
-          args[4] as number | undefined,
         );
       case "createObject":
         return this.createObject(args[0] as CreateObjectInput);

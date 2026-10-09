@@ -86,8 +86,8 @@ export const EVENT_CLASS_ID = SYSTEM_CLASS_UUIDS.event;
 export const BIRTHDAY_CLASS_ID = SYSTEM_CLASS_UUIDS.birthday;
 
 /** The event root's minimal family: the date binding the calendar rides on. */
-export const EVENT_FAMILY: ReadonlyArray<{ id: string; name: string; type: "date" }> = [
-  { id: SYSTEM_PROPERTY_UUIDS.eventDate, name: SYSTEM_PROPERTY_DISPLAY_NAMES.eventDate, type: "date" },
+export const EVENT_FAMILY: ReadonlyArray<{ id: string; name: string; type: "datetime" }> = [
+  { id: SYSTEM_PROPERTY_UUIDS.eventDate, name: SYSTEM_PROPERTY_DISPLAY_NAMES.eventDate, type: "datetime" },
 ];
 
 /**
@@ -120,8 +120,8 @@ export const BIRTHDAY_FAMILY: ReadonlyArray<{
  * name-for-name with a server-seeded one (the system-names pass,
  * 2026-10-05).
  */
-export const MEETING_FAMILY: ReadonlyArray<{ id: string; name: string; type: "date" | "text" }> = [
-  { id: SYSTEM_PROPERTY_UUIDS.meetingDate, name: SYSTEM_PROPERTY_DISPLAY_NAMES.meetingDate, type: "date" },
+export const MEETING_FAMILY: ReadonlyArray<{ id: string; name: string; type: "datetime" | "text" }> = [
+  { id: SYSTEM_PROPERTY_UUIDS.meetingDate, name: SYSTEM_PROPERTY_DISPLAY_NAMES.meetingDate, type: "datetime" },
   { id: SYSTEM_PROPERTY_UUIDS.location, name: SYSTEM_PROPERTY_DISPLAY_NAMES.location, type: "text" },
   { id: SYSTEM_PROPERTY_UUIDS.agenda, name: SYSTEM_PROPERTY_DISPLAY_NAMES.agenda, type: "text" },
 ];
@@ -163,7 +163,7 @@ async function ensureFamilySchemas(
   family: ReadonlyArray<{
     id: string;
     name: string;
-    type: "date" | "text" | "object";
+    type: "datetime" | "text" | "object";
     targetClassFilter?: string[];
   }>,
 ): Promise<void> {
