@@ -172,7 +172,7 @@ The single most important process rule:
 **an op type is not done until its fixture validates.** Canonical fixtures live in
 `packages/protocol/fixtures/` as JSON files of envelopes (or `{"envelopes": [...]}`
 groups). The exact file set is the contract — the gate test below asserts it
-verbatim (24 files after the 2026-10-07 batches); the core
+verbatim (25 files after the 2026-10-09 datetime batch); the core
 scenarios:
 
 | Fixture | Scenario it pins |

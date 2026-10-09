@@ -116,6 +116,7 @@ The immutable log gains envelopes; every replica applies them in order.
 | `migrate-cover-banner-alias.mts` | A | the retired cover/banner/aliasOf property assertions → the `coverAssetId`/`bannerAssetId`/`aliasedNodeId` wire fields (appended `object.update` + `property.unset`; resolves v1 `{hash}` cover data through the CAS table). STRICT-PAYLOAD ADDITIVE: run only after the GTK/Flutter ports accept the new keys |
 | `migrate-retire-class-class.mts` | A | the retired `class` meta class — members convert to real classes via the `class.create`-on-existing-node capability + binding drops; has-template relocates to global scope (binding unset + `propertySchema.create` re-scope upsert); the emptied class-class rides to the trash. CLASS-IDENTITY SEMANTIC: run only after the GTK/Flutter ports implement the conversion |
 | `migrate-attachments-asset-type.mts` | A | the attachments schema (…0011) retypes object → asset via the `propertySchema.create` upsert (the only wire path that changes a type); the explicit targetClassFilter retires (implicit in the type), values ride untouched. STRICT-ENUM ADDITIVE: run only after the GTK/Flutter ports accept the asset type |
+| `migrate-unified-datetime.mts` | B | the retired `date`/`date_range` property types → `datetime` (envelope payload rewrite; values ride untouched — every legacy shape is a legal member of the new union, so no compensation envelopes) |
 
 All scripts: **dry-run by default**, `--apply` to write, `--data-dir` +
 `--workspace` flags (the owner workspace id is the default). Run via
