@@ -467,6 +467,16 @@ class Compiler {
         // Condition form: membership only (single-column projection; the
         // scope form joins the same CTE for its distance column).
         return `n.id IN (SELECT id FROM (${this.linkedToSql(condition.nodeId)}))`;
+      case "descendantOf": {
+        // Ancestor-chain membership: the row sits inside the anchor's
+        // subtree (anywhere up its parents tree) — subtree membership minus
+        // the anchor row itself ("has X as a parent", self excluded).
+        // subtreeSql first: its placeholder must precede the anchor's
+        // (params bind positionally, in evaluation order).
+        const subtree = this.subtreeSql(condition.nodeId);
+        const anchor = this.push(condition.nodeId);
+        return `n.id IN (SELECT id FROM (${subtree})) AND n.id != ${anchor}`;
+      }
       case "createdAfter":
         return `n.created_at >= ${this.push(
           resolveTimestampPlaceholder(condition.timestamp, "after", this.options),

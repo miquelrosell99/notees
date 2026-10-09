@@ -84,6 +84,13 @@ export type Condition =
     }
   /** backlinksWithRollup semantics: direct edge to nodeId, or containment roll-up. */
   | { type: "linkedTo"; nodeId: string }
+  /**
+   * Ancestor-chain membership: the node's parents tree (parent,
+   * grandparent, …, the node itself EXCLUDED) contains nodeId — the row
+   * sits anywhere inside the chosen node's tree. Compiled as subtree
+   * membership minus the anchor row.
+   */
+  | { type: "descendantOf"; nodeId: string }
   /** node.created_at >= timestamp (ISO-8601, inclusive, lexicographic). */
   | { type: "createdAfter"; timestamp: string }
   /** node.created_at <= timestamp (ISO-8601, inclusive, lexicographic). */
@@ -121,6 +128,11 @@ export const conditionSchema = z.discriminatedUnion("type", [
     includeDefaults: z.boolean().optional(),
   }).strict(),
   z.object({ type: z.literal("linkedTo"), nodeId: uuid }).strict(),
+  /**
+   * Ancestor-chain membership (the "parent is X, anywhere up the tree"
+   * condition): subtree membership minus the anchor itself.
+   */
+  z.object({ type: z.literal("descendantOf"), nodeId: uuid }).strict(),
   z.object({ type: z.literal("createdAfter"), timestamp: z.string().min(1) }).strict(),
   z.object({ type: z.literal("createdBefore"), timestamp: z.string().min(1) }).strict(),
   /** Wire-field predicates over the node-table columns (uuid refs; eq/neq/exists). */
