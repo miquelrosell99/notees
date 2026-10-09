@@ -205,7 +205,7 @@ function renderPropertyScalar(property: ExportDocumentProperty): string {
   return yamlScalar(`${base}${qualifierTail(property)}`);
 }
 
-/** A date_range row's two end labels (null = open side), when it is one. */
+/** A datetime range row's two end labels (null = open side), when it is one. */
 function rangeEnds(property: ExportPropertyValue): Array<string | null> | null {
   if (!isRecord(property.value) || "nodeId" in property.value) return null;
   if (!("start" in property.value) && !("end" in property.value)) return null;
@@ -246,7 +246,7 @@ function renderFrontmatter(document: ExportDocument, options: ResolvedExportOpti
       if (values.length === 1) {
         const only = values[0];
         if (only === undefined) continue;
-        // PG15 per-type branches: date_range rows emit a start/end map,
+        // PG15 per-type branches: datetime range rows emit a start/end map,
         // multi-value arrays emit one YAML item per element (labels, not raw
         // JSON); everything else stays a scalar.
         const ends = rangeEnds(only);

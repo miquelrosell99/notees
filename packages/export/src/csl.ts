@@ -385,7 +385,7 @@ export interface CslNodeSpec {
   isbn?: string;
   url?: string;
   publisher?: string;
-  /** Year-only ISO date (`1962`) per the seeded date property. */
+  /** Year-only ISO date (`1962`) per the seeded datetime property. */
   publicationDate?: string;
 }
 
