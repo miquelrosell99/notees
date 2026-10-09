@@ -9,6 +9,36 @@ predating this file.
 
 ## 2026-10-09
 
+- **fix(web): the graph view comes back to life — warm starts stop pinning
+  the map, drag reaches the physics worker again, navigation is v1's
+  1:1, the hover card drops its permanent hint, and the pause button works
+  in worker mode.** (1) The freeze: every cached position was handed to the
+  engine as `pinned`, so the first topology rebuild (~1s in, on the
+  bootstrap-change notify) froze all 7.5k nodes at their warm-start spots —
+  and with drag already dead nothing could ever move again. Cached positions
+  are a starting point, not a pin; only fixed-layout (circle/tree)
+  coordinates pin. (2) Drag: the v2 port renamed the engine's node
+  identifier to `nodeUuid`, but `EngineController` still forwarded v1's
+  `nodeId` field — the worker's drag/pin handlers read `nodeUuid`, so every
+  drag silently no-op'd (verified against the live bundle). The controller
+  now sends `nodeUuid`; a `graph-controller` test pins both sides of the
+  wire. (3) Navigation is copied from the v1 renderer 1:1: pan was inverted
+  on the vertical axis (`+dy` where v1 uses `-dy`), and cursor-anchored zoom
+  mirrored Y the same way (the v1 additive anchor form replaces it, with
+  v1's 0.02–40 zoom range); dragging also does the v1 instant local
+  `overridePosition` so the node follows the pointer before the next worker
+  frame. (4) The node hover card no longer carries the always-visible
+  "Click to select · double-click to open" line — that belongs in the docs,
+  not on the canvas (edge hover cards unchanged). (5) The pause/resume
+  toolbar button now reaches the worker's clock (it only gated the
+  main-thread fallback before, so it was a no-op in every real browser);
+  reduced-motion's start-paused is applied at engine creation too.
+  Verified: full gate green (134 files, 1386 tests, new
+  `graph-controller` suite), live-stack probe against the real 7.5k-node
+  workspace (graph animates, drag/trackpad paths traced through the fixed
+  wire). Docs: usage.md graph section still accurate — the fix makes its
+  wording true.
+
 - **feat(server,web): env-gated signup (the sonarly pattern) + the context
   menu drops its banner entry.** (1) `NOTEES_SIGNUP_ENABLED` (default off,
   accepts `1/true/yes/on`) opens `POST /api/auth/signup`: creates a non-admin
