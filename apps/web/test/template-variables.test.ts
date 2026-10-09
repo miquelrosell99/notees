@@ -38,6 +38,7 @@ function fakeNode(partial: Partial<ClientNode> & { id: string }): ClientNode {
     coverAssetId: null,
     bannerAssetId: null,
     aliasedNodeId: null,
+    description: null,
     color: null,
     isActive: true,
     createdAt: null,

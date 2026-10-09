@@ -174,6 +174,9 @@ export interface ClientNode {
   coverAssetId: string | null;
   bannerAssetId: string | null;
   aliasedNodeId: string | null;
+  /** The page subtitle in the core chrome (wire node field, store schema
+   * v18) — plain text, null when unset. */
+  description: string | null;
   isActive: boolean;
   createdAt: string | null;
   updatedAt: string | null;
@@ -552,6 +555,8 @@ export interface UpdateObjectInput {
   coverAssetId?: string | null;
   bannerAssetId?: string | null;
   aliasedNodeId?: string | null;
+  /** The page subtitle in the core chrome (store schema v18). */
+  description?: string | null;
 }
 
 export interface DeleteObjectOptions {
@@ -955,6 +960,7 @@ function mapNode(row: NodeRow): ClientNode {
     coverAssetId: row.cover_asset_id ?? null,
     bannerAssetId: row.banner_asset_id ?? null,
     aliasedNodeId: row.aliased_node_id ?? null,
+    description: row.description ?? null,
     isActive: row.is_active === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -999,6 +1005,7 @@ function nodeRowStamp(row: NodeRow): { h1: number; h2: number } {
   mix(row.cover_asset_id);
   mix(row.banner_asset_id);
   mix(row.aliased_node_id);
+  mix(row.description);
   mix(row.is_active);
   mix(row.created_at);
   mix(row.updated_at);
@@ -2665,6 +2672,7 @@ export class WorkspaceClient {
     if (fields.coverAssetId !== undefined) payload.coverAssetId = fields.coverAssetId;
     if (fields.bannerAssetId !== undefined) payload.bannerAssetId = fields.bannerAssetId;
     if (fields.aliasedNodeId !== undefined) payload.aliasedNodeId = fields.aliasedNodeId;
+    if (fields.description !== undefined) payload.description = fields.description;
     this.enqueueLocal(this.buildEnvelope("object.update", payload, [id]));
   }
 
