@@ -142,11 +142,37 @@
   white-space: nowrap;
 }
 
-/* The references tab strip (#5, reworked 2026-10-06): the shared Tabs
-   primitive (ghost variant) tightened to the section rhythm — flush tab
-   list, one tab active at a time, its headerless panel beneath. Token-only. */
+/* The references tab strip (#5, reworked 2026-10-06; the filter chrome moved
+   into the tab row 2026-10-09): the shared Tabs primitive (ghost variant)
+   tightened to the section rhythm — flush tab list, one tab active at a
+   time, its headerless panel beneath. The tab row itself is a flex line:
+   the tab bar keeps the left, the transient filter chrome hugs the far
+   right (the magnifier folds the quick search, the structured-filters
+   toggle opens the builder below the row). Token-only. */
 .nt-ref-tabs .tabs__list {
   padding: 0;
+}
+
+.nt-ref-tabs-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+}
+
+/* The filter chrome: icon-only toggles + the unfolded quick search, pushed
+   to the row's far right. The search field takes a capped adaptive width —
+   the tab labels always keep the left side. */
+.nt-ref-chrome {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.nt-ref-chrome__search {
+  width: clamp(12ch, 30vw, 32ch);
 }
 
 /* The strip rides the old references-tab slot: a hairline above it reads it
