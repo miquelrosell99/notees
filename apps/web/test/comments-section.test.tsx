@@ -2,12 +2,14 @@
  * CommentsSection tests (the original
  * comments model restored onto the context column): comments are DIRECT
  * CHILDREN classed `comment` (the seeded system class); the section is
- * NodeViewSection chrome ("Comments" + the direct-child count), hidden when
- * empty; the quick-add composer creates a child block classed comment with
- * the text as its content (title-is-content); a reply is a comment whose
- * parent is the comment; children nest in the thread (any child blocks);
- * a row click opens the comment node; each row carries the original Reply/Delete
- * pair. Lazy per the section contract: threads resolve on the first expand
+ * NodeViewSection chrome ("Comments" + the direct-child count), ALWAYS
+ * rendered (owner 2026-10-09) — empty or not — and an empty thread starts
+ * EXPANDED so the icon-only quick-add is one click away; the quick-add
+ * composer creates a child block classed comment with the text as its
+ * content (title-is-content); a reply is a comment whose parent is the
+ * comment; children nest in the thread (any child blocks); a row click
+ * opens the comment node; each row carries the original Reply/Delete pair.
+ * Lazy per the section contract: threads resolve on the first expand
  * (useSectionData), re-deriving per notification while expanded.
  */
 
@@ -74,20 +76,23 @@ function commentChildrenOf(client: WorkspaceClient, nodeId: string) {
 }
 
 describe("CommentsSection", () => {
-  it("hidden at zero comments; renders with the direct-child count once one exists", async () => {
+  it("always renders — an empty thread starts expanded with the icon-only quick-add; the count follows", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Doc" });
 
-    const { container, unmount } = render(
-      <CommentsSection client={client} nodeId={pageId} onOpenNode={() => {}} />,
-    );
-    expect(container.firstElementChild).toBeNull();
-    unmount();
-
-    await createComment(client, pageId, "First!");
     render(<CommentsSection client={client} nodeId={pageId} onOpenNode={() => {}} />);
+    // Zero comments: the section still renders, expanded, with the quick-add
+    // visible without a prior expand.
     const header = screen.getByRole("button", { name: /Comments/ });
-    expect(within(header).getByText("1")).not.toBeNull();
+    expect(header.getAttribute("aria-expanded")).toBe("true");
+    expect(within(header).getByText("0")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Add comment" })).not.toBeNull();
+
+    await act(async () => {
+      await createComment(client, pageId, "First!");
+    });
+    expect(within(screen.getByRole("button", { name: /Comments/ })).getByText("1")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "First!" })).not.toBeNull();
   });
 
   it("threads resolve lazily on the first expand; a notification re-derives while expanded", async () => {
@@ -195,8 +200,12 @@ describe("CommentsSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete comment Open me" }));
     await flushWrites();
     expect(client.getNodeRaw(commentId)!.isActive).toBe(false);
-    // The section re-derived: the row is gone, the count reads 0 and the
-    // whole section hides.
-    expect(screen.queryByRole("button", { name: /Comments/ })).toBeNull();
+    // The section re-derived: the row is gone, the count reads 0 — and the
+    // section stays (always rendered, owner 2026-10-09).
+    expect(screen.queryByRole("button", { name: "Open me" })).toBeNull();
+    expect(screen.getByRole("button", { name: /Comments/ })).not.toBeNull();
+    expect(
+      within(screen.getByRole("button", { name: /Comments/ })).getByText("0"),
+    ).not.toBeNull();
   });
 });

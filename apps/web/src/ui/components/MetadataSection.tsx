@@ -191,15 +191,16 @@ function contrastFor(color: string): string {
 
 /**
  * PropertySelectCell — the single-value selection control (owner 2026-10-09):
- * a full-width dropdown trigger whose content shows the selected node as a
- * READ-ONLY block row (never a pill); an empty cell renders the muted
- * "Select" placeholder so the empty value still reads as a field spanning
- * the value cell. The owner popup (node picker / date picker) anchors at the
- * trigger; the clear affordance unsets the authored slot; trailing chrome
- * (repeat picker, link qualifiers, asset annotations) rides beside it.
- * The trigger is a div[role=button], not a native button: the content area
- * hosts the block row's own interactive bits, which a <button> could not
- * legally wrap.
+ * a full-width dropdown trigger whose content shows the selected value
+ * compactly — a node renders as ONE pill (the shared NodePill element,
+ * tinted with the effective color; never a subtree, never editable chrome),
+ * a date renders its display name; an empty cell renders the muted "Select"
+ * placeholder so the empty value still reads as a field spanning the value
+ * cell. The owner popup (node picker / date picker) anchors at the trigger;
+ * the clear affordance unsets the authored slot; trailing chrome (repeat
+ * picker, link qualifiers, asset annotations) rides beside it. The trigger
+ * is a div[role=button], not a native button: the content area hosts the
+ * pill, which a <button> could not legally wrap.
  */
 function PropertySelectCell({
   client,
@@ -214,7 +215,7 @@ function PropertySelectCell({
   onClear,
   /** Trailing chrome beside the trigger (repeat picker, qualifier range). */
   trailing,
-  /** The selected value's content — a read-only block row by contract. */
+  /** The selected value's content — one pill, or the date's display name. */
   children,
 }: {
   client: AnyClient;
@@ -260,16 +261,7 @@ function PropertySelectCell({
               <code>{valueRef}</code>
             </span>
           ) : (
-            // The row's own click gestures (open the node) stay suppressed:
-            // inside the dropdown the click means "open the picker". The
-            // capture wrapper stops the read-only row's navigation before
-            // the event reaches the trigger's own handler.
-            <div
-              className="nt-property-select__blockrow"
-              onClickCapture={(event) => event.stopPropagation()}
-            >
-              {children}
-            </div>
+            children
           )}
         </div>
         <span className="nt-property-select__chevron" aria-hidden="true">
@@ -473,9 +465,20 @@ function ObjectPropertyRow({
             </>
           }
         >
-          {singleRef !== null && (
-            <ReferenceSubtree client={client} rootId={singleRef} readOnly />
-          )}
+          {singleRef !== null && (() => {
+            const linked = client.getNode(singleRef);
+            if (linked === undefined) return null; // broken — the cell shows it
+            // ONE compact pill (owner 2026-10-09 follow-up): the dropdown's
+            // content names the selected node and nothing more — never the
+            // node's subtree, never editable row chrome.
+            return (
+              <NodePill
+                color={client.effectiveNodeColor(linked)}
+                icon={linked.icon}
+                label={pillLabel(singleRef)}
+              />
+            );
+          })()}
         </PropertySelectCell>
         {annotatingRef !== null && (
           <AnnotationsSection client={client} assetId={annotatingRef} onOpenPage={onOpenPage} />
@@ -592,41 +595,12 @@ function ObjectPropertyRow({
               </span>
             );
           }
-          if (rendersAsInlineBlock(linkedNode)) {
-            // Text properties are node-backed carrier blocks: the value
-            // cell renders the block itself, editable — never a raw id.
-            return (
-              <span
-                key={`${propertySchemaId}:${row.idx}`}
-                className={
-                  row.source === "default" ? "pill pill--default" : "pill pill--hover-reveal-right"
-                }
-              >
-                {linkedNode.icon !== null && (
-                  <span className="pill__left-icon">
-                    <Icon path={linkedNode.icon} size={0.7} />
-                  </span>
-                )}
-                <span className="nt-property-blockcell">
-                  <ReferenceSubtree client={client} rootId={ref} onOpenNode={onOpenPage} />
-                </span>
-                {row.source === "authored" && (
-                  <button
-                    type="button"
-                    className="pill__right-button nt-chip-remove"
-                    aria-label={removeLabel}
-                    onClick={() => void unlink(row.idx)}
-                  >
-                    ×
-                  </button>
-                )}
-                {trailing}
-              </span>
-            );
-          }
-          // The standard value pill — the SAME element the nodeview classes
-          // list renders (NodePill), tinted with the linked node's effective
-          // color (own color, else its classes').
+          // The value pill — the SAME element the nodeview classes list
+          // renders (NodePill), tinted with the linked node's effective
+          // color (own color, else its classes'). Every resolved value rides
+          // one compact pill — never the node's subtree (the editable-block
+          // treatment is the TEXT property row's contract, not object
+          // values', owner follow-up 2026-10-09).
           return (
             <NodePill
               key={`${propertySchemaId}:${row.idx}`}
@@ -2445,13 +2419,15 @@ export function PropertiesSection({
  * PropertiesSidebar — the main layout's first column (owner 2026-10-06):
  * a set of rows, one per property — a property-name row followed by its
  * value-cell row — beside a continuous vertical divider (the sidebar's
- * right edge runs the card's full height, no top or bottom gap). The column
- * opens with a small "Properties" header row (owner request): the first
- * column names itself, in the nodeview top bar's muted register. The value
- * cells reuse the properties table's row components verbatim (only their
- * internal label/hints hide — the name row above carries them); only the
- * two-row stacking and the divider are this component's own. Clicking a
- * name row opens the property's settings, like the table's label click.
+ * right edge runs the card's full height, no top or bottom gap). The rows
+ * ride a collapsible NodeViewSection (owner 2026-10-09, expanded by
+ * default): the section header names the column — dotted-list icon +
+ * "Properties" + the effective row count — and collapsing keeps the
+ * column's divider while the rows step aside. The value cells reuse the
+ * properties table's row components verbatim (only their internal
+ * label/hints hide — the name row above carries them); only the two-row
+ * stacking and the divider are this component's own. Clicking a name row
+ * opens the property's settings, like the table's label click.
  */
 export function PropertiesSidebar({
   client,
@@ -2554,23 +2530,22 @@ export function PropertiesSidebar({
 
   return (
     <div className="nt-props-sidebar">
-      {/* The column names itself (owner request): a muted label row in the
-          nodeview top bar's register — icon + "Properties" + the effective
-          row count. Not a control: the panel is always visible. */}
-      <div className="nt-props-sidebar__header">
-        <Icon path="mdi-tune-variant" size={0.8} />
-        <span className="nt-props-sidebar__heading">Properties</span>
-        <span className="nt-props-sidebar__count">{count}</span>
-      </div>
-      {/* The alias-side pseudo-property rides the sidebar's row stack too
-          (only when the node IS an alias — the row renders null otherwise
-          and the wrapper must not leave an empty slot). */}
-      {client.getNode(nodeId)?.aliasedNodeId != null && (
-        <div className="nt-props-sidebar__prop">
-          <AliasedNodeRow client={client} nodeId={nodeId} onOpenPage={onOpenPage} />
-        </div>
-      )}
-      {rendered.map((entry) => {
+      <NodeViewSection
+        title="Properties"
+        icon={<Icon path="mdi-format-list-bulleted" size={0.9} />}
+        count={count}
+        className="nt-props-sidebar__section"
+        defaultExpanded={true}
+      >
+        {/* The alias-side pseudo-property rides the sidebar's row stack too
+            (only when the node IS an alias — the row renders null otherwise
+            and the wrapper must not leave an empty slot). */}
+        {client.getNode(nodeId)?.aliasedNodeId != null && (
+          <div className="nt-props-sidebar__prop">
+            <AliasedNodeRow client={client} nodeId={nodeId} onOpenPage={onOpenPage} />
+          </div>
+        )}
+        {rendered.map((entry) => {
         if (entry === null) return null;
         if (entry.kind === "grouped") {
           const schema = entry.groupRows[0]?.schema ?? null;
@@ -2634,7 +2609,8 @@ export function PropertiesSidebar({
           </div>
         </div>
       ))}
-      <AddPropertyRow client={client} nodeId={nodeId} />
+        <AddPropertyRow client={client} nodeId={nodeId} />
+      </NodeViewSection>
       {menu !== null && (
         <ContextMenu items={menuItems(menu.schemaId)} position={{ x: menu.x, y: menu.y }} onClose={() => setMenu(null)} />
       )}

@@ -42,11 +42,14 @@ import { displayNameForSettings, displayNameFromClient } from "./dateDisplay.js"
 type AnyClient = WorkspaceClient | WorkerClient;
 
 /**
- * NodeTopbar — the panelled main layout's pinned top row (the content
- * column's bar): the properties collapse toggle and the classes pills on
- * the left; on the right the host's blocks view switcher, the context
- * collapse toggle, and the "…" node menu — in that order, over a full-width
- * divider border like the sidebar's.
+ * NodeTopbar — the panelled main layout's pinned top row, spanning the
+ * WHOLE card above the column split (owner 2026-10-09): the properties
+ * collapse toggle and the classes pills on the left; on the right the
+ * host's blocks view switcher, the context collapse toggle, and the "…"
+ * node menu — in that order, over a full-width divider border like the
+ * sidebar's. Full-width so the bar never rescales when a panel column
+ * shows or hides; each panel toggle sits directly above the column it
+ * reveals.
  */
 export function NodeTopbar({
   client,

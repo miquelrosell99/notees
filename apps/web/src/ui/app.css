@@ -498,11 +498,13 @@ select:focus-visible {
   max-height: 100%;
   overflow-y: auto;
   /* The continuous vertical divider between the two columns: the border
-     runs the column's full height — the negative margins reach into the
-     page padding, the matching padding keeps the content in place. The
+     runs the column's full height below the nodeview top bar — the bottom
+     negative margin reaches into the page padding, the matching padding
+     keeps the content in place; the top stays flush under the bar (the bar
+     spans the whole card now, so no reaching up into its band). The
      content itself spans side to side to the divider (no right padding). */
-  margin: calc(-1 * var(--spacing-4)) 0;
-  padding: var(--spacing-4) 0;
+  margin: 0 0 calc(-1 * var(--spacing-4));
+  padding: 0 0 var(--spacing-4);
   border-right: var(--border-width-default) solid var(--color-outline-variant);
 }
 
@@ -519,8 +521,8 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-4);
-  margin: calc(-1 * var(--spacing-4)) 0;
-  padding: var(--spacing-4) 0 var(--spacing-4) var(--spacing-4);
+  margin: 0 0 calc(-1 * var(--spacing-4));
+  padding: 0 0 var(--spacing-4) var(--spacing-4);
   border-left: var(--border-width-default) solid var(--color-outline-variant);
 }
 
@@ -529,8 +531,9 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  /* The second column is a 3-row stack: the top bar pinned to the top,
-     the footer pinned to the bottom, the nodeview auto-height between. */
+  /* The second column is a 2-row stack now: the footer pinned to the
+     bottom, the nodeview auto-height between it and the full-width top
+     bar above the columns. */
 }
 
 /* The nodeview cell: auto height between the pinned bars; scrolls when
@@ -562,16 +565,17 @@ select:focus-visible {
 
 /* The nodeview top bar: the properties collapse toggle and the classes
    pills on the left, the view-mode switcher + context toggle + node menu on
-   the right, over a divider border like the sidebar's. The divider runs to
-   the column's right edge; on the left it starts at the column edge (no
-   crossing into the sidebar), and the vertical rhythm is balanced. */
+   the right, over a divider border like the sidebar's. The bar spans the
+   WHOLE card, above the column split (owner 2026-10-09): its controls act
+   on the layout's columns, so it must not rescale when a panel shows or
+   hides — the page's own horizontal padding carries both edges, and each
+   panel toggle sits directly above the column it reveals. */
 .nt-node-topbar {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  margin-right: calc(-1 * var(--spacing-6));
-  margin-left: 0;
-  padding: var(--spacing-2) var(--spacing-6) var(--spacing-2) 0;
+  flex-shrink: 0;
+  padding: var(--spacing-2) 0;
   border-bottom: var(--border-width-default) solid var(--color-outline-variant);
   margin-bottom: var(--spacing-3);
 }
