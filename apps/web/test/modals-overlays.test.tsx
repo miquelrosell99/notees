@@ -219,7 +219,7 @@ describe("ExportPageModal", () => {
     );
   }, 10000);
 
-  it("feeds the option checkboxes to the engine (type labels, outline)", async () => {
+  it("feeds the option checkboxes to the engine (type labels; the child outline is unconditional)", async () => {
     const client = await makeClient();
     const classId = await client.createClass("Company");
     // WORKAROUND(store applier): class.create's contentAst never lands in the
@@ -239,28 +239,69 @@ describe("ExportPageModal", () => {
     })) as HTMLTextAreaElement;
     await vi.waitFor(
       () => {
-        // Outline ON by default: block children render as nested bullets.
+        // The child outline is UNCONDITIONAL (owner 2026-10-09): block
+        // children render as nested bullets with no toggle involved.
         expect(preview.value).toContain("- Book flights");
         // Type labels OFF by default: no classNames frontmatter line.
         expect(preview.value).not.toContain("classNames:");
       },
       { timeout: 2000 },
     );
+    // The retired "Include child outline" toggle is gone entirely.
+    expect(screen.queryByRole("checkbox", { name: /child outline/i })).toBeNull();
 
     fireEvent.click(screen.getByRole("checkbox", { name: /type labels/i }));
     await vi.waitFor(
       () => {
         expect(preview.value).toContain("classNames:");
         expect(preview.value).toContain("- Company");
+        // The outline stays — nothing can switch the content's children off.
+        expect(preview.value).toContain("- Book flights");
       },
       { timeout: 2000 },
     );
+  }, 10000);
 
-    fireEvent.click(screen.getByRole("checkbox", { name: /child outline/i }));
-    await vi.waitFor(
-      () => expect(preview.value).not.toContain("- Book flights"),
-      { timeout: 2000 },
-    );
+  it("re-runs the preview when the client's cached reads land (child blocks never stuck hidden)", async () => {
+    const client = await makeClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "Book flights" }],
+    });
+
+    // Simulate the worker client: getChildren seeds EMPTY (the cachedRead
+    // fallback) until the async fill lands and a notification fires — the
+    // exact race that used to leave the first preview without child blocks
+    // until an option toggle forced a re-run.
+    let loaded = false;
+    const listeners = new Set<() => void>();
+    const stubbed = new Proxy(client, {
+      get(target, prop, receiver) {
+        if (prop === "getChildren")
+          return (id: string) => (loaded ? target.getChildren(id) : []);
+        if (prop === "subscribe")
+          return (listener: () => void) => {
+            listeners.add(listener);
+            return () => listeners.delete(listener);
+          };
+        return Reflect.get(target, prop, receiver);
+      },
+    }) as typeof client;
+
+    render(<ExportPageModal isOpen={true} onClose={() => {}} client={stubbed} nodeUuid={pageId} />);
+    const preview = (await screen.findByLabelText("markdown preview", undefined, {
+      timeout: 2000,
+    })) as HTMLTextAreaElement;
+    await vi.waitFor(() => expect(preview.value.length).toBeGreaterThan(0), { timeout: 2000 });
+    // First pass raced the cache: the child block is not there yet.
+    expect(preview.value).not.toContain("- Book flights");
+
+    // The cache lands and notifies — the preview re-runs on its own, no
+    // toggle needed.
+    loaded = true;
+    for (const listener of listeners) listener();
+    await vi.waitFor(() => expect(preview.value).toContain("- Book flights"), { timeout: 2000 });
   }, 10000);
 
   it("downloads one markdown file for a single node", async () => {

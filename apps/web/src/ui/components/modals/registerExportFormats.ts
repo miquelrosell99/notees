@@ -46,10 +46,13 @@ export type WebExportFormatId = ExportFormatId | "json";
  * options only. E7 surfaces `includeAssets` (the markdown bundle/zip
  * delivery toggle); the remaining delivery-policy options (filenamePolicy,
  * whiteboardMode, maxDepth) stay engine-side defaults and never surface.
+ * `includeOutline` deliberately does NOT surface (owner 2026-10-09): the
+ * child outline is unconditional — child blocks ride recursively in every
+ * export and main nodes are child pages (files/end-list), so a toggle that
+ * hides the content's own children makes no sense.
  */
 const UI_OPTION_KEYS: readonly (keyof ExportOptions)[] = [
   "includeEmbedded",
-  "includeOutline",
   "hideEmptyProperties",
   "showTypeLabels",
   "includeAssets",
