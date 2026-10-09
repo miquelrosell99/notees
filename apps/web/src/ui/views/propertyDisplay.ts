@@ -28,11 +28,43 @@ function isSelectionType(type: string | undefined): boolean {
   return type === "select" || type === "multi_select";
 }
 
+/** Node-typed schemas (date/object/asset): values are node refs — canonical
+ *  `{ nodeId }` objects or, on v1-migrated data, BARE uuid strings (SCHEMA.md
+ *  PB2 read-leniency: legacy encodings ride the log and every display reads
+ *  them as refs). Scalar-typed schemas never take this path. */
+const NODE_TYPED_SCHEMAS = new Set(["date", "object", "asset"]);
+
 function nodeRefText(client: AnyClient, value: unknown): string {
-  if (typeof value !== "object" || value === null) return "";
-  const nodeId = (value as { nodeId?: unknown }).nodeId;
+  // Accepts both the canonical { nodeId } ref and the legacy bare-uuid
+  // string; an unrecognized shape answers "" (callers fall back honestly).
+  const nodeId =
+    typeof value === "string"
+      ? value
+      : typeof value === "object" && value !== null
+        ? (value as { nodeId?: unknown }).nodeId
+        : undefined;
   if (typeof nodeId !== "string") return "";
   return displayNameFromClient(client, nodeId) ?? nodeId;
+}
+
+/** date_range display: `start → end`, either side open → `…`; refs resolve
+ *  like the scalar node-typed branches (bare-string leniency included).
+ *  Null when the value is not range-shaped. */
+function dateRangeText(client: AnyClient, value: unknown): string | null {
+  if (typeof value !== "object" || value === null) return null;
+  const range = value as { start?: unknown; end?: unknown };
+  if (!("start" in range) && !("end" in range)) return null;
+  const side = (end: unknown): string => {
+    const ref =
+      typeof end === "string"
+        ? end
+        : typeof end === "object" && end !== null
+          ? (end as { nodeId?: unknown }).nodeId
+          : null;
+    if (typeof ref !== "string") return "…";
+    return displayNameFromClient(client, ref) ?? ref;
+  };
+  return `${side(range.start)} → ${side(range.end)}`;
 }
 
 /**
@@ -79,28 +111,32 @@ export function formatNumberValue(
 export function propertyDisplayText(client: AnyClient, prop: EffectiveProperty | undefined): string {
   if (prop === undefined || isEmptyPropertyValue(prop.value)) return "";
   const value = prop.value;
+  const schemaType = prop.schema?.type;
+  const nodeTyped = schemaType !== undefined && NODE_TYPED_SCHEMAS.has(schemaType);
   if (Array.isArray(value)) {
     return value
-      .map((entry) =>
-        isSelectionType(prop.schema?.type)
-          ? optionLabel(client, prop.propertySchemaId, entry)
-          : nodeRefText(client, entry),
-      )
+      .map((entry) => {
+        if (isSelectionType(schemaType)) return optionLabel(client, prop.propertySchemaId, entry);
+        if (typeof entry === "boolean") return entry ? "☑" : "☐";
+        return nodeRefText(client, entry);
+      })
       .filter((text) => text !== "")
       .join(", ");
   }
-  if (isSelectionType(prop.schema?.type)) return optionLabel(client, prop.propertySchemaId, value);
-  if (prop.schema?.type === "boolean") return value === true ? "Yes" : "No";
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    typeof (value as { nodeId?: unknown }).nodeId === "string"
-  ) {
-    return nodeRefText(client, value);
+  if (isSelectionType(schemaType)) return optionLabel(client, prop.propertySchemaId, value);
+  if (schemaType === "boolean") return value === true ? "☑" : "☐";
+  const range = dateRangeText(client, value);
+  if (range !== null) return range;
+  // A canonical { nodeId } ref resolves unconditionally (any schema shape);
+  // a bare string resolves on node-typed schemas (legacy v1 encoding).
+  if (typeof value === "object" && value !== null) {
+    const resolved = nodeRefText(client, value);
+    return resolved !== "" ? resolved : (JSON.stringify(value) ?? "");
   }
+  if (nodeTyped && typeof value === "string") return nodeRefText(client, value);
   if (typeof value === "number") return formatNumberValue(value, prop.schema);
   if (typeof value === "string") return value;
-  return JSON.stringify(value);
+  return JSON.stringify(value) ?? "";
 }
 
 /**

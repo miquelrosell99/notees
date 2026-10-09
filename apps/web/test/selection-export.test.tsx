@@ -139,7 +139,7 @@ describe("table CSV — the optional selected-rows scope", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Select Beta" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Export selected as CSV" }));
-    expect(download.anchor?.download).toBe("projects-selected.csv");
+    expect(download.anchor?.download).toMatch(/^projects-selected-\d{12}\.csv$/);
     const scoped = parseCsv(await readBlobText(download.blob!));
     expect(scoped[0]).toEqual(["Name", "Classes", "Created"]);
     expect(scoped.map((row) => row[0])).toEqual(["Name", "Alpha", "Beta"]);

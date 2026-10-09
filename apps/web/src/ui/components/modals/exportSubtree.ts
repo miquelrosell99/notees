@@ -149,7 +149,7 @@ function collectSubtree(client: ExportClient, rootId: string, includeChildPages:
 export interface SubtreeExport {
   /** The concatenated Markdown document (frontmatter per node, `---` breaks). */
   markdown: string;
-  /** Suggested download filename (`<title>.md`). */
+  /** Suggested download filename (`<title-slug>-<YYYYMMDDHHmm>.md`). */
   filename: string;
 }
 
@@ -188,7 +188,7 @@ export function exportSubtreeMarkdown(
   const ordered = collectSubtree(client, rootId, options.includeChildPages ?? true);
   const bundle = bundleMarkdown(ordered, makeExportContext(client), engineOptions(options));
   const title = displayNameForSettings(root).trim();
-  const filename = `${title.length > 0 ? title.replace(/[\\/:*?"<>|]/g, "-") : root.id}.md`;
+  const filename = exportFileSlugName(title, rootId, "md");
   return { markdown: concatBundleMarkdown(bundle), filename };
 }
 
@@ -380,11 +380,25 @@ export function zipExportBundle(
 }
 
 /** Batch-zip download name: the first root's title slug (E5's `<slug>.zip`). */
-export function exportZipFileName(client: ExportClient, firstRootId: string): string {
+export function exportZipFileName(client: ExportClient, firstRootId: string, date: Date = new Date()): string {
   const root = client.getNode(firstRootId);
   const title = root === undefined ? "" : displayNameForSettings(root).trim();
   const slug = title.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "");
-  return `${slug.length > 0 ? slug : "export"}.zip`;
+  return `${slug.length > 0 ? slug : "export"}-${exportTimestamp(date)}.zip`;
+}
+
+/**
+ * The export download timestamp — the local calendar stamp appended to
+ * every modal download name (`YYYYMMDDHHmm`, the owner's naming ruling):
+ * the generated file carries WHEN it was generated, so repeated exports of
+ * one node never overwrite each other in the download folder.
+ */
+export function exportTimestamp(date: Date = new Date()): string {
+  const pad = (value: number): string => String(value).padStart(2, "0");
+  return (
+    `${String(date.getFullYear())}${pad(date.getMonth() + 1)}${pad(date.getDate())}` +
+    `${pad(date.getHours())}${pad(date.getMinutes())}`
+  );
 }
 
 // --- format-routed delivery -----------------------------------------------------
@@ -433,12 +447,13 @@ export function buildSubtreeDocument(
   return { document: buildExportDocument(node, ctx, resolved), resolved };
 }
 
-/** Single-file download name: `<title-slug>.<ext>`, falling back to the node
- *  id for empty titles (the markdown path's own naming stays untouched in
- *  exportSubtreeMarkdown). Exported for the P1 PDF engine's download names. */
-export function exportFileSlugName(rootName: string, rootId: string, extension: string): string {
+/** Single-file download name: `<title-slug>-<YYYYMMDDHHmm>.<ext>`, falling
+ *  back to the node id for empty titles; the local timestamp (the owner's
+ *  naming ruling) keeps repeated exports of one node from overwriting each
+ *  other. Exported for the P1 PDF engine's download names. */
+export function exportFileSlugName(rootName: string, rootId: string, extension: string, date: Date = new Date()): string {
   const slug = rootName.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "");
-  return `${slug.length > 0 ? slug : rootId}.${extension}`;
+  return `${slug.length > 0 ? slug : rootId}-${exportTimestamp(date)}.${extension}`;
 }
 
 export interface ExportSubtreeFileOptions extends ExportSubtreeOptions {

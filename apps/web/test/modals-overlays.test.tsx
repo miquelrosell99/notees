@@ -291,7 +291,7 @@ describe("ExportPageModal", () => {
     // download lands after the click returns.
     await vi.waitFor(() => expect(createObjectUrl).toHaveBeenCalled());
     expect(captured).not.toBeNull();
-    expect(captured!.getAttribute("download")).toBe("Trip.md");
+    expect(captured!.getAttribute("download")).toMatch(/^Trip-\d{12}\.md$/);
     expect(capturedBlob).not.toBeNull();
     expect(capturedBlob!.type).toBe("text/markdown");
 
@@ -334,7 +334,7 @@ describe("ExportPageModal", () => {
     await vi.waitFor(() => expect(download.anchor).not.toBeNull());
     // Format-routed delivery (task W): the card's own bytes, not markdown
     // under a foreign extension.
-    expect(download.anchor!.getAttribute("download")).toBe("Trip.html");
+    expect(download.anchor!.getAttribute("download")).toMatch(/^Trip-\d{12}\.html$/);
     expect(download.blob).not.toBeNull();
     expect(download.blob!.type).toBe("text/html");
 
@@ -361,7 +361,7 @@ describe("ExportPageModal", () => {
     fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
 
     await vi.waitFor(() => expect(download.anchor).not.toBeNull());
-    expect(download.anchor!.getAttribute("download")).toBe("Trip.tex");
+    expect(download.anchor!.getAttribute("download")).toMatch(/^Trip-\d{12}\.tex$/);
     expect(download.blob!.type).toBe("application/x-latex");
 
     const latex = new TextDecoder().decode(await readBlobBytes(download.blob!));
@@ -386,7 +386,7 @@ describe("ExportPageModal", () => {
 
     // The docx packer assembles the OOXML zip off the call stack.
     await vi.waitFor(() => expect(download.anchor).not.toBeNull());
-    expect(download.anchor!.getAttribute("download")).toBe("Trip.docx");
+    expect(download.anchor!.getAttribute("download")).toMatch(/^Trip-\d{12}\.docx$/);
     expect(download.blob!.type).toBe("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
 
     // A .docx is an OOXML zip: the main document part must be present.
@@ -402,7 +402,7 @@ describe("ExportPageModal", () => {
 
     pdfEngineMocks.renderSubtreePdfMock.mockResolvedValue({
       blob: new Blob(["%PDF-1.4 stub"], { type: "application/pdf" }),
-      filename: "Trip.pdf",
+      filename: "Trip-202610091000.pdf",
     });
     const download = stubDownload();
     render(
@@ -418,7 +418,7 @@ describe("ExportPageModal", () => {
     fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
 
     await vi.waitFor(() => expect(download.anchor).not.toBeNull());
-    expect(download.anchor!.getAttribute("download")).toBe("Trip.pdf");
+    expect(download.anchor!.getAttribute("download")).toMatch(/^Trip-\d{12}\.pdf$/);
     expect(download.blob).not.toBeNull();
     expect(download.blob!.type).toBe("application/pdf");
 
@@ -450,7 +450,7 @@ describe("ExportPageModal", () => {
 
     pdfEngineMocks.renderSubtreePdfMock.mockResolvedValue({
       blob: new Blob(["%PDF-1.4 stub"], { type: "application/pdf" }),
-      filename: "Trip.pdf",
+      filename: "Trip-202610091000.pdf",
     });
     const download = stubDownload();
     render(<ExportPageModal isOpen={true} onClose={() => {}} client={client} nodeUuid={pageId} />);
@@ -472,7 +472,7 @@ describe("ExportPageModal", () => {
 
     pdfEngineMocks.renderSubtreePdfBatchMock.mockResolvedValue({
       blob: new Blob(["zip-bytes"], { type: "application/zip" }),
-      filename: "Trip.zip",
+      filename: "Trip-202610091000.zip",
     });
     const download = stubDownload();
     render(
@@ -492,7 +492,7 @@ describe("ExportPageModal", () => {
     expect(pdfEngineMocks.renderSubtreePdfBatchMock).toHaveBeenCalled();
     const batchCall = pdfEngineMocks.renderSubtreePdfBatchMock.mock.calls[0]!;
     expect(batchCall[1]).toEqual([tripId, packingId]);
-    expect(download.anchor!.getAttribute("download")).toBe("Trip.zip");
+    expect(download.anchor!.getAttribute("download")).toMatch(/^Trip-\d{12}\.zip$/);
     expect(download.blob!.type).toBe("application/zip");
 
     download.restore();
@@ -519,7 +519,7 @@ describe("ExportPageModal", () => {
     fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
 
     await vi.waitFor(() => expect(download.anchor).not.toBeNull());
-    expect(download.anchor!.getAttribute("download")).toBe("Trip.zip");
+    expect(download.anchor!.getAttribute("download")).toMatch(/^Trip-\d{12}\.zip$/);
     expect(download.blob!.type).toBe("application/zip");
 
     const entries = unzipSync(new Uint8Array(await readBlobBytes(download.blob!)));
@@ -567,7 +567,7 @@ describe("ExportPageModal", () => {
     fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
 
     await vi.waitFor(() => expect(download.anchor).not.toBeNull());
-    expect(download.anchor!.getAttribute("download")).toBe("Trip.json");
+    expect(download.anchor!.getAttribute("download")).toMatch(/^Trip-\d{12}\.json$/);
     expect(download.blob!.type).toBe("application/json");
 
     const archive = JSON.parse(await readBlobText(download.blob!)) as {
@@ -622,7 +622,7 @@ describe("ExportPageModal", () => {
     fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
 
     await vi.waitFor(() => expect(download.anchor).not.toBeNull());
-    expect(download.anchor!.getAttribute("download")).toBe("Trip.json");
+    expect(download.anchor!.getAttribute("download")).toMatch(/^Trip-\d{12}\.json$/);
     expect(download.blob!.type).toBe("application/json");
     const archive = JSON.parse(await readBlobText(download.blob!)) as {
       nodes: Array<{ id: string; displayName: string }>;
@@ -668,7 +668,7 @@ describe("ExportPageModal", () => {
 
     await vi.waitFor(() => expect(captured).not.toBeNull());
     // One zip named after the first node (the E5 `<slug>.zip` convention).
-    expect(captured!.getAttribute("download")).toBe("Trip.zip");
+    expect(captured!.getAttribute("download")).toMatch(/^Trip-\d{12}\.zip$/);
     expect(capturedBlob).not.toBeNull();
     expect(capturedBlob!.type).toBe("application/zip");
 
@@ -742,7 +742,7 @@ describe("ExportPageModal", () => {
 
     await vi.waitFor(() => expect(download.anchor).not.toBeNull());
     // A single node with assets switches to zip delivery (E7).
-    expect(download.anchor!.getAttribute("download")).toBe("Trip.zip");
+    expect(download.anchor!.getAttribute("download")).toMatch(/^Trip-\d{12}\.zip$/);
     expect(download.blob!.type).toBe("application/zip");
     // The bytes were fetched over the authenticated asset endpoint.
     expect(
@@ -864,7 +864,7 @@ describe("ExportPageModal", () => {
     fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
 
     await vi.waitFor(() => expect(download.anchor).not.toBeNull());
-    expect(download.anchor!.getAttribute("download")).toBe("Trip.zip");
+    expect(download.anchor!.getAttribute("download")).toMatch(/^Trip-\d{12}\.zip$/);
 
     const entries = unzipSync(new Uint8Array(await readBlobBytes(download.blob!)));
     const decode = (data: Uint8Array) => new TextDecoder().decode(data);
