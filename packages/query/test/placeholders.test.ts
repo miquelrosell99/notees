@@ -125,16 +125,23 @@ describe("placeholder compilation", () => {
     const eq = compile(ast([{ type: "property", schemaId: OPENED, op: "eq", value: "{today}" }]), {
       now: NOW,
     });
-    // Same param shape as typing the date by hand: scalar + day/month/year arms.
-    expect(eq.params).toEqual([OPENED, OPENED, OPENED, "2026-10-04", "20261004", "202610", "2026"]);
+    // Same param shape as typing the date by hand: scalar + day/month/year
+    // point arms + the range arm (start payload bound, then the end-side
+    // day/month/year bounds).
+    expect(eq.params).toEqual([
+      OPENED, OPENED, OPENED, "2026-10-04",
+      "20261004", "202610", "2026",
+      "202610040000", "20261004", "202610", "2026",
+    ]);
     expect(eq.sql).toContain("substr(json_extract(value, '$.nodeId'), 25, 8)");
+    expect(eq.sql).toContain("json_extract(value, '$.start.nodeId')");
   });
 
   it("range ops resolve the bound the same way", () => {
     const gte = compile(ast([{ type: "property", schemaId: OPENED, op: "gte", value: "{this_month}" }]), {
       now: NOW,
     });
-    expect(gte.params).toEqual([OPENED, OPENED, OPENED, "2026-10-01", "202610010000"]);
+    expect(gte.params).toEqual([OPENED, OPENED, OPENED, "2026-10-01", "202610010000", "202610010000"]);
   });
 
   it("contains keeps the token literal; unknown tokens pass through in every position", () => {
@@ -196,7 +203,7 @@ function worldStore(): Store {
     env("object.create", { objectId: chainNodeIds(day(-35)).year, contentAst: text("y1") }, -3200),
     env("object.create", { objectId: chainNodeIds(day(-35)).month, parentId: chainNodeIds(day(-35)).year, contentAst: text("m1") }, -3100),
     env("object.create", { objectId: lastMonthId, parentId: chainNodeIds(day(-35)).month, contentAst: text("d1") }, -3000),
-    env("propertySchema.create", { propertySchemaId: OPENED, name: "opened", type: "date" }, -3000),
+    env("propertySchema.create", { propertySchemaId: OPENED, name: "opened", type: "datetime" }, -3000),
     env("property.set", { objectId: NODE_A, propertySchemaId: OPENED, value: { nodeId: todayId } }, -2000),
     env("property.set", { objectId: NODE_B, propertySchemaId: OPENED, value: { nodeId: lastMonthId } }, -1000),
   ]);
