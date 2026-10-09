@@ -114,7 +114,7 @@
 import { SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import type { ExportBlock, ExportDocument, ExportDocumentChild, ExportDocumentProperty, ExportSpan } from "./document.js";
-import { isEmptyPropertyValue, qualifierDisplayOf, withoutLeadingTitle } from "./document.js";
+import { isEmptyPropertyValue, qualifierTail, withoutLeadingTitle } from "./document.js";
 import type { CslItem } from "./csl.js";
 import { formatAuthors, nodeToCsl, sourceClassOf } from "./csl.js";
 import type { ResolvedExportOptions } from "./options.js";
@@ -269,14 +269,7 @@ function renderPropertyText(property: ExportDocumentProperty): string {
   if (base.length === 0 && (property.value === null || property.value === undefined)) {
     base = "null";
   }
-  const metadata = property.metadata;
-  if (metadata !== undefined && Object.keys(metadata).length > 0) {
-    const qualifiers = Object.entries(metadata)
-      .map(([key, entry]) => `${key} ${qualifierDisplayOf(entry)}`)
-      .join(", ");
-    base = `${base} (${qualifiers})`;
-  }
-  return base;
+  return `${base}${qualifierTail(property)}`;
 }
 
 /**

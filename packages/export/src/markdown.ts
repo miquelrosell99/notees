@@ -88,6 +88,7 @@ import type {
   ExportBlock,
   ExportDocument,
   ExportDocumentChild,
+  ExportDocumentProperty,
   ExportNode,
   ExportPropertyValue,
   ExportSpan,
@@ -100,7 +101,7 @@ import {
   withoutLeadingTitle,
 } from "./document.js";
 import type { ExportContext } from "./document.js";
-import { qualifierDisplayOf } from "./document.js";
+import { qualifierTail } from "./document.js";
 import type { ExportOptions, ResolvedExportOptions } from "./options.js";
 import { resolveExportOptions } from "./options.js";
 
@@ -193,21 +194,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** Property row → frontmatter scalar: metadata qualifiers appended here;
+/** Property row → frontmatter scalar: metadata qualifiers appended here
+ * (the IR's resolved qualifiers — a date ref never leaks as a raw uuid);
  * hideEmptyProperties OFF still shows a placeholder for null/undefined. */
-function renderPropertyScalar(property: ExportPropertyValue & { display: string }): string {
+function renderPropertyScalar(property: ExportDocumentProperty): string {
   let base = property.display;
   if (base.length === 0 && (property.value === null || property.value === undefined)) {
     base = "null";
   }
-  const metadata = property.metadata;
-  if (metadata !== undefined && Object.keys(metadata).length > 0) {
-    const qualifiers = Object.entries(metadata)
-      .map(([key, entry]) => `${key} ${qualifierDisplayOf(entry)}`)
-      .join(", ");
-    base = `${base} (${qualifiers})`;
-  }
-  return yamlScalar(base);
+  return yamlScalar(`${base}${qualifierTail(property)}`);
 }
 
 /** A date_range row's two end labels (null = open side), when it is one. */
