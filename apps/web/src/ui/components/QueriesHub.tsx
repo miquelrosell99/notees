@@ -279,7 +279,7 @@ export function QueriesHub({
           {effectiveView?.kind === "saved" && (
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={() => {
                 setEditing(effectiveView.index);

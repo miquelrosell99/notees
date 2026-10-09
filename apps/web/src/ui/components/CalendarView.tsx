@@ -479,7 +479,7 @@ export function CalendarView({
             {chips.map((chip) => (
               <Button
                 key={chip.classId}
-                variant="outline"
+                variant="ghost"
                 size="sm"
                 onClick={() => void quickCreate(chip)}
               >
@@ -515,7 +515,7 @@ export function CalendarView({
               ) : (
                 <div className="calendar-view__empty-block">
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
                     icon="mdi-plus"
                     onClick={() => void client.ensureDateChain(selectedIso)}
