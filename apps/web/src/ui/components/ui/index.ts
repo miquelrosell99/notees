@@ -78,6 +78,8 @@ export type { ButtonWithPanelProps, PanelPosition, PanelAlignment } from './Butt
 
 export { Checkbox } from './Checkbox.js';
 export type { CheckboxProps, CheckboxSize } from './Checkbox.js';
+export { Radio } from './Radio.js';
+export type { RadioProps, RadioSize } from './Radio.js';
 
 export { Pill } from './Pill.js';
 export type { PillProps } from './Pill.js';

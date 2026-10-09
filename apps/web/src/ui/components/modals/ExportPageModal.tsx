@@ -37,10 +37,11 @@
  * renders PDFs through the lazily imported ui/export-pdf engine (react-pdf,
  * the OFL Gentium bundle, and the layout themes live in that async chunk;
  * the modal only ever `await import()`s it, on the first PDF export or
- * preview). Selecting PDF reveals the layout cards (Notes/Essay/Academic,
- * modelling decision 2), feeding the engine options; the A4/Letter page size
- * rides a dropdown inside the collapsible Options section, alongside the
- * checkbox rows (one settings surface, no separate chrome). The preview pane
+ * preview). Selecting PDF surfaces two extra rows inside the collapsible
+ * Options section, alongside the checkbox rows (one settings surface, no
+ * separate chrome): a kit Radio group for the layout (Notes/Essay/Academic,
+ * modelling decision 2) and a kit Dropdown for the A4/Letter page size. The
+ * preview pane
  * renders the PDF into a blob URL iframe, and Export downloads
  * `<slug>-<YYYYMMDDHHmm>.pdf` (a batch zips one PDF per root, the task-W
  * convention; the local timestamp keeps repeated exports from overwriting
@@ -55,6 +56,7 @@ import { copyToClipboard } from "./clipboard";
 import { Button } from "../ui/Button.js";
 import { Card } from "../ui/Card.js";
 import { Checkbox } from "../ui/Checkbox.js";
+import { Radio } from "../ui/Radio.js";
 import { Dropdown } from "../ui/Dropdown.js";
 import { Spinner } from "../ui/Spinner.js";
 import { Icon } from "../../Icon";
@@ -443,41 +445,6 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
           })}
         </div>
 
-        {/* PDF layout cards (P1) — render only for the layout-aware PDF
-            card; the page size rides the Options dropdown below (one
-            settings surface). */}
-        {format.id === "pdf" && layoutSpec !== undefined && pageFormatSpec !== undefined && (
-          <div className="export-modal__pdf-options">
-            <div className="export-modal__layouts" role="radiogroup" aria-label="Layout">
-              {layoutSpec.choices.map((choice) => {
-                const value = choice.value as PdfLayout;
-                const selected = layout === value;
-                return (
-                  <Card
-                    key={choice.value}
-                    role="radio"
-                    aria-checked={selected}
-                    tabIndex={0}
-                    interactive
-                    selected={selected}
-                    className="export-modal__layout-card"
-                    onClick={() => setLayout(value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        setLayout(value);
-                      }
-                    }}
-                  >
-                    <Icon path={`mdi mdi-${LAYOUT_ICONS[value] ?? "file-outline"}`} className="export-modal__layout-card-icon" />
-                    <span className="export-modal__layout-card-label">{choice.label}</span>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
         {/* Options — the selected format's registry option specs. */}
         <div className="export-modal__options">
           <Button
@@ -504,9 +471,43 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
                   }
                 />
               ))}
+              {/* Layout + page size (pdf only) — the same Options surface
+                  as the checkboxes; the kit Radio group replaces the old
+                  layout-card row, the kit Dropdown the SelectionButton. */}
+              {format.id === "pdf" && layoutSpec !== undefined && (
+                <div className="export-modal__select-row">
+                  <span className="export-modal__select-label" id="export-modal__layout-label">
+                    Layout
+                  </span>
+                  <div
+                    className="export-modal__radio-group"
+                    role="radiogroup"
+                    aria-labelledby="export-modal__layout-label"
+                  >
+                    {layoutSpec.choices.map((choice) => {
+                      const value = choice.value as PdfLayout;
+                      return (
+                        <Radio
+                          key={choice.value}
+                          name="export-pdf-layout"
+                          size="sm"
+                          checked={layout === value}
+                          onChange={() => setLayout(value)}
+                          label={
+                            <span className="export-modal__radio-label">
+                              <Icon path={`mdi mdi-${LAYOUT_ICONS[value] ?? "file-outline"}`} size={0.8} />
+                              {choice.label}
+                            </span>
+                          }
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               {/* Page size (pdf only) — the same Options surface as the
                   checkboxes; the kit Dropdown replaces the old standalone
-                  SelectionButton chrome next to the layout cards. */}
+                  SelectionButton chrome. */}
               {format.id === "pdf" && pageFormatSpec !== undefined && (
                 <div className="export-modal__select-row">
                   <span className="export-modal__select-label" id="export-modal__page-size-label">
