@@ -314,7 +314,7 @@ describe("property schema update/delete routes", () => {
     ]);
 
     // Date behavior patch (the Class View editor's surface).
-    const dateSchema = await createSchema("pg7-when", { type: "date" });
+    const dateSchema = await createSchema("pg7-when", { type: "datetime" });
     const datePatched = await api("PATCH", `/api/property-schemas/${dateSchema}`, {
       payload: { datePrecision: "year", dateQualified: true },
     });
