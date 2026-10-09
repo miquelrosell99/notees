@@ -47,7 +47,7 @@ export function WorkspaceExportModal({
       size="sm"
       footer={
         <>
-          <Button type="button" variant="default" onClick={onClose} disabled={isLoading}>
+          <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
             Cancel
           </Button>
           <Button

@@ -87,7 +87,7 @@ export function WorkspaceNameModal({
       size="sm"
       footer={
         <>
-          <Button type="button" variant="default" onClick={handleClose}>
+          <Button type="button" variant="outline" onClick={handleClose}>
             Cancel
           </Button>
           <Button

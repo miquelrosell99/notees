@@ -2257,7 +2257,7 @@ export function HubView({
     const newAssetAction = (
       <Button
         size="sm"
-        variant="outline"
+        variant="ghost"
         icon="mdiFileUpload"
         onClick={() => setAssetUploadOpen(true)}
       >
@@ -2313,7 +2313,7 @@ export function HubView({
     nav === "classes" ? (
       <Button
         size="sm"
-        variant="outline"
+        variant="ghost"
         icon="mdiShapePlus"
         onClick={() => setClassCreateOpen(true)}
       >
@@ -2322,7 +2322,7 @@ export function HubView({
     ) : nav === "pages" ? (
       <Button
         size="sm"
-        variant="outline"
+        variant="ghost"
         icon="mdiNotePlusOutline"
         onClick={() => {
           void client
@@ -2338,7 +2338,7 @@ export function HubView({
     ) : nav === "whiteboards" ? (
       <Button
         size="sm"
-        variant="outline"
+        variant="ghost"
         icon="mdiPresentation"
         onClick={() =>
           createNodesWithClasses(client, [SYSTEM_CLASS_UUIDS.whiteboard], onOpenNode)

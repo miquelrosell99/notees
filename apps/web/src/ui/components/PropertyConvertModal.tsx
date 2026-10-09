@@ -436,7 +436,7 @@ export function PropertyConvertModal({
             </Button>
           </>
         ) : (
-          <Button variant="default" onClick={onClose}>
+          <Button variant="outline" onClick={onClose}>
             Done
           </Button>
         )}

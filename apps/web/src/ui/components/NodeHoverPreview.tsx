@@ -256,7 +256,7 @@ export function NodeHoverPreviewHost({
                   </span>
                   <Button
                     size="xs"
-                    variant="outline"
+                    variant="ghost"
                     icon="mdi-pin-outline"
                     aria-label="Pin — edit in a floating window"
                     title="Pin — edit in a floating window"

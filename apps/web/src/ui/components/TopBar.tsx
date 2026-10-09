@@ -15,6 +15,7 @@ import type { SyncStatusSnapshot } from "@/core/workspace-client.js";
 import type { UndoUiState } from "@/core/undo-journal.js";
 
 import { Icon } from "../Icon.js";
+import { Button } from "../components/ui/Button.js";
 import "./TopBar.css";
 
 /**
@@ -117,15 +118,17 @@ export function TopBar({
   return (
     <header className="nt-topbar">
       <div className="nt-topbar-left">
-        <button
+        <Button
           type="button"
-          className="nt-icon-btn"
+          variant="outline"
+          size="sm"
+          icon="mdi mdi-dock-left"
           aria-label={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
           aria-pressed={sidebarOpen}
+          title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+          active={sidebarOpen}
           onClick={onToggleSidebar}
-        >
-          <Icon path="mdi-dock-left" size={1} />
-        </button>
+        />
         {workspaceSwitcher !== undefined ? (
           workspaceSwitcher
         ) : (
@@ -207,16 +210,17 @@ export function TopBar({
             <Icon path="mdi-calendar-month-outline" size={1} />
           </button>
         )}
-        <button
+        <Button
           type="button"
-          className={rightPanelOpen ? "nt-icon-btn nt-icon-btn-active" : "nt-icon-btn"}
+          variant="outline"
+          size="sm"
+          icon="mdi mdi-dock-right"
           title={rightPanelOpen ? "Hide right sidebar" : "Show right sidebar"}
           aria-label="Toggle right sidebar"
           aria-pressed={rightPanelOpen}
+          active={rightPanelOpen}
           onClick={onToggleRightPanel}
-        >
-          <Icon path="mdi-dock-right" size={1} />
-        </button>
+        />
       </div>
     </header>
   );

@@ -191,7 +191,7 @@ export function TemplateGalleryModal({
             )}
           </div>
           <div className="template-gallery__footer">
-            <Button variant="outline" size="sm" onClick={() => void createTemplate()}>
+            <Button variant="ghost" size="sm" onClick={() => void createTemplate()}>
               ＋ New template
             </Button>
             <span className="template-gallery__hint">↵ Use template · Esc Close</span>

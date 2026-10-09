@@ -126,7 +126,7 @@ export function PropertyHistoryModal({
         )}
       </div>
       <div className="modal__footer">
-        <Button variant="default" onClick={onClose}>
+        <Button variant="outline" onClick={onClose}>
           Close
         </Button>
       </div>
