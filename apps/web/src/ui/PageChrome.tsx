@@ -132,7 +132,10 @@ export function NodeTopbar({
  * DEFINED (own or a class-contributed one — no generic-default fallback, no
  * hover placeholder); the description subtitle hides the same way when
  * empty, and edits inline (Enter/blur commits, Esc cancels, empty clears).
- * Day pages skip the row and the subtitle (the DayPageHeader contract).
+ * Every action RETIRES once its gap is filled (owner 2026-10-09): Add icon
+ * hides when an icon is defined, Add description when a subtitle exists,
+ * Add aliases when the page has an alias — all three set, the whole row is
+ * gone. Day pages skip the row and the subtitle (the DayPageHeader contract).
  */
 export function PageHeaderChrome({
   client,
@@ -200,6 +203,17 @@ export function PageHeaderChrome({
 
   /** The Capacities action row + the subtitle ride the main surface only. */
   const chromeActions = !embedded && !focusMode && !preview && dayIso === null;
+  /**
+   * Each action fills a gap and retires once filled: the icon action hides
+   * when an icon is defined (the icon element becomes the picker entry), the
+   * description action when a subtitle exists, the aliases action when the
+   * page has at least one alias (the metadata panel's row is the entry then).
+   * All three set → the whole row disappears.
+   */
+  const hasAliases = client.aliasNodesOf(pageId).length > 0;
+  /** The row itself hides once every gap is filled — an empty row is chrome
+   * for nothing. */
+  const showActionsRow = headerIcon === null || description === null || !hasAliases;
 
   return (
     <>
@@ -214,24 +228,27 @@ export function PageHeaderChrome({
     <div className="page-header-section">
       <header className="nt-page-header">
         {/* The Capacities action row: the page's quiet affordances above the
-            title. "Add icon" opens the shared icon+color picker (anchored at
-            whichever trigger opened it); "Add description" swaps in the
-            subtitle editor; "Add aliases" opens the shared backward-write
-            alias picker. */}
-        {chromeActions && (
+            title. Every action fills a gap and retires once filled — "Add
+            icon" opens the shared icon+color picker (anchored at the row
+            button; the icon element takes over as the entry once defined),
+            "Add description" swaps in the subtitle editor, "Add aliases"
+            opens the shared backward-write alias picker. */}
+        {chromeActions && showActionsRow && (
           <div className="page-header-actions">
-            <Button
-              variant="ghost"
-              size="sm"
-              icon="mdi mdi-emoticon-outline"
-              onClick={(event) =>
-                setIconPickerAnchor((anchor) =>
-                  anchor === null ? event.currentTarget : null,
-                )
-              }
-            >
-              Add icon
-            </Button>
+            {headerIcon === null && (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon="mdi mdi-emoticon-outline"
+                onClick={(event) =>
+                  setIconPickerAnchor((anchor) =>
+                    anchor === null ? event.currentTarget : null,
+                  )
+                }
+              >
+                Add icon
+              </Button>
+            )}
             {description === null && (
               <Button
                 variant="ghost"
@@ -242,16 +259,18 @@ export function PageHeaderChrome({
                 Add description
               </Button>
             )}
-            <Button
-              variant="ghost"
-              size="sm"
-              icon="mdi mdi-file-multiple-outline"
-              ref={aliasButtonRef}
-              aria-expanded={aliasPickerOpen}
-              onClick={() => setAliasPickerOpen(true)}
-            >
-              Add aliases
-            </Button>
+            {!hasAliases && (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon="mdi mdi-file-multiple-outline"
+                ref={aliasButtonRef}
+                aria-expanded={aliasPickerOpen}
+                onClick={() => setAliasPickerOpen(true)}
+              >
+                Add aliases
+              </Button>
+            )}
           </div>
         )}
         <div className="page-header__title-row">
@@ -397,10 +416,12 @@ export function PageHeaderChrome({
 }
 
 /**
- * PageFooterChrome — the card-bottom wrapper: the word count + the
- * Created/Updated day-page stamps (PageFooter — the
- * defined bottom divider of the node view). Null for embedded renders and
- * focus mode: the chrome steps aside, the body stays.
+ * PageFooterChrome — the word-count + Created/Updated day-page stamps
+ * (PageFooter). Where it rides depends on the layout (owner 2026-10-09):
+ * the panelled main layout hosts it as the CONTEXT column's bottom
+ * section (the card-bottom bar retired); compact layouts keep it at the
+ * card bottom. Null for embedded renders and focus mode: the chrome steps
+ * aside, the body stays.
  */
 export function PageFooterChrome({
   client,

@@ -493,11 +493,12 @@ select:focus-visible {
 
 /* The raised-card panels (owner 2026-10-09): each sidebar rides INSIDE the
    main content card wearing the SAME card element the container itself
-   wears (.nt-page-card, PageCard.css: surface fill, hairline frame,
-   --shape-card radius, --shadow-elevation-1) — a card nested in a card,
-   not a column split by a continuous vertical divider. The divider and its
-   negative-margin reach retire; the cards stop a step above the card
-   bottom like the top bar's margin below itself. */
+   wears (.nt-page-card, PageCard.css: hairline frame, --shape-card radius,
+   --shadow-elevation-1) — a card nested in a card, not a column split by a
+   continuous vertical divider. The divider and its negative-margin reach
+   retire; the cards stop a step above the card bottom like the top bar's
+   margin below itself. The fill is --color-sidebar-card: the same surface
+   in light, one tone lighter in dark so the cards stand out. */
 .nt-page-side-panel {
   flex: 0 0 clamp(13rem, 24%, 22rem);
   min-width: 0;
@@ -506,7 +507,7 @@ select:focus-visible {
   overflow-y: auto;
   margin-bottom: var(--spacing-3);
   padding: var(--spacing-4);
-  background: var(--color-surface);
+  background: var(--color-sidebar-card);
   border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-card);
   box-shadow: var(--shadow-elevation-1);
@@ -528,10 +529,18 @@ select:focus-visible {
   gap: var(--spacing-4);
   margin-bottom: var(--spacing-3);
   padding: var(--spacing-4);
-  background: var(--color-surface);
+  background: var(--color-sidebar-card);
   border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-card);
   box-shadow: var(--shadow-elevation-1);
+}
+
+/* The context column's bottom section (owner 2026-10-09): the page footer
+   (word count + Created/Updated stamps) moved here from the card-bottom
+   bar — the auto top margin pins it to the card's bottom, a section like
+   the others, anchored at the end of the scroll. */
+.nt-page-context__footer {
+  margin-top: auto;
 }
 
 .nt-page--panelled .nt-page-content {
@@ -539,31 +548,32 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  /* The second column is a 2-row stack now: the footer pinned to the
-     bottom, the nodeview auto-height between it and the full-width top
-     bar above the columns. */
+  /* The second column is the nodeview's alone now (owner 2026-10-09):
+     the footer moved into the context column's bottom — the cell is a
+     single auto-height scroll between the full-width top bar above and
+     the card bottom below. */
 }
 
-/* The nodeview cell: auto height between the pinned bars; scrolls when
-   the content outgrows it. */
+/* The nodeview cell: auto height between the top bar and the card bottom;
+   scrolls when the content outgrows it. */
 .nt-nodeview-body {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
 }
 
-/* The footer as the bottom row of the column: a divided section pinned to
-   the bottom (no sticky — the grid cell does the pinning). Its divider
-   starts at the column edge like the top bar's (no crossing into the
-   sidebar) and runs to the card's right edge. */
+/* The footer inside the context column (owner 2026-10-09): the card-bottom
+   bar retired — no sticky, no full-bleed negative insets, no surface
+   backing (those are compact-layout behaviors, PageFooter.css); here it is
+   a plain bottom section on the sidebar card, transparent over the card's
+   own fill. */
 .nt-page--panelled .nt-page-footer {
   position: static;
   bottom: auto;
-  margin-top: 0;
   flex: none;
-  margin-left: 0;
-  padding-left: 0;
-  padding-bottom: var(--spacing-2);
+  margin: 0;
+  padding: var(--spacing-3) 0 0;
+  background: transparent;
 }
 
 .nt-page-content {

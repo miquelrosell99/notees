@@ -9,6 +9,37 @@ predating this file.
 
 ## 2026-10-09
 
+- **feat(web): every header action row button retires once its gap is filled
+  — Add icon hides when an icon is defined (the icon element takes over as
+  the picker entry), Add aliases when the page has an alias (the metadata
+  panel's row is the entry); the row itself disappears once all three are
+  set (Add description already retired when set).** Owner ruling on the
+  Capacities row shipped earlier today: the row is a fill-the-gaps surface,
+  not permanent chrome — an empty row is chrome for nothing. Day pages and
+  the embedded/preview/focus surfaces are unchanged (no row there at all).
+  Verified: `page-header-actions` suite green (8 specs — the icon and alias
+  flows now assert the button retires after the pick, plus the all-set row
+  disappears while the icon element and subtitle stay).
+
+- **feat(web): the sidebar cards stand out — a lighter fill in dark — and
+  the footer retires from the card bottom to become the context column's
+  bottom section.** (1) New token `--color-sidebar-card` (variables.css):
+  light keeps the main card's own surface; dark steps one tone LIGHTER
+  (`--color-surface-container-highest`, accent-washed graphite) so the
+  nested cards read against the near-black surface — the rest of the card
+  element is unchanged (hairline frame, `--shape-card` radius,
+  `--shadow-elevation-1`). (2) The card-bottom bar (word count +
+  Created/Updated stamps) is deleted from the middle column — it overlapped
+  the sidebar cards — and moves into `.nt-page-context` as its bottom
+  section (`.nt-page-context__footer`, `margin-top: auto` pins it to the
+  card bottom; the panelled footer neutralizes the compact layout's sticky
+  + full-bleed insets and rides transparent over the sidebar card).
+  Compact surfaces (class pages, peek cards) keep the footer at the card
+  bottom — they have no context column. Docs: `docs/ux.md` +
+  `docs/usage.md` (footer location + context-column contents). Verified:
+  web build green, web suites green; verified live with a probe against the
+  redeployed stack (computed styles + screenshots, dark and light).
+
 - **feat(web): the nodeview sidebars wear the SAME card element the main
   content container uses, nested inside it.** The first pass gave the two
   panel columns their own smaller-radius, higher-elevation card — too

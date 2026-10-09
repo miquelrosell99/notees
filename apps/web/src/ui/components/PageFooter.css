@@ -1,5 +1,7 @@
-/* PageFooter — the card-bottom chrome: word count + the
-   Created/Updated day-page stamps. Token-only. */
+/* PageFooter — the word count + the Created/Updated day-page stamps.
+   Rides the card bottom in compact layouts; the panelled main layout
+   hosts it as the context column's bottom section instead (app.css,
+   owner 2026-10-09). Token-only. */
 
 .nt-page-footer {
   display: flex;
