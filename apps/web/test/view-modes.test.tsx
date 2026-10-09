@@ -444,14 +444,14 @@ describe("groupBy: references grouped by containing page", () => {
   }
 
   /**
-   * The `.nt-backlinks` strip for within() scoping — the selected Backlinks
-   * tab loads its rows on mount (owner 2026-10-06 strip), so the groups
-   * render without any tab click.
+   * The Backlinks section for within() scoping — it starts expanded, so the
+   * groups render on mount without any interaction.
    */
   function expandLinkedReferences(): HTMLElement {
-    const strip = document.querySelector(".nt-backlinks");
-    if (strip === null) throw new Error("no .nt-backlinks strip rendered");
-    return strip as HTMLElement;
+    const header = screen.getByRole("button", { name: /Backlinks/ });
+    const section = header.closest("section");
+    if (section === null) throw new Error("no Backlinks section rendered");
+    return section as HTMLElement;
   }
 
   it("renders one collapsible group per containing page, headers open the page", async () => {

@@ -1,21 +1,23 @@
 /**
- * System sections tests (SCHEMA.md lazy-loading contract, owner 2026-10-06
- * strip rework): below the page content the references ride ONE bottom
- * strip (`.nt-backlinks`) with TWO tabs — "Backlinks" and "Unlinked
- * mentions" (renamed) — always both visible even when empty (date pages
- * excepted, owner 2026-10-09: the deterministic day/month/year family
- * carries no Unlinked mentions tab at all — literal-date matches are noise
- * — and the count's FTS pass is skipped); the outgoing
- * "References" tab no longer exists. The eager counts ride the tab labels
- * ("Backlinks 2"). The SELECTED tab's list query runs on mount (the Tabs
- * primitive swallows re-clicks on the active tab, so the first load cannot
- * ride onChange); the other tab stays lazy until its first switch, and the
- * loaded results cache across tab switches. An activated tab with zero rows
- * shows its empty text ("No backlinks." / "No unlinked mentions."); a live
- * client notification re-runs the loaded tabs' queries. The tab panels
- * render headerless (the tab IS the header — no nested Section headers).
- * Unlinked rows carry the Promote/Ignore action pair. The Child pages
- * section and the Activity feed are unchanged around the strip.
+ * System sections tests (SCHEMA.md lazy-loading contract; the tab strip's
+ * retirement, owner 2026-10-09): below the page content the references are
+ * TWO normal NodeCollection sections — "Backlinks" and "Unlinked
+ * mentions" — each riding the shared collapsible-section chrome (the
+ * header IS the section header; no tab row). The hide-when-empty ruling
+ * covers both: each section renders only while its OWN eager count reads
+ * > 0 (a page with backlinks but no unlinked mentions shows Backlinks
+ * only, and vice versa). Backlinks starts EXPANDED — its list query runs
+ * on mount (the old selected tab's contract); Unlinked mentions starts
+ * COLLAPSED — its query (the expensive FTS pass) stays lazy behind the
+ * first expand and its rows cache across a silent collapse/expand. The
+ * eager counts ride the header badges ("Backlinks 2"); a live client
+ * notification re-runs the expanded section's query. An expanded section
+ * with zero rows (a filter emptied it) shows its empty text ("No
+ * backlinks." / "No unlinked mentions."). Unlinked rows carry the
+ * Promote/Ignore action pair. Date pages (the deterministic
+ * day/month/year family) carry no Unlinked mentions section at all and
+ * skip the unlinked count read. The Child pages section and the Activity
+ * feed are unchanged around them.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -66,21 +68,24 @@ function section(headerName: RegExp): HTMLElement {
   return header.closest("section")!;
 }
 
-/** The `.nt-backlinks` strip (the selected tab's rows load on mount). */
-function backlinksStrip(): HTMLElement {
-  const strip = document.querySelector(".nt-backlinks");
-  if (strip === null) throw new Error("no .nt-backlinks strip rendered");
-  return strip as HTMLElement;
+/** The Backlinks section (expanded by default — its rows load on mount). */
+function backlinksSection(): HTMLElement {
+  return section(/Backlinks/);
 }
 
-/** Activate the lazy Unlinked mentions tab and return the strip. */
-function activateUnlinkedMentions(): HTMLElement {
-  fireEvent.click(screen.getByRole("tab", { name: /Unlinked mentions/ }));
-  return backlinksStrip();
+/** The Unlinked mentions section (collapsed until its first expand). */
+function unlinkedSection(): HTMLElement {
+  return section(/Unlinked mentions/);
+}
+
+/** Expand the lazy Unlinked mentions section and return its <section>. */
+function expandUnlinkedMentions(): HTMLElement {
+  fireEvent.click(screen.getByRole("button", { name: /Unlinked mentions/ }));
+  return unlinkedSection();
 }
 
 describe("PageView system sections", () => {
-  it("renders the two-tab strip: both tabs always visible, eager counts ride the labels, no list query runs before first activation", async () => {
+  it("renders the two reference sections: eager counts ride the badges, Backlinks expanded (query on mount), Unlinked mentions collapsed (no query yet)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Zebra" });
     // One mention backlink (Backlinks count 1) and one literal mention
@@ -101,39 +106,30 @@ describe("PageView system sections", () => {
     const referencesSpy = vi.spyOn(client, "getReferences");
     const childSpy = vi.spyOn(client, "getChildPages");
 
-    const { container } = render(<PageView client={client} pageId={pageId} />);
+    render(<PageView client={client} pageId={pageId} />);
 
-    // The strip is always there, with exactly the two tabs — even when a
-    // tab would be empty. The outgoing "References" tab no longer exists.
-    // Child pages (no children here) renders on the main surface anyway —
-    // its header carries the create action (owner 2026-10-09) — and its
-    // list query runs on the expanded section's first read.
-    expect(container.querySelector(".nt-backlinks")).not.toBeNull();
-    // Scope to the strip's OWN tab list: the selected panel may host the
-    // collection's views chrome (its Default tab) alongside.
-    const refTabList = container.querySelector(".nt-ref-tabs .tabs__list");
-    expect(refTabList).not.toBeNull();
-    expect(within(refTabList as HTMLElement).getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
-      "Backlinks 1",
-      "Unlinked mentions 1",
-    ]);
-    expect(screen.queryByRole("tab", { name: "References" })).toBeNull();
+    // Both sections render — each count is 1. (A section at count 0 hides
+    // entirely — the hide-when-empty ruling covers every reference
+    // section.) Child pages (no children here) renders on the main
+    // surface anyway — its header carries the create action
+    // (owner 2026-10-09) — and its list query runs on the expanded
+    // section's first read.
+    expect(screen.getByRole("button", { name: "Backlinks 1" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Unlinked mentions 1" })).not.toBeNull();
     expect(screen.getByRole("button", { name: /Child pages/ })).not.toBeNull();
 
-    // Lazy per the SCHEMA.md contract, except the SELECTED tab: Backlinks
-    // is active from the first render, so its query runs on mount (the Tabs
-    // primitive swallows re-clicks on the active tab — the first load
-    // cannot ride onChange). The unselected Unlinked mentions tab stays
-    // silent until its first switch. (The eager COUNTS run at render — they
-    // ride the labels above.) The Child pages section starts expanded, so
-    // its read runs on mount too — the backlinks-side spies stay silent.
+    // Lazy per the SCHEMA.md contract: Backlinks starts expanded, so its
+    // query runs on mount; the collapsed Unlinked mentions section stays
+    // silent until its first expand. (The eager COUNTS run at render —
+    // they ride the badges above.) The Child pages section starts
+    // expanded, so its read runs on mount too.
     expect(linkedSpy).toHaveBeenCalled();
     expect(unlinkedSpy).not.toHaveBeenCalled();
     expect(referencesSpy).not.toHaveBeenCalled();
     expect(childSpy).toHaveBeenCalled();
   });
 
-  it("the selected Backlinks tab loads on mount — zero rows show the empty text", async () => {
+  it("zero backlinks: no Backlinks section at all — hide-when-empty is per-section; the Unlinked mentions section renders collapsed with its count", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Quiet Page" });
     const plainSource = await client.createObject({ presentAsMain: true, name: "Plain Source" });
@@ -142,24 +138,28 @@ describe("PageView system sections", () => {
       contentAst: [{ type: "text", text: "Quiet Page" }],
     });
 
+    const linkedSpy = vi.spyOn(client, "getLinkedReferences");
+    const unlinkedSpy = vi.spyOn(client, "getUnlinkedReferences");
     render(<PageView client={client} pageId={pageId} />);
 
-    // Zero backlinks: the Backlinks tab stays, with no count suffix.
-    expect(screen.getByRole("tab", { name: "Backlinks" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Unlinked mentions 1" })).toBeInTheDocument();
-
-    // The selected tab loaded on mount: the empty state renders under the
-    // headerless panel, no click needed.
-    expect(screen.getByText("No backlinks.")).toBeInTheDocument();
+    // The Backlinks section hides at count 0 — no header, no empty text,
+    // and its list query never runs.
+    expect(screen.queryByRole("button", { name: /Backlinks/ })).toBeNull();
+    expect(screen.queryByText("No backlinks.")).toBeNull();
+    expect(linkedSpy).not.toHaveBeenCalled();
+    // The unlinked count is 1: the section renders, collapsed — its query
+    // stays lazy.
+    expect(screen.getByRole("button", { name: "Unlinked mentions 1" })).toBeInTheDocument();
+    expect(unlinkedSpy).not.toHaveBeenCalled();
   });
 
-  it("the strip hides on a page nobody references — hide-when-empty covers it like every system section; Child pages still renders with its create action", async () => {
+  it("the reference sections hide on a page nobody references — hide-when-empty covers them like every system section; Child pages still renders with its create action", async () => {
     const client = await seedClient();
     const lonelyId = await client.createObject({ presentAsMain: true, name: "Xylophone QV" });
 
-    const { container } = render(<PageView client={client} pageId={lonelyId} />);
-    expect(container.querySelector(".nt-backlinks")).toBeNull();
-    expect(screen.queryByRole("tab", { name: "Backlinks" })).toBeNull();
+    render(<PageView client={client} pageId={lonelyId} />);
+    expect(screen.queryByRole("button", { name: /Backlinks/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Unlinked mentions/ })).toBeNull();
     expect(screen.queryByText("No backlinks.")).toBeNull();
     // The Child pages section is the exception to hide-when-empty on the
     // main surface (owner 2026-10-09): it always renders, its header action
@@ -168,28 +168,29 @@ describe("PageView system sections", () => {
     expect(screen.getByRole("button", { name: "Add child page" })).not.toBeNull();
   });
 
-  it("a page's first backlink reveals the strip: the count gate re-reads on the write notification", async () => {
+  it("a page's first backlink reveals the Backlinks section: the count gate re-reads on the write notification", async () => {
     const client = await seedClient();
     const targetId = await client.createObject({ presentAsMain: true, name: "Stripped Target" });
     const sourceId = await client.createObject({ presentAsMain: true, name: "Stripped Source" });
-    const { container } = render(<PageView client={client} pageId={targetId} />);
-    expect(container.querySelector(".nt-backlinks")).toBeNull();
+    render(<PageView client={client} pageId={targetId} />);
+    expect(screen.queryByRole("button", { name: /Backlinks/ })).toBeNull();
 
     await client.createObject({
       parentId: sourceId,
       contentAst: [{ type: "mention", targetNodeId: targetId, text: "Stripped Target" }],
     });
 
-    // The count re-ran on the write notification: the strip appears with the
-    // count suffix; the lazy rows resolve in the same beat.
-    const stripTab = await screen.findByRole("tab", { name: "Backlinks 1" });
-    expect(stripTab).not.toBeNull();
+    // The count re-ran on the write notification: the expanded section
+    // appears with the count badge; its rows resolve in the same beat.
+    const header = await screen.findByRole("button", { name: "Backlinks 1" });
+    expect(header).not.toBeNull();
     expect(await screen.findByText("Stripped Source")).not.toBeNull();
-    // The lazy Unlinked tab was never activated: its empty line never renders.
+    // No unlinked mentions on this page: the collapsed section never
+    // renders, its empty line neither.
     expect(screen.queryByText("No unlinked mentions.")).toBeNull();
   });
 
-  it("the selected tab loads on mount and caches across switches; mentions link, literal text does not", async () => {
+  it("Backlinks loads on mount; Unlinked mentions loads on its first expand and caches across a collapse/expand; mentions link, literal text does not", async () => {
     const client = await seedClient();
     const targetId = await client.createObject({ presentAsMain: true, name: "Zebra" });
     const linkedPageId = await client.createObject({ presentAsMain: true, name: "Linked Source" });
@@ -207,39 +208,37 @@ describe("PageView system sections", () => {
     const unlinkedSpy = vi.spyOn(client, "getUnlinkedReferences");
     render(<PageView client={client} pageId={targetId} />);
 
-    // The selected Backlinks tab loaded on mount: the mention source
-    // renders (the plain-text source never does). The panel is headerless —
-    // the tab IS the header.
-    const strip = backlinksStrip();
+    // The expanded Backlinks section loaded on mount: the mention source
+    // renders (the plain-text source never does). The section header is
+    // the collapsible chrome — no duplicated heading inside the body.
+    const backlinks = backlinksSection();
     const mountQueries = linkedSpy.mock.calls.length;
     expect(mountQueries).toBeGreaterThan(0);
-    expect(within(strip).getAllByText("Linked Source")).not.toHaveLength(0);
-    expect(within(strip).queryByText("Plain Source")).toBeNull();
-    const panel = strip.querySelector<HTMLElement>('[role="tabpanel"]')!;
-    // Headerless panel: no Section-component headers, no duplicated tab text
-    // (the tab IS the header; the rows' Logseq-style groups are plain
-    // <section class="outline-group"> outlines, not Section chrome).
-    expect(panel.querySelector(".node-view-section__header")).toBeNull();
-    expect(within(panel).queryByRole("button", { name: /Backlinks/ })).toBeNull();
+    expect(within(backlinks).getAllByText("Linked Source")).not.toHaveLength(0);
+    expect(within(backlinks).queryByText("Plain Source")).toBeNull();
+    // The section renders its own chrome exactly once — the header IS the
+    // section header, the body carries no nested one.
+    expect(backlinks.querySelectorAll(".node-view-section__header")).toHaveLength(1);
+    const body = backlinks.querySelector(".node-view-section__content")!;
+    expect(within(body as HTMLElement).queryByRole("button", { name: /^Backlinks/ })).toBeNull();
 
-    // Unlinked: first activation runs its query once — the plain-text
+    // Unlinked: the first expand runs its query once — the plain-text
     // source shows, the already-linked source never does.
-    activateUnlinkedMentions();
+    const unlinked = expandUnlinkedMentions();
     expect(unlinkedSpy).toHaveBeenCalledTimes(1);
-    expect(within(strip).getAllByText("Plain Source")).not.toHaveLength(0);
-    expect(within(strip).queryByText("Linked Source")).toBeNull();
+    expect(within(unlinked).getAllByText("Plain Source")).not.toHaveLength(0);
+    expect(within(unlinked).queryByText("Linked Source")).toBeNull();
 
-    // Switching back and forth: the loaded results cache ACROSS tab
-    // switches — neither query re-runs (the owner 2026-10-06 contract).
-    fireEvent.click(screen.getByRole("tab", { name: /Backlinks/ }));
-    expect(linkedSpy.mock.calls.length).toBe(mountQueries);
-    expect(within(strip).getAllByText("Linked Source")).not.toHaveLength(0);
-    activateUnlinkedMentions();
+    // Collapse and re-expand at an unchanged version: the cached rows
+    // serve the re-expand — neither query re-runs (the lazy contract).
+    fireEvent.click(screen.getByRole("button", { name: /Unlinked mentions/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Unlinked mentions/ }));
     expect(unlinkedSpy).toHaveBeenCalledTimes(1);
-    expect(within(strip).getAllByText("Plain Source")).not.toHaveLength(0);
+    expect(within(unlinkedSection()).getAllByText("Plain Source")).not.toHaveLength(0);
+    expect(linkedSpy.mock.calls.length).toBe(mountQueries);
   });
 
-  it("tabs never disappear: promoting the only unlinked source empties the panel but keeps the tab; the counts update live", async () => {
+  it("promoting the only unlinked source retires the section (hide-when-empty) and grows Backlinks, which then lists the promoted source", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Zebra" });
     const linkedSource = await client.createObject({ presentAsMain: true, name: "Linked Source" });
@@ -255,30 +254,29 @@ describe("PageView system sections", () => {
 
     render(<PageView client={client} pageId={pageId} />);
 
-    // Activate the Unlinked mentions tab and promote the only source: its
+    // Expand the Unlinked mentions section and promote the only source: its
     // literal text becomes a mention.
-    const strip = activateUnlinkedMentions();
-    fireEvent.click(within(strip).getByRole("button", { name: /Promote Zebra to a link/ }));
+    const unlinked = expandUnlinkedMentions();
+    fireEvent.click(within(unlinked).getByRole("button", { name: /Promote Zebra to a link/ }));
     await flushWrites();
 
     // The write landed: the source block now carries a mention edge.
     expect(client.getNode(literalBlock)!.contentAst).toEqual([
       { type: "mention", targetNodeId: pageId, text: "Zebra" },
     ]);
-    // The eager counts recompute per notification: unlinked drops to 0 (the
-    // suffix disappears, the tab REMAINS), backlinks grow to 2.
+    // The eager counts recompute per notification: unlinked drops to 0 and
+    // the hide-when-empty ruling retires the section entirely; backlinks
+    // grow to 2.
     expect(client.getUnlinkedReferenceCount(pageId)).toBe(0);
     expect(client.getBacklinkCount(pageId)).toBe(2);
-    expect(screen.getByRole("tab", { name: "Unlinked mentions" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Backlinks 2" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Unlinked mentions/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Backlinks 2" })).toBeInTheDocument();
 
-    // The loaded panels re-queried on the notification: the Unlinked panel
-    // is now honestly empty…
-    expect(within(backlinksStrip()).getByText("No unlinked mentions.")).toBeInTheDocument();
-    // …and the promoted source now rides Backlinks.
-    fireEvent.click(screen.getByRole("tab", { name: "Backlinks 2" }));
-    expect(within(backlinksStrip()).getAllByText("Linked Source")).not.toHaveLength(0);
-    expect(within(backlinksStrip()).getAllByText("Plain Source")).not.toHaveLength(0);
+    // The expanded Backlinks section re-queried on the notification: the
+    // promoted source now rides it alongside the original.
+    const backlinks = backlinksSection();
+    expect(within(backlinks).getAllByText("Linked Source")).not.toHaveLength(0);
+    expect(within(backlinks).getAllByText("Plain Source")).not.toHaveLength(0);
   });
 
   it("blocks unlinked references for blocks (pages only)", async () => {
@@ -458,14 +456,15 @@ describe("PageView system sections", () => {
       ],
     });
 
-    // Sanity: the stat the label reads (distinct sources).
+    // Sanity: the stat the badge reads (distinct sources).
     expect(client.getBacklinkCount(targetId)).toBe(2);
 
     render(<PageView client={client} pageId={targetId} />);
-    // The eager count rides the tab label; a zero count shows no suffix but
-    // the tab stays (both tabs are always visible now).
-    expect(screen.getByRole("tab", { name: "Backlinks 2" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Unlinked mentions" })).toBeInTheDocument();
+    // The eager count rides the section header badge; a zero count hides
+    // the section (the hide-when-empty ruling) — no unlinked mentions
+    // here, so no Unlinked mentions section.
+    expect(screen.getByRole("button", { name: "Backlinks 2" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Unlinked mentions/ })).toBeNull();
   });
 
   it("child-pages badge counts the page-typed children", async () => {
@@ -497,13 +496,13 @@ describe("PageView system sections", () => {
 
     // Owner rule: France's own-subtree links are content, not references —
     // no edge targets France yet, so the hide-when-empty gate keeps the
-    // whole strip off the page.
-    expect(screen.queryByRole("tab", { name: "Backlinks" })).toBeNull();
+    // Backlinks section off the page.
+    expect(screen.queryByRole("button", { name: "Backlinks" })).toBeNull();
     expect(client.getLinkedReferences(parisId).map((r) => r.kind)).toEqual(["direct"]);
     // Paris still sees the direct reference from inside France.
     expect(client.getLinkedReferences(parisId).map((r) => r.containingPageName)).toEqual(["France"]);
 
-    // A DIRECT mention of France makes the count appear (label 1)…
+    // A DIRECT mention of France makes the count appear (badge 1)…
     const notesId = await client.createObject({ presentAsMain: true, name: "Notes" });
     let notesBlockId = "";
     await act(async () => {
@@ -519,13 +518,13 @@ describe("PageView system sections", () => {
       source: r.source.id,
       kind: r.kind,
     }))).toEqual([{ source: notesBlockId, kind: "direct" }]);
-    expect(screen.getByRole("tab", { name: "Backlinks 1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Backlinks 1" })).toBeInTheDocument();
 
-    // …and the selected tab's list re-queried on the notification: exactly
-    // one row renders (the own-subtree roll-up stays hidden by the owner
-    // rule).
-    const strip = backlinksStrip();
-    const items = Array.from(strip.querySelectorAll(".nt-refblock-tree"));
+    // …and the expanded section's list re-queried on the notification:
+    // exactly one row renders (the own-subtree roll-up stays hidden by the
+    // owner rule).
+    const backlinks = backlinksSection();
+    const items = Array.from(backlinks.querySelectorAll(".nt-refblock-tree"));
     expect(items).toHaveLength(1);
     // Each reference renders the source block with its content (and children
     // recursively — the fixture's mention block has none, the tree still shows
@@ -533,7 +532,7 @@ describe("PageView system sections", () => {
     expect(items[0]!.querySelector(".nt-block-content")?.textContent).toContain("France");
   });
 
-  it("the loaded backlinks tab updates when a remote change notifies", async () => {
+  it("the expanded Backlinks section updates when a remote change notifies", async () => {
     const relay = new MemoryRelay();
     const clientA = await seedClient(relay);
     const clientB = await seedClient(relay);
@@ -550,14 +549,14 @@ describe("PageView system sections", () => {
 
     render(<PageView client={clientA} pageId={pageId} />);
 
-    // The selected tab loaded on mount; the label reads the materialized
-    // count (1 — the local source).
-    const strip = backlinksStrip();
-    within(strip).getAllByText("Local Source");
-    expect(screen.getByRole("tab", { name: "Backlinks 1" })).toBeInTheDocument();
+    // The expanded section loaded on mount; the badge reads the
+    // materialized count (1 — the local source).
+    const backlinks = backlinksSection();
+    within(backlinks).getAllByText("Local Source");
+    expect(screen.getByRole("button", { name: "Backlinks 1" })).toBeInTheDocument();
 
     // A second client adds a backlink; the relay frame notifies client A
-    // and the loaded tab's query re-runs.
+    // and the expanded section's query re-runs.
     const remotePageId = await clientB.createObject({ presentAsMain: true, name: "Remote Source" });
     await clientB.createObject({
       parentId: remotePageId,
@@ -567,8 +566,8 @@ describe("PageView system sections", () => {
       await clientB.push();
     });
 
-    await within(strip).findAllByText("Remote Source");
-    expect(screen.getByRole("tab", { name: "Backlinks 2" })).toBeInTheDocument();
+    await within(backlinks).findAllByText("Remote Source");
+    expect(screen.getByRole("button", { name: "Backlinks 2" })).toBeInTheDocument();
   });
 });
 
@@ -638,7 +637,7 @@ describe("date pages: no Unlinked mentions", () => {
     return name;
   }
 
-  it("a day page with only literal-date matches renders no strip at all and skips the unlinked count read", async () => {
+  it("a day page with only literal-date matches renders no reference sections at all and skips the unlinked count read", async () => {
     const client = await seedClient();
     const { day } = await client.ensureDateChain("2026-06-15");
     const dayName = dayNameOf(client, day);
@@ -647,14 +646,14 @@ describe("date pages: no Unlinked mentions", () => {
     expect(client.getUnlinkedReferenceCount(day)).toBeGreaterThan(0);
 
     const countSpy = vi.spyOn(client, "getUnlinkedReferenceCount");
-    const { container } = render(<PageView client={client} pageId={day} onOpenPage={() => {}} />);
+    render(<PageView client={client} pageId={day} onOpenPage={() => {}} />);
 
-    expect(container.querySelector(".nt-backlinks")).toBeNull();
-    expect(screen.queryByRole("tab", { name: /Unlinked mentions/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Backlinks/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Unlinked mentions/ })).toBeNull();
     expect(countSpy).not.toHaveBeenCalled();
   });
 
-  it("a day page with a real backlink renders the strip with ONLY the Backlinks tab", async () => {
+  it("a day page with a real backlink renders ONLY the Backlinks section", async () => {
     const client = await seedClient();
     const { day } = await client.ensureDateChain("2026-06-15");
     const dayName = dayNameOf(client, day);
@@ -668,13 +667,13 @@ describe("date pages: no Unlinked mentions", () => {
     const countSpy = vi.spyOn(client, "getUnlinkedReferenceCount");
     render(<PageView client={client} pageId={day} onOpenPage={() => {}} />);
 
-    const strip = backlinksStrip();
-    expect(within(strip).getByRole("tab", { name: /Backlinks/ })).not.toBeNull();
-    expect(within(strip).queryByRole("tab", { name: /Unlinked mentions/ })).toBeNull();
+    const backlinks = backlinksSection();
+    expect(within(backlinks).getByText("Linked Source")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /Unlinked mentions/ })).toBeNull();
     expect(countSpy).not.toHaveBeenCalled();
   });
 
-  it("an ordinary page keeps the Unlinked mentions tab (the ruling is date-family only)", async () => {
+  it("an ordinary page keeps the Unlinked mentions section (the ruling is date-family only)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Zebra" });
     const plainSource = await client.createObject({ presentAsMain: true, name: "Plain Source" });
@@ -684,6 +683,6 @@ describe("date pages: no Unlinked mentions", () => {
     });
 
     render(<PageView client={client} pageId={pageId} onOpenPage={() => {}} />);
-    expect(within(backlinksStrip()).getByRole("tab", { name: /Unlinked mentions/ })).not.toBeNull();
+    expect(screen.getByRole("button", { name: /Unlinked mentions/ })).not.toBeNull();
   });
 });

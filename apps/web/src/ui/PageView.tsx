@@ -48,11 +48,12 @@
  * BINARY ("default"/"compact"); per-column device prefs replace the plan's
  * recorded "third state" option (registered choice, owner resolution).
  * The dedupe check (the layout precondition): the right rail's
- * ReferencesSection and the page's own Backlinks tab both rendered
+ * ReferencesSection and the page's own Backlinks section both rendered
  * getLinkedReferences — the SAME data — verdict: the rail's
  * ReferencesSection is DELETED (see components/sidebarSections.tsx); the
- * Backlinks tab stays the one home in the SectionStack, where the
- * tab/filter machinery lands later. The context column keeps graph + TOC +
+ * Backlinks section stays the one home in the SectionStack — since the
+ * tab strip's retirement (owner 2026-10-09) a normal NodeCollection
+ * section. The context column keeps graph + TOC +
  * Activity + Comments ONLY. Embedded/journal/calendar surfaces and the
  * class/focus/compact variants render NO context column (main-surface
  * chrome only). The right rail is cards-only — the generic frame around
@@ -715,7 +716,7 @@ export function PageView({
                 {/* The node-relevant widgets, relocated from the right
                     rail (the rail is workspace cards only). The references
                     dedupe check rejected the rail's ReferencesSection — the
-                    Backlinks tab owns that data (see the module doc). Top
+                    Backlinks section owns that data (see the module doc). Top
                     down: the local graph (a collapsed-by-default section —
                     the graph mounts, and loads, only on the first expand),
                     the tree-derived Contents, the node's own Activity feed,

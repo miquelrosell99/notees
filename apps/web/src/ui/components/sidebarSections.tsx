@@ -7,10 +7,11 @@
  * ./sidebarToc.ts (tree-derived — no heading tokens exist).
  *
  * The references dedupe check (the layout precondition): the rail's
- * ReferencesSection and the page's own Backlinks tab both rendered
+ * ReferencesSection and the page's own Backlinks section both rendered
  * getLinkedReferences — the SAME data — so the rail's ReferencesSection is
- * DELETED rather than relocated; the Backlinks tab stays the one home in
- * the SectionStack, where the tab/filter machinery lands later. One home,
+ * DELETED rather than relocated; the Backlinks section stays the one home
+ * in the SectionStack — a normal NodeCollection section since the tab
+ * strip's retirement (owner 2026-10-09). One home,
  * no duplication.
  */
 

@@ -16,11 +16,12 @@
  * grid; the column-collapse choice is recorded there). The context column
  * hosts LocalGraphCard, TocSection, the Activity section (relocated), and
  * CommentsSection. The dedupe check (the layout precondition):
- * the right rail's ReferencesSection and the page's own Backlinks tab both
- * rendered getLinkedReferences — the SAME data — so the rail's
+ * the right rail's ReferencesSection and the page's own Backlinks section
+ * both rendered getLinkedReferences — the SAME data — so the rail's
  * ReferencesSection is deleted (its lazy contract lived in the now-removed
- * component); the Backlinks tab stays the one home in the SectionStack,
- * where the tab/filter machinery lands later. One home, no duplication.
+ * component); the Backlinks section stays the one home in the SectionStack
+ * — a normal NodeCollection section since the tab strip's retirement
+ * (owner 2026-10-09). One home, no duplication.
  */
 
 import { useRef, useState, type ReactNode } from "react";
