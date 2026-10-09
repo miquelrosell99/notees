@@ -40,7 +40,9 @@ the pointer and the law.
 ## Catalog
 
 Inputs & buttons: `Button`, `Pill`/`AddPill`, `TextField`, `SearchField`,
-`Dropdown`, `SelectTrigger`, `Checkbox`, `ToggleSwitch`, `BooleanToggle`,
+`Dropdown`, `SelectTrigger`, `Checkbox`, `Radio` (the checkbox variant's
+single-selection sibling — groups compose by sharing a `name`),
+`ToggleSwitch`, `BooleanToggle`,
 `Slider`, `ColorButton`, `SelectionButton`, `ButtonWithPanel`,
 `InlineConfirmButton`, `CodeTextarea`, `FileDropZone`.
 
