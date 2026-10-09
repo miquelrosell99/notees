@@ -30,6 +30,11 @@ change it describes.
 reference: the compose-from-the-library law, the primitive catalog, and the
 popup-dismissal seam.
 
+[ui-debugging.md](ui-debugging.md) is the visual-diagnosis runbook: the
+screenshot capture suite (`scripts/screenshots/run.sh` on throwaway
+containers) and the live-stack probe pattern (`probe-template.mjs`,
+computed-style dumps, the react-pdf/jsdom limits).
+
 [sdk-publishing.md](sdk-publishing.md) is archived reference for the parked
 npm-distribution program.
 

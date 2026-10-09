@@ -9,6 +9,36 @@ predating this file.
 
 ## 2026-10-09
 
+- **fix(web): the export modal's page-size dropdown wears the app surface
+  (the "blue" was the browser default button face — a kit reset gap), the
+  PDF's node links are accent-colored and underlined (no grey chip), and the
+  screenshot-probe workflow is recorded so it stops being rediscovered.**
+  (1) `SelectTrigger` is a bare `<button>` and never reset the UA background
+  — every Dropdown in the app inherited the browser's button color (grey
+  headless, blue-tinted on the owner's platform); the kit now sets
+  surface/on-surface. The modal also constrains the dropdown CONTAINER (the
+  kit default is width:100% + flex:1 — a width on `.dropdown` alone loses),
+  so the trigger is a compact content-sized control. (2) PDF mentions: grey
+  pill chip retired — accent color + underline, icon drawn in the accent.
+  (3) `docs/developers/ui-debugging.md` + `scripts/screenshots/probe-
+  template.mjs` capture the diagnosis workflow (capture suite vs live probes,
+  the login-flow auth pattern, computed-style dumps, the react-pdf/jsdom
+  limits, reading exported PDFs back); the runbook is indexed from the
+  developers README. Verified live with a probe against the redeployed stack
+  (screenshot + computed styles: surface background, 81px trigger), web
+  suite green, VERIFY-PASS.
+
+- **feat(web): the nodeview's two sidebars — the properties panel and the
+  context column — become raised cards over the main content surface.**
+  Each column retired its continuous full-height vertical divider (and the
+  negative-margin reach into the page padding) and now rides as its own
+  card: surface fill, hairline frame, the layout-card radius, one elevation
+  step above the card it sits on (`--shadow-elevation-2`), inset padding,
+  stopping a step above the card bottom like the top bar. The panels
+  unmount on collapse as before; only the frame changed. Docs: `docs/ux.md`
+  + `docs/usage.md` describe the raised-card columns instead of the
+  divider. Verified: web build green, web test suites green.
+
 - **fix(web): the PDF's visual regressions from the app-chrome slice — no
   more double bullets, pills at deterministic size — and the export modal's
   settings rows look like the rest of the UI (new kit `Radio` primitive;
