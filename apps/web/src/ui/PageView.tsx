@@ -177,11 +177,13 @@ export function PageView({
   onBlocksModeChange = undefined,
   /**
    * The card's top-right chrome (the blocks view switcher + the "…" node
-   * menu), owned by NodeView. In the panelled main layout it rides the
-   * nodeview top bar's right section; compact layouts render it in the
-   * absolute top-right corner (as before).
+   * menu), owned by NodeView as two pieces: the panelled main layout rides
+   * them on the nodeview top bar's right section with the context-panel
+   * toggle between; compact layouts render them back to back in the absolute
+   * top-right corner (as before).
    */
-  chromeRight = undefined,
+  chromeModes = undefined,
+  chromeMenu = undefined,
   /** shares: server coordinates for the "Share…" item + modal. */
   shareTarget = undefined,
   /**
@@ -225,7 +227,8 @@ export function PageView({
   layout?: "default" | "compact";
   blocksMode?: ViewMode;
   onBlocksModeChange?: ((mode: ViewMode) => void) | undefined;
-  chromeRight?: ReactNode;
+  chromeModes?: ReactNode;
+  chromeMenu?: ReactNode;
   shareTarget?: ShareTarget | undefined;
   preview?: boolean;
   globalShortcuts?: boolean | undefined;
@@ -657,10 +660,10 @@ export function PageView({
             </aside>
           )}
           <div className="nt-page-content">
-            {/* The nodeview top bar (PageChrome.tsx): the properties +
-                context collapse toggles and the classes pills on the left,
-                the view-mode switcher + the node menu on the right. Pinned
-                to the top of the column. */}
+            {/* The nodeview top bar (PageChrome.tsx): the properties
+                collapse toggle and the classes pills on the left, the
+                view-mode switcher + the context collapse toggle + the node
+                menu on the right. Pinned to the top of the column. */}
             <NodeTopbar
               client={client}
               nodeId={pageId}
@@ -669,7 +672,8 @@ export function PageView({
               onToggleSidePanel={() => setSidePanelCollapsed(!sidePanelCollapsed)}
               contextPanelCollapsed={contextPanelCollapsed}
               onToggleContextPanel={() => setContextPanelCollapsed(!contextPanelCollapsed)}
-              chromeRight={chromeRight}
+              chromeModes={chromeModes}
+              chromeMenu={chromeMenu}
               onOpenPage={onOpenPage}
             />
             {/* The nodeview proper: auto height between the pinned top bar
@@ -701,8 +705,11 @@ export function PageView({
           {headerChrome}
           {mainChrome}
           {footerChrome}
-          {chromeRight !== undefined && (
-            <div className="nt-node-view__corner">{chromeRight}</div>
+          {(chromeModes !== undefined || chromeMenu !== undefined) && (
+            <div className="nt-node-view__corner">
+              {chromeModes}
+              {chromeMenu}
+            </div>
           )}
         </>
       )}
