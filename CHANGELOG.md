@@ -9,11 +9,59 @@ predating this file.
 
 ## 2026-10-09
 
+- **feat(web,store): the graph view's v1 register, 1:1 — the settings
+  popover, four node-sizing modes with the radius slider and link direction,
+  mass accumulation in the engine, split journal visibility, multi-select
+  with the reorderable selection list, ordered class colors, and
+  bidirectional edges drawn as one arrow with two heads.** Owner ruling
+  (law 0): a v1 port ships the ENTIRE v1 register, not a reduced subset.
+  (1) **The cog settings popover** (kit ButtonWithPanel): Simulation,
+  Link-count attraction, Central gravity, Mass accumulation, Node sizing
+  (Uniform / Connections / Mass / Content — the v1 four), the Node radius
+  slider (3–20, the v1 range), Link direction (all/incoming/outgoing, the
+  connections mode), and a Visibility section — **Day / Month / Year pages**
+  replace the single Journal switch (each level toggles independently; the
+  shipped default keeps the chain off) plus **System pages** (the seeded
+  Inbox + the withdrawn scratchpad). (2) **Node sizing rides the v1 curve**
+  (`nodeRadius.ts`, pure + unit-tested): MIN 4 / MAX 18 with the v1 power
+  exponents (0.7 connections/content, 0.8 mass); the store topology
+  projection now carries `contentSize` (descendant blocks, stopping at
+  nested main nodes) and `mass` (recursive descendant weight, cycle-safe) per
+  node — one memoized walk serves both. (3) **Mass accumulation reaches the
+  integrator**: `GraphEngineNode.mass`, `useMass` in the raw config, a
+  mass slab, and acceleration divided by mass (heavier parents resist — a
+  lone mass-9 node under identical gravity covers measurably less ground,
+  the new engine test). (4) **Multi-select** (the v1 register): clicking a
+  node toggles it in the selection, double-click opens (and clears), empty
+  click clears; the toolbar's **Selected · N** popover lists the selection
+  (kit ListSortable drag-reorder, per-row remove, Clear); the renderer
+  highlights every selected node (rings + neighbor dimming, the ring buffer
+  grows to a 64 cap); the search field now **adds nodes to the selection**
+  (results dropdown, Enter takes the first) — the old jump-the-camera
+  single-select is retired. (5) **Class colors** in the Colors popover: an
+  ordered list (add any class via a searchable Dropdown, kit ColorButton per
+  row, drag to reorder, remove) that paints **before** the query groups —
+  precedence: class color → query group → the node's own color
+  (`nodeVisuals.ts`, pure + unit-tested); new entries cycle the preset
+  palette. (6) **Bidirectional relations render as one arrow with two
+  heads**: the renderer's new edge plan (`planEdgeRender`, pure +
+  unit-tested) dedupes reciprocal same-kind pairs into a single edge quad
+  and emits a head at each end; one-direction relations keep their single
+  head; property/semantic stay arrowless. (7) **The settings memo takes
+  field-level deps** — pause/radius/sizing/preset changes no longer rebuild
+  the whole GL stack + engine (every pref change did, before); radii and
+  colors reapply live through `setNodeVisuals`. All graph prefs (incl. class
+  colors) persist device-local in the existing per-surface blob — settings
+  sync across devices (v1's server-side persistence) is a follow-up
+  proposal. Verified: full gate green (store 457 + web suites incl. the new
+  `graph-sizing` suite and the updated toolbar-composition spec); live-stack
+  probe. Docs: usage.md graph section rewritten to the register.
+
 - **fix(web): honest icons for the chrome toggles — the top bar's sidebar
   buttons and the nodeview panel toggles stop posing as layout diagrams.**
   (1) The app top bar's left-sidebar button is a plain hamburger
   (`mdi-menu`, the affordance the header doc always claimed) and its
-  right-sidebar button is a stack of cards (`mdi-cards-outline`) — the rail
+  right-sidebar button is a stack of cards (`mdi-card-multiple-outline`) — the rail
   hosts workspace cards. (2) The nodeview top bar's properties-panel toggle
   is a properties affordance (`mdi-tune-variant`) and its context-panel
   toggle a docked-right-panel (`mdi-dock-right`); the context toggle moves
