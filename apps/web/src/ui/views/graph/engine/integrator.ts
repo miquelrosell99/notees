@@ -33,18 +33,22 @@ export function integrate(
   ay: Float32Array,
   oldAx: Float32Array,
   oldAy: Float32Array,
+  mass: Float32Array,
 ): number {
   const dt = state.prevDt;
   const hdt2 = 0.5 * dt * dt;
   const maxVel = cfg.maxVelocity;
   const maxV2 = maxVel * maxVel;
   const friction = cfg.friction;
+  const useMass = cfg.useMass === true;
   let totalEnergy = 0;
 
   for (let k = 0; k < activeCount; k++) {
     const i = activeIdx[k]!;
-    const oax = oldAx[i]!, oay = oldAy[i]!;
-    const nax = ax[i]!, nay = ay[i]!;
+    // Mass accumulation: heavy parents (descendant weight) accelerate slower.
+    const invMass = useMass ? 1 / Math.max(mass[i]!, 1) : 1;
+    const oax = oldAx[i]! * invMass, oay = oldAy[i]! * invMass;
+    const nax = ax[i]! * invMass, nay = ay[i]! * invMass;
     let vx = velX[i]! + 0.5 * (oax + nax) * dt;
     let vy = velY[i]! + 0.5 * (oay + nay) * dt;
     const v2 = vx * vx + vy * vy;

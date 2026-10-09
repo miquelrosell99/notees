@@ -291,3 +291,37 @@ describe("graphTopology", () => {
     expect(local.nodes.map((n) => n.id).sort()).toEqual([PAGE_A, PAGE_B]);
   });
 });
+
+describe("graphTopology node metrics", () => {
+  it("contentSize counts descendant blocks, stopping at nested main nodes", () => {
+    const store = setup(
+      createPage(PAGE_A),
+      createBlock(BLOCK_B1, PAGE_A),
+      createBlock(BLOCK_C1, PAGE_A),
+      // a nested main node with its own block: not part of PAGE_A's content
+      env("object.create", { objectId: PAGE_D, parentId: PAGE_A, presentAsMain: true }),
+      createBlock("0192a000-0000-7000-8000-0000000000d1", PAGE_D),
+    );
+    const topology = graphTopology(store, WS);
+    const a = topology.nodes.find((n) => n.id === PAGE_A)!;
+    expect(a.contentSize).toBe(2);
+    const d = topology.nodes.find((n) => n.id === PAGE_D)!;
+    expect(d.contentSize).toBe(1);
+  });
+
+  it("mass accumulates through blocks and sub-pages; classes start at 1", () => {
+    const store = setup(
+      createPage(PAGE_A),
+      createBlock(BLOCK_B1, PAGE_A),
+      env("object.create", { objectId: PAGE_D, parentId: PAGE_A, presentAsMain: true }),
+      createBlock("0192a000-0000-7000-8000-0000000000d1", PAGE_D),
+      env("class.create", { classId: CLASS_X }),
+    );
+    const topology = graphTopology(store, WS);
+    const massOf = (id: string) => topology.nodes.find((n) => n.id === id)!.mass;
+    // PAGE_A: itself + block + sub-page + the sub-page's block = 4
+    expect(massOf(PAGE_A)).toBe(4);
+    expect(massOf(PAGE_D)).toBe(2);
+    expect(massOf(CLASS_X)).toBe(1);
+  });
+});

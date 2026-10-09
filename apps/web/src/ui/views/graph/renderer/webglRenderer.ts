@@ -568,6 +568,62 @@ export interface RendererEdge {
   width?: number;
 }
 
+/**
+ * The per-topology edge/arrow render plan:
+ *   • keep — edges[] indices that get an edge quad. Reciprocal pairs (same
+ *     link type, both directions) share ONE quad — two identical edges drawn
+ *     on top of each other read as one heavier line.
+ *   • arrows — one entry per arrowhead: a one-direction relation gets a head
+ *     at its target; a bidirectional relation gets a head at BOTH ends
+ *     (i1/i2 swapped), one shared quad underneath.
+ */
+export interface EdgeRenderPlan {
+  keep: number[];
+  arrows: Array<{ edge: number; i1: number; i2: number }>;
+}
+
+/**
+ * Pure edge/arrow planning (unit-tested without GL). nodeIndex maps node id →
+ * the renderer's position index; edges referencing unknown nodes are dropped.
+ * Property (3) and semantic (4) families carry no arrowheads — the clutter
+ * cut the renderer has always made.
+ */
+export function planEdgeRender(
+  edges: RendererEdge[],
+  nodeIndex: Map<string, number>,
+): EdgeRenderPlan {
+  const directions = new Map<string, Set<string>>();
+  const endpoints = new Map<string, { a: number; b: number; firstEdge: number }>();
+  for (let i = 0; i < edges.length; i++) {
+    const e = edges[i]!;
+    const si = nodeIndex.get(e.source);
+    const ti = nodeIndex.get(e.target);
+    if (si === undefined || ti === undefined) continue;
+    const a = Math.min(si, ti);
+    const b = Math.max(si, ti);
+    const key = `${e.linkType ?? 0}:${a}:${b}`;
+    let dirs = directions.get(key);
+    if (dirs === undefined) {
+      dirs = new Set();
+      directions.set(key, dirs);
+      endpoints.set(key, { a, b, firstEdge: i });
+    }
+    dirs.add(si === a ? "ab" : "ba");
+  }
+
+  const keep: number[] = [];
+  const arrows: Array<{ edge: number; i1: number; i2: number }> = [];
+  for (const [key, dirs] of directions) {
+    const { a, b, firstEdge } = endpoints.get(key)!;
+    keep.push(firstEdge);
+    if (edges[firstEdge]!.linkType === 3 || edges[firstEdge]!.linkType === 4) continue;
+    // One head per direction that exists: a→b heads at b, b→a heads at a.
+    if (dirs.has("ab")) arrows.push({ edge: firstEdge, i1: a, i2: b });
+    if (dirs.has("ba")) arrows.push({ edge: firstEdge, i1: b, i2: a });
+  }
+  return { keep, arrows };
+}
+
 // ─── Main Renderer Class ──────────────────────────────────────────────────────
 
 export class GraphWebGLRenderer {
@@ -596,11 +652,12 @@ export class GraphWebGLRenderer {
   private edgeInstCount = 0;
 
   // --- Ring VAO / buffer (hover + selection highlight) ---
-  // Reuses NODE_STRIDE layout; at most 2 instances (hover + selected).
+  // Reuses NODE_STRIDE layout; grows with the selection (capped).
+  private static readonly MAX_RINGS = 64;
   private ringVAO: WebGLVertexArrayObject | null = null;
   private ringQuadBuf: WebGLBuffer | null = null;
   private ringInstBuf: WebGLBuffer | null = null;
-  private readonly ringInstData = new Float32Array(NODE_STRIDE * 2); // max 2 rings
+  private ringInstData: Float32Array = new Float32Array(NODE_STRIDE * 2);
   private ringInstCount = 0;
   private ringUniforms: {
     resolution: WebGLUniformLocation | null;
@@ -625,7 +682,7 @@ export class GraphWebGLRenderer {
 
   // --- Hover / selection state ---
   private _hoveredNodeId  = '';
-  private _selectedNodeId = '';
+  private _selectedNodeIds = new Set<string>();
   private _hoveredEdgeIndex = -1;
   private _edgeMask = 0xFFFFFFFF; // show all link types by default
   private _communityDim = 1.0;
@@ -654,6 +711,21 @@ export class GraphWebGLRenderer {
 
   // --- Edge topology ---
   private edges: RendererEdge[] = [];
+
+  /**
+   * The per-topology render plan, computed in _rebuildEdgeTopology and shared
+   * with _rebuildArrowTopology (both run together on the edge-dirty path):
+   *   • keep — display.edges indices that get an edge quad. Reciprocal pairs
+   *     (same link type, both directions) share ONE quad — two identical
+   *     edges on top of each other read as one heavier line.
+   *   • arrows — one entry per arrowhead: a one-direction relation gets a
+   *     head at its target; a bidirectional relation gets a head at BOTH
+   *     ends (i1/i2 swapped), one shared quad underneath.
+   */
+  private _edgePlan: {
+    keep: number[];
+    arrows: Array<{ edge: number; i1: number; i2: number }>;
+  } = { keep: [], arrows: [] };
 
   // --- Adjacency for dimming ---
   private _adjacency = new Map<string, Set<string>>();
@@ -1073,7 +1145,7 @@ export class GraphWebGLRenderer {
   private _recomputeHighlighted(): void {
     this._highlightedIds.clear();
     // Dimming is driven only by selection — hover does not dim other nodes.
-    const focusIds = [this._selectedNodeId].filter(id => id !== '');
+    const focusIds = [...this._selectedNodeIds];
     if (focusIds.length === 0) {
       this._dimDirty = true;
       this._edgeDirty = true; // rebuild edges without dimming
@@ -1133,10 +1205,11 @@ export class GraphWebGLRenderer {
     this._recomputeHighlighted();
   }
 
-  /** Signal the renderer which node is currently selected (for ring + dimming). */
-  setSelectedNode(id: string): void {
-    if (this._selectedNodeId === id) return;
-    this._selectedNodeId = id;
+  /** Signal the selected node set (rings + dimming). Empty clears focus. */
+  setSelectedNodes(ids: string[]): void {
+    const next = new Set(ids);
+    if (next.size === this._selectedNodeIds.size && ids.every((id) => this._selectedNodeIds.has(id))) return;
+    this._selectedNodeIds = next;
     this._recomputeHighlighted();
   }
 
@@ -1252,11 +1325,21 @@ export class GraphWebGLRenderer {
   }
 
   /**
+   * Compute the shared edge/arrow render plan (pure — unit-tested without
+   * GL). Reciprocal relations render as one edge quad with a head at each
+   * end; everything else renders as before.
+   */
+  private _planEdges(): void {
+    this._edgePlan = planEdgeRender(this.edges, this.nodeIndex);
+  }
+
+  /**
    * Resolve edge source/target IDs → node indices and pack into the static
    * edge instance buffer.  Runs ONLY on topology change, never when nodes move.
    */
   private _rebuildEdgeTopology(): void {
-    const edges = this.edges;
+    this._planEdges();
+    const edges = this._edgePlan.keep.map((i) => this.edges[i]!);
     const ne = edges.length;
     const needed = ne * EDGE_STRIDE;
 
@@ -1319,13 +1402,13 @@ export class GraphWebGLRenderer {
   }
 
   /**
-   * Pack arrowhead instances. Arrows are drawn at the target end of each edge.
-   * Samples positions from the texture so this only needs to run on topology change.
+   * Pack arrowhead instances from the shared edge plan: a head per relation
+   * direction — bidirectional relations get a head at each end over the one
+   * shared edge quad. Runs only on topology change.
    */
   private _rebuildArrowTopology(): void {
-    const edges = this.edges;
-    const ne = edges.length;
-    const needed = ne * ARROW_STRIDE;
+    const plan = this._edgePlan;
+    const needed = plan.arrows.length * ARROW_STRIDE;
 
     if (this.arrowInstCapacity < needed) {
       this.arrowInstCapacity = Math.ceil(needed * 1.5);
@@ -1341,26 +1424,23 @@ export class GraphWebGLRenderer {
     const hasFocus = this._highlightedIds.size > 0;
 
     let count = 0;
-    for (let i = 0; i < ne; i++) {
-      const { source, target, color, linkType } = edges[i]!;
-      const si = this.nodeIndex.get(source);
-      const ti = this.nodeIndex.get(target);
-      if (si === undefined || ti === undefined) continue;
-
-      // Skip arrows on reference edges to reduce clutter
-      if (linkType === 3 || linkType === 4) continue;
+    for (const { edge, i1, i2 } of plan.arrows) {
+      const { source, target, color } = this.edges[edge]!;
 
       const [er, eg, eb, ea] = color ?? defaultColor;
 
-      // Arrow dimming follows edge dimming
+      // Arrow dimming follows edge dimming (either endpoint highlighted)
       const edgeHighlighted = !hasFocus || this._highlightedIds.has(source) || this._highlightedIds.has(target);
       const finalAlpha = edgeHighlighted ? ea : ea * this.DIM_ALPHA;
 
-      const targetRadius = this.nodeVisuals.get(target)?.radius ?? this.opts.defaultRadius;
+      // The head stops just outside the node it points at (i2 — for a
+      // bidirectional pair's second head that is the reverse endpoint).
+      const headNodeId = this.nodeIdOrder[i2]!;
+      const targetRadius = this.nodeVisuals.get(headNodeId)?.radius ?? this.opts.defaultRadius;
 
       const base = count * ARROW_STRIDE;
-      this.arrowInstData[base    ] = si;
-      this.arrowInstData[base + 1] = ti;
+      this.arrowInstData[base    ] = i1;
+      this.arrowInstData[base + 1] = i2;
       this.arrowInstData[base + 2] = targetRadius;
       this.arrowInstData[base + 3] = arrowSize;
       this.arrowInstData[base + 4] = er;
@@ -1419,6 +1499,18 @@ export class GraphWebGLRenderer {
     // ── Build hover / selection rings ────────────────────────────────
     // Written so rings are drawn BEFORE nodes (appear under the main circle).
     this.ringInstCount = 0;
+    const wantedRings = Math.min(
+      this._selectedNodeIds.size + (this._hoveredNodeId !== "" ? 1 : 0),
+      GraphWebGLRenderer.MAX_RINGS,
+    );
+    if (this.ringInstData.length < wantedRings * NODE_STRIDE) {
+      const glForGrow = this.gl;
+      this.ringInstData = new Float32Array(wantedRings * NODE_STRIDE);
+      if (glForGrow) {
+        glForGrow.bindBuffer(glForGrow.ARRAY_BUFFER, this.ringInstBuf);
+        glForGrow.bufferData(glForGrow.ARRAY_BUFFER, this.ringInstData, glForGrow.DYNAMIC_DRAW);
+      }
+    }
     const rid = this.ringInstData;
 
     // Helper: write one ring instance at the given node's position.
@@ -1426,6 +1518,7 @@ export class GraphWebGLRenderer {
     // Color is always taken from the node's own visual color (or CSS default).
     const minWorldRadius = this.opts.minNodeRadiusPx / (2.0 * zoom);
     const writeRing = (nodeUuid: string, scale: number, a: number): void => {
+      if (this.ringInstCount >= GraphWebGLRenderer.MAX_RINGS) return;
       const idx = this.nodeIndex.get(nodeUuid);
       if (idx === undefined) return;
       const px  = this.positions[idx * 2]!;
@@ -1445,10 +1538,13 @@ export class GraphWebGLRenderer {
       this.ringInstCount++;
     };
 
-    // Selected: larger glare ring, fully opaque node color.
-    if (this._selectedNodeId !== '') writeRing(this._selectedNodeId, 1.85, 0.80);
+    // Selected: larger glare ring, fully opaque node color (one per selection).
+    for (const id of this._selectedNodeIds) {
+      if (id === this._hoveredNodeId) continue;
+      writeRing(id, 1.85, 0.80);
+    }
     // Hovered: slightly enlarged glare ring — no dimming of other nodes.
-    if (this._hoveredNodeId !== '' && this._hoveredNodeId !== this._selectedNodeId) {
+    if (this._hoveredNodeId !== "") {
       writeRing(this._hoveredNodeId, 1.55, 0.45);
     }
 

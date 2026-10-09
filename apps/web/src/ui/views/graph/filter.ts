@@ -13,8 +13,12 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 export interface GraphSettings {
   /** Class nodes render (default on). */
   showClasses: boolean;
-  /** The journal chain (year/month/day) renders (default OFF by design). */
-  showJournal: boolean;
+  /** Journal chain granularity — each level toggles independently. */
+  journalYear: boolean;
+  journalMonth: boolean;
+  journalDay: boolean;
+  /** Seeded system pages (the Inbox; the withdrawn scratchpad) render. */
+  showSystemPages: boolean;
   /** Orphan nodes (no visible edges) render (default on). */
   showOrphans: boolean;
   /** Per link-family visibility. */
@@ -27,7 +31,10 @@ export interface GraphSettings {
 
 export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
   showClasses: true,
-  showJournal: false,
+  journalYear: false,
+  journalMonth: false,
+  journalDay: false,
+  showSystemPages: true,
   showOrphans: true,
   families: {
     mention: true,
@@ -41,15 +48,39 @@ export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
   semanticMinWeight: 1,
 };
 
-const JOURNAL_CLASS_IDS = new Set<string>([
-  SYSTEM_CLASS_UUIDS.year,
-  SYSTEM_CLASS_UUIDS.month,
-  SYSTEM_CLASS_UUIDS.day,
+const JOURNAL_CLASS_IDS: Record<"year" | "month" | "day", string> = {
+  year: SYSTEM_CLASS_UUIDS.year,
+  month: SYSTEM_CLASS_UUIDS.month,
+  day: SYSTEM_CLASS_UUIDS.day,
+};
+
+/** Seeded system pages (the withdrawn scratchpad id lives on in old workspaces). */
+const SYSTEM_PAGE_IDS = new Set<string>([
+  "00000000-0000-0000-0002-000000000001",
+  "00000000-0000-0000-0002-000000000002",
 ]);
 
-/** True when the node belongs to the journal chain. */
-export function isJournalNode(node: { id: string; classIds: string[] }): boolean {
-  return node.classIds.some((id) => JOURNAL_CLASS_IDS.has(id));
+/**
+ * True when the settings hide this node: every journal level it belongs to is
+ * off, or it is a seeded system page and system pages are off.
+ */
+export function isNodeHiddenBySettings(
+  node: GraphTopology["nodes"][number],
+  settings: GraphSettings,
+): boolean {
+  const journalClasses = node.classIds.filter(
+    (id) => id === JOURNAL_CLASS_IDS.year || id === JOURNAL_CLASS_IDS.month || id === JOURNAL_CLASS_IDS.day,
+  );
+  const hiddenByJournal =
+    journalClasses.length > 0 &&
+    journalClasses.every((id) => {
+      if (id === JOURNAL_CLASS_IDS.year) return !settings.journalYear;
+      if (id === JOURNAL_CLASS_IDS.month) return !settings.journalMonth;
+      return !settings.journalDay;
+    });
+  if (hiddenByJournal) return true;
+  if (!settings.showSystemPages && SYSTEM_PAGE_IDS.has(node.id)) return true;
+  return false;
 }
 
 /**
@@ -100,8 +131,7 @@ export function applyGraphSettings(
   const nodes = topology.nodes.filter((node) => {
     if (scope !== undefined && !scope.has(node.id)) return false;
     if (node.isClass && !settings.showClasses) return false;
-    if (!settings.showJournal && isJournalNode(node)) return false;
-    return true;
+    return !isNodeHiddenBySettings(node, settings);
   });
   const nodeIds = new Set(nodes.map((n) => n.id));
 

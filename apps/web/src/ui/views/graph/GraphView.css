@@ -294,3 +294,144 @@
   margin: 0;
   color: var(--color-error);
 }
+
+/* ── The settings popover (the cog) ─────────────────────────────────────── */
+
+.nt-graph__settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-sm);
+}
+
+.nt-graph__settings-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.nt-graph__settings-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface);
+}
+
+.nt-graph__settings-slider {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface);
+}
+
+.nt-graph__settings-visibility {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding-top: var(--spacing-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.nt-graph__settings-heading {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-on-surface-variant);
+}
+
+/* ── The selected-nodes popover ─────────────────────────────────────────── */
+
+.nt-graph__selected-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-sm);
+}
+
+.nt-graph__selected-item {
+  min-height: 28px;
+}
+
+.nt-graph__selected-name {
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── The search-to-add dropdown ─────────────────────────────────────────── */
+
+.nt-graph__search {
+  position: relative;
+}
+
+.nt-graph__search-results {
+  position: absolute;
+  top: calc(100% + var(--spacing-1));
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 100%;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: var(--spacing-1);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-container-high);
+  border: 1px solid var(--color-outline);
+  box-shadow: var(--shadow-md);
+}
+
+.nt-graph__search-result {
+  display: block;
+  width: 100%;
+  padding: var(--spacing-1) var(--spacing-sm);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-on-surface);
+  font-size: var(--font-size-sm);
+  text-align: start;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-graph__search-result:hover,
+.nt-graph__search-result[aria-selected="true"] {
+  background: var(--color-surface-variant);
+}
+
+/* ── The class-colors section (rides inside the colors popover) ─────────── */
+
+.nt-graph__groups-head--query {
+  margin-top: var(--spacing-2);
+  padding-top: var(--spacing-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.nt-graph__groups-hint-inline {
+  font-size: var(--font-size-xs);
+  color: var(--color-on-surface-variant);
+}
+
+.nt-graph__class-colors {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  margin-top: var(--spacing-1);
+}
+
+.nt-graph__class-color-item {
+  min-height: 28px;
+}
+
+.nt-graph__class-color-name {
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

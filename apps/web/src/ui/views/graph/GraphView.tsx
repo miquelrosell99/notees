@@ -6,23 +6,22 @@
  *
  * Owner rulings baked in: blocks NEVER render as nodes (they surface only as
  * edge evidence); the journal chain is in the topology but filtered off by
- * default; the semantic (co-occurrence) and temporal (same-day) families
- * render weighted, sparsified, and toggleable alongside the structural
- * families; orphan filtering, QueryAST color groups, the circle/tree layout
+ * default (per-level: year/month/day); the semantic (co-occurrence) and
+ * temporal (same-day) families render weighted, sparsified, and toggleable
+ * alongside the structural families; orphan filtering, QueryAST color groups,
+ * class colors (the ordered first-match-wins list), the circle/tree layout
  * modes, and per-surface settings persistence ride the same toolbar.
  *
  * `local` scopes the topology to a node's neighborhood (the right-rail card);
  * `items` scopes it to a node collection (the registry mode).
  *
- * The chrome follows the reference graph UI: the settings toolbar's icon
- * tools, mode selectors, and visibility toggles compose from the kit (the
- * ghost-button tool idiom, the icon-radio mode selector, the boolean
- * switch), the edge-family chips stay the rendering register, and the empty
- * surfaces carry the reference wording — "Nothing to graph yet" for the
- * empty workspace, the levels hint for an empty neighborhood, and the
- * filtered-out state with its reset affordance on the full surface. The
- * engine/renderer machinery (WebGL draw, physics, minimap, local mode,
- * settings persistence) is unchanged.
+ * The chrome composes from the kit (the ghost-button tool idiom, the
+ * icon-radio mode selector, the boolean switch, the ButtonWithPanel popovers,
+ * ListSortable drag-reorder, the Slider) and the interaction/navigation
+ * register is the v1 one 1:1: drag empty space pans, the wheel zooms
+ * cursor-anchored, dragging a node rearranges it (instant local override +
+ * worker pin), clicking a node toggles it in the multi-selection,
+ * double-click opens, empty click clears.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -34,12 +33,16 @@ import { registerView } from "../registry.js";
 import {
   BooleanToggle,
   Button,
+  ButtonWithPanel,
   ColorButton,
+  Dropdown,
   EmptyState,
+  ListSortable,
   SearchField,
   SelectionButton,
   Slider,
 } from "../../components/ui/index.js";
+import { PRESET_COLOR_TOKENS } from "../../components/ui/colorPresets.js";
 import { usePopupDismissal } from "../../components/ui/usePopupDismissal.js";
 import { resolveCssColor } from "../../components/ui/colorPresets.js";
 import { readDeviceSetting, writeDeviceSetting } from "../../components/modals/deviceSettings.js";
@@ -54,6 +57,15 @@ import {
 } from "./filter.js";
 import { computeFixedLayout, type GraphLayoutMode } from "./layouts.js";
 import { colorGroupError, evaluateColorGroups, type GraphColorGroup } from "./colorGroups.js";
+import {
+  computeNodeSizing,
+  type LinkDirection,
+  type NodeSizeMode,
+} from "./nodeRadius.js";
+import {
+  buildNodeVisuals,
+  type ClassColorEntry,
+} from "./nodeVisuals.js";
 import { EngineController, type EngineFrame } from "./engineController.js";
 import { GraphWebGLRenderer, type RendererEdge } from "./renderer/webglRenderer.js";
 import { drawLabels, type LabelFrame } from "./renderer/labelCanvas.js";
@@ -62,21 +74,34 @@ import { GraphMinimap } from "./minimap.js";
 import "./GraphView.css";
 
 type PhysicsPreset = "sparse" | "balanced" | "compact" | "clustered";
-type NodeSizeMode = "uniform" | "connections";
 
 interface GraphPrefs {
   showClasses: boolean;
-  showJournal: boolean;
+  journalYear: boolean;
+  journalMonth: boolean;
+  journalDay: boolean;
+  showSystemPages: boolean;
   showOrphans: boolean;
   families: Record<GraphEdgeKind, boolean>;
   semanticTopK: number;
   semanticMinWeight: number;
-  preset: PhysicsPreset;
+  /** Physics: more-connected nodes attract more strongly (v1's own toggle). */
+  linkCountAttraction: boolean;
+  /** Center gravity pulls components toward the middle (v1 toggle). */
+  centralGravityOn: boolean;
+  /** Mass accumulation: heavy parents resist movement (v1 toggle). */
+  massAccumulation: boolean;
+  /** Uniform-mode node radius (the v1 slider, 3–20). */
+  baseNodeRadius: number;
   nodeSize: NodeSizeMode;
+  linkDirection: LinkDirection;
+  preset: PhysicsPreset;
   paused: boolean;
   layoutMode: GraphLayoutMode;
   colorGroupsOn: boolean;
   colorGroups: GraphColorGroup[];
+  /** Ordered class colors — first listed class wins (the v1 register). */
+  classColors: ClassColorEntry[];
 }
 
 const FAMILY_LABELS: Array<{ key: GraphEdgeKind; label: string }> = [
@@ -94,18 +119,24 @@ const PREFS_KEY = (surface: string): string => `graphPrefs.${surface}`;
 function defaultPrefs(): GraphPrefs {
   return {
     ...DEFAULT_GRAPH_SETTINGS,
-    preset: "balanced",
+    linkCountAttraction: false,
+    centralGravityOn: true,
+    massAccumulation: true,
+    baseNodeRadius: 8,
     nodeSize: "uniform",
+    linkDirection: "all",
+    preset: "balanced",
     paused:
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches,
     layoutMode: "force",
     colorGroupsOn: false,
     colorGroups: [],
+    classColors: [],
   };
 }
 
-/** Stored prefs merge over the defaults so new family keys appear. */
+/** Stored prefs merge over the defaults so new keys appear. */
 function loadPrefs(surface: string): GraphPrefs {
   const stored = readDeviceSetting<Partial<GraphPrefs> | null>(PREFS_KEY(surface), null);
   const base = defaultPrefs();
@@ -115,6 +146,7 @@ function loadPrefs(surface: string): GraphPrefs {
     ...stored,
     families: { ...base.families, ...(stored.families ?? {}) },
     colorGroups: Array.isArray(stored.colorGroups) ? stored.colorGroups : [],
+    classColors: Array.isArray(stored.classColors) ? stored.classColors : [],
   };
 }
 
@@ -165,15 +197,15 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   const draggingRef = useRef<{ nodeId: string } | null>(null);
   const panRef = useRef<{ startX: number; startY: number; camX: number; camY: number } | null>(null);
   const prefsSurface = local !== undefined ? "local" : "full";
+  /** World radius per node — the label pass reads it live (refs, not closures). */
+  const idRadiusRef = useRef<Map<string, number>>(new Map());
 
   // Loop-visible mirrors — hover/selection/prefs must NOT rebuild the GL stack.
-  const loopStateRef = useRef<{ hovered: string | null; selected: string | null; paused: boolean }>({
+  const loopStateRef = useRef<{ hovered: string | null; selected: string[]; paused: boolean }>({
     hovered: null,
-    selected: null,
+    selected: [],
     paused: false,
   });
-  const nodeSizeRef = useRef<NodeSizeMode>("uniform");
-  const presetRef = useRef<PhysicsPreset>("balanced");
   const layoutModeRef = useRef<GraphLayoutMode>("force");
 
   const [topology, setTopology] = useState<GraphTopology | null>(null);
@@ -193,8 +225,10 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     | { kind: "edge"; edge: GraphEdge; x: number; y: number }
     | null
   >(null);
-  const [selected, setSelected] = useState<string | null>(null);
+  /** The multi-selection (the v1 register: click toggles, list is reorderable). */
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [search, setSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [, setFps] = useState(0);
 
   const scope = useMemo(
@@ -237,16 +271,34 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     return () => clearTimeout(timer);
   }, [prefs, prefsSurface]);
 
+  /**
+   * The display-shaping settings — field-level deps so unrelated prefs
+   * (pause, radius, …) never rebuild the GL stack. layoutMode rides here
+   * too: force ↔ fixed is a different pipeline, rebuilt on the switch.
+   */
   const settings: GraphSettings = useMemo(
     () => ({
       showClasses: prefs.showClasses,
-      showJournal: prefs.showJournal,
+      journalYear: prefs.journalYear,
+      journalMonth: prefs.journalMonth,
+      journalDay: prefs.journalDay,
+      showSystemPages: prefs.showSystemPages,
       showOrphans: prefs.showOrphans,
-      families: { ...prefs.families },
+      families: prefs.families,
       semanticTopK: prefs.semanticTopK,
       semanticMinWeight: prefs.semanticMinWeight,
     }),
-    [prefs],
+    [
+      prefs.showClasses,
+      prefs.journalYear,
+      prefs.journalMonth,
+      prefs.journalDay,
+      prefs.showSystemPages,
+      prefs.showOrphans,
+      prefs.families,
+      prefs.semanticTopK,
+      prefs.semanticMinWeight,
+    ],
   );
 
   const display = useMemo(
@@ -262,18 +314,12 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     engineRef.current?.setPaused(prefs.paused);
   }, [prefs.paused]);
   useEffect(() => {
-    nodeSizeRef.current = prefs.nodeSize;
-  }, [prefs.nodeSize]);
-  useEffect(() => {
-    presetRef.current = prefs.preset;
-  }, [prefs.preset]);
-  useEffect(() => {
     layoutModeRef.current = prefs.layoutMode;
   }, [prefs.layoutMode]);
   useEffect(() => {
-    loopStateRef.current.selected = selected;
-    rendererRef.current?.setSelectedNode(selected ?? "");
-  }, [selected]);
+    loopStateRef.current.selected = selectedIds;
+    rendererRef.current?.setSelectedNodes(selectedIds);
+  }, [selectedIds]);
   useEffect(() => {
     loopStateRef.current.hovered = hover !== null && hover.kind === "node" ? hover.id : null;
   }, [hover]);
@@ -283,15 +329,16 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     if (prefs.layoutMode !== "force") return;
     engineRef.current?.setConfig({
       preset: prefs.preset,
-      centralGravity: 30,
-      linkCountAttraction: prefs.nodeSize === "connections",
+      centralGravity: prefs.centralGravityOn ? 30 : 0,
+      linkCountAttraction: prefs.linkCountAttraction,
+      massAccumulation: prefs.massAccumulation,
       clustering: true,
     });
-  }, [prefs.preset, prefs.nodeSize, prefs.layoutMode]);
+  }, [prefs.preset, prefs.centralGravityOn, prefs.linkCountAttraction, prefs.massAccumulation, prefs.layoutMode]);
 
-  // Color groups evaluation (first match wins; the node's own color rides
-  // underneath — group colors only paint when the toggle is on). Async —
-  // the worker client's query runner is async.
+  // Color groups evaluation (first match wins; class colors ride underneath
+  // in the visuals builder — class match beats group match). Async — the
+  // worker client's query runner is async.
   const [groupColors, setGroupColors] = useState<Map<string, string>>(new Map());
   useEffect(() => {
     if (!prefs.colorGroupsOn || prefs.colorGroups.length === 0) {
@@ -306,6 +353,60 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       cancelled = true;
     };
   }, [client, prefs.colorGroupsOn, prefs.colorGroups]);
+
+  /** The class picker options: every class not already colored. */
+  const classOptions = useMemo(() => {
+    if (!groupsOpen || local !== undefined) return [];
+    const colored = new Set(prefs.classColors.map((entry) => entry.classId));
+    return client
+      .listClasses()
+      .filter((klass) => !colored.has(klass.id))
+      .map((klass) => ({
+        value: klass.id,
+        label: client.getDisplayName(klass.id) ?? klass.id,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [client, groupsOpen, local, prefs.classColors]);
+
+  const addClassColor = (classId: string): void => {
+    const color = PRESET_COLOR_TOKENS[prefs.classColors.length % PRESET_COLOR_TOKENS.length]!;
+    patch({ classColors: [...prefs.classColors, { classId, color }] });
+  };
+
+  const moveClassColor = (fromIndex: number, toIndex: number): void => {
+    setPrefs((prev) => {
+      const next = [...prev.classColors];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved!);
+      return { ...prev, classColors: next };
+    });
+  };
+
+  // ── Node sizing + visuals: live, no GL rebuild ────────────────────────────
+  // Radii and colors recompute whenever a driver changes and ride
+  // renderer.setNodeVisuals (the renderer repacks on the next frame).
+  useEffect(() => {
+    const renderer = rendererRef.current;
+    if (renderer === null || display === null) return;
+    const { radii } = computeNodeSizing(
+      display,
+      prefs.nodeSize,
+      prefs.baseNodeRadius,
+      prefs.linkDirection,
+    );
+    idRadiusRef.current = radii;
+    renderer.setNodeVisuals(
+      display.nodes.map((node) => node.id),
+      buildNodeVisuals(
+        display,
+        radii,
+        prefs.classColors,
+        groupColors,
+        hexToRgba,
+        resolveCssColor,
+      ),
+    );
+  }, [display, prefs.nodeSize, prefs.baseNodeRadius, prefs.linkDirection, prefs.classColors, groupColors]);
 
   // ── Engine + renderer lifecycle (rebuilds only on the display set) ─────────
   useEffect(() => {
@@ -333,27 +434,30 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     const theme = graphTheme();
     const cached = loadCachedPositions(client.getWorkspaceId());
 
-    const degrees = new Map<string, number>();
-    for (const edge of display.edges) {
-      degrees.set(edge.source, (degrees.get(edge.source) ?? 0) + 1);
-      degrees.set(edge.target, (degrees.get(edge.target) ?? 0) + 1);
-    }
-    const maxDegree = Math.max(1, ...degrees.values());
+    const { radii, degrees } = computeNodeSizing(
+      display,
+      prefs.nodeSize,
+      prefs.baseNodeRadius,
+      prefs.linkDirection,
+    );
+    idRadiusRef.current = radii;
+    const visuals = buildNodeVisuals(
+      display,
+      radii,
+      prefs.classColors,
+      groupColors,
+      hexToRgba,
+      resolveCssColor,
+    );
+    renderer.setNodeVisuals(
+      display.nodes.map((node) => node.id),
+      visuals,
+    );
 
     const fixedLayout =
       layoutModeRef.current === "force" ? null : computeFixedLayout(layoutModeRef.current, display);
 
     const engineNodes = display.nodes.map((node) => {
-      const degree = degrees.get(node.id) ?? 0;
-      const radius =
-        nodeSizeRef.current === "connections" ? 8 * (1 + (degree / maxDegree) * 0.6) : 8;
-      const grouped = groupColors.get(node.id);
-      const color =
-        grouped !== undefined
-          ? hexToRgba(grouped)
-          : node.color !== null
-            ? hexToRgba(resolveCssColor(node.color))
-            : undefined;
       const cachedPos = cached.get(node.id);
       const fixed = fixedLayout?.get(node.id);
       const start = fixed ?? cachedPos;
@@ -361,29 +465,11 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
         nodeUuid: node.id,
         x: start?.x,
         y: start?.y,
-        connectionCount: degree,
-        radius,
-        color,
-        // Only fixed-layout (circle/tree) coordinates pin a node. Cached
-        // force-layout positions are a warm start, not a pin — marking them
-        // pinned froze the whole graph on the first topology rebuild.
+        connectionCount: degrees.get(node.id)?.all ?? 0,
+        mass: node.mass,
         pinned: fixed !== undefined,
-        isClass: node.isClass,
       };
     });
-    const idRadius = new Map<string, number>();
-    const visuals = new Map<string, { radius: number; color?: Float32Array }>();
-    for (const node of engineNodes) {
-      idRadius.set(node.nodeUuid, node.radius);
-      visuals.set(node.nodeUuid, {
-        radius: node.radius,
-        ...(node.color !== undefined ? { color: new Float32Array(node.color) } : {}),
-      });
-    }
-    renderer.setNodeVisuals(
-      engineNodes.map((n) => n.nodeUuid),
-      visuals,
-    );
 
     const engineEdges = display.edges.map((edge) => ({
       source: edge.source,
@@ -412,18 +498,20 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       });
       engineRef.current = engine;
       engine.init(
-        engineNodes.map(({ nodeUuid, x, y, connectionCount, pinned }) => ({
+        engineNodes.map(({ nodeUuid, x, y, connectionCount, mass, pinned }) => ({
           nodeUuid,
           ...(x !== undefined ? { x } : {}),
           ...(y !== undefined ? { y } : {}),
           connectionCount,
+          mass,
           pinned,
         })),
         engineEdges,
         {
-          preset: presetRef.current,
-          centralGravity: 30,
-          linkCountAttraction: nodeSizeRef.current === "connections",
+          preset: prefs.preset,
+          centralGravity: prefs.centralGravityOn ? 30 : 0,
+          linkCountAttraction: prefs.linkCountAttraction,
+          massAccumulation: prefs.massAccumulation,
           clustering: true,
         },
       );
@@ -488,6 +576,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       const lctx = labelCanvas.getContext("2d");
       if (lctx !== null) {
         if (frames % 60 === 0) namesCache.clear();
+        const selected = loopStateRef.current.selected;
         const labelFrame: LabelFrame = {
           ctx: lctx,
           width: labelCanvas.width,
@@ -497,11 +586,11 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
           positions: renderer.nodePositions,
           order: renderer.nodeOrder,
           names: new Map(renderer.nodeOrder.map((id) => [id, nameOf(id)])),
-          radii: idRadius,
+          radii: idRadiusRef.current,
           worldToScreen: (wx, wy) => renderer.worldToScreen(wx, wy),
           baseNodeRadius: 8,
-          hovered: loopStateRef.current.hovered ?? loopStateRef.current.selected,
-          selected: loopStateRef.current.selected,
+          hovered: loopStateRef.current.hovered,
+          selected: selected.length > 0 ? selected[selected.length - 1]! : null,
           colors: graphTheme(),
         };
         drawLabels(labelFrame);
@@ -551,6 +640,33 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [display, client, groupColors]);
+
+  // ── Selection helpers ──────────────────────────────────────────────────────
+  const toggleSelected = (id: string): void =>
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
+
+  const moveSelectionItem = (fromIndex: number, toIndex: number): void =>
+    setSelectedIds((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved!);
+      return next;
+    });
+
+  /** Search results over the display set (the v1 register: add to selection). */
+  const searchResults = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    if (needle === "" || display === null) return [];
+    return display.nodes
+      .filter((node) => (client.getDisplayName(node.id) ?? node.id).toLowerCase().includes(needle))
+      .slice(0, 10);
+  }, [search, display, client]);
+
+  const addSearchResultToSelection = (id: string): void => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    setSearch("");
+    setSearchOpen(false);
+  };
 
   // ── Interactions ───────────────────────────────────────────────────────────
   const worldAt = (event: { clientX: number; clientY: number }): { x: number; y: number } => {
@@ -608,6 +724,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
           }
         }
       }
+      event.currentTarget.style.cursor = "grabbing";
       return;
     }
     if (panRef.current !== null) {
@@ -616,11 +733,13 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       const dy = (event.clientY - panRef.current.startY) * dpr;
       cameraRef.current.x = panRef.current.camX - dx / cameraRef.current.zoom;
       cameraRef.current.y = panRef.current.camY - dy / cameraRef.current.zoom;
+      event.currentTarget.style.cursor = "grabbing";
       return;
     }
     const nodeId = renderer.pickNode(world.x, world.y, 24 / cameraRef.current.zoom);
     const rect = event.currentTarget.getBoundingClientRect();
     const tip = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    event.currentTarget.style.cursor = nodeId !== null ? "pointer" : "grab";
     if (nodeId !== null) {
       setHover({ kind: "node", id: nodeId, ...tip });
       renderer.setHoveredNode(nodeId);
@@ -648,8 +767,15 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       draggingRef.current = null;
       const world = worldAt(event);
       const still = rendererRef.current?.pickNode(world.x, world.y, 24 / cameraRef.current.zoom);
-      if (still === dragged) setSelected(dragged);
+      // An un-dragged click toggles the node in the selection (the v1 register).
+      if (still === dragged) toggleSelected(dragged);
       return;
+    }
+    if (panRef.current !== null) {
+      const moved =
+        Math.abs(event.clientX - panRef.current.startX) + Math.abs(event.clientY - panRef.current.startY);
+      // A click on empty space clears the selection (the v1 register).
+      if (moved < 4) setSelectedIds([]);
     }
     panRef.current = null;
   };
@@ -667,34 +793,26 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     cam.y += (world.y - cam.y) * (1 - 1 / factor);
   };
 
+  const onDoubleClick = (event: React.MouseEvent<HTMLCanvasElement>): void => {
+    // v1: double-click opens the node under the cursor and clears the selection.
+    const renderer = rendererRef.current;
+    if (renderer === null) return;
+    const world = worldAt(event);
+    const hit = renderer.pickNode(world.x, world.y, 24 / cameraRef.current.zoom);
+    if (hit !== null) {
+      setSelectedIds([]);
+      onNodeClick?.(hit);
+    }
+  };
+
   const recenter = (): void => {
     const renderer = rendererRef.current;
     if (renderer === null) return;
     cameraRef.current = renderer.fitToCanvas();
   };
 
-  const jumpToSearch = (): void => {
-    if (display === null || search.trim() === "") return;
-    const needle = search.trim().toLowerCase();
-    const hit = display.nodes.find((node) =>
-      (client.getDisplayName(node.id) ?? node.id).toLowerCase().includes(needle),
-    );
-    if (hit === undefined) return;
-    setSelected(hit.id);
-    rendererRef.current?.setSelectedNode(hit.id);
-    const frame = frameRef.current;
-    if (frame === null) return;
-    const idx = frame.nodeIds.indexOf(hit.id);
-    if (idx < 0) return;
-    cameraRef.current = { x: frame.positions[idx * 2]!, y: frame.positions[idx * 2 + 1]!, zoom: 1 };
-  };
-
   const onMinimapNavigate = (worldX: number, worldY: number): void => {
     cameraRef.current = { ...cameraRef.current, x: worldX, y: worldY };
-  };
-
-  const openSelected = (): void => {
-    if (selected !== null) onNodeClick?.(selected);
   };
 
   const patch = (partial: Partial<GraphPrefs>): void =>
@@ -703,13 +821,17 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   /**
    * The filtered-out empty state's reset affordance: back to the shipped
    * defaults (every family on, classes and orphans visible, the journal
-   * chain off). Scoped collections (the registry mode) offer no reset — the
-   * scope is the collection, not a user-toggled filter.
+   * levels and the semantic defaults off/on per DEFAULT_GRAPH_SETTINGS).
+   * Scoped collections (the registry mode) offer no reset — the scope is the
+   * collection, not a user-toggled filter.
    */
   const resetFilters = (): void =>
     patch({
       showClasses: DEFAULT_GRAPH_SETTINGS.showClasses,
-      showJournal: DEFAULT_GRAPH_SETTINGS.showJournal,
+      journalYear: DEFAULT_GRAPH_SETTINGS.journalYear,
+      journalMonth: DEFAULT_GRAPH_SETTINGS.journalMonth,
+      journalDay: DEFAULT_GRAPH_SETTINGS.journalDay,
+      showSystemPages: DEFAULT_GRAPH_SETTINGS.showSystemPages,
       showOrphans: DEFAULT_GRAPH_SETTINGS.showOrphans,
       families: { ...DEFAULT_GRAPH_SETTINGS.families },
     });
@@ -749,6 +871,125 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   const graphEmpty = display.nodes.length === 0;
   const nothingToGraph = local === undefined && topology !== null && topology.nodes.length === 0;
 
+  /** The settings popover rows (the v1 cog register, kit-composed). */
+  const settingsPanel = (
+    <div className="nt-graph__settings">
+      {prefs.layoutMode === "force" && (
+        <>
+          <BooleanToggle
+            size="sm"
+            label="Simulation"
+            description="Run or pause the physics"
+            labelPosition="left"
+            checked={!prefs.paused}
+            onChange={(event) => patch({ paused: !event.target.checked })}
+          />
+          <BooleanToggle
+            size="sm"
+            label="Link-count attraction"
+            description="More connected nodes attract more strongly"
+            labelPosition="left"
+            checked={prefs.linkCountAttraction}
+            onChange={(event) => patch({ linkCountAttraction: event.target.checked })}
+          />
+          <BooleanToggle
+            size="sm"
+            label="Central gravity"
+            description="Pull components toward the middle"
+            labelPosition="left"
+            checked={prefs.centralGravityOn}
+            onChange={(event) => patch({ centralGravityOn: event.target.checked })}
+          />
+          <BooleanToggle
+            size="sm"
+            label="Mass accumulation"
+            description="Parents resist movement by descendant weight"
+            labelPosition="left"
+            checked={prefs.massAccumulation}
+            onChange={(event) => patch({ massAccumulation: event.target.checked })}
+          />
+          <div className="nt-graph__settings-row">
+            <span className="nt-graph__settings-label">Node sizing</span>
+            <SelectionButton
+              size="sm"
+              options={[
+                { value: "uniform", icon: "mdi mdi-circle-outline", label: "Uniform" },
+                { value: "connections", icon: "mdi mdi-connection", label: "Connections" },
+                { value: "mass", icon: "mdi mdi-weight", label: "Mass" },
+                { value: "content", icon: "mdi mdi-note-outline", label: "Content" },
+              ]}
+              value={prefs.nodeSize}
+              onChange={(value) => patch({ nodeSize: value as NodeSizeMode })}
+            />
+          </div>
+          <label className="nt-graph__settings-slider">
+            <span>Node radius ({prefs.baseNodeRadius})</span>
+            <Slider
+              min={3}
+              max={20}
+              step={1}
+              value={prefs.baseNodeRadius}
+              onChange={(value) => patch({ baseNodeRadius: value })}
+              aria-label="Node radius"
+            />
+          </label>
+          {prefs.nodeSize === "connections" && (
+            <div className="nt-graph__settings-row">
+              <span className="nt-graph__settings-label">Link direction</span>
+              <SelectionButton
+                size="sm"
+                options={[
+                  { value: "all", icon: "mdi mdi-swap-horizontal", label: "All links" },
+                  { value: "in", icon: "mdi mdi-call-received", label: "Incoming" },
+                  { value: "out", icon: "mdi mdi-call-made", label: "Outgoing" },
+                ]}
+                value={prefs.linkDirection}
+                onChange={(value) => patch({ linkDirection: value as LinkDirection })}
+              />
+            </div>
+          )}
+        </>
+      )}
+      {local === undefined && (
+        <div className="nt-graph__settings-visibility">
+          <span className="nt-graph__settings-heading">Visibility</span>
+          <BooleanToggle
+            size="sm"
+            label="Day pages"
+            description="Daily journal pages"
+            labelPosition="left"
+            checked={prefs.journalDay}
+            onChange={(event) => patch({ journalDay: event.target.checked })}
+          />
+          <BooleanToggle
+            size="sm"
+            label="Month pages"
+            description="Monthly journal pages"
+            labelPosition="left"
+            checked={prefs.journalMonth}
+            onChange={(event) => patch({ journalMonth: event.target.checked })}
+          />
+          <BooleanToggle
+            size="sm"
+            label="Year pages"
+            description="Yearly journal pages"
+            labelPosition="left"
+            checked={prefs.journalYear}
+            onChange={(event) => patch({ journalYear: event.target.checked })}
+          />
+          <BooleanToggle
+            size="sm"
+            label="System pages"
+            description="The Inbox and legacy scaffolding"
+            labelPosition="left"
+            checked={prefs.showSystemPages}
+            onChange={(event) => patch({ showSystemPages: event.target.checked })}
+          />
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="nt-graph">
       <div className="nt-graph__toolbar" role="toolbar" aria-label="Graph settings">
@@ -772,6 +1013,19 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
             onClick={() => patch({ paused: !prefs.paused })}
           />
         )}
+        <ButtonWithPanel
+          icon="mdi mdi-cog-outline"
+          size="sm"
+          variant="ghost"
+          panelPosition="bottom"
+          panelAlignment="start"
+          panelWidth={320}
+          title="Graph settings"
+          tooltip="Graph settings"
+          buttonClassName="nt-graph__settings-trigger"
+        >
+          {settingsPanel}
+        </ButtonWithPanel>
         <SelectionButton
           size="sm"
           options={[
@@ -799,12 +1053,21 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
           variant="ghost"
           size="sm"
           icon="mdi mdi-chart-bubble"
-          active={prefs.nodeSize === "connections"}
-          aria-pressed={prefs.nodeSize === "connections"}
-          aria-label="Size nodes by connections"
-          title="Size nodes by connections"
+          active={prefs.nodeSize !== "uniform"}
+          aria-pressed={prefs.nodeSize !== "uniform"}
+          aria-label="Size nodes by metric"
+          title="Size nodes by metric"
           onClick={() =>
-            patch({ nodeSize: prefs.nodeSize === "connections" ? "uniform" : "connections" })
+            patch({
+              nodeSize:
+                prefs.nodeSize === "uniform"
+                  ? "connections"
+                  : prefs.nodeSize === "connections"
+                    ? "mass"
+                    : prefs.nodeSize === "mass"
+                      ? "content"
+                      : "uniform",
+            })
           }
         />
         {local === undefined && (
@@ -830,13 +1093,6 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
               labelPosition="left"
               checked={prefs.showClasses}
               onChange={(event) => patch({ showClasses: event.target.checked })}
-            />
-            <BooleanToggle
-              size="sm"
-              label="Journal"
-              labelPosition="left"
-              checked={prefs.showJournal}
-              onChange={(event) => patch({ showJournal: event.target.checked })}
             />
             <BooleanToggle
               size="sm"
@@ -869,26 +1125,99 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
         {local === undefined && (
           <>
             <span className="nt-graph__toolbar-spacer" />
+            {selectedIds.length > 0 && (
+              <ButtonWithPanel
+                buttonText={`Selected · ${selectedIds.length}`}
+                size="sm"
+                variant="ghost"
+                panelPosition="bottom"
+                panelAlignment="end"
+                panelWidth={260}
+                title="Selected nodes"
+                aria-label="Selected nodes"
+                buttonClassName="nt-graph__selected-trigger"
+              >
+                <div className="nt-graph__selected-panel">
+                  <ListSortable
+                    items={selectedIds.map((id) => ({ id }))}
+                    onReorder={moveSelectionItem}
+                    itemClassName="nt-graph__selected-item"
+                    renderText={(item) => (
+                      <span className="nt-graph__selected-name">
+                        {client.getDisplayName(String(item.id)) ?? String(item.id)}
+                      </span>
+                    )}
+                    renderAction={(item) => (
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        icon="mdi mdi-close"
+                        aria-label={`Remove ${client.getDisplayName(String(item.id)) ?? String(item.id)}`}
+                        onClick={() =>
+                          setSelectedIds((prev) => prev.filter((s) => s !== item.id))
+                        }
+                      />
+                    )}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon="mdi mdi-trash-can-outline"
+                    aria-label="Clear selection"
+                    onClick={() => setSelectedIds([])}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </ButtonWithPanel>
+            )}
             <button
               ref={groupsButtonRef}
               type="button"
-              className={`nt-graph__chip${prefs.colorGroupsOn ? " nt-graph__chip--on" : ""}`}
+              className={`nt-graph__chip${prefs.colorGroupsOn || prefs.classColors.length > 0 ? " nt-graph__chip--on" : ""}`}
               aria-pressed={prefs.colorGroupsOn}
               onClick={() => setGroupsOpen((open) => !open)}
             >
-              Color groups
+              Colors
             </button>
-            <SearchField
-              className="nt-graph__search-field"
-              aria-label="Find node"
-              placeholder="Find node…"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") jumpToSearch();
-                if (event.key === "Escape") setSearch("");
-              }}
-            />
+            <div className="nt-graph__search">
+              <SearchField
+                className="nt-graph__search-field"
+                aria-label="Find node"
+                placeholder="Search to add nodes…"
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setSearchOpen(true);
+                }}
+                onFocus={() => setSearchOpen(true)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && searchResults.length > 0) {
+                    addSearchResultToSelection(searchResults[0]!.id);
+                  }
+                  if (event.key === "Escape") {
+                    setSearch("");
+                    setSearchOpen(false);
+                  }
+                }}
+              />
+              {searchOpen && searchResults.length > 0 && (
+                <div className="nt-graph__search-results" role="listbox">
+                  {searchResults.map((node) => (
+                    <button
+                      key={node.id}
+                      type="button"
+                      className="nt-graph__search-result"
+                      role="option"
+                      aria-selected={selectedIds.includes(node.id)}
+                      onClick={() => addSearchResultToSelection(node.id)}
+                    >
+                      {client.getDisplayName(node.id) ?? node.id}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>
@@ -923,7 +1252,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onWheel={onWheel}
-          onDoubleClick={() => openSelected()}
+          onDoubleClick={onDoubleClick}
         />
         <canvas ref={labelCanvasRef} className="nt-graph__labels" aria-hidden="true" />
         {local === undefined && (
@@ -962,9 +1291,72 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
           />
         )}
         {groupsOpen && local === undefined && (
-          <div className="nt-graph__groups" ref={groupsPanelRef} role="dialog" aria-label="Color groups">
+          <div className="nt-graph__groups" ref={groupsPanelRef} role="dialog" aria-label="Colors">
             <div className="nt-graph__groups-head">
-              <strong>Color groups</strong>
+              <strong>Class colors</strong>
+              <span className="nt-graph__groups-hint-inline">First match wins · drag to reorder</span>
+            </div>
+            <div className="nt-graph__class-colors">
+              {prefs.classColors.length === 0 && classOptions.length === 0 && (
+                <p className="nt-graph__groups-hint">No classes to color yet.</p>
+              )}
+              {prefs.classColors.length > 0 && (
+                <ListSortable
+                  items={prefs.classColors.map((entry) => ({ ...entry, id: entry.classId }))}
+                  onReorder={moveClassColor}
+                  itemClassName="nt-graph__class-color-item"
+                  renderText={(item) => (
+                    <span className="nt-graph__class-color-name">
+                      {client.getDisplayName(String(item.classId)) ?? String(item.classId)}
+                    </span>
+                  )}
+                  renderActions={(item) => [
+                    <ColorButton
+                      key="color"
+                      color={item.color}
+                      size="xs"
+                      showPicker
+                      aria-label={`Color for ${client.getDisplayName(String(item.classId)) ?? "class"}`}
+                      onColorChange={(color) =>
+                        patch({
+                          classColors: prefs.classColors.map((entry) =>
+                            entry.classId === item.classId
+                              ? { ...entry, color: color ?? "sky" }
+                              : entry,
+                          ),
+                        })
+                      }
+                    />,
+                    <Button
+                      key="remove"
+                      variant="ghost"
+                      size="xs"
+                      icon="mdi mdi-close"
+                      aria-label={`Remove ${client.getDisplayName(String(item.classId)) ?? "class"}`}
+                      onClick={() =>
+                        patch({
+                          classColors: prefs.classColors.filter(
+                            (entry) => entry.classId !== item.classId,
+                          ),
+                        })
+                      }
+                    />,
+                  ]}
+                />
+              )}
+              {classOptions.length > 0 && (
+                <Dropdown
+                  options={classOptions}
+                  placeholder="Add a class…"
+                  searchable
+                  onChange={(value) => {
+                    if (value !== null) addClassColor(value);
+                  }}
+                />
+              )}
+            </div>
+            <div className="nt-graph__groups-head nt-graph__groups-head--query">
+              <strong>Query groups</strong>
               <label className="nt-graph__toggle">
                 <input
                   type="checkbox"
@@ -975,7 +1367,8 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
               </label>
             </div>
             <p className="nt-graph__groups-hint">
-              Nodes matching a query paint in its color (first match wins).
+              Class colors paint first; query groups paint nodes matching a query in its
+              color (first match wins).
             </p>
             {prefs.colorGroups.map((group) => {
               const error = colorGroupError(client, group.query);
@@ -1091,19 +1484,6 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
                 )}
               </>
             )}
-          </div>
-        )}
-        {selected !== null && (
-          <div className="nt-graph__selection-bar">
-            <span className="nt-graph__selection-name">
-              {client.getDisplayName(selected) ?? selected}
-            </span>
-            <button type="button" className="nt-graph__chip" onClick={openSelected}>
-              Open
-            </button>
-            <button type="button" className="nt-graph__chip" onClick={() => setSelected(null)}>
-              Clear
-            </button>
           </div>
         )}
       </div>
