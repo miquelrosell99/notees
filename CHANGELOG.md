@@ -9,6 +9,19 @@ predating this file.
 
 ## 2026-10-09
 
+- **docs(skill,runbook): agent work happens in the test workspace, never the
+  personal default — the dev skill now fixes both uuids.** New law 8 in the
+  `notees-development` skill (+ the development-workflow reference and the
+  canonical `docs/developers/development.md` parallel-sessions rule): every
+  agent action that touches a live workspace — API calls, browser probes and
+  their `localStorage` seeds, CLI writes, verification data — targets the
+  test workspace `c491595f-9f94-5ade-a620-e30ed063d8d2` (the unnamed seed
+  workspace, disposable), never "Notas" `3b30e070-039b-47bc-ad0d-2440a2f173c5`
+  (the owner's live data); probe data is created there and deleted when done.
+  `class-probe.mjs` reseeds `notees.workspaceId` to the test workspace (it
+  pointed at Notas).
+
+
 - **feat(web): the block tree's vertical indent line is itself a collapse
   control — click the line to fold the direct children of the block it starts
   from (the v1 gesture), and the bullet stops riding low.** (1) Every
