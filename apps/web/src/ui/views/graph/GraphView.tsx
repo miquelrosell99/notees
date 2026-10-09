@@ -259,6 +259,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   // Keep the loop mirrors current without re-running the GL lifecycle.
   useEffect(() => {
     loopStateRef.current.paused = prefs.paused;
+    engineRef.current?.setPaused(prefs.paused);
   }, [prefs.paused]);
   useEffect(() => {
     nodeSizeRef.current = prefs.nodeSize;
@@ -363,7 +364,10 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
         connectionCount: degree,
         radius,
         color,
-        pinned: fixed !== undefined || cachedPos !== undefined,
+        // Only fixed-layout (circle/tree) coordinates pin a node. Cached
+        // force-layout positions are a warm start, not a pin — marking them
+        // pinned froze the whole graph on the first topology rebuild.
+        pinned: fixed !== undefined,
         isClass: node.isClass,
       };
     });
@@ -423,6 +427,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
           clustering: true,
         },
       );
+      engine.setPaused(loopStateRef.current.paused);
     } else {
       // Fixed radial layout: the computed positions ARE the frame — no
       // engine, physics chrome hidden, drag overrides the renderer only.
@@ -587,11 +592,12 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     const engine = engineRef.current;
     const world = worldAt(event);
     if (draggingRef.current !== null) {
+      // Local override for instant feel (v1); the worker frame lands next tick.
+      renderer.overridePosition(draggingRef.current.nodeId, world.x, world.y);
       if (engine !== null) {
         engine.dragMove(draggingRef.current.nodeId, world.x, world.y);
       } else {
         // Fixed layout: drag rides the renderer's position override only.
-        renderer.overridePosition(draggingRef.current.nodeId, world.x, world.y);
         const frame = frameRef.current;
         if (frame !== null) {
           const idx = frame.nodeIds.indexOf(draggingRef.current.nodeId);
@@ -606,8 +612,10 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     }
     if (panRef.current !== null) {
       const dpr = window.devicePixelRatio || 1;
-      cameraRef.current.x = panRef.current.camX - (event.clientX - panRef.current.startX) * dpr / cameraRef.current.zoom;
-      cameraRef.current.y = panRef.current.camY + (event.clientY - panRef.current.startY) * dpr / cameraRef.current.zoom;
+      const dx = (event.clientX - panRef.current.startX) * dpr;
+      const dy = (event.clientY - panRef.current.startY) * dpr;
+      cameraRef.current.x = panRef.current.camX - dx / cameraRef.current.zoom;
+      cameraRef.current.y = panRef.current.camY - dy / cameraRef.current.zoom;
       return;
     }
     const nodeId = renderer.pickNode(world.x, world.y, 24 / cameraRef.current.zoom);
@@ -646,21 +654,17 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     panRef.current = null;
   };
 
+  // v1 navigation: cursor-anchored zoom (world point under the cursor stays
+  // put) with the v1 clamp range.
   const onWheel = (event: React.WheelEvent<HTMLCanvasElement>): void => {
     const renderer = rendererRef.current;
-    const canvas = canvasRef.current;
-    if (renderer === null || canvas === null) return;
+    if (renderer === null) return;
+    const world = worldAt(event);
     const cam = cameraRef.current;
     const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
-    const nextZoom = Math.min(8, Math.max(0.05, cam.zoom * factor));
-    const rect = event.currentTarget.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    const px = (event.clientX - rect.left) * dpr;
-    const py = (event.clientY - rect.top) * dpr;
-    const world = renderer.screenToWorld(px, py);
-    cam.x = world.x - (px - canvas.width / 2) / nextZoom;
-    cam.y = world.y + (py - canvas.height / 2) / nextZoom;
-    cam.zoom = nextZoom;
+    cam.zoom = Math.max(0.02, Math.min(cam.zoom * factor, 40));
+    cam.x += (world.x - cam.x) * (1 - 1 / factor);
+    cam.y += (world.y - cam.y) * (1 - 1 / factor);
   };
 
   const recenter = (): void => {
@@ -1059,14 +1063,9 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
             role="tooltip"
           >
             {hover.kind === "node" ? (
-              <>
-                <div className="nt-graph__tooltip-title">
-                  {client.getDisplayName(hover.id) ?? hover.id}
-                </div>
-                <div className="nt-graph__tooltip-hint">
-                  Click to select · double-click to open
-                </div>
-              </>
+              <div className="nt-graph__tooltip-title">
+                {client.getDisplayName(hover.id) ?? hover.id}
+              </div>
             ) : (
               <>
                 <div className="nt-graph__tooltip-title">
