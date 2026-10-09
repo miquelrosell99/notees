@@ -9,6 +9,16 @@ predating this file.
 
 ## 2026-10-09
 
+- **fix(web): one corner radius for every text button — the md/lg sizes drop
+  from 16px to the shared 12px.** The 16px `--shape-button-large` token made
+  big text buttons ("Resync now", dialog actions) read nearly pill-shaped
+  against the rest of the chrome, while square icon-only buttons sat at
+  6–12px; the two no longer looked like one family. All text-button sizes
+  (base/xs/sm/md/lg) now use `--shape-button-small` (12px), icon-only sizes
+  keep their per-size radii, and the now-unused `--shape-button-large` token
+  is gone (its only consumers were the two md/lg rules). Verified:
+  `css-token-drift` gate green, full suite green.
+
 - **fix(web): the graph view comes back to life — warm starts stop pinning
   the map, drag reaches the physics worker again, navigation is v1's
   1:1, the hover card drops its permanent hint, and the pause button works
