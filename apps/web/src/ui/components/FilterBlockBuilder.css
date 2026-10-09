@@ -159,20 +159,13 @@
   border-color: var(--color-outline);
 }
 
-/* The add-condition trigger wears the DROPDOWN register (owner 2026-10-09):
-   it opens a list to pick from, it does not perform an action — a bordered
-   field with a trailing chevron that rotates while open. */
+/* The add-condition trigger rides the app's quiet button register
+   (owner 2026-10-09): transparent ghost — a fill + border read too dark
+   against the panel. The trailing chevron alone carries the dropdown
+   affordance (it opens a list, it does not act). */
 .nt-fb-add.btn {
   gap: var(--spacing-1);
   padding: var(--spacing-1) var(--spacing-2);
-  border: var(--spacing-hairline) solid var(--color-outline-variant);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-container-lowest);
-  color: var(--color-on-surface-variant);
-}
-
-.nt-fb-add.btn:hover {
-  border-color: var(--color-outline);
 }
 
 .nt-fb-add__chev {

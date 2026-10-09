@@ -9,6 +9,13 @@ predating this file.
 
 ## 2026-10-09
 
+- **fix(web): the add-condition trigger sits in the app's quiet button
+  register.** Owner review: the bordered-field treatment (fill + border)
+  read too dark against the panel, and the "+" icon argued with the
+  dropdown affordance — the chevron alone now signals the list, on a
+  transparent ghost button like the rest of the chrome. Verification: the
+  filter suites green.
+
 - **feat(web,query,protocol): the builder's full link/parent wiring — a new
   `descendantOf` wire condition, links-to + full-text probe support in the
   transient filter, the GridMenu kit popup, and the root de-grouped.** Owner
