@@ -22,11 +22,17 @@
  *    legacy bare-uuid carrier shape — reads stay lenient, writes go
  *    `{nodeId}`. Anything else (number/boolean/array/object-without-nodeId)
  *    is rejected: a text slot is string-or-reference.
- *  - date / object: a node reference `{ "nodeId": … }`; a bare-uuid string
+ *  - datetime: the unified date value union (SCHEMA.md "Datetime") — a
+ *    POINT `{ "nodeId": …, "time"?: "HH:MM" }` (a bare-uuid string, the
+ *    legacy date encoding, normalizes to the reference shape) OR a RANGE
+ *    `{ "start": slot|null, "end": slot|null }` — either side open; each
+ *    present slot is `{ "nodeId": …, "time"?: "HH:MM" }` (legacy bare-uuid
+ *    sides normalized). A value carrying BOTH `nodeId` and `start`/`end`
+ *    is rejected outright; a `time` must match `HH:MM` (24h, minute
+ *    precision) and ride a DAY-precision date-node ref.
+ *  - object: a node reference `{ "nodeId": … }`; a bare-uuid string
  *    (legacy) is normalized to the reference shape, other strings are
  *    rejected (a scalar is not a node reference).
- *  - date_range: `{ "start": ref|null, "end": ref|null }` — either side
- *    open; each present side is a reference (legacy bare uuid normalized).
  *  - number: a finite number; a NUMERIC STRING is a migrated-legacy
  *    encoding (live data carries epoch-millis strings — verified against
  *    the owner's derived store 2026-10-04) and normalizes to a number,
@@ -44,15 +50,16 @@
  *    (asserted by the applier, which owns the payload's idx);
  *  - datePrecision: a date ref may not claim FINER granularity than the
  *    schema's ("year" < "month" < "day"; default day — SCHEMA.md "Dates");
- *  - targetClassFilter: a date/object ref's target must carry one of the
+ *  - targetClassFilter: a datetime/object ref's target must carry one of the
  *    filter classes (when the filter is declared);
- *  - target existence: a date/object/date_range ref must resolve to a node
- *    row (any liveness — trash is a state, not an absence). Text carrier
- *    refs are NOT existence-checked: PB2 keeps legacy carrier encodings
- *    read-lenient, and the migrated log carries sixteen of them.
+ *  - target existence: a datetime/object ref (point, or each non-null range
+ *    slot) must resolve to a node row (any liveness — trash is a state, not
+ *    an absence). Text carrier refs are NOT existence-checked: PB2 keeps
+ *    legacy carrier encodings read-lenient, and the migrated log carries
+ *    sixteen of them.
  */
 
-import { dayNodeId, parseDateNodeId, SYSTEM_CLASS_UUIDS, yearNodeId } from "@notees/domain";
+import { dayNodeId, isValidTimeOfDay, parseDateNodeId, SYSTEM_CLASS_UUIDS, yearNodeId } from "@notees/domain";
 
 import { PropertyValueShapeError } from "./errors.js";
 import type { StoreDatabase } from "./types.js";
@@ -92,25 +99,55 @@ export function assertValueShapeForType(type: string, value: unknown, opType: st
       if (ref !== null) return { nodeId: ref };
       break;
     }
-    case "date":
     case "object":
     case "asset": {
       const ref = nodeRefOfValue(value);
       if (ref !== null) return { nodeId: ref };
       break;
     }
-    case "date_range": {
+    case "datetime": {
+      // The unified date union (SCHEMA.md "Datetime"): a point
+      // { "nodeId": …, "time"?: "HH:MM" } or a range { "start", "end" } of
+      // slots ({ "nodeId": …, "time"?: "HH:MM" }), either side open.
+      if (typeof value === "string") {
+        // Legacy bare-uuid point (the archived date encoding) normalizes.
+        if (isUuidLike(value)) return { nodeId: value };
+        break;
+      }
       if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-        const range = value as { start?: unknown; end?: unknown };
-        const side = (v: unknown): { nodeId: string } | null | undefined => {
+        const record = value as Record<string, unknown>;
+        const pointKey = "nodeId" in record;
+        const rangeKey = "start" in record || "end" in record;
+        // A value carrying BOTH shapes is rejected outright (fail loud).
+        if (pointKey && rangeKey) break;
+        // A slot: node reference + optional wall-clock time. `time` must be
+        // a well-formed HH:MM and ride a DAY-precision date-node anchor (a
+        // year/month ref — or a non-date id — has no wall-clock time). A
+        // legacy bare-uuid string side normalizes to {nodeId}.
+        const slot = (v: unknown): { nodeId: string; time?: string } | null | undefined => {
           if (v === undefined) return undefined;
           if (v === null) return null;
+          if (typeof v === "string") return isUuidLike(v) ? { nodeId: v } : undefined;
+          if (typeof v !== "object" || Array.isArray(v)) return undefined;
           const ref = nodeRefOfValue(v);
-          return ref !== null ? { nodeId: ref } : undefined;
+          if (ref === null) return undefined;
+          const out: { nodeId: string; time?: string } = { nodeId: ref };
+          if ("time" in (v as object)) {
+            const time = (v as { time: unknown }).time;
+            if (!isValidTimeOfDay(time)) return undefined;
+            if (parseDateNodeId(ref)?.precision !== "day") return undefined;
+            out.time = time;
+          }
+          return out;
         };
-        const start = side(range.start);
-        const end = side(range.end);
-        if (start !== undefined && end !== undefined) return { start, end };
+        if (pointKey) {
+          const out = slot(record);
+          if (out !== undefined && out !== null) return out;
+        } else if (rangeKey) {
+          const start = slot(record.start);
+          const end = slot(record.end);
+          if (start !== undefined && end !== undefined) return { start, end };
+        }
       }
       break;
     }
@@ -121,8 +158,9 @@ export function assertValueShapeForType(type: string, value: unknown, opType: st
     `${opType}: value for ${type} schema must be ${
       type === "text"
         ? 'a string or a node reference { "nodeId": … }'
-        : type === "date_range"
-          ? '{ "start": ref|null, "end": ref|null } of node references'
+        : type === "datetime"
+          ? 'a datetime point { "nodeId": …, "time"?: "HH:MM" } or range ' +
+            '{ "start": slot|null, "end": slot|null } — "time" requires a day-precision date anchor'
           : 'a node reference { "nodeId": … }'
     } — got ${JSON.stringify(value)}`,
     opType,
@@ -131,8 +169,8 @@ export function assertValueShapeForType(type: string, value: unknown, opType: st
 
 /**
  * PC2: a class-binding defaultValue must be typed per the schema type.
- * Node-typed schemas (date/date_range/object) accept only JSON null — a
- * default that links a node is meaningless; the citations family binds
+ * Node-typed schemas (datetime/object) accept only JSON null — a default
+ * that links a node is meaningless; the citations family binds
  * text/number/select defaults, never links.
  * `text` accepts scalar strings (the raw-text default editor's shape), not
  * carrier references. Returns false instead of throwing so the read model
@@ -153,8 +191,7 @@ export function isValidDefaultForType(type: string, value: unknown): boolean {
       return typeof value === "boolean";
     case "multi_select":
       return Array.isArray(value) && value.every((v) => typeof v === "string");
-    case "date":
-    case "date_range":
+    case "datetime":
     case "object":
     case "asset":
       return false;
@@ -281,7 +318,7 @@ function assertRefTargetForSchema(
       );
     }
   }
-  if (schema.type === "date" || schema.type === "date_range") {
+  if (schema.type === "datetime") {
     const parsed = parseDateNodeId(ref);
     if (parsed !== null) {
       const ceiling = DATE_PRECISION_RANK[schema.datePrecision ?? "day"] ?? 3;
@@ -311,12 +348,18 @@ export function assertValueForSchema(
   const shaped = assertValueShapeForType(schema.type, value, opType);
   const typed = assertScalarShapeForType(schema.type, shaped, opType);
   if (typed === null) return typed;
-  if (schema.type === "date" || schema.type === "object" || schema.type === "asset") {
+  if (schema.type === "object" || schema.type === "asset") {
     const ref = nodeRefOfValue(typed);
     if (ref !== null) assertRefTargetForSchema(db, schema, ref, opType);
-  } else if (schema.type === "date_range") {
-    const range = typed as { start?: unknown; end?: unknown };
-    for (const side of [range.start, range.end]) {
+  } else if (schema.type === "datetime") {
+    // The unified union: a point runs the existence/filter/precision checks
+    // on its ref; a range runs them on EACH non-null slot (the date_range
+    // parity — either end missing fails, open sides skip). A timed value on
+    // a coarser-than-day ceiling fails here too: its day-precision ref
+    // claims finer granularity than the schema's.
+    const record = typed as { start?: unknown; end?: unknown };
+    const sides = "start" in record || "end" in record ? [record.start, record.end] : [typed];
+    for (const side of sides) {
       const ref = nodeRefOfValue(side);
       if (ref !== null) assertRefTargetForSchema(db, schema, ref, opType);
     }
