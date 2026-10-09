@@ -181,7 +181,7 @@ describe("the classed-nodes filter bar", () => {
     // The builder's add menu (portaled to document.body) → a class condition row.
     fireEvent.click(within(panel).getByRole("button", { name: "Add condition" }));
     fireEvent.click(
-      within(document.querySelector(".btn-panel") as HTMLElement).getByRole("button", { name: /^Class/ }),
+      within(document.querySelector(".btn-panel") as HTMLElement).getByRole("menuitem", { name: /^Class/ }),
     );
     fireEvent.change(within(panel).getByLabelText("Class"), { target: { value: clientId } });
 
@@ -213,7 +213,7 @@ describe("the classed-nodes filter bar", () => {
     const panel = structuredPanel();
     fireEvent.click(within(panel).getByRole("button", { name: "Add condition" }));
     fireEvent.click(
-      within(document.querySelector(".btn-panel") as HTMLElement).getByRole("button", { name: /^Property/ }),
+      within(document.querySelector(".btn-panel") as HTMLElement).getByRole("menuitem", { name: /^Property/ }),
     );
     fireEvent.change(within(panel).getByLabelText("Property"), { target: { value: schemaId } });
     fireEvent.change(within(panel).getByLabelText("Operator"), { target: { value: "gte" } });

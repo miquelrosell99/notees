@@ -101,6 +101,7 @@ function astOf(...children: unknown[]): unknown {
 
 function resolveClient(overrides: Partial<SectionViewResolveClient> = {}): SectionViewResolveClient {
   return {
+    getNode: () => undefined,
     getClassChildren: () => [],
     getEffectiveProperties: () => [],
     runQueryAst: async () => ({ ids: [] }),

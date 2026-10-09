@@ -49,6 +49,7 @@ import type { AnyClient, NodeCollectionItem, NodeCollectionProps, ViewMode } fro
 import {
   createSectionViewMatcher,
   planSectionView,
+  resolveSectionViewProbed,
   type SectionViewPlan,
 } from "../views/sectionViewResolve.js";
 import type { FilterBarConfig } from "./filterQuery.js";
@@ -164,10 +165,17 @@ export function useSectionData<T>({
 
   // The transient filter step: post-resolution, pre-windowing. The query
   // plans through the one evaluation implementation (a schema-invalid group
-  // plans to null — rows stay unfiltered, chrome never fails); the matcher
-  // memo closes over one EvalContext. A plan needing the probe channel
-  // (future kinds outside the bar's sync subset) keeps rows unfiltered and
-  // warns once, never throws.
+  // plans to null — rows stay unfiltered, chrome never fails).
+  //
+  // Two evaluation arms, both sectionViewResolve's: the SYNC arm
+  // (createSectionViewMatcher over one EvalContext) covers every base-column
+  // condition; the PROBE arm covers the joined-metadata leaves (linkedTo,
+  // content fts) — one membership query per leaf through runQueryAst,
+  // intersected with the base rows, mirrored from useSectionViewResolution
+  // (the one-evaluation ruling: no second evaluator). The probe lands in an
+  // effect keyed on the AST + row-id signature + notify version; until the
+  // first result lands the rows stay unfiltered, after that the LAST landed
+  // set applies (a stale beat while typing, never a flash of everything).
   const filterPlan = useMemo<SectionViewPlan | null>(() => {
     if (filter === undefined) return null;
     try {
@@ -180,27 +188,68 @@ export function useSectionData<T>({
       return null;
     }
   }, [filter]);
-  const probeWarned = useRef(false);
-  const matcher = useMemo(() => {
-    if (filter === undefined || filterPlan === null) return null;
-    if (filterPlan.needsProbe) {
-      if (!probeWarned.current) {
-        probeWarned.current = true;
-        console.warn(
-          "section filter: probe-path conditions are outside the transient filter subset; rows left unfiltered",
-        );
-      }
-      return null;
-    }
-    return createSectionViewMatcher(client, filterPlan);
-  }, [filter, filterPlan, client]);
+
+  const needsProbe = filterPlan !== null && filterPlan.needsProbe;
+  const probeRows = useMemo(
+    () =>
+      needsProbe && Array.isArray(rows) && filter !== undefined
+        ? (rows as unknown[]).map((row) => ({
+            node: (filter as SectionRowFilter<unknown>).nodeOf(row),
+          }))
+        : [],
+    [needsProbe, rows, filter],
+  );
+  const probeSignature = needsProbe
+    ? `${JSON.stringify(filterPlan!.ast)}|${probeRows.map((item) => item.node.id).join(",")}|${version}`
+    : "";
+  const [probedIds, setProbedIds] = useState<{
+    key: string;
+    ids: ReadonlySet<string>;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!needsProbe || filterPlan === null || probeSignature === "") return;
+    let cancelled = false;
+    resolveSectionViewProbed(client, { items: probeRows, groups: undefined }, filterPlan)
+      .then((result) => {
+        if (!cancelled) {
+          setProbedIds({
+            key: probeSignature,
+            ids: new Set(result.items.map((item) => item.node.id)),
+          });
+        }
+      })
+      .catch(() => {
+        // A failed probe keeps the last filtered set — never empties the
+        // section, never throws through render.
+      });
+    return () => {
+      cancelled = true;
+    };
+    // The signature carries the AST + rows + version identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, needsProbe, probeSignature]);
+
+  const matcher = useMemo(
+    () =>
+      filter !== undefined && filterPlan !== null && !filterPlan.needsProbe
+        ? createSectionViewMatcher(client, filterPlan)
+        : null,
+    [filter, filterPlan, client],
+  );
 
   const filtered =
-    rows === null || filter === undefined || matcher === null || !Array.isArray(rows)
+    rows === null || filter === undefined || !Array.isArray(rows)
       ? rows
-      : (rows as unknown as unknown[]).filter((row) =>
-          matcher((filter as SectionRowFilter<unknown>).nodeOf(row)),
-        );
+      : matcher !== null
+        ? (rows as unknown[]).filter((row) =>
+            matcher((filter as SectionRowFilter<unknown>).nodeOf(row)),
+          )
+        : probedIds === null
+          ? rows // first probe still running — the unfiltered set stands
+          : (rows as unknown[]).filter((row) =>
+              probedIds.ids.has((filter as SectionRowFilter<unknown>).nodeOf(row).id),
+            );
   return { rows: filtered as T | null, total: Array.isArray(rows) ? rows.length : null };
 }
 

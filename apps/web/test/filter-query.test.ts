@@ -53,6 +53,7 @@ function stubClient(facts: {
   properties?: Record<string, Array<{ schemaId: string; value: unknown; source?: "authored" | "default" }>>;
 }): SectionViewResolveClient {
   return {
+    getNode: (id) => makeNode({ id }),
     getClassChildren: (classId) =>
       (facts.classChildren?.[classId] ?? []).map((id) => makeNode({ id })),
     getEffectiveProperties: (id) =>
@@ -217,13 +218,15 @@ describe("filterQueryToGroup — the draft prune", () => {
 });
 
 describe("the add-menu registry", () => {
-  it("offers the sync-evaluable kinds plus the group constructors, v1 order", () => {
+  it("offers the full wire grammar plus the group constructors, v1 order", () => {
     expect(filterKindOptionsForConfig().map((option) => option.value)).toEqual([
       "class",
       "isClass",
       "presentAsMain",
       "content",
       "property",
+      "linkedTo",
+      "descendantOf",
       "createdAfter",
       "createdBefore",
       "coverAsset",

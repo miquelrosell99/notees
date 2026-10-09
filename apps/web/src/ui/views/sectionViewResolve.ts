@@ -56,6 +56,8 @@ import type { CollectionGroup, NodeCollectionItem } from "./types.js";
 
 /** The client surface resolution needs (both client classes satisfy it). */
 export interface SectionViewResolveClient {
+  /** The node read (the descendantOf ancestor-chain walk). */
+  getNode(id: string): ClientNode | undefined;
   getClassChildren(classId: string): ClientNode[];
   /** The effective-values read model (the property condition's sync arm). */
   getEffectiveProperties(id: string): EffectiveProperty[];
@@ -354,6 +356,21 @@ function conditionMatches(ctx: EvalContext, condition: QueryAst["root"]["childre
     case "bannerAsset":
     case "aliasedNode":
       return wireFieldMatches(node, condition.type, condition.op, condition.value);
+    case "descendantOf": {
+      // Ancestor-chain walk (the "parent is X anywhere up the tree"
+      // condition): the node itself is excluded — start at the parent.
+      // Cycle-guarded: impossible states are write-time impossible, but a
+      // corrupt row must fail loud-quiet (no infinite loop), not hang.
+      const seen = new Set<string>([node.id]);
+      let current = node.parentId;
+      while (current !== null && !seen.has(current)) {
+        if (current === condition.nodeId) return true;
+        seen.add(current);
+        const parent = ctx.client.getNode(current);
+        current = parent?.parentId ?? null;
+      }
+      return false;
+    }
     default:
       // Joined-metadata leaves — the probe path evaluates these; the sync
       // path never reaches here (planSectionView flagged needsProbe).
