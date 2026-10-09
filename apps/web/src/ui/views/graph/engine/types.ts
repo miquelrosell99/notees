@@ -13,6 +13,8 @@ export interface GraphEnginePhysicsConfig {
   centralGravity: number;
   linkCountAttraction: boolean;
   clustering: boolean;
+  /** Mass accumulation: heavy parents (descendant weight) resist movement. */
+  massAccumulation?: boolean;
 }
 
 /** Raw numeric configuration consumed by the engine. */
@@ -33,6 +35,8 @@ export interface GraphEngineConfig {
   dt: number;
   bhTheta: number;
   linkCountAttraction: boolean;
+  /** True → acceleration divides by the node's mass (integrator). */
+  useMass: boolean;
 }
 
 // ─── Edge descriptor ──────────────────────────────────────────────────────────
@@ -66,6 +70,8 @@ export interface GraphEngineNode {
   x?: number;
   y?: number;
   connectionCount?: number;
+  /** Descendant weight; 1 when absent. Consumed when useMass is on. */
+  mass?: number;
   pinned?: boolean;
 }
 
