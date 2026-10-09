@@ -281,7 +281,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
 
   // --- account & auth ---------------------------------------------------------------
   ["get", "/api/server-info", {
-    summary: "First-run probe: setupRequired, version, protocol versions",
+    summary: "First-run probe: setupRequired, signupEnabled, version, protocol versions",
     tags: ["Account"],
     public: true,
   }],
@@ -301,6 +301,24 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     success: { status: 201, description: "session token, account, and the KDF record" },
     public: true,
     errors: ["validation_failed", "already_provisioned", "rate_limited"],
+  }],
+  ["post", "/api/auth/signup", {
+    summary: "Open registration (NOTEES_SIGNUP_ENABLED only): create a non-admin account",
+    description: "Gated by the NOTEES_SIGNUP_ENABLED env flag (default off): when disabled the route answers 404 — the surface does not exist at all. The account starts workspace-less; the login screen only offers the link while /api/server-info advertises signupEnabled.",
+    tags: ["Account"],
+    requestBody: {
+      type: "object",
+      additionalProperties: false,
+      required: ["email", "password"],
+      properties: {
+        email: { type: "string", format: "email" },
+        password: { type: "string", minLength: 8, maxLength: 256 },
+        displayName: { type: "string" },
+      },
+    },
+    success: { status: 201, description: "session token, the new account (isAdmin false), and the KDF record" },
+    public: true,
+    errors: ["validation_failed", "not_found", "conflict", "rate_limited"],
   }],
   ["post", "/api/auth/login", {
     summary: "Email + password → session token",
@@ -1069,7 +1087,7 @@ export function buildOpenApiDocument(serverVersion: string): JsonSchema {
       login: {
         default: "10 attempts/min/IP",
         env: "NOTEES_LOGIN_PER_MINUTE",
-        appliesTo: "POST /api/auth/login",
+        appliesTo: "POST /api/auth/login, POST /api/auth/signup",
         accountLockout: "5 failures within 15 min locks the account for 15 min (429 account_locked, in-memory)",
       },
     },

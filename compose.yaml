@@ -27,6 +27,9 @@ services:
       # surface on a loopback/LAN-trusted deployment; the fleet host pins
       # its real origins in .env (comma-separated).
       - NOTEES_CORS_ORIGIN=${NOTEES_CORS_ORIGIN:-*}
+      # Open registration — off by default (the route 404s and the login
+      # screen hides "Create one" unless the server advertises it).
+      - NOTEES_SIGNUP_ENABLED=${NOTEES_SIGNUP_ENABLED:-false}
     healthcheck:
       test: wget -qO- http://127.0.0.1:8377/healthz || exit 1
       interval: 30s

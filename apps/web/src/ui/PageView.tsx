@@ -375,8 +375,8 @@ export function PageView({
    * The banner (the bannerAssetId wire field): the full-width element above
    * the header. Renders whenever the page can carry one — set or empty —
    * like the cover; whiteboard pages and embedded renders host none (the
-   * cover gating precedent). The upload modal is host-owned so the page
-   * context menu's Add banner rides the same flow as the empty affordance.
+   * cover gating precedent). The upload modal is host-owned so the banner
+   * row's empty affordance rides one flow everywhere.
    * The preview surface hosts none (the Add/Change upload is machinery).
    */
   const bannerAssetId =
@@ -567,7 +567,7 @@ export function PageView({
    * cover CARD right. Shared by both layout modes; the day-header swap rides
    * the variant's `dayIso`. The banner state + upload modal stay HERE (the
    * host): the leaf renders the banner and reports the Add/Change request
-   * back up, so the page context menu's Add banner rides the same modal.
+   * back up, so the banner row rides one modal everywhere.
    */
   const headerChrome = (
     <PageHeaderChrome
@@ -772,14 +772,6 @@ export function PageView({
             setHeaderMenu(null);
             onOpenPage?.(id);
           }}
-          onAddBanner={
-            bannerPossible
-              ? () => {
-                  setHeaderMenu(null);
-                  setBannerUploadOpen(true);
-                }
-              : undefined
-          }
           onPresent={onPresent}
           onExport={(id, name) => {
             setHeaderMenu(null);

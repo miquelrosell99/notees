@@ -370,10 +370,9 @@ export async function clearNodeBanner(client: AnyClient, pageId: string): Promis
  * op); expanding shows the fixed-height cover-fit image, the dashed
  * placeholder naming a byte-less asset, or the dashed Add affordance when
  * no banner is set. The Add/Change affordances open the AssetUploadModal
- * through the host's `onUploadRequest` (image-only accept) so the page
- * context menu's Add banner rides the exact same modal; the upload lands
- * via setNodeBanner. Whiteboard pages and embedded renders host no banner
- * (the cover gating precedent).
+ * through the host's `onUploadRequest` (image-only accept); the upload
+ * lands via setNodeBanner. Whiteboard pages and embedded renders host no
+ * banner (the cover gating precedent).
  */
 export function BannerCard({
   client,

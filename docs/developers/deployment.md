@@ -72,6 +72,7 @@ All server configuration is environment variables (`apps/server/src/config.ts`,
 | `NOTEES_MAX_MEDIA_BYTES` | `52428800` (50 MB) | Upload cap, media sniffed by magic bytes (jpeg/png/webp/audio) |
 | `NOTEES_MAX_DOCUMENT_BYTES` | `104857600` (100 MB) | Upload cap, documents (pdf/epub) |
 | `NOTEES_CORS_ORIGIN` | — (no CORS headers) | Comma-separated browser origins allowed to call the API cross-origin (web client served from another origin/port). `*` allows any origin — LAN-trusted deployments only. Absent → no CORS headers: same-origin and CLI clients unaffected, browsers denied |
+| `NOTEES_SIGNUP_ENABLED` | off | Open registration: `POST /api/auth/signup` creates non-admin accounts and the login screen shows "Create one". Accepts `1`/`true`/`yes`/`on`. Off → the route answers 404 and the client hides the link |
 
 CLI environment (for clients, `notees-cli`'s `src/cli.ts`): `NOTEES_SERVER` (server URL),
 `NOTEES_API_KEY` (the same `nk_` key; flags `--server`/`--key` override),
@@ -249,6 +250,9 @@ does not resolve container names.
 - CORS: compose defaults `NOTEES_CORS_ORIGIN=*` (safe: header-based auth, no
   cookies); LAN/domain deployments can pin a comma-separated origin list via
   `.env`.
+- Signup: `NOTEES_SIGNUP_ENABLED=false` by default — set it in `.env` to open
+  self-registration (non-admin accounts; the route 404s and the login screen
+  hides the link while it is off).
 - Logging: the sync container sets `NOTEES_LOG=false` (no per-request pino
   lines); nginx `access_log` is off in the web image. Errors still reach
   stderr in both.

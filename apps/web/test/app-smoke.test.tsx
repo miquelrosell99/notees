@@ -82,6 +82,63 @@ describe("App boot", () => {
     expect(screen.getByRole("textbox", { name: /email/i })).toBeInTheDocument();
   });
 
+  it("login screen hides the signup link when the server does not advertise it", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/api/server-info")) {
+          return Response.json({
+            setupRequired: false,
+            signupEnabled: false,
+            version: "test",
+            name: "notees-server",
+          });
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      }),
+    );
+    render(<App />);
+    fireEvent.change(screen.getByRole("textbox", { name: /server url/i }), {
+      target: { value: "https://notees.example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^continue$/i }));
+    expect(await screen.findByRole("button", { name: /^sign in$/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^create one$/i })).toBeNull();
+  });
+
+  it("signupEnabled opens the signup screen from the login link and back again", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/api/server-info")) {
+          return Response.json({
+            setupRequired: false,
+            signupEnabled: true,
+            version: "test",
+            name: "notees-server",
+          });
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      }),
+    );
+    render(<App />);
+    fireEvent.change(screen.getByRole("textbox", { name: /server url/i }), {
+      target: { value: "https://notees.example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^continue$/i }));
+    expect(await screen.findByRole("button", { name: /^sign in$/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /^create one$/i }));
+    expect(await screen.findByText(/create an account on this server/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^create account$/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /back to sign in/i }));
+    expect(await screen.findByRole("button", { name: /^sign in$/i })).toBeInTheDocument();
+  });
+
   it("a probe failure surfaces as an error, not a silent hang", async () => {
     vi.stubGlobal(
       "fetch",

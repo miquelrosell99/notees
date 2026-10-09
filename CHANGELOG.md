@@ -9,6 +9,30 @@ predating this file.
 
 ## 2026-10-09
 
+- **feat(server,web): env-gated signup (the sonarly pattern) + the context
+  menu drops its banner entry.** (1) `NOTEES_SIGNUP_ENABLED` (default off,
+  accepts `1/true/yes/on`) opens `POST /api/auth/signup`: creates a non-admin
+  account (scrypt hash, KDF record, fresh session — the `/setup` payload
+  shape), rate-limited on the login limiter. Off → the route answers **404
+  `not_found`**, the surface does not exist at all (sonarly's contract, not a
+  403); duplicate email → 409 `conflict` (the pinned taxonomy, no new code).
+  `GET /api/server-info` advertises `signupEnabled` so the client discovers
+  the flag (older servers predate the field — the client treats absent as
+  closed). (2) Web: a **signup phase** on the boot screen — the login
+  screen's account tab shows "No account yet? Create one" only when the
+  server advertises it; the signup form (email/password/confirm,
+  `autoComplete="new-password"`) lands in the same workspace picker as login;
+  a 404 mid-flow maps to "Signups are disabled on this server." (3) The page
+  context menu no longer offers Add/Change banner — the banner row's own
+  affordance is the UI (owner ruling: one surface per action); `onAddBanner`
+  plumbing removed from NodeContextMenu/PageView, stale comments swept.
+  Verified: server suites (new `env-gated signup` + config parse tests, 33
+  auth tests green), web app-smoke (new signup affordance tests) +
+  page-banner suites green, OpenAPI coverage gate green (the signup route is
+  in the document). Docs in the same pass: deployment.md env table,
+  .env.example, compose.yaml, usage.md (boot + scope), ux.md/usage.md banner
+  lines, architecture.md account routes.
+
 - **feat(web,query,protocol): the v1 block model 1:1 — every block is
   [type select][operator select][typed value], with the static/dynamic
   node-target mode, the edit-date family, and two more wire conditions.**

@@ -71,6 +71,24 @@ describe("config / API key bootstrap", () => {
   });
 });
 
+describe("config / NOTEES_SIGNUP_ENABLED", () => {
+  it("defaults off and accepts 1/true/yes/on (case-insensitive)", () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "notees-config-test-"));
+    try {
+      const base = { NOTEES_DATA_DIR: dataDir } as NodeJS.ProcessEnv;
+      expect(loadConfig(base).signupEnabled).toBe(false);
+      expect(loadConfig({ ...base, NOTEES_SIGNUP_ENABLED: "true" }).signupEnabled).toBe(true);
+      expect(loadConfig({ ...base, NOTEES_SIGNUP_ENABLED: "1" }).signupEnabled).toBe(true);
+      expect(loadConfig({ ...base, NOTEES_SIGNUP_ENABLED: "Yes" }).signupEnabled).toBe(true);
+      expect(loadConfig({ ...base, NOTEES_SIGNUP_ENABLED: "ON" }).signupEnabled).toBe(true);
+      expect(loadConfig({ ...base, NOTEES_SIGNUP_ENABLED: "false" }).signupEnabled).toBe(false);
+      expect(loadConfig({ ...base, NOTEES_SIGNUP_ENABLED: "anything-else" }).signupEnabled).toBe(false);
+    } finally {
+      rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("config / NOTEES_CORS_ORIGIN", () => {
   it("parses a comma-separated origin list", () => {
     const dataDir = mkdtempSync(join(tmpdir(), "notees-config-test-"));
