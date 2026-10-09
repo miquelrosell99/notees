@@ -391,15 +391,21 @@ function pillTextOn(color: string): string {
  *  color background, contrast text); a null color rides the neutral pill
  *  surface. Only the background (a data color) is dynamic. */
 function PdfPill({ name, color, theme }: { name: string; color: string | null; theme: PdfTheme }): ReactElement {
+  // Deterministic geometry: a fixed height from the theme's type metrics
+  // (PDF layout is print-frozen), centered content, and alignSelf so the
+  // pill can never stretch to a parent row's height.
   return (
     <View
       style={{
+        alignSelf: "flex-start",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        height: theme.type.bodySize + 2,
         backgroundColor: color ?? theme.colors.pill,
         borderRadius: 4,
-        paddingLeft: 4,
-        paddingRight: 4,
-        paddingTop: 1,
-        paddingBottom: 1,
+        paddingLeft: 5,
+        paddingRight: 5,
         marginLeft: 3,
       }}
     >
@@ -564,7 +570,6 @@ function PdfInlineChildren({
           // dot column (Notes theme), the body content, and — when Show
           // classes is on — the row's OWN class pills on the far right.
           <View key={child.id} style={styles.nestedRow}>
-            {theme.bullets ? <Text style={styles.bullet}>•</Text> : null}
             <View style={{ flex: 1, marginBottom: 0 }}>
               <PdfBlocks blocks={child.blocks} styles={styles} theme={theme} assetDataUrls={assetDataUrls} chrome={chrome} />
               <PdfInlineChildren children={child.children} styles={styles} theme={theme} assetDataUrls={assetDataUrls} chrome={chrome} />
