@@ -630,13 +630,14 @@ export function PageView({
 
   /**
    * The page chrome composed per layout mode. The panelled main layout
-   * (owner 2026-10-06) is a 3-column split: the properties sidebar rides the
-   * first column, the whole node view (top bar / nodeview / footer) the
-   * second, and the context column (graph · TOC · Activity ·
-   * Comments, each hidden by its own emptiness rules) the third. Each panel
-   * column keeps its own device-local collapse, toggled from the nodeview
-   * top bar. Compact layouts render the same chrome full-width, header
-   * first, with the top-right chrome in the absolute corner.
+   * (owner 2026-10-06; the top bar lifted above the columns 2026-10-09) is
+   * a full-width nodeview top bar over a 3-column split: the properties
+   * sidebar rides the first column, the node view (nodeview / footer) the
+   * second, and the context column (graph · TOC · Activity · Comments) the
+   * third. Each panel column keeps its own device-local collapse, toggled
+   * from the nodeview top bar. Compact layouts render the same chrome
+   * full-width, header first, with the top-right chrome in the absolute
+   * corner.
    */
   /**
    * The fullscreen whiteboard surface: the MAIN surface's whiteboard page
@@ -653,53 +654,60 @@ export function PageView({
   ) : (
     <>
       {panelled ? (
-        <div className="nt-page-body">
-          {!sidePanelCollapsed && (
-            <aside className="nt-page-side-panel" aria-label="Properties">
-              <PropertiesSidebar client={client} nodeId={pageId} onOpenPage={onOpenPage} />
-            </aside>
-          )}
-          <div className="nt-page-content">
-            {/* The nodeview top bar (PageChrome.tsx): the properties
-                collapse toggle and the classes pills on the left, the
-                view-mode switcher + the context collapse toggle + the node
-                menu on the right. Pinned to the top of the column. */}
-            <NodeTopbar
-              client={client}
-              nodeId={pageId}
-              classIds={page.classIds}
-              sidePanelCollapsed={sidePanelCollapsed}
-              onToggleSidePanel={() => setSidePanelCollapsed(!sidePanelCollapsed)}
-              contextPanelCollapsed={contextPanelCollapsed}
-              onToggleContextPanel={() => setContextPanelCollapsed(!contextPanelCollapsed)}
-              chromeModes={chromeModes}
-              chromeMenu={chromeMenu}
-              onOpenPage={onOpenPage}
-            />
-            {/* The nodeview proper: auto height between the pinned top bar
-                and footer — it scrolls when the content outgrows the cell. */}
-            <div className="nt-nodeview-body">
-              {headerChrome}
-              {mainChrome}
+        <>
+          {/* The nodeview top bar (PageChrome.tsx) spans the WHOLE card,
+              above the column split (owner 2026-10-09): the bar's controls
+              act on the layout's columns (both panel toggles, the classes,
+              the view switcher + node menu), so it must not rescale when a
+              panel column shows or hides — the clusters stay put, and each
+              panel toggle sits directly above the column it reveals. */}
+          <NodeTopbar
+            client={client}
+            nodeId={pageId}
+            classIds={page.classIds}
+            sidePanelCollapsed={sidePanelCollapsed}
+            onToggleSidePanel={() => setSidePanelCollapsed(!sidePanelCollapsed)}
+            contextPanelCollapsed={contextPanelCollapsed}
+            onToggleContextPanel={() => setContextPanelCollapsed(!contextPanelCollapsed)}
+            chromeModes={chromeModes}
+            chromeMenu={chromeMenu}
+            onOpenPage={onOpenPage}
+          />
+          <div className="nt-page-body">
+            {!sidePanelCollapsed && (
+              <aside className="nt-page-side-panel" aria-label="Properties">
+                <PropertiesSidebar client={client} nodeId={pageId} onOpenPage={onOpenPage} />
+              </aside>
+            )}
+            <div className="nt-page-content">
+              {/* The nodeview proper: auto height between the card top and
+                  the pinned footer — it scrolls when the content outgrows
+                  the cell. */}
+              <div className="nt-nodeview-body">
+                {headerChrome}
+                {mainChrome}
+              </div>
+              {footerChrome}
             </div>
-            {footerChrome}
+            {!contextPanelCollapsed && (
+              <aside className="nt-page-context" aria-label="Context">
+                {/* The node-relevant widgets, relocated from the right
+                    rail (the rail is workspace cards only). The references
+                    dedupe check rejected the rail's ReferencesSection — the
+                    Backlinks tab owns that data (see the module doc). Top
+                    down: the local graph (a collapsed-by-default section —
+                    the graph mounts, and loads, only on the first expand),
+                    the tree-derived Contents, the node's own Activity feed,
+                    and Comments (always rendered, quick-add included). */}
+                <LocalGraphCard client={client} nodeId={pageId} onOpenNode={(id) => onOpenPage?.(id)} />
+                <TocSection client={client} pageId={pageId} activeId={pageId} onOpenNode={(id) => onOpenPage?.(id)} />
+                <ActivityLogSection client={client} nodeId={pageId} />
+                {/* Comments — child blocks classed `comment`, threaded. */}
+                <CommentsSection client={client} nodeId={pageId} onOpenNode={onOpenPage} />
+              </aside>
+            )}
           </div>
-          {!contextPanelCollapsed && (
-            <aside className="nt-page-context" aria-label="Context">
-              {/* The node-relevant widgets, relocated from the right
-                  rail (the rail is workspace cards only). The references
-                  dedupe check rejected the rail's ReferencesSection — the
-                  Backlinks tab owns that data (see the module doc). */}
-              <LocalGraphCard client={client} nodeId={pageId} onOpenNode={(id) => onOpenPage?.(id)} />
-              <TocSection client={client} pageId={pageId} activeId={pageId} onOpenNode={(id) => onOpenPage?.(id)} />
-              {/* The Activity feed relocated from the card-bottom
-                  stack; its useSectionData lazy contract rides along. */}
-              <ActivityLogSection client={client} onOpenPage={onOpenPage} />
-              {/* Comments — child blocks classed `comment`, threaded. */}
-              <CommentsSection client={client} nodeId={pageId} onOpenNode={onOpenPage} />
-            </aside>
-          )}
-        </div>
+        </>
       ) : (
         <>
           {headerChrome}

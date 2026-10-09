@@ -1,12 +1,11 @@
 /**
- * ActivityLog section tests: the workspace activity feed
- * renders as a collapsed system section, hides on an empty workspace (the
- * cheap active-node proxy gate), executes NO query while collapsed (the
- * normative lazy contract — runQueryAst stays silent until the first
- * expand), expands into Recently created (the workspace-wide createdAt-desc
- * query — blocks included, newest first) + Recently edited (pages/classes
- * updated after creation, with the honest coverage note), re-derives on
- * notification while expanded, and relativeTime formats the original convention.
+ * ActivityLog section tests (owner 2026-10-09 contract): the feed is scoped
+ * to the ACTIVE NODE — its own Created stamp plus an Edited stamp when the
+ * node was touched after creation. No query exists at all (two node-column
+ * reads), so the lazy contract holds trivially: collapsed renders nothing
+ * and runQueryAst stays silent forever; expanding lists the node's own
+ * events, never the workspace's; and relativeTime keeps the original
+ * convention.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -17,7 +16,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { PageView } from "../src/ui/PageView.js";
-import { ActivityLogSection, relativeTime } from "../src/ui/components/ActivityLogSection.js";
+import { relativeTime } from "../src/ui/components/ActivityLogSection.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -76,15 +75,7 @@ describe("relativeTime", () => {
 });
 
 describe("ActivityLogSection", () => {
-  it("hides entirely on an empty workspace", async () => {
-    const client = await seedClient();
-    // Nothing exists yet — not even a host page: the direct render must
-    // produce no section at all (the active-node proxy gate).
-    const { container } = render(<ActivityLogSection client={client} />);
-    expect(container.querySelector("section")).toBeNull();
-  });
-
-  it("renders collapsed and executes no query until the first expand", async () => {
+  it("renders collapsed, never executes a query, and lists the node's own events on expand", async () => {
     const client = await seedClient();
     const host = await client.createObject({ presentAsMain: true, name: "Host" });
     const spy = vi.spyOn(client, "runQueryAst");
@@ -93,72 +84,44 @@ describe("ActivityLogSection", () => {
     const header = screen.getByRole("button", { name: /^activity$/i });
     expect(header.getAttribute("aria-expanded")).toBe("false");
     const section = activitySection();
-    expect(within(section).queryByText("Recently created")).toBeNull();
-    // The lazy contract: zero queries while collapsed.
+    expect(within(section).queryByText("Created")).toBeNull();
+    // The per-node feed runs NO query at all — collapsed or expanded.
     expect(spy).not.toHaveBeenCalled();
-  });
 
-  it("lists recent creations newest-first, blocks included, after expanding", async () => {
-    const client = await seedClient();
-    const host = await client.createObject({ presentAsMain: true, name: "Host" });
-    await client.createObject({ presentAsMain: true, name: "Older page" });
-    await client.createObject({ presentAsMain: true, name: "Newer page" });
-    // A block (inline body child) — the pages-only lists never see it.
-    await client.createObject({ parentId: host, contentAst: [{ type: "text", text: "a block note" }] });
-
-    render(<PageView client={client} pageId={host} />);
-    const section = activitySection();
     fireEvent.click(within(section).getByRole("button", { name: /^activity$/i }));
-    const created = await within(section).findByText("Recently created");
-    expect(created).not.toBeNull();
-    const rows = within(section).getAllByRole("button", { name: /page|block note/i });
-    const labels = rows.map((row) => row.textContent ?? "");
-    const blockIndex = labels.findIndex((label) => label.includes("block note"));
-    expect(blockIndex).toBeGreaterThanOrEqual(0);
-    // Newest first: the block (created last) leads the feed.
-    expect(blockIndex).toBe(0);
-  });
-
-  it("shows Recently edited for pages touched after creation, with the coverage note", async () => {
-    const client = await seedClient();
-    const host = await client.createObject({ presentAsMain: true, name: "Host" });
-    const edited = await client.createObject({ presentAsMain: true, name: "Edited page" });
-    await client.updateObject(edited, { contentAst: [{ type: "text", text: "Edited page v2" }] });
-
-    render(<PageView client={client} pageId={host} />);
-    const section = activitySection();
-    fireEvent.click(within(section).getByRole("button", { name: /^activity$/i }));
-
-    expect(await within(section).findByText("Recently edited")).not.toBeNull();
+    expect(await within(section).findByText("Created")).not.toBeNull();
+    // Still silent: the feed reads node columns, it never queries.
+    expect(spy).not.toHaveBeenCalled();
+    // The node's creation stamp rides the Created row.
+    const hostNode = client.getNode(host)!;
     expect(
-      within(section).getByText(/edits are shown for pages and classes/i),
-    ).not.toBeNull();
-    // The edited group lists the page (it also leads the created feed —
-    // the two timelines are independent).
-    const editedGroup = within(section)
-      .getByText("Recently edited")
-      .closest(".activity-log__group")!;
-    expect(
-      within(editedGroup as HTMLElement).getByRole("button", { name: /edited page v2/i }),
+      within(section).getByText(relativeTime(hostNode.createdAt)),
     ).not.toBeNull();
   });
 
-  it("re-derives the created feed when a notification lands while expanded", async () => {
+  it("an edit after creation adds an Edited row; other nodes' activity never appears", async () => {
     const client = await seedClient();
     const host = await client.createObject({ presentAsMain: true, name: "Host" });
+    const other = await client.createObject({ presentAsMain: true, name: "Other page" });
+    await client.updateObject(other, { contentAst: [{ type: "text", text: "Other page v2" }] });
+
     render(<PageView client={client} pageId={host} />);
     const section = activitySection();
     fireEvent.click(within(section).getByRole("button", { name: /^activity$/i }));
-    await within(section).findByText("Recently created");
+
+    // No edit yet on the host: only Created.
+    await within(section).findByText("Created");
+    expect(within(section).queryByText("Edited")).toBeNull();
+    // The OTHER node's edit is not this node's activity.
+    expect(within(section).queryByText(/other page v2/i)).toBeNull();
 
     await act(async () => {
-      await client.createObject({ presentAsMain: true, name: "Fresh page" });
-      // One trailing notification delivers the async query's rows (the
-      // Section contract: expanded sections re-run per notification).
-      await client.sync();
+      await client.updateObject(host, { contentAst: [{ type: "text", text: "Host v2" }] });
     });
-    expect(
-      await within(section).findByRole("button", { name: /fresh page/i }),
-    ).not.toBeNull();
+
+    // The host's own edit lands as an Edited row (the section re-derives per
+    // render — plain column reads, no query machinery involved).
+    await within(section).findByText("Edited");
+    expect(within(section).queryByText(/other page v2/i)).toBeNull();
   });
 });

@@ -9,6 +9,58 @@ predating this file.
 
 ## 2026-10-09
 
+- **feat(web): the panelled layout's chrome gets honest scopes — the
+  nodeview top bar spans the whole card, the local graph is a lazy
+  collapsed-by-default section, Comments always renders with an icon-only
+  quick-add, Activity is scoped to the active node, and the properties
+  sidebar is a collapsible section.** (1) The nodeview top bar moves OUT of
+  the middle column to span the full card above the column split: its
+  controls act on the layout's columns, so it no longer rescales when a
+  panel shows or hides — each panel toggle now sits directly above the
+  column it reveals, and the side panels' vertical dividers start under the
+  bar instead of beside it. (2) `LocalGraphCard` rides a NodeViewSection,
+  collapsed by default — the section unmounts its content while collapsed,
+  so the GraphView (engine + WebGL renderer + topology reads) never mounts
+  and a closed card costs nothing; the first expand mounts it. (3)
+  `CommentsSection` always renders (the hide-when-empty gate is gone): an
+  empty thread starts EXPANDED with the icon-only quick-add one click away,
+  and deleting the last comment keeps the section with a 0 count. (4)
+  `ActivityLogSection` is scoped to the ACTIVE NODE (its own Created stamp +
+  an Edited stamp when updated postdates creation); the workspace-wide
+  created query and pages/classes edited lists are retired — no query
+  exists at all now (two node-column reads), so the lazy contract holds
+  trivially. (5) `PropertiesSidebar`'s rows ride a NodeViewSection,
+  expanded by default — the column names itself with a collapsible header
+  and keeps its divider while collapsed. Verified: `pnpm typecheck`; the
+  full web vitest suite (136 files, 1412 tests) green, incl. the rewritten
+  activity-log / comments / context-column / properties-panel contracts.
+  Docs: `docs/ux.md` (Activity paragraph, the layout sentence, the sidebar
+  note), `docs/usage.md` (the layout sentence + the context-column item).
+  Display-state only — no model/wire change, no fixtures.
+
+- **fix(web): the single-value selection cell names its value with ONE
+  compact pill (effective-colored, no subtree), multi-value object pills
+  cover every resolved value, and the date cell's repeat picker stops
+  overlapping the value.** The first redraw shipped the single-value
+  dropdown's content as a read-only block row — which rendered the linked
+  node's WHOLE subtree (children, collapse chevrons, backlink gutter) inside
+  the field; the owner asked for "a pill and that's it". The cell's content
+  is now the shared `NodePill` element tinted with the linked node's
+  effective color (`NodePill` renders a non-interactive label span when the
+  host carries the click — the dropdown does); the multi-value branch drops
+  its inline-block special case the same way, so every resolved object value
+  rides one compact pill (the editable-block treatment stays the TEXT
+  property row's contract, not object values'). The date cell's trailing
+  repeat picker (the kit Dropdown) defaulted to `width: 100%` of the flex
+  row and drew over the trigger text — inside `.nt-property-select` the
+  trailing dropdown now hugs its icon (`width: auto; flex-shrink: 0`), and
+  the trigger content truncates honestly. The ⟳ control itself is the
+  recurrence picker (None/Daily/Weekly/Weekdays/Monthly/Yearly, written as
+  the RRULE-lite `metadata.repeat` — SCHEMA.md "Recurrence"), preserved
+  from the pill era. Display-state only; the web suites around the panel
+  re-run green with the pill-content assertion updated. Docs:
+  `docs/ux.md`'s "Single values select" bullet now says one compact pill.
+
 - **fix(web): the export modal's child outline is unconditional — the
   "Include child outline" toggle is gone — and the preview re-runs when the
   worker's cached reads land.** The reported symptom: child blocks were

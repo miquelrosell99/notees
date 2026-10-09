@@ -8,18 +8,20 @@
   gap: var(--spacing-2);
 }
 
+/* The quick-add trigger: an icon-only square (owner 2026-10-09) — the
+   section header names the thread, so the button carries no text. */
 .nt-comments__add {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-1);
+  justify-content: center;
   align-self: flex-start;
-  padding: var(--spacing-1) var(--spacing-2);
+  min-width: var(--height-xs);
+  height: var(--height-xs);
+  padding: 0;
   border: none;
   border-radius: var(--shape-small);
   background: none;
   color: var(--color-on-surface-variant);
-  font: var(--font-body-medium);
-  font-size: var(--font-size-sm);
   cursor: pointer;
 }
 

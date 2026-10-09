@@ -9,14 +9,16 @@
  * every level, so this section is their only surface.
  *
  * The section chrome is NodeViewSection ("Comments" + the direct-child
- * count), hidden when empty; the original quick-add/reply composer pair creates a
+ * count), ALWAYS rendered (owner 2026-10-09) — an empty thread shows the
+ * section with its icon-only quick-add, and starts expanded so the
+ * composer is one click away; the original quick-add/reply composer pair creates a
  * child block classed comment through the ordinary write path (createObject
  * with the class + the text as initial content — title-is-content), and each
  * row carries the original action pair: Reply (the nested composer) and delete
  * (object.delete). A row click opens the comment node. Lazy per the section
  * contract: the thread resolution rides useSectionData (no read runs until
  * the first expand; a client notification re-derives while expanded; the
- * eager count that gates hide-when-empty is the cheap direct-child read).
+ * eager count that rides the header is the cheap direct-child read).
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -215,11 +217,16 @@ export function CommentsSection({
   /** Row click / navigation funnel (the page's onOpenPage). */
   onOpenNode?: ((nodeId: string) => void) | undefined;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const [composing, setComposing] = useState(false);
-
-  /** Eager hide-when-empty gate: the direct comment children (cheap read). */
+  /** Eager count riding the header: the direct comment children (cheap read). */
   const count = commentChildrenOf(client, nodeId).length;
+
+  /**
+   * Expanded state: an empty thread starts EXPANDED (the quick-add must be
+   * visible without a prior expand — owner 2026-10-09); a thread with
+   * comments keeps the section norm (collapsed until the first expand).
+   */
+  const [expanded, setExpanded] = useState(count === 0);
+  const [composing, setComposing] = useState(false);
 
   /** Lazy per the section contract: threads resolve on the first expand. */
   const readThreads = useCallback(
@@ -231,8 +238,6 @@ export function CommentsSection({
     active: expanded,
     read: readThreads,
   });
-
-  if (count === 0) return null;
 
   return (
     <NodeViewSection
@@ -255,10 +260,11 @@ export function CommentsSection({
           <button
             type="button"
             className="nt-comments__add"
+            aria-label="Add comment"
+            title="Add comment"
             onClick={() => setComposing(true)}
           >
-            <Icon path="mdi-plus" size={0.75} />
-            Add comment
+            <Icon path="mdi-comment-plus-outline" size={0.85} />
           </button>
         )}
         {rows !== null &&

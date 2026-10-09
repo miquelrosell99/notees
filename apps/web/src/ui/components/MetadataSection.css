@@ -150,7 +150,9 @@ span.pill__text {
 /* A set of rows, one per property: a property-name row followed by its
    value-cell row. A hairline under each property is the only horizontal
    separator (owner 2026-10-09) — the value cells below span the column's
-   full width, so the empty ones read as empty fields. */
+   full width, so the empty ones read as empty fields. The rows ride a
+   collapsible NodeViewSection (the header names the column); the column
+   keeps its divider while the section is collapsed. */
 .nt-props-sidebar {
   display: flex;
   flex-direction: column;
@@ -161,23 +163,6 @@ span.pill__text {
 .nt-props-sidebar__prop {
   padding-bottom: var(--spacing-2);
   border-bottom: var(--border-width-default) solid var(--color-outline-variant);
-}
-
-/* The column names itself (owner request): a small muted label row — the
-   nodeview top bar's visual register. The hairlines under each property
-   row are the only horizontal separators. */
-.nt-props-sidebar__header {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  min-height: var(--height-sm);
-  font: var(--font-label-medium);
-  color: var(--color-on-surface-variant);
-}
-
-.nt-props-sidebar__count {
-  font-size: var(--font-size-2xs);
-  opacity: var(--opacity-70);
 }
 
 .nt-props-sidebar__name {
@@ -372,6 +357,9 @@ span.pill__text {
   flex: 1;
   min-width: 0;
   font-size: var(--font-size-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nt-property-select__placeholder {
@@ -385,8 +373,12 @@ span.pill__text {
   color: var(--color-on-surface-variant);
 }
 
-.nt-property-select__blockrow .nt-refblock-tree {
-  padding: 0;
+/* The trailing chrome's kit Dropdown (the date repeat picker) defaults to
+   width:100% of its flex row — inside the select cell it must hug its
+   icon and never push over the trigger content. */
+.nt-property-select .dropdown-container {
+  width: auto;
+  flex-shrink: 0;
 }
 
 .nt-property-select__clear {

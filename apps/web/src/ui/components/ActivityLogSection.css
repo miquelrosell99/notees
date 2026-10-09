@@ -1,27 +1,12 @@
 /**
- * ActivityLogSection styles — the workspace activity feed: group titles,
- * name + chips + relative-stamp rows, and the coverage note. Token-only.
+ * ActivityLogSection styles — the active node's activity feed: event label
+ * + relative-stamp rows and the honest coverage note. Token-only.
  */
 
 .activity-log {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-4);
-}
-
-.activity-log__group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-}
-
-.activity-log__group-title {
-  margin: 0;
-  font-size: var(--font-size-2xs);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: var(--letter-spacing-section);
-  text-transform: uppercase;
-  color: var(--color-on-surface-variant);
+  gap: var(--spacing-2);
 }
 
 .activity-log__rows {
@@ -42,41 +27,9 @@
   border-radius: var(--shape-small);
 }
 
-.activity-log__row:hover {
-  background: var(--color-hover-overlay);
-}
-
-.activity-log__row-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  border: none;
-  background: none;
-  padding: 0;
+.activity-log__event {
   font-size: var(--font-size-sm);
   color: var(--color-on-surface);
-  text-align: left;
-}
-
-.activity-log__row-name:hover {
-  color: var(--color-primary);
-}
-
-.activity-log__chips {
-  display: inline-flex;
-  gap: var(--spacing-1);
-  flex-shrink: 0;
-}
-
-.activity-log__chip {
-  padding: 0 var(--spacing-2);
-  border-radius: var(--shape-full);
-  background: var(--color-surface-container-high);
-  color: var(--color-on-surface-variant);
-  font-size: var(--font-size-2xs);
-  letter-spacing: var(--letter-spacing-badge);
-  text-transform: uppercase;
 }
 
 .activity-log__stamp {
