@@ -121,9 +121,15 @@ export class BHQuadTree {
     cx: Float32Array, cy: Float32Array, cc: Int32Array,
     repelStr: number, theta2: number,
     fxOut: Float32Array, fyOut: Float32Array,
+    margin: number, shellStr: number, idealDist: number,
   ): void {
     if (root === -1) return;
-    this._traverse(root, aIdx, cx[aIdx]!, cy[aIdx]!, cc[aIdx]!, cx, cy, cc, repelStr, theta2, fxOut, fyOut);
+    this._traverse(root, aIdx, cx[aIdx]!, cy[aIdx]!, cc[aIdx]!, cx, cy, cc, repelStr, theta2, fxOut, fyOut, margin, shellStr, idealDist);
+  }
+
+  /** Shell radius for a community of the given mass (matches engine.clRad). */
+  private static rOf(mass: number, idealDist: number): number {
+    return Math.min(idealDist * 0.5 * Math.sqrt(mass), idealDist * 6);
   }
 
   private _traverse(
@@ -132,6 +138,7 @@ export class BHQuadTree {
     cx: Float32Array, cy: Float32Array, cc: Int32Array,
     repelStr: number, theta2: number,
     fxOut: Float32Array, fyOut: Float32Array,
+    margin: number, shellStr: number, idealDist: number,
   ): void {
     if (node === -1) return;
     const f  = node * BHNF; const ii = node * BHNI;
@@ -149,8 +156,16 @@ export class BHQuadTree {
       const dist = Math.sqrt(distSq);
       const distSafe = Math.max(dist, 20);
       const f_   = repelStr * Math.sqrt(aMass * nmass) / (distSafe * 200);
-      fxOut[aIdx]! += (dx / dist) * f_;
-      fyOut[aIdx]! += (dy / dist) * f_;
+      const ux = dx / dist, uy = dy / dist;
+      fxOut[aIdx]! += ux * f_;
+      fyOut[aIdx]! += uy * f_;
+      // Soft shell: size-aware contact repulsion between cluster surfaces.
+      const t = 1 - dist / (BHQuadTree.rOf(aMass, idealDist) + BHQuadTree.rOf(nmass, idealDist) + margin);
+      if (t > 0) {
+        const fs = shellStr * t * t;
+        fxOut[aIdx]! += ux * fs;
+        fyOut[aIdx]! += uy * fs;
+      }
       return;
     }
 
@@ -160,13 +175,21 @@ export class BHQuadTree {
       const dist = Math.sqrt(distSq);
       const distSafe = Math.max(dist, 20);
       const f_   = repelStr * Math.sqrt(aMass * nmass) / (distSafe * 200);
-      fxOut[aIdx]! += (dx / dist) * f_;
-      fyOut[aIdx]! += (dy / dist) * f_;
+      const ux = dx / dist, uy = dy / dist;
+      fxOut[aIdx]! += ux * f_;
+      fyOut[aIdx]! += uy * f_;
+      // The aggregate approximates a super-community of the same total mass.
+      const t = 1 - dist / (BHQuadTree.rOf(aMass, idealDist) + BHQuadTree.rOf(nmass, idealDist) + margin);
+      if (t > 0) {
+        const fs = shellStr * t * t;
+        fxOut[aIdx]! += ux * fs;
+        fyOut[aIdx]! += uy * fs;
+      }
       return;
     }
 
     for (let q = 0; q < 4; q++) {
-      this._traverse(this.poolI[ii + q]!, aIdx, ax, ay, aMass, cx, cy, cc, repelStr, theta2, fxOut, fyOut);
+      this._traverse(this.poolI[ii + q]!, aIdx, ax, ay, aMass, cx, cy, cc, repelStr, theta2, fxOut, fyOut, margin, shellStr, idealDist);
     }
   }
 }
@@ -177,6 +200,7 @@ export function directClusterRepulsion(
   bigIds: Int32Array, bigK: number,
   clFx: Float32Array, clFy: Float32Array,
   repelStr: number,
+  rad: Float32Array, margin: number, shellStr: number,
 ): void {
   for (let a = 0; a < bigK; a++) {
     const ai = bigIds[a]!;
@@ -188,9 +212,20 @@ export function directClusterRepulsion(
       const dist = Math.sqrt(distSq);
       const distSafe = Math.max(dist, 20);
       const force = repelStr * Math.sqrt(cc[ai]! * cc[bi]!) / (distSafe * 200);
-      const fx = (dx / dist) * force, fy = (dy / dist) * force;
-      clFx[ai]! += fx; clFy[ai]! += fy;
-      clFx[bi]! -= fx; clFy[bi]! -= fy;
+      const ux = dx / dist, uy = dy / dist;
+      clFx[ai]! += ux * force;
+      clFy[ai]! += uy * force;
+      clFx[bi]! -= ux * force;
+      clFy[bi]! -= uy * force;
+      // Soft shell: size-aware contact repulsion between cluster surfaces.
+      const t = 1 - dist / (rad[ai]! + rad[bi]! + margin);
+      if (t > 0) {
+        const fs = shellStr * t * t;
+        clFx[ai]! += ux * fs;
+        clFy[ai]! += uy * fs;
+        clFx[bi]! -= ux * fs;
+        clFy[bi]! -= uy * fs;
+      }
     }
   }
 }

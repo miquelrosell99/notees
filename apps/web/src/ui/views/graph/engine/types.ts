@@ -15,6 +15,8 @@ export interface GraphEnginePhysicsConfig {
   clustering: boolean;
   /** Mass accumulation: heavy parents (descendant weight) resist movement. */
   massAccumulation?: boolean;
+  /** Cluster separation slider (0–100) — scales the inter-cluster margin. */
+  clusterSeparation?: number;
 }
 
 /** Raw numeric configuration consumed by the engine. */
@@ -24,6 +26,10 @@ export interface GraphEngineConfig {
   idealDistance: number;
   clusterStrength: number;
   clusterRepelStrength: number;
+  /** Size-aware soft-shell repulsion between community centroids. */
+  clusterShellStrength: number;
+  /** Preferred gap between cluster surfaces (the separation margin). */
+  clusterMargin: number;
   clusterSpacing: number;
   localRepelStrength: number;
   localRepelRadius: number;

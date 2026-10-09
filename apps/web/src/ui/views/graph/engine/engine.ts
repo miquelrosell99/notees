@@ -59,23 +59,30 @@ class SeededRNG {
 function detectCommunities(
   nodeCount: number,
   nodeIds: string[],
-  adjacency: Map<string, Set<string>>,
-  edgeCount: number,
+  adjacency: Map<string, Map<string, number>>,
+  totalWeight: number,
   rng: SeededRNG,
   priorCommunities?: Map<string, number>,
+  resolution = 0.8,
 ): Map<string, number> {
   const idToIdx = new Map<string, number>();
   for (let i = 0; i < nodeIds.length; i++) idToIdx.set(nodeIds[i]!, i);
 
-  if (edgeCount === 0) {
+  if (totalWeight === 0) {
     const r = new Map<string, number>();
     for (let i = 0; i < nodeIds.length; i++) r.set(nodeIds[i]!, i);
     return r;
   }
 
-  const m2 = edgeCount * 2;
+  // Louvain weighted by link type: structural links (short rest length)
+  // define a community more than loose cooccurrence/temporal links.
+  const m2 = totalWeight * 2;
   const deg = new Float32Array(nodeCount);
-  for (let i = 0; i < nodeIds.length; i++) deg[i] = adjacency.get(nodeIds[i]!)?.size ?? 0;
+  for (let i = 0; i < nodeIds.length; i++) {
+    let w = 0;
+    for (const edgeW of adjacency.get(nodeIds[i]!)!.values()) w += edgeW;
+    deg[i] = w;
+  }
 
   const nodeCommunity = new Int32Array(nodeCount);
   if (priorCommunities && priorCommunities.size > 0) {
@@ -113,46 +120,160 @@ function detectCommunities(
   };
 
   const neighborComm = new Map<number, number>();
-  for (let pass = 0; pass < maxPasses; pass++) {
-    let improved = false; let totalGain = 0;
-    shuffle();
-    for (let si = 0; si < nodeCount; si++) {
-      const i = shuffled[si]!;
-      const nodeId = nodeIds[i]!;
-      const neighbors = adjacency.get(nodeId);
-      if (!neighbors || neighbors.size === 0) continue;
 
-      const currentComm = nodeCommunity[i]!;
-      const ki = deg[i]!;
+  /**
+   * Node-level local moving (the classic Louvain phase 1). Returns the total
+   * gain of the final round — ~0 means converged.
+   */
+  const runNodePasses = (): number => {
+    let lastGain = 0;
+    for (let pass = 0; pass < maxPasses; pass++) {
+      let improved = false; let totalGain = 0;
+      shuffle();
+      for (let si = 0; si < nodeCount; si++) {
+        const i = shuffled[si]!;
+        const nodeId = nodeIds[i]!;
+        const neighbors = adjacency.get(nodeId);
+        if (!neighbors || neighbors.size === 0) continue;
 
-      neighborComm.clear();
-      let edgesToCurrentComm = 0;
-      for (const nId of neighbors) {
-        const nIdx = idToIdx.get(nId);
-        if (nIdx === undefined) continue;
-        const nc = nodeCommunity[nIdx]!;
-        neighborComm.set(nc, (neighborComm.get(nc) ?? 0) + 1);
-        if (nc === currentComm) edgesToCurrentComm++;
+        const currentComm = nodeCommunity[i]!;
+        const ki = deg[i]!;
+
+        neighborComm.clear();
+        let edgesToCurrentComm = 0;
+        for (const [nId, w] of neighbors) {
+          const nIdx = idToIdx.get(nId);
+          if (nIdx === undefined) continue;
+          const nc = nodeCommunity[nIdx]!;
+          neighborComm.set(nc, (neighborComm.get(nc) ?? 0) + w);
+          if (nc === currentComm) edgesToCurrentComm += w;
+        }
+
+        const sigmaCurrentWithout = communityDegSum[currentComm]! - ki;
+        // The resolution parameter γ biases community size: γ < 1 coarsens
+        // (stronger clustering — the owner-facing default), γ > 1 fragments.
+        // Above ~1.25 on weighted graphs the modularity resolution limit
+        // shatters real communities, so the default stays well under it.
+        const removeLoss = edgesToCurrentComm / m2 - (resolution * ki * sigmaCurrentWithout) / (m2 * m2);
+
+        let bestComm = currentComm, bestGain = 0;
+        for (const [candidateComm, edgesToCandidate] of neighborComm) {
+          if (candidateComm === currentComm) continue;
+          const netGain = edgesToCandidate / m2 - (resolution * ki * communityDegSum[candidateComm]!) / (m2 * m2) - removeLoss;
+          if (netGain > bestGain) { bestGain = netGain; bestComm = candidateComm; }
+        }
+
+        if (bestComm !== currentComm && bestGain > 1e-10) {
+          communityDegSum[currentComm]! -= ki;
+          nodeCommunity[i] = bestComm;
+          communityDegSum[bestComm]! += ki;
+          improved = true; totalGain += bestGain;
+        }
       }
+      lastGain = totalGain;
+      if (!improved || totalGain < 1e-6) break;
+    }
+    return lastGain;
+  };
 
-      const sigmaCurrentWithout = communityDegSum[currentComm]! - ki;
-      const removeLoss = edgesToCurrentComm / m2 - (ki * sigmaCurrentWithout) / (m2 * m2);
-
-      let bestComm = currentComm, bestGain = 0;
-      for (const [candidateComm, edgesToCandidate] of neighborComm) {
-        if (candidateComm === currentComm) continue;
-        const netGain = edgesToCandidate / m2 - (ki * communityDegSum[candidateComm]!) / (m2 * m2) - removeLoss;
-        if (netGain > bestGain) { bestGain = netGain; bestComm = candidateComm; }
-      }
-
-      if (bestComm !== currentComm && bestGain > 1e-10) {
-        communityDegSum[currentComm]! -= ki;
-        nodeCommunity[i] = bestComm;
-        communityDegSum[bestComm]! += ki;
-        improved = true; totalGain += bestGain;
+  /**
+   * Community-level moving (Louvain phase 2): whole communities merge into
+   * neighboring communities when modularity improves. Single-level moving
+   * alone cannot do this — on uniform rings it stalls in a pair-fragmented
+   * local optimum where moving any ONE node is a loss, while merging whole
+   * pairs is a win. Returns the community each old community merged into.
+   */
+  const runCommunityPass = (): { commCount: number; mergedInto: Int32Array } => {
+    const remap = new Map<number, number>();
+    let K = 0;
+    for (let i = 0; i < nodeCount; i++) {
+      const c = nodeCommunity[i]!;
+      if (!remap.has(c)) remap.set(c, K++);
+    }
+    const kC = new Float64Array(K);
+    const edges = new Map<number, Map<number, number>>(); // symmetric pair weights
+    for (let c = 0; c < K; c++) edges.set(c, new Map());
+    for (let i = 0; i < nodeCount; i++) {
+      const ci = remap.get(nodeCommunity[i]!)!;
+      nodeCommunity[i] = ci;
+      kC[ci]! += deg[i]!;
+    }
+    for (let i = 0; i < nodeCount; i++) {
+      const ci = nodeCommunity[i]!;
+      for (const [nId, w] of adjacency.get(nodeIds[i]!)!) {
+        const j = idToIdx.get(nId)!;
+        if (j <= i) continue; // each original edge contributes once
+        const cj = nodeCommunity[j]!;
+        if (cj === ci) continue;
+        edges.get(ci)!.set(cj, (edges.get(ci)!.get(cj) ?? 0) + w);
+        edges.get(cj)!.set(ci, (edges.get(cj)!.get(ci) ?? 0) + w);
       }
     }
-    if (!improved || totalGain < 1e-6) break;
+
+    const mergedInto = new Int32Array(K);
+    for (let c = 0; c < K; c++) mergedInto[c] = c;
+    const order = new Int32Array(K);
+    for (let c = 0; c < K; c++) order[c] = c;
+    for (let i = K - 1; i > 0; i--) {
+      const j = Math.floor(rng.next() * (i + 1));
+      const tmp = order[i]!; order[i] = order[j]!; order[j] = tmp;
+    }
+
+    for (let oi = 0; oi < K; oi++) {
+      const C = order[oi]!;
+      if (kC[C]! === 0) continue;
+      const ec = edges.get(C)!;
+      if (ec.size === 0) continue;
+
+      let bestD = -1, bestGain = 0, bestE = 0;
+      for (const [D, eCD] of ec) {
+        if (kC[D]! === 0) continue;
+        // ΔQ of merging C into D. Unlike node-level moving, C's internal
+        // edges REMAIN internal (they land inside the merged community), so
+        // there is no standalone-contribution loss term:
+        //   ΔQ = 2·e_CD/m2 − 2γ·kC·kD/m2²
+        const gain = 2 * (eCD / m2 - (resolution * kC[C]! * kC[D]!) / (m2 * m2));
+        if (gain > bestGain + 1e-12) { bestGain = gain; bestD = D; bestE = eCD; }
+      }
+      if (bestD < 0) continue;
+
+      // Merge C into bestD, redistributing C's edges to bestD's side.
+      mergedInto[C] = bestD;
+      kC[bestD]! += kC[C]!;
+      kC[C] = 0;
+      const dEdges = edges.get(bestD)!;
+      for (const [X, w] of ec) {
+        edges.get(X)!.delete(C);
+        if (X === bestD || kC[X]! === 0) continue;
+        const merged = (dEdges.get(X) ?? 0) + w;
+        dEdges.set(X, merged);
+        edges.get(X)!.set(bestD, merged);
+      }
+      ec.clear();
+    }
+
+    return { commCount: K, mergedInto };
+  };
+
+  // Alternate phase 1 (node moving) and phase 2 (community merging) until
+  // neither improves — the full Louvain loop, not just its first phase.
+  for (let round = 0; round < 5; round++) {
+    const nodeGain = runNodePasses();
+    const { commCount, mergedInto } = runCommunityPass();
+    if (commCount <= 1) break;
+    let anyMerge = false;
+    for (let c = 0; c < commCount; c++) {
+      if (mergedInto[c] !== c) anyMerge = true;
+      // resolve merge chains (C → D → E)
+      let root = mergedInto[c]!;
+      while (mergedInto[root] !== root) root = mergedInto[root]!;
+      mergedInto[c] = root;
+    }
+    if (!anyMerge && nodeGain < 1e-6) break;
+    for (let i = 0; i < nodeCount; i++) nodeCommunity[i] = mergedInto[nodeCommunity[i]!]!;
+    communityDegSum.fill(0);
+    for (let i = 0; i < nodeCount; i++) communityDegSum[nodeCommunity[i]!]! += deg[i]!;
+    if (!anyMerge) break;
   }
 
   const commRemap = new Map<number, number>();
@@ -171,7 +292,7 @@ function detectCommunities(
 
 function findConnectedComponents(
   nodeIds: string[],
-  adjacency: Map<string, Set<string>>,
+  adjacency: Map<string, Map<string, number>>,
 ): Map<string, number> {
   const component = new Map<string, number>();
   let componentId = 0;
@@ -186,7 +307,7 @@ function findConnectedComponents(
       component.set(nodeId, componentId);
       const neighbors = adjacency.get(nodeId);
       if (neighbors) {
-        for (const nId of neighbors) {
+        for (const nId of neighbors.keys()) {
           if (!visited.has(nId)) { visited.add(nId); queue.push(nId); }
         }
       }
@@ -243,6 +364,7 @@ export class GraphEngine {
   clCx:    Float32Array = new Float32Array(0);
   clCy:    Float32Array = new Float32Array(0);
   clCount: Int32Array   = new Int32Array(0);
+  clRad:   Float32Array = new Float32Array(0);
   clFx:    Float32Array = new Float32Array(0);
   clFy:    Float32Array = new Float32Array(0);
   bigClusterBuf: Int32Array = new Int32Array(0);
@@ -253,7 +375,7 @@ export class GraphEngine {
 
   // Topology
   private edges: GraphEngineEdge[] = [];
-  private adjacency = new Map<string, Set<string>>();
+  private adjacency = new Map<string, Map<string, number>>();
   private nodeIndex = new Map<string, number>();
   private componentMap = new Map<string, number>();
   private clusterMap = new Map<string, number>();
@@ -349,6 +471,7 @@ export class GraphEngine {
     this.clCx = new Float32Array(c);
     this.clCy = new Float32Array(c);
     this.clCount = new Int32Array(c);
+    this.clRad = new Float32Array(c);
     this.clFx = new Float32Array(c);
     this.clFy = new Float32Array(c);
     this.bigClusterBuf = new Int32Array(c);
@@ -370,10 +493,10 @@ export class GraphEngine {
 
     this.adjacency.clear();
     this.nodeIndex.clear();
-    for (const nd of nodes) this.adjacency.set(nd.nodeUuid, new Set());
+    for (const nd of nodes) this.adjacency.set(nd.nodeUuid, new Map());
 
     this.edges = [];
-    let edgeCount = 0;
+    let totalWeight = 0;
     const nodeIdSet = new Set(nodes.map(nd => nd.nodeUuid));
     for (const e of edges) {
       if (nodeIdSet.has(e.source) && nodeIdSet.has(e.target) && e.source !== e.target) {
@@ -383,16 +506,20 @@ export class GraphEngine {
           ...(e.type !== undefined ? { type: e.type } : {}),
           ...(e.weight !== undefined ? { weight: e.weight } : {}),
         });
-        this.adjacency.get(e.source)!.add(e.target);
-        this.adjacency.get(e.target)!.add(e.source);
-        edgeCount++;
+        // Louvain weight: structural links (short rest length) count most.
+        const w = 1 / (LINK_REST_MULT[e.type || 'reference'] ?? 1);
+        const fwd = this.adjacency.get(e.source)!;
+        fwd.set(e.target, (fwd.get(e.target) ?? 0) + w);
+        const bwd = this.adjacency.get(e.target)!;
+        bwd.set(e.source, (bwd.get(e.source) ?? 0) + w);
+        totalWeight += w;
       }
     }
 
     const nodeIds = nodes.map(nd => nd.nodeUuid);
     this.componentMap = findConnectedComponents(nodeIds, this.adjacency);
     const priorClusters = this.clusterMap.size > 0 ? this.clusterMap : undefined;
-    this.clusterMap = detectCommunities(N, nodeIds, this.adjacency, edgeCount, this.rng, priorClusters);
+    this.clusterMap = detectCommunities(N, nodeIds, this.adjacency, totalWeight, this.rng, priorClusters);
 
     for (let i = 0; i < N; i++) {
       const inp = nodes[i]!;
@@ -464,9 +591,11 @@ export class GraphEngine {
       const compressMult = LINK_COMPRESS_MULT[type]! ?? 1.0;
       this.edgeSrc[valid]     = si;
       this.edgeTgt[valid]     = ti;
-      this.edgeRest[valid]    = (isInterCluster ? rest0 * 1.6 : rest0) * restMult;
+      // Inter-cluster bridges stay visible but loose — they must not weld
+      // communities together against the soft-shell repulsion.
+      this.edgeRest[valid]    = (isInterCluster ? rest0 * 2.2 : rest0) * restMult;
       const stiffScale = this.config.linkCountAttraction ? 1 / Math.sqrt(maxDeg) : 1 / maxDeg;
-      this.edgeStiff[valid]   = stiffScale * (isInterCluster ? 0.7 : 1.0) * stiffMult;
+      this.edgeStiff[valid]   = stiffScale * (isInterCluster ? 0.35 : 1.0) * stiffMult;
       this.edgeCompress[valid] = compressMult;
       valid++;
     }
@@ -559,17 +688,21 @@ export class GraphEngine {
     const K = maxClId + 1;
     this.ensureClusterCap(K);
 
-    const cx = this.clCx, cy = this.clCy, cc = this.clCount;
-    cx.fill(0, 0, K); cy.fill(0, 0, K); cc.fill(0, 0, K);
+    const cx = this.clCx, cy = this.clCy, cc = this.clCount, crad = this.clRad;
+    cx.fill(0, 0, K); cy.fill(0, 0, K); cc.fill(0, 0, K); crad.fill(0, 0, K);
 
     for (let i = 0; i < N; i++) {
       const c = clId[i]!; cx[c]! += this.posX[i]!; cy[c]! += this.posY[i]!; cc[c]!++;
     }
 
+    const idealDist = this.config.idealDistance;
     let bigCount = 0;
     for (let i = 0; i < K; i++) {
       if (cc[i]! > 0) {
         cx[i]! /= cc[i]!; cy[i]! /= cc[i]!;
+        // The community's shell radius — the same measure cohesion uses, and
+        // the surface the inter-cluster soft shell pushes apart.
+        crad[i] = Math.min(idealDist * 0.5 * Math.sqrt(cc[i]!), idealDist * 6);
         if (cc[i]! > 1) this.bigClusterBuf[bigCount++] = i;
       }
     }
