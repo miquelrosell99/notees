@@ -101,7 +101,7 @@ import { definedNodeIcon } from "./iconFor.js";
 
 import { WorkspaceDragScopeContext } from "./block-dnd.js";
 import { useWorkspaceDndZone } from "./useWorkspaceDnd.js";
-import { PropertiesSection, PropertiesSidebar, ClassesRow } from "./components/MetadataSection.js";
+import { PropertiesSection, PropertiesSidebar, ClassesRow, metadataRowCount } from "./components/MetadataSection.js";
 import { bannerAssetIdOf, setNodeBanner } from "./components/PageBanner.js";
 import { AssetUploadModal } from "./components/modals/AssetUploadModal.js";
 import { SelectionBar } from "./components/SelectionBar.js";
@@ -611,8 +611,13 @@ export function PageView({
         {/* The compact layouts keep the original in-flow properties list (the
             panelled main layout moves it into the left side panel). The
             preview surface hosts none — the properties editor is machinery
-            a trampoline card never carries. */}
-        {!focusMode && !panelled && !preview && (
+            a trampoline card never carries. Embedded renders (the journal
+            and calendar day feeds) drop the section — and its divider —
+            entirely while the page carries no property rows: a feed of
+            empty "Metadata 0" headers is chrome without content (owner
+            2026-10-09). The standalone compact page keeps the section even
+            when empty — it is that layout's add-property entry point. */}
+        {!focusMode && !panelled && !preview && (!embedded || metadataRowCount(client, pageId) > 0) && (
           <>
             <PropertiesSection
               client={client}

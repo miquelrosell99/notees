@@ -145,6 +145,35 @@ describe("BlockRow metadata section", () => {
     const compact = render(<PageView client={client} pageId={pageId} layout="compact" />);
     const sections = compact.container.querySelectorAll(".node-metadata-section");
     expect(sections).toHaveLength(1);
+    compact.unmount();
+  });
+
+  it("embedded renders (journal feed entries) hide the empty in-flow section, divider included", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Daily" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "dear diary" }],
+    });
+
+    const { container } = render(<PageView client={client} pageId={pageId} embedded />);
+    expect(container.querySelector(".node-metadata-section")).toBeNull();
+    expect(container.querySelector(".nt-metadata-divider")).toBeNull();
+  });
+
+  it("embedded renders keep the in-flow section once the page carries a property", async () => {
+    const client = await seedClient();
+    const schemaId = await client.createPropertySchema({ name: "mood", type: "text" });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Daily" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "dear diary" }],
+    });
+    await client.setProperty(pageId, schemaId, "good", 0);
+
+    const { container } = render(<PageView client={client} pageId={pageId} embedded />);
+    expect(container.querySelector(".node-metadata-section")).not.toBeNull();
+    expect(container.querySelector(".nt-metadata-divider")).not.toBeNull();
   });
 });
 
