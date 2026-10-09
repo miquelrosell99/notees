@@ -35,7 +35,14 @@ sql.js backend uses `ftsModule: "fts4"` + `schemaSql("fts4")`.
 
 Nodes carry two booleans + one CHECK: `is_class`, `present_as_main`,
 `CHECK (is_class = 0 OR parent_id IS NULL)`. "Page"/"block" are render states,
-not node kinds. **Title-is-content** (2026-10-01): no `name` on the wire — a
+not node kinds. **Main node vs block node** (owner 2026-10-09): a main node
+renders with document chrome — `is_class = 1`, OR `parent_id IS NULL` (no
+parent), OR `present_as_main = 1` (the explicit flag); a block node is a
+parented non-class node with `present_as_main = 0` — inline in the parent's
+body, no title/chrome. `rendersWithDocumentChrome` / `rendersAsInlineBlock`
+(`packages/domain/src/node.ts`) are the two branches every surface speaks
+("child pages" = main-zone children, "child blocks" = the inline zone).
+**Title-is-content** (2026-10-01): no `name` on the wire — a
 node's title IS its text content; pages/classes carry text-only content
 (`stringifyContentAst`, `deriveDisplayName`). **Date formatting is gated**
 (2026-10-08, owner ruling): only date-classed nodes format — a deterministic
