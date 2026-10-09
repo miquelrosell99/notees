@@ -74,7 +74,7 @@
   padding: 0 var(--spacing-3);
   font-size: var(--font-size-button);
   gap: var(--spacing-2);
-  border-radius: var(--shape-button-large);
+  border-radius: var(--shape-button-small);
 }
 
 .btn--lg {
@@ -82,7 +82,7 @@
   padding: 0 var(--spacing-4);
   font-size: var(--font-size-base);
   gap: var(--spacing-2);
-  border-radius: var(--shape-button-large);
+  border-radius: var(--shape-button-small);
 }
 
 /* Compact size — tight radius for dense toolbars/chips */
