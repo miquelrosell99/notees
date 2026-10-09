@@ -174,7 +174,7 @@ function coerceSingle(client: AnyClient, schema: ClientPropertySchema, text: str
         ? { ok: true, value: id }
         : { ok: false, error: `no option named "${text}" (${optionNames(schema)})` };
     }
-    case "date": {
+    case "datetime": {
       if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return { ok: true, value: text };
       return { ok: false, error: `not an ISO date (YYYY-MM-DD): "${text}"` };
     }
@@ -367,8 +367,9 @@ export function ImportTableModal({ isOpen, onClose, client, titleHeader }: Impor
         failures.push({ row: sheetRow, column: header, value: valueText, error: coerced.error });
         return;
       }
-      if (schema.type === "date") {
-        // ISO day → the day-node chain; multi dates ride the array shape.
+      if (schema.type === "datetime") {
+        // ISO day → the day-node chain (full-day point refs); multi dates
+        // ride the array shape.
         if (Array.isArray(coerced.value)) {
           const refs: Array<{ nodeId: string }> = [];
           for (const iso of coerced.value as string[]) {

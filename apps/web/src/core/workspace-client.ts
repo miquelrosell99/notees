@@ -29,6 +29,7 @@ import {
   SYSTEM_PROPERTY_SPECS,
   SYSTEM_PROPERTY_UUIDS,
   type DatePrecision,
+  type DatetimeSlot,
 } from "@notees/domain";
 import {
   Clock,
@@ -410,6 +411,22 @@ export interface ClientPropertySchema {
   readonly?: boolean | null;
   hideWhenEmpty?: boolean | null;
 }
+
+/**
+ * The unified datetime write (SCHEMA.md "Datetime"): one point or a range.
+ * `iso` is a calendar day ("2026-09-27"); the write path ensures the
+ * year/month/day chain and links the ref at the schema's precision. `time`
+ * (a well-formed "HH:MM") rides only day-precision schemas — the write fails
+ * loud otherwise. A null range side writes an open side.
+ */
+export interface DatetimePointInput {
+  iso: string;
+  time?: string;
+}
+
+export type DatetimeValueInput =
+  | DatetimePointInput
+  | { start: DatetimePointInput | null; end: DatetimePointInput | null };
 
 export interface CreatePropertySchemaInput {
   /**
@@ -3033,7 +3050,7 @@ export class WorkspaceClient {
     });
   }
 
-  // --- dates (SCHEMA.md "Dates" — a date is a node, not a string) --------------
+  // --- dates (SCHEMA.md "Datetime" — a date is a node, not a string) ----------
 
   /** The schema's date precision (default day when the row predates the field). */
   private datePrecisionOf(propertySchemaId: string): DatePrecision {
@@ -3119,42 +3136,53 @@ export class WorkspaceClient {
   }
 
   /**
-   * Set a date property value: ensure the chain, then link the date node at
-   * the schema's precision ({ "nodeId": … } — the shape the edge index
-   * projects, so the year node backlinks everything dated that year).
-   * Editing an existing value overwrites the same slot's ref.
+   * Set a datetime property value (SCHEMA.md "Datetime" — the unified date
+   * type): ensure the chain(s), then write the value union — a point
+   * `{ "nodeId": …, "time"?: "HH:MM" }` or a range `{ "start", "end" }` of
+   * slots, either side open. Refs land at the schema's precision (the edge
+   * index projects them, so the year node backlinks everything dated that
+   * year); a `time` rides ONLY a day-precision anchor (schema ceiling AND
+   * day ref) — passing one at year/month precision fails loud. One chain is
+   * ensured per distinct day. Editing overwrites the same slot's ref;
+   * `metadata` passes through (recurrence rides it).
    */
-  async setDateProperty(
+  async setDatetimeProperty(
     objectId: string,
     propertySchemaId: string,
-    isoDate: string,
+    value: DatetimeValueInput,
     idx = 0,
     metadata?: Record<string, unknown>,
   ): Promise<void> {
-    const ref = await this.dateRefFor(isoDate, this.datePrecisionOf(propertySchemaId));
-    await this.setProperty(objectId, propertySchemaId, { nodeId: ref }, idx, metadata);
-  }
-
-  /**
-   * Set a date_range value ({ start, end } of date refs, either side open /
-   * clearable). Precision applies to both ends. A null end keeps whatever the
-   * other side holds — an open range.
-   */
-  async setDateRangeProperty(
-    objectId: string,
-    propertySchemaId: string,
-    start: string | null,
-    end: string | null,
-    idx = 0,
-  ): Promise<void> {
     const precision = this.datePrecisionOf(propertySchemaId);
-    const value: { start: { nodeId: string } | null; end: { nodeId: string } | null } = {
-      start: null,
-      end: null,
+    const slotOf = async (input: DatetimePointInput): Promise<DatetimeSlot> => {
+      if (input.time !== undefined && precision !== "day") {
+        throw new Error(
+          `datetime time requires day precision (schema ${propertySchemaId} is ${precision})`,
+        );
+      }
+      const nodeId = await this.dateRefFor(input.iso, precision);
+      return input.time !== undefined ? { nodeId, time: input.time } : { nodeId };
     };
-    if (start !== null) value.start = { nodeId: await this.dateRefFor(start, precision) };
-    if (end !== null) value.end = { nodeId: await this.dateRefFor(end, precision) };
-    await this.setProperty(objectId, propertySchemaId, value, idx);
+    if ("start" in value || "end" in value) {
+      const rangeInput = value as {
+        start?: DatetimePointInput | null;
+        end?: DatetimePointInput | null;
+      };
+      const range: { start: DatetimeSlot | null; end: DatetimeSlot | null } = {
+        start: null,
+        end: null,
+      };
+      if (rangeInput.start !== null && rangeInput.start !== undefined) {
+        range.start = await slotOf(rangeInput.start);
+      }
+      if (rangeInput.end !== null && rangeInput.end !== undefined) {
+        range.end = await slotOf(rangeInput.end);
+      }
+      await this.setProperty(objectId, propertySchemaId, range, idx, metadata);
+      return;
+    }
+    const slot = await slotOf(value);
+    await this.setProperty(objectId, propertySchemaId, slot, idx, metadata);
   }
 
   /**

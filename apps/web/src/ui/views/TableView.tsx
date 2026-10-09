@@ -13,9 +13,10 @@
  *   (default on) — selection is session state. The header box selects the
  *   LOADED window (labeled so); exports and counts always read the full set.
  * - Cells: boolean + select edit inline; text/url/email and number/integer
- *   commit on blur/Enter (empty unsets); date cells ride the shared
- *   DateSlotControl (the zoom picker) writing a day-node
- *   reference (ensureDateChain); node cells open the anchored NodeSelector.
+ *   commit on blur/Enter (empty unsets); date cells open the canonical
+ *   date-picker popup (suggestions / All-day / Range / Remove) writing the
+ *   unified datetime union (ensureDateChain); node cells open the anchored
+ *   NodeSelector.
  *   Multi-value properties stay read-only.
  * - Name cell: row click opens, shift+click peeks.
  * - CSV export: the toolbar "…" menu's "Export CSV"
@@ -37,19 +38,23 @@
  */
 
 import { useMemo, useRef, useState, type ReactNode } from "react";
-import { parseDateNodeId } from "@notees/domain";
+import { isRangeDatetimeValue, isValidTimeOfDay, parseDateNodeId } from "@notees/domain";
 import { renderCsv, renderXlsx, type XlsxCell } from "@notees/export";
 
 import { BooleanToggle, Button, ButtonWithPanel, Checkbox, ContextMenu } from "../components/ui/index.js";
 import { Icon } from "../Icon.js";
 import { NodeSelector } from "../components/pickers/NodeSelector.js";
-import { DateSlotControl } from "../components/pickers/DateSlotControl.js";
+import {
+  DatePickerPopup,
+  type DatetimePickerSlot,
+} from "../components/pickers/DatePickerPopup.js";
+import { collectMarkedDates } from "../components/pickers/DateSlotControl.js";
 import { ExportPageModal } from "../components/modals/ExportPageModal.js";
 import { ImportTableModal } from "../components/modals/ImportTableModal.js";
 import { downloadBlob } from "../components/modals/download.js";
 import { exportTimestamp } from "../components/modals/exportSubtree.js";
 import { nodeIcon } from "../iconFor.js";
-import { displayNameForSettings, displayNameFromClient, formatIsoDate } from "../dateDisplay.js";
+import { displayNameForSettings, displayNameFromClient, datetimeValueText, formatIsoDate } from "../dateDisplay.js";
 import { registerView } from "./registry.js";
 import { useWindowed } from "./useWindowed.js";
 import { ShowMoreButton } from "./ShowMoreButton.js";
@@ -296,44 +301,91 @@ async function commitTextCellValue(
   await client.setProperty(nodeId, schemaId, { nodeId: carrier }, idx ?? 0);
 }
 
+/**
+ * The datetime cell (SCHEMA.md "Datetime" — the unified date type): reads
+ * the value union (a point or a range), renders it through the slot
+ * formatter, and edits through the canonical date-picker popup — the
+ * suggestions column, the All-day/Range switches, and Remove all commit the
+ * full union through one write. The open-arrow jumps to the day page
+ * ("create the day page" — the chain ensure is an idempotent no-op when it
+ * exists).
+ */
 function DateCell({ row, schemaId, props, schemaName }: { row: TableRow; schemaId: string; props: NodeCollectionProps; schemaName: string }) {
   const { client } = props;
+  const [open, setOpen] = useState(false);
+  const anchorRef = useRef<HTMLButtonElement | null>(null);
   const prop = row.properties.find((p) => p.propertySchemaId === schemaId);
-  const target = prop?.value as { nodeId?: unknown } | undefined;
-  const targetId = typeof target?.nodeId === "string" ? target.nodeId : null;
-  const parsed = targetId !== null ? parseDateNodeId(targetId) : null;
-  const iso =
-    parsed !== null && parsed.precision === "day"
-      ? `${String(parsed.year).padStart(4, "0")}-${String(parsed.month).padStart(2, "0")}-${String(parsed.day).padStart(2, "0")}`
-      : null;
+  const value = prop?.value;
+  const precision =
+    client.listPropertySchemas().find((s) => s.id === schemaId)?.datePrecision ?? "day";
+
+  /** One stored slot of the value as the popup edits it (iso + optional time). */
+  const slotOf = (v: unknown): DatetimePickerSlot | null => {
+    if (typeof v !== "object" || v === null) return null;
+    const ref = (v as { nodeId?: unknown }).nodeId;
+    if (typeof ref !== "string") return null;
+    const iso = isoOfRef(ref);
+    if (iso === null) return null;
+    const time = (v as { time?: unknown }).time;
+    return isValidTimeOfDay(time) ? { iso, time } : { iso };
+  };
+
+  const isRange = isRangeDatetimeValue(value);
+  const start = isRange ? slotOf((value as { start?: unknown }).start) : slotOf(value);
+  const end = isRange ? slotOf((value as { end?: unknown }).end) : null;
+  const display = datetimeValueText(value) ?? propertyDisplayText(client, prop);
   return (
     <span className="nt-table-node">
-      <DateSlotControl
-        client={client}
-        value={iso}
-        display={iso ?? propertyDisplayText(client, prop)}
-        ariaLabel={schemaName}
-        onCommit={(next) => {
-          if (next === iso) return;
-          if (next === null) {
-            commitCellValue(props, row, schemaId, prop?.idx, null);
-            return;
+      <button
+        type="button"
+        ref={anchorRef}
+        className="nt-dateslot__button"
+        aria-label={schemaName}
+        aria-expanded={open}
+        onClick={() => setOpen((cur) => !cur)}
+      >
+        {display}
+      </button>
+      {open && (
+        <DatePickerPopup
+          value={{ isRange, start, end }}
+          precision={precision}
+          onCommit={(commit) => {
+            // The popup owns its closing (terminal commits close through
+            // onClose); the write rides the full union either way.
+            void client.setDatetimeProperty(row.item.node.id, schemaId, commit, prop?.idx ?? 0);
+          }}
+          onRemove={
+            prop !== undefined
+              ? () => {
+                  void commitCellValue(props, row, schemaId, prop.idx, null);
+                  setOpen(false);
+                }
+              : undefined
           }
-          void client.ensureDateChain(next).then(({ day }) => {
-            commitCellValue(props, row, schemaId, prop?.idx, { nodeId: day });
-          });
-        }}
-      />
-      {iso !== null && (
+          onClose={() => setOpen(false)}
+          anchorRef={anchorRef}
+          firstDayOfWeek={1}
+          markedDates={collectMarkedDates(client)}
+        />
+      )}
+      {start !== null && (
         <OpenArrow
-          label={`the ${iso} day page`}
+          label={`the ${start.iso} day page`}
           onOpen={() => {
-            void client.ensureDateChain(iso).then(({ day }) => props.onNodeClick?.(day));
+            void client.ensureDateChain(start.iso).then(({ day }) => props.onNodeClick?.(day));
           }}
         />
       )}
     </span>
   );
+}
+
+/** A date ref back to a full ISO date at its own precision. */
+function isoOfRef(ref: string): string | null {
+  const parsed = parseDateNodeId(ref);
+  if (parsed === null) return null;
+  return `${String(parsed.year).padStart(4, "0")}-${String(parsed.month).padStart(2, "0")}-${String(parsed.day).padStart(2, "0")}`;
 }
 
 /** The open-arrow — navigates to a node (row, link target, day page). */
@@ -525,7 +577,7 @@ function PropertyCell({ row, column, props }: { row: TableRow; column: TableColu
     );
   }
 
-  if (editable && schema?.type === "date" && schema?.multi !== true) {
+  if (editable && schema?.type === "datetime" && schema?.multi !== true) {
     return <DateCell row={row} schemaId={schemaId} props={props} schemaName={schema.name} />;
   }
 

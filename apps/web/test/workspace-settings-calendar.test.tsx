@@ -101,7 +101,7 @@ describe("WorkspaceSettingsModal calendar quick-create", () => {
   it("lists eligible classes with the driving date property and defaults all on", async () => {
     const client = await seedClient();
     await ensureTaskFamily(client);
-    const schemaId = await client.createPropertySchema({ name: "When", type: "date" });
+    const schemaId = await client.createPropertySchema({ name: "When", type: "datetime" });
     // A generic user class — "meeting" is system-class vocabulary (a user
     // class with that title absorbs the seed family bindings).
     const classId = await client.createClass("gathering");
