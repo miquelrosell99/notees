@@ -15,7 +15,7 @@
  * button; clicking it opens a popup with the full sortable list.
  */
 
-import { useRef, useState } from "react";
+import { useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   DndContext,
@@ -80,6 +80,75 @@ function reorder(ids: string[], activeId: string, overId: string): string[] {
   return next;
 }
 
+/**
+ * NodePill — the ONE pill element every node-relation surface renders: the
+ * nodeview classes list (NodePills below), the tags row, and multi-value
+ * node-typed property cells all ride it, so a pill looks and behaves the
+ * same everywhere — effective color background with contrast text, the left
+ * icon, a label click that opens the node, and the hover-reveal ×.
+ * Color/icon resolution stays with each host (class pills resolve the class
+ * chain; property pills the linked node's own effective color).
+ */
+export function NodePill({
+  /** Effective color (preset token or hex) or null for the neutral surface. */
+  color,
+  /** MDI icon path or null (no left icon). */
+  icon,
+  label,
+  className = "",
+  onOpen,
+  onContextMenu,
+  onRemove,
+  removeLabel,
+  /** Extra chrome after the × (annotations, qualifier ranges, …). */
+  trailing,
+  /** False keeps the right chrome always visible (derived-default pills). */
+  hoverReveal = true,
+}: {
+  color: string | null;
+  icon: string | null;
+  label: string;
+  className?: string;
+  onOpen?: (() => void) | undefined;
+  onContextMenu?: ((event: MouseEvent<HTMLSpanElement>) => void) | undefined;
+  onRemove?: (() => void) | undefined;
+  removeLabel?: string | undefined;
+  trailing?: ReactNode;
+  hoverReveal?: boolean;
+}) {
+  return (
+    <span
+      className={`pill${hoverReveal ? " pill--hover-reveal-right" : ""}${className ? ` ${className}` : ""}`}
+      style={
+        color !== null
+          ? { background: cssColorFor(color), color: contrastFor(color) }
+          : undefined
+      }
+      onContextMenu={onContextMenu}
+    >
+      {icon !== null && (
+        <span className="pill__left-icon">
+          <Icon path={icon} size={0.7} />
+        </span>
+      )}
+      <button type="button" className="pill__text" onClick={onOpen}>
+        {label}
+      </button>
+      {onRemove !== undefined && (
+        <button
+          type="button"
+          className="pill__right-button"
+          aria-label={removeLabel}
+          onClick={onRemove}
+        >
+          ×
+        </button>
+      )}
+      {trailing}
+    </span>
+  );
+}
+
 function PillShell({
   classId,
   nodeId,
@@ -99,53 +168,40 @@ function PillShell({
 }) {
   const cls = client.getNode(classId);
   const label = displayNameFromClient(client, classId) ?? classId;
+  // Class-chain color/icon resolution — the class pill's identity.
   const colored = client.effectiveClassColor(classId);
-  // Effective icon: the class glyph (display-time default when none is set).
   const icon = client.effectiveClassIcon(classId);
   // System/journal classes refuse ×-removal (lock + honest toast).
   const nonRemovable = isClassNonRemovable(classId);
   return (
-    <span
-      className={`pill pill--hover-reveal-right${nonRemovable ? " pill--non-removable" : ""}`}
-      style={
-        colored !== null
-          ? { background: cssColorFor(colored), color: contrastFor(colored) }
-          : undefined
-      }
+    <NodePill
+      color={colored}
+      icon={icon}
+      label={label}
+      className={nonRemovable ? "pill--non-removable" : ""}
+      onOpen={() => onOpenPage?.(classId)}
       onContextMenu={(event) => {
         if (cls === undefined) return;
         event.preventDefault();
         event.stopPropagation();
         onContextMenuNode(cls, event.clientX, event.clientY);
       }}
-    >
-      <span className="pill__left-icon">
-        <Icon path={icon} size={0.7} />
-      </span>
-      <button type="button" className="pill__text" onClick={() => onOpenPage?.(classId)}>
-        {label}
-      </button>
-      {nonRemovable ? (
-        <button
-          type="button"
-          className="pill__right-button pill__right-button--locked"
-          aria-label={`${label} can't be removed`}
-          title={classRemovalRefusal(classId) ?? undefined}
-          onClick={() => refuseClassRemoval(classId)}
-        >
-          <Icon path="mdi-lock-outline" size={0.6} />
-        </button>
-      ) : (
-        <button
-          type="button"
-          className="pill__right-button"
-          aria-label={removeLabel(label)}
-          onClick={() => onRemove(classId)}
-        >
-          ×
-        </button>
-      )}
-    </span>
+      onRemove={nonRemovable ? undefined : () => onRemove(classId)}
+      removeLabel={removeLabel(label)}
+      trailing={
+        nonRemovable ? (
+          <button
+            type="button"
+            className="pill__right-button pill__right-button--locked"
+            aria-label={`${label} can't be removed`}
+            title={classRemovalRefusal(classId) ?? undefined}
+            onClick={() => refuseClassRemoval(classId)}
+          >
+            <Icon path="mdi-lock-outline" size={0.6} />
+          </button>
+        ) : undefined
+      }
+    />
   );
 }
 
