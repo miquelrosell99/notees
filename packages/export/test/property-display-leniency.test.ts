@@ -5,8 +5,9 @@
  * wants `{ nodeId }` refs (verified against the live relay: a v1-imported
  * date property stores `"00000000-0000-0000-00dd-202506240000"` bare, and
  * the exports used to print that uuid verbatim). These specs pin the
- * read-leniency: node-typed schemas (date/object/asset) resolve bare strings
- * through ctx.nameOf exactly like canonical refs; scalar schemas never do.
+ * read-leniency: node-typed schemas (datetime/object/asset) resolve bare
+ * strings through ctx.nameOf exactly like canonical refs; scalar schemas
+ * never do.
  * Also pinned: booleans render as checkbox glyphs (never literal
  * "true"/"false"), metadata qualifiers resolve to display strings (never a
  * raw uuid or `[object Object]`), and the IR outline children carry the
@@ -63,9 +64,9 @@ function docFor(properties: ExportNode["properties"], ctx: ExportContext = makeC
 }
 
 describe("bare-string node-ref leniency (v1-migrated values)", () => {
-  it("resolves a bare uuid string on a date schema through nameOf (the settings-aware path)", () => {
+  it("resolves a bare uuid string on a datetime schema through nameOf (the settings-aware path)", () => {
     const document = docFor([
-      { schemaId: "s-date", schemaName: "Última consulta", schemaType: "date", value: DATE_UUID },
+      { schemaId: "s-date", schemaName: "Última consulta", schemaType: "datetime", value: DATE_UUID },
     ]);
     expect(document.properties[0]?.display).toBe("2025-06-24");
   });
@@ -105,7 +106,7 @@ describe("bare-string node-ref leniency (v1-migrated values)", () => {
 
   it("falls back to the raw uuid when the target is unknown", () => {
     const document = docFor([
-      { schemaId: "s-date", schemaName: "Fecha", schemaType: "date", value: { nodeId: "33333333-0000-4000-8000-00000000000c" } },
+      { schemaId: "s-date", schemaName: "Fecha", schemaType: "datetime", value: { nodeId: "33333333-0000-4000-8000-00000000000c" } },
     ]);
     expect(document.properties[0]?.display).toBe("33333333-0000-4000-8000-00000000000c");
   });

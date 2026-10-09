@@ -70,7 +70,7 @@ describe("buildJsonArchive", () => {
       {
         schemaId: PUBLISHED_SCHEMA_ID,
         schemaName: "published in",
-        schemaType: "date",
+        schemaType: "datetime",
         value: { nodeId: DATE_NODE_ID },
         metadata: { startDate: { nodeId: DATE_NODE_ID } },
       },
