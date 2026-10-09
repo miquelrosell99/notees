@@ -1934,6 +1934,16 @@ function propertiesCountOf(groups: PropertyGroups): number {
 }
 
 /**
+ * The node's effective metadata row count — the section's emptiness test.
+ * Exported for hosts that gate sibling chrome on it (PageView hides the
+ * whole in-flow section, divider included, on empty embedded renders — the
+ * journal and calendar day feeds).
+ */
+export function metadataRowCount(client: AnyClient, nodeId: string): number {
+  return propertiesCountOf(propertyGroupsOf(client, nodeId));
+}
+
+/**
  * PropertiesTable — the property rows and the add affordance, shared by the
  * Metadata section (blocks) and the Properties section (pages).
  *
@@ -2380,7 +2390,9 @@ export function PropertiesTable({
  * relocated from the title-row button — rides its top as the first
  * section): every property field in the table, collapsed by default.
  * Classes and tags are identity rows in the page header, not properties —
- * the count covers property rows only.
+ * the count covers property rows only. Hosts may hide the WHOLE section
+ * when the count is 0 (PageView: embedded renders — the journal and
+ * calendar day feeds — drop the section and its divider together).
  */
 export function PropertiesSection({
   client,
