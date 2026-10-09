@@ -73,6 +73,17 @@ function resolveIcon(path: string): ResolvedIcon {
   return { kind: "text", glyph: value };
 }
 
+/**
+ * The normalized MDI icon name for a stored icon value (camelCase, kebab,
+ * mdi-prefixed, or JSON-wrapped) — null for emoji/text glyphs and empty
+ * values. Exported for non-DOM renderers (the PDF engine draws the path
+ * from the sprite sheet by this name).
+ */
+export function resolveMdiIconName(path: string): string | null {
+  const resolved = resolveIcon(path);
+  return resolved !== null && resolved.kind === "mdi" ? resolved.name : null;
+}
+
 export const Icon: React.FC<IconProps> = ({
   path,
   size = 1,

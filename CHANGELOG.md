@@ -9,6 +9,31 @@ predating this file.
 
 ## 2026-10-09
 
+- **feat(web,export): the PDF carries the app chrome (outliner bullets, the
+  row's class pills on the far right, node icons on mention chips), the
+  "Show type labels" option is now "Show classes" and renders colored pills,
+  text-property carrier blocks stay out of the exported body, and the PDF
+  page size moved into the Options section as a dropdown.** (1) Carrier
+  exclusion: the page view's body never renders property-carrier blocks
+  (`getBlockTree`'s rule) — the export paths now mirror it
+  (`propertyCarrierIdsOf` over authored effective rows, carrier subtree
+  pruned) across the markdown bundle, the single-document IR, and the
+  asset/whiteboard walkers; spec pins a text-property carrier staying out of
+  the preview's body. (2) Notes-layout bullets: every block row draws the
+  outliner dot (Essay/Academic stay clean typesetting — the new
+  `theme.bullets` flag). (3) Class pills: the IR gains build-time
+  `colorOf`/`iconOf` ctx hooks; with Show classes on, every child row (inline
+  blocks recursively + child-page entries) and the header's Classes row
+  render the row's own class pills — effective colors, contrast text, first
+  pill + "+N" overflow — the list-view look. (4) Mention chips draw the
+  node's MDI icon before its name, path data fetched from the app's own
+  `mdi-sprite.svg` (zero new dependencies; name-only fallback). (5) The PDF
+  page size is a kit `Dropdown` inside the collapsible Options section (the
+  standalone SelectionButton chrome is gone; `Dropdown` gained an `ariaLabel`
+  forward). Verified: web export suites green (bullets/pills/mention-icon
+  component specs + the carrier modal spec), packages/export 236 green,
+  full web suite green.
+
 - **fix(web): fleet button audit against the state-vs-action register rule —
   state-carrying chrome goes outline, actions go borderless, modal
   secondaries unify on outline.** Audit of every button in the app against

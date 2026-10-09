@@ -61,6 +61,37 @@ function resolvedPdfOptions(options: RenderSubtreePdfOptions): Pick<ResolvedExpo
 /** Data URLs in flight at once — the same small pool discipline as E7. */
 const ASSET_DATA_URL_CONCURRENCY = 4;
 
+/**
+ * The mdi-<kebab-name> → SVG path d map, built from the app's sprite sheet
+ * (`public/mdi-sprite.svg` — the SAME source the UI's Icon component draws
+ * from, so a PDF mention chip and the on-screen row can never disagree).
+ * Fetched once per session, cached module-level; any failure answers an
+ * empty map — the chips fall back to name-only, never a failed export.
+ */
+let mdiSpritePromise: Promise<ReadonlyMap<string, string>> | null = null;
+
+export function mdiIconPaths(): Promise<ReadonlyMap<string, string>> {
+  mdiSpritePromise ??= (typeof fetch === "function"
+    ? fetch("/mdi-sprite.svg").then((response) => {
+        if (!response.ok) throw new Error(`mdi sprite: HTTP ${response.status}`);
+        return response.text();
+      })
+    : Promise.reject(new Error("fetch unavailable"))
+  )
+    .then((text) => {
+      const doc = new DOMParser().parseFromString(text, "image/svg+xml");
+      const map = new Map<string, string>();
+      for (const symbol of Array.from(doc.querySelectorAll("symbol"))) {
+        const id = symbol.getAttribute("id");
+        const path = symbol.querySelector("path")?.getAttribute("d");
+        if (id !== null && id !== undefined && path !== null && path !== undefined) map.set(id, path);
+      }
+      return map;
+    })
+    .catch(() => new Map<string, string>());
+  return mdiSpritePromise;
+}
+
 /** Blob → bytes, with a FileReader fallback for jsdom (whose Blob lacks arrayBuffer). */
 async function blobBytes(blob: Blob): Promise<Uint8Array> {
   if (typeof blob.arrayBuffer === "function") {
@@ -111,8 +142,9 @@ export async function renderSubtreePdf(
   const { document, resolved } = buildSubtreeDocument(client, rootId, options);
   const merged = { ...resolved, ...resolvedPdfOptions(options) };
   const assetDataUrls = await fetchAssetDataUrls(client, document.assetRefs);
+  const iconPaths = await mdiIconPaths();
   const blob = await pdf(
-    <ExportPdfDocument document={document} options={merged} assetDataUrls={assetDataUrls} />,
+    <ExportPdfDocument document={document} options={merged} assetDataUrls={assetDataUrls} iconPaths={iconPaths} />,
   ).toBlob();
   const filename = exportFileSlugName(displayNameForSettings(root).trim(), rootId, "pdf");
   return { blob, filename };

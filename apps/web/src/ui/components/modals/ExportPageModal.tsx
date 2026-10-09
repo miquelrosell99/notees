@@ -38,11 +38,13 @@
  * the OFL Gentium bundle, and the layout themes live in that async chunk;
  * the modal only ever `await import()`s it, on the first PDF export or
  * preview). Selecting PDF reveals the layout cards (Notes/Essay/Academic,
- * modelling decision 2) and the A4/Letter page-size SelectionButton, both
- * feeding the engine options; the preview pane renders the PDF into a blob
- * URL iframe, and Export downloads `<slug>-<YYYYMMDDHHmm>.pdf` (a batch zips
- * one PDF per root, the task-W convention; the local timestamp keeps repeated
- * exports from overwriting each other).
+ * modelling decision 2), feeding the engine options; the A4/Letter page size
+ * rides a dropdown inside the collapsible Options section, alongside the
+ * checkbox rows (one settings surface, no separate chrome). The preview pane
+ * renders the PDF into a blob URL iframe, and Export downloads
+ * `<slug>-<YYYYMMDDHHmm>.pdf` (a batch zips one PDF per root, the task-W
+ * convention; the local timestamp keeps repeated exports from overwriting
+ * each other).
  */
 import { useState, useCallback, useEffect, useMemo } from "react";
 import type { ExportOptions } from "@notees/export";
@@ -53,7 +55,7 @@ import { copyToClipboard } from "./clipboard";
 import { Button } from "../ui/Button.js";
 import { Card } from "../ui/Card.js";
 import { Checkbox } from "../ui/Checkbox.js";
-import { SelectionButton } from "../ui/SelectionButton.js";
+import { Dropdown } from "../ui/Dropdown.js";
 import { Spinner } from "../ui/Spinner.js";
 import { Icon } from "../../Icon";
 import { downloadBlob } from "./download";
@@ -441,8 +443,9 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
           })}
         </div>
 
-        {/* PDF layout + page size (P1) — layout cards render only for the
-            layout-aware PDF card; both feed the engine options. */}
+        {/* PDF layout cards (P1) — render only for the layout-aware PDF
+            card; the page size rides the Options dropdown below (one
+            settings surface). */}
         {format.id === "pdf" && layoutSpec !== undefined && pageFormatSpec !== undefined && (
           <div className="export-modal__pdf-options">
             <div className="export-modal__layouts" role="radiogroup" aria-label="Layout">
@@ -472,17 +475,6 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
                 );
               })}
             </div>
-            <SelectionButton
-              size="sm"
-              label="Page size"
-              options={pageFormatSpec.choices.map((choice) => ({
-                value: choice.value,
-                icon: "mdi mdi-file-outline",
-                label: choice.label,
-              }))}
-              value={pageFormat}
-              onChange={(value) => setPageFormat(value as PdfPageFormat)}
-            />
           </div>
         )}
 
@@ -512,6 +504,26 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
                   }
                 />
               ))}
+              {/* Page size (pdf only) — the same Options surface as the
+                  checkboxes; the kit Dropdown replaces the old standalone
+                  SelectionButton chrome next to the layout cards. */}
+              {format.id === "pdf" && pageFormatSpec !== undefined && (
+                <div className="export-modal__select-row">
+                  <span className="export-modal__select-label" id="export-modal__page-size-label">
+                    Page size
+                  </span>
+                  <Dropdown
+                    size="sm"
+                    ariaLabel="Page size"
+                    value={pageFormat}
+                    onChange={(value) => setPageFormat((value as PdfPageFormat | null) ?? "a4")}
+                    options={pageFormatSpec.choices.map((choice) => ({
+                      value: choice.value,
+                      label: choice.label,
+                    }))}
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
