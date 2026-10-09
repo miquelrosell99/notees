@@ -20,7 +20,7 @@ import { useState, type ReactNode } from "react";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client.js";
 
-import { NodeViewSection } from "./components/NodeViewSection.js";
+import { NodeViewSection, type NodeViewSectionAction } from "./components/NodeViewSection.js";
 import { useSectionData } from "./components/useSectionData.js";
 
 export interface SectionProps<T> {
@@ -34,6 +34,8 @@ export interface SectionProps<T> {
    * an empty child-pages section suppresses the zero).
    */
   badge?: number | undefined;
+  /** The header's far-right icon-only action (the section-scoped create). */
+  action?: NodeViewSectionAction | undefined;
   /** Collapsed on first render unless overridden. */
   defaultCollapsed?: boolean;
   /** The section query; MUST NOT be invoked while collapsed. */
@@ -58,6 +60,7 @@ export function Section<T>({
   title,
   icon,
   badge,
+  action,
   defaultCollapsed = true,
   load,
   renderResults,
@@ -73,6 +76,7 @@ export function Section<T>({
       title={title}
       icon={icon}
       count={badge}
+      action={action}
       className="nt-section"
       expanded={expanded}
       onExpandedChange={setExpanded}
