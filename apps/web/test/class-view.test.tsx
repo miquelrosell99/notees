@@ -220,19 +220,20 @@ describe("Class View", () => {
     expect(screen.getByText("No classed nodes.")).not.toBeNull();
   });
 
-  it("the classed-nodes toolbar (and the empty state) carry the create affordance: a node classed with this class", async () => {
+  it("the section header carries the create affordance: a node classed with this class", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "agent");
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
 
-    // An empty database still renders the section chrome: the toolbar's
-    // "Add member" button (left of the switcher) and the empty state's
-    // action — both the collection contract's affordance.
+    // An empty database still renders the section chrome: the ONE "Add
+    // member" button rides the section header's trailing action (owner
+    // 2026-10-09 — it replaced the toolbar button and the collection's add
+    // row).
     const classedNodesSection = screen
       .getByRole("button", { name: /classed nodes/i })
       .closest("section")!;
     const addButtons = within(classedNodesSection).getAllByRole("button", { name: "Add member" });
-    expect(addButtons).toHaveLength(2);
+    expect(addButtons).toHaveLength(1);
 
     fireEvent.click(addButtons[0]!);
     await flushWrites();

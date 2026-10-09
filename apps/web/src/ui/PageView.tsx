@@ -480,7 +480,7 @@ export function PageView({
             <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
             {!preview && !focusMode && variantSystemSections}
             {!preview && !focusMode && (
-              <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} />
+              <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} embedded={embedded} />
             )}
           </>
         ) : (
@@ -556,7 +556,7 @@ export function PageView({
             )}
             {!preview && !focusMode && variantSystemSections}
             {!preview && !focusMode && (
-              <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} />
+              <SystemSections client={client} pageId={pageId} onOpenPage={onOpenPage} embedded={embedded} />
             )}
           </EmbedBoundary>
         </>

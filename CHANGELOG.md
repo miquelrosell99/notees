@@ -9,6 +9,28 @@ predating this file.
 
 ## 2026-10-09
 
+- **feat(web): the section-scoped create affordance moves into the section
+  header — a shared trailing-action slot on NodeViewSection, wired for
+  Comments, Child pages, and the class view's classed nodes.** (1)
+  `NodeViewSection` gains an `action` prop: the header becomes a ROW — the
+  collapse toggle (accessible name: title + count) plus one icon-only
+  button at the far right, a sibling, never nested. `Section` threads the
+  prop through. (2) Comments' quick-add rides it (click expands a collapsed
+  thread, then opens the composer); the in-content add button is gone. (3)
+  The classed-nodes section's toolbar ghost button AND the collection's
+  bottom add row are replaced by the ONE header action. (4) Child pages —
+  always rendered on the main surface now (the hide-when-empty ruling's
+  deliberate exception, superseding owner 2026-10-08: the create must be
+  reachable exactly when the list is empty); its header action creates a
+  child page (`parentId` + `presentAsMain`). Embedded feeds keep the old
+  ruling — read-only, childless hides — via a new `embedded` prop on
+  `SystemSections`. The pattern is recorded in the `rosellramos-design-system`
+  skill (`references/dos-donts.md`). Verified: `pnpm typecheck`; the full
+  web vitest suite (136 files, 1413 tests) green, incl. the rewritten
+  system-sections / class-view contracts. Docs: `docs/ux.md` (the
+  hide-when-empty paragraph), `docs/usage.md` (Child pages). Display-state
+  only — no model/wire change.
+
 - **fix(web): no search bar glows accent on focus anymore — every search
   input trades the focus ring for a quiet border shift.** The earlier
   SearchField slice dropped the component's own accent glow, but the global

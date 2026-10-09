@@ -32,7 +32,6 @@ import { Icon } from "../../Icon.js";
 import { NodeViewSection } from "../NodeViewSection.js";
 import { useViewModePreference } from "../../viewPrefs.js";
 import { refuseClassRemoval } from "../classRemoval.js";
-import { Button } from "../ui/Button.js";
 import { FilterBar } from "../FilterBar.js";
 import {
   EMPTY_FILTER_QUERY,
@@ -177,11 +176,13 @@ export function ClassedNodesSection({
       className="nt-section"
       expanded={expanded}
       onExpandedChange={setExpanded}
+      action={{ icon: "mdi-plus", label: "Add member", onClick: addMember }}
     >
       {/* One chrome row: the transient filter layer rides the toolbar's
-          left (inline — its structured panel drops below as an overlay),
-          the create affordance + view switcher cluster right. The Add
-          member button is icon-only with a hover tooltip. */}
+          left (inline — its structured panel drops below as an overlay) and
+          the view switcher right. The create affordance moved to the
+          section header's trailing action (owner 2026-10-09), replacing the
+          toolbar button and the collection's add row. */}
       <ViewToolbar modes={modes} value={membersMode} onChange={setMembersMode}>
         <FilterBar
           client={client}
@@ -190,15 +191,6 @@ export function ClassedNodesSection({
           onChange={setMemberFilter}
           matchCount={members === null ? null : members.length}
           totalCount={total}
-        />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          icon="mdi mdi-plus"
-          aria-label="Add member"
-          title="Add member"
-          onClick={addMember}
         />
       </ViewToolbar>
       {members === null ? null : (
@@ -216,9 +208,6 @@ export function ClassedNodesSection({
           }}
           trailingAction={unassignAction}
           emptyTitle="No classed nodes."
-          showAddButton
-          onAdd={addMember}
-          addLabel="Add member"
           hostedViews={{ nodeId: classId, sectionKey: "classed-nodes" }}
         />
       )}
