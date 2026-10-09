@@ -3,8 +3,9 @@
  * WorkspaceClient):
  *
  *  - PB1 broken-target rendering: a node-typed value whose target was
- *    deleted keeps the value and renders the raw id in a dashed
- *    pill--broken chip (the broken-mention policy);
+ *    deleted keeps the value and renders the raw id honestly (the
+ *    broken-mention policy) — dashed pill--broken chip on multi-value rows,
+ *    the selection cell's broken state on single-value rows;
  *  - PG10 aliases: ensureAliasProperty authors the seeded schema
  *    idempotently, alias values resolve by name (resolveNodeByName), and
  *    unlinked references match alias text as name-equivalents;
@@ -83,8 +84,9 @@ describe("PB1: broken-target rendering (keep-value + render-broken)", () => {
     const { container } = render(<PageView client={client} pageId={owner} />);
     expandProperties();
     await flushWrites();
-    // The value row survives…
-    const broken = container.querySelector(".pill--broken");
+    // The value row survives… — the single-value selection cell renders the
+    // broken state honestly (PB1: the raw id, never a silent void).
+    const broken = container.querySelector(".nt-property-select__broken");
     expect(broken).not.toBeNull();
     // …and renders the raw id honestly (the broken-mention policy).
     expect(broken!.textContent).toContain(target);

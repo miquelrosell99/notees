@@ -426,6 +426,29 @@ describe("dead carrier in the value cell (owner bug 2026-10-04)", () => {
     await flushWrites();
     expect(client.getEffectiveProperties(owner)).toEqual([]);
   });
+
+  it("a bound-but-empty text property renders the full-width 'Type something' placeholder; typing authors the first carrier", async () => {
+    const client = await seedClient();
+    const schemaId = await client.createPropertySchema({ name: "Blurb", type: "text" });
+    const classId = await client.createClass("Thing");
+    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    const pageId = await client.createObject({ presentAsMain: true, name: "Note" });
+    await client.assignClass(pageId, classId);
+
+    render(<PageView client={client} pageId={pageId} />);
+    expandProperties();
+    // The empty value cell still spans the row (owner 2026-10-09) — the
+    // muted placeholder names it empty instead of leaving a void.
+    const input = screen.getByPlaceholderText("Type something") as HTMLInputElement;
+    expect(input.className).toContain("nt-property-value");
+
+    fireEvent.blur(input, { target: { value: "first words" } });
+    await flushWrites();
+    const effective = client.getEffectiveProperties(pageId);
+    expect(effective).toHaveLength(1);
+    const ref = (effective[0]!.value as { nodeId: string }).nodeId;
+    expect(client.getNode(ref)?.contentAst).toEqual([{ type: "text", text: "first words" }]);
+  });
 });
 
 describe("default-mirror sweep on class removal (owner rule)", () => {
