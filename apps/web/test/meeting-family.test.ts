@@ -170,7 +170,7 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
     const schemas = new Map(client.listPropertySchemas().map((schema) => [schema.id, schema]));
     expect(schemas.get(SYSTEM_PROPERTY_UUIDS.eventDate)).toMatchObject({
       name: "Event date",
-      type: "date",
+      type: "datetime",
       scope: "class",
     });
     expect(client.getClassBindings(EVENT_CLASS_ID).map((binding) => binding.propertySchemaId)).toEqual(
@@ -183,7 +183,7 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
     expect(deriveDisplayName(meetingClass!)).toBe("Meeting");
     expect(schemas.get(SYSTEM_PROPERTY_UUIDS.meetingDate)).toMatchObject({
       name: "Meeting date",
-      type: "date",
+      type: "datetime",
       scope: "class",
     });
     expect(schemas.get(SYSTEM_PROPERTY_UUIDS.location)).toMatchObject({
@@ -262,7 +262,7 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
     await client.createPropertySchema({
       id: SYSTEM_PROPERTY_UUIDS.meetingDate,
       name: "When",
-      type: "date",
+      type: "datetime",
       scope: "class",
     });
     await client.setClassProperty(MEETING_CLASS_ID, SYSTEM_PROPERTY_UUIDS.meetingDate, {});
@@ -306,7 +306,7 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
 
     // CalendarView.createClassed: create classed → set the driving date.
     const id = await client.createObject({ presentAsMain: true, classIds: [MEETING_CLASS_ID] });
-    await client.setDateProperty(id, SYSTEM_PROPERTY_UUIDS.meetingDate, "2026-10-06");
+    await client.setDatetimeProperty(id, SYSTEM_PROPERTY_UUIDS.meetingDate, { iso: "2026-10-06" });
 
     const classAndDate = client.runQueryAst({
       version: 1,
@@ -431,7 +431,7 @@ describe("ensureBirthdayFamily (birthday extends event, for persons)", () => {
     await ensureBirthdayFamily(client);
 
     const id = await client.createObject({ presentAsMain: true, classIds: [BIRTHDAY_CLASS_ID] });
-    await client.setDateProperty(id, SYSTEM_PROPERTY_UUIDS.eventDate, "2026-10-06");
+    await client.setDatetimeProperty(id, SYSTEM_PROPERTY_UUIDS.eventDate, { iso: "2026-10-06" });
 
     const asBirthday = client.runQueryAst({
       version: 1,

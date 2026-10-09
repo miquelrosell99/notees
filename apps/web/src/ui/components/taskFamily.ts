@@ -75,7 +75,7 @@ const TASK_PRIORITY_OPTION_IDS: Record<(typeof TASK_PRIORITY_OPTIONS)[number], s
 const TASK_FAMILY: Array<{
   id: string;
   name: string;
-  type: "select" | "date";
+  type: "select" | "datetime";
   options?: () => Array<{ id: string; label: string; icon?: string; color?: string }>;
 }> = [
   {
@@ -93,12 +93,12 @@ const TASK_FAMILY: Array<{
   {
     id: SYSTEM_PROPERTY_UUIDS.taskScheduled,
     name: "Scheduled",
-    type: "date",
+    type: "datetime",
   },
   {
     id: SYSTEM_PROPERTY_UUIDS.taskDeadline,
     name: "Deadline",
-    type: "date",
+    type: "datetime",
   },
   {
     id: SYSTEM_PROPERTY_UUIDS.taskPriority,
@@ -110,7 +110,7 @@ const TASK_FAMILY: Array<{
   {
     id: SYSTEM_PROPERTY_UUIDS.taskClosedDate,
     name: "Closed",
-    type: "date",
+    type: "datetime",
   },
   {
     // The migration imported recurrence as a plain select (no engine executes it);

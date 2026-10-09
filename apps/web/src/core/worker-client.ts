@@ -31,6 +31,7 @@ import type {
   CreateObjectInput,
   CreatePropertySchemaInput,
   DeleteObjectOptions,
+  DatetimeValueInput,
   EffectiveProperty,
   OperationFeedEntry,
   QueryAggregateResult,
@@ -734,26 +735,19 @@ export class WorkerClient {
     };
   }
 
-  /** Set a date value at the schema's precision (chain create + property.set). */
-  async setDateProperty(
+  /**
+   * Set a datetime value (SCHEMA.md "Datetime" — the unified date type):
+   * a point `{iso, time?}` or a range `{start, end}` of day inputs, either
+   * side open. The chain ensure + precision-cased ref ride the worker.
+   */
+  async setDatetimeProperty(
     objectId: string,
     propertySchemaId: string,
-    isoDate: string,
+    value: DatetimeValueInput,
     idx?: number,
     metadata?: Record<string, unknown>,
   ): Promise<void> {
-    await this.call("setDateProperty", [objectId, propertySchemaId, isoDate, idx, metadata]);
-  }
-
-  /** Set a date_range value ({start, end} refs, either side open). */
-  async setDateRangeProperty(
-    objectId: string,
-    propertySchemaId: string,
-    start: string | null,
-    end: string | null,
-    idx?: number,
-  ): Promise<void> {
-    await this.call("setDateRangeProperty", [objectId, propertySchemaId, start, end, idx]);
+    await this.call("setDatetimeProperty", [objectId, propertySchemaId, value, idx, metadata]);
   }
 
   /** Create an annotation on an asset (composed write over the RPC primitives). */
