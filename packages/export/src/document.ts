@@ -18,7 +18,13 @@
  */
 
 import type { ContentAst, InlineToken } from "@notees/protocol";
-import { deriveDisplayName, parseDateNodeId, dateNodeDisplayLabel } from "@notees/domain";
+import {
+  deriveDisplayName,
+  parseDateNodeId,
+  dateNodeDisplayLabel,
+  isRangeDatetimeValue,
+  isValidTimeOfDay,
+} from "@notees/domain";
 
 import type { ExportOptions, ResolvedExportOptions } from "./options.js";
 import { resolveExportOptions } from "./options.js";
@@ -282,8 +288,9 @@ export interface ExportDocument {
  *
  * `displayEntries` carries the per-element labels behind `display` where the
  * value is a collection: one label per array element (select/multi_select
- * option ids resolved through the schema's options, node refs named) and the
- * two end labels `[start, end]` (null = open side) for date_range values —
+ * option ids resolved through the schema's options, node refs named — a
+ * datetime element renders point-or-range like the scalar branches) and the
+ * two end labels `[start, end]` (null = open side) for datetime range values —
  * the Markdown frontmatter's list/map branches consume these instead of
  * re-deriving them serializer-side.
  *
@@ -477,18 +484,33 @@ function resolvePropertyValueDisplay(
   const value = property.value;
   // Node-typed read-leniency (SCHEMA.md PB2): v1-migrated data rides the
   // log as BARE uuid strings instead of canonical `{ nodeId }` refs. On a
-  // node-typed schema (date/object/asset) a bare string resolves through
+  // node-typed schema (datetime/object/asset) a bare string resolves through
   // ctx.nameOf exactly like a canonical ref — the settings-aware web
   // resolver formats date nodes per the user's dateFormat — and falls back
   // to the raw string when the target is unknown (the existence-lenient
   // doctrine for legacy encodings). Scalar-typed schemas (text/url/email/
   // select/multi_select) never take this branch: their bare strings are
   // legitimately scalar.
-  const NODE_TYPED_SCHEMAS = new Set(["date", "object", "asset"]);
+  const NODE_TYPED_SCHEMAS = new Set(["datetime", "object", "asset"]);
   const nodeTyped =
     property.schemaType !== undefined && NODE_TYPED_SCHEMAS.has(property.schemaType);
   const nodeRefDisplay = (refId: string): string =>
     normalizeInlineName(ctx.nameOf(refId) ?? refId);
+  // One datetime slot (a range side or a point): the ref's display label plus
+  // the wall-clock time when the slot carries one (`label HH:MM`, 24h). null
+  // for an open side / non-ref — the range branches map that to "…".
+  const slotDisplay = (slot: unknown): string | null => {
+    const refId =
+      isRecord(slot) && typeof slot.nodeId === "string"
+        ? slot.nodeId
+        : typeof slot === "string"
+          ? slot
+          : null;
+    if (refId === null) return null;
+    const label = nodeRefDisplay(refId);
+    const time = isRecord(slot) && isValidTimeOfDay(slot.time) ? slot.time : null;
+    return time === null ? label : `${label} ${time}`;
+  };
   const optionLabel = (entry: unknown): string | null => {
     if (typeof entry !== "string" || property.schemaOptions === undefined) return null;
     return property.schemaOptions.find((option) => option.id === entry)?.label ?? null;
@@ -499,18 +521,20 @@ function resolvePropertyValueDisplay(
     if (typeof entry === "string") return nodeTyped ? nodeRefDisplay(entry) : entry;
     if (typeof entry === "number") return String(entry);
     if (typeof entry === "boolean") return entry ? "☑" : "☐";
+    // datetime range element: { start, end } slots, either side open — the
+    // multi-value shape where each element is independently point-or-range.
+    if (isRecord(entry) && isRangeDatetimeValue(entry)) {
+      return `${slotDisplay(entry.start) ?? "…"} → ${slotDisplay(entry.end) ?? "…"}`;
+    }
     if (isRecord(entry) && typeof entry.nodeId === "string") {
-      return nodeRefDisplay(entry.nodeId);
+      return slotDisplay(entry) ?? "";
     }
     return JSON.stringify(entry) ?? "";
   };
-  // date_range: { start, end } of date refs, either side open (PB2 shape).
-  if (isRecord(value) && !("nodeId" in value) && ("start" in value || "end" in value)) {
-    const ends: Array<string | null> = [value.start, value.end].map((end) => {
-      const ref =
-        isRecord(end) && typeof end.nodeId === "string" ? end.nodeId : typeof end === "string" ? end : null;
-      return ref === null ? null : normalizeInlineName(ctx.nameOf(ref) ?? ref);
-    });
+  // datetime range: { start, end } slots, either side open (a legacy bare-ref
+  // range's string sides take the same lenient path as bare point refs).
+  if (isRecord(value) && !("nodeId" in value) && isRangeDatetimeValue(value)) {
+    const ends: Array<string | null> = [value.start, value.end].map(slotDisplay);
     const startLabel = ends[0] ?? "…";
     const endLabel = ends[1] ?? "…";
     return { display: `${startLabel} → ${endLabel}`, displayEntries: ends };
@@ -528,7 +552,8 @@ function resolvePropertyValueDisplay(
   if (typeof value === "boolean") return { display: value ? "☑" : "☐" };
   if (value === null || value === undefined) return { display: "" };
   if (isRecord(value) && typeof value.nodeId === "string") {
-    return { display: nodeRefDisplay(value.nodeId) };
+    // datetime point: the ref's label plus the time when it carries one.
+    return { display: slotDisplay(value) ?? "" };
   }
   return { display: JSON.stringify(value) ?? "" };
 }

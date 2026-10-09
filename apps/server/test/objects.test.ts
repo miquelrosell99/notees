@@ -323,7 +323,7 @@ describe("objects API", () => {
     server = await makeTestServer();
     const { id } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Dated" } })).json();
     const schema = (await api("POST", "/api/property-schemas", {
-      payload: { propertySchemaId: crypto.randomUUID(), name: "when", type: "date" },
+      payload: { propertySchemaId: crypto.randomUUID(), name: "when", type: "datetime" },
     })).json().propertySchema;
     // A date value must reference an EXISTING node — a ghost fails loud.
     const ghost = await api("POST", `/api/objects/${id}/properties`, {
