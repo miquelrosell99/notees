@@ -107,7 +107,6 @@ import { SystemSections } from "./components/SystemSections.js";
 import { childQuery } from "./components/childQuery.js";
 import { coverAssetIdOf } from "./components/coverProperty.js";
 import { ensureAliasProperty } from "./components/aliasProperty.js";
-import { AliasesButton } from "./components/AliasesButton.js";
 import { AliasOfBanner } from "./components/AliasOfBanner.js";
 import { useDeviceSetting } from "./components/modals/deviceSettings.js";
 import { LocalGraphCard } from "./components/LocalGraphCard.js";
@@ -587,7 +586,6 @@ export function PageView({
       coverPossible={coverPossible}
       coverAssetId={coverAssetId}
       onOpenPage={onOpenPage}
-      onOpenPageRaw={(id) => (onOpenPageRaw ?? onOpenPage)?.(id)}
       onHeaderMenu={(x, y) => setHeaderMenu({ x, y })}
     />
   );
@@ -609,7 +607,12 @@ export function PageView({
             a trampoline card never carries. */}
         {!focusMode && !panelled && !preview && (
           <>
-            <PropertiesSection client={client} nodeId={pageId} onOpenPage={onOpenPage} />
+            <PropertiesSection
+              client={client}
+              nodeId={pageId}
+              onOpenPage={onOpenPage}
+              onOpenPageRaw={(id) => (onOpenPageRaw ?? onOpenPage)?.(id)}
+            />
             <div className="nt-metadata-divider" />
           </>
         )}
@@ -675,8 +678,13 @@ export function PageView({
           />
           <div className="nt-page-body">
             {!sidePanelCollapsed && (
-              <aside className="nt-page-side-panel" aria-label="Properties">
-                <PropertiesSidebar client={client} nodeId={pageId} onOpenPage={onOpenPage} />
+              <aside className="nt-page-side-panel" aria-label="Metadata">
+                <PropertiesSidebar
+                  client={client}
+                  nodeId={pageId}
+                  onOpenPage={onOpenPage}
+                  onOpenPageRaw={(id) => (onOpenPageRaw ?? onOpenPage)?.(id)}
+                />
               </aside>
             )}
             <div className="nt-page-content">

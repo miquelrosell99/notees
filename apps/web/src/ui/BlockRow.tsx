@@ -610,7 +610,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
           <TagsRow client={client} nodeId={node.id} tagIds={node.tagIds} onOpenPage={openNode} />
         </div>
       )}
-      {/* Properties: the same collapsed "Properties N" section the page view
+      {/* Properties: the same collapsed "Metadata N" section the page view
           uses; hidden entirely when the block carries no properties. Rows
           whose schema display rides the block row (bullet/inline)
           are omitted — the button above already surfaces the value. Focus

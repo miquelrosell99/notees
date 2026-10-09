@@ -121,7 +121,7 @@ describe("PropertyView", () => {
     await client.setProperty(hostId, schemaId, "mine", 0);
 
     render(<PageView client={client} pageId={hostId} />);
-    const header = screen.queryByRole("button", { name: /^Properties / });
+    const header = screen.queryByRole("button", { name: /^Metadata / });
     if (header !== null && header.getAttribute("aria-expanded") === "false") {
       fireEvent.click(header);
     }

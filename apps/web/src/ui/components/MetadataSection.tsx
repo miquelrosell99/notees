@@ -1,7 +1,11 @@
 /**
- * MetadataSection — the page's effective-properties panel.
+ * MetadataSection — the page's effective-properties panel (renamed
+ * "Metadata", owner 2026-10-09).
  *
  * Rows:
+ *  - the panel's FIRST section is the aliases row (relocated from the
+ *    title-row AliasesButton): every alias of the page as pills with an ×
+ *    each + "+ Add alias" (the backward write over the picker's pick);
  *  - the node's classes as colored pills (× unassigns; right-click opens the
  *    color-swatch menu) + a "+ Add class" ghost pill opening the ported
  *    node-selector popup (search / create / pick, client.assignClass);
@@ -39,6 +43,7 @@ import { createPortal } from "react-dom";
 import {
   parseDateNodeId,
   rendersAsInlineBlock,
+  rendersWithDocumentChrome,
   SYSTEM_CLASS_UUIDS,
   SYSTEM_PROPERTY_UUIDS,
   type DatePrecision,
@@ -86,6 +91,7 @@ import { PropertyConvertModal } from "./PropertyConvertModal.js";
 import { PropertyHistoryModal } from "./PropertyHistoryModal.js";
 import { TextPropertyRow } from "./TextPropertyRow.js";
 import { AliasedNodeRow } from "./AliasedNodeRow.js";
+import { aliasedNodeTargetError } from "./aliasProperty.js";
 import "./MetadataSection.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -1694,6 +1700,119 @@ export function TagsRow({
   );
 }
 
+/**
+ * AliasesRow — the "Aliases:" row at the TOP of the metadata panel (owner
+ * 2026-10-09; relocated from the title-row AliasesButton): every live page
+ * whose alias-terminal is this node (chains included, via the client's
+ * aliasNodesOf read over the `aliased_node_id` column), as a node list —
+ * one pill per alias, a "+ Add alias" ghost pill, an × per entry that clears
+ * THE ALIAS's own field (the relation's mutations, like ClassesRow).
+ *
+ * The pills ride the shared NodePill element + AddPill + NodeSelector (the
+ * TagsRow composition — NodePills itself stays class-scoped: its picker,
+ * color-chain resolution, and removal locks are class semantics). ADD writes
+ * THE SELECTED node's `aliasedNodeId` to the ACTIVE node — the backward
+ * write, never the active node's own field (the main page holds nothing) —
+ * with the page-restriction guard validating the pick (the picker filters
+ * out already-aliased nodes and the active node itself). Opening a pill
+ * rides the RAW bypass (the retired popup's NAVIGATE contract): the alias's
+ * OWN view, from where the "Alias of …" banner jumps back — the resolving
+ * open would land on the page already on screen.
+ *
+ * Pages only: the write guard makes a non-page target unwritable, so a block
+ * (BlockRow hosts the same section) renders no row.
+ */
+export function AliasesRow({
+  client,
+  nodeId,
+  onOpenPage,
+  onOpenPageRaw = undefined,
+}: {
+  client: AnyClient;
+  nodeId: string;
+  onOpenPage?: ((pageId: string) => void) | undefined;
+  /** The RAW open — bypasses the alias redirect so the alias's OWN view renders. */
+  onOpenPageRaw?: ((pageId: string) => void) | undefined;
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const addButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  // Freshness: the cached aliasNodesOf read converges via the client's
+  // change notification — bump a version so the row follows writes (the
+  // panel hosts no subscription of its own).
+  const [, setVersion] = useState(0);
+  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
+
+  const node = client.getNode(nodeId);
+  if (node === undefined || !rendersWithDocumentChrome(node)) return null;
+
+  const aliases = client.aliasNodesOf(nodeId);
+
+  /** THE backward write: the picked node's field becomes the ACTIVE node. */
+  const addAlias = async (pickedId: string): Promise<void> => {
+    const targetError = aliasedNodeTargetError(client, pickedId);
+    if (targetError !== null) {
+      setError(targetError);
+      return;
+    }
+    await client.updateObject(pickedId, { aliasedNodeId: nodeId });
+    setPickerOpen(false);
+    setError(null);
+  };
+
+  return (
+    <div className="node-metadata-row nt-aliases-row">
+      <div className="section-label">Aliases:</div>
+      <span className="nt-property-chips node-metadata-pills">
+        {aliases.map((alias) => {
+          const label = displayNameFromClient(client, alias.id) ?? alias.id;
+          return (
+            <NodePill
+              key={alias.id}
+              color={client.effectiveNodeColor(alias)}
+              icon={alias.icon}
+              label={label}
+              onOpen={() => (onOpenPageRaw ?? onOpenPage)?.(alias.id)}
+              onRemove={() => void client.updateObject(alias.id, { aliasedNodeId: null })}
+              removeLabel={`Remove alias ${label}`}
+            />
+          );
+        })}
+        <span className="nt-class-add-anchor">
+          <AddPill
+            ref={addButtonRef}
+            className={aliases.length > 0 ? "pill--icon-only" : ""}
+            label="Add alias"
+            aria-expanded={pickerOpen}
+            onClick={(element) => {
+              addButtonRef.current = element;
+              setPickerOpen(true);
+            }}
+          />
+        </span>
+      </span>
+      {pickerOpen && (
+        <NodeSelector
+          client={client}
+          searchMode="pages"
+          excludeNodeId={nodeId}
+          canAdd={(candidate) => candidate.aliasedNodeId === null}
+          anchorEl={addButtonRef.current}
+          onClose={() => setPickerOpen(false)}
+          searchPlaceholder="Search pages…"
+          onAdd={(picked) => void addAlias(picked.id)}
+        />
+      )}
+      {error !== null && (
+        <p role="alert" className="nt-picker-error">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 
 /** "+ Add property": pick an existing schema (or create one) and realize an
  *  initial value on the node so the row appears. */
@@ -2371,21 +2490,26 @@ export function PropertiesTable({
 }
 
 /**
- * PropertiesSection — the page's "Properties N" section (note layout): every
- * property field in the table, collapsed by default. Classes and tags are
- * identity rows in the page header, not properties — the count covers
- * property rows only.
+ * PropertiesSection — the page's "Metadata N" section (note layout; owner
+ * 2026-10-09: the properties panel is named Metadata, and the aliases row —
+ * relocated from the title-row button — rides its top as the first
+ * section): every property field in the table, collapsed by default.
+ * Classes and tags are identity rows in the page header, not properties —
+ * the count covers property rows only.
  */
 export function PropertiesSection({
   client,
   nodeId,
   onOpenPage,
+  onOpenPageRaw = undefined,
   hideWhenEmpty = false,
   omitDisplayPositions,
 }: {
   client: AnyClient;
   nodeId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
+  /** The RAW open for the aliases row's pill (bypasses the alias redirect). */
+  onOpenPageRaw?: ((pageId: string) => void) | undefined;
   /** Block mode: render nothing when the node carries no properties. */
   hideWhenEmpty?: boolean | undefined;
   /** Schema display positions the host renders itself (the block
@@ -2397,13 +2521,17 @@ export function PropertiesSection({
   if (hideWhenEmpty && count === 0) return null;
   return (
     <NodeViewSection
-      title="Properties"
+      title="Metadata"
       icon={<Icon path="mdi-format-list-bulleted-square" size={0.9} />}
       count={count}
       className="node-metadata-section nt-properties-panel"
       defaultExpanded={false}
     >
       <div className="node-metadata-content">
+        {/* The aliases list is the panel's first section — pages only (the
+            row renders null for blocks, so BlockRow's hideWhenEmpty usage
+            gains no empty chrome). */}
+        <AliasesRow client={client} nodeId={nodeId} onOpenPage={onOpenPage} onOpenPageRaw={onOpenPageRaw} />
         <PropertiesTable
           client={client}
           nodeId={nodeId}
@@ -2416,15 +2544,19 @@ export function PropertiesSection({
 }
 
 /**
- * PropertiesSidebar — the main layout's first column (owner 2026-10-06):
+ * PropertiesSidebar — the main layout's first column (owner 2026-10-06;
+ * renamed "Metadata" + the aliases row on top, owner 2026-10-09):
  * a set of rows, one per property — a property-name row followed by its
  * value-cell row — beside a continuous vertical divider (the sidebar's
  * right edge runs the card's full height, no top or bottom gap). The rows
  * ride a collapsible NodeViewSection (owner 2026-10-09, expanded by
  * default): the section header names the column — dotted-list icon +
- * "Properties" + the effective row count — and collapsing keeps the
- * column's divider while the rows step aside. The value cells reuse the
- * properties table's row components verbatim (only their internal
+ * "Metadata" + the effective row count — and collapsing keeps the
+ * column's divider while the rows step aside. The panel's FIRST section is
+ * the aliases row (relocated from the title-row button): every alias of the
+ * page as pills with an × each, "+ Add alias" riding the pages-only picker
+ * (the backward write, exactly like the retired popup). The value cells
+ * reuse the properties table's row components verbatim (only their internal
  * label/hints hide — the name row above carries them); only the two-row
  * stacking and the divider are this component's own. Clicking a name row
  * opens the property's settings, like the table's label click.
@@ -2433,10 +2565,13 @@ export function PropertiesSidebar({
   client,
   nodeId,
   onOpenPage,
+  onOpenPageRaw = undefined,
 }: {
   client: AnyClient;
   nodeId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
+  /** The RAW open for the aliases row's pill (bypasses the alias redirect). */
+  onOpenPageRaw?: ((pageId: string) => void) | undefined;
 }) {
   const groups = propertyGroupsOf(client, nodeId);
   const { rendered, emptyObjectBindings } = groups;
@@ -2531,12 +2666,16 @@ export function PropertiesSidebar({
   return (
     <div className="nt-props-sidebar">
       <NodeViewSection
-        title="Properties"
+        title="Metadata"
         icon={<Icon path="mdi-format-list-bulleted" size={0.9} />}
         count={count}
         className="nt-props-sidebar__section"
         defaultExpanded={true}
       >
+        {/* The aliases row is the panel's first section (relocated from the
+            title-row button): the node's own aliases as pills + the add
+            picker; the raw open keeps the retired popup's NAVIGATE bypass. */}
+        <AliasesRow client={client} nodeId={nodeId} onOpenPage={onOpenPage} onOpenPageRaw={onOpenPageRaw} />
         {/* The alias-side pseudo-property rides the sidebar's row stack too
             (only when the node IS an alias — the row renders null otherwise
             and the wrapper must not leave an empty slot). */}
