@@ -6,7 +6,7 @@
  * that day, quick-create chips (configurable per workspace in Workspace
  * Settings; defaults = every class with a date-typed binding), and the
  * month grid in the right column (MonthCalendar) — the breadth pass:
- * range-aware dots (date refs and date_range ends fan out to the
+ * range-aware dots (date refs and range ends fan out to the
  * deterministic day node) plus the reviewed tint on day cells, the
  * week strip, and the week agenda beneath the grid.
  *
@@ -267,7 +267,7 @@ export function CalendarView({
   // --- day marks + week breadth -------------------------------------------
   // Range-aware dots + the reviewed tint read the same materialized state as
   // the sections: one backlink read per day cell (the edge projection fans
-  // date refs and date_range ends out to the deterministic day node, so an
+  // date refs and range ends out to the deterministic day node, so an
   // existing day page is NOT required for a mark). Recurring events dot
   // every occurrence day from the virtual expansion (their backlink lands
   // on the anchor day only).
@@ -345,10 +345,10 @@ export function CalendarView({
         { templateRootId: templateId, objectId: id },
       );
     }
-    await client.setDateProperty(
+    await client.setDatetimeProperty(
       id,
       schemaId,
-      selectedIso,
+      { iso: selectedIso },
       0,
       quickRepeat !== null ? { repeat: quickRepeat } : undefined,
     );

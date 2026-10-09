@@ -194,7 +194,7 @@ export function recurringRowsOf(client: AnyClient): RecurringRow[] {
     if (parseDateNodeId(node.id) !== null) continue;
     for (const prop of client.getEffectiveProperties(node.id)) {
       if (prop.source !== "authored") continue;
-      if (prop.schema?.type !== "date") continue;
+      if (prop.schema?.type !== "datetime") continue;
       const rule = recurrenceRuleOf(prop.metadata);
       if (rule === null) continue;
       const anchorIso = scheduledIsoOf(prop.value);

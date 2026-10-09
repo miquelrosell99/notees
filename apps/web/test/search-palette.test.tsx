@@ -311,7 +311,7 @@ describe("CommandPalette Properties section", () => {
 
   it("matches property schemas by type keyword", async () => {
     const { client } = await seedPaletteWorld();
-    await client.createPropertySchema({ name: "First read", type: "date" });
+    await client.createPropertySchema({ name: "First read", type: "datetime" });
     renderPalette(client);
     typeInPalette("date");
     expect(await screen.findByText("Properties")).not.toBeNull();

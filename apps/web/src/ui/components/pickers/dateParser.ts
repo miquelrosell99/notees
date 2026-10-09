@@ -13,6 +13,9 @@
  * - Year only: 2026
  * - Relative: today, tomorrow, yesterday, next/last week/month/year,
  *   in N days/weeks/months/years, N days/weeks/months/years ago
+ * - An optional trailing wall-clock time: "tomorrow 14:30",
+ *   "2026-10-09 09:15" (24h, minute precision — the unified datetime
+ *   value's time arm; callers at a coarser precision drop it).
  */
 
 export interface ParsedDate {
@@ -22,6 +25,8 @@ export interface ParsedDate {
   day?: number; // 1-31
   /** Display label for the parsed date */
   label: string;
+  /** Optional wall-clock time "HH:MM" (24h, zero-padded) from a trailing suffix. */
+  time?: string;
 }
 
 const MONTH_NAMES: Record<string, number> = {
@@ -108,6 +113,27 @@ function parseMonthName(str: string): number | null {
 export function parseDate(input: string): ParsedDate | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
+
+  // Split a trailing wall-clock time ("tomorrow 14:30", "2026-10-09 09:15")
+  // off the date expression; the time rides the result when present.
+  let dateText = trimmed;
+  let time: string | undefined;
+  const timeMatch = trimmed.match(/^(.*?)\s+(\d{1,2}):([0-5]\d)$/);
+  if (timeMatch !== null) {
+    const hour = parseInt(timeMatch[2]!, 10);
+    if (hour <= 23) {
+      time = `${String(hour).padStart(2, "0")}:${timeMatch[3]}`;
+      dateText = timeMatch[1]!.trim();
+      if (dateText === "") return null;
+    }
+  }
+
+  const parsed = parseDateOnly(dateText);
+  if (parsed === null) return null;
+  return time !== undefined ? { ...parsed, time } : parsed;
+}
+
+function parseDateOnly(trimmed: string): ParsedDate | null {
 
   const dayLabel = (d: Date): string =>
     formatLabel("day", d.getFullYear(), d.getMonth() + 1, d.getDate());

@@ -283,7 +283,7 @@ export function weekDaysOfIso(iso: string, firstDayOfWeek: number): string[] {
 /**
  * Range-aware day activity: true when the day node's backlink
  * set holds any non-date-chain source. The edge projection fans date refs
- * (and date_range ends) out to the deterministic day node, so one
+ * (and range ends) out to the deterministic day node, so one
  * materialized read answers "objects dated this day" — a day-precision ref
  * lands on its day, a range end lands on its end day. (Qualified-link
  * metadata ranges edge only from their start day — the middle days stay
@@ -381,14 +381,15 @@ export interface ChipCandidateInput {
 
 /**
  * Classes that qualify for a quick-create chip: any bound property schema
- * with type "date". The task class prefers its taskScheduled schema; other
- * classes with several date bindings take the first by sorted schema id.
- * Excluded by design: the year/month/day date-chain classes (a chip there
- * would fight the deterministic chain ids). Every other class rides on its
- * bindings — that is what makes a meeting-classed page one click away. The
- * Calendar view and the workspace-settings editor share this helper so the
- * two surfaces never drift; `propertyName` names the driving date property
- * for settings rows (null for nameless inputs).
+ * with type "datetime" (the unified date type). The task class prefers its
+ * taskScheduled schema; other classes with several datetime bindings take the
+ * first by sorted schema id. Excluded by design: the year/month/day
+ * date-chain classes (a chip there would fight the deterministic chain
+ * ids). Every other class rides on its bindings — that is what makes a
+ * meeting-classed page one click away. The Calendar view and the
+ * workspace-settings editor share this helper so the two surfaces never
+ * drift; `propertyName` names the driving date property for settings rows
+ * (null for nameless inputs).
  */
 export function dateChipCandidates(
   classes: ReadonlyArray<{ id: string; name: string | null }>,
@@ -402,7 +403,7 @@ export function dateChipCandidates(
   const chips: Array<{ classId: string; schemaId: string; label: string; propertyName: string | null }> = [];
   for (const cls of classes) {
     if (excluded.has(cls.id)) continue;
-    const dateBindings = bindingsOf(cls.id).filter((binding) => binding.type === "date");
+    const dateBindings = bindingsOf(cls.id).filter((binding) => binding.type === "datetime");
     if (dateBindings.length === 0) continue;
     const pick =
       cls.id === SYSTEM_CLASS_UUIDS.task

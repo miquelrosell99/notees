@@ -279,28 +279,7 @@ span.pill__text {
   margin: 0;
 }
 
-/* --- date range rows + link qualifiers ------------------------------------ */
-
-.nt-range {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  border: var(--border-width-default) solid var(--color-outline-variant);
-  border-radius: var(--shape-full);
-  padding: var(--spacing-1) var(--spacing-3);
-  background: var(--color-surface);
-}
-
-.nt-range-slot {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-1);
-}
-
-.nt-range-slot-name {
-  font-size: var(--font-size-2xs);
-  color: var(--color-on-surface-variant);
-}
+/* --- link qualifiers ------------------------------------------------------- */
 
 .nt-chip-qualifier {
   display: inline-flex;

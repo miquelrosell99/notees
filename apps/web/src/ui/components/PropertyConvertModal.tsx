@@ -49,8 +49,7 @@ const TARGET_TYPES = [
   "text",
   "number",
   "boolean",
-  "date",
-  "date_range",
+  "datetime",
   "url",
   "email",
   "select",
@@ -150,12 +149,16 @@ export function convertValueForType(
     }
     return drop("not an option-id list");
   }
-  if (to === "object" || to === "date") {
+  if (to === "object") {
     return isNodeRef(value)
       ? { ok: true, value }
       : drop("only linked values map to a node-typed schema");
   }
-  if (to === "date_range") {
+  if (to === "datetime") {
+    // The unified union is shape-preserving where possible: a point copies
+    // as a point, a {start,end} range as a range (either side open, times
+    // riding the slots).
+    if (isNodeRef(value)) return { ok: true, value };
     if (isRange(value)) {
       const start = value.start ?? null;
       const end = value.end ?? null;
@@ -166,7 +169,7 @@ export function convertValueForType(
         return { ok: true, value: { start, end } };
       }
     }
-    return drop("only a {start,end} date range maps to date_range");
+    return drop("only a date point or a {start,end} date range maps to datetime");
   }
   return drop(`conversion to ${to} is not supported`);
 }
@@ -248,10 +251,10 @@ export function PropertyConvertModal({
         multi: targetMulti,
         scope: schema.scope,
         ...(plan.carriedOptions !== null ? { options: plan.carriedOptions } : {}),
-        ...(schema.targetClassFilter !== null && (targetType === "object" || targetType === "date")
+        ...(schema.targetClassFilter !== null && (targetType === "object" || targetType === "datetime")
           ? { targetClassFilter: schema.targetClassFilter }
           : {}),
-        ...(schema.datePrecision !== null && (targetType === "date" || targetType === "date_range")
+        ...(schema.datePrecision !== null && targetType === "datetime"
           ? { datePrecision: schema.datePrecision }
           : {}),
       });

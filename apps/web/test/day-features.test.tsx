@@ -150,10 +150,10 @@ async function createTask(
     classIds: [SYSTEM_CLASS_UUIDS.task],
   });
   if (opts.scheduled !== undefined) {
-    await client.setDateProperty(id, SYSTEM_PROPERTY_UUIDS.taskScheduled, opts.scheduled);
+    await client.setDatetimeProperty(id, SYSTEM_PROPERTY_UUIDS.taskScheduled, { iso: opts.scheduled });
   }
   if (opts.deadline !== undefined) {
-    await client.setDateProperty(id, SYSTEM_PROPERTY_UUIDS.taskDeadline, opts.deadline);
+    await client.setDatetimeProperty(id, SYSTEM_PROPERTY_UUIDS.taskDeadline, { iso: opts.deadline });
   }
   if (opts.done === true) {
     const { schema, optionId } = await taskStatus(client);
@@ -168,12 +168,12 @@ async function createDatedMeeting(
   name: string,
   iso: string,
 ): Promise<string> {
-  const schemaId = await client.createPropertySchema({ name: "When", type: "date" });
+  const schemaId = await client.createPropertySchema({ name: "When", type: "datetime" });
   const classId = await client.createClass("meeting");
   await client.updateObject(classId, { contentAst: [{ type: "text", text: "meeting" }] });
   await client.setClassProperty(classId, schemaId, {});
   const id = await client.createObject({ presentAsMain: true, name, classIds: [classId] });
-  await client.setDateProperty(id, schemaId, iso);
+  await client.setDatetimeProperty(id, schemaId, { iso });
   return id;
 }
 

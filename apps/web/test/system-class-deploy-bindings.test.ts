@@ -87,7 +87,7 @@ async function shapePreRulingMeetingWorkspace(client: WorkspaceClient): Promise<
   await client.createPropertySchema({
     id: SYSTEM_PROPERTY_UUIDS.meetingDate,
     name: "Meeting date",
-    type: "date",
+    type: "datetime",
     scope: "class",
   });
   await client.createPropertySchema({
@@ -213,7 +213,7 @@ describe("deploySystemClass binding self-heal (registry-only existence checks)",
     await client.createPropertySchema({
       id: SYSTEM_PROPERTY_UUIDS.eventDate,
       name: "Event date",
-      type: "date",
+      type: "datetime",
       scope: "class",
     });
     await flushSync();

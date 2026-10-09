@@ -41,12 +41,15 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import { createPortal } from "react-dom";
 
 import {
+  isRangeDatetimeValue,
+  isValidTimeOfDay,
   parseDateNodeId,
   rendersAsInlineBlock,
   rendersWithDocumentChrome,
   SYSTEM_CLASS_UUIDS,
   SYSTEM_PROPERTY_UUIDS,
   type DatePrecision,
+  type DatetimeSlot,
 } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
@@ -60,7 +63,7 @@ import type {
 
 import { AnnotationsSection } from "../AnnotationsSection.js";
 import { todayIsoLocal } from "./calendarViewUtils.js";
-import { displayNameFromClient } from "../dateDisplay.js";
+import { displayNameFromClient, datetimeValueText } from "../dateDisplay.js";
 import { assetImageUrl } from "../views/assetThumbs.js";
 import { Icon } from "../Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
@@ -72,7 +75,12 @@ import { ToggleSwitch } from "./ui/ToggleSwitch.js";
 import { ColorPickerRow } from "./pickers/ColorPickerRow.js";
 import { NodeContextMenu } from "./NodeContextMenu.js";
 import { ReferenceSubtree } from "./ReferenceSubtree.js";
-import { DatePickerPopup } from "./pickers/DatePickerPopup.js";
+import {
+  DatePickerPopup,
+  type DatetimeCommitValue,
+  type DatetimePickerSlot,
+  type DatetimePickerValue,
+} from "./pickers/DatePickerPopup.js";
 import { DateSlotControl, collectMarkedDates } from "./pickers/DateSlotControl.js";
 import { RepeatPicker } from "./pickers/RepeatPicker.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
@@ -128,26 +136,31 @@ function nodeRefOf(value: unknown): string | null {
   return null;
 }
 
-/** A date ref reads as its period label (2026 / 2026-09 / 2026-09-27). */
-function dateLabelOf(ref: string): string {
-  const parsed = parseDateNodeId(ref);
-  if (parsed === null) return ref;
-  const y = String(parsed.year).padStart(4, "0");
-  if (parsed.precision === "year") return y;
-  if (parsed.precision === "month") return `${y}-${String(parsed.month).padStart(2, "0")}`;
-  return `${y}-${String(parsed.month).padStart(2, "0")}-${String(parsed.day).padStart(2, "0")}`;
+/**
+ * One datetime slot of a stored value: the chain ref plus an optional
+ * wall-clock time ({ nodeId, time? } — the SCHEMA.md "Datetime" union arm).
+ * A bare string ref is accepted leniently; anything without a ref is null.
+ */
+function slotOf(value: unknown): DatetimeSlot | null {
+  const ref = nodeRefOf(value);
+  if (ref === null) return null;
+  const time =
+    typeof value === "object" && value !== null
+      ? (value as { time?: unknown }).time
+      : undefined;
+  return isValidTimeOfDay(time) ? { nodeId: ref, time } : { nodeId: ref };
 }
 
-/** date_range value shape: { start, end } of date refs, either side open. */
-interface DateRangeValue {
-  start: string | null;
-  end: string | null;
+/** The range arm of the union: { start, end } of slots, either side open. */
+interface DatetimeRangeSlots {
+  start: DatetimeSlot | null;
+  end: DatetimeSlot | null;
 }
 
-function rangeValueOf(value: unknown): DateRangeValue {
+function rangeSlotsOf(value: unknown): DatetimeRangeSlots {
   if (typeof value !== "object" || value === null) return { start: null, end: null };
   const range = value as { start?: unknown; end?: unknown };
-  return { start: nodeRefOf(range.start), end: nodeRefOf(range.end) };
+  return { start: slotOf(range.start), end: slotOf(range.end) };
 }
 
 /** The schema's commit ceiling for date values (day when unspecified). */
@@ -942,16 +955,21 @@ function AssetItemRow({
 }
 
 /**
- * One date-typed property (SCHEMA.md "Dates"): the schema's effective rows
- * render as date pills; picking a date ensures the year/month/day chain and
- * links the node at the schema's precision ({ "nodeId": … }, the shape the
- * edge index projects — the year node backlinks everything dated that year).
- * Editing an existing pill's date overwrites the same slot's ref, preserving
- * the value's metadata (a re-pick keeps the recurrence rule; the
- * series follows the event). Each authored pill carries the repeat picker
- * (metadata.repeat, the startDate/endDate precedent).
+ * One datetime property (SCHEMA.md "Datetime" — the unified date type):
+ * the schema's effective rows render as pills, each value INDEPENDENTLY a
+ * point ({ nodeId, time? }) or a range ({ start, end } of slots, either side
+ * open) — a range rides ONE pill (`start → end`). Every pill opens the
+ * canonical date-picker popup: the suggestions column, the All-day switch
+ * (full-day is the default; off reveals the 24h time input), the Range
+ * switch (off collapses to the point, start kept, end dropped), the Repeat
+ * row (day precision), and Remove (unsets the edited element). Picking
+ * ensures the year/month/day chain and links the node at the schema's
+ * precision ({ nodeId } — the shape the edge index projects, so the year
+ * node backlinks everything dated that year); the value's metadata rides
+ * through (a re-pick keeps the recurrence rule; the series follows the
+ * event).
  */
-function DatePropertyRow({
+function DatetimePropertyRow({
   client,
   nodeId,
   propertySchemaId,
@@ -980,14 +998,53 @@ function DatePropertyRow({
   const authoredIdx = ordered.filter((row) => row.source === "authored").map((row) => row.idx);
   const nextIdx = authoredIdx.length > 0 ? Math.max(...authoredIdx) + 1 : 0;
 
-  const commit = async (isoDate: string, idx: number): Promise<void> => {
-    // Preserve the slot's metadata (the recurrence rule) across a re-pick.
+  /** The row being edited (null for the Add-pill's fresh picker). */
+  const pickerRow =
+    pickerFor === "new" ? undefined : ordered.find((row) => row.idx === pickerFor);
+
+  /** The popup's working copy of the stored value (the full union as slots). */
+  const pickerValue = (): DatetimePickerValue => {
+    if (pickerRow === undefined) return { isRange: false, start: null, end: null };
+    if (isRangeDatetimeValue(pickerRow.value)) {
+      const slots = rangeSlotsOf(pickerRow.value);
+      const toSlot = (slot: DatetimeSlot | null): DatetimePickerSlot | null => {
+        if (slot === null) return null;
+        const iso = isoOfRef(slot.nodeId);
+        return iso === null ? null : slot.time !== undefined ? { iso, time: slot.time } : { iso };
+      };
+      return { isRange: true, start: toSlot(slots.start), end: toSlot(slots.end) };
+    }
+    const slot = slotOf(pickerRow.value);
+    if (slot === null) return { isRange: false, start: null, end: null };
+    const iso = isoOfRef(slot.nodeId);
+    return {
+      isRange: false,
+      start: iso === null ? null : slot.time !== undefined ? { iso, time: slot.time } : { iso },
+      end: null,
+    };
+  };
+
+  /**
+   * The popup's single commit funnel: the full union rides one write, the
+   * slot's metadata (the recurrence rule) preserved across the edit. The
+   * popup owns its closing — terminal commits (grid/suggestion/text) close
+   * it through onClose; switch/time commits leave it open.
+   */
+  const commitPicker = (value: DatetimeCommitValue): Promise<void> => {
+    const idx = pickerFor === "new" || pickerFor === null ? nextIdx : pickerFor;
     const metadata = ordered.find((row) => row.idx === idx)?.metadata ?? undefined;
-    await client.setDateProperty(nodeId, propertySchemaId, isoDate, idx, metadata);
+    return client.setDatetimeProperty(nodeId, propertySchemaId, value, idx, metadata);
+  };
+
+  /** The popup's Remove: unset the element being edited. */
+  const removePicked = () => {
+    if (pickerRow !== undefined && pickerRow.source === "authored") {
+      void client.unsetProperty(nodeId, propertySchemaId, pickerRow.idx);
+    }
     setPickerFor(null);
   };
 
-  /** The repeat write: merge/clear the `repeat` metadata key. */
+  /** The repeat write (the popup's Repeat row): merge/clear `repeat`. */
   const setRepeat = async (row: EffectiveProperty, rule: string | null): Promise<void> => {
     const metadata: Record<string, unknown> = { ...(row.metadata ?? {}) };
     if (rule === null) delete metadata.repeat;
@@ -996,23 +1053,46 @@ function DatePropertyRow({
   };
 
   const pillText = (row: EffectiveProperty): string => {
-    const ref = nodeRefOf(row.value);
-    if (ref !== null) return dateLabelOf(ref);
+    const text = datetimeValueText(row.value);
+    if (text !== null) return text;
     return toEditableText(row.value); // scalar binding default, shown as-is
   };
 
   const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
   const unbound = rows.some((row) => row.source === "authored" && row.boundBy === null);
 
+  /** The popup (shared by the single-value and multi branches). */
+  const picker = pickerFor !== null && (
+    <DatePickerPopup
+      value={pickerValue()}
+      precision={precision}
+      onCommit={(value) => commitPicker(value)}
+      onRemove={
+        pickerRow !== undefined && pickerRow.source === "authored" ? removePicked : undefined
+      }
+      onClose={() => setPickerFor(null)}
+      anchorRef={anchorRef}
+      firstDayOfWeek={1}
+      markedDates={markedDates}
+      repeat={typeof pickerRow?.metadata?.repeat === "string" ? pickerRow.metadata.repeat : null}
+      onRepeatChange={
+        pickerRow !== undefined && pickerRow.source === "authored" && precision === "day"
+          ? (rule) => void setRepeat(pickerRow, rule)
+          : undefined
+      }
+    />
+  );
+
   // Single-value: the selection dropdown (owner 2026-10-09) — empty renders
-  // the "Select" placeholder across the full value cell; the committed date
-  // rides the trigger content as the date node's DISPLAY name (a raw block
-  // row would leak the chain's compact storage label, the YYYYMMDD leak
-  // dateDisplay.ts exists to prevent). Re-picking overwrites the same slot.
+  // the "Select" placeholder across the full value cell; the committed value
+  // rides the trigger content as the date's display text (datetimeValueText —
+  // a range renders `start → end`); the canonical popup edits the element
+  // (its Range switch replaces the old two-slot treatment).
   if (multi === false) {
     const single =
       [...ordered].reverse().find((row) => row.source === "authored") ?? ordered[0];
-    const singleRef = single !== undefined ? nodeRefOf(single.value) : null;
+    const singleSlot = slotOf(single?.value) ?? rangeSlotsOf(single?.value).start;
+    const singleRef = singleSlot?.nodeId ?? null;
     return (
       <li
         className={
@@ -1057,24 +1137,12 @@ function DatePropertyRow({
           }
         >
           {singleRef !== null
-            ? (displayNameFromClient(client, singleRef) ?? dateLabelOf(singleRef))
+            ? parseDateNodeId(singleRef) !== null
+              ? pillText(single!)
+              : (displayNameFromClient(client, singleRef) ?? singleRef)
             : null}
         </PropertySelectCell>
-        {pickerFor !== null && (
-          <DatePickerPopup
-            value={
-              pickerFor === "new"
-                ? ""
-                : (isoOfRef(nodeRefOf(ordered.find((row) => row.idx === pickerFor)?.value ?? null)) ?? "")
-            }
-            onSelect={(iso) => commit(iso, pickerFor === "new" ? nextIdx : pickerFor)}
-            onClose={() => setPickerFor(null)}
-            anchorRef={anchorRef}
-            initialMode={precision === "year" ? "years" : precision === "month" ? "months" : "days"}
-            firstDayOfWeek={1}
-            markedDates={markedDates}
-          />
-        )}
+        {picker}
       </li>
     );
   }
@@ -1147,21 +1215,7 @@ function DatePropertyRow({
           }}
         />
       </span>
-      {pickerFor !== null && (
-        <DatePickerPopup
-          value={
-            pickerFor === "new"
-              ? ""
-              : (isoOfRef(nodeRefOf(ordered.find((row) => row.idx === pickerFor)?.value ?? null)) ?? "")
-          }
-          onSelect={(iso) => commit(iso, pickerFor === "new" ? nextIdx : pickerFor)}
-          onClose={() => setPickerFor(null)}
-          anchorRef={anchorRef}
-          initialMode={precision === "year" ? "years" : precision === "month" ? "months" : "days"}
-          firstDayOfWeek={1}
-          markedDates={markedDates}
-        />
-      )}
+      {picker}
     </li>
   );
 }
@@ -1175,137 +1229,6 @@ function isoOfRef(ref: string | null): string | null {
   const m = String(parsed.month).padStart(2, "0");
   const d = String(parsed.day).padStart(2, "0");
   return `${y}-${m}-${d}`;
-}
-
-/**
- * One date_range property: start/end slots, each pickable and clearable —
- * either side open keeps an open range. Values are { start, end } of date
- * refs; precision applies to both ends (schema row).
- */
-function DateRangePropertyRow({
-  client,
-  nodeId,
-  propertySchemaId,
-  label,
-  multi,
-  schema,
-  rows,
-  /** Hide the label/hints (the host chrome carries them — the sidebar). */
-  bare = false,
-}: {
-  client: AnyClient;
-  nodeId: string;
-  propertySchemaId: string;
-  label: string;
-  multi: boolean;
-  schema: { datePrecision?: DatePrecision | null } | null;
-  rows: EffectiveProperty[];
-  bare?: boolean;
-}) {
-  const [picking, setPicking] = useState<{ idx: number; end: "start" | "end" } | null>(null);
-  const anchorRef = useRef<HTMLElement | null>(null);
-  const precision = precisionOf(schema);
-  const markedDates = collectMarkedDates(client);
-
-  const ordered = [...rows].sort((a, b) => a.idx - b.idx);
-  const authoredIdx = ordered.filter((row) => row.source === "authored").map((row) => row.idx);
-  const nextIdx = authoredIdx.length > 0 ? Math.max(...authoredIdx) + 1 : 0;
-
-  /** Override one end (null clears); the other end survives from the row. */
-  const setEnd = async (idx: number, end: "start" | "end", iso: string | null): Promise<void> => {
-    const current = rangeValueOf(ordered.find((row) => row.idx === idx)?.value);
-    const start = end === "start" ? iso : isoOfRef(current.start);
-    const stop = end === "end" ? iso : isoOfRef(current.end);
-    await client.setDateRangeProperty(nodeId, propertySchemaId, start, stop, idx);
-    setPicking(null);
-  };
-
-  const slot = (row: EffectiveProperty | undefined, idx: number, end: "start" | "end") => {
-    const title = end === "start" ? "Start" : "End";
-    const ref = rangeValueOf(row?.value)[end];
-    return (
-      <span className="nt-range-slot">
-        <span className="nt-range-slot-name">{title}</span>
-        <DateSlotControl
-          client={client}
-          value={isoOfRef(ref)}
-          display={ref !== null ? dateLabelOf(ref) : "…"}
-          ariaLabel={`Set ${title.toLowerCase()} for ${label}`}
-          precision={precision}
-          clearable={row?.source === "authored"}
-          clearLabel={`Clear ${title.toLowerCase()} for ${label}`}
-          onCommit={(iso) => void setEnd(idx, end, iso)}
-        />
-      </span>
-    );
-  };
-
-  const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
-  const unbound = rows.some((row) => row.source === "authored" && row.boundBy === null);
-
-  return (
-    <li
-      className={
-        allDefault
-          ? "nt-property nt-property-default nt-property-date-range node-metadata-row"
-          : "nt-property nt-property-date-range node-metadata-row"
-      }
-    >
-      {!bare && (
-        <>
-          <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
-          {allDefault && <span className="nt-property-hint">default</span>}
-          {unbound && <span className="nt-property-hint">unbound</span>}
-        </>
-      )}
-      <span className="nt-property-chips node-metadata-pills">
-        {ordered.map((row) => (
-          <span key={`${propertySchemaId}:${row.idx}`} className="nt-range">
-            {slot(row, row.idx, "start")}
-            <span aria-hidden="true">→</span>
-            {slot(row, row.idx, "end")}
-            {row.source === "authored" && (
-              <button
-                type="button"
-                className="nt-chip-remove"
-                aria-label={`Clear ${label}`}
-                onClick={() => void client.unsetProperty(nodeId, propertySchemaId, row.idx)}
-              >
-                ×
-              </button>
-            )}
-          </span>
-        ))}
-        {!(multi === false && ordered.length > 0) && (
-          <AddPill
-            label="Add"
-            aria-expanded={picking !== null && picking.idx === nextIdx}
-            onClick={(element) => {
-              anchorRef.current = element;
-              setPicking((cur) =>
-                cur !== null && cur.idx === nextIdx ? null : { idx: nextIdx, end: "start" },
-              );
-            }}
-          />
-        )}
-      </span>
-      {picking !== null && (
-        <DatePickerPopup
-          value={
-            isoOfRef(
-              rangeValueOf(ordered.find((r) => r.idx === picking.idx)?.value)[picking.end],
-            ) ?? ""
-          }
-          onSelect={(iso) => void setEnd(picking.idx, picking.end, iso)}
-          onClose={() => setPicking(null)}
-          anchorRef={anchorRef}
-          initialMode={precision === "year" ? "years" : precision === "month" ? "months" : "days"}
-          firstDayOfWeek={1}
-          markedDates={markedDates}
-        />
-      )}
-    </li>
-  );
 }
 
 /**
@@ -1826,9 +1749,9 @@ function AddPropertyRow({
         await client.setProperty(nodeId, schemaId, { nodeId: carrier }, 0);
         return;
       }
-      case "date": {
+      case "datetime": {
         // Local midnight, not UTC — the "today" default must match the
-        // user's calendar day.
+        // user's calendar day. Full-day: the point carries no time.
         const dayId = await client.ensureDateChain(todayIsoLocal());
         await client.setProperty(nodeId, schemaId, { nodeId: dayId }, 0);
         return;
@@ -1943,7 +1866,7 @@ function propertyGroupsOf(
         !omittedByDisplay(row.display),
     );
 
-  // Node-typed / date / date_range / boolean / text schemas render as one
+  // Node-typed / datetime / boolean / text schemas render as one
   // grouped row per schema; the `asset` type joins the family with its
   // dedicated row (the upload/link chrome + the multi asset list).
   // Select AND multi_select schemas join them only when they declare
@@ -1955,7 +1878,7 @@ function propertyGroupsOf(
   const optionsOf = (propertySchemaId: string) =>
     client.listPropertySchemas().find((s) => s.id === propertySchemaId)?.options;
   const isGroupedType = (type: string | undefined, propertySchemaId: string): boolean => {
-    if (type === "object" || type === "asset" || type === "date" || type === "date_range" || type === "boolean" || type === "text") {
+    if (type === "object" || type === "asset" || type === "datetime" || type === "boolean" || type === "text") {
       return true;
     }
     if (type === "select" || type === "multi_select") {
@@ -2022,9 +1945,9 @@ function propertiesCountOf(groups: PropertyGroups): number {
  * `data-property-schema-id`.
  */
 /**
- * GroupedPropertyRow — one row per grouped schema (node-typed / date /
- * date_range / boolean / text always; select schemas once they declare
- * options), the per-type value-row component chosen by schema type.
+ * GroupedPropertyRow — one row per grouped schema (node-typed / datetime /
+ * boolean / text always; select schemas once they declare options), the
+ * per-type value-row component chosen by schema type.
  * Shared by the properties table and the properties sidebar.
  */
 function GroupedPropertyRow({
@@ -2053,23 +1976,9 @@ function GroupedPropertyRow({
   onOpenPage?: ((pageId: string) => void) | undefined;
   bare?: boolean;
 }) {
-  if (type === "date") {
+  if (type === "datetime") {
     return (
-      <DatePropertyRow
-        client={client}
-        nodeId={nodeId}
-        propertySchemaId={propertySchemaId}
-        label={label}
-        multi={multi}
-        schema={schema}
-        rows={groupRows}
-        bare={bare}
-      />
-    );
-  }
-  if (type === "date_range") {
-    return (
-      <DateRangePropertyRow
+      <DatetimePropertyRow
         client={client}
         nodeId={nodeId}
         propertySchemaId={propertySchemaId}
@@ -2872,7 +2781,7 @@ function PropertySettingsModal({
             aria-label="Hide when empty"
           />
         </label>
-        {schema.type === "date" && (
+        {schema.type === "datetime" && (
           <>
             <label className="nt-property-settings__field">
               <span className="nt-property-settings__label">Precision</span>

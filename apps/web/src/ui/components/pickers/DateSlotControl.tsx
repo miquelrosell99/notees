@@ -1,21 +1,24 @@
 /**
- * DateSlotControl — one shared date-slot editor for every surface that
- * commits a single day-precision date: the metadata panel's
- * date_range start/end slots and date-qualified link qualifiers, and the
- * table view's date cells. One implementation, one picker (the zoom
- * DatePickerPopup — no native date inputs), one clear contract.
+ * DateSlotControl — one shared date-slot trigger for every surface that
+ * commits a single day-precision date: date-qualified link qualifiers
+ * (the remaining consumer after the datetime picker redesign — the panel
+ * row and the table cells open the canonical DatePickerPopup directly).
+ * One implementation, one picker (the canonical DatePickerPopup — no native
+ * date inputs), one clear contract.
  *
  * The control is deliberately dumb about the write: `onCommit` receives the
  * picked ISO day (or null when cleared) and the caller decides what the
- * value means — a date-chain node reference for property values
- * (ensureDateChain at the call site), a bare ISO qualifier for metadata.
+ * value means — a bare ISO qualifier for metadata (the applier normalizes
+ * on write), a date-chain node reference elsewhere.
  *
- * An optional RepeatPicker rides the slot (event date cells): the
- * caller passes the stored `metadata.repeat` grammar string plus an
- * `onRepeatChange` and owns the write, exactly like `onCommit`.
+ * The popup rides reduced chrome (no range, no time, no Remove — the ×
+ * affordance owns clearing), so the qualifier write path keeps its bare-ISO
+ * semantics. An optional RepeatPicker rides the slot: the caller passes the
+ * stored `metadata.repeat` grammar string plus an `onRepeatChange` and owns
+ * the write, exactly like `onCommit`.
  */
 
-import { useMemo, useRef, useState, type RefObject } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { parseDateNodeId, SYSTEM_CLASS_UUIDS, type DatePrecision } from "@notees/domain";
 
@@ -30,8 +33,8 @@ type AnyClient = WorkspaceClient | WorkerClient;
 
 /**
  * Day keys (`y-m0-d`, 0-indexed month) backed by an existing day node — the
- * date picker's has-note marks. Shared by every DateSlotControl instance and
- * the panel's date row; computed per picker open, not per render.
+ * date picker's has-note marks. Shared by every picker instance; computed
+ * per picker open, not per render.
  */
 export function collectMarkedDates(client: AnyClient): Set<string> {
   const dates = new Set<string>();
@@ -81,6 +84,7 @@ export function DateSlotControl({
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement | null>(null);
   const text = display ?? value ?? "…";
+  const markedDates = useMemo(() => (open ? collectMarkedDates(client) : new Set<string>()), [client, open]);
 
   return (
     <span className="nt-dateslot">
@@ -113,47 +117,23 @@ export function DateSlotControl({
         />
       )}
       {open && (
-        <DateSlotPicker
-          client={client}
-          value={value}
+        <DatePickerPopup
+          value={{ isRange: false, start: value !== null ? { iso: value } : null, end: null }}
           precision={precision}
-          anchorRef={anchorRef}
-          onSelect={(iso) => {
+          allowRange={false}
+          allowTime={false}
+          repeat={repeat}
+          onRepeatChange={onRepeatChange}
+          onCommit={(commit) => {
             setOpen(false);
-            onCommit(iso);
+            onCommit("iso" in commit ? commit.iso : commit.start !== null ? commit.start.iso : null);
           }}
           onClose={() => setOpen(false)}
+          anchorRef={anchorRef}
+          firstDayOfWeek={1}
+          markedDates={markedDates}
         />
       )}
     </span>
-  );
-}
-
-function DateSlotPicker({
-  client,
-  value,
-  precision,
-  anchorRef,
-  onSelect,
-  onClose,
-}: {
-  client: AnyClient;
-  value: string | null;
-  precision: DatePrecision;
-  anchorRef: RefObject<HTMLButtonElement | null>;
-  onSelect: (iso: string) => void;
-  onClose: () => void;
-}) {
-  const markedDates = useMemo(() => collectMarkedDates(client), [client]);
-  return (
-    <DatePickerPopup
-      value={value ?? ""}
-      onSelect={onSelect}
-      onClose={onClose}
-      anchorRef={anchorRef}
-      initialMode={precision === "year" ? "years" : precision === "month" ? "months" : "days"}
-      firstDayOfWeek={1}
-      markedDates={markedDates}
-    />
   );
 }

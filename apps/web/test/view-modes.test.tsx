@@ -580,7 +580,7 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     });
     const noteId = await client.createPropertySchema({ name: "Note", type: "text" });
     const effortId = await client.createPropertySchema({ name: "Effort", type: "number" });
-    const dueId = await client.createPropertySchema({ name: "Due", type: "date" });
+    const dueId = await client.createPropertySchema({ name: "Due", type: "datetime" });
     const ownerId = await client.createPropertySchema({ name: "Owner", type: "object" });
     for (const [schema, sequence] of [
       [statusId, 0],

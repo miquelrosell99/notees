@@ -57,10 +57,10 @@ async function makeRecurringTask(client: WorkspaceClient, name: string): Promise
     name,
     classIds: [SYSTEM_CLASS_UUIDS.task],
   });
-  await client.setDateProperty(
+  await client.setDatetimeProperty(
     id,
     SYSTEM_PROPERTY_UUIDS.taskScheduled,
-    addDaysIso(todayIsoLocal(), -14),
+    { iso: addDaysIso(todayIsoLocal(), -14) },
     0,
     { repeat: "weekly" },
   );
@@ -145,7 +145,7 @@ describe("per-occurrence completion", () => {
       name: "Plain task",
       classIds: [SYSTEM_CLASS_UUIDS.task],
     });
-    await client.setDateProperty(id, SYSTEM_PROPERTY_UUIDS.taskScheduled, todayIsoLocal(), 0);
+    await client.setDatetimeProperty(id, SYSTEM_PROPERTY_UUIDS.taskScheduled, { iso: todayIsoLocal() }, 0);
     await client.setProperty(id, SYSTEM_PROPERTY_UUIDS.taskStatus, pendingId, 0);
 
     render(<CalendarView client={client} onOpenPage={vi.fn()} />);

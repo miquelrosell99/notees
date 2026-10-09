@@ -109,10 +109,10 @@ export function PropertyView({
           {schema.type}
           {schema.multi ? " · multi" : ""} · {schema.scope}
         </p>
-        {(schema.type === "date" || schema.type === "date_range") && (
+        {schema.type === "datetime" && (
           <p className="nt-property-view__meta">
             Precision: {schema.datePrecision ?? "day"}
-            {schema.type === "date" && schema.dateQualified === true ? " · qualified (start/end allowed)" : ""}
+            {schema.dateQualified === true ? " · qualified (start/end allowed)" : ""}
           </p>
         )}
         {schema.type === "object" && schema.dateQualified === true && (

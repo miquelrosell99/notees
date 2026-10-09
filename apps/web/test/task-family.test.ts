@@ -95,9 +95,9 @@ describe("ensureTaskFamily", () => {
     expect(status?.options?.map((option) => option.label)).toEqual(
       TASK_STATUS_OPTIONS.map((option) => option.name),
     );
-    expect(schemas.get(SYSTEM_PROPERTY_UUIDS.taskScheduled)?.type).toBe("date");
-    expect(schemas.get(SYSTEM_PROPERTY_UUIDS.taskDeadline)?.type).toBe("date");
-    expect(schemas.get(SYSTEM_PROPERTY_UUIDS.taskClosedDate)?.type).toBe("date");
+    expect(schemas.get(SYSTEM_PROPERTY_UUIDS.taskScheduled)?.type).toBe("datetime");
+    expect(schemas.get(SYSTEM_PROPERTY_UUIDS.taskDeadline)?.type).toBe("datetime");
+    expect(schemas.get(SYSTEM_PROPERTY_UUIDS.taskClosedDate)?.type).toBe("datetime");
     expect(
       schemas.get(SYSTEM_PROPERTY_UUIDS.taskPriority)?.options?.map((option) => option.label),
     ).toEqual([...TASK_PRIORITY_OPTIONS]);
@@ -317,7 +317,7 @@ describe("ensureTaskFamily", () => {
       name: "Write the register entry",
       classIds: [SYSTEM_CLASS_UUIDS.task],
     });
-    await client.setDateProperty(open, SYSTEM_PROPERTY_UUIDS.taskScheduled, "2026-10-02");
+    await client.setDatetimeProperty(open, SYSTEM_PROPERTY_UUIDS.taskScheduled, { iso: "2026-10-02" });
     await client.setProperty(open, SYSTEM_PROPERTY_UUIDS.taskStatus, status.options![0]!.id, 0);
 
     const closed = await client.createObject({
@@ -325,7 +325,7 @@ describe("ensureTaskFamily", () => {
       name: "Ship it",
       classIds: [SYSTEM_CLASS_UUIDS.task],
     });
-    await client.setDateProperty(closed, SYSTEM_PROPERTY_UUIDS.taskScheduled, "2026-10-02");
+    await client.setDatetimeProperty(closed, SYSTEM_PROPERTY_UUIDS.taskScheduled, { iso: "2026-10-02" });
     await client.setProperty(closed, SYSTEM_PROPERTY_UUIDS.taskStatus, doneId, 0);
 
     const { buildOpenTasksAst, closedStatusOptionIds } = await import(

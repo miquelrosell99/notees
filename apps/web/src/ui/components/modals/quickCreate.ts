@@ -188,7 +188,7 @@ export async function ensureCitationFamily(client: AnyClient): Promise<void> {
   const specs: Array<{
     id: string;
     name: string;
-    type: "text" | "date" | "object";
+    type: "text" | "datetime" | "object";
     multi?: boolean;
     targetClassFilter?: string[];
     bindTo: string;
@@ -205,7 +205,7 @@ export async function ensureCitationFamily(client: AnyClient): Promise<void> {
     {
       id: SYSTEM_PROPERTY_UUIDS.publicationDate,
       name: SYSTEM_PROPERTY_DISPLAY_NAMES.publicationDate,
-      type: "date",
+      type: "datetime",
       bindTo: SYSTEM_CLASS_UUIDS.source,
     },
     {
@@ -283,7 +283,7 @@ export async function createSourceObject(
     await client.setProperty(id, SYSTEM_PROPERTY_UUIDS.doi, doi, 0);
   }
   if (input.publicationYear != null && Number.isInteger(input.publicationYear)) {
-    // The date-typed property links the chain's year node (SCHEMA.md "Dates").
+    // The datetime property links the chain's year node (SCHEMA.md "Datetime").
     const { year } = await client.ensureDateChain(`${input.publicationYear}-01-01`);
     await client.setProperty(id, SYSTEM_PROPERTY_UUIDS.publicationDate, { nodeId: year }, 0);
   }
