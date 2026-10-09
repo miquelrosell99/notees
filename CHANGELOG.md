@@ -9,6 +9,22 @@ predating this file.
 
 ## 2026-10-09
 
+- **fix(web): class-icon bullets ride at the dot's line height — the grip no
+  longer jumps ~6px when a block has a class.** The block row is
+  baseline-aligned, and the grip's synthesized flex baseline rides the bottom
+  edge of the bullet's first in-flow item: the 6px dot anchored 14px from the
+  box top, but a class icon's ~19px SVG anchored ~6px higher, lifting the
+  whole grip — bullet and class pill — against the text on class rows. A
+  zero-width 6px `::before` strut on `.nt-bullet` is now the first flex item,
+  anchoring both bullet kinds at the dot's geometry (the centered glyph never
+  moves). Verified with a throwaway current-build sync container + vite-dev
+  probe measuring bullet and pill centers against the first text line per
+  row: dot Δ-1px / icon Δ-7.6px before → both Δ-1px after, pill uniform
+  across row types. `pnpm test`: 1412/1413 green — the single failure
+  (export-modal checkbox test) and the web typecheck errors both sit in
+  the export-pdf files of a concurrently in-flight uncommitted slice,
+  untouched here. Display-state only — no model/wire change.
+
 - **feat(web): the section-scoped create affordance moves into the section
   header — a shared trailing-action slot on NodeViewSection, wired for
   Comments, Child pages, and the class view's classed nodes.** (1)

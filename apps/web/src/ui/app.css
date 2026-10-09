@@ -859,6 +859,18 @@ select:focus-visible {
   transform: translateY(-2px);
 }
 
+/* Baseline strut: the row is baseline-aligned, so the grip's synthesized
+   flex baseline rides the bottom edge of the bullet's FIRST in-flow item —
+   the 6px dot anchors at 14px from the box top, but a class icon's SVG
+   (~19px) anchors ~6px higher and lifts the whole grip against the text.
+   The strut becomes the first item and anchors at the dot's geometry for
+   BOTH bullet kinds (zero width, so the centered glyph never moves). */
+.nt-bullet::before {
+  content: "";
+  width: 0;
+  height: 6px;
+}
+
 .nt-bullet:active {
   cursor: grabbing;
 }
