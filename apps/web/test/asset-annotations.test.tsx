@@ -179,9 +179,8 @@ function annotationSection(): HTMLElement {
 
 /** Enter edit mode on the block whose content reads `text` and return its editor. */
 function clickIntoBlock(container: HTMLElement, text: string): HTMLElement {
-  // Located by content, not document order: the properties panel's
-  // single-value select cells render read-only block rows of their own, so
-  // panel rows may precede the body blocks.
+  // Located by content, not document order: property cells render their own
+  // row-ish chrome, so body blocks are not guaranteed to come first.
   const target = [...container.querySelectorAll<HTMLElement>(".nt-block-content")].find(
     (el) => el.textContent === text,
   );
