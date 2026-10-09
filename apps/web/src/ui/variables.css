@@ -84,6 +84,12 @@
   --color-inverse-on-surface: #f7f4ec;
   --color-inverse-primary: #a6a09a;
 
+  /* The sidebar cards' fill (owner 2026-10-09): the nodeview sidebars wear
+     the main card's element nested inside it — light keeps the identical
+     surface; dark steps one tone LIGHTER (graphite up) so the cards stand
+     out against the near-black main surface. */
+  --color-sidebar-card: var(--color-surface);
+
   /* ==================== Outline & Utility ==================== */
   --color-outline: #d8d3c7;
   --color-outline-variant: #e8e6e3;
@@ -759,6 +765,12 @@
   --color-inverse-surface: #f4f3f1;
   --color-inverse-on-surface: color-mix(in oklab, var(--color-accent) 6%, #141414);
   --color-inverse-primary: #5c544c;
+
+  /* The sidebar cards' fill: one tone lighter than the main surface so the
+     nested cards read against the near-black card (light keeps the same
+     surface — see the light block). OLED inherits the step through its own
+     container-highest override. */
+  --color-sidebar-card: var(--color-surface-container-highest);
 
   /* Outline & Utility */
   --color-outline: color-mix(in oklab, var(--color-accent) 13%, #292925);
