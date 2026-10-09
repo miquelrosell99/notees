@@ -266,6 +266,7 @@ The Metadata section (the properties panel, renamed 2026-10-09) lists a node's e
 - **Options carry color.** A select option can wear a data-palette color; its pill tints, and the settings modal edits it per option with one color dot.
 - **Aliases are names.** The seeded `alias` property gives a page alternative names — searchable like the title, resolvable by exact match, and matched by unlinked references.
 - **Text values are blocks.** A text property renders its values as editable blocks in the row — never repeated label entries. Enter on a multi-value property starts the next value (a sibling block registered as the next entry); Enter on a single-value property nests a child block under the value, whose children are its lines. The block is the value: it indexes, links, and deletes like any block.
+- **Cleared text returns to empty.** A text value whose carrier has no content and no child blocks does not linger: the panel unsets it automatically and the slot returns to its empty state (the unset trashes the orphaned carrier — recoverable from trash). The pass runs when the panel sees the emptied carrier and when focus leaves the row; while the caret is inside the row a just-minted empty value (Add pill, Enter) is left alone so it can be typed into. A dead reference whose target node is gone counts as contentless and is unset the same way; one that exists but no longer renders inline (e.g. promoted to a page) keeps its recovery cell.
 
 ## Exporting
 

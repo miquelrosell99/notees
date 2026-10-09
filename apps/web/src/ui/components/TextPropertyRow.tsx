@@ -21,11 +21,21 @@
  * fresh carrier, empty-blur unsets the dead value. A bound-but-empty row
  * renders the full-width "Type something" placeholder input so the empty
  * value cell still reads as a field; typing authors the first carrier.
+ *
+ * Auto-unset (owner 2026-10-09): an authored value whose carrier has no
+ * content and no child blocks is unset automatically — a dead ref whose
+ * target node is gone counts as contentless (one that exists but no longer
+ * renders inline keeps the recovery cell) — so clearing a text property
+ * returns the slot to its empty state instead of lingering as an empty block
+ * or a dead cell. The pass runs on every store-synced render and when focus
+ * leaves the row; a carrier is skipped while focus is inside the row (an
+ * Add/Enter just minted an empty value the user may be about to type into)
+ * and unsetting trashes the carrier — "Unset deletes the carrier".
  */
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { rendersAsInlineBlock } from "@notees/domain";
+import { plainTextExcerpt, rendersAsInlineBlock } from "@notees/domain";
 
 import type { EffectiveProperty } from "@/core/workspace-client.js";
 
@@ -166,6 +176,76 @@ export function TextPropertyRow({
     return authored.length > 0 ? Math.max(...authored) + 1 : 0;
   })();
 
+  const rootRef = useRef<HTMLLIElement | null>(null);
+  /** Fallback cells (dead/scalar) by `${schema}:${idx}` — the pass skips a
+   *  cell while IT holds the caret (its writes commit on blur). */
+  const fallbackInputsRef = useRef(new Map<string, HTMLInputElement>());
+  const registerFallbackInput = (key: string) => (el: HTMLInputElement | null) => {
+    if (el === null) fallbackInputsRef.current.delete(key);
+    else fallbackInputsRef.current.set(key, el);
+  };
+
+  /**
+   * Auto-unset pass (header contract): unset every authored value that is
+   * contentless — a scalar empty string, a dead carrier ref, or a carrier
+   * with no text and no children. The unset trashes the carrier, so a
+   * carrier is skipped while focus is anywhere inside THIS row (an Add/Enter
+   * just minted an empty value the user is about to type into); the
+   * focusout handler re-runs the pass once the caret leaves.
+   */
+  const cleanupEmptyValues = (): void => {
+    const rowHasFocus = rootRef.current?.contains(document.activeElement) === true;
+    // Fresh rows straight from the client — the `rows` prop can be a stale
+    // pre-unset snapshot (the row re-renders off its own subscription), and
+    // unsetting from stale rows would loop forever.
+    const fresh = client
+      .getEffectiveProperties(nodeId)
+      .filter(
+        (row) => row.propertySchemaId === propertySchemaId && row.source === "authored",
+      );
+    for (const row of fresh) {
+      const state = carrierStateOf(client, row.value);
+      if (state.kind === "carrier") {
+        if (rowHasFocus) continue;
+        const node = client.getNode(state.id);
+        if (node === undefined) continue;
+        if (plainTextExcerpt(node.contentAst).trim() === "" && client.getChildren(state.id).length === 0) {
+          void client.unsetProperty(nodeId, propertySchemaId, row.idx);
+        }
+        continue;
+      }
+      if (fallbackInputsRef.current.get(`${propertySchemaId}:${row.idx}`) === document.activeElement) {
+        continue;
+      }
+      if (state.kind === "dead") {
+        // Gone entirely (no node row) → contentless by definition: unset. A
+        // node that exists but no longer renders as an inline block keeps
+        // the recovery cell (the dead-input re-author path).
+        const ref =
+          typeof row.value === "object" && row.value !== null && "nodeId" in row.value
+            ? String((row.value as { nodeId: unknown }).nodeId ?? "")
+            : typeof row.value === "string"
+              ? row.value
+              : "";
+        if (ref !== "" && client.getNode(ref) === undefined) {
+          void client.unsetProperty(nodeId, propertySchemaId, row.idx);
+        }
+        continue;
+      }
+      if (typeof row.value === "string" && row.value.trim() === "") {
+        void client.unsetProperty(nodeId, propertySchemaId, row.idx);
+      }
+    }
+  };
+
+  // Run the pass after every store-synced render — local edits, remote syncs,
+  // and mount over legacy data all funnel through the subscription's version
+  // bump into a re-render. Unsetting re-renders once more and the pass
+  // settles (nothing left to unset).
+  useEffect(() => {
+    cleanupEmptyValues();
+  });
+
   const addValue = async (): Promise<void> => {
     setAddError(null);
     try {
@@ -181,6 +261,15 @@ export function TextPropertyRow({
 
   return (
     <li
+      ref={rootRef}
+      onBlur={(event) => {
+        // Focus truly left the row (React's onBlur is the bubbling focusout —
+        // it also fires on carrier-to-carrier hops, so filter those): re-run
+        // the auto-unset pass so an abandoned empty value goes now, not at
+        // the next unrelated store update.
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        cleanupEmptyValues();
+      }}
       className={
         allDefault
           ? "nt-property nt-property-default nt-property-text node-metadata-row"
@@ -227,6 +316,7 @@ export function TextPropertyRow({
             return (
               <input
                 key={`${propertySchemaId}:${row.idx}:${editableText}`}
+                ref={registerFallbackInput(`${propertySchemaId}:${row.idx}`)}
                 type="text"
                 className="nt-property-value"
                 defaultValue={editableText}

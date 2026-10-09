@@ -41,6 +41,32 @@ predating this file.
   the in-flight aliases/icon-picker slice (another session's files — a CSS
   change cannot affect them); verified live with a probe against the
   redeployed stack (computed styles + screenshots, dark and light).
+- **feat(web): text property values that have no content and no child blocks
+  auto-unset — clearing a text property returns the slot to its empty state
+  instead of lingering as an empty block or a dead cell (the unset trashes
+  the orphaned carrier, recoverable from trash).** The Metadata panel's text
+  row runs an auto-unset pass over its authored values on every
+  store-synced render and when focus leaves the row: a carrier with empty
+  text and no children, an empty scalar string, and a dead reference whose
+  target node is gone all emit the ordinary `property.unset` (no op, no
+  wire change — every replica converges from the log as usual). Guards: a
+  carrier is skipped while focus is anywhere inside the row (an Add-pill or
+  Enter just minted an empty value the user may be about to type into) and
+  the caret-bearing carrier is never unmounted mid-edit; a dead ref that
+  still resolves to a node which merely stopped rendering inline (promoted
+  to a page) keeps its re-author recovery cell. The pass reads fresh rows
+  from the client, not the (possibly stale) render props. Supersedes the
+  2026-10-04 dead-carrier cell workaround in `properties-panel` — the dead
+  cell no longer renders for gone targets; the panel drops to its empty
+  state. Docs: SCHEMA.md "Node-backed text properties" gains the
+  auto-unset lifecycle bullet; ux.md "Properties" gains the "Cleared text
+  returns to empty" contract. Verified: text-property-blocks (11 specs:
+  empty-carrier unset + carrier trash, content/child keeps, focus-guard
+  keep-then-unset on leaving the row, scalar empty unset, dead-gone unset,
+  promoted-node recovery kept, Add-pill empty survives), properties-panel
+  dead-carrier specs rewritten to the new contract, properties-panel +
+  block-metadata + property-owner-rulings + property-view +
+>>>>>>> d61fb47c (feat(web): auto-unset text property values whose carrier has no content and no child blocks)
 
 - **fix(web): the PDF's visual regressions from the app-chrome slice — no
   more double bullets, pills at deterministic size — and the export modal's
