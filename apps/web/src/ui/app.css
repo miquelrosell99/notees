@@ -849,6 +849,10 @@ select:focus-visible {
   border-radius: 50%;
   color: var(--color-on-surface-variant);
   touch-action: manipulation;
+  /* Optical alignment: baseline-aligned in the row, the fixed-height bullet
+     rides ~2px below the text's visual center — the dot/icon center on the
+     cap-height middle instead. */
+  transform: translateY(-2px);
 }
 
 .nt-bullet:active {
@@ -1234,9 +1238,33 @@ select:focus-visible {
 }
 
 .nt-block-children {
+  position: relative;
   margin-left: 20px;
   padding-left: 8px;
   border-left: 1px solid var(--color-outline-variant);
+}
+
+/* The indent rail: the vertical hairline is itself a control (the v1
+   pattern). The rail spans the border plus the gutter up to the child's row
+   padding — no child content lives in that strip, so it never eats child
+   clicks. Hover/focus paints an accent hairline as the affordance. */
+.nt-block-children__rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -1px;
+  width: 9px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.nt-block-children__rail:hover,
+.nt-block-children__rail:focus-visible {
+  background: linear-gradient(to right, var(--color-accent) 0 2px, transparent 2px);
+  outline: none;
 }
 
 /* --- child-blocks view toolbar (outline / prose / cards switcher) ----------- */
