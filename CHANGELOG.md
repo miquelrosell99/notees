@@ -9,6 +9,52 @@ predating this file.
 
 ## 2026-10-09
 
+- **feat(web,protocol,store): the page header gains the Capacities action
+  row — quiet ghost actions above the title (Add icon / Add description /
+  Add aliases) — plus the new `description` wire node field; the header icon
+  element now renders ONLY when an icon is defined (own or class-contributed),
+  and the empty hover placeholder is gone.** (1) The action row
+  (`PageHeaderChrome`, main surface only — not embedded/preview/focus/day
+  pages): "Add icon" opens the existing full icon+color picker anchored at
+  the row button (at the icon element when one is defined), "Add aliases"
+  opens the shared backward-write alias picker — the pick flow extracted
+  from the metadata panel's AliasesRow into `AliasNodePicker.tsx` so both
+  surfaces run one guard-validated write (no logic drift). (2) The
+  `description` wire node field: optional nullable plain text (max 512
+  chars) on `object.update` (never `object.create`), presence writes /
+  present-null clears, riding the row LWW — the cover/banner/alias
+  precedent; node-table column `description`, store schema v18 with an
+  idempotent v17→v18 migration arm; `ClientNode` + `updateObject` carry it
+  (the node-row identity stamp mixes it in). The subtitle renders under the
+  title only when non-empty: "Add description" swaps in the editor
+  (Enter/blur commits, Esc cancels, an empty commit clears), then the
+  subtitle itself is the click-to-edit surface. The query language gains NO
+  `description` predicate this slice — free-text grammar is a deliberate
+  follow-up, not a silent default (SCHEMA.md says so). (3) Icon
+  hide-when-none: the header icon element renders only for a DEFINED icon
+  (`definedNodeIcon` — own or the first class-contributed one via the
+  extends-resolved lookup); the generic `defaultIconFor` fallback (class
+  shape / page document glyph) stays for lists, mentions, and everywhere
+  else, and the `◈` hover placeholder + its CSS token retired. Day pages
+  skip the row and the subtitle (the DayPageHeader contract). Export
+  projections do not carry `description` yet (web-rendered field this
+  slice). `notees-cli`'s vendored pin is NOT bumped — it picks the field up
+  on its next vendor update. **Client lockstep (the fixture gate law):**
+  `object-wire-fields.json` gains the set + clear envelopes, byte-identical
+  in the GTK and Flutter repos — the GTK store bumps to schema v14 with the
+  same idempotent additive migration (pytest 741 green) and the Flutter
+  store to v28 (`flutter test` +613 green); their UIs don't render the
+  subtitle yet (store+wire first, chrome follow-on). Verified: protocol
+  suite green (fixture gate + the 512 cap + create-rejects specs), store
+  suite green (463 — fixture replay, v18 LWW/absence/clear, v17→v18
+  migration + idempotence), web typecheck green, new
+  `page-header-actions` suite green (7 specs: row gating incl. day/embedded/
+  preview, icon hide/show incl. the class-contributed case, description
+  add/edit/clear round-trip, the header alias backward write), the
+  class-view picker spec re-pointed at the row action, the node-aliases
+  suite's Add-alias query tightened (`/^Add alias$/` — the header's "Add
+  aliases" also matches `/Add alias/`), css-token-drift gate green.
+
 - **fix(web): the export modal's page-size dropdown wears the app surface
   (the "blue" was the browser default button face — a kit reset gap), the
   PDF's node links are accent-colored and underlined (no grey chip), and the

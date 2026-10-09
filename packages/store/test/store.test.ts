@@ -2737,6 +2737,10 @@ describe.each(adapters)("$name: v16 — wire node fields", ({ makeBackend }) => 
       banner_asset_id: null,
       aliased_node_id: null,
     });
+    store.apply(updates[5]!); // description = "Subtitle text"
+    expect(row()).toMatchObject({ description: "Subtitle text" });
+    store.apply(updates[6]!); // description = null (clear)
+    expect(row()).toMatchObject({ description: null });
     store.close();
   });
 
@@ -3027,6 +3031,53 @@ describe.each(adapters)("$name: v16 -> v17 migration (resolved_target_id backfil
     expect(edgeRows(migrated)).toEqual(edgeRows(fresh));
     migrated.close();
     fresh.close();
+  });
+});
+
+// --- v18: the page-subtitle wire node field (description) --------------------------
+
+describe.each(adapters)("$name: v18 — description wire node field", ({ makeBackend }) => {
+  const PAGE = "0192a000-0000-7000-8000-00000000052a";
+
+  function makeStore(): Store {
+    return Store.open(makeBackend());
+  }
+
+  it("absence preserves, present-null clears, and the field rides the row LWW", () => {
+    const store = makeStore();
+    store.apply(createPage(PAGE, 1727200000000));
+    expect(store.getNode(PAGE)?.description).toBeNull();
+    store.apply(env("object.update", { objectId: PAGE, description: "Subtitle text" }, 1727200001000));
+    expect(store.getNode(PAGE)?.description).toBe("Subtitle text");
+    // An absent field is not a write: an icon-only update keeps the subtitle.
+    store.apply(env("object.update", { objectId: PAGE, icon: "mdiStar" }, 1727200002000));
+    expect(store.getNode(PAGE)).toMatchObject({ icon: "mdiStar", description: "Subtitle text" });
+    // A stale-HLC update loses the row LWW race: nothing changes.
+    store.apply(env("object.update", { objectId: PAGE, description: null }, 1727200000500));
+    expect(store.getNode(PAGE)?.description).toBe("Subtitle text");
+    // The winning clear.
+    store.apply(env("object.update", { objectId: PAGE, description: null }, 1727200003000));
+    expect(store.getNode(PAGE)?.description).toBeNull();
+    store.close();
+  });
+
+  it("adds the column idempotently when a v17 database migrates", () => {
+    const store = makeStore();
+    store.apply(createPage(PAGE, 1727200000000));
+    // Simulate a pre-v18 database: rewind the version and drop the column
+    // (SQLite 3.35+ DROP COLUMN; the v16 index-precedent shape).
+    store.database.exec("ALTER TABLE node DROP COLUMN description;");
+    store.database.pragma("user_version = 17");
+    migrate(store.database, "fts5");
+    expect(store.database.pragma("user_version", { simple: true })).toBe(SCHEMA_VERSION);
+    expect(store.getNode(PAGE)?.description).toBeNull();
+    // Idempotent: a second migrate is a no-op that stays current.
+    migrate(store.database, "fts5");
+    expect(store.database.pragma("user_version", { simple: true })).toBe(SCHEMA_VERSION);
+    // The migrated table still maps the field on update.
+    store.apply(env("object.update", { objectId: PAGE, description: "After migration" }, 1727200001000));
+    expect(store.getNode(PAGE)?.description).toBe("After migration");
+    store.close();
   });
 });
 

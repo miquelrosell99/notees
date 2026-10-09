@@ -586,6 +586,10 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
     sets.push("aliased_node_id = ?");
     values.push(p.aliasedNodeId);
   }
+  if (p.description !== undefined) {
+    sets.push("description = ?");
+    values.push(p.description);
+  }
   if (p.contentAst !== undefined) {
     // Class content stays text-only; every other node keeps the rich token
     // stream it was sent. A page's own content may carry inline tokens
