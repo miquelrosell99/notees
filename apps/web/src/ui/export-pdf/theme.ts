@@ -41,6 +41,9 @@ export interface PdfTheme {
   colors: PdfThemeColors;
   /** Academic: the body renders as two flex Views side by side. */
   twoColumnBody: boolean;
+  /** Outliner bullet dots on the block rows (the app look) — Notes only;
+   *  Essay/Academic stay clean typesetting. */
+  bullets: boolean;
   /** Column gap in pt when {@link twoColumnBody}. */
   columnGap: number;
   /** Academic: outline entries render "1.", "1.1.", … numbering. */
@@ -70,6 +73,7 @@ export const PDF_THEMES: Record<PdfLayout, PdfTheme> = {
       highlight: "#ece4b8",
     },
     twoColumnBody: false,
+    bullets: true,
     columnGap: 18,
     numberedHeadings: false,
   },
@@ -90,6 +94,7 @@ export const PDF_THEMES: Record<PdfLayout, PdfTheme> = {
       highlight: "#ece4b8",
     },
     twoColumnBody: false,
+    bullets: false,
     columnGap: 18,
     numberedHeadings: false,
   },
@@ -110,6 +115,7 @@ export const PDF_THEMES: Record<PdfLayout, PdfTheme> = {
       highlight: "#ece4b8",
     },
     twoColumnBody: true,
+    bullets: false,
     columnGap: 16,
     numberedHeadings: true,
   },

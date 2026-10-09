@@ -219,7 +219,7 @@ describe("ExportPageModal", () => {
     );
   }, 10000);
 
-  it("feeds the option checkboxes to the engine (type labels; the child outline is unconditional)", async () => {
+  it("feeds the option checkboxes to the engine (Show classes; the child outline is unconditional)", async () => {
     const client = await makeClient();
     const classId = await client.createClass("Company");
     // WORKAROUND(store applier): class.create's contentAst never lands in the
@@ -250,7 +250,7 @@ describe("ExportPageModal", () => {
     // The retired "Include child outline" toggle is gone entirely.
     expect(screen.queryByRole("checkbox", { name: /child outline/i })).toBeNull();
 
-    fireEvent.click(screen.getByRole("checkbox", { name: /type labels/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /show classes/i }));
     await vi.waitFor(
       () => {
         expect(preview.value).toContain("classNames:");
@@ -302,6 +302,37 @@ describe("ExportPageModal", () => {
     loaded = true;
     for (const listener of listeners) listener();
     await vi.waitFor(() => expect(preview.value).toContain("- Book flights"), { timeout: 2000 });
+  }, 10000);
+
+  it("excludes text-property carrier blocks from the exported body", async () => {
+    const client = await makeClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Props" });
+    // A carrier block: the text property's value references it — it renders
+    // in the property row, never as a body bullet (the page view's rule).
+    const carrierId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "carrier body" }],
+    });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "ordinary block" }],
+    });
+    const schemaId = await client.createPropertySchema({ name: "payload", type: "text" });
+    await client.setProperty(pageId, schemaId, { nodeId: carrierId }, 0);
+
+    render(<ExportPageModal isOpen={true} onClose={() => {}} client={client} nodeUuid={pageId} />);
+    const preview = (await screen.findByLabelText("markdown preview", undefined, {
+      timeout: 2000,
+    })) as HTMLTextAreaElement;
+    await vi.waitFor(
+      () => {
+        expect(preview.value).toContain("- ordinary block");
+        // No body bullet for the carrier (its resolved name may still ride
+        // the frontmatter property row — that is where it belongs).
+        expect(preview.value).not.toContain("- carrier body");
+      },
+      { timeout: 2000 },
+    );
   }, 10000);
 
   it("downloads one markdown file for a single node", async () => {
@@ -452,9 +483,10 @@ describe("ExportPageModal", () => {
     await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
 
     fireEvent.click(screen.getByRole("radio", { name: /^pdf$/i }));
-    // Layout cards + page size toggle feed the engine options.
+    // Layout cards + the Options page-size dropdown feed the engine options.
     fireEvent.click(screen.getByRole("radio", { name: /^essay$/i }));
-    fireEvent.click(screen.getByRole("radio", { name: /^letter$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /page size/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^letter$/i }));
 
     fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
 
