@@ -9,6 +9,43 @@ predating this file.
 
 ## 2026-10-09
 
+- **feat(web): the graph view clusters for real — type-weighted full Louvain
+  (phase 1 + phase 2), a size-aware soft shell between communities, and
+  honest force balance.** The hairball had three separate causes. (1)
+  **Community detection never found communities.** The Louvain port ran
+  only phase 1 (single-node local moving): on any graph it stalls in a
+  pair-fragmented local optimum (moving one node out of a pair is always a
+  modularity loss), and it ignored link types. Now: edges are weighted by
+  type (structural links count most, cooccurrence/temporal least), the
+  resolution parameter γ defaults to 0.8 (below 1 = coarser, more visible
+  communities; above ~1.25 the resolution limit shatters real
+  communities), and phase 2 — whole-community merges with the correct ΔQ
+  (internal edges stay internal, no loss term) — alternates with phase 1
+  for up to 5 rounds. Verified on planted partitions: 4–8 dense
+  communities of 12–60 nodes all detect intact. (2) **Cluster forces were
+  diluted to nothing.** Cohesion was ~100× weaker than repulsion
+  (0.0012→0.006); the centroid push was divided per member (`/cnt`) so a
+  200-node community's share was 1/200 per node — now `clRad` surfaces +
+  a soft-shell term (`clusterShellStrength`, t² overlap envelope between
+  each community's radius and the separation margin, present in both the
+  direct and Barnes–Hut paths) give size-aware contact repulsion, and the
+  per-member distribution is `/√cnt` so communities move as units.
+  Inter-cluster bridges are loosened (rest ×2.2, stiffness ×0.35) — they
+  stay visible but stop welding communities together. (3) **Central
+  gravity re-created the blob.** The default origin spring (0.015/node at
+  slider 30) pulled every community toward the same point and balanced
+  the soft shell into a mixed mass; the mapping is now 0–0.02 (slider 30
+  → 0.006) so clusters clear each other under the default gravity —
+  verified: two bridged 30-node communities settle with >2 shell radii
+  between surfaces (gravity off) and >1.5 (default gravity). Also: the
+  settle gate's energy is now per-tick displacement² (dt-aware — a
+  shrunken adaptive timestep can no longer freeze a far-from-balance
+  layout), and alpha decay halved (0.01→0.005) so convergence has time
+  to finish. Verified: `pnpm typecheck` + `pnpm test` green; the engine
+  suite carries the detection (bridged planted communities stay two
+  intact clusters) and separation (surface clearance, both gravity
+  regimes) specs.
+
 - **feat(web): the graph physics reaches a true equilibrium and freezes —
   per-node activity alpha, energy-gated settling, and reheat locality (a
   drag perturbs only its neighborhood).** The engine docstring always

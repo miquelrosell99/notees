@@ -45,6 +45,7 @@ const PHYSICS_PRESETS: Record<GraphEnginePhysicsConfig['preset'], Partial<GraphE
 export function buildGraphEngineConfig(user: GraphEnginePhysicsConfig): GraphEngineConfig {
   const preset = PHYSICS_PRESETS[user.preset]!;
   const clusterMult = user.clustering ? 1.8 : 1.0;
+  const sepMult = 0.5 + ((user.clusterSeparation ?? 65) / 100) * 1.5;
 
   return {
     seed: 42,
@@ -52,18 +53,27 @@ export function buildGraphEngineConfig(user: GraphEnginePhysicsConfig): GraphEng
       ? (preset.springStrength ?? 0.025) * 1.8
       : (preset.springStrength ?? 0.025),
     idealDistance: preset.idealDistance ?? 100,
-    clusterStrength: 0.0012 * clusterMult,
+    // Cohesion strong enough to hold a community against local repulsion.
+    clusterStrength: 0.006 * clusterMult,
     clusterRepelStrength: (preset.clusterRepelStrength ?? 2000) * clusterMult,
+    // Soft shell: ~1.5% of the long-range repulsion at full overlap.
+    clusterShellStrength: (preset.clusterRepelStrength ?? 2000) * clusterMult * 0.015,
+    // The separation slider (0–100) scales the preset gap (0.5×–2×).
+    clusterMargin: (preset.clusterSpacing ?? 350) * sepMult,
     clusterSpacing: preset.clusterSpacing ?? 350,
     localRepelStrength: (preset.localRepelStrength ?? 3000) * (user.clustering ? 1.4 : 1.0),
     localRepelRadius: 500,
-    // Slider 0–100 → 0 to 0.05. Per-node spring toward origin.
-    componentCenterStrength: (user.centralGravity / 100) * 0.05,
+    // Slider 0–100 → 0 to 0.02. Per-node spring toward origin — deliberately
+    // gentle: stronger gravity crushes cluster separation (it pulls every
+    // community toward the same point and re-creates the hairball).
+    componentCenterStrength: (user.centralGravity / 100) * 0.02,
     componentSpacing: preset.componentSpacing ?? 800,
     // Energy-gated convergence: per-node alpha decays exponentially and the
     // graph freezes when every node is quiet and still (see engine.ts).
-    alphaDecay: 0.01,
+    alphaDecay: 0.005,
     alphaMin: 0.005,
+    // Mean per-tick displacement² under which the graph counts as still
+    // (≈0.01 px/tick RMS — sub-pixel, and dt-aware via the integrator).
     settleEnergyEps: 1e-4,
     settleTicks: 30,
     influenceRadius: 400,

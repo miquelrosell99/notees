@@ -67,7 +67,9 @@ export function integrate(
     posX[i]! += velX[i]! * dt + oax * hdt2;
     posY[i]! += velY[i]! * dt + oay * hdt2;
     velX[i] = vx; velY[i] = vy;
-    totalEnergy += (vx * vx + vy * vy);
+    // The settle gate reads this as per-tick displacement² — dt-aware, so a
+    // shrunken adaptive timestep can't make a moving graph look still.
+    totalEnergy += (vx * vx + vy * vy) * dt * dt;
   }
 
   const energy = n > 0 ? totalEnergy / n : 0;
