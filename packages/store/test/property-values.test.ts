@@ -118,10 +118,10 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       env("propertySchema.create", { propertySchemaId: SCHEMA_TEXT_MULTI, name: "aliases", type: "text", multi: true }, 1727200000100),
     );
     store.apply(
-      env("propertySchema.create", { propertySchemaId: SCHEMA_DATE, name: "when", type: "date" }, 1727200000100),
+      env("propertySchema.create", { propertySchemaId: SCHEMA_DATE, name: "when", type: "datetime" }, 1727200000100),
     );
     store.apply(
-      env("propertySchema.create", { propertySchemaId: SCHEMA_RANGE, name: "span", type: "date_range" }, 1727200000100),
+      env("propertySchema.create", { propertySchemaId: SCHEMA_RANGE, name: "span", type: "datetime" }, 1727200000100),
     );
     store.apply(
       env("propertySchema.create", { propertySchemaId: SCHEMA_OBJECT, name: "who", type: "object" }, 1727200000100),
@@ -165,7 +165,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       }
     });
 
-    it("date/object accept node references and normalize a legacy bare uuid; scalars fail loud", () => {
+    it("datetime/object accept node references and normalize a legacy bare uuid; scalars fail loud", () => {
       const store = seededStore();
       store.apply(env("object.create", { objectId: DATE_NODE, contentAst: text("2026") }, 1727200000900));
       // Canonical ref shape.
@@ -183,7 +183,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ).toThrow(PropertyValueShapeError);
     });
 
-    it("date_range accepts {start,end} references, either side open; bad sides fail loud", () => {
+    it("datetime ranges accept {start,end} slots, either side open; bad sides fail loud", () => {
       const store = seededStore();
       store.apply(env("object.create", { objectId: DATE_NODE, contentAst: text("2026") }, 1727200000900));
       store.apply(
