@@ -317,12 +317,10 @@ describe("the class icon picker (the shared header icon button is the single ent
     const classId = await createTitledClass(client, "pokemon");
     const { container } = render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
 
-    // No curated class icon button — the shared header icon button
-    // (left of the title) is the single icon+color edit entry for class
-    // pages too.
-    const iconButton = container.querySelector<HTMLElement>(".page-icon-btn");
-    if (iconButton === null) throw new Error("page icon button missing");
-    fireEvent.click(iconButton);
+    // No curated class icon button — the shared icon entry for class pages
+    // too: with no icon defined the header element hides (the Capacities
+    // precedent) and the action row's "Add icon" opens the picker.
+    fireEvent.click(screen.getByRole("button", { name: /Add icon/ }));
 
     // The full picker: the dialog with its three tabs…
     const dialog = screen.getByRole("dialog", { name: "Icon picker" });

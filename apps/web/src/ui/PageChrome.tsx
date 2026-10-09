@@ -30,12 +30,14 @@ import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspac
 
 import { DayPageHeader } from "./components/DayPageHeader.js";
 import { ClassesRow, TagsRow } from "./components/MetadataSection.js";
+import { AliasNodePicker } from "./components/AliasNodePicker.js";
 import { IconPickerPopup } from "./components/IconPickerPopup.js";
 import { BannerCard, CoverCard } from "./components/PageBanner.js";
 import { PageFooter } from "./components/PageFooter.js";
 import { BlockRow } from "./BlockRow.js";
 import { Icon } from "./Icon.js";
 import { Button } from "./components/ui/Button.js";
+import { TextField } from "./components/ui/TextField.js";
 import { displayNameForSettings, displayNameFromClient } from "./dateDisplay.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -113,18 +115,24 @@ export function NodeTopbar({
  * PageHeaderChrome — the .page-header-section: the header proper
  * beside the cover card aside. Day pages render the DayPageHeader as the
  * whole title row (driven by the variant's `dayIso`); every other page
- * renders the shared icon button + picker (the SINGLE icon+color edit
- * entry for every node kind — the curated class icon button and the color
- * dot are gone), the bullet-less title BlockRow (the shared row machinery
- * over the page node itself — an embedded render gets the static
- * "open page" link instead), and the tags row. Right-click on the icon or
- * the title reports the pointer position through onHeaderMenu — the host
- * owns the node context menu state. Focus mode suppresses everything but
- * the title; the cover aside renders whenever the page can carry a cover.
- * The full-width banner (the `bannerAssetId` wire field) renders above the
- * whole header section whenever the page can carry one. (The aliases
- * affordance retired from this row, owner 2026-10-09 — it rides the
- * metadata panel's first section now; see AliasesRow.)
+ * renders the shared title BlockRow (the shared row machinery over the page
+ * node itself — an embedded render gets the static "open page" link
+ * instead), and the tags row. Right-click on the icon or the title reports
+ * the pointer position through onHeaderMenu — the host owns the node context
+ * menu state. Focus mode suppresses everything but the title; the cover
+ * aside renders whenever the page can carry a cover. The full-width banner
+ * (the `bannerAssetId` wire field) renders above the whole header section
+ * whenever the page can carry one.
+ *
+ * The Capacities action row (owner 2026-10-09) rides ABOVE the title on the
+ * main surface: "Add icon" opens the shared icon+color picker (anchored at
+ * the row button, or at the icon element when one is defined), "Add
+ * description" swaps in the subtitle editor, "Add aliases" opens the shared
+ * backward-write alias picker. The icon element renders ONLY when an icon is
+ * DEFINED (own or a class-contributed one — no generic-default fallback, no
+ * hover placeholder); the description subtitle hides the same way when
+ * empty, and edits inline (Enter/blur commits, Esc cancels, empty clears).
+ * Day pages skip the row and the subtitle (the DayPageHeader contract).
  */
 export function PageHeaderChrome({
   client,
@@ -155,7 +163,8 @@ export function PageHeaderChrome({
   preview?: boolean;
   /** Day precision of the page's id, null for every non-date page. */
   dayIso: string | null;
-  /** The effective icon (own or its classes'), null = the placeholder. */
+  /** The DEFINED icon (own or a class-contributed one) — null hides the
+   * icon element entirely (no generic-default fallback, no placeholder). */
   headerIcon: string | null;
   /** The page can carry the banner wire field (set or empty). */
   bannerPossible: boolean;
@@ -170,9 +179,27 @@ export function PageHeaderChrome({
   onHeaderMenu: (x: number, y: number) => void;
 }) {
   const pageId = page.id;
-  /** Icon picker popup anchor + open state (clicking the page icon). */
-  const pageIconRef = useRef<HTMLElement | null>(null);
-  const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  /**
+   * Icon picker popup anchor + open state: the element that opened it (the
+   * page icon when one is defined, else the action row's "Add icon" button).
+   */
+  const [iconPickerAnchor, setIconPickerAnchor] = useState<HTMLElement | null>(null);
+  /** Alias picker popup (the action row's "Add aliases" button). */
+  const aliasButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [aliasPickerOpen, setAliasPickerOpen] = useState(false);
+  /** Description subtitle editor (the "Add description" action / click-edit). */
+  const [descriptionEditing, setDescriptionEditing] = useState(false);
+  const description =
+    page.description !== null && page.description.trim() !== "" ? page.description : null;
+
+  const commitDescription = (value: string): void => {
+    const trimmed = value.trim();
+    void client.updateObject(pageId, { description: trimmed === "" ? null : trimmed });
+    setDescriptionEditing(false);
+  };
+
+  /** The Capacities action row + the subtitle ride the main surface only. */
+  const chromeActions = !embedded && !focusMode && !preview && dayIso === null;
 
   return (
     <>
@@ -186,6 +213,47 @@ export function PageHeaderChrome({
       )}
     <div className="page-header-section">
       <header className="nt-page-header">
+        {/* The Capacities action row: the page's quiet affordances above the
+            title. "Add icon" opens the shared icon+color picker (anchored at
+            whichever trigger opened it); "Add description" swaps in the
+            subtitle editor; "Add aliases" opens the shared backward-write
+            alias picker. */}
+        {chromeActions && (
+          <div className="page-header-actions">
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="mdi mdi-emoticon-outline"
+              onClick={(event) =>
+                setIconPickerAnchor((anchor) =>
+                  anchor === null ? event.currentTarget : null,
+                )
+              }
+            >
+              Add icon
+            </Button>
+            {description === null && (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon="mdi mdi-text-short"
+                onClick={() => setDescriptionEditing(true)}
+              >
+                Add description
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="mdi mdi-file-multiple-outline"
+              ref={aliasButtonRef}
+              aria-expanded={aliasPickerOpen}
+              onClick={() => setAliasPickerOpen(true)}
+            >
+              Add aliases
+            </Button>
+          </div>
+        )}
         <div className="page-header__title-row">
           {dayIso !== null && !embedded ? (
             /* Day pages: the header IS the date header — weekday + Today
@@ -202,46 +270,25 @@ export function PageHeaderChrome({
             </span>
           ) : (
             <>
-            {!focusMode &&
-              (
-                <>
+            {!focusMode && headerIcon !== null && (
                   <span
                     className="page-icon-btn"
                     title="Page icon (click: change icon)"
-                    ref={pageIconRef}
-                    onClick={() => {
-                      if (!embedded && !preview) setIconPickerOpen((open) => !open);
+                    onClick={(event) => {
+                      if (!embedded && !preview) {
+                        setIconPickerAnchor((anchor) =>
+                          anchor === null ? event.currentTarget : null,
+                        );
+                      }
                     }}
                     onContextMenu={(event) => {
                       event.preventDefault();
                       if (!preview) onHeaderMenu(event.clientX, event.clientY);
                     }}
                   >
-                    {headerIcon !== null ? (
-                      <Icon path={headerIcon} size={1.4} className="page-icon-large" />
-                    ) : (
-                      <span className="page-icon-placeholder">◈</span>
-                    )}
+                    <Icon path={headerIcon} size={1.4} className="page-icon-large" />
                   </span>
-                  {iconPickerOpen && (
-                    <IconPickerPopup
-                      value={page.icon ?? undefined}
-                      anchorEl={pageIconRef.current}
-                      color={page.color}
-                      onSelect={(iconValue) => {
-                        // "" clears (Icon treats empty as no icon).
-                        void client.updateObject(pageId, { icon: iconValue });
-                      }}
-                      onColorChange={(color) => {
-                        // The single icon+color entry: null = "No
-                        // color" (object.update color:null clears).
-                        void client.updateObject(pageId, { color });
-                      }}
-                      onClose={() => setIconPickerOpen(false)}
-                    />
-                  )}
-                </>
-              )}
+            )}
             {/* Right-click anywhere on the title (not just the icon) opens the
                 page's node context menu — the browser menu is never the
                 honest surface for a node. The preview surface suppresses
@@ -281,6 +328,58 @@ export function PageHeaderChrome({
               </>
           )}
         </div>
+        {/* The page subtitle (the `description` wire node field): renders
+            only when non-empty; a click swaps in the editor (Enter/blur
+            commits, Esc cancels, an empty commit clears the field). */}
+        {chromeActions && description !== null && !descriptionEditing && (
+          <p
+            className="page-header-description"
+            title="Description (click: edit)"
+            onClick={() => setDescriptionEditing(true)}
+          >
+            {description}
+          </p>
+        )}
+        {chromeActions && descriptionEditing && (
+          <TextField
+            autoFocus
+            size="sm"
+            className="page-header-description-input"
+            defaultValue={description ?? ""}
+            placeholder="Add a description…"
+            aria-label="Page description"
+            onKeyDown={(event) => {
+              if (event.key === "Enter") commitDescription(event.currentTarget.value);
+              if (event.key === "Escape") setDescriptionEditing(false);
+            }}
+            onBlur={(event) => commitDescription(event.currentTarget.value)}
+          />
+        )}
+        {iconPickerAnchor !== null && !focusMode && (
+          <IconPickerPopup
+            value={page.icon ?? undefined}
+            anchorEl={iconPickerAnchor}
+            color={page.color}
+            onSelect={(iconValue) => {
+              // "" clears (Icon treats empty as no icon).
+              void client.updateObject(pageId, { icon: iconValue });
+            }}
+            onColorChange={(color) => {
+              // The single icon+color entry: null = "No
+              // color" (object.update color:null clears).
+              void client.updateObject(pageId, { color });
+            }}
+            onClose={() => setIconPickerAnchor(null)}
+          />
+        )}
+        {aliasPickerOpen && (
+          <AliasNodePicker
+            client={client}
+            nodeId={pageId}
+            anchorEl={aliasButtonRef.current}
+            onClose={() => setAliasPickerOpen(false)}
+          />
+        )}
         {/* Tags: navigational chips on the preview surface; the add/remove
             machinery (the picker + the unassign ×) stays main-surface-only. */}
         {!embedded && !focusMode && !preview && (
