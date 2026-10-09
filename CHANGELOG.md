@@ -9,6 +9,13 @@ predating this file.
 
 ## 2026-10-09
 
+- **fix(web): the boot-form connect prompt reads "Connect to a Notees sync
+  server — or work offline."** Owner wording ruling across all clients — the
+  GTK login description and the Flutter server-setup prompt ship the same
+  "a Notees sync server" phrasing (GTK v4.1.2, Flutter v4.0.2); the web's
+  "your sync server" line was the last holdout. Verified: web suites green
+  (137 files / 1443).
+
 - **feat(protocol,store,query,export,server,web,scripts): the unified
   Datetime property — `date`/`date_range` retire into one `datetime` type with
   per-value Full-day (default on), an All-day-off time, and a Range toggle.**

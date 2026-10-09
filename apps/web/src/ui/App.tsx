@@ -1515,7 +1515,7 @@ export function App() {
             <h1 className="nt-bootstrap-title">Notees</h1>
           </div>
           {phase.name === "server" && (
-            <p className="nt-bootstrap-subtitle">Connect to your sync server — or work offline.</p>
+            <p className="nt-bootstrap-subtitle">Connect to a Notees sync server — or work offline.</p>
           )}
           {phase.name === "setup" && (
             <p className="nt-bootstrap-subtitle">Initial setup — create the admin account</p>
