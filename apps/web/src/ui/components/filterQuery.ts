@@ -68,11 +68,13 @@ export interface FilterBarConfig {
 
 /**
  * Prune one draft child into its composed form: half-typed conditions drop
- * (content with a blank value, class with an empty classId, property with an
- * empty schemaId, createdAfter/Before with a blank timestamp), nested groups
- * recurse (emptied ones drop), a not drops when its child pruned away.
- * Anything fully specified — isClass, presentAsMain, the wire-field
- * predicates — survives verbatim.
+ * (content with a blank value, class with an empty classId, property with
+ * an empty schemaId, created/updated with a blank timestamp, static
+ * link/parent with no node picked), nested groups recurse (emptied ones
+ * drop), a not drops when its child pruned away, and the DYNAMIC
+ * link/parent sets drop when their nested group pruned to empty. Anything
+ * fully specified — isClass, presentAsMain, the wire-field predicates —
+ * survives verbatim.
  */
 function pruneChild(child: Child): Child | null {
   if (child.type === "group") {
@@ -92,12 +94,21 @@ function pruneChild(child: Child): Child | null {
       return child.classId === "" ? null : child;
     case "property":
       return child.schemaId === "" ? null : child;
+    case "createdAfter":
+    case "createdBefore":
+    case "updatedAfter":
+    case "updatedBefore":
+      return child.timestamp.trim() === "" ? null : child;
     case "linkedTo":
     case "descendantOf":
       return child.nodeId === "" ? null : child;
-    case "createdAfter":
-    case "createdBefore":
-      return child.timestamp.trim() === "" ? null : child;
+    case "linkedToQuery":
+    case "descendantOfQuery": {
+      const nested = pruneChild(child.root);
+      return nested === null || (nested.type === "group" && nested.children.length === 0)
+        ? null
+        : { ...child, root: nested as Group };
+    }
     default:
       return child;
   }
@@ -123,22 +134,28 @@ export function filterQueryToGroup(query: FilterQuery): Group | null {
 
 // --- the add-menu registry ---------------------------------------------------
 
-/** The condition kinds the builder offers — the full wire grammar. */
+/**
+ * The block FAMILIES (the v1 FILTER_TYPE_OPTIONS as single-word types — the
+ * operator column carries the is/is-not/contains/etc variation). "Links"
+ * and "Parent" are the node-target families: static (a picked node) or
+ * dynamic (a nested query defining the target set), the mode switch
+ * toggling between them.
+ */
 export type ConditionKind =
   | "class"
-  | "isClass"
-  | "presentAsMain"
+  | "type"
+  | "placement"
   | "content"
   | "property"
-  | "linkedTo"
-  | "descendantOf"
-  | "createdAfter"
-  | "createdBefore"
-  | "coverAsset"
-  | "bannerAsset"
-  | "aliasedNode";
+  | "links"
+  | "parent"
+  | "cover"
+  | "banner"
+  | "alias"
+  | "created"
+  | "edited";
 
-/** One add-menu entry — a condition kind or a group/not constructor. */
+/** One add-menu entry — a condition family or a group/not constructor. */
 export type AddMenuEntry = ConditionKind | "group-and" | "group-or" | "not";
 
 export interface FilterKindOption {
@@ -149,25 +166,26 @@ export interface FilterKindOption {
 }
 
 /**
- * The add-menu register (the v1 FILTER_TYPE_OPTIONS adapted to the v2 AST
- * names). Group constructors come last, v1 order.
+ * The add-menu register (the v1 FILTER_TYPE_OPTIONS, 1:1 over the v2 AST —
+ * owner 2026-10-09: single-word types, operators live in the block's
+ * operator column). Group constructors come last, v1 order.
  */
 export const FILTER_KIND_OPTIONS: readonly FilterKindOption[] = [
   { value: "class", label: "Class", icon: "mdi mdi-tag-outline", description: "Filter by node class" },
-  { value: "isClass", label: "Type", icon: "mdi mdi-shape-outline", description: "A class or not a class" },
-  { value: "presentAsMain", label: "Placement", icon: "mdi mdi-format-align-left", description: "Main children or inline body" },
+  { value: "type", label: "Type", icon: "mdi mdi-shape-outline", description: "A class or not a class" },
+  { value: "placement", label: "Placement", icon: "mdi mdi-format-align-left", description: "Main children or inline body" },
   { value: "content", label: "Content", icon: "mdi mdi-text-box-outline", description: "Filter by text content" },
   { value: "property", label: "Property", icon: "mdi mdi-code-braces", description: "Filter by property value" },
-  { value: "linkedTo", label: "Links to", icon: "mdi mdi-link-variant", description: "Nodes that link to a chosen node" },
-  { value: "descendantOf", label: "Parent is", icon: "mdi mdi-file-tree-outline", description: "Has the chosen node anywhere in its parents tree" },
-  { value: "createdAfter", label: "Created after", icon: "mdi mdi-calendar-arrow-right", description: "Created on or after a date" },
-  { value: "createdBefore", label: "Created before", icon: "mdi mdi-calendar-arrow-left", description: "Created on or before a date" },
-  { value: "coverAsset", label: "Has cover", icon: "mdi mdi-image-outline", description: "Cover is set" },
-  { value: "bannerAsset", label: "Has banner", icon: "mdi mdi-page-layout-header", description: "Banner is set" },
-  { value: "aliasedNode", label: "Is alias", icon: "mdi mdi-repeat-variant", description: "Node is an alias of a main page" },
+  { value: "links", label: "Links", icon: "mdi mdi-link-variant", description: "Nodes that link to a node or a nested query" },
+  { value: "parent", label: "Parent", icon: "mdi mdi-file-tree-outline", description: "Nodes inside a node's parents tree, or a nested query's" },
+  { value: "cover", label: "Cover", icon: "mdi mdi-image-outline", description: "Cover is set or not" },
+  { value: "banner", label: "Banner", icon: "mdi mdi-page-layout-header", description: "Banner is set or not" },
+  { value: "alias", label: "Alias", icon: "mdi mdi-repeat-variant", description: "Alias of a main page, set or not" },
+  { value: "created", label: "Created", icon: "mdi mdi-calendar-arrow-right", description: "Created after / before a date" },
+  { value: "edited", label: "Edited", icon: "mdi mdi-calendar-edit", description: "Edited after / before a date" },
   { value: "group-and", label: "All of (AND)", icon: "mdi mdi-set-all", description: "Match all nested conditions" },
   { value: "group-or", label: "Any of (OR)", icon: "mdi mdi-set-center", description: "Match any nested condition" },
-  { value: "not", label: "Exclude (NOT)", icon: "mdi mdi-cancel", description: "Exclude matching nodes" },
+  { value: "not", label: "Exclude (NOT)", description: "Exclude matching nodes", icon: "mdi mdi-cancel" },
 ];
 
 /** The add-menu entries a config offers — the gated kinds plus the groups. */
@@ -178,37 +196,37 @@ export function filterKindOptionsForConfig(config?: FilterBarConfig): readonly F
   return FILTER_KIND_OPTIONS.filter((option) => {
     if (option.value === "class") return showClass;
     if (option.value === "property") return showProperties;
-    if (option.value === "createdAfter" || option.value === "createdBefore") return showDateRange;
+    if (option.value === "created" || option.value === "edited") return !showDateRange ? false : true;
     return true;
   });
 }
 
-/** A fresh, half-typed condition per kind — the row the menu appends. */
+/** A fresh, half-typed condition per family — the block the menu appends. */
 export function createCondition(kind: ConditionKind): Condition {
   switch (kind) {
     case "class":
       return { type: "class", classId: "" };
-    case "isClass":
+    case "type":
       return { type: "isClass", isClass: true };
-    case "presentAsMain":
+    case "placement":
       return { type: "presentAsMain", presentAsMain: true };
     case "content":
       return { type: "content", op: "contains", value: "" };
     case "property":
       return { type: "property", schemaId: "", op: "eq", value: "" };
-    case "linkedTo":
+    case "links":
       return { type: "linkedTo", nodeId: "" };
-    case "descendantOf":
+    case "parent":
       return { type: "descendantOf", nodeId: "" };
-    case "createdAfter":
-      return { type: "createdAfter", timestamp: "" };
-    case "createdBefore":
-      return { type: "createdBefore", timestamp: "" };
-    case "coverAsset":
+    case "cover":
       return { type: "coverAsset", op: "exists" };
-    case "bannerAsset":
+    case "banner":
       return { type: "bannerAsset", op: "exists" };
-    case "aliasedNode":
+    case "alias":
       return { type: "aliasedNode", op: "exists" };
+    case "created":
+      return { type: "createdAfter", timestamp: "" };
+    case "edited":
+      return { type: "updatedAfter", timestamp: "" };
   }
 }

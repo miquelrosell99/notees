@@ -955,7 +955,9 @@ select:focus-visible {
   border: none;
   background: transparent;
   color: var(--color-on-surface-variant);
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   user-select: none;
   opacity: 0;
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);

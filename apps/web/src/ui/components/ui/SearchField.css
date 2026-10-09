@@ -52,9 +52,11 @@
   min-width: 0;
 }
 
+/* Focus feedback is the border + background shift (owner 2026-10-09: no
+   accent glow — the ring read as noise against the quiet panels). */
 .search-field:has(.search-field__input:focus-visible) {
   outline: none;
-  box-shadow: var(--shadow-focus-ring);
+  border-color: var(--color-on-surface-variant);
 }
 
 .search-field__input::placeholder {
@@ -64,4 +66,24 @@
 .search-field__input::-webkit-search-cancel-button {
   -webkit-appearance: none;
   appearance: none;
+}
+
+/* The clear affordance — a quiet icon button inside the right edge, shown
+   only while a value rides the field. */
+.search-field__clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  border-radius: var(--shape-full);
+}
+
+.search-field__clear:hover {
+  color: var(--color-on-surface);
+  background: var(--color-hover-overlay);
 }
