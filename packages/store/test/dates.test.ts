@@ -23,7 +23,7 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { chainNodeIds } from "@notees/domain";
 import { newEnvelope, type Envelope } from "@notees/protocol";
 
-import { Store, type StoreBackend } from "../src/index.js";
+import { PropertyValueShapeError, Store, type StoreBackend } from "../src/index.js";
 import { betterSqlite3Backend } from "../src/adapters/better-sqlite3.js";
 import { sqljsBackend } from "../src/adapters/sqljs.js";
 
@@ -82,8 +82,8 @@ describe.each(adapters)("$name: dates (SCHEMA.md)", ({ makeBackend }) => {
     const store = Store.open(makeBackend());
     store.applyMany([
       env("object.create", { objectId: NODE_PAGE }, 1727200000000),
-      env("propertySchema.create", { propertySchemaId: PUBLISHED, name: "published", type: "date" }, 1727200000100),
-      env("propertySchema.create", { propertySchemaId: SPAN, name: "span", type: "date_range" }, 1727200000200),
+      env("propertySchema.create", { propertySchemaId: PUBLISHED, name: "published", type: "datetime" }, 1727200000100),
+      env("propertySchema.create", { propertySchemaId: SPAN, name: "span", type: "datetime" }, 1727200000200),
     ]);
     // PG6 target-existence: date refs must resolve — materialize the chains
     // the assertions link to (the ensureDateChain shape: year root, month
@@ -169,7 +169,7 @@ describe.each(adapters)("$name: dates (SCHEMA.md)", ({ makeBackend }) => {
     store.apply(
       env(
         "propertySchema.create",
-        { propertySchemaId: PRECISIONED, name: "founded", type: "date", datePrecision: "year" },
+        { propertySchemaId: PRECISIONED, name: "founded", type: "datetime", datePrecision: "year" },
         1727200000500,
       ),
     );
@@ -204,7 +204,7 @@ describe.each(adapters)("$name: dates (SCHEMA.md)", ({ makeBackend }) => {
     store.applyMany([
       env(
         "propertySchema.create",
-        { propertySchemaId: PRECISIONED, name: "founded", type: "date", datePrecision: "year" },
+        { propertySchemaId: PRECISIONED, name: "founded", type: "datetime", datePrecision: "year" },
         1727200000500,
       ),
       env("property.set", { objectId: NODE_PAGE, propertySchemaId: PRECISIONED, value: { nodeId: CHAIN_A.year }, idx: 0 }, 1727200001000),
@@ -254,6 +254,186 @@ describe.each(adapters)("$name: dates (SCHEMA.md)", ({ makeBackend }) => {
     expect(effective[0]?.metadata).toEqual({
       startDate: { nodeId: "00000000-0000-0000-00dd-202601010000" },
       endDate: { nodeId: "00000000-0000-0000-00dd-202612310000" },
+    });
+  });
+
+  describe("datetime value union (SCHEMA.md Datetime)", () => {
+    function valueRow(store: Store, schemaId: string): { value: string } | undefined {
+      return store.database
+        .prepare(
+          "SELECT value FROM property_value WHERE node_id = ? AND property_schema_id = ? AND idx = 0",
+        )
+        .get(NODE_PAGE, schemaId) as { value: string } | undefined;
+    }
+
+    it("a timed point and a timed range end round-trip verbatim", () => {
+      const store = makeStore();
+      store.apply(
+        env(
+          "property.set",
+          { objectId: NODE_PAGE, propertySchemaId: PUBLISHED, value: { nodeId: CHAIN_A.day, time: "14:30" } },
+          1727200001000,
+        ),
+      );
+      expect(valueRow(store, PUBLISHED)?.value).toBe(
+        JSON.stringify({ nodeId: CHAIN_A.day, time: "14:30" }),
+      );
+      store.apply(
+        env(
+          "property.set",
+          {
+            objectId: NODE_PAGE,
+            propertySchemaId: SPAN,
+            value: { start: { nodeId: CHAIN_A.day }, end: { nodeId: CHAIN_B.day, time: "09:15" } },
+          },
+          1727200002000,
+        ),
+      );
+      expect(valueRow(store, SPAN)?.value).toBe(
+        JSON.stringify({
+          start: { nodeId: CHAIN_A.day },
+          end: { nodeId: CHAIN_B.day, time: "09:15" },
+        }),
+      );
+      // The derived edges project from both slot refs (the timed end too).
+      expect((store.backlinks(CHAIN_B.day) as unknown[]).length).toBe(1);
+    });
+
+    it("a both-open range is a legal value", () => {
+      const store = makeStore();
+      store.apply(
+        env(
+          "property.set",
+          { objectId: NODE_PAGE, propertySchemaId: SPAN, value: { start: null, end: null } },
+          1727200001000,
+        ),
+      );
+      expect(valueRow(store, SPAN)?.value).toBe(JSON.stringify({ start: null, end: null }));
+    });
+
+    it("a value carrying BOTH nodeId and start/end keys is rejected outright", () => {
+      const store = makeStore();
+      for (const bad of [
+        { nodeId: CHAIN_A.day, start: { nodeId: CHAIN_A.day }, end: null },
+        { nodeId: CHAIN_A.day, end: null },
+      ]) {
+        expect(() =>
+          store.apply(
+            env("property.set", { objectId: NODE_PAGE, propertySchemaId: PUBLISHED, value: bad }, 1727200001000),
+          ),
+        ).toThrow(PropertyValueShapeError);
+      }
+    });
+
+    it("a malformed time is rejected (points and range slots alike)", () => {
+      const store = makeStore();
+      for (const time of ["25:00", "9:30", "10:60", "14:30:00", 430, null]) {
+        expect(() =>
+          store.apply(
+            env(
+              "property.set",
+              { objectId: NODE_PAGE, propertySchemaId: PUBLISHED, value: { nodeId: CHAIN_A.day, time } },
+              1727200001000,
+            ),
+          ),
+        ).toThrow(PropertyValueShapeError);
+        expect(() =>
+          store.apply(
+            env(
+              "property.set",
+              {
+                objectId: NODE_PAGE,
+                propertySchemaId: SPAN,
+                value: { start: null, end: { nodeId: CHAIN_B.day, time } },
+              },
+              1727200001000,
+            ),
+          ),
+        ).toThrow(PropertyValueShapeError);
+      }
+    });
+
+    it("time requires day precision on the slot's ref (a month/year anchor has no wall-clock time)", () => {
+      const store = makeStore();
+      expect(() =>
+        store.apply(
+          env(
+            "property.set",
+            { objectId: NODE_PAGE, propertySchemaId: PUBLISHED, value: { nodeId: CHAIN_A.month, time: "10:00" } },
+            1727200001000,
+          ),
+        ),
+      ).toThrow(PropertyValueShapeError);
+      expect(() =>
+        store.apply(
+          env(
+            "property.set",
+            { objectId: NODE_PAGE, propertySchemaId: SPAN, value: { start: { nodeId: CHAIN_A.year, time: "10:00" }, end: null } },
+            1727200001000,
+          ),
+        ),
+      ).toThrow(PropertyValueShapeError);
+    });
+
+    it("time requires day precision on the schema ceiling too", () => {
+      const store = makeStore();
+      const YEARLY = "0192a000-0000-7000-8000-0000000000d5";
+      store.apply(
+        env(
+          "propertySchema.create",
+          { propertySchemaId: YEARLY, name: "yearly", type: "datetime", datePrecision: "year" },
+          1727200000500,
+        ),
+      );
+      // A full-day YEAR ref is fine at year precision…
+      store.apply(
+        env("property.set", { objectId: NODE_PAGE, propertySchemaId: YEARLY, value: { nodeId: CHAIN_A.year } }, 1727200001000),
+      );
+      expect(valueRow(store, YEARLY)?.value).toBe(JSON.stringify({ nodeId: CHAIN_A.year }));
+      // …but a timed DAY ref claims finer granularity than the ceiling.
+      expect(() =>
+        store.apply(
+          env(
+            "property.set",
+            { objectId: NODE_PAGE, propertySchemaId: YEARLY, value: { nodeId: CHAIN_A.day, time: "08:00" } },
+            1727200002000,
+          ),
+        ),
+      ).toThrow(/finer granularity/);
+    });
+
+    it("each non-null range slot ref gets the existence check (a ghost slot fails loud)", () => {
+      const store = makeStore();
+      // CHAIN_C (2028-01-15) is never materialized in makeStore — a valid
+      // day-node id with no node row (the date_range parity: either end
+      // missing fails, open sides skip).
+      expect(() =>
+        store.apply(
+          env(
+            "property.set",
+            { objectId: NODE_PAGE, propertySchemaId: SPAN, value: { start: { nodeId: CHAIN_C.day }, end: null } },
+            1727200001000,
+          ),
+        ),
+      ).toThrow(/does not exist/);
+      expect(() =>
+        store.apply(
+          env(
+            "property.set",
+            {
+              objectId: NODE_PAGE,
+              propertySchemaId: SPAN,
+              value: { start: null, end: { nodeId: CHAIN_C.day, time: "12:00" } },
+            },
+            1727200001000,
+          ),
+        ),
+      ).toThrow(/does not exist/);
+      // Open sides store fine (no ref to check).
+      store.apply(
+        env("property.set", { objectId: NODE_PAGE, propertySchemaId: SPAN, value: { start: null, end: null } }, 1727200002000),
+      );
+      expect(valueRow(store, SPAN)?.value).toBe(JSON.stringify({ start: null, end: null }));
     });
   });
 });

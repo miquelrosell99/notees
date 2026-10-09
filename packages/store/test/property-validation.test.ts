@@ -149,10 +149,10 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       [SCHEMA_SELECT, { name: "state", type: "select", options: [{ id: "opt-1", label: "One" }] }],
       [SCHEMA_MULTI_SELECT, { name: "tags", type: "multi_select" }],
       [SCHEMA_IMAGE, { name: "cover", type: "image" }],
-      [SCHEMA_DATE, { name: "when", type: "date" }],
-      [SCHEMA_DATE_YEAR, { name: "yearOf", type: "date", datePrecision: "year" }],
+      [SCHEMA_DATE, { name: "when", type: "datetime" }],
+      [SCHEMA_DATE_YEAR, { name: "yearOf", type: "datetime", datePrecision: "year" }],
       [SCHEMA_OBJECT_FILTERED, { name: "ref", type: "object", targetClassFilter: [CLASS_A] }],
-      [SCHEMA_RANGE, { name: "span", type: "date_range" }],
+      [SCHEMA_RANGE, { name: "span", type: "datetime" }],
     ] as const) {
       store.apply(env("propertySchema.create", { propertySchemaId: id, ...body }, step()));
     }
@@ -240,7 +240,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(valueRow(store, SCHEMA_TEXT_MULTI, 1)?.value).toBe(JSON.stringify("one"));
     });
 
-    it("date refs may not claim finer granularity than the schema's precision", () => {
+    it("datetime refs may not claim finer granularity than the schema's precision", () => {
       const store = seededStore();
       // day-precision schema: day/month/year refs all fine.
       store.apply(env("property.set", { objectId: OWNER, propertySchemaId: SCHEMA_DATE, value: { nodeId: DAY_NODE } }, 1727200005000));

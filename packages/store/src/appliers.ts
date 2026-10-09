@@ -1268,8 +1268,7 @@ function applyClassPropertySet(db: StoreDatabase, env: Envelope): ChangeSummary 
     if (schemaType !== null && !isValidDefaultForType(schemaType, p.defaultValue)) {
       throw new PropertyValueShapeError(
         `${opType}: defaultValue for ${schemaType} schema ` +
-          (schemaType === "date" || schemaType === "date_range" || schemaType === "object" ||
-            schemaType === "asset"
+          (schemaType === "datetime" || schemaType === "object" || schemaType === "asset"
             ? "must be null — node-typed defaults are not supported"
             : `must be typed ${schemaType}`) +
           ` — got ${JSON.stringify(p.defaultValue)}`,
