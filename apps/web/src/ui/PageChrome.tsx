@@ -36,6 +36,7 @@ import { AliasesButton } from "./components/AliasesButton.js";
 import { PageFooter } from "./components/PageFooter.js";
 import { BlockRow } from "./BlockRow.js";
 import { Icon } from "./Icon.js";
+import { Button } from "./components/ui/Button.js";
 import { displayNameForSettings, displayNameFromClient } from "./dateDisplay.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -72,32 +73,34 @@ export function NodeTopbar({
 }) {
   return (
     <div className="nt-node-topbar">
-      <button
+      <Button
         type="button"
-        className="nt-icon-btn"
+        variant="outline"
+        size="sm"
+        icon="mdi mdi-format-list-bulleted"
         aria-label={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
         aria-pressed={!sidePanelCollapsed}
         title={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
+        active={!sidePanelCollapsed}
         onClick={onToggleSidePanel}
-      >
-        <Icon path="mdi-tune-variant" size={1} />
-      </button>
+      />
       <div className="nt-node-topbar__classes">
         <ClassesRow client={client} nodeId={nodeId} classIds={classIds} onOpenPage={onOpenPage} />
       </div>
       <span className="nt-node-topbar__spacer" aria-hidden="true" />
       <div className="nt-node-topbar__right">
         {chromeModes}
-        <button
+        <Button
           type="button"
-          className="nt-icon-btn"
+          variant="outline"
+          size="sm"
+          icon="mdi mdi-information-outline"
           aria-label={contextPanelCollapsed ? "Show context panel" : "Hide context panel"}
           aria-pressed={!contextPanelCollapsed}
           title={contextPanelCollapsed ? "Show context panel" : "Hide context panel"}
+          active={!contextPanelCollapsed}
           onClick={onToggleContextPanel}
-        >
-          <Icon path="mdi-dock-right" size={1} />
-        </button>
+        />
         {chromeMenu}
       </div>
     </div>
