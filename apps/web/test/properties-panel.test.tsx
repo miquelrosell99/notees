@@ -376,8 +376,8 @@ describe("PB2: carrier lifecycle at the client level", () => {
   });
 });
 
-describe("dead carrier in the value cell (owner bug 2026-10-04)", () => {
-  it("a text property whose carrier was deleted renders EMPTY — never the raw uuid — and re-editing authors a fresh carrier", async () => {
+describe("dead carrier in the value cell (owner bug 2026-10-04; auto-unset owner ruling 2026-10-09)", () => {
+  it("a text property whose carrier was deleted auto-unsets — the slot returns to empty, never the raw uuid", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "Description", type: "text" });
     const owner = await client.createObject({ presentAsMain: true, name: "Inmunocal" });
@@ -390,25 +390,19 @@ describe("dead carrier in the value cell (owner bug 2026-10-04)", () => {
     await client.deleteObject(carrier);
     await flushWrites();
 
-    render(<PageView client={client} pageId={owner} />);
+    const { container } = render(<PageView client={client} pageId={owner} />);
     expandProperties();
-    const input = screen.getByLabelText("Property Description") as HTMLInputElement;
-    // The dangling ref does not surface as a uuid, here or after reload —
-    // the cell is simply empty (the content is gone).
-    expect(input.value).toBe("");
-    expect(input.value).not.toContain(carrier);
-
-    // Typing + blur authors a NEW carrier and re-points the value.
-    fireEvent.blur(input, { target: { value: "fresh description" } });
     await flushWrites();
-    const effective = client.getEffectiveProperties(owner);
-    expect(effective).toHaveLength(1);
-    const ref = (effective[0]!.value as { nodeId: string }).nodeId;
-    expect(ref).not.toBe(carrier);
-    expect(client.getNode(ref)?.contentAst).toEqual([{ type: "text", text: "fresh description" }]);
+    await flushWrites();
+
+    // The dangling value is unset by the panel's auto-unset pass — no dead
+    // cell, no interaction needed, and the raw uuid never surfaces.
+    expect(client.getEffectiveProperties(owner)).toEqual([]);
+    expect(container.textContent).not.toContain(carrier);
+    expect(screen.queryByLabelText("Property Description")).toBeNull();
   });
 
-  it("touching a dead-carrier cell empty unsets the dangling value", async () => {
+  it("a dead value whose trashed carrier still held content also auto-unsets (the old dead cell never surfaced the content anyway)", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "Description", type: "text" });
     const owner = await client.createObject({ presentAsMain: true, name: "Owner" });
@@ -422,10 +416,10 @@ describe("dead carrier in the value cell (owner bug 2026-10-04)", () => {
 
     render(<PageView client={client} pageId={owner} />);
     expandProperties();
-    const input = screen.getByLabelText("Property Description");
-    fireEvent.blur(input, { target: { value: "" } });
+    await flushWrites();
     await flushWrites();
     expect(client.getEffectiveProperties(owner)).toEqual([]);
+    expect(screen.queryByLabelText("Property Description")).toBeNull();
   });
 
   it("a bound-but-empty text property renders the full-width 'Type something' placeholder; typing authors the first carrier", async () => {
