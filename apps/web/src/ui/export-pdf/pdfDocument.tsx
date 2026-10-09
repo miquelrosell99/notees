@@ -381,12 +381,34 @@ function PdfHeader({
 }
 
 /**
+ * The end-list entries at one level of the child tree: the main children
+ * (child pages), in document order, PLUS the main descendants hoisted out
+ * of inline blocks — a page parented under a block is still a child page of
+ * the exported subtree, so it belongs in the list at its position, never a
+ * silent drop. Inline blocks themselves never appear here (they already
+ * rendered nested in the body).
+ */
+function childPagesOf(children: readonly ExportDocumentChild[]): ExportDocumentChild[] {
+  const out: ExportDocumentChild[] = [];
+  const walk = (rows: readonly ExportDocumentChild[]): void => {
+    for (const row of rows) {
+      if (row.presentAsMain) out.push(row);
+      else walk(row.children);
+    }
+  };
+  walk(children);
+  return out;
+}
+
+/**
  * The inline-block children of one node (presentAsMain false — block nodes),
  * nested in the parent's body the way the outliner renders them: body-only,
  * NO title heading (the Revision-11 rule: a block node carries no document
- * chrome), each with its own inline children recursed. Cut entries render
- * the visible `![[uuid]]` reference, never a silent drop. Returns null when
- * the node has no inline children.
+ * chrome), each with its own inline children recursed. Main nodes are
+ * EXCLUDED at every level — they are child pages and belong to the end list
+ * ({@link childPagesOf} hoists the ones parented under blocks); cut entries
+ * render the visible `![[uuid]]` reference, never a silent drop. Returns
+ * null when the node has no inline children.
  */
 function PdfInlineChildren({
   children,
@@ -446,7 +468,7 @@ function PdfOutlineChild({
   // single-title rule strips that same text from the body's first line.
   // Its inline blocks nest body-only inside its content; its own child
   // pages ride the nested end list below.
-  const childPages = child.children.filter((grandChild) => grandChild.presentAsMain);
+  const childPages = childPagesOf(child.children);
   return (
     <View style={{ marginBottom: 6 }}>
       <Text style={styles.outlineTitle}>
@@ -481,9 +503,11 @@ function PdfOutlineChild({
 /** The end-of-document child-page list: the main-zone children (child
  *  pages), recursive, each a titled entry — a separate section the way the
  *  page view's Child pages section lists them. Inline body blocks do NOT
- *  appear here: they already rendered nested in their parent's body. No
+ *  appear here: they already rendered nested in their parent's body — but
+ *  their main descendants DO (hoisted by {@link childPagesOf}: a page
+ *  parented under a block is still a child page of the subtree). No
  *  section heading, no divider — the entries stand on their titles. Null
- *  when the node has no child pages. */
+ *  when the subtree has no child pages. */
 function PdfOutline({
   children,
   styles,
@@ -495,7 +519,7 @@ function PdfOutline({
   theme: PdfTheme;
   assetDataUrls: ReadonlyMap<string, string>;
 }): ReactElement | null {
-  const childPages = children.filter((child) => child.presentAsMain);
+  const childPages = childPagesOf(children);
   if (childPages.length === 0) return null;
   return (
     <View style={styles.outline}>
