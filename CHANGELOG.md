@@ -9,19 +9,6 @@ predating this file.
 
 ## 2026-10-09
 
-- **docs(skill,runbook): agent work happens in the test workspace, never the
-  personal default — the dev skill now fixes both uuids.** New law 8 in the
-  `notees-development` skill (+ the development-workflow reference and the
-  canonical `docs/developers/development.md` parallel-sessions rule): every
-  agent action that touches a live workspace — API calls, browser probes and
-  their `localStorage` seeds, CLI writes, verification data — targets the
-  test workspace `c491595f-9f94-5ade-a620-e30ed063d8d2` (the unnamed seed
-  workspace, disposable), never "Notas" `3b30e070-039b-47bc-ad0d-2440a2f173c5`
-  (the owner's live data); probe data is created there and deleted when done.
-  `class-probe.mjs` reseeds `notees.workspaceId` to the test workspace (it
-  pointed at Notas).
-
-
 - **feat(web): the block tree's vertical indent line is itself a collapse
   control — click the line to fold the direct children of the block it starts
   from (the v1 gesture), and the bullet stops riding low.** (1) Every
@@ -43,6 +30,44 @@ predating this file.
   parenthetical in `docs/ux.md`'s outliner section. No model/wire change —
   display-state only, no fixtures.
 
+- **feat(web,export): export downloads carry the node's name + a local
+  timestamp; the PDF mirrors the page view (single-title body, inline blocks
+  nested body-only, child pages as the end list); v1-migrated property values
+  stop leaking raw uuids; booleans render as checkboxes; main node vs block
+  node is now defined vocabulary.** (1) Every modal download name is
+  `<node-name-slug>-<YYYYMMDDHHmm>.<ext>` — the export modal's single-file
+  formats (markdown/html/latex/docx/pdf/json archive), the batch zip names,
+  and the table view's CSV/XLSX — so repeated exports of one node never
+  overwrite each other in the download folder; in-zip entry names keep the
+  E3/E5 `<slug>-<id8>` conventions untouched. (2) The PDF layout restructures
+  to the page view's shape: the root title renders once (the single-title
+  rule — `withoutLeadingTitle` — now applies to the PDF body, which used to
+  repeat the title as its first paragraph); the literal "Outline" heading and
+  its divider are gone; inline BLOCK children render nested in the body with
+  no title heading (block nodes carry no chrome); child PAGES form the
+  separate recursive end list, each a titled entry whose body no longer
+  repeats its title (`withoutLeadingTitleBlocks`, exported from
+  `@notees/export`). (3) V1-migrated data rides the log with BARE uuid
+  strings where v2 wants `{ nodeId }` refs (verified against the live relay:
+  an imported book's "Última consulta" date) — the export IR
+  (`resolvePropertyDisplay`), the PDF, and the table/cards/CSV/XLSX display
+  (`propertyDisplayText`, which also learned date_range display and dropped
+  its silent array-entry drop) now resolve bare strings on node-typed schemas
+  (date/object/asset) through the settings-aware name resolver; the web
+  resolver formats date nodes per the user's dateFormat, so the uuid leak is
+  gone everywhere. (4) Property metadata qualifiers resolve at IR build time
+  (`resolvedQualifiers` + `qualifierTail`) — markdown/html/latex/docx/PDF all
+  render `startDate 2025-06-24`, never a raw uuid or `[object Object]`. (5)
+  Booleans render as checkbox glyphs (☑/☐) in every text projection; the PDF
+  draws a real vector checkbox (rect + check polyline, no font-glyph
+  dependency). (6) SCHEMA.md "Node structure" + AGENTS.md + the development
+  skill now define the terms: a **main node** renders with document chrome
+  (`is_class = 1` OR no parent OR `present_as_main = 1`); a **block node** is
+  a parented non-class node with `present_as_main = 0` — inline in the
+  parent's body, no title. Verified: `packages/export` 235 tests green (16
+  new leniency/single-title specs), web export-pdf/modals-overlays suites
+  green (7 new structure specs), download-name assertions moved to
+  `-<12-digit stamp>` regexes.
 
 - **fix(web): one corner radius for every text button — the md/lg sizes drop
   from 16px to the shared 12px.** The 16px `--shape-button-large` token made

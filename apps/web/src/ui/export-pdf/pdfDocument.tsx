@@ -1,24 +1,31 @@
 /**
  * ExportDocument IR → react-pdf component tree.
  *
- * Pure projection over the resolved IR, mirroring the html serializer's
- * discipline (H1 is the reference rendering): the title block, the
- * properties table, content blocks, the nested outline, and the layout
- * themes from theme.ts (Notes = app styling, Essay = single-column typeset,
- * Academic = two-column body + numbered headings). Assets render as real
- * images when the caller resolved a data URL through the client's cached
- * asset read; a miss renders the bordered placeholder box. Embeds arrive
- * inlined from the IR (includeEmbedded) or fall back to a reference line;
- * query/whiteboard blocks are verbatim JSON in a mono box; math is mono
- * `$…$`. User-derived strings are data here — react-pdf writes text runs
- * verbatim (no markup breakout is possible).
+ * Pure projection over the resolved IR, mirroring the page view's structure
+ * (H1 is the reference rendering): the title block (document chrome only —
+ * a main node; a block-node root renders body-only, no title), the
+ * properties table (booleans as drawn vector checkboxes, qualifiers via the
+ * IR's resolved display — never a raw uuid), the content blocks minus the
+ * leading title text (the single-title rule), the inline-block children
+ * nested body-only at the body's end (block nodes carry no heading), and —
+ * a separate end-of-document section — the recursive child-page list (the
+ * main-zone children, each a titled entry, mirroring the page view's Child
+ * pages section; no "Outline" heading, no divider). Layout themes from
+ * theme.ts (Notes = app styling, Essay = single-column typeset, Academic =
+ * two-column body + numbered headings). Assets render as real images when
+ * the caller resolved a data URL through the client's cached asset read; a
+ * miss renders the bordered placeholder box. Embeds arrive inlined from the
+ * IR (includeEmbedded) or fall back to a reference line; query/whiteboard
+ * blocks are verbatim JSON in a mono box; math is mono `$…$`. User-derived
+ * strings are data here — react-pdf writes text runs verbatim (no markup
+ * breakout is possible).
  *
  * The tree is plain React elements: rendering it with react-dom (the test
  * harness) yields the lowercase element DOM, and `pdf(<ExportPdfDocument/>)
  * .toBlob()` (renderPdf.ts) drives the real renderer in the browser.
  */
 
-import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { Document, Image, Page, StyleSheet, Svg, Text, View, Polyline, Rect } from "@react-pdf/renderer";
 import type { ReactElement } from "react";
 
 import type {
@@ -28,7 +35,7 @@ import type {
   ExportSpan,
   ResolvedExportOptions,
 } from "@notees/export";
-import { isEmptyPropertyValue } from "@notees/export";
+import { isEmptyPropertyValue, qualifierTail, withoutLeadingTitle, withoutLeadingTitleBlocks } from "@notees/export";
 
 import "./fonts.js";
 import { PDF_THEMES, type PdfLayout, type PdfTheme } from "./theme.js";
@@ -143,13 +150,9 @@ function buildStyles(theme: PdfTheme) {
     },
     columns: { flexDirection: "row", marginBottom: 8 },
     column: { flex: 1 },
-    outline: { borderTop: `1 solid ${theme.colors.rule}`, paddingTop: 10, marginTop: 6 },
-    outlineHeading: {
-      fontFamily: theme.fonts.heading,
-      fontSize: theme.type.outlineTitleSize,
-      fontWeight: 700,
-      marginBottom: 8,
-    },
+    nestedBlocks: { marginLeft: 14, marginBottom: 8 },
+    nestedBlock: { marginBottom: 6 },
+    outline: { paddingTop: 10, marginTop: 6 },
     outlineTitle: {
       fontFamily: theme.fonts.heading,
       fontSize: theme.type.bodySize + 1,
@@ -157,6 +160,7 @@ function buildStyles(theme: PdfTheme) {
       marginBottom: 3,
     },
     outlineNumber: { color: theme.colors.muted, fontWeight: 400 },
+    propertyCheckbox: { flexDirection: "row", alignItems: "center" },
     cut: { fontFamily: theme.fonts.mono, fontSize: theme.type.bodySize - 2, color: theme.colors.muted },
   });
 }
@@ -308,6 +312,19 @@ function splitBlocks(blocks: readonly ExportBlock[]): [readonly ExportBlock[], r
   return [blocks.slice(0, midpoint), blocks.slice(midpoint)];
 }
 
+/** A drawn checkbox (vector, no font-glyph dependency): an empty square, a
+ *  polyline check when checked — the boolean property value's rendering. */
+function PdfCheckbox({ checked, color }: { checked: boolean; color: string }): ReactElement {
+  return (
+    <Svg width={11} height={11} viewBox="0 0 12 12">
+      <Rect x={0.75} y={0.75} width={10.5} height={10.5} stroke={color} strokeWidth={1} fill="none" />
+      {checked ? (
+        <Polyline points="2.5,6.2 5,8.7 9.8,3.4" stroke={color} strokeWidth={1.4} fill="none" />
+      ) : null}
+    </Svg>
+  );
+}
+
 /** Document header: title (document chrome only) + the properties table. */
 function PdfHeader({
   document,
@@ -333,18 +350,22 @@ function PdfHeader({
     (property) => !options.hideEmptyProperties || !isEmptyPropertyValue(property.value),
   );
   for (const property of visible) {
+    // Booleans render as the drawn checkbox (the owner's glyph ruling); the
+    // qualifier tail rides the IR's build-time resolved qualifiers — a
+    // date-node ref never leaks as a raw uuid.
+    const isBoolean = property.schemaType === "boolean" && typeof property.value === "boolean";
     let display = property.display;
     if (display.length === 0 && (property.value === null || property.value === undefined)) display = "null";
-    if (property.metadata !== undefined && Object.keys(property.metadata).length > 0) {
-      const qualifiers = Object.entries(property.metadata)
-        .map(([key, entry]) => `${key} ${String(entry)}`)
-        .join(", ");
-      display = `${display} (${qualifiers})`;
-    }
     rows.push(
       <View key={`${property.schemaId}:${rows.length}`} style={styles.propertyRow}>
         <Text style={styles.propertyName}>{property.schemaName}</Text>
-        <Text style={styles.propertyValue}>{display}</Text>
+        {isBoolean ? (
+          <View style={[styles.propertyValue, styles.propertyCheckbox]}>
+            <PdfCheckbox checked={property.value === true} color={theme.colors.text} />
+          </View>
+        ) : (
+          <Text style={styles.propertyValue}>{`${display}${qualifierTail(property)}`}</Text>
+        )}
       </View>,
     );
   }
@@ -355,6 +376,45 @@ function PdfHeader({
         <Text style={styles.title}>{document.title.length > 0 ? document.title : document.nodeId}</Text>
       ) : null}
       {rows.length > 0 ? <View style={styles.properties}>{rows}</View> : null}
+    </View>
+  );
+}
+
+/**
+ * The inline-block children of one node (presentAsMain false — block nodes),
+ * nested in the parent's body the way the outliner renders them: body-only,
+ * NO title heading (the Revision-11 rule: a block node carries no document
+ * chrome), each with its own inline children recursed. Cut entries render
+ * the visible `![[uuid]]` reference, never a silent drop. Returns null when
+ * the node has no inline children.
+ */
+function PdfInlineChildren({
+  children,
+  styles,
+  theme,
+  assetDataUrls,
+}: {
+  children: readonly ExportDocumentChild[];
+  styles: Styles;
+  theme: PdfTheme;
+  assetDataUrls: ReadonlyMap<string, string>;
+}): ReactElement | null {
+  const inline = children.filter((child) => !child.presentAsMain);
+  if (inline.length === 0) return null;
+  return (
+    <View style={styles.nestedBlocks}>
+      {inline.map((child) =>
+        child.cut !== undefined ? (
+          <Text key={child.id} style={styles.cut}>
+            ![[{child.id}]]
+          </Text>
+        ) : (
+          <View key={child.id} style={styles.nestedBlock}>
+            <PdfBlocks blocks={child.blocks} styles={styles} theme={theme} assetDataUrls={assetDataUrls} />
+            <PdfInlineChildren children={child.children} styles={styles} theme={theme} assetDataUrls={assetDataUrls} />
+          </View>
+        ),
+      )}
     </View>
   );
 }
@@ -382,18 +442,27 @@ function PdfOutlineChild({
   }
   // Academic numbering: the path indices render "1.", "1.2.", "1.2.3.", …
   const number = theme.numberedHeadings && numbering.length > 0 ? `${numbering.join(".")}. ` : "";
+  // A child page is a main node: its title rides the heading, and the
+  // single-title rule strips that same text from the body's first line.
+  // Its inline blocks nest body-only inside its content; its own child
+  // pages ride the nested end list below.
+  const childPages = child.children.filter((grandChild) => grandChild.presentAsMain);
   return (
     <View style={{ marginBottom: 6 }}>
       <Text style={styles.outlineTitle}>
         {number.length > 0 ? <Text style={styles.outlineNumber}>{number}</Text> : null}
         {child.title.length > 0 ? child.title : child.id}
       </Text>
-      {child.blocks.length > 0 ? (
-        <PdfBlocks blocks={child.blocks} styles={styles} theme={theme} assetDataUrls={assetDataUrls} />
-      ) : null}
-      {child.children.length > 0 ? (
+      <PdfBlocks
+        blocks={withoutLeadingTitleBlocks(child.title, child.blocks)}
+        styles={styles}
+        theme={theme}
+        assetDataUrls={assetDataUrls}
+      />
+      <PdfInlineChildren children={child.children} styles={styles} theme={theme} assetDataUrls={assetDataUrls} />
+      {childPages.length > 0 ? (
         <View style={{ marginTop: 2, marginLeft: 10 }}>
-          {child.children.map((grandChild, index) => (
+          {childPages.map((grandChild, index) => (
             <PdfOutlineChild
               key={grandChild.id}
               child={grandChild}
@@ -409,7 +478,12 @@ function PdfOutlineChild({
   );
 }
 
-/** The nested outline: child titles (+ blocks) with per-depth indentation. */
+/** The end-of-document child-page list: the main-zone children (child
+ *  pages), recursive, each a titled entry — a separate section the way the
+ *  page view's Child pages section lists them. Inline body blocks do NOT
+ *  appear here: they already rendered nested in their parent's body. No
+ *  section heading, no divider — the entries stand on their titles. Null
+ *  when the node has no child pages. */
 function PdfOutline({
   children,
   styles,
@@ -421,11 +495,11 @@ function PdfOutline({
   theme: PdfTheme;
   assetDataUrls: ReadonlyMap<string, string>;
 }): ReactElement | null {
-  if (children.length === 0) return null;
+  const childPages = children.filter((child) => child.presentAsMain);
+  if (childPages.length === 0) return null;
   return (
     <View style={styles.outline}>
-      <Text style={styles.outlineHeading}>Outline</Text>
-      {children.map((child, index) => (
+      {childPages.map((child, index) => (
         <PdfOutlineChild
           key={child.id}
           child={child}
@@ -454,7 +528,14 @@ export function ExportPdfDocument({
   const styles = buildStyles(theme);
   const resolvedAssets = assetDataUrls ?? new Map<string, string>();
   const title = document.title.length > 0 ? document.title : document.nodeId;
-  const [leftColumn, rightColumn] = theme.twoColumnBody ? splitBlocks(document.blocks) : [document.blocks, []];
+  // The root's own body: the single-title rule strips the leading title text
+  // when the document renders chrome (a main node); a block-node root
+  // renders body-only (its title never surfaces as a heading). The root's
+  // inline-block children ride nested at the body's end; child pages ride
+  // the end-of-document list below.
+  const bodyBlocks = withoutLeadingTitle(document);
+  const [leftColumn, rightColumn] = theme.twoColumnBody ? splitBlocks(bodyBlocks) : [bodyBlocks, []];
+  const inlineChildren = <PdfInlineChildren children={document.children} styles={styles} theme={theme} assetDataUrls={resolvedAssets} />;
   return (
     <Document title={title} author="Notees">
       <Page size={pdfPageSize(options.pageFormat)} style={styles.page}>
@@ -469,8 +550,12 @@ export function ExportPdfDocument({
             </View>
           </View>
         ) : (
-          <PdfBlocks blocks={document.blocks} styles={styles} theme={theme} assetDataUrls={resolvedAssets} />
+          <>
+            <PdfBlocks blocks={bodyBlocks} styles={styles} theme={theme} assetDataUrls={resolvedAssets} />
+            {inlineChildren}
+          </>
         )}
+        {theme.twoColumnBody ? inlineChildren : null}
         <PdfOutline children={document.children} styles={styles} theme={theme} assetDataUrls={resolvedAssets} />
       </Page>
     </Document>

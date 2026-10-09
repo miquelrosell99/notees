@@ -143,6 +143,15 @@ CHECK (is_class = 0 OR parent_id IS NULL)
   block chrome when 0; unread for parentless nodes and classes) × `class_ids` (domain
   typing — whiteboard, meeting, …). "Page" and "block" are the user-facing names of the
   render states, not stored kinds.
+- **Main node vs block node (the vocabulary, owner 2026-10-09):** a **main node**
+  renders with document chrome — `is_class = 1` (a class), OR `parent_id IS NULL`
+  (a workspace root — no parent), OR `present_as_main = 1` on a parented non-class
+  node (the explicit flag). A **block node** is a parented non-class node with
+  `present_as_main = 0`: it renders inline inside its parent's body with block chrome
+  and no title/document chrome. `rendersWithDocumentChrome` / `rendersAsInlineBlock`
+  (`packages/domain/src/node.ts`) encode exactly these two branches; exports, outlines,
+  section queries, and picker filters all speak it ("child pages" = main-zone
+  children, "child blocks" = the inline zone).
 - **Applier defaults by context:** the payload's `presentAsMain` is optional; the applier
   defaults it to true when the node is parentless, false when parented.
 - **Class parenting:** classes may have non-class children (classes are containers); the

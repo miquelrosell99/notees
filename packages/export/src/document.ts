@@ -18,7 +18,7 @@
  */
 
 import type { ContentAst, InlineToken } from "@notees/protocol";
-import { deriveDisplayName, parseDateNodeId } from "@notees/domain";
+import { deriveDisplayName, parseDateNodeId, dateNodeDisplayLabel } from "@notees/domain";
 
 import type { ExportOptions, ResolvedExportOptions } from "./options.js";
 import { resolveExportOptions } from "./options.js";
@@ -60,6 +60,29 @@ export function qualifierDisplayOf(value: unknown): string {
     }
   }
   return String(value);
+}
+
+/**
+ * The qualifier tail every serializer shares — ` (key display, …)` appended
+ * to a property's display string (the `value (since 1962)` shape). Prefers
+ * the IR's build-time `resolvedQualifiers` (node refs resolved rename-free
+ * through ctx.nameOf — never a raw uuid, never `[object Object]`) and falls
+ * back to the ctx-free {@link qualifierDisplayOf} for rows built outside
+ * `buildExportDocument`. Returns "" when there are no qualifiers.
+ */
+export function qualifierTail(
+  property: ExportPropertyValue & {
+    resolvedQualifiers?: ReadonlyArray<{ key: string; display: string }> | undefined;
+  },
+): string {
+  const resolved = property.resolvedQualifiers;
+  const entries =
+    resolved !== undefined
+      ? resolved.map(({ key, display }) => `${key} ${display}`)
+      : property.metadata !== undefined && Object.keys(property.metadata).length > 0
+        ? Object.entries(property.metadata).map(([key, entry]) => `${key} ${qualifierDisplayOf(entry)}`)
+        : [];
+  return entries.length > 0 ? ` (${entries.join(", ")})` : "";
 }
 
 /**
@@ -173,6 +196,14 @@ export interface ExportDocumentChild {
    * child has no content-derived name) — the bibliography (L1) uses it as
    * the CSL title, via `nodeToCsl`. */
   title: string;
+  /** The child's main-zone bit (Revision-11 render state): true = the child
+   * is a main node (a child PAGE — titled outline entry); false = an inline
+   * body BLOCK (renders body-only, nested in its parent's content, no title
+   * heading — the same main-node vs block-node distinction the chrome
+   * predicate encodes for the root). Serializers that render a nested
+   * outline split the zones on this bit (the PDF layout); zone-blind
+   * bullet outlines ignore it. */
+  presentAsMain: boolean;
   /** The child's class ids — serializers that need per-node identity
    * (L1's bibliography: which children are source-classed, via
    * csl.ts `sourceClassOf`) read them here. */
@@ -231,10 +262,17 @@ export interface ExportDocument {
  * two end labels `[start, end]` (null = open side) for date_range values —
  * the Markdown frontmatter's list/map branches consume these instead of
  * re-deriving them serializer-side.
+ *
+ * `resolvedQualifiers` carries the per-value metadata qualifiers (PC6
+ * startDate/endDate and future keys) with node refs resolved to display
+ * strings at build time — serializers render these instead of raw
+ * `Object.entries` joins, so a date-node ref never leaks as a raw uuid (or
+ * worse, `[object Object]`). Verbatim `metadata` stays on the row.
  */
 export interface ExportDocumentProperty extends ExportPropertyValue {
   display: string;
   displayEntries?: Array<string | null> | undefined;
+  resolvedQualifiers?: ReadonlyArray<{ key: string; display: string }> | undefined;
 }
 
 // --- build -------------------------------------------------------------------
@@ -274,27 +312,40 @@ function normalizeInlineName(name: string): string {
 }
 
 /**
- * Single-title rule (title-is-content): the display name IS the node's own
- * text content, so an export that emits the title as a document-chrome
+ * Blocks-level single-title rule (title-is-content): the display name IS
+ * the node's own text content, so a rendering that emits the title as a
  * heading must not render that same text again as the body's first line.
- * When the document renders chrome and its first content block is a
- * paragraph opening with a text span whose whitespace-folded text equals the
- * title, that span rides in the heading alone — it is dropped here, and the
- * emptied paragraph drops with it. Everything else passes through
- * untouched: nodes without chrome (their title never surfaces as a heading),
- * outline children, and inlined embeds (their hosts render no heading).
+ * When the first content block is a paragraph opening with a text span
+ * whose whitespace-folded text equals the title, that span rides in the
+ * heading alone — it is dropped here, and the emptied paragraph drops with
+ * it. Everything else passes through untouched. Shared by the document
+ * root ({@link withoutLeadingTitle}) and the outline children (a child
+ * page's title heading rides the same rule — the child body must not open
+ * with the same text again).
+ */
+export function withoutLeadingTitleBlocks(
+  title: string,
+  blocks: readonly ExportBlock[],
+): readonly ExportBlock[] {
+  const normalized = normalizeInlineName(title);
+  if (normalized.length === 0) return blocks;
+  const [first, ...rest] = blocks;
+  if (first === undefined || first.kind !== "paragraph") return blocks;
+  const [span, ...remainingSpans] = first.spans;
+  if (span === undefined || span.kind !== "text") return blocks;
+  if (normalizeInlineName(span.text) !== normalized) return blocks;
+  if (remainingSpans.length === 0) return rest;
+  return [{ ...first, spans: remainingSpans }, ...rest];
+}
+
+/**
+ * Single-title rule at the document root: applies {@link withoutLeadingTitleBlocks}
+ * only when the document renders chrome (the heading exists); nodes without
+ * chrome, and inlined embeds (their hosts render no heading), pass through.
  */
 export function withoutLeadingTitle(document: ExportDocument): readonly ExportBlock[] {
   if (!document.rendersDocumentChrome) return document.blocks;
-  const title = normalizeInlineName(document.title);
-  if (title.length === 0) return document.blocks;
-  const [first, ...rest] = document.blocks;
-  if (first === undefined || first.kind !== "paragraph") return document.blocks;
-  const [span, ...remainingSpans] = first.spans;
-  if (span === undefined || span.kind !== "text") return document.blocks;
-  if (normalizeInlineName(span.text) !== title) return document.blocks;
-  if (remainingSpans.length === 0) return rest;
-  return [{ ...first, spans: remainingSpans }, ...rest];
+  return withoutLeadingTitleBlocks(document.title, document.blocks);
 }
 
 interface BuildState {
@@ -352,8 +403,65 @@ export function buildExportBlocks(
 function resolvePropertyDisplay(
   property: ExportPropertyValue,
   ctx: ExportContext,
+): {
+  display: string;
+  displayEntries?: Array<string | null>;
+  resolvedQualifiers?: Array<{ key: string; display: string }>;
+} {
+  return { ...resolvePropertyValueDisplay(property, ctx), ...resolveQualifiers(property, ctx) };
+}
+
+/**
+ * Per-value metadata qualifiers (PC6 startDate/endDate and future keys)
+ * resolved for display: a `{ nodeId }` ref or a legacy bare-uuid string
+ * (v1-migrated data, same leniency as the value branches) resolves through
+ * ctx.nameOf — settings-aware date formatting where the resolver is — with
+ * the deterministic date-id label and finally the raw string as honest
+ * fallbacks. Non-ref values render via String().
+ */
+function resolveQualifiers(
+  property: ExportPropertyValue,
+  ctx: ExportContext,
+): { resolvedQualifiers?: Array<{ key: string; display: string }> } {
+  if (property.metadata === undefined || Object.keys(property.metadata).length === 0) return {};
+  const resolved = Object.entries(property.metadata).map(([key, entry]) => {
+    const refId =
+      isRecord(entry) && typeof entry.nodeId === "string"
+        ? entry.nodeId
+        : typeof entry === "string"
+          ? entry
+          : null;
+    if (refId !== null) {
+      const named = ctx.nameOf(refId);
+      if (named !== undefined) return { key, display: normalizeInlineName(named) };
+      const parsed = parseDateNodeId(refId);
+      if (parsed !== null) return { key, display: dateNodeDisplayLabel(parsed, parsed.precision) };
+      return { key, display: refId };
+    }
+    return { key, display: String(entry) };
+  });
+  return { resolvedQualifiers: resolved };
+}
+
+function resolvePropertyValueDisplay(
+  property: ExportPropertyValue,
+  ctx: ExportContext,
 ): { display: string; displayEntries?: Array<string | null> } {
   const value = property.value;
+  // Node-typed read-leniency (SCHEMA.md PB2): v1-migrated data rides the
+  // log as BARE uuid strings instead of canonical `{ nodeId }` refs. On a
+  // node-typed schema (date/object/asset) a bare string resolves through
+  // ctx.nameOf exactly like a canonical ref — the settings-aware web
+  // resolver formats date nodes per the user's dateFormat — and falls back
+  // to the raw string when the target is unknown (the existence-lenient
+  // doctrine for legacy encodings). Scalar-typed schemas (text/url/email/
+  // select/multi_select) never take this branch: their bare strings are
+  // legitimately scalar.
+  const NODE_TYPED_SCHEMAS = new Set(["date", "object", "asset"]);
+  const nodeTyped =
+    property.schemaType !== undefined && NODE_TYPED_SCHEMAS.has(property.schemaType);
+  const nodeRefDisplay = (refId: string): string =>
+    normalizeInlineName(ctx.nameOf(refId) ?? refId);
   const optionLabel = (entry: unknown): string | null => {
     if (typeof entry !== "string" || property.schemaOptions === undefined) return null;
     return property.schemaOptions.find((option) => option.id === entry)?.label ?? null;
@@ -361,10 +469,11 @@ function resolvePropertyDisplay(
   const entryText = (entry: unknown): string => {
     const label = optionLabel(entry);
     if (label !== null) return label;
-    if (typeof entry === "string") return entry;
-    if (typeof entry === "number" || typeof entry === "boolean") return String(entry);
+    if (typeof entry === "string") return nodeTyped ? nodeRefDisplay(entry) : entry;
+    if (typeof entry === "number") return String(entry);
+    if (typeof entry === "boolean") return entry ? "☑" : "☐";
     if (isRecord(entry) && typeof entry.nodeId === "string") {
-      return normalizeInlineName(ctx.nameOf(entry.nodeId) ?? entry.nodeId);
+      return nodeRefDisplay(entry.nodeId);
     }
     return JSON.stringify(entry) ?? "";
   };
@@ -387,11 +496,12 @@ function resolvePropertyDisplay(
   }
   const label = optionLabel(value);
   if (label !== null) return { display: label };
-  if (typeof value === "string") return { display: value };
-  if (typeof value === "number" || typeof value === "boolean") return { display: String(value) };
+  if (typeof value === "string") return { display: nodeTyped ? nodeRefDisplay(value) : value };
+  if (typeof value === "number") return { display: String(value) };
+  if (typeof value === "boolean") return { display: value ? "☑" : "☐" };
   if (value === null || value === undefined) return { display: "" };
   if (isRecord(value) && typeof value.nodeId === "string") {
-    return { display: normalizeInlineName(ctx.nameOf(value.nodeId) ?? value.nodeId) };
+    return { display: nodeRefDisplay(value.nodeId) };
   }
   return { display: JSON.stringify(value) ?? "" };
 }
@@ -547,13 +657,13 @@ function buildChildren(
   const out: ExportDocumentChild[] = [];
   for (const child of rows) {
     if (visited.has(child.id)) {
-      out.push({ id: child.id, title: "", classIds: [], properties: [], blocks: [], children: [], cut: "cycle" });
+      out.push({ id: child.id, title: "", presentAsMain: true, classIds: [], properties: [], blocks: [], children: [], cut: "cycle" });
       continue;
     }
     // Full closure by default; an explicit cap collapses deeper levels to a
     // visible cut entry (the root's children sit at depth 1).
     if (options.maxDepth !== null && depth > options.maxDepth) {
-      out.push({ id: child.id, title: "", classIds: [], properties: [], blocks: [], children: [], cut: "depth" });
+      out.push({ id: child.id, title: "", presentAsMain: true, classIds: [], properties: [], blocks: [], children: [], cut: "depth" });
       continue;
     }
     const childVisited = new Set(visited);
@@ -561,6 +671,7 @@ function buildChildren(
     out.push({
       id: child.id,
       title: deriveDisplayName(child),
+      presentAsMain: child.presentAsMain === 1,
       classIds: child.classIds,
       properties: child.properties.map((property) => ({
         ...property,
