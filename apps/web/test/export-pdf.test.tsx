@@ -141,6 +141,7 @@ function fixtureDocument(): ExportDocument {
         title: "Packing",
         presentAsMain: true,
         classIds: [],
+        classNames: [],
         properties: [],
         blocks: [
           { kind: "paragraph", spans: [{ kind: "text", text: "Sunscreen", marks: [] }] },
@@ -151,6 +152,7 @@ function fixtureDocument(): ExportDocument {
             title: "Toiletries",
             presentAsMain: true,
             classIds: [],
+        classNames: [],
             properties: [],
             blocks: [],
             children: [],
@@ -306,6 +308,7 @@ describe("ExportPdfDocument component tree", () => {
           title: "Margin note",
           presentAsMain: false,
           classIds: [],
+        classNames: [],
           properties: [],
           blocks: [{ kind: "paragraph", spans: [{ kind: "text", text: "margin body", marks: [] }] }],
           children: [],
@@ -317,6 +320,7 @@ describe("ExportPdfDocument component tree", () => {
           title: "Chapter 1",
           presentAsMain: true,
           classIds: [],
+        classNames: [],
           properties: [],
           blocks: [
             { kind: "paragraph", spans: [{ kind: "text", text: "Chapter 1", marks: [] }] },
@@ -346,6 +350,7 @@ describe("ExportPdfDocument component tree", () => {
       title: text,
       presentAsMain: false,
       classIds: [],
+        classNames: [],
       properties: [],
       blocks: [{ kind: "paragraph", spans: [{ kind: "text", text, marks: [] }] }],
       children,
@@ -372,6 +377,7 @@ describe("ExportPdfDocument component tree", () => {
             title: "Nested page",
             presentAsMain: true,
             classIds: [],
+        classNames: [],
             properties: [],
             blocks: [{ kind: "paragraph", spans: [{ kind: "text", text: "Nested page", marks: [] }] }],
             children: [],
@@ -388,8 +394,8 @@ describe("ExportPdfDocument component tree", () => {
     // The main node under a block renders as a TITLED end-list entry (its
     // body does not repeat the title) — never nested inline.
     expect(screen.getAllByText("Nested page")).toHaveLength(1);
-    const entry = screen.getByText("Nested page");
-    expect(entry.getAttribute("style") ?? "").toContain("700");
+    const entry = screen.getByText("Nested page") as unknown as { style?: { fontWeight?: string } };
+    expect(entry.style?.fontWeight).toContain("700");
   });
 
   it("renders boolean properties as the drawn checkbox, never literal true/false", () => {
@@ -409,6 +415,110 @@ describe("ExportPdfDocument component tree", () => {
     expect(screen.queryByText("false")).toBeNull();
     expect(screen.getByText("Read")).toBeInTheDocument();
     expect(screen.getByText("Todo")).toBeInTheDocument();
+  });
+
+  it("draws outliner bullets in the Notes theme only", () => {
+    const document = fixtureDocument();
+    const notes = render(<ExportPdfDocument document={document} options={resolveExportOptions({ layout: "notes" })} />);
+    expect(notes.container.textContent).toContain("•");
+    notes.unmount();
+    for (const layout of ["essay", "academic"] as const) {
+      const themed = render(<ExportPdfDocument document={document} options={resolveExportOptions({ layout })} />);
+      expect(themed.container.textContent).not.toContain("•");
+      themed.unmount();
+    }
+  });
+
+  it("shows the row's class pills on the far right when Show classes is on, recursively", () => {
+    const pillRows = (container: HTMLElement): string[] =>
+      [...container.querySelectorAll("view")].map((view) => (view as unknown as HTMLElement).style.backgroundColor)
+        .filter((value) => value !== "" && value !== "rgba(0, 0, 0, 0)");
+    const document: ExportDocument = {
+      nodeId: "node-book",
+      title: "Book",
+      rendersDocumentChrome: true,
+      isClass: false,
+      presentAsMain: true,
+      parentId: null,
+      blocks: [{ kind: "paragraph", spans: [{ kind: "text", text: "Book", marks: [] }] }],
+      properties: [],
+      classIds: ["class-company"],
+      classNames: ["Company"],
+      classColors: ["#30a66f"],
+      children: [
+        {
+          id: "node-note",
+          title: "Margin note",
+          presentAsMain: false,
+          classIds: ["class-tag"],
+          classNames: ["Tag"],
+          classColors: ["#de4996"],
+          properties: [],
+          blocks: [{ kind: "paragraph", spans: [{ kind: "text", text: "margin body", marks: [] }] }],
+          children: [
+            {
+              id: "node-deep",
+              title: "Deep note",
+              presentAsMain: false,
+              classIds: ["class-a", "class-b", "class-c"],
+              classNames: ["A", "B", "C"],
+              classColors: [null, "#4072e7", null],
+              properties: [],
+              blocks: [{ kind: "paragraph", spans: [{ kind: "text", text: "deep body", marks: [] }] }],
+              children: [],
+            },
+          ],
+        },
+        {
+          id: "node-chapter",
+          title: "Chapter 1",
+          presentAsMain: true,
+          classIds: ["class-src"],
+          classNames: ["Source"],
+          classColors: ["#ed822b"],
+          properties: [],
+          blocks: [{ kind: "paragraph", spans: [{ kind: "text", text: "chapter body", marks: [] }] }],
+          children: [],
+        },
+      ],
+      assetRefs: [],
+    };
+    const on = render(<ExportPdfDocument document={document} options={resolveExportOptions({ showTypeLabels: true })} />);
+    // Every pill carries a background: the header Classes row, the inline
+    // block row, its nested grandchild (recursion), and the child-page entry.
+    expect(pillRows(on.container).length).toBeGreaterThanOrEqual(4);
+    expect(on.container.textContent).toContain("Classes");
+    expect(on.container.textContent).toContain("+2"); // the grandchild's overflow
+    on.unmount();
+
+    const off = render(<ExportPdfDocument document={document} options={resolveExportOptions({})} />);
+    expect(pillRows(off.container)).toHaveLength(0);
+    expect(off.container.textContent).not.toContain("Classes");
+    off.unmount();
+  });
+
+  it("draws the node icon before a mention when the sprite map knows it", () => {
+    const document: ExportDocument = {
+      ...fixtureDocument(),
+      blocks: [
+        {
+          kind: "paragraph",
+          spans: [
+            { kind: "mention", targetNodeId: "node-gear", name: "Gear", icon: "mdiHeart" },
+            { kind: "mention", targetNodeId: "node-plain", name: "Plain" },
+          ],
+        },
+      ],
+      children: [],
+    };
+    const iconPaths = new Map([["mdi-heart", "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"]]);
+    const { container } = render(
+      <ExportPdfDocument document={document} options={resolveExportOptions({})} iconPaths={iconPaths} />,
+    );
+    // ONE drawn icon (the known one) — the sprite-less mention stays name-only.
+    expect(container.querySelectorAll("svg path")).toHaveLength(1);
+    expect(screen.getByText("Gear")).toBeInTheDocument();
+    expect(screen.getByText("Plain")).toBeInTheDocument();
   });
 
   it("renders property qualifiers from the IR's resolved display (no raw uuid)", () => {

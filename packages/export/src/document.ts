@@ -130,6 +130,12 @@ export interface ExportNode {
  * when it misses (or is absent) the conventions stand. Typed-link tokens
  * carry no resolved target (record-don't-resolve), so there is nothing to
  * rewrite for them.
+ *
+ * The two optional chrome hooks serve the paged/chrome-emitting renderers:
+ * `colorOf` resolves a CLASS id to its display color (a concrete CSS value —
+ * the caller resolves preset tokens), and `iconOf` resolves a node id to
+ * its icon token (an MDI name in the web's grammar — the caller normalizes).
+ * Both stay optional so ctx-free callers (the CLI, tests) keep working.
  */
 export interface ExportContext {
   nameOf(id: string): string | undefined;
@@ -139,6 +145,10 @@ export interface ExportContext {
   linkTarget?(id: string): { path: string } | undefined;
   /** asset_ref CAS id → the bundle-relative path of the asset's bytes. */
   assetPath?(assetId: string): string | undefined;
+  /** Class id → display color (concrete CSS value), for class pills. */
+  colorOf?(classId: string): string | null | undefined;
+  /** Node id → icon token (MDI name), for node-link chips. */
+  iconOf?(nodeId: string): string | null | undefined;
 }
 
 // --- IR ----------------------------------------------------------------------
@@ -151,6 +161,10 @@ export type ExportSpan =
       kind: "mention";
       targetNodeId: string;
       name: string;
+      /** The target's icon token (ctx.iconOf resolved it) — MDI name in the
+       *  web grammar; renderers with an icon source draw it before the name
+       *  (the list-view chip look). Absent/null → name-only chip. */
+      icon?: string | null | undefined;
       /** Relative link into a multi-file export (ctx.linkTarget resolved it);
        *  when present the serializer emits `[name](path)` over `[[name]]`. */
       linkPath?: string | undefined;
@@ -208,6 +222,12 @@ export interface ExportDocumentChild {
    * (L1's bibliography: which children are source-classed, via
    * csl.ts `sourceClassOf`) read them here. */
   classIds: readonly string[];
+  /** The child's resolved class display names, parallel to classIds —
+   *  chrome renderers draw the row's class pills with these. */
+  classNames: readonly string[];
+  /** The child's resolved class display colors, parallel to classIds
+   *  (ctx.colorOf) — the pills ride these backgrounds. */
+  classColors?: readonly (string | null)[] | undefined;
   /** The child's authored properties with display strings resolved at build
    * time (same projection as the root's `properties`) — the L1 bibliography
    * feeds them to `nodeToCsl`. */
@@ -242,6 +262,10 @@ export interface ExportDocument {
   classIds: readonly string[];
   /** Resolved class display names, parallel to classIds. */
   classNames: readonly string[];
+  /** Resolved class display colors (concrete CSS values via ctx.colorOf),
+   *  parallel to classIds — chrome renderers draw the class pills with
+   *  these; absent where the caller injects no color resolver. */
+  classColors?: readonly (string | null)[] | undefined;
   /** Outline tree; empty when includeOutline is off or no resolver is injected. */
   children: readonly ExportDocumentChild[];
   /** Every asset_ref target in this subtree (the node's own stream, inlined
@@ -381,6 +405,9 @@ export function buildExportDocument(
     })),
     classIds: node.classIds,
     classNames: node.classIds.map((id) => normalizeInlineName(ctx.nameOf(id) ?? id)),
+    ...(ctx.colorOf !== undefined
+      ? { classColors: node.classIds.map((id) => ctx.colorOf!(id) ?? null) }
+      : {}),
     children,
     assetRefs: collected,
   };
@@ -610,6 +637,7 @@ function buildSpan(token: InlineToken, ctx: ExportContext): ExportSpan {
         kind: "mention",
         targetNodeId: token.targetNodeId,
         name: normalizeInlineName(raw),
+        ...(ctx.iconOf !== undefined ? { icon: ctx.iconOf(token.targetNodeId) } : {}),
         ...(link !== undefined ? { linkPath: link.path } : {}),
       };
     }
@@ -657,13 +685,13 @@ function buildChildren(
   const out: ExportDocumentChild[] = [];
   for (const child of rows) {
     if (visited.has(child.id)) {
-      out.push({ id: child.id, title: "", presentAsMain: true, classIds: [], properties: [], blocks: [], children: [], cut: "cycle" });
+      out.push({ id: child.id, title: "", presentAsMain: true, classIds: [], classNames: [], properties: [], blocks: [], children: [], cut: "cycle" });
       continue;
     }
     // Full closure by default; an explicit cap collapses deeper levels to a
     // visible cut entry (the root's children sit at depth 1).
     if (options.maxDepth !== null && depth > options.maxDepth) {
-      out.push({ id: child.id, title: "", presentAsMain: true, classIds: [], properties: [], blocks: [], children: [], cut: "depth" });
+      out.push({ id: child.id, title: "", presentAsMain: true, classIds: [], classNames: [], properties: [], blocks: [], children: [], cut: "depth" });
       continue;
     }
     const childVisited = new Set(visited);
@@ -673,6 +701,10 @@ function buildChildren(
       title: deriveDisplayName(child),
       presentAsMain: child.presentAsMain === 1,
       classIds: child.classIds,
+      classNames: child.classIds.map((id) => normalizeInlineName(ctx.nameOf(id) ?? id)),
+      ...(ctx.colorOf !== undefined
+        ? { classColors: child.classIds.map((id) => ctx.colorOf!(id) ?? null) }
+        : {}),
       properties: child.properties.map((property) => ({
         ...property,
         ...resolvePropertyDisplay(property, ctx),

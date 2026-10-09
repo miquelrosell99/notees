@@ -25,7 +25,7 @@
  * .toBlob()` (renderPdf.ts) drives the real renderer in the browser.
  */
 
-import { Document, Image, Page, StyleSheet, Svg, Text, View, Polyline, Rect } from "@react-pdf/renderer";
+import { Document, Image, Page, Path, StyleSheet, Svg, Text, View, Polyline, Rect } from "@react-pdf/renderer";
 import type { ReactElement } from "react";
 
 import type {
@@ -37,6 +37,8 @@ import type {
 } from "@notees/export";
 import { isEmptyPropertyValue, qualifierTail, withoutLeadingTitle, withoutLeadingTitleBlocks } from "@notees/export";
 
+import { resolveMdiIconName } from "../Icon.js";
+
 import "./fonts.js";
 import { PDF_THEMES, type PdfLayout, type PdfTheme } from "./theme.js";
 
@@ -45,8 +47,19 @@ export interface ExportPdfDocumentProps {
   options: ResolvedExportOptions;
   /** asset_ref CAS id → data URL (the client's cached image read); a miss renders the placeholder. */
   assetDataUrls?: ReadonlyMap<string, string>;
+  /** mdi-<kebab-name> → SVG path d (the app's sprite sheet, fetched by the
+   *  render entry) — mention chips draw their node icon when the map knows
+   *  it; absent/miss renders the name-only chip. */
+  iconPaths?: ReadonlyMap<string, string>;
   /** Layout theme override — defaults to the options bag's layout. */
   layout?: PdfLayout;
+}
+
+/** The chrome threading both previews share: the show-classes gate + the
+ *  sprite path map for mention icons. */
+interface PdfChrome {
+  showClasses: boolean;
+  iconPaths: ReadonlyMap<string, string>;
 }
 
 /** The react-pdf pageSize tokens for the options bag's pageFormat. */
@@ -95,13 +108,6 @@ function buildStyles(theme: PdfTheme) {
       width: "68%",
       fontSize: theme.type.bodySize - 1,
     },
-    paragraph: { marginBottom: 8 },
-    quote: {
-      borderLeft: `2 solid ${theme.colors.rule}`,
-      paddingLeft: 10,
-      marginBottom: 8,
-      color: theme.colors.muted,
-    },
     pill: {
       backgroundColor: theme.colors.pill,
       color: theme.colors.pillText,
@@ -133,7 +139,6 @@ function buildStyles(theme: PdfTheme) {
       paddingLeft: 10,
       marginBottom: 8,
     },
-    embedRef: { color: theme.colors.muted, marginBottom: 8 },
     verbatimBox: {
       border: `1 solid ${theme.colors.rule}`,
       backgroundColor: theme.colors.surfaceVariant,
@@ -150,23 +155,38 @@ function buildStyles(theme: PdfTheme) {
     },
     columns: { flexDirection: "row", marginBottom: 8 },
     column: { flex: 1 },
-    nestedBlocks: { marginLeft: 14, marginBottom: 8 },
-    nestedBlock: { marginBottom: 6 },
-    outline: { paddingTop: 10, marginTop: 6 },
-    outlineTitle: {
+    blockRow: { flexDirection: "row", marginBottom: 8, alignItems: "flex-start" },
+    paragraphContent: { flex: 1, marginBottom: 0 },
+    quoteContent: {
+      flex: 1,
+      marginBottom: 0,
+      borderLeft: `2 solid ${theme.colors.rule}`,
+      paddingLeft: 10,
+      color: theme.colors.muted,
+    },
+    embedRefContent: { flex: 1, marginBottom: 0, color: theme.colors.muted },
+    outlineTitleContent: {
+      flex: 1,
+      marginBottom: 0,
       fontFamily: theme.fonts.heading,
       fontSize: theme.type.bodySize + 1,
       fontWeight: 700,
-      marginBottom: 3,
     },
+    nestedRow: { flexDirection: "row", marginBottom: 6, alignItems: "flex-start" },
+    propertyCheckboxCell: { width: "68%", fontSize: theme.type.bodySize - 1, flexDirection: "row", alignItems: "center" },
+    bullet: { width: 12, fontSize: theme.type.bodySize, lineHeight: theme.type.bodyLineHeight },
+    pills: { flexDirection: "row", alignItems: "center", marginLeft: 6 },
+    pillBox: { borderRadius: 4, paddingLeft: 4, paddingRight: 4, paddingTop: 1, paddingBottom: 1, marginLeft: 3 },
+    pillsMore: { fontSize: theme.type.bodySize - 3, color: theme.colors.muted },
+    nestedBlocks: { marginLeft: 14, marginBottom: 8 },
+    outline: { paddingTop: 10, marginTop: 6 },
     outlineNumber: { color: theme.colors.muted, fontWeight: 400 },
-    propertyCheckbox: { flexDirection: "row", alignItems: "center" },
     cut: { fontFamily: theme.fonts.mono, fontSize: theme.type.bodySize - 2, color: theme.colors.muted },
   });
 }
 
 /** One inline span as a Text run; marks compose onto a single style. */
-function PdfSpan({ span, styles, theme }: { span: ExportSpan; styles: Styles; theme: PdfTheme }): ReactElement {
+function PdfSpan({ span, styles, theme, chrome }: { span: ExportSpan; styles: Styles; theme: PdfTheme; chrome: PdfChrome }): ReactElement {
   const style: {
     fontWeight?: number;
     fontStyle?: "italic";
@@ -190,8 +210,23 @@ function PdfSpan({ span, styles, theme }: { span: ExportSpan; styles: Styles; th
   switch (span.kind) {
     case "hardBreak":
       return <Text>{"\n"}</Text>;
-    case "mention":
-      return <Text style={styles.pill}>{span.name}</Text>;
+    case "mention": {
+      // The list-view chip look: the node's icon rides before its name when
+      // the sprite map knows the icon (the IR carries the raw stored token,
+      // normalized here to the mdi-<kebab> sprite id).
+      const iconName = span.icon != null ? resolveMdiIconName(span.icon) : null;
+      const path = iconName !== null ? chrome.iconPaths.get(`mdi-${iconName}`) : undefined;
+      return (
+        <Text style={styles.pill}>
+          {path !== undefined ? (
+            <Svg width={8.5} height={8.5} viewBox="0 0 24 24">
+              <Path d={path} fill={theme.colors.pillText} />
+            </Svg>
+          ) : null}
+          {span.name}
+        </Text>
+      );
+    }
     case "classChip":
       return <Text style={styles.pill}>#{span.name}</Text>;
     case "typedLink":
@@ -212,8 +247,28 @@ function PdfSpan({ span, styles, theme }: { span: ExportSpan; styles: Styles; th
   }
 }
 
-function PdfSpans({ spans, styles, theme }: { spans: readonly ExportSpan[]; styles: Styles; theme: PdfTheme }): ReactElement[] {
-  return spans.map((span, index) => <PdfSpan key={index} span={span} styles={styles} theme={theme} />);
+function PdfSpans({ spans, styles, theme, chrome }: { spans: readonly ExportSpan[]; styles: Styles; theme: PdfTheme; chrome: PdfChrome }): ReactElement[] {
+  return spans.map((span, index) => <PdfSpan key={index} span={span} styles={styles} theme={theme} chrome={chrome} />);
+}
+
+/** A text-ish block as an outliner row: bullet dot column (the Notes theme
+ *  carries the app look; Essay/Academic stay clean), content flexes. */
+function PdfTextRow({
+  children,
+  styles,
+  theme,
+}: {
+  children: ReactElement;
+  styles: Styles;
+  theme: PdfTheme;
+}): ReactElement {
+  if (!theme.bullets) return children;
+  return (
+    <View style={styles.blockRow}>
+      <Text style={styles.bullet}>•</Text>
+      {children}
+    </View>
+  );
 }
 
 function PdfBlock({
@@ -221,26 +276,32 @@ function PdfBlock({
   styles,
   theme,
   assetDataUrls,
+  chrome,
 }: {
   block: ExportBlock;
   styles: Styles;
   theme: PdfTheme;
   assetDataUrls: ReadonlyMap<string, string>;
+  chrome: PdfChrome;
 }): ReactElement {
   switch (block.kind) {
     case "paragraph":
       return (
-        <Text style={styles.paragraph}>
-          <PdfSpans spans={block.spans} styles={styles} theme={theme} />
-        </Text>
+        <PdfTextRow styles={styles} theme={theme}>
+          <Text style={styles.paragraphContent}>
+            <PdfSpans spans={block.spans} styles={styles} theme={theme} chrome={chrome} />
+          </Text>
+        </PdfTextRow>
       );
     case "quote":
       return (
-        <View style={styles.quote}>
-          <Text>
-            <PdfSpans spans={block.spans} styles={styles} theme={theme} />
-          </Text>
-        </View>
+        <PdfTextRow styles={styles} theme={theme}>
+          <View style={styles.quoteContent}>
+            <Text>
+              <PdfSpans spans={block.spans} styles={styles} theme={theme} chrome={chrome} />
+            </Text>
+          </View>
+        </PdfTextRow>
       );
     case "asset": {
       const dataUrl = assetDataUrls.get(block.assetId);
@@ -266,14 +327,16 @@ function PdfBlock({
         // (mirrors the html serializer: blocks render, no nested outline).
         return (
           <View style={styles.embedBox}>
-            <PdfBlocks blocks={block.inlined.blocks} styles={styles} theme={theme} assetDataUrls={assetDataUrls} />
+            <PdfBlocks blocks={block.inlined.blocks} styles={styles} theme={theme} assetDataUrls={assetDataUrls} chrome={chrome} />
           </View>
         );
       }
       return (
-        <Text style={styles.embedRef}>
-          {block.link !== undefined ? `→ ${block.link.name} (${block.link.path})` : `![[${block.nodeId}]]`}
-        </Text>
+        <PdfTextRow styles={styles} theme={theme}>
+          <Text style={styles.embedRefContent}>
+            {block.link !== undefined ? `→ ${block.link.name} (${block.link.path})` : `![[${block.nodeId}]]`}
+          </Text>
+        </PdfTextRow>
       );
     case "query":
       return (
@@ -295,14 +358,16 @@ function PdfBlocks({
   styles,
   theme,
   assetDataUrls,
+  chrome,
 }: {
   blocks: readonly ExportBlock[];
   styles: Styles;
   theme: PdfTheme;
   assetDataUrls: ReadonlyMap<string, string>;
+  chrome: PdfChrome;
 }): ReactElement[] {
   return blocks.map((block, index) => (
-    <PdfBlock key={index} block={block} styles={styles} theme={theme} assetDataUrls={assetDataUrls} />
+    <PdfBlock key={index} block={block} styles={styles} theme={theme} assetDataUrls={assetDataUrls} chrome={chrome} />
   ));
 }
 
@@ -310,6 +375,62 @@ function PdfBlocks({
 function splitBlocks(blocks: readonly ExportBlock[]): [readonly ExportBlock[], readonly ExportBlock[]] {
   const midpoint = Math.ceil(blocks.length / 2);
   return [blocks.slice(0, midpoint), blocks.slice(midpoint)];
+}
+
+/** Readable text on a colored pill background (the NodePills luminance
+ *  convention: light backgrounds get dark text, dark get white). */
+function pillTextOn(color: string): string {
+  const match = /^#([0-9a-f]{6})$/i.exec(color.trim());
+  if (match === null) return "#221a13";
+  const n = parseInt(match[1]!, 16);
+  const luminance = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return luminance > 0.45 ? "#221a13" : "#ffffff";
+}
+
+/** ONE class pill — the colored chip the app's NodePills renders (effective
+ *  color background, contrast text); a null color rides the neutral pill
+ *  surface. Only the background (a data color) is dynamic. */
+function PdfPill({ name, color, theme }: { name: string; color: string | null; theme: PdfTheme }): ReactElement {
+  return (
+    <View
+      style={{
+        backgroundColor: color ?? theme.colors.pill,
+        borderRadius: 4,
+        paddingLeft: 4,
+        paddingRight: 4,
+        paddingTop: 1,
+        paddingBottom: 1,
+        marginLeft: 3,
+      }}
+    >
+      <Text style={{ fontSize: theme.type.bodySize - 3, color: color !== null ? pillTextOn(color) : theme.colors.pillText }}>
+        {name}
+      </Text>
+    </View>
+  );
+}
+
+/** The row's right-hand class column — the FIRST pill plus "+N" for the
+ *  rest (the block-column overflow convention), exactly like the app's list
+ *  view rows. Null when the row carries no classes. */
+function PdfPills({
+  names,
+  colors,
+  theme,
+  styles,
+}: {
+  names: readonly string[];
+  colors: readonly (string | null)[] | undefined;
+  theme: PdfTheme;
+  styles: Styles;
+}): ReactElement | null {
+  if (names.length === 0) return null;
+  return (
+    <View style={styles.pills}>
+      <PdfPill name={names[0]!} color={colors?.[0] ?? null} theme={theme} />
+      {names.length > 1 ? <Text style={styles.pillsMore}>+{names.length - 1}</Text> : null}
+    </View>
+  );
 }
 
 /** A drawn checkbox (vector, no font-glyph dependency): an empty square, a
@@ -331,18 +452,24 @@ function PdfHeader({
   options,
   styles,
   theme,
+  chrome,
 }: {
   document: ExportDocument;
   options: ResolvedExportOptions;
   styles: Styles;
   theme: PdfTheme;
+  chrome: PdfChrome;
 }): ReactElement | null {
   const rows: ReactElement[] = [];
   if (options.showTypeLabels && document.classNames.length > 0) {
+    // The Classes row rides the SAME colored pills as the block rows' right
+    // column (the list-view look), not a comma-joined text list.
     rows.push(
       <View key="classNames" style={styles.propertyRow}>
-        <Text style={styles.propertyName}>classNames</Text>
-        <Text style={styles.propertyValue}>{document.classNames.join(", ")}</Text>
+        <Text style={styles.propertyName}>Classes</Text>
+        <View style={styles.propertyValue}>
+          <PdfPills names={document.classNames} colors={document.classColors} theme={theme} styles={styles} />
+        </View>
       </View>,
     );
   }
@@ -360,7 +487,7 @@ function PdfHeader({
       <View key={`${property.schemaId}:${rows.length}`} style={styles.propertyRow}>
         <Text style={styles.propertyName}>{property.schemaName}</Text>
         {isBoolean ? (
-          <View style={[styles.propertyValue, styles.propertyCheckbox]}>
+          <View style={styles.propertyCheckboxCell}>
             <PdfCheckbox checked={property.value === true} color={theme.colors.text} />
           </View>
         ) : (
@@ -415,11 +542,13 @@ function PdfInlineChildren({
   styles,
   theme,
   assetDataUrls,
+  chrome,
 }: {
   children: readonly ExportDocumentChild[];
   styles: Styles;
   theme: PdfTheme;
   assetDataUrls: ReadonlyMap<string, string>;
+  chrome: PdfChrome;
 }): ReactElement | null {
   const inline = children.filter((child) => !child.presentAsMain);
   if (inline.length === 0) return null;
@@ -431,9 +560,18 @@ function PdfInlineChildren({
             ![[{child.id}]]
           </Text>
         ) : (
-          <View key={child.id} style={styles.nestedBlock}>
-            <PdfBlocks blocks={child.blocks} styles={styles} theme={theme} assetDataUrls={assetDataUrls} />
-            <PdfInlineChildren children={child.children} styles={styles} theme={theme} assetDataUrls={assetDataUrls} />
+          // One outliner row per block (the list-view shape): the bullet
+          // dot column (Notes theme), the body content, and — when Show
+          // classes is on — the row's OWN class pills on the far right.
+          <View key={child.id} style={styles.nestedRow}>
+            {theme.bullets ? <Text style={styles.bullet}>•</Text> : null}
+            <View style={{ flex: 1, marginBottom: 0 }}>
+              <PdfBlocks blocks={child.blocks} styles={styles} theme={theme} assetDataUrls={assetDataUrls} chrome={chrome} />
+              <PdfInlineChildren children={child.children} styles={styles} theme={theme} assetDataUrls={assetDataUrls} chrome={chrome} />
+            </View>
+            {chrome.showClasses ? (
+              <PdfPills names={child.classNames} colors={child.classColors} theme={theme} styles={styles} />
+            ) : null}
           </View>
         ),
       )}
@@ -447,6 +585,7 @@ function PdfOutlineChild({
   styles,
   theme,
   assetDataUrls,
+  chrome,
 }: {
   child: ExportDocumentChild;
   /** Academic numbering prefix (["1","2"] → this child is "1.2."). */
@@ -454,6 +593,7 @@ function PdfOutlineChild({
   styles: Styles;
   theme: PdfTheme;
   assetDataUrls: ReadonlyMap<string, string>;
+  chrome: PdfChrome;
 }): ReactElement {
   if (child.cut !== undefined) {
     return (
@@ -471,17 +611,23 @@ function PdfOutlineChild({
   const childPages = childPagesOf(child.children);
   return (
     <View style={{ marginBottom: 6 }}>
-      <Text style={styles.outlineTitle}>
-        {number.length > 0 ? <Text style={styles.outlineNumber}>{number}</Text> : null}
-        {child.title.length > 0 ? child.title : child.id}
-      </Text>
+      <View style={styles.blockRow}>
+        <Text style={styles.outlineTitleContent}>
+          {number.length > 0 ? <Text style={styles.outlineNumber}>{number}</Text> : null}
+          {child.title.length > 0 ? child.title : child.id}
+        </Text>
+        {chrome.showClasses ? (
+          <PdfPills names={child.classNames} colors={child.classColors} theme={theme} styles={styles} />
+        ) : null}
+      </View>
       <PdfBlocks
         blocks={withoutLeadingTitleBlocks(child.title, child.blocks)}
         styles={styles}
         theme={theme}
         assetDataUrls={assetDataUrls}
+        chrome={chrome}
       />
-      <PdfInlineChildren children={child.children} styles={styles} theme={theme} assetDataUrls={assetDataUrls} />
+      <PdfInlineChildren children={child.children} styles={styles} theme={theme} assetDataUrls={assetDataUrls} chrome={chrome} />
       {childPages.length > 0 ? (
         <View style={{ marginTop: 2, marginLeft: 10 }}>
           {childPages.map((grandChild, index) => (
@@ -492,6 +638,7 @@ function PdfOutlineChild({
               styles={styles}
               theme={theme}
               assetDataUrls={assetDataUrls}
+              chrome={chrome}
             />
           ))}
         </View>
@@ -513,11 +660,13 @@ function PdfOutline({
   styles,
   theme,
   assetDataUrls,
+  chrome,
 }: {
   children: readonly ExportDocumentChild[];
   styles: Styles;
   theme: PdfTheme;
   assetDataUrls: ReadonlyMap<string, string>;
+  chrome: PdfChrome;
 }): ReactElement | null {
   const childPages = childPagesOf(children);
   if (childPages.length === 0) return null;
@@ -531,6 +680,7 @@ function PdfOutline({
           styles={styles}
           theme={theme}
           assetDataUrls={assetDataUrls}
+          chrome={chrome}
         />
       ))}
     </View>
@@ -546,11 +696,13 @@ export function ExportPdfDocument({
   document,
   options,
   assetDataUrls,
+  iconPaths,
   layout,
 }: ExportPdfDocumentProps): ReactElement {
   const theme = PDF_THEMES[layout ?? options.layout];
   const styles = buildStyles(theme);
   const resolvedAssets = assetDataUrls ?? new Map<string, string>();
+  const chrome: PdfChrome = { showClasses: options.showTypeLabels, iconPaths: iconPaths ?? new Map() };
   const title = document.title.length > 0 ? document.title : document.nodeId;
   // The root's own body: the single-title rule strips the leading title text
   // when the document renders chrome (a main node); a block-node root
@@ -559,28 +711,28 @@ export function ExportPdfDocument({
   // the end-of-document list below.
   const bodyBlocks = withoutLeadingTitle(document);
   const [leftColumn, rightColumn] = theme.twoColumnBody ? splitBlocks(bodyBlocks) : [bodyBlocks, []];
-  const inlineChildren = <PdfInlineChildren children={document.children} styles={styles} theme={theme} assetDataUrls={resolvedAssets} />;
+  const inlineChildren = <PdfInlineChildren children={document.children} styles={styles} theme={theme} assetDataUrls={resolvedAssets} chrome={chrome} />;
   return (
     <Document title={title} author="Notees">
       <Page size={pdfPageSize(options.pageFormat)} style={styles.page}>
-        <PdfHeader document={document} options={options} styles={styles} theme={theme} />
+        <PdfHeader document={document} options={options} styles={styles} theme={theme} chrome={chrome} />
         {theme.twoColumnBody ? (
           <View style={styles.columns}>
             <View style={[styles.column, { paddingRight: theme.columnGap / 2 }]}>
-              <PdfBlocks blocks={leftColumn} styles={styles} theme={theme} assetDataUrls={resolvedAssets} />
+              <PdfBlocks blocks={leftColumn} styles={styles} theme={theme} assetDataUrls={resolvedAssets} chrome={chrome} />
             </View>
             <View style={[styles.column, { paddingLeft: theme.columnGap / 2 }]}>
-              <PdfBlocks blocks={rightColumn} styles={styles} theme={theme} assetDataUrls={resolvedAssets} />
+              <PdfBlocks blocks={rightColumn} styles={styles} theme={theme} assetDataUrls={resolvedAssets} chrome={chrome} />
             </View>
           </View>
         ) : (
           <>
-            <PdfBlocks blocks={bodyBlocks} styles={styles} theme={theme} assetDataUrls={resolvedAssets} />
+            <PdfBlocks blocks={bodyBlocks} styles={styles} theme={theme} assetDataUrls={resolvedAssets} chrome={chrome} />
             {inlineChildren}
           </>
         )}
         {theme.twoColumnBody ? inlineChildren : null}
-        <PdfOutline children={document.children} styles={styles} theme={theme} assetDataUrls={resolvedAssets} />
+        <PdfOutline children={document.children} styles={styles} theme={theme} assetDataUrls={resolvedAssets} chrome={chrome} />
       </Page>
     </Document>
   );
