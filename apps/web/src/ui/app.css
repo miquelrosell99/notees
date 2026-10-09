@@ -1041,17 +1041,48 @@ select:focus-visible {
   background: var(--color-surface);
 }
 
+/* Narrow-column floor: when the row chrome (grip + icon groups +
+   right-end) consumes the full column width, a zero floor collapses the
+   content to 0 width and the pre-wrap text explodes into one word per
+   line, stretching the row to absurd heights. An 8ch floor keeps the
+   text readable — the row may overflow its column in the degenerate
+   case instead. Table cells (.nt-blocktable-row subgrid) keep the zero
+   floor: a grid column may legitimately be narrower than 8ch. */
+.nt-block-row > .nt-block-content {
+  min-width: 8ch;
+}
+
+.nt-blocktable-row .nt-block-content {
+  min-width: 0;
+}
+
 /* Value-display button groups: the bullet group rides right after
    the grip (next to the bullet element), the inline group immediately
-   before the content. Both center against the text line (the row is
-   baseline-aligned) and never wrap. */
+   before the content. Both baseline-align to the content's FIRST line
+   (the row is baseline-aligned) and never wrap — the strut + lift below
+   mirror .nt-bullet's geometry exactly, so on a multi-line block the
+   icons stay on the first line riding the bullet (the Logseq-DB
+   "beginning of the block"), never vertically centered against the
+   whole block. */
 .nt-block-bullet-props,
 .nt-block-inline-props {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-1);
   flex: none;
-  align-self: center;
+  transform: translateY(-2px);
+}
+
+/* Baseline strut (the .nt-bullet::before pattern): an icon-only flex box
+   has no text baseline, so baseline alignment would fall back to the
+   bottom margin edge and float the 20px buttons ~6px above the dot. The
+   6px strut anchors the baseline at the icon geometry; the shared -2px
+   lift matches the bullet's optical offset. */
+.nt-block-bullet-props::before,
+.nt-block-inline-props::before {
+  content: "";
+  width: 0;
+  height: 6px;
 }
 
 .nt-block-inline-props {
