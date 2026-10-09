@@ -38,9 +38,11 @@
  * is now THREE columns — NodeView · properties · context. The context
  * column (`.nt-page-context`) hosts, top-down: LocalGraphCard, TocSection,
  * the Activity section (relocated from the card-bottom stack —
- * `SystemSections`' activity branch died with the move), and the Comments
+ * `SystemSections`' activity branch died with the move), the Comments
  * section (the original model: child blocks classed `comment`, threaded,
- * quick-add/reply). Column collapse: EACH panel column keeps its own
+ * quick-add/reply), and — as its bottom section, the footer with the word
+ * count + Created/Updated stamps (the card-bottom bar relocated here,
+ *). Column collapse: EACH panel column keeps its own
  * device-local collapse, toggled from the nodeview top bar (the
  * properties hamburger pattern, now a pair) — the `layout` prop stays
  * BINARY ("default"/"compact"); per-column device prefs replace the plan's
@@ -638,9 +640,10 @@ export function PageView({
    * The page chrome composed per layout mode. The panelled main layout
    * is
    * a full-width nodeview top bar over a 3-column split: the properties
-   * sidebar rides the first column, the node view (nodeview / footer) the
-   * second, and the context column (graph · TOC · Activity · Comments) the
-   * third. Each panel column keeps its own device-local collapse, toggled
+   * sidebar rides the first column, the node view the second, and the
+   * context column (graph · TOC · Activity · Comments + the footer as its
+   * bottom section — the card-bottom bar retired 2026-10-09) the third.
+   * Each panel column keeps its own device-local collapse, toggled
    * from the nodeview top bar. Compact layouts render the same chrome
    * full-width, header first, with the top-right chrome in the absolute
    * corner.
@@ -691,14 +694,14 @@ export function PageView({
               </aside>
             )}
             <div className="nt-page-content">
-              {/* The nodeview proper: auto height between the card top and
-                  the pinned footer — it scrolls when the content outgrows
-                  the cell. */}
+              {/* The nodeview proper: auto height between the full-width
+                  top bar above the columns and the card bottom — it scrolls
+                  when the content outgrows the cell. The footer moved to
+                  the context column's bottom. */}
               <div className="nt-nodeview-body">
                 {headerChrome}
                 {mainChrome}
               </div>
-              {footerChrome}
             </div>
             {!contextPanelCollapsed && (
               <aside className="nt-page-context" aria-label="Context">
@@ -715,6 +718,11 @@ export function PageView({
                 <ActivityLogSection client={client} nodeId={pageId} />
                 {/* Comments — child blocks classed `comment`, threaded. */}
                 <CommentsSection client={client} nodeId={pageId} onOpenNode={onOpenPage} />
+                {/* The footer (word count + Created/Updated stamps) is the
+                    column's bottom section now: the
+                    card-bottom bar retired — the auto top margin on the
+                    wrapper pins it to the card bottom. */}
+                <div className="nt-page-context__footer">{footerChrome}</div>
               </aside>
             )}
           </div>
