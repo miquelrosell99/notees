@@ -148,6 +148,18 @@ Handle:
 Base discipline: the `agent-repo-workflow` user skill (concurrent agents,
 snapshot commits, verify before finishing).
 
+**Test workspace:** every agent action that touches a live
+workspace — API calls, browser probes and their `localStorage` seeds, CLI
+writes, verification data — happens in the TEST workspace, never the personal
+default. The seed uuids live in code (`apps/server/src/seed.ts`): the test
+workspace (unnamed, disposable) and the personal default (never touch) —
+the owner's live workspace.
+Browser probes seed `notees.workspaceId` with the test uuid (the
+`class-probe.mjs` pattern) instead of clicking through the picker into the
+default; probe objects are created in the test workspace and deleted when the
+run is done. Never create, edit, import, or delete anything in the live workspace from
+an agent session.
+
 No transient-internal-doc pointers in the tree: code,
 tests, docs, and CHANGELOG entries never reference `.plans/` proposal
 folders, design docs, or other internal transient documentation — the

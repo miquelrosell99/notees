@@ -51,6 +51,11 @@ summary here.
 7. **Code wins over design docs** where they disagree — fix the doc in the
    same pass (freshness cues: `releases.md`'s current-wire line for the wire,
    `packages/store/src/schema.ts` for the derived schema).
+8. **The test workspace is the only workspace for agent work**. Anything that touches a live workspace — API calls, browser
+   probes (seed `notees.workspaceId`, don't click through the picker), CLI
+   writes, verification data — happens in the test workspace
+   (fixed seed uuid, disposable), never the owner's live workspace. Probe data is created there and deleted when done.
+   Detail: `references/development-workflow.md`.
 
 ## Gate before declaring done
 

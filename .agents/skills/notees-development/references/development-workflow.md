@@ -75,6 +75,22 @@ CHANGELOG entries never reference `.plans/` proposal folders, design docs,
 or other internal transient documentation — the durable text stands alone.
 Internal cross-references live inside the internal docs themselves.
 
+## The test workspace
+
+All agent work that touches a live workspace — API calls, browser probes
+(with their `localStorage` seeds), CLI writes, verification data — happens
+in the TEST workspace, never the personal default. Fixed uuids:
+
+- test: the fixed seed workspace (unnamed, disposable)
+- personal default (never touch): the owner's live workspace
+
+Browser probes seed `notees.workspaceId` with the test uuid (the
+`class-probe.mjs` pattern) rather than clicking through the workspace
+picker into the default. Probe objects are created in the test workspace and
+deleted when the verification is done — the test workspace absorbs the mess;
+the live workspace never does. Canonical: `docs/developers/development.md` (Parallel
+sessions).
+
 ## The fixture gate (blocking)
 
 Op fixtures live in `packages/protocol/fixtures/` (envelope-minimal,
