@@ -211,16 +211,17 @@ function PdfSpan({ span, styles, theme, chrome }: { span: ExportSpan; styles: St
     case "hardBreak":
       return <Text>{"\n"}</Text>;
     case "mention": {
-      // The list-view chip look: the node's icon rides before its name when
-      // the sprite map knows the icon (the IR carries the raw stored token,
-      // normalized here to the mdi-<kebab> sprite id).
+      // The link look (owner ruling): accent-colored, underlined text — no
+      // chip background. The node's icon rides before the name, drawn in the
+      // accent, when the sprite map knows the icon (the IR carries the raw
+      // stored token, normalized here to the mdi-<kebab> sprite id).
       const iconName = span.icon != null ? resolveMdiIconName(span.icon) : null;
       const path = iconName !== null ? chrome.iconPaths.get(`mdi-${iconName}`) : undefined;
       return (
-        <Text style={styles.pill}>
+        <Text style={{ color: theme.colors.accent, textDecoration: "underline" }}>
           {path !== undefined ? (
             <Svg width={8.5} height={8.5} viewBox="0 0 24 24">
-              <Path d={path} fill={theme.colors.pillText} />
+              <Path d={path} fill={theme.colors.accent} />
             </Svg>
           ) : null}
           {span.name}
