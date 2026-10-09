@@ -114,9 +114,9 @@ async function createSource(client: WorkspaceClient, name: string): Promise<stri
   return id;
 }
 
-/** Expand the page's "Properties N" section (collapsed by default in the note layout). */
+/** Expand the page's "Metadata N" section (collapsed by default in the note layout). */
 function expandProperties(): void {
-  const header = screen.queryByRole("button", { name: /^Properties / });
+  const header = screen.queryByRole("button", { name: /^Metadata / });
   if (header !== null && header.getAttribute("aria-expanded") === "false") {
     fireEvent.click(header);
   }
