@@ -1,0 +1,112 @@
+/**
+ * Radio Component Styles
+ *
+ * The checkbox variant's single-selection sibling: same density and tokens,
+ * a dot fill instead of the checkmark, circular geometry.
+ */
+
+.radio-container {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+}
+
+.radio-container--disabled {
+  opacity: var(--opacity-50);
+  cursor: not-allowed;
+}
+
+.radio-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.radio-input {
+  position: absolute;
+  opacity: var(--opacity-0);
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  margin: 0;
+  z-index: var(--z-1);
+}
+
+.radio-container--disabled .radio-input {
+  cursor: not-allowed;
+}
+
+.radio-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--border-width-thick) solid var(--color-outline);
+  border-radius: 50%;
+  background: var(--color-surface);
+  pointer-events: none;
+  transition:
+    background-color var(--motion-duration-short) var(--motion-easing-standard),
+    border-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+/* Sizes */
+.radio-dot--sm {
+  width: var(--height-xs);
+  height: var(--height-xs);
+}
+
+.radio-dot--md {
+  width: var(--height-sm);
+  height: var(--height-sm);
+}
+
+.radio-dot--lg {
+  width: var(--height-md);
+  height: var(--height-md);
+}
+
+.radio-dot-inner {
+  width: 55%;
+  height: 55%;
+  border-radius: 50%;
+  background: var(--color-on-accent);
+  opacity: var(--opacity-0);
+  transform: scale(0.5);
+  transition:
+    opacity var(--motion-duration-short) var(--motion-easing-standard),
+    transform var(--motion-duration-short) var(--motion-easing-tactile);
+}
+
+/* States */
+.radio-input:hover + .radio-dot {
+  border-color: var(--color-accent);
+}
+
+.radio-input:focus-visible + .radio-dot {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: var(--spacing-micro);
+}
+
+.radio-input:checked + .radio-dot {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.radio-input:checked + .radio-dot .radio-dot-inner {
+  opacity: var(--opacity-100);
+  transform: scale(1);
+}
+
+/* Label */
+.radio-label-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-micro);
+}
+
+.radio-label {
+  font: var(--font-body-small);
+  color: var(--color-on-surface);
+  cursor: pointer;
+}
