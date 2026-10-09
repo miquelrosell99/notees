@@ -74,15 +74,21 @@ describe("the context column (three-column panelled layout)", () => {
     const context = container.querySelector(".nt-page-context")!;
     expect(context).not.toBeNull();
 
-    // Top-down: graph card, TOC, Activity; Comments hides (no comments yet).
+    // Top-down: the local graph (collapsed by default — the card mounts,
+    // and loads, only on the first expand), the tree-derived Contents, the
+    // node's own Activity; Comments always renders (empty included).
+    expect(context.querySelector(".nt-localgraph-card")).toBeNull();
+    const graphHeader = within(context as HTMLElement).getByRole("button", { name: /Local graph/ });
+    expect(graphHeader.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(graphHeader);
     expect(context.querySelector(".nt-localgraph-card")).not.toBeNull();
     expect(within(context as HTMLElement).getByText("Contents")).not.toBeNull();
     expect(
       within(context as HTMLElement).getByRole("button", { name: /^Activity/ }),
     ).not.toBeNull();
     expect(
-      within(context as HTMLElement).queryByRole("button", { name: /Comments/ }),
-    ).toBeNull();
+      within(context as HTMLElement).getByRole("button", { name: /^Comments/ }),
+    ).not.toBeNull();
   });
 
   it("the nodeview top bar toggles each panel column independently, device-locally", async () => {

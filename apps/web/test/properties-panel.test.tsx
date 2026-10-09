@@ -9,7 +9,7 @@
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
@@ -108,15 +108,16 @@ describe("Properties panel (effective values)", () => {
     const panel = container.querySelector(".nt-page-side-panel");
     expect(panel).not.toBeNull();
     expect(panel!.querySelector(".nt-props-sidebar")).not.toBeNull();
-    // The column names itself: a muted "Properties" header row with the
-    // effective count. A plain node carries no property rows — the retired
-    // aliasOf carrier is gone (node aliases ride the aliasedNodeId wire
-    // field, never a property row).
-    const header = panel!.querySelector(".nt-props-sidebar__header")!;
-    expect(header).not.toBeNull();
+    // The column names itself: the collapsible section header (dotted-list
+    // icon + "Properties" + the effective count), expanded by default. A
+    // plain node carries no property rows — the retired aliasOf carrier is
+    // gone (node aliases ride the aliasedNodeId wire field, never a property
+    // row).
+    const header = within(panel as HTMLElement).getByRole("button", { name: /^Properties / });
+    expect(header.getAttribute("aria-expanded")).toBe("true");
     expect(header.textContent).toContain("Properties");
     const rowCount = panel!.querySelectorAll(".nt-props-sidebar__prop").length;
-    expect(header.querySelector(".nt-props-sidebar__count")!.textContent).toBe(String(rowCount));
+    expect(header.textContent).toContain(String(rowCount));
     expect(rowCount).toBe(0);
     // The empty panel still hosts the "Add property" affordance.
     expect(screen.getByRole("button", { name: /Add property/ })).not.toBeNull();
