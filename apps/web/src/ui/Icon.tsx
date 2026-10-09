@@ -4,6 +4,8 @@
  * resolver is the iconDom contract: mdi-prefixed camelCase ("mdiHeart"),
  * "mdi-heart-outline", bare "heart-outline", JSON-wrapped {"icon": …}
  * (legacy rows), and anything else renders as text (emoji passthrough).
+ * LEGACY_ALIASES maps names that were stored but never existed in MDI
+ * ("mdiFormatHighlight" — a bad system-class seed) to their real icons.
  */
 import React from 'react';
 import { resolveIconSize } from './iconSizes.js';
@@ -38,6 +40,12 @@ function camelToKebab(name: string): string {
 
 type ResolvedIcon = { kind: "mdi"; name: string } | { kind: "text"; glyph: string } | null;
 
+// Values that made it into stored rows but were never real MDI names —
+// resolved to the icon they were always meant to be.
+const LEGACY_ALIASES: Record<string, string> = {
+  "format-highlight": "format-color-highlight",
+};
+
 function resolveIcon(path: string): ResolvedIcon {
   let value = path.trim();
   if (value === "") return null;
@@ -56,10 +64,10 @@ function resolveIcon(path: string): ResolvedIcon {
   const stripped = value.replace(/^mdi\s+/, "").replace(/^mdi-/, "");
   const wasMdiPrefixed = stripped !== value;
   if (wasMdiPrefixed && /^[a-z0-9-]+$/.test(stripped)) {
-    return { kind: "mdi", name: stripped };
+    return { kind: "mdi", name: LEGACY_ALIASES[stripped] ?? stripped };
   }
   if (/^mdi[A-Z]/.test(value)) {
-    return { kind: "mdi", name: camelToKebab(value) };
+    return { kind: "mdi", name: LEGACY_ALIASES[camelToKebab(value)] ?? camelToKebab(value) };
   }
   // Emoji / text glyph passthrough (the original contract).
   return { kind: "text", glyph: value };
