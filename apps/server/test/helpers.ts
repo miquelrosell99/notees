@@ -31,6 +31,7 @@ export function makeConfig(dataDir: string, overrides: Partial<ServerConfig> = {
     maxMediaBytes: 50 * 1024 * 1024,
     maxDocumentBytes: 100 * 1024 * 1024,
     loginPerMinute: 10,
+    signupEnabled: false,
     corsOrigins: [],
     ...overrides,
   };

@@ -6,6 +6,10 @@
  *                             initial-setup screen and the login screen;
  *  - POST /setup              first-run only (refused once any user exists):
  *                             create the admin account, returns a session;
+ *  - POST /auth/signup        open registration (NOTEES_SIGNUP_ENABLED only):
+ *                             create a non-admin account, returns a session.
+ *                             When the flag is off the route answers 404 —
+ *                             the surface does not exist at all;
  *  - POST /auth/login         email + password → session token;
  *  - POST /auth/logout        revoke the current session (Bearer token);
  *  - GET  /auth/me            the authenticated account;
@@ -57,6 +61,14 @@ const loginBodySchema = z
   .strict();
 
 const setupBodySchema = z
+  .object({
+    email: emailSchema,
+    password: passwordSchema,
+    displayName: z.string().trim().max(120).optional(),
+  })
+  .strict();
+
+const signupBodySchema = z
   .object({
     email: emailSchema,
     password: passwordSchema,
@@ -281,6 +293,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
     protocolVersion: 3,
     wsProtocolVersion: 2,
     setupRequired: ctx.auth.userCount() === 0,
+    signupEnabled: ctx.config.signupEnabled,
   }));
 
   app.post("/setup", async (request, reply) => {
@@ -316,6 +329,52 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
       token,
       expiresAt,
       user: { id: user.id, email: user.email, displayName: user.displayName, name: user.name, surnames: user.surnames, avatarUrl: user.avatarUrl, isAdmin: true },
+      kdf,
+    };
+  });
+
+  app.post("/auth/signup", async (request, reply) => {
+    // Gated by NOTEES_SIGNUP_ENABLED: when off the surface does not exist at
+    // all (404, not 403) — same contract as the sonarly signup gate.
+    if (!ctx.config.signupEnabled) {
+      throw new AppError(404, "not_found", "not found");
+    }
+    if (!ctx.limiters.login.tryAcquire(`signup:${request.ip}`, 1, ctx.config.loginPerMinute)) {
+      throw new AppError(
+        429,
+        "rate_limited",
+        `too many signup attempts (max ${ctx.config.loginPerMinute}/min)`,
+      );
+    }
+    const parsed = signupBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid signup request");
+    }
+    if (ctx.auth.findUserByEmail(parsed.data.email) !== null) {
+      throw new AppError(409, "conflict", "an account with this email already exists");
+    }
+    const passwordHash = await hashPassword(parsed.data.password);
+    const user = ctx.auth.createUser({
+      email: parsed.data.email,
+      passwordHash,
+      displayName: parsed.data.displayName ?? null,
+      isAdmin: false,
+    });
+    const kdf = await ctx.auth.ensureKdfRecord(user.id, parsed.data.password);
+    const { token, expiresAt } = ctx.auth.createSession(user.id);
+    reply.code(201);
+    return {
+      token,
+      expiresAt,
+      user: {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        name: user.name,
+        surnames: user.surnames,
+        avatarUrl: user.avatarUrl,
+        isAdmin: false,
+      },
       kdf,
     };
   });

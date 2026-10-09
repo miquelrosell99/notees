@@ -83,6 +83,96 @@ describe("setup gate", () => {
   });
 });
 
+describe("env-gated signup", () => {
+  async function signupUser(email = "user@example.com", password = "user-password-1") {
+    return server!.app.inject({
+      method: "POST",
+      url: "/api/auth/signup",
+      payload: { email, password },
+    });
+  }
+
+  it("server-info reports signupEnabled from the server config", async () => {
+    server = await makeTestServer();
+    const off = await server.app.inject({ method: "GET", url: "/api/server-info" });
+    expect(off.json().signupEnabled).toBe(false);
+    await closeTestServer(server);
+    server = await makeTestServer({ signupEnabled: true });
+    const on = await server.app.inject({ method: "GET", url: "/api/server-info" });
+    expect(on.json().signupEnabled).toBe(true);
+  });
+
+  it("signup answers 404 when the flag is off — the surface does not exist", async () => {
+    server = await makeTestServer();
+    await setupAdmin();
+    const response = await signupUser();
+    expect(response.statusCode).toBe(404);
+    expect(response.json().error.code).toBe("not_found");
+  });
+
+  it("signup creates a non-admin account and a live session when enabled", async () => {
+    server = await makeTestServer({ signupEnabled: true });
+    await setupAdmin();
+    const signup = await signupUser();
+    expect(signup.statusCode).toBe(201);
+    expect(signup.json().token).toMatch(/^nt_/);
+    expect(signup.json().user.isAdmin).toBe(false);
+    expect(signup.json().kdf.algorithm).toBe("scrypt");
+
+    const token = signup.json().token as string;
+    const me = await server.app.inject({
+      method: "GET",
+      url: "/api/auth/me",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(me.statusCode).toBe(200);
+    expect(me.json().email).toBe("user@example.com");
+
+    // The signup account starts workspace-less: the admin's default workspace
+    // is membership-gated and is not claimed by registration.
+    const list = await server.app.inject({
+      method: "GET",
+      url: "/api/workspaces",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(list.json().workspaces.map((ws: { id: string }) => ws.id)).not.toContain(
+      server.ctx.defaultWorkspace,
+    );
+  });
+
+  it("signup refuses a duplicate email with 409", async () => {
+    server = await makeTestServer({ signupEnabled: true });
+    await setupAdmin("admin@example.com", "admin-password-1");
+    expect((await signupUser("admin@example.com")).statusCode).toBe(409);
+    expect((await signupUser("user@example.com")).statusCode).toBe(201);
+    expect((await signupUser("user@example.com")).statusCode).toBe(409);
+  });
+
+  it("signup validates the payload like setup does", async () => {
+    server = await makeTestServer({ signupEnabled: true });
+    const short = await signupUser("user@example.com", "short");
+    expect(short.statusCode).toBe(422);
+    const badEmail = await server.app.inject({
+      method: "POST",
+      url: "/api/auth/signup",
+      payload: { email: "not-an-email", password: "user-password-1" },
+    });
+    expect(badEmail.statusCode).toBe(422);
+  });
+
+  it("a signup account can log in afterwards", async () => {
+    server = await makeTestServer({ signupEnabled: true });
+    await signupUser();
+    const login = await server.app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      payload: { email: "user@example.com", password: "user-password-1" },
+    });
+    expect(login.statusCode).toBe(200);
+    expect(login.json().user.email).toBe("user@example.com");
+  });
+});
+
 describe("login and sessions", () => {
   it("login returns a session that authenticates account routes", async () => {
     server = await makeTestServer();
