@@ -9,6 +9,47 @@ predating this file.
 
 ## 2026-10-09
 
+- **feat(protocol,store,query,export,server,web,scripts): the unified
+  Datetime property — `date`/`date_range` retire into one `datetime` type with
+  per-value Full-day (default on), an All-day-off time, and a Range toggle.**
+  (1) Wire: `propertySchema.create`'s strict type enum drops `date`/
+  `date_range` for `datetime` (retired values rejected outright, the
+  no-backward-compatibility law); a value is a point `{nodeId, time?}` or a
+  range `{start: slot|null, end: slot|null}` anchored to the unchanged
+  year/month/day node chain — every legacy shape is a legal member of the new
+  union, so no value ever needed rewriting (the "date is a node" law stands;
+  the time-of-day law is amended: wall-clock `HH:MM` rides the value beside
+  the day-node anchor, no timezone handling anywhere). (2) Store/query: one
+  `datetime` validation arm replaces the two date arms (bare-uuid
+  normalization kept; `time` requires day precision on both the schema
+  ceiling and the slot ref; mixed nodeId+start/end shapes and malformed
+  times fail loud); the query compiler routes `datetime` with new range arms
+  (eq/contains = the bound's period within [start, end], open side
+  unbounded; relational ops compare the range start; date-only bounds ignore
+  `time`). (3) Export: `NODE_TYPED_SCHEMAS` becomes `{datetime, object,
+  asset}`; timed slots render their wall-clock time, ranges keep the
+  start/end map, the JSON archive stays verbatim. (4) Web:
+  `setDateProperty`/`setDateRangeProperty` fold into `setDatetimeProperty`;
+  `DatePropertyRow`/`DateRangePropertyRow` unify into `DatetimePropertyRow`;
+  the canonical picker aligns to the reference — month grid under month/
+  year dropdowns with ‹ › navigation, a Suggestions column (Yesterday/
+  Today/Tomorrow/In 1 week/In 2 weeks, ✓ on the current date), an All-day
+  switch (ON by default — full-day is the absence of `time`; OFF reveals a
+  24h HH:MM input per slot), a per-value Range toggle (OFF collapses to the
+  point), the recurrence picker riding inside, and Remove. TableView cells,
+  calendar rows, quick-create, import, property definitions, and the convert
+  modal all route `datetime`. (5) Live migration:
+  `scripts/migrate-unified-datetime.mts` — Path B in-place rewrite of the
+  retired `payload.type` values (snapshot patch, restore-epoch bump, NO
+  compensation envelopes; dry-run default, idempotent; LOCKSTEP-PENDING:
+  runs only after the GTK/Flutter ports accept `datetime`, then the stack
+  restarts onto the new images). Fixture gate 24→25
+  (`property-datetime.json`). Verified: every package suite green on both
+  store adapters (store 473, query 203, protocol 328, domain 76, export 239,
+  server 225), web 1428 green, root typecheck clean, the migration mechanics
+  proven against a synthesized throwaway relay (plan / rewrite / full replay
+  / idempotency / log-alone convergence).
+
 - **feat(web): every header action row button retires once its gap is filled
   — Add icon hides when an icon is defined (the icon element takes over as
   the picker entry), Add aliases when the page has an alias (the metadata
