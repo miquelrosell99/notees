@@ -116,6 +116,7 @@ function node(id: string, children: BlockTreeNode[] = []): BlockTreeNode {
       coverAssetId: null,
       bannerAssetId: null,
       aliasedNodeId: null,
+      description: null,
       color: null,
       isActive: true,
       createdAt: null,

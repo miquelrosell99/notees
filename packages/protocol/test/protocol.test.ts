@@ -167,6 +167,8 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       { objectId: page, aliasedNodeId: null },
       { objectId: page, coverAssetId: null },
       { objectId: page, bannerAssetId: null },
+      { objectId: page, description: "Subtitle text" },
+      { objectId: page, description: null },
     ]);
     // Strict schema: a non-uuid reference is rejected outright, and so is
     // every field on object.create (the fields are object.update-only).
@@ -178,6 +180,17 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
         payloadSchemaFor("object.create")!.safeParse({ objectId: page, [key]: asset }).success,
       ).toBe(false);
     }
+    // The description is the page-subtitle wire field: object.update-only,
+    // plain text with a hard 512-char cap.
+    expect(
+      payloadSchemaFor("object.create")!.safeParse({ objectId: page, description: "x" }).success,
+    ).toBe(false);
+    expect(
+      objectUpdatePayload.safeParse({ objectId: page, description: "x".repeat(513) }).success,
+    ).toBe(false);
+    expect(
+      objectUpdatePayload.safeParse({ objectId: page, description: null }).success,
+    ).toBe(true);
     // Applicable in sequence: HLCs strictly ascend.
     const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
     expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);

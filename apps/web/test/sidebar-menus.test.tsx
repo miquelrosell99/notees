@@ -298,6 +298,7 @@ describe("sidebar row labels render as read-only block content", () => {
       coverAssetId: null,
       bannerAssetId: null,
       aliasedNodeId: null,
+      description: null,
       color: null,
       isActive: true,
       createdAt: null,

@@ -366,7 +366,7 @@ describe("node aliases: the aliases UI (the metadata panel's Aliases row)", () =
     render(<PageView client={client} pageId={mainId} onOpenPage={onOpenPage} />);
     await flushSync();
 
-    fireEvent.click(screen.getByRole("button", { name: /Add alias/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Add alias$/ }));
 
     const searchInput = screen.getByLabelText("Search pages…");
     const picker = screen.getByRole("dialog", { name: "Select node" });
