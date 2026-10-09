@@ -9,6 +9,21 @@ predating this file.
 
 ## 2026-10-09
 
+- **fix(web): no search bar glows accent on focus anymore — every search
+  input trades the focus ring for a quiet border shift.** The earlier
+  SearchField slice dropped the component's own accent glow, but the global
+  `input:focus-visible` rule still paints the accent shadow on the raw input
+  inside the field — the command palette kept the green ring the owner called
+  ugly. Now the input itself sets `box-shadow: none`, and the remaining raw
+  search inputs get the same contract: query panel (`.nt-search-input`),
+  Dropdown's search, the NodeSelector picker's focus-within container glow,
+  IconPickerPopup, WorkspaceSwitcher, TriggerPopup, the DuplicatePage modal
+  (which also traded its primary-tinted focus border), and the add-property
+  popup. Focus feedback everywhere is the border color deepening to
+  `--color-outline` (SearchField keeps its on-surface-variant shift) — no
+  accent anywhere. Display-state only; web typecheck + full vitest gate
+  re-run green.
+
 - **fix(web): the single-value selection cell names its value with ONE
   compact pill (effective-colored, no subtree), multi-value object pills
   cover every resolved value, and the date cell's repeat picker stops

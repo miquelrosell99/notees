@@ -67,6 +67,16 @@
   box-sizing: border-box;
 }
 
+/* Quiet focus like every other search bar — no accent ring (owner
+   2026-10-09). */
+.ep-search-input:focus {
+  border-color: var(--color-outline);
+}
+
+.ep-search-input:focus-visible {
+  box-shadow: none;
+}
+
 .ep-search-input::placeholder {
   color: var(--color-on-surface-variant);
 }
