@@ -131,9 +131,16 @@ export function NodePill({
           <Icon path={icon} size={0.7} />
         </span>
       )}
-      <button type="button" className="pill__text" onClick={onOpen}>
-        {label}
-      </button>
+      {onOpen !== undefined ? (
+        <button type="button" className="pill__text" onClick={onOpen}>
+          {label}
+        </button>
+      ) : (
+        // No navigation of its own (e.g. the label rides inside a larger
+        // control such as the single-value selection cell) — a plain span,
+        // the same pattern MetadataSection.css styles for span.pill__text.
+        <span className="pill__text">{label}</span>
+      )}
       {onRemove !== undefined && (
         <button
           type="button"
