@@ -484,7 +484,11 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
                 toggleCollapse(node.id);
               }}
             >
-              {isCollapsed ? "\u25B8" : "\u25BE"}
+              {isCollapsed ? (
+                <Icon path="mdi-chevron-right" size={0.8} />
+              ) : (
+                <Icon path="mdi-chevron-down" size={0.8} />
+              )}
             </button>
           )}
           <span
