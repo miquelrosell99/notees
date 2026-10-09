@@ -6,8 +6,11 @@
  * UNFILTERED (an active filter reads "0 of N" and never hides the
  * section), the query is one instance per section view/tab (two backlinks
  * tabs never share), and the three filterable sections — linked
- * references, unlinked mentions, classed nodes — render the bar while a
- * non-filterable section (Child pages) renders none. The structured panel
+ * references, unlinked mentions, classed nodes — render filter chrome while
+ * a non-filterable section (Child pages) renders none. On the references
+ * strip the chrome rides the TAB ROW (owner 2026-10-09): the quick search
+ * folds behind an icon-only magnifier, the structured builder opens below
+ * the row and follows the active tab across switches. The structured panel
  * is the block query builder — these tests drive its add menu, rows and
  * wire controls end to end (the pure builder interactions live in
  * filter-builder.test.tsx).
@@ -231,7 +234,12 @@ describe("the classed-nodes filter bar", () => {
   });
 });
 
-describe("the backlinks strip filter bars", () => {
+describe("the backlinks strip filter chrome", () => {
+  /** Unfold the strip's quick search (the icon-only magnifier toggle). */
+  function unfoldSearch(strip: HTMLElement): void {
+    fireEvent.click(within(strip).getByRole("button", { name: "Search references" }));
+  }
+
   async function seedReferencedPage(
     client: WorkspaceClient,
   ): Promise<{ pageId: string; plainSourceId: string }> {
@@ -249,23 +257,35 @@ describe("the backlinks strip filter bars", () => {
     return { pageId, plainSourceId };
   }
 
-  it("both reference tabs render a bar; a non-filterable section renders none", async () => {
+  it("the quick search folds behind an icon-only toggle; a non-filterable section renders no chrome", async () => {
     const client = await seedClient();
     const { pageId } = await seedReferencedPage(client);
     await client.createObject({ presentAsMain: true, name: "Kid", parentId: pageId });
 
     render(<PageView client={client} pageId={pageId} />);
+    const strip = backlinksStrip();
 
-    // The selected Backlinks panel carries its bar…
-    expect(within(activePanel()).getByLabelText("Filter by text")).not.toBeNull();
+    // Folded by default: the toggle rides the tab row, the field does not.
+    expect(within(strip).getByRole("button", { name: "Search references" })).not.toBeNull();
+    expect(within(strip).getByRole("button", { name: "Structured filters" })).not.toBeNull();
+    expect(within(strip).queryByLabelText("Filter by text")).toBeNull();
     // …the Child pages section (not filterable) carries none.
     const childHeader = screen.getByRole("button", { name: /Child pages/ });
     const childSection = childHeader.closest("section")!;
     expect(within(childSection).queryByLabelText("Filter by text")).toBeNull();
 
-    // The unlinked panel's bar too.
+    // Unfold → the field rides the row and edits the active (Backlinks) tab.
+    unfoldSearch(strip);
+    expect(within(strip).getByLabelText("Filter by text")).not.toBeNull();
+
+    // Refold → the field steps aside…
+    fireEvent.click(within(strip).getByRole("button", { name: "Search references" }));
+    expect(within(strip).queryByLabelText("Filter by text")).toBeNull();
+
+    // …and the chrome survives a tab switch (strip-level, not per panel).
     fireEvent.click(screen.getByRole("tab", { name: /Unlinked mentions/ }));
-    expect(within(activePanel()).getByLabelText("Filter by text")).not.toBeNull();
+    unfoldSearch(strip);
+    expect(within(strip).getByLabelText("Filter by text")).not.toBeNull();
     expect(within(activePanel()).getAllByText("Plain Source")).not.toHaveLength(0);
   });
 
@@ -274,29 +294,29 @@ describe("the backlinks strip filter bars", () => {
     const { pageId } = await seedReferencedPage(client);
 
     render(<PageView client={client} pageId={pageId} />);
-    const backlinksPanel = activePanel();
+    const strip = backlinksStrip();
+    unfoldSearch(strip);
 
-    // Empty the Backlinks tab through its own bar.
-    fireEvent.change(within(backlinksPanel).getByLabelText("Filter by text"), {
+    // Empty the Backlinks tab through the shared field.
+    fireEvent.change(within(strip).getByLabelText("Filter by text"), {
       target: { value: "zzz" },
     });
-    expect(within(backlinksPanel).getByText("0 of 1")).not.toBeNull();
-    expect(within(backlinksPanel).getByText("No backlinks.")).not.toBeNull();
+    expect(within(strip).getByText("0 of 1")).not.toBeNull();
+    expect(within(activePanel()).getByText("No backlinks.")).not.toBeNull();
     // The eager tab label stays unfiltered.
     expect(screen.getByRole("tab", { name: "Backlinks 1" })).not.toBeNull();
 
-    // The Unlinked tab owns a DIFFERENT instance: untouched bar, live rows.
+    // The Unlinked tab owns a DIFFERENT instance: the same field now reads
+    // the active tab's (untouched) query — the rows are live.
     fireEvent.click(screen.getByRole("tab", { name: /Unlinked mentions/ }));
-    const unlinkedPanel = activePanel();
-    expect((within(unlinkedPanel).getByLabelText("Filter by text") as HTMLInputElement).value).toBe("");
-    expect(within(unlinkedPanel).queryByText(/of 1/)).toBeNull();
-    expect(within(unlinkedPanel).getAllByText("Plain Source")).not.toHaveLength(0);
+    expect((within(strip).getByLabelText("Filter by text") as HTMLInputElement).value).toBe("");
+    expect(within(strip).queryByText(/of 1/)).toBeNull();
+    expect(within(activePanel()).getAllByText("Plain Source")).not.toHaveLength(0);
 
     // …and switching back finds the Backlinks filter exactly as left.
     fireEvent.click(screen.getByRole("tab", { name: /Backlinks/ }));
-    const backAgain = activePanel();
-    expect((within(backAgain).getByLabelText("Filter by text") as HTMLInputElement).value).toBe("zzz");
-    expect(within(backAgain).getByText("0 of 1")).not.toBeNull();
+    expect((within(strip).getByLabelText("Filter by text") as HTMLInputElement).value).toBe("zzz");
+    expect(within(strip).getByText("0 of 1")).not.toBeNull();
   });
 
   it("the filter applies to fresh resolutions too: a notification re-runs the tab's query, the spec still narrows it", async () => {
@@ -304,15 +324,16 @@ describe("the backlinks strip filter bars", () => {
     const { pageId, plainSourceId } = await seedReferencedPage(client);
 
     render(<PageView client={client} pageId={pageId} />);
+    const strip = backlinksStrip();
     const unlinkedSpy = vi.spyOn(client, "getUnlinkedReferences");
 
     fireEvent.click(screen.getByRole("tab", { name: /Unlinked mentions/ }));
     expect(unlinkedSpy).toHaveBeenCalledTimes(1);
-    const unlinkedPanel = activePanel();
-    fireEvent.change(within(unlinkedPanel).getByLabelText("Filter by text"), {
+    unfoldSearch(strip);
+    fireEvent.change(within(strip).getByLabelText("Filter by text"), {
       target: { value: "zzz" },
     });
-    expect(within(unlinkedPanel).getByText("0 of 1")).not.toBeNull();
+    expect(within(strip).getByText("0 of 1")).not.toBeNull();
     // The spec change re-ran NOTHING — the resolution cache is untouched.
     expect(unlinkedSpy).toHaveBeenCalledTimes(1);
 
@@ -326,6 +347,33 @@ describe("the backlinks strip filter bars", () => {
     });
     expect(unlinkedSpy.mock.calls.length).toBeGreaterThan(1);
     // …and the spec still narrows the FRESH rows.
-    expect(within(activePanel()).getByText("0 of 1")).not.toBeNull();
+    expect(within(strip).getByText("0 of 1")).not.toBeNull();
+  });
+
+  it("the structured builder opens below the tab row and follows the active tab across a switch", async () => {
+    const client = await seedClient();
+    const { pageId } = await seedReferencedPage(client);
+
+    render(<PageView client={client} pageId={pageId} />);
+    const strip = backlinksStrip();
+
+    // Open the builder on Backlinks: the region rides below the tab row.
+    fireEvent.click(within(strip).getByRole("button", { name: "Structured filters" }));
+    const panel = structuredPanel();
+    expect(strip.contains(panel)).toBe(true);
+
+    // Add a class condition on the Backlinks tab's draft…
+    fireEvent.click(within(panel).getByRole("button", { name: "Add condition" }));
+    fireEvent.click(
+      within(document.querySelector(".btn-panel") as HTMLElement).getByRole("menuitem", { name: /^Class/ }),
+    );
+    expect(panel.textContent).toContain("Class");
+
+    // …switch tabs: the builder STAYS open but now edits the Unlinked tab's
+    // (untouched) draft — the Backlinks draft survives on its own instance.
+    fireEvent.click(screen.getByRole("tab", { name: /Unlinked mentions/ }));
+    expect(structuredPanel().textContent).not.toContain("Class");
+    fireEvent.click(screen.getByRole("tab", { name: /Backlinks/ }));
+    expect(structuredPanel().textContent).toContain("Class");
   });
 });

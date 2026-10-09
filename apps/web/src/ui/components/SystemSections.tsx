@@ -27,13 +27,18 @@
  * honest place for it); Ignore dismisses the source device-locally, per
  * page — device state, never an op (./viewPrefs.js).
  *
- * The transient filter layer (owner 2026-10-07): both tabs are filterable —
- * a FilterBar rides each panel's body top (the tab IS the header; the bar
- * cannot nest in it), each tab owning its FilterQuery instance (component
- * state — a switch never leaks a filter across tabs, nothing persisted).
- * The query filters the tab's resolved rows post-resolution/pre-windowing;
- * the eager counts on the tab labels stay UNFILTERED — an active filter
- * reads "0 of N" in the bar and never empties the tab away.
+ * The transient filter layer (owner 2026-10-07; reworked 2026-10-09): both
+ * tabs are filterable — the chrome rides the TAB ROW itself, far right: an
+ * icon-only magnifier folds/unfolds the quick-search field, the
+ * structured-filters toggle opens the query builder in a full-width region
+ * BELOW the row (in-flow, never an overlay). The chrome is STRIP-level —
+ * it survives a tab switch and binds to the ACTIVE tab's FilterQuery,
+ * which each tab still owns (component state — a switch never leaks a
+ * filter across tabs, nothing persisted; an open builder edits whichever
+ * tab is active). The query filters the tab's resolved rows
+ * post-resolution/pre-windowing; the eager counts on the tab labels stay
+ * UNFILTERED — an active filter reads "0 of N" in the chrome and never
+ * empties the tab away.
  *
  * The Child pages section renders when the page has main children OR the
  * surface can create them: an empty main-surface page shows the section
@@ -63,7 +68,9 @@ import { displayNameForSettings } from "../dateDisplay.js";
 import { untitledLabelOf } from "../renderStateLabel.js";
 import { useIgnoredUnlinkedRefs, writeIgnoredUnlinkedRef } from "../viewPrefs.js";
 import { promoteMentionInAst } from "./unlinkedRefs.js";
-import { FilterBar } from "./FilterBar.js";
+import { FilterBlockBuilder } from "./FilterBlockBuilder.js";
+import { Button } from "./ui/Button.js";
+import { SearchField } from "./ui/SearchField.js";
 import {
   EMPTY_FILTER_QUERY,
   filterQueryToGroup,
@@ -287,6 +294,12 @@ export function SystemSections({
    */
   const [backlinkFilter, setBacklinkFilter] = useState<FilterQuery>(EMPTY_FILTER_QUERY);
   const [unlinkedFilter, setUnlinkedFilter] = useState<FilterQuery>(EMPTY_FILTER_QUERY);
+  /**
+   * The chrome's fold state — strip-level, NOT per tab: the unfolded search
+   * field and the open builder survive a tab switch (owner 2026-10-09).
+   */
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [builderOpen, setBuilderOpen] = useState(false);
   const backlinkRowFilter = useMemo<SectionRowFilter<ReferenceEntry> | undefined>(() => {
     if (isFilterInactive(backlinkFilter)) return undefined;
     const group = filterQueryToGroup(backlinkFilter);
@@ -314,6 +327,17 @@ export function SystemSections({
     read: loadUnlinkedRefs,
     filter: unlinkedRowFilter,
   });
+
+  // The chrome binds to the ACTIVE tab's FilterQuery and result counts:
+  // each tab still owns its query instance (the per-view rule — a switch
+  // never leaks a filter across tabs), but the strip-level controls edit
+  // whichever tab is active, so an open builder follows a tab switch.
+  const activeFilter = refTab === REF_TAB_BACKLINKS ? backlinkFilter : unlinkedFilter;
+  const setActiveFilter = refTab === REF_TAB_BACKLINKS ? setBacklinkFilter : setUnlinkedFilter;
+  const activeRows = refTab === REF_TAB_BACKLINKS ? backlinks.rows : unlinked.rows;
+  const activeMatchCount = activeRows === null ? null : activeRows.length;
+  const activeTotalCount = refTab === REF_TAB_BACKLINKS ? backlinks.total : unlinked.total;
+  const filterActive = !isFilterInactive(activeFilter);
 
   // The hide-when-empty rulings gate the backlinks strip; the Child pages
   // section renders on the MAIN surface even when childless (owner
@@ -371,34 +395,115 @@ export function SystemSections({
           hide-when-empty ruling that covers every system section); once it
           renders, both tabs always show (on date pages: only Backlinks —
           the Unlinked mentions tab never rides a date page) and the panel
-          under a tab renders headerless (the tab is the header). An active
-          filter emptying a tab keeps the chrome — the count gate reads the
+          under a tab renders headerless (the tab is the header). The
+          transient filter chrome rides the tab ROW, far right (owner
+          2026-10-09): the magnifier folds/unfolds the quick search, the
+          structured-filters toggle opens the builder below the row — both
+          strip-level, binding to the active tab's query. An active filter
+          emptying a tab keeps the chrome — the count gate reads the
           UNFILTERED rows. */}
       {(backlinkCount > 0 || unlinkedCount > 0) && (
       <div className="nt-backlinks">
         <Tabs className="nt-ref-tabs" value={refTab} onChange={setRefTab}>
-          <Tabs.List>
-            <Tabs.Tab value={REF_TAB_BACKLINKS}>
-              Backlinks{backlinkCount > 0 ? ` ${backlinkCount}` : ""}
-            </Tabs.Tab>
-            {/* Date pages (the day/month/year family) carry no Unlinked
-                mentions tab — the literal-date matches are noise, and the
-                count is forced to 0 above, so the strip's gates read as if
-                the page had none. */}
-            {!isDatePage && (
-              <Tabs.Tab value={REF_TAB_UNLINKED}>
-                Unlinked mentions{unlinkedCount > 0 ? ` ${unlinkedCount}` : ""}
+          {/* The tab row: the tab bar left, the filter chrome far right. */}
+          <div className="nt-ref-tabs-row">
+            <Tabs.List>
+              <Tabs.Tab value={REF_TAB_BACKLINKS}>
+                Backlinks{backlinkCount > 0 ? ` ${backlinkCount}` : ""}
               </Tabs.Tab>
-            )}
-          </Tabs.List>
+              {/* Date pages (the day/month/year family) carry no Unlinked
+                  mentions tab — the literal-date matches are noise, and the
+                  count is forced to 0 above, so the strip's gates read as if
+                  the page had none. */}
+              {!isDatePage && (
+                <Tabs.Tab value={REF_TAB_UNLINKED}>
+                  Unlinked mentions{unlinkedCount > 0 ? ` ${unlinkedCount}` : ""}
+                </Tabs.Tab>
+              )}
+            </Tabs.List>
+            <div className="nt-ref-chrome">
+              {/* The quick search folds behind the icon-only magnifier:
+                  unfolded it rides the row, capped so the tabs keep the
+                  left side; folding away never drops the text (the toggle
+                  stays highlighted while the active tab's text filter is
+                  set). */}
+              {searchOpen && (
+                <SearchField
+                  className="nt-ref-chrome__search"
+                  aria-label="Filter by text"
+                  placeholder="Filter…"
+                  value={activeFilter.text ?? ""}
+                  onChange={(event) => setActiveFilter({ ...activeFilter, text: event.target.value })}
+                  onClear={() => setActiveFilter({ ...activeFilter, text: "" })}
+                />
+              )}
+              {filterActive && activeMatchCount !== null && activeTotalCount !== null && (
+                <span className="nt-filter-bar__count">
+                  {activeMatchCount} of {activeTotalCount}
+                </span>
+              )}
+              {filterActive && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  icon="mdi mdi-filter-remove-outline"
+                  aria-label="Clear filter"
+                  title="Clear filter"
+                  onClick={() => {
+                    setActiveFilter(EMPTY_FILTER_QUERY);
+                    setBuilderOpen(false);
+                  }}
+                />
+              )}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                icon="mdi mdi-magnify"
+                aria-label="Search references"
+                title="Filter by text"
+                aria-expanded={searchOpen}
+                active={searchOpen || (activeFilter.text?.trim() ?? "") !== ""}
+                onClick={() => setSearchOpen((open) => !open)}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                icon="mdi mdi-filter-variant"
+                aria-label="Structured filters"
+                title="More filters"
+                aria-expanded={builderOpen}
+                active={builderOpen || filterActive}
+                onClick={() => setBuilderOpen((open) => !open)}
+              />
+            </div>
+          </div>
+          {/* The structured builder: an in-flow full-width region below the
+              tab row (never an overlay), bound to the ACTIVE tab's draft
+              group — left open across a tab switch, it edits the newly
+              active tab's query. The region reuses the FilterBar's panel
+              box (paired frame, the 2026-10-08 ruling). */}
+          {builderOpen && (
+            <div
+              className="nt-filter-bar__panel"
+              role="group"
+              aria-label="Structured filters"
+            >
+              {activeMatchCount !== null && activeTotalCount !== null && (
+                <p className="nt-filter-bar__result">
+                  {activeMatchCount} of {activeTotalCount} rows match
+                </p>
+              )}
+              <FilterBlockBuilder
+                client={client}
+                group={activeFilter.group}
+                onChange={(group) => setActiveFilter({ ...activeFilter, group })}
+              />
+            </div>
+          )}
           <Tabs.Panel value={REF_TAB_BACKLINKS}>
-            <FilterBar
-              client={client}
-              value={backlinkFilter}
-              onChange={setBacklinkFilter}
-              matchCount={backlinks.rows === null ? null : backlinks.rows.length}
-              totalCount={backlinks.total}
-            />
             {backlinks.rows === null ? null : (
               // Always rendered — the hosted tab bar (Default + "+" and the
               // custom views) stays visible on an empty section; the empty
@@ -414,13 +519,6 @@ export function SystemSections({
           </Tabs.Panel>
           {!isDatePage && (
             <Tabs.Panel value={REF_TAB_UNLINKED}>
-              <FilterBar
-                client={client}
-                value={unlinkedFilter}
-                onChange={setUnlinkedFilter}
-                matchCount={unlinked.rows === null ? null : unlinked.rows.length}
-                totalCount={unlinked.total}
-              />
               {unlinked.rows === null ? null : (
                 <ReferenceList
                   entries={unlinked.rows}
