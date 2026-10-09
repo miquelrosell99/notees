@@ -491,10 +491,11 @@ select:focus-visible {
   border-radius: 0;
 }
 
-/* The raised-card panels (owner 2026-10-09): each sidebar rides the main
-   content card as its OWN card — surface fill, hairline frame, layout
-   radius, one elevation step above the surface it sits on — instead of a
-   column split by a continuous vertical divider. The divider and its
+/* The raised-card panels (owner 2026-10-09): each sidebar rides INSIDE the
+   main content card wearing the SAME card element the container itself
+   wears (.nt-page-card, PageCard.css: surface fill, hairline frame,
+   --shape-card radius, --shadow-elevation-1) — a card nested in a card,
+   not a column split by a continuous vertical divider. The divider and its
    negative-margin reach retire; the cards stop a step above the card
    bottom like the top bar's margin below itself. */
 .nt-page-side-panel {
@@ -507,15 +508,15 @@ select:focus-visible {
   padding: var(--spacing-4);
   background: var(--color-surface);
   border: var(--border-width-default) solid var(--color-outline-variant);
-  border-radius: var(--shape-layout-card);
-  box-shadow: var(--shadow-elevation-2);
+  border-radius: var(--shape-card);
+  box-shadow: var(--shadow-elevation-1);
 }
 
 /* The context column: graph · TOC · Activity · Comments — the
-   node-relevant widgets relocated from the right rail. Same raised-card
-   treatment as the properties panel (see above): its own surface card one
-   elevation step above the main content, the old full-height divider
-   retired. */
+   node-relevant widgets relocated from the right rail. Same card element
+   as the properties panel AND the main content container (see above): the
+   very card the container wears, nested inside it; the old full-height
+   divider retired. */
 .nt-page-context {
   flex: 0 0 clamp(15rem, 26%, 22rem);
   min-width: 0;
@@ -529,8 +530,8 @@ select:focus-visible {
   padding: var(--spacing-4);
   background: var(--color-surface);
   border: var(--border-width-default) solid var(--color-outline-variant);
-  border-radius: var(--shape-layout-card);
-  box-shadow: var(--shadow-elevation-2);
+  border-radius: var(--shape-card);
+  box-shadow: var(--shadow-elevation-1);
 }
 
 .nt-page--panelled .nt-page-content {

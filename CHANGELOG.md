@@ -9,6 +9,20 @@ predating this file.
 
 ## 2026-10-09
 
+- **feat(web): the nodeview sidebars wear the SAME card element the main
+  content container uses, nested inside it.** The first pass gave the two
+  panel columns their own smaller-radius, higher-elevation card — too
+  subtle, it read as no card at all in dark. Owner correction: mirror
+  `.nt-page-card` exactly (surface fill, hairline frame, `--shape-card`
+  20px radius, `--shadow-elevation-1`) on both `.nt-page-side-panel` and
+  `.nt-page-context` — a card within a card, like the right rail's peek
+  cards. The sketched `--color-raised-card` tone-step token drops with it
+  (never shipped; had been swept into the header-slice commit by accident).
+  Docs: `docs/ux.md` + `docs/usage.md` say "the same card element as the
+  main content container, nested inside it". Verified: web build green;
+  verified live with a probe against the redeployed stack (computed styles
+  + screenshots, dark and light).
+
 - **feat(web,protocol,store): the page header gains the Capacities action
   row — quiet ghost actions above the title (Add icon / Add description /
   Add aliases) — plus the new `description` wire node field; the header icon
