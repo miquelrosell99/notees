@@ -6,8 +6,8 @@
  * affordance when no banner is set (the AssetUploadModal, images only).
  * Uploading sets the wire field; Remove clears it (present-null). Whiteboard
  * pages and embedded renders host no banner (the cover gating precedent).
- * The page context menu's Add banner rides the same upload modal. jsdom
- * over the in-process WorkspaceClient.
+ * The context menu carries no banner entry — the banner row's Add/Change
+ * affordance is the UI. jsdom over the in-process WorkspaceClient.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -195,24 +195,7 @@ describe("the page banner (the bannerAssetId wire field)", () => {
     expect(screen.getByRole("button", { name: "Add banner" })).not.toBeNull();
   });
 
-  it("the page context menu offers Add banner, opening the same upload modal", async () => {
-    const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Menued" });
-    await flushWrites();
-
-    render(<PageView client={client} pageId={pageId} />);
-    // Right-click the title (the page's node menu surface).
-    fireEvent.contextMenu(containerTitle());
-    const menu = screen.getByRole("menu");
-    fireEvent.click(within(menu).getByRole("menuitem", { name: "Add banner" }));
-
-    // The same image-only upload modal the empty affordance opens.
-    const dialog = await screen.findByRole("dialog", { name: /upload file/i });
-    const input = dialog.querySelector('input[type="file"]') as HTMLInputElement;
-    expect(input.accept).toBe("image/jpeg,image/png,image/webp");
-  });
-
-  it("the menu item reads Change banner once a banner is set", async () => {
+  it("the page context menu offers no banner entry — the banner row is the UI", async () => {
     const client = await seedClient();
     const [pageId, assetId] = await seedPageAndAsset(client);
     await setNodeBanner(client, pageId, assetId);
@@ -221,8 +204,7 @@ describe("the page banner (the bannerAssetId wire field)", () => {
     render(<PageView client={client} pageId={pageId} />);
     fireEvent.contextMenu(containerTitle());
     const menu = screen.getByRole("menu");
-    expect(within(menu).getByRole("menuitem", { name: "Change banner" })).not.toBeNull();
-    expect(within(menu).queryByRole("menuitem", { name: "Add banner" })).toBeNull();
+    expect(within(menu).queryByRole("menuitem", { name: /banner/i })).toBeNull();
   });
 
   it("whiteboard pages render no banner", async () => {

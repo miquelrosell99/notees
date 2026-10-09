@@ -42,6 +42,7 @@ import {
   login,
   logout,
   setupAccount,
+  signup,
   type AccountUser,
   type WorkspaceEntry,
 } from "@/core/auth-api.js";
@@ -146,6 +147,7 @@ type Phase =
   | { name: "server" }
   | { name: "setup" }
   | { name: "login" }
+  | { name: "signup" }
   | { name: "workspaces"; user: AccountUser }
   | { name: "connecting"; label: string }
   | { name: "ready" };
@@ -589,6 +591,12 @@ export function App() {
   const [user, setUser] = useState<AccountUser | null>(null);
   const [token, setToken] = useState(() => readStored(STORAGE_KEYS.sessionToken));
   const [authTab, setAuthTab] = useState<"account" | "apikey">("account");
+  /**
+   * NOTEES_SIGNUP_ENABLED as reported by /server-info: the login screen's
+   * "No account yet? Create one" affordance renders only when the server
+   * advertises it (the route 404s regardless when the flag is off).
+   */
+  const [signupEnabled, setSignupEnabled] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** The sync indicator's details modal (resync + conflicts). */
@@ -1212,6 +1220,8 @@ export function App() {
   async function probeServer(url: string): Promise<void> {
     const info = await fetchServerInfo(url);
     setServerUrl(url);
+    // Older servers predate the field — treat absent as closed.
+    setSignupEnabled(info.signupEnabled === true);
     if (info.setupRequired) {
       setPhase({ name: "setup" });
     } else {
@@ -1328,6 +1338,24 @@ export function App() {
       await enterWorkspaces(serverUrl, response.token, response.user);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function handleSignup(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    if (password !== passwordConfirm) {
+      setError("Passwords do not match.");
+      return;
+    }
+    try {
+      const response = await signup(serverUrl, { email: email.trim(), password });
+      await enterWorkspaces(serverUrl, response.token, response.user);
+    } catch (err) {
+      // A 404 here means the server closed signups after the client probed it
+      // — say so instead of showing the server's bare "not found".
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message.toLowerCase() === "not found" ? "Signups are disabled on this server." : message);
     }
   }
 
@@ -1468,8 +1496,15 @@ export function App() {
     localWorkspaceId !== "" &&
     !workspaces.some((ws) => ws.id === localWorkspaceId);
 
-  if (phase.name === "server" || phase.name === "setup" || phase.name === "login") {
+  if (
+    phase.name === "server" ||
+    phase.name === "setup" ||
+    phase.name === "login" ||
+    phase.name === "signup"
+  ) {
     const isLogin = phase.name === "login";
+    const isSignup = phase.name === "signup";
+    const isNewAccount = phase.name === "setup" || isSignup;
     return (
       <div className="nt-bootstrap">
         <div className="nt-bootstrap-form nt-card">
@@ -1484,6 +1519,9 @@ export function App() {
           )}
           {phase.name === "setup" && (
             <p className="nt-bootstrap-subtitle">Initial setup — create the admin account</p>
+          )}
+          {isSignup && (
+            <p className="nt-bootstrap-subtitle">Create an account on this server</p>
           )}
           {isLogin && (
             <div className="nt-tabs" role="tablist">
@@ -1562,9 +1600,11 @@ export function App() {
               onSubmit={(e) =>
                 void (phase.name === "setup"
                   ? handleSetup(e)
-                  : isLogin
-                    ? handleLogin(e)
-                    : handleServerSubmit(e))
+                  : isSignup
+                    ? handleSignup(e)
+                    : isLogin
+                      ? handleLogin(e)
+                      : handleServerSubmit(e))
               }
             >
               <label className="nt-field">
@@ -1605,13 +1645,13 @@ export function App() {
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      autoComplete={phase.name === "setup" ? "new-password" : "current-password"}
+                      autoComplete={isNewAccount ? "new-password" : "current-password"}
                       required
                     />
                   </label>
                 </>
               )}
-              {phase.name === "setup" && (
+              {isNewAccount && (
                 <label className="nt-field">
                   <span>Confirm password</span>
                   <input
@@ -1624,7 +1664,7 @@ export function App() {
                 </label>
               )}
               <Button type="submit" variant="primary">
-                {phase.name === "setup" ? "Create account" : isLogin ? "Sign in" : "Continue"}
+                {isNewAccount ? "Create account" : isLogin ? "Sign in" : "Continue"}
               </Button>
               {phase.name === "server" && (
                 <Button
@@ -1647,6 +1687,37 @@ export function App() {
                   }}
                 >
                   Change server
+                </Button>
+              )}
+              {isLogin && signupEnabled && (
+                <p className="nt-hint">
+                  No account yet?{" "}
+                  <button
+                    type="button"
+                    className="nt-link"
+                    onClick={() => {
+                      setPassword("");
+                      setPasswordConfirm("");
+                      setError(null);
+                      setPhase({ name: "signup" });
+                    }}
+                  >
+                    Create one
+                  </button>
+                </p>
+              )}
+              {isSignup && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setPassword("");
+                    setPasswordConfirm("");
+                    setError(null);
+                    setPhase({ name: "login" });
+                  }}
+                >
+                  Back to sign in
                 </Button>
               )}
               {hint !== null && <p className="nt-hint">{hint}</p>}
