@@ -1,8 +1,11 @@
 /**
  * Cluster repulsion force..
  *
- * Pushes community centroids apart using Barnes–Hut when cluster count ≥ 32,
- * otherwise direct O(K²). Forces are distributed evenly to member nodes.
+ * Pushes community centroids apart with a size-aware soft shell — contact
+ * repulsion proportional to overlap of the clusters' radii plus the
+ * separation margin — on top of the long-range Barnes–Hut 1/d term that
+ * keeps the global spread. Forces are distributed to member nodes as
+ * clFx/√cnt so a large community moves as a unit.
  */
 
 import type { ForcePlugin } from './interface.js';
@@ -39,10 +42,10 @@ export class ClusterRepulsionForce implements ForcePlugin {
       const root = this.bhTree.build(e.clCx, e.clCy, e.clCount, bigIds, bigK);
       const theta2 = cfg.bhTheta * cfg.bhTheta;
       for (let i = 0; i < bigK; i++) {
-        this.bhTree.computeForce(root, bigIds[i]!, e.clCx, e.clCy, e.clCount, repelStr, theta2, clFx, clFy);
+        this.bhTree.computeForce(root, bigIds[i]!, e.clCx, e.clCy, e.clCount, repelStr, theta2, clFx, clFy, cfg.clusterMargin, cfg.clusterShellStrength, cfg.idealDistance);
       }
     } else {
-      directClusterRepulsion(e.clCx, e.clCy, e.clCount, bigIds, bigK, clFx, clFy, repelStr);
+      directClusterRepulsion(e.clCx, e.clCy, e.clCount, bigIds, bigK, clFx, clFy, repelStr, e.clRad, cfg.clusterMargin, cfg.clusterShellStrength);
     }
 
     // Distribute to member nodes — √cnt, not cnt, so a large community moves

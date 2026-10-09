@@ -26,6 +26,33 @@ function chain(count: number): { nodes: GraphEngineNode[]; edges: GraphEngineEdg
   return { nodes, edges };
 }
 
+/**
+ * Two planted-partition communities (dense parent-typed internals, ~8 edges
+ * per node) bridged by a single loose cooccurrence link. Circulant-only
+ * fixtures are expanders — modularity has no structure to find in them — so
+ * the fixture carries real community signal.
+ */
+function twoClusters(): { nodes: GraphEngineNode[]; edges: GraphEngineEdge[] } {
+  const size = 30;
+  const nodes = Array.from({ length: size * 2 }, (_, i) => ({ nodeUuid: `n${i}` }));
+  const edges: GraphEngineEdge[] = [];
+  let seed = 12345;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  for (const base of [0, size]) {
+    for (let i = 0; i < size; i++) {
+      for (let d = 1; d <= 4; d++) {
+        edges.push({ source: `n${base + i}`, target: `n${base + ((i + d) % size)}`, type: "parent" });
+      }
+      for (let k = 0; k < 4; k++) {
+        const j = Math.floor(rnd() * size);
+        if (j !== i) edges.push({ source: `n${base + i}`, target: `n${base + j}`, type: "parent" });
+      }
+    }
+  }
+  edges.push({ source: "n0", target: `n${size}`, type: "cooccurrence" });
+  return { nodes, edges };
+}
+
 function run(engine: GraphEngine, ticks: number): void {
   for (let i = 0; i < ticks; i++) engine.step();
 }
@@ -191,5 +218,74 @@ describe("graph engine", () => {
     engine.reheat();
     expect(engine.settled).toBe(false);
     expect(engine.alphaArr[0]).toBe(1);
+  });
+
+  it("two bridged communities stay detected as two clusters", () => {
+    const { nodes, edges } = twoClusters();
+    const half = nodes.length / 2;
+    const engine = new GraphEngine(nodes, edges, physics());
+    const state = engine.getState();
+    const clOf = (uuid: string) => engine.clIdArr[state.nodeIdArr.indexOf(uuid)]!;
+    const clA = clOf("n0");
+    const clB = clOf(`n${half}`);
+    // The cooccurrence bridge must not merge the communities.
+    expect(clA).not.toBe(clB);
+    // Each community stays intact in its own cluster.
+    const bodyOf = (base: number, cl: number) => {
+      let inCl = 0;
+      for (let i = 0; i < half; i++) if (clOf(`n${base + i}`) === cl) inCl++;
+      return inCl;
+    };
+    expect(bodyOf(0, clA)).toBe(half);
+    expect(bodyOf(half, clB)).toBe(half);
+  });
+
+  it("cluster separation: bridged communities end with clear space between surfaces", () => {
+    const { nodes, edges } = twoClusters();
+    const half = nodes.length / 2;
+    // Gravity off: this test pins pure force balance between the soft shell
+    // (push apart) and the bridge springs (pull together).
+    const engine = new GraphEngine(nodes, edges, physics({ centralGravity: 0 }));
+    for (let t = 0; t < 6000 && !engine.settled; t++) engine.step();
+    expect(engine.settled).toBe(true);
+
+    const centroid = (from: number, to: number): { x: number; y: number } => {
+      let x = 0, y = 0;
+      for (let i = from; i < to; i++) {
+        const p = engine.getNodePosition(nodes[i]!.nodeUuid)!;
+        x += p.x; y += p.y;
+      }
+      return { x: x / (to - from), y: y / (to - from) };
+    };
+    const a = centroid(0, half);
+    const b = centroid(half, nodes.length);
+    const dist = Math.hypot(a.x - b.x, a.y - b.y);
+
+    // Shell radii for 30-node communities at the balanced ideal distance.
+    const r = Math.min(100 * 0.5 * Math.sqrt(half), 100 * 6);
+    // The communities' surfaces must not interpenetrate.
+    expect(dist).toBeGreaterThan(2 * r);
+  });
+
+  it("cluster separation survives the default central gravity", () => {
+    const { nodes, edges } = twoClusters();
+    const half = nodes.length / 2;
+    const engine = new GraphEngine(nodes, edges, physics());
+    for (let t = 0; t < 8000 && !engine.settled; t++) engine.step();
+    expect(engine.settled).toBe(true);
+    const centroid = (from: number, to: number): { x: number; y: number } => {
+      let x = 0, y = 0;
+      for (let i = from; i < to; i++) {
+        const p = engine.getNodePosition(nodes[i]!.nodeUuid)!;
+        x += p.x; y += p.y;
+      }
+      return { x: x / (to - from), y: y / (to - from) };
+    };
+    const a = centroid(0, half);
+    const b = centroid(half, nodes.length);
+    const dist = Math.hypot(a.x - b.x, a.y - b.y);
+    const r = Math.min(100 * 0.5 * Math.sqrt(half), 100 * 6);
+    // Gravity caps the separation, but the surfaces must still clear.
+    expect(dist).toBeGreaterThan(1.5 * r);
   });
 });
