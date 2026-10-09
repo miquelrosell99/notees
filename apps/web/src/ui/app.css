@@ -491,27 +491,31 @@ select:focus-visible {
   border-radius: 0;
 }
 
+/* The raised-card panels (owner 2026-10-09): each sidebar rides the main
+   content card as its OWN card — surface fill, hairline frame, layout
+   radius, one elevation step above the surface it sits on — instead of a
+   column split by a continuous vertical divider. The divider and its
+   negative-margin reach retire; the cards stop a step above the card
+   bottom like the top bar's margin below itself. */
 .nt-page-side-panel {
   flex: 0 0 clamp(13rem, 24%, 22rem);
   min-width: 0;
   align-self: stretch;
   max-height: 100%;
   overflow-y: auto;
-  /* The continuous vertical divider between the two columns: the border
-     runs the column's full height below the nodeview top bar — the bottom
-     negative margin reaches into the page padding, the matching padding
-     keeps the content in place; the top stays flush under the bar (the bar
-     spans the whole card now, so no reaching up into its band). The
-     content itself spans side to side to the divider (no right padding). */
-  margin: 0 0 calc(-1 * var(--spacing-4));
-  padding: 0 0 var(--spacing-4);
-  border-right: var(--border-width-default) solid var(--color-outline-variant);
+  margin-bottom: var(--spacing-3);
+  padding: var(--spacing-4);
+  background: var(--color-surface);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-layout-card);
+  box-shadow: var(--shadow-elevation-2);
 }
 
 /* The context column: graph · TOC · Activity · Comments — the
-   node-relevant widgets relocated from the right rail, behind the same
-   full-height divider (border-left this time) and its own device-local
-   collapse from the nodeview top bar. */
+   node-relevant widgets relocated from the right rail. Same raised-card
+   treatment as the properties panel (see above): its own surface card one
+   elevation step above the main content, the old full-height divider
+   retired. */
 .nt-page-context {
   flex: 0 0 clamp(15rem, 26%, 22rem);
   min-width: 0;
@@ -521,9 +525,12 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-4);
-  margin: 0 0 calc(-1 * var(--spacing-4));
-  padding: 0 0 var(--spacing-4) var(--spacing-4);
-  border-left: var(--border-width-default) solid var(--color-outline-variant);
+  margin-bottom: var(--spacing-3);
+  padding: var(--spacing-4);
+  background: var(--color-surface);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-layout-card);
+  box-shadow: var(--shadow-elevation-2);
 }
 
 .nt-page--panelled .nt-page-content {
