@@ -277,10 +277,12 @@ describe("compile: SQL shape", () => {
   it("linkedTo scope uses the roll-up CTE (direct + containment, MIN distance)", () => {
     const { sql, params } = compile(allIn({ type: "linkedTo", nodeId: PARIS }));
     expect(sql).toContain("hits AS (");
-    expect(sql).toContain("e.target_id = ?");
+    // The target-set generalization: direct edges reach the anchors CTE
+    // (a single-node anchor set reduces to the original `target_id = ?`).
+    expect(sql).toContain("e.target_id IN (SELECT id FROM anchors)");
     expect(sql).toContain("sub.distance > 0 AND e.target_id NOT IN (SELECT id FROM sub)");
     expect(sql).toContain("MIN(distance) AS distance");
-    expect(params).toEqual([PARIS, PARIS]);
+    expect(params).toEqual([PARIS]);
   });
 
   it("class condition probes class_hierarchy (descendant classes match)", () => {
@@ -878,6 +880,65 @@ describe.each(adapters)("$name", ({ makeStore }) => {
       );
       // Only the inline blocks under France's tree.
       expect(ids.sort()).toEqual([FR_BLOCK, PARIS_BLOCK, OUT_BLOCK].sort());
+    });
+  });
+
+  describe("updatedAfter/updatedBefore (the edit-date facet)", () => {
+    it("the edit window reads updated_at", () => {
+      const { sql } = compile(ast(entire, [{ type: "updatedAfter", timestamp: "2026-01-01" }]));
+      expect(sql).toContain("n.updated_at >=");
+      const { sql: before } = compile(ast(entire, [{ type: "updatedBefore", timestamp: "2026-01-01" }]));
+      expect(before).toContain("n.updated_at <=");
+    });
+
+    it("a far-past edit window matches nothing; NULL updated_at never matches a window", () => {
+      expect(runQuery(worldStore(), ast(entire, [{ type: "updatedBefore", timestamp: "1999-01-01" }])).ids).toEqual([]);
+      // The seeded world carries no update ops — updated_at is NULL, and
+      // NULL rows never match a window (the same law as the created window).
+      expect(runQuery(worldStore(), ast(entire, [{ type: "updatedAfter", timestamp: "{today}" }])).ids).toEqual([]);
+    });
+  });
+
+  describe("dynamic target sets (linkedToQuery / descendantOfQuery)", () => {
+    it("links to ANY node matching the nested group — the owner's example: a person-classed node with a property predicate", () => {
+      // Paris is the only CITY; frBlock links directly to it.
+      const { ids } = runQuery(
+        worldStore(),
+        ast(entire, [
+          { type: "linkedToQuery", root: { type: "group", logic: "and", children: [
+            { type: "class", classId: CITY },
+            { type: "property", schemaId: YEAR, op: "gt", value: 0 },
+          ] } },
+        ]),
+      );
+      expect(ids).toEqual([FR_BLOCK]);
+    });
+
+    it("the single-anchor static form and the one-member dynamic form agree", () => {
+      const { ids } = runQuery(
+        worldStore(),
+        ast(entire, [
+          { type: "linkedToQuery", root: { type: "group", logic: "and", children: [
+            { type: "isClass", isClass: false },
+            { type: "content", op: "contains", value: "Paris" },
+          ] } },
+        ]),
+      );
+      // Exactly the static linkedTo(Paris) membership.
+      expect(ids).toEqual([FR_BLOCK]);
+    });
+
+    it("dynamic parent: the ancestor chain contains any node matching the group", () => {
+      const { ids } = runQuery(
+        worldStore(),
+        ast(entire, [
+          { type: "descendantOfQuery", root: { type: "group", logic: "and", children: [
+            { type: "class", classId: CITY },
+          ] } },
+        ]),
+      );
+      // Paris matches CITY; its subtree minus Paris is just its block.
+      expect(ids).toEqual([PARIS_BLOCK]);
     });
   });
 

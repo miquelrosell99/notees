@@ -46,6 +46,37 @@ export const scopeSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("linkedTo"), nodeId: uuid }).strict(),
 ]);
 
+// --- group / not -------------------------------------------------------------------
+// Recursive: zod needs explicit output annotations to type the cycle.
+
+export type Group = { type: "group"; logic: "and" | "or"; children: Child[] };
+export type Not = { type: "not"; child: Condition | Group };
+export type Child = Condition | Group | Not;
+
+export const groupSchema: z.ZodType<Group> = z.lazy(() =>
+  z
+    .object({
+      type: z.literal("group"),
+      logic: z.enum(["and", "or"]),
+      children: z.array(childSchema),
+    })
+    .strict(),
+);
+
+export const notSchema: z.ZodType<Not> = z.lazy(() =>
+  z
+    .object({
+      type: z.literal("not"),
+      child: z.union([conditionSchema, groupSchema]),
+    })
+    .strict(),
+);
+
+export const childSchema: z.ZodType<Child> = z.lazy(() =>
+  z.union([conditionSchema, groupSchema, notSchema]),
+);
+
+
 // --- conditions ------------------------------------------------------------------
 
 /**
@@ -91,10 +122,23 @@ export type Condition =
    * membership minus the anchor row.
    */
   | { type: "descendantOf"; nodeId: string }
+  /**
+   * DYNAMIC links-to: the row's backlinksWithRollup target set is ANY node
+   * matching the nested group ("links to a person node with age > 50") —
+   * the v1 dynamic reference blocks as a durable wire form (a saved view
+   * re-resolves the nested query on every run, never baked uuids).
+   */
+  | { type: "linkedToQuery"; root: Group }
+  /** DYNAMIC parent: the ancestor chain contains ANY node matching the group. */
+  | { type: "descendantOfQuery"; root: Group }
   /** node.created_at >= timestamp (ISO-8601, inclusive, lexicographic). */
   | { type: "createdAfter"; timestamp: string }
   /** node.created_at <= timestamp (ISO-8601, inclusive, lexicographic). */
   | { type: "createdBefore"; timestamp: string }
+  /** node.updated_at >= timestamp (the "edit date" facet of created). */
+  | { type: "updatedAfter"; timestamp: string }
+  /** node.updated_at <= timestamp. */
+  | { type: "updatedBefore"; timestamp: string }
   /** node.cover_asset_id comparison — the page cover's asset node (the wire field). */
   | { type: "coverAsset"; op: NodeFieldOp; value?: string | undefined }
   /** node.banner_asset_id comparison — the page banner's asset node (the wire field). */
@@ -133,8 +177,14 @@ export const conditionSchema = z.discriminatedUnion("type", [
    * condition): subtree membership minus the anchor itself.
    */
   z.object({ type: z.literal("descendantOf"), nodeId: uuid }).strict(),
+  /** Dynamic links-to: the target set is the nested group's matches (v1 dynamic blocks, durable form). */
+  z.object({ type: z.literal("linkedToQuery"), root: groupSchema }).strict(),
+  /** Dynamic parent: any ancestor matching the nested group. */
+  z.object({ type: z.literal("descendantOfQuery"), root: groupSchema }).strict(),
   z.object({ type: z.literal("createdAfter"), timestamp: z.string().min(1) }).strict(),
   z.object({ type: z.literal("createdBefore"), timestamp: z.string().min(1) }).strict(),
+  z.object({ type: z.literal("updatedAfter"), timestamp: z.string().min(1) }).strict(),
+  z.object({ type: z.literal("updatedBefore"), timestamp: z.string().min(1) }).strict(),
   /** Wire-field predicates over the node-table columns (uuid refs; eq/neq/exists). */
   z.object({
     type: z.literal("coverAsset"),
@@ -152,36 +202,6 @@ export const conditionSchema = z.discriminatedUnion("type", [
     value: uuid.optional(),
   }).strict(),
 ]) satisfies z.ZodType<Condition>;
-
-// --- group / not -------------------------------------------------------------------
-// Recursive: zod needs explicit output annotations to type the cycle.
-
-export type Group = { type: "group"; logic: "and" | "or"; children: Child[] };
-export type Not = { type: "not"; child: Condition | Group };
-export type Child = Condition | Group | Not;
-
-export const groupSchema: z.ZodType<Group> = z.lazy(() =>
-  z
-    .object({
-      type: z.literal("group"),
-      logic: z.enum(["and", "or"]),
-      children: z.array(childSchema),
-    })
-    .strict(),
-);
-
-export const notSchema: z.ZodType<Not> = z.lazy(() =>
-  z
-    .object({
-      type: z.literal("not"),
-      child: z.union([conditionSchema, groupSchema]),
-    })
-    .strict(),
-);
-
-export const childSchema: z.ZodType<Child> = z.lazy(() =>
-  z.union([conditionSchema, groupSchema, notSchema]),
-);
 
 // --- sort ---------------------------------------------------------------------------
 
