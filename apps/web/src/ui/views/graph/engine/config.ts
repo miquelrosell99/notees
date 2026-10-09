@@ -66,5 +66,6 @@ export function buildGraphEngineConfig(user: GraphEnginePhysicsConfig): GraphEng
     dt: 0.5,
     bhTheta: 1.0,
     linkCountAttraction: user.linkCountAttraction,
+    useMass: user.massAccumulation === true,
   };
 }

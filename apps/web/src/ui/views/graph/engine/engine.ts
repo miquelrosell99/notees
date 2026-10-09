@@ -223,6 +223,7 @@ export class GraphEngine {
   compIdArr:  Int32Array   = new Int32Array(0);
   degArr:     Int32Array   = new Int32Array(0);
   iRadArr:    Float32Array = new Float32Array(0);
+  massArr:    Float32Array = new Float32Array(0);
   nodeIdArr:  string[]     = [];
   activeNodeIndices: Int32Array = new Int32Array(0);
   activeCount = 0;
@@ -325,6 +326,7 @@ export class GraphEngine {
     this.compIdArr = grow(this.compIdArr, Int32Array);
     this.degArr    = grow(this.degArr, Int32Array);
     this.iRadArr   = grow(this.iRadArr, Float32Array);
+    this.massArr   = grow(this.massArr, Float32Array);
     const nextNodeIdArr = new Array<string>(c);
     for (let i = 0; i < old; i++) nextNodeIdArr[i] = this.nodeIdArr[i]!;
     this.nodeIdArr = nextNodeIdArr;
@@ -391,6 +393,7 @@ export class GraphEngine {
       this.velX[i] = 0; this.velY[i] = 0;
       this.oldAx[i] = 0; this.oldAy[i] = 0;
       this.pinnedArr[i] = inp.pinned ? 1 : 0;
+      this.massArr[i] = inp.mass !== undefined && inp.mass > 0 ? inp.mass : 1;
       this.clIdArr[i] = this.clusterMap.get(inp.nodeUuid) ?? 0;
       this.compIdArr[i] = this.componentMap.get(inp.nodeUuid) ?? 0;
       this.degArr[i] = this.adjacency.get(inp.nodeUuid)?.size ?? 0;
@@ -587,6 +590,7 @@ export class GraphEngine {
       this.velX, this.velY,
       this.axBuf, this.ayBuf,
       this.oldAx, this.oldAy,
+      this.massArr,
     );
     this.ticks++;
 

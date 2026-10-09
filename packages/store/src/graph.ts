@@ -40,6 +40,12 @@ export interface GraphNode {
   classIds: string[];
   color: string | null;
   icon: string | null;
+  /** Descendant blocks of this node (the walk stops at nested main nodes). */
+  contentSize: number;
+  /** 1 + the recursive descendant weight over ALL active nodes below this
+   *  one (through blocks and sub-pages alike) — heavy parents resist the
+   *  force layout. Cycle-safe. */
+  mass: number;
 }
 
 export interface GraphEdge {
@@ -118,6 +124,59 @@ export function graphTopology(store: Store, workspaceId: string, options?: Graph
 
   const inSet = new Set(nodeRows.map((row) => row.id));
 
+  // Children map over ALL active nodes — the content-size and mass walks
+  // descend through blocks (a page's metrics include its block tree); mass
+  // continues through sub-pages, content size stops at nested main nodes.
+  const childRows = db
+    .prepare(
+      `SELECT id, parent_id, present_as_main, is_class FROM node
+       WHERE workspace_id = ? AND is_active = 1 AND parent_id IS NOT NULL`,
+    )
+    .all(workspaceId) as unknown as Array<{
+    id: string;
+    parent_id: string;
+    present_as_main: number;
+    is_class: number;
+  }>;
+  const childrenOf = new Map<string, string[]>();
+  for (const row of childRows) {
+    let list = childrenOf.get(row.parent_id);
+    if (list === undefined) {
+      list = [];
+      childrenOf.set(row.parent_id, list);
+    }
+    list.push(row.id);
+  }
+  const isMainChild = new Map<string, boolean>(
+    childRows.map((row) => [row.id, row.present_as_main === 1 || row.is_class === 1]),
+  );
+
+  // One memoized, cycle-safe recursion serves both metrics: mass = 1 + Σ
+  // child mass; content size = Σ (1 for plain blocks + nested blocks of
+  // non-main children). Mass walks everything below; content size belongs
+  // to the page that renders the blocks.
+  const metricCache = new Map<string, { mass: number; content: number }>();
+  const computing = new Set<string>();
+  const metricsOf = (id: string): { mass: number; content: number } => {
+    const cached = metricCache.get(id);
+    if (cached !== undefined) return cached;
+    if (computing.has(id)) return { mass: 1, content: 0 };
+    computing.add(id);
+    let mass = 1;
+    let content = 0;
+    for (const childId of childrenOf.get(id) ?? []) {
+      const child = metricsOf(childId);
+      mass += child.mass;
+      // A nested main node renders its own content — it neither counts as a
+      // block of the parent nor drags its subtree into the parent's count.
+      content += isMainChild.get(childId) === true ? 0 : 1 + child.content;
+    }
+    computing.delete(id);
+    const result = { mass, content };
+    metricCache.set(id, result);
+    return result;
+  };
+
   // Parent + alias maps over ALL active nodes: the rollup walks up through
   // blocks, and through aliases (an alias is transparent — its terminal is
   // the vertex an edge incident to it renders against).
@@ -179,14 +238,19 @@ export function graphTopology(store: Store, workspaceId: string, options?: Graph
     return result;
   };
 
-  const nodes: GraphNode[] = nodeRows.map((row) => ({
-    id: row.id,
-    isClass: row.is_class === 1,
-    parentId: row.parent_id,
-    classIds: JSON.parse(row.class_ids || "[]") as string[],
-    color: row.color,
-    icon: row.icon,
-  }));
+  const nodes: GraphNode[] = nodeRows.map((row) => {
+    const metrics = metricsOf(row.id);
+    return {
+      id: row.id,
+      isClass: row.is_class === 1,
+      parentId: row.parent_id,
+      classIds: JSON.parse(row.class_ids || "[]") as string[],
+      color: row.color,
+      icon: row.icon,
+      contentSize: metrics.content,
+      mass: metrics.mass,
+    };
+  });
 
   const edges: GraphEdge[] = [];
   const edgeIndex = new Map<string, GraphEdge>();

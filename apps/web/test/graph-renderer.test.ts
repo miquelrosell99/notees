@@ -14,7 +14,11 @@ import {
   truncateLabel,
   type LabelFrame,
 } from "../src/ui/views/graph/renderer/labelCanvas.js";
-import { GraphWebGLRenderer } from "../src/ui/views/graph/renderer/webglRenderer.js";
+import {
+  GraphWebGLRenderer,
+  planEdgeRender,
+  type RendererEdge,
+} from "../src/ui/views/graph/renderer/webglRenderer.js";
 
 describe("label overlay contract", () => {
   it("caps labels by zoom (40 / 100 / 200 / 500)", () => {
@@ -97,6 +101,62 @@ describe("label overlay contract", () => {
     });
     expect(drawLabels(far.frame)).toBe(0);
     expect(far.calls.length).toBe(0);
+  });
+});
+
+describe("edge/arrow render planning", () => {
+  const index = new Map([
+    ["a", 0],
+    ["b", 1],
+    ["c", 2],
+  ]);
+  const edge = (source: string, target: string, linkType: number): RendererEdge => ({
+    source,
+    target,
+    linkType,
+  });
+
+  it("a bidirectional relation keeps one quad and heads both ends", () => {
+    const plan = planEdgeRender(
+      [edge("a", "b", 2), edge("b", "a", 2)], // a↔b mentions
+      index,
+    );
+    expect(plan.keep).toEqual([0]);
+    // One head at b (a→b) and one at a (b→a), over the shared quad.
+    expect(plan.arrows).toEqual([
+      { edge: 0, i1: 0, i2: 1 },
+      { edge: 0, i1: 1, i2: 0 },
+    ]);
+  });
+
+  it("a one-direction relation keeps one quad with a single head at its target", () => {
+    const plan = planEdgeRender([edge("a", "c", 0)], index); // a→c parent
+    expect(plan.keep).toEqual([0]);
+    expect(plan.arrows).toEqual([{ edge: 0, i1: 0, i2: 2 }]);
+  });
+
+  it("same pair with different link types stays two relations", () => {
+    const plan = planEdgeRender([edge("a", "b", 2), edge("b", "a", 0)], index);
+    expect(plan.keep).toEqual([0, 1]);
+    expect(plan.arrows).toEqual([
+      { edge: 0, i1: 0, i2: 1 },
+      { edge: 1, i1: 1, i2: 0 },
+    ]);
+  });
+
+  it("property and semantic families carry no arrowheads", () => {
+    const plan = planEdgeRender(
+      [edge("a", "b", 3), edge("b", "a", 3), edge("a", "b", 4)],
+      index,
+    );
+    expect(plan.keep).toEqual([0, 2]); // reciprocal property pair shares one quad
+    expect(plan.arrows).toEqual([]);
+  });
+
+  it("edges referencing unknown nodes are dropped", () => {
+    const plan = planEdgeRender([edge("a", "ghost", 2)], index);
+    expect(plan.keep).toEqual([]);
+    expect(plan.arrows).toEqual([]);
   });
 });
 

@@ -9,6 +9,21 @@ predating this file.
 
 ## 2026-10-09
 
+- **fix(web): every sidebar/panel toggle wears the dock family
+  (`mdi-dock-left` / `mdi-dock-right`) — owner ruling, recorded in the design
+  system.** The context-panel toggle's `mdi-dock-right` proved the right
+  register: the icon depicts the layout it toggles (a content area with a
+  slim panel docked at the edge), so it reads instantly and the left/right
+  pair forms one family. It replaces today's earlier experiments on the
+  other three toggles — the app top bar's left sidebar (was `mdi-menu`
+  hamburger) and right cards rail (was `mdi-card-multiple-outline`), and the
+  nodeview bar's properties toggle (was `mdi-tune-variant` sliders). The
+  rule is recorded in the `rosellramos-design-system` skill
+  (`references/dos-donts.md`: approved dock family, rejected
+  hamburger/layout-diagram/cards icons for panel toggles). Verified: `pnpm
+  typecheck`; the web vitest panel/context suites green. Display-state only —
+  no model/wire change.
+
 - **fix(web,export): the export block zone loads child blocks recursively and
   excludes main nodes at every level — and a page parented under a block is
   hoisted into the child-page list instead of silently dropped.** Verified

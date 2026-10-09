@@ -23,6 +23,8 @@ function topo(ids: string[], parentOf: Record<string, string> = {}, edges: Graph
       classIds: [],
       color: null,
       icon: null,
+      contentSize: 0,
+      mass: 1,
     })),
     edges,
   };
