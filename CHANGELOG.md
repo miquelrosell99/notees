@@ -9,6 +9,42 @@ predating this file.
 
 ## 2026-10-09
 
+- **feat(web,query,protocol): the v1 block model 1:1 — every block is
+  [type select][operator select][typed value], with the static/dynamic
+  node-target mode, the edit-date family, and two more wire conditions.**
+  Owner ruling (2026-10-09): the port must be 1:1 with v1, not a reduced
+  subset — the law is now in the notees-development skill (law 0). (1) Block
+  restructure: the TYPE column morphs the block across the twelve v1
+  families (Class, Type, Placement, Content, Property, Links, Parent, Cover,
+  Banner, Alias, Created, **Edited**); the OPERATOR column carries the
+  per-family options — is/is not (not-wrap sugar, boolean families flip
+  their bit), contains/does not contain/full-text, the nine property
+  operators incl. **is set / is not set**, after/before for dates, is set /
+  is not set for the wire fields; the VALUE column reuses the
+  property-table inputs (numeric keyboard, node picker, placeholder
+  datalist). (2) **Static/dynamic mode switch** on Links and Parent (the v1
+  VALUE_MODE register): dynamic nests a full query builder under the row
+  defining the TARGET SET — "links to a person node with age > 50" — backed
+  by two new wire conditions, `linkedToQuery {root}` / `descendantOfQuery
+  {root}`: the compiler generalizes the backlinksWithRollup and subtree CTEs
+  to anchor SETS (the nested group's matches; the single-anchor forms reduce
+  exactly), protocol validates the nested group in-schema (group/not/child
+  schemas moved ahead of the condition union), and the web evaluates them
+  through the probe channel. (3) **updatedAfter/updatedBefore** wire
+  conditions (the edit-date facet; store `updated_at` + ClientNode
+  `updatedAt` already existed) with compiler arms and sync evaluation. (4)
+  The kit SearchField loses the accent focus glow (border shift only, owner
+  review) and gains an inside-right **× clear** button while a value rides
+  (the FilterBar wires it). (5) List-view chrome: the outliner BLOCK collapse
+  button trades its raw Unicode triangles for the sprite chevrons
+  (mdi-chevron-right/down — the glyphs read as arrows), and the group list
+  gets real top padding below the hosted tabs. Verification: protocol dist
+  rebuilt; query suite green (195/195 —
+  dynamic-link equivalence, the owner's example shape, NULL-update law,
+  dynamic-parent); web suite green (the dynamic-Links e2e drives the nested
+  builder and asserts the probed AST carries the nested group verbatim);
+  `docs/usage.md` §Section filters rewritten.
+
 - **fix(web): the add-condition trigger sits in the app's quiet button
   register.** Owner review: the bordered-field treatment (fill + border)
   read too dark against the panel, and the "+" icon argued with the

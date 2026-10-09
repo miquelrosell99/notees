@@ -381,16 +381,34 @@ class Compiler {
 
   // --- scope -----------------------------------------------------------------
 
-  /** Anchor + descendants, one row per node, distance = levels below the anchor. */
-  private subtreeSql(anchorId: string): string {
-    const anchor = this.push(anchorId);
+  /** Anchor-set seed for a single node (distance 0). */
+  private anchorNodeSql(nodeId: string): string {
+    return `SELECT id, 0 AS distance FROM node WHERE id = ${this.push(nodeId)}`;
+  }
+
+  /** Anchor-set seed for a nested group: the matching ACTIVE nodes (distance 0). */
+  private groupAnchorsSql(root: Group): string {
+    const group = this.groupSql(root);
+    return (
+      "SELECT n.id, 0 AS distance FROM node n WHERE n.is_active = 1" +
+      (group !== undefined ? ` AND (${group})` : "")
+    );
+  }
+
+  /** Anchor SET + descendants, one row per node, distance = levels below. */
+  private subtreeSetSql(anchorsSql: string): string {
     return (
       "WITH RECURSIVE sub(id, distance) AS (\n" +
-      `  SELECT id, 0 FROM node WHERE id = ${anchor}\n` +
+      `${anchorsSql}\n` +
       "  UNION ALL\n" +
       "  SELECT n.id, sub.distance + 1 FROM sub JOIN node n ON n.parent_id = sub.id\n" +
       ") SELECT id, distance FROM sub"
     );
+  }
+
+  /** Anchor + descendants — the single-anchor convenience over subtreeSetSql. */
+  private subtreeSql(anchorId: string): string {
+    return this.subtreeSetSql(this.anchorNodeSql(anchorId));
   }
 
   /**
@@ -399,22 +417,35 @@ class Compiler {
    * strictly inside the anchor's subtree linking OUT of it (distance = source
    * depth). One row per source node, MIN(distance) collapses duplicates.
    */
-  private linkedToSql(nodeId: string): string {
-    const anchor = this.push(nodeId);
-    const target = this.push(nodeId);
+  /**
+   * backlinksWithRollup membership over a TARGET SET (the dynamic form the
+   * v1 reference blocks had): targets = the anchor rows themselves; sub =
+   * targets ∪ their subtrees; hits = direct edges to ANY target, UNION
+   * sources inside any subtree linking OUTSIDE the whole sub union. The
+   * single-anchor form reduces to the original linkedTo semantics exactly
+   * (direct edges to the anchor only; containment roll-up outward).
+   */
+  private linkedToSetSql(targetsSql: string): string {
     return (
-      "WITH RECURSIVE sub(id, distance) AS (\n" +
-      `  SELECT id, 0 FROM node WHERE id = ${anchor}\n` +
+      "WITH RECURSIVE anchors AS (" + targetsSql + "),\n" +
+      "sub(id, distance) AS (\n" +
+      "  SELECT id, 0 AS distance FROM anchors\n" +
       "  UNION ALL\n" +
       "  SELECT n.id, sub.distance + 1 FROM sub JOIN node n ON n.parent_id = sub.id\n" +
       "), hits AS (\n" +
-      `  SELECT e.source_id AS id, 0 AS distance FROM edge e WHERE e.target_id = ${target}\n` +
+      "  SELECT e.source_id AS id, 0 AS distance FROM edge e\n" +
+      "  WHERE e.target_id IN (SELECT id FROM anchors)\n" +
       "  UNION ALL\n" +
       "  SELECT e.source_id, sub.distance FROM edge e\n" +
       "  JOIN sub ON sub.id = e.source_id\n" +
       "  WHERE sub.distance > 0 AND e.target_id NOT IN (SELECT id FROM sub)\n" +
       ") SELECT id, MIN(distance) AS distance FROM hits GROUP BY id"
     );
+  }
+
+  /** Single-node backlinksWithRollup membership (the scope + static condition form). */
+  private linkedToSql(nodeId: string): string {
+    return this.linkedToSetSql(this.anchorNodeSql(nodeId));
   }
 
   // --- group / not --------------------------------------------------------------
@@ -485,6 +516,28 @@ class Compiler {
         return `n.created_at <= ${this.push(
           resolveTimestampPlaceholder(condition.timestamp, "before", this.options),
         )}`;
+      case "updatedAfter":
+        return `n.updated_at >= ${this.push(
+          resolveTimestampPlaceholder(condition.timestamp, "after", this.options),
+        )}`;
+      case "updatedBefore":
+        return `n.updated_at <= ${this.push(
+          resolveTimestampPlaceholder(condition.timestamp, "before", this.options),
+        )}`;
+      case "linkedToQuery":
+        // Dynamic links-to: the target set is the nested group's matches.
+        return `n.id IN (SELECT id FROM (${this.linkedToSetSql(this.groupAnchorsSql(condition.root))}))`;
+      case "descendantOfQuery": {
+        // Dynamic parent: the ancestor chain contains ANY node matching the
+        // nested group — subtree membership of the anchor set, anchors excluded.
+        // Both subqueries are built before the string (params bind in text order).
+        const subtree = this.subtreeSetSql(this.groupAnchorsSql(condition.root));
+        const anchors = this.groupAnchorsSql(condition.root);
+        return (
+          `n.id IN (SELECT id FROM (${subtree}))` +
+          ` AND n.id NOT IN (SELECT id FROM (${anchors}))`
+        );
+      }
       case "coverAsset":
         return this.nodeFieldSql("coverAsset", "cover_asset_id", condition);
       case "bannerAsset":

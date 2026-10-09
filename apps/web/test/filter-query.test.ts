@@ -104,23 +104,25 @@ describe("the FilterQuery shape", () => {
     expect(
       isFilterInactive({
         text: "",
-        group: { type: "group", logic: "and", children: [createCondition("isClass")] },
+        group: { type: "group", logic: "and", children: [createCondition("type")] },
       }),
     ).toBe(false);
     expect(matches(stubClient({}), makeNode({ title: "anything" }), EMPTY_FILTER_QUERY)).toBe(true);
   });
 
-  it("createCondition seeds a half-typed default per kind", () => {
+  it("createCondition seeds a half-typed default per family", () => {
     expect(createCondition("class")).toEqual({ type: "class", classId: "" });
-    expect(createCondition("isClass")).toEqual({ type: "isClass", isClass: true });
-    expect(createCondition("presentAsMain")).toEqual({ type: "presentAsMain", presentAsMain: true });
+    expect(createCondition("type")).toEqual({ type: "isClass", isClass: true });
+    expect(createCondition("placement")).toEqual({ type: "presentAsMain", presentAsMain: true });
     expect(createCondition("content")).toEqual({ type: "content", op: "contains", value: "" });
     expect(createCondition("property")).toEqual({ type: "property", schemaId: "", op: "eq", value: "" });
-    expect(createCondition("createdAfter")).toEqual({ type: "createdAfter", timestamp: "" });
-    expect(createCondition("createdBefore")).toEqual({ type: "createdBefore", timestamp: "" });
-    expect(createCondition("coverAsset")).toEqual({ type: "coverAsset", op: "exists" });
-    expect(createCondition("bannerAsset")).toEqual({ type: "bannerAsset", op: "exists" });
-    expect(createCondition("aliasedNode")).toEqual({ type: "aliasedNode", op: "exists" });
+    expect(createCondition("links")).toEqual({ type: "linkedTo", nodeId: "" });
+    expect(createCondition("parent")).toEqual({ type: "descendantOf", nodeId: "" });
+    expect(createCondition("cover")).toEqual({ type: "coverAsset", op: "exists" });
+    expect(createCondition("banner")).toEqual({ type: "bannerAsset", op: "exists" });
+    expect(createCondition("alias")).toEqual({ type: "aliasedNode", op: "exists" });
+    expect(createCondition("created")).toEqual({ type: "createdAfter", timestamp: "" });
+    expect(createCondition("edited")).toEqual({ type: "updatedAfter", timestamp: "" });
   });
 });
 
@@ -154,6 +156,45 @@ describe("filterQueryToGroup — the draft prune", () => {
       type: "group",
       logic: "and",
       children: [{ type: "isClass", isClass: true }],
+    });
+  });
+
+  it("drops half-typed dynamic target sets and blank edit-date timestamps", () => {
+    const draft: Group = {
+      type: "group",
+      logic: "and",
+      children: [
+        { type: "linkedToQuery", root: { type: "group", logic: "and", children: [] } },
+        { type: "descendantOfQuery", root: { type: "group", logic: "and", children: [
+          { type: "class", classId: "" },
+        ] } },
+        { type: "updatedAfter", timestamp: " " },
+        { type: "updatedBefore", timestamp: "" },
+        { type: "linkedTo", nodeId: "" },
+      ],
+    };
+    expect(filterQueryToGroup({ text: "", group: draft })).toBeNull();
+  });
+
+  it("keeps a dynamic target set whose nested group has a surviving condition", () => {
+    const draft: Group = {
+      type: "group",
+      logic: "and",
+      children: [
+        { type: "linkedToQuery", root: { type: "group", logic: "and", children: [
+          { type: "isClass", isClass: false },
+          { type: "property", schemaId: "", op: "eq" },
+        ] } },
+      ],
+    };
+    expect(filterQueryToGroup({ text: "", group: draft })).toEqual({
+      type: "group",
+      logic: "and",
+      children: [
+        { type: "linkedToQuery", root: { type: "group", logic: "and", children: [
+          { type: "isClass", isClass: false },
+        ] } },
+      ],
     });
   });
 
@@ -218,20 +259,20 @@ describe("filterQueryToGroup — the draft prune", () => {
 });
 
 describe("the add-menu registry", () => {
-  it("offers the full wire grammar plus the group constructors, v1 order", () => {
+  it("offers the v1 block families plus the group constructors, v1 order", () => {
     expect(filterKindOptionsForConfig().map((option) => option.value)).toEqual([
       "class",
-      "isClass",
-      "presentAsMain",
+      "type",
+      "placement",
       "content",
       "property",
-      "linkedTo",
-      "descendantOf",
-      "createdAfter",
-      "createdBefore",
-      "coverAsset",
-      "bannerAsset",
-      "aliasedNode",
+      "links",
+      "parent",
+      "cover",
+      "banner",
+      "alias",
+      "created",
+      "edited",
       "group-and",
       "group-or",
       "not",
@@ -244,8 +285,8 @@ describe("the add-menu registry", () => {
     );
     expect(values).not.toContain("class");
     expect(values).not.toContain("property");
-    expect(values).not.toContain("createdAfter");
-    expect(values).not.toContain("createdBefore");
+    expect(values).not.toContain("created");
+    expect(values).not.toContain("edited");
     expect(values).toContain("content");
     expect(values).toContain("group-and");
     expect(values).toContain("not");

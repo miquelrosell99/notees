@@ -17,6 +17,14 @@ summary here.
 
 ## Non-negotiable laws
 
+0. **A v1 port is 1:1 before it is adapted** (owner 2026-10-09). When the
+   owner asks to port a v1 surface, enumerate the ENTIRE v1 register first —
+   every block type, every operator, every mode (static/dynamic, all the
+   per-type options) — and implement the full set against the v2 grammar
+   before shipping. A reduced subset is a proposal to the owner, never a
+   silent default; wire gaps found mid-port (a v1 construct with no v2
+   condition) get the full wiring — protocol condition, compiler arm,
+   evaluation — in the same slice, not an exclusion.
 1. **The fixture gate is blocking.** A new op type or strict payload change is
    NOT done until fixtures exist in `packages/protocol/fixtures/` and every
    client applier converges — the TS reference here **plus** the GTK and
