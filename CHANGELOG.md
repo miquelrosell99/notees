@@ -9,6 +9,28 @@ predating this file.
 
 ## 2026-10-09
 
+- **feat(web): the block tree's vertical indent line is itself a collapse
+  control — click the line to fold the direct children of the block it starts
+  from (the v1 gesture), and the bullet stops riding low.** (1) Every
+  `.nt-block-children` hairline now carries a full-height rail
+  (`.nt-block-children__rail`, border + gutter only — no child content lives
+  in the strip, so child clicks are never eaten); clicking it toggles the
+  same session-local collapse as the chevron, hiding that node's children
+  (its whole subtree) and lighting the collapsed ring on its bullet. The rail
+  renders only when collapse applies (never in prose view, never in table
+  projections) and hover/focus paints an accent hairline as the affordance.
+  (2) The row is baseline-aligned, so the fixed 22px bullet box sat ~2px
+  below the text's visual center; `.nt-bullet` gains a `translateY(-2px)`
+  optical correction — measured delta went from +1px (below the line-box
+  center) to −1px (on the cap-height middle). Verified with a live probe
+  (`scripts/screenshots/bullet-align-probe.mjs`): playwright measures the
+  dot-center vs first-line-center delta and clicks the rail against a seeded
+  nested page (children containers 1 → 0, collapsed ring appears); the
+  outliner/block vitest suites (95 tests) stay green. Docs: the collapse
+  parenthetical in `docs/ux.md`'s outliner section. No model/wire change —
+  display-state only, no fixtures.
+
+
 - **fix(web): one corner radius for every text button — the md/lg sizes drop
   from 16px to the shared 12px.** The 16px `--shape-button-large` token made
   big text buttons ("Resync now", dialog actions) read nearly pill-shaped
