@@ -9,6 +9,19 @@ predating this file.
 
 ## 2026-10-09
 
+- **feat(web): graph settings surface for clustering — the toggle and the
+  separation slider are real, and the docs say what the sim now does.** The
+  `clustering` flag was hardcoded `true` in the physics bag both at engine
+  init and in the live-tuning effect — now it is a persisted pref (default
+  on) with a **Clustering** row in the Simulation section, and when it is on
+  a **Cluster separation** slider (0–100, default 65) rides below it,
+  mapping to the soft-shell margin multiplier (0.5×–2× the preset gap) —
+  the same mapping the engine reads. `docs/usage.md`'s graph section names
+  both controls and documents the energy-gated contract: the simulation
+  settles to a true equilibrium and rests; dragging a node reheats only its
+  neighborhood. Verified: `pnpm typecheck` + `pnpm test` green; the
+  graph-view and followups suites (settings composition included) pass.
+
 - **feat(web): the graph view clusters for real — type-weighted full Louvain
   (phase 1 + phase 2), a size-aware soft shell between communities, and
   honest force balance.** The hairball had three separate causes. (1)

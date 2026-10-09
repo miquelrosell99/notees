@@ -98,6 +98,10 @@ interface GraphPrefs {
   preset: PhysicsPreset;
   paused: boolean;
   layoutMode: GraphLayoutMode;
+  /** Clustering: cohesion + soft-shell separation between communities. */
+  clustering: boolean;
+  /** Cluster separation slider (0–100) — scales the inter-cluster margin. */
+  clusterSeparation: number;
   colorGroupsOn: boolean;
   colorGroups: GraphColorGroup[];
   /** Ordered class colors — first listed class wins (the v1 register). */
@@ -130,6 +134,8 @@ function defaultPrefs(): GraphPrefs {
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches,
     layoutMode: "force",
+    clustering: true,
+    clusterSeparation: 65,
     colorGroupsOn: false,
     colorGroups: [],
     classColors: [],
@@ -332,9 +338,10 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       centralGravity: prefs.centralGravityOn ? 30 : 0,
       linkCountAttraction: prefs.linkCountAttraction,
       massAccumulation: prefs.massAccumulation,
-      clustering: true,
+      clustering: prefs.clustering,
+      clusterSeparation: prefs.clusterSeparation,
     });
-  }, [prefs.preset, prefs.centralGravityOn, prefs.linkCountAttraction, prefs.massAccumulation, prefs.layoutMode]);
+  }, [prefs.preset, prefs.centralGravityOn, prefs.linkCountAttraction, prefs.massAccumulation, prefs.clustering, prefs.clusterSeparation, prefs.layoutMode]);
 
   // Color groups evaluation (first match wins; class colors ride underneath
   // in the visuals builder — class match beats group match). Async — the
@@ -512,7 +519,8 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
           centralGravity: prefs.centralGravityOn ? 30 : 0,
           linkCountAttraction: prefs.linkCountAttraction,
           massAccumulation: prefs.massAccumulation,
-          clustering: true,
+          clustering: prefs.clustering,
+          clusterSeparation: prefs.clusterSeparation,
         },
       );
       engine.setPaused(loopStateRef.current.paused);
@@ -908,6 +916,27 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
             checked={prefs.massAccumulation}
             onChange={(event) => patch({ massAccumulation: event.target.checked })}
           />
+          <BooleanToggle
+            size="sm"
+            label="Clustering"
+            description="Communities hold together and separate from each other"
+            labelPosition="left"
+            checked={prefs.clustering}
+            onChange={(event) => patch({ clustering: event.target.checked })}
+          />
+          {prefs.clustering && (
+            <label className="nt-graph__settings-slider">
+              <span>Cluster separation ({prefs.clusterSeparation})</span>
+              <Slider
+                min={0}
+                max={100}
+                step={1}
+                value={prefs.clusterSeparation}
+                onChange={(value) => patch({ clusterSeparation: value })}
+                aria-label="Cluster separation"
+              />
+            </label>
+          )}
           <div className="nt-graph__settings-row">
             <span className="nt-graph__settings-label">Node sizing</span>
             <SelectionButton
