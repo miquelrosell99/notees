@@ -149,8 +149,8 @@ function rowEl(container: HTMLElement, blockId: string): HTMLElement {
 }
 
 function gripOf(row: HTMLElement): HTMLElement {
-  const el = row.querySelector<HTMLElement>(".nt-block-grip");
-  if (el === null) throw new Error("no drag grip in row");
+  const el = row.querySelector<HTMLElement>(".nt-bullet");
+  if (el === null) throw new Error("no drag handle (bullet) in row");
   return el;
 }
 
@@ -160,12 +160,12 @@ async function flushMoves(): Promise<void> {
 }
 
 /**
- * A pointer drag of `fromId`'s grip. The pointer streams `to(x, y)`
- * (document coordinates) — a header, a row rect, empty space — until the
- * drop. dnd-kit's dispatched onDragMove trails the collision computation by
- * one event (its over state commits in an effect), so each position is sent
- * a few times with slightly varying coordinates — identical coordinates are
- * deduped.
+ * A pointer drag of `fromId`'s drag handle (the bullet). The pointer streams
+ * `to(x, y)` (document coordinates) — a header, a row rect, empty space —
+ * until the drop. dnd-kit's dispatched onDragMove trails the collision
+ * computation by one event (its over state commits in an effect), so each
+ * position is sent a few times with slightly varying coordinates — identical
+ * coordinates are deduped.
  */
 function dragTo(
   container: HTMLElement,
