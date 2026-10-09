@@ -9,6 +9,17 @@ predating this file.
 
 ## 2026-10-09
 
+- **fix(web): the journal and calendar day feeds no longer render an empty
+  "Metadata 0" section on property-less pages.** Embedded `PageView` renders
+  (the journal feed, the calendar's day pages) now drop the in-flow
+  properties section — and its hairline divider — entirely while the page
+  carries no effective property rows (the same emptiness test the block
+  metadata section already used, exported from `MetadataSection.tsx` as
+  `metadataRowCount`). The standalone compact page view keeps the section
+  even when empty — it remains that layout's add-property entry point; the
+  panelled main layout is unchanged (the Metadata sidebar always shows).
+  Verified: web suites green.
+
 - **fix(web): the boot-form connect prompt reads "Connect to a Notees sync
   server — or work offline."** Owner wording ruling across all clients — the
   GTK login description and the Flutter server-setup prompt ship the same
