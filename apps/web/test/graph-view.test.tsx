@@ -76,21 +76,27 @@ describe("graph display shaping", () => {
     expect(keys).toEqual(["a-b", "a-c", "a-d", "b-c"]);
   });
 
-  it("applyGraphSettings filters classes, journal, families, and scope", async () => {
+  it("applyGraphSettings filters classes, journal levels, system pages, families, and scope", async () => {
     const { SYSTEM_CLASS_UUIDS } = await import("@notees/domain");
+    const node = (id: string, extra: Partial<GraphTopology["nodes"][number]> = {}) => ({
+      id,
+      isClass: false,
+      parentId: null,
+      classIds: [],
+      color: null,
+      icon: null,
+      contentSize: 0,
+      mass: 1,
+      ...extra,
+    });
     const topology: GraphTopology = {
       nodes: [
-        { id: "page", isClass: false, parentId: null, classIds: [], color: null, icon: null },
-        { id: "cls", isClass: true, parentId: null, classIds: [], color: null, icon: null },
-        {
-          id: "day",
-          isClass: false,
-          parentId: null,
-          classIds: [SYSTEM_CLASS_UUIDS.day],
-          color: null,
-          icon: null,
-        },
-        { id: "out", isClass: false, parentId: null, classIds: [], color: null, icon: null },
+        node("page"),
+        node("cls", { isClass: true }),
+        node("day", { classIds: [SYSTEM_CLASS_UUIDS.day] }),
+        node("month", { classIds: [SYSTEM_CLASS_UUIDS.month] }),
+        node("inbox", { id: "00000000-0000-0000-0002-000000000002" }),
+        node("out"),
       ],
       edges: [
         edge("mention", "page", "cls"),
@@ -105,8 +111,17 @@ describe("graph display shaping", () => {
     const noClasses = applyGraphSettings(topology, { ...DEFAULT_GRAPH_SETTINGS, showClasses: false });
     expect(noClasses.nodes.some((n) => n.id === "cls")).toBe(false);
 
-    const withJournal = applyGraphSettings(topology, { ...DEFAULT_GRAPH_SETTINGS, showJournal: true });
-    expect(withJournal.nodes.some((n) => n.id === "day")).toBe(true);
+    // The journal levels toggle independently; the system pages toggle
+    // hides the seeded Inbox.
+    const withDays = applyGraphSettings(topology, { ...DEFAULT_GRAPH_SETTINGS, journalDay: true });
+    expect(withDays.nodes.some((n) => n.id === "day")).toBe(true);
+    expect(withDays.nodes.some((n) => n.id === "month")).toBe(false);
+
+    const withMonths = applyGraphSettings(topology, { ...DEFAULT_GRAPH_SETTINGS, journalMonth: true });
+    expect(withMonths.nodes.some((n) => n.id === "month")).toBe(true);
+
+    const noSystem = applyGraphSettings(topology, { ...DEFAULT_GRAPH_SETTINGS, showSystemPages: false });
+    expect(noSystem.nodes.some((n) => n.id === "inbox")).toBe(false);
 
     const noSemantic = applyGraphSettings(topology, {
       ...DEFAULT_GRAPH_SETTINGS,
@@ -213,7 +228,7 @@ describe("GraphView component", () => {
     }
   });
 
-  it("the settings toolbar composes from the kit: ghost icon tools, the icon-radio mode selector, boolean switches, the search field", async () => {
+  it("the settings toolbar composes from the kit: ghost icon tools, the icon-radio mode selector, boolean switches, the settings popover, the search field", async () => {
     window.localStorage.clear();
     // The stable filtered-out state: toolbar + empty surface, no canvas
     // mount (so the jsdom WebGL fallback can't replace the chrome).
@@ -239,12 +254,23 @@ describe("GraphView component", () => {
       // …the physics preset rides its own icon-radio selector…
       expect(screen.getByRole("radio", { name: "Sparse" })).toBeTruthy();
       expect(screen.getByRole("radio", { name: "Clustered" })).toBeTruthy();
-      // …the visibility toggles are kit switches…
+      // …the in-row visibility toggles are kit switches…
       expect(screen.getByRole("switch", { name: "Class nodes" })).toBeTruthy();
-      expect(screen.getByRole("switch", { name: "Journal" })).toBeTruthy();
       expect(screen.getByRole("switch", { name: "Orphans" })).toBeTruthy();
       // …and the search field is the kit SearchField.
       expect(screen.getByRole("textbox", { name: "Find node" })).toBeTruthy();
+
+      // The settings popover (the kit ButtonWithPanel) carries the v1
+      // register: simulation, gravity, mass, sizing — and the split journal
+      // visibility levels.
+      fireEvent.click(screen.getByRole("button", { name: "Graph settings" }));
+      expect(await screen.findByRole("switch", { name: "Simulation" })).toBeTruthy();
+      expect(screen.getByRole("switch", { name: "Central gravity" })).toBeTruthy();
+      expect(screen.getByRole("switch", { name: "Mass accumulation" })).toBeTruthy();
+      expect(screen.getByRole("switch", { name: "Day pages" })).toBeTruthy();
+      expect(screen.getByRole("switch", { name: "Month pages" })).toBeTruthy();
+      expect(screen.getByRole("switch", { name: "Year pages" })).toBeTruthy();
+      expect(screen.getByRole("switch", { name: "System pages" })).toBeTruthy();
     } finally {
       window.localStorage.clear();
     }
