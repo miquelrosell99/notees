@@ -1,0 +1,89 @@
+/* GridMenu — a grid of selectable action items (the add-condition popup's
+   body and cousins). Token-only; items carry an explicit color because
+   <button> UA `color: buttontext` renders OS-dark under dark themes. */
+
+.grid-menu {
+  display: grid;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1);
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+/* Auto columns: as many as the container width allows (the menu expands
+   with its host — e.g. the query-builder container). 18ch ≈ a comfortable
+   label+description cell. */
+.grid-menu--auto {
+  grid-template-columns: repeat(auto-fill, minmax(18ch, 1fr));
+}
+
+.grid-menu--1 {
+  grid-template-columns: 1fr;
+}
+
+.grid-menu--2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.grid-menu--3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.grid-menu--4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.grid-menu__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+  width: 100%;
+  min-width: 0;
+  padding: var(--spacing-1-5) var(--spacing-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-on-surface);
+  font: var(--font-body-small);
+  text-align: left;
+  cursor: pointer;
+}
+
+.grid-menu__item:hover:not(:disabled) {
+  background: var(--color-surface-container-high);
+}
+
+.grid-menu__item:active:not(:disabled) {
+  background: var(--color-surface-container-highest);
+}
+
+.grid-menu__item:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-primary);
+  outline-offset: var(--focus-outline-offset);
+}
+
+.grid-menu__item:disabled {
+  opacity: var(--opacity-50);
+  cursor: not-allowed;
+}
+
+.grid-menu__icon {
+  flex-shrink: 0;
+  margin-top: 0.15em;
+  color: var(--color-on-surface-variant);
+}
+
+.grid-menu__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.grid-menu__label {
+  font: var(--font-body-small);
+}
+
+.grid-menu__desc {
+  font-size: 0.85em;
+  color: var(--color-on-surface-variant);
+}

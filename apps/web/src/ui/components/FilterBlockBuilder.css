@@ -137,64 +137,48 @@
   font: var(--font-body-small);
 }
 
-/* --- the add menu (the one elevated surface — a transient popover) ---------- */
-
-.nt-fb-menu {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-  padding: var(--spacing-1);
-  max-height: 40vh;
-  overflow-y: auto;
-}
-
-.nt-fb-menu__item {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-2);
-  width: 100%;
-  padding: var(--spacing-1-5) var(--spacing-2);
-  border: none;
+/* The node-target trigger (Links to / Parent is rows) — a quiet text
+   button naming the chosen node. */
+.nt-fb-nodepick {
+  flex: 1;
+  min-width: 10ch;
+  padding: var(--spacing-1) var(--spacing-2);
+  border: var(--spacing-hairline) solid var(--color-outline-variant);
   border-radius: var(--radius-sm);
-  background: transparent;
-  /* Buttons carry UA `color: buttontext` — without an explicit token color
-     the label renders OS-dark in dark mode. */
+  background: var(--color-surface-container-lowest);
   color: var(--color-on-surface);
   font: var(--font-body-small);
   text-align: left;
   cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.nt-fb-menu__item:hover {
-  background: var(--color-surface-container-high);
+.nt-fb-nodepick:hover {
+  border-color: var(--color-outline);
 }
 
-.nt-fb-menu__item:active {
-  background: var(--color-surface-container-highest);
-}
-
-.nt-fb-menu__item:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-primary);
-  outline-offset: var(--focus-outline-offset);
-}
-
-.nt-fb-menu__icon {
-  flex-shrink: 0;
-  margin-top: 0.15em;
+/* The add-condition trigger wears the DROPDOWN register (owner 2026-10-09):
+   it opens a list to pick from, it does not perform an action — a bordered
+   field with a trailing chevron that rotates while open. */
+.nt-fb-add.btn {
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  border: var(--spacing-hairline) solid var(--color-outline-variant);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-container-lowest);
   color: var(--color-on-surface-variant);
 }
 
-.nt-fb-menu__text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
+.nt-fb-add.btn:hover {
+  border-color: var(--color-outline);
 }
 
-.nt-fb-menu__label {
-  font: var(--font-body-small);
+.nt-fb-add__chev {
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-.nt-fb-menu__desc {
-  font-size: 0.85em;
-  color: var(--color-on-surface-variant);
+.nt-fb-add__chev--open {
+  transform: rotate(180deg);
 }

@@ -10,9 +10,9 @@
  * in filter-query.test.ts.
  */
 
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
@@ -85,7 +85,7 @@ function openPanel(section: HTMLElement): HTMLElement {
 function addCondition(scope: HTMLElement, label: RegExp): void {
   fireEvent.click(within(scope).getByRole("button", { name: "Add condition" }));
   const menu = document.querySelector(".btn-panel") as HTMLElement;
-  fireEvent.click(within(menu).getByRole("button", { name: label }));
+  fireEvent.click(within(menu).getByRole("menuitem", { name: label }));
 }
 
 /** The values of every content-condition input, in row order. */
@@ -93,6 +93,18 @@ function contentValues(scope: HTMLElement): string[] {
   return within(scope)
     .getAllByLabelText("Content")
     .map((input) => (input as HTMLInputElement).value);
+}
+
+/** Drive the anchored NodeSelector inside a condition row: search + pick
+ * the first real result (mirrors the table node-cell test flow). */
+function pickNode(scope: HTMLElement, query: string): void {
+  fireEvent.click(within(scope).getByRole("button", { name: "Pick target node" }));
+  fireEvent.change(screen.getByLabelText("Search..."), { target: { value: query } });
+  fireEvent.click(
+    document.querySelector(
+      ".node-result-item:not(.node-result-item--create):not(.node-result-item--date)",
+    )!,
+  );
 }
 
 describe("the block query builder", () => {
@@ -113,10 +125,11 @@ describe("the block query builder", () => {
     expect(tableRowCount()).toBe(3);
 
     const panel = openPanel(section);
-    // The empty group's honest line, then a content condition…
-    expect(within(panel).getByText("No conditions in this group")).not.toBeNull();
+    // The root is NOT a group (owner 2026-10-09): no empty placeholder, no
+    // count label — just the logic toggle and the add affordance.
+    expect(within(panel).queryByText("No conditions in this group")).toBeNull();
+    expect(within(panel).queryByText(/^\d+ conditions?$/)).toBeNull();
     addCondition(panel, /^Content/);
-    expect(within(panel).getByText("1 condition")).not.toBeNull();
     fireEvent.change(within(panel).getByLabelText("Content"), { target: { value: "Alpha" } });
 
     // …filters live: the table, the bar count and the panel's result line.
@@ -225,7 +238,7 @@ describe("the block query builder", () => {
     expect(tableRowCount()).toBe(1);
 
     fireEvent.click(within(panel).getByRole("button", { name: "Remove Content condition" }));
-    expect(within(panel).getByText("No conditions in this group")).not.toBeNull();
+    expect(within(panel).queryByText("No conditions in this group")).toBeNull();
     expect(tableRowCount()).toBe(3);
     // The whole query went inactive — the bar row's count is gone (the
     // panel's "3 of 3 rows match" preview line stays while the panel is open).
@@ -270,6 +283,70 @@ describe("the block query builder", () => {
     expect(within(table).getByText("Alpha")).not.toBeNull();
     expect(within(table).getByText("Gamma")).not.toBeNull();
     expect(within(table).queryByText("Beta")).toBeNull();
+    await act(async () => {});
+  });
+
+  it("a Parent-is condition keeps only rows anywhere inside the chosen node's parents tree", async () => {
+    const client = await seedClient();
+    const classId = await seedClass(client, "project");
+    const hub = await client.createObject({ presentAsMain: true, name: "Hub" });
+    const inTree = await client.createObject({
+      presentAsMain: true,
+      name: "InTree",
+      classIds: [classId],
+      parentId: hub,
+    });
+    await client.createObject({
+      presentAsMain: true,
+      name: "Deep",
+      classIds: [classId],
+      parentId: inTree,
+    });
+    await client.createObject({ presentAsMain: true, name: "Outside", classIds: [classId] });
+
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+    const section = classedNodesSection();
+    expect(tableRowCount()).toBe(3);
+
+    const panel = openPanel(section);
+    addCondition(panel, /^Parent is/);
+    pickNode(panel, "Hub");
+
+    // The direct child AND the grandchild ride the parents tree; the
+    // unparented row is out. Sync evaluation — no probe round.
+    expect(tableRowCount()).toBe(2);
+    expect(within(section).getByText("2 of 3")).not.toBeNull();
+    // The sync arm: rows filter on the same render — no probe round happens
+    // for the parent-tree condition (the Links-to test owns the probe arm).
+  });
+
+  it("a Links-to condition rides the runQueryAst probe and intersects with the base rows", async () => {
+    const client = await seedClient();
+    const classId = await seedClass(client, "project");
+    const target = await client.createObject({ presentAsMain: true, name: "Target" });
+    const linker = await client.createObject({ presentAsMain: true, name: "Linker", classIds: [classId] });
+    await client.createObject({
+      parentId: linker,
+      contentAst: [{ type: "mention", targetNodeId: target, text: "Target" }],
+    });
+    await client.createObject({ presentAsMain: true, name: "Plain", classIds: [classId] });
+    // The probe channel is stubbed (the real SQL path is the query package's
+    // contract); the hook's job is the intersect-with-base-rows wiring.
+    const probe = vi.spyOn(client, "runQueryAst").mockResolvedValue({ ids: [linker], rows: [] });
+
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+    const section = classedNodesSection();
+    expect(tableRowCount()).toBe(2);
+
+    const panel = openPanel(section);
+    addCondition(panel, /^Links to/);
+    pickNode(panel, "Target");
+
+    await waitFor(() => expect(tableRowCount()).toBe(1));
+    expect(probe).toHaveBeenCalled();
+    const table = screen.getAllByRole("table")[0]!;
+    expect(within(table).getByText("Linker")).not.toBeNull();
+    expect(within(table).queryByText("Plain")).toBeNull();
     await act(async () => {});
   });
 });
