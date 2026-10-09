@@ -41,9 +41,10 @@ predating this file.
   modal all route `datetime`. (5) Live migration:
   `scripts/migrate-unified-datetime.mts` — Path B in-place rewrite of the
   retired `payload.type` values (snapshot patch, restore-epoch bump, NO
-  compensation envelopes; dry-run default, idempotent; LOCKSTEP-PENDING:
-  runs only after the GTK/Flutter ports accept `datetime`, then the stack
-  restarts onto the new images). Fixture gate 24→25
+  compensation envelopes; dry-run default, idempotent; ran 2026-10-09 after
+  the GTK/Flutter ports — owner workspace 82 envelopes rewritten + epoch 6,
+  test workspace 3 + epoch 1, snapshots patched, full-replay verified — then
+  the stack restarted onto the new images). Fixture gate 24→25
   (`property-datetime.json`). Verified: every package suite green on both
   store adapters (store 473, query 203, protocol 328, domain 76, export 239,
   server 225), web 1428 green, root typecheck clean, the migration mechanics
