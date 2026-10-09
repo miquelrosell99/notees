@@ -139,6 +139,7 @@ function fixtureDocument(): ExportDocument {
       {
         id: "node-packing",
         title: "Packing",
+        presentAsMain: true,
         classIds: [],
         properties: [],
         blocks: [
@@ -148,6 +149,7 @@ function fixtureDocument(): ExportDocument {
           {
             id: "node-sub",
             title: "Toiletries",
+            presentAsMain: true,
             classIds: [],
             properties: [],
             blocks: [],
@@ -261,6 +263,122 @@ describe("ExportPdfDocument component tree", () => {
     expect(PDF_THEMES.academic.twoColumnBody).toBe(true);
     notes.unmount();
   });
+
+  it("renders the title once — the body's leading title line is stripped (single-title rule)", () => {
+    const document: ExportDocument = {
+      ...fixtureDocument(),
+      // The root's own content opens with the title text (title-is-content):
+      // it rides the heading alone and must not repeat as the body's first line.
+      blocks: [{ kind: "paragraph", spans: [{ kind: "text", text: "Trip", marks: [] }] }],
+    };
+    const { container } = render(<ExportPdfDocument document={document} options={resolveExportOptions({})} />);
+    expect(screen.getAllByText("Trip")).toHaveLength(1);
+    expect(container.textContent).not.toContain("TripTrip");
+  });
+
+  it("renders no 'Outline' heading and no outline divider", () => {
+    const document = fixtureDocument();
+    const { container } = render(<ExportPdfDocument document={document} options={resolveExportOptions({})} />);
+    expect(container.textContent).not.toContain("Outline");
+    const outline = container.querySelector("view:not([style*='flex-direction'])");
+    expect(outline).not.toBeNull();
+    // No border-top anywhere (the divider under the old duplicated title died
+    // with the section heading).
+    expect(container.innerHTML).not.toContain("border-top");
+  });
+
+  it("splits the zones: inline blocks nest body-only, child pages list at the end", () => {
+    const document: ExportDocument = {
+      nodeId: "node-book",
+      title: "Book",
+      rendersDocumentChrome: true,
+      isClass: false,
+      presentAsMain: true,
+      parentId: null,
+      blocks: [{ kind: "paragraph", spans: [{ kind: "text", text: "Book", marks: [] }] }],
+      properties: [],
+      classIds: [],
+      classNames: [],
+      children: [
+        {
+          // An inline body block: renders nested, NO title heading.
+          id: "node-note",
+          title: "Margin note",
+          presentAsMain: false,
+          classIds: [],
+          properties: [],
+          blocks: [{ kind: "paragraph", spans: [{ kind: "text", text: "margin body", marks: [] }] }],
+          children: [],
+        },
+        {
+          // A child page: titled entry at the end; the title line inside its
+          // own blocks is stripped (the single-title rule for children).
+          id: "node-chapter",
+          title: "Chapter 1",
+          presentAsMain: true,
+          classIds: [],
+          properties: [],
+          blocks: [
+            { kind: "paragraph", spans: [{ kind: "text", text: "Chapter 1", marks: [] }] },
+            { kind: "paragraph", spans: [{ kind: "text", text: "chapter body", marks: [] }] },
+          ],
+          children: [],
+        },
+      ],
+      assetRefs: [],
+    };
+    const { container } = render(<ExportPdfDocument document={document} options={resolveExportOptions({})} />);
+    // The child page's title appears exactly once (its heading — not again as
+    // its body's first line); its remaining body content rides below.
+    expect(screen.getAllByText("Chapter 1")).toHaveLength(1);
+    expect(screen.getByText("chapter body")).toBeInTheDocument();
+    // The inline block renders body-only: its title NEVER surfaces.
+    expect(screen.getByText("margin body")).toBeInTheDocument();
+    expect(screen.queryByText("Margin note")).toBeNull();
+    // The root title rides the header alone.
+    expect(screen.getAllByText("Book")).toHaveLength(1);
+    expect(container.textContent).toBeDefined();
+  });
+
+  it("renders boolean properties as the drawn checkbox, never literal true/false", () => {
+    const document: ExportDocument = {
+      ...fixtureDocument(),
+      properties: [
+        { schemaId: "s-read", schemaName: "Read", schemaType: "boolean", value: true, display: "☑" },
+        { schemaId: "s-todo", schemaName: "Todo", schemaType: "boolean", value: false, display: "☐" },
+      ],
+    };
+    const { container } = render(<ExportPdfDocument document={document} options={resolveExportOptions({})} />);
+    // The vector checkbox: one square per boolean row; the checked row adds
+    // the check polyline.
+    expect(container.querySelectorAll("svg rect")).toHaveLength(2);
+    expect(container.querySelectorAll("svg polyline")).toHaveLength(1);
+    expect(screen.queryByText("true")).toBeNull();
+    expect(screen.queryByText("false")).toBeNull();
+    expect(screen.getByText("Read")).toBeInTheDocument();
+    expect(screen.getByText("Todo")).toBeInTheDocument();
+  });
+
+  it("renders property qualifiers from the IR's resolved display (no raw uuid)", () => {
+    const document: ExportDocument = {
+      ...fixtureDocument(),
+      properties: [
+        {
+          schemaId: "s-held",
+          schemaName: "Held",
+          schemaType: "object",
+          value: { nodeId: "node-ada" },
+          display: "Ada Lovelace",
+          metadata: { startDate: { nodeId: "00000000-0000-0000-00dd-202506240000" } },
+          resolvedQualifiers: [{ key: "startDate", display: "2025-06-24" }],
+        },
+      ],
+    };
+    const { container } = render(<ExportPdfDocument document={document} options={resolveExportOptions({})} />);
+    expect(container.textContent).toContain("startDate 2025-06-24");
+    expect(container.textContent).not.toContain("00000000-0000-0000-00dd");
+    expect(container.textContent).not.toContain("[object Object]");
+  });
 });
 
 describe("renderSubtreePdf", () => {
@@ -293,7 +411,7 @@ describe("renderSubtreePdf", () => {
     expect(element.props.assetDataUrls.get(assetId)).toBe("data:image/png;base64,aGk=");
 
     expect(exported.blob.type).toBe("application/pdf");
-    expect(exported.filename).toBe("Trip.pdf");
+    expect(exported.filename).toMatch(/^Trip-\d{12}\.pdf$/);
   });
 
   it("keeps exporting when an asset data URL is unavailable", async () => {
@@ -338,7 +456,7 @@ describe("renderSubtreePdfBatch", () => {
 
     const exported = await renderSubtreePdfBatch(client, [tripId, packingId], { layout: "academic" });
 
-    expect(exported.filename).toBe("Trip.zip");
+    expect(exported.filename).toMatch(/^Trip-\d{12}\.zip$/);
     expect(exported.blob.type).toBe("application/zip");
     const entries = unzipSync(new Uint8Array(await readBlobBytes(exported.blob)));
     const names = Object.keys(entries);

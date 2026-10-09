@@ -40,8 +40,9 @@
  * preview). Selecting PDF reveals the layout cards (Notes/Essay/Academic,
  * modelling decision 2) and the A4/Letter page-size SelectionButton, both
  * feeding the engine options; the preview pane renders the PDF into a blob
- * URL iframe, and Export downloads `<slug>.pdf` (a batch zips one PDF per
- * root, the task-W convention).
+ * URL iframe, and Export downloads `<slug>-<YYYYMMDDHHmm>.pdf` (a batch zips
+ * one PDF per root, the task-W convention; the local timestamp keeps repeated
+ * exports from overwriting each other).
  */
 import { useState, useCallback, useEffect, useMemo } from "react";
 import type { ExportOptions } from "@notees/export";

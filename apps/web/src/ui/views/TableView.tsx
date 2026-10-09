@@ -47,6 +47,7 @@ import { DateSlotControl } from "../components/pickers/DateSlotControl.js";
 import { ExportPageModal } from "../components/modals/ExportPageModal.js";
 import { ImportTableModal } from "../components/modals/ImportTableModal.js";
 import { downloadBlob } from "../components/modals/download.js";
+import { exportTimestamp } from "../components/modals/exportSubtree.js";
 import { nodeIcon } from "../iconFor.js";
 import { displayNameForSettings, displayNameFromClient, formatIsoDate } from "../dateDisplay.js";
 import { registerView } from "./registry.js";
@@ -747,7 +748,7 @@ export function TableView(props: NodeCollectionProps) {
     );
     const safeStem = stem.replace(/[\\/:*?"<>|]/g, "-");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    downloadBlob(blob, `${safeStem}.csv`);
+    downloadBlob(blob, `${safeStem}-${exportTimestamp()}.csv`);
   };
 
   /**
@@ -783,7 +784,7 @@ export function TableView(props: NodeCollectionProps) {
     const blob = new Blob([new Uint8Array(bytes)], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
-    downloadBlob(blob, `${stem.replace(/[\\/:*?"<>|]/g, "-")}.xlsx`);
+    downloadBlob(blob, `${stem.replace(/[\\/:*?"<>|]/g, "-")}-${exportTimestamp()}.xlsx`);
   };
   const baseStem = (props.exportFileName ?? "table-export").replace(/[\\/:*?"<>|]/g, "-");
   const selectedRows = sorted.filter((row) => selected.has(row.item.node.id));
