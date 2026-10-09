@@ -37,7 +37,10 @@ predating this file.
   stopping a step above the card bottom like the top bar. The panels
   unmount on collapse as before; only the frame changed. Docs: `docs/ux.md`
   + `docs/usage.md` describe the raised-card columns instead of the
-  divider. Verified: web build green, web test suites green.
+  divider. Verified: web build green; web suites green except two reds in
+  the in-flight aliases/icon-picker slice (another session's files — a CSS
+  change cannot affect them); verified live with a probe against the
+  redeployed stack (computed styles + screenshots, dark and light).
 
 - **fix(web): the PDF's visual regressions from the app-chrome slice — no
   more double bullets, pills at deterministic size — and the export modal's

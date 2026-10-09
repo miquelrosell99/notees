@@ -149,10 +149,10 @@ span.pill__text {
 
 /* A set of rows, one per property: a property-name row followed by its
    value-cell row. A hairline under each property is the only horizontal
-   separator (owner 2026-10-09) — the value cells below span the column's
+   separator (owner 2026-10-09) — the value cells below span the card's
    full width, so the empty ones read as empty fields. The rows ride a
-   collapsible NodeViewSection (the header names the column); the column
-   keeps its divider while the section is collapsed. */
+   collapsible NodeViewSection (the header names the card); the card frame
+   carries the panel look while the section is collapsed. */
 .nt-props-sidebar {
   display: flex;
   flex-direction: column;
