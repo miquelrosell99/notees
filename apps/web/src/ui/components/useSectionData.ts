@@ -1,19 +1,20 @@
 /**
  * useSectionData — the shared lazy-section data contract. ONE
  * hook instance per section
- * view/tab (the per-view rule, owner pass 2): a section's default view, each
- * backlinks tab, and each custom tab each own their instance — never
+ * view (the per-view rule, owner pass 2): a section's default view and
+ * each custom view each own their instance — never
  * one shared cache with view-switch invalidation, which would re-run queries
  * a switch should be silent on.
  *
  * The contract the hook owns (the timing; the strategy owns the what):
  *  - resolution runs on FIRST ACTIVATION only — `active: false` (a collapsed
- *    section, an unselected tab) executes NO query;
+ *    section) executes NO query;
  *  - results cache across deactivations: a reactivation at an unchanged
- *    notification version serves the cache — a tab switch never re-runs;
- *  - a client notification re-runs the resolution while active (and, with
- *    `keepFresh`, also while inactive — the backlinks-tab contract: a loaded
- *    tab stays fresh for its next selection);
+ *    notification version serves the cache — a collapse/expand never
+ *    re-runs;
+ *  - a client notification re-runs the resolution while active (a collapsed
+ *    section stays silent — its cached rows serve the next expand until the
+ *    version moves);
  *  - a failure (closed client, failed query) keeps the previous rows — a
  *    section is reference material, never a boot gate.
  *
@@ -73,18 +74,11 @@ export interface SectionRowFilter<Row> {
 export interface UseSectionDataOptions<T> {
   client: AnyClient;
   /**
-   * This view's activation: false = collapsed/unselected — no first
+   * This view's activation: false = collapsed — no first
    * resolution runs. Default true (resolve from mount — views whose eager
    * count IS the resolution, like CreatedSection).
    */
   active?: boolean;
-  /**
-   * After the first activation, re-run per client notification even while
-   * INACTIVE (the backlinks-tab contract: every loaded tab re-derives on a
-   * notification, so selecting it lands on fresh rows). Default false — the
-   * collapsible-section contract re-runs only while expanded.
-   */
-  keepFresh?: boolean;
   /**
    * Values the strategy closes over that can change WITHOUT a client
    * notification (device prefs like the unlinked-ignore list): changing it
@@ -125,7 +119,6 @@ export interface SectionData<T> {
 export function useSectionData<T>({
   client,
   active = true,
-  keepFresh = false,
   refreshKey,
   filter,
   read,
@@ -134,20 +127,17 @@ export function useSectionData<T>({
   const [rows, setRows] = useState<T | null>(null);
   /** The {version, refreshKey} signature the last run consumed; null = never ran. */
   const lastSig = useRef<{ version: number; key: unknown } | null>(null);
-  /** First activation has happened (the keepFresh gate). */
-  const activated = useRef(false);
   const [version, setVersion] = useState(0);
 
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
 
   useEffect(() => {
-    if (!active && !(keepFresh && activated.current)) return;
+    if (!active) return;
     const sig = lastSig.current;
     if (sig !== null && sig.version === version && sig.key === refreshKey) {
-      return; // cached result is still fresh — a switch is silent on it
+      return; // cached result is still fresh — a reactivation is silent on it
     }
     lastSig.current = { version, key: refreshKey };
-    activated.current = true;
     let cancelled = false;
     const run = async () => {
       try {
@@ -161,7 +151,7 @@ export function useSectionData<T>({
     return () => {
       cancelled = true;
     };
-  }, [client, active, keepFresh, version, refreshKey, read, query]);
+  }, [client, active, version, refreshKey, read, query]);
 
   // The transient filter step: post-resolution, pre-windowing. The query
   // plans through the one evaluation implementation (a schema-invalid group

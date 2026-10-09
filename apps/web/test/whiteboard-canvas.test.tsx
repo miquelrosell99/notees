@@ -203,7 +203,7 @@ describe("whiteboard canvas (fullscreen page)", () => {
     expect(container.querySelector(".page-header-section")).toBeNull();
     expect(container.querySelector(".nt-page-footer")).toBeNull();
     expect(container.querySelector(".nt-page-body")).toBeNull();
-    expect(container.querySelector(".nt-backlinks")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Backlinks/ })).toBeNull();
     // The canvas is the page's only element child (its own toolset and
     // surface inside) — the 65vh in-flow cap no longer applies.
     const canvas = container.querySelector(".nt-wb.nt-wb-fullscreen")!;
@@ -224,9 +224,9 @@ describe("whiteboard canvas (fullscreen page)", () => {
     const page = container.querySelector(".nt-page")!;
     expect(page.classList.contains("nt-page--whiteboard")).toBe(false);
     expect(container.querySelector(".nt-page-header")).not.toBeNull();
-    // The backlinks strip is part of the chrome but hides at zero references
-    // (the hide-when-empty ruling) — this fixture page has none.
-    expect(container.querySelector(".nt-backlinks")).toBeNull();
+    // The reference sections are part of the chrome but hide at zero
+    // references (the hide-when-empty ruling) — this fixture page has none.
+    expect(screen.queryByRole("button", { name: /Backlinks/ })).toBeNull();
     expect(container.querySelector(".nt-wb.nt-wb-fullscreen")).not.toBeNull();
   });
 
