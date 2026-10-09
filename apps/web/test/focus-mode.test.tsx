@@ -109,20 +109,20 @@ describe("focus mode page chrome (#12)", () => {
     const { container } = render(<PageView client={client} pageId={pageId} />);
     await flushSync();
     // The panelled main layout: a left properties side panel, the nodeview
-    // top bar (sidebar toggle + classes pills), tags row, footer, and the
-    // backlinks strip with the eager count on the tab label.
+    // top bar (sidebar toggle + classes pills), tags row, footer — and no
+    // reference sections (the fixture's page has neither backlinks nor
+    // unlinked mentions, so the hide-when-empty ruling keeps them off).
     expect(container.querySelector(".nt-page-side-panel")).not.toBeNull();
     expect(container.querySelector(".nt-node-topbar")).not.toBeNull();
     expect(container.querySelector(".nt-node-topbar__classes")).not.toBeNull();
     expect(container.querySelector(".nt-tags-row")).not.toBeNull();
     expect(container.querySelector(".nt-page-footer")).not.toBeNull();
-    // The backlinks strip would ride below the content, but the hide-when-
+    // The backlinks section would ride below the content, but the hide-when-
     // empty ruling keeps it off: the mention here targets a block inside the
     // page (own-subtree, not a reference), so the page has neither backlinks
     // nor unlinked mentions.
-    expect(container.querySelector(".nt-backlinks")).toBeNull();
-    expect(screen.queryByRole("tab", { name: "Backlinks" })).toBeNull();
-    expect(screen.queryByRole("tab", { name: "Unlinked mentions" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Backlinks/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Unlinked mentions/ })).toBeNull();
   });
 
   it("mode on: chrome is suppressed; the title and the editable body stay", async () => {
@@ -132,15 +132,14 @@ describe("focus mode page chrome (#12)", () => {
     await flushSync();
 
     // The suppressed chrome list (no side panel, no top bar, no classes
-    // corner/topbar, no tags, no footer, no backlinks strip).
+    // corner/topbar, no tags, no footer, no backlinks section).
     expect(container.querySelector(".nt-page-side-panel")).toBeNull();
     expect(container.querySelector(".nt-node-topbar")).toBeNull();
     expect(container.querySelector(".nt-page-classes-corner")).toBeNull();
     expect(container.querySelector(".nt-node-topbar__classes")).toBeNull();
     expect(container.querySelector(".nt-tags-row")).toBeNull();
     expect(container.querySelector(".nt-page-footer")).toBeNull();
-    expect(container.querySelector(".nt-backlinks")).toBeNull();
-    expect(screen.queryByRole("tab", { name: /Backlinks/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Backlinks/ })).toBeNull();
     // No system sections (child pages) either.
     expect(container.querySelector(".nt-page-sections")).toBeNull();
     // The header icon + picker are gone; the title is not.
