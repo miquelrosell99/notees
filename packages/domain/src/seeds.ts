@@ -319,15 +319,16 @@ export const SYSTEM_PROPERTY_UUIDS = {
   taskClosedDate: "00000000-0000-0000-0003-000000000005",
   taskRecurrence: "00000000-0000-0000-0003-000000000006",
   // Meeting family — the workflow-properties block continues (task
-  // family …001–…006; meeting family …007–…009). meetingDate is DATE-typed
-  // per the whole-day law (SCHEMA.md "Time-of-day on dates"): clock times
-  // would need that law amended first, never a silent extension.
+  // family …001–…006; meeting family …007–…009). meetingDate is DATETIME-typed
+  // per the amended time-of-day law (SCHEMA.md "Time-of-day on dates",
+  // AMENDED 2026-10-09): values may carry a wall-clock `time` beside the
+  // day-node anchor — full-day stays the default.
   meetingDate: "00000000-0000-0000-0003-000000000007",
   location: "00000000-0000-0000-0003-000000000008",
   agenda: "00000000-0000-0000-0003-000000000009",
   // Event-family reshape: the EVENT family's minimal date binding — the one that
   // makes `event` (and, via extends, `meeting`) calendar quick-create
-  // eligible. Date-only per the whole-day law, like meetingDate.
+  // eligible. Datetime-typed per the amended law, like meetingDate.
   eventDate: "00000000-0000-0000-0003-000000000010",
   // The birthday family's ONLY own property — the person the
   // birthday is for (the date rides eventDate; see the spec comment).
@@ -348,8 +349,7 @@ export interface SystemPropertySpec {
     | "text"
     | "number"
     | "boolean"
-    | "date"
-    | "date_range"
+    | "datetime"
     | "url"
     | "email"
     | "select"
@@ -378,7 +378,7 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   authors: { type: "object", multi: true, bindTo: "source", targetClassFilter: ["agent"] },
   isbn: { type: "text", bindTo: "source" },
   doi: { type: "text", bindTo: "source" },
-  publicationDate: { type: "date", bindTo: "source" },
+  publicationDate: { type: "datetime", bindTo: "source" },
   publisher: { type: "text", bindTo: "source" },
   role: {
     type: "select",
@@ -421,11 +421,11 @@ export const SYSTEM_PROPERTY_SPECS: Partial<Record<SystemPropertyName, SystemPro
   // is the family's date binding (quick-create eligibility rides the event
   // root's eventDate too — meeting extends event); location and agenda are
   // plain text per the section's family list.
-  meetingDate: { type: "date", bindTo: "meeting" },
+  meetingDate: { type: "datetime", bindTo: "meeting" },
   location: { type: "text", bindTo: "meeting" },
   agenda: { type: "text", bindTo: "meeting" },
   // Event-family reshape: the event family's minimal shape — one date binding.
-  eventDate: { type: "date", bindTo: "event" },
+  eventDate: { type: "datetime", bindTo: "event" },
   // (owner directive 2026-10-04): the birthday family is
   // PERSON-typed, not a date duplicate — the date rides event's eventDate
   // through the extends chain (effective-properties binding resolution is
@@ -571,7 +571,7 @@ export const TASK_PRIORITY_OPTION_UUIDS = {
 export const TASK_FAMILY_SEED: ReadonlyArray<{
   property: SystemPropertyName;
   name: string;
-  type: "select" | "date";
+  type: "select" | "datetime";
   options?: ReadonlyArray<{ id: string; label: string; icon?: string; color?: string }>;
   display?: "panel" | "bullet" | "inline";
   sequence: number;
@@ -591,8 +591,8 @@ export const TASK_FAMILY_SEED: ReadonlyArray<{
     display: "bullet",
     sequence: 1,
   },
-  { property: "taskScheduled", name: "Scheduled", type: "date", sequence: 2 },
-  { property: "taskDeadline", name: "Deadline", type: "date", sequence: 3 },
+  { property: "taskScheduled", name: "Scheduled", type: "datetime", sequence: 2 },
+  { property: "taskDeadline", name: "Deadline", type: "datetime", sequence: 3 },
   {
     property: "taskPriority",
     name: "Priority",
@@ -605,7 +605,7 @@ export const TASK_FAMILY_SEED: ReadonlyArray<{
     ],
     sequence: 4,
   },
-  { property: "taskClosedDate", name: "Closed", type: "date", sequence: 5 },
+  { property: "taskClosedDate", name: "Closed", type: "datetime", sequence: 5 },
   // Migrated workspaces carry recurrence as a plain select (no engine
   // executes it); authored optionless until the recurrence spec lands.
   { property: "taskRecurrence", name: "Recurrence", type: "select", options: [], sequence: 6 },

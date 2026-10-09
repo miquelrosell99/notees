@@ -305,8 +305,15 @@ export const propertySchemaCreatePayload = z
       "text",
       "number",
       "boolean",
-      "date",
-      "date_range",
+      /**
+       * The unified date property type (2026-10-09): the retired `date` and
+       * `date_range` types rewrite to `datetime` in live logs
+       * (scripts/migrate-unified-datetime.mts, Path B); strict schemas reject
+       * the retired values outright. A value is a point `{nodeId, time?}` or
+       * a range `{start: slot|null, end: slot|null}` (slot = `{nodeId, time?}`)
+       * anchored to the year/month/day node chain — see SCHEMA.md "Datetime".
+       */
+      "datetime",
       "url",
       "email",
       "select",
@@ -328,11 +335,12 @@ export const propertySchemaCreatePayload = z
     options: z.array(propertySchemaOptionSchema).optional(),
     /** Node-typed (m2o/m2m) schemas constrain their targets to these classes. */
     targetClassFilter: z.array(uuid).optional(),
-    /** Date schemas: the finest granularity a value may claim (SCHEMA.md "Dates";
+    /** Datetime schemas: the finest granularity a value may claim (SCHEMA.md "Datetime";
      * default "day" at the read model when absent). */
     datePrecision: z.enum(["year", "month", "day"]).optional(),
-    /** Node-typed schemas: values may carry date qualifiers (metadata
-     * startDate/endDate — the panel renders a small range control per chip). */
+    /** Datetime and node-typed (object/asset) schemas: values may carry date
+     * qualifiers (metadata startDate/endDate — the panel renders a small
+     * range control per chip). */
     dateQualified: z.boolean().optional(),
     /**
      * Number schemas: DISPLAY formatting only (SCHEMA.md "Number formats") —
@@ -378,7 +386,7 @@ export const propertySchemaUpdatePayload = z
     propertySchemaId: uuid,
     name: z.string().min(1).max(256).optional(),
     options: z.array(propertySchemaOptionSchema).optional(),
-    /** Patchable so the Class View bindings editor can retune date behavior
+    /** Patchable so the Class View bindings editor can retune datetime behavior
      * after creation (same optional-fields contract as name/options). */
     datePrecision: z.enum(["year", "month", "day"]).optional(),
     dateQualified: z.boolean().optional(),

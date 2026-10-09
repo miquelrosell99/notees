@@ -189,12 +189,13 @@ describe("system seeds (ported)", () => {
     expect(SYSTEM_PROPERTY_UUIDS.location).toBe("00000000-0000-0000-0003-000000000008");
     expect(SYSTEM_PROPERTY_UUIDS.agenda).toBe("00000000-0000-0000-0003-000000000009");
     expect(SYSTEM_PROPERTY_UUIDS.eventDate).toBe("00000000-0000-0000-0003-000000000010");
-    // Whole-day law: the date bindings are date-typed — there is no
-    // clock-time type anywhere in the spec union.
-    expect(SYSTEM_PROPERTY_SPECS.meetingDate).toEqual({ type: "date", bindTo: "meeting" });
+    // Amended time-of-day law (2026-10-09): the date bindings are
+    // datetime-typed — a value may carry a wall-clock time beside the
+    // day-node anchor; full-day (no `time`) stays the default.
+    expect(SYSTEM_PROPERTY_SPECS.meetingDate).toEqual({ type: "datetime", bindTo: "meeting" });
     expect(SYSTEM_PROPERTY_SPECS.location).toEqual({ type: "text", bindTo: "meeting" });
     expect(SYSTEM_PROPERTY_SPECS.agenda).toEqual({ type: "text", bindTo: "meeting" });
-    expect(SYSTEM_PROPERTY_SPECS.eventDate).toEqual({ type: "date", bindTo: "event" });
+    expect(SYSTEM_PROPERTY_SPECS.eventDate).toEqual({ type: "datetime", bindTo: "event" });
   });
 
   it("birthday family seeds (owner directive 2026-10-04: birthday extends event, for persons)", () => {

@@ -2,7 +2,7 @@
  * Deterministic date-node ids — the scheme ported from
  * `app/domain/entities/constants.py` (`generate_day_uuid` and siblings).
  *
- * A date is a node, not a string (SCHEMA.md "Dates"): every ISO date maps to
+ * A date is a node, not a string (SCHEMA.md "Datetime"): every ISO date maps to
  * a year / month / day node chain with ids content-addressed from the date,
  * so chain creation is an idempotent no-op on re-create and stored data
  * stays valid. Layout (FIXED — cross-client lockstep, never regenerate):
@@ -14,6 +14,12 @@
  * The trailing 12-digit payload orders chronologically across precisions
  * (year < month < day of the same period), which the query compiler relies
  * on for date comparisons.
+ *
+ * Amendment 2026-10-09 (the unified-datetime change): time-of-day rides the
+ * property VALUE beside the day-node anchor — a datetime slot is
+ * `{nodeId, time?: "HH:MM"}` (full-day = no `time`, the default). The id
+ * layout itself is unchanged and stays FIXED; only the value vocabulary
+ * around it grew (see below).
  */
 
 export type DatePrecision = "year" | "month" | "day";
@@ -39,8 +45,9 @@ function pad(value: number, width: number): string {
 /**
  * Strict `YYYY-MM-DD` parse with real-calendar validation (leap years
  * included). Datetime strings are rejected: date-node ids address whole
- * days; time-of-day has nowhere to go. Fail loud — a malformed date must
- * never silently produce a node id.
+ * days; time-of-day rides the property value (`time: "HH:MM"` on the slot),
+ * never an ISO string. Fail loud — a malformed date must never silently
+ * produce a node id.
  */
 export function parseIsoDate(isoDate: string): DateParts {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate.trim());
@@ -180,4 +187,55 @@ export function parseDateNodeId(id: string): ParsedDateNodeId | null {
     return null;
   }
   return null;
+}
+
+// --- datetime property values (unified-datetime, 2026-10-09) ------------------
+// The `datetime` property type (SCHEMA.md "Datetime") — the retired `date` and
+// `date_range` types unified. A value is anchored to the year/month/day node
+// chain above and MAY carry a wall-clock time-of-day; full-day is the absence
+// of `time` (the default). Plain TS guards — the store applier validates
+// fail-loud against these shapes (mixed nodeId+start/end rejected, malformed
+// `time` rejected); the protocol payload itself stays z.unknown().
+
+/**
+ * 24h wall-clock `HH:MM`, minute precision, no timezone (the no-timezone law
+ * stands — times are local wall-clock, never an offset or a zone).
+ */
+export const TIME_OF_DAY_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** Defensive acceptance: any input, true only for a well-formed `HH:MM`. */
+export function isValidTimeOfDay(value: unknown): value is string {
+  return typeof value === "string" && TIME_OF_DAY_PATTERN.test(value);
+}
+
+/**
+ * One anchored endpoint: the chain node plus an optional wall-clock time.
+ * A year/month anchor has no wall-clock time — `time` requires day precision
+ * on BOTH the schema ceiling and the slot's ref (validated fail-loud at the
+ * applier; the type here stays the permissive wire shape).
+ */
+export interface DatetimeSlot {
+  nodeId: string;
+  time?: string;
+}
+
+/**
+ * The datetime value union — one shape per value, enforced fail-loud:
+ * a POINT `{nodeId, time?}` or a RANGE `{start, end}` with either side open.
+ * Legacy `date` values (bare `{nodeId}` points) and legacy `date_range`
+ * values (bare-ref ranges) are legal members — no stored value ever needs
+ * rewriting.
+ */
+export type DatetimeValue = DatetimeSlot | { start: DatetimeSlot | null; end: DatetimeSlot | null };
+
+/**
+ * Total, defensive: true when a non-null object carries the range shape
+ * (`start`/`end` keys), false for the point shape (and any non-object).
+ * A value carrying BOTH `nodeId` and `start`/`end` is malformed — rejected
+ * at the applier, not here; this guard only distinguishes the two shapes.
+ */
+export function isRangeDatetimeValue(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return "start" in record || "end" in record;
 }

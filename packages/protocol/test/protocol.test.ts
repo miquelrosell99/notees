@@ -41,7 +41,7 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the twenty-four required fixtures", () => {
+  it("has exactly the twenty-five required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "class-convert.json",
@@ -63,6 +63,7 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       "object-wire-fields.json",
       "property-asset-type.json",
       "property-date-qualifier.json",
+      "property-datetime.json",
       "property-set-lww.json",
       "property-value-elements.json",
       "typed-link-mark-deleted.json",
@@ -629,6 +630,68 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
     const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
     expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
   });
+
+  it("property-datetime fixture exercises the unified datetime value union end to end", () => {
+    const fixture = fixtures.find((f) => f.name === "property-datetime.json")!;
+    const creates = fixture.envelopes.filter((env) => env.opType === "propertySchema.create");
+    // Day-precision default schema + a year-precision schema.
+    expect(creates.map((env) => (env.payload as { type: string }).type)).toEqual([
+      "datetime",
+      "datetime",
+    ]);
+    expect(creates[0]!.payload).toMatchObject({
+      propertySchemaId: "0192a000-0000-7000-8000-000000000810",
+      name: "When",
+    });
+    expect(creates[1]!.payload).toMatchObject({
+      propertySchemaId: "0192a000-0000-7000-8000-000000000811",
+      name: "Year",
+      datePrecision: "year",
+    });
+    // Strict schema: the retired date/date_range types are rejected outright.
+    for (const retired of ["date", "date_range"]) {
+      expect(
+        payloadSchemaFor("propertySchema.create")!.safeParse({
+          propertySchemaId: "0192a000-0000-7000-8000-000000000810",
+          name: "x",
+          type: retired,
+        }).success,
+      ).toBe(false);
+    }
+    // The value writes: full-day point, timed point, open range, timed range
+    // end, year-precision point — every referenced chain node created first.
+    const sets = fixture.envelopes.filter((env) => env.opType === "property.set");
+    expect(sets.map((env) => (env.payload as { value: unknown }).value)).toEqual([
+      { nodeId: "00000000-0000-0000-00dd-202407260000" },
+      { nodeId: "00000000-0000-0000-00dd-202407260000", time: "14:30" },
+      { start: { nodeId: "00000000-0000-0000-00dd-202407260000" }, end: null },
+      {
+        start: { nodeId: "00000000-0000-0000-00dd-202407260000" },
+        end: { nodeId: "00000000-0000-0000-00dd-202408020000", time: "09:15" },
+      },
+      { nodeId: "00000000-0000-0000-00bb-202400000000" },
+    ]);
+    expect((sets[4]!.payload as { propertySchemaId: string }).propertySchemaId).toBe(
+      "0192a000-0000-7000-8000-000000000811",
+    );
+    const created = new Set(
+      fixture.envelopes
+        .filter((env) => env.opType === "object.create")
+        .map((env) => (env.payload as { objectId: string }).objectId),
+    );
+    for (const id of [
+      "00000000-0000-0000-00bb-202400000000",
+      "00000000-0000-0000-00aa-202407000000",
+      "00000000-0000-0000-00dd-202407260000",
+      "00000000-0000-0000-00aa-202408000000",
+      "00000000-0000-0000-00dd-202408020000",
+    ]) {
+      expect(created.has(id), id).toBe(true);
+    }
+    // Applicable in sequence: HLCs strictly ascend.
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
+  });
 });
 
 describe("envelope v3", () => {
@@ -718,7 +781,7 @@ describe("envelope v3", () => {
   });
 });
 
-describe("property schema dates (SCHEMA.md \"Dates\")", () => {
+describe("property schema dates (SCHEMA.md \"Datetime\")", () => {
   const create = payloadSchemaFor("propertySchema.create")!;
   const update = payloadSchemaFor("propertySchema.update")!;
 
@@ -726,7 +789,7 @@ describe("property schema dates (SCHEMA.md \"Dates\")", () => {
     const base = {
       propertySchemaId: "0192a000-0000-7000-8000-0000000000d1",
       name: "founded",
-      type: "date",
+      type: "datetime",
     };
     expect(create.safeParse(base).success).toBe(true);
     const full = create.safeParse({ ...base, datePrecision: "year", dateQualified: true });
