@@ -215,7 +215,7 @@ export function TopBar({
           aria-pressed={rightPanelOpen}
           onClick={onToggleRightPanel}
         >
-          <Icon path="mdi-cards-outline" size={1} />
+          <Icon path="mdi-card-multiple-outline" size={1} />
         </button>
       </div>
     </header>
