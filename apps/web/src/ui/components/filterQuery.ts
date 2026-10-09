@@ -10,14 +10,15 @@
  * `filterQueryToGroup` prunes those into the schema-valid composed root the
  * evaluation consumes, returning null when nothing survives.
  *
- * The offered subset is everything that evaluates SYNCHRONOUSLY over the
- * materialized row (sectionViewResolve.ts — the one evaluation
- * implementation): class, isClass, presentAsMain, content contains,
- * property, createdAfter/createdBefore, and the three wire-field exists
- * predicates (coverAsset/bannerAsset/aliasedNode). `linkedTo` and content
- * `fts` are deliberately NOT offered — they are probe-path leaves needing
- * the async runQueryAst channel, which the transient layer (apply on every
- * keystroke, derived per render) must not ride.
+ * The offered subset is the full wire grammar: class, isClass,
+ * presentAsMain, content (contains AND full-text), property, linkedTo
+ * ("links to"), descendantOf ("parent is — anywhere up the parents tree",
+ * owner 2026-10-09), createdAfter/createdBefore, and the three wire-field
+ * exists predicates (coverAsset/bannerAsset/aliasedNode). The sync-
+ * evaluable kinds ride `createSectionViewMatcher`; the two probe-path
+ * leaves (linkedTo, content fts) ride one membership probe per leaf through
+ * the runQueryAst channel inside useSectionData — the same machinery the
+ * hosted custom views use (the one-evaluation ruling).
  *
  * Application (components/useSectionData.ts): the composed group filters the
  * section's resolved rows POST-RESOLUTION and PRE-WINDOWING — windowing sees
@@ -91,6 +92,9 @@ function pruneChild(child: Child): Child | null {
       return child.classId === "" ? null : child;
     case "property":
       return child.schemaId === "" ? null : child;
+    case "linkedTo":
+    case "descendantOf":
+      return child.nodeId === "" ? null : child;
     case "createdAfter":
     case "createdBefore":
       return child.timestamp.trim() === "" ? null : child;
@@ -119,13 +123,15 @@ export function filterQueryToGroup(query: FilterQuery): Group | null {
 
 // --- the add-menu registry ---------------------------------------------------
 
-/** The condition kinds the builder offers — the sync-evaluable subset. */
+/** The condition kinds the builder offers — the full wire grammar. */
 export type ConditionKind =
   | "class"
   | "isClass"
   | "presentAsMain"
   | "content"
   | "property"
+  | "linkedTo"
+  | "descendantOf"
   | "createdAfter"
   | "createdBefore"
   | "coverAsset"
@@ -152,6 +158,8 @@ export const FILTER_KIND_OPTIONS: readonly FilterKindOption[] = [
   { value: "presentAsMain", label: "Placement", icon: "mdi mdi-format-align-left", description: "Main children or inline body" },
   { value: "content", label: "Content", icon: "mdi mdi-text-box-outline", description: "Filter by text content" },
   { value: "property", label: "Property", icon: "mdi mdi-code-braces", description: "Filter by property value" },
+  { value: "linkedTo", label: "Links to", icon: "mdi mdi-link-variant", description: "Nodes that link to a chosen node" },
+  { value: "descendantOf", label: "Parent is", icon: "mdi mdi-file-tree-outline", description: "Has the chosen node anywhere in its parents tree" },
   { value: "createdAfter", label: "Created after", icon: "mdi mdi-calendar-arrow-right", description: "Created on or after a date" },
   { value: "createdBefore", label: "Created before", icon: "mdi mdi-calendar-arrow-left", description: "Created on or before a date" },
   { value: "coverAsset", label: "Has cover", icon: "mdi mdi-image-outline", description: "Cover is set" },
@@ -188,6 +196,10 @@ export function createCondition(kind: ConditionKind): Condition {
       return { type: "content", op: "contains", value: "" };
     case "property":
       return { type: "property", schemaId: "", op: "eq", value: "" };
+    case "linkedTo":
+      return { type: "linkedTo", nodeId: "" };
+    case "descendantOf":
+      return { type: "descendantOf", nodeId: "" };
     case "createdAfter":
       return { type: "createdAfter", timestamp: "" };
     case "createdBefore":

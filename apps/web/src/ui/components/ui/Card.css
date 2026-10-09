@@ -61,7 +61,10 @@
 }
 
 .card--radius-md {
-  border-radius: var(--shape-card);
+  /* Reduced (owner 2026-10-09): the floating chrome — popups, panels,
+     modals — reads better with a subtler corner than the 20px content
+     cards. */
+  border-radius: var(--shape-extra-large);
   overflow: hidden;
 }
 

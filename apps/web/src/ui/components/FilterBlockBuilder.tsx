@@ -29,15 +29,26 @@
  */
 
 import type { CSSProperties } from "react";
-import { useId } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
-import { QUERY_PLACEHOLDERS, type Child, type Condition, type Group, type Not, type PropertyOp } from "@notees/query";
+import {
+  QUERY_PLACEHOLDERS,
+  type Child,
+  type Condition,
+  type ContentOp,
+  type Group,
+  type Not,
+  type PropertyOp,
+} from "@notees/query";
 
 import type { AnyClient } from "../views/index.js";
 
 import { Icon } from "../Icon.js";
+import { displayNameForSettings } from "../dateDisplay.js";
+import { NodeSelector } from "./pickers/NodeSelector.js";
 import { Button } from "./ui/Button.js";
 import { ButtonWithPanel } from "./ui/ButtonWithPanel.js";
+import { GridMenu } from "./ui/GridMenu.js";
 import { SelectionButton, type SelectionButtonOption } from "./ui/SelectionButton.js";
 import { useBuilderFacts, type BuilderFacts } from "./QueryBuilderFields.js";
 import {
@@ -78,6 +89,7 @@ const KIND_ICONS: Record<Condition["type"], string> = {
   bannerAsset: "mdi mdi-page-layout-header",
   aliasedNode: "mdi mdi-repeat-variant",
   linkedTo: "mdi mdi-link-variant",
+  descendantOf: "mdi mdi-file-tree-outline",
 };
 
 export interface FilterBlockBuilderProps {
@@ -93,8 +105,23 @@ export function FilterBlockBuilder({ client, group, onChange, config }: FilterBl
   const facts = useBuilderFacts(client);
   /** The placeholder datalist, rendered once, useId-scoped. */
   const datalistId = useId();
+  /**
+   * The add menu expands to this width — the builder container's (the
+   * owner request: the popup reads as wide as the query builder it feeds).
+   */
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [menuWidth, setMenuWidth] = useState(280);
+  useEffect(() => {
+    const el = rootRef.current;
+    if (el === null) return;
+    const measure = () => setMenuWidth(Math.max(280, el.clientWidth));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
   return (
-    <div className="nt-fb">
+    <div className="nt-fb" ref={rootRef}>
       <datalist id={datalistId}>
         {QUERY_PLACEHOLDERS.map((placeholder) => (
           <option key={placeholder} value={placeholder} />
@@ -104,9 +131,11 @@ export function FilterBlockBuilder({ client, group, onChange, config }: FilterBl
         group={group}
         onChange={onChange}
         depth={0}
+        client={client}
         facts={facts}
         config={config}
         datalistId={datalistId}
+        menuWidth={menuWidth}
       />
     </div>
   );
@@ -115,6 +144,7 @@ export function FilterBlockBuilder({ client, group, onChange, config }: FilterBl
 // --- the group card ------------------------------------------------------------
 
 interface BlockContext {
+  client: AnyClient;
   facts: BuilderFacts;
   config?: FilterBarConfig | undefined;
   datalistId: string;
@@ -126,9 +156,11 @@ interface GroupBlockProps extends BlockContext {
   /** The parent's delete — absent at the root. */
   onDelete?: () => void;
   depth: number;
+  /** The add menu's width — the builder container's. */
+  menuWidth: number;
 }
 
-function GroupBlock({ group, onChange, onDelete, depth, facts, config, datalistId }: GroupBlockProps) {
+function GroupBlock({ group, onChange, onDelete, depth, client, facts, config, datalistId, menuWidth }: GroupBlockProps) {
   const patch = (partial: Partial<Group>): void => onChange({ ...group, ...partial });
   const updateChild = (index: number, child: Child): void => {
     const children = [...group.children];
@@ -165,13 +197,19 @@ function GroupBlock({ group, onChange, onDelete, depth, facts, config, datalistI
     }
     patch({ children: [...group.children, createCondition(entry)] });
   };
-  // The v1 addNestedGroup semantics: the new group inherits the parent's logic.
-  const addNestedGroup = (): void => {
-    patch({ children: [...group.children, { type: "group", logic: group.logic, children: [] }] });
-  };
 
+  // The root level is NOT a group (owner 2026-10-09) — no count label, no
+  // empty placeholder there; those read on nested groups only.
   const nested = depth > 0;
   const menuEntries = filterKindOptionsForConfig(config);
+  /** The add menu's open state — drives the trigger chevron (the dropdown register). */
+  const [addOpen, setAddOpen] = useState(false);
+  const menuItems = menuEntries.map((entry) => ({
+    id: entry.value,
+    icon: entry.icon,
+    label: entry.label,
+    description: entry.description,
+  }));
 
   return (
     <div
@@ -186,27 +224,31 @@ function GroupBlock({ group, onChange, onDelete, depth, facts, config, datalistI
           size="sm"
           aria-label="Group logic"
         />
-        <span className="nt-fb-group__count">
-          {group.children.length === 0
-            ? "Empty group"
-            : `${group.children.length} condition${group.children.length === 1 ? "" : "s"}`}
-        </span>
-        <span className="nt-fb-group__spacer" />
         {nested && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            icon="mdi mdi-close"
-            aria-label="Remove group"
-            title="Remove group"
-            onClick={onDelete}
-          />
+          <>
+            <span className="nt-fb-group__count">
+              {group.children.length === 0
+                ? "Empty group"
+                : `${group.children.length} condition${group.children.length === 1 ? "" : "s"}`}
+            </span>
+            <span className="nt-fb-group__spacer" />
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              icon="mdi mdi-close"
+              aria-label="Remove group"
+              title="Remove group"
+              onClick={onDelete}
+            />
+          </>
         )}
       </div>
       <div className="nt-fb-group__children">
         {group.children.length === 0 ? (
-          <p className="nt-fb-group__empty">No conditions in this group</p>
+          nested ? (
+            <p className="nt-fb-group__empty">No conditions in this group</p>
+          ) : null
         ) : (
           group.children.map((child, index) => {
             if (child.type === "group") {
@@ -217,9 +259,11 @@ function GroupBlock({ group, onChange, onDelete, depth, facts, config, datalistI
                   onChange={(updated) => updateChild(index, updated)}
                   onDelete={() => deleteChild(index)}
                   depth={depth + 1}
+                  client={client}
                   facts={facts}
                   config={config}
                   datalistId={datalistId}
+                  menuWidth={menuWidth}
                 />
               );
             }
@@ -231,9 +275,11 @@ function GroupBlock({ group, onChange, onDelete, depth, facts, config, datalistI
                   onChange={(updated) => updateChild(index, updated)}
                   onDelete={() => deleteChild(index)}
                   depth={depth + 1}
+                  client={client}
                   facts={facts}
                   config={config}
                   datalistId={datalistId}
+                  menuWidth={menuWidth}
                 />
               );
             }
@@ -247,6 +293,7 @@ function GroupBlock({ group, onChange, onDelete, depth, facts, config, datalistI
                 onMoveDown={() => moveChild(index, 1)}
                 index={index}
                 totalSiblings={group.children.length}
+                client={client}
                 facts={facts}
                 datalistId={datalistId}
               />
@@ -255,53 +302,45 @@ function GroupBlock({ group, onChange, onDelete, depth, facts, config, datalistI
         )}
       </div>
       <div className="nt-fb-group__footer">
+        {/* The add menu is the ONE group constructor too ("All of"/"Any of"
+            insert a group with the mode pre-set) — no separate Add group
+            button (owner 2026-10-09). The popup spans the builder container
+            (menuWidth) with auto columns filling it. */}
         <ButtonWithPanel
+          open={addOpen}
+          onOpenChange={setAddOpen}
           customTrigger={
             <>
               <Icon path="mdi mdi-plus" size={0.8} />
               Add condition
+              <Icon
+                path="mdi mdi-chevron-down"
+                size={0.7}
+                className={`nt-fb-add__chev${addOpen ? " nt-fb-add__chev--open" : ""}`}
+              />
             </>
           }
+          buttonClassName="nt-fb-add"
           buttonProps={{ size: "sm" }}
           panelPosition="bottom"
           panelAlignment="start"
-          panelWidth={280}
+          panelWidth={menuWidth}
           showCloseButton={false}
           usePortal
           aria-label="Add condition"
         >
           {(closePanel) => (
-            <div className="nt-fb-menu">
-              {menuEntries.map((entry) => (
-                <button
-                  key={entry.value}
-                  type="button"
-                  className="nt-fb-menu__item"
-                  data-menu-item
-                  onClick={() => {
-                    addEntry(entry.value);
-                    closePanel();
-                  }}
-                >
-                  <Icon path={entry.icon} size={0.8} className="nt-fb-menu__icon" />
-                  <span className="nt-fb-menu__text">
-                    <span className="nt-fb-menu__label">{entry.label}</span>
-                    <span className="nt-fb-menu__desc">{entry.description}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
+            <GridMenu
+              aria-label="Condition kinds"
+              columns="auto"
+              items={menuItems}
+              onSelect={(id) => {
+                addEntry(id as AddMenuEntry);
+                closePanel();
+              }}
+            />
           )}
         </ButtonWithPanel>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          icon="mdi mdi-plus-box"
-          onClick={addNestedGroup}
-        >
-          Add group
-        </Button>
       </div>
     </div>
   );
@@ -314,9 +353,11 @@ interface NotBlockProps extends BlockContext {
   onChange: (not: Not) => void;
   onDelete: () => void;
   depth: number;
+  /** The add menu's width — the builder container's. */
+  menuWidth: number;
 }
 
-function NotBlock({ not, onChange, onDelete, depth, facts, config, datalistId }: NotBlockProps) {
+function NotBlock({ not, onChange, onDelete, depth, client, facts, config, datalistId, menuWidth }: NotBlockProps) {
   const patch = (child: Condition | Group): void => onChange({ ...not, child });
   return (
     <div className="nt-fb-not" style={{ "--nt-fb-depth": depth } as CSSProperties}>
@@ -328,9 +369,11 @@ function NotBlock({ not, onChange, onDelete, depth, facts, config, datalistId }:
             onChange={patch}
             onDelete={onDelete}
             depth={depth}
+            client={client}
             facts={facts}
             config={config}
             datalistId={datalistId}
+            menuWidth={menuWidth}
           />
         ) : (
           <ConditionRow
@@ -339,6 +382,7 @@ function NotBlock({ not, onChange, onDelete, depth, facts, config, datalistId }:
             onDelete={onDelete}
             index={0}
             totalSiblings={1}
+            client={client}
             facts={facts}
             datalistId={datalistId}
           />
@@ -369,6 +413,7 @@ function ConditionRow({
   onMoveDown,
   index,
   totalSiblings,
+  client,
   facts,
   datalistId,
 }: ConditionRowProps) {
@@ -380,7 +425,7 @@ function ConditionRow({
     <div className="nt-fb-condition">
       <Icon path={KIND_ICONS[condition.type]} size={0.75} className="nt-fb-condition__icon" />
       <span className="nt-fb-condition__label">{label}</span>
-      <ConditionBody condition={condition} onChange={onChange} facts={facts} datalistId={datalistId} />
+      <ConditionBody condition={condition} onChange={onChange} client={client} facts={facts} datalistId={datalistId} />
       <span className="nt-fb-condition__spacer" />
       {showReorder && (
         <>
@@ -430,17 +475,20 @@ const CONDITION_LABELS: Record<Condition["type"], string> = {
   coverAsset: "Cover",
   bannerAsset: "Banner",
   aliasedNode: "Alias",
-  linkedTo: "References",
+  linkedTo: "Links to",
+  descendantOf: "Parent is",
 };
 
 function ConditionBody({
   condition,
   onChange,
+  client,
   facts,
   datalistId,
 }: {
   condition: Condition;
   onChange: (condition: Condition) => void;
+  client: AnyClient;
   facts: BuilderFacts;
   datalistId: string;
 }) {
@@ -493,11 +541,44 @@ function ConditionBody({
     case "content":
       return (
         <>
-          <span className="nt-fb-condition__word">contains</span>
+          <select
+            aria-label="Content match"
+            value={condition.op}
+            onChange={(event) =>
+              onChange({ ...condition, op: event.target.value as ContentOp })
+            }
+          >
+            <option value="contains">contains</option>
+            <option value="fts">full-text</option>
+          </select>
           <input
             aria-label="Content"
             value={condition.value}
             onChange={(event) => onChange({ ...condition, value: event.target.value })}
+          />
+        </>
+      );
+    case "linkedTo":
+      return (
+        <>
+          <span className="nt-fb-condition__word">to</span>
+          <NodePickBody
+            nodeId={condition.nodeId}
+            placeholder="Pick a node…"
+            client={client}
+            onPick={(nodeId) => onChange({ ...condition, nodeId })}
+          />
+        </>
+      );
+    case "descendantOf":
+      return (
+        <>
+          <span className="nt-fb-condition__word">is</span>
+          <NodePickBody
+            nodeId={condition.nodeId}
+            placeholder="Pick a parent…"
+            client={client}
+            onPick={(nodeId) => onChange({ ...condition, nodeId })}
           />
         </>
       );
@@ -528,7 +609,11 @@ function ConditionBody({
     default:
       // Probe-path kinds are not buildable here (filterQuery.ts) — render
       // the honest fallback so a foreign AST never breaks the panel.
-      return <span className="nt-fb-condition__word">{condition.type}</span>;
+      return (
+        <span className="nt-fb-condition__word">
+            {(condition as { type: string }).type}
+        </span>
+      );
   }
 }
 
@@ -574,6 +659,48 @@ function PropertyBody({
           type={numeric ? "number" : "text"}
           value={condition.value === undefined || condition.value === null ? "" : String(condition.value)}
           onChange={(event) => onChange({ ...condition, value: event.target.value })}
+        />
+      )}
+    </>
+  );
+}
+
+/** The node-target picker shared by the Links-to / Parent-is rows — a quiet
+ * trigger naming the chosen node, opening the anchored NodeSelector. */
+function NodePickBody({
+  nodeId,
+  placeholder,
+  client,
+  onPick,
+}: {
+  nodeId: string;
+  placeholder: string;
+  client: AnyClient;
+  onPick: (nodeId: string) => void;
+}) {
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const target = nodeId === "" ? undefined : client.getNode(nodeId);
+  return (
+    <>
+      <button
+        type="button"
+        ref={anchorRef}
+        className="nt-fb-nodepick"
+        aria-label="Pick target node"
+        onClick={() => setOpen(true)}
+      >
+        {target !== undefined ? displayNameForSettings(target) || "Untitled" : placeholder}
+      </button>
+      {open && (
+        <NodeSelector
+          client={client}
+          anchorEl={anchorRef.current}
+          onClose={() => setOpen(false)}
+          onAdd={(node) => {
+            setOpen(false);
+            onPick(node.id);
+          }}
         />
       )}
     </>

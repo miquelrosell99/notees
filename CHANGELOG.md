@@ -7,6 +7,39 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-10-09
+
+- **feat(web,query,protocol): the builder's full link/parent wiring — a new
+  `descendantOf` wire condition, links-to + full-text probe support in the
+  transient filter, the GridMenu kit popup, and the root de-grouped.** Owner
+  round (2026-10-09): (1) a **parent-is** condition was missing from the
+  wire grammar entirely — `descendantOf { nodeId }` now matches rows whose
+  ANCESTOR CHAIN (any depth up the parents tree, self excluded) contains the
+  chosen node: additive zod condition in protocol, compiler arm reusing the
+  subtree CTE (`subtree membership minus the anchor`), and a cycle-guarded
+  sync walk in sectionViewResolve (so it evaluates locally, no probe). (2)
+  **links to** (`linkedTo`) and content **full-text** (`fts`) join the
+  builder — the two probe-path leaves now ride useSectionData's probe arm
+  (one membership query per leaf through runQueryAst, intersected with the
+  base rows, mirrored from useSectionViewResolution — the one-evaluation
+  ruling; the last landed probe applies while typing, no flash). (3) The
+  add-condition popup is the new kit **GridMenu** (a global component) with
+  a `columns` prop — `"auto"` fits as many columns as the width allows —
+  and the popup now spans the query-builder container's width, measured via
+  ResizeObserver. (4) The add-condition trigger wears the DROPDOWN register
+  (bordered field + rotating chevron) — it offers a list, it doesn't act;
+  the rule is added to the rosellramos-design-system skill. (5) The root
+  level is not a group: no "Empty group" count, no "No conditions in this
+  group" placeholder, and the standalone **Add group** button is gone (the
+  menu's All-of/Any-of entries are the group constructors). (6) Corner
+  radius reduced at the token level: modals 28 → 12px and default
+  cards/popups 20 → 12px (`card--radius-md` → `--shape-extra-large`; Modal
+  `xl` → `md`) — page cards keep their 20px. Verification: protocol dist
+  rebuilt; query suite green (133/133, four `descendantOf` cases incl.
+  depth-2 chains and the anchor-exclusion); web suite green (the two new
+  builder e2e — Parent-is sync, Links-to probe — plus the registry/menu
+  updates); `docs/usage.md` §Section filters rewritten.
+
 ## 2026-10-08
 
 - **fix(web): native control chrome follows the theme — the property
