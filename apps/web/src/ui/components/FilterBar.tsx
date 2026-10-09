@@ -73,6 +73,7 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
             placeholder="Filter…"
             value={value.text ?? ""}
             onChange={(event) => onChange({ ...value, text: event.target.value })}
+            onClear={() => onChange({ ...value, text: "" })}
           />
         )}
         {showPanelToggle && (

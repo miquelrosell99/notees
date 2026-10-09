@@ -16,11 +16,15 @@ export interface SearchFieldProps extends Omit<InputHTMLAttributes<HTMLInputElem
   label?: string;
   /** Additional CSS class on the wrapper */
   className?: string;
+  /** Clear affordance: with a non-empty `value`, an × renders inside the
+   * right edge and calls this (the host clears its state). */
+  onClear?: (() => void) | undefined;
 }
 
 export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(
-  function SearchField({ icon, label, className = '', 'aria-label': ariaLabel, ...inputProps }, ref) {
+  function SearchField({ icon, label, className = '', 'aria-label': ariaLabel, onClear, ...inputProps }, ref) {
     const id = useId();
+    const hasValue = typeof inputProps.value === 'string' && inputProps.value !== '';
 
     const input = (
       <div className={`search-field ${className}`}>
@@ -35,6 +39,17 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(
           aria-label={ariaLabel ?? label}
           {...inputProps}
         />
+        {hasValue && onClear !== undefined && (
+          <button
+            type="button"
+            className="search-field__clear"
+            aria-label="Clear search"
+            title="Clear search"
+            onClick={onClear}
+          >
+            <Icon path="mdi mdi-close" size="sm" />
+          </button>
+        )}
       </div>
     );
 

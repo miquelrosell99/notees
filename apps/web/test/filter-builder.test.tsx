@@ -215,13 +215,13 @@ describe("the block query builder", () => {
     expect(contentValues(panel)).toEqual(["Alpha", "Beta"]);
 
     // First row: Move down swaps; Move up is disabled at the top.
-    const firstRow = within(panel).getByDisplayValue("Alpha").closest(".nt-fb-condition") as HTMLElement;
+    const firstRow = within(panel).getByDisplayValue("Alpha").closest(".nt-fb-block") as HTMLElement;
     expect(within(firstRow).getByRole("button", { name: "Move up" })).toHaveProperty("disabled", true);
     fireEvent.click(within(firstRow).getByRole("button", { name: "Move down" }));
     expect(contentValues(panel)).toEqual(["Beta", "Alpha"]);
 
     // And back: the second row's Move up swaps it ahead.
-    const alphaRow = within(panel).getByDisplayValue("Alpha").closest(".nt-fb-condition") as HTMLElement;
+    const alphaRow = within(panel).getByDisplayValue("Alpha").closest(".nt-fb-block") as HTMLElement;
     fireEvent.click(within(alphaRow).getByRole("button", { name: "Move up" }));
     expect(contentValues(panel)).toEqual(["Alpha", "Beta"]);
   });
@@ -309,7 +309,7 @@ describe("the block query builder", () => {
     expect(tableRowCount()).toBe(3);
 
     const panel = openPanel(section);
-    addCondition(panel, /^Parent is/);
+    addCondition(panel, /^Parent /);
     pickNode(panel, "Hub");
 
     // The direct child AND the grandchild ride the parents tree; the
@@ -318,6 +318,60 @@ describe("the block query builder", () => {
     expect(within(section).getByText("2 of 3")).not.toBeNull();
     // The sync arm: rows filter on the same render — no probe round happens
     // for the parent-tree condition (the Links-to test owns the probe arm).
+  });
+
+  it("dynamic Links: the target set is a nested query — links to a node matching class + property", async () => {
+    const client = await seedClient();
+    const classId = await seedClass(client, "project");
+    // The TARGET family: a person class with an age property.
+    const personId = await seedClass(client, "person");
+    const ageId = await client.createPropertySchema({ name: "age", type: "number" });
+    await client.setClassProperty(personId, ageId, { sequence: 0 });
+    const elder = await client.createObject({ presentAsMain: true, name: "Elder", classIds: [personId] });
+    await client.setProperty(elder, ageId, 60, 0);
+    // The row side: Linker (classed, links to Elder) and Plain (classed, no link).
+    const linker = await client.createObject({ presentAsMain: true, name: "Linker", classIds: [classId] });
+    await client.createObject({
+      parentId: linker,
+      contentAst: [{ type: "mention", targetNodeId: elder, text: "Elder" }],
+    });
+    await client.createObject({ presentAsMain: true, name: "Plain", classIds: [classId] });
+    const probe = vi.spyOn(client, "runQueryAst").mockResolvedValue({ ids: [linker], rows: [] });
+
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+    const section = classedNodesSection();
+    expect(tableRowCount()).toBe(2);
+
+    const panel = openPanel(section);
+    addCondition(panel, /^Links /);
+    // Switch the block to DYNAMIC mode — the nested query builder appears.
+    fireEvent.click(within(panel).getByRole("radio", { name: "Dynamic — a nested query" }));
+    const nested = panel.querySelector(".nt-fb-block__nested") as HTMLElement;
+    expect(nested).not.toBeNull();
+    // The nested group: person class + age > 50 (the owner's example shape).
+    addCondition(nested, /^Class /);
+    fireEvent.change(within(nested).getByLabelText("Class"), { target: { value: personId } });
+    addCondition(nested, /^Property/);
+    fireEvent.change(within(nested).getByLabelText("Property"), { target: { value: ageId } });
+    // Two blocks ride in the nested group — the Class row's operator select
+    // matches the same label; the Property row's is the second.
+    fireEvent.change(within(nested).getAllByLabelText("Operator")[1]!, { target: { value: "gt" } });
+    fireEvent.change(within(nested).getByLabelText("Value"), { target: { value: "50" } });
+
+    await act(async () => {});
+    console.log("PROBE CALLS:", probe.mock.calls.length, "FIRST:", JSON.stringify(probe.mock.calls[0]?.[0]).slice(0, 400));
+    await waitFor(() => expect(tableRowCount()).toBe(1));
+    // The probe ran with the DYNAMIC condition carrying the nested group verbatim
+    // (it fires per edit — the last call carries the complete nested query).
+    const ast = probe.mock.calls.at(-1)![0] as { root: { children: Array<{ type: string; root?: unknown }> } };
+    const dynamic = ast.root.children.find((child) => child.type === "linkedToQuery");
+    expect(dynamic).toBeDefined();
+    const nestedGroup = (dynamic as { root: { children: Array<{ type: string }> } }).root;
+    expect(nestedGroup.children.map((child) => child.type)).toEqual(["class", "property"]);
+    const table = screen.getAllByRole("table")[0]!;
+    expect(within(table).getByText("Linker")).not.toBeNull();
+    expect(within(table).queryByText("Plain")).toBeNull();
+    await act(async () => {});
   });
 
   it("a Links-to condition rides the runQueryAst probe and intersects with the base rows", async () => {
@@ -339,7 +393,7 @@ describe("the block query builder", () => {
     expect(tableRowCount()).toBe(2);
 
     const panel = openPanel(section);
-    addCondition(panel, /^Links to/);
+    addCondition(panel, /^Links /);
     pickNode(panel, "Target");
 
     await waitFor(() => expect(tableRowCount()).toBe(1));
