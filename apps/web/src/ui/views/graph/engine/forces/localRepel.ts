@@ -15,7 +15,7 @@ export class LocalRepelForce implements ForcePlugin {
     this.engine = engine;
   }
 
-  apply(_alpha: number): void {
+  apply(): void {
     const e = this.engine;
     const N = e.n;
     const cfg = e.config;
@@ -35,6 +35,7 @@ export class LocalRepelForce implements ForcePlugin {
     grid.clear(N);
     for (let i = 0; i < N; i++) grid.insert(i, posX[i]!, posY[i]!);
 
+    const alphas = e.alphaArr;
     for (let k = 0; k < activeCount; k++) {
       const i = activeIdx[k]!;
       const nix = posX[i]!, niy = posY[i]!;
@@ -52,8 +53,8 @@ export class LocalRepelForce implements ForcePlugin {
         const distSafe = Math.max(dist, 4);
         const force = localStr * env / (distSafe * repelRadius);
         const fx = (dx / dist) * force, fy = (dy / dist) * force;
-        ax[i]! += fx; ay[i]! += fy;
-        if (!pin[j]) { ax[j]! -= fx; ay[j]! -= fy; }
+        ax[i]! += fx * alphas[i]!; ay[i]! += fy * alphas[i]!;
+        if (!pin[j]) { ax[j]! -= fx * alphas[j]!; ay[j]! -= fy * alphas[j]!; }
       }
     }
   }

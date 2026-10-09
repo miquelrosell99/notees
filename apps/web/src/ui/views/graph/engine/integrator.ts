@@ -39,7 +39,7 @@ export function integrate(
   const hdt2 = 0.5 * dt * dt;
   const maxVel = cfg.maxVelocity;
   const maxV2 = maxVel * maxVel;
-  const friction = cfg.friction;
+  const drag = cfg.drag;
   const useMass = cfg.useMass === true;
   let totalEnergy = 0;
 
@@ -56,11 +56,13 @@ export function integrate(
       const s = maxVel / Math.sqrt(v2);
       vx *= s; vy *= s;
     }
-    vx *= friction; vy *= friction;
-    // Sleep threshold: model static friction. When speed drops below this,
-    // clamp to zero so the node truly rests instead of drifting forever.
-    // Any force will re-awaken it automatically on the next tick.
-    const SLEEP_V = 1e-4;
+    // Constant dissipative drag. At equilibrium the forces scale to zero with
+    // alpha, so velocity bleeds out and the graph rests at a true force
+    // balance — convergence is measured (the settle gate), not imposed.
+    vx *= drag; vy *= drag;
+    // Denormal-drift guard only: far below any visible motion. Stillness
+    // itself comes from the force balance, not from this clamp.
+    const SLEEP_V = 1e-6;
     if (Math.abs(vx) < SLEEP_V && Math.abs(vy) < SLEEP_V) { vx = 0; vy = 0; }
     posX[i]! += velX[i]! * dt + oax * hdt2;
     posY[i]! += velY[i]! * dt + oay * hdt2;
@@ -70,7 +72,8 @@ export function integrate(
 
   const energy = n > 0 ? totalEnergy / n : 0;
 
-  // Adaptive timestep
+  // Adaptive timestep: shrink on sustained oscillation, recover promptly
+  // once energy is falling again.
   if (energy > state.prevEnergy * 1.1 && energy > 0.01) {
     if (++state.oscillationCounter > 3) {
       state.prevDt = Math.max(cfg.dt * 0.25, state.prevDt * 0.6);
@@ -78,7 +81,7 @@ export function integrate(
     }
   } else {
     state.oscillationCounter = 0;
-    if (state.prevDt < cfg.dt) state.prevDt = Math.min(cfg.dt, state.prevDt * 1.02);
+    if (state.prevDt < cfg.dt) state.prevDt = Math.min(cfg.dt, state.prevDt * 1.5);
   }
   state.prevEnergy = energy;
 

@@ -34,7 +34,7 @@ export class ComponentBubbleForce implements ForcePlugin {
     this.cap = c;
   }
 
-  apply(_alpha: number): void {
+  apply(): void {
     const e = this.engine;
     const N = e.n;
     const compId = e.compIdArr;
@@ -91,12 +91,15 @@ export class ComponentBubbleForce implements ForcePlugin {
     }
 
     // Distribute to member nodes
+    const alphas = e.alphaArr;
     for (let k = 0; k < activeCount; k++) {
       const i = activeIdx[k]!;
       const c = compId[i]!;
       if (cc[c]! <= 0) continue;
-      ax[i]! += cfx[c]! / cc[c]!;
-      ay[i]! += cfy[c]! / cc[c]!;
+      const a = alphas[i]!;
+      if (a <= 0) continue;
+      ax[i]! += cfx[c]! * a / cc[c]!;
+      ay[i]! += cfy[c]! * a / cc[c]!;
     }
   }
 }
