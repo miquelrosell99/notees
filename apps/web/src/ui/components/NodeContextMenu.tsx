@@ -128,7 +128,6 @@ export function NodeContextMenu({
   onExport,
   onShare,
   onPresent,
-  onAddBanner,
   onChangeColor,
   onRemoveFromOwner,
   onDeleted,
@@ -143,8 +142,6 @@ export function NodeContextMenu({
   onShare?: ((pageId: string, name: string) => void) | undefined;
   /** Presentation mode: "Present" decks the page's subtree read-only. */
   onPresent?: ((pageId: string) => void) | undefined;
-  /** The banner upload flow: "Add banner" / "Change banner" (pages only). */
-  onAddBanner?: (() => void) | undefined;
   /** Present for class nodes: "Change color…" opens the swatch row. */
   onChangeColor?: ((x: number, y: number) => void) | undefined;
   /** Overrides the "Remove from this node" action (tags use unassignTag). */
@@ -324,17 +321,6 @@ export function NodeContextMenu({
       label: "Export…",
       icon: "mdi-export",
       onClick: () => onExport(node.id, name),
-    });
-  }
-  // The banner (the bannerAssetId wire field): opens the image-only upload
-  // flow (the page's empty banner affordance rides the same modal). Honest
-  // labeling by the current field value.
-  if (isPage && onAddBanner !== undefined) {
-    items.push({
-      id: "add-banner",
-      label: node.bannerAssetId === null ? "Add banner" : "Change banner",
-      icon: "mdi-panorama",
-      onClick: () => onAddBanner(),
     });
   }
   if (onChangeColor !== undefined) {

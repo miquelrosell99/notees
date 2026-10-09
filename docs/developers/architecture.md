@@ -327,7 +327,9 @@ client hook surface; no WS *client* ships.
   `GET/POST /property-schemas`, `GET /classes[/:id]`,
   `GET /properties/:id/values`; asset upload/download/info with magic-byte sniffing
   (jpeg/png/webp/pdf/epub/audio), size caps (50MB media / 100MB documents), and Range
-  requests. Auth/account routes (`src/routes-auth.ts`, same `/api` prefix): setup,
+  requests. Auth/account routes (`src/routes-auth.ts`, same `/api` prefix): setup
+  (first account only), env-gated signup (`NOTEES_SIGNUP_ENABLED`, default off —
+  404 when disabled, advertised via `GET /server-info`'s `signupEnabled`),
   login/logout/me, workspaces CRUD + `GET /workspaces/:id/export.zip` (markdown zip via
   `@notees/export`: one file per page, manifest, optional assets), API-key management
   (`GET/POST/DELETE /api-keys`, optional per-key scope sets),

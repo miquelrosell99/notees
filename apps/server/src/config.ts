@@ -7,6 +7,9 @@
  *    boot generates a key and persists it to <dataDir>/api_key.txt (0600) so
  *    the operator can recover it; the key is logged once on generation;
  *  - NOTEES_PORT (default 8377), NOTEES_HOST (default 0.0.0.0);
+ *  - NOTEES_SIGNUP_ENABLED (default off): open POST /auth/signup so visitors
+ *    can create their own (non-admin) accounts. Off → the route answers 404,
+ *    the surface does not exist at all (the sonarly pattern);
  *  - NOTEES_CORS_ORIGIN: comma-separated browser origins allowed to call the
  *    API cross-origin (web client served from another origin/port). Absent/empty
  *    (default) sends no CORS headers: same-origin and non-browser clients (CLI)
@@ -36,6 +39,11 @@ export interface ServerConfig {
   maxDocumentBytes: number;
   /** Login attempts per minute per IP (account routes). */
   loginPerMinute: number;
+  /**
+   * Open registration (NOTEES_SIGNUP_ENABLED): POST /auth/signup exists and
+   * creates non-admin accounts. Default false — the route 404s when off.
+   */
+  signupEnabled: boolean;
   /**
    * Browser origins allowed to call the API cross-origin (parsed from
    * NOTEES_CORS_ORIGIN). Empty means no CORS headers are sent at all.
@@ -91,6 +99,12 @@ function intFromEnv(env: NodeJS.ProcessEnv, name: string, fallback: number): num
   return value;
 }
 
+function boolFromEnv(env: NodeJS.ProcessEnv, name: string, fallback: boolean): boolean {
+  const raw = env[name];
+  if (raw === undefined || raw.length === 0) return fallback;
+  return ["1", "true", "yes", "on"].includes(raw.trim().toLowerCase());
+}
+
 /**
  * Parse NOTEES_CORS_ORIGIN: a comma (or whitespace) separated origin list.
  * An entry of `*` becomes the wildcard origin. Absent/empty → no CORS.
@@ -118,6 +132,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig &
     maxMediaBytes: intFromEnv(env, "NOTEES_MAX_MEDIA_BYTES", 50 * 1024 * 1024),
     maxDocumentBytes: intFromEnv(env, "NOTEES_MAX_DOCUMENT_BYTES", 100 * 1024 * 1024),
     loginPerMinute: intFromEnv(env, "NOTEES_LOGIN_PER_MINUTE", 10),
+    signupEnabled: boolFromEnv(env, "NOTEES_SIGNUP_ENABLED", false),
     corsOrigins: parseCorsOrigins(env.NOTEES_CORS_ORIGIN),
   };
 }
