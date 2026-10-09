@@ -483,7 +483,7 @@ describe("ExportPageModal", () => {
     await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
 
     fireEvent.click(screen.getByRole("radio", { name: /^pdf$/i }));
-    // Layout cards + the Options page-size dropdown feed the engine options.
+    // The Options layout radios + page-size dropdown feed the engine options.
     fireEvent.click(screen.getByRole("radio", { name: /^essay$/i }));
     fireEvent.click(screen.getByRole("button", { name: /page size/i }));
     fireEvent.click(screen.getByRole("button", { name: /^letter$/i }));

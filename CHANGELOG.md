@@ -9,6 +9,53 @@ predating this file.
 
 ## 2026-10-09
 
+- **fix(web): the PDF's visual regressions from the app-chrome slice — no
+  more double bullets, pills at deterministic size — and the export modal's
+  settings rows look like the rest of the UI (new kit `Radio` primitive;
+  layout choice moved into Options as a radio group; the page-size dropdown
+  constrained to a compact control).** The inline-block row wrapper rendered
+  its own bullet on top of each paragraph's row bullet (two dots per block)
+  — the wrapper lost its dot (the block rows keep theirs). The class pill
+  could blow up to a tall stretched box (text pinned top-left): the pill now
+  has a deterministic height from the theme type metrics, centered content,
+  and `alignSelf: flex-start`. The modal side: the PDF layout cards row
+  retired in favor of a kit `Radio` group inside the collapsible Options
+  section (alongside the page-size `Dropdown`, which the kit styled at
+  width:100% — now constrained to `max-content`), one settings surface like
+  every other modal; `Dropdown` gained an `ariaLabel` forward and
+  `Radio`/`Radio.css` join the kit with a catalog entry in
+  `ui-primitives.md`. Verified: web export suites green (50 specs incl. the
+  layout-radio flow), css-token-drift gate green.
+
+- **feat(web): the nodeview properties panel is renamed "Metadata", and the
+  aliases affordance moves from the title row into the panel as its first
+  section — an "Aliases:" node list (pill per alias, × clears, "+ Add alias"
+  links a new one).** (1) Rename: the side-panel section header and the
+  in-flow compact section read "Metadata N" now (the count still covers
+  property rows only); identifiers, CSS hooks (`.nt-properties-panel`,
+  `.nt-props-sidebar*`), and the palette's "Properties" search scope are
+  unchanged. (2) Aliases relocation: the title-row `AliasesButton` (count
+  button + popup with NAVIGATE/Add) is retired; a new `AliasesRow`
+  (`MetadataSection.tsx`, exported next to TagsRow) renders at the TOP of
+  both the sidebar and the in-flow section — the TagsRow composition reusing
+  the shared `NodePill` + `AddPill` + `NodeSelector` primitives (NodePills
+  itself stays class-scoped: its picker, color-chain resolution, and removal
+  locks are class semantics). Each alias is a pill whose × clears THE
+  ALIAS's own `aliasedNodeId` (the new removal path — the popup had none);
+  "+ Add alias" keeps the backward write (the picked node's field becomes
+  the active node, guard-validated, already-aliased nodes filtered out); the
+  pill click keeps the RAW bypass (opens the alias's OWN view — the retired
+  popup's NAVIGATE contract) via a new optional `onOpenPageRaw` plumbed
+  through PropertiesSection/PropertiesSidebar from PageView; the row
+  subscribes for freshness like the old button did. Pages only: the row
+  renders null for blocks (BlockRow's hideWhenEmpty usage gains no chrome).
+  `PageHeaderChrome` drops the retired `onOpenPageRaw` prop. Verified:
+  node-aliases suite green (list/bypass/backward-write/filter/×-removal
+  specs rewritten onto the row), properties-panel/block-metadata/pickers/
+  asset-attachments/dates/property-view/asset-annotations/recurrence/
+  property-owner-rulings header assertions updated to "Metadata", web
+  typecheck + full suite green.
+
 - **feat(web,export): the PDF carries the app chrome (outliner bullets, the
   row's class pills on the far right, node icons on mention chips), the
   "Show type labels" option is now "Show classes" and renders colored pills,
