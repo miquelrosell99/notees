@@ -560,10 +560,10 @@ select:focus-visible {
   min-width: 0;
 }
 
-/* The nodeview top bar: the properties/context collapse toggles and the
-   classes pills on the left, the view-mode switcher + node menu on the
-   right, over a divider border like the sidebar's. The divider runs to the
-   column's right edge; on the left it starts at the column edge (no
+/* The nodeview top bar: the properties collapse toggle and the classes
+   pills on the left, the view-mode switcher + context toggle + node menu on
+   the right, over a divider border like the sidebar's. The divider runs to
+   the column's right edge; on the left it starts at the column edge (no
    crossing into the sidebar), and the vertical rhythm is balanced. */
 .nt-node-topbar {
   display: flex;

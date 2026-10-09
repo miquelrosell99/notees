@@ -42,9 +42,9 @@ type AnyClient = WorkspaceClient | WorkerClient;
 
 /**
  * NodeTopbar — the panelled main layout's pinned top row (the content
- * column's bar): the two panel collapse toggles (properties left, context
- * right) and the classes pills on the left, the host's chromeRight (the
- * blocks view switcher + the "…" node menu) on the right, over a full-width
+ * column's bar): the properties collapse toggle and the classes pills on
+ * the left; on the right the host's blocks view switcher, the context
+ * collapse toggle, and the "…" node menu — in that order, over a full-width
  * divider border like the sidebar's.
  */
 export function NodeTopbar({
@@ -55,7 +55,8 @@ export function NodeTopbar({
   onToggleSidePanel,
   contextPanelCollapsed,
   onToggleContextPanel,
-  chromeRight,
+  chromeModes,
+  chromeMenu,
   onOpenPage,
 }: {
   client: AnyClient;
@@ -65,7 +66,8 @@ export function NodeTopbar({
   onToggleSidePanel: () => void;
   contextPanelCollapsed: boolean;
   onToggleContextPanel: () => void;
-  chromeRight: ReactNode;
+  chromeModes: ReactNode;
+  chromeMenu: ReactNode;
   onOpenPage?: ((pageId: string) => void) | undefined;
 }) {
   return (
@@ -78,25 +80,26 @@ export function NodeTopbar({
         title={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
         onClick={onToggleSidePanel}
       >
-        <Icon path="mdi-page-layout-sidebar-left" size={1} />
-      </button>
-      <button
-        type="button"
-        className="nt-icon-btn"
-        aria-label={contextPanelCollapsed ? "Show context panel" : "Hide context panel"}
-        aria-pressed={!contextPanelCollapsed}
-        title={contextPanelCollapsed ? "Show context panel" : "Hide context panel"}
-        onClick={onToggleContextPanel}
-      >
-        <Icon path="mdi-page-layout-sidebar-right" size={1} />
+        <Icon path="mdi-tune-variant" size={1} />
       </button>
       <div className="nt-node-topbar__classes">
         <ClassesRow client={client} nodeId={nodeId} classIds={classIds} onOpenPage={onOpenPage} />
       </div>
       <span className="nt-node-topbar__spacer" aria-hidden="true" />
-      {chromeRight !== undefined && (
-        <div className="nt-node-topbar__right">{chromeRight}</div>
-      )}
+      <div className="nt-node-topbar__right">
+        {chromeModes}
+        <button
+          type="button"
+          className="nt-icon-btn"
+          aria-label={contextPanelCollapsed ? "Show context panel" : "Hide context panel"}
+          aria-pressed={!contextPanelCollapsed}
+          title={contextPanelCollapsed ? "Show context panel" : "Hide context panel"}
+          onClick={onToggleContextPanel}
+        >
+          <Icon path="mdi-dock-right" size={1} />
+        </button>
+        {chromeMenu}
+      </div>
     </div>
   );
 }

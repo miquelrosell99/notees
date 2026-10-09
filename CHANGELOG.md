@@ -9,6 +9,23 @@ predating this file.
 
 ## 2026-10-09
 
+- **fix(web): honest icons for the chrome toggles — the top bar's sidebar
+  buttons and the nodeview panel toggles stop posing as layout diagrams.**
+  (1) The app top bar's left-sidebar button is a plain hamburger
+  (`mdi-menu`, the affordance the header doc always claimed) and its
+  right-sidebar button is a stack of cards (`mdi-cards-outline`) — the rail
+  hosts workspace cards. (2) The nodeview top bar's properties-panel toggle
+  is a properties affordance (`mdi-tune-variant`) and its context-panel
+  toggle a docked-right-panel (`mdi-dock-right`); the context toggle moves
+  from the bar's left cluster to the right cluster, between the blocks view
+  switcher and the "…" node menu (owner: it belongs with the chrome it
+  reveals). `chromeRight` splits into `chromeModes` + `chromeMenu` (NodeView
+  → PageView → NodeTopbar) so NodeTopbar can interleave the toggle; the
+  compact corner renders the two back to back as before. Verified: `pnpm
+  typecheck`; the web vitest suite — the panel/context/modals suites (57
+  tests) included, all green except the parallel session's two in-flight
+  graph failures. Display-state only — no model/wire change, no fixtures.
+
 - **feat(web): the block tree's vertical indent line is itself a collapse
   control — click the line to fold the direct children of the block it starts
   from (the v1 gesture), and the bullet stops riding low.** (1) Every

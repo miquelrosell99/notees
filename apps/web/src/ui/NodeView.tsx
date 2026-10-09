@@ -12,8 +12,9 @@
  * cascade.
  *
  * The shell also owns the card's chrome-right cluster: pages get the blocks
- * view switcher + the "…" node menu (rendered by PageView — in the nodeview
- * top bar when panelled, else the absolute corner); class/block views keep
+ * view switcher + the "…" node menu as two pieces (rendered by PageView —
+ * in the nodeview top bar when panelled, with the context-panel toggle
+ * between them, else the absolute corner); class/block views keep
  * just the "…" menu in the absolute corner.
  *
  * Surfaces: main (default) · workspace card (compact layout via
@@ -121,24 +122,38 @@ export function NodeView({
   const pageView = !node.isClass && !rendersAsInlineBlock(node);
   /**
    * The card's top-right chrome: pages get the blocks view switcher + the
-   * "…" node menu (rendered by PageView — in the nodeview top bar when
-   * panelled, else the absolute corner); class/block views keep just the
-   * "…" menu in the absolute corner. The preview surface carries none.
+   * "…" node menu as two pieces (rendered by PageView — in the nodeview top
+   * bar when panelled, with the context-panel toggle between them, else the
+   * absolute corner); class/block views keep just the "…" menu in the
+   * absolute corner. The preview surface carries none.
+   */
+  const chromeModes =
+    pageView && cornerMenu && !preview ? (
+      <div className="nt-node-view__modes" role="group" aria-label="Blocks view">
+        <ViewToolbar modes={BLOCKS_VIEW_MODES} value={blocksMode} onChange={setBlocksMode} />
+      </div>
+    ) : undefined;
+  const chromeMenu =
+    pageView && cornerMenu && !preview ? (
+      <NodeMenuButton
+        client={client}
+        node={node}
+        onOpenNode={(id) => onOpenNode?.(id)}
+        onPresent={onPresent}
+        onDeleted={onDeleted}
+        shareTarget={shareTarget}
+      />
+    ) : undefined;
+  /**
+   * The compact layout's corner renders the two pieces back to back; the
+   * panelled NodeTopbar renders them with the context-panel toggle between
+   * (view switcher · context toggle · "…").
    */
   const chromeRight =
-    pageView && cornerMenu && !preview ? (
+    chromeModes !== undefined && chromeMenu !== undefined ? (
       <>
-        <div className="nt-node-view__modes" role="group" aria-label="Blocks view">
-          <ViewToolbar modes={BLOCKS_VIEW_MODES} value={blocksMode} onChange={setBlocksMode} />
-        </div>
-        <NodeMenuButton
-          client={client}
-          node={node}
-          onOpenNode={(id) => onOpenNode?.(id)}
-          onPresent={onPresent}
-          onDeleted={onDeleted}
-          shareTarget={shareTarget}
-        />
+        {chromeModes}
+        {chromeMenu}
       </>
     ) : undefined;
   const view = rendersAsInlineBlock(node) ? (
@@ -173,7 +188,8 @@ export function NodeView({
       preview={preview}
       blocksMode={blocksMode}
       onBlocksModeChange={setBlocksMode}
-      chromeRight={chromeRight}
+      chromeModes={chromeModes}
+      chromeMenu={chromeMenu}
       globalShortcuts={globalShortcuts}
     />
   );
