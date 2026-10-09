@@ -9,6 +9,28 @@ predating this file.
 
 ## 2026-10-09
 
+- **fix(web): block-row property icons ride the bullet's first line —
+  never centered against a multi-line block.**
+  Owner 2026-10-09: the value-display icon groups (the schema "bullet" /
+  "inline" display positions, the Logseq-DB "beginning of the block")
+  carried `align-self: center` in a baseline-aligned row, so on a block
+  whose content wraps they sank to the vertical middle of the whole block
+  — 32px below the bullet on a 5-line block — instead of staying with the
+  bullet on the first line. The groups now baseline-align through the
+  `.nt-bullet::before` strut pattern (6px strut + the bullet's shared −2px
+  optical lift), landing the 20px icon buttons exactly on the dot's
+  geometry; the inline group's content-hugging position is unchanged.
+  Same-pass robustness guard: a zero-width content floor
+  (`.nt-block-row > .nt-block-content { min-width: 8ch }`, zero kept
+  inside `.nt-blocktable-row` cells) — in a column narrower than the row
+  chrome (grip + icons + right-end) the content used to collapse to 0
+  width and the pre-wrap text exploded into one word per line, stretching
+  the row to ~2000px and dragging the centered icons with it.
+  Verified: geometry probe on a seeded Task block (bullet-display
+  boolean + inline-display select + backlink) — icon centers read equal
+  to the bullet center (309.4 vs 309.4) at both 1500px and 760px
+  viewports; web suites green.
+
 - **feat(web): Backlinks and Unlinked mentions are two normal
   NodeCollection sections — the references tab strip is retired.**
   Owner 2026-10-09: below the page content the two references leave the
