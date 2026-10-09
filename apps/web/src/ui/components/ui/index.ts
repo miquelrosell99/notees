@@ -19,6 +19,9 @@ export { ConfirmationModal } from './ConfirmationModal.js';
 export { ContextMenu } from './ContextMenu.js';
 export type { ContextMenuItem, ContextMenuAnchor, ContextMenuProps } from './ContextMenu.js';
 
+export { GridMenu } from './GridMenu.js';
+export type { GridMenuItem, GridMenuProps } from './GridMenu.js';
+
 export { Badge } from './Badge.js';
 export type { BadgeProps, BadgeVariant, BadgeSize } from './Badge.js';
 

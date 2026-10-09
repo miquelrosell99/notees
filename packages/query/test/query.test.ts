@@ -850,6 +850,37 @@ describe.each(adapters)("$name", ({ makeStore }) => {
     });
   });
 
+  describe("descendantOf (ancestor-chain membership)", () => {
+    it("every row inside the anchor's parents tree matches — at any depth; the anchor itself does not", () => {
+      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "descendantOf", nodeId: FRANCE }]));
+      // France's subtree minus France: Paris (depth 1), its block (depth 2),
+      // and the two blocks directly under France.
+      expect(ids.sort()).toEqual([PARIS, FR_BLOCK, PARIS_BLOCK, OUT_BLOCK].sort());
+    });
+
+    it("a single-level chain matches exactly the children", () => {
+      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "descendantOf", nodeId: PARIS }]));
+      expect(ids).toEqual([PARIS_BLOCK]);
+    });
+
+    it("the anchor's direct child matches; the anchor itself does not", () => {
+      const { ids } = runQuery(worldStore(), ast(entire, [{ type: "descendantOf", nodeId: LONE }]));
+      expect(ids).toEqual([LONE_BLOCK]);
+    });
+
+    it("composes with the other conditions", () => {
+      const { ids } = runQuery(
+        worldStore(),
+        ast(entire, [
+          { type: "descendantOf", nodeId: FRANCE },
+          { type: "presentAsMain", presentAsMain: false },
+        ]),
+      );
+      // Only the inline blocks under France's tree.
+      expect(ids.sort()).toEqual([FR_BLOCK, PARIS_BLOCK, OUT_BLOCK].sort());
+    });
+  });
+
   describe("composition (and / or / not)", () => {
     it("and intersects", () => {
       const { ids } = runQuery(
