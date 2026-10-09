@@ -104,6 +104,11 @@ export class EngineController {
     else this.send({ type: "setConfig", config: physics });
   }
 
+  /** Pause/resume the worker's self-ticking clock (main-thread stepping is gated by the render loop). */
+  setPaused(paused: boolean): void {
+    if (this.worker !== null) this.send({ type: paused ? "pause" : "resume" });
+  }
+
   /** Advance one physics step (main-thread path only; the worker self-ticks). */
   step(): void {
     this.mainThread?.step();
@@ -128,7 +133,7 @@ export class EngineController {
     if (this.mainThread !== null) {
       this.mainThread.pinNode(nodeId);
     } else {
-      this.send({ type: "dragStart", nodeId });
+      this.send({ type: "dragStart", nodeUuid: nodeId });
     }
   }
 
@@ -136,7 +141,7 @@ export class EngineController {
     if (this.mainThread !== null) {
       this.mainThread.moveNode(nodeId, x, y);
     } else {
-      this.send({ type: "dragMove", nodeId, x, y });
+      this.send({ type: "dragMove", nodeUuid: nodeId, x, y });
     }
   }
 
@@ -144,13 +149,13 @@ export class EngineController {
     if (this.mainThread !== null) {
       this.mainThread.unpinNode(nodeId);
     } else {
-      this.send({ type: "dragEnd", nodeId });
+      this.send({ type: "dragEnd", nodeUuid: nodeId });
     }
   }
 
   pin(nodeId: string): void {
     if (this.mainThread !== null) this.mainThread.pinNode(nodeId);
-    else this.send({ type: "pin", nodeId });
+    else this.send({ type: "pin", nodeUuid: nodeId });
   }
 
   dispose(): void {
