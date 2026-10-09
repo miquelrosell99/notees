@@ -103,6 +103,10 @@ function treeNeedsProbe(children: QueryAst["root"]["children"]): boolean {
 
 function leafNeedsProbe(condition: QueryAst["root"]["children"][number]): boolean {
   if (condition.type === "linkedTo") return true;
+  // Dynamic target sets resolve through the query channel (edges + the
+  // nested group's own leaves) — never locally.
+  if (condition.type === "linkedToQuery") return true;
+  if (condition.type === "descendantOfQuery") return true;
   if (condition.type === "content" && condition.op === "fts") return true;
   return false;
 }
@@ -339,7 +343,9 @@ function conditionMatches(ctx: EvalContext, condition: QueryAst["root"]["childre
       // same read the compiler's property arm makes in the derived store.
       return propertyMatches(ctx, node.id, condition);
     case "createdAfter":
-    case "createdBefore": {
+    case "createdBefore":
+    case "updatedAfter":
+    case "updatedBefore": {
       const key = `${condition.type}:${condition.timestamp}`;
       let bound = ctx.bounds.get(key);
       if (bound === undefined) {
@@ -349,8 +355,10 @@ function conditionMatches(ctx: EvalContext, condition: QueryAst["root"]["childre
         );
         ctx.bounds.set(key, bound);
       }
-      if (node.createdAt === null) return false;
-      return condition.type === "createdAfter" ? node.createdAt >= bound : node.createdAt <= bound;
+      const column = condition.type.startsWith("updated") ? node.updatedAt : node.createdAt;
+      if (column === null) return false;
+      const after = condition.type === "createdAfter" || condition.type === "updatedAfter";
+      return after ? column >= bound : column <= bound;
     }
     case "coverAsset":
     case "bannerAsset":
