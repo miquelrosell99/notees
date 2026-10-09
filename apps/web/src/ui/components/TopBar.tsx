@@ -1,6 +1,6 @@
 /**
  * TopBar — the slim, transparent shell header in three sections:
- *  LEFT   hamburger (sidebar show/hide at every width), the workspace
+ *  LEFT   dock-left (sidebar show/hide at every width), the workspace
  *         selector (the wordmark's permanent replacement — owner
  *         2026-10-06), and icon-only New + search buttons to its right;
  *         sync status rides the section's end
@@ -124,7 +124,7 @@ export function TopBar({
           aria-pressed={sidebarOpen}
           onClick={onToggleSidebar}
         >
-          <Icon path="mdi-menu" size={1} />
+          <Icon path="mdi-dock-left" size={1} />
         </button>
         {workspaceSwitcher !== undefined ? (
           workspaceSwitcher
@@ -215,7 +215,7 @@ export function TopBar({
           aria-pressed={rightPanelOpen}
           onClick={onToggleRightPanel}
         >
-          <Icon path="mdi-card-multiple-outline" size={1} />
+          <Icon path="mdi-dock-right" size={1} />
         </button>
       </div>
     </header>

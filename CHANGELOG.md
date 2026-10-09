@@ -9,20 +9,79 @@ predating this file.
 
 ## 2026-10-09
 
-- **fix(web): every sidebar/panel toggle wears the dock family
-  (`mdi-dock-left` / `mdi-dock-right`) — owner ruling, recorded in the design
-  system.** The context-panel toggle's `mdi-dock-right` proved the right
-  register: the icon depicts the layout it toggles (a content area with a
-  slim panel docked at the edge), so it reads instantly and the left/right
-  pair forms one family. It replaces today's earlier experiments on the
-  other three toggles — the app top bar's left sidebar (was `mdi-menu`
-  hamburger) and right cards rail (was `mdi-card-multiple-outline`), and the
-  nodeview bar's properties toggle (was `mdi-tune-variant` sliders). The
-  rule is recorded in the `rosellramos-design-system` skill
-  (`references/dos-donts.md`: approved dock family, rejected
-  hamburger/layout-diagram/cards icons for panel toggles). Verified: `pnpm
-  typecheck`; the web vitest panel/context suites green. Display-state only —
-  no model/wire change.
+- **feat(web): the properties panel's value cells redraw — single-value node
+  and date properties are full-width selection dropdowns (the selected node
+  rides the content area as a read-only block row, never a pill), multi-value
+  node pills share the nodeview classes list's pill element tinted with the
+  linked node's effective color, empty cells keep the full width with honest
+  placeholders, and the sidebar separates its properties with hairlines.**
+  (1) `NodePills`' pill shell is extracted into a shared `NodePill` element
+  (`apps/web/src/ui/components/NodePills.tsx`) — the class pills render
+  through it unchanged, and multi-value node-typed property cells now render
+  their value pills through it too, colored by `effectiveNodeColor` of the
+  linked node (own color, else its classes') with the same hover-reveal ×,
+  label-click-opens-node, and broken-reference dashed chip. (2) Single-value
+  (`multi: false`) node-typed and date properties render the new
+  `PropertySelectCell` (`MetadataSection.tsx`): a full-width dropdown trigger
+  whose content area shows the selected node as a READ-ONLY block row via
+  `ReferenceSubtree` (date values show the date node's display name — a raw
+  block row would leak the chain's compact YYYYMMDD storage label, the leak
+  `dateDisplay.ts` exists to prevent); empty shows the muted "Select"
+  placeholder; clicking opens the same ported pickers as before
+  (NodeSelector / DatePickerPopup, now anchored at the trigger); a clear
+  affordance unsets the authored slot; re-picking replaces the slot in place;
+  the date repeat picker, link qualifiers, and asset annotations ride the
+  cell's trailing chrome. The trigger is a `div[role=button]`, not a native
+  button — the content area hosts the block row's own interactive bits,
+  which a `<button>` cannot legally wrap. (3) Empty value cells keep the
+  value column's full width so they read as empty fields: single-value node /
+  date cells show the "Select" placeholder, and a bound-but-empty text
+  property renders the full-width "Type something" placeholder input (typing
+  authors the first carrier block). (4) The properties sidebar separates its
+  properties with a hairline under each row (the previous "no horizontal
+  rules" ruling is superseded). Multi-value rows keep their pills + "+ Add"
+  affordance unchanged; the asset-typed row (Upload / Link list) is
+  untouched. No model/wire change — display-state only, no fixtures. Verified
+  by the web vitest suites (7 files, 82 tests around the panel re-run green;
+  full gate green) including new coverage: the single-value dropdown's
+  read-only block row + clear, the multi-pill effective-color tint, and the
+  empty-text placeholder. Docs: `docs/ux.md`'s Properties paragraph.
+
+- **fix(web,domain): the Highlight system class renders its icon again — the
+  seed carried a name that never existed in MDI.** `SYSTEM_CLASS_ICONS.highlight`
+  was `mdiFormatHighlight`; the real Material Design Icons name is
+  `mdiFormatColorHighlight` (verified against the shipped sprite and the
+  upstream project — `format-highlight` 404s there). Every other system class
+  icon resolves; only Highlight's silently rendered nothing. Two layers:
+  the seed now carries the real name (new workspaces, any future deploy),
+  and the web `Icon` resolver — whose contract is already normalizing legacy
+  stored values (JSON-wrapped rows, `mdi mdi-` prefixes) — gains a
+  `LEGACY_ALIASES` table mapping `format-highlight` → `format-color-highlight`
+  so every existing workspace's stored rows render without a log migration
+  (the seed/self-heal paths are existence-checked and never rewrite an
+  existing class). Verified: new `apps/web/test/icon-resolve.test.tsx` (6
+  specs: camel/kebab/`mdi mdi-` forms, the alias both prefixed and bare, JSON
+  unwrap, emoji passthrough, empty), domain package 74 green, `pnpm
+  typecheck` green. No wire/model change — no fixtures, no lockstep.
+
+- **fix(web): the panel/sidebar toggles get honest icons and a visible
+  register — owner rulings, recorded in the design system.** The icon
+  depicts WHAT the panel is: the app top bar's left sidebar and right cards
+  rail wear the dock family (`mdi-dock-left` / `mdi-dock-right` — a content
+  area with the panel docked at the edge, the pair one family, replacing
+  today's earlier `mdi-menu` hamburger and `mdi-card-multiple-outline`
+  experiments); the nodeview bar's properties toggle is a dotted list
+  (`mdi-format-list-bulleted`, the panel's row-per-property shape) and its
+  context toggle an info mark (`mdi-information-outline`). Both nodeview
+  toggles also move from the borderless `nt-icon-btn` to the kit `Button
+  variant="outline"` (size sm) — a persistent panel toggle is visible chrome,
+  so the border stays; the `active` state carries the open/pressed signal
+  (`aria-pressed` unchanged). The rules land in the `rosellramos-design-system`
+  skill (`references/dos-donts.md`: the what-the-panel-is icon rule + the
+  outline register for persistent toggles, and the rejected
+  hamburger/layout-diagram/cards icons). Verified: `pnpm typecheck`; the web
+  vitest panel/context suites green. Display-state only — no model/wire
+  change.
 
 - **fix(web,export): the export block zone loads child blocks recursively and
   excludes main nodes at every level — and a page parented under a block is
