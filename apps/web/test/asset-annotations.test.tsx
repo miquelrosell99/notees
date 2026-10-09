@@ -177,11 +177,15 @@ function annotationSection(): HTMLElement {
   return header.closest("section")!;
 }
 
-/** Enter edit mode on the nth block (document order) and return its editor. */
-function clickIntoBlock(container: HTMLElement, index: number): HTMLElement {
-  const contents = container.querySelectorAll<HTMLElement>(".nt-block-content");
-  const target = contents[index];
-  if (target === undefined) throw new Error(`no .nt-block-content at index ${index}`);
+/** Enter edit mode on the block whose content reads `text` and return its editor. */
+function clickIntoBlock(container: HTMLElement, text: string): HTMLElement {
+  // Located by content, not document order: the properties panel's
+  // single-value select cells render read-only block rows of their own, so
+  // panel rows may precede the body blocks.
+  const target = [...container.querySelectorAll<HTMLElement>(".nt-block-content")].find(
+    (el) => el.textContent === text,
+  );
+  if (target === undefined) throw new Error(`no .nt-block-content reading ${JSON.stringify(text)}`);
   fireEvent.click(target);
   const editor = target.querySelector<HTMLElement>(".nt-block-text");
   if (editor === null) throw new Error("editor did not mount after click");
@@ -310,7 +314,7 @@ describe("Asset annotations (highlight class)", () => {
     // The annotation opens as an ordinary page; the outliner renders the note.
     const { container } = render(<PageView client={client} pageId={annotationId} />);
     expandProperties();
-    const editor = clickIntoBlock(container, 0);
+    const editor = clickIntoBlock(container, "first draft");
     typeInto(editor, "revised note");
     fireEvent.blur(editor);
 
