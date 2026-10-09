@@ -9,6 +9,18 @@ predating this file.
 
 ## 2026-10-09
 
+- **fix(web,export): the export block zone loads child blocks recursively and
+  excludes main nodes at every level — and a page parented under a block is
+  hoisted into the child-page list instead of silently dropped.** Verified
+  the semantics across every export path: the markdown bundle nests inline
+  blocks to arbitrary depth in the page file (pinned by a package spec) with
+  child pages filed separately, never as bullets; the PDF body recurses the
+  inline zone with main nodes filtered per level (pinned by a component
+  spec), and its end list now walks through inline blocks for main
+  descendants (`childPagesOf`) so a page nested under a block still appears
+  as a titled entry instead of vanishing between the zones. Verified:
+  packages/export 236 tests green, web export-pdf 16 green.
+
 - **feat(web,store): the graph view's v1 register, 1:1 — the settings
   popover, four node-sizing modes with the radius slider and link direction,
   mass accumulation in the engine, split journal visibility, multi-select

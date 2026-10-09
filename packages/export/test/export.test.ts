@@ -627,3 +627,50 @@ describe("link/asset rewriting hooks (multi-file delivery)", () => {
     expect(document.assetRefs).toEqual([ASSET_ID, EMBED_ASSET, CHILD_ASSET]);
   });
 });
+
+describe("block-zone recursion (owner 2026-10-09): child blocks load recursively, main nodes stay out of the block zone", () => {
+  it("nests inline blocks to arbitrary depth in the page file and never a main node among them", () => {
+    const ROOT = "aaaaaaaa-0000-4000-8000-000000000001";
+    const B1 = "bbbbbbbb-0000-4000-8000-000000000002";
+    const B2 = "bbbbbbbb-0000-4000-8000-000000000003";
+    const B3 = "bbbbbbbb-0000-4000-8000-000000000004";
+    const CH = "cccccccc-0000-4000-8000-000000000005";
+    const SUB = "cccccccc-0000-4000-8000-000000000006"; // a page nested under a BLOCK
+    const inline: Record<string, ExportNode[]> = {
+      [ROOT]: [block(B1, [{ type: "text", text: "level one" }])],
+      [B1]: [block(B2, [{ type: "text", text: "level two" }])],
+      // NOTE: the web's childrenOf (blockChildrenOf) only ever yields
+      // inline-block children — a main node never appears here, which is
+      // exactly what this spec pins below.
+      [B2]: [block(B3, [{ type: "text", text: "level three" }])],
+    };
+    // The web bundle collects main children as files of their own
+    // (collectSubtree); childrenOf serves the inline zone only — the
+    // package contract the web's blockChildrenOf implements.
+    const nodes = [
+      page(ROOT, "Book", [{ type: "text", text: "Book" }]),
+      page(CH, "Chapter", [{ type: "text", text: "Chapter" }], { parentId: ROOT }),
+      page(SUB, "Subpage", [{ type: "text", text: "Subpage" }], { parentId: B2 }),
+    ];
+    const ctx: ExportContext = {
+      nameOf: () => undefined,
+      childrenOf: (id) => inline[id] ?? [],
+    };
+    const bundle = bundleMarkdown(nodes, ctx);
+    const rootFile = bundle.files.find((file) => file.path === `${ROOT}.md`);
+    expect(rootFile).toBeDefined();
+    // Every inline level renders, nested, deeper indent per level — the
+    // block zone is fully recursive.
+    expect(rootFile!.content).toContain("- level one");
+    expect(rootFile!.content).toContain("  - level two");
+    expect(rootFile!.content).toContain("    - level three");
+    // Main nodes never appear in the block zone: neither the direct child
+    // page nor the page nested under a block is a bullet in the root file.
+    expect(rootFile!.content).not.toContain("- Chapter");
+    expect(rootFile!.content).not.toContain("- Subpage");
+    // Main nodes are files of their own instead.
+    expect(bundle.files.map((file) => file.path)).toContain(`${CH}.md`);
+    expect(bundle.files.map((file) => file.path)).toContain(`${SUB}.md`);
+    expect(bundle.files.find((file) => file.path === `${CH}.md`)!.content).toContain("# Chapter");
+  });
+});
