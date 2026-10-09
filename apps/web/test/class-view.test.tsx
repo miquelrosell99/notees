@@ -256,7 +256,7 @@ describe("Class View", () => {
     const { container } = render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
 
     // Non-empty schema collapses the section (invites setup, then stays out
-    // of the way — parity with the page's "Properties N").
+    // of the way — parity with the page's "Metadata N").
     fireEvent.click(screen.getByRole("button", { name: /class properties/i }));
     await flushWrites();
 

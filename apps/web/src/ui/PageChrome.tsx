@@ -32,7 +32,6 @@ import { DayPageHeader } from "./components/DayPageHeader.js";
 import { ClassesRow, TagsRow } from "./components/MetadataSection.js";
 import { IconPickerPopup } from "./components/IconPickerPopup.js";
 import { BannerCard, CoverCard } from "./components/PageBanner.js";
-import { AliasesButton } from "./components/AliasesButton.js";
 import { PageFooter } from "./components/PageFooter.js";
 import { BlockRow } from "./BlockRow.js";
 import { Icon } from "./Icon.js";
@@ -123,9 +122,9 @@ export function NodeTopbar({
  * owns the node context menu state. Focus mode suppresses everything but
  * the title; the cover aside renders whenever the page can carry a cover.
  * The full-width banner (the `bannerAssetId` wire field) renders above the
- * whole header section whenever the page can carry one; the title row
- * carries the aliases affordance (every page whose alias-terminal is this
- * page, listed + added from the ALIASED node's own row).
+ * whole header section whenever the page can carry one. (The aliases
+ * affordance retired from this row, owner 2026-10-09 — it rides the
+ * metadata panel's first section now; see AliasesRow.)
  */
 export function PageHeaderChrome({
   client,
@@ -141,7 +140,6 @@ export function PageHeaderChrome({
   coverPossible,
   coverAssetId,
   onOpenPage,
-  onOpenPageRaw,
   onHeaderMenu,
 }: {
   client: AnyClient;
@@ -151,8 +149,8 @@ export function PageHeaderChrome({
   /**
    * Preview surface (the hover preview's NodeView): the header renders —
    * icon, title, tags — but never edits: no icon picker, the title row is
-   * read-only (a click navigates), the aliases/tags machinery and the
-   * context menu stay shut. A trampoline, not an editor.
+   * read-only (a click navigates), the tags machinery and the context menu
+   * stay shut. A trampoline, not an editor.
    */
   preview?: boolean;
   /** Day precision of the page's id, null for every non-date page. */
@@ -168,11 +166,6 @@ export function PageHeaderChrome({
   coverPossible: boolean;
   coverAssetId: string | null;
   onOpenPage?: ((pageId: string) => void) | undefined;
-  /**
-   * The RAW page open (no alias redirect): the aliases UI's NAVIGATE opens
-   * an alias node's OWN view through this. Defaults to onOpenPage.
-   */
-  onOpenPageRaw?: ((pageId: string) => void) | undefined;
   /** Opens the page's node context menu at the pointer position. */
   onHeaderMenu: (x: number, y: number) => void;
 }) {
@@ -285,16 +278,6 @@ export function PageHeaderChrome({
               />
             )}
             </span>
-            {/* The aliases affordance: every page whose alias-terminal is
-                this page, listed + added from the ALIASED node's own title
-                row (null chrome for embedded/focus/preview renders). */}
-            {!embedded && !focusMode && !preview && (
-              <AliasesButton
-                client={client}
-                nodeId={pageId}
-                onOpenPageRaw={(id) => (onOpenPageRaw ?? onOpenPage)?.(id)}
-              />
-            )}
               </>
           )}
         </div>

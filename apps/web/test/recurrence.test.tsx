@@ -275,7 +275,7 @@ describe("CalendarView recurrence", () => {
     const id = await createEvent(client, classId, schemaId, "Review", addDaysIso(today, 5));
 
     render(<PropertiesSection client={client} nodeId={id} onOpenPage={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: /^Properties/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Metadata/ }));
     // The single-value date renders the selection dropdown (owner
     // 2026-10-09); the repeat picker rides the cell's trailing chrome.
     const cell = (await screen.findByRole("button", { name: "Set When" })).closest(

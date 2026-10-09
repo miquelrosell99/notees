@@ -14,11 +14,13 @@
  *  - links keep the alias uuid at authoring — no rewriting; navigation
  *    resolves (the App funnels route every open through resolveAliasOpen,
  *    the client seam over the store's cycle-safe chain walker);
- *  - the aliases UI: the title-row count/button on the main page lists the
- *    aliases (NAVIGATE opens the alias's OWN view — the redirect bypass)
- *    and ADD writes THE SELECTED node's field (the backward write); the
- *    alias's own view carries the "Aliased node" pseudo-property row,
- *    re-pointable and clearable from the alias side;
+ *  - the aliases UI: the "Aliases" row at the TOP of the metadata panel
+ *    (owner 2026-10-09; relocated from the title-row button) lists every
+ *    alias as a pill — the pill opens the alias's OWN view (the RAW bypass)
+ *    and its × clears THE ALIAS's field — and ADD writes THE SELECTED
+ *    node's field (the backward write); the alias's own view carries the
+ *    "Aliased node" pseudo-property row, re-pointable and clearable from
+ *    the alias side;
  *  - the page restriction is enforced client-side: the write guard rejects
  *    non-page targets with a visible error, never writing.
  *
@@ -326,8 +328,8 @@ describe("node aliases: page restriction (client-side enforcement)", () => {
   });
 });
 
-describe("node aliases: the aliases UI (the title-row affordance)", () => {
-  it("the main page's title row lists the aliases; NAVIGATE opens the alias's OWN view (bypass)", async () => {
+describe("node aliases: the aliases UI (the metadata panel's Aliases row)", () => {
+  it("the main page's metadata panel lists the aliases as pills; the pill opens the alias's OWN view (bypass)", async () => {
     const client = await seedClient();
     const { aliasId } = await seedAliasPair(client, "Cat", "Cats");
     await flushSync();
@@ -344,18 +346,17 @@ describe("node aliases: the aliases UI (the title-row affordance)", () => {
     );
     await flushSync();
 
-    const trigger = screen.getByRole("button", { name: /Aliases · 1/ });
-    fireEvent.click(trigger);
-    const dialog = screen.getByRole("dialog", { name: "Aliases" });
-    expect(within(dialog).getByText("Cats")).toBeInTheDocument();
-
-    fireEvent.click(within(dialog).getByRole("button", { name: /Navigate/ }));
+    // The row rides the metadata panel's top (the side panel, panelled
+    // layout): the alias names itself on a pill — no title-row button.
+    const row = screen.getByText("Aliases:").closest(".nt-aliases-row") as HTMLElement;
+    expect(row).not.toBeNull();
+    fireEvent.click(within(row).getByRole("button", { name: "Cats" }));
     // The bypass: the RAW open — the alias view, not the redirect.
     expect(onOpenPageRaw).toHaveBeenCalledWith(aliasId);
     expect(onOpenPage).not.toHaveBeenCalled();
   });
 
-  it("ADD picks a node and writes THE SELECTED node's aliasedNodeId (the backward write); already-aliased nodes filter out", async () => {
+  it("ADD picks a node and writes THE SELECTED node's aliasedNodeId (the backward write); already-aliased nodes filter out; the × clears the alias", async () => {
     const client = await seedClient();
     const { mainId, aliasId } = await seedAliasPair(client, "Cat", "Cats");
     const dogId = await client.createObject({ presentAsMain: true, name: "Dog" });
@@ -365,14 +366,14 @@ describe("node aliases: the aliases UI (the title-row affordance)", () => {
     render(<PageView client={client} pageId={mainId} onOpenPage={onOpenPage} />);
     await flushSync();
 
-    fireEvent.click(screen.getByRole("button", { name: /Aliases · 1/ }));
-    const dialog = screen.getByRole("dialog", { name: "Aliases" });
-    fireEvent.click(within(dialog).getByRole("button", { name: /Add alias/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Add alias/ }));
 
     const searchInput = screen.getByLabelText("Search pages…");
-    // The already-aliased "Cats" never appears as a candidate…
+    const picker = screen.getByRole("dialog", { name: "Select node" });
+    // The already-aliased "Cats" never appears as a candidate (the row's
+    // own pill matches the name globally — the assertion is picker-scoped)…
     fireEvent.change(searchInput, { target: { value: "Cats" } });
-    expect(screen.queryByText("Cats")).toBeNull();
+    expect(within(picker).queryByText("Cats")).toBeNull();
     fireEvent.change(searchInput, { target: { value: "Dog" } });
     fireEvent.click(screen.getByText("Dog").closest("button")!);
     await flushSync();
@@ -382,8 +383,19 @@ describe("node aliases: the aliases UI (the title-row affordance)", () => {
     expect(client.getNode(dogId)?.aliasedNodeId).toBe(mainId);
     expect(client.getNode(mainId)?.aliasedNodeId).toBeNull();
     expect(client.getNode(aliasId)?.aliasedNodeId).toBe(mainId);
-    // The count follows on the next render.
-    expect(await screen.findByRole("button", { name: /Aliases · 2/ })).toBeInTheDocument();
+
+    // Both aliases now ride the row as pills (the retired count button is
+    // gone — the list itself is the count).
+    const row = screen.getByText("Aliases:").closest(".nt-aliases-row") as HTMLElement;
+    expect(within(row).getByRole("button", { name: "Cats" })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: "Dog" })).toBeInTheDocument();
+
+    // The × per entry clears THE ALIAS's own field — the removal path.
+    fireEvent.click(within(row).getByRole("button", { name: "Remove alias Dog" }));
+    await flushSync();
+    expect(client.getNode(dogId)?.aliasedNodeId).toBeNull();
+    const rowAfter = screen.getByText("Aliases:").closest(".nt-aliases-row") as HTMLElement;
+    expect(within(rowAfter).queryByRole("button", { name: "Dog" })).toBeNull();
   });
 });
 

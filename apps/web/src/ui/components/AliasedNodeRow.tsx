@@ -13,9 +13,10 @@
  * offers pages only; the guard is the enforcement — client convention,
  * exactly like the render contracts).
  *
- * The ADD direction lives on the OTHER side: the main page's title-row
- * AliasesButton writes THE SELECTED node's field (the backward write) —
- * this row never authors a first alias onto an ordinary page.
+ * The ADD direction lives on the OTHER side: the main page's Aliases row
+ * (the metadata panel's first section, owner 2026-10-09) writes THE
+ * SELECTED node's field (the backward write) — this row never authors a
+ * first alias onto an ordinary page.
  */
 
 import { useRef, useState } from "react";
