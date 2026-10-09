@@ -318,11 +318,15 @@ describe("metadata pickers (ported popups)", () => {
       }),
     ]);
 
-    // The single-value cell renders the selection dropdown (owner 2026-10-09):
-    // the selected node rides the content area as a READ-ONLY block row,
-    // never a pill — and the clear affordance unsets the slot.
+    // The single-value cell renders the selection dropdown (owner
+    // 2026-10-09): the selected node rides the content area as ONE compact
+    // pill — never the node's subtree — and the clear affordance unsets the
+    // slot.
     const rowAfter = screen.getByText("mentor").closest(".nt-props-sidebar__prop, .nt-property-object") as HTMLElement;
-    expect(rowAfter.querySelector(".nt-property-select__blockrow .nt-block--readonly")).not.toBeNull();
+    const pill = rowAfter.querySelector(".nt-property-select .pill");
+    expect(pill).not.toBeNull();
+    expect(pill!.textContent).toContain("Ada");
+    expect(rowAfter.querySelector(".nt-property-select .nt-refblock-tree")).toBeNull();
     expect(within(rowAfter).getByText("Ada")).not.toBeNull();
     fireEvent.click(within(rowAfter).getByRole("button", { name: "Clear mentor" }));
     await flushWrites();
