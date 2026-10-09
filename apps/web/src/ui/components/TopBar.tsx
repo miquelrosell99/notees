@@ -122,7 +122,7 @@ export function TopBar({
           aria-pressed={sidebarOpen}
           onClick={onToggleSidebar}
         >
-          <Icon path="mdi-page-layout-sidebar-left" size={1} />
+          <Icon path="mdi-menu" size={1} />
         </button>
         {workspaceSwitcher !== undefined ? (
           workspaceSwitcher
@@ -213,7 +213,7 @@ export function TopBar({
           aria-pressed={rightPanelOpen}
           onClick={onToggleRightPanel}
         >
-          <Icon path="mdi-page-layout-sidebar-right" size={1} />
+          <Icon path="mdi-cards-outline" size={1} />
         </button>
       </div>
     </header>
