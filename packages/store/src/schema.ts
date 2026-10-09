@@ -24,7 +24,7 @@
 import type { SqliteDB } from "./db.js";
 import { resolveEdgeTarget } from "./edges.js";
 
-export const SCHEMA_VERSION = 17;
+export const SCHEMA_VERSION = 18;
 
 /**
  * The render-path list-reads index: composite for the
@@ -88,13 +88,15 @@ CREATE TABLE IF NOT EXISTS node (
     color TEXT,
     -- Wire node fields (the icon/color precedent): platform-fixed node
     -- fundamentals set via object.update (never object.create) — the asset
-    -- node behind the page cover/banner chrome and the main page a node
-    -- alias points at (many-to-one FROM the alias). NULL = unset; present-
-    -- null on the wire CLEARS. Reference integrity is a read-layer concern
-    -- (the applier maps, it does not validate).
+    -- node behind the page cover/banner chrome, the main page a node
+    -- alias points at (many-to-one FROM the alias), and the page subtitle
+    -- in the core chrome (the Capacities header precedent, max 512 chars).
+    -- NULL = unset; present-null on the wire CLEARS. Reference integrity is
+    -- a read-layer concern (the applier maps, it does not validate).
     cover_asset_id TEXT,
     banner_asset_id TEXT,
     aliased_node_id TEXT,
+    description TEXT,
     is_active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT,
     updated_at TEXT,
@@ -785,5 +787,16 @@ export function migrate(
       update.run(resolveEdgeTarget(db, row.target_id), row.target_id);
     }
     db.exec("UPDATE edge SET resolved_target_id = NULL WHERE target_id IS NULL");
+  }
+  // v17 -> v18: the page-subtitle wire node field (SCHEMA.md "Node structure"
+  // — `description`, the Capacities header precedent) lands as a nullable
+  // node column mapped by object.update. Purely additive; the column guard
+  // keeps the ALTER idempotent for fresh v18 creates (CREATE TABLE IF NOT
+  // EXISTS never alters).
+  if (current < 18) {
+    const nodeColumnsV18 = db.prepare("PRAGMA table_info(node)").all() as { name: string }[];
+    if (!nodeColumnsV18.some((c) => c.name === "description")) {
+      db.exec("ALTER TABLE node ADD COLUMN description TEXT;");
+    }
   }
   db.pragma(`user_version = ${SCHEMA_VERSION}`);}

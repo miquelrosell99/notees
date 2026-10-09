@@ -91,7 +91,7 @@ import { PropertyConvertModal } from "./PropertyConvertModal.js";
 import { PropertyHistoryModal } from "./PropertyHistoryModal.js";
 import { TextPropertyRow } from "./TextPropertyRow.js";
 import { AliasedNodeRow } from "./AliasedNodeRow.js";
-import { aliasedNodeTargetError } from "./aliasProperty.js";
+import { AliasNodePicker } from "./AliasNodePicker.js";
 import "./MetadataSection.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -1735,7 +1735,6 @@ export function AliasesRow({
   onOpenPageRaw?: ((pageId: string) => void) | undefined;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const addButtonRef = useRef<HTMLButtonElement | null>(null);
 
   // Freshness: the cached aliasNodesOf read converges via the client's
@@ -1748,18 +1747,6 @@ export function AliasesRow({
   if (node === undefined || !rendersWithDocumentChrome(node)) return null;
 
   const aliases = client.aliasNodesOf(nodeId);
-
-  /** THE backward write: the picked node's field becomes the ACTIVE node. */
-  const addAlias = async (pickedId: string): Promise<void> => {
-    const targetError = aliasedNodeTargetError(client, pickedId);
-    if (targetError !== null) {
-      setError(targetError);
-      return;
-    }
-    await client.updateObject(pickedId, { aliasedNodeId: nodeId });
-    setPickerOpen(false);
-    setError(null);
-  };
 
   return (
     <div className="node-metadata-row nt-aliases-row">
@@ -1793,21 +1780,12 @@ export function AliasesRow({
         </span>
       </span>
       {pickerOpen && (
-        <NodeSelector
+        <AliasNodePicker
           client={client}
-          searchMode="pages"
-          excludeNodeId={nodeId}
-          canAdd={(candidate) => candidate.aliasedNodeId === null}
+          nodeId={nodeId}
           anchorEl={addButtonRef.current}
           onClose={() => setPickerOpen(false)}
-          searchPlaceholder="Search pages…"
-          onAdd={(picked) => void addAlias(picked.id)}
         />
-      )}
-      {error !== null && (
-        <p role="alert" className="nt-picker-error">
-          {error}
-        </p>
       )}
     </div>
   );

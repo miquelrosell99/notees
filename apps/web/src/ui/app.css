@@ -751,21 +751,28 @@ select:focus-visible {
   line-height: 1;
 }
 
-.page-icon-placeholder {
+/* The Capacities action row: quiet affordances above the title — chrome
+   actions compose the borderless ghost Button, flush left like every
+   header cue. */
+.page-header-actions {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: var(--icon-size-2xl);
-  height: var(--page-icon-placeholder-size);
-  border: var(--border-width-thick) dashed var(--color-outline-variant);
-  border-radius: var(--shape-medium);
-  font-size: var(--font-headline-small);
-  opacity: var(--opacity-0);
-  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+  gap: var(--spacing-1);
+  min-height: var(--height-xs);
 }
 
-.nt-page-header:hover .page-icon-placeholder {
-  opacity: var(--opacity-60);
+/* The page subtitle (the description wire node field): second-level text
+   under the title, quiet like the tags row. */
+.page-header-description {
+  margin: 0;
+  font: var(--font-body-medium);
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+  cursor: text;
+}
+
+.page-header-description-input {
+  margin-bottom: var(--spacing-1);
 }
 
 .nt-page-toolbar {

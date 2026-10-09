@@ -95,7 +95,7 @@ import { CreatedSection } from "./components/CreatedSection.js";
 import { ActivityLogSection } from "./components/ActivityLogSection.js";
 import { ClassPillsList } from "./components/ClassPillsList.js";
 import { pageVariantOf } from "./components/pageVariant.js";
-import { nodeIcon } from "./iconFor.js";
+import { definedNodeIcon } from "./iconFor.js";
 
 import { WorkspaceDragScopeContext } from "./block-dnd.js";
 import { useWorkspaceDndZone } from "./useWorkspaceDnd.js";
@@ -298,8 +298,13 @@ export function PageView({
     rawNode !== undefined && (rendersWithDocumentChrome(rawNode) || rawNode.isClass)
       ? rawNode
       : undefined;
+  /**
+   * The DEFINED icon (own or a class-contributed one — no display-default
+   * fallback): the header hides the icon element entirely when null (the
+   * Capacities precedent; the action row's "Add icon" is the affordance).
+   */
   const headerIcon =
-    page !== undefined ? nodeIcon(page, client.effectiveClassIcons()) : null;
+    page !== undefined ? definedNodeIcon(page, client.effectiveClassIcons()) : null;
   const tree = page !== undefined ? client.getBlockTree(pageId) : [];
   /** The same tree in the view system's input shape (session view state). */
   const blockItems = childQuery(client, pageId);

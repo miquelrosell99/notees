@@ -64,6 +64,9 @@ export interface NodeRow {
   cover_asset_id: string | null;
   banner_asset_id: string | null;
   aliased_node_id: string | null;
+  /** The page subtitle in the core chrome (wire node field, store schema
+   * v18) — plain text, max 512 chars, NULL = unset. */
+  description: string | null;
   is_active: number;
   created_at: string | null;
   updated_at: string | null;

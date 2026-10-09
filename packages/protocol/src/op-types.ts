@@ -87,6 +87,12 @@ export const objectUpdatePayload = z
     coverAssetId: uuid.nullish(),
     bannerAssetId: uuid.nullish(),
     aliasedNodeId: uuid.nullish(),
+    /**
+     * Page subtitle shown in the core page chrome (the Capacities header
+     * precedent): platform-fixed, cardinality-1, plain text — never a
+     * class-bound property. Presence writes, null clears; max 512 chars.
+     */
+    description: z.string().max(512).nullish(),
     /** Canonical wire carrier: base64 incremental CRDT delta. */
     contentDeltaB64: z.string().optional(),
     /** Readable carrier (fixtures, tests, plain-text editor path before the Yjs port). */

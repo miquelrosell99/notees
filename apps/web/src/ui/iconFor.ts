@@ -24,6 +24,26 @@ export function nodeIcon(
   return defaultIconFor(node);
 }
 
+/**
+ * definedNodeIcon — the icon a node carries BY DEFINITION: its own icon, else
+ * the first class (in classIds order, the extends-resolved lookup) that
+ * defines one. NO display-default fallback: the page header hides the icon
+ * element entirely when nothing is defined (the Capacities precedent — the
+ * "Add icon" action row button is the affordance instead), while
+ * lists/mentions keep the generic default via `nodeIcon`.
+ */
+export function definedNodeIcon(
+  node: Pick<ClientNode, "icon" | "classIds">,
+  classesById: ReadonlyMap<string, string | null>,
+): string | null {
+  if (node.icon !== null && node.icon !== "") return node.icon;
+  for (const classId of node.classIds) {
+    const icon = classesById.get(classId);
+    if (icon !== null && icon !== undefined && icon !== "") return icon;
+  }
+  return null;
+}
+
 /** Build the class-id → icon lookup once per render surface. */
 export function classIconMap(
   classes: ReadonlyArray<Pick<ClientNode, "id" | "icon">>,
