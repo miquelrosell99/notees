@@ -8,7 +8,7 @@ await page.addInitScript(([url, t, ws]) => {
   localStorage.setItem("notees.serverUrl", url);
   localStorage.setItem("notees.sessionToken", t);
   localStorage.setItem("notees.workspaceId", ws);
-}, ["http://localhost:8377", token, "3b30e070-039b-47bc-ad0d-2440a2f173c5"]);
+}, ["http://localhost:8377", token, "c491595f-9f94-5ade-a620-e30ed063d8d2"]); // the test workspace (owner rule 2026-10-09 — never the "Notas" default)
 await page.goto(`http://localhost:8378/${process.env.PROBE_PAGE_ID}`, { waitUntil: "commit", timeout: 60_000 });
 await page.waitForTimeout(20000);
 const info = await page.evaluate(() => {
