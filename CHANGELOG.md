@@ -139,9 +139,12 @@ predating this file.
   colors reapply live through `setNodeVisuals`. All graph prefs (incl. class
   colors) persist device-local in the existing per-surface blob — settings
   sync across devices (v1's server-side persistence) is a follow-up
-  proposal. Verified: full gate green (store 457 + web suites incl. the new
-  `graph-sizing` suite and the updated toolbar-composition spec); live-stack
-  probe. Docs: usage.md graph section rewritten to the register.
+  proposal. Verified: the graph + store suites green (store 459 incl. the two
+  new projection specs; web graph suites incl. the new `graph-sizing` suite
+  and the updated toolbar-composition spec — the residual gate reds at ship
+  time were the parallel session's in-flight property-row work, untouched
+  here); live-stack probe on the real 7.5k-node workspace (the settings
+  register renders, search adds to the selection, zero console errors). Docs: usage.md graph section rewritten to the register.
 
 - **fix(web): honest icons for the chrome toggles — the top bar's sidebar
   buttons and the nodeview panel toggles stop posing as layout diagrams.**
