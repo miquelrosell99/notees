@@ -20,6 +20,11 @@
 .select-trigger {
   cursor: pointer;
   width: 100%;
+  /* The trigger is a bare <button>: without this reset the BROWSER default
+     button face shows through (grey headless, blue-tinted on some
+     platforms) — found via a computed-style dump on the export modal. */
+  background: var(--color-surface);
+  color: var(--color-on-surface);
   border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-extra-large);
   transition: 
