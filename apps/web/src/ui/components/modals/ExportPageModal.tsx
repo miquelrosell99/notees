@@ -156,15 +156,34 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
 
   const includeChildPages = optionValues[INCLUDE_CHILD_PAGES_KEY] ?? true;
   const includeEmbedded = optionValues["includeEmbedded"] ?? false;
-  const includeOutline = optionValues["includeOutline"] ?? true;
   const hideEmptyProperties = optionValues["hideEmptyProperties"] ?? true;
   const showTypeLabels = optionValues["showTypeLabels"] ?? false;
 
-  /** Engine options the checkbox rows reach (single-node and batch paths). */
+  /**
+   * Engine options the checkbox rows reach (single-node and batch paths).
+   * The child outline is UNCONDITIONAL (owner 2026-10-09): child blocks are
+   * part of the content — they ride recursively in every export, with main
+   * nodes excluded from the block zone by the engine's childrenOf contract
+   * (they are child pages: files / the PDF end list). The retired
+   * "Include child outline" toggle only ever hid the content's own children
+   * and made no sense.
+   */
   const engineOptions = useMemo(
-    () => ({ includeChildPages, includeEmbedded, includeOutline, hideEmptyProperties, showTypeLabels }),
-    [includeChildPages, includeEmbedded, includeOutline, hideEmptyProperties, showTypeLabels],
+    () => ({ includeChildPages, includeEmbedded, includeOutline: true, hideEmptyProperties, showTypeLabels }),
+    [includeChildPages, includeEmbedded, hideEmptyProperties, showTypeLabels],
   );
+
+  /**
+   * Bumps when the client's cached reads land. The worker client seeds its
+   * cache empty and notifies on fill; without this the first preview ran
+   * before the children cache populated, so child blocks were missing from
+   * the preview until any option toggle forced a re-run.
+   */
+  const [dataVersion, setDataVersion] = useState(0);
+  useEffect(() => {
+    if (!isOpen) return;
+    return client.subscribe(() => setDataVersion((version) => version + 1));
+  }, [isOpen, client]);
 
   /** The PDF engine's bag — the checkbox options + the two PDF-only selects. */
   const pdfEngineOptions = useMemo(
@@ -174,9 +193,12 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
 
   // Recompute the preview whenever the options change. The export engine is
   // synchronous and local; the debounce keeps rapid setting changes from
-  // re-rendering the world per keystroke. The preview is the engine's
-  // markdown projection — it only runs for the markdown card; every other
-  // format shows a static note instead of misleading markdown bytes.
+  // re-rendering the world per keystroke. `dataVersion` rides the deps so a
+  // client notification (the worker's cached reads landing — the first open
+  // can race the children cache) re-runs the preview instead of leaving it
+  // stale until the next toggle. The preview is the engine's markdown
+  // projection — it only runs for the markdown card; every other format
+  // shows a static note instead of misleading markdown bytes.
   useEffect(() => {
     if (!isOpen || effectiveNodeUuids.length === 0) {
       return;
@@ -208,13 +230,15 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
       cancelled = true;
       window.clearTimeout(debounceTimer);
     };
-  }, [isOpen, effectiveNodeUuids, engineOptions, client, formatId]);
+  }, [isOpen, effectiveNodeUuids, engineOptions, client, formatId, dataVersion]);
 
   // PDF preview (P1): render the selected subtree to a blob and show it in
   // an iframe. The engine module is lazily imported (the first import pays
   // the react-pdf + font cost — exactly the code-split boundary); failures
   // fall back to the static note instead of surfacing an error, since the
-  // Export button itself reports real render errors.
+  // Export button itself reports real render errors. `dataVersion` re-runs
+  // the render when the worker's cached reads land (same staleness contract
+  // as the markdown preview).
   useEffect(() => {
     if (!isOpen || formatId !== "pdf" || effectiveNodeUuids.length !== 1) {
       setPdfPreviewUrl(null);
@@ -246,7 +270,7 @@ export function ExportPageModal({ isOpen, onClose, client, nodeUuid, nodeUuids, 
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [isOpen, effectiveNodeUuids, client, formatId, pdfEngineOptions]);
+  }, [isOpen, effectiveNodeUuids, client, formatId, pdfEngineOptions, dataVersion]);
 
   const handleSelectFormat = useCallback((id: WebExportFormatId) => {
     const def = getExportFormat(id);

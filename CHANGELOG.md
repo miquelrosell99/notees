@@ -9,6 +9,26 @@ predating this file.
 
 ## 2026-10-09
 
+- **fix(web): the export modal's child outline is unconditional — the
+  "Include child outline" toggle is gone — and the preview re-runs when the
+  worker's cached reads land.** The reported symptom: child blocks were
+  missing from the markdown preview until the toggle was unchecked and
+  re-checked. Root cause was a race, not the toggle: `WorkerClient.getChildren`
+  seeds its cache EMPTY and fills it async, and the preview effect never
+  re-ran when the fill landed — the first preview of a fresh modal ran
+  against an unpopulated children cache, and only an options change forced a
+  re-run (the re-toggle "fixed" it by accident). The modal now subscribes to
+  the client while open and re-runs both previews (markdown + PDF) on
+  notification. And the toggle itself retired (owner ruling): child blocks
+  are part of the content — they ride recursively in every export with main
+  nodes excluded from the block zone by the engine's childrenOf contract, so
+  a switch that hides the content's own children made no sense; the modal
+  hard-codes `includeOutline: true` (the package option stays for the CLI).
+  Verified: new modal spec drives the race through a stubbed client (empty
+  children → notification → bullets appear, no toggle); the retired-toggle
+  spec asserts the checkbox is gone and the outline survives other option
+  changes; web 1396+30 green, packages/export 236 green.
+
 - **feat(web): the properties panel's value cells redraw — single-value node
   and date properties are full-width selection dropdowns (the selected node
   rides the content area as a read-only block row, never a pill), multi-value
