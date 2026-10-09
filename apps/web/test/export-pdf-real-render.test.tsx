@@ -76,6 +76,7 @@ function doc(): ExportDocument {
         title: "Child",
         presentAsMain: true,
         classIds: [],
+        classNames: [],
         properties: [],
         blocks: [{ kind: "paragraph", spans: [{ kind: "text", text: "child body", marks: [] }] }],
         children: [],

@@ -72,6 +72,8 @@ export interface DropdownProps<T = string> {
   className?: string | undefined;
   /** ID for the container, used for label association */
   id?: string | undefined;
+  /** Accessible name for the trigger (the selected value renders inside) */
+  ariaLabel?: string | undefined;
 }
 
 /**
@@ -98,6 +100,7 @@ export function Dropdown<T = string>({
   emptyContent = 'No options',
   className = '',
   id,
+  ariaLabel,
 }: DropdownProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -226,6 +229,7 @@ export function Dropdown<T = string>({
             size={size}
             clearable={clearable}
             hasValue={hasValue}
+            ariaLabel={ariaLabel}
             aria-invalid={error || undefined}
             aria-describedby={error && errorMessage ? errorId : undefined}
             onClear={handleClear}

@@ -122,6 +122,22 @@
   border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   width: 100%;
+}
+
+/* The page-size select rides the same Options surface as the checkbox rows:
+   label left, compact dropdown right, checkbox-row height. */
+.export-modal__select-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  min-height: 1lh;
+}
+
+.export-modal__select-label {
+  font: var(--font-label-medium);
+  color: var(--color-on-surface);
   box-sizing: border-box;
 }
 

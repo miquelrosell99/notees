@@ -179,11 +179,11 @@ export const EXPORT_OPTION_SPECS: readonly ExportOptionSpec[] = [
   },
   {
     key: "showTypeLabels",
-    label: "Show type labels (class names)",
+    label: "Show classes",
     kind: "boolean",
     default: false,
     appliesTo: ALL_FORMATS,
-    note: "Markdown renders a classNames: frontmatter line; other serializers project their own label scheme from the IR.",
+    note: "Markdown renders a classNames: frontmatter line; chrome renderers (the PDF) draw the class pills with their colors — the row's right-hand column, like the app's list view.",
   },
   {
     key: "pageFormat",

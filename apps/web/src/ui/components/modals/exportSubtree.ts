@@ -60,6 +60,8 @@ import {
 import { rendersAsInlineBlock } from "@notees/domain";
 
 import { displayNameForSettings, displayNameFromClient } from "../../dateDisplay.js";
+import { resolveCssColor } from "../ui/colorPresets.js";
+import { nodeIcon } from "../../iconFor.js";
 
 import { getExportFormat as getWebExportFormat } from "./registerExportFormats.js";
 
@@ -103,15 +105,65 @@ export function toExportNode(client: ExportClient, id: string): ExportNode | und
   };
 }
 
-/** Inline-body children only — the nested-bullet read (child pages are files). */
+const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The carrier-block set of one node — the child blocks its property values
+ * reference ({nodeId} refs and legacy bare-uuid text values, AUTHORED rows
+ * only). Carriers render inside the property row, NOT in the body: the page
+ * view's body excludes them (`WorkspaceClient.getBlockTree` /
+ * `propertyCarrierIdsOf`), and the exports must too or a text property's
+ * carrier block reads twice. The carrier's whole subtree is pruned with it.
+ */
+function propertyCarrierIdsOf(client: ExportClient, nodeId: string): Set<string> {
+  const ids = new Set<string>();
+  for (const row of client.getEffectiveProperties(nodeId)) {
+    if (row.source !== "authored") continue;
+    const value = row.value;
+    if (
+      typeof value === "object" &&
+      value !== null &&
+      typeof (value as { nodeId?: unknown }).nodeId === "string"
+    ) {
+      ids.add((value as { nodeId: string }).nodeId);
+    } else if (typeof value === "string" && UUID_LIKE.test(value)) {
+      ids.add(value);
+    }
+  }
+  return ids;
+}
+
+/** Inline-body children only — the nested-bullet read (child pages are files).
+ *  Carrier blocks excluded (they render in the property row, not the body). */
 function blockChildrenOf(client: ExportClient, id: string): ExportNode[] {
+  const carriers = propertyCarrierIdsOf(client, id);
   const nodes: ExportNode[] = [];
   for (const child of client.getChildren(id)) {
     if (!rendersAsInlineBlock(child)) continue;
+    if (carriers.has(child.id)) continue;
     const mapped = toExportNode(client, child.id);
     if (mapped !== undefined) nodes.push(mapped);
   }
   return nodes;
+}
+
+/**
+ * The chrome hooks every IR/document construction shares: class colors
+ * (resolved to concrete hex for the PDF pills) and node icons (the raw
+ * stored token — the PDF normalizes MDI names against its sprite paths).
+ */
+function chromeHooks(client: ExportClient): Pick<ExportContext, "colorOf" | "iconOf"> {
+  return {
+    colorOf: (classId) => {
+      const stored = client.effectiveClassColor(classId);
+      return stored === null ? null : resolveCssColor(stored);
+    },
+    iconOf: (nodeId) => {
+      const node = client.getNode(nodeId);
+      if (node === undefined) return null;
+      return nodeIcon(node, client.effectiveClassIcons());
+    },
+  };
 }
 
 function makeExportContext(
@@ -121,6 +173,7 @@ function makeExportContext(
   return {
     nameOf: (id) => displayNameFromClient(client, id) ?? undefined,
     childrenOf: (id) => blockChildrenOf(client, id),
+    ...chromeHooks(client),
     ...(hooks?.assetPath !== undefined ? { assetPath: hooks.assetPath } : {}),
   };
 }
@@ -412,10 +465,12 @@ export function exportTimestamp(date: Date = new Date()): string {
  * markdown single-node read.
  */
 function subtreeChildrenOf(client: ExportClient, id: string, includeChildPages: boolean): ExportNode[] {
+  const carriers = propertyCarrierIdsOf(client, id);
   const nodes: ExportNode[] = [];
   for (const child of client.getChildren(id)) {
     if (child.isClass) continue;
     if (!includeChildPages && child.presentAsMain) continue;
+    if (carriers.has(child.id)) continue;
     const mapped = toExportNode(client, child.id);
     if (mapped !== undefined) nodes.push(mapped);
   }
@@ -443,6 +498,7 @@ export function buildSubtreeDocument(
   const ctx: ExportContext = {
     nameOf: (id) => displayNameFromClient(client, id) ?? undefined,
     childrenOf: (id) => subtreeChildrenOf(client, id, includeChildPages),
+    ...chromeHooks(client),
   };
   return { document: buildExportDocument(node, ctx, resolved), resolved };
 }
@@ -606,13 +662,16 @@ export function collectSubtreeAssetRefIds(
     for (const token of node.contentAst) {
       if (token.type === "asset_ref") refs.add(token.assetId);
     }
+    // Carrier blocks render in the property row, not the body — their
+    // subtrees are pruned from the walk exactly like the render paths.
+    const carriers = propertyCarrierIdsOf(client, id);
     for (const child of client.getChildren(id)) {
       if (child.isClass) continue;
       // Inline blocks belong to this node's file (always scanned); child
       // pages ride along only when the subtree option includes them.
       if (child.presentAsMain) {
         if (includeChildPages) visit(child.id, visited);
-      } else {
+      } else if (!carriers.has(child.id)) {
         visit(child.id, visited);
       }
     }
