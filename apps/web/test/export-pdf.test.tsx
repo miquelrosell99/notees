@@ -340,6 +340,58 @@ describe("ExportPdfDocument component tree", () => {
     expect(container.textContent).toBeDefined();
   });
 
+  it("loads child blocks recursively and excludes main nodes from the block zone", () => {
+    const block = (id: string, text: string, children: ExportDocument["children"] = []): ExportDocument["children"][number] => ({
+      id,
+      title: text,
+      presentAsMain: false,
+      classIds: [],
+      properties: [],
+      blocks: [{ kind: "paragraph", spans: [{ kind: "text", text, marks: [] }] }],
+      children,
+    });
+    const document: ExportDocument = {
+      nodeId: "node-book",
+      title: "Book",
+      rendersDocumentChrome: true,
+      isClass: false,
+      presentAsMain: true,
+      parentId: null,
+      blocks: [{ kind: "paragraph", spans: [{ kind: "text", text: "Book", marks: [] }] }],
+      properties: [],
+      classIds: [],
+      classNames: [],
+      children: [
+        // Three levels of inline blocks under the root.
+        block("node-l1", "level one", [
+          block("node-l2", "level two", [block("node-l3", "level three")]),
+          {
+            // A MAIN node nested under an inline block: excluded from the
+            // body zone, hoisted into the end list instead.
+            id: "node-nested-page",
+            title: "Nested page",
+            presentAsMain: true,
+            classIds: [],
+            properties: [],
+            blocks: [{ kind: "paragraph", spans: [{ kind: "text", text: "Nested page", marks: [] }] }],
+            children: [],
+          },
+        ]),
+      ],
+      assetRefs: [],
+    };
+    render(<ExportPdfDocument document={document} options={resolveExportOptions({})} />);
+    // The block zone renders EVERY level, body-only (no title headings).
+    expect(screen.getByText("level one")).toBeInTheDocument();
+    expect(screen.getByText("level two")).toBeInTheDocument();
+    expect(screen.getByText("level three")).toBeInTheDocument();
+    // The main node under a block renders as a TITLED end-list entry (its
+    // body does not repeat the title) — never nested inline.
+    expect(screen.getAllByText("Nested page")).toHaveLength(1);
+    const entry = screen.getByText("Nested page");
+    expect(entry.getAttribute("style") ?? "").toContain("700");
+  });
+
   it("renders boolean properties as the drawn checkbox, never literal true/false", () => {
     const document: ExportDocument = {
       ...fixtureDocument(),
