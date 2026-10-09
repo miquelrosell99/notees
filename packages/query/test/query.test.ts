@@ -363,10 +363,14 @@ describe("compile: SQL shape", () => {
     expect(lte.sql).toContain("json_extract(value, '$') <= ?");
     expect(lte.sql).toContain("substr(json_extract(value, '$.nodeId'), 25) <= ?");
     expect(lte.sql).toContain("IN ('dd', 'aa', 'bb')");
-    expect(lte.params).toEqual([OPENED, OPENED, OPENED, "1937-05-06", "193705060000"]);
+    expect(lte.params).toEqual([OPENED, OPENED, OPENED, "1937-05-06", "193705060000", "193705060000"]);
     // eq matches any precision whose period contains the bound date.
     const eq = compile(ast(entire, [{ type: "property", schemaId: OPENED, op: "eq", value: "1937-05-06" }]));
-    expect(eq.params).toEqual([OPENED, OPENED, OPENED, "1937-05-06", "19370506", "193705", "1937"]);
+    expect(eq.params).toEqual([
+      OPENED, OPENED, OPENED, "1937-05-06",
+      "19370506", "193705", "1937",
+      "193705060000", "19370506", "193705", "1937",
+    ]);
   });
 
   it("property comparison ops (gt/gte/lt/lte) are part of the versioned schema", () => {
@@ -1225,12 +1229,12 @@ describe.each(adapters)("$name", ({ makeStore }) => {
         env("object.create", { objectId: DAY_B.month, parentId: DAY_B.year, contentAst: chainText("1900-01") }, T0 + 48 * STEP),
         env("object.create", { objectId: DAY_B.day, parentId: DAY_B.month, contentAst: chainText("1900-01-15") }, T0 + 48 * STEP),
         env("object.create", { objectId: YEAR_X.year, contentAst: chainText("1889") }, T0 + 48 * STEP),
-        env("propertySchema.create", { propertySchemaId: PUBLISHED, name: "published", type: "date" }, T0 + 50 * STEP),
+        env("propertySchema.create", { propertySchemaId: PUBLISHED, name: "published", type: "datetime" }, T0 + 50 * STEP),
         env("property.set", { objectId: PARIS, propertySchemaId: PUBLISHED, value: { nodeId: DAY_A.day } }, T0 + 51 * STEP),
         env("property.set", { objectId: FRANCE, propertySchemaId: PUBLISHED, value: { nodeId: DAY_B.day } }, T0 + 52 * STEP),
         env(
           "propertySchema.create",
-          { propertySchemaId: FOUNDED, name: "founded", type: "date", datePrecision: "year" },
+          { propertySchemaId: FOUNDED, name: "founded", type: "datetime", datePrecision: "year" },
           T0 + 53 * STEP,
         ),
         env("property.set", { objectId: LONE, propertySchemaId: FOUNDED, value: { nodeId: YEAR_X.year } }, T0 + 54 * STEP),
@@ -1267,6 +1271,95 @@ describe.each(adapters)("$name", ({ makeStore }) => {
       expect(
         runQuery(store, ast(entire, [{ type: "property", schemaId: OPENED, op: "lte", value: "1937-05-06" }])).ids.sort(),
       ).toEqual([FRANCE, PARIS, LONE].sort());
+    });
+  });
+
+  describe("datetime ranges (SCHEMA.md Datetime: { start, end } slots)", () => {
+    const SPAN = "0192a000-0000-7000-8000-000000000307";
+    // Paris: a closed 1937-05-01 → 1937-05-10 span. France: an open-start
+    // range (…→ 1900-01-20). Lone: a both-open range plus a null-start one
+    // is not writable — instead Lone carries a range with a timed end.
+    const SPAN_S = chainNodeIds("1937-05-01");
+    const SPAN_E = chainNodeIds("1937-05-10");
+    const OPEN_END = chainNodeIds("1900-01-20");
+    const TIMED_END = chainNodeIds("1920-06-15");
+
+    function spanStore(): Store {
+      const store = worldStore();
+      const chainText = (s: string): Array<{ type: "text"; text: string }> => [{ type: "text", text: s }];
+      for (const chain of [SPAN_S, SPAN_E, OPEN_END, TIMED_END]) {
+        store.applyMany([
+          env("object.create", { objectId: chain.year, contentAst: chainText(chain.year.slice(24, 28)) }, T0 + 46 * STEP),
+          env("object.create", { objectId: chain.month, parentId: chain.year, contentAst: chainText(chain.month.slice(24, 30)) }, T0 + 46 * STEP),
+          env("object.create", { objectId: chain.day, parentId: chain.month, contentAst: chainText(chain.day.slice(24, 32)) }, T0 + 46 * STEP),
+        ]);
+      }
+      store.applyMany([
+        env("propertySchema.create", { propertySchemaId: SPAN, name: "span", type: "datetime" }, T0 + 50 * STEP),
+        env(
+          "property.set",
+          { objectId: PARIS, propertySchemaId: SPAN, value: { start: { nodeId: SPAN_S.day }, end: { nodeId: SPAN_E.day } } },
+          T0 + 51 * STEP,
+        ),
+        env(
+          "property.set",
+          { objectId: FRANCE, propertySchemaId: SPAN, value: { start: null, end: { nodeId: OPEN_END.day } } },
+          T0 + 52 * STEP,
+        ),
+        env(
+          "property.set",
+          { objectId: LONE, propertySchemaId: SPAN, value: { start: null, end: null } },
+          T0 + 53 * STEP,
+        ),
+      ]);
+      return store;
+    }
+
+    it("eq/contains match a bound within [start, end]; outside the range does not", () => {
+      const store = spanStore();
+      // A bound inside the closed span (Paris) and one on its edges. Lone's
+      // both-open range is unbounded, so it answers every bound.
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: SPAN, op: "eq", value: "1937-05-05" }])).ids.sort()).toEqual([LONE, PARIS].sort());
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: SPAN, op: "eq", value: "1937-05-01" }])).ids.sort()).toEqual([LONE, PARIS].sort());
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: SPAN, op: "eq", value: "1937-05-10" }])).ids.sort()).toEqual([LONE, PARIS].sort());
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: SPAN, op: "contains", value: "1937-05-06" }])).ids.sort()).toEqual([LONE, PARIS].sort());
+      // Just outside the closed span (Lone's open range still answers).
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: SPAN, op: "eq", value: "1937-04-30" }])).ids).toEqual([LONE]);
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: SPAN, op: "eq", value: "1937-05-11" }])).ids).toEqual([LONE]);
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: SPAN, op: "eq", value: "1800-01-01" }])).ids.sort()).toEqual([FRANCE, LONE].sort());
+    });
+
+    it("an open-start range matches early bounds (unbounded below)", () => {
+      const store = spanStore();
+      // France: end 1900-01-20, start open — 1800 and 1900-01-19 match it;
+      // 1900-01-21 does not (Lone's open range answers everything).
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: SPAN, op: "eq", value: "1800-06-01" }])).ids.sort()).toEqual([FRANCE, LONE].sort());
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: SPAN, op: "eq", value: "1900-01-19" }])).ids.sort()).toEqual([FRANCE, LONE].sort());
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: SPAN, op: "eq", value: "1900-01-21" }])).ids).toEqual([LONE]);
+    });
+
+    it("relational ops compare the range START; a null-start range never matches relational", () => {
+      const store = spanStore();
+      // Paris's start is 1937-05-01; France's and Lone's are null.
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: SPAN, op: "gte", value: "1937-05-01" }])).ids).toEqual([PARIS]);
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: SPAN, op: "lt", value: "1937-05-01" }])).ids).toEqual([]);
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: SPAN, op: "gt", value: "1937-05-01" }])).ids).toEqual([]);
+      // Paris's start (1937-05-01) orders after France's END (1900-01-20) —
+      // the start payload is the comparator, not the end.
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: SPAN, op: "gt", value: "1900-01-19" }])).ids).toEqual([PARIS]);
+    });
+
+    it("point values keep matching alongside ranges on the same schema", () => {
+      const store = spanStore();
+      // A point value on the same datetime schema still answers eq/relational.
+      store.apply(
+        env("property.set", { objectId: LONE, propertySchemaId: SPAN, value: { nodeId: TIMED_END.day, time: "18:45" } }, T0 + 54 * STEP),
+      );
+      // eq: the point's day contains the bound (time ignored).
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: SPAN, op: "eq", value: "1920-06-15" }])).ids).toEqual([LONE]);
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: SPAN, op: "eq", value: "1920-06-16" }])).ids).toEqual([]);
+      // relational: the point sorts with its day.
+      expect(runQuery(store, ast(entire, [{ type: "property", schemaId: SPAN, op: "gt", value: "1900-01-19" }])).ids.sort()).toEqual([LONE, PARIS].sort());
     });
   });
 

@@ -187,13 +187,14 @@ export function deriveDesiredEdges(db: StoreDatabase, nodeId: string): DesiredEd
   walk(ast);
 
   // Node-typed property values project into the edge index (verb = schema).
-  // Keying is VALUE-SHAPE based, not type-based, so date refs ({ "nodeId": … }
-  // on date schemas) project like any node-typed value. A date ref also fans
-  // out to its deterministic chain ANCESTORS (SCHEMA.md "Dates": "backlinks
+  // Keying is VALUE-SHAPE based, not type-based, so datetime refs
+  // ({ "nodeId": … } point or { "start", "end" } slots on datetime schemas)
+  // project like any node-typed value. A date ref also fans
+  // out to its deterministic chain ANCESTORS (SCHEMA.md "Datetime": "backlinks
   // on a year node list everything dated that year") — ids are
   // content-addressed (domain dates.ts), so a day ref implies the month and
-  // year edges, a month ref the year edge. date_range values ({ start, end }
-  // of date refs, either side open) project each present end the same way.
+  // year edges, a month ref the year edge. Range values ({ start, end }
+  // of slots, either side open) project each present end the same way.
   // PG5: the rows come through the visible-set derivation (property-values.ts)
   // — a tombstoned element's edges vanish with it (edge rebuild consistency).
   const propertyRows = visiblePropertyValueRows(db, nodeId).sort(

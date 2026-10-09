@@ -612,16 +612,21 @@ class Compiler {
    * the type the caller gave it.
    *
    * ISO-date bound values (YYYY-MM-DD) gain a second arm for the SCHEMA.md
-   * "Dates" value shape: date property values are `{ "nodeId": <deterministic
-   * date-node id> }` and the id embeds the date — layout frozen
-   * (packages/domain/src/dates.ts): id chars 22..23 are the precision marker
-   * (dd/aa/bb — the last two of the `00dd`/`00aa`/`00bb` segment), chars
-   * 25..36 the zero-padded date payload. eq/contains match when the
-   * referenced period CONTAINS the queried date (a year-precision value
-   * answers any date of that year); range ops compare the payload, which
-   * orders chronologically across precisions (a period compares at its
-   * start). Plain scalar values (e.g. binding defaults) keep matching through
-   * the unchanged first arm.
+   * "Datetime" value shapes: datetime property values are a POINT
+   * `{ "nodeId": <deterministic date-node id> }` (optionally timed) or a
+   * RANGE `{ "start": slot|null, "end": slot|null }` — the id embeds the
+   * date, layout frozen (packages/domain/src/dates.ts): id chars 22..23 are
+   * the precision marker (dd/aa/bb — the last two of the `00dd`/`00aa`/`00bb`
+   * segment), chars 25..36 the zero-padded date payload. eq/contains match
+   * when the bound date falls within the value's period — for a point, the
+   * referenced period CONTAINS the bound (a year-precision value answers any
+   * date of that year); for a range, the bound lies within [start, end] with
+   * open sides unbounded. Relational ops compare the payload, which orders
+   * chronologically across precisions — a period compares at its start; for
+   * a range the START payload is the comparator (a null start never matches
+   * a relational op). Date-only bounds ignore `time` on values (a timed
+   * point sorts with its day). Plain scalar values (e.g. binding defaults)
+   * keep matching through the unchanged first arm.
    */
   private propertySql(condition: Extract<Condition, { type: "property" }>): string {
     const valueOps: readonly PropertyOp[] = ["eq", "neq", "contains", "gt", "gte", "lt", "lte"];
@@ -716,23 +721,55 @@ class Compiler {
   }
 
   /**
-   * Date-ref match arms over the deterministic date-node id carried in a
-   * `{"nodeId": …}` value (see propertySql's doc). `"="` matches when the
-   * referenced period contains the bound date; comparison ops order by the
-   * id's date payload (period start). Params are pushed in arm order.
+   * Date-ref match arms over the deterministic date-node ids carried in the
+   * datetime value union (see propertySql's doc): the POINT arm reads the
+   * top-level `{ "nodeId": … }` (ranges have no such key, so the two arms
+   * are disjoint and compose with OR); the RANGE arm reads
+   * `$.start.nodeId` / `$.end.nodeId`, gated on the value actually carrying
+   * a `start`/`end` key (json_type reports a JSON null side as 'null', a
+   * missing key as NULL — so `{start: null, end: null}` still counts as a
+   * range). `"="` matches when the bound date falls within the value's
+   * period: for a range, start's period-start payload <= the bound (payload
+   * orders chronologically across precisions) AND the bound's date part at
+   * the end's precision width is >= end's (a month end answers any day of
+   * that month); a null side is unbounded on that end. Comparison ops
+   * compare the range's START payload (period-start semantics); a null
+   * start never matches a relational op. Params are pushed in arm order —
+   * point arm first, then the range arm (start payload bound, then the
+   * end-side day/month/year bounds).
    */
   private dateRefSql(op: string, iso: string): string {
     const compact = iso.replace(/-/g, "");
     const nodeId = "json_extract(value, '$.nodeId')";
     const marker = `substr(${nodeId}, 22, 2)`;
+    const startId = "json_extract(value, '$.start.nodeId')";
+    const startMarker = `substr(${startId}, 22, 2)`;
+    const endId = "json_extract(value, '$.end.nodeId')";
+    const endMarker = `substr(${endId}, 22, 2)`;
+    const rangeGate =
+      "(json_type(value, '$.start') IS NOT NULL OR json_type(value, '$.end') IS NOT NULL)";
     if (op === "=") {
-      return (
+      const pointArm =
         `(${marker} = 'dd' AND substr(${nodeId}, 25, 8) = ${this.push(compact)} ` +
         `OR ${marker} = 'aa' AND ${this.push(compact.slice(0, 6))} = substr(${nodeId}, 25, 6) ` +
-        `OR ${marker} = 'bb' AND ${this.push(compact.slice(0, 4))} = substr(${nodeId}, 25, 4))`
-      );
+        `OR ${marker} = 'bb' AND ${this.push(compact.slice(0, 4))} = substr(${nodeId}, 25, 4))`;
+      const startPayload = this.push(`${compact}0000`);
+      const endDay = this.push(compact);
+      const endMonth = this.push(compact.slice(0, 6));
+      const endYear = this.push(compact.slice(0, 4));
+      const rangeArm =
+        `${rangeGate} ` +
+        `AND (${startId} IS NULL OR ${startMarker} IN ('dd', 'aa', 'bb') AND substr(${startId}, 25) <= ${startPayload}) ` +
+        `AND (${endId} IS NULL OR (${endMarker} = 'dd' AND substr(${endId}, 25, 8) >= ${endDay} ` +
+        `OR ${endMarker} = 'aa' AND substr(${endId}, 25, 6) >= ${endMonth} ` +
+        `OR ${endMarker} = 'bb' AND substr(${endId}, 25, 4) >= ${endYear}))`;
+      return `(${pointArm} OR ${rangeArm})`;
     }
-    return `(${marker} IN ('dd', 'aa', 'bb') AND substr(${nodeId}, 25) ${op} ${this.push(`${compact}0000`)})`;
+    const pointArm = `(${marker} IN ('dd', 'aa', 'bb') AND substr(${nodeId}, 25) ${op} ${this.push(`${compact}0000`)})`;
+    const rangeArm =
+      `${rangeGate} AND ${startMarker} IN ('dd', 'aa', 'bb') ` +
+      `AND substr(${startId}, 25) ${op} ${this.push(`${compact}0000`)}`;
+    return `(${pointArm} OR (${rangeArm}))`;
   }
 
   // --- sort -----------------------------------------------------------------------

@@ -225,7 +225,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       );
       store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_URL, name: "link", type: "url" }, 1727200000100));
       store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_NUMBER, name: "year", type: "number" }, 1727200000100));
-      store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_DATE, name: "when", type: "date" }, 1727200000100));
+      store.apply(env("propertySchema.create", { propertySchemaId: SCHEMA_DATE, name: "when", type: "datetime" }, 1727200000100));
       return store;
     }
 
