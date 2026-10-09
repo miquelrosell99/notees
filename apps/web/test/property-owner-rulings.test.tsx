@@ -66,7 +66,7 @@ async function flushWrites(): Promise<void> {
 }
 
 function expandProperties(): void {
-  const header = screen.queryByRole("button", { name: /^Properties / });
+  const header = screen.queryByRole("button", { name: /^Metadata / });
   if (header !== null && header.getAttribute("aria-expanded") === "false") {
     fireEvent.click(header);
   }

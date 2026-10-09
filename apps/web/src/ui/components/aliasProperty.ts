@@ -17,8 +17,8 @@
  * object.update, cycle-checked at the applier. The property-based carrier
  * (the retired `aliasOf` schema) is gone: every read below goes through the
  * node column. The redirect seam (resolveAliasOpen) and the write guard
- * (aliasedNodeTargetError) live here; the aliases UI (the title-row
- * affordance + the alias-side pseudo-property row) composes them.
+ * (aliasedNodeTargetError) live here; the aliases UI (the metadata panel's
+ * Aliases row + the alias-side pseudo-property row) composes them.
  */
 
 import { deriveDisplayName, rendersWithDocumentChrome, SYSTEM_PROPERTY_DISPLAY_NAMES, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";

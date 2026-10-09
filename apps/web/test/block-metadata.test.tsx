@@ -1,7 +1,7 @@
 /**
  * Block-level metadata tests (2026-10-01 layout): classes ride the block
  * row's right-hand column, tags a dedicated row below (only when set), and
- * properties the collapsed "Properties N" section (hidden when empty). A
+ * properties the collapsed "Metadata N" section (hidden when empty). A
  * plain block shows none of the below-row chrome.
  */
 
@@ -96,8 +96,8 @@ describe("BlockRow metadata section", () => {
     const { container } = render(<PageView client={client} pageId={pageId} />);
     const section = blockMetadata(container, blockId);
     expect(section).not.toBeNull();
-    // The collapsed "Properties" section expands on click.
-    expect(section!.textContent).toContain("Properties");
+    // The collapsed "Metadata" section expands on click.
+    expect(section!.textContent).toContain("Metadata");
     const header = section!.querySelector(".node-view-section__header") as HTMLButtonElement;
     expect(header.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(header);
@@ -140,7 +140,7 @@ describe("BlockRow metadata section", () => {
     expect(panelled.container.querySelectorAll(".node-metadata-section")).toHaveLength(0);
     panelled.unmount();
 
-    // Compact layout: the in-flow "Properties" section renders under the
+    // Compact layout: the in-flow "Metadata" section renders under the
     // header (exactly one — the page's; the block carries nothing).
     const compact = render(<PageView client={client} pageId={pageId} layout="compact" />);
     const sections = compact.container.querySelectorAll(".node-metadata-section");

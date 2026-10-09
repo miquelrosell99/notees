@@ -49,12 +49,12 @@ async function flushWrites(): Promise<void> {
 
 /**
  * The panelled main layout (the default) renders the properties OPEN in the
- * left side panel — there is no in-flow "Properties N" section to expand.
+ * left side panel — there is no in-flow "Metadata N" section to expand.
  * Kept as a seam for compact layouts (sidebar peeks, embedded renders),
  * where the collapsible section still hosts the table.
  */
 function expandProperties(): void {
-  const header = screen.queryByRole("button", { name: /^Properties / });
+  const header = screen.queryByRole("button", { name: /^Metadata / });
   if (header !== null && header.getAttribute("aria-expanded") === "false") {
     fireEvent.click(header);
   }
@@ -109,13 +109,13 @@ describe("Properties panel (effective values)", () => {
     expect(panel).not.toBeNull();
     expect(panel!.querySelector(".nt-props-sidebar")).not.toBeNull();
     // The column names itself: the collapsible section header (dotted-list
-    // icon + "Properties" + the effective count), expanded by default. A
+    // icon + "Metadata" + the effective count), expanded by default. A
     // plain node carries no property rows — the retired aliasOf carrier is
     // gone (node aliases ride the aliasedNodeId wire field, never a property
     // row).
-    const header = within(panel as HTMLElement).getByRole("button", { name: /^Properties / });
+    const header = within(panel as HTMLElement).getByRole("button", { name: /^Metadata / });
     expect(header.getAttribute("aria-expanded")).toBe("true");
-    expect(header.textContent).toContain("Properties");
+    expect(header.textContent).toContain("Metadata");
     const rowCount = panel!.querySelectorAll(".nt-props-sidebar__prop").length;
     expect(header.textContent).toContain(String(rowCount));
     expect(rowCount).toBe(0);
