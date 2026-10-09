@@ -112,7 +112,9 @@ export const SYSTEM_CLASS_ICONS: Record<SystemClassName, string> = {
   person: "mdiAccountOutline",
   organization: "mdiDomain",
   collection: "mdiFolderMultipleOutline",
-  highlight: "mdiFormatHighlight",
+  // mdiFormatColorHighlight: "mdiFormatHighlight" was never a real MDI name —
+  // stored rows with it still render via the Icon resolver's legacy alias.
+  highlight: "mdiFormatColorHighlight",
   weblink: "mdiLinkVariant",
   movie: "mdiMovieOpenOutline",
   song: "mdiMusicNote",
