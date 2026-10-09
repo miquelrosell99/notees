@@ -311,7 +311,6 @@ function GroupBlock({ group, onChange, onDelete, depth, client, facts, config, d
           onOpenChange={setAddOpen}
           customTrigger={
             <>
-              <Icon path="mdi mdi-plus" size={0.8} />
               Add condition
               <Icon
                 path="mdi mdi-chevron-down"
