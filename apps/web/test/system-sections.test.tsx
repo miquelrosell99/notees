@@ -2,7 +2,10 @@
  * System sections tests (SCHEMA.md lazy-loading contract, owner 2026-10-06
  * strip rework): below the page content the references ride ONE bottom
  * strip (`.nt-backlinks`) with TWO tabs — "Backlinks" and "Unlinked
- * mentions" (renamed) — always both visible even when empty; the outgoing
+ * mentions" (renamed) — always both visible even when empty (date pages
+ * excepted, owner 2026-10-09: the deterministic day/month/year family
+ * carries no Unlinked mentions tab at all — literal-date matches are noise
+ * — and the count's FTS pass is skipped); the outgoing
  * "References" tab no longer exists. The eager counts ride the tab labels
  * ("Backlinks 2"). The SELECTED tab's list query runs on mount (the Tabs
  * primitive swallows re-clicks on the active tab, so the first load cannot
@@ -613,5 +616,74 @@ describe("crumb labels over class chips (issue #2)", () => {
     );
     const crumbs = container.querySelectorAll(".node-breadcrumb-name");
     expect(crumbs[1]!.textContent).toBe("on the Republic");
+  });
+});
+
+
+describe("date pages: no Unlinked mentions", () => {
+  /** A plain source page whose block literally names the day (an unlinked
+   *  match — the day title appears as plain text, never a mention). */
+  async function seedLiteralDateMention(client: WorkspaceClient, dayName: string): Promise<void> {
+    const plainSource = await client.createObject({ presentAsMain: true, name: "Plain Source" });
+    await client.createObject({
+      parentId: plainSource,
+      contentAst: [{ type: "text", text: `busy on ${dayName}` }],
+    });
+  }
+
+  /** The day page's title text — non-null for a materialized date chain. */
+  function dayNameOf(client: WorkspaceClient, day: string): string {
+    const name = client.getDisplayName(day);
+    if (name === null) throw new Error(`day page ${day} has no display name`);
+    return name;
+  }
+
+  it("a day page with only literal-date matches renders no strip at all and skips the unlinked count read", async () => {
+    const client = await seedClient();
+    const { day } = await client.ensureDateChain("2026-06-15");
+    const dayName = dayNameOf(client, day);
+    await seedLiteralDateMention(client, dayName);
+    // Sanity: the match IS an unlinked reference at the read level.
+    expect(client.getUnlinkedReferenceCount(day)).toBeGreaterThan(0);
+
+    const countSpy = vi.spyOn(client, "getUnlinkedReferenceCount");
+    const { container } = render(<PageView client={client} pageId={day} onOpenPage={() => {}} />);
+
+    expect(container.querySelector(".nt-backlinks")).toBeNull();
+    expect(screen.queryByRole("tab", { name: /Unlinked mentions/ })).toBeNull();
+    expect(countSpy).not.toHaveBeenCalled();
+  });
+
+  it("a day page with a real backlink renders the strip with ONLY the Backlinks tab", async () => {
+    const client = await seedClient();
+    const { day } = await client.ensureDateChain("2026-06-15");
+    const dayName = dayNameOf(client, day);
+    await seedLiteralDateMention(client, dayName);
+    const linkedSource = await client.createObject({ presentAsMain: true, name: "Linked Source" });
+    await client.createObject({
+      parentId: linkedSource,
+      contentAst: [{ type: "mention", targetNodeId: day, text: dayName }],
+    });
+
+    const countSpy = vi.spyOn(client, "getUnlinkedReferenceCount");
+    render(<PageView client={client} pageId={day} onOpenPage={() => {}} />);
+
+    const strip = backlinksStrip();
+    expect(within(strip).getByRole("tab", { name: /Backlinks/ })).not.toBeNull();
+    expect(within(strip).queryByRole("tab", { name: /Unlinked mentions/ })).toBeNull();
+    expect(countSpy).not.toHaveBeenCalled();
+  });
+
+  it("an ordinary page keeps the Unlinked mentions tab (the ruling is date-family only)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Zebra" });
+    const plainSource = await client.createObject({ presentAsMain: true, name: "Plain Source" });
+    await client.createObject({
+      parentId: plainSource,
+      contentAst: [{ type: "text", text: "Zebra" }],
+    });
+
+    render(<PageView client={client} pageId={pageId} onOpenPage={() => {}} />);
+    expect(within(backlinksStrip()).getByRole("tab", { name: /Unlinked mentions/ })).not.toBeNull();
   });
 });

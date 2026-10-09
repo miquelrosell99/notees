@@ -112,7 +112,7 @@ The rules, all of them load-bearing for performance:
 
 - **Collapsed by default, and a collapsed section runs no query at all.** Nothing loads until the first expand.
 - **Count badges come only from materialized counts** (`node_stats.backlink_count`) — the badge renders unconditionally and is exempt from the contract because reading it is reading a stored number, not running a query.
-- **Unlinked mentions shows no eager count.** Computing it *is* the expensive query — it is a full-text search for the page's literal name across the workspace, excluding blocks that already link to the page. Pages only; blocks do not get this section.
+- **Unlinked mentions shows no eager count.** Computing it *is* the expensive query — it is a full-text search for the page's literal name across the workspace, excluding blocks that already link to the page. Pages only; blocks do not get this section. **Date pages do not get it either** (owner 2026-10-09): the deterministic day/month/year family carries no Unlinked mentions tab — the literal date text those pages accumulate is noise, never a discovery surface — and the count read is skipped there entirely.
 - **Results cache** per section until an invalidating notification lands (a content, class, or property edge change).
 - **Blocks get backlinks in place.** A block with backlinks shows a count badge in the right gutter; toggling it expands the linked-references query scoped to that block, inline beneath it — the query runs on first toggle, per the contract.
 
