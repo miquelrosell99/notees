@@ -105,7 +105,7 @@ export function ConfirmationModal({
 
       <div className="confirmation-modal__actions">
         <Button
-          variant="default"
+          variant="outline"
           onClick={onCancel}
           disabled={isPending}
         >

@@ -9,6 +9,36 @@ predating this file.
 
 ## 2026-10-09
 
+- **fix(web): fleet button audit against the state-vs-action register rule —
+  state-carrying chrome goes outline, actions go borderless, modal
+  secondaries unify on outline.** Audit of every button in the app against
+  the owner ruling recorded in the design system (outline marks STATE-
+  carrying chrome; actions stay borderless even in chrome): (1) **Fixed —
+  state chrome wearing borderless**: the app top bar's two dock toggles
+  (left sidebar, right cards rail) become kit `Button variant="outline"`
+  with the `active` fill — they were the last state toggles outside the
+  register the nodeview panel toggles already wear. (2) **Fixed — chrome
+  actions wearing borders** (outline → ghost): the hub/header creates
+  (New asset / New class / New page / New whiteboard), the calendar
+  quick-create chips + Daily Note create, the hover-preview Pin, the
+  queries hub's Edit query, the template gallery's create. (3) **Fixed —
+  modal/form secondaries unified**: the filled-tonal `default` cancel/close
+  flips to `outline` (workspace name/export, property history/convert, the
+  property settings' close, the kit ConfirmationModal — the convention
+  setter — and the create-with-UUID footer's Cancel/Create pair, ghost and
+  default respectively). `default` survives only as the lone CTA on
+  dead-end surfaces (error-boundary reload, data-state retry). Reviewed and
+  left as-is: tool-register toggles (graph chips/families/colors, the
+  floating text-format toolbar, find/replace match-case, whiteboard
+  snap-to-grid, the embed view switch — each carries its own active
+  convention), the boot/auth form secondaries (outline, the form register),
+  and the destructive `danger`/`danger-solid` pair. The modal register is
+  recorded in the `rosellramos-design-system` skill (`references/
+  dos-donts.md`). Verified: `pnpm typecheck` clean for the slice; the web
+  vitest suites green except the parallel session's in-flight export-pdf
+  work (their uncommitted ExportPageModal/test edits — reported, not
+  touched). Display-state only.
+
 - **fix(web): class-icon bullets ride at the dot's line height — the grip no
   longer jumps ~6px when a block has a class.** The block row is
   baseline-aligned, and the grip's synthesized flex baseline rides the bottom

@@ -138,11 +138,11 @@ export function CreatePageWithUuidModal({
       size="sm"
       footer={
         <div className="create-uuid-modal__footer">
-          <Button variant="ghost" onClick={onClose} size="sm">
+          <Button variant="outline" onClick={onClose} size="sm">
             Cancel
           </Button>
           <Button
-            variant="default"
+            variant="outline"
             onClick={handleCreate}
             size="sm"
             disabled={isCreating || !nodeName.trim()}

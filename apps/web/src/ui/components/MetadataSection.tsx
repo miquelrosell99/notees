@@ -2902,7 +2902,7 @@ function PropertySettingsModal({
         <Button variant="ghost" onClick={onOpenView}>
           Open property
         </Button>
-        <Button variant="default" onClick={onClose}>
+        <Button variant="outline" onClick={onClose}>
           Close
         </Button>
       </div>
