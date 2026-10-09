@@ -4,7 +4,8 @@
  * Orchestrates force-directed layout with:
  * • Structure-of-Arrays typed arrays
  * • Composable force plugins
- * • Alpha cooling for natural settling
+ * • Per-node activity alpha with energy-gated settling (a node at alpha 0
+ *   feels no force, so settled regions stay frozen during a local reheat)
  * • Louvain community detection
  * • Barnes–Hut cluster repulsion
  */
@@ -224,6 +225,8 @@ export class GraphEngine {
   degArr:     Int32Array   = new Int32Array(0);
   iRadArr:    Float32Array = new Float32Array(0);
   massArr:    Float32Array = new Float32Array(0);
+  /** Per-node activity in [0,1]; forces scale by it, it decays per tick. */
+  alphaArr:   Float32Array = new Float32Array(0);
   nodeIdArr:  string[]     = [];
   activeNodeIndices: Int32Array = new Int32Array(0);
   activeCount = 0;
@@ -258,6 +261,10 @@ export class GraphEngine {
   // Simulation state
   energy = Infinity;
   ticks = 0;
+  /** True once every node is quiet (alpha < alphaMin) and still — the
+   *  worker stops ticking and interaction reheats locally. */
+  settled = false;
+  private settleStreak = 0;
   private integratorState = createIntegratorState({} as GraphEngineConfig);
 
   // Forces
@@ -327,6 +334,7 @@ export class GraphEngine {
     this.degArr    = grow(this.degArr, Int32Array);
     this.iRadArr   = grow(this.iRadArr, Float32Array);
     this.massArr   = grow(this.massArr, Float32Array);
+    this.alphaArr  = grow(this.alphaArr, Float32Array);
     const nextNodeIdArr = new Array<string>(c);
     for (let i = 0; i < old; i++) nextNodeIdArr[i] = this.nodeIdArr[i]!;
     this.nodeIdArr = nextNodeIdArr;
@@ -426,7 +434,8 @@ export class GraphEngine {
     // Re-initialize forces with new topology
     for (const f of this.forces) f.initialize(this);
 
-
+    // A topology change re-animates the whole graph from full activity.
+    this.reheat();
   }
 
   private _rebuildEdgeArrays(): void {
@@ -572,11 +581,18 @@ export class GraphEngine {
   step(): void {
     if (this.n === 0) return;
 
+    // Cool every node's activity toward 0.
+    const decay = this.config.alphaDecay;
+    const alphas = this.alphaArr;
+    for (let i = 0; i < this.n; i++) {
+      alphas[i]! -= alphas[i]! * decay;
+    }
+
     this._updateClusterData();
 
-    // Apply forces
+    // Apply forces (each scales by the per-node alpha)
     for (const f of this.forces) {
-      f.apply(1.0);
+      f.apply();
     }
 
     // Integrate
@@ -600,7 +616,66 @@ export class GraphEngine {
     this.axBuf.fill(0, 0, this.n);
     this.ayBuf.fill(0, 0, this.n);
 
+    this._updateSettled();
+  }
 
+  /**
+   * Settling gate: every active node quiet (alpha below alphaMin) AND the
+   * graph still (mean kinetic energy below the epsilon) for settleTicks
+   * consecutive ticks. On declare, velocities and the previous-tick
+   * accelerations are zeroed so a local reheat leaves distant nodes exactly
+   * in place — stillness is force-driven, the freeze just makes it exact.
+   */
+  private _updateSettled(): void {
+    if (this.settled) return;
+    const cfg = this.config;
+    const alphas = this.alphaArr;
+    let maxAlpha = 0;
+    for (let k = 0; k < this.activeCount; k++) {
+      const a = alphas[this.activeNodeIndices[k]!]!;
+      if (a > maxAlpha) maxAlpha = a;
+    }
+    if (maxAlpha < cfg.alphaMin && this.energy < cfg.settleEnergyEps) {
+      if (++this.settleStreak >= cfg.settleTicks) {
+        this.velX.fill(0, 0, this.n); this.velY.fill(0, 0, this.n);
+        this.oldAx.fill(0, 0, this.n); this.oldAy.fill(0, 0, this.n);
+        // Frozen means frozen: every alpha hits exactly 0 so no force can
+        // re-apply on the next tick — a local reheat leaves distant nodes
+        // with not a pixel of drift.
+        this.alphaArr.fill(0, 0, this.n);
+        this.settled = true;
+      }
+    } else {
+      this.settleStreak = 0;
+    }
+  }
+
+  /** Global reheat: every node returns to full activity (topology/config changes). */
+  reheat(): void {
+    this.alphaArr.fill(1, 0, this.n);
+    this.settled = false;
+    this.settleStreak = 0;
+  }
+
+  /**
+   * Local reheat: nodes within `radius` of (x, y) get at least `value`
+   * activity; everything else stays at whatever it had (0 at equilibrium).
+   * This is what makes dragging a node perturb only its neighborhood.
+   */
+  reheatLocal(x: number, y: number, radius: number, value: number): void {
+    const r2 = radius * radius;
+    let touched = false;
+    for (let i = 0; i < this.n; i++) {
+      const dx = this.posX[i]! - x, dy = this.posY[i]! - y;
+      if (dx * dx + dy * dy <= r2 && this.alphaArr[i]! < value) {
+        this.alphaArr[i] = value;
+        touched = true;
+      }
+    }
+    if (touched) {
+      this.settled = false;
+      this.settleStreak = 0;
+    }
   }
 
   // ─── Public API ─────────────────────────────────────────────────────────────
@@ -615,6 +690,7 @@ export class GraphEngine {
       nodeCount: this.n,
       energy: this.energy,
       ticks: this.ticks,
+      settled: this.settled,
     };
   }
 

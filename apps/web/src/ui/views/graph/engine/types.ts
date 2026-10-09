@@ -29,9 +29,22 @@ export interface GraphEngineConfig {
   localRepelRadius: number;
   componentCenterStrength: number;
   componentSpacing: number;
-  damping: number;
+  // ─── Energy-gated convergence ────────────────────────────────────────────
+  /** Per-tick exponential decay of every node's activity alpha (d3 model). */
+  alphaDecay: number;
+  /** Below this alpha a node contributes no force and is eligible to freeze. */
+  alphaMin: number;
+  /** Mean kinetic energy under which the graph counts as still. */
+  settleEnergyEps: number;
+  /** Consecutive still ticks required before the engine declares settled. */
+  settleTicks: number;
+  /** Radius around a drag within which nodes are reheated. */
+  influenceRadius: number;
+  /** Alpha injected into nodes inside the influence radius on interaction. */
+  reheatAlpha: number;
+  /** Constant per-tick velocity retention (dissipative drag). */
+  drag: number;
   maxVelocity: number;
-  friction: number;
   dt: number;
   bhTheta: number;
   linkCountAttraction: boolean;
@@ -60,6 +73,8 @@ export interface GraphEngineState {
   nodeCount: number;
   energy: number;
   ticks: number;
+  /** True when the graph has converged and frozen (no force is acting). */
+  settled: boolean;
 }
 
 // ─── Internal node descriptor ─────────────────────────────────────────────────

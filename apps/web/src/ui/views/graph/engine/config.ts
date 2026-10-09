@@ -60,9 +60,16 @@ export function buildGraphEngineConfig(user: GraphEnginePhysicsConfig): GraphEng
     // Slider 0–100 → 0 to 0.05. Per-node spring toward origin.
     componentCenterStrength: (user.centralGravity / 100) * 0.05,
     componentSpacing: preset.componentSpacing ?? 800,
-    damping: 0.85,
+    // Energy-gated convergence: per-node alpha decays exponentially and the
+    // graph freezes when every node is quiet and still (see engine.ts).
+    alphaDecay: 0.01,
+    alphaMin: 0.005,
+    settleEnergyEps: 1e-4,
+    settleTicks: 30,
+    influenceRadius: 400,
+    reheatAlpha: 0.5,
+    drag: 0.9,
     maxVelocity: 10,
-    friction: 0.92,
     dt: 0.5,
     bhTheta: 1.0,
     linkCountAttraction: user.linkCountAttraction,

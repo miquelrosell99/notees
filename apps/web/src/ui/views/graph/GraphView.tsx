@@ -526,7 +526,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
         positions[i * 2] = p.x;
         positions[i * 2 + 1] = p.y;
       }
-      frameRef.current = { positions, nodeIds: order, nodeCount: order.length, energy: 0, ticks: 0 };
+      frameRef.current = { positions, nodeIds: order, nodeCount: order.length, energy: 0, ticks: 0, settled: true };
       dirtyRef.current = true;
       engineRef.current = null;
       const fit = renderer.fitToCanvas();

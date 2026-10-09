@@ -17,7 +17,7 @@ export class SpringForce implements ForcePlugin {
     this.engine = engine;
   }
 
-  apply(_alpha: number): void {
+  apply(): void {
     const e = this.engine;
     const cfg = e.config;
     const springStr = cfg.springStrength;
@@ -28,6 +28,7 @@ export class SpringForce implements ForcePlugin {
     const eSrc = e.edgeSrc, eTgt = e.edgeTgt;
     const eRest = e.edgeRest, eStiff = e.edgeStiff;
     const eCompress = e.edgeCompress;
+    const alphas = e.alphaArr;
 
     for (let ei = 0; ei < E; ei++) {
       const si = eSrc[ei]!, ti = eTgt[ei]!;
@@ -38,8 +39,8 @@ export class SpringForce implements ForcePlugin {
       const force = springStr * eStiff[ei]! * (dist - eRest[ei]!) * compression;
       const fx = (dx / dist) * force;
       const fy = (dy / dist) * force;
-      if (!pin[si]) { ax[si]! += fx; ay[si]! += fy; }
-      if (!pin[ti]) { ax[ti]! -= fx; ay[ti]! -= fy; }
+      if (!pin[si]) { ax[si]! += fx * alphas[si]!; ay[si]! += fy * alphas[si]!; }
+      if (!pin[ti]) { ax[ti]! -= fx * alphas[ti]!; ay[ti]! -= fy * alphas[ti]!; }
     }
   }
 }

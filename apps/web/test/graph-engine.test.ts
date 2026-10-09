@@ -1,8 +1,10 @@
 /**
  * graph/engine tests: determinism (same seed + topology → identical
  * positions), preset sanity, drag/pin behavior, topology-preserving updates,
- * and quiescence after enough ticks. Assertions are on engine STATE, never
- * wall-clock (the render loop owns timing).
+ * energy-gated settling (the graph reaches a true equilibrium and freezes),
+ * and reheat locality (waking one neighborhood leaves the rest exactly in
+ * place). Assertions are on engine STATE, never wall-clock (the render loop
+ * owns timing).
  */
 
 import { describe, expect, it } from "vitest";
@@ -110,5 +112,84 @@ describe("graph engine", () => {
       maxR = Math.max(maxR, Math.hypot(s.posX[i]!, s.posY[i]!));
     }
     expect(maxR).toBeLessThan(1e6);
+  });
+
+  it("settles: reaches a true equilibrium and reports settled", () => {
+    const { nodes, edges } = chain(80);
+    const engine = new GraphEngine(nodes, edges, physics());
+    let settledAt = -1;
+    for (let t = 0; t < 4000; t++) {
+      engine.step();
+      if (engine.settled) { settledAt = t; break; }
+    }
+    expect(settledAt).toBeGreaterThan(0);
+    // Stillness is force-driven: after settling, further steps change nothing.
+    const before = engine.getState();
+    run(engine, 50);
+    const after = engine.getState();
+    for (let i = 0; i < after.nodeCount; i++) {
+      expect(after.posX[i]).toBe(before.posX[i]);
+      expect(after.posY[i]).toBe(before.posY[i]);
+    }
+  });
+
+  it("alpha cools every node toward 0", () => {
+    const { nodes, edges } = chain(20);
+    const engine = new GraphEngine(nodes, edges, physics());
+    expect(engine.alphaArr[0]).toBe(1);
+    run(engine, 10);
+    expect(engine.alphaArr[0]!).toBeLessThan(1);
+    expect(engine.alphaArr[0]!).toBeGreaterThan(0);
+  });
+
+  it("local reheat moves only the neighborhood — distant nodes stay exactly put", () => {
+    const { nodes, edges } = chain(120);
+    const engine = new GraphEngine(nodes, edges, physics());
+    for (let t = 0; t < 4000 && !engine.settled; t++) engine.step();
+    expect(engine.settled).toBe(true);
+
+    const n0 = engine.getNodePosition("n0")!;
+    const snapshot = new Map<string, { x: number; y: number }>();
+    for (const id of nodes.map((n) => n.nodeUuid)) {
+      snapshot.set(id, engine.getNodePosition(id)!);
+    }
+    // The farthest node from n0 — with 120 links of rest length 100 in the
+    // chain, something is always well outside a 150px influence radius.
+    let farId = "";
+    let farDist = 0;
+    for (const [id, p] of snapshot) {
+      const d = Math.hypot(p.x - n0.x, p.y - n0.y);
+      if (d > farDist) { farDist = d; farId = id; }
+    }
+    expect(farDist).toBeGreaterThan(150);
+
+    engine.reheatLocal(n0.x, n0.y, 150, 0.5);
+    expect(engine.settled).toBe(false);
+    run(engine, 30);
+
+    // The far node is outside the influence radius: not a pixel of drift.
+    const farAfter = engine.getNodePosition(farId)!;
+    expect(farAfter.x).toBe(snapshot.get(farId)!.x);
+    expect(farAfter.y).toBe(snapshot.get(farId)!.y);
+    const s = engine.getState();
+    expect(engine.alphaArr[s.nodeIdArr.indexOf(farId)]!).toBe(0);
+
+    // Every node inside the influence radius was reheated and may move.
+    let woke = 0;
+    for (let i = 0; i < s.nodeCount; i++) {
+      const p = { x: s.posX[i]!, y: s.posY[i]! };
+      if (Math.hypot(p.x - n0.x, p.y - n0.y) <= 150) woke++;
+    }
+    expect(woke).toBeGreaterThan(0);
+  });
+
+  it("global reheat restarts the whole graph", () => {
+    const { nodes, edges } = chain(40);
+    const engine = new GraphEngine(nodes, edges, physics());
+    for (let t = 0; t < 4000 && !engine.settled; t++) engine.step();
+    expect(engine.settled).toBe(true);
+    engine.reheat();
+    expect(engine.settled).toBe(false);
+    expect(engine.alphaArr[0]).toBe(1);
   });
 });

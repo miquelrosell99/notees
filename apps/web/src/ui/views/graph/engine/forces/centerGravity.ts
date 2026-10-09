@@ -17,20 +17,23 @@ export class CenterGravityForce implements ForcePlugin {
     this.engine = engine;
   }
 
-  apply(_alpha: number): void {
+  apply(): void {
     const e = this.engine;
     const strength = e.config.componentCenterStrength;
     if (strength <= 0) return;
 
     const posX = e.posX, posY = e.posY;
     const ax = e.axBuf, ay = e.ayBuf;
+    const alphas = e.alphaArr;
     const activeIdx = e.activeNodeIndices;
     const activeCount = e.activeCount;
 
     for (let k = 0; k < activeCount; k++) {
       const i = activeIdx[k]!;
-      ax[i]! -= posX[i]! * strength;
-      ay[i]! -= posY[i]! * strength;
+      const a = alphas[i]!;
+      if (a <= 0) continue;
+      ax[i]! -= posX[i]! * strength * a;
+      ay[i]! -= posY[i]! * strength * a;
     }
   }
 }

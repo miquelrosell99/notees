@@ -15,7 +15,7 @@ export class ClusterCohesionForce implements ForcePlugin {
     this.engine = engine;
   }
 
-  apply(_alpha: number): void {
+  apply(): void {
     const e = this.engine;
     const N = e.n;
     const cfg = e.config;
@@ -27,19 +27,22 @@ export class ClusterCohesionForce implements ForcePlugin {
     const clCx = e.clCx, clCy = e.clCy, clCC = e.clCount;
     const posX = e.posX, posY = e.posY;
     const ax = e.axBuf, ay = e.ayBuf;
+    const alphas = e.alphaArr;
 
     for (let i = 0; i < N; i++) {
       if (pin[i]) continue;
       const c = clId[i]!;
       const cnt = clCC[c]!;
       if (cnt <= 1) continue;
+      const a = alphas[i]!;
+      if (a <= 0) continue;
       const dx = posX[i]! - clCx[c]!, dy = posY[i]! - clCy[c]!;
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
       const shellR = Math.min(idealDist * 0.5 * Math.sqrt(cnt), idealDist * 6);
       const err = dist - shellR;
       const f = (err > 0 ? -clusterStr * err : -clusterStr * err * 0.15) / dist;
-      ax[i]! += dx * f;
-      ay[i]! += dy * f;
+      ax[i]! += dx * f * a;
+      ay[i]! += dy * f * a;
     }
   }
 }
