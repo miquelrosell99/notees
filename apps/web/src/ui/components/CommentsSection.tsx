@@ -10,8 +10,9 @@
  *
  * The section chrome is NodeViewSection ("Comments" + the direct-child
  * count), ALWAYS rendered (owner 2026-10-09) — an empty thread shows the
- * section with its icon-only quick-add, and starts expanded so the
- * composer is one click away; the original quick-add/reply composer pair creates a
+ * section with its icon-only quick-add riding the header's trailing action
+ * (the shared section-action slot), and starts expanded so the composer is
+ * one click away; the quick-add/reply composer pair creates a
  * child block classed comment through the ordinary write path (createObject
  * with the class + the text as initial content — title-is-content), and each
  * row carries the original action pair: Reply (the nested composer) and delete
@@ -247,25 +248,25 @@ export function CommentsSection({
       className="nt-section"
       expanded={expanded}
       onExpandedChange={setExpanded}
+      action={{
+        icon: "mdi-comment-plus-outline",
+        label: "Add comment",
+        onClick: () => {
+          // The composer renders in the section body: expand (a collapsed
+          // thread would hide the input) and open it.
+          setExpanded(true);
+          setComposing(true);
+        },
+      }}
     >
       <div className="nt-comments">
-        {composing ? (
+        {composing && (
           <CommentComposer
             client={client}
             parentId={nodeId}
             placeholder="Add a comment…"
             onClose={() => setComposing(false)}
           />
-        ) : (
-          <button
-            type="button"
-            className="nt-comments__add"
-            aria-label="Add comment"
-            title="Add comment"
-            onClick={() => setComposing(true)}
-          >
-            <Icon path="mdi-comment-plus-outline" size={0.85} />
-          </button>
         )}
         {rows !== null &&
           (rows.length === 0 ? (

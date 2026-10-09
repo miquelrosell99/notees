@@ -101,8 +101,10 @@ describe("PageView system sections", () => {
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     // The strip is always there, with exactly the two tabs — even when a
-    // tab would be empty. The outgoing "References" tab no longer exists;
-    // Child pages (no children here) stays hidden.
+    // tab would be empty. The outgoing "References" tab no longer exists.
+    // Child pages (no children here) renders on the main surface anyway —
+    // its header carries the create action (owner 2026-10-09) — and its
+    // list query runs on the expanded section's first read.
     expect(container.querySelector(".nt-backlinks")).not.toBeNull();
     // Scope to the strip's OWN tab list: the selected panel may host the
     // collection's views chrome (its Default tab) alongside.
@@ -113,18 +115,19 @@ describe("PageView system sections", () => {
       "Unlinked mentions 1",
     ]);
     expect(screen.queryByRole("tab", { name: "References" })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Child pages/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /Child pages/ })).not.toBeNull();
 
     // Lazy per the SCHEMA.md contract, except the SELECTED tab: Backlinks
     // is active from the first render, so its query runs on mount (the Tabs
     // primitive swallows re-clicks on the active tab — the first load
     // cannot ride onChange). The unselected Unlinked mentions tab stays
     // silent until its first switch. (The eager COUNTS run at render — they
-    // ride the labels above.)
+    // ride the labels above.) The Child pages section starts expanded, so
+    // its read runs on mount too — the backlinks-side spies stay silent.
     expect(linkedSpy).toHaveBeenCalled();
     expect(unlinkedSpy).not.toHaveBeenCalled();
     expect(referencesSpy).not.toHaveBeenCalled();
-    expect(childSpy).not.toHaveBeenCalled();
+    expect(childSpy).toHaveBeenCalled();
   });
 
   it("the selected Backlinks tab loads on mount — zero rows show the empty text", async () => {
@@ -147,7 +150,7 @@ describe("PageView system sections", () => {
     expect(screen.getByText("No backlinks.")).toBeInTheDocument();
   });
 
-  it("the strip hides on a page nobody references — hide-when-empty covers it like every system section", async () => {
+  it("the strip hides on a page nobody references — hide-when-empty covers it like every system section; Child pages still renders with its create action", async () => {
     const client = await seedClient();
     const lonelyId = await client.createObject({ presentAsMain: true, name: "Xylophone QV" });
 
@@ -155,7 +158,11 @@ describe("PageView system sections", () => {
     expect(container.querySelector(".nt-backlinks")).toBeNull();
     expect(screen.queryByRole("tab", { name: "Backlinks" })).toBeNull();
     expect(screen.queryByText("No backlinks.")).toBeNull();
-    expect(screen.queryByRole("button", { name: /Child pages/ })).toBeNull();
+    // The Child pages section is the exception to hide-when-empty on the
+    // main surface (owner 2026-10-09): it always renders, its header action
+    // creating the first child.
+    expect(screen.getByRole("button", { name: /Child pages/ })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Add child page" })).not.toBeNull();
   });
 
   it("a page's first backlink reveals the strip: the count gate re-reads on the write notification", async () => {
@@ -321,49 +328,79 @@ describe("PageView system sections", () => {
     expect(onOpenPage).toHaveBeenCalledWith(childId);
   });
 
-  it("a childless page hides the Child pages section entirely — no empty state, no create affordance (owner 2026-10-08)", async () => {
+  it("a childless MAIN-surface page still renders the Child pages section — the header action creates the first child (owner 2026-10-09)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Lonely Parent" });
-    const onOpenPage = vi.fn();
+
+    render(<PageView client={client} pageId={pageId} onOpenPage={() => {}} />);
+
+    // The section always renders on the main surface now (expanded by
+    // default, the empty text honest); the create rides the section
+    // header's trailing action.
+    const header = screen.getByRole("button", { name: /Child pages/ });
+    expect(header).not.toBeNull();
+    const addButton = screen.getByRole("button", { name: "Add child page" });
+    expect(addButton).not.toBeNull();
+    expect(screen.getByText("No child pages.")).not.toBeNull();
+
+    // The header action creates a main child: it lands in the pages zone
+    // and the expanded section's re-query renders the row.
+    fireEvent.click(addButton);
+    await act(async () => {});
+    expect(screen.queryByText("No child pages.")).toBeNull();
+    const kids = client.getChildPages(pageId);
+    expect(kids).toHaveLength(1);
+    expect(kids[0]!.parentId).toBe(pageId);
+    expect(kids[0]!.presentAsMain).toBe(true);
+  });
+
+  it("a childless EMBEDDED feed entry still hides the Child pages section — no create affordance on secondary surfaces", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Feed Entry" });
     const childSpy = vi.spyOn(client, "getChildPages");
 
-    render(<PageView client={client} pageId={pageId} onOpenPage={onOpenPage} />);
+    render(<PageView client={client} pageId={pageId} embedded />);
 
-    // The count gate is the whole rule now: zero children, no section — no
-    // EmptyState create affordance either, and the list query never runs.
     expect(screen.queryByRole("button", { name: /Child pages/ })).toBeNull();
     expect(screen.queryByRole("button", { name: "Add child page" })).toBeNull();
-    expect(screen.queryByText("No child pages.")).toBeNull();
     expect(childSpy).not.toHaveBeenCalled();
   });
 
-  it("creating the first child page reveals the section: the write notification re-runs the count gate", async () => {
+  it("creating the first child page lists it immediately: the write notification re-runs the eager count and the expanded section's query", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Soon Parent" });
     render(<PageView client={client} pageId={pageId} onOpenPage={() => {}} />);
 
-    expect(screen.queryByRole("button", { name: /Child pages/ })).toBeNull();
+    // The section is already there (childless main surface): the count
+    // badge is suppressed at zero.
+    expect(screen.getByRole("button", { name: /Child pages/ })).not.toBeNull();
 
     await client.createObject({ presentAsMain: true, parentId: pageId, name: "First Kid" });
 
-    // The count read re-runs on the write notification: the section appears
-    // with its single row.
-    expect(await screen.findByRole("button", { name: /Child pages/ })).not.toBeNull();
-    expect(screen.getByText("First Kid")).not.toBeNull();
+    // The count read re-runs on the write notification: the row appears.
+    expect(await screen.findByText("First Kid")).not.toBeNull();
+    expect(
+      within(screen.getByRole("button", { name: /Child pages/ })).getByText("1"),
+    ).not.toBeNull();
   });
 
-  it("no navigation target, no create affordance: a childless page without onOpenPage keeps the section hidden", async () => {
+  it("a childless page without onOpenPage still renders the section and its create action — navigation is the only thing the missing prop gates", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Quiet Parent" });
     const childSpy = vi.spyOn(client, "getChildPages");
 
     render(<PageView client={client} pageId={pageId} />);
 
-    // The count gate hides the section for a childless page — with or
-    // without a navigation target — and its list query never runs.
-    expect(screen.queryByRole("button", { name: /Child pages/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Add child page" })).toBeNull();
-    expect(childSpy).not.toHaveBeenCalled();
+    // The always-render ruling (owner 2026-10-09) does not depend on a
+    // navigation target — the create action works standalone.
+    expect(screen.getByRole("button", { name: /Child pages/ })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Add child page" })).not.toBeNull();
+    // The expanded section's list read runs on mount either way.
+    expect(childSpy).toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add child page" }));
+    await act(async () => {});
+    expect(client.getChildPages(pageId)).toHaveLength(1);
   });
 
   it("the main-children zone lists present-as-main children of any node type (Revision 11)", async () => {

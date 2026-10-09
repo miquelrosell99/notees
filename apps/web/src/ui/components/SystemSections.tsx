@@ -219,10 +219,17 @@ export function SystemSections({
   client,
   pageId,
   onOpenPage,
+  /**
+   * Embedded surface (journal feed, calendar embed): the sections render
+   * read-only — no create affordance — and a childless feed entry hides
+   * the Child pages section as before.
+   */
+  embedded = false,
 }: {
   client: AnyClient;
   pageId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
+  embedded?: boolean | undefined;
 }) {
   const loadLinkedRefs = useCallback(() => client.getLinkedReferences(pageId), [client, pageId]);
   const ignored = useIgnoredUnlinkedRefs(pageId);
@@ -296,19 +303,22 @@ export function SystemSections({
     filter: unlinkedRowFilter,
   });
 
-  // The hide-when-empty rulings gate every child of the sections wrapper —
-  // when all three counts are zero the wrapper would render nothing but its
-  // own top hairline (a dangling divider), so it renders at all only with
-  // content. AFTER every hook: the component flips between null and rendered
-  // as counts change, so the hook order must stay unconditional.
-  if (childPageCount === 0 && backlinkCount === 0 && unlinkedCount === 0) return null;
+  // The hide-when-empty rulings gate the backlinks strip; the Child pages
+  // section renders on the MAIN surface even when childless (owner
+  // 2026-10-09) — its header carries the create action, so the affordance
+  // must be reachable exactly when there is nothing to list. Embedded
+  // feeds keep the old ruling (read-only, childless hides). AFTER every
+  // hook: the component flips between null and rendered as counts change,
+  // so the hook order must stay unconditional.
+  const showChildPages = !embedded || childPageCount > 0;
+  if (!showChildPages && backlinkCount === 0 && unlinkedCount === 0) return null;
 
   return (
     <div className="nt-page-sections">
-      {/* The Child pages section hides entirely when the page has none
-          (owner 2026-10-08) — childless pages keep the bottom stack to the
-          backlinks strip. */}
-      {childPageCount > 0 && (
+      {/* Child pages: always on the main surface (the header action creates
+          a child page — the section-scoped create slot, owner 2026-10-09);
+          embedded feeds stay hide-when-empty, read-only. */}
+      {showChildPages && (
         <Section
           key={`child-${pageId}`}
           client={client}
@@ -316,6 +326,16 @@ export function SystemSections({
           icon={<Icon path="mdi-file-tree-outline" size={0.9} />}
           badge={childPageCount > 0 ? childPageCount : undefined}
           defaultCollapsed={false}
+          action={
+            embedded
+              ? undefined
+              : {
+                  icon: "mdi-plus",
+                  label: "Add child page",
+                  onClick: () =>
+                    void client.createObject({ parentId: pageId, presentAsMain: true }),
+                }
+          }
           load={loadChildPages}
           emptyText="No child pages."
           renderResults={(pages) => (
