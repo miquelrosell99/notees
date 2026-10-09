@@ -12,6 +12,8 @@ import {
   dateNodeId,
   dateNodeLabel,
   dayNodeId,
+  isRangeDatetimeValue,
+  isValidTimeOfDay,
   monthNodeId,
   parseDateNodeId,
   parseIsoDate,
@@ -109,5 +111,30 @@ describe("date node ids (scheme port)", () => {
     expect(dateNodeLabel(parts, "year")).toBe("20260000");
     expect(dateNodeLabel(parts, "month")).toBe("20260900");
     expect(dateNodeLabel(parts, "day")).toBe("20260927");
+  });
+});
+
+describe("datetime value vocabulary (unified-datetime, 2026-10-09)", () => {
+  it("isValidTimeOfDay accepts 24h HH:MM at minute precision and rejects the rest", () => {
+    for (const valid of ["00:00", "09:15", "14:30", "23:59"]) {
+      expect(isValidTimeOfDay(valid)).toBe(true);
+    }
+    for (const invalid of ["24:00", "12:60", "2:30", "14:3", "14:30:00", "14-30", "", null, 930]) {
+      expect(isValidTimeOfDay(invalid)).toBe(false);
+    }
+  });
+
+  it("isRangeDatetimeValue distinguishes the range shape from the point shape, defensively", () => {
+    // Range shape: either bound present counts (open sides ride as null).
+    expect(isRangeDatetimeValue({ start: { nodeId: "x" }, end: null })).toBe(true);
+    expect(isRangeDatetimeValue({ start: null, end: { nodeId: "x" } })).toBe(true);
+    expect(isRangeDatetimeValue({ start: null, end: null })).toBe(true);
+    // Point shape (legacy `date` values included — a bare {nodeId} rides).
+    expect(isRangeDatetimeValue({ nodeId: "x" })).toBe(false);
+    expect(isRangeDatetimeValue({ nodeId: "x", time: "14:30" })).toBe(false);
+    // Non-objects are not ranges.
+    expect(isRangeDatetimeValue(null)).toBe(false);
+    expect(isRangeDatetimeValue("2026-09-27")).toBe(false);
+    expect(isRangeDatetimeValue(42)).toBe(false);
   });
 });
