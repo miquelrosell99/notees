@@ -102,11 +102,11 @@
   flex-shrink: 0;
 }
 
-/* The dropdown stays a compact control — the kit default is width:100%,
-   which reads as a broken full-width strip inside the options list. */
-.export-modal__select-row .dropdown {
-  width: max-content;
-  min-width: var(--layout-size-2xl);
+/* The dropdown stays a compact control — the kit container defaults to
+   width:100% (and .dropdown is flex:1, so a width on .dropdown loses):
+   shrink the CONTAINER and the trigger follows its content. */
+.export-modal__select-row .dropdown-container {
+  width: auto;
 }
 
 .export-modal__radio-group {
