@@ -132,14 +132,33 @@ describe("block collapse", () => {
     // Exactly the two parents (root parent + nested child) get a chevron.
     expect(tree.querySelectorAll(".nt-block-chevron").length).toBe(2);
 
-    // The childless root block's row has no chevron — only the plain bullet
-    // plus the drag-handle grip that every row carries.
+    // The childless root block's row has no chevron — only the plain bullet,
+    // which doubles as the row's drag handle.
     const leafRow = treeByText(container, "leaf root").closest(".nt-block-row");
     expect(leafRow).not.toBeNull();
     expect(
       within(leafRow as HTMLElement).queryByRole("button", { name: /collapse block|expand block/i }),
     ).toBeNull();
-    expect(within(leafRow as HTMLElement).getByTitle("Drag to move")).not.toBeNull();
+    expect(within(leafRow as HTMLElement).getByTitle(/Drag to move/)).not.toBeNull();
+  });
+
+  it("does not drag or tooltip from the collapse chevron", async () => {
+    const client = await seedClient();
+    const pageId = await seedTreePage(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    // The chevron carries no drag tooltip of its own — hovering it must not
+    // surface the bullet's "Drag to move" title (it is not a drag source).
+    const chevron = container.querySelector<HTMLElement>(".nt-block-chevron");
+    expect(chevron).not.toBeNull();
+    expect(chevron!.hasAttribute("title")).toBe(false);
+    expect(chevron!.closest(".nt-block-grip")!.hasAttribute("title")).toBe(false);
+    // And no sortable activator attributes leaked onto the grip or chevron:
+    // the drag listeners live on the bullet alone.
+    expect(chevron!.closest(".nt-block-grip")!.getAttribute("role")).toBeNull();
+    const bullet = container.querySelector<HTMLElement>(".nt-bullet");
+    expect(bullet).not.toBeNull();
+    expect(bullet!.getAttribute("role")).toBe("button");
   });
 
   it("does not enter edit mode when the chevron is clicked", async () => {

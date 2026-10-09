@@ -847,12 +847,15 @@ select:focus-visible {
   width: 22px;
   height: 22px;
   flex-shrink: 0;
-  cursor: pointer;
+  /* The bullet alone is the drag handle (the chevron only toggles
+     collapse): grab cursor, and touch-action:none so the PointerSensor
+     owns touch gestures that start on it. */
+  cursor: grab;
   user-select: none;
   -webkit-user-select: none;
   border-radius: 50%;
   color: var(--color-on-surface-variant);
-  touch-action: manipulation;
+  touch-action: none;
   /* Optical alignment: baseline-aligned in the row, the fixed-height bullet
      rides ~2px below the text's visual center — the dot/icon center on the
      cap-height middle instead. */
@@ -969,7 +972,9 @@ select:focus-visible {
   position: absolute;
   right: calc(100% + 1px);
   top: 50%;
-  transform: translateY(-50%);
+  /* Mirror the bullet's optical translateY(-2px): centered on the grip box
+     the chevron rode 2px below the bullet it belongs to. */
+  transform: translateY(calc(-50% - 2px));
   width: 14px;
   padding: 0;
   border: none;
@@ -1663,8 +1668,10 @@ select:focus-visible {
 
 /* --- block drag-and-drop --------------------------------------------------------- */
 
-/* The bullet/chevron area is the drag handle (whole-row drag would fight
-   text editing); a 4px activation distance keeps plain clicks untouched. */
+/* The bullet is the drag handle (whole-row drag would fight text editing);
+   a 4px activation distance keeps plain clicks untouched. The grip is only
+   the positioning wrapper: it anchors the collapse chevron and carries the
+   right-click block menu — no drag listeners, cursor, or tooltip. */
 .nt-block-grip {
   position: relative;
   display: inline-flex;
@@ -1672,13 +1679,7 @@ select:focus-visible {
   justify-content: center;
   width: 18px;
   flex-shrink: 0;
-  cursor: grab;
   color: var(--color-on-surface-variant);
-  touch-action: none;
-}
-
-.nt-block-grip:active {
-  cursor: grabbing;
 }
 
 /* Right end of the row: the classes column and the backlink gutter toggle,

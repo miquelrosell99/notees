@@ -15,9 +15,12 @@
  * switching back to outline restores the hidden subtrees.
  *
  * Drag-and-drop: each row is sortable within its sibling group (dnd-kit,
- * vertical strategy) via the bullet/chevron grip handle — only inside a
- * workspace editing surface (the drag scope PageView provides; outside it
- * the grip stays inert). Drops resolve to `object.move` through the intent
+ * vertical strategy) via the bullet — the bullet alone is the drag handle;
+ * the collapse chevron is a plain toggle and must not start a drag, so the
+ * sortable listeners live on the bullet, not the shared grip wrapper.
+ * Draggable only inside a workspace editing surface (the drag scope PageView
+ * provides; outside it the bullet stays inert). Drops resolve to
+ * `object.move` through the intent
  * model in block-dnd.ts; the drop indicator arrives through DropLineContext,
  * proximity-snapped to the nearest valid location of the drag session.
  * While its row drags, the source stays in place and renders muted (the
@@ -142,10 +145,12 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
   const backlinkCount = client.getBacklinkCount(node.id);
   const [backlinksExpanded, setBacklinksExpanded] = useState(false);
   const isCollapsed = !ignoreCollapse && collapsed.has(node.id);
-  // Sortable within this row's sibling group; the bullet/chevron area is the
-  // drag handle (whole-row drag would fight text editing). A small activation
-  // distance keeps plain clicks untouched. The title row is never sortable
-  // (and renders outside the body's drag scope) and rows outside a workspace
+  // Sortable within this row's sibling group; the BULLET is the drag handle
+  // (whole-row drag would fight text editing) — the chevron deliberately
+  // carries no listeners: hovering or pressing it must never show the drag
+  // affordance, it only toggles collapse. A small activation distance keeps
+  // plain clicks (zoom) untouched. The title row is never sortable (and
+  // renders outside the body's drag scope) and rows outside a workspace
   // editing surface aren't either — the disabled flag keeps the hook inert,
   // the same pattern read-only projections use.
   const dragScope = useContext(WorkspaceDragScopeContext);
@@ -462,9 +467,6 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
       <div className="nt-block-row">
         <span
           className="nt-block-grip"
-          title="Drag to move"
-          {...attributes}
-          {...listeners}
           onContextMenu={(event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -493,7 +495,9 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
           )}
           <span
             className={`nt-bullet${isCollapsed && children.length > 0 ? " nt-bullet--collapsed" : ""}`}
-            title="Zoom in (Shift+click: open in sidebar)"
+            title="Drag to move · click to zoom (Shift+click: open in sidebar)"
+            {...attributes}
+            {...listeners}
             onClick={(event) => {
               event.stopPropagation();
               // Shift+click peeks the block in the right sidebar; a plain

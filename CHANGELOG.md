@@ -9,6 +9,23 @@ predating this file.
 
 ## 2026-10-09
 
+- **fix(web): the collapse chevron aligns with its bullet, and block dragging
+  starts only from the bullet — the chevron is a plain collapse toggle.**
+  (1) Alignment: the chevron is absolutely positioned against the grip
+  wrapper and centered on its box, while the bullet optically rides 2px
+  higher (`translateY(-2px)` for the cap-height center) — the chevron now
+  mirrors that offset (`translateY(calc(-50% - 2px))`) so its glyph centers
+  on the bullet. (2) Drag ownership: the sortable listeners, activator
+  attributes, grab cursor, `touch-action: none`, and the "Drag to move"
+  tooltip move from the `.nt-block-grip` wrapper onto the `.nt-bullet`
+  itself — hovering or pressing the chevron no longer shows the drag tooltip
+  or starts a drag; the grip remains as the positioning anchor for the
+  chevron and keeps its right-click block menu. The bullet's tooltip now
+  reads "Drag to move · click to zoom (Shift+click: open in sidebar)".
+  Verified: full gate green (typecheck + all suites), incl. the dnd tests
+  retargeted at the bullet and a new spec asserting the chevron carries no
+  drag tooltip/role.
+
 - **fix(web): the export modal's page-size dropdown wears the app surface
   (the "blue" was the browser default button face — a kit reset gap), the
   PDF's node links are accent-colored and underlined (no grey chip), and the
@@ -30,14 +47,6 @@ predating this file.
 
 - **feat(web): the nodeview's two sidebars — the properties panel and the
   context column — become raised cards over the main content surface.**
-  Each column retired its continuous full-height vertical divider (and the
-  negative-margin reach into the page padding) and now rides as its own
-  card: surface fill, hairline frame, the layout-card radius, one elevation
-  step above the card it sits on (`--shadow-elevation-2`), inset padding,
-  stopping a step above the card bottom like the top bar. The panels
-  unmount on collapse as before; only the frame changed. Docs: `docs/ux.md`
-  + `docs/usage.md` describe the raised-card columns instead of the
-  divider. Verified: web build green, web test suites green.
 
 - **fix(web): the PDF's visual regressions from the app-chrome slice — no
   more double bullets, pills at deterministic size — and the export modal's
