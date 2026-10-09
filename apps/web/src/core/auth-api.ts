@@ -9,6 +9,8 @@ export interface ServerInfo {
   version: string;
   protocolVersion: number;
   setupRequired: boolean;
+  /** NOTEES_SIGNUP_ENABLED on the server: the login screen offers "Create one". */
+  signupEnabled: boolean;
 }
 
 export interface AccountUser {
@@ -89,6 +91,17 @@ export function setupAccount(
 
 export function login(serverUrl: string, input: { email: string; password: string }): Promise<LoginResponse> {
   return request<LoginResponse>(serverUrl, "/auth/login", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+/** Open registration — only exists when the server's signup flag is on (404 otherwise). */
+export function signup(
+  serverUrl: string,
+  input: { email: string; password: string; displayName?: string | undefined },
+): Promise<LoginResponse> {
+  return request<LoginResponse>(serverUrl, "/auth/signup", {
     method: "POST",
     body: JSON.stringify(input),
   });
