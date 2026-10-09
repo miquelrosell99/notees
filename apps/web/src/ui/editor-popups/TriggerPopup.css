@@ -73,6 +73,15 @@
   outline: none;
 }
 
+/* Quiet focus like every other search bar — no accent ring. */
+.trigger-popup__input:focus {
+  border-color: var(--color-outline);
+}
+
+.trigger-popup__input:focus-visible {
+  box-shadow: none;
+}
+
 /* ─── Link tabs (All / Pages / Blocks) ──────────────────────────── */
 
 .trigger-popup__tabs {
