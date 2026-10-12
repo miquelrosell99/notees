@@ -371,9 +371,10 @@ describe("the class page's panelled layout (owner 2026-10-12)", () => {
     const content = document.querySelector(".nt-page-content") as HTMLElement;
     expect(within(content).getByRole("button", { name: /classed nodes/i })).not.toBeNull();
     expect(within(side).queryByRole("button", { name: /classed nodes/i })).toBeNull();
-    // The class page keeps the no-context-column ruling: no column, no toggle.
-    expect(document.querySelector(".nt-page-context")).toBeNull();
-    expect(screen.queryByRole("button", { name: /context panel/i })).toBeNull();
+    // The context column rides the class page too (owner 2026-10-12, every
+    // nodeview): the column renders and the top bar carries its toggle.
+    expect(document.querySelector(".nt-page-context")).not.toBeNull();
+    expect(screen.getByRole("button", { name: /hide context panel/i })).not.toBeNull();
     // The extends pills re-anchored to the nodeview top bar (the panelled corner).
     expect(screen.getByRole("button", { name: "Add class extension" })).not.toBeNull();
   });

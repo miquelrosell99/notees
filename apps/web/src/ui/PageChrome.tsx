@@ -80,9 +80,9 @@ export function NodeTopbar({
   onToggleSidePanel: () => void;
   contextPanelCollapsed: boolean;
   /**
-   * The context-panel toggle; UNDEFINED hides the button — the class
-   * variant renders the panelled layout but no context column (owner
-   * 2026-10-12), so its top bar carries no context toggle.
+   * The context-panel toggle; UNDEFINED hides the button (kept for hosts
+   * that render no context column — none today: every panelled page carries
+   * the column, class pages included, owner 2026-10-12).
    */
   onToggleContextPanel?: (() => void) | undefined;
   chromeModes: ReactNode;

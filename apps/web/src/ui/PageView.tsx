@@ -57,9 +57,10 @@
  * Activity + Comments ONLY. Embedded/journal/calendar surfaces and the
  * focus/compact variants render NO context column (main-surface chrome
  * only); the class variant joined the PANELLED layout owner 2026-10-12 —
- * Metadata + Class properties + Templates ride its first column — but
- * keeps the no-context-column ruling. The right rail is cards-only — the
- * generic frame around NodeView (components/NodeCardFrame.tsx).
+ * Metadata + Class properties + Templates ride its first column — and its
+ * context column too (owner correction, the column is node-relevant for
+ * every node kind). The right rail is cards-only — the generic frame around
+ * NodeView (components/NodeCardFrame.tsx).
  *
  * The `preview` surface seam — NodeView's `preview` prop renders
  * this view with NO corner menu, NO global listeners, a READ-ONLY body
@@ -281,13 +282,13 @@ export function PageView({
    * The panelled main layout: the class variant re-joined it owner
    * 2026-10-12 (the class page gets the properties-sidebar layout — the
    * Metadata panel + the variant's `sidebarSections` ride the first column,
-   * Classed nodes the content column). The CONTEXT column stays a
-   * non-class surface (the standing ruling — class pages render no
-   * context column), hence the separate `showContext` flag.
+   * Classed nodes the content column). The context column rides EVERY
+   * panelled page, class pages included (owner 2026-10-12, "for any
+   * nodeview in general" — graph/TOC/Activity/Comments are node-relevant
+   * whatever the node kind).
    */
   const panelled =
     layout === "default" && !embedded && !focusMode && !preview;
-  const showContext = panelled && variant.variant !== "class";
   const [headerMenu, setHeaderMenu] = useState<{ x: number; y: number } | null>(null);
   const [exporting, setExporting] = useState<{ pageId: string; name: string } | null>(null);
   const [sharing, setSharing] = useState<{ pageId: string; name: string } | null>(null);
@@ -704,10 +705,8 @@ export function PageView({
             classIds={page.classIds}
             sidePanelCollapsed={sidePanelCollapsed}
             onToggleSidePanel={() => setSidePanelCollapsed(!sidePanelCollapsed)}
-            contextPanelCollapsed={showContext ? contextPanelCollapsed : true}
-            onToggleContextPanel={
-              showContext ? () => setContextPanelCollapsed(!contextPanelCollapsed) : undefined
-            }
+            contextPanelCollapsed={contextPanelCollapsed}
+            onToggleContextPanel={() => setContextPanelCollapsed(!contextPanelCollapsed)}
             chromeModes={chromeModes}
             chromeMenu={chromeMenu}
             onOpenPage={onOpenPage}
@@ -749,7 +748,7 @@ export function PageView({
                 {mainChrome}
               </div>
             </div>
-            {showContext && !contextPanelCollapsed && (
+            {panelled && !contextPanelCollapsed && (
               <aside className="nt-page-context" aria-label="Context">
                 {/* The node-relevant widgets, relocated from the right
                     rail (the rail is workspace cards only). The references

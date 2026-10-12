@@ -9,6 +9,22 @@ predating this file.
 
 ## 2026-10-12
 
+- **feat(web): the class side panel loses its divider stack, the tab row
+  breathes before the view below it, and the context column rides class
+  pages too (owner corrections 2026-10-12).** (1) The panelled first column
+  showed a hairline per section — every `NodeViewSection` carries a default
+  top rule, the sections-stack wrapper added one more — three rules inside
+  one bordered card. The side panel now suppresses the sections' top rules
+  (`.nt-page-side-panel .node-view-section`) and the wrapper's own hairline
+  retires: whitespace-only separation. (2) `.nt-section-views`'s column gap
+  rises `--spacing-1` → `--spacing-2` — the hosted tab bar sits off the
+  collection it drives. (3) The **context column is enabled for class
+  pages** — the "class renders no context column" ruling retires ("for any
+  nodeview in general"): `showContext` folds into `panelled`, the top bar's
+  context toggle is unconditional again, and class pages gain graph/TOC/
+  Activity/Comments + the footer in the third column. Verified: `pnpm
+  typecheck` + `pnpm test` green; the context-column spec flips its class
+  assertion (column present, top bar present); `docs/ux.md` reworded.
 - **feat(web): the class page renders the properties-sidebar layout — Metadata
   + Class properties + Templates ride the first column, Classed nodes the
   content column — and the app top bar gains a session-only layout toggle
