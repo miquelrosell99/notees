@@ -47,11 +47,11 @@ type AnyClient = WorkspaceClient | WorkerClient;
  * NodeTopbar — the panelled main layout's pinned top row, spanning the
  * WHOLE card above the column split: the properties
  * collapse toggle and the classes pills on the left; on the right the
- * host's blocks view switcher, the context collapse toggle, and the "…"
- * node menu — in that order, over a full-width divider border like the
- * sidebar's. Full-width so the bar never rescales when a panel column
- * shows or hides; each panel toggle sits directly above the column it
- * reveals.
+ * host's blocks view switcher, the context collapse toggle (absent on the
+ * class variant — no context column), and the "…" node menu — over a
+ * full-width divider border like the sidebar's. Full-width so the bar never
+ * rescales when a panel column shows or hides; each panel toggle sits
+ * directly above the column it reveals.
  */
 export function NodeTopbar({
   client,
@@ -64,6 +64,14 @@ export function NodeTopbar({
   chromeModes,
   chromeMenu,
   onOpenPage,
+  /**
+   * The classes-cluster override: the class variant's corner renders the
+   * extends relation's ClassPillsList (the cornerPills config) instead of
+   * the default instance-of ClassesRow — same override the compact corner
+   * branch applies (the class variant joined the
+   * panelled layout).
+   */
+  classesCorner,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -71,10 +79,16 @@ export function NodeTopbar({
   sidePanelCollapsed: boolean;
   onToggleSidePanel: () => void;
   contextPanelCollapsed: boolean;
-  onToggleContextPanel: () => void;
+  /**
+   * The context-panel toggle; UNDEFINED hides the button — the class
+   * variant renders the panelled layout but no context column, so its top bar carries no context toggle.
+   */
+  onToggleContextPanel?: (() => void) | undefined;
   chromeModes: ReactNode;
   chromeMenu: ReactNode;
   onOpenPage?: ((pageId: string) => void) | undefined;
+  /** Classes-cluster override (the class variant's extends pills). */
+  classesCorner?: ReactNode;
 }) {
   return (
     <div className="nt-node-topbar">
@@ -90,22 +104,26 @@ export function NodeTopbar({
         onClick={onToggleSidePanel}
       />
       <div className="nt-node-topbar__classes">
-        <ClassesRow client={client} nodeId={nodeId} classIds={classIds} onOpenPage={onOpenPage} />
+        {classesCorner ?? (
+          <ClassesRow client={client} nodeId={nodeId} classIds={classIds} onOpenPage={onOpenPage} />
+        )}
       </div>
       <span className="nt-node-topbar__spacer" aria-hidden="true" />
       <div className="nt-node-topbar__right">
         {chromeModes}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          icon="mdi mdi-information-outline"
-          aria-label={contextPanelCollapsed ? "Show context panel" : "Hide context panel"}
-          aria-pressed={!contextPanelCollapsed}
-          title={contextPanelCollapsed ? "Show context panel" : "Hide context panel"}
-          active={!contextPanelCollapsed}
-          onClick={onToggleContextPanel}
-        />
+        {onToggleContextPanel !== undefined && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            icon="mdi mdi-information-outline"
+            aria-label={contextPanelCollapsed ? "Show context panel" : "Hide context panel"}
+            aria-pressed={!contextPanelCollapsed}
+            title={contextPanelCollapsed ? "Show context panel" : "Hide context panel"}
+            active={!contextPanelCollapsed}
+            onClick={onToggleContextPanel}
+          />
+        )}
         {chromeMenu}
       </div>
     </div>
