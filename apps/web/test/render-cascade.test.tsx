@@ -138,13 +138,13 @@ describe("NodeContextMenu zone gestures (Move to Pages / Move to content)", () =
   }
 
   function stubClient() {
-    const calls: Array<{ id: string; fields: { presentAsMain?: boolean } }> = [];
+    const calls: Array<{ id: string; fields: Record<string, unknown> }> = [];
     return {
       calls,
       client: {
         unassignClass: async () => {},
         deleteObject: async () => {},
-        updateObject: async (id: string, fields: { presentAsMain?: boolean }) => {
+        updateObject: async (id: string, fields: Record<string, unknown>) => {
           calls.push({ id, fields });
         },
         // Clone surfaces the "Duplicate" item composes through (unused by

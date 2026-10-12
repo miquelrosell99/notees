@@ -1,21 +1,8 @@
-/* Right-sidebar context sections: the TOC + references rail
-   blocks above the peek-card stack. Compact 340px-rail chrome, token-only. */
+/* Context-column sections. The Table of content rides the STANDARD
+   collapsible section chrome (NodeViewSection, owner 2026-10-12) — these
+   are its entry rows only. Token-only. */
 
-.nt-rail-toc {
-  padding: var(--spacing-3);
-  background: var(--color-surface-container-low);
-  border: var(--border-width-default) solid var(--color-outline-variant);
-  border-radius: var(--shape-card);
-}
-
-.nt-rail-toc__title {
-  font: var(--font-label-medium);
-  font-size: var(--font-size-xs);
-  color: var(--color-on-surface-variant);
-  margin-bottom: var(--spacing-2);
-}
-
-.nt-rail-toc__list {
+.nt-toc__list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -24,7 +11,7 @@
   gap: var(--spacing-1);
 }
 
-.nt-rail-toc__entry {
+.nt-toc__entry {
   display: flex;
   align-items: center;
   gap: var(--spacing-1);
@@ -41,30 +28,16 @@
   min-width: 0;
 }
 
-.nt-rail-toc__entry:hover {
+.nt-toc__entry:hover {
   background: var(--color-hover-overlay);
 }
 
-.nt-rail-toc__item--nested .nt-rail-toc__entry {
+.nt-toc__item--nested .nt-toc__entry {
   padding-left: calc(var(--spacing-2) + var(--spacing-4));
   color: var(--color-on-surface-variant);
 }
 
-.nt-rail-toc__item--active > .nt-rail-toc__entry {
-  color: var(--color-primary);
-  background: var(--color-primary-container);
-}
-
-.nt-rail-toc__icon {
-  flex-shrink: 0;
-  color: var(--color-on-surface-variant);
-}
-
-.nt-rail-toc__item--active > .nt-rail-toc__entry .nt-rail-toc__icon {
-  color: var(--color-primary);
-}
-
-.nt-rail-toc__label {
+.nt-toc__label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

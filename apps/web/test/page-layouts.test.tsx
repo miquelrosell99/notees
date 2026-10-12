@@ -27,7 +27,7 @@ import { HubView } from "../src/ui/App.js";
 import { ensureTaskFamily } from "../src/ui/components/taskFamily.js";
 import { Breadcrumbs } from "../src/ui/components/Breadcrumbs.js";
 import { TocSection } from "../src/ui/components/sidebarSections.js";
-import { headingTextOf, tocEntriesOf } from "../src/ui/components/sidebarToc.js";
+import { headingLabelOf, tocEntriesOf } from "../src/ui/components/sidebarToc.js";
 import {
   readCardLayoutPref,
   readIgnoredUnlinkedRefs,
@@ -274,32 +274,42 @@ describe("L2 page banner", () => {
 
 // --- L3: sidebar context sections --------------------------------------------------
 
-describe("L3 TOC derivation (sidebarToc)", () => {
-  it("headingTextOf: single short text lines qualify; sentences and long lines do not", () => {
-    type NodeLike = Parameters<typeof headingTextOf>[0];
-    const node = (text: string) => ({ contentAst: [{ type: "text", text }] }) as NodeLike;
-    expect(headingTextOf(node("Context"))).toBe("Context");
-    expect(headingTextOf(node("  Padded head  "))).toBe("Padded head");
-    expect(headingTextOf(node("A sentence, with punctuation."))).toBeNull();
-    expect(headingTextOf(node("Asks a question?"))).toBeNull();
-    expect(headingTextOf(node("A very long line that goes on and on ".repeat(4)))).toBeNull();
-    // Multi-token / non-text content never qualifies.
+describe("L3 TOC derivation (sidebarToc — heading tokens only, owner 2026-10-12)", () => {
+  it("headingLabelOf: a single heading token qualifies; plain text, multi-token, and empty headings do not", () => {
+    type NodeLike = Parameters<typeof headingLabelOf>[0];
+    const node = (contentAst: unknown[]) => ({ contentAst }) as NodeLike;
     expect(
-      headingTextOf({
-        contentAst: [
-          { type: "text", text: "Two" },
-          { type: "text", text: "tokens" },
-        ],
-      } as NodeLike),
-    ).toBeNull();
+      headingLabelOf(node([{ type: "heading", children: [{ type: "text", text: "Context" }] }])),
+    ).toBe("Context");
+    // Marks carry into the child; the label flattens.
     expect(
-      headingTextOf({ contentAst: [{ type: "query", queryAst: {} }] } as unknown as NodeLike),
+      headingLabelOf(
+        node([
+          {
+            type: "heading",
+            children: [{ type: "text", text: "Bold head", marks: ["bold"] }],
+          },
+        ]),
+      ),
+    ).toBe("Bold head");
+    // A plain one-liner is PROSE now — only marked headings qualify.
+    expect(headingLabelOf(node([{ type: "text", text: "Plain line" }]))).toBeNull();
+    // Multi-token content and empty headings never qualify.
+    expect(
+      headingLabelOf(
+        node([
+          { type: "heading", children: [{ type: "text", text: "One" }] },
+          { type: "text", text: "two" },
+        ]),
+      ),
     ).toBeNull();
+    expect(headingLabelOf(node([{ type: "heading", children: [] }]))).toBeNull();
   });
 
-  it("entries mix main children and heading-like blocks in child order, one level deep", async () => {
+  it("entries list heading blocks in child order, nested one level under heading ancestry; plain blocks pass their level through", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Doc" });
+    // A plain sentence block is NOT an entry (the old heuristic is retired).
     await client.createObject({
       parentId: pageId,
       contentAst: [
@@ -308,64 +318,62 @@ describe("L3 TOC derivation (sidebarToc)", () => {
     });
     const head = await client.createObject({
       parentId: pageId,
-      contentAst: [{ type: "text", text: "Background" }],
+      contentAst: [
+        { type: "heading", children: [{ type: "text", text: "Background" }] },
+      ],
+    });
+    // A non-heading child of the heading passes its nesting through.
+    const prose = await client.createObject({
+      parentId: head,
+      contentAst: [{ type: "text", text: "Some prose under the head." }],
     });
     await client.createObject({
-      parentId: head,
-      contentAst: [{ type: "text", text: "Early work" }],
+      parentId: prose,
+      contentAst: [{ type: "heading", children: [{ type: "text", text: "Early work" }] }],
     });
+    // A sub-page is NOT an entry either — headings alone.
+    await client.createObject({ parentId: pageId, presentAsMain: true, name: "Sub Page" });
     await client.createObject({
-      parentId: head,
-      contentAst: [{ type: "text", text: "A nested sentence, too long to be a head." }],
-    });
-    const sub = await client.createObject({
       parentId: pageId,
-      presentAsMain: true,
-      name: "Sub Page",
+      contentAst: [
+        { type: "heading", children: [{ type: "text", text: "Another top head" }] },
+      ],
     });
 
     const entries = tocEntriesOf(client, pageId);
-    expect(entries.map((e) => [e.label, e.depth, e.kind])).toEqual([
-      ["Background", 0, "heading"],
-      ["Early work", 1, "heading"],
-      ["Sub Page", 0, "page"],
+    expect(entries.map((e) => [e.label, e.depth])).toEqual([
+      ["Background", 0],
+      ["Early work", 1],
+      ["Another top head", 0],
     ]);
-    expect(entries[2]!.node.id).toBe(sub);
   });
 
-  it("TocSection hides with no entries; highlights and navigates the active one", async () => {
+  it("TocSection hides with no heading blocks; standard section chrome; clicking an entry jumps to the block", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Doc" });
 
     const empty = render(
-      <TocSection client={client} pageId={pageId} activeId={null} onOpenNode={() => {}} />,
+      <TocSection client={client} pageId={pageId} onJumpToBlock={() => {}} />,
     );
     expect(empty.container.firstElementChild).toBeNull();
     empty.unmount();
 
     const head = await client.createObject({
       parentId: pageId,
-      contentAst: [{ type: "text", text: "Section One" }],
-    });
-    const sub = await client.createObject({
-      parentId: pageId,
-      presentAsMain: true,
-      name: "Sub",
+      contentAst: [{ type: "heading", children: [{ type: "text", text: "Section One" }] }],
     });
 
-    const onOpenNode = vi.fn();
-    render(<TocSection client={client} pageId={pageId} activeId={sub} onOpenNode={onOpenNode} />);
-    expect(screen.getByText("Contents")).not.toBeNull();
+    const onJumpToBlock = vi.fn();
+    render(<TocSection client={client} pageId={pageId} onJumpToBlock={onJumpToBlock} />);
+    // Standard section chrome: the named collapsible header with the count,
+    // collapsed by default — expand it to list the entries.
+    const header = screen.getByRole("button", { name: /table of content 1/i });
+    expect(header.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(header);
     expect(screen.getByText("Section One")).not.toBeNull();
-    // The active main child carries the highlight.
-    const activeEntry = screen.getByRole("button", { name: /Sub/ });
-    expect(activeEntry.getAttribute("aria-current")).toBe("location");
-    expect(activeEntry.closest("li")!.className).toContain("nt-rail-toc__item--active");
 
     fireEvent.click(screen.getByRole("button", { name: "Section One" }));
-    expect(onOpenNode).toHaveBeenCalledWith(head);
-    fireEvent.click(activeEntry);
-    expect(onOpenNode).toHaveBeenCalledWith(sub);
+    expect(onJumpToBlock).toHaveBeenCalledWith(head);
   });
 });
 

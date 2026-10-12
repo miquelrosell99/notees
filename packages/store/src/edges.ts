@@ -181,6 +181,8 @@ export function deriveDesiredEdges(db: StoreDatabase, nodeId: string): DesiredEd
         desired.push({ targetId: null, type: "typed_link", verb, metadata: fullMetadata });
       } else if (t.type === "quote" && Array.isArray(t.children)) {
         walk(t.children);
+      } else if (t.type === "heading" && Array.isArray(t.children)) {
+        walk(t.children);
       }
     }
   };
@@ -292,6 +294,8 @@ export function rebuildEdges(db: StoreDatabase, nodeId: string, at: string): Edg
         desiredLinkIds.add(t.linkId);
         upsertLink.run(t.linkId, workspaceId, nodeId, t.targetNodeId, at, at);
       } else if (t.type === "quote" && Array.isArray(t.children)) {
+        walkLinks(t.children);
+      } else if (t.type === "heading" && Array.isArray(t.children)) {
         walkLinks(t.children);
       }
     }

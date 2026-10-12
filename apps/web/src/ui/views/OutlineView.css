@@ -95,9 +95,12 @@ button.outline-group__label:hover {
   display: inline-flex;
 }
 
+/* The count rides the SECTION badge pill, right beside the group name
+   (owner 2026-10-12) — not a bare number pushed to the row's far right. */
 .outline-group__name {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -105,8 +108,14 @@ button.outline-group__label:hover {
 
 .outline-group__count {
   flex-shrink: 0;
-  font-size: var(--font-size-xs);
+  margin-inline-start: var(--spacing-1);
+  padding: 3px 8px;
+  border-radius: var(--shape-medium);
+  background: var(--color-surface-container-high);
   color: var(--color-on-surface-variant);
+  font: var(--font-label-medium);
+  font-size: var(--font-size-xs);
+  line-height: 1;
 }
 
 .outline-group__items {

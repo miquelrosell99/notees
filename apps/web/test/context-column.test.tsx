@@ -60,12 +60,16 @@ async function flushWrites(): Promise<void> {
 }
 
 describe("the context column (three-column panelled layout)", () => {
-  it("the panelled main layout renders three columns; the context column hosts graph, TOC, Activity, Comments", async () => {
+  it("the panelled main layout renders three columns; the context column hosts graph, Table of content, Activity, Comments", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Doc" });
+    // The Table of content lists heading blocks only (owner 2026-10-12) —
+    // seed one so the section renders.
     await client.createObject({
       parentId: pageId,
-      contentAst: [{ type: "text", text: "Background" }],
+      contentAst: [
+        { type: "heading", children: [{ type: "text", text: "Background" }] },
+      ],
     });
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
@@ -76,20 +80,39 @@ describe("the context column (three-column panelled layout)", () => {
     expect(context).not.toBeNull();
 
     // Top-down: the local graph (collapsed by default — the card mounts,
-    // and loads, only on the first expand), the tree-derived Contents, the
-    // node's own Activity; Comments always renders (empty included).
+    // and loads, only on the first expand), the heading-derived Table of
+    // content (standard section chrome), the node's own Activity; Comments
+    // always renders (empty included).
     expect(context.querySelector(".nt-localgraph-card")).toBeNull();
     const graphHeader = within(context as HTMLElement).getByRole("button", { name: /Local graph/ });
     expect(graphHeader.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(graphHeader);
     expect(context.querySelector(".nt-localgraph-card")).not.toBeNull();
-    expect(within(context as HTMLElement).getByText("Contents")).not.toBeNull();
+    expect(
+      within(context as HTMLElement).getByRole("button", { name: /Table of content/ }),
+    ).not.toBeNull();
     expect(
       within(context as HTMLElement).getByRole("button", { name: /^Activity/ }),
     ).not.toBeNull();
     expect(
       within(context as HTMLElement).getByRole("button", { name: /^Comments/ }),
     ).not.toBeNull();
+  });
+
+  it("the Table of content hides when the page has no heading blocks", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Doc" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "A plain one-liner — prose, not structure." }],
+    });
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    expect(
+      within(container.querySelector(".nt-page-context") as HTMLElement).queryByRole("button", {
+        name: /Table of content/,
+      }),
+    ).toBeNull();
   });
 
   it("the nodeview top bar toggles each panel column independently, device-locally", async () => {

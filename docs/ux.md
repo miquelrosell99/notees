@@ -202,7 +202,7 @@ The flip is real from the CLI and object API (`notees object update <id> --prese
 
 ## Presentation mode — the note is the deck
 
-There is no slide editor and no slide objects: a presentation is a pure read of one page's subtree, split into slides by the same tree that holds the content (structure is the slide boundary — the content grammar has no heading or divider token, and needs none).
+There is no slide editor and no slide objects: a presentation is a pure read of one page's subtree, split into slides by the same tree that holds the content (structure is the slide boundary — the content grammar's `heading` token (owner 2026-10-12) marks document structure for the Table of content, not slide boundaries; slides follow the tree).
 
 - **Slide 0 is the title slide** — the page's own text content, centered, with its icon and effective color.
 - **Every page-zone child is a section slide.** A child in the parent's main-children zone (the Pages section — the render bit set) opens a slide: its own text is the slide title, its children are the slide body, nested blocks included.

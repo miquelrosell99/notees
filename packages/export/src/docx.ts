@@ -186,6 +186,17 @@ function renderBlock(block: ExportBlock, bullet?: number): Paragraph[] {
       // "Quote" is a custom style registered below (italics + left indent) —
       // the docx library ships no Quote default.
       return [new Paragraph(atLevel({ style: "Quote", children: renderSpans(block.spans) }))];
+    case "heading":
+      // The library's built-in heading level (styles ship with the default
+      // document); the page title rides Heading 1 above the outline.
+      return [
+        new Paragraph(
+          atLevel({
+            children: renderSpans(block.spans),
+            heading: HeadingLevel.HEADING_2,
+          }),
+        ),
+      ];
     case "asset": {
       // Single-file delivery carries no bytes: a boxed placeholder labeled
       // `Asset:` with the CAS id; the bundle-relative path prints on a

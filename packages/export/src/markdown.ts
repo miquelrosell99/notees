@@ -370,6 +370,10 @@ function renderBlocksToLines(
           .join("\n");
         break;
       }
+      case "heading":
+        // The page title rides `# ` — block headings take the next level.
+        text = `## ${renderSpans(block.spans)}`;
+        break;
       case "asset":
         // ctx.assetPath resolved the bundle-relative bytes path; otherwise
         // the raw CAS uuid reference stands.

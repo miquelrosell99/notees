@@ -59,7 +59,8 @@ Repo checkouts used for releases (both clean, tagged from `main`):
   + GitHub Release; `android.yml` produces debug-signed CI artifacts for
   try-out builds).
 
-**Current wire (owner review 2026-10-05, wire node fields added 2026-10-07):** envelope v3; Revision-11
+**Current wire (owner review 2026-10-05, wire node fields added 2026-10-07, the `heading`
+content token added 2026-10-12):** envelope v3; Revision-11
 render state; `object.restore`; the color grammar; the
 workspace-feature batch (`workspace.feature.set`, `code_block`/`hr`, `embed_ref.view`, PG5
 element ids, PC4 `active`, PC6 qualifiers); number formats; the
