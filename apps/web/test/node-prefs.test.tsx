@@ -284,6 +284,14 @@ describe("Sidebar favorites/recents", () => {
     expect(screen.getByText("Favorites")).toBeTruthy();
   });
 
+  it("Favorites always renders — empty shows the placeholder line", async () => {
+    const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
+    stubPrefsFetch(() => ({ favorites: [], recents: [], updatedAt: 1 }));
+    renderSidebar(client);
+    await screen.findByText("Favorites");
+    expect(screen.getByText(/No favorites yet/)).toBeTruthy();
+  });
+
   it("star toggle on a row writes the new list to the server", async () => {
     const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
     const pageId = await client.createObject({ presentAsMain: true, name: "Beta" });
