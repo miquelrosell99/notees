@@ -15,6 +15,11 @@
  * the match against it ("0 of N"), it never hides the section. The panel's
  * "N of M rows match" line updates live because the filter applies on every
  * change (the v1 ViewBuilder result-preview pattern).
+ *
+ * `collapsibleSearch` (the tab-bar chrome, owner 2026-10-12) folds the quick
+ * search behind a magnifier toggle: the field renders only while the toggle
+ * is open or the text facet is set — an active text filter never folds away
+ * — and the freshly opened field takes the focus.
  */
 
 import { useState } from "react";
@@ -50,10 +55,17 @@ export interface FilterBarProps {
    * takes a full-width wrapped line beneath it (in-flow, no overlay).
    */
   layout?: "block" | "inline" | undefined;
+  /**
+   * Fold the quick search behind a magnifier toggle (the tab-bar chrome):
+   * the field shows while the toggle is open or the text facet is set.
+   * Default false — a body-top bar keeps the always-visible search box.
+   */
+  collapsibleSearch?: boolean | undefined;
 }
 
-export function FilterBar({ client, value, onChange, config, matchCount, totalCount, layout = "block" }: FilterBarProps) {
+export function FilterBar({ client, value, onChange, config, matchCount, totalCount, layout = "block", collapsibleSearch = false }: FilterBarProps) {
   const [panelOpen, setPanelOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const showText = config?.text ?? true;
   const showClass = config?.class ?? true;
@@ -62,15 +74,32 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
   const showPanelToggle = showClass || showProperties || showDateRange;
 
   const active = !isFilterInactive(value);
+  const hasText = (value.text ?? "") !== "";
+  // A set text facet keeps the field visible — an active filter never folds.
+  const searchVisible = !collapsibleSearch || searchOpen || hasText;
 
   return (
     <div className={`nt-filter-bar${layout === "inline" ? " nt-filter-bar--inline" : ""}`}>
       <div className="nt-filter-bar__row">
-        {showText && (
+        {showText && collapsibleSearch && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            icon="mdi mdi-magnify"
+            aria-label="Search rows"
+            title="Search rows"
+            aria-expanded={searchVisible}
+            active={searchVisible}
+            onClick={() => setSearchOpen((open) => !open)}
+          />
+        )}
+        {showText && searchVisible && (
           <SearchField
             className="nt-filter-bar__search"
             aria-label="Filter by text"
             placeholder="Filter…"
+            autoFocus={collapsibleSearch}
             value={value.text ?? ""}
             onChange={(event) => onChange({ ...value, text: event.target.value })}
             onClear={() => onChange({ ...value, text: "" })}

@@ -19,6 +19,9 @@
  * today's behavior (permanent, first), custom tabs refine the items/groups
  * with their stored query_ast (sectionViewResolve), and a custom tab's
  * view_mode overrides the requested mode when the registry knows it.
+ * `tabBarTrailing` rides the tab bar's far right (owner 2026-10-12) — the
+ * host section's filter/view chrome joins the tabs' row; it renders ONLY
+ * in the hosted tab bar (a non-hosted collection has no tab row).
  */
 
 import { Suspense, useEffect, useState } from "react";
@@ -33,6 +36,7 @@ import type { NodeCollectionProps, ViewMode } from "./types.js";
 export function NodeCollection({
   viewMode,
   hostedViews,
+  tabBarTrailing,
   ...props
 }: NodeCollectionProps & { viewMode: ViewMode }) {
   const entry = getViewDefinition(viewMode);
@@ -121,6 +125,7 @@ export function NodeCollection({
           sectionKey={hosted.sectionKey}
           selected={selectedView !== undefined ? tab : SECTION_DEFAULT_TAB}
           onSelect={setTab}
+          {...(tabBarTrailing !== undefined ? { trailing: tabBarTrailing } : {})}
         />
       )}
       {content}

@@ -15,14 +15,19 @@
  *  - "Reset to default" (rendered only when custom views exist) deletes
  *    every custom view of the section — the default view is
  *    derived-not-stored, so emptying the table IS the factory state (the
- *    schema cannot express a default).
+ *    schema cannot express a default);
+ *  - `trailing` (owner 2026-10-12): the host section's chrome — the filter
+ *    bar (collapsible quick search + structured-filters toggle), the view
+ *    switcher — rides the bar's FAR RIGHT, one row with the tabs. The
+ *    FilterBar's structured panel still drops a full-width wrapped line
+ *    beneath the bar (the bar wraps).
  *
  * The bar renders even while the views load (the Default tab + "+" are
  * usable immediately) and on an empty collection (the create affordance
  * must not vanish behind row count).
  */
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import type { QueryAst } from "@notees/query";
 
@@ -59,9 +64,14 @@ export interface SectionViewTabsProps {
   /** The selected tab (SECTION_DEFAULT_TAB or a view id) — owned by the host. */
   selected: string;
   onSelect: (tab: string) => void;
+  /**
+   * The host section's chrome riding the bar's far right (the filter bar,
+   * the view switcher) — one row with the tabs.
+   */
+  trailing?: ReactNode;
 }
 
-export function SectionViewTabs({ client, nodeId, sectionKey, selected, onSelect }: SectionViewTabsProps) {
+export function SectionViewTabs({ client, nodeId, sectionKey, selected, onSelect, trailing }: SectionViewTabsProps) {
   const { views, lastWriteError } = useSectionViews(client, nodeId, sectionKey);
   const [builderOpen, setBuilderOpen] = useState(false);
   const [renaming, setRenaming] = useState<SectionView | null>(null);
@@ -150,6 +160,7 @@ export function SectionViewTabs({ client, nodeId, sectionKey, selected, onSelect
             Reset to default
           </button>
         )}
+        {trailing}
       </div>
 
       {selectedView !== undefined && (

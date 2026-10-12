@@ -1,23 +1,27 @@
 /**
  * ClassedNodesSection — the class's instances, the class page's centerpiece
- * (the Capacities database / Tana supertag table): the view toolbar (table
- * by default per the owner rule; outline/cards switchable — the cards mode
- * renders the property board when a bound select property can group) over
- * the editable collection with one column per property binding. Expanded by default; rows open the member (inline
+ * (the Capacities database / Tana supertag table): the editable collection
+ * with one column per property binding, its mode chrome (table by default
+ * per the owner rule; outline/cards switchable — the cards mode renders the
+ * property board when a bound select property can group) riding the hosted
+ * tab bar's far right. Expanded by default; rows open the member (inline
  * blocks resolve to their containing main node) and the row × unassigns the
- * member from THIS class. The toolbar (and the empty state's action button)
- * carry the create affordance — a node classed with this class — visible
- * even on an empty database.
+ * member from THIS class. The create affordance — a node classed with this
+ * class — rides the section header's trailing action, visible even on an
+ * empty database.
  *
  * The section resolves through useSectionData directly (the Section chrome
  * wrapper stays the lazy contract too, but the transient filter layer needs
- * the hook's post-resolution/pre-windowing step): the FilterBar rides the
- * view toolbar inline (left of the icon-only Add member button and the view
- * switcher — one chrome row), the section's FilterQuery filters the resolved
- * members before the collection's windowing sees them, and the eager
- * member-count badge stays UNFILTERED — an active filter reads "0 of N" in
- * the bar and never hides the section. The query is component state — one
- * instance per class page, lost on reload, nothing persisted.
+ * the hook's post-resolution/pre-windowing step): the FilterBar (collapsible
+ * quick search behind the magnifier toggle + the structured-filters toggle)
+ * and the view switcher ride the hosted tab bar's FAR RIGHT as the
+ * collection's `tabBarTrailing` (owner 2026-10-12 — one chrome row with the
+ * tabs, the structured panel dropping a wrapped full-width line beneath),
+ * the section's FilterQuery filters the resolved members before the
+ * collection's windowing sees them, and the eager member-count badge stays
+ * UNFILTERED — an active filter reads "0 of N" in the bar and never hides
+ * the section. The query is component state — one instance per class page,
+ * lost on reload, nothing persisted.
  */
 
 import { useCallback, useMemo, useState } from "react";
@@ -40,7 +44,7 @@ import {
   type FilterQuery,
 } from "../filterQuery.js";
 import { useSectionData, type SectionRowFilter } from "../useSectionData.js";
-import { NodeCollection, ViewToolbar } from "../../views/index.js";
+import { NodeCollection, ViewSwitcher } from "../../views/index.js";
 import type { NodeCollectionItem, TableColumn, ViewMode } from "../../views/index.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -178,21 +182,11 @@ export function ClassedNodesSection({
       onExpandedChange={setExpanded}
       action={{ icon: "mdi-plus", label: "Add member", onClick: addMember }}
     >
-      {/* One chrome row: the transient filter layer rides the toolbar's
-          left (inline — its structured panel drops below as an overlay) and
-          the view switcher right. The create affordance moved to the
-          section header's trailing action (owner 2026-10-09), replacing the
-          toolbar button and the collection's add row. */}
-      <ViewToolbar modes={modes} value={membersMode} onChange={setMembersMode}>
-        <FilterBar
-          client={client}
-          layout="inline"
-          value={memberFilter}
-          onChange={setMemberFilter}
-          matchCount={members === null ? null : members.length}
-          totalCount={total}
-        />
-      </ViewToolbar>
+      {/* The chrome rides the hosted tab bar's far right (the collection's
+          `tabBarTrailing`): the collapsible quick search (the magnifier
+          toggle opens the field), the structured-filters toggle, and the
+          view switcher — one row with the tabs. The create affordance lives
+          in the section header's trailing action (owner 2026-10-09). */}
       {members === null ? null : (
         <NodeCollection
           viewMode={membersMode}
@@ -209,6 +203,20 @@ export function ClassedNodesSection({
           trailingAction={unassignAction}
           emptyTitle="No classed nodes."
           hostedViews={{ nodeId: classId, sectionKey: "classed-nodes" }}
+          tabBarTrailing={
+            <>
+              <FilterBar
+                client={client}
+                layout="inline"
+                collapsibleSearch
+                value={memberFilter}
+                onChange={setMemberFilter}
+                matchCount={members.length}
+                totalCount={total}
+              />
+              <ViewSwitcher modes={modes} value={membersMode} onChange={setMembersMode} />
+            </>
+          }
         />
       )}
     </NodeViewSection>

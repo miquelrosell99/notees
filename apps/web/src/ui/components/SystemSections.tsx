@@ -30,9 +30,11 @@
  * it); Ignore dismisses the source device-locally, per page — device
  * state, never an op (./viewPrefs.js).
  *
- * The transient filter layer (owner 2026-10-07) rides each section's body
- * top through the shared FilterBar (./FilterBar.js — the same chrome the
- * classed-nodes section renders): one FilterQuery per section (the
+ * The transient filter layer (owner 2026-10-07) rides the shared FilterBar
+ * (./FilterBar.js — the same chrome the classed-nodes section renders),
+ * since owner 2026-10-12 in the hosted tab bar's FAR RIGHT as the
+ * collection's `tabBarTrailing` (the collapsible quick search + the
+ * structured-filters toggle — one row with the tabs): one FilterQuery per section (the
  * per-view rule, component state — nothing persisted), applied
  * post-resolution/pre-windowing; the eager count badge stays UNFILTERED —
  * an active filter reads "0 of N" in the bar and never hides the section.
@@ -120,6 +122,7 @@ export function ReferenceList({
   onOpenPage,
   unlinkedPageId,
   hostedViews,
+  trailing,
   emptyText,
 }: {
   entries: ReferenceEntry[];
@@ -127,6 +130,12 @@ export function ReferenceList({
   onOpenPage?: ((nodeId: string) => void) | undefined;
   unlinkedPageId?: string | undefined;
   hostedViews?: HostedViewsConfig | undefined;
+  /**
+   * The section's chrome (its FilterBar) riding the hosted tab bar's far
+   * right — forwarded as the collection's `tabBarTrailing`; renders only in
+   * the hosted tab bar.
+   */
+  trailing?: ReactNode | undefined;
   /** The section-empty line when there is nothing to list (rides the collection's empty state). */
   emptyText?: string | undefined;
 }) {
@@ -165,6 +174,7 @@ export function ReferenceList({
       items={items}
       groups={groups}
       {...(hostedViews !== undefined ? { hostedViews } : {})}
+      {...(trailing !== undefined ? { tabBarTrailing: trailing } : {})}
       {...(emptyText !== undefined ? { emptyText } : {})}
       renderItem={(item) => {
         const containingPageId =
@@ -223,8 +233,9 @@ function displayNameOf(node: ClientNode): string {
  * ReferenceSection — ONE of the page's reference sections (Backlinks /
  * Unlinked mentions) as a normal collapsible NodeCollection section: the
  * shared NodeViewSection chrome (title + icon + eager UNFILTERED count
- * badge), the transient FilterBar at the body top, and the ReferenceList
- * collection beneath (its hosted view chrome included). The lazy contract
+ * badge) and the ReferenceList collection beneath — its hosted view chrome
+ * included, the transient FilterBar riding the hosted tab bar's FAR RIGHT
+ * as the collection's `trailing` (owner 2026-10-12). The lazy contract
  * lives in useSectionData — one instance per section (the per-view rule):
  * no query while collapsed, cached rows across a silent collapse/expand,
  * a re-derive per client notification while expanded. `refreshKey` carries
@@ -288,13 +299,6 @@ function ReferenceSection({
       expanded={expanded}
       onExpandedChange={setExpanded}
     >
-      <FilterBar
-        client={client}
-        value={filterQuery}
-        onChange={setFilterQuery}
-        matchCount={rows === null ? null : rows.length}
-        totalCount={total}
-      />
       {rows === null ? null : (
         <ReferenceList
           entries={rows}
@@ -302,6 +306,17 @@ function ReferenceSection({
           onOpenPage={onOpenPage}
           {...(unlinkedPageId !== undefined ? { unlinkedPageId } : {})}
           hostedViews={{ nodeId: pageId, sectionKey }}
+          trailing={
+            <FilterBar
+              client={client}
+              layout="inline"
+              collapsibleSearch
+              value={filterQuery}
+              onChange={setFilterQuery}
+              matchCount={rows.length}
+              totalCount={total}
+            />
+          }
           emptyText={emptyText}
         />
       )}

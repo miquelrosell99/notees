@@ -11,12 +11,15 @@
  * for now); the skin lands as the single render target for the
  * SectionSpec stacks.
  *
- * The transient filter layer: `filterable` renders the FilterBar at the
- * body top and applies its FilterQuery through the hook — post-resolution,
- * pre-windowing. The count badge stays UNFILTERED (the hook's `total` is
- * the pre-filter resolved count): an active filter shows "0 of N" in the
- * bar and never hides the section. The query is this component's state —
- * one skin instance per section view, lost on reload, nothing persisted.
+ * The transient filter layer: `filterable` renders the FilterBar — at the
+ * body top for an UN-hosted collection; as the hosted tab bar's far-right
+ * `tabBarTrailing` (inline, the collapsible quick search — owner
+ * 2026-10-12) when the collection props carry `hostedViews` — and applies
+ * its FilterQuery through the hook — post-resolution, pre-windowing. The
+ * count badge stays UNFILTERED (the hook's `total` is the pre-filter
+ * resolved count): an active filter shows "0 of N" in the bar and never
+ * hides the section. The query is this component's state — one skin
+ * instance per section view, lost on reload, nothing persisted.
  */
 
 import { useMemo, useState, type ReactNode } from "react";
@@ -103,6 +106,11 @@ export function CollectionSection({
 
   if (hideWhenEmpty && resolvedCount === 0) return null;
 
+  // The hosted ruling (owner 2026-10-12): on a hosted collection the chrome
+  // rides the tab bar's far right — never a body-top row above the tabs.
+  const hosted = collection?.hostedViews !== undefined;
+  const filterConfig = typeof filterable === "object" ? filterable : undefined;
+
   return (
     <NodeViewSection
       title={title}
@@ -112,12 +120,12 @@ export function CollectionSection({
       expanded={expanded}
       onExpandedChange={setExpanded}
     >
-      {filterable !== false && (
+      {filterable !== false && !hosted && (
         <FilterBar
           client={client}
           value={filterQuery}
           onChange={setFilterQuery}
-          config={typeof filterable === "object" ? filterable : undefined}
+          config={filterConfig}
           matchCount={rows === null ? null : rows.length}
           totalCount={count ?? total}
         />
@@ -131,6 +139,25 @@ export function CollectionSection({
           client={client}
           items={rows}
           {...collection}
+          {...(filterable !== false && hosted
+            ? {
+                tabBarTrailing: (
+                  <>
+                    <FilterBar
+                      client={client}
+                      layout="inline"
+                      collapsibleSearch
+                      value={filterQuery}
+                      onChange={setFilterQuery}
+                      config={filterConfig}
+                      matchCount={rows.length}
+                      totalCount={count ?? total}
+                    />
+                    {collection?.tabBarTrailing}
+                  </>
+                ),
+              }
+            : {})}
           emptyText={emptyText}
         />
       )}

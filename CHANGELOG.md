@@ -9,6 +9,23 @@ predating this file.
 
 ## 2026-10-12
 
+- **feat(web): the collection filter/view chrome rides the hosted tab bar's
+  far right — the quick search folds behind a magnifier toggle (owner
+  2026-10-12).** The classed-nodes section's toolbar row (search box,
+  structured-filters toggle, view switcher) and the reference sections'
+  body-top FilterBar give way to ONE chrome row with the section's tabs:
+  `NodeCollection` gains a `tabBarTrailing` slot (forwarded to
+  `SectionViewTabs`' `trailing`, rendered at the bar's far right; only in
+  the hosted tab bar), the FilterBar gains `collapsibleSearch` — the quick
+  text search hides behind a magnifier toggle that opens the field beside
+  it (focused); a set text facet never folds away — and the structured
+  builder still drops a wrapped full-width panel beneath the row (the bar
+  now wraps). The classed-nodes view switcher rides the same slot; the
+  un-hosted surfaces (hubs, the Created section, the blocks toolbar) keep
+  their ViewToolbar unchanged. Verified: `pnpm typecheck` + `pnpm test`
+  green; filter-layer tests re-pinned to the folded search plus a new
+  fold-behavior spec; `docs/usage.md` §4, `docs/ux.md`, and
+  `docs/developers/architecture.md` reworded to the tab-bar chrome.
 - **feat(web): the graph chrome is streamlined — one quiet bar, two popovers,
   and a transparent overlay layout (owner rulings 2026-10-12).** The toolbar
   carried ~14 same-weight controls in mixed registers; now: (1) The **top

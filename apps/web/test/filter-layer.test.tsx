@@ -7,15 +7,16 @@
  * section), the query is one instance per section view (the two reference
  * sections never share), and the three filterable sections — Backlinks,
  * Unlinked mentions, classed nodes — render the shared FilterBar's chrome
- * while a non-filterable section (Child pages) renders none. On the
- * reference sections the bar rides the section BODY top (owner
- * 2026-10-09, the tab strip's retirement): the quick search is always
- * visible (no folding toggle), the structured builder opens in a panel
- * below the bar, and each section owns its query instance — a filter on
- * Backlinks never leaks into Unlinked mentions. The structured panel
- * is the block query builder — these tests drive its add menu, rows and
- * wire controls end to end (the pure builder interactions live in
- * filter-builder.test.tsx).
+ * while a non-filterable section (Child pages) renders none. Since owner
+ * 2026-10-12 the bar rides the hosted tab bar's FAR RIGHT (the
+ * NodeCollection's `tabBarTrailing` — one row with the tabs): the quick
+ * search folds behind a magnifier toggle (hidden until opened; a set text
+ * facet never folds away), the structured builder opens in a wrapped
+ * full-width panel beneath the row, and each section owns its query
+ * instance — a filter on Backlinks never leaks into Unlinked mentions. The
+ * structured panel is the block query builder — these tests drive its add
+ * menu, rows and wire controls end to end (the pure builder interactions
+ * live in filter-builder.test.tsx).
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -93,6 +94,12 @@ function section(headerName: RegExp): HTMLElement {
   return el as HTMLElement;
 }
 
+/** Open the folded quick search (the magnifier toggle) and return its input. */
+function openSearch(scope: HTMLElement): HTMLElement {
+  fireEvent.click(within(scope).getByRole("button", { name: "Search rows" }));
+  return within(scope).getByLabelText("Filter by text");
+}
+
 /** The open structured-facet panel of a visible FilterBar. */
 function structuredPanel(): HTMLElement {
   const panel = document.querySelector(".nt-filter-bar__panel");
@@ -126,7 +133,7 @@ describe("the classed-nodes filter bar", () => {
     // "Row 1" matches exactly Row 100..Row 119 — twenty rows that ALL live
     // past the first window. First-N-then-filtered would show none;
     // post-resolution/pre-windowing shows all twenty.
-    fireEvent.change(within(section).getByLabelText("Filter by text"), {
+    fireEvent.change(openSearch(section), {
       target: { value: "Row 1" },
     });
     expect(tableRowCount()).toBe(20);
@@ -144,7 +151,7 @@ describe("the classed-nodes filter bar", () => {
     const section = classedNodesSection();
     expect(tableRowCount()).toBe(100);
 
-    fireEvent.change(within(section).getByLabelText("Filter by text"), {
+    fireEvent.change(openSearch(section), {
       target: { value: "zzz" },
     });
 
@@ -159,6 +166,35 @@ describe("the classed-nodes filter bar", () => {
     fireEvent.click(within(section).getByRole("button", { name: "Clear filter" }));
     expect(tableRowCount()).toBe(100);
     expect(within(section).queryByText(/of 120/)).toBeNull();
+  });
+
+  it("the quick search folds behind the magnifier toggle: hidden until opened, an active text filter never folds away", async () => {
+    const client = await seedClient();
+    const classId = await seedBigClass(client);
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+    const section = classedNodesSection();
+    expect(tableRowCount()).toBe(100);
+
+    // Folded: the toggle renders, the field does not.
+    expect(within(section).getByRole("button", { name: "Search rows" })).not.toBeNull();
+    expect(within(section).queryByLabelText("Filter by text")).toBeNull();
+
+    // Open → the field filters live.
+    fireEvent.change(openSearch(section), { target: { value: "Row 1" } });
+    expect(tableRowCount()).toBe(20);
+
+    // An active text facet never folds away: toggling keeps the field
+    // (the region stays expanded — aria-expanded names the visible field).
+    fireEvent.click(within(section).getByRole("button", { name: "Search rows" }));
+    expect(within(section).getByLabelText("Filter by text")).not.toBeNull();
+    expect(
+      within(section).getByRole("button", { name: "Search rows" }).getAttribute("aria-expanded"),
+    ).toBe("true");
+
+    // Clearing the text returns the full set; the field folds again.
+    fireEvent.click(within(section).getByRole("button", { name: "Clear search" }));
+    expect(tableRowCount()).toBe(100);
+    expect(within(section).queryByLabelText("Filter by text")).toBeNull();
   });
 
   it("the structured panel's class condition filters through the extends closure", async () => {
@@ -254,25 +290,27 @@ describe("the reference sections' filter bars", () => {
     return { pageId, plainSourceId };
   }
 
-  it("each reference section renders the shared FilterBar at its body top; a non-filterable section renders none", async () => {
+  it("each reference section renders the shared filter chrome on the hosted tab bar; a non-filterable section renders none", async () => {
     const client = await seedClient();
     const { pageId } = await seedReferencedPage(client);
     await client.createObject({ presentAsMain: true, name: "Kid", parentId: pageId });
 
     render(<PageView client={client} pageId={pageId} />);
-    // Backlinks is expanded by default: its bar (the always-visible quick
-    // search + the structured-filters toggle) rides the body top.
+    // Backlinks is expanded by default: its chrome (the folded quick search
+    // — the magnifier toggle — plus the structured-filters toggle) rides
+    // the hosted tab bar's far right.
     const backlinks = section(/Backlinks/);
-    expect(within(backlinks).getByLabelText("Filter by text")).not.toBeNull();
+    expect(within(backlinks).getByRole("button", { name: "Search rows" })).not.toBeNull();
+    expect(within(backlinks).queryByLabelText("Filter by text")).toBeNull();
     expect(within(backlinks).getByRole("button", { name: "Structured filters" })).not.toBeNull();
     // …the Child pages section (not filterable) carries none.
     const childSection = section(/Child pages/);
-    expect(within(childSection).queryByLabelText("Filter by text")).toBeNull();
+    expect(within(childSection).queryByRole("button", { name: "Search rows" })).toBeNull();
 
     // The Unlinked mentions section starts collapsed — no chrome until the
     // first expand (a collapsed section renders no body).
     const unlinked = expandUnlinkedMentions();
-    expect(within(unlinked).getByLabelText("Filter by text")).not.toBeNull();
+    expect(within(unlinked).getByRole("button", { name: "Search rows" })).not.toBeNull();
     expect(within(unlinked).getByRole("button", { name: "Structured filters" })).not.toBeNull();
     expect(within(unlinked).getAllByText("Plain Source")).not.toHaveLength(0);
   });
@@ -284,8 +322,8 @@ describe("the reference sections' filter bars", () => {
     render(<PageView client={client} pageId={pageId} />);
     const backlinks = section(/Backlinks/);
 
-    // Empty the Backlinks section through its own bar.
-    fireEvent.change(within(backlinks).getByLabelText("Filter by text"), {
+    // Empty the Backlinks section through its own chrome.
+    fireEvent.change(openSearch(backlinks), {
       target: { value: "zzz" },
     });
     expect(within(backlinks).getByText("0 of 1")).not.toBeNull();
@@ -293,10 +331,10 @@ describe("the reference sections' filter bars", () => {
     // The eager badge stays unfiltered.
     expect(screen.getByRole("button", { name: "Backlinks 1" })).not.toBeNull();
 
-    // The Unlinked section owns a DIFFERENT instance: its bar reads the
+    // The Unlinked section owns a DIFFERENT instance: its field reads the
     // untouched query — the rows are live.
     const unlinked = expandUnlinkedMentions();
-    expect((within(unlinked).getByLabelText("Filter by text") as HTMLInputElement).value).toBe("");
+    expect((openSearch(unlinked) as HTMLInputElement).value).toBe("");
     expect(within(unlinked).queryByText(/of 1/)).toBeNull();
     expect(within(unlinked).getAllByText("Plain Source")).not.toHaveLength(0);
   });
@@ -310,7 +348,7 @@ describe("the reference sections' filter bars", () => {
     const unlinked = expandUnlinkedMentions();
     expect(unlinkedSpy).toHaveBeenCalledTimes(1);
 
-    fireEvent.change(within(unlinked).getByLabelText("Filter by text"), {
+    fireEvent.change(openSearch(unlinked), {
       target: { value: "zzz" },
     });
     expect(within(unlinked).getByText("0 of 1")).not.toBeNull();
@@ -336,7 +374,8 @@ describe("the reference sections' filter bars", () => {
     render(<PageView client={client} pageId={pageId} />);
     const backlinks = section(/Backlinks/);
 
-    // Open the builder on Backlinks: the panel rides below the bar.
+    // Open the builder on Backlinks: the panel drops a wrapped full-width
+    // line beneath the tab row.
     fireEvent.click(within(backlinks).getByRole("button", { name: "Structured filters" }));
     const panel = structuredPanel();
     expect(backlinks.contains(panel)).toBe(true);
