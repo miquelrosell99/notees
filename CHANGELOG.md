@@ -65,6 +65,38 @@ predating this file.
   there). Verified: `pnpm typecheck` + `pnpm test` green; `pickers.test.tsx`
   and `search-palette.test.tsx` gain year specs.
 
+- **feat(web): the owner-corrections batch — narrow search popups, the
+  Properties rename, the + back beside the tabs, favorites with icons +
+  drag-sort, and six smaller fixes (owner 2026-10-12).** (1) At **≤768px
+  the quick search folds into a magnifier button** whose anchored popup
+  carries the field (`useMediaQuery` + the kit `ButtonWithPanel`; wide
+  widths keep the permanent field). (2) The **Metadata section is renamed
+  Properties** everywhere user-facing (the in-flow section, the panelled
+  first column, the block-row sections; internal class names unchanged).
+  (3) The add-view **+ rides the tablist's end** again (the right-cluster
+  experiment reverted per owner). (4) **Favorites** render the same row UI
+  as Recents (icons), say plainly "**No favorites yet**" when empty, and
+  are **drag-sortable** (dnd-kit vertical sort over the rows; the committed
+  order writes through the nodePrefs store, `reorderNodeFavorites` — the
+  same optimistic+server channel as the star toggle). (5) The side panel's
+  section contents lose the title-alignment indent (spacing-7 → spacing-3
+  in the narrow column). (6) **Extended by** stops showing a stale count
+  over an empty list — the tree rebuilt per render instead of a memo keyed
+  only on [client, classId], which cached the mount-time [] forever (the
+  "34 subclasses, no rows" bug). (7) **Popups toggle on anchor re-click**:
+  the kit ContextMenu no longer treats its own anchor as an outside press,
+  and NodeMenuButton closes on a second click. (8) The panelled class page
+  no longer overlaps the "…" menu on the context toggle — class pages ride
+  the same chromeMenu slot as pages (the absolute corner is inline-block
+  views only). (9) The panelled layout retires its right padding so the
+  scrollbars hug the card's border (the top bar keeps its own inset). (10)
+  **Child pages hides when empty** — the main-surface always-render
+  exception retired; creation lives in the "…" menu and the New button.
+  (11) The Templates section's **Browse gallery** button retires (it
+  duplicated the bind pill's picker). Verified: `pnpm typecheck` + `pnpm
+  test` green; new specs for the narrow fold, the menu toggle, and the
+  favorites reorder; system-sections re-pinned to the hide-when-empty
+  ruling; `docs/usage.md` + `docs/ux.md` reworded.
 - **feat(web): the class side panel loses its divider stack, the tab row
   breathes before the view below it, and the context column rides class
   pages too (owner corrections 2026-10-12).** (1) The panelled first column
@@ -600,7 +632,6 @@ predating this file.
   promoted-node recovery kept, Add-pill empty survives), properties-panel
   dead-carrier specs rewritten to the new contract, properties-panel +
   block-metadata + property-owner-rulings + property-view +
->>>>>>> d61fb47c (feat(web): auto-unset text property values whose carrier has no content and no child blocks)
 
 - **fix(web): the PDF's visual regressions from the app-chrome slice — no
   more double bullets, pills at deterministic size — and the export modal's

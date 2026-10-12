@@ -26,6 +26,7 @@ import {
 import {
   ensureNodePrefsLoaded,
   resetNodePrefsForTests,
+  reorderNodeFavorites,
   toggleNodeFavorite,
   useNodePrefs,
 } from "../src/ui/components/nodePrefs.js";
@@ -305,6 +306,25 @@ describe("Sidebar favorites/recents", () => {
       const put = calls.find((call) => call.method === "PUT");
       expect(put).toBeDefined();
       expect((JSON.parse(put!.body!) as { favorites: string[] }).favorites).toEqual([pageId]);
+    });
+  });
+
+  it("reorderNodeFavorites writes the drag-sorted order to the server", async () => {
+    const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
+    const a = await client.createObject({ presentAsMain: true, name: "A" });
+    const b = await client.createObject({ presentAsMain: true, name: "B" });
+    const calls = stubPrefsFetch(({ method, body }) =>
+      method === "PUT" && body !== undefined
+        ? { ...JSON.parse(body), updatedAt: 2 }
+        : { favorites: [a, b], recents: [], updatedAt: 1 },
+    );
+    renderSidebar(client);
+    await screen.findByText("A");
+    reorderNodeFavorites(client, [b, a]);
+    await waitFor(() => {
+      const put = calls.find((call) => call.method === "PUT");
+      expect(put).toBeDefined();
+      expect((JSON.parse(put!.body!) as { favorites: string[] }).favorites).toEqual([b, a]);
     });
   });
 

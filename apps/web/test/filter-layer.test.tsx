@@ -48,6 +48,7 @@ const clients: WorkspaceClient[] = [];
 afterEach(() => {
   while (clients.length > 0) clients.pop()!.close();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 async function seedClient(): Promise<WorkspaceClient> {
@@ -232,7 +233,7 @@ describe("the classed-nodes filter bar", () => {
     expect(tableRowCount()).toBe(2);
   });
 
-  it("the bar's buttons all ride the right-hand cluster — the + left the tablist and the view chrome stays put when the panel opens", async () => {
+  it("the + rides the tablist's end and the view chrome stays put when the panel opens", async () => {
     const client = await seedClient();
     const classId = await seedClass(client, "project");
     await client.createObject({ presentAsMain: true, name: "Alpha", classIds: [classId] });
@@ -241,9 +242,10 @@ describe("the classed-nodes filter bar", () => {
     const section = classedNodesSection();
     const bar = section.querySelector(".nt-section-views__bar") as HTMLElement;
 
-    // "+" renders in the bar, NOT inside the tablist.
+    // "+" is the LAST item of the tablist (owner 2026-10-12 correction —
+    // beside the tabs, not with the right-hand buttons).
     const add = within(bar).getByRole("button", { name: "Add custom view" });
-    expect(add.closest('[role="tablist"]')).toBeNull();
+    expect(add.closest('[role="tablist"]')).not.toBeNull();
 
     // Ordering contract: the view switcher (and the table's own toolbar)
     // render BEFORE the FilterBar's permanent search field, so the wrapped
@@ -262,6 +264,42 @@ describe("the classed-nodes filter bar", () => {
     expect(bar.contains(panel)).toBe(true);
     expect(bar.contains(add)).toBe(true);
     expect(precedes(bar.querySelector(".selection-button"))).toBe(true);
+  });
+});
+
+describe("the narrow-viewport search fold (owner 2026-10-12)", () => {
+  /** jsdom has no matchMedia: stub a narrow viewport (≤768px matches). */
+  function stubNarrowViewport(): void {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("768"),
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }));
+  }
+
+  it("at ≤768px the quick search is a magnifier toggle whose popup carries the field; typing filters live", async () => {
+    stubNarrowViewport();
+    const client = await seedClient();
+    const classId = await seedClass(client, "project");
+    await client.createObject({ presentAsMain: true, name: "Alpha", classIds: [classId] });
+    await client.createObject({ presentAsMain: true, name: "Beta", classIds: [classId] });
+
+    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+    const section = classedNodesSection();
+    // No inline field at narrow widths — the magnifier toggle renders instead.
+    expect(within(section).queryByLabelText("Filter by text")).toBeNull();
+    fireEvent.click(within(section).getByRole("button", { name: "Search rows" }));
+    // The popup carries the field; typing filters the table live.
+    fireEvent.change(screen.getByLabelText("Filter by text"), { target: { value: "Alpha" } });
+    expect(tableRowCount()).toBe(1);
+    // A re-click toggles the popup closed.
+    fireEvent.click(within(section).getByRole("button", { name: "Search rows" }));
+    expect(screen.queryByLabelText("Filter by text")).toBeNull();
   });
 });
 

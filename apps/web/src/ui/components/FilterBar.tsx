@@ -16,18 +16,21 @@
  * "N of M rows match" line updates live because the filter applies on every
  * change (the v1 ViewBuilder result-preview pattern).
  *
- * The quick search is a PERMANENT field (owner 2026-10-12, the tab-bar
- * chrome correction — no folding toggle). In a wrapping chrome row (the
- * hosted tab bar's `trailing`) the bar renders LAST in the cluster so its
- * structured panel wraps a full-width line beneath the row WITHOUT moving
- * the other controls.
+ * The quick search is a PERMANENT field on wide viewports (owner 2026-10-12,
+ * the tab-bar chrome correction — no folding toggle); at narrow widths
+ * (≤768px) it folds into a magnifier button whose popup carries the field
+ * (see `narrowSearch` below). In a wrapping chrome row (the hosted tab bar's
+ * `trailing`) the bar renders LAST in the cluster so its structured panel
+ * wraps a full-width line beneath the row WITHOUT moving the other controls.
  */
 
 import { useState } from "react";
 
 import type { AnyClient } from "../views/index.js";
 
+import { useMediaQuery } from "../useMediaQuery.js";
 import { Button } from "./ui/Button.js";
+import { ButtonWithPanel } from "./ui/ButtonWithPanel.js";
 import { SearchField } from "./ui/SearchField.js";
 import { FilterBlockBuilder } from "./FilterBlockBuilder.js";
 import {
@@ -63,6 +66,13 @@ export interface FilterBarProps {
 
 export function FilterBar({ client, value, onChange, config, matchCount, totalCount, layout = "block" }: FilterBarProps) {
   const [panelOpen, setPanelOpen] = useState(false);
+  /**
+   * The narrow-viewport fold (owner 2026-10-12): at ≤768px the permanent
+   * search field gives its row space back and becomes a magnifier button
+   * whose popup carries the field (the kit ButtonWithPanel — anchored,
+   * toggling, Escape/outside dismissal). Wide widths keep the inline field.
+   */
+  const narrowSearch = useMediaQuery("(max-width: 768px)");
 
   const showText = config?.text ?? true;
   const showClass = config?.class ?? true;
@@ -71,11 +81,12 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
   const showPanelToggle = showClass || showProperties || showDateRange;
 
   const active = !isFilterInactive(value);
+  const hasText = (value.text ?? "") !== "";
 
   return (
     <div className={`nt-filter-bar${layout === "inline" ? " nt-filter-bar--inline" : ""}`}>
       <div className="nt-filter-bar__row">
-        {showText && (
+        {showText && !narrowSearch && (
           <SearchField
             className="nt-filter-bar__search"
             aria-label="Filter by text"
@@ -84,6 +95,33 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
             onChange={(event) => onChange({ ...value, text: event.target.value })}
             onClear={() => onChange({ ...value, text: "" })}
           />
+        )}
+        {showText && narrowSearch && (
+          <ButtonWithPanel
+            icon="mdi mdi-magnify"
+            variant="ghost"
+            size="sm"
+            panelPosition="bottom"
+            panelAlignment="end"
+            panelWidth="min(78vw, 34ch)"
+            tooltip="Search rows"
+            aria-label="Search rows"
+            buttonProps={{ active: hasText }}
+          >
+            {() => (
+              <div className="nt-filter-bar__search-pop">
+                <SearchField
+                  className="nt-filter-bar__search"
+                  aria-label="Filter by text"
+                  placeholder="Filter…"
+                  autoFocus
+                  value={value.text ?? ""}
+                  onChange={(event) => onChange({ ...value, text: event.target.value })}
+                  onClear={() => onChange({ ...value, text: "" })}
+                />
+              </div>
+            )}
+          </ButtonWithPanel>
         )}
         {showPanelToggle && (
           <Button

@@ -354,7 +354,7 @@ describe("the class icon picker (the shared header icon button is the single ent
 });
 
 describe("the class page's panelled layout (owner 2026-10-12)", () => {
-  it("Metadata + Class properties + Templates ride the first column; Classed nodes rides the content column; no context column", async () => {
+  it("Properties + Class properties + Templates ride the first column; Classed nodes rides the content column; context column included", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "project");
     await client.createObject({ presentAsMain: true, name: "Alpha", classIds: [classId] });
@@ -363,8 +363,8 @@ describe("the class page's panelled layout (owner 2026-10-12)", () => {
     expect(document.querySelector(".nt-page--panelled")).not.toBeNull();
     const side = document.querySelector(".nt-page-side-panel") as HTMLElement;
     expect(side).not.toBeNull();
-    // The Metadata panel + the two moved class sections live in the side panel.
-    expect(within(side).getByRole("button", { name: /metadata/i })).not.toBeNull();
+    // The Properties panel + the two moved class sections live in the side panel.
+    expect(within(side).getByRole("button", { name: /^Properties / })).not.toBeNull();
     expect(within(side).getByRole("button", { name: /class properties/i })).not.toBeNull();
     expect(within(side).getByRole("button", { name: /templates/i })).not.toBeNull();
     // Classed nodes stays the content column's centerpiece — not in the panel.
@@ -386,14 +386,14 @@ describe("the class page's panelled layout (owner 2026-10-12)", () => {
 
     expect(document.querySelector(".nt-page--panelled")).toBeNull();
     expect(document.querySelector(".nt-page-side-panel")).toBeNull();
-    // In-flow Metadata + the class sections in their original order.
+    // In-flow Properties + the class sections in their original order.
     const flow = document.querySelector(".nt-page") as HTMLElement;
-    const headerOf = (name: string): HTMLElement =>
-      within(flow).getByRole("button", { name: new RegExp(name, "i") }) as HTMLElement;
-    const metadata = headerOf("metadata");
-    const properties = headerOf("class properties");
-    const templates = headerOf("templates");
-    const classed = headerOf("classed nodes");
+    const headerOf = (name: RegExp): HTMLElement =>
+      within(flow).getByRole("button", { name }) as HTMLElement;
+    const metadata = headerOf(/^Properties /i);
+    const properties = headerOf(/class properties/i);
+    const templates = headerOf(/templates/i);
+    const classed = headerOf(/classed nodes/i);
     const precedes = (a: HTMLElement, b: HTMLElement): boolean =>
       (b.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_PRECEDING) !== 0;
     expect(precedes(metadata, properties)).toBe(true);

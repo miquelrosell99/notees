@@ -204,14 +204,16 @@ describe("TemplatesSection apply-to-existing (the amendment)", () => {
     ] as ContentAst);
   });
 
-  it("Browse gallery opens the gallery modal from the class page", async () => {
+  it("the Templates section carries no Browse gallery entry (owner 2026-10-12) — the bind pill opens the same picker", async () => {
     const { client, classId } = await setupClassWithTemplate();
-    await createTemplate(client, "Gallery-visible template");
+    await createTemplate(client, "Picker-visible template");
     render(<TemplatesSection client={client} classId={classId} onOpenPage={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /Templates/ }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Browse gallery" }));
-    const gallery = await screen.findByRole("listbox", { name: "Templates" });
-    expect(within(gallery).getByText("Gallery-visible template")).toBeInTheDocument();
+    // The retired gallery button is gone…
+    expect(screen.queryByRole("button", { name: "Browse gallery" })).toBeNull();
+    // …and the bind pill opens the same template picker.
+    fireEvent.click(screen.getByRole("button", { name: /Bind template/ }));
+    expect(await screen.findByText("Picker-visible template")).toBeInTheDocument();
   });
 });

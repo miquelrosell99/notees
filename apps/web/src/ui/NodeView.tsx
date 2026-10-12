@@ -14,8 +14,10 @@
  * The shell also owns the card's chrome-right cluster: pages get the blocks
  * view switcher + the "…" node menu as two pieces (rendered by PageView —
  * in the nodeview top bar when panelled, with the context-panel toggle
- * between them, else the absolute corner); class/block views keep
- * just the "…" menu in the absolute corner.
+ * between them, else the absolute corner); class pages ride the same top
+ * bar / corner via the "…" piece (the old class-only absolute corner
+ * overlapped the panelled bar's context toggle — owner 2026-10-12); inline-
+ * block views keep just the "…" menu in the absolute corner.
  *
  * Surfaces: main (default) · workspace card (compact layout via
  * `cornerMenu: false`) · preview (`preview` — hover/peek: no machinery at
@@ -130,12 +132,16 @@ export function NodeView({
     return <div className="nt-page-missing">Page not found.</div>;
   }
   const pageView = !node.isClass && !rendersAsInlineBlock(node);
+  const inlineBlock = rendersAsInlineBlock(node);
   /**
    * The card's top-right chrome: pages get the blocks view switcher + the
    * "…" node menu as two pieces (rendered by PageView — in the nodeview top
    * bar when panelled, with the context-panel toggle between them, else the
-   * absolute corner); class/block views keep just the "…" menu in the
-   * absolute corner. The preview surface carries none.
+   * absolute corner); the "…" menu also rides the top bar for CLASS pages
+   * (owner 2026-10-12 — its old absolute corner pinned to the card's top-
+   * right and overlapped the panelled bar's context toggle). Inline-block
+   * views keep just the "…" menu in the absolute corner (they render no
+   * PageView chrome at all). The preview surface carries none.
    */
   const chromeModes =
     pageView && cornerMenu && !preview ? (
@@ -144,7 +150,7 @@ export function NodeView({
       </div>
     ) : undefined;
   const chromeMenu =
-    pageView && cornerMenu && !preview ? (
+    !inlineBlock && cornerMenu && !preview ? (
       <NodeMenuButton
         client={client}
         node={node}
@@ -207,7 +213,10 @@ export function NodeView({
   return (
     <div className="nt-node-view">
       {view}
-      {!pageView && (
+      {/* Inline-block views render no PageView chrome — the "…" menu rides
+          the absolute corner here (pages and class pages get theirs from
+          PageView: the top bar when panelled, the corner when compact). */}
+      {inlineBlock && (
         <div className="nt-node-view__corner">
           <NodeMenuButton
             client={client}
