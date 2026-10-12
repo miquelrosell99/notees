@@ -211,11 +211,15 @@ export interface OutlinerContextValue {
   /**
    * Block multi-selection — session-local display state (never an
    * op): the selected block-id set plus the anchor the range gestures
-   * extend from. `selectionEnabled` is a view-level opt-in (the main page
+   * extend from. The set is always whole-subtree — every write path
+   * closes it over the selected blocks' descendants (selecting a block
+   * selects its children), so the visual stays one contiguous card.
+   * `selectionEnabled` is a view-level opt-in (the main page
    * body enables it; embedded feeds and read-only projections don't), so a
    * surface without the action bar never accumulates a selection.
    */
   selectionEnabled: boolean;
+  /** The selected block ids — always closed over subtrees (see above). */
   selection: ReadonlySet<string>;
   selectionAnchor: string | null;
   setSelectionAnchor: (blockId: string | null) => void;
@@ -282,17 +286,31 @@ export function useOutlinerValue(
 
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set<string>());
   const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
+  // Latest-value subtree map: the selection callbacks are stable ([]) and
+  // must close over the CURRENT tree, not the render that created them.
+  const subtreeOfRef = useRef<Map<string, string[]>>(new Map());
+  const closeOverSubtrees = (ids: ReadonlySet<string>): Set<string> => {
+    const next = new Set<string>();
+    for (const id of ids) {
+      const subtree = subtreeOfRef.current.get(id);
+      if (subtree === undefined) next.add(id); // stale id, not in this tree — keep verbatim
+      else for (const each of subtree) next.add(each);
+    }
+    return next;
+  };
   const replaceSelection = useCallback((blockIds: ReadonlySet<string>, anchor?: string | null) => {
-    setSelectedIds(new Set(blockIds));
+    setSelectedIds(closeOverSubtrees(blockIds));
     if (anchor !== undefined) setSelectionAnchor(anchor);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- closeOverSubtrees reads the latest tree through subtreeOfRef.
   }, []);
   const toggleSelected = useCallback((blockId: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(blockId)) next.delete(blockId);
       else next.add(blockId);
-      return next;
+      return closeOverSubtrees(next);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- same derivation as replaceSelection.
   }, []);
   const clearSelection = useCallback(() => {
     setSelectedIds(new Set<string>());
@@ -310,6 +328,21 @@ export function useOutlinerValue(
 
   const tree = client.getBlockTree(rootId);
   const positions = buildOutlinePositions(tree, rootId);
+  // The multi-selection is whole-subtree: selecting a block also selects its
+  // children (recursively) — the visual is one card around the contiguous
+  // range, and a partial subtree would break the rectangle.
+  const subtreeOf = new Map<string, string[]>();
+  const collectSubtrees = (nodes: readonly BlockTreeNode[]): string[] => {
+    const all: string[] = [];
+    for (const entry of nodes) {
+      const ids = [entry.node.id, ...collectSubtrees(entry.children)];
+      subtreeOf.set(entry.node.id, ids);
+      all.push(...ids);
+    }
+    return all;
+  };
+  collectSubtrees(tree);
+  subtreeOfRef.current = subtreeOf;
   // Document-order id list for the range gestures (shift+click / drag).
   const orderedIds: string[] = [];
   const flattenIds = (nodes: readonly BlockTreeNode[]): void => {
