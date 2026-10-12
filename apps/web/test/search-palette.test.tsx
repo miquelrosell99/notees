@@ -169,6 +169,25 @@ describe("CommandPalette sections", () => {
     expect(created).toEqual(["Shopping List"]);
   });
 
+  it("typed creation: a bare year outside the date window offers 'Create year \"<query>\"'", async () => {
+    const { client } = await seedPaletteWorld();
+    const { created } = renderPalette(client);
+    typeInPalette("1711");
+    const row = await screen.findByText('Create year "1711"');
+    fireEvent.click(row);
+    expect(created).toEqual(["1711"]);
+  });
+
+  it("typed creation: an in-window year keeps the generic 'Create page' row (the date machinery owns it)", async () => {
+    const { client } = await seedPaletteWorld();
+    renderPalette(client);
+    // 2026 is inside the 1900..2200 date-node window: the palette's date
+    // sections own the year affordance, the typed create stays generic.
+    typeInPalette("2026");
+    expect(await screen.findByText('Create page "2026"')).not.toBeNull();
+    expect(screen.queryByText('Create year "2026"')).toBeNull();
+  });
+
   it("a shell re-render with fresh callback identities does not wipe the typed query", async () => {
     const { client } = await seedPaletteWorld();
     // App hands the palette fresh inline arrows every render; during a

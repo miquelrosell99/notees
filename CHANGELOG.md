@@ -9,6 +9,44 @@ predating this file.
 
 ## 2026-10-12
 
+- **feat(web): the selection law — text selection exists only inside the block
+  being edited; a press-drag outside edit mode is the block-range gesture, and
+  it arms only when the pointer exits the pressed block's borders (owner
+  2026-10-12).** Read-mode block content becomes `user-select: none`
+  (restored under `.nt-block--editing`), so the native cross-block text
+  selection — drag starting in an edited block, extending across read blocks —
+  is impossible by construction. `useBlockSelectionSurface` re-arms on the
+  border exit instead of the retired 4 px vertical threshold: a press inside
+  the editing block keeps its in-block text selection (the press is recorded,
+  never preventDefaulted) until the pointer leaves the contentEditable's
+  borders — then the native selection is dropped and the same drag continues
+  as a block-range selection from that block. Verified: `pnpm typecheck` +
+  `pnpm test` green; `block-selection.test.tsx` gains a read-mode border-exit
+  spec and an edit-mode hand-over spec.
+- **feat(web): Ctrl/Cmd+L over a selection opens the node-link picker in the
+  @-replace mode (selection prefilled as the search query, pick swaps the
+  selection for the link); Ctrl/Cmd+Shift+L opens it with an empty query and
+  keeps the selection as the inserted link's custom label; the picker banners
+  the mode under a faint one-liner above the search field (owner 2026-10-12).**
+  `openMentionFromSelection` grows a `query | label` mode (label mode stashes
+  the selection as `capture.fixedLabel`, which wins over the query-based
+  Ctrl/Cmd+Enter label in `commitNodePick`); the anchored `NodeSelector` gains
+  a `hint` prop (`node-selector__mode-hint`). The @-over-selection gesture and
+  the selection toolbar's @ button ride the same banner ("Replacing selection
+  with link"), and the toolbar button now names the chord. The Ctrl+L chord
+  keeps the typed-`@` word-boundary rule (mid-word selections don't open);
+  Ctrl+Shift+L opens anywhere a selection exists. Without a selection neither
+  chord intercepts (the browser keeps Ctrl+L). Verified: `pnpm typecheck` +
+  `pnpm test` green; `capture.test.tsx` gains three chord specs.
+- **feat(web): a bare 4-digit year outside the date-node window labels the
+  create row "Create year \"1711\"" instead of "Create \"1711\"" — in the
+  `@`-mention picker and the command palette alike (owner 2026-10-12).**
+  `dateParser.ts` gains `isPlainYearQuery` (bare `\d{4}` outside the domain's
+  1900..2200 `DATE_UUID_*` window — inside the window the date suggestion row
+  already owns the year affordance, so the plain create row stays generic
+  there). Verified: `pnpm typecheck` + `pnpm test` green; `pickers.test.tsx`
+  and `search-palette.test.tsx` gain year specs.
+
 - **feat(web): the class side panel loses its divider stack, the tab row
   breathes before the view below it, and the context column rides class
   pages too (owner corrections 2026-10-12).** (1) The panelled first column

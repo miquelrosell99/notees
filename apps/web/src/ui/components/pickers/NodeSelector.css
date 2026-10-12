@@ -227,6 +227,16 @@
   color: var(--color-on-surface-variant);
 }
 
+/* Selection-link mode banner: a faint one-liner above the search field
+   announcing what the pending pick will do ("Replacing selection with link" /
+   'Link with custom label "…"'). */
+.node-selector__mode-hint {
+  padding: var(--spacing-2) var(--spacing-3) var(--spacing-1);
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+  opacity: var(--opacity-70);
+}
+
 .node-selector__empty {
   padding: var(--spacing-3);
   text-align: center;
