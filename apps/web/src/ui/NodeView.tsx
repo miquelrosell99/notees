@@ -74,6 +74,14 @@ export function NodeView({
    * false explicitly — the chords stay main-surface-only.
    */
   globalShortcuts = undefined,
+  /**
+   * The session-only layout toggle (owner 2026-10-12, never stored): true
+   * renders the main content as in-flow SECTIONS (the compact layout —
+   * Metadata + the variant's sections stacked in the content flow), false
+   * keeps the panelled default (the properties sidebar rides the first
+   * column). The app top bar's layout button flips it; it lasts the session.
+   */
+  sectionsLayout = false,
 }: {
   client: WorkspaceClient | WorkerClient;
   nodeId: string;
@@ -103,6 +111,8 @@ export function NodeView({
   embedded?: boolean | undefined;
   preview?: boolean | undefined;
   globalShortcuts?: boolean | undefined;
+  /** Session-only: render the main content as in-flow sections (see above). */
+  sectionsLayout?: boolean | undefined;
 }) {
   /**
    * The child-blocks view mode, owned here because the switcher rides this
@@ -184,7 +194,7 @@ export function NodeView({
       onPresent={onPresent}
       shareTarget={shareTarget}
       embedded={node.isClass ? false : embedded}
-      layout={cornerMenu && !preview ? "default" : "compact"}
+      layout={cornerMenu && !preview ? (sectionsLayout ? "compact" : "default") : "compact"}
       preview={preview}
       blocksMode={blocksMode}
       onBlocksModeChange={setBlocksMode}

@@ -629,6 +629,14 @@ export function App() {
   }, [sidebarOpen]);
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   /**
+   * The session-only page-layout toggle (owner 2026-10-12): false renders
+   * the panelled default (the properties sidebar rides the first column);
+   * true renders the main content as in-flow sections (the compact layout).
+   * Component state — never persisted; the app top bar's layout button
+   * flips it and the icon names the current mode.
+   */
+  const [sectionsLayout, setSectionsLayout] = useState(false);
+  /**
    * Right-sidebar peek cards (shift+click a block bullet): most recent first.
    * Re-clicking an open card brings it to the top; opening a card opens the
    * panel. Closing the last card closes the panel with it. The stack ORDER
@@ -1836,6 +1844,8 @@ export function App() {
         onNewNode={() => setNewPickerOpen(true)}
         onRequestSearch={() => setPaletteOpen(true)}
         newButtonRef={newButtonRef}
+        sectionsLayout={sectionsLayout}
+        onToggleLayout={selectedPageId !== null ? () => setSectionsLayout((v) => !v) : undefined}
         workspaceSwitcher={
           offline ? undefined : (
             <WorkspaceSwitcher
@@ -1978,6 +1988,7 @@ export function App() {
               onPresent={(id) => setPresentingId(id)}
               cornerMenu
               shareTarget={shareTarget}
+              sectionsLayout={sectionsLayout}
             />
           ) : activeNav === "journal" ? (
             <JournalsView client={client} onOpenPage={openPage} />
