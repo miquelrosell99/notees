@@ -9,6 +9,26 @@ predating this file.
 
 ## 2026-10-12
 
+- **feat(web): the class page renders the properties-sidebar layout — Metadata
+  + Class properties + Templates ride the first column, Classed nodes the
+  content column — and the app top bar gains a session-only layout toggle
+  (owner 2026-10-12).** The class variant re-joined the panelled main layout
+  (`panelled` no longer excludes it): the variant descriptor grows a
+  `sidebarSections` stack (Class properties + Templates, under the Metadata
+  panel in the first column), the content stack keeps Classed nodes as the
+  centerpiece, and the class page keeps the standing **no-context-column**
+  ruling (the nodeview top bar's context toggle is now optional and hidden).
+  The extends pills re-anchor to the nodeview top bar via a `classesCorner`
+  override (the compact corner keeps them top-left). The **top-bar layout
+  button** flips the current node between the sidebar layout and the in-flow
+  **sections** layout — component state, never stored; the icon names the
+  active mode (`view-split-vertical` sidebar / `view-agenda-outline`
+  sections); hidden while no node is open. The compact layout preserves the
+  pre-change class flow exactly (the moved sections return to the content
+  stack in their original order). Verified: `pnpm typecheck` + `pnpm test`
+  green; class-view gains two specs (panelled placement + the compact
+  ordering); `docs/ux.md` (the Class View paragraph) and `docs/usage.md` §2
+  reworded.
 - **feat(web): one chrome row on the hosted tab bar — every button right,
   permanent search, the builder below without moving the row; sidebar hover
   star displaces the class flag; Favorites always renders; classed nodes

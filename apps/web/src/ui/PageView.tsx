@@ -55,9 +55,11 @@
  * tab strip's retirement (owner 2026-10-09) a normal NodeCollection
  * section. The context column keeps graph + TOC +
  * Activity + Comments ONLY. Embedded/journal/calendar surfaces and the
- * class/focus/compact variants render NO context column (main-surface
- * chrome only). The right rail is cards-only — the generic frame around
- * NodeView (components/NodeCardFrame.tsx).
+ * focus/compact variants render NO context column (main-surface chrome
+ * only); the class variant joined the PANELLED layout owner 2026-10-12 —
+ * Metadata + Class properties + Templates ride its first column — but
+ * keeps the no-context-column ruling. The right rail is cards-only — the
+ * generic frame around NodeView (components/NodeCardFrame.tsx).
  *
  * The `preview` surface seam — NodeView's `preview` prop renders
  * this view with NO corner menu, NO global listeners, a READ-ONLY body
@@ -275,8 +277,17 @@ export function PageView({
     "pageContextPanelCollapsed",
     false,
   );
+  /**
+   * The panelled main layout: the class variant re-joined it owner
+   * 2026-10-12 (the class page gets the properties-sidebar layout — the
+   * Metadata panel + the variant's `sidebarSections` ride the first column,
+   * Classed nodes the content column). The CONTEXT column stays a
+   * non-class surface (the standing ruling — class pages render no
+   * context column), hence the separate `showContext` flag.
+   */
   const panelled =
-    layout === "default" && !embedded && !focusMode && !preview && variant.variant !== "class";
+    layout === "default" && !embedded && !focusMode && !preview;
+  const showContext = panelled && variant.variant !== "class";
   const [headerMenu, setHeaderMenu] = useState<{ x: number; y: number } | null>(null);
   const [exporting, setExporting] = useState<{ pageId: string; name: string } | null>(null);
   const [sharing, setSharing] = useState<{ pageId: string; name: string } | null>(null);
@@ -447,13 +458,22 @@ export function PageView({
 
   /**
    * The variant's section stacks: the descriptor's SectionSpec-shaped
-   * entries mount their existing section components at the two placement
-   * sites the old slots used — between the body and the date sections, and
-   * ahead of the default <SystemSections/>. Empty for plain/date variants,
-   * so the map is the no-op it always was there.
+   * entries mount their existing section components at the placement sites —
+   * the content stack (between the body and the date/system sections), the
+   * panelled first column (`sidebarSections`, rendered under the Metadata
+   * panel — only when panelled; the compact layout keeps them in the content
+   * stack in their original order), and ahead of the default
+   * <SystemSections/>. Empty for plain/date variants, so the maps are the
+   * no-op they always were there.
    */
   const variantSectionCtx = { client, nodeId: pageId, onOpenPage, onOpenClass: onOpenPage };
-  const variantSections = variant.sections.map((spec) => (
+  const contentSectionSpecs = panelled
+    ? variant.sections
+    : [...(variant.sidebarSections ?? []), ...variant.sections];
+  const variantSections = contentSectionSpecs.map((spec) => (
+    <Fragment key={`${spec.key}-${pageId}`}>{spec.render(variantSectionCtx)}</Fragment>
+  ));
+  const variantSidebarSections = (variant.sidebarSections ?? []).map((spec) => (
     <Fragment key={`${spec.key}-${pageId}`}>{spec.render(variantSectionCtx)}</Fragment>
   ));
   const variantSystemSections = variant.systemSections.map((spec) => (
@@ -684,11 +704,23 @@ export function PageView({
             classIds={page.classIds}
             sidePanelCollapsed={sidePanelCollapsed}
             onToggleSidePanel={() => setSidePanelCollapsed(!sidePanelCollapsed)}
-            contextPanelCollapsed={contextPanelCollapsed}
-            onToggleContextPanel={() => setContextPanelCollapsed(!contextPanelCollapsed)}
+            contextPanelCollapsed={showContext ? contextPanelCollapsed : true}
+            onToggleContextPanel={
+              showContext ? () => setContextPanelCollapsed(!contextPanelCollapsed) : undefined
+            }
             chromeModes={chromeModes}
             chromeMenu={chromeMenu}
             onOpenPage={onOpenPage}
+            classesCorner={
+              variant.cornerPills !== undefined ? (
+                <ClassPillsList
+                  client={client}
+                  nodeId={pageId}
+                  onOpenPage={onOpenPage}
+                  {...variant.cornerPills}
+                />
+              ) : undefined
+            }
           />
           <div className="nt-page-body">
             {!sidePanelCollapsed && (
@@ -699,6 +731,12 @@ export function PageView({
                   onOpenPage={onOpenPage}
                   onOpenPageRaw={(id) => (onOpenPageRaw ?? onOpenPage)?.(id)}
                 />
+                {/* The class variant's first-column stack (owner 2026-10-12):
+                    Class properties + Templates under the Metadata panel.
+                    Empty for every other variant. */}
+                {variantSidebarSections.length > 0 && (
+                  <div className="nt-page-side-panel__sections">{variantSidebarSections}</div>
+                )}
               </aside>
             )}
             <div className="nt-page-content">
@@ -711,7 +749,7 @@ export function PageView({
                 {mainChrome}
               </div>
             </div>
-            {!contextPanelCollapsed && (
+            {showContext && !contextPanelCollapsed && (
               <aside className="nt-page-context" aria-label="Context">
                 {/* The node-relevant widgets, relocated from the right
                     rail (the rail is workspace cards only). The references

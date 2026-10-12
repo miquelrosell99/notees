@@ -16,12 +16,15 @@
  *  - `cornerPills` — the corner's relation configuration: which
  *    nodes the relation holds + the add/remove mutations. Absent = the
  *    default instance-of ClassesRow corner.
- *  - `sections` / `systemSections` — SectionSpec-shaped stacks (the data
- *    contract from components/useSectionData.ts): `key` composes the
- *    SectionSpec identity field, `render` mounts the EXISTING section
- *    component unchanged (the classview renderers are not SectionSpec
- *    read/query strategies — the descriptor's job in this slice is
- *    placement as data, not a new rendering contract).
+ *  - `sections` / `sidebarSections` / `systemSections` — SectionSpec-shaped
+ *    stacks (the data contract from components/useSectionData.ts): `key`
+ *    composes the SectionSpec identity field, `render` mounts the EXISTING
+ *    section component unchanged (the classview renderers are not SectionSpec
+ *    read/query strategies — the descriptor's job in this slice is placement
+ *    as data, not a new rendering contract). `sidebarSections` is the
+ *    panelled layout's first-column stack (owner 2026-10-12 — class:
+ *    Class properties + Templates under the Metadata panel); the compact
+ *    layout keeps those sections in the content stack instead.
  */
 
 import { createElement, type ReactNode } from "react";
@@ -99,14 +102,36 @@ export interface PageVariant {
   createdPeriod?: { after: string; before: string } | undefined;
   /** class: the corner's extends-pills relation configuration. */
   cornerPills?: CornerPillsConfig | undefined;
-  /** Sections between the body and the date/system sections (class: the class stack). */
+  /** Sections between the body and the date/system sections (class: classed nodes). */
   sections: VariantSectionSpec[];
+  /**
+   * Sections riding the panelled layout's FIRST column under the Metadata
+   * panel (owner 2026-10-12; class: Class properties + Templates). Only
+   * rendered in the panelled layout — the compact layout keeps every section
+   * in the content flow. Empty for every other variant.
+   */
+  sidebarSections?: VariantSectionSpec[] | undefined;
   /** Sections ahead of the default <SystemSections/> (class: Extended by). */
   systemSections: VariantSectionSpec[];
 }
 
-/** The class variant's section stack — the classview renderers, unchanged. */
+/**
+ * The class variant's content-column stack — the centerpiece (Classed
+ * nodes). Class properties + Templates ride the panelled layout's FIRST
+ * column under the Metadata panel (owner 2026-10-12) via `sidebarSections`;
+ * the compact layout keeps them in this content stack (the session layout
+ * toggle flips between the two).
+ */
 const CLASS_SECTIONS: VariantSectionSpec[] = [
+  {
+    key: "classed-nodes",
+    render: ({ client, nodeId, onOpenPage }) =>
+      createElement(ClassedNodesSection, { client, classId: nodeId, onOpenPage }),
+  },
+];
+
+/** The class variant's first-column stack (the panelled layout's side panel). */
+const CLASS_SIDEBAR_SECTIONS: VariantSectionSpec[] = [
   {
     key: "property-definitions",
     render: ({ client, nodeId }) =>
@@ -116,11 +141,6 @@ const CLASS_SECTIONS: VariantSectionSpec[] = [
     key: "templates",
     render: ({ client, nodeId, onOpenPage }) =>
       createElement(TemplatesSection, { client, classId: nodeId, onOpenPage }),
-  },
-  {
-    key: "classed-nodes",
-    render: ({ client, nodeId, onOpenPage }) =>
-      createElement(ClassedNodesSection, { client, classId: nodeId, onOpenPage }),
   },
 ];
 
@@ -188,6 +208,7 @@ export function pageVariantOf(client: AnyClient, nodeId: string): PageVariant {
       variant: "class",
       cornerPills: extendsCornerPills(client, nodeId),
       sections: CLASS_SECTIONS,
+      sidebarSections: CLASS_SIDEBAR_SECTIONS,
       systemSections: CLASS_SYSTEM_SECTIONS,
     };
   }

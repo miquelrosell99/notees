@@ -20,6 +20,7 @@ import { deriveDisplayName, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { NodeView } from "../src/ui/App.js";
+import { PageView } from "../src/ui/PageView.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -349,5 +350,53 @@ describe("the class icon picker (the shared header icon button is the single ent
     // The pick appears twice — once in Recents, once in the typical set
     // (now marked active).
     expect(within(again).getAllByRole("button", { name: "😀" }).length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("the class page's panelled layout (owner 2026-10-12)", () => {
+  it("Metadata + Class properties + Templates ride the first column; Classed nodes rides the content column; no context column", async () => {
+    const client = await seedClient();
+    const classId = await createTitledClass(client, "project");
+    await client.createObject({ presentAsMain: true, name: "Alpha", classIds: [classId] });
+
+    render(<PageView client={client} pageId={classId} onOpenPage={() => {}} />);
+    expect(document.querySelector(".nt-page--panelled")).not.toBeNull();
+    const side = document.querySelector(".nt-page-side-panel") as HTMLElement;
+    expect(side).not.toBeNull();
+    // The Metadata panel + the two moved class sections live in the side panel.
+    expect(within(side).getByRole("button", { name: /metadata/i })).not.toBeNull();
+    expect(within(side).getByRole("button", { name: /class properties/i })).not.toBeNull();
+    expect(within(side).getByRole("button", { name: /templates/i })).not.toBeNull();
+    // Classed nodes stays the content column's centerpiece — not in the panel.
+    const content = document.querySelector(".nt-page-content") as HTMLElement;
+    expect(within(content).getByRole("button", { name: /classed nodes/i })).not.toBeNull();
+    expect(within(side).queryByRole("button", { name: /classed nodes/i })).toBeNull();
+    // The class page keeps the no-context-column ruling: no column, no toggle.
+    expect(document.querySelector(".nt-page-context")).toBeNull();
+    expect(screen.queryByRole("button", { name: /context panel/i })).toBeNull();
+    // The extends pills re-anchored to the nodeview top bar (the panelled corner).
+    expect(screen.getByRole("button", { name: "Add class extension" })).not.toBeNull();
+  });
+
+  it("the compact layout keeps every class section in the content flow (the toggle's sections mode)", async () => {
+    const client = await seedClient();
+    const classId = await createTitledClass(client, "project");
+    render(<PageView client={client} pageId={classId} layout="compact" onOpenPage={() => {}} />);
+
+    expect(document.querySelector(".nt-page--panelled")).toBeNull();
+    expect(document.querySelector(".nt-page-side-panel")).toBeNull();
+    // In-flow Metadata + the class sections in their original order.
+    const flow = document.querySelector(".nt-page") as HTMLElement;
+    const headerOf = (name: string): HTMLElement =>
+      within(flow).getByRole("button", { name: new RegExp(name, "i") }) as HTMLElement;
+    const metadata = headerOf("metadata");
+    const properties = headerOf("class properties");
+    const templates = headerOf("templates");
+    const classed = headerOf("classed nodes");
+    const precedes = (a: HTMLElement, b: HTMLElement): boolean =>
+      (b.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_PRECEDING) !== 0;
+    expect(precedes(metadata, properties)).toBe(true);
+    expect(precedes(properties, templates)).toBe(true);
+    expect(precedes(templates, classed)).toBe(true);
   });
 });

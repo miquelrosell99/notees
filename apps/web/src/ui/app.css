@@ -513,6 +513,18 @@ select:focus-visible {
   box-shadow: var(--shadow-elevation-1);
 }
 
+/* The class variant's first-column stack (owner 2026-10-12): Class
+   properties + Templates stack under the Metadata panel, separated by a
+   hairline — the panel card is one scroll surface. */
+.nt-page-side-panel__sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  margin-top: var(--spacing-3);
+  padding-top: var(--spacing-3);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
+}
+
 /* The context column: graph · TOC · Activity · Comments — the
    node-relevant widgets relocated from the right rail. Same card element
    as the properties panel AND the main content container (see above): the

@@ -81,6 +81,15 @@ export function TopBar({
   onRequestSearch,
   newButtonRef,
   workspaceSwitcher,
+  /**
+   * The session-only page-layout toggle (owner 2026-10-12, never stored):
+   * the icon names the CURRENT mode — the split icon is the panelled
+   * default (the properties sidebar rides the first column), the agenda
+   * icon the in-flow sections layout. Undefined hides the button (boot
+   * screens, and the app hides it while no node is open).
+   */
+  sectionsLayout = false,
+  onToggleLayout,
 }: {
   syncStatus: SyncStatusSnapshot;
   /** Opens the sync details modal; undefined on boot screens. */
@@ -114,6 +123,10 @@ export function TopBar({
   newButtonRef?: RefObject<HTMLButtonElement | null> | undefined;
   /** The workspace selector element (wordmark replacement, collapsed sidebar). */
   workspaceSwitcher?: ReactNode;
+  /** The session-only layout toggle's current mode (false = panelled sidebar). */
+  sectionsLayout?: boolean | undefined;
+  /** Flips the session layout mode; undefined hides the toggle. */
+  onToggleLayout?: (() => void) | undefined;
 }) {
   return (
     <header className="nt-topbar">
@@ -162,6 +175,18 @@ export function TopBar({
       </div>
       <div className="nt-topbar-center">{breadcrumbs}</div>
       <div className="nt-topbar-right">
+        {onToggleLayout !== undefined && (
+          <button
+            type="button"
+            className={sectionsLayout ? "nt-icon-btn nt-icon-btn-active" : "nt-icon-btn"}
+            title={sectionsLayout ? "Switch to sidebar layout" : "Switch to sections layout"}
+            aria-label={sectionsLayout ? "Switch to sidebar layout" : "Switch to sections layout"}
+            aria-pressed={!sectionsLayout}
+            onClick={onToggleLayout}
+          >
+            <Icon path={sectionsLayout ? "mdi-view-agenda-outline" : "mdi-view-split-vertical"} size={1} />
+          </button>
+        )}
         {undoState !== undefined && (
           <span className="nt-topbar-undo" role="group" aria-label="Undo and redo">
             <button
