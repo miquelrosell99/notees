@@ -140,19 +140,20 @@ export function CollectionSection({
           {...collection}
           {...(filterable !== false && hosted
             ? {
+                // The FilterBar renders LAST in the cluster: its wrapped structured panel lands beneath
+                // the row without moving the other trailing chrome.
                 tabBarTrailing: (
                   <>
+                    {collection?.tabBarTrailing}
                     <FilterBar
                       client={client}
                       layout="inline"
-                      collapsibleSearch
                       value={filterQuery}
                       onChange={setFilterQuery}
                       config={filterConfig}
                       matchCount={rows.length}
                       totalCount={count ?? total}
                     />
-                    {collection?.tabBarTrailing}
                   </>
                 ),
               }
