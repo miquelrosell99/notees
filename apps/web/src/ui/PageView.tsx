@@ -109,6 +109,7 @@ import { PropertiesSection, PropertiesSidebar, ClassesRow, metadataRowCount } fr
 import { bannerAssetIdOf, setNodeBanner } from "./components/PageBanner.js";
 import { AssetUploadModal } from "./components/modals/AssetUploadModal.js";
 import { SelectionBar } from "./components/SelectionBar.js";
+import { SelectionOutline } from "./SelectionOutline.js";
 import { SystemSections } from "./components/SystemSections.js";
 import { childQuery } from "./components/childQuery.js";
 import { coverAssetIdOf } from "./components/coverProperty.js";
@@ -555,6 +556,13 @@ export function PageView({
                       });
                     }}
                   />
+                )}
+                {/* The selection card: one outline per contiguous run of
+                    selected rows (the set is whole-subtree, so a run is
+                    always a rectangle — a selected block wraps its
+                    children). */}
+                {outliner.selection.size > 0 && (
+                  <SelectionOutline surfaceRef={selectionRootRef} selection={outliner.selection} />
                 )}
               </div>
             </SortableContext>

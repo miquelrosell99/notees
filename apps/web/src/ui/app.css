@@ -1299,12 +1299,25 @@ select:focus-visible {
 }
 
 /* ── Block multi-selection ────────────────────────────────────────────────
-   Selected rows wear a soft accent tint on the row chrome (display-only,
-   session-local). The floating action bar rides the bottom of the viewport
-   while a selection is live. */
-.nt-block--selected > .nt-block-row {
-  background: color-mix(in srgb, var(--color-primary-container) 45%, transparent);
+   The selection reads as ONE card per contiguous run of selected rows: the
+   set is whole-subtree (outliner-context closes every write over
+   descendants), so a run always wraps its children and the outline is a
+   true rectangle. The card spans the surface's full width from the first
+   run row's top to the last run row's bottom; the rows themselves stay
+   un-tinted — the card's fill + border carry the emphasis — and pointer
+   events pass straight through. The floating action bar rides the bottom
+   of the viewport while a selection is live. */
+.nt-select-surface {
+  position: relative;
+}
+
+.nt-selection-outline {
+  position: absolute;
+  box-sizing: border-box;
+  border: var(--border-width-default) solid color-mix(in srgb, var(--color-primary) 45%, transparent);
   border-radius: var(--shape-medium);
+  background: color-mix(in srgb, var(--color-primary-container) 30%, transparent);
+  pointer-events: none;
 }
 
 .nt-selection-bar {

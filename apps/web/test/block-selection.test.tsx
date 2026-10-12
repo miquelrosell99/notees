@@ -289,6 +289,85 @@ describe("block multi-selection gestures", () => {
   });
 });
 
+describe("selection card: whole-subtree closure + card outline", () => {
+  /** Page with a parent block (two children) followed by a lone block. */
+  async function seedNestedPage(client: WorkspaceClient): Promise<string> {
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const parentId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "parent" }],
+    });
+    await client.createObject({
+      parentId,
+      contentAst: [{ type: "text", text: "kid one" }],
+    });
+    await client.createObject({
+      parentId,
+      contentAst: [{ type: "text", text: "kid two" }],
+    });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "other" }],
+    });
+    return pageId;
+  }
+
+  function outlineCards(container: HTMLElement): HTMLElement[] {
+    return Array.from(container.querySelectorAll<HTMLElement>(".nt-selection-outline"));
+  }
+
+  it("Ctrl+clicking a block also selects its children (the whole subtree)", async () => {
+    const client = await seedClient();
+    const pageId = await seedNestedPage(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const rows = blockContents(container);
+    const ids = rows.map((r) => r.closest("[data-block-id]")!.getAttribute("data-block-id")!);
+
+    fireEvent.click(rows[0]!, { ctrlKey: true });
+    // parent + kid one + kid two — the subtree closes, "other" stays out.
+    expect(selectedIds(container)).toEqual([ids[0], ids[1], ids[2]]);
+  });
+
+  it("the selection renders as ONE card per contiguous run (subtree = one rectangle)", async () => {
+    const client = await seedClient();
+    const pageId = await seedNestedPage(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const rows = blockContents(container);
+
+    fireEvent.click(rows[0]!, { ctrlKey: true });
+    // The parent's subtree is one contiguous run — one card, even though it
+    // wraps children at a deeper indent.
+    expect(outlineCards(container)).toHaveLength(1);
+
+    // A disjoint selection (an unselected row between two selected ones)
+    // opens a second card.
+    const flatPageId = await seedPage(client, ["one", "two", "three"]);
+    const flat = render(<PageView client={client} pageId={flatPageId} />);
+    const flatRows = blockContents(flat.container);
+    fireEvent.click(flatRows[0]!, { ctrlKey: true });
+    fireEvent.click(flatRows[2]!, { ctrlKey: true });
+    expect(outlineCards(flat.container)).toHaveLength(2);
+
+    // Escape clears the selection and the cards.
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(outlineCards(flat.container)).toHaveLength(0);
+    expect(outlineCards(container)).toHaveLength(0);
+  });
+
+  it("shift+click range arms whole-subtree from the anchor too", async () => {
+    const client = await seedClient();
+    const pageId = await seedNestedPage(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const rows = blockContents(container);
+    const ids = rows.map((r) => r.closest("[data-block-id]")!.getAttribute("data-block-id")!);
+
+    fireEvent.click(rows[0]!, { shiftKey: true });
+    // Anchoring on the parent selects its subtree immediately.
+    expect(selectedIds(container)).toEqual([ids[0], ids[1], ids[2]]);
+    expect(outlineCards(container)).toHaveLength(1);
+  });
+});
+
 describe("selection action bar group ops", () => {
   it("bulk assign class applies to every selected block", async () => {
     const client = await seedClient();
