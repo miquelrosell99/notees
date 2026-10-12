@@ -29,7 +29,7 @@ import { chainNodeIds, parseDateNodeId, rendersAsInlineBlock, rendersWithDocumen
 import type { ClientNode } from "@/core/workspace-client.js";
 import { displayNameForSettings } from "../../dateDisplay.js";
 import { Icon } from "../../Icon.js";
-import { parseDate } from "./dateParser.js";
+import { parseDate, isPlainYearQuery } from "./dateParser.js";
 import { NodePill } from "./NodePill.js";
 import { NodeResultItem } from "./NodeResultItem.js";
 import { useKeyboardListNav } from "./useKeyboardListNav.js";
@@ -158,6 +158,13 @@ interface NodeSelectorProps {
   /** Custom label for the create row (default: `Create "<query>"`). */
   createLabel?: string | undefined;
   /**
+   * Faint one-line mode banner rendered above the search field — the
+   * editor's selection-link gestures use it to announce what the pending
+   * pick will do ("Replacing selection with link" / 'Link with custom label
+   * "…"').
+   */
+  hint?: string | undefined;
+  /**
    * multi-select checkbox mode: row clicks toggle a picked set
    * (checked rows accumulate at the top), an Apply footer commits them all
    * through `onApplyMulti`. The picker stays open across toggles.
@@ -204,6 +211,7 @@ export function NodeSelector({
   anchorRect,
   onClose,
   createLabel,
+  hint,
   multiSelect = false,
   onApplyMulti,
   id,
@@ -421,6 +429,15 @@ export function NodeSelector({
   const effectiveCreateNew = onCreateNew ?? defaultCreateNew;
   const showCreateOption =
     !!effectiveCreateNew && createEnabled && (alwaysShowCreate || effectiveQuery.length > 0);
+  // A bare year the date system does NOT claim (outside the 1900..2200
+  // date-node window — 1711, 1066…) still gets a plain create, but labeled
+  // as a year so it reads as a year page rather than a numbered page.
+  // (Inside the window the date suggestion row already offers the journal.)
+  const createRowLabel =
+    createLabel ??
+    (isPlainYearQuery(effectiveQuery)
+      ? `Create year "${effectiveQuery}"`
+      : `Create "${effectiveQuery}"`);
 
   const handleCreateNew = (applyAfter = false) => {
     if (effectiveCreateNew === undefined) return;
@@ -861,7 +878,7 @@ export function NodeSelector({
       {showCreateOption && (
         <NodeResultItem
           key="__create"
-          node={{ name: createLabel ?? `Create "${effectiveQuery}"` }}
+          node={{ name: createRowLabel }}
           isHighlighted={selectedIndex === createIndex}
           onClick={handleCreateNew}
           onMouseEnter={() => setSelectedIndex(createIndex)}
@@ -916,6 +933,9 @@ export function NodeSelector({
           <Tabs.Tab value="main">Main</Tabs.Tab>
           <Tabs.Tab value="blocks">Blocks</Tabs.Tab>
         </Tabs.List>
+        {hint !== undefined && hint !== "" && (
+          <div className="node-selector__mode-hint">{hint}</div>
+        )}
         <input
           ref={searchInputRef}
           type="text"
@@ -935,6 +955,9 @@ export function NodeSelector({
       </Tabs>
     ) : (
       <>
+        {hint !== undefined && hint !== "" && (
+          <div className="node-selector__mode-hint">{hint}</div>
+        )}
         <input
           ref={searchInputRef}
           type="text"

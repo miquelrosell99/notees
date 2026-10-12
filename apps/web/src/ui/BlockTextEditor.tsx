@@ -339,6 +339,11 @@ const TRIGGER_CHAR: Record<CaptureKind, string> = { mention: "@", tag: "#", clas
 /** displayText schema bound (content-mark.ts mentionTokenSchema). */
 const MENTION_LABEL_MAX = 512;
 
+/** One-line picker banner text: long labels truncate so the banner stays a line. */
+function truncatePickerHint(text: string): string {
+  return text.length > 42 ? `${text.slice(0, 42)}…` : text;
+}
+
 /**
  * The `/query` slash starter AST — exactly what the query builder composes
  * from its default state, so the token the builder opens on matches one
@@ -382,6 +387,14 @@ interface CaptureState {
    * [start, replaceEnd) instead.
    */
   replaceEnd?: number;
+  /**
+   * Ctrl/Cmd+Shift+L over a selection: the picker searches with an EMPTY
+   * query and this text — the selection itself — becomes the inserted
+   * link's custom label (displayText) on any pick.
+   */
+  fixedLabel?: string;
+  /** Faint one-line mode banner the picker renders above its search field. */
+  hint?: string;
   /** Viewport anchor captured when a node-picker popup opened (caret line). */
   anchor?: { top: number; left: number };
 }
@@ -1110,9 +1123,11 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
    * typing, so normally just the one trigger char); a popup opened over a
    * selection instead consumes the stashed range [start, replaceEnd) — the
    * selected text was never deleted. Then the per-kind action runs: @ inserts
-   * a mention token, # assigns the tag, + assigns the class. A mention picked
-   * with Ctrl/Cmd+Enter (context.withLabel) keeps the search query as a
-   * custom label (displayText) instead of resolving the target's name.
+   * a mention token, # assigns the tag, + assigns the class. A mention
+   * opened via Ctrl/Cmd+Shift+L (capture.fixedLabel) labels the link with
+   * the original selection; a plain Ctrl/Cmd+Enter pick (context.withLabel)
+   * keeps the search query as a custom label (displayText) instead of
+   * resolving the target's name.
    */
   const commitNodePick = (picked: ClientNode, context?: NodePickContext) => {
     // The pick itself reads the live capture; an async create's completion
@@ -1126,10 +1141,15 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     const caret = caretOffset(el) ?? state.start + 1;
     const end = state.replaceEnd ?? Math.max(caret, state.start + 1);
     if (state.kind === "mention") {
+      // Label precedence: a Ctrl/Cmd+Shift+L popup carries the selection
+      // itself as fixedLabel (the search query stays empty); otherwise a
+      // Ctrl/Cmd+Enter pick keeps the query as the custom label.
       const customLabel =
-        context !== undefined && context.withLabel
-          ? context.query.slice(0, MENTION_LABEL_MAX)
-          : null;
+        state.fixedLabel !== undefined && state.fixedLabel !== ""
+          ? state.fixedLabel.slice(0, MENTION_LABEL_MAX)
+          : context !== undefined && context.withLabel
+            ? context.query.slice(0, MENTION_LABEL_MAX)
+            : null;
       if (customLabel !== null && customLabel !== "") {
         applySplice(
           state.start,
@@ -1239,8 +1259,17 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
    * typed sigil requires the word-boundary rule (without it the browser
    * default inserts the char); the toolbar button always opens. False when
    * there is no selection to ride.
+   *
+   * mode "query" (the @ / Ctrl+L contract above) carries the selection as
+   * the search query. mode "label" (Ctrl/Cmd+Shift+L) opens with an EMPTY
+   * query — the selection is kept as the inserted link's custom label
+   * (fixedLabel), never fed to the search. Both render a faint mode banner
+   * (hint) above the picker's search field so the pending write is legible.
    */
-  const openMentionFromSelection = (requireBoundary: boolean): boolean => {
+  const openMentionFromSelection = (
+    requireBoundary: boolean,
+    mode: "query" | "label" = "query",
+  ): boolean => {
     const el = spanRef.current;
     const range = el === null ? null : selectionOffsets(el);
     if (range === null || range.start === range.end) return false;
@@ -1251,14 +1280,20 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       .slice(range.start, range.end)
       .replace(/\s+/g, " ")
       .trim();
+    if (mode === "label" && selectedText === "") return false;
     const anchor = caretLineAnchor();
     setSelectedAtomKey(null);
     setCapture({
       kind: "mention",
       start: range.start,
-      query: selectedText,
+      query: mode === "label" ? "" : selectedText,
       index: 0,
       replaceEnd: range.end,
+      ...(mode === "label" ? { fixedLabel: selectedText } : {}),
+      hint:
+        mode === "label"
+          ? `Link with custom label "${truncatePickerHint(selectedText)}"`
+          : "Replacing selection with link",
       anchor: { top: anchor.top, left: anchor.left },
     });
     return true;
@@ -1722,6 +1757,22 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
         openVerb();
         return;
       }
+      // Ctrl/Cmd+L over a selection: the @ gesture — the picker opens with
+      // the selected text as its search query and the pick replaces the
+      // selection. Ctrl/Cmd+Shift+L instead searches with an EMPTY query
+      // and keeps the selected text as the inserted link's custom label.
+      // Without a selection neither intercepts (the browser keeps Ctrl+L).
+      if (key === "l") {
+        const el = spanRef.current;
+        const range = el === null ? null : selectionOffsets(el);
+        if (range !== null && range.start !== range.end) {
+          const opened = event.shiftKey
+            ? openMentionFromSelection(false, "label")
+            : openMentionFromSelection(true, "query");
+          if (opened) event.preventDefault();
+        }
+        return;
+      }
       if (key === "c" && !event.shiftKey) {
         const el = spanRef.current;
         const range = el === null ? null : selectionOffsets(el);
@@ -2063,6 +2114,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
             }
             onClose={closeNodePicker}
             onAdd={commitNodePick}
+            hint={capture.kind === "mention" ? capture.hint : undefined}
             multiSelect={capture.kind !== "mention"}
             onApplyMulti={capture.kind !== "mention" ? commitNodePicks : undefined}
           />

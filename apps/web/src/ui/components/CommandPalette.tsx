@@ -51,7 +51,7 @@ import type { UndoUiState } from "@/core/undo-journal.js";
 import { displayNameForSettings, isDatePageNode, rawDateKeywordOf } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import { toggleFocusMode } from "./modals/deviceSettings.js";
-import { parseDate } from "./pickers/dateParser.js";
+import { parseDate, isPlainYearQuery } from "./pickers/dateParser.js";
 import { Button } from "./ui/Button.js";
 import { SearchField } from "./ui/SearchField.js";
 import "./Modal.css";
@@ -484,7 +484,9 @@ export function CommandPalette({
         ? [
             {
               key: "create-titled",
-              label: `Create page "${text}"`,
+              // A bare year the date system doesn't claim reads as a year
+              // page ("Create year "1711""), not a generic numbered page.
+              label: isPlainYearQuery(text) ? `Create year "${text}"` : `Create page "${text}"`,
               icon: "mdi-file-plus",
               keywords: `new create page add ${text}`,
               run: () => onNewPage(text),

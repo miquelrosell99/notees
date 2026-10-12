@@ -1037,6 +1037,12 @@ select:focus-visible {
 .nt-block-content {
   flex: 1;
   min-width: 0;
+  /* Text selection exists ONLY inside the block being edited (the editing
+     surface restores it below): read-mode content is unselectable, so a
+     press-drag can never produce the native cross-block text selection —
+     the gesture is the block-range drag instead (useBlockSelectionSurface
+     arms it when the pointer exits the pressed block's borders). */
+  user-select: none;
   /* Reading text rides the content face (Newsreader; the opsz axis tracks the
      set size) — body rows and the header title row (.nt-title-content) alike. */
   font-family: var(--font-family-content);
@@ -1075,6 +1081,12 @@ select:focus-visible {
 
 .nt-block-content:focus-within {
   background: var(--color-surface);
+}
+
+/* The editing surface: text selection is legal only here — the contentEditable
+   (and the code surface's textarea) re-enable it inside the row's edit mode. */
+.nt-block--editing .nt-block-content {
+  user-select: text;
 }
 
 /* Narrow-column floor: when the row chrome (grip + icon groups +

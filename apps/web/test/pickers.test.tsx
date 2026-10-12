@@ -453,3 +453,27 @@ describe("NodeSelector noCreate", () => {
     expect(screen.getByText('Create "zz"')).not.toBeNull();
   });
 });
+
+describe("NodeSelector year create row", () => {
+  it('a bare year outside the date window labels the create row \'Create year "…"\'; in-window years and non-years stay generic', async () => {
+    const client = await seedClient();
+    render(<NodeSelector client={client} trigger="inline" searchMode="all" onAdd={() => {}} />);
+    const search = screen.getByLabelText("Search...");
+
+    // 1711 is not a date-node year (the window is 1900..2200), but it is a
+    // year: the create row reads as a year page, not a numbered page.
+    fireEvent.change(search, { target: { value: "1711" } });
+    expect(await screen.findByText('Create year "1711"')).not.toBeNull();
+
+    // Inside the window the date suggestion row owns the year affordance —
+    // the plain create row stays generic.
+    fireEvent.change(search, { target: { value: "2026" } });
+    expect(screen.queryByText('Create year "2026"')).toBeNull();
+    expect(screen.getByText('Create "2026"')).not.toBeNull();
+
+    // Not a bare year: the generic label.
+    fireEvent.change(search, { target: { value: "17117" } });
+    expect(screen.queryByText(/^Create year/)).toBeNull();
+    expect(screen.getByText('Create "17117"')).not.toBeNull();
+  });
+});

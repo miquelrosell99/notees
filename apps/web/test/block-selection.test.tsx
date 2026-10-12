@@ -2,8 +2,10 @@
  * Block multi-selection — the standalone register rows:
  *
  * - shift+click extends a range from the anchor; Ctrl/Cmd+click toggles;
- *   drag-over rows ("arches") extends from the press anchor; the trailing
- *   click after a drag never enters edit mode.
+ *   a drag-over rows ("arches") extends from the press anchor once the
+ *   pointer exits the pressed block's borders (in edit mode the in-block
+ *   text selection hands over to the block range at the same border); the
+ *   trailing click after a drag never enters edit mode.
  * - Escape / outside click clear the selection.
  * - The floating action bar offers the group ops through the existing
  *   client batch paths: bulk class assign/unassign, bulk tag, bulk move to
@@ -210,6 +212,80 @@ describe("block multi-selection gestures", () => {
     fireEvent.click(rows[1]!);
     expect(selectionBar()).toBeNull();
     expect(rows[1]!.querySelector(".nt-block-text")).not.toBeNull();
+  });
+
+  it("a read-mode drag arms only when the pointer exits the pressed block's borders", async () => {
+    const client = await seedClient();
+    const pageId = await seedPage(client, ["one", "two", "three"]);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const rows = blockContents(container);
+    const ids = rows.map((r) => r.closest("[data-block-id]")!.getAttribute("data-block-id")!);
+
+    // Real borders for the press block: it occupies y 0..20.
+    const pressRow = rows[0]!.closest("[data-block-id]") as HTMLElement;
+    vi.spyOn(pressRow, "getBoundingClientRect").mockReturnValue({
+      x: 0, y: 0, top: 0, left: 0, right: 400, bottom: 20, width: 400, height: 20,
+      toJSON: () => ({}),
+    } as DOMRect);
+
+    fireEvent.mouseDown(rows[0]!, { clientX: 10, clientY: 10 });
+    // Inside the borders: nothing is selected (read-mode text is
+    // user-select:none — the gesture is not a text selection).
+    fireEvent.mouseMove(rows[0]!, { clientX: 30, clientY: 18 });
+    expect(selectedIds(container)).toEqual([]);
+    // Crossing the bottom border arms the drag; arching over the next row
+    // extends the range from the anchor.
+    fireEvent.mouseMove(rows[1]!, { clientX: 30, clientY: 40 });
+    expect(selectedIds(container)).toEqual([ids[0], ids[1]]);
+    fireEvent.mouseUp(document);
+  });
+
+  it("an edit-mode drag keeps text selection inside the block; exiting its borders switches to block select", async () => {
+    const client = await seedClient();
+    const pageId = await seedPage(client, ["one", "two"]);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const rows = blockContents(container);
+    const ids = rows.map((r) => r.closest("[data-block-id]")!.getAttribute("data-block-id")!);
+
+    // Enter edit mode on the first block and select its text "one".
+    fireEvent.click(rows[0]!);
+    const editor = rows[0]!.querySelector<HTMLElement>(".nt-block-text");
+    if (editor === null) throw new Error("editor did not mount after click");
+    const textNode = editor.firstChild;
+    if (textNode === null) throw new Error("editor has no text node");
+    const textRange = document.createRange();
+    textRange.setStart(textNode, 0);
+    textRange.setEnd(textNode, 3);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(textRange);
+    expect(selection.toString()).toBe("one");
+
+    // The editing block's borders: it occupies y 0..20.
+    vi.spyOn(editor, "getBoundingClientRect").mockReturnValue({
+      x: 0, y: 0, top: 0, left: 0, right: 400, bottom: 20, width: 400, height: 20,
+      toJSON: () => ({}),
+    } as DOMRect);
+
+    fireEvent.mouseDown(editor, { clientX: 5, clientY: 5 });
+    // Still inside the borders: no block selection, the text selection survives.
+    fireEvent.mouseMove(editor, { clientX: 8, clientY: 8 });
+    expect(selectedIds(container)).toEqual([]);
+    expect(window.getSelection()!.toString()).toBe("one");
+
+    // Exit the borders over the second row: block select takes over from
+    // the anchor block and the native text selection is dropped.
+    const secondRow = Array.from(
+      container.querySelectorAll<HTMLElement>(".nt-block-content"),
+    )[1]!;
+    fireEvent.mouseMove(secondRow, { clientX: 8, clientY: 40 });
+    expect(selectedIds(container)).toEqual(ids);
+    expect(window.getSelection()!.toString()).toBe("");
+    fireEvent.mouseUp(document);
+
+    // The trailing click after the drag does not enter edit mode.
+    fireEvent.click(secondRow);
+    expect(container.querySelectorAll(".nt-block-text")).toHaveLength(1);
   });
 });
 
