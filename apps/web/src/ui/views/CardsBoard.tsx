@@ -21,6 +21,7 @@
  */
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import {
   DndContext,
   DragOverlay,
@@ -47,6 +48,7 @@ import { NodeCard, CoverLayoutToggle } from "./CardsView.js";
 import { useViewSelection, SelectionExportControls } from "./selectionExport.js";
 import { useWindowed } from "./useWindowed.js";
 import { ShowMoreButton } from "./ShowMoreButton.js";
+import { useViewChromeTarget } from "./viewChrome.js";
 import type { AnyClient, CardLayout, NodeCollectionItem, NodeCollectionProps } from "./types.js";
 import type { ViewSelection } from "./selectionExport.js";
 import "./CardsBoard.css";
@@ -225,6 +227,9 @@ export function CardsBoard({ props }: { props: NodeCollectionProps }) {
   const [coverLayout, setCoverLayout] = useCardLayoutPreference("no-cover");
   /** Selection export — the same affordance the table toolbar has. */
   const selection = useViewSelection();
+  // Hosted collections: the toolbar portals into the tab bar's right-hand
+  // cluster (owner 2026-10-12); un-hosted it rides the body top.
+  const chromeTarget = useViewChromeTarget();
   const selectable = props.selectable ?? true;
 
   const schema =
@@ -325,12 +330,15 @@ export function CardsBoard({ props }: { props: NodeCollectionProps }) {
     });
   };
 
+  const toolbar = (
+    <div className="board-toolbar">
+      <SelectionExportControls client={client} selection={selection} />
+      <CoverLayoutToggle value={coverLayout} onChange={setCoverLayout} />
+    </div>
+  );
   return (
     <div>
-      <div className="board-toolbar">
-        <SelectionExportControls client={client} selection={selection} />
-        <CoverLayoutToggle value={coverLayout} onChange={setCoverLayout} />
-      </div>
+      {chromeTarget !== null ? createPortal(toolbar, chromeTarget) : toolbar}
       <DndContext
         sensors={sensors}
         onDragStart={handleDragStart}

@@ -319,9 +319,18 @@ export function Sidebar({
       /** The section's list absorbs the free nav height and scrolls alone —
        * every other sidebar region stays pinned. */
       scrollable?: boolean;
+      /** Always-render placeholder when the section is empty (Favorites
+       * uses it — owner 2026-10-12); without it an empty section hides. */
+      empty?: string;
     } = {},
   ) => {
-    if (rows.length === 0) return null;
+    const body =
+      rows.length > 0
+        ? rows
+        : options.empty !== undefined
+          ? [<li key="__empty" className="nt-side-empty">{options.empty}</li>]
+          : null;
+    if (body === null) return null;
     const collapsible = options.collapsible !== false;
     const collapsed = collapsible && collapsedSections[title] === true;
     return (
@@ -355,7 +364,7 @@ export function Sidebar({
             <span>{title}</span>
           </h3>
         )}
-        {!collapsed && <ul className="nt-side-list">{rows}</ul>}
+        {!collapsed && <ul className="nt-side-list">{body}</ul>}
       </section>
     );
   };
@@ -398,7 +407,11 @@ export function Sidebar({
         {section(
           "Favorites",
           favoritePages.map((node) => renderRow(node, null, "favorites")),
-          { icon: "mdi-star-outline" },
+          {
+            icon: "mdi-star-outline",
+            // Always rendered — empty names how to fill it (owner 2026-10-12).
+            empty: "No favorites yet — hover a row and star it to pin it here.",
+          },
         )}
         {section(
           "Recents",

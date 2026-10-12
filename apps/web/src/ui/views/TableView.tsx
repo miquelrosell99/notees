@@ -58,6 +58,8 @@ import { displayNameForSettings, displayNameFromClient, datetimeValueText, forma
 import { registerView } from "./registry.js";
 import { useWindowed } from "./useWindowed.js";
 import { ShowMoreButton } from "./ShowMoreButton.js";
+import { useViewChromeTarget } from "./viewChrome.js";
+import { createPortal } from "react-dom";
 import { isEmptyPropertyValue, propertyDisplayText, propertyLinkHref } from "./propertyDisplay.js";
 import type { ClientNode, EffectiveProperty } from "@/core/workspace-client.js";
 import type {
@@ -199,11 +201,17 @@ function InlineInput({
   inputType = "text",
   ariaLabel,
   onCommit,
+  autoFocus = false,
 }: {
   value: string;
   inputType?: string;
   ariaLabel: string;
   onCommit: (next: string) => void;
+  /** Focus on mount — the click-to-edit rename path only. The editable
+   * property cells never pass this: an always-mounted autofocus input in
+   * every cell hands the page focus to the LAST cell on load (owner
+   * 2026-10-12). */
+  autoFocus?: boolean;
 }) {
   const [draft, setDraft] = useState(value);
   return (
@@ -214,7 +222,7 @@ function InlineInput({
       className="nt-table-input"
       aria-label={ariaLabel}
       value={draft}
-      autoFocus
+      autoFocus={autoFocus}
       onChange={(event) => setDraft(event.target.value)}
       onBlur={() => onCommit(draft)}
       onKeyDown={(event) => {
@@ -432,6 +440,7 @@ function NameCell({
         <InlineInput
           inputType="text"
           ariaLabel={`Rename `}
+          autoFocus
           value={label === "Untitled" ? "" : label}
           onCommit={(next) => {
             setEditing(false);
@@ -696,6 +705,9 @@ function SortPanel({
 export function TableView(props: NodeCollectionProps) {
   const { client, items = [], tableColumns, propertiesOf, onNodeClick, onNodeShiftClick, defaultSort } = props;
   const columns = tableColumns ?? DEFAULT_COLUMNS;
+  // Hosted collections: the toolbar portals into the tab bar's right-hand
+  // cluster (owner 2026-10-12); un-hosted it rides the body top.
+  const chromeTarget = useViewChromeTarget();
   const [sort, setSort] = useState<SortSpec[]>(defaultSort !== undefined ? [defaultSort] : []);
   const [hiddenColumns, setHiddenColumns] = useState<ReadonlySet<string>>(new Set());
   const [extraColumns, setExtraColumns] = useState<ReadonlySet<string>>(new Set());
@@ -909,9 +921,8 @@ export function TableView(props: NodeCollectionProps) {
     );
   };
 
-  return (
-    <div className="nt-table-wrap">
-      <div className="nt-table-toolbar">
+  const toolbar = (
+    <div className="nt-table-toolbar">
         {selected.size > 0 && (
           <span className="nt-table-selection">
             <span className="nt-table-selection__count">{selected.size} selected</span>
@@ -1022,7 +1033,14 @@ export function TableView(props: NodeCollectionProps) {
             ]}
           />
         )}
-      </div>
+    </div>
+  );
+
+  return (
+    <div className="nt-table-wrap">
+      {/* Hosted: the toolbar renders into the tab bar's right-hand cluster
+          (owner 2026-10-12); un-hosted: it rides the body top as before. */}
+      {chromeTarget !== null ? createPortal(toolbar, chromeTarget) : toolbar}
       <table className="nt-table">
         <thead>
           <tr>

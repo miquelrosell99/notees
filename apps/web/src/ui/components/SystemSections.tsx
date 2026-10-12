@@ -310,7 +310,6 @@ function ReferenceSection({
             <FilterBar
               client={client}
               layout="inline"
-              collapsibleSearch
               value={filterQuery}
               onChange={setFilterQuery}
               matchCount={rows.length}

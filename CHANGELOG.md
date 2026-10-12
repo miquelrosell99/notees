@@ -9,6 +9,35 @@ predating this file.
 
 ## 2026-10-12
 
+- **feat(web): one chrome row on the hosted tab bar — every button right,
+  permanent search, the builder below without moving the row; sidebar hover
+  star displaces the class flag; Favorites always renders; classed nodes
+  re-default to table; the table stops stealing focus on load (owner
+  corrections 2026-10-12).** (1) The add-view **+** left the tablist (a
+  button has no business inside `role="tablist"`) and joins the bar's
+  right-hand cluster; the quick search is a **permanent field** again (the
+  magnifier fold shipped this morning and is reverted — `collapsibleSearch`
+  is removed); the views' own toolbars (the table's columns/sort/more, the
+  cards/board selection + cover-layout rows) **portal into a slot** in the
+  same row (`views/viewChrome.tsx` — a hosted `NodeCollection` provides the
+  target; un-hosted surfaces keep the body-top row), and the FilterBar
+  renders **last** in the cluster so its structured panel wraps a full-width
+  line beneath the row **without moving the other controls**. (2) The
+  sidebar's favorite star renders **in-flow** on hover and displaces the row
+  content (the class flag chip) instead of overlaying it. (3) **Favorites
+  always renders** — empty, it names how to fill it ("No favorites yet —
+  hover a row and star it to pin it here."). (4) Classed nodes read TABLE:
+  fresh classes already did; a marker-guarded **one-time migration** drops
+  the stored per-class pre-ruling choices so every class reads the default
+  again (`viewPrefs.ts`). (5) The table stops focusing the last cell on
+  load: `InlineInput.autoFocus` is now opt-in (the click-to-edit rename path
+  passes it; the always-mounted editable property cells never do — the last
+  rendered autofocus input in the DOM was winning the page focus). Verified:
+  `pnpm typecheck` + `pnpm test` green; a filter-layer spec pins the
+  cluster's ordering contract (the + outside the tablist; switcher and table
+  toolbar precede the search field; nothing moves when the panel opens);
+  node-prefs gains the empty-Favorites placeholder spec; `docs/usage.md` §2/§4,
+  `docs/ux.md`, and `docs/developers/architecture.md` reworded.
 - **feat(web): the collection filter/view chrome rides the hosted tab bar's
   far right — the quick search folds behind a magnifier toggle (owner
   2026-10-12).** The classed-nodes section's toolbar row (search box,

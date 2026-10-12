@@ -1,12 +1,12 @@
 /**
- * FilterBar — the transient filter layer's chrome: the body-top control row
- * a `filterable` section renders above its collection (the section header
- * is a single <button> — no interactive control nests inside it, so the bar
- * rides the body top like the skin's toolbar slot). Composed from kit
- * primitives only: SearchField for the quick text facet, the structured
- * panel is the v1 query-builder block UI ported over the query AST
- * (./FilterBlockBuilder.js — condition rows, nested Match ALL/ANY groups,
- * NOT wrappers, the add menu).
+ * FilterBar — the transient filter layer's chrome: the control row a
+ * `filterable` section renders with its collection — at the body top for an
+ * un-hosted collection, inline in the hosted tab bar's right-hand cluster
+ * (the section header is a single <button> — no interactive control nests
+ * inside it). Composed from kit primitives only: SearchField for the quick
+ * text facet, the structured panel is the v1 query-builder block UI ported
+ * over the query AST (./FilterBlockBuilder.js — condition rows, nested
+ * Match ALL/ANY groups, NOT wrappers, the add menu).
  *
  * The bar is CONTROLLED: the FilterQuery is component state at the section
  * (one instance per section view/tab, lost on reload — nothing persisted),
@@ -16,10 +16,11 @@
  * "N of M rows match" line updates live because the filter applies on every
  * change (the v1 ViewBuilder result-preview pattern).
  *
- * `collapsibleSearch` (the tab-bar chrome, owner 2026-10-12) folds the quick
- * search behind a magnifier toggle: the field renders only while the toggle
- * is open or the text facet is set — an active text filter never folds away
- * — and the freshly opened field takes the focus.
+ * The quick search is a PERMANENT field (owner 2026-10-12, the tab-bar
+ * chrome correction — no folding toggle). In a wrapping chrome row (the
+ * hosted tab bar's `trailing`) the bar renders LAST in the cluster so its
+ * structured panel wraps a full-width line beneath the row WITHOUT moving
+ * the other controls.
  */
 
 import { useState } from "react";
@@ -50,22 +51,18 @@ export interface FilterBarProps {
   totalCount: number | null;
   /**
    * "block" (default) renders the bar as its own body-top row; "inline"
-   * renders it inside a toolbar row (ViewToolbar) via `display: contents` —
-   * the control row joins the row's flex line and the structured panel
-   * takes a full-width wrapped line beneath it (in-flow, no overlay).
+   * renders it inside a toolbar row (a ViewToolbar or the hosted tab bar's
+   * `trailing`) via `display: contents` — the control row joins the row's
+   * flex line and the structured panel takes a full-width wrapped line
+   * beneath it (in-flow, no overlay). Render the bar LAST in the wrapping
+   * cluster so the panel's wrap lands below the row without moving the
+   * cluster's other controls.
    */
   layout?: "block" | "inline" | undefined;
-  /**
-   * Fold the quick search behind a magnifier toggle (the tab-bar chrome):
-   * the field shows while the toggle is open or the text facet is set.
-   * Default false — a body-top bar keeps the always-visible search box.
-   */
-  collapsibleSearch?: boolean | undefined;
 }
 
-export function FilterBar({ client, value, onChange, config, matchCount, totalCount, layout = "block", collapsibleSearch = false }: FilterBarProps) {
+export function FilterBar({ client, value, onChange, config, matchCount, totalCount, layout = "block" }: FilterBarProps) {
   const [panelOpen, setPanelOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
 
   const showText = config?.text ?? true;
   const showClass = config?.class ?? true;
@@ -74,32 +71,15 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
   const showPanelToggle = showClass || showProperties || showDateRange;
 
   const active = !isFilterInactive(value);
-  const hasText = (value.text ?? "") !== "";
-  // A set text facet keeps the field visible — an active filter never folds.
-  const searchVisible = !collapsibleSearch || searchOpen || hasText;
 
   return (
     <div className={`nt-filter-bar${layout === "inline" ? " nt-filter-bar--inline" : ""}`}>
       <div className="nt-filter-bar__row">
-        {showText && collapsibleSearch && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            icon="mdi mdi-magnify"
-            aria-label="Search rows"
-            title="Search rows"
-            aria-expanded={searchVisible}
-            active={searchVisible}
-            onClick={() => setSearchOpen((open) => !open)}
-          />
-        )}
-        {showText && searchVisible && (
+        {showText && (
           <SearchField
             className="nt-filter-bar__search"
             aria-label="Filter by text"
             placeholder="Filter…"
-            autoFocus={collapsibleSearch}
             value={value.text ?? ""}
             onChange={(event) => onChange({ ...value, text: event.target.value })}
             onClear={() => onChange({ ...value, text: "" })}

@@ -183,10 +183,12 @@ export function ClassedNodesSection({
       action={{ icon: "mdi-plus", label: "Add member", onClick: addMember }}
     >
       {/* The chrome rides the hosted tab bar's far right (the collection's
-          `tabBarTrailing`): the collapsible quick search (the magnifier
-          toggle opens the field), the structured-filters toggle, and the
-          view switcher — one row with the tabs. The create affordance lives
-          in the section header's trailing action (owner 2026-10-09). */}
+          `tabBarTrailing`), every control one right-hand cluster: the view
+          switcher first, then the FilterBar (permanent quick search +
+          structured-filters toggle) LAST — the bar's wrapped structured
+          panel lands beneath the row without moving these controls. The
+          create affordance lives in the section header's trailing action
+          (owner 2026-10-09). */}
       {members === null ? null : (
         <NodeCollection
           viewMode={membersMode}
@@ -205,16 +207,15 @@ export function ClassedNodesSection({
           hostedViews={{ nodeId: classId, sectionKey: "classed-nodes" }}
           tabBarTrailing={
             <>
+              <ViewSwitcher modes={modes} value={membersMode} onChange={setMembersMode} />
               <FilterBar
                 client={client}
                 layout="inline"
-                collapsibleSearch
                 value={memberFilter}
                 onChange={setMemberFilter}
                 matchCount={members.length}
                 totalCount={total}
               />
-              <ViewSwitcher modes={modes} value={membersMode} onChange={setMembersMode} />
             </>
           }
         />

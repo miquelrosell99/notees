@@ -99,7 +99,6 @@
 }
 
 .nt-side-row {
-  position: relative;
   display: flex;
   align-items: center;
 }
@@ -166,9 +165,12 @@
   white-space: nowrap;
 }
 
+/* The favorite toggle rides the row's flex line (owner 2026-10-12): on
+   hover it renders in-flow and DISPLACES the row content (the class flag
+   chip) instead of overlaying it — the old absolute overlay stacked the
+   star on top of the flag. Hidden until hover; always visible on touch. */
 .nt-side-star {
-  position: absolute;
-  right: var(--spacing-1);
+  flex-shrink: 0;
   display: none;
   align-items: center;
   justify-content: center;
@@ -187,6 +189,15 @@
 .nt-side-star:hover {
   background: var(--color-pressed-overlay);
   color: var(--color-on-surface);
+}
+
+/* Empty-section placeholder (owner 2026-10-12): Favorites always renders
+   — an empty section names how to fill it instead of vanishing. */
+.nt-side-empty {
+  padding: var(--spacing-1) var(--spacing-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-on-surface-variant);
+  opacity: 0.75;
 }
 
 .nt-sidebar-footer {
