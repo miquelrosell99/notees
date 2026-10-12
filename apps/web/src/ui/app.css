@@ -514,15 +514,19 @@ select:focus-visible {
 }
 
 /* The class variant's first-column stack (owner 2026-10-12): Class
-   properties + Templates stack under the Metadata panel, separated by a
-   hairline — the panel card is one scroll surface. */
+   properties + Templates stack under the Metadata panel. Whitespace only —
+   the panel card carries its own border, so the sections' default top
+   hairlines retire inside it (owner: "why so many divider lines?"). */
+.nt-page-side-panel .node-view-section {
+  border-top: none;
+  padding-top: 0;
+}
+
 .nt-page-side-panel__sections {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
   margin-top: var(--spacing-3);
-  padding-top: var(--spacing-3);
-  border-top: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 /* The context column: graph · TOC · Activity · Comments — the

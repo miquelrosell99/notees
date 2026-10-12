@@ -116,7 +116,7 @@ describe("the context column (three-column panelled layout)", () => {
     expect(container.querySelector(".nt-page-context")).toBeNull();
   });
 
-  it("compact, embedded, and class surfaces render no context column", async () => {
+  it("compact and embedded surfaces render no context column; the class page renders it (owner 2026-10-12, every nodeview)", async () => {
     const client = await seedClient();
     const plainId = await client.createObject({ presentAsMain: true, name: "Plain" });
     const compact = render(<PageView client={client} pageId={plainId} layout="compact" />);
@@ -130,7 +130,8 @@ describe("the context column (three-column panelled layout)", () => {
 
     const classId = await client.createClass("agent");
     const klass = render(<PageView client={client} pageId={classId} />);
-    expect(klass.container.querySelector(".nt-page-context")).toBeNull();
+    expect(klass.container.querySelector(".nt-page-context")).not.toBeNull();
+    expect(klass.container.querySelector(".nt-node-topbar")).not.toBeNull();
   });
 
   it("Activity relocated: one Activity section, living in the context column; the stack below the body is Child pages + backlinks", async () => {
