@@ -83,11 +83,10 @@ button.property-cell {
   height: var(--icon-size-sm);
 }
 
-/* Selection picker dropdown */
+/* Selection picker dropdown — ported to the body and viewport-fixed
+   (see the component); top/left arrive inline. */
 .property-cell__picker {
-  position: absolute;
-  top: 100%;
-  left: 0;
+  position: fixed;
   z-index: var(--z-floating);
   background: var(--color-surface);
   border: var(--border-width-default) solid var(--color-outline-variant);
@@ -95,7 +94,7 @@ button.property-cell {
   max-height: var(--layout-size-7xl);
   overflow-y: auto;
   min-width: var(--layout-size-2xl);
-  margin-top: var(--spacing-1);
+  box-shadow: var(--shadow-elevation-2);
 }
 
 .property-cell__picker-option {

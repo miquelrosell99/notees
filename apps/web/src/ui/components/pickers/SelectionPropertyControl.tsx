@@ -11,10 +11,12 @@
  */
 
 import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { Icon } from "../../Icon.js";
 import { coloredPillStyle, cssColorFor } from "../ui/colorPresets.js";
 import { usePopupDismissal } from "../ui/usePopupDismissal.js";
+import { useViewportPosition } from "./useViewportPosition.js";
 import "./PropertyCell.css";
 
 export interface SelectionOption {
@@ -46,14 +48,27 @@ export function SelectionPropertyControl({
 }: SelectionPropertyControlProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const cellRef = useRef<HTMLDivElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
 
-  // Dismissal: Escape closes; pointer-down outside the cell (which
-  // hosts both the trigger and the picker) closes too.
+  // The picker portals to the body with viewport-fixed positioning: an
+  // in-flow absolute popup inherits ancestor stacking contexts (sticky
+  // section chrome, transformed rows) and page content bleeds through the
+  // popup surface.
+  const position = useViewportPosition(cellRef, isPickerOpen, {
+    popupRef: pickerRef,
+    edgePadding: 8,
+  });
+
+  // Dismissal: Escape closes; pointer-down outside the cell and picker
+  // closes too (the trigger lives in the cell, so it must not self-dismiss).
   usePopupDismissal({
-    popupRef: cellRef,
+    popupRef: pickerRef,
+    anchorRefs: [cellRef],
     isOpen: isPickerOpen,
     onClose: () => setIsPickerOpen(false),
   });
+
+  const editable = !disabled;
 
   const resolvedOptions = values
     .map((value) => options.find((opt) => opt.id === value))
@@ -64,7 +79,58 @@ export function SelectionPropertyControl({
     setIsPickerOpen(false);
   };
 
-  const editable = !disabled;
+  // The picker rides in a body portal (viewport-fixed); its option set
+  // depends on the value state — every option from empty, only the
+  // unselected ones otherwise.
+  const pickerOptions =
+    resolvedOptions.length === 0
+      ? options
+      : options.filter((opt) => !resolvedOptions.some((r) => r.id === opt.id));
+
+  const picker = isPickerOpen ? (
+    <>
+      {createPortal(
+        <div
+          ref={pickerRef}
+          className="property-cell__picker"
+          style={{
+            top: position?.top ?? 0,
+            left: position?.left ?? 0,
+            visibility: position === null ? "hidden" : "visible",
+          }}
+        >
+          {pickerOptions.length === 0 && (
+            <div className="property-cell__picker-empty">No options.</div>
+          )}
+          {pickerOptions.map((option) => (
+            <button
+              type="button"
+              key={option.id}
+              className="property-cell__picker-option"
+              onClick={() => handleAddOption(option)}
+            >
+              {option.icon && (
+                <span className="property-cell__picker-icon">
+                  <Icon
+                    path={option.icon}
+                    size={0.7}
+                    {...(option.color ? { color: cssColorFor(option.color) } : {})}
+                  />
+                </span>
+              )}
+              <span
+                className="property-cell__picker-dot"
+                style={coloredPillStyle(option.color) ?? undefined}
+                aria-hidden="true"
+              />
+              <span>{option.label}</span>
+            </button>
+          ))}
+        </div>,
+        document.body,
+      )}
+    </>
+  ) : null;
 
   // Empty state
   if (resolvedOptions.length === 0) {
@@ -82,35 +148,7 @@ export function SelectionPropertyControl({
         >
           <span className="property-placeholder">Empty</span>
         </button>
-        {isPickerOpen && (
-          <div className="property-cell__picker">
-            {options.length === 0 && <div className="property-cell__picker-empty">No options.</div>}
-            {options.map((option) => (
-              <button
-                type="button"
-                key={option.id}
-                className="property-cell__picker-option"
-                onClick={() => handleAddOption(option)}
-              >
-                {option.icon && (
-                  <span className="property-cell__picker-icon">
-                    <Icon
-                      path={option.icon}
-                      size={0.7}
-                      {...(option.color ? { color: cssColorFor(option.color) } : {})}
-                    />
-                  </span>
-                )}
-                <span
-                  className="property-cell__picker-dot"
-                  style={coloredPillStyle(option.color) ?? undefined}
-                  aria-hidden="true"
-                />
-                <span>{option.label}</span>
-              </button>
-            ))}
-          </div>
-        )}
+        {picker}
       </div>
     );
   }
@@ -158,36 +196,7 @@ export function SelectionPropertyControl({
           +
         </button>
       )}
-      {isPickerOpen && (
-        <div className="property-cell__picker">
-          {options
-            .filter((opt) => !resolvedOptions.some((r) => r.id === opt.id))
-            .map((option) => (
-              <button
-                type="button"
-                key={option.id}
-                className="property-cell__picker-option"
-                onClick={() => handleAddOption(option)}
-              >
-                {option.icon && (
-                  <span className="property-cell__picker-icon">
-                    <Icon
-                      path={option.icon}
-                      size={0.7}
-                      {...(option.color ? { color: cssColorFor(option.color) } : {})}
-                    />
-                  </span>
-                )}
-                <span
-                  className="property-cell__picker-dot"
-                  style={coloredPillStyle(option.color) ?? undefined}
-                  aria-hidden="true"
-                />
-                <span>{option.label}</span>
-              </button>
-            ))}
-        </div>
-      )}
+      {picker}
     </div>
   );
 }

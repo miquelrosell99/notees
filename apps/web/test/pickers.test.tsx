@@ -170,7 +170,8 @@ describe("metadata pickers (ported popups)", () => {
     // Unvalued: the Empty cell opens the options picker.
     const row = screen.getByText("status").closest(".nt-props-sidebar__prop, .nt-property-select") as HTMLElement;
     fireEvent.click(within(row).getByText("Empty"));
-    fireEvent.click(within(row).getByText("Doing"));
+    // The picker rides in a body portal — query the screen.
+    fireEvent.click(screen.getByText("Doing"));
     await flushWrites();
     expect(client.getEffectiveProperties(pageId)).toEqual([
       expect.objectContaining({ propertySchemaId: schemaId, value: "opt-2", source: "authored" }),
@@ -206,7 +207,7 @@ describe("metadata pickers (ported popups)", () => {
     // to the array value (the multi_select control, previously undispatched).
     const row = screen.getByText("genres").closest(".nt-props-sidebar__prop, .nt-property-select") as HTMLElement;
     fireEvent.click(within(row).getByText("Empty"));
-    fireEvent.click(within(row).getByText("Fiction"));
+    fireEvent.click(screen.getByText("Fiction"));
     await flushWrites();
     expect(client.getEffectiveProperties(pageId)).toEqual([
       expect.objectContaining({ propertySchemaId: schemaId, value: ["g1"], source: "authored" }),
@@ -216,7 +217,7 @@ describe("metadata pickers (ported popups)", () => {
     const rowAfter = screen.getByText("genres").closest(".nt-props-sidebar__prop, .nt-property-select") as HTMLElement;
     expect(within(rowAfter).getByText("Fiction")).not.toBeNull();
     fireEvent.click(within(rowAfter).getByRole("button", { name: "Add option" }));
-    fireEvent.click(within(rowAfter).getByText("Mystery"));
+    fireEvent.click(screen.getByText("Mystery"));
     await flushWrites();
     expect(client.getEffectiveProperties(pageId)).toEqual([
       expect.objectContaining({ propertySchemaId: schemaId, value: ["g1", "g2"], source: "authored" }),

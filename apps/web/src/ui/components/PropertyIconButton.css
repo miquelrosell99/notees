@@ -57,14 +57,12 @@
   background: var(--color-on-surface-variant);
 }
 
-/* The options popover under the button. */
+/* The options popover under the button — ported to the body and
+   viewport-fixed (see the component); top/left arrive inline. */
 .nt-propicon-popover {
-  position: absolute;
-  top: 100%;
-  left: 0;
+  position: fixed;
   z-index: var(--z-floating);
   min-width: var(--layout-size-2xl);
-  margin-top: var(--spacing-1);
   padding: var(--spacing-1);
   display: flex;
   flex-direction: column;
