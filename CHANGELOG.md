@@ -9,6 +9,52 @@ predating this file.
 
 ## 2026-10-12
 
+- **feat(web): the graph chrome is streamlined — one quiet bar, two popovers,
+  and a transparent overlay layout (owner rulings 2026-10-12).** The toolbar
+  carried ~14 same-weight controls in mixed registers; now: (1) The **top
+  bar is a transparent overlay** — no background, no rule, floating on the
+  canvas — holding only the canvas controls: recenter, pause, the Filters
+  and settings popovers, the counts (inline), colors, search, and the
+  selection chip. (2) A **mode bar centered at the bottom edge** (the v1
+  position, owner ruling) carries the layout switcher, also transparent.
+  (3) A new **Filters popover** decides what is drawn: the six link-family
+  chips, Class nodes, Orphans, the journal Visibility levels (migrated out
+  of the settings popover), and — deleted from its lonely bottom bar — the
+  two Semantic detail sliders now ride next to the families they bound. The
+  chip lights when anything is filtered. (4) The **settings popover is
+  physics + sizing only** and the physics preset is a named **dropdown**
+  (the icon-radio guesswork is gone); the size-by-metric cycling button is
+  retired (it duplicated the popover's Node sizing control — one pref, one
+  control). Verified: `pnpm typecheck` + `pnpm test` green; the
+  toolbar-composition spec re-pins the new chrome contract (Filters
+  popover, preset dropdown, bottom mode bar); `docs/usage.md`'s graph
+  section rewords the chrome paragraphs.
+- **fix(web): the property value popups stop bleeding the page through —
+  both pickers portal to the body, viewport-fixed; the stray hairline
+  between a block and its children is gone; the property icon names its
+  default-sourced value.** (1) The block-row property icon popover
+  (`PropertyIconButton`) and the metadata select picker
+  (`SelectionPropertyControl`) rendered in-flow absolute — inside stacked/
+  transformed contexts the page content painted over their surface, the
+  "transparent popup" the owner caught on the graph. Both now ride the
+  established `useViewportPosition` pattern (body portal, fixed position,
+  viewport flip + clamp) — the same mechanism the date picker uses.
+  (2) The 1px line under metadata-carrying blocks was the per-block
+  collapsed `Metadata` section's `border-top` (`.node-view-section`'s
+  divider read as a stray hairline between a block and its children,
+  owner 2026-10-12) — in-flow block metadata no longer draws the top
+  divider; page-level sections keep theirs. (3) The effective-value
+  semantics the owner asked about already hold — `effective = authored ??
+  winning binding's defaultValue`, derived never stored
+  (`packages/store/src/effective.ts`) — but the Task class's bindings carry
+  no defaults, so unset status reads as unset; the property icon's tooltip
+  now names default-sourced values (`Status: Backlog (default)`, the same
+  hint the metadata table carries). Verified: the property icon / block
+  metadata / properties panel / property view suites green; the hairline
+  and popup fixes confirmed by Playwright probes against the live stack
+  (the exact node from the owner's screenshot: zero border candidates
+  after the fix path, scratch fixtures trashed).
+
 - **feat(web): the list view IS the outline view — full block rows in every
   collection's list mode, editable inline, with recursive children; the
   read-only variant is the inert twin (dead content click, the bullet opens,

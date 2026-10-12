@@ -2,6 +2,7 @@
    itself; everything here is the surrounding toolbar/tooltip chrome. */
 
 .nt-graph {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -16,13 +17,24 @@
   justify-content: center;
 }
 
+/* The top bar is a transparent overlay: it floats on the graph, no
+   background, no rule — the canvas runs edge to edge beneath it. */
 .nt-graph__toolbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: var(--spacing-1);
   padding: var(--spacing-1) var(--spacing-sm);
-  border-bottom: 1px solid var(--color-border);
+  pointer-events: none;
+}
+
+.nt-graph__toolbar > * {
+  pointer-events: auto;
 }
 
 .nt-graph__tool {
@@ -86,6 +98,16 @@
   font-size: var(--font-size-xs);
   color: var(--color-on-surface-variant);
   font-variant-numeric: tabular-nums;
+}
+
+/* The layout mode bar (the v1 register): a transparent dock centered on
+   the bottom edge of the stage, overlaying the graph. */
+.nt-graph__modebar {
+  position: absolute;
+  bottom: var(--spacing-3, var(--spacing-2));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
 }
 
 .nt-graph__toolbar-spacer {
@@ -211,20 +233,10 @@
   color: var(--color-on-surface);
 }
 
-.nt-graph__semantic-panel {
+.nt-graph__filters-chips {
   display: flex;
-  gap: var(--spacing-lg);
-  padding: var(--spacing-sm) var(--spacing-md);
-  border-top: 1px solid var(--color-border);
-  font-size: var(--font-size-xs);
-  color: var(--color-on-surface);
-}
-
-.nt-graph__semantic-slider {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 200px;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
 }
 
 .nt-graph__minimap {

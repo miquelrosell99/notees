@@ -864,10 +864,6 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     );
   }
 
-  const semanticPanelVisible =
-    (prefs.families.semantic === true || prefs.families.temporal === true) &&
-    local === undefined;
-
   /**
    * The reference empty surfaces: an empty workspace (the full surface
    * only — a local neighborhood always has its anchor), an empty
@@ -879,11 +875,27 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   const graphEmpty = display.nodes.length === 0;
   const nothingToGraph = local === undefined && topology !== null && topology.nodes.length === 0;
 
-  /** The settings popover rows (the v1 cog register, kit-composed). */
+  /** The settings popover rows (physics + sizing only; filters live in the
+   *  Filters popover, layout mode in the bottom mode bar). */
   const settingsPanel = (
     <div className="nt-graph__settings">
       {prefs.layoutMode === "force" && (
         <>
+          <div className="nt-graph__settings-row">
+            <span className="nt-graph__settings-label">Physics preset</span>
+            <Dropdown
+              size="sm"
+              options={[
+                { value: "sparse", label: "Sparse" },
+                { value: "balanced", label: "Balanced" },
+                { value: "compact", label: "Compact" },
+                { value: "clustered", label: "Clustered" },
+              ]}
+              value={prefs.preset}
+              onChange={(value) => value !== null && patch({ preset: value as PhysicsPreset })}
+              ariaLabel="Physics preset"
+            />
+          </div>
           <BooleanToggle
             size="sm"
             label="Simulation"
@@ -979,43 +991,130 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
           )}
         </>
       )}
-      {local === undefined && (
-        <div className="nt-graph__settings-visibility">
-          <span className="nt-graph__settings-heading">Visibility</span>
-          <BooleanToggle
-            size="sm"
-            label="Day pages"
-            description="Daily journal pages"
-            labelPosition="left"
-            checked={prefs.journalDay}
-            onChange={(event) => patch({ journalDay: event.target.checked })}
-          />
-          <BooleanToggle
-            size="sm"
-            label="Month pages"
-            description="Monthly journal pages"
-            labelPosition="left"
-            checked={prefs.journalMonth}
-            onChange={(event) => patch({ journalMonth: event.target.checked })}
-          />
-          <BooleanToggle
-            size="sm"
-            label="Year pages"
-            description="Yearly journal pages"
-            labelPosition="left"
-            checked={prefs.journalYear}
-            onChange={(event) => patch({ journalYear: event.target.checked })}
-          />
-          <BooleanToggle
-            size="sm"
-            label="System pages"
-            description="The Inbox and legacy scaffolding"
-            labelPosition="left"
-            checked={prefs.showSystemPages}
-            onChange={(event) => patch({ showSystemPages: event.target.checked })}
-          />
-        </div>
+    </div>
+  );
+
+  /** The Filters popover: everything that decides WHAT is drawn — link
+   *  families, node classes, orphans, journal visibility, and the semantic
+   *  web's two bound sliders riding next to their family toggles. */
+  const filtersActive =
+    FAMILY_LABELS.some(({ key }) => prefs.families[key] !== true) ||
+    !prefs.showClasses ||
+    !prefs.showOrphans;
+
+  const filtersPanel = (
+    <div className="nt-graph__settings">
+      <span className="nt-graph__settings-heading">Link families</span>
+      <div className="nt-graph__filters-chips">
+        {FAMILY_LABELS.map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            className={`nt-graph__chip${prefs.families[key] === true ? " nt-graph__chip--on" : ""}`}
+            aria-pressed={prefs.families[key] === true}
+            onClick={() =>
+              patch({ families: { ...prefs.families, [key]: !prefs.families[key] } })
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <BooleanToggle
+        size="sm"
+        label="Class nodes"
+        description="Show classes as nodes"
+        labelPosition="left"
+        checked={prefs.showClasses}
+        onChange={(event) => patch({ showClasses: event.target.checked })}
+      />
+      <BooleanToggle
+        size="sm"
+        label="Orphans"
+        description="Nodes with no visible links"
+        labelPosition="left"
+        checked={prefs.showOrphans}
+        onChange={(event) => patch({ showOrphans: event.target.checked })}
+      />
+      {(prefs.families.semantic === true || prefs.families.temporal === true) && (
+        <>
+          <span className="nt-graph__settings-heading">Semantic detail</span>
+          <label className="nt-graph__settings-slider">
+            <span>Top-{prefs.semanticTopK} edges per node</span>
+            <Slider
+              min={1}
+              max={12}
+              step={1}
+              value={prefs.semanticTopK}
+              onChange={(value) => patch({ semanticTopK: value })}
+              aria-label="Semantic edges per node"
+            />
+          </label>
+          <label className="nt-graph__settings-slider">
+            <span>Minimum weight ({prefs.semanticMinWeight})</span>
+            <Slider
+              min={1}
+              max={5}
+              step={1}
+              value={prefs.semanticMinWeight}
+              onChange={(value) => patch({ semanticMinWeight: value })}
+              aria-label="Semantic minimum weight"
+            />
+          </label>
+        </>
       )}
+      <div className="nt-graph__settings-visibility">
+        <span className="nt-graph__settings-heading">Visibility</span>
+        <BooleanToggle
+          size="sm"
+          label="Day pages"
+          description="Daily journal pages"
+          labelPosition="left"
+          checked={prefs.journalDay}
+          onChange={(event) => patch({ journalDay: event.target.checked })}
+        />
+        <BooleanToggle
+          size="sm"
+          label="Month pages"
+          description="Monthly journal pages"
+          labelPosition="left"
+          checked={prefs.journalMonth}
+          onChange={(event) => patch({ journalMonth: event.target.checked })}
+        />
+        <BooleanToggle
+          size="sm"
+          label="Year pages"
+          description="Yearly journal pages"
+          labelPosition="left"
+          checked={prefs.journalYear}
+          onChange={(event) => patch({ journalYear: event.target.checked })}
+        />
+        <BooleanToggle
+          size="sm"
+          label="System pages"
+          description="The Inbox and legacy scaffolding"
+          labelPosition="left"
+          checked={prefs.showSystemPages}
+          onChange={(event) => patch({ showSystemPages: event.target.checked })}
+        />
+      </div>
+    </div>
+  );
+
+  /** The layout mode bar (the v1 register): a transparent dock centered at
+   *  the bottom edge of the stage, overlaying the graph. */
+  const modeBar = (
+    <div className="nt-graph__modebar">
+      <SelectionButton
+        size="sm"
+        options={[
+          { value: "force", icon: "mdi mdi-atom", label: "Force" },
+          { value: "circle", icon: "mdi mdi-circle-outline", label: "Circle" },
+          { value: "tree", icon: "mdi mdi-file-tree-outline", label: "Tree" },
+        ]}
+        value={prefs.layoutMode}
+        onChange={(value) => patch({ layoutMode: value as GraphLayoutMode })}
+      />
     </div>
   );
 
@@ -1055,82 +1154,21 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
         >
           {settingsPanel}
         </ButtonWithPanel>
-        <SelectionButton
-          size="sm"
-          options={[
-            { value: "force", icon: "mdi mdi-atom", label: "Force" },
-            { value: "circle", icon: "mdi mdi-circle-outline", label: "Circle" },
-            { value: "tree", icon: "mdi mdi-file-tree-outline", label: "Tree" },
-          ]}
-          value={prefs.layoutMode}
-          onChange={(value) => patch({ layoutMode: value as GraphLayoutMode })}
-        />
-        {prefs.layoutMode === "force" && (
-          <SelectionButton
-            size="sm"
-            options={[
-              { value: "sparse", icon: "mdi mdi-arrow-expand", label: "Sparse" },
-              { value: "balanced", icon: "mdi mdi-scale-balance", label: "Balanced" },
-              { value: "compact", icon: "mdi mdi-arrow-collapse", label: "Compact" },
-              { value: "clustered", icon: "mdi mdi-group", label: "Clustered" },
-            ]}
-            value={prefs.preset}
-            onChange={(value) => patch({ preset: value as PhysicsPreset })}
-          />
-        )}
-        <Button
-          variant="ghost"
-          size="sm"
-          icon="mdi mdi-chart-bubble"
-          active={prefs.nodeSize !== "uniform"}
-          aria-pressed={prefs.nodeSize !== "uniform"}
-          aria-label="Size nodes by metric"
-          title="Size nodes by metric"
-          onClick={() =>
-            patch({
-              nodeSize:
-                prefs.nodeSize === "uniform"
-                  ? "connections"
-                  : prefs.nodeSize === "connections"
-                    ? "mass"
-                    : prefs.nodeSize === "mass"
-                      ? "content"
-                      : "uniform",
-            })
-          }
-        />
         {local === undefined && (
-          <>
-            <span className="nt-graph__sep" aria-hidden="true" />
-            {FAMILY_LABELS.map(({ key, label }) => (
-              <button
-                key={key}
-                type="button"
-                className={`nt-graph__chip${prefs.families[key] === true ? " nt-graph__chip--on" : ""}`}
-                aria-pressed={prefs.families[key] === true}
-                onClick={() =>
-                  patch({ families: { ...prefs.families, [key]: !prefs.families[key] } })
-                }
-              >
-                {label}
-              </button>
-            ))}
-            <span className="nt-graph__sep" aria-hidden="true" />
-            <BooleanToggle
-              size="sm"
-              label="Class nodes"
-              labelPosition="left"
-              checked={prefs.showClasses}
-              onChange={(event) => patch({ showClasses: event.target.checked })}
-            />
-            <BooleanToggle
-              size="sm"
-              label="Orphans"
-              labelPosition="left"
-              checked={prefs.showOrphans}
-              onChange={(event) => patch({ showOrphans: event.target.checked })}
-            />
-          </>
+          <ButtonWithPanel
+            buttonText="Filters"
+            size="sm"
+            variant="ghost"
+            panelPosition="bottom"
+            panelAlignment="start"
+            panelWidth={300}
+            title="Filters"
+            aria-label="Filters"
+            active={filtersActive}
+            buttonClassName={`nt-graph__chip${filtersActive ? " nt-graph__chip--on" : ""}`}
+          >
+            {filtersPanel}
+          </ButtonWithPanel>
         )}
         {local !== undefined && (
           <label className="nt-graph__depth">
@@ -1271,9 +1309,11 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
                 : {})}
             />
           )}
+          {modeBar}
         </div>
       ) : (
       <div className="nt-graph__stage" ref={containerRef}>
+        {modeBar}
         <canvas
           ref={canvasRef}
           className="nt-graph__canvas"
@@ -1516,32 +1556,6 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
           </div>
         )}
       </div>
-      )}
-      {semanticPanelVisible && (
-        <div className="nt-graph__semantic-panel">
-          <label className="nt-graph__semantic-slider">
-            <span>Semantic detail (top-{prefs.semanticTopK} per node)</span>
-            <Slider
-              min={1}
-              max={12}
-              step={1}
-              value={prefs.semanticTopK}
-              onChange={(value) => patch({ semanticTopK: value })}
-              aria-label="Semantic edges per node"
-            />
-          </label>
-          <label className="nt-graph__semantic-slider">
-            <span>Minimum weight ({prefs.semanticMinWeight})</span>
-            <Slider
-              min={1}
-              max={5}
-              step={1}
-              value={prefs.semanticMinWeight}
-              onChange={(value) => patch({ semanticMinWeight: value })}
-              aria-label="Semantic minimum weight"
-            />
-          </label>
-        </div>
       )}
     </div>
   );

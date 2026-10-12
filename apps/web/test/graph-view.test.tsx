@@ -228,7 +228,7 @@ describe("GraphView component", () => {
     }
   });
 
-  it("the settings toolbar composes from the kit: ghost icon tools, the icon-radio mode selector, boolean switches, the settings popover, the search field", async () => {
+  it("the chrome composes from the kit: ghost icon tools, the Filters popover, the settings popover with the preset dropdown, the bottom mode bar, the search field", async () => {
     window.localStorage.clear();
     // The stable filtered-out state: toolbar + empty surface, no canvas
     // mount (so the jsdom WebGL fallback can't replace the chrome).
@@ -243,34 +243,38 @@ describe("GraphView component", () => {
 
       await screen.findByText("All nodes hidden by filters");
 
-      // The icon tools are kit buttons (the ghost idiom)…
+      // The bar is the quiet canvas register: icon tools, the filters
+      // chip, the counts, the colors chip, the search field…
       const recenter = screen.getByRole("button", { name: "Recenter" });
       expect(recenter.className).toContain("btn");
       expect(recenter.className).toContain("btn--ghost");
       expect(screen.getByRole("button", { name: "Pause layout" })).toBeTruthy();
-      // …the layout selector is the icon-radio SelectionButton…
-      expect(screen.getByRole("radio", { name: "Force" })).toBeTruthy();
-      expect(screen.getByRole("radio", { name: "Circle" })).toBeTruthy();
-      // …the physics preset rides its own icon-radio selector…
-      expect(screen.getByRole("radio", { name: "Sparse" })).toBeTruthy();
-      expect(screen.getByRole("radio", { name: "Clustered" })).toBeTruthy();
-      // …the in-row visibility toggles are kit switches…
-      expect(screen.getByRole("switch", { name: "Class nodes" })).toBeTruthy();
-      expect(screen.getByRole("switch", { name: "Orphans" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Filters" })).toBeTruthy();
+      expect(screen.getByText(/nodes · .* edges/)).toBeTruthy();
       // …and the search field is the kit SearchField.
       expect(screen.getByRole("textbox", { name: "Find node" })).toBeTruthy();
 
-      // The settings popover (the kit ButtonWithPanel) carries the v1
-      // register: simulation, gravity, mass, sizing — and the split journal
-      // visibility levels.
-      fireEvent.click(screen.getByRole("button", { name: "Graph settings" }));
-      expect(await screen.findByRole("switch", { name: "Simulation" })).toBeTruthy();
-      expect(screen.getByRole("switch", { name: "Central gravity" })).toBeTruthy();
-      expect(screen.getByRole("switch", { name: "Mass accumulation" })).toBeTruthy();
+      // The layout mode rides the bottom mode bar (the v1 register)…
+      expect(screen.getByRole("radio", { name: "Force" })).toBeTruthy();
+      expect(screen.getByRole("radio", { name: "Circle" })).toBeTruthy();
+
+      // The Filters popover carries what-to-draw: families, orphans,
+      // classes, the journal visibility levels.
+      fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+      expect(await screen.findByRole("switch", { name: "Class nodes" })).toBeTruthy();
+      expect(screen.getByRole("switch", { name: "Orphans" })).toBeTruthy();
       expect(screen.getByRole("switch", { name: "Day pages" })).toBeTruthy();
       expect(screen.getByRole("switch", { name: "Month pages" })).toBeTruthy();
       expect(screen.getByRole("switch", { name: "Year pages" })).toBeTruthy();
       expect(screen.getByRole("switch", { name: "System pages" })).toBeTruthy();
+
+      // The settings popover (the kit ButtonWithPanel) carries physics +
+      // sizing: the preset is a named dropdown, the register is toggles.
+      fireEvent.click(screen.getByRole("button", { name: "Graph settings" }));
+      expect(await screen.findByRole("button", { name: "Physics preset" })).toBeTruthy();
+      expect(screen.getByRole("switch", { name: "Simulation" })).toBeTruthy();
+      expect(screen.getByRole("switch", { name: "Central gravity" })).toBeTruthy();
+      expect(screen.getByRole("switch", { name: "Mass accumulation" })).toBeTruthy();
     } finally {
       window.localStorage.clear();
     }
