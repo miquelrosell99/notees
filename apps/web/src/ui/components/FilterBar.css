@@ -14,11 +14,12 @@
   font: var(--font-body-small);
 }
 
-/* Inline layout: the bar is a ViewToolbar child and renders with
-   `display: contents` — its control row joins the toolbar's flex line (the
-   search field flexes, capped so the row's actions keep the right side)
-   while the structured panel takes a full-width wrapped line beneath the
-   row (the toolbar wraps). No overlay: the region is in the flow. */
+/* Inline layout: the bar renders with `display: contents` inside a wrapping
+   flex chrome row — a ViewToolbar or the hosted tab bar (SectionViewTabs'
+   `trailing`) — its control row joins the row's flex line (the search field
+   flexes, capped so the row's actions keep the right side) while the
+   structured panel takes a full-width wrapped line beneath the row. No
+   overlay: the region is in the flow. */
 .nt-filter-bar--inline {
   display: contents;
 }

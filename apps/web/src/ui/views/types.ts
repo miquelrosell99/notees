@@ -235,6 +235,13 @@ export interface NodeCollectionProps {
    * query_ast refines the items/groups passed in (see sectionViewResolve).
    */
   hostedViews?: HostedViewsConfig | undefined;
+  /**
+   * The host section's chrome riding the hosted tab bar's far right (owner
+   * 2026-10-12 — the filter bar's collapsible quick search + structured
+   * toggle, the view switcher): one row with the tabs. Renders only when
+   * `hostedViews` is set — a non-hosted collection has no tab row.
+   */
+  tabBarTrailing?: ReactNode | undefined;
 
   className?: string | undefined;
 }
