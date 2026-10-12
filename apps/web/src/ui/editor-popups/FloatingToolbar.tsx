@@ -46,7 +46,7 @@ const MARKS: { mark: Mark; label: string; icon: string }[] = [
 ];
 
 const VERB_LABEL = "Link verb (Cmd+K)";
-const MENTION_LABEL = "Add link from text selection (@)";
+const MENTION_LABEL = "Add link from text selection (Ctrl+L / @)";
 
 interface FloatingToolbarProps {
   /** The editor root: the toolbar only shows for selections inside it. */

@@ -1,8 +1,9 @@
 /**
  * Capture gesture tests: `@` mention insertion (node-picker popup), `#` tag
  * assign/create, `+` class picker (assign/create), the verb-on-selection
- * typed-link popover, and candidateSpans. Editor tests run PageView over the
- * in-process WorkspaceClient + MemoryRelay (jsdom), same harness as
+ * typed-link popover, the Ctrl/Cmd+L selection-link chords (replace vs
+ * custom-label modes), and candidateSpans. Editor tests run PageView over
+ * the in-process WorkspaceClient + MemoryRelay (jsdom), same harness as
  * outliner-editor.test.tsx.
  *
  * Popup contract: typing the trigger char opens the ported
@@ -441,6 +442,88 @@ describe("capture: # tag (auto-create + assign) and + class picker", () => {
     const created = client.listClasses().filter((c) => deriveDisplayName(c) === "Nope");
     expect(created).toHaveLength(1);
     expect(client.getNode(blockId)?.classIds).toEqual([classId, created[0]!.id]);
+  });
+});
+
+describe("selection link chords (Ctrl/Cmd+L)", () => {
+  it("Ctrl+L over a selection opens the picker prefilled, banners the replace mode, and the pick swaps the selection for the link", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const targetId = await client.createObject({ presentAsMain: true, name: "World" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "hello world" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    selectRange(editor, 6, 11); // "world"
+    fireEvent.keyDown(editor, { key: "l", ctrlKey: true });
+
+    // The same gesture as typing @ over the selection: the picker opens with
+    // the selection prefilled as its search query, announcing the pending
+    // replace under the field.
+    expect(picker()).not.toBeNull();
+    expect((searchBox() as HTMLInputElement).value).toBe("world");
+    expect(within(picker()!).getByText("Replacing selection with link")).not.toBeNull();
+
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    await act(async () => {});
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[0]).toEqual({ type: "text", text: "hello " });
+    expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: targetId, text: "World" });
+  });
+
+  it("Ctrl+Shift+L searches with an empty query and labels the inserted link with the selection", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const targetId = await client.createObject({ presentAsMain: true, name: "World" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "hello world" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    selectRange(editor, 6, 11); // "world"
+    fireEvent.keyDown(editor, { key: "l", ctrlKey: true, shiftKey: true });
+
+    expect(picker()).not.toBeNull();
+    expect((searchBox() as HTMLInputElement).value).toBe("");
+    expect(
+      within(picker()!).getByText('Link with custom label "world"'),
+    ).not.toBeNull();
+
+    typeInPicker("Wor");
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    await act(async () => {});
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[0]).toEqual({ type: "text", text: "hello " });
+    expect(ast[1]).toMatchObject({
+      type: "mention",
+      targetNodeId: targetId,
+      text: "world",
+      displayText: "world",
+    });
+  });
+
+  it("mid-word selections keep the @ boundary rule for Ctrl+L; Ctrl+Shift+L still opens", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "hello world" }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    selectRange(editor, 2, 8); // "llo wo" — no word boundary before it
+    fireEvent.keyDown(editor, { key: "l", ctrlKey: true });
+    expect(picker()).toBeNull();
+
+    fireEvent.keyDown(editor, { key: "l", ctrlKey: true, shiftKey: true });
+    expect(picker()).not.toBeNull();
+    expect(within(picker()!).getByText('Link with custom label "llo wo"')).not.toBeNull();
   });
 });
 
