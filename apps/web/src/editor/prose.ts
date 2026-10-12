@@ -61,6 +61,7 @@ export function proseFromAst(ast: readonly unknown[], resolveClassName?: ClassNa
           parts.push("\n");
           break;
         case "quote":
+        case "heading":
           if (Array.isArray(t.children)) walk(t.children);
           break;
         default:
@@ -113,8 +114,9 @@ export function proseSpans(ast: readonly unknown[], resolveClassName?: ClassName
         case "hard_break":
           length = 1;
           break;
-        case "quote": {
-          // Keep in sync with proseFromAst's walk over quote children.
+        case "quote":
+        case "heading": {
+          // Keep in sync with proseFromAst's walk over nested children.
           if (Array.isArray(t.children)) {
             for (const child of t.children) {
               if (typeof child !== "object" || child === null) continue;
