@@ -128,12 +128,21 @@ export interface NodeCollectionProps {
    */
   tree?: boolean | undefined;
   /**
-   * Editable tree: live BlockRow editors + drag reorder (child blocks). The
-   * surrounding DndContext/SortableContext chrome stays at the call site —
-   * the view renders the `.nt-block-tree` rows only.
+   * Editable surface — the outline (list) mode's rows edit inline (content,
+   * property icon buttons) with recursive children; the tree mode renders
+   * the live BlockRow editor surface. Off (default) renders the same rows
+   * read-only.
    */
   editable?: boolean | undefined;
-  /** Read-only rows: every mutation gesture off, clicking opens the node. */
+  /**
+   * Read-only rows: every mutation gesture off and the metadata chrome
+   * (property icon buttons, classes column, tags row, the collapsed
+   * Metadata section) rendered statically, aligned with the editable row.
+   * The click contract differs by path: a read-only TREE opens the node on
+   * content click (Child pages, "Extended by"); the flat LIST is inert
+   * instead — the content click does nothing and the bullet element opens
+   * the node (no full-row hover wash).
+   */
   readOnly?: boolean | undefined;
   /** Tree paths filter children to main children (the Pages zone). */
   pagesOnly?: boolean | undefined;

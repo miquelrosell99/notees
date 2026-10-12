@@ -319,6 +319,8 @@ function ObjectPropertyRow({
   onOpenPage,
   /** Hide the label/hints (the host chrome carries them — the sidebar). */
   bare = false,
+  /** Read-only projection: values render as static pills, no picker. */
+  readOnly = false,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -330,6 +332,7 @@ function ObjectPropertyRow({
   rows: EffectiveProperty[];
   onOpenPage?: ((pageId: string) => void) | undefined;
   bare?: boolean;
+  readOnly?: boolean | undefined;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -422,7 +425,7 @@ function ObjectPropertyRow({
 
   /** The ❝ annotations toggle — an asset-pill primary action, never hidden. */
   const annotationsToggle = (ref: string) =>
-    isAssetTarget ? (
+    !readOnly && isAssetTarget ? (
       <button
         type="button"
         className="pill__right-button nt-chip-annotations"
@@ -444,6 +447,47 @@ function ObjectPropertyRow({
     const single = [...pills].reverse().find((pill) => pill.row.source === "authored") ?? pills[0];
     const singleRow = single?.row;
     const singleRef = single?.ref ?? null;
+    if (readOnly) {
+      // Read-only projection: the value rides one static pill (the same
+      // NodePill element, minus every mutation affordance); empty renders
+      // nothing — the row hides via the host's hideWhenEmpty pass.
+      const linked = singleRef !== null ? client.getNode(singleRef) : undefined;
+      return (
+        <li
+          className={
+            allDefault
+              ? "nt-property nt-property-default nt-property-object node-metadata-row"
+              : "nt-property nt-property-object node-metadata-row"
+          }
+        >
+          {!bare && (
+            <>
+              <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
+              {allDefault && <span className="nt-property-hint">default</span>}
+              {unbound && <span className="nt-property-hint">unbound</span>}
+            </>
+          )}
+          {singleRef !== null && linked === undefined ? (
+            <span className="nt-property-chips node-metadata-pills">
+              <span className="pill pill--broken" title={`Broken reference: ${singleRef}`}>
+                <span className="pill__text nt-chip-label nt-chip-label--broken">
+                  <code>{singleRef}</code>
+                </span>
+              </span>
+            </span>
+          ) : singleRef !== null && linked !== undefined ? (
+            <span className="nt-property-chips node-metadata-pills">
+              <NodePill
+                color={client.effectiveNodeColor(linked)}
+                icon={linked.icon}
+                label={displayNameFromClient(client, singleRef) ?? singleRef}
+                onOpen={() => onOpenPage?.(singleRef)}
+              />
+            </span>
+          ) : null}
+        </li>
+      );
+    }
     const replaceIdx =
       singleRow !== undefined && singleRow.source === "authored" ? singleRow.idx : nextIdx;
     return (
@@ -629,23 +673,25 @@ function ObjectPropertyRow({
               className={row.source === "default" ? "pill--default" : ""}
               hoverReveal={row.source !== "default"}
               onOpen={isAssetTarget ? download : () => onOpenPage?.(ref)}
-              onRemove={row.source === "authored" ? () => void unlink(row.idx) : undefined}
+              onRemove={!readOnly && row.source === "authored" ? () => void unlink(row.idx) : undefined}
               removeLabel={removeLabel}
               trailing={trailing}
             />
           );
         })}
-        <AddPill
-          ref={(element) => {
-            addButtonRef.current = element;
-          }}
-          label="Add"
-          aria-expanded={pickerOpen}
-          onClick={(element) => {
-            addButtonRef.current = element;
-            setPickerOpen((open) => !open);
-          }}
-        />
+        {!readOnly && (
+          <AddPill
+            ref={(element) => {
+              addButtonRef.current = element;
+            }}
+            label="Add"
+            aria-expanded={pickerOpen}
+            onClick={(element) => {
+              addButtonRef.current = element;
+              setPickerOpen((open) => !open);
+            }}
+          />
+        )}
       </span>
       {annotatingRef !== null && (
         <AnnotationsSection client={client} assetId={annotatingRef} onOpenPage={onOpenPage} />
@@ -719,6 +765,8 @@ function AssetPropertyRow({
   rows,
   /** Hide the label/hints (the host chrome carries them — the sidebar). */
   bare = false,
+  /** Read-only projection: the asset list renders without actions. */
+  readOnly = false,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -727,6 +775,7 @@ function AssetPropertyRow({
   multi: boolean;
   rows: EffectiveProperty[];
   bare?: boolean;
+  readOnly?: boolean | undefined;
 }) {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -789,13 +838,13 @@ function AssetPropertyRow({
                 client={client}
                 assetRef={ref}
                 dimmed={row.source === "default"}
-                removable={row.source === "authored"}
+                removable={!readOnly && row.source === "authored"}
                 onRemove={() => void client.unsetProperty(nodeId, propertySchemaId, row.idx)}
               />
             ))}
           </ul>
         )}
-        {(multi || items.length === 0) && (
+        {!readOnly && (multi || items.length === 0) && (
           <div className="nt-asset-actions">
             <Button
               ref={uploadButtonRef}
@@ -979,6 +1028,8 @@ function DatetimePropertyRow({
   rows,
   /** Hide the label/hints (the host chrome carries them — the sidebar). */
   bare = false,
+  /** Read-only projection: values render as static pills, no picker. */
+  readOnly = false,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -988,6 +1039,7 @@ function DatetimePropertyRow({
   schema: { datePrecision?: DatePrecision | null } | null;
   rows: EffectiveProperty[];
   bare?: boolean;
+  readOnly?: boolean | undefined;
 }) {
   const [pickerFor, setPickerFor] = useState<number | "new" | null>(null);
   const anchorRef = useRef<HTMLElement | null>(null);
@@ -1093,6 +1145,55 @@ function DatetimePropertyRow({
       [...ordered].reverse().find((row) => row.source === "authored") ?? ordered[0];
     const singleSlot = slotOf(single?.value) ?? rangeSlotsOf(single?.value).start;
     const singleRef = singleSlot?.nodeId ?? null;
+    if (readOnly) {
+      const text =
+        single === undefined
+          ? null
+          : singleRef !== null && parseDateNodeId(singleRef) === null
+            ? (displayNameFromClient(client, singleRef) ?? singleRef)
+            : pillText(single);
+      if (text === null || text === "") {
+        return (
+          <li
+            className={
+              allDefault
+                ? "nt-property nt-property-default nt-property-date node-metadata-row"
+                : "nt-property nt-property-date node-metadata-row"
+            }
+          >
+            {!bare && (
+              <>
+                <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
+                {allDefault && <span className="nt-property-hint">default</span>}
+                {unbound && <span className="nt-property-hint">unbound</span>}
+              </>
+            )}
+          </li>
+        );
+      }
+      return (
+        <li
+          className={
+            allDefault
+              ? "nt-property nt-property-default nt-property-date node-metadata-row"
+              : "nt-property nt-property-date node-metadata-row"
+          }
+        >
+          {!bare && (
+            <>
+              <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
+              {allDefault && <span className="nt-property-hint">default</span>}
+              {unbound && <span className="nt-property-hint">unbound</span>}
+            </>
+          )}
+          <span className="nt-property-chips node-metadata-pills">
+            <span className={single?.source === "default" ? "pill pill--default" : "pill"}>
+              <span className="pill__text nt-chip-label">{text}</span>
+            </span>
+          </span>
+        </li>
+      );
+    }
     return (
       <li
         className={
@@ -1163,57 +1264,68 @@ function DatetimePropertyRow({
         </>
       )}
       <span className="nt-property-chips node-metadata-pills">
-        {ordered.map((row) => (
-          <span
-            key={`${propertySchemaId}:${row.idx}`}
-            className={
-              row.source === "default"
-                ? "pill pill--default"
-                : "pill pill--hover-reveal-right"
-            }
-          >
-            <button
-              type="button"
-              className="pill__text nt-chip-label"
-              aria-label={`Set ${label}`}
-              aria-expanded={pickerFor === row.idx}
-              onClick={(event) => {
-                anchorRef.current = event.currentTarget;
-                setPickerFor((cur) => (cur === row.idx ? null : row.idx));
-              }}
+        {ordered.map((row) =>
+          readOnly ? (
+            <span
+              key={`${propertySchemaId}:${row.idx}`}
+              className={row.source === "default" ? "pill pill--default" : "pill"}
             >
-              {pillText(row)}
-            </button>
-            {row.source === "authored" && (
+              <span className="pill__text nt-chip-label">{pillText(row)}</span>
+            </span>
+          ) : (
+            <span
+              key={`${propertySchemaId}:${row.idx}`}
+              className={
+                row.source === "default"
+                  ? "pill pill--default"
+                  : "pill pill--hover-reveal-right"
+              }
+            >
               <button
                 type="button"
-                className="pill__right-button nt-chip-remove"
-                aria-label={`Clear ${label}`}
-                onClick={() => void client.unsetProperty(nodeId, propertySchemaId, row.idx)}
+                className="pill__text nt-chip-label"
+                aria-label={`Set ${label}`}
+                aria-expanded={pickerFor === row.idx}
+                onClick={(event) => {
+                  anchorRef.current = event.currentTarget;
+                  setPickerFor((cur) => (cur === row.idx ? null : row.idx));
+                }}
               >
-                ×
+                {pillText(row)}
               </button>
-            )}
-            {row.source === "authored" && precision === "day" && (
-              <RepeatPicker
-                value={
-                  typeof row.metadata?.repeat === "string" ? row.metadata.repeat : null
-                }
-                onChange={(rule) => void setRepeat(row, rule)}
-                ariaLabel={`Repeat for ${label}`}
-                iconOnly
-              />
-            )}
-          </span>
-        ))}
-        <AddPill
-          label="Add"
-          aria-expanded={pickerFor === "new"}
-          onClick={(element) => {
-            anchorRef.current = element;
-            setPickerFor((cur) => (cur === "new" ? null : "new"));
-          }}
-        />
+              {row.source === "authored" && (
+                <button
+                  type="button"
+                  className="pill__right-button nt-chip-remove"
+                  aria-label={`Clear ${label}`}
+                  onClick={() => void client.unsetProperty(nodeId, propertySchemaId, row.idx)}
+                >
+                  ×
+                </button>
+              )}
+              {row.source === "authored" && precision === "day" && (
+                <RepeatPicker
+                  value={
+                    typeof row.metadata?.repeat === "string" ? row.metadata.repeat : null
+                  }
+                  onChange={(rule) => void setRepeat(row, rule)}
+                  ariaLabel={`Repeat for ${label}`}
+                  iconOnly
+                />
+              )}
+            </span>
+          ),
+        )}
+        {!readOnly && (
+          <AddPill
+            label="Add"
+            aria-expanded={pickerFor === "new"}
+            onClick={(element) => {
+              anchorRef.current = element;
+              setPickerFor((cur) => (cur === "new" ? null : "new"));
+            }}
+          />
+        )}
       </span>
       {picker}
     </li>
@@ -1308,6 +1420,8 @@ function SelectPropertyRow({
   rows,
   /** Hide the label/hints (the host chrome carries them — the sidebar). */
   bare = false,
+  /** Read-only projection: values render as static pills, no picker. */
+  readOnly = false,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -1317,6 +1431,7 @@ function SelectPropertyRow({
   options: SelectionOption[];
   rows: EffectiveProperty[];
   bare?: boolean;
+  readOnly?: boolean | undefined;
 }) {
   const ordered = [...rows].sort((a, b) => a.idx - b.idx);
   const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
@@ -1328,6 +1443,58 @@ function SelectPropertyRow({
       : typeof row.value === "string" && row.value !== ""
         ? [row.value]
         : [];
+
+  if (readOnly) {
+    // Read-only projection: each row's selected options ride static pills
+    // (the option's color swatch + label, no control).
+    const labelOfOption = (id: string): string =>
+      options.find((option) => option.id === id)?.label ?? id;
+    const pillRows = ordered.length > 0 ? ordered : rows;
+    return (
+      <>
+        {pillRows.map((row) => (
+          <li
+            key={`${propertySchemaId}:${row.idx}`}
+            className={
+              allDefault
+                ? "nt-property nt-property-default nt-property-select node-metadata-row"
+                : "nt-property nt-property-select node-metadata-row"
+            }
+          >
+            {!bare && (
+              <>
+                <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
+                {allDefault && <span className="nt-property-hint">default</span>}
+                {unbound && <span className="nt-property-hint">unbound</span>}
+              </>
+            )}
+            <span className="nt-property-chips node-metadata-pills">
+              {valuesOf(row).map((id) => {
+                const option = options.find((entry) => entry.id === id);
+                return (
+                  <span
+                    key={id}
+                    className={row.source === "default" ? "pill pill--default" : "pill"}
+                  >
+                    <span
+                      className="pill__text nt-chip-label"
+                      style={
+                        option?.color !== undefined && option.color !== null
+                          ? { color: cssColorFor(option.color) }
+                          : undefined
+                      }
+                    >
+                      {labelOfOption(id)}
+                    </span>
+                  </span>
+                );
+              })}
+            </span>
+          </li>
+        ))}
+      </>
+    );
+  }
 
   const write = async (idx: number, value: unknown): Promise<void> => {
     await client.setProperty(nodeId, propertySchemaId, value, idx);
@@ -1410,6 +1577,8 @@ function BooleanPropertyRow({
   rows,
   /** Hide the label/hints (the host chrome carries them — the sidebar). */
   bare = false,
+  /** Read-only projection: the checkbox renders disabled. */
+  readOnly = false,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -1417,6 +1586,7 @@ function BooleanPropertyRow({
   label: string;
   rows: EffectiveProperty[];
   bare?: boolean;
+  readOnly?: boolean | undefined;
 }) {
   const ordered = [...rows].sort((a, b) => a.idx - b.idx);
   const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
@@ -1443,7 +1613,7 @@ function BooleanPropertyRow({
           <Checkbox
             size="sm"
             checked={row.value === true}
-            disabled={row.readonly === true}
+            disabled={readOnly || row.readonly === true}
             aria-label={`Property ${label}`}
             onChange={(event) => {
               void client.setProperty(nodeId, propertySchemaId, event.target.checked, row.idx);
@@ -1459,6 +1629,7 @@ function BooleanPropertyRow({
           <Checkbox
             size="sm"
             checked={false}
+            disabled={readOnly}
             aria-label={`Property ${label}`}
             onChange={(event) => {
               void client.setProperty(nodeId, propertySchemaId, event.target.checked, 0);
@@ -1514,11 +1685,14 @@ export function TagsRow({
   nodeId,
   tagIds,
   onOpenPage,
+  /** Read-only projection: static pills — open on click, no add/remove. */
+  readOnly = false,
 }: {
   client: AnyClient;
   nodeId: string;
   tagIds: string[];
   onOpenPage?: ((pageId: string) => void) | undefined;
+  readOnly?: boolean | undefined;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [nodeMenu, setNodeMenu] = useState<{ node: ClientNode; x: number; y: number } | null>(null);
@@ -1552,11 +1726,15 @@ export function TagsRow({
                   ? { background: cssColorFor(colored), color: contrastFor(colored) }
                   : undefined
               }
-              onContextMenu={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                setNodeMenu({ node: tag, x: event.clientX, y: event.clientY });
-              }}
+              onContextMenu={
+                readOnly
+                  ? undefined
+                  : (event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setNodeMenu({ node: tag, x: event.clientX, y: event.clientY });
+                    }
+              }
             >
               {tag.icon !== null && (
                 <span className="pill__left-icon">
@@ -1570,29 +1748,33 @@ export function TagsRow({
               >
                 {label}
               </button>
-              <button
-                type="button"
-                className="pill__right-button"
-                aria-label={`Remove tag ${label}`}
-                onClick={() => void client.unassignTag(nodeId, tag.id)}
-              >
-                ×
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  className="pill__right-button"
+                  aria-label={`Remove tag ${label}`}
+                  onClick={() => void client.unassignTag(nodeId, tag.id)}
+                >
+                  ×
+                </button>
+              )}
             </span>
           );
         })}
-        <span className="nt-class-add-anchor">
-          <AddPill
-            ref={addButtonRef}
-            className={tagIds.length > 0 ? "pill--icon-only" : ""}
-            label="Add tag"
-            aria-expanded={pickerOpen}
-            onClick={(element) => {
-              addButtonRef.current = element;
-              setPickerOpen(true);
-            }}
-          />
-        </span>
+        {!readOnly && (
+          <span className="nt-class-add-anchor">
+            <AddPill
+              ref={addButtonRef}
+              className={tagIds.length > 0 ? "pill--icon-only" : ""}
+              label="Add tag"
+              aria-expanded={pickerOpen}
+              onClick={(element) => {
+                addButtonRef.current = element;
+                setPickerOpen(true);
+              }}
+            />
+          </span>
+        )}
       </div>
       {pickerOpen && (
         <NodeSelector
@@ -1650,12 +1832,15 @@ export function AliasesRow({
   nodeId,
   onOpenPage,
   onOpenPageRaw = undefined,
+  /** Read-only projection: alias pills render without add/remove. */
+  readOnly = false,
 }: {
   client: AnyClient;
   nodeId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
   /** The RAW open — bypasses the alias redirect so the alias's OWN view renders. */
   onOpenPageRaw?: ((pageId: string) => void) | undefined;
+  readOnly?: boolean | undefined;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const addButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -1684,23 +1869,25 @@ export function AliasesRow({
               icon={alias.icon}
               label={label}
               onOpen={() => (onOpenPageRaw ?? onOpenPage)?.(alias.id)}
-              onRemove={() => void client.updateObject(alias.id, { aliasedNodeId: null })}
+              onRemove={readOnly ? undefined : () => void client.updateObject(alias.id, { aliasedNodeId: null })}
               removeLabel={`Remove alias ${label}`}
             />
           );
         })}
-        <span className="nt-class-add-anchor">
-          <AddPill
-            ref={addButtonRef}
-            className={aliases.length > 0 ? "pill--icon-only" : ""}
-            label="Add alias"
-            aria-expanded={pickerOpen}
-            onClick={(element) => {
-              addButtonRef.current = element;
-              setPickerOpen(true);
-            }}
-          />
-        </span>
+        {!readOnly && (
+          <span className="nt-class-add-anchor">
+            <AddPill
+              ref={addButtonRef}
+              className={aliases.length > 0 ? "pill--icon-only" : ""}
+              label="Add alias"
+              aria-expanded={pickerOpen}
+              onClick={(element) => {
+                addButtonRef.current = element;
+                setPickerOpen(true);
+              }}
+            />
+          </span>
+        )}
       </span>
       {pickerOpen && (
         <AliasNodePicker
@@ -1973,6 +2160,8 @@ function GroupedPropertyRow({
   onOpenPage,
   /** Hide the label/hints (the host chrome carries them — the sidebar). */
   bare = false,
+  /** Read-only projection: the value renders statically, no mutation UI. */
+  readOnly = false,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -1985,6 +2174,7 @@ function GroupedPropertyRow({
   groupRows: EffectiveProperty[];
   onOpenPage?: ((pageId: string) => void) | undefined;
   bare?: boolean;
+  readOnly?: boolean | undefined;
 }) {
   if (type === "datetime") {
     return (
@@ -1997,6 +2187,7 @@ function GroupedPropertyRow({
         schema={schema}
         rows={groupRows}
         bare={bare}
+        readOnly={readOnly}
       />
     );
   }
@@ -2013,6 +2204,7 @@ function GroupedPropertyRow({
         options={options}
         rows={groupRows}
         bare={bare}
+        readOnly={readOnly}
       />
     );
   }
@@ -2025,6 +2217,7 @@ function GroupedPropertyRow({
         label={label}
         rows={groupRows}
         bare={bare}
+        readOnly={readOnly}
       />
     );
   }
@@ -2039,6 +2232,7 @@ function GroupedPropertyRow({
         rows={groupRows}
         onOpenPage={onOpenPage}
         bare={bare}
+        readOnly={readOnly}
       />
     );
   }
@@ -2052,6 +2246,7 @@ function GroupedPropertyRow({
         multi={multi}
         rows={groupRows}
         bare={bare}
+        readOnly={readOnly}
       />
     );
   }
@@ -2066,6 +2261,7 @@ function GroupedPropertyRow({
       rows={groupRows}
       onOpenPage={onOpenPage}
       bare={bare}
+      readOnly={readOnly}
     />
   );
 }
@@ -2084,11 +2280,14 @@ function ScalarPropertyValue({
   nodeId,
   row,
   onOpenPage,
+  /** Read-only projection: the carrier renders read-only, scalars as text. */
+  readOnly = false,
 }: {
   client: AnyClient;
   nodeId: string;
   row: EffectiveProperty;
   onOpenPage?: ((pageId: string) => void) | undefined;
+  readOnly?: boolean | undefined;
 }) {
   // Text properties are node-backed: the value references a carrier
   // block — {"nodeId"} after migration, a bare uuid string in archived
@@ -2120,7 +2319,11 @@ function ScalarPropertyValue({
     <>
       {carrier !== undefined ? (
         <span className="nt-property-blockcell">
-          <ReferenceSubtree client={client} rootId={carrier.id} onOpenNode={onOpenPage} />
+          <ReferenceSubtree client={client} rootId={carrier.id} onOpenNode={onOpenPage} readOnly={readOnly} />
+        </span>
+      ) : readOnly ? (
+        <span className="nt-property-value nt-property-value--readonly">
+          {editableText === "" ? null : String(editableText)}
         </span>
       ) : (
         <input
@@ -2181,6 +2384,8 @@ export function PropertiesTable({
   nodeId,
   onOpenPage,
   omitDisplayPositions,
+  /** Read-only projection: values render statically; no add/label menus. */
+  readOnly = false,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -2188,6 +2393,7 @@ export function PropertiesTable({
   /** Schema display positions (bullet/inline) the host surfaces
    *  itself — filter out. */
   omitDisplayPositions?: ReadonlyArray<"bullet" | "inline"> | undefined;
+  readOnly?: boolean | undefined;
 }) {
   const { rows, rendered, emptyObjectBindings } = propertyGroupsOf(client, nodeId, omitDisplayPositions);
   const labelOf = (row: EffectiveProperty): string => row.schema?.name ?? row.propertySchemaId;
@@ -2277,6 +2483,7 @@ export function PropertiesTable({
       bindingFilter={bindingFilter}
       groupRows={groupRows}
       onOpenPage={onOpenPage}
+      readOnly={readOnly}
     />
   );
 
@@ -2285,10 +2492,12 @@ export function PropertiesTable({
       <ul
         className="nt-properties-list"
         onClick={(event) => {
+          if (readOnly) return;
           const schemaId = schemaIdFromEvent(event);
           if (schemaId !== null) setSettingsFor(schemaId);
         }}
         onContextMenu={(event) => {
+          if (readOnly) return;
           const schemaId = schemaIdFromEvent(event);
           if (schemaId === null) return;
           event.preventDefault();
@@ -2298,7 +2507,7 @@ export function PropertiesTable({
       >
           {/* The alias-side pseudo-property: chrome over the `aliasedNodeId`
               node field itself (null for every ordinary node). */}
-          <AliasedNodeRow client={client} nodeId={nodeId} onOpenPage={onOpenPage} />
+          <AliasedNodeRow client={client} nodeId={nodeId} onOpenPage={onOpenPage} readOnly={readOnly} />
           {rendered.map((entry) => {
             if (entry === null) return null;
             if (entry.kind === "grouped") {
@@ -2329,11 +2538,15 @@ export function PropertiesTable({
                 {row.source === "authored" && row.boundBy === null && (
                   <span className="nt-property-hint">unbound</span>
                 )}
-                <ScalarPropertyValue client={client} nodeId={nodeId} row={row} onOpenPage={onOpenPage} />
+                <ScalarPropertyValue client={client} nodeId={nodeId} row={row} onOpenPage={onOpenPage} readOnly={readOnly} />
               </li>
             );
           })}
-          {emptyObjectBindings.map((binding) =>
+          {(readOnly ? emptyObjectBindings.filter((binding) =>
+              // Read-only: a bound-but-empty binding renders nothing (no add
+              // affordance) — skip the row rather than render a bare label.
+              rows.some((row) => row.propertySchemaId === binding.propertySchemaId),
+            ) : emptyObjectBindings).map((binding) =>
             groupedRow(
               binding.type,
               binding.propertySchemaId,
@@ -2345,7 +2558,7 @@ export function PropertiesTable({
             ),
           )}
       </ul>
-      <AddPropertyRow client={client} nodeId={nodeId} />
+      {!readOnly && <AddPropertyRow client={client} nodeId={nodeId} />}
       {menu !== null && (
         <ContextMenu items={menuItems(menu.schemaId)} position={{ x: menu.x, y: menu.y }} onClose={() => setMenu(null)} />
       )}
@@ -2404,6 +2617,9 @@ export function PropertiesSection({
   onOpenPageRaw = undefined,
   hideWhenEmpty = false,
   omitDisplayPositions,
+  /** Read-only projection: values render statically (the read-only block
+   *  row keeps the panel aligned with its editable twin). */
+  readOnly = false,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -2416,6 +2632,7 @@ export function PropertiesSection({
    *  row's bullet/inline icon buttons) — rows carrying them are filtered
    *  out of this panel so the value never reads twice. */
   omitDisplayPositions?: ReadonlyArray<"bullet" | "inline"> | undefined;
+  readOnly?: boolean | undefined;
 }) {
   const count = propertiesCountOf(propertyGroupsOf(client, nodeId, omitDisplayPositions));
   if (hideWhenEmpty && count === 0) return null;
@@ -2431,12 +2648,13 @@ export function PropertiesSection({
         {/* The aliases list is the panel's first section — pages only (the
             row renders null for blocks, so BlockRow's hideWhenEmpty usage
             gains no empty chrome). */}
-        <AliasesRow client={client} nodeId={nodeId} onOpenPage={onOpenPage} onOpenPageRaw={onOpenPageRaw} />
+        <AliasesRow client={client} nodeId={nodeId} onOpenPage={onOpenPage} onOpenPageRaw={onOpenPageRaw} readOnly={readOnly} />
         <PropertiesTable
           client={client}
           nodeId={nodeId}
           onOpenPage={onOpenPage}
           omitDisplayPositions={omitDisplayPositions}
+          readOnly={readOnly}
         />
       </div>
     </NodeViewSection>

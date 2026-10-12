@@ -2238,6 +2238,7 @@ export function HubView({
           cardProperties={TASK_PROPERTY_COLUMNS.map((col) => col.id)}
           tableEditable
           groupByProperty={groupByProperty}
+          editable
           emptyTitle="No tasks yet"
           onOpenNode={onOpenNode}
           onOpenInSidebar={onOpenInSidebar}
