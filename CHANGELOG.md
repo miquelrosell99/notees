@@ -9,6 +9,24 @@ predating this file.
 
 ## 2026-10-12
 
+- **feat(web): the block multi-selection is whole-subtree and reads as a
+  card — one outline per contiguous run, standing out where the per-row tint
+  whispered (owner 2026-10-12).** (1) **Subtree closure:** every selection
+  write path (`replaceSelection`, `toggleSelected` in `outliner-context.ts`)
+  closes the set over the selected blocks' descendants — selecting a block
+  selects its children, so the selection is always a contiguous vertical run
+  and the outline is a true rectangle. The closure reads the current tree
+  through a latest-value ref (the callbacks are stable `[]`). (2) **The card:
+  `SelectionOutline`** renders one absolutely-positioned box per contiguous
+  run inside `.nt-select-surface` — full surface width, from the first run
+  row's top to the last run row's bottom — with a primary border + soft
+  primary-container fill, `pointer-events: none`; the retired per-row tint
+  rule goes (the `.nt-block--selected` class stays: semantics + tests). Rects
+  are measured from the DOM relative to the surface (scroll-invariant),
+  recomputed every render + on resize, state-updated only on real change.
+  Verified: `pnpm typecheck` + `pnpm test` green; `block-selection.test.tsx`
+  gains three specs (ctrl+click subtree closure, one-card-per-run + disjoint
+  second card + Escape clears, shift+click anchor closure).
 - **feat(web): the selection law — text selection exists only inside the block
   being edited; a press-drag outside edit mode is the block-range gesture, and
   it arms only when the pointer exits the pressed block's borders (owner
