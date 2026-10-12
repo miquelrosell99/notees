@@ -1031,10 +1031,26 @@ select:focus-visible {
   border-radius: var(--shape-small);
 }
 
-/* Read-only block projections (Child pages tree, Class View "Extended by"):
-   the content reads as a navigation surface, not an editor. */
+/* Read-only block projections: the content's click contract differs by
+   surface. The tree projections (Child pages, Class View "Extended by")
+   read it as a navigation surface; the inert flat-list variant (the
+   node-collection list view) leaves the click dead — the bullet element
+   is the only open gesture, so the cursor stays the reading default. */
 .nt-block--readonly .nt-block-content {
   cursor: pointer;
+}
+
+.nt-block--inert .nt-block-content {
+  cursor: default;
+}
+
+/* Inert rows: no full-row hover feedback — the bullet alone carries it
+   (the row-hover brightening is scoped back to the bullet's own hover). */
+.nt-block--inert .nt-block-row:hover .nt-bullet-dot,
+.nt-block--inert .nt-block-row:hover .nt-bullet-icon {
+  opacity: 0.55;
+  color: var(--color-on-surface-variant);
+  transform: none;
 }
 
 .nt-block-content:focus-within {

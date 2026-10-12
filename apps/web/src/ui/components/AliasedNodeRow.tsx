@@ -37,10 +37,13 @@ export function AliasedNodeRow({
   client,
   nodeId,
   onOpenPage,
+  /** Read-only projection: the pill renders without Change/Clear. */
+  readOnly = false,
 }: {
   client: AnyClient;
   nodeId: string;
   onOpenPage?: ((pageId: string) => void) | undefined;
+  readOnly?: boolean | undefined;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -101,26 +104,30 @@ export function AliasedNodeRow({
               {label}
             </button>
           )}
-          <button
-            ref={changeButtonRef}
-            type="button"
-            className="pill__right-button nt-chip-change"
-            aria-label={`Change aliased node (currently ${label})`}
-            aria-expanded={pickerOpen}
-            title="Change"
-            onClick={() => setPickerOpen((open) => !open)}
-          >
-            ✎
-          </button>
-          <button
-            type="button"
-            className="pill__right-button nt-chip-remove"
-            aria-label={`Remove alias target ${label}`}
-            title="Clear"
-            onClick={() => void clear()}
-          >
-            ×
-          </button>
+          {!readOnly && (
+            <>
+              <button
+                ref={changeButtonRef}
+                type="button"
+                className="pill__right-button nt-chip-change"
+                aria-label={`Change aliased node (currently ${label})`}
+                aria-expanded={pickerOpen}
+                title="Change"
+                onClick={() => setPickerOpen((open) => !open)}
+              >
+                ✎
+              </button>
+              <button
+                type="button"
+                className="pill__right-button nt-chip-remove"
+                aria-label={`Remove alias target ${label}`}
+                title="Clear"
+                onClick={() => void clear()}
+              >
+                ×
+              </button>
+            </>
+          )}
         </span>
       </span>
       {pickerOpen && (

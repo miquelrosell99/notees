@@ -164,6 +164,8 @@ function PillShell({
   onContextMenuNode,
   onRemove,
   removeLabel,
+  /** Read-only projection: static pill — open on click, no remove, no menu. */
+  readOnly = false,
 }: {
   classId: string;
   nodeId: string;
@@ -172,6 +174,7 @@ function PillShell({
   onContextMenuNode: (node: ClientNode, x: number, y: number) => void;
   onRemove: (classId: string) => void;
   removeLabel: (label: string) => string;
+  readOnly?: boolean | undefined;
 }) {
   const cls = client.getNode(classId);
   const label = displayNameFromClient(client, classId) ?? classId;
@@ -187,16 +190,20 @@ function PillShell({
       label={label}
       className={nonRemovable ? "pill--non-removable" : ""}
       onOpen={() => onOpenPage?.(classId)}
-      onContextMenu={(event) => {
-        if (cls === undefined) return;
-        event.preventDefault();
-        event.stopPropagation();
-        onContextMenuNode(cls, event.clientX, event.clientY);
-      }}
-      onRemove={nonRemovable ? undefined : () => onRemove(classId)}
+      onContextMenu={
+        readOnly
+          ? undefined
+          : (event) => {
+              if (cls === undefined) return;
+              event.preventDefault();
+              event.stopPropagation();
+              onContextMenuNode(cls, event.clientX, event.clientY);
+            }
+      }
+      onRemove={readOnly || nonRemovable ? undefined : () => onRemove(classId)}
       removeLabel={removeLabel(label)}
       trailing={
-        nonRemovable ? (
+        !readOnly && nonRemovable ? (
           <button
             type="button"
             className="pill__right-button pill__right-button--locked"
@@ -238,6 +245,8 @@ function PopupRow({
   sortable,
   onRemove,
   removeLabel,
+  /** Read-only projection: no grip, no × — icon + name only. */
+  readOnly = false,
 }: {
   classId: string;
   nodeId: string;
@@ -245,6 +254,7 @@ function PopupRow({
   sortable: boolean;
   onRemove: (classId: string) => void;
   removeLabel: (label: string) => string;
+  readOnly?: boolean | undefined;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: classId,
@@ -260,7 +270,7 @@ function PopupRow({
       className={`node-pills-popup__row${isDragging ? " node-pills-popup__row--dragging" : ""}`}
       style={{ transform: CSS.Transform.toString(transform), transition }}
     >
-      {sortable && (
+      {!readOnly && sortable && (
         <button
           type="button"
           className="node-pills-popup__grip"
@@ -273,7 +283,7 @@ function PopupRow({
       )}
       <Icon path={icon} size={0.7} className="node-pills-popup__icon" />
       <span className="node-pills-popup__name">{label}</span>
-      {nonRemovable ? (
+      {readOnly ? null : nonRemovable ? (
         <button
           type="button"
           className="pill__right-button pill__right-button--locked"
@@ -316,6 +326,13 @@ export function NodePills({
   addLabel = "Add class",
   /** Excluded from the "+" picker (the class view excludes the class itself). */
   excludePickerNodeId = undefined,
+  /**
+   * Read-only projection (read-only block rows): the pills render
+   * statically — click opens the class, but no add/remove/reorder, no
+   * context menu; the "+N" overflow popup lists the classes without
+   * mutation chrome.
+   */
+  readOnly = false,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -328,6 +345,7 @@ export function NodePills({
   removeLabel?: ((label: string) => string) | undefined;
   addLabel?: string | undefined;
   excludePickerNodeId?: string | undefined;
+  readOnly?: boolean | undefined;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [colorMenu, setColorMenu] = useState<{ classId: string; x: number; y: number } | null>(null);
@@ -395,50 +413,61 @@ export function NodePills({
     onContextMenuNode,
     onRemove,
     removeLabel: labelForRemove,
+    readOnly,
   };
+
+  const chips = (
+    <div className="nt-property-chips node-metadata-pills">
+      {visible.map((classId) =>
+        sortable && !readOnly ? (
+          <SortablePill key={classId} classId={classId} {...pillProps} />
+        ) : (
+          <PillShell key={classId} classId={classId} {...pillProps} />
+        ),
+      )}
+      {extraCount > 0 && (
+        <button
+          type="button"
+          ref={overflowButtonRef}
+          className="pill pill--add node-pills__overflow"
+          aria-label={`Show ${extraCount} more class${extraCount > 1 ? "es" : ""}`}
+          onClick={(event) => {
+            const rect = event.currentTarget.getBoundingClientRect();
+            setOverflowPos({ top: rect.bottom + 4, left: rect.left });
+            setOverflowOpen((open) => !open);
+          }}
+        >
+          +{extraCount}
+        </button>
+      )}
+      {!readOnly && (
+        <span className="nt-class-add-anchor">
+          <AddPill
+            ref={addButtonRef}
+            className={iconOnlyAdd || classIds.length > 0 ? "pill--icon-only" : ""}
+            label={addLabel}
+            aria-expanded={pickerOpen}
+            onClick={(element) => {
+              addButtonRef.current = element;
+              setPickerOpen((open) => !open);
+            }}
+          />
+        </span>
+      )}
+    </div>
+  );
 
   return (
     <>
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-        <SortableContext items={visible} strategy={horizontalListSortingStrategy}>
-          <div className="nt-property-chips node-metadata-pills">
-            {visible.map((classId) =>
-              sortable ? (
-                <SortablePill key={classId} classId={classId} {...pillProps} />
-              ) : (
-                <PillShell key={classId} classId={classId} {...pillProps} />
-              ),
-            )}
-            {extraCount > 0 && (
-              <button
-                type="button"
-                ref={overflowButtonRef}
-                className="pill pill--add node-pills__overflow"
-                aria-label={`Show ${extraCount} more class${extraCount > 1 ? "es" : ""}`}
-                onClick={(event) => {
-                  const rect = event.currentTarget.getBoundingClientRect();
-                  setOverflowPos({ top: rect.bottom + 4, left: rect.left });
-                  setOverflowOpen((open) => !open);
-                }}
-              >
-                +{extraCount}
-              </button>
-            )}
-            <span className="nt-class-add-anchor">
-              <AddPill
-                ref={addButtonRef}
-                className={iconOnlyAdd || classIds.length > 0 ? "pill--icon-only" : ""}
-                label={addLabel}
-                aria-expanded={pickerOpen}
-                onClick={(element) => {
-                  addButtonRef.current = element;
-                  setPickerOpen((open) => !open);
-                }}
-              />
-            </span>
-          </div>
-        </SortableContext>
-      </DndContext>
+      {readOnly ? (
+        chips
+      ) : (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <SortableContext items={visible} strategy={horizontalListSortingStrategy}>
+            {chips}
+          </SortableContext>
+        </DndContext>
+      )}
       {overflowOpen && overflowPos !== null && (
         <>
           {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop closes on click */}
@@ -472,6 +501,7 @@ export function NodePills({
                         sortable={sortable}
                         onRemove={onRemove}
                         removeLabel={labelForRemove}
+                        readOnly={readOnly}
                       />
                     ))}
                   </ul>

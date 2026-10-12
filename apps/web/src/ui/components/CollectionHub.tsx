@@ -4,7 +4,10 @@
  * View mode persists per hub device-locally when `persistKey` is given
  * (never an op); without a key it stays session-local. The
  * pages/classes hubs ride the outline mode; tasks defaults to table; assets
- * to cards with a cover-top cover fallback (owner rules).
+ * to cards with a cover-top cover fallback (owner rules). The outline (list)
+ * mode renders the full block-row surface — inline-editable when `editable`
+ * is set (the tasks hub), read-only-inert otherwise (the content click does
+ * nothing; the bullet opens the node).
  */
 
 import { useEffect, useState, type ReactNode } from "react";
@@ -39,6 +42,13 @@ export interface CollectionHubProps {
   tableEditable?: boolean | undefined;
   /** Cards board: the select property whose options seed the board columns. */
   groupByProperty?: string | undefined;
+  /**
+   * The outline (list) mode is an inline-editing surface: rows edit in
+   * place (content, property icon buttons), children render recursively.
+   * Off (default) renders the same rows read-only-inert — the content
+   * click does nothing and the bullet opens the node.
+   */
+  editable?: boolean | undefined;
   emptyTitle?: string | undefined;
   /** Right-aligned header extras (#14's "New class" button et al.). */
   headerActions?: ReactNode;
@@ -59,6 +69,7 @@ export function CollectionHub({
   defaultCoverLayout,
   tableEditable = false,
   groupByProperty,
+  editable = false,
   emptyTitle,
   headerActions,
   onOpenNode,
@@ -95,6 +106,7 @@ export function CollectionHub({
         tableEditable={tableEditable}
         groupByProperty={groupByProperty}
         emptyTitle={emptyTitle}
+        editable={editable}
         onNodeClick={onOpenNode}
         onNodeShiftClick={onOpenInSidebar}
       />

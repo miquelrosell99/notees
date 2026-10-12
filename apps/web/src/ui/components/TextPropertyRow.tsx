@@ -134,6 +134,9 @@ export function TextPropertyRow({
   onOpenPage,
   /** Hide the label/hints (the host chrome carries them — the sidebar). */
   bare = false,
+  /** Read-only projection: carriers render as read-only rows, scalars as
+   *  text — no add affordance, no auto-unset pass. */
+  readOnly = false,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -143,6 +146,7 @@ export function TextPropertyRow({
   rows: EffectiveProperty[];
   onOpenPage?: ((pageId: string) => void) | undefined;
   bare?: boolean;
+  readOnly?: boolean | undefined;
 }) {
   const ordered = [...rows].sort((a, b) => a.idx - b.idx);
   const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
@@ -241,9 +245,10 @@ export function TextPropertyRow({
   // Run the pass after every store-synced render — local edits, remote syncs,
   // and mount over legacy data all funnel through the subscription's version
   // bump into a re-render. Unsetting re-renders once more and the pass
-  // settles (nothing left to unset).
+  // settles (nothing left to unset). Read-only skips the pass entirely: it
+  // only ever writes.
   useEffect(() => {
-    cleanupEmptyValues();
+    if (!readOnly) cleanupEmptyValues();
   });
 
   const addValue = async (): Promise<void> => {
@@ -266,7 +271,8 @@ export function TextPropertyRow({
         // Focus truly left the row (React's onBlur is the bubbling focusout —
         // it also fires on carrier-to-carrier hops, so filter those): re-run
         // the auto-unset pass so an abandoned empty value goes now, not at
-        // the next unrelated store update.
+        // the next unrelated store update. Read-only never writes.
+        if (readOnly) return;
         if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
         cleanupEmptyValues();
       }}
@@ -295,7 +301,7 @@ export function TextPropertyRow({
               client={client}
               items={carrierItems}
               tree
-              editable
+              {...(readOnly ? { readOnly: true } : { editable: true })}
               renderItem={(item, row) => (
                 <CarrierRowHost client={client} item={item} onOpenPage={onOpenPage}>
                   {row}
@@ -313,6 +319,16 @@ export function TextPropertyRow({
             // Scalar values: the minimal text editor, writing the string.
             const dead = state.kind === "dead";
             const editableText = typeof row.value === "string" && !dead ? row.value : "";
+            if (readOnly) {
+              return (
+                <span
+                  key={`${propertySchemaId}:${row.idx}`}
+                  className="nt-property-value nt-property-value--readonly"
+                >
+                  {editableText}
+                </span>
+              );
+            }
             return (
               <input
                 key={`${propertySchemaId}:${row.idx}:${editableText}`}
@@ -348,7 +364,7 @@ export function TextPropertyRow({
               />
             );
           })}
-          {ordered.length === 0 && (
+          {ordered.length === 0 && readOnly ? null : ordered.length === 0 && (
             // The empty cell still spans the full value width (owner
             // 2026-10-09) — the muted placeholder names the field empty;
             // typing authors the first carrier block, like the Add pill but
@@ -371,7 +387,7 @@ export function TextPropertyRow({
               }}
             />
           )}
-          {multi && ordered.length > 0 && (
+          {!readOnly && multi && ordered.length > 0 && (
             <AddPill
               ref={addButtonRef}
               label="Add"
