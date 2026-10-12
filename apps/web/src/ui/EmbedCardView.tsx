@@ -84,6 +84,7 @@ function plainExcerpt(contentAst: readonly unknown[]): string {
       if (t.type === "text" && typeof t.text === "string") parts.push(t.text);
       else if (t.type === "math" && typeof t.expression === "string") parts.push(t.expression);
       else if (t.type === "quote" && Array.isArray(t.children)) walk(t.children);
+      else if (t.type === "heading" && Array.isArray(t.children)) walk(t.children);
     }
   };
   walk(contentAst);

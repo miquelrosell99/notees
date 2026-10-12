@@ -189,6 +189,7 @@ export function buildEditableDom(
           }
           break;
         case "quote":
+        case "heading":
           if (Array.isArray(t.children)) walk(t.children as readonly unknown[]);
           break;
         default:
@@ -216,6 +217,8 @@ export function editableDomSignature(ast: readonly unknown[], resolveClassName?:
       if (t.type === "mention" && typeof t.text === "string") pills += 1;
       else if (t.type === "class_chip") pills += 1;
       else if (t.type === "quote" && Array.isArray(t.children))
+        walk(t.children as readonly unknown[]);
+      else if (t.type === "heading" && Array.isArray(t.children))
         walk(t.children as readonly unknown[]);
     }
   };

@@ -62,8 +62,8 @@ export function fullTitleOf(node: NodeLike): string {
  * Includes: text runs, typed-link text, mention captured text, a class
  * chip's one-off displayText (the chip's class name is graph state — only
  * the caller that owns resolution can substitute it), math expressions;
- * recurses quotes. Skips: asset_ref/embed_ref/query/whiteboard (structural
- * tokens carry no prose).
+ * recurses quotes and headings. Skips: asset_ref/embed_ref/query/whiteboard
+ * (structural tokens carry no prose).
  */
 export function plainTextExcerpt(ast: ContentAst | null | undefined): string {
   if (!ast) return "";
@@ -89,6 +89,7 @@ export function plainTextExcerpt(ast: ContentAst | null | undefined): string {
           parts.push(token.expression);
           break;
         case "quote":
+        case "heading":
           walk(token.children);
           break;
         case "hard_break":

@@ -41,7 +41,7 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the twenty-five required fixtures", () => {
+  it("has exactly the twenty-six required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "class-convert.json",
@@ -54,6 +54,7 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       "code-block.json",
       "embed-ref-view.json",
       "envelope-minimal.json",
+      "heading-content.json",
       "hr.json",
       "object-color.json",
       "object-create.json",
@@ -426,6 +427,40 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
     const plain = fixture.envelopes[3]!;
     expect((plain.payload as { contentAst: unknown[] }).contentAst).toEqual([
       { type: "code_block", text: "plain snippet" },
+    ]);
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
+  });
+
+  it("heading-content fixture: the heading token carries the inline union; rich children and plain-block conversion exercise the full write surface", () => {
+    const fixture = fixtures.find((f) => f.name === "heading-content.json")!;
+    const headingBlock = "0192a000-0000-7000-8000-000000000721";
+    const create = fixture.envelopes[1]!;
+    const ast = contentAstSchema.parse((create.payload as { contentAst: unknown }).contentAst);
+    expect(ast).toEqual([
+      {
+        type: "heading",
+        children: [{ type: "text", text: "The opening argument" }],
+      },
+    ]);
+    // The update rewrites the heading with rich children (hard_break inside).
+    const update = fixture.envelopes[2]!;
+    expect(update.payload).toMatchObject({ objectId: headingBlock });
+    const updated = contentAstSchema.parse((update.payload as { contentAst: unknown }).contentAst);
+    expect(updated[0]).toMatchObject({ type: "heading" });
+    expect((updated[0] as { children: unknown[] }).children.map((t) => (t as { type: string }).type)).toEqual([
+      "text",
+      "hard_break",
+      "text",
+    ]);
+    // A plain block converts TO a heading by content rewrite (envelope 4) —
+    // the gesture is an ordinary object.update, no new op.
+    const convert = fixture.envelopes[4]!;
+    expect(convert.payload).toMatchObject({
+      objectId: "0192a000-0000-7000-8000-000000000723",
+    });
+    expect((convert.payload as { contentAst: unknown[] }).contentAst).toEqual([
+      { type: "heading", children: [{ type: "text", text: "A promoted plain block" }] },
     ]);
     const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
     expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);

@@ -44,6 +44,8 @@ function contentPlaintext(db: StoreDatabase, raw: string | null | undefined): st
         if (row && row.original_name) parts.push(row.original_name);
       } else if (t.type === "quote" && Array.isArray(t.children)) {
         walk(t.children);
+      } else if (t.type === "heading" && Array.isArray(t.children)) {
+        walk(t.children);
       }
     }
   };
