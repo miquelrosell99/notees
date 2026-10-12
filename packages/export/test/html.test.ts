@@ -287,6 +287,15 @@ describe("block-scale content", () => {
     expect(html).toContain("<blockquote>to be &lt;or&gt; not</blockquote>");
   });
 
+  it("renders headings as h2 (the page title rides h1)", () => {
+    const node = page("aaaaaaaa-0000-4000-8000-000000000045", "doc", [
+      { type: "text", text: "intro " },
+      { type: "heading", children: [{ type: "text", text: "The <head> section" }] },
+    ]);
+    const html = toHtml(node, makeCtx());
+    expect(html).toContain("<h2>The &lt;head&gt; section</h2>");
+  });
+
   it("renders an inlined embed recursively (includeEmbedded)", () => {
     const target = page(EMBED_ID, "Embedded target", [
       { type: "text", text: "the embedded body" },

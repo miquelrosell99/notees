@@ -26,6 +26,7 @@
 import { useState } from "react";
 
 import { rendersAsInlineBlock } from "@notees/domain";
+import type { ContentAst } from "@notees/protocol";
 
 import { cloneSubtree, type CloneReadSurface, type CloneWriteSurface } from "@/core/clone.js";
 import type { ClientNode } from "@/core/workspace-client.js";
@@ -35,6 +36,7 @@ import { nodeLinkUrl } from "../nodeLink.js";
 import { untitledLabelOf } from "../renderStateLabel.js";
 import { copyToClipboard } from "./modals/clipboard.js";import { notificationStore } from "./ui/notificationStore.js";
 import { refuseClassRemoval } from "./classRemoval.js";
+import { headingAstOf, headingConversionOf, plainTextAstOf } from "./headingConvert.js";
 import { ConfirmationModal } from "./ui/ConfirmationModal.js";
 import { ContextMenu, type ContextMenuItem } from "./ui/ContextMenu.js";
 
@@ -50,6 +52,8 @@ interface MenuClient extends CloneReadSurface, CloneWriteSurface {
   deleteObject(id: string, opts?: { permanent?: boolean }): Promise<void>;
   /** The render-bit toggle behind "Move to Pages" / "Move to content". */
   updateObject(id: string, fields: { presentAsMain?: boolean }): Promise<void>;
+  /** Content rewrites — the heading conversion rides this (headingConvert). */
+  updateObject(id: string, fields: { contentAst?: ContentAst }): Promise<void>;
 }
 
 export type NodeMenuState =
@@ -270,6 +274,28 @@ export function NodeContextMenu({
             },
           },
     );
+  }
+  // Heading conversion (owner 2026-10-12 — the v1 "Convert to heading"
+  // gesture, on the content grammar's `heading` token): shown conditionally,
+  // each direction an ordinary undoable object.update. A single plain text
+  // run converts TO a heading; a single heading token converts back to one
+  // plain text run (children flattened, marks carried only in the
+  // to-heading direction).
+  const headingShape = headingConversionOf(node);
+  if (headingShape === "to-heading") {
+    items.push({
+      id: "convert-to-heading",
+      label: "Convert to heading",
+      icon: "mdi-format-header-1",
+      onClick: () => void client.updateObject(node.id, { contentAst: headingAstOf(node) }),
+    });
+  } else if (headingShape === "from-heading") {
+    items.push({
+      id: "convert-to-plain-text",
+      label: "Convert to plain text",
+      icon: "mdi-format-letter-case",
+      onClick: () => void client.updateObject(node.id, { contentAst: plainTextAstOf(node) }),
+    });
   }
   // Duplicate: a real subtree clone through the shared
   // engine, placed right after the source (roots land with the other

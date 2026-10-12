@@ -1,80 +1,66 @@
 /**
- * Sidebar TOC derivation — the table of contents
- * is tree-derived, never token-derived: the content grammar has no heading
- * token (SCHEMA.md:55-68), so structure comes from the block tree itself.
+ * Table-of-content derivation — heading-token-derived (owner 2026-10-12):
+ * the content grammar gained the block-scale `heading` token (the v1
+ * "Convert to heading" marker, restored in the block context menu), and the
+ * TOC lists heading blocks ALONE — the old "short one-line plain text"
+ * heuristic and the sub-page entries retired (the owner: only blocks marked
+ * as headings belong here; a plain one-liner is prose, not structure).
  *
- * Entries, in true child order:
- *   - every main child (the render bit set — the Pages zone) is an entry;
- *     sub-pages ARE the document's sections (the same call as the deck
- *     builder's slide heuristic);
- *   - an inline-body child qualifies as a heading when its content is one
- *     short plain text line (single text token, trimmed length within the
- *     budget, no sentence-final punctuation) — outliner convention: a
- *     top-level one-liner reads as a head;
- *   - one nesting level: a qualifying heading's own qualifying children
- *     indent beneath it.
+ * Entries, in true child order, nested one level: a top-level heading's
+ * subtree headings indent beneath it (intermediate non-heading blocks pass
+ * their level through — only heading ancestry indents).
  *
- * Pure reads (getChildren / getDisplayName) — cheap, never a query, so the
- * rail derives the TOC on every render without touching the lazy-loading
- * contract.
+ * Pure reads (getChildren / plainTextExcerpt) — cheap, never a query, so the
+ * context column derives the TOC on every render without touching the
+ * lazy-loading contract. Empty = the section hides entirely (owner rule).
  */
+
+import { plainTextExcerpt } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
-/** Character budget for the heading heuristic (a one-liner, not a sentence). */
-export const TOC_HEADING_MAX_CHARS = 72;
+/** Cycle-protection depth cap for the recursive walk. */
+const TOC_DEPTH_CAP = 16;
 
 export interface TocEntry {
   node: ClientNode;
-  /** The heading/page text shown in the rail. */
+  /** The heading's flattened text. */
   label: string;
-  /** 0 = top level, 1 = nested under a qualifying heading. */
+  /** 0 = top level, 1 = nested under a heading. */
   depth: 0 | 1;
-  /** main child (page) vs. the heading heuristic over inline body blocks. */
-  kind: "page" | "heading";
 }
 
-/**
- * The heading text when the node's content is one short plain line, else
- * null. Marks don't disqualify (a bolded one-liner is still a head).
- */
-export function headingTextOf(node: ClientNode): string | null {
+/** The heading text when the node's content is ONE heading token, else null. */
+export function headingLabelOf(node: ClientNode): string | null {
   const ast = node.contentAst;
   if (ast.length !== 1) return null;
-  const token = ast[0] as { type?: string; text?: string };
-  if (token.type !== "text" || typeof token.text !== "string") return null;
-  const text = token.text.trim();
-  if (text.length === 0 || text.length > TOC_HEADING_MAX_CHARS) return null;
-  if (/[.!?:;,]$/.test(text)) return null;
-  return text;
-}
-
-function labelOf(client: AnyClient, node: ClientNode, fallback: string | null): string {
-  return client.getDisplayName(node.id) ?? fallback ?? "";
+  const token = ast[0]!;
+  if (token.type !== "heading") return null;
+  const label = plainTextExcerpt([token]).trim();
+  return label === "" ? null : label;
 }
 
 /** The page's TOC entries (empty = the section hides entirely, owner rule). */
 export function tocEntriesOf(client: AnyClient, pageId: string): TocEntry[] {
   const entries: TocEntry[] = [];
-  for (const child of client.getChildren(pageId)) {
-    if (child.isClass) continue;
-    if (child.presentAsMain) {
-      entries.push({ node: child, label: labelOf(client, child, null), depth: 0, kind: "page" });
-      continue;
-    }
-    const heading = headingTextOf(child);
-    if (heading === null) continue;
-    entries.push({ node: child, label: heading, depth: 0, kind: "heading" });
-    for (const grandchild of client.getChildren(child.id)) {
-      if (grandchild.isClass || grandchild.presentAsMain) continue;
-      const nested = headingTextOf(grandchild);
-      if (nested !== null) {
-        entries.push({ node: grandchild, label: nested, depth: 1, kind: "heading" });
+  const walk = (parentId: string, depth: 0 | 1, remaining: number): void => {
+    if (remaining <= 0) return;
+    for (const child of client.getChildren(parentId)) {
+      if (child.isClass) continue;
+      const label = headingLabelOf(child);
+      if (label !== null) {
+        entries.push({ node: child, label, depth });
+        walk(child.id, 1, remaining - 1);
+      } else {
+        // Non-heading blocks pass their level through — only heading
+        // ancestry indents the entries beneath.
+        walk(child.id, depth, remaining - 1);
       }
     }
-  }
+  };
+  walk(pageId, 0, TOC_DEPTH_CAP);
   return entries;
 }

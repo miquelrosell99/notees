@@ -191,24 +191,6 @@ export const codeBlockTokenSchema = z
  */
 export const hrTokenSchema = z.object({ type: z.literal("hr") }).strict();
 
-/** The only nested token: a quote contains inline tokens (hard breaks allowed). */
-export const quoteTokenSchema = z
-  .object({
-    type: z.literal("quote"),
-    children: z.array(
-      z.discriminatedUnion("type", [
-        textTokenSchema,
-        typedLinkMarkSchema,
-        mentionTokenSchema,
-        classChipTokenSchema,
-        externalLinkTokenSchema,
-        mathTokenSchema,
-        hardBreakTokenSchema,
-      ]),
-    ),
-  })
-  .strict();
-
 export const inlineTokenSchema = z.discriminatedUnion("type", [
   textTokenSchema,
   typedLinkMarkSchema,
@@ -218,6 +200,29 @@ export const inlineTokenSchema = z.discriminatedUnion("type", [
   mathTokenSchema,
   hardBreakTokenSchema,
 ]);
+
+/** The only nested token: a quote contains inline tokens (hard breaks allowed). */
+export const quoteTokenSchema = z
+  .object({
+    type: z.literal("quote"),
+    children: z.array(inlineTokenSchema),
+  })
+  .strict();
+
+/**
+ * Block-scale: a heading — the document-structure marker v1 carried as
+ * "Convert to heading" (owner 2026-10-12). Contains the same inline union
+ * as a quote; renderers present it as a large/bold line and the page's
+ * Table of content derives from heading blocks alone. Like a quote it is
+ * NOT a promotion survivor (stringify flattens it to its prose) and not
+ * text-only (pages/classes stay text-only).
+ */
+export const headingTokenSchema = z
+  .object({
+    type: z.literal("heading"),
+    children: z.array(inlineTokenSchema),
+  })
+  .strict();
 
 export const contentTokenSchema = z.discriminatedUnion("type", [
   textTokenSchema,
@@ -232,10 +237,10 @@ export const contentTokenSchema = z.discriminatedUnion("type", [
   queryTokenSchema,
   whiteboardTokenSchema,
   quoteTokenSchema,
+  headingTokenSchema,
   codeBlockTokenSchema,
   hrTokenSchema,
 ]);
-
 export type InlineToken = z.infer<typeof inlineTokenSchema>;
 export type ContentToken = z.infer<typeof contentTokenSchema>;
 export type ContentAst = ContentToken[];

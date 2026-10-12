@@ -695,6 +695,22 @@ export function PageView({
    */
   const fullscreenWhiteboard = whiteboardTokenIndex >= 0 && !embedded && !preview;
 
+  /**
+   * The Table-of-content entry jump (owner 2026-10-12): scroll the main
+   * view to the block and flash it — a TOC entry is navigation within the
+   * page, not an open gesture.
+   */
+  const jumpToBlock = (blockId: string) => {
+    const el = document.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
+    if (!(el instanceof HTMLElement)) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.remove("nt-block--flash");
+    // Restart the flash animation when the same entry is clicked twice.
+    void el.offsetWidth;
+    el.classList.add("nt-block--flash");
+    window.setTimeout(() => el.classList.remove("nt-block--flash"), 1400);
+  };
+
   const pageChrome = fullscreenWhiteboard ? (
     <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
   ) : (
@@ -764,10 +780,12 @@ export function PageView({
                     Backlinks section owns that data (see the module doc). Top
                     down: the local graph (a collapsed-by-default section —
                     the graph mounts, and loads, only on the first expand),
-                    the tree-derived Contents, the node's own Activity feed,
+                    the heading-derived Table of content (standard section
+                    chrome; clicking an entry jumps the main view to the
+                    block), the node's own Activity feed,
                     and Comments (always rendered, quick-add included). */}
                 <LocalGraphCard client={client} nodeId={pageId} onOpenNode={(id) => onOpenPage?.(id)} />
-                <TocSection client={client} pageId={pageId} activeId={pageId} onOpenNode={(id) => onOpenPage?.(id)} />
+                <TocSection client={client} pageId={pageId} onJumpToBlock={jumpToBlock} />
                 <ActivityLogSection client={client} nodeId={pageId} />
                 {/* Comments — child blocks classed `comment`, threaded. */}
                 <CommentsSection client={client} nodeId={pageId} onOpenNode={onOpenPage} />

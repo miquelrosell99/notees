@@ -456,16 +456,11 @@ select:focus-visible {
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding-top: var(--spacing-4);
-  padding-right: 0;
-  padding-bottom: 0;
-}
-
-/* The top bar keeps its right inset — with the page's right padding retired
-   (the scrollbars hug the card's right border, owner 2026-10-12) the bar's
-   cluster must not touch the edge. */
-.nt-page--panelled > .nt-node-topbar {
-  padding-right: var(--spacing-6);
+  /* Symmetric small padding (owner 2026-10-12): both side cards read with
+     the same top/side/bottom padding — the right card lost its right
+     padding and the left carried too much when the outer spacing was
+     asymmetric. */
+  padding: var(--spacing-4) var(--spacing-4) 0;
 }
 
 .nt-page--panelled .nt-page-body {
@@ -586,25 +581,44 @@ select:focus-visible {
 }
 
 /* The nodeview cell: auto height between the top bar and the card bottom;
-   scrolls when the content outgrows it. */
+   scrolls when the content outgrows it. Horizontal overflow clips, never
+   scrolls (owner 2026-10-12): the kit icon buttons carry an invisible
+   44×44 hit-area overlay (::after) that inflates every ancestor's
+   scrollWidth by a few px — the column must not turn that into a
+   horizontal scrollbar (wide tables scroll inside .nt-table-wrap). */
 .nt-nodeview-body {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: clip;
 }
 
 /* The footer inside the context column (owner 2026-10-09): the card-bottom
    bar retired — no sticky, no full-bleed negative insets, no surface
    backing (those are compact-layout behaviors, PageFooter.css); here it is
    a plain bottom section on the sidebar card, transparent over the card's
-   own fill. */
+   own fill. One tidy row (owner 2026-10-12): the words count never wraps,
+   the stamps keep their single line. */
 .nt-page--panelled .nt-page-footer {
   position: static;
   bottom: auto;
   flex: none;
+  flex-wrap: nowrap;
   margin: 0;
   padding: var(--spacing-3) 0 0;
   background: transparent;
+}
+
+.nt-page--panelled .nt-page-footer__words {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-page--panelled .nt-page-footer__dates {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .nt-page-content {
@@ -2269,6 +2283,36 @@ select:focus-visible {
   padding: 2px 12px;
   margin: 4px 0;
   color: var(--color-on-surface-variant);
+}
+
+/* The heading token (owner 2026-10-12 — v1's "Convert to heading" marker):
+   the block's content reads as a section head — larger, heavier, the page's
+   own title family. */
+.nt-heading {
+  display: block;
+  font-size: 1.35em;
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 0.35em 0 0.15em;
+  color: var(--color-on-surface);
+}
+
+/* The Table-of-content entry jump flash (owner 2026-10-12): the targeted
+   block outlines briefly so the jump reads. */
+@keyframes nt-block-flash {
+  0% {
+    outline: var(--border-width-thick) solid var(--color-primary);
+    outline-offset: 2px;
+  }
+  100% {
+    outline: var(--border-width-thick) solid transparent;
+    outline-offset: 6px;
+  }
+}
+
+.nt-block--flash {
+  animation: nt-block-flash var(--motion-duration-long) var(--motion-easing-standard) 2;
+  border-radius: var(--shape-small);
 }
 
 /* External links read as plain hyperlinks (owner ruling), never a pill:

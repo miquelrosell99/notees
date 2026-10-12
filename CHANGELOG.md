@@ -9,6 +9,38 @@ predating this file.
 
 ## 2026-10-12
 
+- **feat(web): heading blocks are back — the `heading` content token with
+  Convert-to-heading in the block context menu, the Table of content becomes
+  a standard section over headings only, the group counts ride the section
+  badge, and the content chrome gets its spacing fixes (owner 2026-10-12).**
+  (1) **The wire gains the block-scale `heading` token** (`{children}` — the
+  inline union; additive, with the canonical `heading-content.json` fixture
+  and every content arm wired: domain excerpt/stringify — flattened, NOT a
+  promotion survivor; store FTS + edge walks; the five export serializers —
+  markdown `##`, html `<h2>`, docx Heading 2, latex `\subsection*`, pdf;
+  the editable projection and the word count). **LOCKSTEP-PENDING: the
+  GTK/Flutter strict validators must accept `heading` before those clients
+  ingest heading content** (SCHEMA.md marks it; the sibling-repo slices are
+  the follow-up). (2) **Convert to heading / Convert to plain text** ride
+  the block context menu, conditionally visible by content shape (a single
+  text run ⇄ a single heading token; richer content offers neither) — each
+  an ordinary undoable `object.update`. (3) The **Table of content** section
+  (renamed from Contents) rides the standard collapsible section chrome,
+  lists **heading blocks only** (the short-one-liner heuristic and the
+  sub-page entries retired), hides while the page has no headings, and
+  clicking an entry **jumps the main view to the block** (scroll + flash).
+  (4) The list-view **group counts wear the section badge pill**, beside
+  the group name instead of a bare number at the row's far right. (5)
+  Chrome fixes: the **horizontal scrollbar on the main content area is
+  gone** (the kit icon buttons' invisible 44×44 hit-area overlay inflated
+  every ancestor's scrollWidth — the nodeview column now clips
+  horizontally; wide tables keep their own scroll wrapper), the panelled
+  page gets **symmetric side padding** (both cards read alike), and the
+  context column's **footer is one tidy non-wrapping row**. Verified: `pnpm
+  typecheck` + `pnpm test` green; new `heading-convert.test.tsx` (unit +
+  menu end to end), TOC specs re-pinned to heading tokens, domain + html
+  export heading specs; `docs/usage.md`, `docs/ux.md`, `SCHEMA.md`, and
+  `releases.md` (the current-wire line) updated.
 - **feat(web): the block multi-selection is whole-subtree and reads as a
   card — one outline per contiguous run, standing out where the per-row tint
   whispered (owner 2026-10-12).** (1) **Subtree closure:** every selection

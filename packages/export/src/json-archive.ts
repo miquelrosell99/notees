@@ -162,6 +162,7 @@ function edgesOf(node: ExportNode): JsonArchiveEdge[] {
           edges.push({ kind: "asset", assetId: token.assetId });
           break;
         case "quote":
+        case "heading":
           walk(token.children);
           break;
         default:
