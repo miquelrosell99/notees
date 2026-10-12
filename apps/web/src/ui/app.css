@@ -831,6 +831,10 @@ select:focus-visible {
 .nt-block > .node-metadata-section {
   margin-left: 20px;
   padding-bottom: var(--spacing-1);
+  /* No top divider: the section's border-top read as a stray hairline
+     between the block and its children (owner 2026-10-12) — in-flow block
+     metadata hugs its row, the divider belongs to page-level sections. */
+  border-top: none;
 }
 
 .nt-block > .node-metadata-section .node-view-section__header {
