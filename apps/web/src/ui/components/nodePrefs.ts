@@ -188,6 +188,19 @@ export function toggleNodeFavorite(client: PrefsClient | null, id: string): void
   }
 }
 
+/**
+ * Reorder the favorites list (the sidebar's drag sort, owner 2026-10-12),
+ * server-synced. Optimistic like the star toggle; favorites order is
+ * user-authored, so the pushed array wins everywhere.
+ */
+export function reorderNodeFavorites(client: PrefsClient | null, orderedIds: string[]): void {
+  applyLocal({ favorites: orderedIds });
+  if (client !== null) {
+    activeClient = client;
+    schedulePush();
+  }
+}
+
 /** Remove a recent, server-synced (the sidebar row menu's Remove action). */
 export function removeSyncedRecent(client: PrefsClient | null, id: string): void {
   const next = cached.recents.filter((entry) => entry !== id);

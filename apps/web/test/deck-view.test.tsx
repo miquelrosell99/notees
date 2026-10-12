@@ -247,6 +247,19 @@ describe("Present entry point", () => {
     fireEvent.click(screen.getByRole("button", { name: "Node actions" }));
     expect(screen.queryByRole("menuitem", { name: "Present" })).toBeNull();
   });
+
+  it("a re-click on the anchor toggles the menu closed (owner 2026-10-12)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Toggleable" });
+    const node = client.getNode(pageId)!;
+
+    render(<NodeMenuButton client={client} node={node} onOpenNode={() => {}} />);
+    const anchor = screen.getByRole("button", { name: "Node actions" });
+    fireEvent.click(anchor);
+    expect(screen.queryAllByRole("menuitem").length).toBeGreaterThan(0);
+    fireEvent.click(anchor);
+    expect(screen.queryAllByRole("menuitem")).toHaveLength(0);
+  });
 });
 
 describe("DeckView — assets, images, and covers in presentation mode", () => {

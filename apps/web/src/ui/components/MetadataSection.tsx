@@ -2638,7 +2638,7 @@ export function PropertiesSection({
   if (hideWhenEmpty && count === 0) return null;
   return (
     <NodeViewSection
-      title="Metadata"
+      title="Properties"
       icon={<Icon path="mdi-format-list-bulleted-square" size={0.9} />}
       count={count}
       className="node-metadata-section nt-properties-panel"
@@ -2784,7 +2784,7 @@ export function PropertiesSidebar({
   return (
     <div className="nt-props-sidebar">
       <NodeViewSection
-        title="Metadata"
+        title="Properties"
         icon={<Icon path="mdi-format-list-bulleted" size={0.9} />}
         count={count}
         className="nt-props-sidebar__section"

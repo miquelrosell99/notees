@@ -457,7 +457,15 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   padding-top: var(--spacing-4);
+  padding-right: 0;
   padding-bottom: 0;
+}
+
+/* The top bar keeps its right inset — with the page's right padding retired
+   (the scrollbars hug the card's right border, owner 2026-10-12) the bar's
+   cluster must not touch the edge. */
+.nt-page--panelled > .nt-node-topbar {
+  padding-right: var(--spacing-6);
 }
 
 .nt-page--panelled .nt-page-body {
@@ -527,6 +535,13 @@ select:focus-visible {
   flex-direction: column;
   gap: var(--spacing-3);
   margin-top: var(--spacing-3);
+}
+
+/* The narrow column can't afford the content flow's title-alignment indent
+   (spacing-7 — the toggle + icon + gaps): section contents sit nearly flush
+   (owner 2026-10-12, "reduce the left padding … in sidebar mode"). */
+.nt-page-side-panel .node-view-section__content {
+  padding-left: var(--spacing-3);
 }
 
 /* The context column: graph · TOC · Activity · Comments — the

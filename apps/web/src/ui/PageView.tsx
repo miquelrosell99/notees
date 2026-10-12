@@ -731,7 +731,7 @@ export function PageView({
           />
           <div className="nt-page-body">
             {!sidePanelCollapsed && (
-              <aside className="nt-page-side-panel" aria-label="Metadata">
+              <aside className="nt-page-side-panel" aria-label="Properties">
                 <PropertiesSidebar
                   client={client}
                   nodeId={pageId}

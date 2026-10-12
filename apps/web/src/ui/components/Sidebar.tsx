@@ -25,11 +25,15 @@ import { parseDateNodeId } from "@notees/domain";
 
 import { displayNameForSettings, displayNameFromClient, fullTitleFromClient } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
 import { InlineTokens } from "../InlineTokens.js";
 import { nodeIcon } from "../iconFor.js";
 import { untitledLabelOf } from "../renderStateLabel.js";
 import { openNodeLinkMenu } from "./NodeLinkContextMenu.js";
-import { useNodePrefs, toggleNodeFavorite, removeSyncedRecent } from "./nodePrefs.js";
+import { useNodePrefs, toggleNodeFavorite, reorderNodeFavorites, removeSyncedRecent } from "./nodePrefs.js";
 import { SidebarItemMenu, type SidebarItemMenuState } from "./SidebarItemMenu.js";
 import { ConfirmationModal } from "./ui/ConfirmationModal.js";
 import { useDeviceSetting } from "./modals/deviceSettings.js";
@@ -105,6 +109,42 @@ export function removeRecent(id: string): void {
     // Storage unavailable; the list just won't persist.
   }
   window.dispatchEvent(new Event("notees:recents"));
+}
+
+/**
+ * SortableFavoriteRow — the drag-sortable favorites row (owner 2026-10-12):
+ * useSortable owns the <li> (ref, lift transform, pointer/keyboard
+ * listeners). The PointerSensor's distance constraint keeps plain clicks
+ * (open / star) intact — a drag needs a real 6px travel. The row body is the
+ * SAME markup every sidebar row renders (the li wrapper alone is this
+ * component's).
+ */
+function SortableFavoriteRow({
+  node,
+  onRowMenu,
+  children,
+}: {
+  node: ClientNode;
+  onRowMenu: (event: React.MouseEvent<HTMLLIElement>, node: ClientNode) => void;
+  children: React.ReactNode;
+}) {
+  const { listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: node.id,
+  });
+  // NOTE: dnd-kit's `attributes` are deliberately NOT spread — they stamp
+  // role="button" + a tab stop on the li, shadowing the row's real button
+  // for assistive tech and queries. Pointer listeners alone drive the drag.
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      {...listeners}
+      className={isDragging ? "nt-side-row nt-side-row--dragging" : "nt-side-row"}
+      onContextMenu={(event) => onRowMenu(event, node)}
+    >
+      {children}
+    </li>
+  );
 }
 
 export function Sidebar({
@@ -259,24 +299,12 @@ export function Sidebar({
     );
   };
 
-  const renderRow = (node: ClientNode, icon?: string | null, list?: "favorites" | "recents") => (
-    <li
-      key={node.id}
-      className="nt-side-row"
-      onContextMenu={(event) => {
-        if (list === undefined) return;
-        // A right-click on an inline mention link belongs to the node-link
-        // menu (the chip's own handler already fired); the row menu only
-        // claims presses on the row itself.
-        if (
-          event.target instanceof Element &&
-          event.target.closest(".nt-link, .nt-chip") !== null
-        )
-          return;
-        event.preventDefault();
-        setRowMenu({ x: event.clientX, y: event.clientY, node, list });
-      }}
-    >
+  /**
+   * Row body — the item button + the star toggle, shared by every sidebar
+   * row shape (plain, drag-sortable): the li wrapper alone differs.
+   */
+  const rowBody = (node: ClientNode, icon?: string | null) => (
+    <>
       <button
         type="button"
         className={node.id === selectedPageId ? "nt-side-item nt-side-item-active" : "nt-side-item"}
@@ -306,8 +334,58 @@ export function Sidebar({
       >
         <Icon path={favorites.includes(node.id) ? "mdi-star" : "mdi-star-outline"} size={0.9} />
       </button>
+    </>
+  );
+
+  /** The row menu claims right-clicks on the row itself (never on a chip). */
+  const handleRowContextMenu = (
+    event: React.MouseEvent<HTMLLIElement>,
+    node: ClientNode,
+    list: "favorites" | "recents",
+  ) => {
+    // A right-click on an inline mention link belongs to the node-link
+    // menu (the chip's own handler already fired); the row menu only
+    // claims presses on the row itself.
+    if (
+      event.target instanceof Element &&
+      event.target.closest(".nt-link, .nt-chip") !== null
+    )
+      return;
+    event.preventDefault();
+    setRowMenu({ x: event.clientX, y: event.clientY, node, list });
+  };
+
+  const renderRow = (node: ClientNode, icon?: string | null, list?: "favorites" | "recents") => (
+    <li
+      key={node.id}
+      className="nt-side-row"
+      onContextMenu={(event) => {
+        if (list !== undefined) handleRowContextMenu(event, node, list);
+      }}
+    >
+      {rowBody(node, icon)}
     </li>
   );
+
+  /**
+   * Favorites drag sort (owner 2026-10-12): dnd-kit's vertical list sort
+   * over the favorites rows; the committed order writes through the
+   * nodePrefs store (optimistic + server push — the same channel the star
+   * toggle uses).
+   */
+  const favoriteSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+  );
+  const handleFavoriteDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over === null || active.id === over.id) return;
+    const ordered = arrayMove(
+      favoritePages.map((node) => node.id),
+      favoritePages.findIndex((node) => node.id === String(active.id)),
+      favoritePages.findIndex((node) => node.id === String(over.id)),
+    );
+    reorderNodeFavorites(client, ordered);
+  };
 
   const section = (
     title: string,
@@ -322,6 +400,8 @@ export function Sidebar({
       /** Always-render placeholder when the section is empty (Favorites
        * uses it — owner 2026-10-12); without it an empty section hides. */
       empty?: string;
+      /** Wraps the <ul> (the favorites drag-sort's DndContext/SortableContext). */
+      listWrapper?: ((list: React.ReactNode) => React.ReactNode) | undefined;
     } = {},
   ) => {
     const body =
@@ -364,7 +444,12 @@ export function Sidebar({
             <span>{title}</span>
           </h3>
         )}
-        {!collapsed && <ul className="nt-side-list">{body}</ul>}
+        {!collapsed &&
+          (options.listWrapper !== undefined ? (
+            options.listWrapper(<ul className="nt-side-list">{body}</ul>)
+          ) : (
+            <ul className="nt-side-list">{body}</ul>
+          ))}
       </section>
     );
   };
@@ -406,11 +491,35 @@ export function Sidebar({
         )}
         {section(
           "Favorites",
-          favoritePages.map((node) => renderRow(node, null, "favorites")),
+          favoritePages.map((node) => (
+            <SortableFavoriteRow
+              key={node.id}
+              node={node}
+              onRowMenu={(event, rowNode) => handleRowContextMenu(event, rowNode, "favorites")}
+            >
+              {rowBody(node, rowIconFor(node))}
+            </SortableFavoriteRow>
+          )),
           {
             icon: "mdi-star-outline",
-            // Always rendered — empty names how to fill it (owner 2026-10-12).
-            empty: "No favorites yet — hover a row and star it to pin it here.",
+            // Always rendered — empty says so plainly (owner 2026-10-12).
+            empty: "No favorites yet",
+            // The same row UI as Recents (icons via rowIconFor) plus drag
+            // sort: the DnD context wraps the list.
+            listWrapper: (list) => (
+              <DndContext
+                sensors={favoriteSensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleFavoriteDragEnd}
+              >
+                <SortableContext
+                  items={favoritePages.map((node) => node.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {list}
+                </SortableContext>
+              </DndContext>
+            ),
           },
         )}
         {section(

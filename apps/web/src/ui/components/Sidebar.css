@@ -191,6 +191,17 @@
   color: var(--color-on-surface);
 }
 
+/* Drag-sorting favorites (owner 2026-10-12): the lifted row reads above its
+   siblings for the drag's duration. */
+.nt-side-row--dragging {
+  position: relative;
+  z-index: 10;
+  background: var(--color-surface-container-high);
+  border-radius: var(--shape-small);
+  box-shadow: var(--shadow-elevation-2);
+  opacity: 0.9;
+}
+
 /* Empty-section placeholder (owner 2026-10-12): Favorites always renders
    — an empty section names how to fill it instead of vanishing. */
 .nt-side-empty {

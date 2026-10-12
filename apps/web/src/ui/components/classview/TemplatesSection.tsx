@@ -8,8 +8,9 @@
  *
  * T4 additions: per-card "Apply to node…" (the apply-to-existing gesture —
  * graft the template onto an existing node and write generatedFrom; a node
- * already generated from the template is skipped, the A4 merge marker) and a
- * "Browse gallery" entry to the TemplateGalleryModal.
+ * already generated from the template is skipped, the A4 merge marker).
+ * The "Browse gallery" entry retired 2026-10-12 — it duplicated the bind
+ * pill's picker (owner: the pill is the better UX).
  */
 
 import { useState } from "react";
@@ -23,11 +24,9 @@ import { displayNameForSettings } from "../../dateDisplay.js";
 import { Icon } from "../../Icon.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import { AddPill } from "../ui/AddPill.js";
-import { Button } from "../ui/Button.js";
 import { NodeViewSection } from "../NodeViewSection.js";
 import { notificationStore } from "../ui/notificationStore.js";
 import { ensureTemplateFamily, listClassTemplateBindings } from "../templateFamily.js";
-import { TemplateGalleryModal } from "../../templates/TemplateGalleryModal.js";
 import { useTemplateApplyToExisting } from "../../templates/useTemplateApplyToExisting.js";
 import "./TemplatesSection.css";
 
@@ -44,7 +43,6 @@ export function TemplatesSection({
 }) {
   const [pickerAnchor, setPickerAnchor] = useState<HTMLButtonElement | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [galleryOpen, setGalleryOpen] = useState(false);
   const [applyTarget, setApplyTarget] = useState<{ templateId: string; anchor: HTMLButtonElement } | null>(null);
 
   /** The class's bound templates, each with its authored value's idx (unbind target). */
@@ -137,7 +135,9 @@ export function TemplatesSection({
       <div className="nt-templates-actions">
         {/*
           The bind affordance renders even when empty (a class without
-          templates still offers the gesture).
+          templates still offers the gesture). The "Browse gallery" button
+          retired owner 2026-10-12 — it opens the same template picker the
+          bind pill opens, and the pill is the better UX.
         */}
         <AddPill
           label="Bind template"
@@ -148,9 +148,6 @@ export function TemplatesSection({
             void ensureTemplateFamily(client).catch(() => {});
           }}
         />
-        <Button variant="ghost" size="sm" onClick={() => setGalleryOpen(true)}>
-          Browse gallery
-        </Button>
       </div>
       {pickerOpen && pickerAnchor !== null && (
         <NodeSelector
@@ -183,12 +180,6 @@ export function TemplatesSection({
         />
       )}
       {applyExisting.dialog}
-      <TemplateGalleryModal
-        isOpen={galleryOpen}
-        onClose={() => setGalleryOpen(false)}
-        client={client}
-        onOpenPage={(pageId) => onOpenPage?.(pageId)}
-      />
     </NodeViewSection>
   );
 }

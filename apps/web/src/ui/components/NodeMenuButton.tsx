@@ -61,13 +61,19 @@ export function NodeMenuButton({
         aria-haspopup="menu"
         aria-expanded={menu !== null}
         onClick={() =>
-          setMenu({
-            x: 0,
-            y: 0,
-            node,
-            isPage: rendersWithDocumentChrome(node),
-            anchorEl: buttonRef.current,
-          })
+          // Toggle, don't always show (owner 2026-10-12): a re-click on the
+          // anchor closes the popup.
+          setMenu(
+            menu === null
+              ? {
+                  x: 0,
+                  y: 0,
+                  node,
+                  isPage: rendersWithDocumentChrome(node),
+                  anchorEl: buttonRef.current,
+                }
+              : null,
+          )
         }
       >
         <Icon path="mdi-dots-vertical" size={1} />

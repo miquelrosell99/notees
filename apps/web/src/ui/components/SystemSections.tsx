@@ -13,9 +13,9 @@
  * pages accumulate is noise, never a discovery surface) and the unlinked
  * count read (a full FTS pass) is skipped there.
  *
- * The hide-when-empty ruling covers both reference sections: each renders
- * only while its eager count reads > 0 (Child pages stays the deliberate
- * main-surface exception, embedded feeds keep the old ruling). Backlinks
+ * The hide-when-empty ruling covers all three system sections: each renders
+ * only while its eager count reads > 0 (owner 2026-10-12 — Child pages
+ * joined the ruling; its old main-surface exception retired). Backlinks
  * starts EXPANDED — its read is cheap and it is the incoming direction
  * (the old selected tab resolved on mount). Unlinked mentions starts
  * COLLAPSED — its list query is the expensive FTS pass, previously gated
@@ -39,14 +39,15 @@
  * post-resolution/pre-windowing; the eager count badge stays UNFILTERED —
  * an active filter reads "0 of N" in the bar and never hides the section.
  *
- * The Child pages section renders when the page has main children OR the
- * surface can create them: an empty main-surface page shows the section
- * with the collection's create affordance in its empty state ("Add child
+ * The Child pages section renders only while the page has main children
+ * (owner 2026-10-12 — the "always renders on the main surface" exception
+ * retired; the create gesture lives in the "…" menu and the New button).
+ * When it renders, the header carries the create affordance ("Add child
  * page" — the create lands IN THE PAGES ZONE and focuses the new child by
  * opening it, the section's row-click behavior; the expanded section's
- * live re-query refreshes the list). Embedded feeds render the sections
- * read-only: no create affordance, and a childless feed entry hides the
- * section as before.
+ * live re-query refreshes the list, so the new row appears at once).
+ * Embedded feeds render the sections read-only: no create affordance, and
+ * a childless feed entry hides the section as before.
  *
  * Extracted from PageView.tsx.
  */
@@ -369,25 +370,24 @@ export function SystemSections({
   const unlinkedCount = isDatePage ? 0 : client.getUnlinkedReferenceCount(pageId);
   const childPageCount = client.getChildPageCount(pageId);
 
-  // The hide-when-empty rulings gate the reference sections — each hides
-  // while its OWN count reads 0 (owner 2026-10-09, the tab strip's
-  // retirement: the strip-level gate becomes per-section); the Child pages
-  // section renders on the MAIN surface even when childless (owner
-  // 2026-10-09) — its header carries the create action, so the affordance
-  // must be reachable exactly when there is nothing to list. Embedded
-  // feeds keep the old ruling (read-only, childless hides). AFTER every
-  // hook: the component flips between null and rendered as counts change,
-  // so the hook order must stay unconditional.
-  const showChildPages = !embedded || childPageCount > 0;
+  // The hide-when-empty rulings gate every system section — each hides while
+  // its OWN count reads 0 (owner 2026-10-09, the tab strip's retirement:
+  // the strip-level gate becomes per-section). Child pages joined the ruling
+  // owner 2026-10-12 (the "always renders on the main surface" exception
+  // retired — a childless page shows no Child pages section; the create
+  // gesture lives in the "…" menu and the New button). AFTER every hook:
+  // the component flips between null and rendered as counts change, so the
+  // hook order must stay unconditional.
+  const showChildPages = childPageCount > 0;
   const showBacklinks = backlinkCount > 0;
   const showUnlinked = !isDatePage && unlinkedCount > 0;
   if (!showChildPages && !showBacklinks && !showUnlinked) return null;
 
   return (
     <div className="nt-page-sections">
-      {/* Child pages: always on the main surface (the header action creates
-          a child page — the section-scoped create slot, owner 2026-10-09);
-          embedded feeds stay hide-when-empty, read-only. */}
+      {/* Child pages: hide-when-empty like every system section (owner
+          2026-10-12); the header action still creates a child page when the
+          section renders. */}
       {showChildPages && (
         <Section
           key={`child-${pageId}`}

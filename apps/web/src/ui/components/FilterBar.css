@@ -45,6 +45,12 @@
   min-width: 10ch;
 }
 
+/* The narrow-viewport search popup (owner 2026-10-12): the field rides the
+   magnifier button's anchored panel — padded to the panel's width. */
+.nt-filter-bar__search-pop {
+  padding: var(--spacing-2);
+}
+
 .nt-filter-bar__count {
   color: var(--color-on-surface-variant);
   white-space: nowrap;

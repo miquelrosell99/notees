@@ -142,6 +142,12 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
       if (containerRef?.current && containerRef.current.contains(e.target as Node)) {
         return;
       }
+      // The anchor owns the toggle: a re-click on the button that opened the
+      // menu toggles it closed (owner 2026-10-12) instead of the outside
+      // press closing it here and the button's click re-opening it.
+      if (anchorEl !== undefined && anchorEl !== null && anchorEl.contains(e.target as Node)) {
+        return;
+      }
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         onClose();
       }
@@ -178,7 +184,7 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
       document.removeEventListener('click', handleClickOutside, true);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [onClose, navigableItems, focusedIndex, containerRef, handleItemClick]);
+  }, [onClose, navigableItems, focusedIndex, containerRef, handleItemClick, anchorEl]);
 
   // Move real DOM focus to the keyboard-navigated item so it is announced by
   // screen readers, and keep it scrolled into view.
