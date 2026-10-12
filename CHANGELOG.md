@@ -7,6 +7,54 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-10-12
+
+- **feat(web): the list view IS the outline view — full block rows in every
+  collection's list mode, editable inline, with recursive children; the
+  read-only variant is the inert twin (dead content click, the bullet opens,
+  no full-row hover).** The flat path of `OutlineView` used to render a
+  reduced thin row (bullet + label + render-state chip, whole row a button).
+  That row kind is deleted: the list mode now renders the same `BlockRow`
+  machinery the page body and the read-only tree projections use — one real
+  outline row per item, hosting its own `OutlinerContext` (the
+  `ReferenceSubtree` precedent) so it renders outside a page view, with open
+  gestures resolving to the container's `onNodeClick`/`onNodeShiftClick`
+  (falling back to the enclosing context's navigation). Rows show recursive
+  children (the item's own `children` when the container supplied them, else
+  the client's live children, depth-capped) with the collapse chevron; the
+  windowing contract (`useWindowed` + Show more) is unchanged. Editable
+  containers get inline editing: the **Tasks hub now passes `editable`**
+  (new `CollectionHub` prop), so its list mode edits content in place and the
+  status property rides the row as the clickable bullet icon button (the
+  task family binds Status with the bullet display) — click the row's text
+  to type, click the circle to change status. Read-only rows are the new
+  inert variant (`BlockRow.readOnlyInert`, class `nt-block--inert`): the
+  content click does NOTHING, the cursor stays the reading default, the
+  row-hover bullet brightening is scoped back to the bullet's own hover, and
+  **the bullet element is the only open gesture** (click opens, shift+click
+  peeks) — the old full-row hover wash died with the thin row. Edit/read
+  alignment: read-only rows now render the SAME metadata chrome statically —
+  property icon buttons (`nt-propicon--static`), the classes column
+  (`NodePills.readOnly` — static pills, no add/remove/reorder/menu, the "+N"
+  overflow popup lists without mutation chrome), the tags row
+  (`TagsRow.readOnly`), and the collapsed **Metadata** section
+  (`PropertiesSection`/`PropertiesTable`/`readOnly` threaded through every
+  row type — scalars as text, carriers via the read-only `ReferenceSubtree`,
+  selects/dates/objects as static pills, booleans as a disabled checkbox,
+  assets without actions, no add-property row, no label settings/context
+  menus, no text-row auto-unset pass). Block-scale widget tokens inside a
+  list row render their compact PLACEHOLDER (`BlockRow.suppressWidgets`,
+  threaded down the recursion) instead of the live surface — a live query
+  inside a query result row could recurse, and the list names the widget
+  while the page body owns the live surface. The read-only TREE paths keep
+  their click-content-to-open contract (Child pages, "Extended by") — only
+  the flat list is inert. Verified: `pnpm typecheck` + `pnpm test` green
+  (1454 web tests; the view-modes suite now pins the tasks-hub inline-editing
+  contract — status buttons on both row kinds, click-to-edit — and the new
+  inert read-only contract: content click opens nothing, the bullet does;
+  query-block/query-builder/queries-hub suites re-pinned on full rows;
+  windowing + class-view unbroken).
+
 ## 2026-10-09
 
 - **feat(web): graph settings surface for clustering — the toggle and the
