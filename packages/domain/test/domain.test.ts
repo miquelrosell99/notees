@@ -7,6 +7,7 @@ import {
   DISPLAY_NAME_MAX,
   fullTitleOf,
   isClassNode,
+  isTextOnlyContent,
   plainTextExcerpt,
   rendersAsInlineBlock,
   rendersWithDocumentChrome,
@@ -21,6 +22,7 @@ import {
   SYSTEM_PROPERTY_SPECS,
   SYSTEM_PROPERTY_UUIDS,
   systemClassAncestors,
+  stringifyContentAst,
 } from "../src/index.js";
 import type { ContentAst } from "@notees/protocol";
 
@@ -379,6 +381,24 @@ describe("deriveDisplayName", () => {
         contentAst: [{ type: "class_chip", classId: "0192a000-0000-7000-8000-0000000000c1" }],
       }),
     ).toBe("");
+  });
+
+  it("headings recurse like quotes: the excerpt flattens them and stringify does NOT survive them", () => {
+    const headingAst: ContentAst = [
+      {
+        type: "heading",
+        children: [
+          { type: "text", text: "The argument" },
+          { type: "hard_break" },
+          { type: "text", text: "restated" },
+        ],
+      },
+    ];
+    expect(plainTextExcerpt(headingAst)).toBe("The argument restated");
+    // A block→page promotion flattens the heading to plain text (heading is
+    // structure, not a survivor like whiteboard/query/code_block).
+    expect(stringifyContentAst(headingAst)).toEqual([{ type: "text", text: "The argument restated" }]);
+    expect(isTextOnlyContent(headingAst)).toBe(false);
   });
 });
 

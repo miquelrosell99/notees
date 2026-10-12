@@ -224,6 +224,10 @@ function renderBlock(block: ExportBlock): string {
       return renderSpans(block.spans);
     case "quote":
       return `\\begin{quote}\n${renderSpans(block.spans)}\n\\end{quote}`;
+    case "heading":
+      // The page title rides \section above the outline — headings
+      // take the next level.
+      return `\\subsection*{${renderSpans(block.spans)}}`;
     case "asset": {
       // Single-file delivery carries no bytes: a boxed placeholder labeled
       // `Asset:` with the CAS id; a resolved bundle path (ctx.assetPath,

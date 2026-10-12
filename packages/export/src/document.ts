@@ -190,6 +190,7 @@ export type ExportSpan =
 export type ExportBlock =
   | { kind: "paragraph"; spans: readonly ExportSpan[] }
   | { kind: "quote"; spans: readonly ExportSpan[] }
+  | { kind: "heading"; spans: readonly ExportSpan[] }
   | {
       kind: "asset";
       assetId: string;
@@ -578,6 +579,9 @@ function buildBlocks(
     if (token.type === "quote") {
       flush();
       out.push({ kind: "quote", spans: token.children.map((child) => buildSpan(child, ctx)) });
+    } else if (token.type === "heading") {
+      flush();
+      out.push({ kind: "heading", spans: token.children.map((child) => buildSpan(child, ctx)) });
     } else if (token.type === "asset_ref") {
       flush();
       if (!assetRefs.includes(token.assetId)) assetRefs.push(token.assetId);

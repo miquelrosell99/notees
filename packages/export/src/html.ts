@@ -345,6 +345,9 @@ function renderBlock(block: ExportBlock): string {
       return `<p>${renderSpans(block.spans)}</p>`;
     case "quote":
       return `<blockquote>${renderSpans(block.spans)}</blockquote>`;
+    case "heading":
+      // The page title rides <h1> — block headings take the next level.
+      return `<h2>${renderSpans(block.spans)}</h2>`;
     case "asset": {
       // Single-file delivery carries no bytes: a placeholder box, with the
       // bundle-relative path as a caption when ctx.assetPath resolved it.
