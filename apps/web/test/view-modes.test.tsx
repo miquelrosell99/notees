@@ -233,11 +233,52 @@ describe("tasks hub", () => {
     expect(cards.length).toBe(2);
 
     fireEvent.click(screen.getByRole("radio", { name: "Outline" }));
-    // The bucket section above the collection lists the same
-    // tasks; scope the outline assertions to the hub collection itself.
-    const hub = within(document.querySelector(".nt-hub") as HTMLElement);
-    expect(hub.getByRole("button", { name: /Write report/ })).not.toBeNull();
-    expect(hub.getByRole("button", { name: /Call the office/ })).not.toBeNull();
+    // The list view renders FULL block rows (the same outline row the page
+    // body uses), inline-editable because the tasks hub is an editing
+    // surface: one row per member, content editable in place, and the
+    // status property riding the row as the bullet icon button (the task
+    // family binds Status with the bullet display position).
+    const hub = document.querySelector(".nt-hub") as HTMLElement;
+    const rows = hub.querySelectorAll(".outline-flat > li");
+    expect(rows.length).toBe(2);
+    expect(hub.textContent).toContain("Write report");
+    expect(hub.textContent).toContain("Call the office");
+    expect(
+      hub.querySelectorAll(
+        `.nt-propicon[data-property-schema-id="${SYSTEM_PROPERTY_UUIDS.taskStatus}"]`,
+      ).length,
+    ).toBe(2);
+    // Inline editing: clicking the row content swaps in the block editor.
+    fireEvent.click(hub.querySelector(".nt-block-content") as HTMLElement);
+    expect(hub.querySelector(".nt-block--editing")).not.toBeNull();
+  });
+
+  it("list view opens via the bullet: read-only rows are inert (content click does nothing)", async () => {
+    const client = await seedClient();
+    const parentless = await client.createObject({ presentAsMain: true, name: "Solo" });
+
+    // A read-only flat collection (no editable): the owner-facing inert
+    // contract — clicking the content does NOT open; the bullet element
+    // does.
+    const opened: string[] = [];
+    const { container } = render(
+      <CollectionHub
+        client={client}
+        icon="mdi-format-list-bulleted"
+        title="Readonly list"
+        items={[{ node: client.getNode(parentless)! }]}
+        modes={["outline"]}
+        defaultMode="outline"
+        onOpenNode={(id) => opened.push(id)}
+      />,
+    );
+    const content = container.querySelector(".nt-block-content") as HTMLElement;
+    expect(content).not.toBeNull();
+    expect(container.querySelector(".nt-block--inert")).not.toBeNull();
+    fireEvent.click(content);
+    expect(opened).toEqual([]);
+    fireEvent.click(container.querySelector(".nt-bullet") as HTMLElement);
+    expect(opened).toEqual([parentless]);
   });
 
   it("sorts by name ascending and descending via header clicks", async () => {
@@ -415,7 +456,7 @@ describe("assets hub", () => {
 });
 
 describe("pages hub (workspace roots)", () => {
-  it("lists top-level pages only — subpages stay in their parent's zone", async () => {
+  it("lists top-level pages only — subpages render nested under their parent's row", async () => {
     const client = await seedClient();
     await client.createObject({ presentAsMain: true, name: "Top Level" });
     const parentId = await client.createObject({ presentAsMain: true, name: "Parent" });
@@ -423,9 +464,24 @@ describe("pages hub (workspace roots)", () => {
 
     render(<HubView client={client} nav="pages" onOpenNode={() => {}} />);
 
-    expect(screen.getByText("Top Level")).not.toBeNull();
-    expect(screen.getByText("Parent")).not.toBeNull();
-    expect(screen.queryByText("Subpage")).toBeNull();
+    const hub = document.querySelector(".nt-hub") as HTMLElement;
+    // Top-level membership reads each row's OWN content (the root block's
+    // content div), not the whole subtree — children nest inside the row.
+    const ownTitle = (li: Element): string =>
+      li.querySelector(
+        ":scope > .outline-row > .nt-block > .nt-block-row > .nt-block-content",
+      )?.textContent ?? "";
+    const ownTitles = [...hub.querySelectorAll(".outline-flat > li")].map(ownTitle);
+    expect(ownTitles.some((t) => t.includes("Top Level"))).toBe(true);
+    expect(ownTitles.some((t) => t.includes("Parent"))).toBe(true);
+    // The subpage is not a top-level row…
+    expect(ownTitles.some((t) => t.includes("Subpage"))).toBe(false);
+    // …it renders nested inside the Parent row (the list view's recursive
+    // children).
+    const parentRow = [...hub.querySelectorAll(".outline-flat > li")].find(
+      (li) => ownTitle(li).includes("Parent"),
+    ) as HTMLElement;
+    expect(parentRow.textContent).toContain("Subpage");
   });
 });
 

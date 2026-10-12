@@ -103,12 +103,12 @@ describe("query block (live query token)", () => {
 
     expect(await screen.findByText("Paris")).not.toBeNull();
     expect(screen.getByText("London")).not.toBeNull();
-    // Two member pages → badge 2; one outline row per member (page rows
-    // carry no type chip — only non-page nodes do, covered below).
+    // Two member pages → badge 2; one full block row per member (the list
+    // view renders the outline row — content, no render-state chips).
     expect(badge(container)).toBe("2");
-    const items = container.querySelectorAll(".outline-row__main");
+    const items = container.querySelectorAll(".outline-flat > li");
     expect(items.length).toBe(2);
-    const labels = [...items].map((el) => el.querySelector(".outline-row__label")?.textContent).sort();
+    const labels = [...items].map((el) => el.querySelector(".nt-block-content")?.textContent).sort();
     expect(labels).toEqual(["London", "Paris"]);
   });
 
@@ -188,9 +188,11 @@ describe("query block (live query token)", () => {
     // Subtree: the host page + its two body blocks + the query block itself —
     // nothing from other pages. (The row read retries: the query re-runs
     // async after mount, so the result list can land a tick after the page
-    // body that findByText above matched.)
+    // body that findByText above matched.) The list view renders full rows:
+    // the host row nests its own children, so top-level <li> rows are
+    // counted, not every nested block.
     await waitFor(() => {
-      const items = Array.from(container.querySelectorAll(".outline-row__main")).map(
+      const items = Array.from(container.querySelectorAll(".outline-flat > li")).map(
         (el) => el.textContent ?? "",
       );
       expect(items.length).toBe(4);
@@ -213,10 +215,10 @@ describe("query block (live query token)", () => {
 
     const { container } = render(<PageView client={client} pageId={host} />);
     await screen.findByText("The capital city");
-    // Only the block carries the text; the chip shows its render state.
-    let items = container.querySelectorAll(".outline-row__main");
+    // Only the block matches; the list view renders it as a full block row.
+    let items = container.querySelectorAll(".outline-flat > li");
     expect(items.length).toBe(1);
-    expect(items[0]?.querySelector(".outline-row__type")?.textContent).toBe("Block");
+    expect(items[0]?.textContent).toContain("The capital city");
 
     // Add a presentAsMain condition via the content update path: the block
     // drops out and the list goes empty.
@@ -231,7 +233,7 @@ describe("query block (live query token)", () => {
       });
     });
     expect(await screen.findByText("No results.")).not.toBeNull();
-    items = container.querySelectorAll(".outline-row__main");
+    items = container.querySelectorAll(".outline-flat > li");
     expect(items.length).toBe(0);
   });
 
@@ -269,7 +271,7 @@ describe("query block (live query token)", () => {
     );
     // Re-render reflects the new filter: only the body block matches now.
     await screen.findByText("The capital city");
-    expect(container.querySelectorAll(".outline-row__main").length).toBe(1);
+    expect(container.querySelectorAll(".outline-flat > li").length).toBe(1);
     expect(screen.queryByText("Paris")).toBeNull();
   });
 
@@ -313,7 +315,7 @@ describe("query block (live query token)", () => {
     );
     expect(token.queryAst.scope).toEqual({ type: "subtree", pageId: host });
     // Re-render: only the host subtree remains (host page + the query block).
-    const items = Array.from(container.querySelectorAll(".outline-row__main"));
+    const items = Array.from(container.querySelectorAll(".outline-flat > li"));
     expect(items.length).toBe(2);
     expect(items.some((el) => el.textContent?.includes("Paris"))).toBe(false);
   });
@@ -504,12 +506,12 @@ describe("query block (live query token)", () => {
 
     const { container } = render(<PageView client={client} pageId={host} />);
     await screen.findByText("City 0");
-    expect(container.querySelectorAll(".outline-row__main").length).toBe(QUERY_RESULT_CAP);
+    expect(container.querySelectorAll(".outline-flat > li").length).toBe(QUERY_RESULT_CAP);
     expect(badge(container)).toBe(String(total));
 
     // The cap is a render window, not a result ceiling: load-more widens it.
     fireEvent.click(screen.getByRole("button", { name: /5 more/ }));
-    expect(container.querySelectorAll(".outline-row__main").length).toBe(total);
+    expect(container.querySelectorAll(".outline-flat > li").length).toBe(total);
     expect(screen.queryByRole("button", { name: /more/ })).toBeNull();
   });
 
@@ -528,8 +530,12 @@ describe("query block (live query token)", () => {
     render(<PageView client={client} pageId={host} onOpenPage={(id) => opened.push(id)} />);
     await screen.findByText("The capital city");
 
-    // A block result resolves to its containing page (Paris).
+    // The list view's read-only rows are INERT: clicking the content does
+    // nothing; opening rides the bullet element.
     fireEvent.click(screen.getByText("The capital city"));
+    expect(opened).toEqual([]);
+    const row = document.querySelector(".outline-flat > li .nt-block") as HTMLElement;
+    fireEvent.click(row.querySelector(".nt-bullet") as HTMLElement);
     expect(opened).toEqual([paris]);
 
     // Rewrite the token to a page-level query: a page result opens directly.
@@ -540,6 +546,9 @@ describe("query block (live query token)", () => {
     });
     const parisRow = await screen.findByText("Paris");
     fireEvent.click(parisRow);
+    expect(opened).toEqual([paris]);
+    const pageRow = document.querySelector(".outline-flat > li .nt-block") as HTMLElement;
+    fireEvent.click(pageRow.querySelector(".nt-bullet") as HTMLElement);
     expect(opened).toEqual([paris, paris]);
   });
 

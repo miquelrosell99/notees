@@ -4,6 +4,13 @@
  * Two display modes on the content div:
  *
  * - read mode: InlineTokens (marks/chips render read-only per SCHEMA.md).
+ *   Read-only projections keep the full row chrome — property icon buttons,
+ *   classes column, tags row, the collapsed Metadata section — rendered
+ *   statically, so a read-only row reads aligned with its editable twin.
+ *   Two read-only click contracts: the tree projections (Child pages)
+ *   open the node on content click; the inert flat-list variant
+ *   (`readOnlyInert`, the node-collection list view) leaves the content
+ *   click dead — the bullet element is the only open gesture.
  * - edit mode: a click swaps in BlockTextEditor (contentEditable prose
  *   editing, the outliner keyboard contract).
  *
@@ -77,10 +84,31 @@ interface BlockRowProps {
   /**
    * Read-only projection: renders the same
    * row chrome but disables every mutation gesture — no drag, no edit on
-   * click, no context menu; clicking the content opens the node instead.
-   * Used by the Child pages tree and the Class View's "Extended by" list.
+   * click, no context menu. The metadata chrome (property icon buttons,
+   * classes column, tags row, the collapsed Metadata section) renders
+   * aligned with the editable row, statically.
+   *
+   * Clicking the content opens the node by default (the Child pages tree,
+   * the Class View's "Extended by" list); `readOnlyInert` turns that off
+   * too — the flat node-collection list sets it so the bullet is the only
+   * open gesture (the row's hover feedback is scoped to the bullet).
    */
   readOnly?: boolean | undefined;
+  /**
+   * The inert read-only variant (the flat node-collection list): a content
+   * click does NOTHING — opening rides the bullet element alone. The row
+   * wears `nt-block--inert` (cursor + hover rules). Only meaningful with
+   * `readOnly`.
+   */
+  readOnlyInert?: boolean | undefined;
+  /**
+   * Flat collection-list projection: block-scale widget tokens (embeds,
+   * queries, whiteboards, assets) render their compact PLACEHOLDER instead
+   * of the live surface — a live `query` inside a result row could recurse,
+   * and the list names the widget while the page body owns the live
+   * surface. Threaded down the recursion by the view that sets it.
+   */
+  suppressWidgets?: boolean | undefined;
   /**
    * Prose-view transform: collapse state is ignored — collapsed ids still
    * render their full subtree and no chevron mounts (nothing left to expand
@@ -108,7 +136,7 @@ interface BlockRowProps {
   variant?: "block" | "title" | undefined;
 }
 
-export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCollapse = false, tableRow = false, variant = "block" }: BlockRowProps) {
+export function BlockRow({ tree, client, resolveName, readOnly = false, readOnlyInert = false, suppressWidgets = false, ignoreCollapse = false, tableRow = false, variant = "block" }: BlockRowProps) {
   const [gripMenu, setGripMenu] = useState<{ x: number; y: number } | null>(null);
   const { node, children } = tree;
   const isTitle = variant === "title";
@@ -167,8 +195,9 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
     // A trailing click right after a selection drag must not enter edit mode.
     if (consumeDragClick()) return;
     if (readOnly) {
-      // Read-only projection: clicking the row opens the node.
-      openNode(node.id);
+      // Read-only projection: a content click opens the node — except the
+      // inert flat-list variant, where the bullet is the only open gesture.
+      if (!readOnlyInert) openNode(node.id);
       return;
     }
     // The title row never joins the block multi-selection (it lives outside
@@ -239,6 +268,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
               resolveName={resolveName}
               readOnly={readOnly}
               ignoreCollapse={ignoreCollapse}
+              suppressWidgets={suppressWidgets}
             />
           ))}
         </SortableContext>
@@ -353,10 +383,15 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
   // the full block editor swapped in on click. The title projection
   // suppresses the block-scale widget renderers (embeds, queries,
   // whiteboards, assets) — those surfaces render in the body, never in the
-  // header.
+  // header. The flat collection-list projection suppresses them to the
+  // PLACEHOLDER fallback instead (InlineTokens names the widget): a live
+  // query inside a list row could recurse, and the list names the widget
+  // while the page body owns the live surface.
   // Mention opens ride `openNode` — the host funnel (the App openPage seam)
   // resolves node aliases to their terminal.
   const suppressWidget = isTitle ? () => null : undefined;
+  /** The live widget renderer, or the placeholder fallback in flat lists. */
+  const widget = <R,>(renderer: R): R | undefined => (suppressWidgets ? undefined : renderer);
   const tokens = (
     <InlineTokens
       tokens={node.contentAst}
@@ -373,17 +408,17 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
       }}
       renderEmbed={
         suppressWidget ??
-        ((id, _token, index) => <EmbedView nodeId={id} hostId={node.id} tokenIndex={index} />)
+        widget((id: string, _token: unknown, index: number) => <EmbedView nodeId={id} hostId={node.id} tokenIndex={index} />)
       }
       renderEmbedCard={
         suppressWidget ??
-        ((id, view, _token, index) => (
+        widget((id: string, view: "small_card" | "wide_card", _token: unknown, index: number) => (
           <EmbedCardView nodeId={id} view={view} hostId={node.id} tokenIndex={index} />
         ))
       }
       renderQuery={
         suppressWidget ??
-        ((token, index) => (
+        widget((token: unknown, index: number) => (
           <QueryBlockView
             client={outlinerClient}
             ownerId={node.id}
@@ -397,7 +432,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
       }
       renderWhiteboard={
         suppressWidget ??
-        ((_token, index) => (
+        widget((_token: unknown, index: number) => (
           <WhiteboardCanvas
             client={outlinerClient}
             hostId={node.id}
@@ -408,7 +443,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
       }
       renderAsset={
         suppressWidget ??
-        ((token, _index, fullBleed) => {
+        widget((token: unknown, _index: number, fullBleed: boolean) => {
           const assetId = (token as { assetId?: unknown }).assetId;
           return typeof assetId === "string" ? (
             <AssetView client={client} assetId={assetId} fullBleed={fullBleed} />
@@ -451,7 +486,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
 
   return (
     <div
-      className={`nt-block${readOnly ? " nt-block--readonly" : ""}${editing ? " nt-block--editing" : ""}${dropClass}${selectedClass}${dragSourceClass}`}
+      className={`nt-block${readOnly ? " nt-block--readonly" : ""}${readOnly && readOnlyInert ? " nt-block--inert" : ""}${editing ? " nt-block--editing" : ""}${dropClass}${selectedClass}${dragSourceClass}`}
       ref={setNodeRef}
       data-block-id={node.id}
       style={{
@@ -570,10 +605,12 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
             overflow popup, drag to reorder) and the backlink gutter toggle
             (SCHEMA.md:117 — the count badge rides the materialized
             node_stats number). The gutter is reference material, so it shows
-            in read-only projections too. */}
-        {!focusMode && (backlinkCount > 0 || !readOnly) && (
+            in read-only projections too; the classes column renders in
+            read-only as well (static pills — edit/read alignment), hiding
+            only when the row carries no classes at all. */}
+        {!focusMode && (backlinkCount > 0 || !readOnly || node.classIds.length > 0) && (
           <div className="nt-block-row-end">
-            {!readOnly && (
+            {(!readOnly || node.classIds.length > 0) && (
               <div className="nt-block-classes">
                 <NodePills
                   client={client}
@@ -582,6 +619,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
                   onOpenPage={openNode}
                   overflow
                   iconOnlyAdd
+                  readOnly={readOnly}
                 />
               </div>
             )}
@@ -603,25 +641,28 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
         <BlockBacklinkPanel nodeId={node.id} expanded={backlinksExpanded} client={client} />
       )}
       {/* Tags: dedicated row below the block row, only when set (assignment
-          rides the `#` trigger). Focus mode (#12) hides them with the rest
-          of the block metadata. */}
-      {!readOnly && !focusMode && node.tagIds.length > 0 && (
+          rides the `#` trigger). Read-only projections render the same row
+          with static pills (edit/read alignment). Focus mode (#12) hides
+          them with the rest of the block metadata. */}
+      {!focusMode && node.tagIds.length > 0 && (
         <div className="nt-block-tags">
-          <TagsRow client={client} nodeId={node.id} tagIds={node.tagIds} onOpenPage={openNode} />
+          <TagsRow client={client} nodeId={node.id} tagIds={node.tagIds} onOpenPage={openNode} readOnly={readOnly} />
         </div>
       )}
       {/* Properties: the same collapsed "Metadata N" section the page view
-          uses; hidden entirely when the block carries no properties. Rows
-          whose schema display rides the block row (bullet/inline)
-          are omitted — the button above already surfaces the value. Focus
-          mode (#12) hides the whole section. */}
-      {!readOnly && !focusMode && (
+          uses, rendered in read-only with static values so the row stays
+          aligned with its editable twin. Rows whose schema display rides
+        the block row (bullet/inline) are omitted — the button above
+        already surfaces the value. Focus mode (#12) hides the whole
+        section. */}
+      {!focusMode && (
         <PropertiesSection
           client={client}
           nodeId={node.id}
           onOpenPage={openNode}
           hideWhenEmpty
           omitDisplayPositions={ROW_DISPLAY_POSITIONS}
+          readOnly={readOnly}
         />
       )}
       {/* Block-level metadata now lives around the row: classes ride the
@@ -714,6 +755,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
                     readOnly={readOnly}
                     ignoreCollapse={ignoreCollapse}
                     tableRow
+                    suppressWidgets={suppressWidgets}
                   />
                 ))}
               </SortableContext>
@@ -750,6 +792,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, ignoreCo
                   resolveName={resolveName}
                   readOnly={readOnly}
                   ignoreCollapse={ignoreCollapse}
+                  suppressWidgets={suppressWidgets}
                 />
               ))}
             </div>
