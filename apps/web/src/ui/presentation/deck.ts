@@ -122,6 +122,7 @@ export function collectEmbedTargets(entries: readonly DeckTreeEntry[]): string[]
         }
       }
       if (t.type === "quote" && Array.isArray(t.children)) scanAst(t.children as readonly unknown[]);
+      if (t.type === "heading" && Array.isArray(t.children)) scanAst(t.children as readonly unknown[]);
     }
   };
   const walk = (entry: DeckTreeEntry): void => {

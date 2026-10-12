@@ -164,6 +164,7 @@ function buildStyles(theme: PdfTheme) {
       paddingLeft: 10,
       color: theme.colors.muted,
     },
+    headingContent: { fontSize: 14, fontWeight: 700, marginTop: 6, marginBottom: 2 },
     embedRefContent: { flex: 1, marginBottom: 0, color: theme.colors.muted },
     outlineTitleContent: {
       flex: 1,
@@ -303,6 +304,14 @@ function PdfBlock({
             </Text>
           </View>
         </PdfTextRow>
+      );
+    case "heading":
+      // The page title rides the document headings — block headings take
+      // the next size down, still without a bullet (structure, not prose).
+      return (
+        <Text style={styles.headingContent}>
+          <PdfSpans spans={block.spans} styles={styles} theme={theme} chrome={chrome} />
+        </Text>
       );
     case "asset": {
       const dataUrl = assetDataUrls.get(block.assetId);

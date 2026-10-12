@@ -58,7 +58,10 @@ export function promoteMentionInAst(
       }
       continue;
     }
-    if ((token as { type?: string }).type === "quote") {
+    if (
+      (token as { type?: string }).type === "quote" ||
+      (token as { type?: string }).type === "heading"
+    ) {
       const children = (token as { children?: unknown[] }).children ?? [];
       for (let j = 0; j < children.length; j++) {
         const childRun = textRunOf(children[j]);

@@ -7,7 +7,8 @@
  * fallbacks); external links render as plain hyperlinks (underline + link
  * color, never a pill); mentions also notify the app-level hover coordinator
  * (NodeHoverPreview — dwell raises a bounded preview card; the card's pin
- * promotes to a floating editor window); quote recurses; embed_ref renders
+ * promotes to a floating editor window); quote and heading recurse (heading
+ * carries the large/bold typography); embed_ref renders
  * the live subtree via the
  * optional renderEmbed callback (placeholder box when absent); query renders
  * the live query block via the optional renderQuery callback (placeholder box
@@ -267,6 +268,16 @@ function renderToken(
       const children = Array.isArray(t.children) ? t.children : [];
       return (
         <span key={key} className="nt-quote">
+          <InlineTokens tokens={children} resolveName={resolveName} resolveFullTitle={resolveFullTitle} resolveVerb={resolveVerb} renderEmbed={renderEmbed} onOpenNode={onOpenNode} resolveColor={resolveColor} />
+        </span>
+      );
+    }
+    case "heading": {
+      // The heading token renders as a large/bold line (the BlockRow chrome
+      // carries the block chrome; the token carries the typography).
+      const children = Array.isArray(t.children) ? t.children : [];
+      return (
+        <span key={key} className="nt-heading">
           <InlineTokens tokens={children} resolveName={resolveName} resolveFullTitle={resolveFullTitle} resolveVerb={resolveVerb} renderEmbed={renderEmbed} onOpenNode={onOpenNode} resolveColor={resolveColor} />
         </span>
       );
