@@ -20,6 +20,7 @@
  */
 
 import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { EffectiveProperty, WorkspaceClient } from "@/core/workspace-client.js";
@@ -27,6 +28,7 @@ import type { EffectiveProperty, WorkspaceClient } from "@/core/workspace-client
 import { Icon } from "../Icon.js";
 import { cssColorFor } from "./ui/colorPresets.js";
 import { usePopupDismissal } from "./ui/usePopupDismissal.js";
+import { useViewportPosition } from "./pickers/useViewportPosition.js";
 import type { SelectionOption } from "./pickers/SelectionPropertyControl.js";
 import "./PropertyIconButton.css";
 
@@ -117,12 +119,22 @@ export function PropertyIconButton({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
+  // The popover portals to the body with viewport-fixed positioning: an
+  // in-flow absolute popup inherits every ancestor stacking context (sticky
+  // section chrome, transformed rows), which let page content bleed through
+  // the popup surface.
+  const popoverOpen = open && !disabled;
+  const position = useViewportPosition(buttonRef, popoverOpen, {
+    popupRef: popoverRef,
+    edgePadding: 8,
+  });
+
   // Dismissal: Escape from outside + pointer-down outside; the
   // popover root owns an interior Escape.
   usePopupDismissal({
     popupRef: popoverRef,
     anchorRefs: [buttonRef],
-    isOpen: open && !disabled,
+    isOpen: popoverOpen,
     onClose: () => setOpen(false),
   });
 
@@ -146,8 +158,17 @@ export function PropertyIconButton({
         : undefined
     : options.find((option) => option.id === selectedIds[0]);
   const displayOptions = boolean ? [BOOLEAN_TRUE_OPTION, BOOLEAN_FALSE_OPTION] : options;
+  // The effective row's source: a binding-supplied default reads on the
+  // button like an authored value (the at-a-glance state IS the effective
+  // state), the tooltip names it — the same "default" hint the metadata
+  // table carries.
+  const isDefaultSourced = !boolean && ordered.some((r) => r.source === "default");
   const tooltip =
-    currentOption !== undefined ? `${label}: ${currentOption.label}` : `${label}: none`;
+    currentOption !== undefined
+      ? isDefaultSourced
+        ? `${label}: ${currentOption.label} (default)`
+        : `${label}: ${currentOption.label}`
+      : `${label}: none`;
 
   const choose = async (optionId: string): Promise<void> => {
     if (boolean) {
@@ -220,19 +241,25 @@ export function PropertyIconButton({
       >
         {glyph}
       </button>
-      {open && (
-        <div
-          ref={popoverRef}
-          className="nt-propicon-popover"
-          role="menu"
-          aria-label={label}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              event.stopPropagation();
-              setOpen(false);
-            }
-          }}
-        >
+      {open &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            className="nt-propicon-popover"
+            role="menu"
+            aria-label={label}
+            style={{
+              top: position?.top ?? 0,
+              left: position?.left ?? 0,
+              visibility: position === null ? "hidden" : "visible",
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.stopPropagation();
+                setOpen(false);
+              }
+            }}
+          >
           {displayOptions.length === 0 && <div className="nt-propicon-popover__empty">No options.</div>}
           {displayOptions.map((option) => {
             const selected = selectedIds.includes(option.id);
@@ -273,8 +300,9 @@ export function PropertyIconButton({
               <span className="nt-propicon-option__label">None</span>
             </button>
           )}
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </span>
   );
 }
