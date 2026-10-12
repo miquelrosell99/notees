@@ -1,6 +1,7 @@
 /* SectionViewTabs — the hosted-views chrome riding a hosted NodeCollection:
    the tab bar row (Default permanent first, custom tabs by sequence, the
-   "+" add-slot, the reset rendered only when custom views exist), the
+   "+" add-slot, the reset rendered only when custom views exist, the host
+   section's trailing chrome — filter/search/view-switch — far right), the
    active custom tab's manage row (rename / move / delete), and the
    write-error line. Token-only. */
 
@@ -11,7 +12,10 @@
 }
 
 .nt-section-views__bar {
+  /* Wraps: an inline FilterBar's structured panel takes a full-width line
+     beneath the row when open. */
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-2);
