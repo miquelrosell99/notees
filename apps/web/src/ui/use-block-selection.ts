@@ -2,10 +2,18 @@
  * useBlockSelectionSurface — the block multi-selection gestures for
  * the editable page body (the outline tree).
  *
- * - Plain mousedown on a row + a small vertical drag → drag selection: the
- *   anchor row is selected first, then every row the pointer arches over
- *   extends the range (document order, inclusive). The trailing click after
- *   a drag is swallowed (one-shot flag) so it never enters edit mode.
+ * - Plain mousedown on a row + the pointer leaving that row's borders →
+ *   drag selection: the anchor row is selected first, then every row the
+ *   pointer arches over extends the range (document order, inclusive).
+ *   While the pointer stays inside the pressed block nothing is selected —
+ *   read-mode content is user-select:none (app.css), so the gesture never
+ *   produces a text selection, and the block range arms only on the border
+ *   exit. A press inside the EDITING block keeps native text selection
+ *   until the pointer exits the contentEditable's borders, then the in-
+ *   block text selection is dropped and the same block-range drag takes
+ *   over (selection between blocks is impossible — text selection exists
+ *   only inside the block being edited). The trailing click after a drag
+ *   is swallowed (one-shot flag) so it never enters edit mode.
  * - Shift+click / Ctrl+click are handled by BlockRow's click handler; this
  *   hook only preventDefaults their mousedown so the browser doesn't start
  *   a text selection or place a caret.
@@ -21,13 +29,12 @@ import { useEffect, useRef, type MouseEvent as ReactMouseEvent, type RefObject }
 
 import type { OutlinerContextValue } from "./outliner-context.js";
 
-/** Pixels of vertical travel before a press becomes a drag selection. */
-const DRAG_THRESHOLD = 4;
-
 interface DragState {
   startId: string;
-  startX: number;
-  startY: number;
+  /** The row element the press landed on — the border-exit bounds. */
+  startRow: HTMLElement;
+  /** The contentEditable the press started inside (edit mode), else null. */
+  startEditable: HTMLElement | null;
   dragging: boolean;
   lastExtendId: string | null;
 }
@@ -49,9 +56,30 @@ export function useBlockSelectionSurface(
       if (drag === null) return;
       const live = outlinerRef.current;
       if (!drag.dragging) {
-        if (Math.abs(event.clientY - drag.startY) < DRAG_THRESHOLD) return;
+        // Arm only when the pointer exits the pressed block's borders:
+        // inside them an edit-mode press is a plain text selection and a
+        // read-mode press selects nothing (user-select:none) — nothing may
+        // happen until the gesture crosses the border.
+        const bounds = (drag.startEditable ?? drag.startRow).getBoundingClientRect();
+        const inside =
+          event.clientX >= bounds.left &&
+          event.clientX <= bounds.right &&
+          event.clientY >= bounds.top &&
+          event.clientY <= bounds.bottom;
+        if (inside) return;
         drag.dragging = true;
+        if (drag.startEditable !== null) {
+          // The drag began as a text selection inside the editor: drop the
+          // native selection and keep it dropped — the default action of
+          // the moves that follow would re-extend it across blocks.
+          window.getSelection()?.removeAllRanges();
+          event.preventDefault();
+        }
         live.replaceSelection(new Set([drag.startId]), drag.startId);
+      } else if (drag.startEditable !== null) {
+        // Block-select phase of an edit-mode drag: suppress the native
+        // text-selection default for the rest of the gesture.
+        event.preventDefault();
       }
       const target = event.target;
       if (!(target instanceof Element)) return;
@@ -117,8 +145,26 @@ export function useBlockSelectionSurface(
     const target = event.target;
     if (!(target instanceof Element)) return;
     // The grip drags the block (dnd), buttons/pills/links have their own
-    // press semantics, and an active editor keeps normal text selection.
-    if (target.closest(".nt-block-grip, button, a, input, [contenteditable]")) return;
+    // press semantics — untouched by the selection surface.
+    if (target.closest(".nt-block-grip, button, a, input")) return;
+    const editable = target.closest("[contenteditable]");
+    if (editable !== null) {
+      // Edit mode: the press places the caret / starts a text selection
+      // inside the block (never preventDefaulted). Record the press so the
+      // move handler can convert the gesture into a block-range drag the
+      // moment the pointer exits the contentEditable's borders.
+      const row = target.closest("[data-block-id]");
+      const id = row?.getAttribute("data-block-id") ?? null;
+      if (id === null) return;
+      dragRef.current = {
+        startId: id,
+        startRow: row as HTMLElement,
+        startEditable: editable as HTMLElement,
+        dragging: false,
+        lastExtendId: null,
+      };
+      return;
+    }
     const row = target.closest("[data-block-id]");
     const id = row?.getAttribute("data-block-id") ?? null;
     if (id === null) return;
@@ -128,13 +174,14 @@ export function useBlockSelectionSurface(
       if (event.shiftKey) event.preventDefault();
       return;
     }
-    // A plain press: block the caret/text-selection now; if it grows into a
-    // drag the move handler takes over, otherwise the click edits as usual.
+    // A plain read-mode press: block the caret/text-selection now; if the
+    // pointer later exits the row's borders the move handler turns the
+    // gesture into a block-range drag, otherwise the click edits as usual.
     event.preventDefault();
     dragRef.current = {
       startId: id,
-      startX: event.clientX,
-      startY: event.clientY,
+      startRow: row as HTMLElement,
+      startEditable: null,
       dragging: false,
       lastExtendId: null,
     };

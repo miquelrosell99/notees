@@ -18,6 +18,8 @@
  *   value's time arm; callers at a coarser precision drop it).
  */
 
+import { DATE_UUID_MAX_YEAR, DATE_UUID_MIN_YEAR } from "@notees/domain";
+
 export interface ParsedDate {
   type: "day" | "month" | "year";
   year: number;
@@ -71,6 +73,24 @@ const MONTH_DISPLAY = [
   "November",
   "December",
 ];
+
+/** The date-node id window (dates.ts `parse_date_uuid` acceptance range). */
+const DATE_NODE_MIN_YEAR = DATE_UUID_MIN_YEAR;
+const DATE_NODE_MAX_YEAR = DATE_UUID_MAX_YEAR;
+
+/**
+ * A bare 4-digit year the date system does NOT claim (outside the
+ * 1900..2200 date-node window — 1711, 1066, 2450…). Pickers keep offering
+ * a plain create for it, labeled as a year (`Create year "1711"`) rather
+ * than a generic numbered page. Inside the window the date suggestion row
+ * already owns the year affordance, so this stays false there.
+ */
+export function isPlainYearQuery(text: string): boolean {
+  const match = /^(\d{4})$/.exec(text.trim());
+  if (match === null) return false;
+  const year = Number(match[1]);
+  return year < DATE_NODE_MIN_YEAR || year > DATE_NODE_MAX_YEAR;
+}
 
 /**
  * Check if a year/month/day combination is a valid date
