@@ -62,3 +62,17 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* The hosted view-chrome slot (owner 2026-10-12): a view portals its
+   per-view toolbar into the right-hand cluster; display:contents merges
+   the toolbar into the bar's flex line, and the ported toolbar loses its
+   body-top bottom margin. */
+.node-collection__view-chrome {
+  display: contents;
+}
+
+.node-collection__view-chrome .nt-table-toolbar,
+.node-collection__view-chrome .cards-toolbar,
+.node-collection__view-chrome .board-toolbar {
+  margin-bottom: 0;
+}

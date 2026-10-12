@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
 import { rendersWithDocumentChrome, SYSTEM_CLASS_UUIDS } from "@notees/domain";
@@ -27,7 +28,7 @@ import { renderStateLabel } from "../renderStateLabel.js";
 import { SelectionButton, Checkbox, ImageModal } from "../components/ui/index.js";
 import { registerView } from "./registry.js";
 import { useWindowed } from "./useWindowed.js";
-import { useLazyInView } from "./useLazyInView.js";
+import { useViewChromeTarget } from "./viewChrome.js";import { useLazyInView } from "./useLazyInView.js";
 import { ShowMoreButton } from "./ShowMoreButton.js";
 import { propertyDisplayText } from "./propertyDisplay.js";
 import { assetImageUrl, cardImageAssetId } from "./assetThumbs.js";
@@ -286,12 +287,18 @@ function FlatCards({
     enabled: props.windowed ?? true,
   });
   const selectable = props.selectable ?? true;
+  // Hosted collections: the toolbar portals into the tab bar's right-hand
+  // cluster (owner 2026-10-12); un-hosted it rides the body top.
+  const chromeTarget = useViewChromeTarget();
+  const toolbar = (
+    <div className="cards-toolbar">
+      <SelectionExportControls client={props.client} selection={selection} />
+      <CoverLayoutToggle value={coverLayout} onChange={onCoverLayout} />
+    </div>
+  );
   return (
     <div>
-      <div className="cards-toolbar">
-        <SelectionExportControls client={props.client} selection={selection} />
-        <CoverLayoutToggle value={coverLayout} onChange={onCoverLayout} />
-      </div>
+      {chromeTarget !== null ? createPortal(toolbar, chromeTarget) : toolbar}
       <div className="cards-grid">
         {visible.map((item) => (
           <NodeCard

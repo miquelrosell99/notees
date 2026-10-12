@@ -10,17 +10,19 @@
  *    transient filter persists VERBATIM as the new view's query_ast. In this
  *    host the modal's "Run" also persists (a tab IS the run target here) —
  *    with an auto label when the name field is empty;
+ *  - the bar's buttons ALL ride the FAR RIGHT (owner 2026-10-12): the "+"
+ *    left the tab strip (a <button> has no business inside the tablist) and
+ *    joins the host section's `trailing` chrome — the view switcher, the
+ *    FilterBar's permanent quick search + structured-filters toggle — one
+ *    right-hand cluster. Ordering contract: the FilterBar renders LAST in
+ *    the cluster so its structured panel wraps a full-width line BENEATH
+ *    the row without moving the other controls;
  *  - the active custom tab carries its management affordances: rename,
  *    reorder (move left/right), delete;
  *  - "Reset to default" (rendered only when custom views exist) deletes
  *    every custom view of the section — the default view is
  *    derived-not-stored, so emptying the table IS the factory state (the
- *    schema cannot express a default);
- *  - `trailing` (owner 2026-10-12): the host section's chrome — the filter
- *    bar (collapsible quick search + structured-filters toggle), the view
- *    switcher — rides the bar's FAR RIGHT, one row with the tabs. The
- *    FilterBar's structured panel still drops a full-width wrapped line
- *    beneath the bar (the bar wraps).
+ *    schema cannot express a default).
  *
  * The bar renders even while the views load (the Default tab + "+" are
  * usable immediately) and on an empty collection (the create affordance
@@ -142,10 +144,6 @@ export function SectionViewTabs({ client, nodeId, sectionKey, selected, onSelect
                 {view.name}
               </Tabs.Tab>
             ))}
-            <Tabs.AddButton
-              aria-label="Add custom view"
-              onClick={() => setBuilderOpen(true)}
-            />
           </Tabs.List>
         </Tabs>
         {/* Reset to default: only when there are custom views to reset —
@@ -160,6 +158,14 @@ export function SectionViewTabs({ client, nodeId, sectionKey, selected, onSelect
             Reset to default
           </button>
         )}
+        {/* The "+" rides the right-hand cluster, not the tablist (a <button>
+            has no business inside role="tablist") — before the trailing
+            chrome, which ends with the FilterBar so its wrapped panel never
+            moves these controls. */}
+        <Tabs.AddButton
+          aria-label="Add custom view"
+          onClick={() => setBuilderOpen(true)}
+        />
         {trailing}
       </div>
 

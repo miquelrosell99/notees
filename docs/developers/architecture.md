@@ -518,10 +518,13 @@ plan needing the probe channel keeps rows unfiltered and warns once. State is
 component state, one instance per section view/tab, lost on reload. The bar
 chrome (components/FilterBar.tsx) rides the hosted tab bar's FAR RIGHT (the
 NodeCollection's `tabBarTrailing`, owner 2026-10-12 — the classed-nodes
-table and the linked-references / unlinked-mentions sections): the quick
-search folds behind a magnifier toggle (a set text facet never folds away),
-the structured panel drops a wrapped full-width line beneath the tab row,
-and the live "N of M rows match" preview rides in the panel.
+table and the linked-references / unlinked-mentions sections): every button
+on the row sits right (the add-view + left the tablist for the cluster), the
+quick search is a PERMANENT field, and the structured panel drops a wrapped
+full-width line beneath the tab row — the FilterBar renders LAST in the
+cluster (and the views' own toolbars portal into a slot before it, see
+views/viewChrome.tsx), so the wrap never moves the row's other controls.
+The live "N of M rows match" preview rides in the panel.
 
 **GTK / Flutter** (sibling repos `notees-gtk`, `notees-flutter`, branches `protocol-v2`). Lockstep clients: strict payload validators + local appliers mirroring `packages/store` (same OR-Set gating, same LWW rules). Current with the TS reference as of the 2026-10-01 batch (tags + `tag.unassign`, title-is-content, `class.reorder`); both tagged `v2.0.0-m1` with CI-published releases. Any new op requires the same three-way lockstep.
 

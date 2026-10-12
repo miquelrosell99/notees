@@ -17,7 +17,12 @@
  * groupBy — so a persisted "kanban" reads back as "cards".
  */
 
-import { readDeviceSetting, useDeviceSetting, writeDeviceSetting } from "./components/modals/deviceSettings.js";
+import {
+  DEVICE_SETTINGS_PREFIX,
+  readDeviceSetting,
+  useDeviceSetting,
+  writeDeviceSetting,
+} from "./components/modals/deviceSettings.js";
 import type { CardLayout, ViewMode } from "./views/types.js";
 
 const VIEW_MODES: readonly ViewMode[] = ["outline", "prose", "cards", "table"];
@@ -141,3 +146,30 @@ export function useBannerCollapsed(pageId: string): [boolean, (collapsed: boolea
   const [raw, setRaw] = useDeviceSetting<boolean>(`pageBannerCollapsed.${pageId}`, true);
   return [raw !== false, setRaw];
 }
+
+// --- One-time migration: the classed-nodes table ruling ----------------------
+
+/**
+ * Owner 2026-10-12: classed nodes read TABLE. Devices hold stored per-class
+ * choices from before the ruling (the owner kept landing on outline), so
+ * the stored `viewMode.classMembers.*` entries are dropped ONCE per device
+ * and every class reads the default again; choices made after the
+ * migration persist as before. Runs at module load — before any
+ * useViewModePreference initial read — and is marker-guarded.
+ */
+const CLASS_MEMBERS_TABLE_MIGRATION = "migrations.classMembersTable20261012";
+
+function runClassMembersTableMigration(): void {
+  try {
+    if (readDeviceSetting<boolean>(CLASS_MEMBERS_TABLE_MIGRATION, false)) return;
+    const prefix = `${DEVICE_SETTINGS_PREFIX}viewMode.classMembers.`;
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith(prefix)) localStorage.removeItem(key);
+    }
+    writeDeviceSetting(CLASS_MEMBERS_TABLE_MIGRATION, true);
+  } catch {
+    // Storage unavailable — the migration retries on the next load.
+  }
+}
+
+runClassMembersTableMigration();

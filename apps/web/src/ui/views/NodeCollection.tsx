@@ -21,7 +21,10 @@
  * view_mode overrides the requested mode when the registry knows it.
  * `tabBarTrailing` rides the tab bar's far right (owner 2026-10-12) — the
  * host section's filter/view chrome joins the tabs' row; it renders ONLY
- * in the hosted tab bar (a non-hosted collection has no tab row).
+ * in the hosted tab bar (a non-hosted collection has no tab row). The
+ * view's own per-view toolbar (table columns/sort/more, cards cover/selection)
+ * portals into a slot mounted BEFORE the trailing chrome — the cluster ends
+ * with the FilterBar so its wrapped structured panel never moves the row.
  */
 
 import { Suspense, useEffect, useState } from "react";
@@ -32,6 +35,7 @@ import { getViewDefinition } from "./registry.js";
 import { SECTION_DEFAULT_TAB, SectionViewTabs } from "./SectionViewTabs.js";
 import { useSectionViewResolution } from "./sectionViewResolve.js";
 import type { NodeCollectionProps, ViewMode } from "./types.js";
+import { ViewChromeContext } from "./viewChrome.js";
 
 export function NodeCollection({
   viewMode,
@@ -49,6 +53,9 @@ export function NodeCollection({
     hosted?.sectionKey ?? "linked-references",
   );
   const [tab, setTab] = useState<string>(SECTION_DEFAULT_TAB);
+  // The hosted view-chrome slot (ref-callback state) — declared with the
+  // other hooks, above the entry guard's early return.
+  const [chromeSlot, setChromeSlot] = useState<HTMLSpanElement | null>(null);
   const selectedView =
     hosted !== null && tab !== SECTION_DEFAULT_TAB
       ? views.views.find((view) => view.id === tab)
@@ -125,10 +132,17 @@ export function NodeCollection({
           sectionKey={hosted.sectionKey}
           selected={selectedView !== undefined ? tab : SECTION_DEFAULT_TAB}
           onSelect={setTab}
-          {...(tabBarTrailing !== undefined ? { trailing: tabBarTrailing } : {})}
+          trailing={
+            <>
+              <span className="node-collection__view-chrome" ref={setChromeSlot} />
+              {tabBarTrailing}
+            </>
+          }
         />
       )}
-      {content}
+      <ViewChromeContext.Provider value={hosted !== null ? chromeSlot : null}>
+        {content}
+      </ViewChromeContext.Provider>
     </div>
   );
 }
