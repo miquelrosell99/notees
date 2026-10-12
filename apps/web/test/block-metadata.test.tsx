@@ -96,8 +96,8 @@ describe("BlockRow metadata section", () => {
     const { container } = render(<PageView client={client} pageId={pageId} />);
     const section = blockMetadata(container, blockId);
     expect(section).not.toBeNull();
-    // The collapsed "Metadata" section expands on click.
-    expect(section!.textContent).toContain("Metadata");
+    // The collapsed "Properties" section expands on click.
+    expect(section!.textContent).toContain("Properties");
     const header = section!.querySelector(".node-view-section__header") as HTMLButtonElement;
     expect(header.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(header);

@@ -6,8 +6,6 @@
  * default (identity info, usually short).
  */
 
-import { useMemo } from "react";
-
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
@@ -48,12 +46,11 @@ export function ExtendedBySection({
   // Eager read: the hide-when-empty rule needs the count before the section's
   // lazy contract starts (same pattern as SystemSections' count badges).
   const children = client.getClassChildren(classId);
-  // Must run BEFORE the empty early return (rules of hooks): the extends set
-  // can flip 0↔N on this same instance when an edge arrives via sync.
-  // React 19 happens to tolerate this instance's 0↔1-hook flip (a zero-hook
-  // fiber re-mounts), but the shape is the known crash class — the day a
-  // hook lands above the return it throws #310.
-  const items = useMemo(() => buildTree(client, classId, new Set([classId])), [client, classId]);
+  // No memo: the tree is rebuilt per render from the eager read. The old
+  // [client, classId] memo cached the FIRST sync-window read forever — the
+  // badge re-read 34 on the parent's notification while the rows stayed the
+  // mount-time [] ("No subclasses" under a 34 badge, owner-caught 2026-10-12).
+  const items = buildTree(client, classId, new Set([classId]));
 
   if (children.length === 0) return null;
 
