@@ -9,6 +9,40 @@ predating this file.
 
 ## 2026-10-13
 
+- **feat(web): the v1 node card, 1:1 — classes + tags chips, property rows,
+  child blocks on every card — and the cards/table children ruling (owner
+  2026-10-13).** The register was read from the v1-archive tag
+  (`KanbanCard.tsx` + `CardItem.css`, law 0). ONE card shape now serves the
+  flat grid, the grouped board, and tree contexts (the TreeCards/FlatCards
+  split is gone): the cover slot (kept, empty-state Add cover included), a
+  header with the v1 collapse chevron + the hover-reveal action cluster
+  (open-in-sidebar when the surface wires shift-click, the node-actions
+  menu — the v1 right-click context menu rides as the menu button, the v2
+  grammar for that menu), the **classes chips row** (`NodePills` read-only)
+  and the **tags chips row** (alphabetical `NodePill` chips) — both hidden
+  when empty, the v1 read-only rule — the **property rows** (default: EVERY
+  effective property with a non-empty display text, the v1 register; a
+  container may scope — the classed-nodes section passes its bound columns
+  so its cards mirror the table), and the **child-block body** — always
+  resolved and shown: attached `children` win, flat collections resolve the
+  node's blocks from the client (`childQuery`, revision-cached), EXPANDED by
+  default with the chevron as display-state collapse. Cards ignore the
+  tree/maxDepth "show children" prop family on purpose (the classed-nodes
+  complaint: member cards showed no content); the **table mode** is the twin
+  ruling — rows are always flat, children never render (contract docstrings
+  carry both). Cards and board host their own OutlinerContext (the FlatRows
+  precedent) since card bodies render BlockRow on every surface, including
+  the shell hubs. Read-only adaptation, by the standing cards grammar: the
+  v1 card's inline editors, add-class/add-tag/add-block affordances, and
+  slash commands stay in the outline mode — cards open nodes on click. The
+  in-flight backlink-count hiding slice threaded its flag through the old
+  TreeCards; its re-land threads the same one line into the unified card
+  body. Docs: `docs/ux.md` gains the card-anatomy law, `docs/usage.md` the
+  cards paragraph. **Verification:** 4 new `view-modes` specs (client-side
+  children resolution, chevron collapse, chips + scoped property rows,
+  table-nevers-children); `pnpm typecheck` + the full `pnpm test` gate green
+  (1515).
+
 - **docs(developers): the v1 source of truth is the `v1-archive` git tag —
   recorded in the skill and the runbook (owner 2026-10-13).** The pre-rewrite
   v1 app (React + Lexical frontend, Python FastAPI backend) survives only as

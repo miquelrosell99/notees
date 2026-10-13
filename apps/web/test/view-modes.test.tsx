@@ -26,8 +26,9 @@ import { HubView } from "../src/ui/App.js";
 import { PageView } from "../src/ui/PageView.js";
 import { NodeView } from "../src/ui/App.js";
 import { CollectionHub } from "../src/ui/components/CollectionHub.js";
+import { childQuery } from "../src/ui/components/childQuery.js";
 import { ensureTaskFamily } from "../src/ui/components/taskFamily.js";
-import { getViewDefinition, getViewModeOptions } from "../src/ui/views/index.js";
+import { getViewDefinition, getViewModeOptions, NodeCollection } from "../src/ui/views/index.js";
 import { applyCardGroupDrop } from "../src/ui/views/CardsBoard.js";
 import { writeViewModePref } from "../src/ui/viewPrefs.js";
 
@@ -203,6 +204,126 @@ describe("classed-nodes table", () => {
     expect(headers).toContain("Authors");
     expect(headers).toContain("ISBN");
     expect(headers[headers.length - 1]).toBe("Created");
+  });
+});
+
+describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
+  it("a flat card resolves the node's child blocks from the client — the classed-nodes case", async () => {
+    const client = await seedClient();
+    const member = await client.createObject({ presentAsMain: true, name: "Member" });
+    await client.createObject({
+      parentId: member,
+      contentAst: [{ type: "text", text: "member body block" }],
+    });
+    const parent = await client.createObject({
+      parentId: member,
+      contentAst: [{ type: "text", text: "body parent" }],
+    });
+    await client.createObject({
+      parentId: parent,
+      contentAst: [{ type: "text", text: "body grandchild" }],
+    });
+    await flushWrites();
+
+    // The classed-nodes shape: items carry NO children — cards resolve them.
+    const { container } = render(
+      <NodeCollection
+        viewMode="cards"
+        client={client}
+        items={[{ node: client.getNode(member)! }]}
+        onNodeClick={() => {}}
+      />,
+    );
+    const card = container.querySelector(".node-card") as HTMLElement;
+    expect(within(card).getByText("member body block")).not.toBeNull();
+    expect(within(card).getByText("body grandchild")).not.toBeNull();
+    // The chevron knows the body (bordered, expanded by default).
+    const chevron = within(card).getByRole("button", { name: "Collapse Member" });
+    expect(chevron.getAttribute("aria-expanded")).toBe("true");
+    expect(chevron.className).toContain("node-card__collapse-btn--has-children");
+  });
+
+  it("the collapse chevron hides the body (display state, never an op)", async () => {
+    const client = await seedClient();
+    const member = await client.createObject({ presentAsMain: true, name: "Foldable" });
+    await client.createObject({
+      parentId: member,
+      contentAst: [{ type: "text", text: "fold me away" }],
+    });
+    await flushWrites();
+
+    const { container } = render(
+      <NodeCollection
+        viewMode="cards"
+        client={client}
+        items={[{ node: client.getNode(member)! }]}
+        onNodeClick={() => {}}
+      />,
+    );
+    const card = container.querySelector(".node-card") as HTMLElement;
+    const body = () => card.querySelector(".node-card__body");
+    fireEvent.click(within(card).getByRole("button", { name: "Collapse Foldable" }));
+    // The body is collapsed (display:none via the --collapsed rule — jsdom
+    // keeps the text in the DOM, so the assertion is structural).
+    expect(body()!.className).toContain("node-card__body--collapsed");
+    const chevron = within(card).getByRole("button", { name: "Expand Foldable" });
+    expect(chevron.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(chevron);
+    expect(body()!.className).not.toContain("node-card__body--collapsed");
+  });
+
+  it("classes chips, tags chips, and the cardProperties-scoped property rows ride the card", async () => {
+    const client = await seedClient();
+    const classId = await createTitledClass(client, "Pokemon");
+    const schemaId = await client.createPropertySchema({ name: "Level", type: "number" });
+    await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    const tag = await client.createObject({ presentAsMain: true, name: "favorites" });
+    const member = await client.createObject({ presentAsMain: true, name: "Pikachu" });
+    await client.assignClass(member, classId);
+    await client.assignTag(member, tag);
+    await client.setProperty(member, schemaId, 25);
+    await flushWrites();
+
+    const { container } = render(
+      <NodeCollection
+        viewMode="cards"
+        client={client}
+        items={[{ node: client.getNode(member)! }]}
+        propertiesOf={(id) => client.getEffectiveProperties(id)}
+        cardProperties={[schemaId]}
+        onNodeClick={() => {}}
+      />,
+    );
+    const card = container.querySelector(".node-card") as HTMLElement;
+    // The classes row: the member's class chip.
+    const classesRow = card.querySelector(".node-card__classes-row")!;
+    expect(classesRow).not.toBeNull();
+    expect(within(classesRow as HTMLElement).getByText("Pokemon")).not.toBeNull();
+    // The tags row: the assigned tag chip.
+    const tagsRow = card.querySelector(".node-card__tags-row")!;
+    expect(tagsRow).not.toBeNull();
+    expect(within(tagsRow as HTMLElement).getByText("favorites")).not.toBeNull();
+    // The property rows: the bound column + its value (the classed-nodes
+    // section scopes cards to its table's bound columns).
+    const properties = card.querySelector(".node-card__properties")!;
+    expect(properties).not.toBeNull();
+    expect(within(properties as HTMLElement).getByText("Level")).not.toBeNull();
+    expect(within(properties as HTMLElement).getByText("25")).not.toBeNull();
+  });
+
+  it("table mode never renders children even when the items carry them", async () => {
+    const client = await seedClient();
+    const pageId = await seedTreePage(client);
+    await flushWrites();
+    // Tree-shaped items (children attached) — the table stays flat anyway.
+    const items = childQuery(client, pageId);
+
+    render(
+      <NodeCollection viewMode="table" client={client} items={items} onNodeClick={() => {}} />,
+    );
+    expect(screen.getByText("root one")).not.toBeNull();
+    expect(screen.getByText("root two")).not.toBeNull();
+    expect(screen.queryByText("nested under two")).toBeNull();
   });
 });
 

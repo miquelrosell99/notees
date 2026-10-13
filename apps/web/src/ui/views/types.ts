@@ -124,7 +124,9 @@ export interface NodeCollectionProps {
    * The items form an editor tree (child blocks / child pages): render the
    * BlockRow machinery even when no item currently has children — a flat
    * list of childless blocks is still a tree context. Auto-detected from
-   * `children` presence when omitted.
+   * `children` presence when omitted. Ignored by cards mode (the card
+   * always resolves and shows each node's child blocks — the v1 register)
+   * and by table mode (rows never show children).
    */
   tree?: boolean | undefined;
   /**
@@ -146,7 +148,8 @@ export interface NodeCollectionProps {
   readOnly?: boolean | undefined;
   /** Tree paths filter children to main children (the Pages zone). */
   pagesOnly?: boolean | undefined;
-  /** Depth cap for recursive tree rendering. */
+  /** Depth cap for recursive tree rendering (the outline surface; cards and
+   *  table ignore it — cards always resolve children, table never shows them). */
   maxDepth?: number | undefined;
   /** Flat rows show containing-page breadcrumbs above the label. */
   showBreadcrumbs?: boolean | undefined;
@@ -185,7 +188,13 @@ export interface NodeCollectionProps {
   exportFileName?: string | undefined;
   /** Optional initial sort (session state; the view owns cycling after). */
   defaultSort?: SortSpec | undefined;
-  /** Cards: property schemas shown on flat node cards, in order. */
+  /**
+   * Cards: property schemas shown on node cards, in order. Undefined = EVERY
+   * effective property with a non-empty display text rides the card (the v1
+   * card register); a container scopes the row set by passing schema ids
+   * (the classed-nodes section passes its bound columns — its cards mirror
+   * the table).
+   */
   cardProperties?: string[] | undefined;
   /**
    * Cards: the cover layout this surface falls back to when the device has
