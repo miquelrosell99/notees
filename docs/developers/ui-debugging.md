@@ -95,6 +95,66 @@ credentials into anything durable.
   workspace ids are read from the gitignored data dir, never hardcoded into
   anything committed.
 
+## Throwaway-stack probes — custom fixtures + the running build
+
+The capture suite's `run.sh` pins `:2.0.0-m1` images and wipes its runtime
+dir. For "does the RUNNING build render X" — layout questions, seeded
+fixtures you would never put in a live workspace, reproducing an owner
+screenshot — boot the same throwaway pair against the **locally-built
+images** and drive it with your own probe:
+
+```sh
+cd scripts/screenshots
+docker network create notees-screenshots-net
+# The web image's nginx hardcodes the sync upstream name "notees-sync" —
+# the alias on the shared network is required.
+docker run -d --name t-sync --rm --network notees-screenshots-net \
+  --network-alias notees-sync -p 127.0.0.1:8477:8377 \
+  -v "$PWD/.runtime-probe/data:/data" \
+  -e NOTEES_CORS_ORIGIN=http://127.0.0.1:8480 \
+  -e NOTEES_SIGNUP_ENABLED=true \
+  ghcr.io/miquelrosell99/notees-sync          # the LOCAL build (compose-built)
+docker run -d --name t-web --rm --network notees-screenshots-net \
+  -p 127.0.0.1:8480:80 -e NOTEES_SERVER_URL=http://127.0.0.1:8477 \
+  ghcr.io/miquelrosell99/notees-web           # the LOCAL build
+# ... seed, probe with playwright, then docker rm -f both + network rm.
+```
+
+(Auth on a throwaway stack, and why the shims matter, below.) Seed fixtures
+through the object API with the operator key (`api_key.txt` appears under
+the bound data dir after boot) — writes are workspace-scoped by the
+**`x-workspace-id` header** (absent → the server's default workspace).
+
+**Throwaway auth differs from live auth** — there is no admin password and
+NO user rows until someone signs up, so neither `sessionFromLogin` nor the
+DB mint can run. Instead:
+
+1. Boot the sync container with `NOTEES_SIGNUP_ENABLED=true`.
+2. `POST /api/auth/signup` {email, password} then `POST /api/auth/login` →
+   a real `nt_` session token. (The operator key still 401s account
+   endpoints — the trap documented under Auth applies here too.)
+3. **Claim the workspace with a write**: session READS require membership,
+   and only the first session-authed WRITE auto-adopts an unclaimed
+   workspace (`authorizeWorkspace`, `apps/server/src/routes-relay.ts` —
+   reads 403 "not a member", writes claim). One trivial
+   `POST /api/objects` with `Authorization: Bearer <token>` +
+   `x-workspace-id` makes the user the owner; the UI session then reads
+   everything.
+4. The web app boots into the fixed test workspace
+   (`c491595f-9f94-5ade-a620-e30ed063d8d2`) by default — seed there and
+   seed `notees.workspaceId` with it.
+
+**Shims are required** (the `capture.mjs` idiom — add as init scripts):
+bind `window.fetch` (`Object.defineProperty(window, "fetch", …)` — the
+sync transport captured it unbound) and neutralize
+`StorageManager.prototype.getDirectory` (forces the in-process store, which
+works against a server in headless playwright).
+
+**Delete the probe when done** — ad-hoc probes are throwaway
+(`pill-select-probe.mjs` is the durable reference for live-stack fixture
+discipline; the same read-only/finally-trash rules apply to anything pointed
+at a workspace with data in it, and the throwaway pair has none).
+
 ## Gotchas already paid for
 
 - **Live measurement**: `node measure-probe.mjs` from `scripts/screenshots/`

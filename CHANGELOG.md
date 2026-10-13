@@ -9,6 +9,25 @@ predating this file.
 
 ## 2026-10-13
 
+- **docs(developers): the throwaway-stack probe recipe is written down (skill
+  + runbook).** Learned the hard way while reproducing an owner screenshot
+  against the RUNNING build: `run.sh` pins `:2.0.0-m1`, so hand-roll the two
+  containers from the locally-built images (the web image needs the
+  `notees-sync` network alias — its nginx hardcodes the upstream name);
+  throwaway auth has NO admin password and no user rows until signup — boot
+  the sync with `NOTEES_SIGNUP_ENABLED=true`, signup + login for a real
+  session; session READS require workspace membership and only the first
+  session-authed WRITE auto-claims an unclaimed workspace
+  (`authorizeWorkspace`, routes-relay.ts) — one `POST /api/objects` claims
+  it before the UI can read; API writes are workspace-scoped by the
+  `x-workspace-id` header; the fetch-binding + OPFS-neutralization init
+  scripts are required; and the app boots into the fixed test workspace
+  `c491595f-…`. New section in `docs/developers/ui-debugging.md`
+  (Throwaway-stack probes), pointer in the `notees-development` skill's
+  development-workflow reference. **Verification:** every step of the recipe
+  was exercised live against the throwaway pair (the probe itself is
+  deleted, per the ad-hoc probe rule).
+
 - **fix(web): the hover tint is gone from text property value cells (owner
   2026-10-13).** `.nt-property-value:hover` (the super-clean field's hover
   surface) is removed — the text rides the row with no hover feedback, on the
