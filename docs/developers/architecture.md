@@ -104,6 +104,18 @@ Two replay/wipe guarantees are load-bearing and tested:
    derived rows are byte-identical across replays; `node_stats` is recomputed from the same
    derivation pass.
 
+**Composite gestures compose ops, never add them — the node-merge precedent** (SCHEMA.md
+"Node merge"): `packages/store/src/merge.ts` `planMerge(db, sourceId, targetId)` computes a
+merge as a deterministic plan of **existing** op types (children moves, class/tag remap,
+authored-property copies, content-mention retargets, alias repoints, property-ref rewrites,
+collection remap, wire-field copies, the source trash last). It is a pure read over the
+derived store, so the web client plans over its local projection and the server plans over
+its own — same code, same plan — and every other client converges by replay alone (no
+applier changes, no fixture gate). Guards (`MergeGuardError`: class/collection/trashed
+source, target in the subtree, source === target) fail loud before anything reaches the
+log. The server exposes it at `POST /api/objects/:id/merge` (`?dryRun=true` previews); the
+web client applies the plan as one undo-journal batch.
+
 Server-side hydration (`apps/server/src/workspace-store.ts`): on first access of a
 workspace, restore the newest snapshot if it covers the log tail, then replay remaining
 envelopes in seq order, one at a time. An envelope that is schema-valid but not yet
@@ -560,7 +572,7 @@ cursors; writes are atomic (tmp + rename).
 |---|---|---|
 | `packages/protocol` | Wire format: HLC, envelope, op registry, content grammar; canonical fixtures | `src/index.ts` (`hlc`, `envelope`, `op-types`, `content-mark`); specs `SCHEMA.md`, `WIRE.md`; `fixtures/`; gate `test/protocol.test.ts` |
 | `packages/domain` | System seeds (fixed UUIDs), node helpers | `src/index.ts` (`seeds.ts`, `node.ts` — `deriveDisplayName`, `plainTextExcerpt`) |
-| `packages/store` | Derived store: schema, appliers, edge index, stats, search, adapter interface + both adapters | `src/index.ts`; `src/schema.ts` (DDL + `migrate`), `src/appliers.ts`, `src/edges.ts`, `src/db.ts`, `src/store.ts`, `src/adapters/better-sqlite3.ts`, `src/adapters/sqljs.ts` (export `@notees/store/sqljs`) |
+| `packages/store` | Derived store: schema, appliers, edge index, stats, search, merge planner, adapter interface + both adapters | `src/index.ts`; `src/schema.ts` (DDL + `migrate`), `src/appliers.ts`, `src/edges.ts`, `src/merge.ts` (`planMerge` — the node-merge planner, SCHEMA.md "Node merge"), `src/db.ts`, `src/store.ts`, `src/adapters/better-sqlite3.ts`, `src/adapters/sqljs.ts` (export `@notees/store/sqljs`) |
 | `packages/sync` | SyncEngine, outbox, conflicts, watermark persistence, transports | `src/index.ts`; `src/sync-engine.ts`, `src/outbox.ts`, `src/conflicts.ts`, `src/meta.ts`, `src/transport.ts` (`HttpTransport`, `MemoryTransport`, `MemoryRelay`) |
 | `packages/query` | QueryAST model + SQLite compiler over the derived store (live queries) | `src/index.ts` (`ast.ts` zod model, `compiler.ts` `compile(ast)`, `execute.ts` `runQuery`/`countQuery`/`matches`); 7 condition types; deferred set in README |
 | `packages/export` | Export projections over the object graph: `ExportDocument` IR + serializers (markdown/html/docx/latex package-side — options bag with per-format gating, escaping, full-closure outline, whiteboard sidecars, id8 filename policy, `linkTarget`/`assetPath` hooks, LaTeX CSL bibliography; pdf renders client-side in the web app), format registry (`SerializedExport` union), bundles + manifest v2, BibTeX/CSL; plus the two view-shaped serializers beside the IR registry: `csv.ts` (RFC-4180 view export — the web table toolbar downloads the visible columns × current results) and `json-archive.ts` (the Tier-1 `notees-json-archive` v1 envelope; `notees export json` + the web modal's JSON card) | `src/index.ts`; `document.ts` (IR + context hooks), `markdown.ts`, `html.ts`, `docx.ts`, `latex.ts`, `options.ts`, `formats.ts`, `bundle.ts`, `bibtex.ts`, `csl.ts` |
