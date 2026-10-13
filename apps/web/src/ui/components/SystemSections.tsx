@@ -72,6 +72,7 @@ import {
   EMPTY_FILTER_QUERY,
   filterQueryToGroup,
   isFilterInactive,
+  quickTextOf,
   type FilterQuery,
 } from "./filterQuery.js";
 import { NodeCollection, groupByContainingPage } from "../views/index.js";
@@ -279,8 +280,14 @@ function ReferenceSection({
   const [filterQuery, setFilterQuery] = useState<FilterQuery>(EMPTY_FILTER_QUERY);
   const rowFilter = useMemo<SectionRowFilter<ReferenceEntry> | undefined>(() => {
     if (isFilterInactive(filterQuery)) return undefined;
+    // The quick text narrows the pool by the ranked search before the
+    // structured group applies — it rides the filter, not the AST.
     const group = filterQueryToGroup(filterQuery);
-    return group === null ? undefined : { group, nodeOf: (entry) => entry.source };
+    return {
+      group: group ?? { type: "group", logic: "and", children: [] },
+      text: quickTextOf(filterQuery),
+      nodeOf: (entry) => entry.source,
+    };
   }, [filterQuery]);
   const [expanded, setExpanded] = useState(defaultExpanded);
   const { rows, total } = useSectionData<ReferenceEntry[]>({

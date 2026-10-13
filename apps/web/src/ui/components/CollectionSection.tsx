@@ -32,6 +32,7 @@ import {
   EMPTY_FILTER_QUERY,
   filterQueryToGroup,
   isFilterInactive,
+  quickTextOf,
   type FilterBarConfig,
   type FilterQuery,
 } from "./filterQuery.js";
@@ -92,8 +93,15 @@ export function CollectionSection({
   const [filterQuery, setFilterQuery] = useState<FilterQuery>(EMPTY_FILTER_QUERY);
   const filter = useMemo<SectionRowFilter<NodeCollectionItem> | undefined>(() => {
     if (filterable === false || isFilterInactive(filterQuery)) return undefined;
+    // The quick text rides the filter ALONGSIDE the structured group — the
+    // hook narrows the pool by the ranked search (membership AND order)
+    // before the group applies; it is never an AST condition.
     const group = filterQueryToGroup(filterQuery);
-    return group === null ? undefined : { group, nodeOf: (item) => item.node };
+    return {
+      group: group ?? { type: "group", logic: "and", children: [] },
+      text: quickTextOf(filterQuery),
+      nodeOf: (item) => item.node,
+    };
   }, [filterable, filterQuery]);
   const { rows, total } = useSectionData<NodeCollectionItem[]>({
     client,

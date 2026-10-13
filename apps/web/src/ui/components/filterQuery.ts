@@ -8,7 +8,12 @@
  * v2 AST). The draft is allowed to carry half-typed rows (a class condition
  * with no class picked yet, a content condition with a blank value);
  * `filterQueryToGroup` prunes those into the schema-valid composed root the
- * evaluation consumes, returning null when nothing survives.
+ * structured evaluation consumes, returning null when nothing survives. The
+ * quick-search text does NOT ride that root — it narrows the rows through
+ * the ranked search before the group applies (owner 2026-10-13, one
+ * ordering everywhere: the text facet's membership AND order come from
+ * `client.search`, the same ranked ordering the global search uses, which
+ * an AST condition cannot express).
  *
  * The offered subset is the full wire grammar: class, isClass,
  * presentAsMain, content (contains AND full-text), property, linkedTo
@@ -20,20 +25,26 @@
  * the runQueryAst channel inside useSectionData — the same machinery the
  * hosted custom views use (the one-evaluation ruling).
  *
- * Application (components/useSectionData.ts): the composed group filters the
- * section's resolved rows POST-RESOLUTION and PRE-WINDOWING — windowing sees
- * the filtered set; the resolution cache is untouched (a query change
- * re-derives from the cached rows, it never re-runs the query); the eager
- * count stays UNFILTERED (an active filter shows "0 of N", the section never
- * vanishes). The query is component state — one instance per section
- * view/tab, lost on reload, nothing persisted.
+ * Application (components/useSectionData.ts): the quick text narrows the
+ * section's resolved rows through the ranked search FIRST (membership AND
+ * order), then the composed group filters the narrowed pool
+ * POST-RESOLUTION and PRE-WINDOWING — windowing sees the filtered set; the
+ * resolution cache is untouched (a query change re-derives from the cached
+ * rows, it never re-runs the query); the eager count stays UNFILTERED (an
+ * active filter shows "0 of N", the section never vanishes). The query is
+ * component state — one instance per section view/tab, lost on reload,
+ * nothing persisted.
  */
 
 import type { Child, Condition, Group } from "@notees/query";
 
 /** The bar's state: quick-search text plus the builder's draft root group. */
 export interface FilterQuery {
-  /** Case-insensitive substring over the row's title. */
+  /**
+   * The quick-search text: ranked search semantics — the global search's
+   * priority ordering over titles (exact substring > ordered terms >
+   * partials > fuzzy rescue), NOT a raw substring (owner 2026-10-13).
+   */
   text?: string | undefined;
   /** The structured panel's draft root group (the query-AST grammar). */
   group: Group;
@@ -115,19 +126,25 @@ function pruneChild(child: Child): Child | null {
 }
 
 /**
- * Compose the bar's state into the schema-valid root group evaluation
- * consumes: the draft pruned, the trimmed quick-search text unshifted as a
- * content-contains condition. Returns null when nothing survives (the hook
- * treats null as "no filter").
+ * The trimmed quick-search text ("" when the facet is blank) — the value
+ * the ranked search path consumes; the structured draft never sees it.
+ */
+export function quickTextOf(query: FilterQuery): string {
+  return query.text?.trim() ?? "";
+}
+
+/**
+ * Compose the structured draft into the schema-valid root group evaluation
+ * consumes, returning null when nothing survives (the hook treats null as
+ * "no structured filter"). The quick-search text is deliberately absent:
+ * it narrows the rows through the ranked search BEFORE this group applies
+ * (owner 2026-10-13) — its membership and ordering are the search's, which
+ * an AST condition cannot express.
  */
 export function filterQueryToGroup(query: FilterQuery): Group | null {
   const children = query.group.children
     .map((child) => pruneChild(child))
     .filter((child): child is Child => child !== null);
-  const text = query.text?.trim() ?? "";
-  if (text !== "") {
-    children.unshift({ type: "content", op: "contains", value: text });
-  }
   if (children.length === 0) return null;
   return { type: "group", logic: query.group.logic, children };
 }
