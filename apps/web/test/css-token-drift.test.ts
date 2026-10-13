@@ -32,8 +32,6 @@ const DEFINING_FILES = new Set(["variables.css", "fonts.css"]);
 // Custom properties set from JS (style.setProperty) rather than CSS — each
 // entry names the file that owns it.
 const JS_SCOPED = new Map<string, string>([
-  ["--color-accent-custom", "deviceSettings.ts"],
-  ["--color-on-accent-custom", "deviceSettings.ts"],
   ["--sheet-drag-offset", "Modal.tsx"],
   ["--sheet-scrim-opacity", "Modal.tsx"],
   ["--nt-float-raise", "FloatingEditor.tsx"],

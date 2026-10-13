@@ -362,6 +362,7 @@ describe("hub URL routes", () => {
     expect(navFromPath("/tasks/")).toBe("tasks");
     expect(navFromPath("/")).toBeNull();
     expect(navFromPath("/workspaces")).toBeNull();
+    expect(navFromPath("/settings/sync")).toBeNull();
     expect(navFromPath("/11111111-2222-4333-8444-555555555555")).toBeNull();
   });
 

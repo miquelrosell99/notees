@@ -81,18 +81,20 @@ export function useDeviceSetting<T>(
 // --- Appearance (theme / OLED / accent / font) ----------------------------------
 
 export type ThemePreference = "light" | "dark" | "system";
-export type AccentColor = "margin" | "monochrome" | "sage" | "teal" | "rose" | "navy" | "custom";
+export type AccentColor = "margin" | "monochrome" | "brown" | "teal" | "purple";
 /** The UI font family: bundled (Instrument Sans/Newsreader/JetBrains Mono,
  * self-hosted in fonts.css) or the platform system stack. */
 export type UiFontPreference = "bundled" | "system";
 
+/** The curated accent presets: brand green as the default, monochrome, and
+ * three curated hues. The hex is the light-mode value, also used for the
+ * settings swatch previews; dark-mode variants live in variables.css. */
 export const ACCENT_COLOR_OPTIONS: { value: AccentColor; label: string; hex: string }[] = [
   { value: "margin", label: "Advance Green", hex: "#2e5e46" },
   { value: "monochrome", label: "Monochrome", hex: "#1c1a16" },
-  { value: "sage", label: "Sage", hex: "#527051" },
-  { value: "teal", label: "Teal", hex: "#2D6B5B" },
-  { value: "rose", label: "Rose", hex: "#8B5B5B" },
-  { value: "navy", label: "Navy", hex: "#1E3A5F" },
+  { value: "brown", label: "Brown", hex: "#a16b45" },
+  { value: "teal", label: "Teal", hex: "#1fbdad" },
+  { value: "purple", label: "Purple", hex: "#8c47d1" },
 ];
 
 /** Legacy key the theme used to live under; read as a fallback on migration. */
@@ -157,7 +159,11 @@ export function applyAppearance(): void {
   document.documentElement.dataset.oled = oled && resolved === "dark" ? "true" : "false";
 
   const accent = readDeviceSetting<AccentColor>("accentColor", "margin");
-  document.documentElement.dataset.accent = accent;
+  document.documentElement.dataset.accent = ACCENT_COLOR_OPTIONS.some(
+    (option) => option.value === accent,
+  )
+    ? accent
+    : "margin";
 
   // The UI font rides the same pre-paint data-attribute path.
   const uiFont = readDeviceSetting<UiFontPreference>("uiFont", "bundled");
@@ -167,16 +173,6 @@ export function applyAppearance(): void {
   // while the page card stays full strength. Device-local display state.
   const focusMode = readDeviceSetting("focusMode", false);
   document.documentElement.dataset.focus = focusMode ? "true" : "false";
-  if (accent === "custom") {
-    const hex = readDeviceSetting("customAccentHex", "#404040");
-    if (isValidHexColor(hex)) {
-      document.documentElement.style.setProperty("--color-accent-custom", hex);
-      document.documentElement.style.setProperty(
-        "--color-on-accent-custom",
-        getContrastColor(hex),
-      );
-    }
-  }
 }
 
 /**

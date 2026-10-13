@@ -1,14 +1,14 @@
 /**
  * Settings modals tests (jsdom): the recovered workspace/user/system
  * settings modals render their ported chrome; the workspace rename talks to
- * the real PATCH /workspaces/:id endpoint; appearance choices apply to
- * <html> data-* attributes and persist under `notees.settings.*`; the API
- * keys manager (ApiKeysSection) works inside the user settings modal against
- * a mocked /api-keys surface; controls with no backend render honestly
- * inert with a "not available in this build" note; the workspace switcher
- * offers create-from-query and opens Manage Workspaces; the Manage
- * Workspaces modal lists, renames, creates, switches, exports, and deletes
- * workspaces via the per-card actions menu.
+ * the real PATCH /workspaces/:id endpoint; the quick-tweaks user modal
+ * (theme / accent / focus) applies appearance choices to <html> data-*
+ * attributes and persists them under `notees.settings.*`; the full settings
+ * page specs (sections, API keys, sync, routing) live in
+ * settings-page.test.tsx; the workspace switcher offers create-from-query
+ * and opens Manage Workspaces; the Manage Workspaces modal lists, renames,
+ * creates, switches, exports, and deletes workspaces via the per-card
+ * actions menu.
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -191,61 +191,47 @@ describe("WorkspaceSettingsModal", () => {
 });
 
 describe("UserSettingsModal", () => {
-  it("applies the theme choice to <html> and persists it device-locally", () => {
+  const renderModal = (extra: Partial<Parameters<typeof UserSettingsModal>[0]> = {}) =>
     render(
-      <UserSettingsModal
-        serverUrl="https://notees.example.com"
-        isOpen
-        onClose={() => {}}
-        token="session-token"
-        user={USER}
-        onSignOut={() => {}}
-        syncConnected
-        onForgetServer={() => {}}
-        onConnectServer={() => {}}
-      />,
+      <UserSettingsModal isOpen onClose={() => {}} onOpenAdvanced={() => {}} {...extra} />,
     );
+
+  it("applies the Light theme choice to <html> and persists it device-locally", () => {
+    renderModal();
     fireEvent.click(screen.getByRole("radio", { name: "Light theme" }));
     expect(document.documentElement.dataset.theme).toBe("light");
+    expect(document.documentElement.dataset.oled).toBe("false");
     expect(localStorage.getItem("notees.settings.theme")).toBe('"light"');
+    expect(localStorage.getItem("notees.settings.oledMode")).toBe("false");
   });
 
-  it("applies the UI font choice to <html> and persists it device-locally", () => {
-    render(
-      <UserSettingsModal
-        serverUrl="https://notees.example.com"
-        isOpen
-        onClose={() => {}}
-        token="session-token"
-        user={USER}
-        onSignOut={() => {}}
-        syncConnected
-        onForgetServer={() => {}}
-        onConnectServer={() => {}}
-      />,
-    );
-    fireEvent.click(screen.getByRole("radio", { name: "System stack" }));
-    expect(document.documentElement.dataset.font).toBe("system");
-    expect(localStorage.getItem("notees.settings.uiFont")).toBe('"system"');
-    fireEvent.click(screen.getByRole("radio", { name: "Bundled (Instrument Sans)" }));
-    expect(document.documentElement.dataset.font).toBe("bundled");
-    expect(localStorage.getItem("notees.settings.uiFont")).toBe('"bundled"');
+  it("maps the four theme modes onto the theme + oled keys", () => {
+    renderModal();
+    const pick = (name: string) =>
+      fireEvent.click(screen.getByRole("radio", { name }));
+
+    pick("Dark theme");
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(document.documentElement.dataset.oled).toBe("false");
+    expect(localStorage.getItem("notees.settings.theme")).toBe('"dark"');
+    expect(localStorage.getItem("notees.settings.oledMode")).toBe("false");
+
+    pick("OLED theme");
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(document.documentElement.dataset.oled).toBe("true");
+    expect(localStorage.getItem("notees.settings.theme")).toBe('"dark"');
+    expect(localStorage.getItem("notees.settings.oledMode")).toBe("true");
+
+    // Auto → theme:system, oled:false. jsdom has no matchMedia, so the
+    // resolved dataset value is the light default; the stored pref is system.
+    pick("Auto theme");
+    expect(localStorage.getItem("notees.settings.theme")).toBe('"system"');
+    expect(localStorage.getItem("notees.settings.oledMode")).toBe("false");
+    expect(document.documentElement.dataset.oled).toBe("false");
   });
 
   it("applies the focus mode choice to <html> and persists it device-locally", () => {
-    render(
-      <UserSettingsModal
-        serverUrl="https://notees.example.com"
-        isOpen
-        onClose={() => {}}
-        token="session-token"
-        user={USER}
-        onSignOut={() => {}}
-        syncConnected
-        onForgetServer={() => {}}
-        onConnectServer={() => {}}
-      />,
-    );
+    renderModal();
     fireEvent.click(screen.getByRole("switch", { name: /focus mode/i }));
     expect(document.documentElement.dataset.focus).toBe("true");
     expect(localStorage.getItem("notees.settings.focusMode")).toBe("true");
@@ -254,236 +240,30 @@ describe("UserSettingsModal", () => {
     expect(localStorage.getItem("notees.settings.focusMode")).toBe("false");
   });
 
-  it("applies the accent color choice to <html>", () => {
-    render(
-      <UserSettingsModal
-        serverUrl="https://notees.example.com"
-        isOpen
-        onClose={() => {}}
-        token="session-token"
-        user={USER}
-        onSignOut={() => {}}
-        syncConnected
-        onForgetServer={() => {}}
-        onConnectServer={() => {}}
-      />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Sage" }));
-    expect(document.documentElement.dataset.accent).toBe("sage");
-    expect(localStorage.getItem("notees.settings.accentColor")).toBe('"sage"');
+  it("applies an accent preset to <html> and persists it device-locally", () => {
+    renderModal();
+    fireEvent.click(screen.getByRole("button", { name: "Teal" }));
+    expect(document.documentElement.dataset.accent).toBe("teal");
+    expect(localStorage.getItem("notees.settings.accentColor")).toBe('"teal"');
   });
 
-  it("manages API keys against the real endpoints inside the Account tab", async () => {
-    interface Key {
-      id: string;
-      name: string;
-      revokedAt: null;
+  it("offers exactly the five curated presets — no custom swatch", () => {
+    renderModal();
+    const group = screen.getByRole("group", { name: "Accent Color" });
+    const swatches = within(group).getAllByRole("button");
+    expect(swatches).toHaveLength(5);
+    for (const label of ["Advance Green", "Monochrome", "Brown", "Teal", "Purple"]) {
+      expect(within(group).getByRole("button", { name: label })).toBeInTheDocument();
     }
-    let keys: Key[] = [{ id: "k1", name: "laptop CLI", revokedAt: null }];
-    const envelope = (k: Key) => ({
-      id: k.id,
-      userId: "u1",
-      name: k.name,
-      prefix: "nk_ab",
-      createdAt: 0,
-      lastUsedAt: null,
-      revokedAt: k.revokedAt,
-    });
-    const calls: { url: string; method: string }[] = [];
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input);
-        const method = init?.method ?? "GET";
-        calls.push({ url, method });
-        if (url.endsWith("/api/api-keys") && method === "GET") {
-          return Response.json({ apiKeys: keys.map(envelope) });
-        }
-        if (url.endsWith("/api/api-keys") && method === "POST") {
-          const created: Key = { id: "k2", name: "desktop CLI", revokedAt: null };
-          keys = [...keys, created];
-          return Response.json({ apiKey: envelope(created), token: "nk_full_secret" });
-        }
-        if (url.endsWith("/api/api-keys/k1") && method === "DELETE") {
-          keys = keys.filter((k) => k.id !== "k1");
-          return Response.json({ ok: true });
-        }
-        return new Response("unexpected", { status: 500 });
-      }),
-    );
-
-    render(
-      <UserSettingsModal
-        serverUrl="https://notees.example.com"
-        isOpen
-        onClose={() => {}}
-        token="session-token"
-        user={USER}
-        onSignOut={() => {}}
-        syncConnected
-        onForgetServer={() => {}}
-        onConnectServer={() => {}}
-      />,
-    );
-    fireEvent.click(screen.getByRole("tab", { name: "Account" }));
-
-    // Existing key listed.
-    expect(await screen.findByText("laptop CLI")).toBeInTheDocument();
-
-    // Create a new key: POST /api-keys, secret shown once.
-    fireEvent.change(screen.getByPlaceholderText(/key name/i), {
-      target: { value: "desktop CLI" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /create key/i }));
-    expect(await screen.findByText(/copy it now/i)).toBeInTheDocument();
-    expect(
-      calls.some((c) => c.method === "POST" && c.url.endsWith("/api/api-keys")),
-    ).toBe(true);
-
-    // Revoke the first key: inline confirmation, then DELETE.
-    fireEvent.click(screen.getAllByRole("button", { name: "Revoke" })[0]!);
-    fireEvent.click(screen.getByRole("button", { name: "Yes" }));
-    await waitFor(() => expect(screen.queryByText("laptop CLI")).not.toBeInTheDocument());
-    expect(
-      calls.some((c) => c.method === "DELETE" && c.url.endsWith("/api/api-keys/k1")),
-    ).toBe(true);
+    expect(within(group).queryByRole("button", { name: /custom/i })).toBeNull();
   });
 
-  it("signs out from the Account tab", () => {
-    stubFetch({});
-    const onSignOut = vi.fn();
-    render(
-      <UserSettingsModal
-        serverUrl="https://notees.example.com"
-        isOpen
-        onClose={() => {}}
-        token="session-token"
-        user={USER}
-        onSignOut={onSignOut}
-        syncConnected
-        onForgetServer={() => {}}
-        onConnectServer={() => {}}
-      />,
-    );
-    fireEvent.click(screen.getByRole("tab", { name: "Account" }));
-    fireEvent.click(screen.getByRole("button", { name: "Log out" }));
-    expect(onSignOut).toHaveBeenCalled();
-  });
-
-  it("shows the configured sync server and its reachability in the Sync tab", () => {
-    stubFetch({});
-    render(
-      <UserSettingsModal
-        serverUrl="https://notees.example.com"
-        isOpen
-        onClose={() => {}}
-        token="session-token"
-        user={USER}
-        onSignOut={() => {}}
-        syncConnected
-        onForgetServer={() => {}}
-        onConnectServer={() => {}}
-      />,
-    );
-    fireEvent.click(screen.getByRole("tab", { name: "Sync" }));
-    expect(screen.getByText("https://notees.example.com")).toBeInTheDocument();
-    expect(screen.getByText("Connected")).toBeInTheDocument();
-  });
-
-  it("reports the server as unavailable when the parent says so", () => {
-    stubFetch({});
-    render(
-      <UserSettingsModal
-        serverUrl="https://notees.example.com"
-        isOpen
-        onClose={() => {}}
-        token="session-token"
-        user={USER}
-        onSignOut={() => {}}
-        syncConnected={false}
-        onForgetServer={() => {}}
-        onConnectServer={() => {}}
-      />,
-    );
-    fireEvent.click(screen.getByRole("tab", { name: "Sync" }));
-    expect(screen.getByText("Unavailable")).toBeInTheDocument();
-    expect(screen.queryByText("Connected")).toBeNull();
-  });
-
-  it("disconnects only after the confirmation step", () => {
-    stubFetch({});
-    const onForgetServer = vi.fn();
-    render(
-      <UserSettingsModal
-        serverUrl="https://notees.example.com"
-        isOpen
-        onClose={() => {}}
-        token="session-token"
-        user={USER}
-        onSignOut={() => {}}
-        syncConnected
-        onForgetServer={onForgetServer}
-        onConnectServer={() => {}}
-      />,
-    );
-    fireEvent.click(screen.getByRole("tab", { name: "Sync" }));
-    fireEvent.click(screen.getByRole("button", { name: /disconnect & forget this server/i }));
-    // The confirmation gate: nothing fires before the explicit confirm.
-    expect(onForgetServer).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: /^disconnect$/i }));
-    expect(onForgetServer).toHaveBeenCalledTimes(1);
-  });
-
-  it("connects to a different server with the entered URL", () => {
-    stubFetch({});
-    const onConnectServer = vi.fn();
-    render(
-      <UserSettingsModal
-        serverUrl="https://old.example.com"
-        isOpen
-        onClose={() => {}}
-        token="session-token"
-        user={USER}
-        onSignOut={() => {}}
-        syncConnected
-        onForgetServer={() => {}}
-        onConnectServer={onConnectServer}
-      />,
-    );
-    fireEvent.click(screen.getByRole("tab", { name: "Sync" }));
-    const field = screen.getByRole("textbox", { name: /server url/i });
-    expect(field).toHaveValue("https://old.example.com");
-    fireEvent.change(field, { target: { value: "https://new.example.com" } });
-    fireEvent.click(screen.getByRole("button", { name: /^connect$/i }));
-    expect(onConnectServer).toHaveBeenCalledWith("https://new.example.com");
-  });
-
-  it("marks profile, password, and security features as unavailable", () => {
-    stubFetch({});
-    render(
-      <UserSettingsModal
-        serverUrl="https://notees.example.com"
-        isOpen
-        onClose={() => {}}
-        token="session-token"
-        user={USER}
-        onSignOut={() => {}}
-        syncConnected
-        onForgetServer={() => {}}
-        onConnectServer={() => {}}
-      />,
-    );
-    fireEvent.click(screen.getByRole("tab", { name: "Account" }));
-    expect(
-      screen.getByText(/editing your profile is not available in this build/i),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/changing your password is not available in this build/i),
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("tab", { name: "Security" }));
-    expect(
-      screen.getByText(/two-factor authentication is not available in this build/i),
-    ).toBeInTheDocument();
+  it("carries no server chrome — the advanced row links to the full page", () => {
+    const onOpenAdvanced = vi.fn();
+    renderModal({ onOpenAdvanced });
+    expect(screen.queryByText(/disconnect & forget this server/i)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /^open$/i }));
+    expect(onOpenAdvanced).toHaveBeenCalled();
   });
 });
 
