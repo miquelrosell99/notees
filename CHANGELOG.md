@@ -228,6 +228,36 @@ predating this file.
   shared host timed out 25 unrelated specs, all green on retry).
   **Redeployed:** `notees-sync` + `notees-web` rebuilt, `verify-min.mjs`
   VERIFY-PASS.
+- **feat(store,web): date-chain nodes are parent-locked and class-locked —
+  the breadcrumbs parent-edit affordances hide on date nodes, the classes row
+  renders read-only, and the appliers reject any re-parenting or foreign
+  class assignment on a date id (owner 2026-10-13).** A date node's parent IS
+  its deterministic chain parent (year at the workspace root, month under its
+  year, day under its month) and its class set IS its precision's system
+  class (year/month/day, nothing more, never declared a class itself —
+  SCHEMA.md "Datetime" gains both normative rules): (1) the store's
+  `object.move` rejects any other parent with `MoveGuardError` (same guard
+  class as the class-no-parent rule, so the replay-quarantine path applies);
+  `object.create` claiming a non-chain parent or carrying a foreign class
+  fails loud the same way — the classIds guard runs before the OR-Set seeding
+  and the re-create early return, so the `class.assign` re-issued-create
+  carrier is covered too — while a parentless create stays legal (the
+  standalone shape the client chain self-heal adopts) and the move/re-add
+  onto the chain-correct parent/class stays legal, which the client's
+  `ensureDateChain` self-heal rides. `class.unassign` refuses the precision's
+  system class (foreign-class removal stays legal as legacy cleanup);
+  `class.create` on a date id fails loud. New `@notees/domain` helpers
+  `dateChainParentId` / `dateChainClassId` derive the locked parent/class;
+  store tests on both adapters cover every guard, plus domain round-trip
+  tests. (2) The web `Breadcrumbs` hide the crumb edit menu / chevron on any
+  edge into a date node and the "+ Add parent" pill on a parentless date node
+  (both editable call sites — top bar and rail cards — inherit the lock);
+  the `ClassesRow` renders read-only (no Add-class pill / × / drag-sort) on
+  date nodes, and the block editor's `+` class capture never opens while
+  `/checkbox` applies the token without the task assignment on them.
+  **LOCKSTEP-PENDING: the GTK/Flutter appliers must carry the same guards
+  before all three clients reject alike** (SCHEMA.md marks it;
+  development.md's lockstep paragraph records the precedent).
 
 ## 2026-10-12
 

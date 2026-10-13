@@ -18,10 +18,14 @@
  * node directly under it (for the direct parent crumb, that node is the
  * page itself — the button edits or removes THAT parent). A parentless
  * node instead offers the trailing "+ Add parent" pill. Single-parent
- * tree: every gesture is one object.move.
+ * tree: every gesture is one object.move. Date-chain nodes are parent-locked
+ * (SCHEMA.md "Datetime"): every affordance whose target is a date node
+ * (the edge into it, the Add-parent pill) hides itself.
  */
 
 import { useEffect, useRef, useState, type MouseEvent } from "react";
+
+import { parseDateNodeId } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
@@ -52,6 +56,14 @@ interface Crumb {
 const CRUMB_NAME_MAX = 28;
 export function clipCrumbName(name: string, max: number = CRUMB_NAME_MAX): string {
   return name.length > max ? `${name.slice(0, max - 1)}…` : name;
+}
+
+/** The date-chain parenting lock (SCHEMA.md "Datetime"): the edge into a
+ *  date node is fixed (year → root, month → year, day → month), so every
+ *  parent-edit affordance on such an edge — or on a parentless date node —
+ *  hides itself; the store guard rejects the move anyway. */
+function isDateLocked(node: ClientNode | undefined): boolean {
+  return node !== undefined && parseDateNodeId(node.id) !== null;
 }
 
 /** Human crumb label: display name, never a raw uuid; per-crumb capped.
@@ -148,12 +160,14 @@ export function Breadcrumbs({
   if (excludeLeaf && items.length > 0) items = items.slice(0, -1);
   // Owner rule (2026-10-04): a parentless node hides itself from the trail —
   // there is no chain to trail — and offers only the Add parent affordance
-  // (never on classes: classes are always roots, a parent is unrepresentable).
+  // (never on classes: classes are always roots, a parent is unrepresentable;
+  // never on date nodes: the chain parent is locked).
   const showAddParent =
     editable &&
     currentNode !== undefined &&
     currentNode.parentId === null &&
-    !currentNode.isClass;
+    !currentNode.isClass &&
+    !isDateLocked(currentNode);
 
   // Right-anchored trails: detect left-side overflow so the lead "…" button
   // appears exactly when top-level crumbs are being clipped. Measurement is
@@ -235,6 +249,9 @@ export function Breadcrumbs({
 
   const crumb = (item: Crumb, key: string, showSeparator: boolean) => {
     const childBelow = childBelowOf(item);
+    // The date-chain parenting lock: an edge whose child is a date node has
+    // no edit affordance (reassign/remove would be rejected by the store).
+    const edgeEditable = editable && childBelow !== undefined && !isDateLocked(childBelow);
     return (
     <span key={key} className="node-breadcrumb-item">
       <button
@@ -242,7 +259,7 @@ export function Breadcrumbs({
         className="node-breadcrumb-link"
         onClick={() => onOpenNode?.(item.node.id)}
         onContextMenu={
-          editable && childBelow !== undefined
+          edgeEditable
             ? (event) => openEditMenu(event, item.node, childBelow)
             : undefined
         }
@@ -256,7 +273,7 @@ export function Breadcrumbs({
         )}
         <span className="node-breadcrumb-name">{item.name}</span>
       </button>
-      {editable && childBelow !== undefined && (
+      {edgeEditable && (
         <button
           type="button"
           className="node-breadcrumb-edit"
@@ -407,14 +424,14 @@ export function Breadcrumbs({
         </button>
       )}
 
-      {editable && editMenu !== null && (
+      {editable && editMenu !== null && !isDateLocked(editMenu.child) && (
         <ContextMenu
           items={editMenuItems(editMenu.parent, editMenu.child, editMenu.position)}
           position={editMenu.position}
           onClose={() => setEditMenu(null)}
         />
       )}
-      {editable && parentPicker !== null && (
+      {editable && parentPicker !== null && parseDateNodeId(parentPicker.nodeId) === null && (
         <NodeSelector
           client={client}
           anchorRect={{

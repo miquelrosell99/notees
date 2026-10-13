@@ -22,6 +22,8 @@
  * around it grew (see below).
  */
 
+import { SYSTEM_CLASS_UUIDS } from "./seeds.js";
+
 export type DatePrecision = "year" | "month" | "day";
 
 export interface DateParts {
@@ -104,8 +106,7 @@ export function chainNodeIds(isoDate: string): { year: string; month: string; da
  * Node display names — the journal labels (`yearlyNoteIdentity` et al.):
  * year `YYYY0000`, month `YYYYMM00`, day `YYYYMMDD`. Date nodes are named by
  * their compact date so name-based lookups still resolve them.
- */
-export function dateNodeLabel(parts: DateParts, precision: DatePrecision): string {
+ */export function dateNodeLabel(parts: DateParts, precision: DatePrecision): string {
   switch (precision) {
     case "year":
       return `${pad(parts.year, 4)}0000`;
@@ -131,6 +132,41 @@ export function dateNodeDisplayLabel(parts: DateParts, precision: DatePrecision)
 
 export interface ParsedDateNodeId extends DateParts {
   precision: DatePrecision;
+}
+
+/**
+ * The parent a date-chain node is LOCKED to (SCHEMA.md "Datetime",
+ * owner 2026-10-13): year → null (workspace root), month → its year node,
+ * day → its month node. The appliers reject any other placement
+ * (`object.create` / `object.move` guard) — only the deterministic chain
+ * parent is legal, which the client chain self-heal rides; null for a
+ * non-date id.
+ */
+export function dateChainParentId(id: string): string | null {
+  const parsed = parseDateNodeId(id);
+  if (parsed === null) return null;
+  const iso = `${pad(parsed.year, 4)}-${pad(parsed.month, 2)}-${pad(parsed.day, 2)}`;
+  switch (parsed.precision) {
+    case "year":
+      return null;
+    case "month":
+      return yearNodeId(iso);
+    case "day":
+      return monthNodeId(iso);
+  }
+}
+
+/**
+ * The ONE system class a date-chain node may carry — its class set is locked
+ * (SCHEMA.md "Datetime", owner 2026-10-13): year nodes carry `year`, month
+ * nodes `month`, day nodes `day`, nothing else. The appliers reject any
+ * other class assignment (`object.create`'s classIds OR-Set carrier included)
+ * and the removal of this class; null for a non-date id.
+ */
+export function dateChainClassId(id: string): string | null {
+  const parsed = parseDateNodeId(id);
+  if (parsed === null) return null;
+  return SYSTEM_CLASS_UUIDS[parsed.precision];
 }
 
 /**

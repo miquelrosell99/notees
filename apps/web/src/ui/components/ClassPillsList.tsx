@@ -44,6 +44,8 @@ export function ClassPillsList({
   excludePickerNodeId = undefined,
   /** Wrapper class around the pills (the extends row's chrome hook). */
   listClassName = undefined,
+  /** Read-only projection: static pills — open on click, no add/remove. */
+  readOnly = false,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -57,6 +59,7 @@ export function ClassPillsList({
   removeLabel?: ((label: string) => string) | undefined;
   excludePickerNodeId?: string | undefined;
   listClassName?: string | undefined;
+  readOnly?: boolean | undefined;
 }) {
   const pills = (
     <NodePills
@@ -69,6 +72,7 @@ export function ClassPillsList({
       removeLabel={removeLabel}
       excludePickerNodeId={excludePickerNodeId}
       actions={{ add, remove, reorder }}
+      readOnly={readOnly}
     />
   );
   return listClassName !== undefined ? (
