@@ -134,9 +134,17 @@ interface BlockRowProps {
    * nothing here — they live in the body surface.
    */
   variant?: "block" | "title" | undefined;
+  /**
+   * Hide the backlink gutter: the row-end count toggle and its expanded
+   * linked-references panel render nothing. Set by list projections where
+   * the count is reference noise (the Child pages tree, the Class View's
+   * "Extended by" list). Threaded down the recursion by the view that sets
+   * it.
+   */
+  hideBacklinks?: boolean | undefined;
 }
 
-export function BlockRow({ tree, client, resolveName, readOnly = false, readOnlyInert = false, suppressWidgets = false, ignoreCollapse = false, tableRow = false, variant = "block" }: BlockRowProps) {
+export function BlockRow({ tree, client, resolveName, readOnly = false, readOnlyInert = false, suppressWidgets = false, ignoreCollapse = false, tableRow = false, variant = "block", hideBacklinks = false }: BlockRowProps) {
   const [gripMenu, setGripMenu] = useState<{ x: number; y: number } | null>(null);
   const { node, children } = tree;
   const isTitle = variant === "title";
@@ -166,8 +174,10 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
   // Right-gutter backlink toggle (SCHEMA.md:117): the badge reads the
   // materialized count (cheap stored number, renders unconditionally at 0
   // hides the toggle); the linked-references query stays lazy until the
-  // first expand.
-  const backlinkCount = client.getBacklinkCount(node.id);
+  // first expand. A hidden gutter (the hideBacklinks list projections)
+  // skips the read — the count reads 0, so the toggle, the panel, and the
+  // row-end's count branch all stay out.
+  const backlinkCount = hideBacklinks ? 0 : client.getBacklinkCount(node.id);
   const [backlinksExpanded, setBacklinksExpanded] = useState(false);
   const isCollapsed = !ignoreCollapse && collapsed.has(node.id);
   // Sortable within this row's sibling group; the bullet/chevron area is the
@@ -269,6 +279,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
               readOnly={readOnly}
               ignoreCollapse={ignoreCollapse}
               suppressWidgets={suppressWidgets}
+              hideBacklinks={hideBacklinks}
             />
           ))}
         </SortableContext>
@@ -757,6 +768,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
                     ignoreCollapse={ignoreCollapse}
                     tableRow
                     suppressWidgets={suppressWidgets}
+                    hideBacklinks={hideBacklinks}
                   />
                 ))}
               </SortableContext>
@@ -794,6 +806,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
                   readOnly={readOnly}
                   ignoreCollapse={ignoreCollapse}
                   suppressWidgets={suppressWidgets}
+                  hideBacklinks={hideBacklinks}
                 />
               ))}
             </div>
