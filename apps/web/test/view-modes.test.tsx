@@ -316,6 +316,11 @@ describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
       />,
     );
     const card = container.querySelector(".node-card") as HTMLElement;
+    // The lead stack groups breadcrumbs → title → classes → tags (beside a
+    // horizontal cover; full width in the top/no-cover flow).
+    expect(card.querySelector(".node-card__lead .node-card__header")).not.toBeNull();
+    expect(card.querySelector(".node-card__lead .node-card__classes-row")).not.toBeNull();
+    expect(card.querySelector(".node-card__lead .node-card__tags-row")).not.toBeNull();
     // The title IS the page-view title row (BlockRow variant="title"): the
     // class chip rides as a live node link (the owner 2026-10-13 node-link
     // look) — a click opens THE CLASS, and the plain-title click opens the
@@ -376,13 +381,11 @@ describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
     expect(screen.getByRole("menu")).not.toBeNull();
   });
 
-  it("the breadcrumb row edits existing parents only — no Add parent noise (owner 2026-10-13)", async () => {
+  it("the breadcrumb row is read-only on the card — crumbs navigate, nothing edits (owner reversal 2026-10-13)", async () => {
     const client = await seedClient();
-    // A parentless card: no crumbs AND no Add parent pill (the card edits
-    // only existing parents; the pill stays a top-bar gesture).
+    // A parentless card: no crumbs, no Add parent pill.
     const orphan = await client.createObject({ presentAsMain: true, name: "Orphan" });
-    // A parented card: the chain rides and its edges stay editable (the
-    // right-click edge menu opens).
+    // A parented card: the chain rides for navigation, but no edit gestures.
     const parent = await client.createObject({ presentAsMain: true, name: "Parent" });
     const child = await client.createObject({ parentId: parent, contentAst: [{ type: "text", text: "Child" }] });
     await flushWrites();
@@ -409,8 +412,9 @@ describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
     );
     card = second.container.querySelector(".node-card") as HTMLElement;
     expect(within(card).getByText("Parent")).not.toBeNull();
+    // Read-only: even a right-click on a crumb opens no edit menu.
     fireEvent.contextMenu(within(card).getByText("Parent"));
-    expect(screen.getByRole("menu")).not.toBeNull();
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 
   it("table mode never renders children even when the items carry them", async () => {
