@@ -9,6 +9,14 @@ predating this file.
 
 ## 2026-10-13
 
+- **fix(web): the hover tint is gone from text property value cells (owner
+  2026-10-13).** `.nt-property-value:hover` (the super-clean field's hover
+  surface) is removed — the text rides the row with no hover feedback, on the
+  card's table and the properties panel alike (one component, one rule); focus
+  keeps its surface + the accent ring as the editing signal. **Verification:**
+  CSS-only change; the properties suites green (`block-metadata`,
+  `table-polish`).
+
 - **feat(web): the card's properties section IS the nodeview properties
   table — name column | value column, editable, every bound property riding
   (owner 2026-10-13).** The owner: "I don't see two columns … it should

@@ -227,17 +227,14 @@ span.pill__text {
   font-size: var(--font-size-sm);
   padding: var(--spacing-1) var(--spacing-2);
   /* Owner refinement: super-clean fields — the text rides the row directly,
-     no outlined box (hover/focus surface only). */
+     no outlined box; the hover surface is gone too (owner 2026-10-13) —
+     focus alone carries the editing feedback. */
   border: none;
   border-radius: var(--shape-medium);
   background: transparent;
   color: var(--color-on-surface);
   min-width: var(--layout-size-md);
   max-width: 100%;
-}
-
-.nt-property-value:hover {
-  background: var(--color-hover-overlay);
 }
 
 .nt-property-value:focus,
