@@ -35,7 +35,10 @@ import {
   familyClassNames,
   featureForManagedClass,
   gatingFeaturesForClass,
+  dateChainClassId,
+  dateChainParentId,
   managedClassIds,
+  parseDateNodeId,
   plainTextExcerpt,
   stringifyContentAst,
   SYSTEM_CLASS_ICONS,
@@ -314,6 +317,22 @@ function applyObjectCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "object.create";
   const p = env.payload as OpPayload<"object.create">;
   const parentId = p.parentId ?? null;
+  // Date-chain class lock (SCHEMA.md "Datetime"): a date node's class set is
+  // FIXED to its precision's system class. The re-issued object.create is
+  // the OR-Set add carrier (class.assign rides it, also on an existing id),
+  // so the guard runs BEFORE the membership seeding and the re-create early
+  // return below.
+  const lockedDateClass = dateChainClassId(p.objectId);
+  if (lockedDateClass !== null) {
+    for (const classId of p.classIds) {
+      if (classId !== lockedDateClass) {
+        throw new MoveGuardError(
+          `${opType}: node ${p.objectId} is a date-chain node; it can only carry the ${lockedDateClass} system class`,
+          opType,
+        );
+      }
+    }
+  }
   // Render bit (Revision 11): the payload may carry presentAsMain; the
   // applier defaults it by context — a parentless node presents as main
   // (document chrome by the second cascade branch), a parented one starts
@@ -387,6 +406,22 @@ const tagMemberUpsert = db.prepare(
     // Classes are containers (spec I4): a class parent is legal for
     // non-class children — which is all object.create can make (is_class
     // stays 0; class declaration remains the class.create op).
+  }
+  // Date-chain parenting lock (SCHEMA.md "Datetime", same rule as
+  // object.move, with one birth-time exception): a date id may only be
+  // created AT its deterministic chain parent (year → root, month → year,
+  // day → month). Claiming any other parent is establishing an illegal
+  // parented state and fails loud; a parentless create is the standalone
+  // shape the client chain self-heal adopts, so it stays legal.
+  if (
+    parentId !== null &&
+    parseDateNodeId(p.objectId) !== null &&
+    parentId !== dateChainParentId(p.objectId)
+  ) {
+    throw new MoveGuardError(
+      `${opType}: node ${p.objectId} is a date-chain node; it can only be created at its deterministic chain parent`,
+      opType,
+    );
   }
 
   try {
@@ -789,10 +824,12 @@ function applyObjectRestore(db: StoreDatabase, env: Envelope): ChangeSummary {
  *
  * Placement guards fail loud, mirroring object.create: the parent must exist,
  * a node may never move under itself or its own descendant (parent_id cycle),
- * and a CLASS node may never move under any parent (classes are always roots
+ * a CLASS node may never move under any parent (classes are always roots
  * — spec I4 makes class nodes containers of non-class children, but the
  * class-under-class / class-with-parent shape stays illegal; the DB CHECK
- * would fire anyway, so the guard surfaces it friendly). Moves never write
+ * would fire anyway, so the guard surfaces it friendly), and a DATE-CHAIN
+ * node may only move under its deterministic chain parent (SCHEMA.md
+ * "Datetime" — the parenting lock). Moves never write
  * the render bit: a parentless non-class node renders with document chrome
  * by the second cascade branch regardless of present_as_main.
  */
@@ -817,6 +854,17 @@ function applyObjectMove(db: StoreDatabase, env: Envelope): ChangeSummary {
   if (p.parentId !== null && (row as { is_class?: number }).is_class === 1) {
     throw new MoveGuardError(
       `${opType}: node ${p.objectId} is a class; classes are always roots and cannot have a parent`,
+      opType,
+    );
+  }
+  // Date-chain parenting lock (SCHEMA.md "Datetime"): a date node may ONLY
+  // live under its deterministic chain parent (year → root, month → year,
+  // day → month). The chain self-heal re-issues exactly this move, so the
+  // chain-correct parent stays legal; any other target is a reparenting
+  // attempt and fails loud.
+  if (parseDateNodeId(p.objectId) !== null && p.parentId !== dateChainParentId(p.objectId)) {
+    throw new MoveGuardError(
+      `${opType}: node ${p.objectId} is a date-chain node; its parent is locked to the deterministic chain parent`,
       opType,
     );
   }
@@ -947,6 +995,15 @@ function upsertClassNode(
 function applyClassCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "class.create";
   const p = env.payload as OpPayload<"class.create">;
+  // Date-chain class lock (SCHEMA.md "Datetime"): a date node is a journal
+  // entry, never a class — declaring it one (fresh or the conversion flip)
+  // would sever its identity.
+  if (parseDateNodeId(p.classId) !== null) {
+    throw new MoveGuardError(
+      `${opType}: node ${p.classId} is a date-chain node; it can never be declared a class`,
+      opType,
+    );
+  }
   // Registry `name` is a denormalized cache of the class node's title text
   // (NOT NULL — the empty string is the absent sentinel). A conversion
   // (class.create on an existing node) carries no contentAst: absent fields
@@ -1089,6 +1146,17 @@ function applyClassUnassign(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "class.unassign";
   const p = env.payload as OpPayload<"class.unassign">;
   requireNode(db, p.objectId, opType);
+  // Date-chain class lock (SCHEMA.md "Datetime"): the precision's system
+  // class IS the date node's identity — removing it is illegal. Unassigning
+  // a FOREIGN class stays legal: it cleans up a legacy violation rather
+  // than freezing one.
+  const lockedDateClass = dateChainClassId(p.objectId);
+  if (lockedDateClass !== null && p.classId === lockedDateClass) {
+    throw new MoveGuardError(
+      `${opType}: node ${p.objectId} is a date-chain node; its ${lockedDateClass} system class cannot be removed`,
+      opType,
+    );
+  }
   db.prepare(
     `INSERT INTO class_member_set (node_id, class_id, present, hlc_physical, hlc_logical, actor_id)
      VALUES (?, ?, 0, ?, ?, ?)

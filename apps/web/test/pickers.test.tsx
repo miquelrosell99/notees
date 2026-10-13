@@ -477,3 +477,21 @@ describe("NodeSelector year create row", () => {
     expect(screen.getByText('Create "17117"')).not.toBeNull();
   });
 });
+
+describe("date-chain class lock (SCHEMA.md 'Datetime')", () => {
+  it("a date page renders the Classes row read-only — no Add-class pill (the system-class pill is non-removable already)", async () => {
+    const client = await seedClient();
+    const chain = await client.ensureDateChain("2026-09-27");
+    const { container, unmount } = render(<PageView client={client} pageId={chain.day} />);
+
+    // The day class pill renders; the Add-class affordance does not.
+    expect(container.querySelectorAll(".nt-classes-row .pill:not(.pill--add)").length).toBe(1);
+    expect(screen.queryByRole("button", { name: "Add class" })).toBeNull();
+    unmount();
+
+    // An ordinary page still offers Add class (the lock keys on the date id).
+    const pageId = await client.createObject({ presentAsMain: true, name: "Ordinary" });
+    render(<PageView client={client} pageId={pageId} />);
+    expect(screen.getByRole("button", { name: "Add class" })).not.toBeNull();
+  });
+});

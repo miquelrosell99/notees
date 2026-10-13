@@ -29,8 +29,11 @@ export class CheckConstraintError extends StoreError {
   }
 }
 
-/** Cross-row tree guard: a class node may never take a parent (classes are
- * always roots), and a node may never move into its own subtree (SCHEMA.md). */
+/** Structural guard: a class node may never take a parent (classes are
+ * always roots), a date-chain node's structure is FIXED — its parent is the
+ * deterministic chain parent, its class set is its precision's system class
+ * (never declared a class itself) — and a node may never move into its own
+ * subtree (SCHEMA.md). */
 export class MoveGuardError extends StoreError {}
 
 /** class.setExtends would introduce a cycle in the extends chain. */

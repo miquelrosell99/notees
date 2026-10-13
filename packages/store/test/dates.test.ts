@@ -20,10 +20,10 @@ import { join } from "node:path";
 
 import initSqlJs, { type SqlJsStatic } from "sql.js";
 
-import { chainNodeIds } from "@notees/domain";
+import { chainNodeIds, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import { newEnvelope, type Envelope } from "@notees/protocol";
 
-import { PropertyValueShapeError, Store, type StoreBackend } from "../src/index.js";
+import { MoveGuardError, PropertyValueShapeError, Store, type StoreBackend } from "../src/index.js";
 import { betterSqlite3Backend } from "../src/adapters/better-sqlite3.js";
 import { sqljsBackend } from "../src/adapters/sqljs.js";
 
@@ -434,6 +434,98 @@ describe.each(adapters)("$name: dates (SCHEMA.md)", ({ makeBackend }) => {
         env("property.set", { objectId: NODE_PAGE, propertySchemaId: SPAN, value: { start: null, end: null } }, 1727200002000),
       );
       expect(valueRow(store, SPAN)?.value).toBe(JSON.stringify({ start: null, end: null }));
+    });
+
+    describe("date-chain parenting lock (SCHEMA.md 'Datetime', owner 2026-10-13)", () => {
+      it("object.move rejects a date node anywhere but its deterministic chain parent", () => {
+        const store = makeStore();
+        // Under an arbitrary page.
+        expect(() =>
+          store.apply(env("object.move", { objectId: CHAIN_A.day, parentId: NODE_PAGE }, 1727200002000)),
+        ).toThrow(MoveGuardError);
+        // To the root.
+        expect(() =>
+          store.apply(env("object.move", { objectId: CHAIN_A.day, parentId: null }, 1727200002100)),
+        ).toThrow(MoveGuardError);
+        // A month under a DIFFERENT date's year node.
+        expect(() =>
+          store.apply(env("object.move", { objectId: CHAIN_A.month, parentId: CHAIN_B.year }, 1727200002200)),
+        ).toThrow(MoveGuardError);
+        // Non-date nodes stay movable (the guard keys on the date id).
+        store.apply(env("object.move", { objectId: NODE_PAGE, parentId: null }, 1727200002300));
+        // The rejected moves changed nothing.
+        expect(store.getNode(CHAIN_A.day)?.parent_id).toBe(CHAIN_A.month);
+        expect(store.getNode(CHAIN_A.month)?.parent_id).toBe(CHAIN_A.year);
+      });
+
+      it("object.move allows the chain-correct parent (the client self-heal rides it)", () => {
+        const store = makeStore();
+        store.apply(env("object.move", { objectId: CHAIN_A.day, parentId: CHAIN_A.month }, 1727200003000));
+        store.apply(env("object.move", { objectId: CHAIN_A.month, parentId: CHAIN_A.year }, 1727200003100));
+        store.apply(env("object.move", { objectId: CHAIN_A.year, parentId: null }, 1727200003200));
+        expect(store.getNode(CHAIN_A.day)?.parent_id).toBe(CHAIN_A.month);
+        expect(store.getNode(CHAIN_A.month)?.parent_id).toBe(CHAIN_A.year);
+        expect(store.getNode(CHAIN_A.year)?.parent_id).toBeNull();
+      });
+
+      it("object.create rejects a date id claiming a non-chain parent; parentless and chain shapes stay legal", () => {
+        const store = makeStore();
+        const stray = chainNodeIds("2029-03-04");
+        expect(() =>
+          store.apply(env("object.create", { objectId: stray.day, parentId: NODE_PAGE }, 1727200004000)),
+        ).toThrow(MoveGuardError);
+        expect(() =>
+          store.apply(env("object.create", { objectId: stray.year, parentId: NODE_PAGE }, 1727200004100)),
+        ).toThrow(MoveGuardError);
+        // The standalone shape (parentless) is legal — the client chain
+        // self-heal adopts it onto the chain.
+        store.apply(env("object.create", { objectId: stray.day }, 1727200004150));
+        expect(store.getNode(stray.day)?.parent_id).toBeNull();
+        // The chain-correct shape (a fresh chain): year at root, month under
+        // year, day under month.
+        const fresh = chainNodeIds("2029-04-07");
+        store.applyMany([
+          env("object.create", { objectId: fresh.year, classIds: [SYSTEM_CLASS_UUIDS.year] }, 1727200004200),
+          env("object.create", { objectId: fresh.month, parentId: fresh.year, classIds: [SYSTEM_CLASS_UUIDS.month] }, 1727200004300),
+          env("object.create", { objectId: fresh.day, parentId: fresh.month, classIds: [SYSTEM_CLASS_UUIDS.day] }, 1727200004400),
+        ]);
+        expect(store.getNode(fresh.day)?.parent_id).toBe(fresh.month);
+      });
+
+      it("object.create rejects a date id carrying a FOREIGN class — fresh and re-issued (the OR-Set add carrier)", () => {
+        const store = makeStore();
+        const stray = chainNodeIds("2029-05-06");
+        // Fresh create with a foreign class.
+        expect(() =>
+          store.apply(env("object.create", { objectId: stray.day, classIds: [SYSTEM_CLASS_UUIDS.task] }, 1727200005000)),
+        ).toThrow(MoveGuardError);
+        // The re-issued create (class.assign's add carrier) on an EXISTING
+        // date node — the guard runs before the re-create early return.
+        expect(() =>
+          store.apply(env("object.create", { objectId: CHAIN_A.day, classIds: [SYSTEM_CLASS_UUIDS.task] }, 1727200005100)),
+        ).toThrow(MoveGuardError);
+        // Its own system class re-add stays legal (the ensureDateChain carrier).
+        store.apply(env("object.create", { objectId: CHAIN_A.day, classIds: [SYSTEM_CLASS_UUIDS.day] }, 1727200005200));
+      });
+
+      it("class.unassign refuses the precision's system class; a foreign cleanup stays legal", () => {
+        const store = makeStore();
+        expect(() =>
+          store.apply(env("class.unassign", { objectId: CHAIN_A.day, classId: SYSTEM_CLASS_UUIDS.day }, 1727200006000)),
+        ).toThrow(MoveGuardError);
+        // A foreign class was never assignable; removing one is legal
+        // cleanup of a legacy violation, not a lock breach.
+        store.apply(
+          env("class.unassign", { objectId: CHAIN_A.day, classId: "0192a000-0000-7000-8000-0000000000f1" }, 1727200006100),
+        );
+      });
+
+      it("class.create never declares a date node a class", () => {
+        const store = makeStore();
+        expect(() =>
+          store.apply(env("class.create", { classId: CHAIN_A.year }, 1727200007000)),
+        ).toThrow(MoveGuardError);
+      });
     });
   });
 });

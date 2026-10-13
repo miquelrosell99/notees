@@ -213,7 +213,11 @@ through their appliers with the same expected outcomes: `notees-gtk`
 (`test/fixtures/wire/` + `test/fixture_replay_test.dart`, flutter_test). A semantic
 change is not done until all three implementations converge on the same fixture
 expectations — this is the practical enforcement of "one semantics, many clients".
-Update all three repos' fixture copies together (they are the same bytes).
+Update all three repos' fixture copies together (they are the same bytes). An
+applier-only semantic guard with no wire change (e.g. the 2026-10-13 date-chain
+parenting lock, SCHEMA.md "Datetime") ships LOCKSTEP-PENDING: the TS reference
+fails loud while the GTK/Flutter appliers catch up, and it is recorded in SCHEMA.md
+next to the normative rule.
 
 ## 4. Adding a new op type — the order matters
 

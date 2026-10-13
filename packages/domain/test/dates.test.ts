@@ -9,6 +9,8 @@
 import { describe, expect, it } from "vitest";
 import {
   chainNodeIds,
+  dateChainClassId,
+  dateChainParentId,
   dateNodeId,
   dateNodeLabel,
   dayNodeId,
@@ -17,6 +19,7 @@ import {
   monthNodeId,
   parseDateNodeId,
   parseIsoDate,
+  SYSTEM_CLASS_UUIDS,
   yearNodeId,
 } from "../src/index.js";
 
@@ -73,6 +76,25 @@ describe("date node ids (scheme port)", () => {
       month: "00000000-0000-0000-00aa-199901000000",
       day: "00000000-0000-0000-00dd-199901010000",
     });
+  });
+
+  it("dateChainParentId returns the locked chain parent (year → root, month → year, day → month)", () => {
+    const v = V1_VECTORS[0]!;
+    expect(dateChainParentId(v.year)).toBeNull();
+    expect(dateChainParentId(v.month)).toBe(v.year);
+    expect(dateChainParentId(v.day)).toBe(v.month);
+    // Non-date ids have no locked parent.
+    expect(dateChainParentId("0192a000-0000-7000-8000-000000000010")).toBeNull();
+    expect(dateChainParentId("not-a-uuid")).toBeNull();
+  });
+
+  it("dateChainClassId returns the one locked system class per precision", () => {
+    const v = V1_VECTORS[0]!;
+    expect(dateChainClassId(v.year)).toBe(SYSTEM_CLASS_UUIDS.year);
+    expect(dateChainClassId(v.month)).toBe(SYSTEM_CLASS_UUIDS.month);
+    expect(dateChainClassId(v.day)).toBe(SYSTEM_CLASS_UUIDS.day);
+    // Non-date ids have no locked class.
+    expect(dateChainClassId("0192a000-0000-7000-8000-000000000010")).toBeNull();
   });
 
   it("parses ISO dates strictly (leap years in, impossible dates out)", () => {
