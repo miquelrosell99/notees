@@ -418,6 +418,7 @@ export function NodeCard({
                         client={client}
                         resolveName={resolveName}
                         readOnly
+                        hideBacklinks={props.hideBacklinkCount}
                       />
                     ))}
                   </div>
