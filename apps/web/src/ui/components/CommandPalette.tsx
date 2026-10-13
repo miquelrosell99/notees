@@ -252,6 +252,7 @@ export function CommandPalette({
   onOpenProperty = undefined,
   currentNodeId = undefined,
   onOpenMerge = undefined,
+  onOpenSearch = undefined,
   onSignOut,
   undoState,
   onUndo,
@@ -282,6 +283,12 @@ export function CommandPalette({
   currentNodeId?: string | undefined;
   /** Open the merge-into modal for `currentNodeId` — a contribution point. */
   onOpenMerge?: (() => void) | undefined;
+  /**
+   * The full-page search handoff: with a non-empty query the footer row
+   * "Search all for …" appears and navigates to /search carrying the query
+   * — a contribution point, like the class create.
+   */
+  onOpenSearch?: ((query: string) => void) | undefined;
   onSignOut: () => void;
   /** The session undo journal state; rows appear only when available. */
   undoState: UndoUiState;
@@ -829,6 +836,19 @@ export function CommandPalette({
             <div className="nt-palette-empty">No results. Try a different search.</div>
           )}
         </div>
+        {text !== "" && onOpenSearch !== undefined && (
+          <button
+            type="button"
+            className="nt-palette-search-all"
+            onClick={() => {
+              onClose();
+              onOpenSearch(text);
+            }}
+          >
+            <Icon path="mdi-magnify" size={0.8} />
+            <span>Search all for "{text}"</span>
+          </button>
+        )}
         <div className="nt-palette-footer">
           <span>↑↓ navigate</span>
           <span>↵ select</span>
