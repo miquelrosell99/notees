@@ -261,16 +261,36 @@ export function NodeCard({
    */
   const metadataLocked = parseDateNodeId(item.node.id) !== null;
   /**
-   * The property rows: the container's cardProperties in order, or EVERY
-   * effective property with a non-empty display text (the v1 register).
+   * The property rows. Scoped (the container names cardProperties — the
+   * classed-nodes section passes its bound columns): EVERY named schema rides
+   * in order, and a bound-but-unset property (no authored value, no default —
+   * the effective read emits no row for it) still shows as an EMPTY field
+   * (owner 2026-10-13: the class's full column set on every member card, like
+   * the table). Unscoped (the v1 default): every effective property with a
+   * non-empty display text.
    */
   const properties = propertiesOf?.(item.node.id) ?? [];
-  const cardRows =
+  const cardRows: Array<{ key: string; name: string; text: string }> =
     cardProperties !== undefined
-      ? cardProperties
-          .map((schemaId) => properties.find((p) => p.propertySchemaId === schemaId))
-          .filter((prop) => prop !== undefined && propertyDisplayText(client, prop) !== "")
-      : properties.filter((prop) => propertyDisplayText(client, prop) !== "");
+      ? cardProperties.map((schemaId) => {
+          const prop = properties.find((p) => p.propertySchemaId === schemaId);
+          if (prop === undefined) {
+            const schema = client.listPropertySchemas().find((s) => s.id === schemaId);
+            return { key: schemaId, name: schema?.name ?? "Property", text: "" };
+          }
+          return {
+            key: schemaId,
+            name: prop.schema?.name ?? "Property",
+            text: propertyDisplayText(client, prop),
+          };
+        })
+      : properties
+          .filter((prop) => propertyDisplayText(client, prop) !== "")
+          .map((prop) => ({
+            key: prop.propertySchemaId,
+            name: prop.schema?.name ?? "Property",
+            text: propertyDisplayText(client, prop),
+          }));
   return (
     <article
       className={`node-card node-card--${coverLayout}${
@@ -389,10 +409,10 @@ export function NodeCard({
             BOTH columns beside a horizontal cover (owner 2026-10-13). */}
         {cardRows.length > 0 && (
           <dl className="node-card__properties">
-            {cardRows.map((prop) => (
-              <div className="node-card__property" key={prop!.propertySchemaId}>
-                <dt>{prop!.schema?.name ?? "Property"}</dt>
-                <dd>{propertyDisplayText(client, prop)}</dd>
+            {cardRows.map((row) => (
+              <div className="node-card__property" key={row.key}>
+                <dt>{row.name}</dt>
+                <dd>{row.text}</dd>
               </div>
             ))}
           </dl>
