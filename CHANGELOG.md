@@ -9,6 +9,25 @@ predating this file.
 
 ## 2026-10-13
 
+- **feat(web): a NodeCollection flag hides the block-row backlink count —
+  set for the Child pages tree and the Class View's "Extended by" list
+  (owner 2026-10-13).** The row-end gutter toggle (the materialized
+  `node_stats.backlink_count` badge) and its expanded linked-references
+  panel honor `hideBacklinkCount` on the collection, threaded to BlockRow
+  as `hideBacklinks` (which also skips the count read — the count falls to
+  0 and the toggle, the panel, and the row-end's count branch all stay out;
+  the classes column is unaffected). Threaded down BlockRow's recursion
+  (children, table cells, table containers) and honored by the outline
+  tree, the flat list, and cards card bodies alike. Set on the two
+  read-only list projections where the count is reference noise: the page
+  view's Child pages section and the class page's Extended by section.
+  Test: a class with a real materialized backlink renders no
+  `.nt-block-backlink-toggle`/`.nt-block-backlink-refs` inside the Extended
+  by section. `docs/ux.md`'s block-gutter line carries the exception. The
+  implementation landed via the owner-ordered checkpoint `fe9fe0a6` plus
+  this commit's cards-body arm. Gate: web `tsc` clean on the touched files
+  + `pnpm test` green (145 files, 1561 tests).
+
 - **fix(web): the graph renders again on Firefox-class linkers (Zen included)
   — the time-lapse uniforms were declared in both shader stages.** The three
   new uniforms (`u_timeLapse`, `u_timeCutoff`, `u_hoverDim`) were declared in
