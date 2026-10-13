@@ -9,6 +9,41 @@ predating this file.
 
 ## 2026-10-13
 
+- **fix(web): the class page's "Extended by" section lists DIRECT subclasses
+  only (owner 2026-10-13).** The section previously built a multi-level tree
+  from the transitive extends closure, so a grandchild subclass (x extends
+  book extends source) rendered under BOTH source and book. Now the section
+  renders only the one-edge extenders under each class — x shows under book's
+  section, source's shows book alone. New read alongside the transitive
+  `classChildIds`/`getClassChildren` (kept — the section-view class closures
+  still need the closure): store `directClassChildIds` (a
+  `class_extends`-table query), `WorkspaceClient.getDirectClassChildren`,
+  and the worker-client/worker-core scope-read plumbing; the section drops
+  the recursive tree build (the `tree` flag stays so rows render childless
+  tree rows rather than the flat view's live-children fallback). The
+  ExtendedBySection test flips from asserting the transitive tree to
+  asserting the leaf renders under its direct parent only; `docs/ux.md`'s
+  class-page line says "direct subclasses only". Gate: `pnpm typecheck` +
+  `pnpm test` green.
+
+- **docs(protocol): the date-chain parent/class locks are LOCKSTEP-COMPLETE —
+  the GTK and Flutter appliers carry the same guards (owner 2026-10-13).** The
+  sibling ports of the date-chain slice (`notees-gtk` `b90beb2`,
+  `notees-flutter` `1c4aff7`) implement the five guards with TS-identical
+  semantics and messages: `object.move` onto anything but the deterministic
+  chain parent, `object.create` claiming a non-chain parent, `object.create`'s
+  classIds carrier with a foreign class (running before the OR-Set seeding and
+  the re-create early return), `class.unassign` of the precision's system
+  class, and `class.create` on a date id — all `MoveGuardError`-typed so each
+  client's existing replay-quarantine path covers historical violations. Each
+  repo gained the domain helpers (`date_chain_parent_id`/`date_chain_class_id`,
+  `dateChainParentId`/`dateChainClassId`), a guard test suite modeled on the TS
+  store tests, and its changelog entry; GTK gate `pytest` 782 passed + `ruff` +
+  `mypy` clean, Flutter gate `flutter analyze` clean + 630 tests passed.
+  SCHEMA.md's two Datetime bullets flip from LOCKSTEP-PENDING to the
+  all-three-implementations statement; development.md's lockstep paragraph
+  records the TS-first-then-ports precedent.
+
 - **refactor(web): the breadcrumb trails' parent-edit chevron composes the
   core HoverRevealButton (owner 2026-10-13).** The trail affordance that
   originated the hover-reveal pattern now consumes the core element shipped
