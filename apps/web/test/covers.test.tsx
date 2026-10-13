@@ -24,6 +24,7 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { PageView } from "../src/ui/PageView.js";
 import { NodeCollection } from "../src/ui/views/index.js";
+import { writeCardLayoutPref } from "../src/ui/viewPrefs.js";
 import {
   clearNodeCover,
   coverAssetIdOf,
@@ -428,5 +429,131 @@ describe("the recovered cover", () => {
     // The set cover auto-expands the card with the image.
     await screen.findByRole("button", { name: "Collapse cover" });
     expect(container.querySelector(".nt-covercard__img")).not.toBeNull();
+  });
+});
+
+describe("the card cover slot (cards mode, owner 2026-10-13)", () => {
+  afterEach(() => {
+    writeCardLayoutPref("no-cover");
+  });
+
+  it("under a cover layout the slot renders EVEN WHEN EMPTY — the Add affordance names the missing cover", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Bare Page" });
+    await flushWrites();
+    writeCardLayoutPref("cover-top");
+
+    render(
+      <NodeCollection
+        viewMode="cards"
+        client={client}
+        items={[{ node: client.getNode(pageId)! }]}
+      />,
+    );
+    // The empty slot keeps the cover layout's shape (the 16:9 top mat)…
+    const empty = document.querySelector(".node-card__cover--empty")!;
+    expect(empty).not.toBeNull();
+    expect(empty.className).toContain("node-card__cover");
+    // …and the affordance names the node it fills.
+    expect(
+      screen.getByRole("button", { name: "Add cover image to Bare Page" }),
+    ).not.toBeNull();
+  });
+
+  it("no-cover stays text-only: no cover element at all (the layout gate is unchanged)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Text Only" });
+    await flushWrites();
+
+    const { container } = render(
+      <NodeCollection
+        viewMode="cards"
+        client={client}
+        items={[{ node: client.getNode(pageId)! }]}
+      />,
+    );
+    expect(container.querySelector(".node-card__cover")).toBeNull();
+  });
+
+  it("the empty slot's Add cover opens the upload modal; uploading sets the cover (the wire field)", async () => {
+    const client = await seedClient();
+    await seedAssetClass(client);
+    const pageId = await client.createObject({ presentAsMain: true, name: "Card Fill" });
+    await flushWrites();
+    writeCardLayoutPref("cover-top");
+
+    const upload = vi.spyOn(client, "uploadAsset").mockResolvedValue({
+      assetId: "asset-card-1",
+      hash: "hash-c",
+      originalName: "card.png",
+      mimeType: "image/png",
+      size: 10,
+    });
+    vi.spyOn(client, "attachAsset").mockResolvedValue(undefined);
+    vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,CARD");
+    vi.stubGlobal("URL", {
+      ...URL,
+      createObjectURL: vi.fn(() => "blob:preview"),
+      revokeObjectURL: vi.fn(),
+    });
+
+    const { container, rerender } = render(
+      <NodeCollection
+        viewMode="cards"
+        client={client}
+        items={[{ node: client.getNode(pageId)! }]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add cover image to Card Fill" }));
+    const dialog = await screen.findByRole("dialog", { name: "Upload file" });
+    // The modal's picker is image-only (the header card's accept list).
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+    expect(input.accept).toContain("image/jpeg");
+    expect(input.accept).not.toContain("pdf");
+
+    fireEvent.change(input, { target: { files: [new File(["bytes"], "card.png", { type: "image/png" })] } });
+    await within(dialog).findAllByText("card.png");
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: /upload/i }));
+    });
+    await flushWrites();
+
+    expect(upload).toHaveBeenCalledTimes(1);
+    // The cover rides the coverAssetId wire field; the uploaded node is an
+    // ordinary asset.
+    const coverAsset = coverAssetIdOf(client, pageId)!;
+    expect(coverAsset).not.toBeNull();
+    expect(client.getNode(coverAsset)?.classIds).toContain(SYSTEM_CLASS_UUIDS.asset);
+    // Fresh items in → the slot is gone, the cover image renders.
+    rerender(
+      <NodeCollection
+        viewMode="cards"
+        client={client}
+        items={[{ node: client.getNode(pageId)! }]}
+      />,
+    );
+    await screen.findByAltText("");
+    expect(container.querySelector(".node-card__cover--empty")).toBeNull();
+    expect(container.querySelector(".node-card__cover--button")).not.toBeNull();
+  });
+
+  it("a cover set on the wire field by ANY client shows on the card (the retired cover property is not read)", async () => {
+    const client = await seedClient();
+    const [pageId, assetId] = await seedPageAndAsset(client);
+    // The CLI/API path: plain object.update on the field.
+    await client.updateObject(pageId, { coverAssetId: assetId });
+    await flushWrites();
+    writeCardLayoutPref("cover-top");
+    vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,FIELD");
+
+    render(
+      <NodeCollection
+        viewMode="cards"
+        client={client}
+        items={[{ node: client.getNode(pageId)! }]}
+      />,
+    );
+    const img = await screen.findByAltText("");
+    expect(img.closest(".node-card__cover--button")).not.toBeNull();
   });
 });

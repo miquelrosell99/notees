@@ -398,6 +398,8 @@ The **Tasks** hub keeps its table/cards collection and now leads with a collapsi
 
 The **Assets** hub lists every asset-classed node as cards by default, and its cards default to the **cover top** layout (image assets read as a thumbnail gallery). Every other cards surface defaults to **no cover** until you pick a layout — and the moment you pick one anywhere, that choice becomes the single device-wide cover layout (see "View modes stick" above): the per-surface rule governs only the default before any choice exists.
 
+Under a cover layout the cover slot renders on **every** card, empty or not: a card whose node has no cover shows the quiet **Add cover** affordance in the slot — clicking opens the image-only upload modal and the uploaded image becomes the node's cover — so a missing cover is visible and fillable right there. (Asset cards are never "empty": their imagery is their own bytes. The **no cover** layout renders no slot at all — the card stays text-only.)
+
 ## Templates
 
 A **template** is an ordinary node carrying the `template` class — its child blocks are the body that gets copied. Templates are bound to classes (the **Templates** cards on a class page, ＋ Bind template) and instantiated where objects are created: class pickers and the calendar's quick-create can offer a bound template, and the copy opens as a fresh node stamped with a `generated-from` provenance link back to the template (edit the copy freely — nothing writes back to the template). Unbinding a template from a class never touches copies already made.
