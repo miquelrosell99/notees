@@ -8,6 +8,26 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-13
+
+- **fix(web): classed-nodes cards show EVERY bound property per member —
+  unset ones as empty fields (owner 2026-10-13).** The owner: "why don't I
+  see class properties as assigned in class view for classed nodes?" Two
+  layers hid them. (1) The card's scoped rows filtered to properties with a
+  non-empty display text. (2) Worse, the store's effective-properties read
+  (`effective.ts`) emits NO row for a binding with no authored value and no
+  default ("bound without a default → continue"), so the unset properties
+  never even reached the card. Now, when the container scopes
+  `cardProperties` (the classed-nodes section passes its bound columns), the
+  card materializes the FULL scoped set in order — a schema with no effective
+  row renders as an empty field (the table's full-column-set contract: a
+  member card shows exactly the class's columns, valued or empty). The
+  unscoped default (every effective property with a value, the v1 register)
+  is unchanged. Docs: `docs/ux.md` + `docs/usage.md` carry the full-column
+  rule. **Verification:** the card spec gains a second bound-but-unset
+  property asserting the row renders with an empty value; `tsc` clean apart
+  from the graph session's in-flight files; view-modes/class-view/
+  class-bindings suites green (36 + 18).
+
 - **fix(web): graph view owner corrections — brighter base rendering,
   Obsidian-style accent hover neighborhood, colors unify on query groups,
   blank-flash/jank fixes (owner 2026-10-13).** After the round-2 slice

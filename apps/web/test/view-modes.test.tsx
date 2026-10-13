@@ -286,6 +286,10 @@ describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
     const classId = await createTitledClass(client, "Pokemon");
     const schemaId = await client.createPropertySchema({ name: "Level", type: "number" });
     await client.setClassProperty(classId, schemaId, { sequence: 0 });
+    // A second binding with NO value on the member: the scoped set shows it
+    // as an EMPTY row (owner 2026-10-13 — the class's full column set).
+    const noteId = await client.createPropertySchema({ name: "Note", type: "text" });
+    await client.setClassProperty(classId, noteId, { sequence: 1 });
     const tag = await client.createObject({ presentAsMain: true, name: "favorites" });
     // A BLOCK member (parented — inline-block render state): document-chrome
     // nodes carry text-only titles (the store's flatten invariant), so the
@@ -311,7 +315,7 @@ describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
         client={client}
         items={[{ node: client.getNode(member)! }]}
         propertiesOf={(id) => client.getEffectiveProperties(id)}
-        cardProperties={[schemaId]}
+        cardProperties={[schemaId, noteId]}
         onNodeClick={(id) => opened.push(id)}
       />,
     );
@@ -352,6 +356,10 @@ describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
     expect(properties).not.toBeNull();
     expect(within(properties as HTMLElement).getByText("Level")).not.toBeNull();
     expect(within(properties as HTMLElement).getByText("25")).not.toBeNull();
+    // The unset bound property rides too — the row renders, the value empty.
+    const noteRow = (properties as HTMLElement).querySelectorAll(".node-card__property")[1]!;
+    expect(within(noteRow as HTMLElement).getByText("Note")).not.toBeNull();
+    expect(noteRow.querySelector("dd")!.textContent).toBe("");
   });
 
   it("right-click on the title opens the node menu; the three-dot is gone (the checkbox stays)", async () => {
