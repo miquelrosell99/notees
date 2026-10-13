@@ -146,6 +146,13 @@ export interface NodeCollectionProps {
    * the node (no full-row hover wash).
    */
   readOnly?: boolean | undefined;
+  /**
+   * Hide the row-end backlink count — the gutter toggle AND its expanded
+   * linked-references panel — in list/tree projections where the count is
+   * reference noise: the Child pages tree and the Class View's "Extended by"
+   * list (owner 2026-10-13).
+   */
+  hideBacklinkCount?: boolean | undefined;
   /** Tree paths filter children to main children (the Pages zone). */
   pagesOnly?: boolean | undefined;
   /** Depth cap for recursive tree rendering (the outline surface; cards and

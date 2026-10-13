@@ -76,7 +76,7 @@ function TreeRows({ items, props }: { items: NodeCollectionItem[]; props: NodeCo
     <SortableContext items={rows.map((row) => row.node.id)} strategy={verticalListSortingStrategy}>
       {rows.map((item) => {
         const row = (
-          <BlockRow key={item.node.id} tree={toBlockTree(item)} client={client} resolveName={resolveName} readOnly={readOnly} />
+          <BlockRow key={item.node.id} tree={toBlockTree(item)} client={client} resolveName={resolveName} readOnly={readOnly} hideBacklinks={props.hideBacklinkCount} />
         );
         if (renderItem === undefined) return row;
         return (
@@ -163,6 +163,7 @@ function FlatRows({
                   readOnly={readOnly}
                   readOnlyInert={readOnly}
                   suppressWidgets
+                  hideBacklinks={props.hideBacklinkCount}
                 />
                 {trailingAction?.(item)}
               </span>

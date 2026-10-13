@@ -9,61 +9,6 @@ predating this file.
 
 ## 2026-10-13
 
-- **feat(web): the card's classes/tags rows are the nodeview bar's own
-  elements (addable from the card); right-click on the title opens the node
-  menu (the three-dot is gone); a breadcrumbs row rides first; the cover is a
-  card element inside its cell with full-width row hairlines (owner batch
-  2026-10-13).** Five refinements of the v1 card. (1) The classes row drops
-  the read-only projection and hosts the INTERACTIVE NodePills the nodeview
-  bar uses (picker with create row, × removal with the journal-class lock,
-  drag reorder); the tags row hosts the page header's TagsRow composition
-  with its "Tags:" label hidden — classes and tags are addable and removable
-  right on the card. Date nodes stay metadata-locked (the ClassesRow rule);
-  a locked empty row renders nothing. (2) The title's RIGHT-CLICK opens the
-  node's context menu (the v1 context-menu register); the "…" button and the
-  hover action cluster are gone — the selection checkbox is the card's only
-  hover chrome. (3) The containing-page breadcrumbs ride as the card's FIRST
-  row (previously an opt-in `showBreadcrumbs` prop that no surface set);
-  a parentless node renders nothing and the row collapses. (4) The
-  child-blocks header label reads **Content**. (5) The horizontal-cover
-  redesign the owner's screenshot asked for: the cover sits INSIDE the
-  content cell as a matted, rounded sub-card (spacing-2 inset, shape-medium
-  corners), the image filling the mat absolutely — a portrait cover no longer
-  stretches the card beyond its rows — and the content is a two-column grid
-  whose row hairlines extend ACROSS the cover column (CSS subgrid, the
-  `@supports`-guarded fallback keeps rows in the main column), so the card
-  reads as one surface. Docs: `docs/ux.md` + `docs/usage.md` re-worded.
-  **Verification:** new specs (add-class/add-tag affordances on the card, the
-  title context menu with no three-dot, the breadcrumbs row) plus the
-  re-pinned card suite; `pnpm typecheck` + the full web suite green (1516).
-
-- **feat(web): the card's rows take the owner's layout — classes row, tags
-  row, then the properties section, every row hairline-separated; the blocks
-  move under their own header row (owner 2026-10-13).** Three layout rulings
-  on the v1 card (with the honest v1 note the owner asked about: the v1
-  archive's card DID give classes its own row, but carried NO row dividers —
-  v1's header comment reads "No background tint or divider — typography
-  carries the hierarchy"; its only hairlines were the cover mat's edges. The
-  dividers are the owner's refinement, the rows the v1 structure). (1) The
-  classes row is its own row under a hairline, then the tags row, then the
-  properties section — the owner-pinned order (the first cut had properties
-  between them). (2) The properties section reads as a table: a row per
-  property, label | value in two columns (label 40%, the table-row register
-  — min-height spacing-9, centered), every row hairline-separated; scope
-  unchanged (every effective property unless the container names
-  `cardProperties` — the classed-nodes cards mirror the table's bound
-  columns). (3) The child blocks move out of the title header's chevron into
-  a BLOCKS ROW — a header bar (the collapse chevron, bordered, + a "Blocks"
-  label) riding over the child blocks under a hairline, collapsed by default;
-  the title header is title + actions only. The collapsed body now unmounts
-  (conditional render — a collapsed card with a deep subtree holds no dead
-  rows), so the old `node-card__body--collapsed` display-none rule retires.
-  Docs: `docs/ux.md` + `docs/usage.md` carry the row layout. **Verification:**
-  the card specs re-pinned (blocks header at rest, expand/collapse mount
-  round trip, the triad's cards test expands the row); `pnpm typecheck` green
-  and the full `pnpm test` gate green (two single-test flakes under the
-  concurrent sessions' load, green on immediate standalone re-runs).
-
 - **feat(web): the v1 card's body collapses by default, and the card title
   IS the page-view title row (owner refinements 2026-10-13).** Two amendments
   to the v1 node card shipped earlier today. (1) The child-block body starts
@@ -121,6 +66,34 @@ predating this file.
   children resolution, chevron collapse, chips + scoped property rows,
   table-nevers-children); `pnpm typecheck` + the full `pnpm test` gate green
   (1515).
+
+- **feat(web): a NodeCollection flag hides the block-row backlink count —
+  set for the Child pages tree and the Class View's "Extended by" list
+  (owner 2026-10-13).** The row-end gutter toggle (the materialized
+  `node_stats.backlink_count` badge) and its expanded linked-references
+  panel now honor `hideBacklinkCount` on the collection, threaded to
+  BlockRow as `hideBacklinks` (which also skips the count read — the count
+  falls to 0 and the toggle, the panel, and the row-end's count branch all
+  stay out; the classes column is unaffected). Threaded down BlockRow's
+  recursion (children, table cells, table containers) and honored by the
+  outline tree, the flat list, and cards tree bodies alike. Set on the two
+  read-only list projections where the count is reference noise: the page
+  view's Child pages section and the class page's Extended by section.
+  Test: a class with a real materialized backlink renders no
+  `.nt-block-backlink-toggle`/`.nt-block-backlink-refs` inside the Extended
+  by section. `docs/ux.md`'s block-gutter line carries the exception. Gate:
+  `pnpm typecheck` + `pnpm test` green.
+
+- **fix(web): "Convert to heading" (and its "Convert to plain text" inverse)
+  appear only on block nodes (owner 2026-10-13).** The gate lived solely on
+  content shape, so the option leaked onto every context-menu surface whose
+  content is a single text run — class pills, page-title chrome, promoted
+  rows. `headingConversionOf` now returns null unless the node renders as an
+  inline block (`rendersAsInlineBlock` — parented, non-class,
+  `presentAsMain = 0`), matching the gesture's documented block-menu home;
+  `docs/usage.md` already scoped it to blocks, no doc change needed. The
+  unit stubs grow the render-state fields, plus a case asserting class and
+  main-node shapes offer neither direction. Gate: `pnpm test` green.
 
 - **docs(developers): the v1 source of truth is the `v1-archive` git tag —
   recorded in the skill and the runbook (owner 2026-10-13).** The pre-rewrite

@@ -68,6 +68,7 @@ export function ExtendedBySection({
           items={items}
           tree
           readOnly
+          hideBacklinkCount
           onNodeClick={(id) => onOpenClass?.(id)}
         />
       )}
