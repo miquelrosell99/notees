@@ -39,7 +39,8 @@ the pointer and the law.
 
 ## Catalog
 
-Inputs & buttons: `Button`, `Pill`/`AddPill`, `TextField`, `SearchField`,
+Inputs & buttons: `Button`, `Pill`/`AddPill`, `Chip` (the single-toggle
+pill — filter families, group toggles), `TextField`, `SearchField`,
 `Dropdown`, `SelectTrigger`, `Checkbox`, `Radio` (the checkbox variant's
 single-selection sibling — groups compose by sharing a `name`),
 `ToggleSwitch`, `BooleanToggle`,

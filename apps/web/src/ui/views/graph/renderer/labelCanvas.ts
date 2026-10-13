@@ -35,6 +35,12 @@ export interface LabelFrame {
   hovered: string | null;
   selected: string | null;
   colors: LabelColors;
+  /** Node creation times (sec since epoch) — with `timeCutoffSec`, nodes
+   *  created after the cutoff are not labelled (the time-lapse pass hides
+   *  them on the GL canvas too; the label overlay must follow). */
+  createdTimes?: ReadonlyMap<string, number> | undefined;
+  /** The time-lapse cutoff (sec since epoch). Absent = label everything. */
+  timeCutoffSec?: number | undefined;
 }
 
 /** The label-cap convention: how many labels may render at a zoom level. */
@@ -82,9 +88,15 @@ export function drawLabels(frame: LabelFrame): number {
     const worldRadius = frame.radii.get(id) ?? frame.baseNodeRadius;
     return worldRadius * zoom * dpr + 4 * dpr;
   };
+  const timeHidden = (id: string): boolean => {
+    if (frame.createdTimes === undefined || frame.timeCutoffSec === undefined) return false;
+    const created = frame.createdTimes.get(id);
+    return created !== undefined && created > frame.timeCutoffSec;
+  };
   const drawAt = (id: string, index: number, color: string): boolean => {
     const name = frame.names.get(id);
     if (name === undefined) return false;
+    if (timeHidden(id)) return false;
     const sp = frame.worldToScreen(frame.positions[index * 2]!, frame.positions[index * 2 + 1]!);
     if (sp.x < -margin || sp.x > width + margin || sp.y < -40 || sp.y > height + 40) return false;
     ctx.fillStyle = color;
