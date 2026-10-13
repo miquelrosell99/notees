@@ -1,8 +1,9 @@
 /**
  * ExtendedBySection tests (jsdom): the "Extended by" system section on a
- * class page — hidden while no class extends this one, a flat list of the
- * DIRECT extenders once any do (transitive extenders show only under their
- * own direct parent).
+ * class page — hidden while no class extends this one, a tree of the
+ * extenders once any do, each level nesting under its DIRECT parent only
+ * (a grandchild renders as its parent's child, never as a top-level row
+ * under the ancestor).
  *
  * The hide-when-empty early return sat BEFORE the useMemo — a
  * rules-of-hooks violation in the historical title-editor crash class.
@@ -73,7 +74,7 @@ describe("ExtendedBySection", () => {
     expect(screen.getByText("Extended by")).not.toBeNull();
   });
 
-  it("shows only direct extenders — no transitive nesting", async () => {
+  it("nests each extender under its DIRECT parent only", async () => {
     const client = await seedClient();
     const parentId = await createTitledClass(client, "work");
     const midId = await createTitledClass(client, "tv series");
@@ -84,14 +85,25 @@ describe("ExtendedBySection", () => {
     const header = screen.getByText("Extended by");
     const section = header.closest(".nt-section");
     expect(section).not.toBeNull();
-    // Only the direct extender renders — the transitive leaf (episode, under
-    // tv series) does NOT also appear under the grandparent class.
-    expect(section!.textContent).toContain("tv series");
-    expect(section!.textContent).not.toContain("episode");
-    // The leaf DOES render under its direct parent's section.
+    const midRow = section!.querySelector(`[data-block-id="${midId}"]`);
+    const leafRow = section!.querySelector(`[data-block-id="${leafId}"]`);
+    // Both render — the leaf as a CHILD of the mid row (nested under its
+    // direct parent), never as its own top-level row under the grandparent.
+    expect(midRow).not.toBeNull();
+    expect(leafRow).not.toBeNull();
+    // (closest() includes the element itself — step out of the leaf row
+    // before walking up to the containing block.)
+    expect(leafRow!.parentElement!.closest("[data-block-id]")).toBe(midRow);
+    // Exactly the two family rows render in the section — the leaf has no
+    // top-level duplicate under the ancestor.
+    expect(section!.querySelectorAll("[data-block-id]")).toHaveLength(2);
+    // The direct extender is a top-level tree row.
+    expect(midRow!.parentElement!.classList.contains("nt-block-tree")).toBe(true);
+    // The badge counts the DIRECT extenders only.
+    expect(section!.textContent).toContain("Extended by1");
+    // Sanity: the leaf renders under its direct parent's own section too.
     view.rerender(<NodeView client={client} nodeId={midId} onOpenNode={() => {}} />);
-    const midHeader = screen.getByText("Extended by");
-    const midSection = midHeader.closest(".nt-section");
-    expect(midSection!.textContent).toContain("episode");
+    const midSection = screen.getByText("Extended by").closest(".nt-section");
+    expect(midSection!.querySelector(`[data-block-id="${leafId}"]`)).not.toBeNull();
   });
 });
