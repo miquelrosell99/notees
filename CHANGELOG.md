@@ -9,6 +9,27 @@ predating this file.
 
 ## 2026-10-13
 
+- **feat(web): the topbar's history chevron becomes a hover-reveal
+  affordance, and its popup right-anchors to it (owner 2026-10-13).** The
+  undo cluster's dropdown arrow now hides at rest — the cluster keeps the
+  exact footprint of undo + redo — and expands on hover of the cluster,
+  exactly like the breadcrumb trails' parent-edit chevron (same
+  width/height + opacity motion, same zero-width-at-rest mechanics). It
+  also stays revealed while the history popup is open (including when the
+  popup was opened from the Ctrl+Shift+H shortcut, with the pointer
+  nowhere near), because the popup mirrors `aria-expanded` onto its anchor
+  and the reveal honors it. The pattern is generalized into a core
+  element, `HoverRevealButton` (`ui/` kit + barrel export): zero footprint
+  at rest, revealed by `.ui-hover-reveal-group` hover, keyboard focus, or
+  `aria-expanded` on the trigger. The popup itself now right-anchors —
+  `useViewportFlip` grew an `align: 'end'` option (right edges flush,
+  viewport-clamped, default `'start'` unchanged) and the history menu
+  uses it, so the menu's right edge rides the chevron's right edge.
+  **Verification:** `pnpm typecheck` green; `pnpm test` green (the full
+  run's three `workspace-snapshot-rebuild` 5s timeouts were load flakes —
+  the file passes standalone and in the scoped server suite, 225/225; web
+  1503/1503 across 143 files, zero errors).
+
 - **fix(web): breadcrumbs drop the self crumb — the trail is ancestors only
   (owner 2026-10-13).** The breadcrumb trail no longer appends the current
   node as a highlighted trailing crumb: the page header already names the
