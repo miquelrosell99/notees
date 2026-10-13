@@ -111,6 +111,10 @@ export function Breadcrumbs({
   anchor = "left",
   /** Parent-edit gestures: crumb chevron/right-click menus + Add parent. */
   editable = false,
+  /** The "+ Add parent" pill on a parentless node (default on with `editable`).
+   *  Surfaces that edit only EXISTING parents (the card's breadcrumb row) opt
+   *  out — the pill is noise there (owner 2026-10-13). */
+  addParent = true,
 }: {
   client: AnyClient;
   nodeId: string;
@@ -131,6 +135,8 @@ export function Breadcrumbs({
    */
   anchor?: "left" | "right" | undefined;
   editable?: boolean | undefined;
+  /** False hides the "+ Add parent" pill (existing-parents-only surfaces). */
+  addParent?: boolean | undefined;
 }) {
   const [popupOpen, setPopupOpen] = useState(false);
   const [leadPopupOpen, setLeadPopupOpen] = useState(false);
@@ -162,8 +168,10 @@ export function Breadcrumbs({
   // Owner rule (2026-10-04): a parentless node hides itself from the trail —
   // there is no chain to trail — and offers only the Add parent affordance
   // (never on classes: classes are always roots, a parent is unrepresentable;
-  // never on date nodes: the chain parent is locked).
+  // never on date nodes: the chain parent is locked). Surfaces that only edit
+  // existing parents opt out of the pill via `addParent={false}`.
   const showAddParent =
+    addParent &&
     editable &&
     currentNode !== undefined &&
     currentNode.parentId === null &&

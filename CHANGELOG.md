@@ -9,6 +9,18 @@ predating this file.
 
 ## 2026-10-13
 
+- **fix(web): the card's breadcrumb row hides the "+ Add parent" pill — the
+  card edits existing parents only (owner 2026-10-13).** The editable trail
+  had brought the parentless-node Add parent affordance along ("unneeded
+  noise" — adding a parent stays a top-bar gesture; on the card we only allow
+  editing or removing existing parents). `Breadcrumbs` gains an `addParent`
+  opt-out (default unchanged — the top bar keeps the pill); the card passes
+  `addParent={false}`. Reassign parent… / Remove parent on existing edges
+  are untouched. **Verification:** the spec re-pins both sides (parentless
+  card: no pill; parented card: the crumb renders and its right-click edge
+  menu opens); `pnpm typecheck` + the view-modes/system-sections suites
+  green (58).
+
 - **fix(web): the card's breadcrumb row is editable like the top bar's (owner
   2026-10-13).** Same component, but the card instance had been wired with
   `editable={false}` (the read-only instinct carried over from the first
