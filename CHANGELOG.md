@@ -9,6 +9,22 @@ predating this file.
 
 ## 2026-10-13
 
+- **fix(web): the chrome tightens one more step — nodeview top bar gaps and
+  the sidebar's top/bottom padding (owner 2026-10-13, second pass).** (1) The
+  **nodeview top bar** now sits `spacing-2` (8px) off the card top (the
+  panelled page's top padding steps down from `spacing-4`) with a
+  `spacing-2` margin below (down from `spacing-3`) — the bar is chrome and
+  hugs its content like the app top bar above it (top gap 16→8, bottom gap
+  12→8). (2) The **sidebar's vertical padding steps down to `spacing-2`**
+  (sides stay `spacing-3`): the gap before the first section header under
+  the app top bar drops 20→16px, and the pinned user section's bottom gap
+  drops 20→16px. The raised-panel comment that mirrored the top bar's old
+  margin is corrected with it.
+  **Verification:** `pnpm typecheck` + `pnpm test` green; `VERIFY-PASS` from
+  the verify-min smoke after the scoped web redeploy; live before/after diff
+  via measure-probe (bar top gap 16→8, bar bottom gap 12→8, sidebar header
+  gap 20→16, user-row bottom 20→16).
+
 - **fix(web): the nodeview top bar's divider hairline retires (owner
   2026-10-13).** The `border-bottom` under the panelled bar is gone — the
   `spacing-3` margin below stays as the bar's whole separation from the

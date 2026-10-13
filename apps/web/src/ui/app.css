@@ -456,11 +456,14 @@ select:focus-visible {
   height: 100%;
   display: flex;
   flex-direction: column;
-  /* Symmetric small padding (owner 2026-10-12): both side cards read with
-     the same top/side/bottom padding — the right card lost its right
-     padding and the left carried too much when the outer spacing was
-     asymmetric. */
-  padding: var(--spacing-4) var(--spacing-4) 0;
+  /* The top padding is one step tighter than the sides (owner 2026-10-13):
+     it carries only the nodeview top bar's top gap, and the bar is chrome
+     — it reads best hugging the card top like the app top bar hugs the
+     viewport. The horizontal padding stays spacing-4: it carries the
+     columns' side inset (the symmetric-side-cards law, owner 2026-10-12 —
+     the right card lost its right padding and the left carried too much
+     when the outer spacing was asymmetric). */
+  padding: var(--spacing-2) var(--spacing-4) 0;
 }
 
 .nt-page--panelled .nt-page-body {
@@ -499,9 +502,10 @@ select:focus-visible {
    wears (.nt-page-card, PageCard.css: hairline frame, --shape-card radius,
    --shadow-elevation-1) — a card nested in a card, not a column split by a
    continuous vertical divider. The divider and its negative-margin reach
-   retire; the cards stop a step above the card bottom like the top bar's
-   margin below itself. The fill is --color-sidebar-card: the same surface
-   in light, one tone lighter in dark so the cards stand out. */
+   retire; the cards stop a spacing-3 step above the card bottom (one step
+   more than the top bar's own spacing-2 below itself — the bar is chrome,
+   the panels are surfaces). The fill is --color-sidebar-card: the same
+   surface in light, one tone lighter in dark so the cards stand out. */
 .nt-page-side-panel {
   flex: 0 0 clamp(13rem, 24%, 22rem);
   min-width: 0;
@@ -633,17 +637,17 @@ select:focus-visible {
    rescale when a panel shows or hides — the page's own horizontal padding
    carries both edges, and each panel toggle sits directly above the column
    it reveals. No vertical padding (owner 2026-10-13): the panelled page's
-   padding-top carries the bar's top gap so it matches the horizontal
-   padding that carries the sides. No divider border either (owner
-   2026-10-13): the spacing-3 margin below is the bar's whole separation
-   from the columns. */
+   padding-top carries the bar's top gap. No divider border either (owner
+   2026-10-13). Both gaps are spacing-2 (owner 2026-10-13, second pass): the
+   bar is chrome and reads best hugging its content — top gap 8, bottom gap
+   8. */
 .nt-node-topbar {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
   flex-shrink: 0;
   padding: 0;
-  margin-bottom: var(--spacing-3);
+  margin-bottom: var(--spacing-2);
 }
 
 .nt-node-topbar__classes {
