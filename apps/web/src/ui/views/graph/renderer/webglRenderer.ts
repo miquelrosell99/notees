@@ -43,10 +43,11 @@ uniform vec2  u_camera;     // world position of screen centre
 uniform float u_zoom;       // pixels per world unit
 uniform float u_minRadiusPx; // minimum screen-space radius in pixels
 
-// Time-lapse + hover neighborhood
-uniform bool  u_timeLapse;   // hide everything created after u_timeCutoff
-uniform float u_timeCutoff;  // seconds since epoch
-uniform float u_hoverDim;    // alpha multiplier for nodes outside the neighborhood
+// (u_timeLapse/u_timeCutoff/u_hoverDim live in the fragment stage only — the
+// vertex stages just pass v_time/v_hl through. Declaring them here too breaks
+// program linking on strict linkers: the vertex default float precision is
+// highp, the fragment header below is mediump, and a cross-stage uniform
+// declaration must not carry two precisions.)
 
 out vec2 v_uv;
 out vec4 v_color;
@@ -148,11 +149,6 @@ in float a_hl;           // 1.0 = incident to the hover neighborhood
 uniform vec2  u_resolution;
 uniform vec2  u_camera;
 uniform float u_zoom;
-
-// Time-lapse + hover neighborhood
-uniform bool  u_timeLapse;
-uniform float u_timeCutoff;
-uniform float u_hoverDim;
 
 // RG32F position texture: texel(i, 0).rg = (x, y) for node i
 uniform highp sampler2D u_positions;
@@ -358,9 +354,6 @@ uniform vec2  u_resolution;
 uniform vec2  u_camera;
 uniform float u_zoom;
 uniform float u_minRadiusPx;
-uniform bool  u_timeLapse;
-uniform float u_timeCutoff;
-uniform float u_hoverDim;
 uniform highp sampler2D u_positions;
 
 out vec4 v_color;
