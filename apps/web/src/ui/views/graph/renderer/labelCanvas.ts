@@ -56,7 +56,9 @@ export function truncateLabel(name: string, max = 28): string {
   return name.length > max ? `${name.slice(0, max - 1)}…` : name;
 }
 
-/** Labels fade in between zoom 0.12 and ~0.47; below that none render. */
+/** Large-graph fade: labels fade in between zoom 0.12 and ~0.47. Small
+ * graphs (≤150 nodes) bypass this in drawLabels — they label at any zoom
+ * with their own minimum-alpha ramp. */
 export function labelAlphaForZoom(zoom: number): number {
   return Math.min(1, (zoom - 0.12) / 0.35);
 }
@@ -120,9 +122,15 @@ export function drawLabels(frame: LabelFrame): number {
   ctx.clearRect(0, 0, width, height);
   const hoveredId = frame.hovered;
   if (frame.order.length === 0) return 0;
+  // The zoom threshold only exists to prevent label clutter at scale: small
+  // graphs label at any zoom (the Obsidian register — a fitted 54-node graph
+  // lands below the threshold and still names its nodes); large graphs keep
+  // the fade-in below.
+  const smallGraph = frame.order.length <= 150;
+  const labelFloor = smallGraph ? 0 : 0.12;
   // The hovered label bypasses the zoom threshold; without a hover the
   // threshold gates the whole pass as before.
-  if (zoom < 0.12 && hoveredId === null) return 0;
+  if (zoom < labelFloor && hoveredId === null) return 0;
 
   const fontSize = Math.round(Math.min(14, Math.max(9, 11 * zoom)) * dpr);
   const maxLabels = labelCapForZoom(zoom);
@@ -157,10 +165,14 @@ export function drawLabels(frame: LabelFrame): number {
     return true;
   };
 
-  // Regular pass: dimmed (not hidden) while a hover is active.
-  ctx.globalAlpha = labelAlphaForZoom(zoom) * (hoveredId !== null ? 0.25 : 1);
+  // Regular pass: dimmed (not hidden) while a hover is active. Small graphs
+  // carry a minimum alpha so fitted zoomed-out views still read.
+  const baseAlpha = smallGraph
+    ? Math.min(1, Math.max(0.3, (zoom - 0.02) / 0.25))
+    : labelAlphaForZoom(zoom);
+  ctx.globalAlpha = baseAlpha * (hoveredId !== null ? 0.25 : 1);
   let rendered = 0;
-  if (zoom >= 0.12) {
+  if (zoom >= labelFloor) {
     ctx.fillStyle = frame.colors.regular;
     for (let i = 0; i < frame.order.length && rendered < maxLabels; i++) {
       const id = frame.order[i]!;
@@ -172,7 +184,7 @@ export function drawLabels(frame: LabelFrame): number {
 
   // Emphasis passes at FULL alpha — the dimming never touches them.
   ctx.globalAlpha = 1;
-  if (zoom >= 0.12 && frame.selected !== null && frame.selected !== "" && frame.selected !== hoveredId) {
+  if (zoom >= labelFloor && frame.selected !== null && frame.selected !== "" && frame.selected !== hoveredId) {
     const sIdx = frame.order.indexOf(frame.selected);
     if (sIdx >= 0) drawAt(frame.selected, sIdx, frame.colors.emphasis);
   }
