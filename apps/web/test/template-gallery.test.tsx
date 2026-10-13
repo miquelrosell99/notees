@@ -180,7 +180,11 @@ describe("TemplatesSection apply-to-existing (the amendment)", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Apply template Sync template to a node" }));
       const picker = await screen.findByRole("dialog", { name: "Select node" });
       fireEvent.change(within(picker).getByRole("textbox"), { target: { value: "Existing" } });
-      fireEvent.click(await within(picker).findByText("Existing notes"));
+      // The page leads; its child block surfaces under the parent's name
+      // (the first-parent-name search tier), so the row text is ambiguous —
+      // click the first row (the page, the tier-0 title match).
+      const rows = await within(picker).findAllByText("Existing notes");
+      fireEvent.click(rows[0]!);
       await waitFor(() => {
         expect(
           client

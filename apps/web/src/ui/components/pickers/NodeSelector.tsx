@@ -39,6 +39,7 @@ import type { QuickCreateClient, QuickCreatePlan } from "../modals/quickCreate.j
 import { resolveQuickCreate } from "../modals/quickCreate.js";
 import { Tabs } from "../ui/Tabs.js";
 import { Checkbox } from "../ui/Checkbox.js";
+import { SearchField } from "../ui/SearchField.js";
 import { usePopupDismissal } from "../ui/usePopupDismissal.js";
 import "./NodeSelector.css";
 
@@ -936,15 +937,15 @@ export function NodeSelector({
         {hint !== undefined && hint !== "" && (
           <div className="node-selector__mode-hint">{hint}</div>
         )}
-        <input
+        <SearchField
           ref={searchInputRef}
-          type="text"
-          className="node-selector__search"
+          className="node-selector__search-field"
           placeholder={searchPlaceholder}
           aria-label={searchPlaceholder}
           value={searchQuery}
           onChange={(e) => handleSearchChange(e.target.value)}
           onKeyDown={handleKeyDown}
+          onClear={() => handleSearchChange("")}
         />
         <Tabs.Panel value={scope}>
           <div className="node-selector__options" ref={listRef}>
@@ -958,15 +959,15 @@ export function NodeSelector({
         {hint !== undefined && hint !== "" && (
           <div className="node-selector__mode-hint">{hint}</div>
         )}
-        <input
+        <SearchField
           ref={searchInputRef}
-          type="text"
-          className="node-selector__search"
+          className="node-selector__search-field"
           placeholder={searchPlaceholder}
           aria-label={searchPlaceholder}
           value={searchQuery}
           onChange={(e) => handleSearchChange(e.target.value)}
           onKeyDown={handleKeyDown}
+          onClear={() => handleSearchChange("")}
         />
         <div className="node-selector__options" ref={listRef}>
           {renderResults("node-selector__no-results", createIconSize)}
