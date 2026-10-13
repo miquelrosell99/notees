@@ -262,7 +262,7 @@ for (const adapter of adapters) {
       const targetProps = store.getEffectiveProperties(TARGET);
       const status = targetProps.filter((p) => p.propertySchemaId === SCHEMA_TEXT);
       expect(status).toHaveLength(1);
-      expect(status[0].value).toBe("final");
+      expect(status[0]?.value).toBe("final");
       const notes = targetProps
         .filter((p) => p.propertySchemaId === SCHEMA_NOTES)
         .map((p) => p.value)
@@ -270,7 +270,7 @@ for (const adapter of adapters) {
       expect(notes).toEqual(["first note", "self note"]);
       const related = targetProps.filter((p) => p.propertySchemaId === SCHEMA_REF);
       expect(related).toHaveLength(1);
-      expect(related[0].value).toEqual({ nodeId: TARGET });
+      expect(related[0]?.value).toEqual({ nodeId: TARGET });
       // The copied elements carry fresh ids, not the source's.
       const sourceEl = "0192a000-0000-7000-8000-0000000000e1";
       expect(targetProps.some((p) => p.elementId === sourceEl)).toBe(false);

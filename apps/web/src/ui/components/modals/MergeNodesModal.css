@@ -1,0 +1,79 @@
+/**
+ * MergeNodesModal Styles
+ */
+
+
+
+
+.merge-nodes-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.merge-nodes-modal__description {
+  margin: 0;
+  font: var(--font-body-medium);
+  color: var(--color-on-surface-variant);
+  line-height: 1.5;
+}
+
+.merge-nodes-modal__target-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.merge-nodes-modal__target-label {
+  font: var(--font-body-medium);
+  color: var(--color-on-surface-variant);
+}
+
+.merge-nodes-modal__target {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex: 1;
+  min-width: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-container-low);
+  color: var(--color-on-surface);
+  font: var(--font-body-medium);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.merge-nodes-modal__target:hover {
+  border-color: var(--color-outline);
+}
+
+.merge-nodes-modal__target-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.merge-nodes-modal__target-placeholder {
+  flex: 1;
+  color: var(--color-on-surface-variant);
+}
+
+.merge-nodes-modal__error {
+  margin: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-error-container);
+  color: var(--color-on-error-container);
+  font: var(--font-body-small);
+}
+
+.merge-nodes-modal__footer {
+  display: flex;
+  gap: var(--spacing-2);
+  justify-content: flex-end;
+  width: 100%;
+}
