@@ -102,6 +102,40 @@ describe("label overlay contract", () => {
     expect(drawLabels(far.frame)).toBe(0);
     expect(far.calls.length).toBe(0);
   });
+
+  it("the time-lapse cutoff suppresses labels for nodes created after it", () => {
+    // Two nodes: n0 created before the cutoff, n1 after. Only n0's label
+    // may render — the label overlay follows the GL canvas's hide rule.
+    const createdTimes = new Map([
+      ["n0", 1_000],
+      ["n1", 2_000],
+    ]);
+    const { frame, calls } = stubFrame({
+      order: ["n0", "n1"],
+      positions: new Float32Array([10, 10, 20, 20]),
+      names: new Map([
+        ["n0", "Older"],
+        ["n1", "Newer"],
+      ]),
+      createdTimes,
+      timeCutoffSec: 1_500,
+      zoom: 1,
+    });
+    expect(drawLabels(frame)).toBe(1);
+    expect(calls.map((c) => c.text)).toEqual(["Older"]);
+    // Without the cutoff context every label renders (backward compatible).
+    const open = stubFrame({
+      order: ["n0", "n1"],
+      positions: new Float32Array([10, 10, 20, 20]),
+      names: new Map([
+        ["n0", "Older"],
+        ["n1", "Newer"],
+      ]),
+      createdTimes,
+      zoom: 1,
+    });
+    expect(drawLabels(open.frame)).toBe(2);
+  });
 });
 
 describe("edge/arrow render planning", () => {
@@ -179,5 +213,184 @@ describe("webgl renderer", () => {
     const world = renderer.screenToWorld(screen.x, screen.y);
     expect(world.x).toBeCloseTo(0, 4);
     expect(world.y).toBeCloseTo(0, 4);
+  });
+});
+
+describe("webgl renderer: time-lapse + hover-neighborhood contract", () => {
+  // A recording WebGL2 stand-in (real GL contexts don't exist in jsdom).
+  // getUniformLocation returns the NAME so uniform assertions read directly;
+  // bufferSubData recordings carry the bound buffer for per-buffer assertions.
+  function stubGl() {
+    const bufferSubDataCalls: Array<{ buf: unknown; data: ArrayBufferView }> = [];
+    const uniform1iCalls: Array<{ name: unknown; value: number }> = [];
+    const uniform1fCalls: Array<{ name: unknown; value: number }> = [];
+    let bound: unknown = null;
+    const gl = {
+      VERTEX_SHADER: 0x8b31, FRAGMENT_SHADER: 0x8b30,
+      COMPILE_STATUS: 0x8b81, LINK_STATUS: 0x8b82,
+      ARRAY_BUFFER: 0x8892, STATIC_DRAW: 0x88e4, DYNAMIC_DRAW: 0x88e8,
+      TRIANGLES: 0x0004, BLEND: 0x0be2,
+      SRC_ALPHA: 0x0302, ONE_MINUS_SRC_ALPHA: 0x0303, ONE: 1,
+      TEXTURE_2D: 0x0de1, TEXTURE0: 0x84c0,
+      TEXTURE_MIN_FILTER: 0x2801, TEXTURE_MAG_FILTER: 0x2800,
+      TEXTURE_WRAP_S: 0x2802, TEXTURE_WRAP_T: 0x2803,
+      NEAREST: 0x2600, CLAMP_TO_EDGE: 0x812f,
+      RG32F: 0x822b, RG: 0x8227, FLOAT: 0x1406, UNSIGNED_BYTE: 0x1401,
+      COLOR_BUFFER_BIT: 0x4000,
+      createShader: () => ({}), shaderSource: vi.fn(), compileShader: vi.fn(),
+      getShaderParameter: () => true, getShaderInfoLog: () => "",
+      createProgram: () => ({}), attachShader: vi.fn(), linkProgram: vi.fn(),
+      getProgramParameter: () => true, getProgramInfoLog: () => "",
+      deleteShader: vi.fn(), deleteProgram: vi.fn(), deleteBuffer: vi.fn(),
+      deleteVertexArray: vi.fn(), deleteTexture: vi.fn(),
+      enable: vi.fn(), blendFuncSeparate: vi.fn(), clearColor: vi.fn(),
+      clear: vi.fn(), viewport: vi.fn(), useProgram: vi.fn(),
+      createVertexArray: () => ({}), bindVertexArray: vi.fn(),
+      createBuffer: () => ({}),
+      bindBuffer: vi.fn((_t: unknown, buf: unknown) => { bound = buf; }),
+      bufferData: vi.fn(),
+      bufferSubData: vi.fn((_t: unknown, _off: unknown, data: ArrayBufferView) => {
+        bufferSubDataCalls.push({ buf: bound, data });
+      }),
+      getAttribLocation: () => 0,
+      enableVertexAttribArray: vi.fn(), vertexAttribPointer: vi.fn(),
+      vertexAttribDivisor: vi.fn(),
+      createTexture: () => ({}), bindTexture: vi.fn(), texParameteri: vi.fn(),
+      texImage2D: vi.fn(), texSubImage2D: vi.fn(),
+      getUniformLocation: (_p: unknown, name: string) => name,
+      uniform2fv: vi.fn(),
+      uniform1f: vi.fn((loc: unknown, value: number) => {
+        uniform1fCalls.push({ name: loc, value });
+      }),
+      uniform1i: vi.fn((loc: unknown, value: number) => {
+        uniform1iCalls.push({ name: loc, value });
+      }),
+      activeTexture: vi.fn(),
+      drawArraysInstanced: vi.fn(),
+    } as unknown as WebGL2RenderingContext;
+    const canvas = {
+      width: 800, height: 600,
+      getContext: () => gl,
+    } as unknown as HTMLCanvasElement;
+    return { gl, canvas, bufferSubDataCalls, uniform1iCalls, uniform1fCalls };
+  }
+
+  const IDS = ["a", "b", "c"];
+
+  function liveRenderer() {
+    const harness = stubGl();
+    const renderer = new GraphWebGLRenderer();
+    renderer.init(harness.canvas);
+    renderer.setNodeVisuals(IDS, new Map());
+    renderer.updatePositions(new Float32Array([0, 0, 10, 0, 20, 0]), IDS);
+    // Identify the three highlight flag buffers by their Uint8Array uploads.
+    const hlBuffers = () =>
+      harness.bufferSubDataCalls.filter((c) => c.data instanceof Uint8Array);
+    return { ...harness, renderer, hlBuffers };
+  }
+
+  it("setNodeTimes writes seconds-since-epoch into the per-node a_time slot", () => {
+    const { renderer, bufferSubDataCalls } = liveRenderer();
+    // Small magnitudes so both values stay exactly representable in float32.
+    const t0 = 1_000_000;
+    renderer.setNodeTimes(new Float32Array([t0, t0 + 60, -Infinity]));
+    renderer.render();
+    const nodeUpload = bufferSubDataCalls.find(
+      (c) => c.data instanceof Float32Array && c.data[7] === t0,
+    );
+    expect(nodeUpload).toBeDefined();
+    const data = nodeUpload!.data as Float32Array;
+    // NODE_STRIDE layout: a_time rides at offset 7.
+    expect(data[7]).toBe(t0);
+    expect(data[15]).toBe(t0 + 60);
+    expect(data[23]).toBe(-Infinity); // the no-time marker
+  });
+
+  it("setTimeLapse drives u_timeLapse/u_timeCutoff; disabled is the neutral path", () => {
+    const { renderer, uniform1iCalls, uniform1fCalls } = liveRenderer();
+    const timeLapse = () =>
+      uniform1iCalls.filter((c) => c.name === "u_timeLapse").at(-1)?.value;
+    renderer.render();
+    expect(timeLapse()).toBe(0);
+    renderer.setTimeLapse(true, 1_700_000_000);
+    renderer.render();
+    expect(timeLapse()).toBe(1);
+    expect(uniform1fCalls.filter((c) => c.name === "u_timeCutoff").at(-1)?.value).toBe(1_700_000_000);
+    renderer.setTimeLapse(false, 0);
+    renderer.render();
+    expect(timeLapse()).toBe(0);
+  });
+
+  it("RendererEdge.createdAt lands in the edge instance's a_time slot", () => {
+    const { renderer, bufferSubDataCalls } = liveRenderer();
+    const t = 1_700_000_000;
+    renderer.setEdges([
+      { source: "a", target: "b", linkType: 0, createdAt: t },
+      { source: "b", target: "c", linkType: 2 },
+    ]);
+    renderer.render();
+    const edgeUpload = bufferSubDataCalls.find(
+      (c) => c.data instanceof Float32Array && c.data[15] === t,
+    )!;
+    const data = edgeUpload.data as Float32Array;
+    // EDGE_STRIDE layout: a_time rides at offset 15 per instance.
+    expect(data[15]).toBe(t);
+    expect(data[31]).toBe(-Infinity); // un-stamped edge
+  });
+
+  it("setHoverNeighborhood flags the focus node, its neighbors, and incident edges", () => {
+    const { renderer, hlBuffers, uniform1fCalls } = liveRenderer();
+    renderer.setEdges([
+      { source: "a", target: "b", linkType: 0 },
+      { source: "b", target: "c", linkType: 2 },
+    ]);
+    const hoverDim = () => uniform1fCalls.filter((c) => c.name === "u_hoverDim").at(-1)?.value;
+    // No neighborhood yet: the dim uniform stays neutral.
+    renderer.setHoverNeighborhood(null);
+    renderer.render();
+    expect(hoverDim()).toBe(1.0);
+
+    renderer.setHoverNeighborhood("b");
+    renderer.render();
+    // One Uint8 batch per flag buffer (node, edge, arrow) per hover change.
+    const batch = hlBuffers().slice(-3);
+    expect(batch.length).toBe(3);
+    const nodeFlags = batch[0]!.data as Uint8Array;
+    expect([...nodeFlags.slice(0, 3)]).toEqual([1, 1, 1]); // b + neighbors a, c
+    const edgeFlags = batch[1]!.data as Uint8Array;
+    expect([...edgeFlags.slice(0, 2)]).toEqual([1, 1]); // both edges incident to b
+    expect(hoverDim()).toBeCloseTo(0.15, 5);
+
+    // Repeating the same id is a no-op (no extra flag rewrites).
+    const countAfterFirst = hlBuffers().length;
+    renderer.setHoverNeighborhood("b");
+    renderer.render();
+    expect(hlBuffers().length).toBe(countAfterFirst);
+
+    // Clearing restores the neutral dim and full-bright flags.
+    renderer.setHoverNeighborhood(null);
+    renderer.render();
+    expect(hoverDim()).toBe(1.0);
+    expect([...(hlBuffers().at(-3)!.data as Uint8Array).slice(0, 3)]).toEqual([0, 0, 0]);
+  });
+
+  it("an unknown hover id dims everything (no node matches the neighborhood)", () => {
+    const { renderer, hlBuffers } = liveRenderer();
+    renderer.setEdges([{ source: "a", target: "b", linkType: 0 }]);
+    renderer.setHoverNeighborhood("ghost");
+    renderer.render();
+    const batch = hlBuffers().slice(-3);
+    const nodeFlags = batch[0]!.data as Uint8Array;
+    expect([...nodeFlags.slice(0, 3)]).toEqual([0, 0, 0]);
+    const edgeFlags = batch[1]!.data as Uint8Array;
+    expect([...edgeFlags.slice(0, 1)]).toEqual([0]);
+  });
+
+  it("nodeIndexLookup exposes the id → index mapping for the caller's time arrays", () => {
+    const { renderer } = liveRenderer();
+    expect(renderer.nodeIndexLookup.get("a")).toBe(0);
+    expect(renderer.nodeIndexLookup.get("c")).toBe(2);
+    expect(renderer.nodeIndexLookup.get("ghost")).toBeUndefined();
+    expect(renderer.nodeIndexLookup.size).toBe(3);
   });
 });

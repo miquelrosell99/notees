@@ -59,6 +59,8 @@ export interface ButtonWithPanelProps {
   customTrigger?: ReactNode;
   usePortal?: boolean;
   onActivate?: () => void;
+  /** Pressed/accent state independent of the panel's own open state
+   *  (e.g. the graph's Visibility trigger lights while anything is hidden). */
   active?: boolean;
 }
 
@@ -93,7 +95,7 @@ export function ButtonWithPanel({
   customTrigger,
   usePortal = false,
   onActivate,
-  active: _activeProp = false,
+  active: activeProp = false,
 }: ButtonWithPanelProps) {
   // Determine if component is controlled
   const isControlled = controlledOpen !== undefined;
@@ -297,7 +299,7 @@ export function ButtonWithPanel({
           ref={buttonRef}
           variant={variant}
           size={size}
-          active={isOpen}
+          active={isOpen || activeProp}
           className={buttonClassName}
           {...(tooltip !== undefined ? { title: tooltip } : {})}
           {...(triggerAriaLabel !== undefined ? { "aria-label": triggerAriaLabel } : {})}
