@@ -16,6 +16,9 @@
  *    alias-terminal, never to the alias itself;
  *  - structural families: mention / property (from the derived edge index),
  *    parent (main-node parentage), class (membership);
+ *  - first-appearance time: nodes carry their true create-time stamp; a
+ *    collapsed edge group's stamp is the earliest contributing row's stamp
+ *    (synthesized + co-occurrence families carry none — null).
  *  - the semantic family is the content co-occurrence projection: a block (or
  *    page) mentioning k distinct targets is a hyperedge projected pairwise
  *    with weight = shared-context count; the hub guard (> SEMANTIC_HUB_GUARD
@@ -40,6 +43,8 @@ export interface GraphNode {
   classIds: string[];
   color: string | null;
   icon: string | null;
+  /** True create-time (node.created_at — the creating envelope's ISO stamp). */
+  createdAt: string;
   /** Descendant blocks of this node (the walk stops at nested main nodes). */
   contentSize: number;
   /** 1 + the recursive descendant weight over ALL active nodes below this
@@ -56,6 +61,11 @@ export interface GraphEdge {
   weight: number;
   /** Semantic edges only: up to SEMANTIC_EVIDENCE_CAP supporting context ids. */
   evidence: string[] | null;
+  /** First-appearance stamp: the earliest created_at across the rows collapsed
+   *  into this weighted group (ISO; lexical order = chronological). Synthesized
+   *  families (parent/class) and co-occurrence families (semantic/temporal)
+   *  have no underlying row stamp → null. */
+  createdAt: string | null;
 }
 
 export interface GraphTopology {
@@ -88,6 +98,7 @@ interface NodeRow {
   class_ids: string;
   color: string | null;
   icon: string | null;
+  created_at: string;
 }
 
 interface AliasRow {
@@ -103,6 +114,7 @@ interface IdRow {
 interface EdgeRow {
   source_id: string;
   target_id: string;
+  created_at: string | null;
 }
 
 interface MembershipRow {
@@ -115,7 +127,7 @@ export function graphTopology(store: Store, workspaceId: string, options?: Graph
 
   const nodeRows = db
     .prepare(
-      `SELECT id, is_class, parent_id, class_ids, color, icon
+      `SELECT id, is_class, parent_id, class_ids, color, icon, created_at
        FROM node
        WHERE workspace_id = ? AND is_active = 1 AND (is_class = 1 OR present_as_main = 1)
          AND aliased_node_id IS NULL`,
@@ -247,6 +259,7 @@ export function graphTopology(store: Store, workspaceId: string, options?: Graph
       classIds: JSON.parse(row.class_ids || "[]") as string[],
       color: row.color,
       icon: row.icon,
+      createdAt: row.created_at,
       contentSize: metrics.content,
       mass: metrics.mass,
     };
@@ -255,7 +268,18 @@ export function graphTopology(store: Store, workspaceId: string, options?: Graph
   const edges: GraphEdge[] = [];
   const edgeIndex = new Map<string, GraphEdge>();
 
-  const addEdge = (source: string, target: string, kind: GraphEdgeKind, evidenceId?: string): void => {
+  /** Earliest non-null ISO stamp (lexical order = chronological for the UTC
+   *  wire format); a null never wins. */
+  const earlierStamp = (a: string | null, b: string | null): string | null =>
+    a === null ? b : b === null ? a : a <= b ? a : b;
+
+  const addEdge = (
+    source: string,
+    target: string,
+    kind: GraphEdgeKind,
+    evidenceId?: string,
+    createdAt?: string | null,
+  ): void => {
     const from = resolveToSet(source);
     const to = resolveToSet(target);
     if (from === null || to === null || from === to) return;
@@ -263,6 +287,7 @@ export function graphTopology(store: Store, workspaceId: string, options?: Graph
     const existing = edgeIndex.get(key);
     if (existing !== undefined) {
       existing.weight += 1;
+      existing.createdAt = earlierStamp(existing.createdAt, createdAt ?? null);
       if (existing.evidence !== null && evidenceId !== undefined && existing.evidence.length < SEMANTIC_EVIDENCE_CAP && !existing.evidence.includes(evidenceId)) {
         existing.evidence.push(evidenceId);
       }
@@ -274,6 +299,7 @@ export function graphTopology(store: Store, workspaceId: string, options?: Graph
       kind,
       weight: 1,
       evidence: kind === "semantic" || kind === "temporal" ? (evidenceId !== undefined ? [evidenceId] : []) : null,
+      createdAt: createdAt ?? null,
     };
     edgeIndex.set(key, edge);
     edges.push(edge);
@@ -285,12 +311,12 @@ export function graphTopology(store: Store, workspaceId: string, options?: Graph
   // projection, one column read instead of a per-endpoint chain walk).
   const typedLinkRows = db
     .prepare(
-      `SELECT source_id, resolved_target_id AS target_id, type FROM edge
+      `SELECT source_id, resolved_target_id AS target_id, type, created_at FROM edge
        WHERE workspace_id = ? AND resolved_target_id IS NOT NULL AND type IN ('mention', 'property')`,
     )
     .all(workspaceId) as unknown as (EdgeRow & { type: "mention" | "property" })[];
   for (const row of typedLinkRows) {
-    addEdge(row.source_id, row.target_id, row.type);
+    addEdge(row.source_id, row.target_id, row.type, undefined, row.created_at);
   }
 
   // Parent family: main-node parentage within the set.
