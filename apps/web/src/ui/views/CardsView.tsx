@@ -29,10 +29,10 @@
  *     nodeview bar's interactive class list (NodePills) and the tags row the
  *     page header's TagsRow composition (label hidden) — classes and tags are
  *     ADDABLE from the card (date nodes stay locked, the ClassesRow rule).
- *     The properties section: a row per property, label | value in two
- *     columns (the table-row register) — the container's cardProperties, or
- *     EVERY effective property with a non-empty display text when none are
- *     named (the v1 register);
+ *     The properties section IS the nodeview properties table
+ *     (PropertiesTable — owner 2026-10-13): one column for the property
+ *     name, one for its value, every bound property riding with unset ones
+ *     as empty fields, values editable like the panel;
  *   - the content row: the node's child blocks under a header bar (collapse
  *     chevron + "Content"), ALWAYS resolved (owner 2026-10-13): attached
  *     `children` win (tree contexts); flat collections resolve them from the
@@ -40,9 +40,9 @@
  *     Collapsed by default — the chevron shows the content on demand; the
  *     collapsed body unmounts (no dead rows on a deep subtree).
  *
- * Editing split (owner 2026-10-13): classes and tags are editable on the
- * card; the title, properties, and child blocks stay read-only — the outline
- * mode remains the editing surface for content (the v2 cards grammar).
+ * Editing split (owner 2026-10-13): classes, tags, and properties (the
+ * nodeview table) are editable on the card; the title and child blocks stay
+ * read-only — the outline mode remains the editing surface for content.
  *
  * The top-level card set is windowed (the shared useWindowed +
  * ShowMoreButton convention) — the grid renders the loaded window and names
@@ -73,7 +73,6 @@ import { useWindowed } from "./useWindowed.js";
 import { useViewChromeTarget } from "./viewChrome.js";import { useLazyInView } from "./useLazyInView.js";
 import { ShowMoreButton } from "./ShowMoreButton.js";
 import { compareItemsByEditDate, compareItemsByMode } from "./collectionSort.js";
-import { propertyDisplayText } from "./propertyDisplay.js";
 import { assetImageUrl, cardImageAssetId } from "./assetThumbs.js";
 import { isCoverAsset, setNodeCover } from "../components/coverProperty.js";
 import { AssetUploadModal } from "../components/modals/AssetUploadModal.js";
@@ -83,7 +82,7 @@ import { Breadcrumbs } from "../components/Breadcrumbs.js";
 import { NodeMenuButton } from "../components/NodeMenuButton.js";
 import { NodePills } from "../components/NodePills.js";
 import { NodeContextMenu } from "../components/NodeContextMenu.js";
-import { TagsRow } from "../components/MetadataSection.js";
+import { PropertiesTable, TagsRow } from "../components/MetadataSection.js";
 import { childQuery } from "../components/childQuery.js";
 import { useCardLayoutPreference } from "../viewPrefs.js";
 import { CardsBoard } from "./CardsBoard.js";
@@ -235,7 +234,7 @@ export function NodeCard({
    */
   selection?: { checked: boolean; onToggle: () => void } | undefined;
 }) {
-  const { client, onNodeClick, cardProperties, propertiesOf } = props;
+  const { client, onNodeClick } = props;
   const label = displayNameForSettings(item.node) || "Untitled";
   const resolveName = (id: string) => displayNameFromClient(client, id);
   const openNode = (id: string) => onNodeClick?.(id);
@@ -260,37 +259,6 @@ export function NodeCard({
    * (SCHEMA.md "Datetime"), the ClassesRow lock rule.
    */
   const metadataLocked = parseDateNodeId(item.node.id) !== null;
-  /**
-   * The property rows. Scoped (the container names cardProperties — the
-   * classed-nodes section passes its bound columns): EVERY named schema rides
-   * in order, and a bound-but-unset property (no authored value, no default —
-   * the effective read emits no row for it) still shows as an EMPTY field
-   * (owner 2026-10-13: the class's full column set on every member card, like
-   * the table). Unscoped (the v1 default): every effective property with a
-   * non-empty display text.
-   */
-  const properties = propertiesOf?.(item.node.id) ?? [];
-  const cardRows: Array<{ key: string; name: string; text: string }> =
-    cardProperties !== undefined
-      ? cardProperties.map((schemaId) => {
-          const prop = properties.find((p) => p.propertySchemaId === schemaId);
-          if (prop === undefined) {
-            const schema = client.listPropertySchemas().find((s) => s.id === schemaId);
-            return { key: schemaId, name: schema?.name ?? "Property", text: "" };
-          }
-          return {
-            key: schemaId,
-            name: prop.schema?.name ?? "Property",
-            text: propertyDisplayText(client, prop),
-          };
-        })
-      : properties
-          .filter((prop) => propertyDisplayText(client, prop) !== "")
-          .map((prop) => ({
-            key: prop.propertySchemaId,
-            name: prop.schema?.name ?? "Property",
-            text: propertyDisplayText(client, prop),
-          }));
   return (
     <article
       className={`node-card node-card--${coverLayout}${
@@ -407,16 +375,14 @@ export function NodeCard({
         {/* The properties section: a row per property, label | value in two
             columns (the table-row register), hairline-separated rows. Spans
             BOTH columns beside a horizontal cover (owner 2026-10-13). */}
-        {cardRows.length > 0 && (
-          <dl className="node-card__properties">
-            {cardRows.map((row) => (
-              <div className="node-card__property" key={row.key}>
-                <dt>{row.name}</dt>
-                <dd>{row.text}</dd>
-              </div>
-            ))}
-          </dl>
-        )}
+        {/* The properties section IS the nodeview properties table (owner
+            2026-10-13): one column for the property name (the 140px label
+            column), one for its value — every bound property rides, unset
+            ones as empty fields with the add affordance, values editable like
+            the panel. Spans BOTH columns beside a horizontal cover. */}
+        <div className="node-card__properties">
+          <PropertiesTable client={client} nodeId={item.node.id} onOpenPage={openNode} />
+        </div>
         {/* The content row: a header row (the collapse chevron + the label)
             rides over the child blocks (owner 2026-10-13) — collapsed by
             default, the chevron shows the content on demand. Cards always

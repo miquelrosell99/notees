@@ -9,6 +9,26 @@ predating this file.
 
 ## 2026-10-13
 
+- **feat(web): the card's properties section IS the nodeview properties
+  table — name column | value column, editable, every bound property riding
+  (owner 2026-10-13).** The owner: "I don't see two columns … it should
+  basically be the properties table from nodeview." The hand-rolled `dl`
+  retires; the card hosts `PropertiesTable` itself — the same component the
+  properties panel renders: one column for the property name (the 140px
+  label column), one for its typed value cell, authored values and derived
+  defaults marked, bound-but-unset properties as empty rows WITH the add
+  affordance, and full editing (typed cells, label settings/history menus,
+  add-property row) exactly like the panel. The `cardProperties` scoping prop
+  retires with the dl (the table shows the bound set inherently) — removed
+  from the collection contract, the Tasks hub, CollectionHub, and the
+  classed-nodes section; yesterday's empty-field synthesis (the
+  bound-without-default row materialization) is superseded by the table's own
+  `emptyObjectBindings` rows. Docs: `docs/ux.md` + `docs/usage.md` re-worded
+  (the table, editable). **Verification:** the card spec re-pinned (the
+  `nt-properties-list` renders on the card; valued cell by display value; the
+  unset bound property's label rides); `tsc` clean; view-modes/covers/
+  card-lazy-images/class-view/class-bindings green (78).
+
 - **fix(web): classed-nodes cards show EVERY bound property per member —
   unset ones as empty fields (owner 2026-10-13).** The owner: "why don't I
   see class properties as assigned in class view for classed nodes?" Two

@@ -2413,7 +2413,6 @@ export function HubView({
           persistKey="hub.tasks"
           tableColumns={taskTableColumns(client)}
           defaultSort={{ key: "edited", direction: "desc" }}
-          cardProperties={TASK_PROPERTY_COLUMNS.map((col) => col.id)}
           tableEditable
           groupByProperty={groupByProperty}
           editable
