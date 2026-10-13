@@ -26,7 +26,7 @@ import {
 } from "@notees/protocol";
 import { deriveDisplayName, rendersWithDocumentChrome, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import { parseQueryAst, runAggregate, runQuery } from "@notees/query";
-import { visiblePropertyValueRows, type NodeRow, type Store } from "@notees/store";
+import { visiblePropertyValueRows, type NodeRow, type Store, planMerge, MergeGuardError } from "@notees/store";
 
 import type { ServerContext } from "./context.js";
 import { AppError } from "./errors.js";
@@ -96,6 +96,9 @@ const propertySchemaUpdateBodySchema = propertySchemaUpdatePayload
 const classPropertySetBodySchema = classPropertySetPayload
   .omit({ classId: true })
   .refine((body) => Object.keys(body).length > 1, { message: "at least one binding field to set" });
+
+/** object merge body: the merge destination (SCHEMA.md "Node merge"). */
+const mergeBodySchema = z.object({ targetId: z.string().uuid() }).strict();
 
 const createBodySchema = z
   .object({
@@ -939,6 +942,50 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
    * LWW against delete by log order). Permanently deleted nodes are gone:
    * the applier's not_found surfaces as the route's 404.
    */
+  app.post("/objects/:id/merge", async (request) => {
+    const { id } = request.params as { id: string };
+    const parsed = mergeBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid merge body");
+    }
+    const query = z
+      .object({ dryRun: booleanQueryParam.optional() })
+      .strict()
+      .safeParse(request.query);
+    if (!query.success) {
+      throw new AppError(422, "validation_failed", query.error.issues[0]?.message ?? "invalid merge query");
+    }
+    const workspaceId = workspaceFor(ctx, request);
+    await ctx.ensureSeeded(workspaceId);
+    const store = ctx.workspaces.storeFor(workspaceId);
+    requireNode(store, id);
+    let plan;
+    try {
+      plan = planMerge(store.database, id, parsed.data.targetId);
+    } catch (error) {
+      if (error instanceof MergeGuardError) {
+        throw new AppError(422, "validation_failed", error.message);
+      }
+      throw error;
+    }
+    if (query.data.dryRun === true) {
+      return { dryRun: true, summary: plan.summary };
+    }
+    // The plan is a batch of EXISTING op types through the one write path —
+    // sequential submits keep a total order on the relay log (the source
+    // trash is the plan's last op).
+    for (const op of plan.ops) {
+      await ctx.submit({
+        workspaceId,
+        opType: op.opType,
+        payload: op.payload,
+        affectedNodeIds: [id, parsed.data.targetId],
+        client: "api",
+      });
+    }
+    return { merged: true, targetId: parsed.data.targetId, summary: plan.summary };
+  });
+
   app.post("/objects/:id/restore", async (request) => {
     const { id } = request.params as { id: string };
     const workspaceId = workspaceFor(ctx, request);
