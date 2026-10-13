@@ -7,6 +7,66 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-10-13
+
+- **feat(web): settings align with the fleet design system — a 5-swatch accent
+  picker, a 4-option theme control, and a deep-linkable full settings page at
+  /settings/<section> beside the slimmed quick-tweaks modal (owner 2026-10-13).**
+  (1) **The accent picker is exactly five curated presets** — Margin Green
+  (default), Monochrome, Brown (#a16b45), Teal (#1fbdad), Purple (#8c47d1) —
+  replacing sage/rose/navy and retiring the custom color wheel together with
+  its `--color-accent-custom` plumbing (variables.css, deviceSettings.ts, the
+  index.html bootstrap, the drift-gate allowlist). Dark variants are the light
+  value lightened ~L+20% (the copper precedent) and every on-accent foreground
+  is computed per pair against WCAG ≥4.5:1 — margin 7.48/6.88, monochrome
+  15.81/16.57, brown 4.70/8.09 (brown-light pairs with black — white lands at
+  4.46), teal 8.16/12.46, purple 5.33/8.12 (light/dark). A stored retired
+  preset falls back to Margin Green on the next apply — device-local, no
+  migration. (2) **The theme control is one 4-option segmented control** —
+  Light / Dark / OLED / Auto over the unchanged `notees.settings.*` keys
+  (Light→theme:light; Dark→theme:dark,oled:false; OLED→theme:dark,oled:true;
+  Auto→theme:system,oled:false) — replacing the 3-icon picker and the separate
+  "Pure Black" toggle; a stored system+OLED combo resolves to Dark on the next
+  save (no migration). (3) **User Settings is now two surfaces**: Ctrl/Cmd+,
+  and the sidebar gear open the quick modal (theme, accent, focus mode, and an
+  **Advanced settings →** row), and the eight full sections
+  (appearance/editor/general/sync/account/security/support/about) live on a
+  full settings page in the PageCard slot with a sidebar section nav (a
+  horizontal scroll row on narrow widths), rendered behind the same
+  session/offline gate as the modal. (4) **/settings/<section> routes ride the
+  existing pushState/popstate seam** — deep links boot straight into the
+  section, section nav pushes state, back/forward swaps sections, unknown
+  sections land on appearance, and hub/node navigation leaves the route.
+  Verified: `pnpm typecheck` + `pnpm test` green (1496 web tests)
+- **fix(web): the top-bar padding stacks are gone — the nodeview top bar, the
+  app top bar's gap below, and the sidebar's user section (owner 2026-10-13).**
+  (1) The **nodeview top bar lost its own vertical padding**: the panelled
+  page's `spacing-4` top padding carried the bar's top gap alone now (16px,
+  matching the horizontal padding that carries the sides) — the bar's
+  `spacing-2` used to stack on top of it and read as double (27px above vs
+  12px below, 17px at the sides). (2) The **main content card's (and right
+  rail's) top margin steps down to `spacing-2`**: the app top bar's 44px
+  height already carries slack below its controls, so the full `spacing-3`
+  margin stacked into a double gap under the bar (18px below the buttons vs
+  6px above; now 14px). (3) The **sidebar's pinned user section rides the
+  sidebar's own padding** (horizontal row padding → 0, the nav-list law): the
+  avatar lines up with the nav icons and the gear with the rows' right edge
+  instead of the row's `spacing-3` stacking on the sidebar's (24px inset vs
+  the nav column's 20px). (4) **Live measurement is now a durable tool**:
+  `scripts/screenshots/measure-probe.mjs` signs in (the owner-password login
+  API, or an automatic temporary session minted into the relay DB and
+  deleted at exit — the operator key answers account endpoints 401 and is
+  not a UI credential) and dumps every chrome surface's rect +
+  padding/margin/gap as JSON with the recurring derived gaps precomputed,
+  plus a screenshot; run BEFORE against the live stack and AFTER the
+  redeploy to diff. Recorded in `docs/developers/ui-debugging.md` (Live
+  measurement + Auth) and the notees-development skill's
+  development-workflow reference.
+  **Verification:** measured live before/after with measure-probe
+  (card→node-topbar buttons 27→17px, topbar→card 12→8px, sidebar avatar
+  32→20px = nav column); `pnpm typecheck` + `pnpm test` green; verify-min
+  smoke after the scoped web redeploy.
+
 ## 2026-10-12
 
 - **feat(web): heading blocks are back — the `heading` content token with

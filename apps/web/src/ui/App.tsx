@@ -86,6 +86,12 @@ import { AssetUploadModal } from "./components/modals/AssetUploadModal.js";
 import { QuickCreateFab } from "./components/QuickCreateFab.js";
 import { WorkspacesView } from "./components/WorkspacesView.js";
 import { UserSettingsModal } from "./components/modals/UserSettingsModal.js";
+import {
+  SettingsPage,
+  pathForSettingsSection,
+  settingsSectionFromPath,
+  type SettingsSection,
+} from "./components/SettingsPage.js";
 import { SyncDetailsModal } from "./components/modals/SyncDetailsModal.js";
 import { applyAppearance, readDeviceSetting, toggleFocusMode, useDeviceSetting } from "./components/modals/deviceSettings.js";
 import { BackendUnavailableOverlay } from "./components/ui/BackendUnavailableOverlay.js";
@@ -304,6 +310,48 @@ export function navFromPath(pathname: string): NavKey | null {
 
 export function pathForNav(nav: NavKey): string {
   return `/${nav}`;
+}
+
+/** Push a settings-section change onto the history stack (the URL seam the
+ *  popstate handler maps back); exported for the routing tests. */
+export function pushSettingsSection(section: SettingsSection): void {
+  window.history.pushState({ settings: section }, "", pathForSettingsSection(section));
+}
+
+/**
+ * Back/forward navigation drives the selection / views / settings section.
+ * Exported for the routing tests, mirroring the other handler factories.
+ */
+export function popStateNavHandler(opts: {
+  openManager: () => void;
+  closeManager: () => void;
+  setNav: (nav: NavKey) => void;
+  setNode: (id: string | null) => void;
+  setSettingsSection: (section: SettingsSection | null) => void;
+}): () => void {
+  return () => {
+    const path = window.location.pathname;
+    opts.setSettingsSection(settingsSectionFromPath(path));
+    if (path === "/workspaces") {
+      opts.openManager();
+      return;
+    }
+    if (path === "/login" || path === "/auth") {
+      opts.closeManager();
+      opts.setNode(null);
+      return;
+    }
+    const nav = navFromPath(path);
+    if (nav !== null) {
+      opts.closeManager();
+      opts.setNav(nav);
+      opts.setNode(null);
+      return;
+    }
+    const match = /^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(path);
+    opts.closeManager();
+    opts.setNode(match !== null ? match[1]! : null);
+  };
 }
 
 /**
@@ -749,6 +797,14 @@ export function App() {
     return match !== null ? match[1]! : null;
   });
   const [activeNav, setActiveNav] = useState<NavKey>(initialNav);
+  /**
+   * The settings page route: non-null while the URL is /settings/<section>
+   * (deep link at boot, section nav, back/forward). Takes precedence over
+   * the hub views in the PageCard slot, like an open node.
+   */
+  const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(() =>
+    settingsSectionFromPath(window.location.pathname),
+  );
   const [syncStatus, setSyncStatus] = useState<SyncStatusSnapshot>(INITIAL_SYNC_STATUS);
   const [pagesVersion, setPagesVersion] = useState(0);
   /**
@@ -790,9 +846,19 @@ export function App() {
    * node's OWN view) is the one in-app caller that bypasses the redirect.
    */
   function openPageAt(id: string): void {
+    setSettingsSection(null);
     setSelectedPageId(id);
     window.history.pushState({ node: id }, "", `/${id}`);
     recordRecent(id);
+  }
+
+  /**
+   * Open a settings section: state + URL together (the pushState seam the
+   * popstate handler maps back on back/forward).
+   */
+  function openSettingsSection(section: SettingsSection): void {
+    setSettingsSection(section);
+    pushSettingsSection(section);
   }
 
   /**
@@ -817,6 +883,7 @@ export function App() {
     const live = clientRef.current;
     const view = readDeviceSetting<string | null>("defaultView", "today");
     const toHub = (nav: NavKey, path: string) => {
+      setSettingsSection(null);
       setActiveNav(nav);
       setSelectedPageId(null);
       window.history.pushState({ nav }, "", path);
@@ -841,30 +908,15 @@ export function App() {
     toHub("pages", "/pages");
   }
 
-  /** Back/forward navigation drives the selection / views. */
+  /** Back/forward navigation drives the selection / views / settings section. */
   useEffect(() => {
-    const onPopState = () => {
-      const path = window.location.pathname;
-      if (path === "/workspaces") {
-        setManagerOpen(true);
-        return;
-      }
-      if (path === "/login" || path === "/auth") {
-        setManagerOpen(false);
-        setSelectedPageId(null);
-        return;
-      }
-      const nav = navFromPath(path);
-      if (nav !== null) {
-        setManagerOpen(false);
-        setActiveNav(nav);
-        setSelectedPageId(null);
-        return;
-      }
-      const match = /^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(path);
-      setManagerOpen(false);
-      setSelectedPageId(match !== null ? match[1]! : null);
-    };
+    const onPopState = popStateNavHandler({
+      openManager: () => setManagerOpen(true),
+      closeManager: () => setManagerOpen(false),
+      setNav: setActiveNav,
+      setNode: setSelectedPageId,
+      setSettingsSection,
+    });
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
@@ -1959,6 +2011,7 @@ export function App() {
               }
               return;
             }
+            setSettingsSection(null);
             setActiveNav(key);
             setSelectedPageId(null);
             window.history.pushState({ node: null, nav: key }, "", pathForNav(key));
@@ -1989,6 +2042,18 @@ export function App() {
               cornerMenu
               shareTarget={shareTarget}
               sectionsLayout={sectionsLayout}
+            />
+          ) : settingsSection !== null && user !== null ? (
+            <SettingsPage
+              section={settingsSection}
+              onNavigate={openSettingsSection}
+              serverUrl={serverUrl}
+              token={token}
+              user={user}
+              onSignOut={() => void handleSignOut()}
+              syncConnected={syncStatus.status !== "error"}
+              onForgetServer={() => handleForgetServer()}
+              onConnectServer={(url) => handleConnectServer(url)}
             />
           ) : activeNav === "journal" ? (
             <JournalsView client={client} onOpenPage={openPage} />
@@ -2063,13 +2128,10 @@ export function App() {
         <UserSettingsModal
           isOpen={settingsOpen}
           onClose={() => setSettingsOpen(false)}
-          serverUrl={serverUrl}
-          token={token}
-          user={user}
-          onSignOut={() => void handleSignOut()}
-          syncConnected={syncStatus.status !== "error"}
-          onForgetServer={() => handleForgetServer()}
-          onConnectServer={(url) => handleConnectServer(url)}
+          onOpenAdvanced={() => {
+            setSettingsOpen(false);
+            openSettingsSection("appearance");
+          }}
         />
       )}
       {quickAddOpen && (
