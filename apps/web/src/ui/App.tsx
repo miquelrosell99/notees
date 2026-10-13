@@ -1868,7 +1868,7 @@ export function App() {
         onOpenSyncDetails={() => setSyncDetailsOpen(true)}
         breadcrumbs={
           selectedPageId !== null ? (
-            <Breadcrumbs client={client} nodeId={selectedPageId} onOpenNode={openPage} showCurrent editable />
+            <Breadcrumbs client={client} nodeId={selectedPageId} onOpenNode={openPage} editable />
           ) : null
         }
         sidebarOpen={sidebarOpen}
