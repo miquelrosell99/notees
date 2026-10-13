@@ -62,6 +62,49 @@ export function labelAlphaForZoom(zoom: number): number {
 }
 
 /**
+ * The label pass's idle-skip signature (owner 2026-10-13 jank fix): the
+ * view's rAF loop redraws labels only when one of these inputs changed
+ * since the previous frame — camera, position-frame identity, hover,
+ * selection, the name map, the time-lapse cut, or the canvas size. Static
+ * frames cost nothing (the canvas2d clear + up to hundreds of shadowed
+ * text draws were the main-thread load at ~7k nodes). Identities, not deep
+ * compares — the producers replace objects when they change.
+ */
+export interface LabelDrawSignature {
+  camX: number;
+  camY: number;
+  zoom: number;
+  /** The current position frame (object identity marks new positions). */
+  frame: unknown;
+  hovered: string | null;
+  /** The selection array (object identity marks a new selection). */
+  selected: unknown;
+  /** The display-name map (object identity marks new names). */
+  names: unknown;
+  tlEnabled: boolean;
+  tlCutoff: number;
+  width: number;
+  height: number;
+}
+
+/** True when any label input changed between two frames. */
+export function labelSignatureChanged(prev: LabelDrawSignature, next: LabelDrawSignature): boolean {
+  return (
+    prev.camX !== next.camX ||
+    prev.camY !== next.camY ||
+    prev.zoom !== next.zoom ||
+    prev.frame !== next.frame ||
+    prev.hovered !== next.hovered ||
+    prev.selected !== next.selected ||
+    prev.names !== next.names ||
+    prev.tlEnabled !== next.tlEnabled ||
+    prev.tlCutoff !== next.tlCutoff ||
+    prev.width !== next.width ||
+    prev.height !== next.height
+  );
+}
+
+/**
  * Draw one label pass. Returns the number of regular labels rendered (the
  * hovered/selected emphasis labels don't count against the cap).
  *

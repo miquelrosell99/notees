@@ -99,7 +99,7 @@ import {
 import { buildNodeVisuals } from "./nodeVisuals.js";
 import { EngineController, type EngineFrame } from "./engineController.js";
 import { GraphWebGLRenderer, type RendererEdge } from "./renderer/webglRenderer.js";
-import { drawLabels, type LabelFrame } from "./renderer/labelCanvas.js";
+import { drawLabels, labelSignatureChanged, type LabelDrawSignature, type LabelFrame } from "./renderer/labelCanvas.js";
 import { graphTheme } from "./renderer/theme.js";
 import { GraphMinimap } from "./minimap.js";
 import "./GraphView.css";
@@ -287,6 +287,32 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   const labelNamesRef = useRef<{ order: readonly string[] | null; map: Map<string, string> }>({
     order: null,
     map: new Map(),
+  });
+  /**
+   * The once-per-mount camera fit (owner 2026-10-13 "blank while loading"
+   * fix): the force path never fitted the opening camera — cameraRef starts
+   * at the origin zoom 0.5, and cached layouts whose center isn't the origin
+   * opened on empty canvas. Fitted on the FIRST engine frame, NEVER reset —
+   * a display rebuild (filter toggle, reload) keeps the user's camera, like
+   * Obsidian.
+   */
+  const fitDoneRef = useRef(false);
+  /**
+   * The label pass idle-skip signature (owner 2026-10-13 jank fix): labels
+   * redraw only when a label input changed since the previous frame —
+   * camera, position frame, hover, selection, the name map, the time-lapse
+   * cut, or the canvas size. Static frames cost nothing (the canvas2d
+   * clear + hundreds of shadowed text draws were the main-thread load).
+   * NaN seeds guarantee the first frame always draws.
+   */
+  const labelSigRef = useRef<LabelDrawSignature>({
+    camX: NaN, camY: NaN, zoom: NaN,
+    frame: null,
+    hovered: null,
+    selected: null,
+    names: null,
+    tlEnabled: false, tlCutoff: 0,
+    width: 0, height: 0,
   });
 
   const [topology, setTopology] = useState<GraphTopology | null>(null);
@@ -749,6 +775,12 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
         dirtyRef.current = true;
       });
       engineRef.current = engine;
+      // Warm-quiet start (owner 2026-10-13): when ≥70% of the nodes carry
+      // cached positions the layout is already shaped — seed the engine at
+      // 0.2 activity so it opens nearly still and finishes cooling in a
+      // second or two; below the threshold the full 1.0 unfold runs.
+      const warmStart =
+        display.nodes.length > 0 && cached.size / display.nodes.length >= 0.7;
       engine.init(
         engineNodes.map(({ nodeUuid, x, y, connectionCount, mass, pinned }) => ({
           nodeUuid,
@@ -766,6 +798,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
           massAccumulation: prefs.massAccumulation,
           clustering: prefs.clustering,
           clusterSeparation: prefs.clusterSeparation,
+          ...(warmStart ? { initialAlpha: 0.2 } : {}),
         },
       );
       engine.setPaused(loopStateRef.current.paused);
@@ -819,6 +852,13 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
         renderer.updatePositions(frame.positions, frame.nodeIds);
         positionsRef.current = { positions: frame.positions, nodeIds: frame.nodeIds };
       }
+      // Once per mount: frame the graph the moment the first engine frame
+      // arrives (the force path never fitted the opening camera — see
+      // fitDoneRef). Never re-fits: the user's camera survives rebuilds.
+      if (!fitDoneRef.current && frameRef.current !== null) {
+        fitDoneRef.current = true;
+        cameraRef.current = renderer.fitToCanvas();
+      }
       const engine = engineRef.current;
       if (engine !== null && engine.runsOnMainThread && !loopStateRef.current.paused) {
         engine.step();
@@ -841,26 +881,39 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
             map: new Map(nodeOrder.map((id) => [id, nameOf(id)])),
           };
         }
+        const tl = timeLapseRef.current;
         const selected = loopStateRef.current.selected;
-        const labelFrame: LabelFrame = {
-          ctx: lctx,
-          width: labelCanvas.width,
-          height: labelCanvas.height,
-          dpr: window.devicePixelRatio || 1,
-          zoom: cam.zoom,
-          positions: renderer.nodePositions,
-          order: nodeOrder,
-          names: labelNamesRef.current.map,
-          radii: idRadiusRef.current,
-          worldToScreen: (wx, wy) => renderer.worldToScreen(wx, wy),
-          baseNodeRadius: 8,
+        const nextSig: LabelDrawSignature = {
+          camX: cam.x, camY: cam.y, zoom: cam.zoom,
+          frame,
           hovered: loopStateRef.current.hovered,
-          selected: selected.length > 0 ? selected[selected.length - 1]! : null,
-          colors: graphTheme(),
-          createdTimes: nodeTimesSecRef.current,
-          timeCutoffSec: timeLapseRef.current.enabled ? timeLapseRef.current.cutoffSec : undefined,
+          selected,
+          names: labelNamesRef.current.map,
+          tlEnabled: tl.enabled, tlCutoff: tl.cutoffSec,
+          width: labelCanvas.width, height: labelCanvas.height,
         };
-        drawLabels(labelFrame);
+        if (labelSignatureChanged(labelSigRef.current, nextSig)) {
+          const labelFrame: LabelFrame = {
+            ctx: lctx,
+            width: labelCanvas.width,
+            height: labelCanvas.height,
+            dpr: window.devicePixelRatio || 1,
+            zoom: cam.zoom,
+            positions: renderer.nodePositions,
+            order: nodeOrder,
+            names: labelNamesRef.current.map,
+            radii: idRadiusRef.current,
+            worldToScreen: (wx, wy) => renderer.worldToScreen(wx, wy),
+            baseNodeRadius: 8,
+            hovered: loopStateRef.current.hovered,
+            selected: selected.length > 0 ? selected[selected.length - 1]! : null,
+            colors: graphTheme(),
+            createdTimes: nodeTimesSecRef.current,
+            timeCutoffSec: tl.enabled ? tl.cutoffSec : undefined,
+          };
+          drawLabels(labelFrame);
+          labelSigRef.current = nextSig;
+        }
       }
 
       const minimap = minimapCanvasRef.current;

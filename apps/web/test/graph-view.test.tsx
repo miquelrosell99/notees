@@ -6,9 +6,11 @@
  * renderer/engine unit suites), the reference empty surfaces (nothing to
  * graph yet / the filtered-out state with its reset / the local depth
  * hint), the kit LoadingScreen projection state, the kit-composed settings
- * toolbar, and the right rail (Selection + Colors sections, chip openers,
+ * toolbar, the right rail (Selection + Colors sections, chip openers,
  * search-to-select, local-scope omission, groups-only painting with the
- * one-time legacy-DSL and class-colors migrations).
+ * one-time legacy-DSL and class-colors migrations), and the once-per-mount
+ * camera fit on the first engine frame (against a stubbed renderer — the
+ * port boundary).
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -38,6 +40,12 @@ beforeAll(async () => {
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
+
+/** The renderer stubs' instances for the camera-fit spec (hoisted so the
+ *  vi.doMock factory can close over them). */
+const glStub = vi.hoisted(() => ({
+  instances: [] as Array<{ cameras: Array<{ x: number; y: number; zoom: number }> }>,
+}));
 
 const clients: WorkspaceClient[] = [];
 
@@ -521,5 +529,84 @@ describe("GraphView component", () => {
     ).toBeTruthy();
     // The topology lands and the honest empty surface steps in.
     expect(await screen.findByText("Nothing to graph yet")).toBeTruthy();
+  });
+
+  it("the opening camera is fitted once, on the first engine frame (owner 2026-10-13)", async () => {
+    window.localStorage.clear();
+    const client = await seedClient();
+    const pageA = await client.createObject({ presentAsMain: true, contentAst: [{ type: "text", text: "Alpha" }] });
+    const pageB = await client.createObject({ presentAsMain: true, contentAst: [{ type: "text", text: "Beta" }] });
+    await client.createObject({
+      parentId: pageA,
+      contentAst: [{ type: "mention", targetNodeId: pageB, text: "Beta" }],
+    });
+    // The real canvas path is a browser concern (the port boundary): stub
+    // the renderer so the stage mounts in jsdom. The stub's fitToCanvas
+    // returns a distinctive camera; the loop must apply it on the first
+    // frame (the force path never fitted the opening camera — the "blank
+    // while loading" fix).
+    vi.resetModules();
+    vi.doMock("../src/ui/views/graph/renderer/webglRenderer.js", () => ({
+      GraphWebGLRenderer: class StubRenderer {
+        cameras: Array<{ x: number; y: number; zoom: number }> = [];
+        constructor() {
+          glStub.instances.push(this);
+        }
+        init(): void {}
+        destroy(): void {}
+        resize(): void {}
+        setNodeVisuals(): void {}
+        setNodeTimes(): void {}
+        setEdges(): void {}
+        setTimeLapse(): void {}
+        setSelectedNodes(): void {}
+        setHoveredNode(): void {}
+        setHoveredEdge(): void {}
+        setHoverNeighborhood(): void {}
+        setEdgeMask(): void {}
+        setCamera(x: number, y: number, zoom: number): void {
+          this.cameras.push({ x, y, zoom });
+        }
+        updatePositions(): void {}
+        overridePosition(): void {}
+        render(): void {}
+        fitToCanvas(): { x: number; y: number; zoom: number } {
+          return { x: 111, y: 222, zoom: 0.42 };
+        }
+        worldToScreen(wx: number, wy: number): { x: number; y: number } {
+          return { x: wx, y: wy };
+        }
+        screenToWorld(px: number, py: number): { x: number; y: number } {
+          return { x: px, y: py };
+        }
+        pickNode(): string | null {
+          return null;
+        }
+        pickEdge(): number {
+          return -1;
+        }
+        get nodePositions(): Float32Array {
+          return new Float32Array(0);
+        }
+        get nodeOrder(): string[] {
+          return [];
+        }
+      },
+    }));
+    try {
+      const { GraphView: GraphViewWithStub } = await import("../src/ui/views/graph/GraphView.js");
+      render(<GraphViewWithStub client={client} />);
+      await vi.waitFor(() => {
+        const instance = glStub.instances.at(-1)!;
+        expect(
+          instance.cameras.some((c) => c.x === 111 && c.y === 222 && c.zoom === 0.42),
+        ).toBe(true);
+      });
+    } finally {
+      glStub.instances.length = 0;
+      // Per-file test isolation contains the doMock registry; resetModules
+      // keeps the module registry clean for anything imported afterwards.
+      vi.resetModules();
+    }
   });
 });

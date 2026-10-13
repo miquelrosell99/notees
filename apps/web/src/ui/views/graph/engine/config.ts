@@ -69,9 +69,15 @@ export function buildGraphEngineConfig(user: GraphEnginePhysicsConfig): GraphEng
     componentCenterStrength: (user.centralGravity / 100) * 0.02,
     componentSpacing: preset.componentSpacing ?? 800,
     // Energy-gated convergence: per-node alpha decays exponentially and the
-    // graph freezes when every node is quiet and still (see engine.ts).
-    alphaDecay: 0.005,
+    // graph freezes when every node is quiet and still (see engine.ts). The
+    // 0.02 decay (owner 2026-10-13, Obsidian register) cools 4× faster than
+    // 0.005 — alpha reaches alphaMin in ~265 ticks instead of ~1050, so the
+    // layout unfolds but the wobble ends in seconds, not minutes.
+    alphaDecay: 0.02,
     alphaMin: 0.005,
+    // Fresh-engine starting activity (warm starts pass 0.2 via the physics
+    // config; default full unfold). Topology updates/reheats ignore this.
+    initialAlpha: user.initialAlpha ?? 1.0,
     // Mean per-tick displacement² under which the graph counts as still
     // (≈0.01 px/tick RMS — sub-pixel, and dt-aware via the integrator).
     settleEnergyEps: 1e-4,

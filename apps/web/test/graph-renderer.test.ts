@@ -11,7 +11,9 @@ import {
   drawLabels,
   labelAlphaForZoom,
   labelCapForZoom,
+  labelSignatureChanged,
   truncateLabel,
+  type LabelDrawSignature,
   type LabelFrame,
 } from "../src/ui/views/graph/renderer/labelCanvas.js";
 import {
@@ -166,6 +168,41 @@ describe("label overlay contract", () => {
       zoom: 1,
     });
     expect(drawLabels(open.frame)).toBe(2);
+  });
+});
+
+describe("label idle-skip signature (owner 2026-10-13 jank fix)", () => {
+  const base: LabelDrawSignature = {
+    camX: 0, camY: 0, zoom: 0.5,
+    frame: null,
+    hovered: null,
+    selected: null,
+    names: null,
+    tlEnabled: false, tlCutoff: 0,
+    width: 800, height: 600,
+  };
+
+  it("an unchanged signature does not redraw — two static frames in a row skip the pass", () => {
+    expect(labelSignatureChanged(base, { ...base })).toBe(false);
+  });
+
+  it("every label input changing forces a redraw", () => {
+    const changes: Array<Partial<LabelDrawSignature>> = [
+      { camX: 1 },
+      { camY: 1 },
+      { zoom: 0.7 },
+      { frame: { positions: [] } }, // a new position frame identity
+      { hovered: "n1" },
+      { selected: ["n1"] }, // a new selection array identity
+      { names: new Map() }, // a rebuilt name map identity
+      { tlEnabled: true },
+      { tlCutoff: 12 },
+      { width: 1024 },
+      { height: 768 },
+    ];
+    for (const change of changes) {
+      expect(labelSignatureChanged(base, { ...base, ...change })).toBe(true);
+    }
   });
 });
 

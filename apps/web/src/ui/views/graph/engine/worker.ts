@@ -35,8 +35,11 @@ import type { GraphEnginePhysicsConfig, GraphEngineNode, GraphEngineEdge } from 
 
 const TICK_MS = 16;
 
-const WARMUP_TICKS = 50;
-const WARMUP_DT_MULT = 2.0;
+// Fast-forward depth before first paint (owner 2026-10-13): 150 ticks at 3×
+// dt so fresh graphs arrive pre-settled — with alphaDecay 0.02 the alpha
+// budget is nearly spent by the end of the warm-up.
+const WARMUP_TICKS = 150;
+const WARMUP_DT_MULT = 3.0;
 
 const META_SEQ = 0;
 const META_COUNT = 1;

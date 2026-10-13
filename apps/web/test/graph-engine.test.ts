@@ -160,6 +160,47 @@ describe("graph engine", () => {
     }
   });
 
+  it("a warm start (initialAlpha 0.2) cools sooner and moves far less than a fresh one", () => {
+    // Owner 2026-10-13: cached workspaces seed the engine at 0.2 activity so
+    // the map opens nearly still instead of re-enacting the full unfold.
+    const { nodes, edges } = chain(80);
+    const mk = (initialAlpha?: number): GraphEngine =>
+      new GraphEngine(nodes, edges, physics(initialAlpha === undefined ? {} : { initialAlpha }));
+    const settleAt = (engine: GraphEngine): number => {
+      for (let t = 0; t < 4000; t++) {
+        engine.step();
+        if (engine.settled) return t;
+      }
+      return -1;
+    };
+    const freshSettleAt = settleAt(mk());
+    const warmSettleAt = settleAt(mk(0.2));
+    expect(freshSettleAt).toBeGreaterThan(0);
+    expect(warmSettleAt).toBeGreaterThan(0);
+    expect(warmSettleAt).toBeLessThan(freshSettleAt);
+
+    // Amplitude: the 0.2 activity scales every force — over the first 100
+    // ticks the warm graph's total drift is a fraction of the fresh unfold
+    // (measured ~36%), the "opens nearly still" the owner asked for.
+    const driftOver = (engine: GraphEngine, ticks: number): number => {
+      const s0 = engine.getState();
+      const beforeX = new Float32Array(s0.posX);
+      const beforeY = new Float32Array(s0.posY);
+      let drift = 0;
+      for (let t = 0; t < ticks; t++) {
+        engine.step();
+        const s = engine.getState();
+        for (let i = 0; i < s.nodeCount; i++) {
+          drift += Math.hypot(s.posX[i]! - beforeX[i]!, s.posY[i]! - beforeY[i]!);
+        }
+      }
+      return drift;
+    };
+    const freshDrift = driftOver(mk(), 100);
+    const warmDrift = driftOver(mk(0.2), 100);
+    expect(warmDrift).toBeLessThan(freshDrift * 0.6);
+  });
+
   it("alpha cools every node toward 0", () => {
     const { nodes, edges } = chain(20);
     const engine = new GraphEngine(nodes, edges, physics());
