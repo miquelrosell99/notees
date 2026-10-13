@@ -403,7 +403,7 @@ function ObjectPropertyRow({
 
   // No rows (bound, unvalued) is not a default state — no hint.
   const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
-  const unbound = rows.some((row) => row.source === "authored" && row.boundBy === null);
+  const classSourced = rows.some((row) => row.boundBy !== null);
 
   const qualifierOf = (row: EffectiveProperty, ref: string) =>
     dateQualified ? (
@@ -462,9 +462,7 @@ function ObjectPropertyRow({
         >
           {!bare && (
             <>
-              <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
-              {allDefault && <span className="nt-property-hint">default</span>}
-              {unbound && <span className="nt-property-hint">unbound</span>}
+              <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}{classSourced && <span className="nt-property-hint" title="From a class">C</span>}</span>
             </>
           )}
           {singleRef !== null && linked === undefined ? (
@@ -500,9 +498,7 @@ function ObjectPropertyRow({
       >
         {!bare && (
           <>
-            <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
-            {allDefault && <span className="nt-property-hint">default</span>}
-            {unbound && <span className="nt-property-hint">unbound</span>}
+            <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}{classSourced && <span className="nt-property-hint" title="From a class">C</span>}</span>
           </>
         )}
         <PropertySelectCell
@@ -606,9 +602,7 @@ function ObjectPropertyRow({
     >
       {!bare && (
         <>
-          <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
-          {allDefault && <span className="nt-property-hint">default</span>}
-          {unbound && <span className="nt-property-hint">unbound</span>}
+          <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}{classSourced && <span className="nt-property-hint" title="From a class">C</span>}</span>
         </>
       )}
       <span className="nt-property-chips node-metadata-pills">
@@ -812,7 +806,7 @@ function AssetPropertyRow({
   };
 
   const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
-  const unbound = rows.some((row) => row.source === "authored" && row.boundBy === null);
+  const classSourced = rows.some((row) => row.boundBy !== null);
 
   return (
     <li
@@ -824,9 +818,7 @@ function AssetPropertyRow({
     >
       {!bare && (
         <>
-          <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
-          {allDefault && <span className="nt-property-hint">default</span>}
-          {unbound && <span className="nt-property-hint">unbound</span>}
+          <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}{classSourced && <span className="nt-property-hint" title="From a class">C</span>}</span>
         </>
       )}
       <div className="nt-property-assets">
@@ -1111,7 +1103,7 @@ function DatetimePropertyRow({
   };
 
   const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
-  const unbound = rows.some((row) => row.source === "authored" && row.boundBy === null);
+  const classSourced = rows.some((row) => row.boundBy !== null);
 
   /** The popup (shared by the single-value and multi branches). */
   const picker = pickerFor !== null && (
@@ -1163,9 +1155,7 @@ function DatetimePropertyRow({
           >
             {!bare && (
               <>
-                <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
-                {allDefault && <span className="nt-property-hint">default</span>}
-                {unbound && <span className="nt-property-hint">unbound</span>}
+                <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}{classSourced && <span className="nt-property-hint" title="From a class">C</span>}</span>
               </>
             )}
           </li>
@@ -1181,9 +1171,7 @@ function DatetimePropertyRow({
         >
           {!bare && (
             <>
-              <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
-              {allDefault && <span className="nt-property-hint">default</span>}
-              {unbound && <span className="nt-property-hint">unbound</span>}
+              <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}{classSourced && <span className="nt-property-hint" title="From a class">C</span>}</span>
             </>
           )}
           <span className="nt-property-chips node-metadata-pills">
@@ -1204,9 +1192,7 @@ function DatetimePropertyRow({
       >
         {!bare && (
           <>
-            <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
-            {allDefault && <span className="nt-property-hint">default</span>}
-            {unbound && <span className="nt-property-hint">unbound</span>}
+            <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}{classSourced && <span className="nt-property-hint" title="From a class">C</span>}</span>
           </>
         )}
         <PropertySelectCell
@@ -1258,9 +1244,7 @@ function DatetimePropertyRow({
     >
       {!bare && (
         <>
-          <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
-          {allDefault && <span className="nt-property-hint">default</span>}
-          {unbound && <span className="nt-property-hint">unbound</span>}
+          <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}{classSourced && <span className="nt-property-hint" title="From a class">C</span>}</span>
         </>
       )}
       <span className="nt-property-chips node-metadata-pills">
@@ -1435,7 +1419,7 @@ function SelectPropertyRow({
 }) {
   const ordered = [...rows].sort((a, b) => a.idx - b.idx);
   const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
-  const unbound = rows.some((row) => row.source === "authored" && row.boundBy === null);
+  const classSourced = rows.some((row) => row.boundBy !== null);
 
   const valuesOf = (row: EffectiveProperty): string[] =>
     Array.isArray(row.value)
@@ -1463,9 +1447,7 @@ function SelectPropertyRow({
           >
             {!bare && (
               <>
-                <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
-                {allDefault && <span className="nt-property-hint">default</span>}
-                {unbound && <span className="nt-property-hint">unbound</span>}
+                <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}{classSourced && <span className="nt-property-hint" title="From a class">C</span>}</span>
               </>
             )}
             <span className="nt-property-chips node-metadata-pills">
@@ -1522,9 +1504,7 @@ function SelectPropertyRow({
         >
           {!bare && (
             <>
-              <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
-              {allDefault && <span className="nt-property-hint">default</span>}
-              {unbound && <span className="nt-property-hint">unbound</span>}
+              <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}{classSourced && <span className="nt-property-hint" title="From a class">C</span>}</span>
             </>
           )}
           <SelectionPropertyControl
@@ -1590,7 +1570,7 @@ function BooleanPropertyRow({
 }) {
   const ordered = [...rows].sort((a, b) => a.idx - b.idx);
   const allDefault = rows.length > 0 && rows.every((row) => row.source === "default");
-  const unbound = rows.some((row) => row.source === "authored" && row.boundBy === null);
+  const classSourced = rows.some((row) => row.boundBy !== null);
 
   return (
     <>
@@ -1605,9 +1585,7 @@ function BooleanPropertyRow({
         >
           {!bare && (
             <>
-              <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}</span>
-              {allDefault && <span className="nt-property-hint">default</span>}
-              {unbound && <span className="nt-property-hint">unbound</span>}
+              <span className="section-label nt-property-name" data-property-schema-id={propertySchemaId}>{label}{classSourced && <span className="nt-property-hint" title="From a class">C</span>}</span>
             </>
           )}
           <Checkbox
@@ -2539,11 +2517,10 @@ export function PropertiesTable({
                     : "nt-property node-metadata-row"
                 }
               >
-                <span className="section-label nt-property-name" data-property-schema-id={row.propertySchemaId}>{label}</span>
-                {row.source === "default" && <span className="nt-property-hint">default</span>}
-                {row.source === "authored" && row.boundBy === null && (
-                  <span className="nt-property-hint">unbound</span>
-                )}
+                <span className="section-label nt-property-name" data-property-schema-id={row.propertySchemaId}>
+                  {label}
+                  {row.boundBy !== null && <span className="nt-property-hint" title="From a class">C</span>}
+                </span>
                 <ScalarPropertyValue client={client} nodeId={nodeId} row={row} onOpenPage={onOpenPage} readOnly={readOnly} />
               </li>
             );
@@ -2706,12 +2683,8 @@ export function PropertiesSidebar({
   const [menu, setMenu] = useState<{ schemaId: string; x: number; y: number } | null>(null);
   const labelOf = (row: EffectiveProperty): string => row.schema?.name ?? row.propertySchemaId;
 
-  const hintOf = (rows: EffectiveProperty[]): string | null => {
-    if (rows.length === 0) return null;
-    if (rows.every((row) => row.source === "default")) return "default";
-    if (rows.some((row) => row.source === "authored" && row.boundBy === null)) return "unbound";
-    return null;
-  };
+  const hintOf = (rows: EffectiveProperty[]): string | null =>
+    rows.some((row) => row.boundBy !== null) ? "C" : null;
 
   // The name row's right-click menu rides the same actions as the table's
   // label (Open property / Value history / Empty / Remove).
@@ -2783,7 +2756,11 @@ export function PropertiesSidebar({
       }}
     >
       {label}
-      {hint !== null && <span className="nt-property-hint">{hint}</span>}
+      {hint !== null && (
+        <span className="nt-property-hint" title={hint === "C" ? "From a class" : undefined}>
+          {hint}
+        </span>
+      )}
     </button>
   );
 
@@ -2840,11 +2817,7 @@ export function PropertiesSidebar({
             {nameRow(
               row.propertySchemaId,
               labelOf(row),
-              row.source === "default"
-                ? "default"
-                : row.source === "authored" && row.boundBy === null
-                  ? "unbound"
-                  : null,
+              row.boundBy !== null ? "C" : null,
             )}
             <div className="nt-props-sidebar__value">
               <ScalarPropertyValue client={client} nodeId={nodeId} row={row} onOpenPage={onOpenPage} />

@@ -77,7 +77,7 @@ async function seedPriorityClasses(client: WorkspaceClient) {
 }
 
 describe("Properties panel (effective values)", () => {
-  it("shows a derived default dimmed with a 'default' hint", async () => {
+  it("shows a derived default dimmed with the class badge", async () => {
     const client = await seedClient();
     const { schemaId, taskId } = await seedPriorityClasses(client);
     const pageId = await client.createObject({ presentAsMain: true, name: "Ship it" });
@@ -85,11 +85,11 @@ describe("Properties panel (effective values)", () => {
     const { container } = render(<PageView client={client} pageId={pageId} />);
     expandProperties();
     // The panelled main layout rides the left properties sidebar: the name
-    // row carries the hints, the scalar value cell the editor.
+    // row carries the class badge, the scalar value cell the editor.
     const sidebar = container.querySelector(".nt-props-sidebar")!;
     const nameRow = sidebar.querySelector(`[data-property-schema-id="${schemaId}"]`)!;
     expect(nameRow.textContent).toContain("priority");
-    expect(nameRow.textContent).toContain("default");
+    expect(nameRow.textContent).toContain("C");
     const input = sidebar.querySelector(`input[aria-label="Property priority"]`) as HTMLInputElement;
     expect(input.value).toBe("medium");
     // The read model agrees: derived, bound by Task, no authored row.
@@ -166,8 +166,9 @@ describe("Properties panel (effective values)", () => {
     const sidebar = container.querySelector(".nt-props-sidebar")!;
     const input = sidebar.querySelector(`input[aria-label="Property priority"]`) as HTMLInputElement;
     expect(input.value).toBe("medium");
-    // The name row still carries the "default" hint (the value is derived).
-    expect(sidebar.querySelector(`[data-property-schema-id="${schemaId}"]`)!.textContent).toContain("default");
+    // The name row carries the class badge (the value is class-sourced,
+    // owner 2026-10-13 — "C" replaces the old "default" hint).
+    expect(sidebar.querySelector(`[data-property-schema-id="${schemaId}"]`)!.textContent).toContain("C");
 
     // On a page where Project was applied first, Project's default wins.
     const otherId = await client.createObject({ presentAsMain: true, name: "Other" });
@@ -214,9 +215,12 @@ describe("Properties panel (effective values)", () => {
       expect.objectContaining({ propertySchemaId: schemaId, value: "high", source: "default", boundBy: projectId }),
       expect.objectContaining({ propertySchemaId: effortSchemaId, value: "authored", source: "authored", boundBy: null }),
     ]);
-    // The hint shows on the sidebar's name row (the reused value row's own
-    // hint hides — the name row carries it).
-    expect(screen.getAllByText("unbound").length).toBeGreaterThan(0);
+    // Manual (unbound) properties carry NO badge under the owner 2026-10-13
+    // scheme — only class-sourced ones get the "C" flag. Project's priority
+    // default survives the unassign still class-sourced: its badge stays.
+    expect(screen.queryByText("unbound")).toBeNull();
+    expect(container.querySelector(`[data-property-schema-id="${effortSchemaId}"] .nt-property-hint`)).toBeNull();
+    expect(container.querySelector(`[data-property-schema-id="${schemaId}"] .nt-property-hint`)!.textContent).toBe("C");
   });
 });
 
