@@ -1402,6 +1402,16 @@ export class WorkspaceClient {
     return this.store.classParentIds(classId);
   }
 
+  /** Classes directly extending this one (one extends edge), as nodes — the
+   * "Extended by" rows: transitive extenders appear only under their own
+   * direct parent. */
+  getDirectClassChildren(classId: string): ClientNode[] {
+    return this.store
+      .directClassChildIds(classId)
+      .map((id) => this.getNode(id) ?? this.getNodeRaw(id))
+      .filter((node): node is ClientNode => node !== undefined);
+  }
+
   /** Classes extending this one (transitive), as nodes — the "Extended by" read. */
   getClassChildren(classId: string): ClientNode[] {
     return this.store

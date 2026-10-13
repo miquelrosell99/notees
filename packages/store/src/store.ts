@@ -331,6 +331,19 @@ export class Store {
     ).map((row) => row.parent_class_id);
   }
 
+  /** Classes DIRECTLY extending classId (one extends edge), deterministic
+   * order — the Class View's "Extended by" rows (transitive extenders show
+   * only under their own direct parent). */
+  directClassChildIds(classId: string): string[] {
+    return (
+      this.db
+        .prepare(
+          "SELECT class_id FROM class_extends WHERE parent_class_id = ? ORDER BY class_id",
+        )
+        .all(classId) as { class_id: string }[]
+    ).map((row) => row.class_id);
+  }
+
   /** Classes whose extends closure contains classId (direct + indirect
    * subclasses), deterministic order — the Class View's "Extended by" read. */
   classChildIds(classId: string): string[] {

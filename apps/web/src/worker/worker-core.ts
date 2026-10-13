@@ -153,6 +153,7 @@ const READ_METHODS: ReadonlySet<string> = new Set([
   "effectiveClassIcons",
   "getClassParents",
   "getClassChildren",
+  "getDirectClassChildren",
   "getClassMembers",
   "getClassMemberCount",
   "getClassBindings",
@@ -679,6 +680,8 @@ export class WorkerCore {
         return this.client.getClassParents(args[0] as string);
       case "getClassChildren":
         return this.client.getClassChildren(args[0] as string);
+      case "getDirectClassChildren":
+        return this.client.getDirectClassChildren(args[0] as string);
       case "getClassMembers":
         return this.client.getClassMembers(args[0] as string);
       case "getClassMemberCount":
