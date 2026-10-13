@@ -76,6 +76,9 @@ export type { BooleanToggleProps, BooleanToggleSize } from './BooleanToggle.js';
 export { ButtonWithPanel } from './ButtonWithPanel.js';
 export type { ButtonWithPanelProps, PanelPosition, PanelAlignment } from './ButtonWithPanel.js';
 
+export { SortMenuButton } from './SortMenuButton.js';
+export type { SortMenuButtonProps, SortMenuOption } from './SortMenuButton.js';
+
 export { Checkbox } from './Checkbox.js';
 export type { CheckboxProps, CheckboxSize } from './Checkbox.js';
 export { Radio } from './Radio.js';
