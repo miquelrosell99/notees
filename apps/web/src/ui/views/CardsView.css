@@ -228,8 +228,8 @@
   overflow: hidden;
 }
 
-/* The collapse chevron hides the body (display state, expanded by default —
-   the owner wants the content visible). */
+/* The collapse chevron hides the body (display state, collapsed by default —
+   the v1 register; the chevron shows the content on demand). */
 .node-card__body--collapsed {
   display: none;
 }
@@ -297,27 +297,31 @@
   opacity: var(--opacity-100);
 }
 
-/* ─── Flat card head — the original header register ──────────────── */
+/* ─── The card title — the page-view title row itself (BlockRow
+   variant="title", read-only): the content stream renders its inline
+   tokens (class links, mentions). The page-headline typography stays in
+   the page header — the card title rides the original card-title register. ─── */
 
-.node-card__head {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
+.node-card__title {
   flex: 1 1 auto;
   min-width: 0;
-  border: none;
-  background: none;
-  padding: 0;
-  color: var(--color-on-surface);
-  /* Original card title: font-weight 600, body-lg, 1.4 line height. */
+}
+
+.node-card__title .nt-page-title {
+  font: inherit;
   font-size: var(--font-size-body-lg);
   font-weight: 600;
   line-height: 1.4;
-  text-align: left;
+  color: var(--color-on-surface);
+}
+
+/* The title opens the node (read-only trampoline) — the pointer + the
+   hover tint the old head button carried. */
+.node-card__title .nt-title-content {
   cursor: pointer;
 }
 
-.node-card__head:hover .node-card__label {
+.node-card__title .nt-title-content:hover {
   color: var(--color-primary);
 }
 
@@ -331,27 +335,6 @@
   min-width: 0;
   overflow: hidden;
   padding: 0 var(--spacing-3) var(--spacing-2);
-}
-
-.node-card__icon {
-  flex-shrink: 0;
-  color: var(--color-on-surface-variant);
-  display: inline-flex;
-}
-
-.node-card__label {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.node-card__type {
-  flex-shrink: 0;
-  font-size: var(--font-size-xs);
-  font-weight: 400;
-  color: var(--color-on-surface-variant);
 }
 
 /* ─── Property rows — the original two-column register ───────────── */

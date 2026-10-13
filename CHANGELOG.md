@@ -9,6 +9,30 @@ predating this file.
 
 ## 2026-10-13
 
+- **feat(web): the v1 card's body collapses by default, and the card title
+  IS the page-view title row (owner refinements 2026-10-13).** Two amendments
+  to the v1 node card shipped earlier today. (1) The child-block body starts
+  COLLAPSED (the v1 `isBodyCollapsed` register — the first cut defaulted
+  expanded on "always show them" reading as visibility; the owner clarified
+  the v1 shape stands: the chevron shows the content on demand). (2) The card
+  title stops being a flattened label on a button and becomes the SAME
+  implementation as the page header title — a bullet-less BlockRow
+  (`variant="title"`, read-only): the content stream renders its inline
+  tokens, so class chips ride as live node links (the owner 2026-10-13
+  node-link look — click opens the class, the title click opens the node
+  through the card's OutlinerContext, the page header's trampoline
+  contract), the untitled placeholder and the Newsreader content face come
+  along for free. The card-title typography stays the card register (the
+  `.nt-page-title` headline font is scoped back, body-lg/600). The head
+  button's icon + render-state label retire (the classes row below carries
+  that identity — the v1 look). Model note pinned in the spec: document-chrome
+  nodes carry text-only titles (the store's flatten invariant — appliers.ts
+  object.create), so rich chips render on BLOCK members' cards. Docs:
+  `docs/ux.md` + `docs/usage.md` re-worded (title row, collapsed body).
+  **Verification:** the v1-card specs re-pinned (collapsed default, expand/
+  collapse round trip, chip-link + title-click targets); `pnpm typecheck` +
+  the full `pnpm test` gate green.
+
 - **feat(web): the v1 node card, 1:1 — classes + tags chips, property rows,
   child blocks on every card — and the cards/table children ruling (owner
   2026-10-13).** The register was read from the v1-archive tag

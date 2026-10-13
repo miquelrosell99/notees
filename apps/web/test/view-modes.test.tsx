@@ -235,15 +235,19 @@ describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
       />,
     );
     const card = container.querySelector(".node-card") as HTMLElement;
+    // The body is collapsed by default (the v1 register) — the chevron
+    // shows the content on demand.
+    expect(card.querySelector(".node-card__body")!.className).toContain("node-card__body--collapsed");
+    fireEvent.click(within(card).getByRole("button", { name: "Expand Member" }));
     expect(within(card).getByText("member body block")).not.toBeNull();
     expect(within(card).getByText("body grandchild")).not.toBeNull();
-    // The chevron knows the body (bordered, expanded by default).
+    // The chevron knows the body (bordered, now expanded).
     const chevron = within(card).getByRole("button", { name: "Collapse Member" });
     expect(chevron.getAttribute("aria-expanded")).toBe("true");
     expect(chevron.className).toContain("node-card__collapse-btn--has-children");
   });
 
-  it("the collapse chevron hides the body (display state, never an op)", async () => {
+  it("the collapse chevron shows and hides the body (display state, never an op)", async () => {
     const client = await seedClient();
     const member = await client.createObject({ presentAsMain: true, name: "Foldable" });
     await client.createObject({
@@ -262,14 +266,17 @@ describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
     );
     const card = container.querySelector(".node-card") as HTMLElement;
     const body = () => card.querySelector(".node-card__body");
+    // Collapsed at rest…
+    expect(body()!.className).toContain("node-card__body--collapsed");
+    // …expand shows it (display:none released — jsdom keeps the text in the
+    // DOM either way, so the assertion is structural)…
+    fireEvent.click(within(card).getByRole("button", { name: "Expand Foldable" }));
+    expect(body()!.className).not.toContain("node-card__body--collapsed");
+    // …collapse hides it again.
     fireEvent.click(within(card).getByRole("button", { name: "Collapse Foldable" }));
-    // The body is collapsed (display:none via the --collapsed rule — jsdom
-    // keeps the text in the DOM, so the assertion is structural).
     expect(body()!.className).toContain("node-card__body--collapsed");
     const chevron = within(card).getByRole("button", { name: "Expand Foldable" });
     expect(chevron.getAttribute("aria-expanded")).toBe("false");
-    fireEvent.click(chevron);
-    expect(body()!.className).not.toContain("node-card__body--collapsed");
   });
 
   it("classes chips, tags chips, and the cardProperties-scoped property rows ride the card", async () => {
@@ -278,12 +285,24 @@ describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
     const schemaId = await client.createPropertySchema({ name: "Level", type: "number" });
     await client.setClassProperty(classId, schemaId, { sequence: 0 });
     const tag = await client.createObject({ presentAsMain: true, name: "favorites" });
-    const member = await client.createObject({ presentAsMain: true, name: "Pikachu" });
+    // A BLOCK member (parented — inline-block render state): document-chrome
+    // nodes carry text-only titles (the store's flatten invariant), so the
+    // rich class chip survives only on a block's content.
+    const dex = await client.createObject({ presentAsMain: true, name: "Dex" });
+    const member = await client.createObject({
+      parentId: dex,
+      contentAst: [
+        { type: "text", text: "A wild " },
+        { type: "class_chip", classId },
+        { type: "text", text: " appears" },
+      ],
+    });
     await client.assignClass(member, classId);
     await client.assignTag(member, tag);
     await client.setProperty(member, schemaId, 25);
     await flushWrites();
 
+    const opened: string[] = [];
     const { container } = render(
       <NodeCollection
         viewMode="cards"
@@ -291,10 +310,23 @@ describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
         items={[{ node: client.getNode(member)! }]}
         propertiesOf={(id) => client.getEffectiveProperties(id)}
         cardProperties={[schemaId]}
-        onNodeClick={() => {}}
+        onNodeClick={(id) => opened.push(id)}
       />,
     );
     const card = container.querySelector(".node-card") as HTMLElement;
+    // The title IS the page-view title row (BlockRow variant="title"): the
+    // class chip rides as a live node link (the owner 2026-10-13 node-link
+    // look) — a click opens THE CLASS, and the plain-title click opens the
+    // node.
+    const head = card.querySelector(".node-card__title") as HTMLElement;
+    const classLink = head.querySelector(".nt-link--class") as HTMLElement;
+    expect(classLink).not.toBeNull();
+    expect(classLink.textContent).toBe("Pokemon");
+    fireEvent.click(classLink);
+    expect(opened).toEqual([classId]);
+    // The plain-title click (the content surface) opens the NODE.
+    fireEvent.click(head.querySelector(".nt-title-content")!);
+    expect(opened).toEqual([classId, member]);
     // The classes row: the member's class chip.
     const classesRow = card.querySelector(".node-card__classes-row")!;
     expect(classesRow).not.toBeNull();

@@ -7,21 +7,27 @@
  *
  *   - the cover slot (no-cover / top / left / right) with its empty-state
  *     Add-cover affordance;
- *   - the header: a collapse chevron, the title (click opens the node,
- *     shift-click opens the sidebar when the surface wires it), and the
- *     hover-reveal action cluster (open-in-sidebar, the node-actions menu —
- *     the v1 right-click context menu rides as the menu button, the v2
- *     grammar for that menu);
+ *   - the header: a collapse chevron, the title, and the hover-reveal action
+ *     cluster (open-in-sidebar when the surface wires shift-click, the
+ *     node-actions menu — the v1 right-click context menu rides as the menu
+ *     button, the v2 grammar for that menu). The title IS the page-view
+ *     title — the same bullet-less BlockRow (variant="title", read-only):
+ *     the content stream renders its inline tokens (class links, mentions),
+ *     a click opens the node through the card's OutlinerContext (the page
+ *     header's trampoline contract); document-chrome nodes carry text-only
+ *     titles (the store's flatten invariant), so rich chips ride block
+ *     members' cards;
  *   - the classes chips row and the tags chips row (NodePills / NodePill,
  *     read-only — hidden when empty, the v1 read-only rule);
  *   - the property rows (the container's cardProperties, or EVERY effective
  *     property with a non-empty display text when none are named — the v1
  *     register);
- *   - the body: the node's child blocks, ALWAYS resolved and shown (owner
+ *   - the body: the node's child blocks, ALWAYS resolved (owner
  *     2026-10-13): attached `children` win (tree contexts); flat collections
  *     resolve them from the client per card. Cards ignore the tree/maxDepth
  *     prop family on purpose. The chevron collapses the body (display state,
- *     expanded by default — the owner wants the content visible).
+ *     COLLAPSED by default — the v1 register; the chevron shows the content
+ *     on demand).
  *
  * Read-only surface: the outline mode remains the editing surface (the v2
  * cards grammar since the first cards slice) — the v1 card's inline editors,
@@ -38,13 +44,11 @@ import { useEffect, useMemo, useState, useContext } from "react";
 import { createPortal } from "react-dom";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
-import { rendersWithDocumentChrome, SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import { Icon } from "../Icon.js";
 import { BlockRow } from "../BlockRow.js";
-import { nodeIcon } from "../iconFor.js";
 import { displayNameForSettings, displayNameFromClient } from "../dateDisplay.js";
-import { renderStateLabel } from "../renderStateLabel.js";
 import { OutlinerContext, useOutlinerValue } from "../outliner-context.js";
 import { SelectionButton, Checkbox, ImageModal } from "../components/ui/index.js";
 import { registerView } from "./registry.js";
@@ -212,7 +216,6 @@ export function NodeCard({
   selection?: { checked: boolean; onToggle: () => void } | undefined;
 }) {
   const { client, onNodeClick, onNodeShiftClick, cardProperties, propertiesOf, showBreadcrumbs } = props;
-  const icon = nodeIcon(item.node, client.effectiveClassIcons());
   const label = displayNameForSettings(item.node) || "Untitled";
   const resolveName = (id: string) => displayNameFromClient(client, id);
   const openNode = (id: string) => onNodeClick?.(id);
@@ -227,8 +230,8 @@ export function NodeCard({
     () => item.children ?? childQuery(client, item.node.id),
     [item, client],
   );
-  /** The body collapse — display state, expanded by default (the owner wants the content visible). */
-  const [bodyCollapsed, setBodyCollapsed] = useState(false);
+  /** The body collapse — display state, COLLAPSED by default (the v1 register; the owner refinement 2026-10-13). */
+  const [bodyCollapsed, setBodyCollapsed] = useState(true);
   /**
    * The property rows: the container's cardProperties in order, or EVERY
    * effective property with a non-empty display text (the v1 register).
@@ -300,21 +303,20 @@ export function NodeCard({
           >
             <Icon path={bodyCollapsed ? "mdi-chevron-right" : "mdi-chevron-down"} size={0.8} />
           </button>
-          <button
-            type="button"
-            className="node-card__head"
-            title={label}
-            onClick={(event) => {
-              if (event.shiftKey) onNodeShiftClick?.(item.node.id);
-              else onNodeClick?.(item.node.id);
-            }}
-          >
-            {icon !== null && <Icon path={icon} size={1} className="node-card__icon" />}
-            <span className="node-card__label">{label}</span>
-            {!rendersWithDocumentChrome(item.node) && (
-              <span className="node-card__type">{renderStateLabel(item.node)}</span>
-            )}
-          </button>
+          {/* The title IS the page-view title — the same bullet-less BlockRow
+              (variant="title", read-only): the content stream renders its
+              inline tokens (class links, mentions), a click opens the node
+              through the card's OutlinerContext (the page header's
+              trampoline contract). */}
+          <div className="node-card__title">
+            <BlockRow
+              variant="title"
+              tree={{ node: item.node, children: [] }}
+              client={client}
+              resolveName={resolveName}
+              readOnly
+            />
+          </div>
           <span className="node-card__actions">
             {onNodeShiftClick !== undefined && (
               <button
