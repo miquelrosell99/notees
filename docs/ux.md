@@ -69,7 +69,7 @@ The editor is a Logseq-style outliner: bullet points, and each bullet is a block
 
 Long-form writing emerges from nesting bullets, not from a document mode. That is a deliberate bet — the confident statement is: structure you got for free beats structure you typed as metadata.
 
-Blocks are first-class storage but second-class display. Display defaults keep them quiet: backlinks aggregate mentions per containing page, the graph collapses children, search ranks by relevance and recency with block hits labeled by their containing page (the sidebar search field and the palette's Content section), and queries default to root scope. When a bullet matters enough to stand alone, you promote it — see [Promotion and demotion](#promotion-and-demotion).
+Blocks are first-class storage but second-class display. Display defaults keep them quiet: backlinks aggregate mentions per containing page, the graph collapses children, search ranks page-title literal matches ahead of block hits (with block hits labeled by their containing page — the sidebar search field and the palette's Content section), and queries default to root scope. When a bullet matters enough to stand alone, you promote it — see [Promotion and demotion](#promotion-and-demotion).
 
 **Assets are content.** An `asset_ref` token in a block renders instead of merely naming the file: image-like bytes show an inline preview (click opens the fullscreen lightbox, with download), anything else a filename-and-size chip (click downloads). A block whose entire content is one asset renders it full-bleed. The bytes ride the content-addressed asset store; a reference whose asset no longer exists shows a dashed placeholder with the raw id — never a silent hole.
 

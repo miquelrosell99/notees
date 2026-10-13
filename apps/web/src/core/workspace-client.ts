@@ -2195,7 +2195,10 @@ export class WorkspaceClient {
     const ids: string[] = [];
     const seen = new Set<string>();
     for (const name of names) {
-      for (const hit of this.store.search(name)) {
+      // Literal mode (`"name"`): a hit must CONTAIN the name text — the
+      // default OR pass would count every row carrying any single name
+      // word as a mention (priority ranking, owner 2026-10-13).
+      for (const hit of this.store.search(`"${name}"`)) {
         if (hit.nodeId === id || linkedSources.has(hit.nodeId) || seen.has(hit.nodeId)) continue;
         seen.add(hit.nodeId);
         ids.push(hit.nodeId);

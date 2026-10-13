@@ -73,13 +73,17 @@ export interface CompiledAggregate {
 export type CompileOptions = PlaceholderContext;
 
 /**
- * Prefix-AND FTS match expression (port of the store's buildMatchQuery —
- * kept here so the query package stays standalone, dependency-free). Each
- * maximal run of letters/digits OUTSIDE double quotes becomes a bare prefix
- * token (`term*`); each double-quoted segment becomes an exact FTS phrase
- * (valid MATCH syntax on FTS4 and FTS5 alike). Splitting at every
- * non-alphanumeric boundary mirrors the unicode61 tokenizer ("11607-1" →
- * `11607* AND 1*`). Null when nothing searchable remains.
+ * Prefix-AND FTS match expression for query-block filters (modeled on the
+ * store's buildMatchQuery — kept here so the query package stays
+ * standalone, dependency-free). Each maximal run of letters/digits OUTSIDE
+ * double quotes becomes a bare prefix token (`term*`); each
+ * double-quoted segment becomes an exact FTS phrase (valid MATCH syntax on
+ * FTS4 and FTS5 alike). Splitting at every non-alphanumeric boundary
+ * mirrors the unicode61 tokenizer ("11607-1" → `11607* AND 1*`). Null when
+ * nothing searchable remains. INTENTIONAL divergence from the store's
+ * search (owner 2026-10-13): a filter's contains stays conjunctive (AND) —
+ * filter rows demand every term; the search surface ORs bare terms and
+ * tiers whole-query matches above partials.
  */
 export function buildMatchExpression(query: string): string | null {
   const splitTerms = (text: string): string[] =>

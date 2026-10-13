@@ -1616,11 +1616,16 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(store.search("Kuhn")).toEqual([{ nodeId: NODE_BLOCK }]);
     });
 
-    it("prefix-AND matches across terms", () => {
+    it("multi-term queries rank whole-query matches first and partial matches last", () => {
       const store = baseStoreWithBlock();
       store.applyMany(loadFixture("typed-link-mark.json"));
+      // "Kuhn Scient" — the block carrying both terms still wins…
       expect(store.search("Kuhn Scient")).toEqual([{ nodeId: NODE_BLOCK }]);
-      expect(store.search("Kuhn absentterm")).toEqual([]);
+      // …but "Kuhn absentterm" no longer returns nothing: the partial match
+      // (Kuhn only) enters the list as a lower tier (priority ranking,
+      // owner 2026-10-13). Quoted phrases stay strict AND.
+      expect(store.search("Kuhn absentterm")).toEqual([{ nodeId: NODE_BLOCK }]);
+      expect(store.search('"Kuhn absentterm"')).toEqual([]);
     });
 
     it("indexes text inside quote tokens", () => {

@@ -58,7 +58,9 @@
   transition: transform var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-/* Multi-select search field spacing */
+/* The picker's search input composes the kit SearchField (the shared
+   rounded bar with icon + clear affordance); the class rides on the
+   wrapper. Spacing only — the field's own look stays kit-standard. */
 .node-selector__search-field {
   margin: var(--spacing-2);
 }
@@ -156,10 +158,6 @@
 
 .node-selector__dropdown--portal {
   z-index: var(--z-floating);
-}
-
-.node-selector__search-wrapper {
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .node-selector__list {
@@ -322,28 +320,6 @@
   border-color: var(--color-outline);
 }
 
-.node-selector__search {
-  width: 100%;
-  box-sizing: border-box;
-  padding: var(--spacing-2);
-  border: none;
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
-  border-radius: 0;
-  background: transparent;
-  font: var(--font-body-small);
-  color: var(--color-on-surface);
-  outline: none;
-}
-
-.node-selector__search:focus-visible {
-  outline: none;
-  box-shadow: none;
-}
-
-.node-selector__search::placeholder {
-  color: var(--color-on-surface-variant);
-}
-
 /* Scope tabs (Main/Blocks) — compact ghost tab bar above the search input.
    The Tabs primitive's column gap is zeroed so the input sits flush between
    the tablist and the results panel it controls. */
@@ -478,8 +454,8 @@
   padding-right: var(--spacing-3);
 }
 
-.node-selector--inline .node-selector__search {
-  padding: var(--spacing-2) var(--spacing-3);
+.node-selector--inline .node-selector__search-field {
+  margin: var(--spacing-2) var(--spacing-3);
 }
 
 /* ==================== Filter Pills ==================== */

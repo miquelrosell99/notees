@@ -717,10 +717,14 @@ export class Store {
   }
 
   /**
-   * FTS prefix-AND search over active nodes: relevance-ranked —
-   * FTS5 orders by the hidden rank column, FTS4 by matchinfo hit count
-   * (its module has no rank column) — with an updated_at recency tiebreak
-   * and node id for full determinism.
+   * Priority-ranked search over active nodes: the FTS match generates
+   * candidates (multi-term OR, so partial matches enter the set), the tier
+   * scorer orders them — literal main-title > literal block > ordered terms
+   * > first-parent title > partial — with the FTS score, recency, and node
+   * id inside a tier. A fully quoted query (`"gmi dental"`) is exact mode
+   * (exact substring only); a leading caret (`^gmi`) is starts-with mode.
+   * Matching alias pages also contribute their terminal node. Both FTS
+   * modules produce the same tier order (one shared JS scorer).
    */
   search(query: string, limit = 50): SearchHit[] {
     return searchNodes(this.db, query, limit);

@@ -13,7 +13,7 @@ import { plainTextExcerpt } from "@notees/domain";
 import type { ContentAst } from "@notees/protocol";
 
 import { nodeRefOfValue, visiblePropertyValueRows } from "./property-values.js";
-import type { StoreDatabase } from "./types.js";
+import type { SqliteStatement, StoreDatabase } from "./types.js";
 
 export function parseContentAst(raw: string | null | undefined): ContentAst {
   if (!raw) return [];
@@ -25,14 +25,24 @@ export function parseContentAst(raw: string | null | undefined): ContentAst {
   }
 }
 
+/** Asset-name lookup, prepared once per connection (WeakMap: restore swaps
+ *  the connection). */
+const assetLookupStmtCache = new WeakMap<object, SqliteStatement>();
+
 /** Content-derived plaintext: the excerpt plus asset names + quote children. */
 function contentPlaintext(db: StoreDatabase, raw: string | null | undefined): string {
   const ast = parseContentAst(raw);
   const parts: string[] = [plainTextExcerpt(ast)];
 
-  const lookup = db.prepare(
-    "SELECT original_name FROM node_asset WHERE asset_id = ? ORDER BY node_id LIMIT 1",
-  );
+  // The asset-name lookup is prepared once per connection — the search
+  // ranker calls this for every candidate row.
+  let lookup = assetLookupStmtCache.get(db);
+  if (lookup === undefined) {
+    lookup = db.prepare(
+      "SELECT original_name FROM node_asset WHERE asset_id = ? ORDER BY node_id LIMIT 1",
+    );
+    assetLookupStmtCache.set(db, lookup);
+  }
   const seenAssets = new Set<string>();
   const walk = (tokens: readonly unknown[]): void => {
     for (const token of tokens) {
@@ -128,6 +138,19 @@ function propertyValuesPlaintext(db: StoreDatabase, nodeId: string): string {
     }
   }
   return parts.join(" ");
+}
+
+/**
+ * Content-derived plaintext ONLY (no property values) — the node's title
+ * text under title-is-content. The search ranker matches literal queries
+ * against this; the FTS row carries the property-value superset via
+ * extractSearchPlaintext.
+ */
+export function extractContentPlaintext(
+  db: StoreDatabase,
+  raw: string | null | undefined,
+): string {
+  return contentPlaintext(db, raw);
 }
 
 /**

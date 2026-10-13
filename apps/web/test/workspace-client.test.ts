@@ -211,10 +211,17 @@ describe("WorkspaceClient over a shared MemoryRelay", () => {
     await client.sync();
     const hits = client.search("Findable");
     expect(hits.some((n) => n.id === blockId)).toBe(true);
-    // Title search: the page itself is found by its title content.
+    // Title search: the page itself is found by its title content…
     const byName = client.search("Search Page");
     expect(byName.some((n) => n.id === pageId)).toBe(true);
-    expect(byName.some((n) => n.id === blockId)).toBe(false);
+    // …and its child block surfaces too — the query matches the block's
+    // FIRST PARENT name (priority tier 4), not the block's own text.
+    expect(byName.some((n) => n.id === blockId)).toBe(true);
+    // Starts-with mode constrains to the node's own text: the block's text
+    // does not start with the query, so only the page remains.
+    const starts = client.search("^Search Page");
+    expect(starts.some((n) => n.id === pageId)).toBe(true);
+    expect(starts.some((n) => n.id === blockId)).toBe(false);
   });
 });
 

@@ -8,6 +8,113 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-13
+- **feat(web): the Capacities-parity search surfaces — the extended
+  full-page search at `/search`, the section quick-searches unified onto
+  the ranked order, and in-app find-in-page (owner 2026-10-13).** Three
+  surfaces close the comparison gaps. **Extended search** (`SearchPage.tsx`
+  + route): Ctrl/Cmd+Shift+F or the palette's "Search all for \"…\"" row
+  opens a full-page ranked search — cursor-paginated (`searchPage`, 25 per
+  page), `NodeResultItem` rows with breadcrumb + class pills + a
+  `<mark>`-highlighted snippet per hit, scope Tabs (All/Main/Blocks) and a
+  class Dropdown filtering the accumulated stream, the `"…"` exact and `^`
+  starts-with modes documented in the empty state. **Unified quick-search**:
+  the FilterBar's quick text in Backlinks, Unlinked mentions, and Classed
+  nodes no longer substring-filters titles — it rides
+  `rankRowsBySearch(useSectionData.ts)`, where the ranked search's ids are
+  both the membership and the ORDER of the pool (structured filters then
+  compose over the narrowed pool unchanged; the structured builder's own
+  content-contains keeps its LIKE grammar semantics). The regression shape
+  is asserted: "gmi dental" renders **GMI Dental Implantology** before GMI
+  Ecuador — plain substring matched neither. **Find-in-page**: Cmd/Ctrl+F
+  on a page opens the find bar (docked under the node top bar) searching
+  the subtree DATA — collapsed blocks count exactly like rendered ones —
+  with match counter, prev/next cycling, case and whole-word toggles, and
+  replace (one op per affected block via `client.updateObject`;
+  cross-token matches are navigable but not replaceable, the honest v1
+  scope); the existing Ctrl/Cmd+Shift+F block find/replace widget is
+  untouched and the two coexist. Docs: `usage.md` (palette paragraph +
+  reference-sections paragraph + a find-in-page line). **Verification:**
+  three new test files (search-page 12, find-in-page 12, plus the rewritten
+  filter-layer ranked-semantics tests); the full apps/web suite is green
+  (142 files / 1532 tests) and `pnpm typecheck` clean on the rebased tree.
+
+- **feat(store): diacritic folding (schema v19) + fuzzy-subsequence rescue —
+  the Capacities "find by intent" pair (owner 2026-10-13).** Two gaps the
+  Capacities search comparison surfaced, closed in the ranker
+  (`packages/store/src/search.ts`). Folding: `peru` now matches "Perú" —
+  implemented as INDEX-TIME folding (`reindexNode` strips combining marks
+  from the indexed plaintext; `compileSearchQuery` folds the MATCH terms —
+  one mirror pair), because the stock sql.js FTS4 tokenizer rejects
+  `remove_diacritics` (verified against the shipped wasm, "unknown
+  tokenizer"), so a tokenizer option is off the table for the browser
+  backend; the tier scorer folds its haystacks through the same
+  `foldSearchText`, and the snippet helper folds only its hit check so
+  excerpts keep their real characters. The v19 migration drops and rebuilds
+  pre-v19 indexes from the derived plaintext (a virtual table's rows cannot
+  be UPDATEd with re-tokenized text), module-aware: a cross-backend parked
+  table is the queryability repair path's job, and migrations run locally
+  before snapshots ship. Fuzzy rescue: the whole query as an ordered
+  subsequence (word-start and consecutive bonuses, the palette's fuzzyScore
+  semantics) — inside the candidate set it lifts a partial match above plain
+  partials, and when NOTHING reached the literal tiers a scan over every
+  main node's title rescues the query (`gmi dntl` finds GMI Dental
+  Implantology) at tier 6, strictly below every exact/prefix match; the scan
+  is gated to ≥3-char default-mode queries and the no-literal-hit case, so
+  the common path never pays for it. Docs: `architecture.md` (the FTS4/5
+  paragraph), `usage.md` (the palette paragraph). **Verification:** the
+  store suite carries both directions of folding, exact-mode folding, the
+  snippet's original characters, the fuzzy rescue and its stay-off gate, and
+  a v18→v19 migration test (unfolded rows rebuilt, folded rows, ordering
+  clean) — 538/538 on both adapters; `pnpm typecheck` green.
+
+- **feat(store,web): priority-ranked search — exact title matches first, `"…"`
+  exact mode, `^` starts-with mode, alias terminals, parent-name matches;
+  the node picker composes the kit SearchField (owner 2026-10-13).** The
+  reported failure — searching `gmi dental` returned nothing (not even the
+  **GMI Dental Implantology, S.L** page) — was the old bm25 ordering
+  burying the exact-title node under content-heavy pages and mention blocks,
+  past the picker's 50-hit window: live data confirmed the node was indexed
+  and matched all along, just ranked out of existence. Search is rebuilt as
+  priority ranking (`packages/store/src/search.ts`): the FTS match
+  generates candidates (multi-term OR, so partials enter the set), one
+  shared JS tier scorer orders every hit identically on FTS5 and FTS4 —
+  0 exact query (case-insensitive substring) in a main node's title → 1
+  exact in a block's text → 2
+  all terms in order (non-adjacent) in a main title → 3 all terms in order
+  anywhere → 4 the first parent's title matches (blocks surface under a
+  matching page) → 5 partial (more matched terms first) — with position /
+  span, then text length, then the FTS score, recency, and id inside a
+  tier. Query modes: a fully quoted query (`"gmi dental"`) is exact
+  (exact case-insensitive substring only, no partials), a leading caret
+  (`^gmi dental`) is starts-with (position 0 only); a quoted phrase inside
+  a larger query keeps its exact-adjacency AND semantics, and the
+  query-package `contains` filter stays conjunctive (documented
+  divergence). A matching node alias also contributes its terminal (chain
+  walked like `resolveAlias`), so the canonical page appears when searched
+  by an alias name; alias text values already rode the FTS row. The
+  client's unlinked-references pass rides the exact mode too — its
+  every-hit-counts assumption broke under OR (single-word hits counted as
+  name mentions), and adjacency is the honest "typed the page's name"
+  semantics. In the web
+  app the `@` mention picker (NodeSelector) now composes the kit
+  `SearchField` — the standard rounded bar with icon and clear affordance —
+  replacing its ad-hoc raw input and its one-off CSS (dead
+  `node-selector__search*` rules gone). Candidate volume is capped on FTS5
+  (bm25-ranked top 1000 UNIONed with an exact-phrase arm, so exact
+  matches can never be capped away; the asset-name lookup prepares once
+  per connection) — measured on the live-size projection: `gmi dental`
+  909 ms → 28 ms, a common-term query 3.2 s → 0.2 s, the org page at rank
+  2 behind its own shorter-titled child page. Docs: `architecture.md` (the
+  FTS4/5 + ranking paragraph), `development.md` (the store-suite row),
+  `usage.md` (the `/api/search` row + the palette paragraph's ranking and
+  mode syntax), `ux.md` (the blocks-display paragraph). **Verification:**
+  `pnpm typecheck` + `pnpm test` green; the store suite carries the new
+  tier contract on both adapters (the GMI scenario, mode constraints,
+  parent-name surfacing, alias expansion) and the re-pointed picker-input
+  tests (`node-link-gestures`, `block-selection`) pass against the
+  SearchField.
+
+
 
 - **feat(web): the v1 card's body collapses by default, and the card title
   IS the page-view title row (owner refinements 2026-10-13).** Two amendments
