@@ -8,6 +8,14 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-13
+
+- **fix(web): the card's breadcrumb row starts at the card's top-left (owner
+  2026-10-13).** The card's Breadcrumbs instance had copied the sidebar
+  card's `anchor="right"` — the trail hugged the row's right edge instead of
+  starting at the left corner (owner screenshot). The anchor prop drops; the
+  component's default left packing applies. **Verification:** `pnpm
+  typecheck` + the view-modes suite green (35).
+
 - **feat(web): the Capacities-parity search surfaces — the extended
   full-page search at `/search`, the section quick-searches unified onto
   the ranked order, and in-app find-in-page (owner 2026-10-13).** Three
