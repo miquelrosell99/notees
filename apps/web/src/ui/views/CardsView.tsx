@@ -6,35 +6,43 @@
  * contexts):
  *
  *   - the cover slot (no-cover / top / left / right) with its empty-state
- *     Add-cover affordance;
- *   - the header: a collapse chevron, the title, and the hover-reveal action
- *     cluster (open-in-sidebar when the surface wires shift-click, the
- *     node-actions menu — the v1 right-click context menu rides as the menu
- *     button, the v2 grammar for that menu). The title IS the page-view
- *     title — the same bullet-less BlockRow (variant="title", read-only):
- *     the content stream renders its inline tokens (class links, mentions),
- *     a click opens the node through the card's OutlinerContext (the page
- *     header's trampoline contract); document-chrome nodes carry text-only
+ *     Add-cover affordance. For the horizontal layouts the content is a
+ *     two-column grid: the cover spans the row stack in its cell AS A CARD
+ *     ELEMENT (matted, rounded sub-card; the image fills the mat absolutely
+ *     so a portrait stretches the card no more than its rows), and the row
+ *     hairlines extend across the cover column via subgrid — the card reads
+ *     as ONE surface (owner 2026-10-13);
+ *   - the FIRST row: the containing-page breadcrumbs (a parentless node
+ *     renders nothing — the row collapses away);
+ *   - the title header: the title IS the page-view title — the same
+ *     bullet-less BlockRow (variant="title", read-only): the content stream
+ *     renders its inline tokens (class links, mentions), a click opens the
+ *     node through the card's OutlinerContext (the page header's trampoline
+ *     contract), and a RIGHT-CLICK opens the node's context menu (the v1
+ *     context-menu register; the menu button is gone — the selection checkbox
+ *     is the card's only hover chrome). Document-chrome nodes carry text-only
  *     titles (the store's flatten invariant), so rich chips ride block
  *     members' cards;
- *   - the classes chips row, the tags chips row, and the property rows (in
- *     that order — owner 2026-10-13): their own hairline-separated rows (the
- *     dividers are the owner's refinement; v1's rows were bare), the chips
- *     read-only and hidden when empty (the v1 read-only rule), the
- *     properties a row per property in two columns (the table-row register) —
- *     the container's cardProperties, or EVERY effective property with a
- *     non-empty display text when none are named (the v1 register);
- *   - the body: the node's child blocks, ALWAYS resolved (owner
- *     2026-10-13): attached `children` win (tree contexts); flat collections
- *     resolve them from the client per card. Cards ignore the tree/maxDepth
- *     prop family on purpose. The chevron collapses the body (display state,
- *     COLLAPSED by default — the v1 register; the chevron shows the content
- *     on demand).
+ *   - the classes row, the tags row, and the property rows (in that order —
+ *     owner 2026-10-13): their own hairline-separated rows (the dividers are
+ *     the owner's refinement; v1's rows were bare). The classes row is the
+ *     nodeview bar's interactive class list (NodePills) and the tags row the
+ *     page header's TagsRow composition (label hidden) — classes and tags are
+ *     ADDABLE from the card (date nodes stay locked, the ClassesRow rule).
+ *     The properties section: a row per property, label | value in two
+ *     columns (the table-row register) — the container's cardProperties, or
+ *     EVERY effective property with a non-empty display text when none are
+ *     named (the v1 register);
+ *   - the content row: the node's child blocks under a header bar (collapse
+ *     chevron + "Content"), ALWAYS resolved (owner 2026-10-13): attached
+ *     `children` win (tree contexts); flat collections resolve them from the
+ *     client per card. Cards ignore the tree/maxDepth prop family on purpose.
+ *     Collapsed by default — the chevron shows the content on demand; the
+ *     collapsed body unmounts (no dead rows on a deep subtree).
  *
- * Read-only surface: the outline mode remains the editing surface (the v2
- * cards grammar since the first cards slice) — the v1 card's inline editors,
- * add-class/add-tag/add-block affordances, and slash commands stay in the
- * outline; the chips open the node on click.
+ * Editing split (owner 2026-10-13): classes and tags are editable on the
+ * card; the title, properties, and child blocks stay read-only — the outline
+ * mode remains the editing surface for content (the v2 cards grammar).
  *
  * The top-level card set is windowed (the shared useWindowed +
  * ShowMoreButton convention) — the grid renders the loaded window and names
@@ -46,7 +54,7 @@ import { useEffect, useMemo, useState, useContext } from "react";
 import { createPortal } from "react-dom";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
-import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { parseDateNodeId, rendersWithDocumentChrome, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import { Icon } from "../Icon.js";
 import { BlockRow } from "../BlockRow.js";
@@ -65,7 +73,9 @@ import { notificationStore } from "../components/ui/notificationStore.js";
 import { Badge } from "../components/ui/Badge.js";
 import { Breadcrumbs } from "../components/Breadcrumbs.js";
 import { NodeMenuButton } from "../components/NodeMenuButton.js";
-import { NodePill, NodePills } from "../components/NodePills.js";
+import { NodePills } from "../components/NodePills.js";
+import { NodeContextMenu } from "../components/NodeContextMenu.js";
+import { TagsRow } from "../components/MetadataSection.js";
 import { childQuery } from "../components/childQuery.js";
 import { useCardLayoutPreference } from "../viewPrefs.js";
 import { CardsBoard } from "./CardsBoard.js";
@@ -217,10 +227,12 @@ export function NodeCard({
    */
   selection?: { checked: boolean; onToggle: () => void } | undefined;
 }) {
-  const { client, onNodeClick, onNodeShiftClick, cardProperties, propertiesOf, showBreadcrumbs } = props;
+  const { client, onNodeClick, cardProperties, propertiesOf } = props;
   const label = displayNameForSettings(item.node) || "Untitled";
   const resolveName = (id: string) => displayNameFromClient(client, id);
   const openNode = (id: string) => onNodeClick?.(id);
+  /** The title's right-click menu (owner 2026-10-13) — position-only state. */
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   /**
    * The body set: the item's attached children when the container built a
    * tree, else the client's live child blocks (comments cut — the childQuery
@@ -235,6 +247,12 @@ export function NodeCard({
   /** The body collapse — display state, COLLAPSED by default (the v1 register; the owner refinement 2026-10-13). */
   const [bodyCollapsed, setBodyCollapsed] = useState(true);
   /**
+   * The classes/tags rows are editable (owner 2026-10-13 — the nodeview
+   * bar's elements), except on date nodes: parent-locked and class-locked
+   * (SCHEMA.md "Datetime"), the ClassesRow lock rule.
+   */
+  const metadataLocked = parseDateNodeId(item.node.id) !== null;
+  /**
    * The property rows: the container's cardProperties in order, or EVERY
    * effective property with a non-empty display text (the v1 register).
    */
@@ -245,14 +263,6 @@ export function NodeCard({
           .map((schemaId) => properties.find((p) => p.propertySchemaId === schemaId))
           .filter((prop) => prop !== undefined && propertyDisplayText(client, prop) !== "")
       : properties.filter((prop) => propertyDisplayText(client, prop) !== "");
-  /**
-   * The tags chips: the node's tags, alphabetical (the owner rule the
-   * TagsRow rides), resolved to live nodes — dead ids drop out.
-   */
-  const tagNodes = [...item.node.tagIds]
-    .sort((a, b) => (displayNameFromClient(client, a) ?? a).localeCompare(displayNameFromClient(client, b) ?? b))
-    .map((tagId) => client.getNode(tagId))
-    .filter((tag) => tag !== undefined);
   return (
     <article
       className={`node-card node-card--${coverLayout}${
@@ -276,26 +286,40 @@ export function NodeCard({
           <Badge variant="neutral" size="sm">Cover</Badge>
         </span>
       )}
-      <CardCover item={item} props={props} layout={coverLayout} />
       <div className="node-card__content">
-        {showBreadcrumbs === true && (
-          <div className="node-card__breadcrumbs">
-            <Breadcrumbs
-              client={client}
-              nodeId={item.node.id}
-              onOpenNode={openNode}
-              anchor="right"
-              editable={false}
-            />
-          </div>
-        )}
+        {/* The cover rides INSIDE the content cell (owner 2026-10-13): for
+            left/right layouts the content is a grid and the cover is a matted
+            card element spanning the row stack; for top it is the full-width
+            first row. */}
+        <CardCover item={item} props={props} layout={coverLayout} />
+        {/* The FIRST row: the containing-page breadcrumbs (owner 2026-10-13) —
+            the chain walks the parents, so a parentless node renders nothing
+            and the row collapses away on its own. */}
+        <div className="node-card__breadcrumbs">
+          <Breadcrumbs
+            client={client}
+            nodeId={item.node.id}
+            onOpenNode={openNode}
+            anchor="right"
+            editable={false}
+          />
+        </div>
         <div className="node-card__header">
           {/* The title IS the page-view title — the same bullet-less BlockRow
               (variant="title", read-only): the content stream renders its
               inline tokens (class links, mentions), a click opens the node
               through the card's OutlinerContext (the page header's
-              trampoline contract). */}
-          <div className="node-card__title">
+              trampoline contract). Right-click opens the node's context
+              menu (owner 2026-10-13 — the menu button is gone; the selection
+              checkbox is the card's only hover chrome). */}
+          <div
+            className="node-card__title"
+            onContextMenu={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              setMenu({ x: event.clientX, y: event.clientY });
+            }}
+          >
             <BlockRow
               variant="title"
               tree={{ node: item.node, children: [] }}
@@ -304,52 +328,46 @@ export function NodeCard({
               readOnly
             />
           </div>
-          <span className="node-card__actions">
-            {onNodeShiftClick !== undefined && (
-              <button
-                type="button"
-                className="nt-icon-btn"
-                title="Open in sidebar"
-                aria-label={`Open ${label} in sidebar`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onNodeShiftClick(item.node.id);
-                }}
-              >
-                <Icon path="mdi-dock-right" size={1} />
-              </button>
-            )}
-            <NodeMenuButton client={client} node={item.node} onOpenNode={openNode} />
-          </span>
         </div>
-        {/* Classes row — its own row under a hairline (owner 2026-10-13), the
-            read-only rule: hidden when empty (v1). */}
-        {item.node.classIds.length > 0 && (
+        {menu !== null && (
+          <NodeContextMenu
+            state={{ x: menu.x, y: menu.y, node: item.node, isPage: rendersWithDocumentChrome(item.node) }}
+            client={client}
+            onClose={() => setMenu(null)}
+            onOpenNode={(id: string) => {
+              setMenu(null);
+              openNode(id);
+            }}
+          />
+        )}
+        {/* Classes row — the nodeview bar's class list itself (NodePills,
+            owner 2026-10-13): the picker, × removal (the journal-class lock
+            rides inside), and drag reorder — classes are addable straight
+            from the card. Date nodes stay locked (the ClassesRow rule), and
+            a locked empty row renders nothing. */}
+        {(item.node.classIds.length > 0 || !metadataLocked) && (
           <div className="node-card__metadata-row node-card__classes-row">
             <NodePills
               client={client}
               nodeId={item.node.id}
               classIds={item.node.classIds}
-              sortable={false}
-              readOnly
+              readOnly={metadataLocked}
               onOpenPage={openNode}
             />
           </div>
         )}
-        {/* Tags row — own row, hairline, hidden when empty (the v1 rule). */}
-        {tagNodes.length > 0 && (
+        {/* Tags row — the page header's TagsRow composition, label hidden:
+            add/remove/menu ride, tags are addable straight from the card.
+            Same lock rule as the classes row. */}
+        {(item.node.tagIds.length > 0 || !metadataLocked) && (
           <div className="node-card__metadata-row node-card__tags-row">
-            <div className="nt-property-chips node-metadata-pills">
-              {tagNodes.map((tag) => (
-                <NodePill
-                  key={tag.id}
-                  color={client.effectiveNodeColor(tag)}
-                  icon={tag.icon}
-                  label={displayNameFromClient(client, tag.id) ?? tag.id}
-                  onOpen={() => openNode(tag.id)}
-                />
-              ))}
-            </div>
+            <TagsRow
+              client={client}
+              nodeId={item.node.id}
+              tagIds={item.node.tagIds}
+              onOpenPage={openNode}
+              readOnly={metadataLocked}
+            />
           </div>
         )}
         {/* The properties section: a row per property, label | value in two
@@ -364,13 +382,13 @@ export function NodeCard({
             ))}
           </dl>
         )}
-        {/* The blocks row: a header row (the collapse chevron + the label)
+        {/* The content row: a header row (the collapse chevron + the label)
             rides over the child blocks (owner 2026-10-13) — collapsed by
             default, the chevron shows the content on demand. Cards always
             resolve the children (the tree/maxDepth prop family is ignored). */}
         {childItems.length > 0 && (
-          <div className="node-card__blocks">
-            <div className="node-card__blocks-header">
+          <div className="node-card__content-row">
+            <div className="node-card__content-row-header">
               <button
                 type="button"
                 className="node-card__collapse-btn node-card__collapse-btn--has-children"
@@ -381,7 +399,7 @@ export function NodeCard({
               >
                 <Icon path={bodyCollapsed ? "mdi-chevron-right" : "mdi-chevron-down"} size={0.8} />
               </button>
-              <span className="node-card__blocks-label">Blocks</span>
+              <span className="node-card__content-row-label">Content</span>
             </div>
             {!bodyCollapsed && (
               <div className="node-card__body">

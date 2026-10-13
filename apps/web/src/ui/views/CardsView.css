@@ -182,32 +182,93 @@
   aspect-ratio: 16 / 9;
 }
 
-/* The original horizontal covers: a bounded column (the wide-card grid above gives
-   it room), a minimum height, and a hairline divider on the inner edge
-   (the divider rode the metadata rows — the full-height cover edge
-   reads the same and never gaps). */
-.node-card--cover-left,
-.node-card--cover-right {
-  flex-direction: row;
+/* The horizontal covers (owner 2026-10-13 redesign): the CONTENT is a two-
+   column grid — the cover spans the row stack in its cell AS A CARD ELEMENT
+   (a matted, rounded sub-card inside the cell), and the card's rows ride the
+   main column with their hairlines extending across the cover column, so the
+   card reads as ONE surface. The image fills the mat absolutely: a portrait
+   no longer stretches the card beyond its rows. */
+.node-card--cover-left .node-card__content,
+.node-card--cover-right .node-card__content {
+  display: grid;
+  grid-template-columns: clamp(var(--layout-size-xl), 38%, var(--layout-size-2xl)) minmax(0, 1fr);
   align-items: stretch;
 }
 
+.node-card--cover-right .node-card__content {
+  grid-template-columns: minmax(0, 1fr) clamp(var(--layout-size-xl), 38%, var(--layout-size-2xl));
+}
+
+/* The cover cell: a card element inside its cell — mat background, spacing-2
+   inset, rounded corners. */
 .node-card--cover-left .node-card__cover,
 .node-card--cover-right .node-card__cover {
-  flex: 0 0 clamp(var(--layout-size-xl), 38%, var(--layout-size-2xl));
   min-height: var(--layout-size-2xl);
+  margin: var(--spacing-2);
+  border-radius: var(--shape-medium);
+  overflow: clip;
 }
 
 .node-card--cover-left .node-card__cover {
-  border-right: var(--border-width-default) solid var(--color-outline-variant);
+  grid-column: 1;
+  grid-row: 1 / -1;
 }
 
 .node-card--cover-right .node-card__cover {
-  border-left: var(--border-width-default) solid var(--color-outline-variant);
+  grid-column: 2;
+  grid-row: 1 / -1;
 }
 
-.node-card--cover-right {
-  flex-direction: row-reverse;
+/* The loaded image fills the mat absolutely (left/right only — the top
+   cover keeps its 16/9 flow slot above). */
+.node-card--cover-left .node-card__cover--button,
+.node-card--cover-right .node-card__cover--button {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+}
+
+.node-card--cover-left .node-card__cover--button img,
+.node-card--cover-right .node-card__cover--button img {
+  position: absolute;
+  inset: var(--spacing-2);
+  width: auto;
+  height: auto;
+  object-fit: cover;
+  border-radius: var(--shape-small);
+}
+
+/* The row hairlines extend across the cover column (subgrid): each row spans
+   the full card and subgrids so its chrome clears the cover. Unsupported
+   browsers keep the rows in the main column (the hairlines stop at the
+   cover — the pre-change look). */
+@supports (grid-template-columns: subgrid) {
+  .node-card--cover-left .node-card__breadcrumbs,
+  .node-card--cover-left .node-card__header,
+  .node-card--cover-left .node-card__metadata-row,
+  .node-card--cover-left .node-card__properties,
+  .node-card--cover-right .node-card__breadcrumbs,
+  .node-card--cover-right .node-card__header,
+  .node-card--cover-right .node-card__metadata-row,
+  .node-card--cover-right .node-card__properties {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
+  }
+
+  .node-card--cover-left .node-card__breadcrumbs > *,
+  .node-card--cover-left .node-card__header > *,
+  .node-card--cover-left .node-card__metadata-row > *,
+  .node-card--cover-left .node-card__properties > * {
+    grid-column: 2;
+  }
+
+  .node-card--cover-right .node-card__breadcrumbs > *,
+  .node-card--cover-right .node-card__header > *,
+  .node-card--cover-right .node-card__metadata-row > *,
+  .node-card--cover-right .node-card__properties > * {
+    grid-column: 1;
+  }
 }
 
 /* ─── Toolbar ────────────────────────────────────────────────────── */
@@ -220,7 +281,7 @@
 
 /* ─── The blocks row — header (chevron + label) over the child blocks ── */
 
-/* Original body: padded rows; the blocks row's header carries the hairline
+/* Original body: padded rows; the content row's header carries the hairline
    above it (every card row is hairline-separated, owner 2026-10-13). */
 .node-card__body {
   padding: var(--spacing-2) var(--spacing-3) var(--spacing-3);
@@ -229,7 +290,7 @@
   overflow: hidden;
 }
 
-.node-card__blocks-header {
+.node-card__content-row-header {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
@@ -238,7 +299,7 @@
   min-width: 0;
 }
 
-.node-card__blocks-label {
+.node-card__content-row-label {
   font-size: var(--font-size-xs);
   color: var(--color-on-surface-variant);
   overflow: hidden;
@@ -246,8 +307,8 @@
   white-space: nowrap;
 }
 
-/* ─── Card header — chevron + title + hover-reveal actions (the v1 header
-   register: the row carries the padding; typography carries the hierarchy) ── */
+/* ─── Card header — the title row (the v1 header register: the row carries
+   the padding; typography carries the hierarchy) ── */
 
 .node-card__header {
   display: flex;
@@ -257,11 +318,17 @@
   min-width: 0;
 }
 
-/* The optional containing-page breadcrumbs ride above the header row. */
+/* The FIRST row: the containing-page breadcrumbs. The chain walks the
+   parents — a parentless node renders nothing inside, and the empty row
+   collapses away. */
 .node-card__breadcrumbs {
-  padding: var(--spacing-2) var(--spacing-3) 0;
+  padding: var(--spacing-2) var(--spacing-3);
   min-width: 0;
   overflow: hidden;
+}
+
+.node-card__breadcrumbs:empty {
+  display: none;
 }
 
 /* The collapse chevron: bordered only when the card carries children (v1). */
@@ -290,23 +357,6 @@
 
 .node-card__collapse-btn--has-children {
   border: var(--border-width-default) solid var(--color-outline-variant);
-}
-
-/* The hover-reveal action cluster (open-in-sidebar, node actions — the v1
-   header action buttons; revealed like the selection checkbox). */
-.node-card__actions {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  flex-shrink: 0;
-  opacity: var(--opacity-0);
-  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.node-card:hover .node-card__actions,
-.node-card:focus-within .node-card__actions,
-.node-card__actions:focus-within {
-  opacity: var(--opacity-100);
 }
 
 /* ─── The card title — the page-view title row itself (BlockRow
@@ -394,6 +444,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The tags row rides the page header's TagsRow composition — the card row
+   carries no "Tags:" label (chips only; the label's 140px column would
+   misalign it — the corner precedent). */
+.node-card__tags-row .section-label {
+  display: none;
 }
 
 /* ─── Cover badge — the original cover bullet rode the TOP-LEFT corner
