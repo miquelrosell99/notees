@@ -877,34 +877,24 @@
   --color-on-accent: #fff;
 }
 
-[data-accent="sage"] {
-  --color-accent: #527051;
-  --color-accent-subtle: #6f8a6d;
-  --color-on-accent: #fff;
+/* Curated hues — dark variants are the light value lightened ~L+20% (the
+   copper precedent); on-accent is computed per pair to keep ≥4.5:1. */
+[data-accent="brown"] {
+  --color-accent: #a16b45;
+  --color-accent-subtle: #744d32;
+  --color-on-accent: #000;
 }
 
 [data-accent="teal"] {
-  --color-accent: #2D6B5B;
-  --color-accent-subtle: #5A9A8A;
-  --color-on-accent: #fff;
+  --color-accent: #1fbdad;
+  --color-accent-subtle: #1c8c7f;
+  --color-on-accent: #140e08;
 }
 
-[data-accent="rose"] {
-  --color-accent: #8B5B5B;
-  --color-accent-subtle: #B88B8B;
+[data-accent="purple"] {
+  --color-accent: #8c47d1;
+  --color-accent-subtle: #ac7bde;
   --color-on-accent: #fff;
-}
-
-[data-accent="navy"] {
-  --color-accent: #1E3A5F;
-  --color-accent-subtle: #4E6A8F;
-  --color-on-accent: #fff;
-}
-
-[data-accent="custom"] {
-  --color-accent: var(--color-accent-custom, #404040);
-  --color-on-accent: var(--color-on-accent-custom, #fff);
-  --color-accent-subtle: color-mix(in srgb, var(--color-accent) 72%, var(--color-on-accent));
 }
 
 /* ==================== Dark-mode accent overrides ==================== */
@@ -916,31 +906,28 @@
   --color-on-accent: #161412;
 }
 
-[data-theme="dark"][data-accent="sage"] {
-  --color-accent: #7FB285;
-  --color-accent-subtle: #648868;
-  --color-on-accent: #000;
-}
-
 [data-theme="dark"][data-accent="margin"] {
   --color-accent: #6da789;
   --color-accent-subtle: #80bb9b;
   --color-on-accent: #140e08;
 }
 
+[data-theme="dark"][data-accent="brown"] {
+  --color-accent: #caa082;
+  --color-accent-subtle: #977760;
+  --color-on-accent: #140e08;
+}
+
 [data-theme="dark"][data-accent="teal"] {
-  --color-accent: #5DB5A0;
-  --color-on-accent: #000;
+  --color-accent: #5de5d7;
+  --color-accent-subtle: #49a99d;
+  --color-on-accent: #140e08;
 }
 
-[data-theme="dark"][data-accent="rose"] {
-  --color-accent: #C98A8A;
-  --color-on-accent: #000;
-}
-
-[data-theme="dark"][data-accent="navy"] {
-  --color-accent: #5B7D9E;
-  --color-on-accent: #000;
+[data-theme="dark"][data-accent="purple"] {
+  --color-accent: #bf99e5;
+  --color-accent-subtle: #8f72a7;
+  --color-on-accent: #140e08;
 }
 
 /* OLED inherits the dark accent values above; accent colors are not dimmed further

@@ -59,35 +59,6 @@
         }
         accent = accent ?? "margin";
         document.documentElement.dataset.accent = accent;
-        if (accent === "custom") {
-          let hex = read("notees.settings.customAccentHex");
-          if (hex !== null) {
-            try {
-              hex = JSON.parse(hex);
-            } catch {
-              hex = null;
-            }
-          }
-          if (typeof hex === "string" && /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(hex)) {
-            document.documentElement.style.setProperty("--color-accent-custom", hex);
-            const full =
-              hex.length === 4
-                ? hex
-                    .slice(1)
-                    .split("")
-                    .map((c) => c + c)
-                    .join("")
-                : hex.slice(1);
-            const r = parseInt(full.slice(0, 2), 16);
-            const g = parseInt(full.slice(2, 4), 16);
-            const b = parseInt(full.slice(4, 6), 16);
-            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-            document.documentElement.style.setProperty(
-              "--color-on-accent-custom",
-              luminance > 0.5 ? "#000000" : "#ffffff",
-            );
-          }
-        }
       })();
     </script>
     <script src="/config.js"></script>

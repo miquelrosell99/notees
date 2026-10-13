@@ -1,0 +1,87 @@
+/**
+ * SettingsPage styles — the full settings surface rendered in the PageCard
+ * slot: a sidebar section nav beside the content area. The section bodies
+ * compose the shared settings row chrome from settingsModal.css; only the
+ * page frame lives here.
+ */
+
+.settings-page {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-6);
+}
+
+/* ==================== Section Nav ==================== */
+
+.settings-page__nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  flex: 0 0 auto;
+  min-width: 14ch;
+  position: sticky;
+  top: 0;
+  padding-right: var(--spacing-4);
+  border-right: var(--border-width-default) solid var(--color-outline-variant);
+}
+
+.settings-page__nav-item {
+  display: flex;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: none;
+  border-radius: var(--shape-small);
+  background: none;
+  font: var(--font-label-large);
+  color: var(--color-on-surface-variant);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard),
+              color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.settings-page__nav-item:hover {
+  background: var(--color-surface-container);
+  color: var(--color-on-surface);
+}
+
+.settings-page__nav-item--active {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+}
+
+.settings-page__nav-item:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: var(--focus-outline-offset);
+}
+
+/* ==================== Content ==================== */
+
+.settings-page__content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Narrow: the nav becomes a horizontal scroll row above the content. */
+@media (width <= 768px) {
+  .settings-page {
+    flex-direction: column;
+    gap: var(--spacing-4);
+  }
+
+  .settings-page__nav {
+    flex-direction: row;
+    overflow-x: auto;
+    width: 100%;
+    min-width: 0;
+    position: static;
+    padding-right: 0;
+    padding-bottom: var(--spacing-2);
+    border-right: none;
+    border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  }
+
+  .settings-page__nav-item {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+}
