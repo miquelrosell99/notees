@@ -115,8 +115,15 @@ function pad2(value: number): string {
  * comes from the deterministic id first — migrated date pages may carry
  * the compact label in their content with no other marker, and the excerpt
  * must not leak through as a raw YYYYMMDD.
+ *
+ * Pass `resolveClassName` to include inline class chips' resolved labels in
+ * the excerpt (flattened chrome: browser tab title, table cells) — without
+ * it a bare chip contributes nothing (domain-pure default).
  */
-export function displayNameForSettings(node: NodeLike): string {
+export function displayNameForSettings(
+  node: NodeLike,
+  resolveClassName?: (classId: string) => string | null,
+): string {
   const fromId = parseDateNodeId(node.id);
   if (fromId !== null) {
     const year = String(fromId.year);
@@ -125,10 +132,10 @@ export function displayNameForSettings(node: NodeLike): string {
     if (fromId.precision === "year") return year;
     if (fromId.precision === "month") return `${year}/${month}`;
     return (
-      formatDateName(`${year}${month}${day}`) ?? deriveDisplayName(node)
+      formatDateName(`${year}${month}${day}`) ?? deriveDisplayName(node, resolveClassName)
     );
   }
-  return deriveDisplayName(node);
+  return deriveDisplayName(node, resolveClassName);
 }
 
 /**
