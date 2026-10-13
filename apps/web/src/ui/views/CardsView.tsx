@@ -295,86 +295,86 @@ export function NodeCard({
         </span>
       )}
       <div className="node-card__content">
-        {/* The cover rides INSIDE the content cell (owner 2026-10-13): for
-            left/right layouts the content is a grid and the cover is a matted
-            card element spanning the row stack; for top it is the full-width
-            first row. */}
+        {/* The cover rides INSIDE the content (owner 2026-10-13): for the
+            left/right layouts the content is a two-column grid — the cover is
+            a matted card element in its cell, beside the LEAD stack (this
+            wrapper: breadcrumbs → title → classes → tags); the properties
+            section and the content row then span BOTH columns. For the top
+            layout the cover is simply the full-width first row, before the
+            breadcrumbs. */}
         <CardCover item={item} props={props} layout={coverLayout} />
-        {/* The FIRST row: the containing-page breadcrumbs (owner 2026-10-13) —
-            the chain walks the parents, so a parentless node renders nothing
-            and the row collapses away on its own. */}
-        <div className="node-card__breadcrumbs">
-          {/* Editable like the top bar's trail (owner 2026-10-13): the hover
-              chevron and the edge menu (Reassign parent… / Remove parent)
-              ride — the mutations are the component's own client writes. The
-              "+ Add parent" pill stays a top-bar gesture: the card edits only
-              existing parents (addParent={false}). */}
-          <Breadcrumbs
-            client={client}
-            nodeId={item.node.id}
-            onOpenNode={openNode}
-            editable
-            addParent={false}
-          />
-        </div>
-        <div className="node-card__header">
-          {/* The title IS the page-view title — the same bullet-less BlockRow
-              (variant="title", read-only): the content stream renders its
-              inline tokens (class links, mentions), a click opens the node
-              through the card's OutlinerContext (the page header's
-              trampoline contract). Right-click opens the node's context
-              menu (owner 2026-10-13 — the menu button is gone; the selection
-              checkbox is the card's only hover chrome). */}
-          <div
-            className="node-card__title"
-            onContextMenu={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              setMenu({ x: event.clientX, y: event.clientY });
-            }}
-          >
-            <BlockRow
-              variant="title"
-              tree={{ node: item.node, children: [] }}
-              client={client}
-              resolveName={resolveName}
-              readOnly
-            />
-          </div>
-        </div>
-        {menu !== null && (
-          <NodeContextMenu
-            state={{ x: menu.x, y: menu.y, node: item.node, isPage: rendersWithDocumentChrome(item.node) }}
-            client={client}
-            onClose={() => setMenu(null)}
-            onOpenNode={(id: string) => {
-              setMenu(null);
-              openNode(id);
-            }}
-          />
-        )}
-        {/* Classes row — the nodeview bar's class list itself (NodePills,
-            owner 2026-10-13): the picker, × removal (the journal-class lock
-            rides inside), and drag reorder — classes are addable straight
-            from the card. Date nodes stay locked (the ClassesRow rule), and
-            a locked empty row renders nothing. */}
-        {(item.node.classIds.length > 0 || !metadataLocked) && (
-          <div className="node-card__metadata-row node-card__classes-row">
-            <NodePills
+        <div className="node-card__lead">
+          {/* The FIRST row: the containing-page breadcrumbs — the chain walks
+              the parents, so a parentless node renders nothing and the row
+              collapses away on its own. Read-only on the card (owner reversal
+              2026-10-13): navigation context, parent edits stay in the top
+              bar. */}
+          <div className="node-card__breadcrumbs">
+            <Breadcrumbs
               client={client}
               nodeId={item.node.id}
-              classIds={item.node.classIds}
-              readOnly={metadataLocked}
-              onOpenPage={openNode}
+              onOpenNode={openNode}
+              editable={false}
             />
           </div>
-        )}
-        {/* Tags row — the page header's TagsRow composition, label hidden:
-            add/remove/menu ride, tags are addable straight from the card.
-            Same lock rule as the classes row. */}
-        {(item.node.tagIds.length > 0 || !metadataLocked) && (
-          <div className="node-card__metadata-row node-card__tags-row">
-            <TagsRow
+          <div className="node-card__header">
+            {/* The title IS the page-view title — the same bullet-less BlockRow
+                (variant="title", read-only): the content stream renders its
+                inline tokens (class links, mentions), a click opens the node
+                through the card's OutlinerContext (the page header's
+                trampoline contract). Right-click opens the node's context
+                menu (owner 2026-10-13 — the menu button is gone; the selection
+                checkbox is the card's only hover chrome). */}
+            <div
+              className="node-card__title"
+              onContextMenu={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setMenu({ x: event.clientX, y: event.clientY });
+              }}
+            >
+              <BlockRow
+                variant="title"
+                tree={{ node: item.node, children: [] }}
+                client={client}
+                resolveName={resolveName}
+                readOnly
+              />
+            </div>
+          </div>
+          {menu !== null && (
+            <NodeContextMenu
+              state={{ x: menu.x, y: menu.y, node: item.node, isPage: rendersWithDocumentChrome(item.node) }}
+              client={client}
+              onClose={() => setMenu(null)}
+              onOpenNode={(id: string) => {
+                setMenu(null);
+                openNode(id);
+              }}
+            />
+          )}
+          {/* Classes row — the nodeview bar's class list itself (NodePills,
+              owner 2026-10-13): the picker, × removal (the journal-class lock
+              rides inside), and drag reorder — classes are addable straight
+              from the card. Date nodes stay locked (the ClassesRow rule), and
+              a locked empty row renders nothing. */}
+          {(item.node.classIds.length > 0 || !metadataLocked) && (
+            <div className="node-card__metadata-row node-card__classes-row">
+              <NodePills
+                client={client}
+                nodeId={item.node.id}
+                classIds={item.node.classIds}
+                readOnly={metadataLocked}
+                onOpenPage={openNode}
+              />
+            </div>
+          )}
+          {/* Tags row — the page header's TagsRow composition, label hidden:
+              add/remove/menu ride, tags are addable straight from the card.
+              Same lock rule as the classes row. */}
+          {(item.node.tagIds.length > 0 || !metadataLocked) && (
+            <div className="node-card__metadata-row node-card__tags-row">
+              <TagsRow
               client={client}
               nodeId={item.node.id}
               tagIds={item.node.tagIds}
@@ -383,8 +383,10 @@ export function NodeCard({
             />
           </div>
         )}
+        </div>
         {/* The properties section: a row per property, label | value in two
-            columns (the table-row register), hairline-separated rows. */}
+            columns (the table-row register), hairline-separated rows. Spans
+            BOTH columns beside a horizontal cover (owner 2026-10-13). */}
         {cardRows.length > 0 && (
           <dl className="node-card__properties">
             {cardRows.map((prop) => (

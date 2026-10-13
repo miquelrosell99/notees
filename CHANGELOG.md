@@ -8,6 +8,36 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-13
+
+- **fix(web): the cover-visible card layout takes the owner's grid — cover
+  cell beside a lead stack, properties and content spanning both columns
+  (owner screenshot + spec 2026-10-13).** The previous subgrid approach broke
+  in practice (rows auto-placed into the cover column; the mat floated over
+  the rows). The structure is now explicit and subgrid-free: for the
+  left/right layouts the content is a two-column grid — column one the COVER
+  as a matted card element in its cell, column two the LEAD stack (the new
+  `.node-card__lead` wrapper: breadcrumbs → title → classes → tags); the
+  cover and the lead share the first row track and stretch together, so the
+  cover is exactly as tall as the lead stack; the PROPERTIES section and the
+  CONTENT row then span BOTH columns. In the top-cover layout the cover is
+  simply the full-width first row, before the breadcrumbs. The image still
+  fills the mat absolutely (a portrait never stretches the card). The
+  full-width hairlines-across-the-cover experiment (the `@supports subgrid`
+  block) retires with the structure that needed it. **Verification:** new
+  structural spec (the lead groups header/classes/tags; properties outside
+  it); the card suites green (82 across view-modes/covers/card-lazy-images/
+  system-sections); `tsc` clean apart from the graph session's in-flight
+  files (reported, not touched).
+- **fix(web): the card's breadcrumb row is read-only again (owner reversal
+  2026-10-13).** Two flips in one afternoon settled here: the editable trail
+  "does not make sense" on the card — parent edits stay in the top bar, the
+  card's trail is navigation context only. The card's Breadcrumbs returns to
+  `editable={false}` (no hover chevron, no edge menu, no Add parent pill);
+  `Breadcrumbs`' new `addParent` opt-out from the intermezzo stays available
+  for future surfaces, just unused by the card. **Verification:** the spec
+  re-pinned (crumbs render for navigation; a crumb right-click opens nothing);
+  the view-modes/system-sections suites green.
+
 - **feat(web): the sort button leaves the table — list and cards views
   carry it too, the named "dates-first" sort backs the reference sections,
   and the table opens on Edited (owner 2026-10-13).** The mdi-sort control
