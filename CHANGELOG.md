@@ -9,6 +9,32 @@ predating this file.
 
 ## 2026-10-13
 
+- **fix(web): breadcrumbs drop the self crumb — the trail is ancestors only
+  (owner 2026-10-13).** The breadcrumb trail no longer appends the current
+  node as a highlighted trailing crumb: the page header already names the
+  page, so the crumb duplicated it (and duplicated it a second time in the
+  right-anchored card header and the clipped-trail popup). The `showCurrent`
+  prop retires with it; the parent-edit gestures are untouched — the direct
+  parent crumb still carries the chevron/right-click menu editing the page's
+  own parentage, and a parentless page still offers only "+ Add parent".
+  **Verification:** `pnpm typecheck` green; web suite green (the touched
+  breadcrumb specs re-verified in isolation after two unrelated timeout
+  flakes under full-suite load).
+
+- **fix(web): the first section below the block tree stops floating — the
+  Created section on date pages and Classed nodes on class pages (owner
+  2026-10-13).** Both wear the shared `NodeViewSection` chrome, whose
+  `padding-top` steps down `spacing-3`→`spacing-2`: the hairline already
+  sits directly at the child-blocks ghost row (0px above it — measured), so
+  the 12px below it read as a void between the blocks and the section
+  header. The sidebar-panel and `.nt-page-sections` overrides (both 0) are
+  untouched; the gap below every section hairline in the content flow
+  tightens with it, one step, in line with the chrome passes above.
+  **Verification:** `pnpm typecheck` + `pnpm test` green; `VERIFY-PASS` from
+  the verify-min smoke after the scoped web redeploy; live measure-probe
+  diff on a fixture day page in the test workspace (ghost row→section
+  header 34→30px; section `padding-top` 12→8px), fixture trashed after.
+
 - **fix(web): the chrome tightens one more step — nodeview top bar gaps and
   the sidebar's top/bottom padding (owner 2026-10-13, second pass).** (1) The
   **nodeview top bar** now sits `spacing-2` (8px) off the card top (the

@@ -8,16 +8,17 @@
  * until the workspace root (no ancestors → nothing renders). The parent
  * re-renders on client notifications, so renames refresh the chain.
  *
+ * The trail is ancestors only — the current node never crumbs itself
+ * (owner 2026-10-13: the page header already names the page).
+ *
  * Edit gestures (opt-in via `editable`):
  * hovering a crumb reveals a chevron and right-click opens the same menu —
  * Open / Reassign parent… / Remove parent — acting on the EDGE BELOW the
  * crumb: the menu edits the parent relationship between the crumb and the
  * node directly under it (for the direct parent crumb, that node is the
- * page itself — the button edits or removes THAT parent). The leaf/self
- * crumb carries no edit affordance (owner 2026-10-04: editing your own
- * parent from your own crumb makes no sense); a parentless leaf instead
- * offers the trailing "+ Add parent" pill. Single-parent tree: every
- * gesture is one object.move.
+ * page itself — the button edits or removes THAT parent). A parentless
+ * node instead offers the trailing "+ Add parent" pill. Single-parent
+ * tree: every gesture is one object.move.
  */
 
 import { useEffect, useRef, useState, type MouseEvent } from "react";
@@ -94,8 +95,6 @@ export function Breadcrumbs({
   stopAfterId,
   excludeIds,
   excludeLeaf = false,
-  /** Append the current node itself as a highlighted trailing crumb. */
-  showCurrent = false,
   anchor = "left",
   /** Parent-edit gestures: crumb chevron/right-click menus + Add parent. */
   editable = false,
@@ -110,7 +109,6 @@ export function Breadcrumbs({
   excludeIds?: readonly string[] | undefined;
   /** Drop the trailing crumb (the node itself) — its content renders below. */
   excludeLeaf?: boolean | undefined;
-  showCurrent?: boolean | undefined;
   /**
    * Overflow anchor. "left" (default) packs the trail from the left and clips
    * the right end (the deepest crumbs truncate). "right" packs from the
@@ -137,7 +135,7 @@ export function Breadcrumbs({
     position: { x: number; y: number };
   } | null>(null);
 
-  const currentNode = showCurrent ? client.getNode(nodeId) : undefined;
+  const currentNode = client.getNode(nodeId);
   let items = ancestryOf(client, nodeId);
   if (stopAfterId !== undefined) {
     const stopAt = items.findIndex((item) => item.node.id === stopAfterId);
@@ -151,7 +149,6 @@ export function Breadcrumbs({
   // Owner rule (2026-10-04): a parentless node hides itself from the trail —
   // there is no chain to trail — and offers only the Add parent affordance
   // (never on classes: classes are always roots, a parent is unrepresentable).
-  const showCurrentCrumb = currentNode !== undefined && currentNode.parentId !== null;
   const showAddParent =
     editable &&
     currentNode !== undefined &&
@@ -173,9 +170,9 @@ export function Breadcrumbs({
     const observer = new ResizeObserver(update);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [anchor, items, showCurrentCrumb]);
+  }, [anchor, items]);
 
-  if (items.length === 0 && !showCurrentCrumb && !showAddParent) return null;
+  if (items.length === 0 && !showAddParent) return null;
 
   const needsCollapse = items.length > COLLAPSE_AT;
   const startItems = needsCollapse ? items.slice(0, VISIBLE_START) : items;
@@ -183,11 +180,6 @@ export function Breadcrumbs({
     ? items.slice(VISIBLE_START, items.length - VISIBLE_END)
     : [];
   const endItems = needsCollapse ? items.slice(items.length - VISIBLE_END) : [];
-  /** The trailing trail item needs a chevron when the current crumb follows. */
-  const lastKey = needsCollapse
-    ? (endItems[endItems.length - 1]?.node.id ?? null)
-    : (startItems[startItems.length - 1]?.node.id ?? null);
-  const withSeparator = (id: string, base: boolean) => base || (showCurrentCrumb && id === lastKey);
 
   /** Open the crumb's edit menu (right-click, or the hover chevron). */
   const openEditMenu = (
@@ -230,14 +222,15 @@ export function Breadcrumbs({
   ];
 
   /** The node directly under a crumb in the trail (the edge the crumb's
-   *  edit menu acts on): the next trail item, else the current node when it
-   *  follows. Undefined for a trailing crumb with no current node — no edge
-   *  to edit, so the crumb renders without the edit affordance. */
+   *  edit menu acts on): the next trail item, else the current node itself
+   *  under the direct parent crumb. Undefined only when the current node is
+   *  missing from the store — no edge to edit, so the crumb renders without
+   *  the edit affordance. */
   const childBelowOf = (item: Crumb): ClientNode | undefined => {
     const index = items.findIndex((entry) => entry.node.id === item.node.id);
     const next = items[index + 1];
     if (next !== undefined) return next.node;
-    return showCurrentCrumb ? currentNode : undefined;
+    return currentNode;
   };
 
   const crumb = (item: Crumb, key: string, showSeparator: boolean) => {
@@ -309,7 +302,7 @@ export function Breadcrumbs({
               />
               <div className="node-breadcrumb-popup-anchor">
                 <div className="node-breadcrumbs-popup">
-                  {[...items, ...(currentNode !== undefined ? [{ node: currentNode, name: crumbNameOf(client, currentNode) }] : [])].map(
+                  {items.map(
                     (item) => (
                       <button
                         key={item.node.id}
@@ -341,7 +334,7 @@ export function Breadcrumbs({
         crumb(
           item,
           item.node.id,
-          withSeparator(item.node.id, needsCollapse || index < startItems.length - 1),
+          needsCollapse || index < startItems.length - 1,
         ),
       )}
 
@@ -396,30 +389,8 @@ export function Breadcrumbs({
 
       {needsCollapse &&
         endItems.map((item, index) =>
-          crumb(item, item.node.id, withSeparator(item.node.id, index < endItems.length - 1)),
+          crumb(item, item.node.id, index < endItems.length - 1),
         )}
-
-      {currentNode !== undefined && showCurrentCrumb && (
-        // The leaf crumb is position-only: no edit affordance on self
-        // (owner 2026-10-04 — the parent edit lives on the parent's crumb).
-        <span className="node-breadcrumb-item node-breadcrumb-current">
-          <button
-            type="button"
-            className="node-breadcrumb-link"
-            aria-current="page"
-            onClick={() => onOpenNode?.(currentNode.id)}
-          >
-            {client.effectiveNodeIcon(currentNode) !== null && (
-              <Icon
-                path={client.effectiveNodeIcon(currentNode)!}
-                size={0.8}
-                className="node-breadcrumb-icon"
-              />
-            )}
-            <span className="node-breadcrumb-name">{crumbNameOf(client, currentNode)}</span>
-          </button>
-        </span>
-      )}
 
       {showAddParent && (
         <button

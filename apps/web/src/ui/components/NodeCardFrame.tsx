@@ -36,8 +36,6 @@
 
 import { useContext, useState } from "react";
 
-import { rendersAsInlineBlock } from "@notees/domain";
-
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client.js";
 
@@ -129,7 +127,6 @@ export function NodeCardFrame({
             client={client}
             nodeId={nodeId}
             onOpenNode={onOpenNode}
-            showCurrent={!rendersAsInlineBlock(node)}
             anchor="right"
             editable
           />
