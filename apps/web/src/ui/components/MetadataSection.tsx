@@ -1647,6 +1647,10 @@ function BooleanPropertyRow({
  * ghost pill opening the node-selector popup (assignClass): the pills
  * ride ClassPillsList — the instance-of relation's mutations passed as
  * arguments, the row chrome (the label) stays here.
+ *
+ * Date-chain class lock (SCHEMA.md "Datetime"): a date node's class set is
+ * fixed to its precision's system class — the row renders read-only (no
+ * Add-class pill, no ×, no drag-sort) on date nodes.
  */
 export function ClassesRow({
   client,
@@ -1659,6 +1663,7 @@ export function ClassesRow({
   classIds: string[];
   onOpenPage?: ((pageId: string) => void) | undefined;
 }) {
+  const locked = parseDateNodeId(nodeId) !== null;
   return (
     <div className="node-metadata-row nt-classes-row">
       <div className="section-label">Classes:</div>
@@ -1670,6 +1675,7 @@ export function ClassesRow({
         remove={(classId) => void client.unassignClass(nodeId, classId)}
         reorder={(ordered) => void client.reorderClasses(nodeId, ordered)}
         onOpenPage={onOpenPage}
+        readOnly={locked}
       />
     </div>
   );
