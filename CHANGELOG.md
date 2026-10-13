@@ -9,6 +9,154 @@ predating this file.
 
 ## 2026-10-13
 
+- **feat(web): graph view round 2 — the right rail (Selection + Colors),
+  query-builder color groups, kit-law finish.** The third stage of the round-2
+  chrome reorganization (owner directives 2026-10-13): the right edge now owns
+  curation. **(1) The right rail** — a kit `Card` at the graph's right edge
+  (full surface only; the local-graph card keeps it out like the other
+  full-surface chrome) with two `NodeViewSection` collapsibles, **Selection**
+  and **Colors**, both resting collapsed; the rail's open/close persists per
+  device in `graphPrefs.full` (`railOpen`), same debounced prefs idiom as the
+  rest. The rail is a flex sibling of the stage (`.nt-graph__main`): the
+  drawable area excludes its adaptive width (`--graph-rail-w:
+  clamp(16rem,26%,22rem)` — also the toolbar's rail-open right inset) and the
+  minimap hugs the remaining canvas. **(2) The top-bar chips become rail
+  openers** — the Colors chip toggles the rail onto the Colors section; the
+  **Selected · N** chip stays as count + opener, opening the rail scrolled to
+  the Selection section (second click on the active section's chip closes).
+  The retired chrome is deleted: the top-bar `SearchField` + `.nt-graph__search-
+  results` dropdown, the Selected·N `ButtonWithPanel` popover, the hand-rolled
+  `.nt-graph__groups` floating panel and its `usePopupDismissal` wiring (and
+  their CSS). **(3) Selection section** — a permanent search via the shared
+  `NodeSelector trigger="inline"` (`searchMode="all"`, `noCreate`: picking
+  appends to the selection and never changes topology — the search-to-select
+  register), above the re-homed reorderable selected list (kit `ListSortable`,
+  per-item remove, Clear) with kit `EmptyState` when empty. Inline mode is the
+  permanent-field idiom: NodeSelector's dismissal no longer clears an inline
+  field's query (first inline consumer; the anchored/pill-row contracts are
+  unchanged). **(4) Colors section** — the class-colors + query-groups
+  content re-homed; query groups graduate from the raw text-DSL `<input>` to
+  the full visual query builder (`FilterBlockBuilder` over a `@notees/query`
+  `Group` AST, explicit full facet scope), the group name an optional kit
+  `TextField`, the group list kit `ListSortable` — **the list order IS the
+  first-match-wins priority** (order persists per device) — +Add-group a kit
+  outline button, Paint-groups a kit `BooleanToggle`, the × a kit ghost
+  `Button` (`.nt-graph__tool`/`.nt-graph__toggle` retired). **(5) colorGroups
+  storage is the AST** — `GraphColorGroup` now carries `ast: Group | null`
+  instead of the text query; `evaluateColorGroups` wraps the group in the
+  workspace-scope QueryAst and runs the client's query runner (evaluation
+  order = persisted list order). A one-time in-place migration at load parses
+  any stored legacy DSL string through the DSL parser (names resolving
+  against the workspace) and re-persists the AST via the debounced prefs
+  write; a fail-loud parse error keeps the group but marks it erroneous
+  (`ast: null` + the message surfaced in the rail's honest error row), the
+  same honesty the old live `colorGroupError` had. Docs: `docs/usage.md`
+  graph section (the right rail, search-to-select, query-builder color groups
+  with sortable priority; stale search/popover wording replaced, the
+  Filters → Visibility wording from the previous stage kept).
+  **Verification:** `pnpm --filter @notees/web typecheck` green; graph suites
+  green (re-pinned toolbar-composition spec; new rail-toggle / search-to-
+  select / local-scope-omission / persisted-open specs, legacy DSL→AST
+  migration specs at both the unit and component level, sort-order-drives-
+  priority spec).
+  eye, wired time-lapse, interaction polish, kit Chip.** Round 2 of the graph
+  chrome reorganization (owner directives 2026-10-13): the bottom edge now
+  owns the canvas. **(1) Control dock** bottom-left (mirroring the minimap):
+  recenter + pause/play moved off the top bar, canvas-centered zoom in/out
+  (the wheel's exact 1.12 factor / 0.02–40 clamp), and **Focus** (selection
+  bbox fit with padding; a single node centers at 1.5). **(2) Minimap
+  scroll-to-zoom** — the minimap wheel maps its pixel through
+  `GraphMinimap.screenToWorld` and applies the same anchored-zoom math as the
+  main canvas; drag-pan unchanged. **(3) Filters → Visibility** — the text
+  chip becomes an icon-only ghost eye (`mdi-eye-outline`), lit
+  (`aria-pressed`) while anything is hidden; panel content unchanged; the six
+  family toggles are now the new kit **Chip** (one element per file,
+  co-located token-only CSS, barrel-exported; the Colors trigger and
+  +Add-group pill converted too — `.nt-graph__chip` retired). **(4)
+  Time-lapse wired** — after every GL lifecycle rebuild the view feeds
+  `setNodeTimes` (node `createdAt`, index-aligned) and per-edge stamps (own
+  stamp else max of endpoints; synthesized families ride the endpoints); the
+  mode bar's toggle opens a slim strip above it: play/pause (min→max over
+  ~20s), a kit Slider scrubber over [oldest, newest], an Edges switch (off =
+  edge array rebuilt without stamps — static edges; on = stamped), close.
+  Scrubbing only moves the `u_timeCutoff` uniform — no repacks. The label
+  overlay and node picking honor the cutoff (a not-yet-visible node is
+  neither labelled nor hoverable/draggable/openable). Session-local, like
+  pause. **(5) Interaction polish** — hovering a node dims everything
+  outside its neighborhood (`setHoverNeighborhood`, flag rewrite once per
+  hover change) and raises the app-standard **NodeHoverPreview** card through
+  a 1px cursor-riding sentinel adapter (`notifyNodeHover`); the hand-rolled
+  text tooltip survives for edges only. **Keyboard surface** on the stage
+  (tabIndex, no window listeners — the graph also renders inside the local
+  card): +/- zoom centered, arrows pan (Shift 4×), F focus, R recenter;
+  modifiers other than Shift and text-editing targets pass through.
+  **Kit:** `ButtonWithPanel` now honors its `active` prop (was parsed and
+  dropped — the Visibility eye is the first caller). New pure
+  `views/graph/cameraMath.ts` owns the shared zoom/factor/clamp/pan/fit math
+  (spec'd). Right rail, search-to-select rebuild, and the colors-panel
+  upgrade remain the next stage. Docs: `docs/usage.md` graph section
+  (dock/minimap zoom/time-lapse/hover card/shortcuts, Filters → Visibility);
+  `docs/developers/ui-primitives.md` catalog gains Chip.
+  **Verification:** `pnpm --filter @notees/web typecheck` green; web suite
+  139 files / 1506 tests green (re-pinned toolbar-composition spec; new
+  cameraMath + minimap-zoom + label-cutoff specs).
+
+- **feat(store,web): graph time-lapse stage A — creation timestamps through the
+  graph projection, first-appearance edge stamps, renderer time cutoff + hover
+  neighborhood.** (1) The store's graph projection (`graphTopology`) now
+  surfaces `createdAt` on every node (the node row's true create-time stamp)
+  and on edges: the earliest contributing row's stamp across a merged weighted
+  group (synthesized parent/class and co-occurrence semantic/temporal families
+  carry none — null). (2) The derived edge index's `created_at` becomes a
+  first-appearance stamp: the re-derivation conflict path keeps the EARLIEST
+  stamp (`COALESCE(MIN(...))` — a NULL never wins), and property edges are
+  stamped from the value row's `hlc_physical` in the envelope ISO shape —
+  deterministic, so wipe → replay converges across independent-write orders.
+  Downstream consumers are unaffected: `backlinksWithRollup`/
+  `referencesWithRollup` pass the stamp through without ordering on it, and
+  the query compiler's date arms read `node.created_at` only. (3) The WebGL2
+  graph renderer gains per-node/per-edge creation-time attributes (seconds
+  since epoch, `-Infinity` = none), `setNodeTimes`/`setTimeLapse` backed by
+  `u_timeLapse`/`u_timeCutoff` (anything created after the cutoff renders
+  fully hidden; with the mode off the shaders take the exact pre-existing
+  path), and a lightweight `setHoverNeighborhood` that rewrites per-node/
+  per-edge/per-arrow Uint8 highlight flag buffers once per hover CHANGE
+  (O(N)/O(E), never per frame — deliberately not the setSelectedNodes repack);
+  arrowheads follow their edges for both features. `GraphNode`/`GraphEdge`
+  shape changes are additive; `GraphView` wiring (feeding the times, the
+  time-lapse controls) lands in a later stage.
+  **Verification:** `pnpm --filter @notees/store test` (489 green, incl. the
+  new first-appearance stamp specs + graph createdAt specs); the web graph
+  suites (`graph-renderer` 18, `graph-view`/`graph-sizing`/`graph-followups`/
+  `graph-engine`/`graph-controller` 40 — 58 total) green; `pnpm --filter
+  @notees/web typecheck` green.
+- **feat(web): the card's classes/tags rows are the nodeview bar's own
+  elements (addable from the card); right-click on the title opens the node
+  menu (the three-dot is gone); a breadcrumbs row rides first; the cover is a
+  card element inside its cell with full-width row hairlines (owner batch
+  2026-10-13).** Five refinements of the v1 card. (1) The classes row drops
+  the read-only projection and hosts the INTERACTIVE NodePills the nodeview
+  bar uses (picker with create row, × removal with the journal-class lock,
+  drag reorder); the tags row hosts the page header's TagsRow composition
+  with its "Tags:" label hidden — classes and tags are addable and removable
+  right on the card. Date nodes stay metadata-locked (the ClassesRow rule);
+  a locked empty row renders nothing. (2) The title's RIGHT-CLICK opens the
+  node's context menu (the v1 context-menu register); the "…" button and the
+  hover action cluster are gone — the selection checkbox is the card's only
+  hover chrome. (3) The containing-page breadcrumbs ride as the card's FIRST
+  row (previously an opt-in `showBreadcrumbs` prop that no surface set);
+  a parentless node renders nothing and the row collapses. (4) The
+  child-blocks header label reads **Content**. (5) The horizontal-cover
+  redesign the owner's screenshot asked for: the cover sits INSIDE the
+  content cell as a matted, rounded sub-card (spacing-2 inset, shape-medium
+  corners), the image filling the mat absolutely — a portrait cover no longer
+  stretches the card beyond its rows — and the content is a two-column grid
+  whose row hairlines extend ACROSS the cover column (CSS subgrid, the
+  `@supports`-guarded fallback keeps rows in the main column), so the card
+  reads as one surface. Docs: `docs/ux.md` + `docs/usage.md` re-worded.
+  **Verification:** new specs (add-class/add-tag affordances on the card, the
+  title context menu with no three-dot, the breadcrumbs row) plus the
+  re-pinned card suite; `pnpm typecheck` + the full web suite green (1516).
 - **fix(web): the card's breadcrumb row hides the "+ Add parent" pill — the
   card edits existing parents only (owner 2026-10-13).** The editable trail
   had brought the parentless-node Add parent affordance along ("unneeded
