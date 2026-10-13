@@ -237,10 +237,10 @@ describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
       />,
     );
     const card = container.querySelector(".node-card") as HTMLElement;
-    // The blocks row renders its header at rest (chevron + label), the body
+    // The content row renders its header at rest (chevron + label), the body
     // collapsed by default — the chevron shows the content on demand.
     expect(card.querySelector(".node-card__body")).toBeNull();
-    expect(within(card).getByText("Blocks")).not.toBeNull();
+    expect(within(card).getByText("Content")).not.toBeNull();
     fireEvent.click(within(card).getByRole("button", { name: "Expand Member" }));
     expect(within(card).getByText("member body block")).not.toBeNull();
     expect(within(card).getByText("body grandchild")).not.toBeNull();
@@ -329,20 +329,51 @@ describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
     // The plain-title click (the content surface) opens the NODE.
     fireEvent.click(head.querySelector(".nt-title-content")!);
     expect(opened).toEqual([classId, member]);
-    // The classes row: the member's class chip.
+    // The classes row: the nodeview bar's interactive list — the member's
+    // chip AND the add affordance ride.
     const classesRow = card.querySelector(".node-card__classes-row")!;
     expect(classesRow).not.toBeNull();
     expect(within(classesRow as HTMLElement).getByText("Pokemon")).not.toBeNull();
-    // The tags row: the assigned tag chip.
+    expect(within(classesRow as HTMLElement).getByText("Add class")).not.toBeNull();
+    // The tags row: the header's TagsRow composition (label hidden) — the
+    // assigned tag chip AND the add affordance ride.
     const tagsRow = card.querySelector(".node-card__tags-row")!;
     expect(tagsRow).not.toBeNull();
     expect(within(tagsRow as HTMLElement).getByText("favorites")).not.toBeNull();
+    expect(within(tagsRow as HTMLElement).getByText("Add tag")).not.toBeNull();
     // The property rows: the bound column + its value (the classed-nodes
     // section scopes cards to its table's bound columns).
     const properties = card.querySelector(".node-card__properties")!;
     expect(properties).not.toBeNull();
     expect(within(properties as HTMLElement).getByText("Level")).not.toBeNull();
     expect(within(properties as HTMLElement).getByText("25")).not.toBeNull();
+  });
+
+  it("right-click on the title opens the node menu; the three-dot is gone (the checkbox stays)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const member = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "Child" }] });
+    await flushWrites();
+
+    const { container } = render(
+      <NodeCollection
+        viewMode="cards"
+        client={client}
+        items={[{ node: client.getNode(member)! }]}
+        onNodeClick={() => {}}
+      />,
+    );
+    const card = container.querySelector(".node-card") as HTMLElement;
+    // The breadcrumb FIRST row names the containing page.
+    expect(within(card).getByText("Home")).not.toBeNull();
+    // No three-dot action button anywhere on the card…
+    expect(within(card).queryByRole("button", { name: "Node actions" })).toBeNull();
+    // …the selection checkbox stays…
+    expect(within(card).getByRole("checkbox", { name: "Select Child" })).not.toBeNull();
+    // …and the title's context menu opens on right-click.
+    const title = card.querySelector(".node-card__title") as HTMLElement;
+    fireEvent.contextMenu(title);
+    expect(screen.getByRole("menu")).not.toBeNull();
   });
 
   it("table mode never renders children even when the items carry them", async () => {

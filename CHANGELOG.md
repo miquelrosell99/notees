@@ -9,6 +9,34 @@ predating this file.
 
 ## 2026-10-13
 
+- **feat(web): the card's classes/tags rows are the nodeview bar's own
+  elements (addable from the card); right-click on the title opens the node
+  menu (the three-dot is gone); a breadcrumbs row rides first; the cover is a
+  card element inside its cell with full-width row hairlines (owner batch
+  2026-10-13).** Five refinements of the v1 card. (1) The classes row drops
+  the read-only projection and hosts the INTERACTIVE NodePills the nodeview
+  bar uses (picker with create row, × removal with the journal-class lock,
+  drag reorder); the tags row hosts the page header's TagsRow composition
+  with its "Tags:" label hidden — classes and tags are addable and removable
+  right on the card. Date nodes stay metadata-locked (the ClassesRow rule);
+  a locked empty row renders nothing. (2) The title's RIGHT-CLICK opens the
+  node's context menu (the v1 context-menu register); the "…" button and the
+  hover action cluster are gone — the selection checkbox is the card's only
+  hover chrome. (3) The containing-page breadcrumbs ride as the card's FIRST
+  row (previously an opt-in `showBreadcrumbs` prop that no surface set);
+  a parentless node renders nothing and the row collapses. (4) The
+  child-blocks header label reads **Content**. (5) The horizontal-cover
+  redesign the owner's screenshot asked for: the cover sits INSIDE the
+  content cell as a matted, rounded sub-card (spacing-2 inset, shape-medium
+  corners), the image filling the mat absolutely — a portrait cover no longer
+  stretches the card beyond its rows — and the content is a two-column grid
+  whose row hairlines extend ACROSS the cover column (CSS subgrid, the
+  `@supports`-guarded fallback keeps rows in the main column), so the card
+  reads as one surface. Docs: `docs/ux.md` + `docs/usage.md` re-worded.
+  **Verification:** new specs (add-class/add-tag affordances on the card, the
+  title context menu with no three-dot, the breadcrumbs row) plus the
+  re-pinned card suite; `pnpm typecheck` + the full web suite green (1516).
+
 - **feat(web): the card's rows take the owner's layout — classes row, tags
   row, then the properties section, every row hairline-separated; the blocks
   move under their own header row (owner 2026-10-13).** Three layout rulings
