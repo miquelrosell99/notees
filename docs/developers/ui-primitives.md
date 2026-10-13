@@ -49,7 +49,8 @@ single-selection sibling — groups compose by sharing a `name`),
 collapsed width + faded out — expanded on hover of the surrounding
 `.ui-hover-reveal-group`, on keyboard focus, or while an anchored popup is
 open via `aria-expanded` on the trigger; the topbar undo cluster's history
-chevron is the first consumer).
+chevron and the breadcrumb trails' parent-edit chevron compose it — the
+trails were the pattern's origin).
 
 Feedback & status: `Spinner`, `LoadingScreen`/`LoadingSkeleton`,
 `DataStateView`, `EmptyState`, `NotificationToast` (+ `NotificationToaster`
