@@ -128,6 +128,21 @@ describe("label overlay contract", () => {
     expect(calls[0]!.alpha).toBe(1);
   });
 
+  it("small graphs (≤150 nodes) label at any zoom; large graphs keep the threshold", () => {
+    // The camera fit can park a fitted small graph below the large-graph
+    // 0.12 threshold — its labels must still render (capped, min alpha 0.3).
+    const small = stubFrame({ zoom: 0.05 });
+    small.frame.order = small.frame.order.slice(0, 50);
+    small.frame.names = new Map(small.frame.names);
+    const rendered = drawLabels(small.frame);
+    expect(rendered).toBe(40); // the zoom-0.05 cap binds (40)
+    expect(small.calls.every((c) => c.alpha === 0.3)).toBe(true);
+    // A large graph at the same zoom labels nothing (no hover).
+    const large = stubFrame({ zoom: 0.05 });
+    expect(drawLabels(large.frame)).toBe(0);
+    expect(large.calls.length).toBe(0);
+  });
+
   it("culls labels far outside the viewport", () => {
     const far = stubFrame({
       worldToScreen: () => ({ x: -5000, y: -5000 }),
