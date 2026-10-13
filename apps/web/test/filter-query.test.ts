@@ -1,11 +1,12 @@
 /**
  * filterQuery tests — the transient filter layer's data: the FilterQuery
  * shape (quick text plus a draft query-AST root group), the draft→composed
- * prune rules (half-typed rows drop, the text unshifts as a content-contains
- * condition, null when nothing survives), and the row-predicate semantics
- * battery — text substring, class closure, property eq/neq/contains/
- * ordering/exists with the ISO-date arms, the {today} created window —
- * now exercised through the ONE evaluation implementation
+ * prune rules (half-typed rows drop, null when nothing survives — the quick
+ * text never rides the AST; it narrows the rows through the ranked search,
+ * owner 2026-10-13), and the row-predicate semantics battery — the
+ * structured content-contains substring, class closure, property eq/neq/
+ * contains/ordering/exists with the ISO-date arms, the {today} created
+ * window — now exercised through the ONE evaluation implementation
  * (planSectionView + createSectionViewMatcher) over a stub client. No store
  * — pure model units.
  */
@@ -22,6 +23,7 @@ import {
   filterKindOptionsForConfig,
   filterQueryToGroup,
   isFilterInactive,
+  quickTextOf,
   type FilterQuery,
 } from "../src/ui/components/filterQuery.js";
 import {
@@ -131,12 +133,13 @@ describe("filterQueryToGroup — the draft prune", () => {
     expect(filterQueryToGroup(EMPTY_FILTER_QUERY)).toBeNull();
   });
 
-  it("unshifts the trimmed text as a content-contains condition", () => {
-    expect(filterQueryToGroup({ text: "  zebra ", group: EMPTY_FILTER_QUERY.group })).toEqual({
-      type: "group",
-      logic: "and",
-      children: [{ type: "content", op: "contains", value: "zebra" }],
-    });
+  it("the quick text never rides the AST — it is the ranked search's input, not a condition", () => {
+    // Owner 2026-10-13 (one ordering everywhere): the text facet's
+    // membership AND order come from `client.search`, which an AST condition
+    // cannot express — the composed group carries the structured draft only.
+    expect(filterQueryToGroup({ text: "  zebra ", group: EMPTY_FILTER_QUERY.group })).toBeNull();
+    expect(quickTextOf({ text: "  zebra ", group: EMPTY_FILTER_QUERY.group })).toBe("zebra");
+    expect(quickTextOf({ text: "   ", group: EMPTY_FILTER_QUERY.group })).toBe("");
   });
 
   it("drops half-typed conditions: blank content value, empty classId, empty schemaId, blank timestamps", () => {
@@ -294,11 +297,22 @@ describe("the add-menu registry", () => {
 });
 
 describe("the row predicate through the one evaluator", () => {
-  it("text is a case-insensitive substring over the title", () => {
+  it("the structured content-contains condition is a case-insensitive substring over the title", () => {
     const client = stubClient({});
-    expect(matches(client, makeNode({ title: "The Zebra Stripes" }), { text: "zebra", group: EMPTY_FILTER_QUERY.group })).toBe(true);
-    expect(matches(client, makeNode({ title: "The Zebra Stripes" }), { text: "ZEBRA", group: EMPTY_FILTER_QUERY.group })).toBe(true);
-    expect(matches(client, makeNode({ title: "The Zebra Stripes" }), { text: "yak", group: EMPTY_FILTER_QUERY.group })).toBe(false);
+    // The quick text no longer maps to this predicate (it rides the ranked
+    // search — the filter-layer tests own that contract); a CONTENT
+    // condition built in the structured panel keeps the substring semantics.
+    const withContent = (value: string): FilterQuery => ({
+      text: "",
+      group: {
+        type: "group",
+        logic: "and",
+        children: [{ type: "content", op: "contains", value }],
+      },
+    });
+    expect(matches(client, makeNode({ title: "The Zebra Stripes" }), withContent("zebra"))).toBe(true);
+    expect(matches(client, makeNode({ title: "The Zebra Stripes" }), withContent("ZEBRA"))).toBe(true);
+    expect(matches(client, makeNode({ title: "The Zebra Stripes" }), withContent("yak"))).toBe(false);
   });
 
   it("class is hierarchy-aware — the class or anything extending it", () => {
@@ -444,11 +458,12 @@ describe("the row predicate through the one evaluator", () => {
       createdAt: "2026-06-01T00:00:00.000Z",
     });
     const query: FilterQuery = {
-      text: "zebra",
+      text: "",
       group: {
         type: "group",
         logic: "and",
         children: [
+          { type: "content", op: "contains", value: "zebra" },
           { type: "class", classId: CLASS_A },
           { type: "property", schemaId: SCHEMA, op: "gte", value: "5" },
           { type: "createdAfter", timestamp: "2026-01-01" },

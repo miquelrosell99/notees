@@ -30,13 +30,15 @@
  * transient filter layer ships as part of this contract (`filterable`);
  * the hosted custom views remain the follow-up.
  *
- * The transient filter layer (components/filterQuery.ts): a `filter`
- * applies a FilterQuery's composed query-AST group to the resolved rows
- * POST-RESOLUTION and PRE-WINDOWING — the returned rows are the filtered
- * set, so the collection's windowing sees filtered rows; the resolution
- * cache is untouched (a query change re-derives from the cached rows, it
- * never re-runs the query). The eager count stays UNFILTERED: `total` is
- * the resolved count before the filter, and an active filter renders "0 of N"
+ * The transient filter layer (components/filterQuery.ts): the quick text
+ * narrows the resolved rows through the ranked search first (membership AND
+ * order — the global search's priority tiers), then the FilterQuery's
+ * composed query-AST group filters the narrowed pool POST-RESOLUTION and
+ * PRE-WINDOWING — the returned rows are the filtered set, so the
+ * collection's windowing sees filtered rows; the resolution cache is
+ * untouched (a query change re-derives from the cached rows, it never
+ * re-runs the query). The eager count stays UNFILTERED: `total` is the
+ * resolved count before the filter, and an active filter renders "0 of N"
  * rather than hiding the section.
  */
 
@@ -62,12 +64,18 @@ export interface SectionCtx {
 
 /**
  * The transient filter a section applies to its resolved rows: the composed
- * query-AST root group plus the row→node accessor the conditions read (a
- * backlinks row's node is its source; a collection row's node is the item's
- * node).
+ * query-AST root group (structured conditions only — never the quick text)
+ * plus the row→node accessor the conditions read (a backlinks row's node is
+ * its source; a collection row's node is the item's node). The quick-search
+ * text rides alongside the group: it narrows the pool by the ranked search
+ * BEFORE the structured conditions apply (owner 2026-10-13 — one ordering
+ * everywhere).
  */
 export interface SectionRowFilter<Row> {
+  /** The structured conditions (the pruned draft). */
   group: Group;
+  /** The trimmed quick-search text; blank/undefined = the text facet is off. */
+  text?: string | undefined;
   nodeOf: (row: Row) => ClientNode;
 }
 
@@ -87,10 +95,11 @@ export interface UseSectionDataOptions<T> {
    */
   refreshKey?: unknown;
   /**
-   * The transient filter layer (list-shaped row sets only): applied
-   * post-resolution, pre-windowing. The query changes re-derive from the
-   * cached rows on the next render — it is never part of the resolution
-   * signature, so a filter change re-runs no query.
+   * The transient filter layer (list-shaped row sets only): the quick text
+   * narrows the pool through the ranked search, the composed group filters
+   * the narrowed pool post-resolution, pre-windowing. The query changes
+   * re-derive from the cached rows on the next render — it is never part of
+   * the resolution signature, so a filter change re-runs no query.
    */
   filter?: (T extends readonly (infer Row)[] ? SectionRowFilter<Row> : never) | undefined;
   /** Cheap synchronous client/derived read strategy. */
@@ -114,6 +123,36 @@ export interface SectionData<T> {
    * resolution completes.
    */
   total: number | null;
+}
+
+/**
+ * The quick-text rank window: the largest ranked page the sync `search`
+ * takes. A section pool larger than this keeps only its ranked members —
+ * the same contract as the global search (owner 2026-10-13).
+ */
+const QUICK_TEXT_RANK_LIMIT = 1000;
+
+/**
+ * The ranked quick-text step: the workspace search's priority-ordered ids
+ * become BOTH the pool's membership (rows outside the ranked set drop —
+ * the old title-substring predicate) AND its order (rows render in the
+ * search's tier order: exact title > block text > ordered terms > parent
+ * title > partials > fuzzy rescue — the same ordering the global search
+ * renders). Rows past the rank limit drop, mirroring the global search.
+ */
+function rankRowsBySearch<Row>(
+  client: SectionCtx["client"],
+  text: string,
+  rows: readonly Row[],
+  nodeOf: (row: Row) => ClientNode,
+): Row[] {
+  const rankOf = new Map<string, number>();
+  for (const [index, node] of client.search(text, QUICK_TEXT_RANK_LIMIT).entries()) {
+    rankOf.set(node.id, index);
+  }
+  return rows
+    .filter((row) => rankOf.has(nodeOf(row).id))
+    .sort((a, b) => rankOf.get(nodeOf(a).id)! - rankOf.get(nodeOf(b).id)!);
 }
 
 export function useSectionData<T>({
@@ -153,15 +192,17 @@ export function useSectionData<T>({
     };
   }, [client, active, version, refreshKey, read, query]);
 
-  // The transient filter step: post-resolution, pre-windowing. The query
-  // plans through the one evaluation implementation (a schema-invalid group
-  // plans to null — rows stay unfiltered, chrome never fails).
+  // The transient filter step: post-resolution, pre-windowing. The quick
+  // text narrows the pool through the ranked search FIRST (membership AND
+  // order), then the query plans through the one evaluation implementation
+  // (a schema-invalid group plans to null — rows stay unfiltered, chrome
+  // never fails) and filters the NARROWED pool.
   //
   // Two evaluation arms, both sectionViewResolve's: the SYNC arm
   // (createSectionViewMatcher over one EvalContext) covers every base-column
   // condition; the PROBE arm covers the joined-metadata leaves (linkedTo,
   // content fts) — one membership query per leaf through runQueryAst,
-  // intersected with the base rows, mirrored from useSectionViewResolution
+  // intersected with the narrowed rows, mirrored from useSectionViewResolution
   // (the one-evaluation ruling: no second evaluator). The probe lands in an
   // effect keyed on the AST + row-id signature + notify version; until the
   // first result lands the rows stay unfiltered, after that the LAST landed
@@ -179,15 +220,27 @@ export function useSectionData<T>({
     }
   }, [filter]);
 
+  // The ranked quick-text narrowing: with the text facet off the pool IS
+  // the resolved rows (identity preserved — every downstream memo is
+  // silent on it, exactly as before the ranked text existed).
+  const text = filter?.text?.trim() ?? "";
+  const pool = useMemo(
+    () =>
+      rows !== null && filter !== undefined && Array.isArray(rows) && text !== ""
+        ? rankRowsBySearch(client, text, rows as unknown[], (filter as SectionRowFilter<unknown>).nodeOf)
+        : rows,
+    [rows, filter, text, client],
+  );
+
   const needsProbe = filterPlan !== null && filterPlan.needsProbe;
   const probeRows = useMemo(
     () =>
-      needsProbe && Array.isArray(rows) && filter !== undefined
-        ? (rows as unknown[]).map((row) => ({
+      needsProbe && Array.isArray(pool) && filter !== undefined
+        ? (pool as unknown[]).map((row) => ({
             node: (filter as SectionRowFilter<unknown>).nodeOf(row),
           }))
         : [],
-    [needsProbe, rows, filter],
+    [needsProbe, pool, filter],
   );
   const probeSignature = needsProbe
     ? `${JSON.stringify(filterPlan!.ast)}|${probeRows.map((item) => item.node.id).join(",")}|${version}`
@@ -229,15 +282,15 @@ export function useSectionData<T>({
   );
 
   const filtered =
-    rows === null || filter === undefined || !Array.isArray(rows)
-      ? rows
+    pool === null || filter === undefined || !Array.isArray(pool)
+      ? pool
       : matcher !== null
-        ? (rows as unknown[]).filter((row) =>
+        ? (pool as unknown[]).filter((row) =>
             matcher((filter as SectionRowFilter<unknown>).nodeOf(row)),
           )
         : probedIds === null
-          ? rows // first probe still running — the unfiltered set stands
-          : (rows as unknown[]).filter((row) =>
+          ? pool // first probe still running — the unfiltered set stands
+          : (pool as unknown[]).filter((row) =>
               probedIds.ids.has((filter as SectionRowFilter<unknown>).nodeOf(row).id),
             );
   return { rows: filtered as T | null, total: Array.isArray(rows) ? rows.length : null };

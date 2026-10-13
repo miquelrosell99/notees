@@ -77,7 +77,9 @@
  * ids, display-only) and prose mode (the `nt-prose` class on the tree).
  *
  * Editor chrome owned here: the find & replace widget (Ctrl/Cmd+Shift+F)
- * searching the block tree's prose projection, and the page-level
+ * searching the block tree's prose projection, the Capacities-parity
+ * find-in-page bar (Ctrl/Cmd+F — findInPage.ts walks the subtree DATA, so
+ * collapsed/hidden blocks are found like rendered ones), and the page-level
  * LinkEditModal host for NODE links (owner ruling: external links navigate —
  * they never open the modal; the slash "Add URL" flow authors the token
  * directly in the editor — see editor-popups/).
@@ -128,6 +130,7 @@ import { NodeCollection } from "./views/index.js";
 import type { ViewMode } from "./views/index.js";
 import { useViewModePreference } from "./viewPrefs.js";
 import { FindReplaceWidget } from "./editor-popups/FindReplaceWidget.js";
+import { FindInPageBar } from "./components/FindInPageBar.js";
 import {
   LinkEditModalHost,
 } from "./editor-popups/LinkEditModal.js";
@@ -440,6 +443,43 @@ export function PageView({
   } = machinery;
 
   /**
+   * The Capacities-parity find-in-page bar (Ctrl/Cmd+F — owner slice): opens
+   * over the open page's whole block tree; the search walks the subtree
+   * DATA (findInPage.ts), so collapsed/hidden blocks are found like rendered
+   * ones. Same surface gating as the find/replace chord: no stacked-surface
+   * listeners (embedded feeds, the preview seam), and no block tree on a
+   * whiteboard page. The honest-handoff rule: a mod+F keyed while focus sits
+   * in an input/textarea/contentEditable that ISN'T the find bar's own is
+   * left to the platform (the browser's native find, the editor's chords) —
+   * this view only intercepts the chord it owns. While the bar is open the
+   * same chord focuses + selects its input, the browser tab habit.
+   */
+  const [findInPageOpen, setFindInPageOpen] = useState(false);
+  const findInPageInputRef = useRef<HTMLInputElement>(null);
+  const findInPageShortcuts =
+    (globalShortcuts ?? !preview) && !embedded && whiteboardTokenIndex < 0;
+  useEffect(() => {
+    if (!findInPageShortcuts) return;
+    const handler = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.key.toLowerCase() !== "f") return;
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
+      const inField = target.closest("input, textarea, [contenteditable='true']") !== null;
+      const inFindBar = target.closest("[data-find-in-page]") !== null;
+      if (inField && !inFindBar) return;
+      e.preventDefault();
+      if (findInPageOpen) {
+        findInPageInputRef.current?.focus();
+        findInPageInputRef.current?.select();
+      } else {
+        setFindInPageOpen(true);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [findInPageShortcuts, findInPageOpen]);
+
+  /**
    * The workspace drag session: this surface joins the host as a zone. The
    * facts ride live getters (positions refresh per render; the host reads
    * them at measure/resolve time) — no-op without a host.
@@ -711,6 +751,23 @@ export function PageView({
     window.setTimeout(() => el.classList.remove("nt-block--flash"), 1400);
   };
 
+  /**
+   * The find-in-page bar (Ctrl/Cmd+F): docked sticky at the top of the page
+   * content column — in the panelled layout the nodeview body is the scroll
+   * box and the node top bar rides above it, so the bar mounts as the
+   * scroll box's first child (directly below the top bar); compact layouts
+   * mount it ahead of the header, sticky against whatever scrolls there.
+   */
+  const findInPageBar = findInPageOpen ? (
+    <FindInPageBar
+      client={client}
+      pageId={pageId}
+      scopeRef={pageRootRef}
+      inputRef={findInPageInputRef}
+      onClose={() => setFindInPageOpen(false)}
+    />
+  ) : null;
+
   const pageChrome = fullscreenWhiteboard ? (
     <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
   ) : (
@@ -768,6 +825,7 @@ export function PageView({
                   when the content outgrows the cell. The footer moved to
                   the context column's bottom (owner 2026-10-09). */}
               <div className="nt-nodeview-body">
+                {findInPageBar}
                 {headerChrome}
                 {mainChrome}
               </div>
@@ -800,6 +858,7 @@ export function PageView({
         </>
       ) : (
         <>
+          {findInPageBar}
           {headerChrome}
           {mainChrome}
           {footerChrome}

@@ -67,6 +67,36 @@ predating this file.
   a v18→v19 migration test (unfolded rows rebuilt, folded rows, ordering
   clean) — 538/538 on both adapters; `pnpm typecheck` green.
 
+- **feat(web): the Capacities-parity search surfaces — the extended
+  full-page search at `/search`, the section quick-searches unified onto
+  the ranked order, and in-app find-in-page (owner 2026-10-13).** Three
+  surfaces close the comparison gaps. **Extended search** (`SearchPage.tsx`
+  + route): Ctrl/Cmd+Shift+F or the palette's "Search all for \"…\"" row
+  opens a full-page ranked search — cursor-paginated (`searchPage`, 25 per
+  page), `NodeResultItem` rows with breadcrumb + class pills + a
+  `<mark>`-highlighted snippet per hit, scope Tabs (All/Main/Blocks) and a
+  class Dropdown filtering the accumulated stream, the `"…"` exact and `^`
+  starts-with modes documented in the empty state. **Unified quick-search**:
+  the FilterBar's quick text in Backlinks, Unlinked mentions, and Classed
+  nodes no longer substring-filters titles — it rides
+  `rankRowsBySearch(useSectionData.ts)`, where the ranked search's ids are
+  both the membership and the ORDER of the pool (structured filters then
+  compose over the narrowed pool unchanged; the structured builder's own
+  content-contains keeps its LIKE grammar semantics). The regression shape
+  is asserted: "gmi dental" renders **GMI Dental Implantology** before GMI
+  Ecuador — plain substring matched neither. **Find-in-page**: Cmd/Ctrl+F
+  on a page opens the find bar (docked under the node top bar) searching
+  the subtree DATA — collapsed blocks count exactly like rendered ones —
+  with match counter, prev/next cycling, case and whole-word toggles, and
+  replace (one op per affected block via `client.updateObject`;
+  cross-token matches are navigable but not replaceable, the honest v1
+  scope); the existing Ctrl/Cmd+Shift+F block find/replace widget is
+  untouched and the two coexist. Docs: `usage.md` (palette paragraph +
+  reference-sections paragraph + a find-in-page line). **Verification:**
+  three new test files (search-page 12, find-in-page 12, plus the rewritten
+  filter-layer ranked-semantics tests); the full apps/web suite is green
+  (142 files / 1532 tests) and `pnpm typecheck` clean on the rebased tree.
+
 - **feat(store): diacritic folding (schema v19) + fuzzy-subsequence rescue —
   the Capacities "find by intent" pair (owner 2026-10-13).** Two gaps the
   Capacities search comparison surfaced, closed in the ranker

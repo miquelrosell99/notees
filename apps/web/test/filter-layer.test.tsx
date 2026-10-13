@@ -15,7 +15,12 @@
  * structured builder opens in a wrapped full-width panel beneath the row
  * (the FilterBar renders last in the cluster, so the wrap never moves the
  * other controls), and each section owns its query instance — a filter on
- * Backlinks never leaks into Unlinked mentions. The structured panel is the
+ * Backlinks never leaks into Unlinked mentions. The quick search itself is
+ * the RANKED search since owner 2026-10-13 — the global search's priority
+ * ordering (exact title > ordered terms > partials > fuzzy) replaces the
+ * old title substring, for membership AND order (the GMI Ecuador / GMI
+ * Dental Implantology regression shape is pinned below). The structured
+ * panel is the
  * block query builder — these tests drive its add menu, rows and wire
  * controls end to end (the pure builder interactions live in
  * filter-builder.test.tsx).
@@ -117,28 +122,90 @@ describe("the classed-nodes filter bar", () => {
     return classId;
   }
 
-  it("filtering applies post-resolution/pre-windowing: the windowed table shows the filtered rows, not the first N filtered", async () => {
+  it("filtering applies post-resolution/pre-windowing AND ranks the pool: the quick search is the ranked search, not a substring", async () => {
     const client = await seedClient();
     const classId = await seedBigClass(client);
-    render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+    render(<NodeView client={client} onOpenNode={() => {}} nodeId={classId} />);
     const section = classedNodesSection();
 
     // The untouched section: the 100-row window over 120 members.
     expect(tableRowCount()).toBe(100);
     expect(screen.getByRole("button", { name: "Show more (20 remaining)" })).not.toBeNull();
 
-    // "Row 1" matches exactly Row 100..Row 119 — twenty rows that ALL live
-    // past the first window. First-N-then-filtered would show none;
-    // post-resolution/pre-windowing shows all twenty.
+    // "Row 1" ranks the WHOLE pool: the twenty literal title matches (Row
+    // 100..Row 119 — all past the first window) lead by the search's exact-
+    // title tier; the shared term "row" keeps every other row in the pool
+    // via the partial tier, BELOW the literal matches. First-N-then-
+    // filtered could never show Row 119; post-resolution/pre-windowing
+    // ranking shows it, and a partial-tier row (Row 000) ranks out of the
+    // first window entirely.
     fireEvent.change(within(section).getByLabelText("Filter by text"), {
       target: { value: "Row 1" },
     });
-    expect(tableRowCount()).toBe(20);
-    expect(screen.queryByRole("button", { name: /Show more/ })).toBeNull();
+    expect(tableRowCount()).toBe(100);
+    expect(screen.getByRole("button", { name: "Show more (20 remaining)" })).not.toBeNull();
+    const table = screen.getAllByRole("table")[0]!;
+    // The literal matches past the unfiltered window render…
+    expect(within(table).getByText("Row 100")).not.toBeNull();
+    expect(within(table).getByText("Row 119")).not.toBeNull();
+    // …and the pool is ranked, not just narrowed: Row 000 (partial tier
+    // only) falls behind every literal match — out of the first window.
+    expect(within(table).queryByText("Row 000")).toBeNull();
 
     // The eager badge stays UNFILTERED.
     expect(screen.getByRole("button", { name: /classed nodes 120/i })).not.toBeNull();
-    expect(within(section).getByText("20 of 120")).not.toBeNull();
+    expect(within(section).getByText("120 of 120")).not.toBeNull();
+  });
+
+  it("a multi-word quick search ranks the exact title first, ordered terms next, one-word partials last", async () => {
+    const client = await seedClient();
+    const classId = await seedClass(client, "project");
+    await client.createObject({ presentAsMain: true, name: "Alpha Beta", classIds: [classId] });
+    await client.createObject({ presentAsMain: true, name: "Alphabet soup beta edition", classIds: [classId] });
+    await client.createObject({ presentAsMain: true, name: "Alpha", classIds: [classId] });
+    await client.createObject({ presentAsMain: true, name: "Beta", classIds: [classId] });
+
+    render(<NodeView client={client} onOpenNode={() => {}} nodeId={classId} />);
+    const section = classedNodesSection();
+    fireEvent.change(within(section).getByLabelText("Filter by text"), {
+      target: { value: "alpha beta" },
+    });
+
+    expect(within(section).getByText("4 of 4")).not.toBeNull();
+    const labels = Array.from(
+      screen.getAllByRole("table")[0]!.querySelectorAll(".nt-table-name-label"),
+      (el) => el.textContent,
+    );
+    // The search's tiers: the whole-query title match, then the ordered-
+    // terms match, then the rows carrying only one query word (whose
+    // relative order the search's recency/id tiebreak owns).
+    expect(labels[0]).toBe("Alpha Beta");
+    expect(labels[1]).toBe("Alphabet soup beta edition");
+    expect(labels.slice(2)).toContain("Alpha");
+    expect(labels.slice(2)).toContain("Beta");
+  });
+
+  it("the real-world regression shape: 'gmi dental' lists GMI Dental Implantology FIRST", async () => {
+    const client = await seedClient();
+    const classId = await seedClass(client, "project");
+    await client.createObject({ presentAsMain: true, name: "GMI Ecuador", classIds: [classId] });
+    await client.createObject({ presentAsMain: true, name: "GMI Dental Implantology", classIds: [classId] });
+
+    render(<NodeView client={client} onOpenNode={() => {}} nodeId={classId} />);
+    const section = classedNodesSection();
+    fireEvent.change(within(section).getByLabelText("Filter by text"), {
+      target: { value: "gmi dental" },
+    });
+
+    expect(within(section).getByText("2 of 2")).not.toBeNull();
+    const labels = Array.from(
+      screen.getAllByRole("table")[0]!.querySelectorAll(".nt-table-name-label"),
+      (el) => el.textContent,
+    );
+    // The exact-title match leads; the single-term partial follows. Plain
+    // substring matched NEITHER row ("gmi dental" is no row's substring), so
+    // this also pins the ranked membership replacing the old predicate.
+    expect(labels).toEqual(["GMI Dental Implantology", "GMI Ecuador"]);
   });
 
   it("an emptying filter reads 0 of N, keeps the count badge and the section, and clears back", async () => {

@@ -49,6 +49,7 @@ import {
 
 import { Icon } from "./Icon.js";
 import { NodeView } from "./NodeView.js";
+import { SearchPage } from "./SearchPage.js";
 import { NodeCardFrame } from "./components/NodeCardFrame.js";
 import { displayNameForSettings } from "./dateDisplay.js";
 import { DeckView } from "./presentation/DeckView.js";
@@ -329,6 +330,8 @@ export function popStateNavHandler(opts: {
   setNav: (nav: NavKey) => void;
   setNode: (id: string | null) => void;
   setSettingsSection: (section: SettingsSection | null) => void;
+  /** The /search route flag; omitted by older callers (a no-op). */
+  setSearch?: ((open: boolean) => void) | undefined;
 }): () => void {
   return () => {
     const path = window.location.pathname;
@@ -342,15 +345,25 @@ export function popStateNavHandler(opts: {
       opts.setNode(null);
       return;
     }
+    if (path === "/search") {
+      // The full-page search route: the flag carries it, like a settings
+      // section (the query itself rides the ?q= param, read on mount).
+      opts.closeManager();
+      opts.setSearch?.(true);
+      opts.setNode(null);
+      return;
+    }
     const nav = navFromPath(path);
     if (nav !== null) {
       opts.closeManager();
+      opts.setSearch?.(false);
       opts.setNav(nav);
       opts.setNode(null);
       return;
     }
     const match = /^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(path);
     opts.closeManager();
+    opts.setSearch?.(false);
     opts.setNode(match !== null ? match[1]! : null);
   };
 }
@@ -529,6 +542,32 @@ export function historyKeyHandler(opts: {
     }
     event.preventDefault();
     opts.onToggle();
+  };
+}
+
+/**
+ * Ctrl/Cmd+Shift+F — open the full-page search surface at /search (the
+ * Capacities "Extended Search" parity slice). Same guard as the other
+ * global chords: text fields and the outliner editor keep the keystroke;
+ * the chord is browser-reserved nowhere universal. Exported for the
+ * keymap tests, mirroring historyKeyHandler.
+ */
+export function searchKeyHandler(opts: {
+  onOpen: () => void;
+}): (event: KeyboardEvent) => void {
+  return (event) => {
+    const mod = event.ctrlKey || event.metaKey;
+    if (!mod || !event.shiftKey || event.altKey) return;
+    if (event.key.toLowerCase() !== "f") return;
+    const target = event.target;
+    if (
+      target instanceof Element &&
+      target.closest("input, textarea, select, [contenteditable]")
+    ) {
+      return;
+    }
+    event.preventDefault();
+    opts.onOpen();
   };
 }
 
@@ -809,6 +848,15 @@ export function App() {
   const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(() =>
     settingsSectionFromPath(window.location.pathname),
   );
+  /**
+   * The full-page search route: true while the URL is /search (deep link at
+   * boot, the Ctrl/Cmd+Shift+F chord, the palette's "Search all for …" row,
+   * back/forward). Takes the PageCard slot ahead of the hubs, like a
+   * settings section; an initial query rides the ?q= param, read on mount.
+   */
+  const [searchOpen, setSearchOpen] = useState(
+    () => window.location.pathname === "/search",
+  );
   const [syncStatus, setSyncStatus] = useState<SyncStatusSnapshot>(INITIAL_SYNC_STATUS);
   const [pagesVersion, setPagesVersion] = useState(0);
   /**
@@ -855,6 +903,7 @@ export function App() {
    */
   function openPageAt(id: string): void {
     setSettingsSection(null);
+    setSearchOpen(false);
     setSelectedPageId(id);
     window.history.pushState({ node: id }, "", `/${id}`);
     recordRecent(id);
@@ -882,6 +931,21 @@ export function App() {
   }
 
   /**
+   * Open the full-page search surface: state + URL together (the pushState
+   * seam the popstate handler maps back on back/forward). An optional query
+   * rides the ?q= param — the palette's "Search all for …" handoff; the
+   * SearchPage reads it on mount.
+   */
+  function openSearchPage(query?: string): void {
+    setSearchOpen(true);
+    setSettingsSection(null);
+    setSelectedPageId(null);
+    const path =
+      query !== undefined && query !== "" ? `/search?q=${encodeURIComponent(query)}` : "/search";
+    window.history.pushState({ view: "search" }, "", path);
+  }
+
+  /**
    * Landing navigation for a workspace opened from the manager: the device's
    * "default view" preference owns the URL and first screen — today's day
    * page (chain ensured, page opened), the journal feed, or a hub fallback
@@ -892,6 +956,7 @@ export function App() {
     const view = readDeviceSetting<string | null>("defaultView", "today");
     const toHub = (nav: NavKey, path: string) => {
       setSettingsSection(null);
+      setSearchOpen(false);
       setActiveNav(nav);
       setSelectedPageId(null);
       window.history.pushState({ nav }, "", path);
@@ -924,6 +989,7 @@ export function App() {
       setNav: setActiveNav,
       setNode: setSelectedPageId,
       setSettingsSection,
+      setSearch: setSearchOpen,
     });
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
@@ -987,6 +1053,13 @@ export function App() {
       client: () => clientRef.current,
       openPage,
     });
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
+  // Ctrl/Cmd+Shift+F — the full-page search surface (/search).
+  useEffect(() => {
+    const handler = searchKeyHandler({ onOpen: () => openSearchPage() });
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, []);
@@ -1191,6 +1264,7 @@ export function App() {
       const bootPath = window.location.pathname;
       const keepPath =
         navFromPath(bootPath) !== null ||
+        bootPath === "/search" ||
         /^\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(bootPath);
       window.history.replaceState({ view: "app" }, "", keepPath ? bootPath : "/");
       clientRef.current = nextClient;
@@ -2020,6 +2094,7 @@ export function App() {
               return;
             }
             setSettingsSection(null);
+            setSearchOpen(false);
             setActiveNav(key);
             setSelectedPageId(null);
             window.history.pushState({ node: null, nav: key }, "", pathForNav(key));
@@ -2050,6 +2125,12 @@ export function App() {
               cornerMenu
               shareTarget={shareTarget}
               sectionsLayout={sectionsLayout}
+            />
+          ) : searchOpen ? (
+            <SearchPage
+              client={client}
+              onOpenNode={openPage}
+              initialQuery={new URLSearchParams(window.location.search).get("q") ?? ""}
             />
           ) : settingsSection !== null && user !== null ? (
             <SettingsPage
@@ -2118,6 +2199,7 @@ export function App() {
         onOpenProperty={(schemaId) => setPropertyViewFor(schemaId)}
         currentNodeId={selectedPageId ?? undefined}
         onOpenMerge={storeMode === "in-process" ? () => setMergeOpen(true) : undefined}
+        onOpenSearch={(query) => openSearchPage(query)}
         onSignOut={() => void handleSignOut()}
         undoState={undoUi}
         onUndo={() => {
