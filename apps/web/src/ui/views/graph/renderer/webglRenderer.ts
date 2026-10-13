@@ -34,6 +34,8 @@ in vec2 a_quad;
 in vec2  a_pos;    // world-space centre
 in float a_radius; // world-space radius
 in vec4  a_color;  // RGBA 0..1
+in float a_time;   // creation time, seconds since epoch (-inf = none)
+in float a_hl;     // 1.0 = in the active hover neighborhood
 
 // Camera
 uniform vec2  u_resolution; // canvas size in pixels
@@ -41,12 +43,21 @@ uniform vec2  u_camera;     // world position of screen centre
 uniform float u_zoom;       // pixels per world unit
 uniform float u_minRadiusPx; // minimum screen-space radius in pixels
 
+// Time-lapse + hover neighborhood
+uniform bool  u_timeLapse;   // hide everything created after u_timeCutoff
+uniform float u_timeCutoff;  // seconds since epoch
+uniform float u_hoverDim;    // alpha multiplier for nodes outside the neighborhood
+
 out vec2 v_uv;
 out vec4 v_color;
+out float v_time;
+out float v_hl;
 
 void main() {
   v_uv    = a_quad * 2.0;  // -1..1 for SDF
   v_color = a_color;
+  v_time  = a_time;
+  v_hl    = a_hl;
 
   // Ensure node never shrinks below a readable dot when zoomed out
   float effRadius = max(a_radius, u_minRadiusPx / (2.0 * u_zoom));
@@ -66,10 +77,20 @@ precision mediump float;
 
 in vec2 v_uv;   // -1..1 local coord
 in vec4 v_color;
+in float v_time; // creation time, seconds since epoch (-inf = none)
+in float v_hl;
+
+uniform bool  u_timeLapse;
+uniform float u_timeCutoff;
+uniform float u_hoverDim;
 
 out vec4 outColor;
 
 void main() {
+  // Time-lapse: a node created after the cutoff is fully hidden.
+  // (-inf time never compares greater — un-stamped nodes always render.)
+  if (u_timeLapse && v_time > u_timeCutoff) discard;
+
   float d  = length(v_uv);
 
   // Resolution-aware SDF antialiasing:
@@ -90,6 +111,8 @@ void main() {
   alpha = pow(alpha, 1.0 / 2.2);
 
   if (alpha <= 0.01) discard;
+  // Hover-neighborhood dim: off (u_hoverDim = 1.0) this is a multiply by 1.
+  alpha *= mix(u_hoverDim, 1.0, v_hl);
   outColor = vec4(v_color.rgb, v_color.a * alpha);
 }
 `;
@@ -118,11 +141,18 @@ in float a_curvature;    // quadratic Bezier bend factor
 in float a_linkType;     // compact type id for LOD masking
 in float a_sameComm;     // 1.0 = same community, 0.0 = different
 in float a_dashed;       // 0 = solid, 1 = dashed
+in float a_time;         // creation time, seconds since epoch (-inf = none)
+in float a_hl;           // 1.0 = incident to the hover neighborhood
 
 // Camera
 uniform vec2  u_resolution;
 uniform vec2  u_camera;
 uniform float u_zoom;
+
+// Time-lapse + hover neighborhood
+uniform bool  u_timeLapse;
+uniform float u_timeCutoff;
+uniform float u_hoverDim;
 
 // RG32F position texture: texel(i, 0).rg = (x, y) for node i
 uniform highp sampler2D u_positions;
@@ -135,6 +165,8 @@ out float v_screenLen;   // edge length in screen pixels
 out float v_linkType;
 out float v_sameComm;
 out float v_localX;
+out float v_time;
+out float v_hl;
 
 void main() {
   v_colorSrc = a_colorSrc;
@@ -144,6 +176,8 @@ void main() {
   v_linkType = a_linkType;
   v_sameComm = a_sameComm;
   v_localX   = a_local.x;
+  v_time     = a_time;
+  v_hl       = a_hl;
 
   // Zero-copy GPU-side position read
   int si = int(a_i1);
@@ -198,10 +232,15 @@ in float v_screenLen;
 in float v_linkType;
 in float v_sameComm;
 in float v_localX;
+in float v_time;
+in float v_hl;
 
 uniform int   u_edgeMask;      // bitmask of visible link types
 uniform float u_communityDim;  // alpha multiplier for cross-community edges
 uniform float u_hoverEdgeAlpha; // 1.0 normally, lower when an edge is hovered
+uniform bool  u_timeLapse;     // hide everything created after u_timeCutoff
+uniform float u_timeCutoff;    // seconds since epoch
+uniform float u_hoverDim;      // alpha multiplier for edges outside the neighborhood
 
 out vec4 outColor;
 
@@ -209,6 +248,9 @@ void main() {
   // LOD mask: discard if this link type is hidden at current zoom
   int typeBit = 1 << int(v_linkType + 0.5);
   if ((u_edgeMask & typeBit) == 0) discard;
+
+  // Time-lapse: an edge created after the cutoff is fully hidden.
+  if (u_timeLapse && v_time > u_timeCutoff) discard;
 
   // Dotted edges: discard fragments that fall in the gaps.
   // Dot period = 6px (2px on, 4px off) in screen space — tight dots.
@@ -228,13 +270,17 @@ void main() {
   // Edge-hover dimming of non-hovered edges
   alpha *= u_hoverEdgeAlpha;
 
+  // Hover-neighborhood dim: off (u_hoverDim = 1.0) this is a multiply by 1.
+  alpha *= mix(u_hoverDim, 1.0, v_hl);
+
   outColor = vec4(color.rgb, alpha);
 }
 `;
 
 /**
  * Ring shader — drawn on top of nodes for hover and selection highlights.
- * Shares the same vertex layout as NODE (7 floats / instance).
+ * Shares the NODE_STRIDE byte stride (ring instances write the
+ * position/radius/color prefix only; time/highlight slots are unread).
  * Renders a smooth annulus around the node.
  */
 const RING_VERT_SRC = /* glsl */ `#version 300 es
@@ -305,16 +351,25 @@ in float a_i2;     // target node index
 in float a_targetRadius; // world units, to stop before node center
 in float a_size;   // world units
 in vec4  a_color;
+in float a_time;   // the edge's creation time (-inf = none)
+in float a_hl;     // 1.0 = incident to the hover neighborhood
 
 uniform vec2  u_resolution;
 uniform vec2  u_camera;
 uniform float u_zoom;
 uniform float u_minRadiusPx;
+uniform bool  u_timeLapse;
+uniform float u_timeCutoff;
+uniform float u_hoverDim;
 uniform highp sampler2D u_positions;
 
 out vec4 v_color;
+out float v_time;
+out float v_hl;
 
 void main() {
+  v_time = a_time;
+  v_hl   = a_hl;
   int si = int(a_i1);
   int ti = int(a_i2);
   vec2 p1 = texelFetch(u_positions, ivec2(si, 0), 0).rg;
@@ -344,9 +399,19 @@ void main() {
 const ARROW_FRAG_SRC = /* glsl */ `#version 300 es
 precision mediump float;
 in vec4 v_color;
+in float v_time;
+in float v_hl;
+uniform bool  u_timeLapse;
+uniform float u_timeCutoff;
+uniform float u_hoverDim;
 out vec4 outColor;
 void main() {
-  outColor = v_color;
+  // The arrowhead follows its edge: hidden past the time-lapse cutoff, dimmed
+  // outside the hover neighborhood.
+  if (u_timeLapse && v_time > u_timeCutoff) discard;
+  float alpha = v_color.a * mix(u_hoverDim, 1.0, v_hl);
+  if (alpha <= 0.01) discard;
+  outColor = vec4(v_color.rgb, alpha);
 }
 `;
 
@@ -385,11 +450,14 @@ export interface CameraState {
 }
 
 // Floats per node instance
-const NODE_STRIDE = 7; // x, y, radius, r, g, b, a
+const NODE_STRIDE = 8; // x, y, radius, r, g, b, a, createdTime
 // Floats per edge instance (no positions baked in — GPU samples from texture)
-const EDGE_STRIDE = 15; // i1, i2, width, colorSrc*4, colorTgt*4, curvature, linkType, sameComm, dashed
+const EDGE_STRIDE = 16; // i1, i2, width, colorSrc*4, colorTgt*4, curvature, linkType, sameComm, dashed, createdTime
 // Floats per arrow instance (samples position texture like edges)
-const ARROW_STRIDE = 8; // i1, i2, targetRadius, size, r, g, b, a
+const ARROW_STRIDE = 9; // i1, i2, targetRadius, size, r, g, b, a, createdTime
+// The a_time "none" marker: never compares greater than a cutoff, so un-stamped
+// nodes/edges always render (also what an empty setNodeTimes() leaves behind).
+const NO_TIME = -Infinity;
 
 // Triangle geometry for arrowheads
 const ARROW_VERTS = new Float32Array([
@@ -566,6 +634,8 @@ export interface RendererEdge {
   /** Legacy single color (used as both src/tgt when gradient not needed). */
   color?: [number, number, number, number];
   width?: number;
+  /** First-appearance time, seconds since epoch (drives the time-lapse cutoff). */
+  createdAt?: number;
 }
 
 /**
@@ -642,6 +712,10 @@ export class GraphWebGLRenderer {
   private nodeInstCapacity = 0;                      // allocated floats
   private nodeInstData: Float32Array = new Float32Array(0);
   private nodeInstCount = 0;
+  // Hover-neighborhood highlight flags (Uint8, normalized 0..1 in the shader).
+  private nodeHlBuf: WebGLBuffer | null = null;
+  private nodeHlCapacity = 0;                        // allocated bytes
+  private nodeHlData: Uint8Array = new Uint8Array(0);
 
   // --- Edge VAO / buffers (STATIC topology) ---
   private edgeVAO: WebGLVertexArrayObject | null = null;
@@ -650,6 +724,9 @@ export class GraphWebGLRenderer {
   private edgeInstCapacity = 0;
   private edgeInstData: Float32Array = new Float32Array(0);
   private edgeInstCount = 0;
+  private edgeHlBuf: WebGLBuffer | null = null;
+  private edgeHlCapacity = 0;
+  private edgeHlData: Uint8Array = new Uint8Array(0);
 
   // --- Ring VAO / buffer (hover + selection highlight) ---
   // Reuses NODE_STRIDE layout; grows with the selection (capped).
@@ -672,13 +749,19 @@ export class GraphWebGLRenderer {
   private arrowInstCapacity = 0;
   private arrowInstData: Float32Array = new Float32Array(0);
   private arrowInstCount = 0;
+  private arrowHlBuf: WebGLBuffer | null = null;
+  private arrowHlCapacity = 0;
+  private arrowHlData: Uint8Array = new Uint8Array(0);
   private arrowUniforms: {
     resolution: WebGLUniformLocation | null;
     camera:     WebGLUniformLocation | null;
     zoom:       WebGLUniformLocation | null;
     positions:  WebGLUniformLocation | null;
     minRadiusPx: WebGLUniformLocation | null;
-  } = { resolution: null, camera: null, zoom: null, positions: null, minRadiusPx: null };
+    timeLapse:  WebGLUniformLocation | null;
+    timeCutoff: WebGLUniformLocation | null;
+    hoverDim:   WebGLUniformLocation | null;
+  } = { resolution: null, camera: null, zoom: null, positions: null, minRadiusPx: null, timeLapse: null, timeCutoff: null, hoverDim: null };
 
   // --- Hover / selection state ---
   private _hoveredNodeId  = '';
@@ -687,6 +770,19 @@ export class GraphWebGLRenderer {
   private _edgeMask = 0xFFFFFFFF; // show all link types by default
   private _communityDim = 1.0;
   private _hoverEdgeAlpha = 1.0;
+
+  // --- Time-lapse state ---
+  private _timeLapse = false;
+  private _timeCutoff = 0; // seconds since epoch
+
+  // --- Hover neighborhood state (lightweight dimming, NOT the selection path) ---
+  /** The node whose neighborhood is highlighted; null = no neighborhood. */
+  private _hoverNeighborhoodId: string | null = null;
+  /** Alpha multiplier applied to nodes/edges outside the neighborhood. */
+  private _hoverNeighborhoodDim = 1.0;
+  private readonly HOVER_NEIGHBORHOOD_DIM = 0.15;
+  /** True when the per-node/per-edge highlight flag buffers need a rewrite. */
+  private _hoverDirty = false;
 
   // --- Position texture (RG32F) ---
   // Uploaded once per physics frame; edge shader samples by node index.
@@ -708,9 +804,13 @@ export class GraphWebGLRenderer {
   private nodeIdOrder: string[] = [];
   /** Latest position buffer from physics worker */
   private positions: Float32Array = new Float32Array(0);
+  /** Per-node creation time (seconds since epoch), indexed like nodeIdOrder. */
+  private nodeTimes: Float32Array = new Float32Array(0);
 
   // --- Edge topology ---
   private edges: RendererEdge[] = [];
+  /** Packed edge instance i (the draw order) ← index into `edges`. */
+  private _packedEdgeSource: number[] = [];
 
   /**
    * The per-topology render plan, computed in _rebuildEdgeTopology and shared
@@ -729,6 +829,8 @@ export class GraphWebGLRenderer {
 
   // --- Adjacency for dimming ---
   private _adjacency = new Map<string, Set<string>>();
+  /** nodeId → indices into `edges` (the hover-neighborhood incident set). */
+  private _incidentEdges = new Map<string, number[]>();
   /** Set of nodeIds that are "highlighted" (hovered/selected + their direct neighbours). */
   private _highlightedIds = new Set<string>();
   /** When true, repack node instances to apply updated dim factors. */
@@ -742,7 +844,10 @@ export class GraphWebGLRenderer {
     camera: WebGLUniformLocation | null;
     zoom: WebGLUniformLocation | null;
     minRadiusPx: WebGLUniformLocation | null;
-  } = { resolution: null, camera: null, zoom: null, minRadiusPx: null };
+    timeLapse: WebGLUniformLocation | null;
+    timeCutoff: WebGLUniformLocation | null;
+    hoverDim: WebGLUniformLocation | null;
+  } = { resolution: null, camera: null, zoom: null, minRadiusPx: null, timeLapse: null, timeCutoff: null, hoverDim: null };
 
   private edgeUniforms: {
     resolution: WebGLUniformLocation | null;
@@ -752,7 +857,10 @@ export class GraphWebGLRenderer {
     edgeMask: WebGLUniformLocation | null;
     communityDim: WebGLUniformLocation | null;
     hoverEdgeAlpha: WebGLUniformLocation | null;
-  } = { resolution: null, camera: null, zoom: null, positions: null, edgeMask: null, communityDim: null, hoverEdgeAlpha: null };
+    timeLapse: WebGLUniformLocation | null;
+    timeCutoff: WebGLUniformLocation | null;
+    hoverDim: WebGLUniformLocation | null;
+  } = { resolution: null, camera: null, zoom: null, positions: null, edgeMask: null, communityDim: null, hoverEdgeAlpha: null, timeLapse: null, timeCutoff: null, hoverDim: null };
 
   // --- Pre-allocated typed arrays for uniforms (zero per-frame GC) ---
   private readonly _resBuf = new Float32Array(2);
@@ -810,6 +918,9 @@ export class GraphWebGLRenderer {
       camera:     gl.getUniformLocation(this.nodeProg, 'u_camera'),
       zoom:       gl.getUniformLocation(this.nodeProg, 'u_zoom'),
       minRadiusPx: gl.getUniformLocation(this.nodeProg, 'u_minRadiusPx'),
+      timeLapse:  gl.getUniformLocation(this.nodeProg, 'u_timeLapse'),
+      timeCutoff: gl.getUniformLocation(this.nodeProg, 'u_timeCutoff'),
+      hoverDim:   gl.getUniformLocation(this.nodeProg, 'u_hoverDim'),
     };
     this.edgeUniforms = {
       resolution: gl.getUniformLocation(this.edgeProg, 'u_resolution'),
@@ -819,6 +930,9 @@ export class GraphWebGLRenderer {
       edgeMask:   gl.getUniformLocation(this.edgeProg, 'u_edgeMask'),
       communityDim: gl.getUniformLocation(this.edgeProg, 'u_communityDim'),
       hoverEdgeAlpha: gl.getUniformLocation(this.edgeProg, 'u_hoverEdgeAlpha'),
+      timeLapse:  gl.getUniformLocation(this.edgeProg, 'u_timeLapse'),
+      timeCutoff: gl.getUniformLocation(this.edgeProg, 'u_timeCutoff'),
+      hoverDim:   gl.getUniformLocation(this.edgeProg, 'u_hoverDim'),
     };
     this.ringUniforms = {
       resolution: gl.getUniformLocation(this.ringProg, 'u_resolution'),
@@ -831,6 +945,9 @@ export class GraphWebGLRenderer {
       zoom:       gl.getUniformLocation(this.arrowProg, 'u_zoom'),
       positions:  gl.getUniformLocation(this.arrowProg, 'u_positions'),
       minRadiusPx: gl.getUniformLocation(this.arrowProg, 'u_minRadiusPx'),
+      timeLapse:  gl.getUniformLocation(this.arrowProg, 'u_timeLapse'),
+      timeCutoff: gl.getUniformLocation(this.arrowProg, 'u_timeCutoff'),
+      hoverDim:   gl.getUniformLocation(this.arrowProg, 'u_hoverDim'),
     };
 
     this._initNodeBuffers();
@@ -856,12 +973,15 @@ export class GraphWebGLRenderer {
     gl.deleteProgram(this.arrowProg);
     gl.deleteBuffer(this.nodeQuadBuf);
     gl.deleteBuffer(this.nodeInstBuf);
+    gl.deleteBuffer(this.nodeHlBuf);
     gl.deleteBuffer(this.edgeQuadBuf);
     gl.deleteBuffer(this.edgeInstBuf);
+    gl.deleteBuffer(this.edgeHlBuf);
     gl.deleteBuffer(this.ringQuadBuf);
     gl.deleteBuffer(this.ringInstBuf);
     gl.deleteBuffer(this.arrowTriBuf);
     gl.deleteBuffer(this.arrowInstBuf);
+    gl.deleteBuffer(this.arrowHlBuf);
     gl.deleteVertexArray(this.nodeVAO);
     gl.deleteVertexArray(this.edgeVAO);
     gl.deleteVertexArray(this.ringVAO);
@@ -898,6 +1018,8 @@ export class GraphWebGLRenderer {
     const aPos    = gl.getAttribLocation(this.nodeProg!, 'a_pos');
     const aRadius = gl.getAttribLocation(this.nodeProg!, 'a_radius');
     const aColor  = gl.getAttribLocation(this.nodeProg!, 'a_color');
+    const aTime   = gl.getAttribLocation(this.nodeProg!, 'a_time');
+    const aHl     = gl.getAttribLocation(this.nodeProg!, 'a_hl');
 
     // a_pos: vec2 at offset 0
     gl.enableVertexAttribArray(aPos);
@@ -913,6 +1035,21 @@ export class GraphWebGLRenderer {
     gl.enableVertexAttribArray(aColor);
     gl.vertexAttribPointer(aColor, 4, gl.FLOAT, false, STRIDE, 12);
     gl.vertexAttribDivisor(aColor, 1);
+
+    // a_time: float at offset 28
+    gl.enableVertexAttribArray(aTime);
+    gl.vertexAttribPointer(aTime, 1, gl.FLOAT, false, STRIDE, 28);
+    gl.vertexAttribDivisor(aTime, 1);
+
+    // a_hl: separate Uint8 flag buffer (rewritten once per hover change)
+    this.nodeHlCapacity = this.opts.initialCapacity;
+    this.nodeHlData     = new Uint8Array(this.nodeHlCapacity);
+    this.nodeHlBuf      = gl.createBuffer()!;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.nodeHlBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, this.nodeHlData, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(aHl);
+    gl.vertexAttribPointer(aHl, 1, gl.UNSIGNED_BYTE, true, 0, 0);
+    gl.vertexAttribDivisor(aHl, 1);
 
     gl.bindVertexArray(null);
   }
@@ -938,12 +1075,14 @@ export class GraphWebGLRenderer {
     gl.bindBuffer(gl.ARRAY_BUFFER, this.arrowInstBuf);
     gl.bufferData(gl.ARRAY_BUFFER, this.arrowInstData, gl.DYNAMIC_DRAW);
 
-    const STRIDE = ARROW_STRIDE * 4; // 32 bytes
+    const STRIDE = ARROW_STRIDE * 4; // 36 bytes
     const aI1 = gl.getAttribLocation(this.arrowProg!, 'a_i1');
     const aI2 = gl.getAttribLocation(this.arrowProg!, 'a_i2');
     const aTargetRadius = gl.getAttribLocation(this.arrowProg!, 'a_targetRadius');
     const aSize = gl.getAttribLocation(this.arrowProg!, 'a_size');
     const aColor = gl.getAttribLocation(this.arrowProg!, 'a_color');
+    const aTime = gl.getAttribLocation(this.arrowProg!, 'a_time');
+    const aHl = gl.getAttribLocation(this.arrowProg!, 'a_hl');
 
     gl.enableVertexAttribArray(aI1);
     gl.vertexAttribPointer(aI1, 1, gl.FLOAT, false, STRIDE, 0);
@@ -965,6 +1104,21 @@ export class GraphWebGLRenderer {
     gl.vertexAttribPointer(aColor, 4, gl.FLOAT, false, STRIDE, 16);
     gl.vertexAttribDivisor(aColor, 1);
 
+    // a_time: float at offset 32
+    gl.enableVertexAttribArray(aTime);
+    gl.vertexAttribPointer(aTime, 1, gl.FLOAT, false, STRIDE, 32);
+    gl.vertexAttribDivisor(aTime, 1);
+
+    // a_hl: separate Uint8 flag buffer (rewritten once per hover change)
+    this.arrowHlCapacity = this.opts.initialCapacity;
+    this.arrowHlData     = new Uint8Array(this.arrowHlCapacity);
+    this.arrowHlBuf      = gl.createBuffer()!;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.arrowHlBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, this.arrowHlData, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(aHl);
+    gl.vertexAttribPointer(aHl, 1, gl.UNSIGNED_BYTE, true, 0, 0);
+    gl.vertexAttribDivisor(aHl, 1);
+
     gl.bindVertexArray(null);
   }
 
@@ -983,14 +1137,14 @@ export class GraphWebGLRenderer {
     gl.vertexAttribPointer(aLocal, 2, gl.FLOAT, false, 0, 0);
 
     // Static topology instance buffer
-    // Layout: i1, i2, width, colorSrc(4), colorTgt(4), curvature, linkType, sameComm, dashed = 14 floats
+    // Layout: i1, i2, width, colorSrc(4), colorTgt(4), curvature, linkType, sameComm, dashed, createdTime = 16 floats
     this.edgeInstCapacity = this.opts.initialCapacity * EDGE_STRIDE;
     this.edgeInstData     = new Float32Array(this.edgeInstCapacity);
     this.edgeInstBuf      = gl.createBuffer()!;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.edgeInstBuf);
     gl.bufferData(gl.ARRAY_BUFFER, this.edgeInstData, gl.DYNAMIC_DRAW);
 
-    const STRIDE  = EDGE_STRIDE * 4; // 56 bytes
+    const STRIDE  = EDGE_STRIDE * 4; // 64 bytes
     const aI1         = gl.getAttribLocation(this.edgeProg!, 'a_i1');
     const aI2         = gl.getAttribLocation(this.edgeProg!, 'a_i2');
     const aWidth      = gl.getAttribLocation(this.edgeProg!, 'a_width');
@@ -1000,6 +1154,8 @@ export class GraphWebGLRenderer {
     const aLinkType   = gl.getAttribLocation(this.edgeProg!, 'a_linkType');
     const aSameComm   = gl.getAttribLocation(this.edgeProg!, 'a_sameComm');
     const aDashed     = gl.getAttribLocation(this.edgeProg!, 'a_dashed');
+    const aTime       = gl.getAttribLocation(this.edgeProg!, 'a_time');
+    const aHl         = gl.getAttribLocation(this.edgeProg!, 'a_hl');
 
     let off = 0;
     gl.enableVertexAttribArray(aI1);
@@ -1039,6 +1195,22 @@ export class GraphWebGLRenderer {
       gl.vertexAttribPointer(aDashed, 1, gl.FLOAT, false, STRIDE, off);
       gl.vertexAttribDivisor(aDashed, 1);
     }
+    off += 4;
+
+    // a_time: float at offset 60
+    gl.enableVertexAttribArray(aTime);
+    gl.vertexAttribPointer(aTime, 1, gl.FLOAT, false, STRIDE, off);
+    gl.vertexAttribDivisor(aTime, 1);
+
+    // a_hl: separate Uint8 flag buffer (rewritten once per hover change)
+    this.edgeHlCapacity = this.opts.initialCapacity;
+    this.edgeHlData     = new Uint8Array(this.edgeHlCapacity);
+    this.edgeHlBuf      = gl.createBuffer()!;
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.edgeHlBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, this.edgeHlData, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(aHl);
+    gl.vertexAttribPointer(aHl, 1, gl.UNSIGNED_BYTE, true, 0, 0);
+    gl.vertexAttribDivisor(aHl, 1);
 
     gl.bindVertexArray(null);
   }
@@ -1120,6 +1292,8 @@ export class GraphWebGLRenderer {
     // Node indices changed — edge topology needs re-resolution
     this._edgeDirty = true;
     this._posDirty  = true;
+    // Highlight flags are indexed by node order — rewrite them against the new order.
+    this._hoverDirty = true;
   }
 
   /** Replace the edge list. Edges reference node IDs. */
@@ -1128,17 +1302,55 @@ export class GraphWebGLRenderer {
     this._edgeDirty = true;
     this._rebuildAdjacency();
     this._recomputeHighlighted();
+    // The incident-edge sets changed — refresh the hover flags with them.
+    this._hoverDirty = true;
+  }
+
+  /**
+   * Per-node creation times (seconds since epoch), indexed exactly like the
+   * nodeIds array passed to setNodeVisuals/updatePositions. Nodes without a
+   * time (or indices past the array's end) render as un-stamped (never hidden
+   * by the time-lapse cutoff). Feeds the a_time instance attribute on the next
+   * node repack — call BEFORE or WITH the matching topology update.
+   */
+  setNodeTimes(secondsByIndex: Float32Array): void {
+    this.nodeTimes = secondsByIndex;
+    this._dimDirty = true; // reuse the repack path to write the a_time column
+  }
+
+  /**
+   * Time-lapse mode: when enabled, every node/edge/arrow whose creation time
+   * is greater than `cutoffSec` renders fully hidden. When disabled the
+   * shaders take the exact pre-time-lapse path (uniforms are neutral).
+   */
+  setTimeLapse(enabled: boolean, cutoffSec: number): void {
+    this._timeLapse = enabled;
+    this._timeCutoff = cutoffSec;
   }
 
   // ─── Adjacency + Dimming ────────────────────────────────────────────────────────
 
   private _rebuildAdjacency(): void {
     this._adjacency.clear();
-    for (const { source, target } of this.edges) {
+    this._incidentEdges.clear();
+    for (let i = 0; i < this.edges.length; i++) {
+      const { source, target } = this.edges[i]!;
       if (!this._adjacency.has(source)) this._adjacency.set(source, new Set());
       if (!this._adjacency.has(target)) this._adjacency.set(target, new Set());
       this._adjacency.get(source)!.add(target);
       this._adjacency.get(target)!.add(source);
+      let incident = this._incidentEdges.get(source);
+      if (incident === undefined) {
+        incident = [];
+        this._incidentEdges.set(source, incident);
+      }
+      incident.push(i);
+      let incidentT = this._incidentEdges.get(target);
+      if (incidentT === undefined) {
+        incidentT = [];
+        this._incidentEdges.set(target, incidentT);
+      }
+      incidentT.push(i);
     }
   }
 
@@ -1176,6 +1388,8 @@ export class GraphWebGLRenderer {
       }
       // Node order changed — re-resolve edge indices
       this._edgeDirty = true;
+      // Highlight flags are indexed by node order — rewrite them against it.
+      this._hoverDirty = true;
     }
     this._posDirty = true;
   }
@@ -1213,10 +1427,89 @@ export class GraphWebGLRenderer {
     this._recomputeHighlighted();
   }
 
+  /**
+   * Hover-neighborhood dimming (the lightweight hover path — deliberately
+   * NOT setSelectedNodes, which repacks the whole node instance buffer).
+   * The hovered node, its direct neighbors, and every incident edge render
+   * at full alpha; everything else is multiplied by the dim factor.
+   * `null` (or an unknown id) turns the neighborhood off — rendering returns
+   * to exactly today's behavior. State is recorded here; the per-node/per-edge
+   * Uint8 flag buffers are rewritten once per hover CHANGE, lazily at the next
+   * render (O(N)/O(E), never per frame, no scattered single-element writes).
+   */
+  setHoverNeighborhood(nodeId: string | null): void {
+    if (nodeId === this._hoverNeighborhoodId) return;
+    this._hoverNeighborhoodId = nodeId;
+    this._hoverNeighborhoodDim = nodeId === null ? 1.0 : this.HOVER_NEIGHBORHOOD_DIM;
+    this._hoverDirty = true;
+  }
+
+  /** Rewrite the three highlight flag buffers from the current neighborhood. */
+  private _applyHoverNeighborhood(): void {
+    this._hoverDirty = false;
+    const gl = this.gl;
+    if (!gl) return;
+
+    const focusId = this._hoverNeighborhoodId;
+    const focusNodes = new Set<string>();
+    const focusEdges = new Set<number>(); // indices into `edges`
+    if (focusId !== null) {
+      focusNodes.add(focusId);
+      const neighbours = this._adjacency.get(focusId);
+      if (neighbours) for (const nb of neighbours) focusNodes.add(nb);
+      const incident = this._incidentEdges.get(focusId);
+      if (incident) for (const ei of incident) focusEdges.add(ei);
+    }
+
+    // Per-node flags, indexed by node order (Uint8, normalized 0..1 in GLSL).
+    const n = this.nodeIdOrder.length;
+    if (this.nodeHlCapacity < n) {
+      this.nodeHlCapacity = Math.ceil(n * 1.5);
+      this.nodeHlData = new Uint8Array(this.nodeHlCapacity);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.nodeHlBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, this.nodeHlCapacity, gl.DYNAMIC_DRAW);
+    }
+    for (let i = 0; i < n; i++) {
+      this.nodeHlData[i] = focusNodes.has(this.nodeIdOrder[i]!) ? 1 : 0;
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.nodeHlBuf);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.nodeHlData, 0, n);
+
+    // Per-edge flags, indexed by PACKED edge instance (draw order).
+    const ne = this.edgeInstCount;
+    if (this.edgeHlCapacity < ne) {
+      this.edgeHlCapacity = Math.ceil(ne * 1.5);
+      this.edgeHlData = new Uint8Array(this.edgeHlCapacity);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.edgeHlBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, this.edgeHlCapacity, gl.DYNAMIC_DRAW);
+    }
+    for (let i = 0; i < ne; i++) {
+      this.edgeHlData[i] = focusEdges.has(this._packedEdgeSource[i]!) ? 1 : 0;
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.edgeHlBuf);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.edgeHlData, 0, ne);
+
+    // Per-arrow flags — arrows know their source edge in the render plan.
+    const na = this.arrowInstCount;
+    if (this.arrowHlCapacity < na) {
+      this.arrowHlCapacity = Math.ceil(na * 1.5);
+      this.arrowHlData = new Uint8Array(this.arrowHlCapacity);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.arrowHlBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, this.arrowHlCapacity, gl.DYNAMIC_DRAW);
+    }
+    for (let i = 0; i < na; i++) {
+      this.arrowHlData[i] = focusEdges.has(this._edgePlan.arrows[i]!.edge) ? 1 : 0;
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.arrowHlBuf);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.arrowHlData, 0, na);
+  }
+
   /** Read-only access to the latest physics positions (for label rendering). */
   get nodePositions(): Float32Array { return this.positions; }
   /** Read-only ordered list of node IDs (index matches nodePositions). */
   get nodeOrder(): string[] { return this.nodeIdOrder; }
+  /** Read-only node id → index lookup (the order nodePositions is indexed by). */
+  get nodeIndexLookup(): ReadonlyMap<string, number> { return this.nodeIndex; }
 
   /** Convert world-space coords to canvas-pixel coords. */
   worldToScreen(wx: number, wy: number): { x: number; y: number } {
@@ -1278,6 +1571,7 @@ export class GraphWebGLRenderer {
       this.nodeInstData[base + 5] = Math.min(1, (color ? color[2]! : def![2]) * pinBrighten);
       const baseAlpha             = color ? color[3]! : def![3];
       this.nodeInstData[base + 6] = dimmed ? baseAlpha * this.DIM_ALPHA : baseAlpha;
+      this.nodeInstData[base + 7] = this.nodeTimes[i] ?? NO_TIME;
     }
 
     this.nodeInstCount = n;
@@ -1356,6 +1650,7 @@ export class GraphWebGLRenderer {
     const hasFocus = this._highlightedIds.size > 0;
 
     let count = 0;
+    this._packedEdgeSource.length = 0;
     for (let i = 0; i < ne; i++) {
       const e = edges[i]!;
       const si = this.nodeIndex.get(e.source);
@@ -1388,6 +1683,8 @@ export class GraphWebGLRenderer {
       this.edgeInstData[base + 12] = e.linkType ?? 0.0;
       this.edgeInstData[base + 13] = 1.0; // sameCommunity placeholder
       this.edgeInstData[base + 14] = e.dashed ? 1.0 : 0.0; // dashed flag
+      this.edgeInstData[base + 15] = e.createdAt ?? NO_TIME; // time-lapse stamp
+      this._packedEdgeSource.push(this._edgePlan.keep[i]!);
       count++;
     }
 
@@ -1447,6 +1744,7 @@ export class GraphWebGLRenderer {
       this.arrowInstData[base + 5] = eg;
       this.arrowInstData[base + 6] = eb;
       this.arrowInstData[base + 7] = finalAlpha;
+      this.arrowInstData[base + 8] = this.edges[edge]!.createdAt ?? NO_TIME;
       count++;
     }
 
@@ -1486,6 +1784,11 @@ export class GraphWebGLRenderer {
         this._dimDirty = false;
         this._packNodeInstances();     // O(N): positions + radii + colors + dim per node
       }
+    }
+
+    // ── Hover-neighborhood flags (O(N)/O(E), only when the hover changed) ──
+    if (this._hoverDirty) {
+      this._applyHoverNeighborhood();
     }
 
     gl.clear(gl.COLOR_BUFFER_BIT);
@@ -1571,6 +1874,9 @@ export class GraphWebGLRenderer {
       gl.uniform1i( this.edgeUniforms.edgeMask, this._edgeMask);
       gl.uniform1f( this.edgeUniforms.communityDim, this._communityDim);
       gl.uniform1f( this.edgeUniforms.hoverEdgeAlpha, this._hoverEdgeAlpha);
+      gl.uniform1i( this.edgeUniforms.timeLapse, this._timeLapse ? 1 : 0);
+      gl.uniform1f( this.edgeUniforms.timeCutoff, this._timeCutoff);
+      gl.uniform1f( this.edgeUniforms.hoverDim, this._hoverNeighborhoodDim);
       // Bind position texture to unit 0 for the edge shader
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.posTex);
@@ -1586,6 +1892,9 @@ export class GraphWebGLRenderer {
       gl.uniform2fv(this.nodeUniforms.camera, this._camBuf);
       gl.uniform1f( this.nodeUniforms.zoom, zoom);
       gl.uniform1f( this.nodeUniforms.minRadiusPx, this.opts.minNodeRadiusPx);
+      gl.uniform1i( this.nodeUniforms.timeLapse, this._timeLapse ? 1 : 0);
+      gl.uniform1f( this.nodeUniforms.timeCutoff, this._timeCutoff);
+      gl.uniform1f( this.nodeUniforms.hoverDim, this._hoverNeighborhoodDim);
       gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.nodeInstCount);
     }
 
@@ -1597,6 +1906,9 @@ export class GraphWebGLRenderer {
       gl.uniform2fv(this.arrowUniforms.camera, this._camBuf);
       gl.uniform1f( this.arrowUniforms.zoom, zoom);
       gl.uniform1f( this.arrowUniforms.minRadiusPx, this.opts.minNodeRadiusPx);
+      gl.uniform1i( this.arrowUniforms.timeLapse, this._timeLapse ? 1 : 0);
+      gl.uniform1f( this.arrowUniforms.timeCutoff, this._timeCutoff);
+      gl.uniform1f( this.arrowUniforms.hoverDim, this._hoverNeighborhoodDim);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.posTex);
       gl.uniform1i(this.arrowUniforms.positions, 0);

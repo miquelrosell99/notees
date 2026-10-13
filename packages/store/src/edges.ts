@@ -127,6 +127,10 @@ export interface DesiredEdge {
   type: "mention" | "typed_link" | "property";
   verb: string | null;
   metadata: string | null;
+  /** Property edges only: the value row's causal wall clock (ms) — the
+   *  derived edge's first-appearance stamp (converted to the envelope ISO
+   *  shape at write time). Undefined for content-derived edges. */
+  hlcPhysical?: number;
 }
 
 export interface EdgeRebuildResult {
@@ -209,21 +213,22 @@ export function deriveDesiredEdges(db: StoreDatabase, nodeId: string): DesiredEd
     propertySchemaId: string,
     ref: unknown,
     metadata: string | null,
+    hlcPhysical: number,
   ): void => {
     if (typeof ref !== "object" || ref === null || !("nodeId" in ref)) return;
     const target = (ref as { nodeId: unknown }).nodeId;
     if (typeof target !== "string" || target.length === 0) return;
-    desired.push({ targetId: target, type: "property", verb: propertySchemaId, metadata });
+    desired.push({ targetId: target, type: "property", verb: propertySchemaId, metadata, hlcPhysical });
     // Date-chain ancestors: the ref claims its own precision; coarser periods
     // are implied. Deterministic ids keep wipe -> replay identical.
     const parsed = parseDateNodeId(target);
     if (parsed !== null) {
       const iso = `${String(parsed.year).padStart(4, "0")}-${String(parsed.month).padStart(2, "0")}-${String(parsed.day).padStart(2, "0")}`;
       if (parsed.precision === "day") {
-        desired.push({ targetId: monthNodeId(iso), type: "property", verb: propertySchemaId, metadata });
+        desired.push({ targetId: monthNodeId(iso), type: "property", verb: propertySchemaId, metadata, hlcPhysical });
       }
       if (parsed.precision === "day" || parsed.precision === "month") {
-        desired.push({ targetId: yearNodeId(iso), type: "property", verb: propertySchemaId, metadata });
+        desired.push({ targetId: yearNodeId(iso), type: "property", verb: propertySchemaId, metadata, hlcPhysical });
       }
     }
   };
@@ -235,11 +240,11 @@ export function deriveDesiredEdges(db: StoreDatabase, nodeId: string): DesiredEd
       continue;
     }
     if (typeof parsed === "object" && parsed !== null && "nodeId" in parsed) {
-      pushRefEdge(pr.property_schema_id, parsed, pr.metadata);
+      pushRefEdge(pr.property_schema_id, parsed, pr.metadata, pr.hlc_physical);
     } else if (typeof parsed === "object" && parsed !== null) {
       const range = parsed as { start?: unknown; end?: unknown };
-      pushRefEdge(pr.property_schema_id, range.start, pr.metadata);
-      pushRefEdge(pr.property_schema_id, range.end, pr.metadata);
+      pushRefEdge(pr.property_schema_id, range.start, pr.metadata, pr.hlc_physical);
+      pushRefEdge(pr.property_schema_id, range.end, pr.metadata, pr.hlc_physical);
     }
   }
 
@@ -317,7 +322,7 @@ export function rebuildEdges(db: StoreDatabase, nodeId: string, at: string): Edg
     `INSERT INTO edge (id, workspace_id, source_id, target_id, resolved_target_id, type, verb, metadata, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
-       created_at = excluded.created_at,
+       created_at = COALESCE(MIN(edge.created_at, excluded.created_at), edge.created_at, excluded.created_at),
        resolved_target_id = excluded.resolved_target_id`,
   );
   // Resolution is a pure function of the target id — cache within the rebuild.
@@ -337,9 +342,18 @@ export function rebuildEdges(db: StoreDatabase, nodeId: string, at: string): Edg
     const id = edgeId(nodeId, edge, occurrence);
     desiredIds.add(id);
     // Content-derived edges stamp the applying (LWW-winning) op; property
-    // edges carry their causal stamp in property_value.hlc_* and stay NULL
-    // so cross-order replays do not diverge on a pass-through timestamp.
-    const createdAt = edge.type === "property" ? null : at;
+    // edges stamp their causal value row — property_value.hlc_physical
+    // converted to the envelope ISO shape, so a re-derived edge carries a
+    // deterministic stamp and cross-order replays do not diverge. The
+    // conflict path above keeps the EARLIEST stamp (first-appearance
+    // semantics); MIN() returns NULL for a NULL side, so COALESCE guarantees
+    // a NULL never wins over a real stamp.
+    const createdAt =
+      edge.type === "property"
+        ? edge.hlcPhysical !== undefined
+          ? new Date(edge.hlcPhysical).toISOString()
+          : null
+        : at;
     insertEdge.run(
       id,
       workspaceId,

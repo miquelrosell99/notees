@@ -325,3 +325,90 @@ describe("graphTopology node metrics", () => {
     expect(massOf(CLASS_X)).toBe(1);
   });
 });
+
+describe("graphTopology first-appearance stamps", () => {
+  it("node createdAt passes the node row's true create-time stamp through", () => {
+    const store = setup(createPage(PAGE_A), createPage(PAGE_B));
+    const topology = graphTopology(store, WS);
+    const row = store.database
+      .prepare("SELECT created_at FROM node WHERE id = ?")
+      .get(PAGE_A) as { created_at: string };
+    const node = topology.nodes.find((n) => n.id === PAGE_A)!;
+    expect(node.createdAt).toBe(row.created_at);
+  });
+
+  it("a collapsed edge group's createdAt is the earliest contributing row's stamp", () => {
+    const store = setup(
+      createPage(PAGE_A),
+      createPage(PAGE_B),
+      createBlock(BLOCK_B1, PAGE_B),
+      createBlock(BLOCK_C1, PAGE_B),
+      env("object.update", { objectId: BLOCK_B1, contentAst: [mention(PAGE_A, "A")] }),
+      env("object.update", { objectId: BLOCK_C1, contentAst: [mention(PAGE_A, "A")] }),
+    );
+    const topology = graphTopology(store, WS);
+    const merged = edge(topology, "mention", PAGE_B, PAGE_A)!;
+    expect(merged.weight).toBe(2);
+    const stamps = (
+      store.database
+        .prepare(
+          "SELECT created_at FROM edge WHERE type = 'mention' AND target_id = ? ORDER BY created_at",
+        )
+        .all(PAGE_A) as Array<{ created_at: string }>
+    ).map((r) => r.created_at);
+    expect(stamps.length).toBe(2);
+    expect(merged.createdAt).toBe(stamps[0]);
+    expect(merged.createdAt! < stamps[1]!).toBe(true); // lexical = chronological
+  });
+
+  it("single-row structural edges carry their row stamp; property edges carry the value-row stamp", () => {
+    const SCHEMA_REF = "0192a000-0000-7000-8000-0000000000f1";
+    const store = setup(
+      createPage(PAGE_A),
+      createPage(PAGE_B),
+      createPage(PAGE_C),
+      env("propertySchema.create", { propertySchemaId: SCHEMA_REF, name: "ref", type: "object" }),
+      env("property.set", {
+        objectId: PAGE_A,
+        propertySchemaId: SCHEMA_REF,
+        value: { nodeId: PAGE_B },
+        elementId: "0192a000-0000-7000-8000-0000000000f2",
+        idx: 0,
+      }),
+      createBlock(BLOCK_B1, PAGE_A),
+      env("object.update", { objectId: BLOCK_B1, contentAst: [mention(PAGE_C, "C")] }),
+    );
+    const topology = graphTopology(store, WS);
+    const propRow = store.database
+      .prepare(
+        "SELECT created_at FROM edge WHERE source_id = ? AND type = 'property' AND target_id = ?",
+      )
+      .get(PAGE_A, PAGE_B) as { created_at: string };
+    expect(edge(topology, "property", PAGE_A, PAGE_B)!.createdAt).toBe(propRow.created_at);
+    const mentionRow = store.database
+      .prepare(
+        "SELECT created_at FROM edge WHERE source_id = ? AND type = 'mention' AND target_id = ?",
+      )
+      .get(BLOCK_B1, PAGE_C) as { created_at: string };
+    expect(edge(topology, "mention", PAGE_A, PAGE_C)!.createdAt).toBe(mentionRow.created_at);
+  });
+
+  it("synthesized (parent/class) and co-occurrence (semantic/temporal) edges carry no stamp", () => {
+    const store = setup(
+      env("class.create", { classId: CLASS_X }),
+      env("object.create", { objectId: PAGE_A, classIds: [CLASS_X] }),
+      createPage(PAGE_B),
+      createPage(PAGE_C),
+      env("object.create", { objectId: PAGE_D, parentId: PAGE_A, presentAsMain: true }),
+      createBlock(BLOCK_B1, PAGE_A),
+      env("object.update", {
+        objectId: BLOCK_B1,
+        contentAst: [mention(PAGE_B, "B"), mention(PAGE_C, "C")],
+      }),
+    );
+    const topology = graphTopology(store, WS);
+    expect(edge(topology, "parent", PAGE_A, PAGE_D)!.createdAt).toBeNull();
+    expect(edge(topology, "class", PAGE_A, CLASS_X)!.createdAt).toBeNull();
+    expect(edge(topology, "semantic", PAGE_B, PAGE_C)!.createdAt).toBeNull();
+  });
+});

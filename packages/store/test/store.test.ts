@@ -2963,6 +2963,177 @@ describe.each(adapters)("$name: edge.resolved_target_id (v17)", ({ makeBackend }
   });
 });
 
+describe.each(adapters)("$name: edge created_at — first-appearance stamps", ({ makeBackend }) => {
+  const SRC = "0192a000-0000-7000-8000-0000000005c1";
+  const TGT = "0192a000-0000-7000-8000-0000000005c2";
+  const OTHER = "0192a000-0000-7000-8000-0000000005c3";
+  const BLOCK = "0192a000-0000-7000-8000-0000000005c4";
+  const REF_SCHEMA = "0192a000-0000-7000-8000-0000000005c5";
+  const ELEM = "0192a000-0000-7000-8000-0000000005c6";
+
+  function makeStore(): Store {
+    return Store.open(makeBackend());
+  }
+
+  function seed(store: Store): void {
+    store.applyMany([
+      createPage(SRC, 1727200000000),
+      createPage(TGT, 1727200000100),
+      createPage(OTHER, 1727200000200),
+      env("object.create", { objectId: BLOCK, parentId: SRC, presentAsMain: false }, 1727200000300),
+    ]);
+  }
+
+  const mentionStamp = (store: Store): string | null =>
+    (
+      store.database
+        .prepare("SELECT created_at FROM edge WHERE source_id = ? AND type = 'mention'")
+        .get(BLOCK) as { created_at: string | null } | undefined
+    )?.created_at ?? null;
+
+  it("a re-derived content edge keeps its earliest stamp", () => {
+    const store = makeStore();
+    seed(store);
+    store.apply(
+      env(
+        "object.update",
+        { objectId: BLOCK, contentAst: [{ type: "mention", targetNodeId: TGT, text: "t" }] },
+        1727200000400,
+      ),
+    );
+    const first = new Date(1727200000400).toISOString();
+    expect(mentionStamp(store)).toBe(first);
+    // A later content write re-derives the identical (content-addressed) edge
+    // id; the conflict path must keep the FIRST-appearance stamp.
+    store.apply(
+      env(
+        "object.update",
+        {
+          objectId: BLOCK,
+          contentAst: [
+            { type: "text", text: "more " },
+            { type: "mention", targetNodeId: TGT, text: "t" },
+          ],
+        },
+        1727200005000,
+      ),
+    );
+    expect(mentionStamp(store)).toBe(first);
+    store.close();
+  });
+
+  it("a NULL legacy stamp never wins: re-derivation replaces it with the real stamp", () => {
+    const store = makeStore();
+    seed(store);
+    store.apply(
+      env(
+        "object.update",
+        { objectId: BLOCK, contentAst: [{ type: "mention", targetNodeId: TGT, text: "t" }] },
+        1727200000400,
+      ),
+    );
+    // Simulate a pre-stamp-era row (the property-edge NULL era): the edge
+    // exists with no stamp. A later rebuild derives the same row id with a
+    // real stamp — MIN(NULL, stamp) is NULL, so COALESCE must pick it up.
+    store.database.prepare("UPDATE edge SET created_at = NULL WHERE source_id = ?").run(BLOCK);
+    expect(mentionStamp(store)).toBeNull();
+    store.apply(
+      env(
+        "object.update",
+        {
+          objectId: BLOCK,
+          contentAst: [
+            { type: "text", text: "more " },
+            { type: "mention", targetNodeId: TGT, text: "t" },
+          ],
+        },
+        1727200005000,
+      ),
+    );
+    expect(mentionStamp(store)).toBe(new Date(1727200005000).toISOString());
+    store.close();
+  });
+
+  it("property edges carry the value row's causal stamp, stable across re-derivation", () => {
+    const store = makeStore();
+    seed(store);
+    store.apply(
+      env(
+        "propertySchema.create",
+        { propertySchemaId: REF_SCHEMA, name: "ref", type: "object" },
+        1727200000350,
+      ),
+    );
+    store.apply(
+      env(
+        "property.set",
+        { objectId: SRC, propertySchemaId: REF_SCHEMA, value: { nodeId: OTHER }, elementId: ELEM, idx: 0 },
+        1727200000400,
+      ),
+    );
+    const propStamp = (): string | null =>
+      (
+        store.database
+          .prepare("SELECT created_at FROM edge WHERE source_id = ? AND type = 'property'")
+          .get(SRC) as { created_at: string | null } | undefined
+      )?.created_at ?? null;
+    // The hlc_physical ms wall clock of the property.set op, in the envelope
+    // ISO shape — NOT the later content-rebuild envelope's timestamp.
+    expect(propStamp()).toBe(new Date(1727200000400).toISOString());
+    store.apply(
+      env(
+        "object.update",
+        { objectId: BLOCK, contentAst: [{ type: "text", text: "edit" }] },
+        1727200005000,
+      ),
+    );
+    expect(propStamp()).toBe(new Date(1727200000400).toISOString());
+    store.close();
+  });
+
+  it("wipe -> replay converges the stamps across independent-write orders", () => {
+    const creates = [
+      createPage(SRC, 1727200000000),
+      createPage(TGT, 1727200000100),
+      createPage(OTHER, 1727200000200),
+      env("object.create", { objectId: BLOCK, parentId: SRC, presentAsMain: false }, 1727200000300),
+      env(
+        "propertySchema.create",
+        { propertySchemaId: REF_SCHEMA, name: "ref", type: "object" },
+        1727200000350,
+      ),
+    ];
+    const contentWrite = env(
+      "object.update",
+      { objectId: BLOCK, contentAst: [{ type: "mention", targetNodeId: TGT, text: "t" }] },
+      1727200000400,
+    );
+    const propertyWrite = env(
+      "property.set",
+      { objectId: SRC, propertySchemaId: REF_SCHEMA, value: { nodeId: OTHER }, elementId: ELEM, idx: 0 },
+      1727200000450,
+    );
+    const stamps = (store: Store) =>
+      store.database
+        .prepare("SELECT type, target_id, created_at FROM edge ORDER BY type, target_id")
+        .all();
+    const first = makeStore();
+    first.applyMany([...creates.map((e) => JSON.parse(JSON.stringify(e)) as Envelope), contentWrite, propertyWrite]);
+    const second = makeStore();
+    second.applyMany([...creates.map((e) => JSON.parse(JSON.stringify(e)) as Envelope), propertyWrite, contentWrite]);
+    // The property stamp rides the value row's hlc in BOTH orders (the later
+    // content rebuild re-derives it with the same deterministic stamp), and
+    // the mention stamp rides its own applying envelope.
+    expect(stamps(second)).toEqual(stamps(first));
+    expect(stamps(first).map((r) => (r as { created_at: string | null }).created_at)).toEqual([
+      new Date(1727200000400).toISOString(), // mention (mention < property by type)
+      new Date(1727200000450).toISOString(), // property
+    ]);
+    first.close();
+    second.close();
+  });
+});
+
 describe.each(adapters)("$name: v16 -> v17 migration (resolved_target_id backfill)", ({ makeBackend }) => {
   const MAIN = "0192a000-0000-7000-8000-0000000005b1";
   const ALIAS = "0192a000-0000-7000-8000-0000000005b2";
