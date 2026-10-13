@@ -9,6 +9,19 @@ predating this file.
 
 ## 2026-10-13
 
+- **docs(developers): the v1 source of truth is the `v1-archive` git tag —
+  recorded in the skill and the runbook (owner 2026-10-13).** The pre-rewrite
+  v1 app (React + Lexical frontend, Python FastAPI backend) survives only as
+  the `v1-archive` tag on this repo (found while hunting for the v1 node
+  card: the old local checkout at `/root/projects/notees` is long gone and
+  v1-era session wires were the only pointer). The `notees-development`
+  skill's law 0 now names the tag and points at a register map (the
+  dispatcher's prop family, the view registry, the card view — registered as
+  `kanban`, body in `KanbanCard.tsx` — list/document/table, immersive
+  views, node chrome, backend), duplicated as `docs/developers/development.md`
+  §9 with the fetch-and-read recipe. **Verification:** repo-only docs change;
+  the map's paths verified against the tag (`git ls-tree`).
+
 - **fix(web): the class page's "Extended by" tree nests each extender under
   its DIRECT parent (owner refinement 2026-10-13).** The first direct-only
   cut of this section (earlier today) rendered a FLAT list of the direct

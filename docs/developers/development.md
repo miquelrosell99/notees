@@ -317,3 +317,31 @@ properties (deferred owner decision), E2EE activation (the `{"$e": …}` slot is
 already in the envelope schema), plugin runtime and event projections, multi-user
 auth/JWT sessions, the outliner editor program, TreeCrdt/fractional
 reorder port (`node_child_order` exists; the editor ops around it do not).
+
+## 9. The v1 archive (v1 ports read from here)
+
+The pre-rewrite v1 app (React + Lexical frontend, Python FastAPI backend) is
+preserved as the **`v1-archive` git tag** on this repo (`miquelrosell99/notees`).
+Fetch and read it without checkout noise:
+
+```sh
+git fetch origin tag v1-archive
+git show v1-archive:frontend/src/features/content/components/nodes/NodeCollection.tsx
+```
+
+Map of the register (v1 paths under the tag):
+
+| v1 surface | Tag path |
+|---|---|
+| The universal dispatcher (props incl. the children/depth family, toolbar, grouping) | `frontend/src/features/content/components/nodes/NodeCollection.tsx` |
+| View registry (viewMode → component, capabilities) | `frontend/src/features/views/components/registry.ts` + `lazyViews.tsx` |
+| Card view (registered as `kanban`) + the card component | `frontend/src/features/views/components/KanbanView.tsx`, `KanbanCard.tsx` (the NodeCard body), `CardItem.css` |
+| List / document / table views | `ListView.tsx`, `DocumentView.tsx`, `TableView.tsx` + `NodeTable.tsx` |
+| Immersive views (gantt/calendar/chart/pivot/timeline/graph) | `frontend/src/features/views/components/` |
+| Node chrome (pills, breadcrumbs, metadata, selectors, context menus) | `frontend/src/features/content/components/nodes/` |
+| Design-system primitives (Card, buttons, …) | `frontend/src/components/ui/` |
+| Backend (derived reads, plugins) | `app/` (FastAPI) |
+
+Law 0 (the `notees-development` skill) governs any v1 port: enumerate the ENTIRE
+v1 register from the tag before adapting — a reduced subset is a proposal to the
+owner, never a silent default.
