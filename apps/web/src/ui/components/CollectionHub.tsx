@@ -33,7 +33,6 @@ export interface CollectionHubProps {
    */
   persistKey?: string | undefined;
   tableColumns?: TableColumn[] | undefined;
-  cardProperties?: string[] | undefined;
   /**
    * Cards: the cover layout this hub's cards fall back to when the device
    * has no persisted cover choice yet (the Assets hub passes "cover-top").
@@ -71,7 +70,6 @@ export function CollectionHub({
   defaultMode,
   persistKey,
   tableColumns,
-  cardProperties,
   defaultCoverLayout,
   tableEditable = false,
   defaultSort,
@@ -107,7 +105,6 @@ export function CollectionHub({
         client={client}
         items={items}
         tableColumns={tableColumns}
-        cardProperties={cardProperties}
         defaultCoverLayout={defaultCoverLayout}
         propertiesOf={(id) => client.getEffectiveProperties(id)}
         tableEditable={tableEditable}

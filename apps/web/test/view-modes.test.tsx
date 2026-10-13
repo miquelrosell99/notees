@@ -281,13 +281,13 @@ describe("the v1 node card (cards mode)", () => {
     expect(chevron.getAttribute("aria-expanded")).toBe("false");
   });
 
-  it("classes chips, tags chips, and the cardProperties-scoped property rows ride the card", async () => {
+  it("classes chips, tags chips, and the nodeview properties table ride the card", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "Pokemon");
     const schemaId = await client.createPropertySchema({ name: "Level", type: "number" });
     await client.setClassProperty(classId, schemaId, { sequence: 0 });
-    // A second binding with NO value on the member: the scoped set shows it
-    // as an EMPTY row.
+    // A second binding with NO value on the member: the table shows it as an
+    // empty row.
     const noteId = await client.createPropertySchema({ name: "Note", type: "text" });
     await client.setClassProperty(classId, noteId, { sequence: 1 });
     const tag = await client.createObject({ presentAsMain: true, name: "favorites" });
@@ -314,8 +314,6 @@ describe("the v1 node card (cards mode)", () => {
         viewMode="cards"
         client={client}
         items={[{ node: client.getNode(member)! }]}
-        propertiesOf={(id) => client.getEffectiveProperties(id)}
-        cardProperties={[schemaId, noteId]}
         onNodeClick={(id) => opened.push(id)}
       />,
     );
@@ -349,16 +347,16 @@ describe("the v1 node card (cards mode)", () => {
     expect(tagsRow).not.toBeNull();
     expect(within(tagsRow as HTMLElement).getByText("favorites")).not.toBeNull();
     expect(within(tagsRow as HTMLElement).getByText("Add tag")).not.toBeNull();
-    // The property rows: the bound column + its value (the classed-nodes
-    // section scopes cards to its table's bound columns).
+    // The properties section IS the nodeview table (name column | value
+    // column): the valued property, AND the unset bound property as an
+    // empty row.
     const properties = card.querySelector(".node-card__properties")!;
     expect(properties).not.toBeNull();
+    expect(properties.querySelector(".nt-properties-list")).not.toBeNull();
     expect(within(properties as HTMLElement).getByText("Level")).not.toBeNull();
-    expect(within(properties as HTMLElement).getByText("25")).not.toBeNull();
-    // The unset bound property rides too — the row renders, the value empty.
-    const noteRow = (properties as HTMLElement).querySelectorAll(".node-card__property")[1]!;
-    expect(within(noteRow as HTMLElement).getByText("Note")).not.toBeNull();
-    expect(noteRow.querySelector("dd")!.textContent).toBe("");
+    // The value rides in the table's editable cell (an input, not text).
+    expect(within(properties as HTMLElement).getByDisplayValue("25")).not.toBeNull();
+    expect(within(properties as HTMLElement).getByText("Note")).not.toBeNull();
   });
 
   it("right-click on the title opens the node menu; the three-dot is gone (the checkbox stays)", async () => {

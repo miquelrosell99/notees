@@ -236,14 +236,6 @@ export interface NodeCollectionProps {
    */
   defaultSortMode?: SortMode | undefined;
   /**
-   * Cards: property schemas shown on node cards, in order. Undefined = EVERY
-   * effective property with a non-empty display text rides the card (the v1
-   * card register); a container scopes the row set by passing schema ids
-   * (the classed-nodes section passes its bound columns — its cards mirror
-   * the table).
-   */
-  cardProperties?: string[] | undefined;
-  /**
    * Cards: the cover layout this surface falls back to when the device has
    * no persisted `cards.coverLayout` choice yet (default "no-cover"; the
    * Assets hub passes "cover-top" — its cards read as an image gallery).
