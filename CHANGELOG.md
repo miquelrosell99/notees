@@ -325,65 +325,6 @@ predating this file.
   a v18→v19 migration test (unfolded rows rebuilt, folded rows, ordering
   clean) — 538/538 on both adapters; `pnpm typecheck` green.
 
-- **feat(web): the Capacities-parity search surfaces — the extended
-  full-page search at `/search`, the section quick-searches unified onto
-  the ranked order, and in-app find-in-page (owner 2026-10-13).** Three
-  surfaces close the comparison gaps. **Extended search** (`SearchPage.tsx`
-  + route): Ctrl/Cmd+Shift+F or the palette's "Search all for \"…\"" row
-  opens a full-page ranked search — cursor-paginated (`searchPage`, 25 per
-  page), `NodeResultItem` rows with breadcrumb + class pills + a
-  `<mark>`-highlighted snippet per hit, scope Tabs (All/Main/Blocks) and a
-  class Dropdown filtering the accumulated stream, the `"…"` exact and `^`
-  starts-with modes documented in the empty state. **Unified quick-search**:
-  the FilterBar's quick text in Backlinks, Unlinked mentions, and Classed
-  nodes no longer substring-filters titles — it rides
-  `rankRowsBySearch(useSectionData.ts)`, where the ranked search's ids are
-  both the membership and the ORDER of the pool (structured filters then
-  compose over the narrowed pool unchanged; the structured builder's own
-  content-contains keeps its LIKE grammar semantics). The regression shape
-  is asserted: "gmi dental" renders **GMI Dental Implantology** before GMI
-  Ecuador — plain substring matched neither. **Find-in-page**: Cmd/Ctrl+F
-  on a page opens the find bar (docked under the node top bar) searching
-  the subtree DATA — collapsed blocks count exactly like rendered ones —
-  with match counter, prev/next cycling, case and whole-word toggles, and
-  replace (one op per affected block via `client.updateObject`;
-  cross-token matches are navigable but not replaceable, the honest v1
-  scope); the existing Ctrl/Cmd+Shift+F block find/replace widget is
-  untouched and the two coexist. Docs: `usage.md` (palette paragraph +
-  reference-sections paragraph + a find-in-page line). **Verification:**
-  three new test files (search-page 12, find-in-page 12, plus the rewritten
-  filter-layer ranked-semantics tests); the full apps/web suite is green
-  (142 files / 1532 tests) and `pnpm typecheck` clean on the rebased tree.
-
-- **feat(store): diacritic folding (schema v19) + fuzzy-subsequence rescue —
-  the Capacities "find by intent" pair (owner 2026-10-13).** Two gaps the
-  Capacities search comparison surfaced, closed in the ranker
-  (`packages/store/src/search.ts`). Folding: `peru` now matches "Perú" —
-  implemented as INDEX-TIME folding (`reindexNode` strips combining marks
-  from the indexed plaintext; `compileSearchQuery` folds the MATCH terms —
-  one mirror pair), because the stock sql.js FTS4 tokenizer rejects
-  `remove_diacritics` (verified against the shipped wasm, "unknown
-  tokenizer"), so a tokenizer option is off the table for the browser
-  backend; the tier scorer folds its haystacks through the same
-  `foldSearchText`, and the snippet helper folds only its hit check so
-  excerpts keep their real characters. The v19 migration drops and rebuilds
-  pre-v19 indexes from the derived plaintext (a virtual table's rows cannot
-  be UPDATEd with re-tokenized text), module-aware: a cross-backend parked
-  table is the queryability repair path's job, and migrations run locally
-  before snapshots ship. Fuzzy rescue: the whole query as an ordered
-  subsequence (word-start and consecutive bonuses, the palette's fuzzyScore
-  semantics) — inside the candidate set it lifts a partial match above plain
-  partials, and when NOTHING reached the literal tiers a scan over every
-  main node's title rescues the query (`gmi dntl` finds GMI Dental
-  Implantology) at tier 6, strictly below every exact/prefix match; the scan
-  is gated to ≥3-char default-mode queries and the no-literal-hit case, so
-  the common path never pays for it. Docs: `architecture.md` (the FTS4/5
-  paragraph), `usage.md` (the palette paragraph). **Verification:** the
-  store suite carries both directions of folding, exact-mode folding, the
-  snippet's original characters, the fuzzy rescue and its stay-off gate, and
-  a v18→v19 migration test (unfolded rows rebuilt, folded rows, ordering
-  clean) — 538/538 on both adapters; `pnpm typecheck` green.
-
 - **feat(store,web): priority-ranked search — exact title matches first, `"…"`
   exact mode, `^` starts-with mode, alias terminals, parent-name matches;
   the node picker composes the kit SearchField (owner 2026-10-13).** The
@@ -490,23 +431,6 @@ predating this file.
   children resolution, chevron collapse, chips + scoped property rows,
   table-nevers-children); `pnpm typecheck` + the full `pnpm test` gate green
   (1515).
-
-- **feat(web): a NodeCollection flag hides the block-row backlink count —
-  set for the Child pages tree and the Class View's "Extended by" list
-  (owner 2026-10-13).** The row-end gutter toggle (the materialized
-  `node_stats.backlink_count` badge) and its expanded linked-references
-  panel now honor `hideBacklinkCount` on the collection, threaded to
-  BlockRow as `hideBacklinks` (which also skips the count read — the count
-  falls to 0 and the toggle, the panel, and the row-end's count branch all
-  stay out; the classes column is unaffected). Threaded down BlockRow's
-  recursion (children, table cells, table containers) and honored by the
-  outline tree, the flat list, and cards tree bodies alike. Set on the two
-  read-only list projections where the count is reference noise: the page
-  view's Child pages section and the class page's Extended by section.
-  Test: a class with a real materialized backlink renders no
-  `.nt-block-backlink-toggle`/`.nt-block-backlink-refs` inside the Extended
-  by section. `docs/ux.md`'s block-gutter line carries the exception. Gate:
-  `pnpm typecheck` + `pnpm test` green.
 
 - **fix(web): "Convert to heading" (and its "Convert to plain text" inverse)
   appear only on block nodes (owner 2026-10-13).** The gate lived solely on
@@ -694,20 +618,6 @@ predating this file.
   breadcrumb specs re-verified in isolation after two unrelated timeout
   flakes under full-suite load).
 
-- **fix(web): the first section below the block tree stops floating — the
-  Created section on date pages and Classed nodes on class pages (owner
-  2026-10-13).** Both wear the shared `NodeViewSection` chrome, whose
-  `padding-top` steps down `spacing-3`→`spacing-2`: the hairline already
-  sits directly at the child-blocks ghost row (0px above it — measured), so
-  the 12px below it read as a void between the blocks and the section
-  header. The sidebar-panel and `.nt-page-sections` overrides (both 0) are
-  untouched; the gap below every section hairline in the content flow
-  tightens with it, one step, in line with the chrome passes above.
-  **Verification:** `pnpm typecheck` + `pnpm test` green; `VERIFY-PASS` from
-  the verify-min smoke after the scoped web redeploy; live measure-probe
-  diff on a fixture day page in the test workspace (ghost row→section
-  header 34→30px; section `padding-top` 12→8px), fixture trashed after.
-
 - **fix(web): the chrome tightens one more step — nodeview top bar gaps and
   the sidebar's top/bottom padding (owner 2026-10-13, second pass).** (1) The
   **nodeview top bar** now sits `spacing-2` (8px) off the card top (the
@@ -792,34 +702,6 @@ predating this file.
   section, section nav pushes state, back/forward swaps sections, unknown
   sections land on appearance, and hub/node navigation leaves the route.
   Verified: `pnpm typecheck` + `pnpm test` green (1496 web tests)
-- **fix(web): the top-bar padding stacks are gone — the nodeview top bar, the
-  app top bar's gap below, and the sidebar's user section (owner 2026-10-13).**
-  (1) The **nodeview top bar lost its own vertical padding**: the panelled
-  page's `spacing-4` top padding carried the bar's top gap alone now (16px,
-  matching the horizontal padding that carries the sides) — the bar's
-  `spacing-2` used to stack on top of it and read as double (27px above vs
-  12px below, 17px at the sides). (2) The **main content card's (and right
-  rail's) top margin steps down to `spacing-2`**: the app top bar's 44px
-  height already carries slack below its controls, so the full `spacing-3`
-  margin stacked into a double gap under the bar (18px below the buttons vs
-  6px above; now 14px). (3) The **sidebar's pinned user section rides the
-  sidebar's own padding** (horizontal row padding → 0, the nav-list law): the
-  avatar lines up with the nav icons and the gear with the rows' right edge
-  instead of the row's `spacing-3` stacking on the sidebar's (24px inset vs
-  the nav column's 20px). (4) **Live measurement is now a durable tool**:
-  `scripts/screenshots/measure-probe.mjs` signs in (the owner-password login
-  API, or an automatic temporary session minted into the relay DB and
-  deleted at exit — the operator key answers account endpoints 401 and is
-  not a UI credential) and dumps every chrome surface's rect +
-  padding/margin/gap as JSON with the recurring derived gaps precomputed,
-  plus a screenshot; run BEFORE against the live stack and AFTER the
-  redeploy to diff. Recorded in `docs/developers/ui-debugging.md` (Live
-  measurement + Auth) and the notees-development skill's
-  development-workflow reference.
-  **Verification:** measured live before/after with measure-probe
-  (card→node-topbar buttons 27→17px, topbar→card 12→8px, sidebar avatar
-  32→20px = nav column); `pnpm typecheck` + `pnpm test` green; verify-min
-  smoke after the scoped web redeploy.
 - **feat(store,server,web): node merge — the v1 merge gesture, extended to the
   v2 model, composed of existing ops (no wire change).** A merge absorbs one
   page into another and trashes the source. The heart is a pure planner over
@@ -1759,29 +1641,6 @@ predating this file.
   Docs: `docs/ux.md` (Activity paragraph, the layout sentence, the sidebar
   note), `docs/usage.md` (the layout sentence + the context-column item).
   Display-state only — no model/wire change, no fixtures.
-
-- **fix(web): the single-value selection cell names its value with ONE
-  compact pill (effective-colored, no subtree), multi-value object pills
-  cover every resolved value, and the date cell's repeat picker stops
-  overlapping the value.** The first redraw shipped the single-value
-  dropdown's content as a read-only block row — which rendered the linked
-  node's WHOLE subtree (children, collapse chevrons, backlink gutter) inside
-  the field; the owner asked for "a pill and that's it". The cell's content
-  is now the shared `NodePill` element tinted with the linked node's
-  effective color (`NodePill` renders a non-interactive label span when the
-  host carries the click — the dropdown does); the multi-value branch drops
-  its inline-block special case the same way, so every resolved object value
-  rides one compact pill (the editable-block treatment stays the TEXT
-  property row's contract, not object values'). The date cell's trailing
-  repeat picker (the kit Dropdown) defaulted to `width: 100%` of the flex
-  row and drew over the trigger text — inside `.nt-property-select` the
-  trailing dropdown now hugs its icon (`width: auto; flex-shrink: 0`), and
-  the trigger content truncates honestly. The ⟳ control itself is the
-  recurrence picker (None/Daily/Weekly/Weekdays/Monthly/Yearly, written as
-  the RRULE-lite `metadata.repeat` — SCHEMA.md "Recurrence"), preserved
-  from the pill era. Display-state only; the web suites around the panel
-  re-run green with the pill-content assertion updated. Docs:
-  `docs/ux.md`'s "Single values select" bullet now says one compact pill.
 
 - **fix(web): the export modal's child outline is unconditional — the
   "Include child outline" toggle is gone — and the preview re-runs when the
