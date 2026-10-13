@@ -9,6 +9,21 @@ predating this file.
 
 ## 2026-10-13
 
+- **refactor(web): the breadcrumb trails' parent-edit chevron composes the
+  core HoverRevealButton (owner 2026-10-13).** The trail affordance that
+  originated the hover-reveal pattern now consumes the core element shipped
+  for the topbar undo cluster's history chevron: the crumb item carries
+  `.ui-hover-reveal-group`, the chevron renders as `HoverRevealButton` with
+  its `node-breadcrumb-edit` class kept as the host/test hook, and the
+  local CSS copy of the collapse/reveal/hover rules is gone — one
+  implementation of the animation, both surfaces. Behavior is unchanged
+  (hover-of-crumb reveal, focus-visible reveal, zero footprint at rest,
+  date-locked edges still hide the affordance). **Verification:** `pnpm
+  typecheck` green (after rebuilding `@notees/domain`'s dist — the
+  date-chain slice's `dateChainClassId`/`dateChainParentId` exports were
+  src-only); `pnpm --filter @notees/web test` green (1505/1505 across 143
+  files, zero errors).
+
 - **fix(web): the first section below the block tree stops floating — the
   Created section on date pages and Classed nodes on class pages (owner
   2026-10-13).** Both wear the shared `NodeViewSection` chrome, whose
