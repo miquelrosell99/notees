@@ -102,6 +102,18 @@ chrome surfaces' rects/paddings/gaps as JSON plus a screenshot. Ground
 BEFORE numbers against the live stack, redeploy, run again for AFTER.
 Canonical: `docs/developers/ui-debugging.md` (Live measurement + Auth).
 
+**Throwaway-stack probes** (custom fixtures, owner-screenshot repros, the
+RUNNING build): boot the capture pair from the locally-built images
+(`run.sh` pins `:2.0.0-m1` — hand-roll the two containers instead; the web
+image needs the `notees-sync` network alias), seed via the object API
+(operator key, workspace scoped by the `x-workspace-id` header), and probe
+with playwright. Throwaway auth is its own path: `NOTEES_SIGNUP_ENABLED=true`
+→ signup + login for a real session → one session-authed WRITE claims the
+unclaimed test workspace (`c491595f-…`, the app's default) before any read —
+reads 403 without membership (`authorizeWorkspace`, routes-relay.ts). The
+fetch-binding + OPFS-neutralization init-script shims are required. Full
+recipe: `docs/developers/ui-debugging.md` (Throwaway-stack probes).
+
 ## The fixture gate (blocking)
 
 Op fixtures live in `packages/protocol/fixtures/` (envelope-minimal,
