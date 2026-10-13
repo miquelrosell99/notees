@@ -51,8 +51,11 @@
 }
 
 /* The journal cluster: undo + history chevron + redo as one unit.
-   The chevron halves the undo button's right radius so the pair reads as a
-   split button. */
+   The chevron is a core hover-reveal affordance: collapsed at rest (the
+   surviving trail gap reads as the undo↔redo gap, so the cluster keeps its
+   footprint) and revealed by hovering the cluster, focusing the chevron, or
+   the history popup staying open (the popup mirrors aria-expanded onto the
+   trigger). */
 .nt-topbar-undo {
   display: inline-flex;
   align-items: center;
@@ -64,9 +67,17 @@
   cursor: default;
 }
 
-.nt-topbar-undo__chevron {
+/* Revealed chevron: tuck -1px against the undo button so the pair reads as
+   a split button; --height-md matches the sibling icon buttons; the 18px
+   width is the icon canvas (fixed px: the glyph metric — the height tokens
+   would resize the icon). */
+.nt-topbar-undo:hover .nt-topbar-undo__chevron.ui-hover-reveal,
+.nt-topbar-undo__chevron.ui-hover-reveal:focus-visible,
+.nt-topbar-undo__chevron.ui-hover-reveal[aria-expanded="true"] {
+  width: 18px;
+  height: var(--height-md);
   margin-left: -1px;
-  width: 18px; /* fixed: icon metric — --icon-size-md (20px) would resize the glyph */
+  opacity: var(--opacity-100);
 }
 
 .nt-icon-btn-active,

@@ -1,0 +1,44 @@
+/**
+ * HoverRevealButton — co-located styles.
+ *
+ * Collapsed to zero width at rest (the negative margin cancels its leading
+ * gap, so the row keeps the exact footprint of one without the affordance —
+ * the surviving trail gap reads as the neighbor gap); hovering the reveal
+ * group, keyboard focus, or an anchored popup left open expands it.
+ */
+
+.ui-hover-reveal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin-left: calc(-1 * var(--spacing-1));
+  width: 0;
+  height: var(--height-xs);
+  flex-shrink: 0;
+  overflow: hidden;
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  opacity: var(--opacity-0);
+  transition:
+    width var(--motion-duration-short) var(--motion-easing-standard),
+    height var(--motion-duration-short) var(--motion-easing-standard),
+    opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+/* The reveal: hover anywhere in the surrounding group, keyboard focus, or
+   an anchored popup left open (the trigger carries aria-expanded). */
+.ui-hover-reveal-group:hover .ui-hover-reveal,
+.ui-hover-reveal:focus-visible,
+.ui-hover-reveal[aria-expanded="true"] {
+  width: var(--height-xs);
+  opacity: var(--opacity-100);
+}
+
+.ui-hover-reveal:hover {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+}
