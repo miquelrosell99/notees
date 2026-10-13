@@ -572,11 +572,11 @@ describe("crumb labels over class chips (issue #2)", () => {
     const childId = await client.createObject({ parentId, contentAst: [{ type: "text", text: "Child" }] });
 
     const { container } = render(
-      <Breadcrumbs client={client} nodeId={childId} onOpenNode={() => {}} showCurrent />,
+      <Breadcrumbs client={client} nodeId={childId} onOpenNode={() => {}} />,
     );
-    // Trail: Home / <chip-titled block> / Child.
+    // Trail: Home / <chip-titled block> — the child itself never crumbs.
     const crumbs = container.querySelectorAll(".node-breadcrumb-name");
-    expect(crumbs.length).toBe(3);
+    expect(crumbs.length).toBe(2);
     expect(crumbs[1]!.textContent).toBe("task");
     expect(container.querySelector(".node-breadcrumbs")!.textContent).not.toContain("Untitled");
   });
@@ -595,7 +595,7 @@ describe("crumb labels over class chips (issue #2)", () => {
     const childId = await client.createObject({ parentId, contentAst: [{ type: "text", text: "Child" }] });
 
     const { container } = render(
-      <Breadcrumbs client={client} nodeId={childId} onOpenNode={() => {}} showCurrent />,
+      <Breadcrumbs client={client} nodeId={childId} onOpenNode={() => {}} />,
     );
     const crumbs = container.querySelectorAll(".node-breadcrumb-name");
     expect(crumbs[1]!.textContent).toBe("on the Republic");

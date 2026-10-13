@@ -436,7 +436,7 @@ describe("L4 breadcrumb edit gestures", () => {
     const child = await client.createObject({ presentAsMain: true, name: "Child Page" });
 
     render(
-      <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} showCurrent editable />,
+      <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} editable />,
     );
     fireEvent.click(screen.getByRole("button", { name: "+ Add parent" }));
     fireEvent.change(screen.getByLabelText("Search pages…"), { target: { value: "Parent" } });
@@ -461,7 +461,7 @@ describe("L4 breadcrumb edit gestures", () => {
     });
 
     render(
-      <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} showCurrent editable />,
+      <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} editable />,
     );
     // The edit lives on the PARENT's crumb (the edge below it: the child).
     fireEvent.contextMenu(screen.getByRole("button", { name: "Parent Page" }));
@@ -482,7 +482,7 @@ describe("L4 breadcrumb edit gestures", () => {
     });
 
     const { container } = render(
-      <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} showCurrent />,
+      <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} />,
     );
     // The breadcrumb reads the capped display name (80 chars) — and the
     // per-crumb clip tightens it further; the complete title never renders
@@ -503,7 +503,8 @@ describe("L4 breadcrumb edit gestures", () => {
       name: "Child Page",
     });
 
-    render(      <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} showCurrent editable />,
+    render(
+      <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} editable />,
     );
     fireEvent.contextMenu(screen.getByRole("button", { name: "First" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Reassign parent…" }));
@@ -519,7 +520,7 @@ describe("L4 breadcrumb edit gestures", () => {
     expect(client.getNode(child)!.parentId).toBe(secondParent);
   });
 
-  it("owner rule: the self crumb carries no edit button — the parent crumb carries it", async () => {
+  it("owner rule: the trail is ancestors only — no self crumb; the parent crumb carries the edit", async () => {
     const client = await seedClient();
     const parent = await client.createObject({ presentAsMain: true, name: "Parent Page" });
     const child = await client.createObject({
@@ -529,15 +530,15 @@ describe("L4 breadcrumb edit gestures", () => {
     });
 
     const { container } = render(
-      <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} showCurrent editable />,
+      <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} editable />,
     );
+    // No self crumb at all — the page header already names the page.
+    expect(container.querySelector(".node-breadcrumb-current")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Child Page" })).toBeNull();
     // The parent crumb's edit button names the child below (the edge).
     expect(
       screen.getByRole("button", { name: "Edit parent of Child Page" }),
     ).not.toBeNull();
-    // Self: no edit affordance at all.
-    const self = container.querySelector(".node-breadcrumb-current")!;
-    expect(self.querySelector(".node-breadcrumb-edit")).toBeNull();
     // The edge edit opens the parent's menu with Open first.
     fireEvent.click(screen.getByRole("button", { name: "Edit parent of Child Page" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Open" }));
@@ -552,7 +553,7 @@ describe("L4 breadcrumb edit gestures", () => {
       presentAsMain: true,
       name: "Child Page",
     });
-    render(<Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} showCurrent />);
+    render(<Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} />);
     expect(screen.queryByRole("button", { name: "+ Add parent" })).toBeNull();
     expect(document.querySelector(".node-breadcrumb-edit")).toBeNull();
     fireEvent.contextMenu(screen.getByRole("button", { name: "Parent Page" }));
@@ -564,7 +565,7 @@ describe("L4 breadcrumb edit gestures", () => {
     const page = await client.createObject({ presentAsMain: true, name: "Lonely Page" });
 
     const { container } = render(
-      <Breadcrumbs client={client} nodeId={page} onOpenNode={() => {}} showCurrent editable />,
+      <Breadcrumbs client={client} nodeId={page} onOpenNode={() => {}} editable />,
     );
     // No self crumb (there is no chain to trail)…
     expect(screen.queryByRole("button", { name: "Lonely Page" })).toBeNull();
@@ -578,7 +579,7 @@ describe("L4 breadcrumb edit gestures", () => {
     const classId = await client.createClass("agent");
 
     const { container } = render(
-      <Breadcrumbs client={client} nodeId={classId} onOpenNode={() => {}} showCurrent editable />,
+      <Breadcrumbs client={client} nodeId={classId} onOpenNode={() => {}} editable />,
     );
     // Classes are always roots: a parent is unrepresentable, so the whole
     // trail (self + affordance) stays hidden.
