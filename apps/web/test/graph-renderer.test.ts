@@ -47,15 +47,16 @@ describe("label overlay contract", () => {
 
   function stubFrame(overrides: Partial<LabelFrame> = {}): {
     frame: LabelFrame;
-    calls: Array<{ text: string; fillStyle: string }>;
+    calls: Array<{ text: string; fillStyle: string; alpha: number; y: number }>;
   } {
-    const calls: Array<{ text: string; fillStyle: string }> = [];
+    const calls: Array<{ text: string; fillStyle: string; alpha: number; y: number }> = [];
     const ctx = {
       clearRect: vi.fn(),
       save: vi.fn(),
       restore: vi.fn(),
-      fillText: vi.fn((text: string) => {
-        calls.push({ text, fillStyle: (ctx as unknown as { fillStyle: string }).fillStyle });
+      fillText: vi.fn((text: string, _x: number, y: number) => {
+        const c = ctx as unknown as { fillStyle: string; globalAlpha: number };
+        calls.push({ text, fillStyle: c.fillStyle, alpha: c.globalAlpha, y });
       }),
     } as unknown as CanvasRenderingContext2D;
     const ids = Array.from({ length: 300 }, (_, i) => `n${i}`);
@@ -81,18 +82,48 @@ describe("label overlay contract", () => {
     return { frame, calls };
   }
 
-  it("renders at most the cap and skips hovered/selected from the regular pass", () => {
-    const { frame, calls } = stubFrame({ hovered: "n1", selected: "n2" });
+  it("renders at most the cap and skips selected from the regular pass", () => {
+    // No node hover: the regular pass runs (the hover-only contract has its
+    // own spec below) and the selected node rides the emphasis pass.
+    const { frame, calls } = stubFrame({ selected: "n2" });
     const rendered = drawLabels(frame);
     expect(rendered).toBe(100);
-    expect(calls.length).toBe(102); // 100 regular + hovered + selected emphasis
+    expect(calls.length).toBe(101); // 100 regular + selected emphasis
     const regular = calls.filter((c) => c.fillStyle === "regular");
-    expect(regular.some((c) => c.text === "Node n1")).toBe(false);
     expect(regular.some((c) => c.text === "Node n2")).toBe(false);
     const emphasis = calls.filter((c) => c.fillStyle === "emphasis");
+    expect(emphasis.length).toBe(1);
+    expect(emphasis[0]!.text).toBe("Node n2");
+  });
+
+  it("while a node hover is active labels DIM to a quarter but never hide; the hovered label renders at full alpha with the nudge", () => {
+    // Owner ruling (2026-10-13, Obsidian reference): the regular pass still
+    // runs (cap respected) at labelAlpha × 0.25; the hovered label rides the
+    // emphasis pass at full alpha, 3·dpr px below its normal offset; the
+    // selected emphasis label is untouched (full alpha).
+    const { frame, calls } = stubFrame({ hovered: "n1", selected: "n2" });
+    expect(drawLabels(frame)).toBe(100); // the cap still binds
+    const regular = calls.filter((c) => c.fillStyle === "regular");
+    expect(regular.length).toBe(100);
+    expect(regular.every((c) => c.alpha === 0.25)).toBe(true); // zoom 0.5 → labelAlpha 1 × 0.25
+    expect(regular.some((c) => c.text === "Node n1")).toBe(false); // hovered skips the regular pass
+    const emphasis = calls.filter((c) => c.fillStyle === "emphasis");
     expect(emphasis.length).toBe(2);
-    expect(emphasis.map((c) => c.text).join(" ")).toContain("Node n1");
-    expect(emphasis.map((c) => c.text).join(" ")).toContain("Node n2");
+    const hovered = emphasis.find((c) => c.text === "Node n1")!;
+    const selected = emphasis.find((c) => c.text === "Node n2")!;
+    expect(hovered.alpha).toBe(1);
+    expect(selected.alpha).toBe(1);
+    // Normal offset: radius 8 × zoom 0.5 + 4 = 8 px (dpr 1); the hovered
+    // label nudges +3·dpr below it.
+    expect(hovered.y).toBe(11);
+    expect(selected.y).toBe(8);
+  });
+
+  it("the hovered label renders even below the zoom threshold", () => {
+    const { frame, calls } = stubFrame({ hovered: "n1", zoom: 0.05 });
+    expect(drawLabels(frame)).toBe(0); // the regular pass still honors the threshold
+    expect(calls.map((c) => c.text)).toEqual(["Node n1"]);
+    expect(calls[0]!.alpha).toBe(1);
   });
 
   it("culls labels far outside the viewport", () => {
@@ -224,6 +255,7 @@ describe("webgl renderer: time-lapse + hover-neighborhood contract", () => {
     const bufferSubDataCalls: Array<{ buf: unknown; data: ArrayBufferView }> = [];
     const uniform1iCalls: Array<{ name: unknown; value: number }> = [];
     const uniform1fCalls: Array<{ name: unknown; value: number }> = [];
+    const uniform3fCalls: Array<{ name: unknown; value: [number, number, number] }> = [];
     let bound: unknown = null;
     const gl = {
       VERTEX_SHADER: 0x8b31, FRAGMENT_SHADER: 0x8b30,
@@ -259,6 +291,9 @@ describe("webgl renderer: time-lapse + hover-neighborhood contract", () => {
       texImage2D: vi.fn(), texSubImage2D: vi.fn(),
       getUniformLocation: (_p: unknown, name: string) => name,
       uniform2fv: vi.fn(),
+      uniform3f: vi.fn((loc: unknown, x: number, y: number, z: number) => {
+        uniform3fCalls.push({ name: loc, value: [x, y, z] });
+      }),
       uniform1f: vi.fn((loc: unknown, value: number) => {
         uniform1fCalls.push({ name: loc, value });
       }),
@@ -272,7 +307,7 @@ describe("webgl renderer: time-lapse + hover-neighborhood contract", () => {
       width: 800, height: 600,
       getContext: () => gl,
     } as unknown as HTMLCanvasElement;
-    return { gl, canvas, bufferSubDataCalls, uniform1iCalls, uniform1fCalls };
+    return { gl, canvas, bufferSubDataCalls, uniform1iCalls, uniform1fCalls, uniform3fCalls };
   }
 
   const IDS = ["a", "b", "c"];
@@ -338,32 +373,40 @@ describe("webgl renderer: time-lapse + hover-neighborhood contract", () => {
     expect(data[31]).toBe(-Infinity); // un-stamped edge
   });
 
-  it("setHoverNeighborhood flags the focus node, its neighbors, and incident edges", () => {
-    const { renderer, hlBuffers, uniform1fCalls } = liveRenderer();
+  it("setHoverNeighborhood flags the focus node (2), its neighbors (1), and incident edges (1); the accent rides the uniforms", () => {
+    const { renderer, hlBuffers, uniform1fCalls, uniform3fCalls } = liveRenderer();
     renderer.setEdges([
       { source: "a", target: "b", linkType: 0 },
       { source: "b", target: "c", linkType: 2 },
     ]);
     const hoverDim = () => uniform1fCalls.filter((c) => c.name === "u_hoverDim").at(-1)?.value;
-    // No neighborhood yet: the dim uniform stays neutral.
+    const hoverMix = () => uniform1fCalls.filter((c) => c.name === "u_hoverMix").at(-1)?.value;
+    const hoverColor = () => uniform3fCalls.filter((c) => c.name === "u_hoverColor").at(-1)?.value;
+    // No neighborhood yet: the dim + highlight uniforms stay neutral.
     renderer.setHoverNeighborhood(null);
     renderer.render();
     expect(hoverDim()).toBe(1.0);
+    expect(hoverMix()).toBe(0.0);
 
-    renderer.setHoverNeighborhood("b");
+    const ACCENT: readonly [number, number, number] = [0.1, 0.2, 0.3];
+    renderer.setHoverNeighborhood("b", ACCENT);
     renderer.render();
     // One Uint8 batch per flag buffer (node, edge, arrow) per hover change.
     const batch = hlBuffers().slice(-3);
     expect(batch.length).toBe(3);
+    // Node flags are THREE-level: 0 outside · 1 direct neighbor · 2 hovered.
     const nodeFlags = batch[0]!.data as Uint8Array;
-    expect([...nodeFlags.slice(0, 3)]).toEqual([1, 1, 1]); // b + neighbors a, c
+    expect([...nodeFlags.slice(0, 3)]).toEqual([1, 2, 1]); // b hovered, a + c neighbors
     const edgeFlags = batch[1]!.data as Uint8Array;
     expect([...edgeFlags.slice(0, 2)]).toEqual([1, 1]); // both edges incident to b
-    expect(hoverDim()).toBeCloseTo(0.15, 5);
+    // Dim-not-hide (0.2) and the ACCENT rgb highlight at full mix.
+    expect(hoverDim()).toBeCloseTo(0.2, 5);
+    expect(hoverMix()).toBe(1.0);
+    expect(hoverColor()).toEqual([0.1, 0.2, 0.3]);
 
     // Repeating the same id is a no-op (no extra flag rewrites).
     const countAfterFirst = hlBuffers().length;
-    renderer.setHoverNeighborhood("b");
+    renderer.setHoverNeighborhood("b", ACCENT);
     renderer.render();
     expect(hlBuffers().length).toBe(countAfterFirst);
 
@@ -371,6 +414,7 @@ describe("webgl renderer: time-lapse + hover-neighborhood contract", () => {
     renderer.setHoverNeighborhood(null);
     renderer.render();
     expect(hoverDim()).toBe(1.0);
+    expect(hoverMix()).toBe(0.0);
     expect([...(hlBuffers().at(-3)!.data as Uint8Array).slice(0, 3)]).toEqual([0, 0, 0]);
   });
 

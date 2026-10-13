@@ -35,7 +35,7 @@ in vec2  a_pos;    // world-space centre
 in float a_radius; // world-space radius
 in vec4  a_color;  // RGBA 0..1
 in float a_time;   // creation time, seconds since epoch (-inf = none)
-in float a_hl;     // 1.0 = in the active hover neighborhood
+in float a_hl;     // hover neighborhood: 0 outside · 1 neighbor · 2 hovered node
 
 // Camera
 uniform vec2  u_resolution; // canvas size in pixels
@@ -43,11 +43,12 @@ uniform vec2  u_camera;     // world position of screen centre
 uniform float u_zoom;       // pixels per world unit
 uniform float u_minRadiusPx; // minimum screen-space radius in pixels
 
-// (u_timeLapse/u_timeCutoff/u_hoverDim live in the fragment stage only — the
-// vertex stages just pass v_time/v_hl through. Declaring them here too breaks
-// program linking on strict linkers: the vertex default float precision is
-// highp, the fragment header below is mediump, and a cross-stage uniform
-// declaration must not carry two precisions.)
+// (u_timeLapse/u_timeCutoff/u_hoverDim/u_hoverColor/u_hoverMix live in the
+// fragment stage only — the vertex stages just pass v_time/v_hl through.
+// Declaring them here too breaks program linking on strict linkers: the
+// vertex default float precision is highp, the fragment header below is
+// mediump, and a cross-stage uniform declaration must not carry two
+// precisions.)
 
 out vec2 v_uv;
 out vec4 v_color;
@@ -84,6 +85,15 @@ in float v_hl;
 uniform bool  u_timeLapse;
 uniform float u_timeCutoff;
 uniform float u_hoverDim;
+// Owner ruling (2026-10-13, Obsidian reference): while a hover neighborhood
+// is active, the hovered node (v_hl = 2), its direct neighbors (v_hl = 1),
+// and the incident edges/arrowheads highlight in the app's ACCENT color
+// (u_hoverColor); everything else stays visible but dimmed (u_hoverDim) in
+// its own color. FRAGMENT-STAGE ONLY — a cross-stage declaration breaks
+// program linking on strict linkers (vertex defaults to highp, this header
+// is mediump).
+uniform vec3  u_hoverColor;
+uniform float u_hoverMix;
 
 out vec4 outColor;
 
@@ -113,8 +123,11 @@ void main() {
 
   if (alpha <= 0.01) discard;
   // Hover-neighborhood dim: off (u_hoverDim = 1.0) this is a multiply by 1.
-  alpha *= mix(u_hoverDim, 1.0, v_hl);
-  outColor = vec4(v_color.rgb, v_color.a * alpha);
+  // v_hl >= 0.5 = in the neighborhood (full alpha); v_hl = 2 = the hovered
+  // node itself (accent highlight).
+  alpha *= mix(u_hoverDim, 1.0, step(0.5, v_hl));
+  vec3 rgb = mix(v_color.rgb, u_hoverColor, u_hoverMix * step(1.5, v_hl));
+  outColor = vec4(rgb, v_color.a * alpha);
 }
 `;
 
@@ -237,6 +250,9 @@ uniform float u_hoverEdgeAlpha; // 1.0 normally, lower when an edge is hovered
 uniform bool  u_timeLapse;     // hide everything created after u_timeCutoff
 uniform float u_timeCutoff;    // seconds since epoch
 uniform float u_hoverDim;      // alpha multiplier for edges outside the neighborhood
+// Same accent-highlight contract as the node shader — fragment-stage only.
+uniform vec3  u_hoverColor;
+uniform float u_hoverMix;
 
 out vec4 outColor;
 
@@ -267,7 +283,11 @@ void main() {
   alpha *= u_hoverEdgeAlpha;
 
   // Hover-neighborhood dim: off (u_hoverDim = 1.0) this is a multiply by 1.
-  alpha *= mix(u_hoverDim, 1.0, v_hl);
+  // v_hl = 1 = incident to the hovered node (full alpha + accent).
+  alpha *= mix(u_hoverDim, 1.0, step(0.5, v_hl));
+
+  // Incident edges highlight in the accent across the whole gradient.
+  color.rgb = mix(color.rgb, u_hoverColor, u_hoverMix * step(0.5, v_hl));
 
   outColor = vec4(color.rgb, alpha);
 }
@@ -397,14 +417,18 @@ in float v_hl;
 uniform bool  u_timeLapse;
 uniform float u_timeCutoff;
 uniform float u_hoverDim;
+// Same accent-highlight contract as the node shader — fragment-stage only.
+uniform vec3  u_hoverColor;
+uniform float u_hoverMix;
 out vec4 outColor;
 void main() {
   // The arrowhead follows its edge: hidden past the time-lapse cutoff, dimmed
   // outside the hover neighborhood.
   if (u_timeLapse && v_time > u_timeCutoff) discard;
-  float alpha = v_color.a * mix(u_hoverDim, 1.0, v_hl);
+  float alpha = v_color.a * mix(u_hoverDim, 1.0, step(0.5, v_hl));
   if (alpha <= 0.01) discard;
-  outColor = vec4(v_color.rgb, alpha);
+  vec3 rgb = mix(v_color.rgb, u_hoverColor, u_hoverMix * step(0.5, v_hl));
+  outColor = vec4(rgb, alpha);
 }
 `;
 
@@ -754,7 +778,9 @@ export class GraphWebGLRenderer {
     timeLapse:  WebGLUniformLocation | null;
     timeCutoff: WebGLUniformLocation | null;
     hoverDim:   WebGLUniformLocation | null;
-  } = { resolution: null, camera: null, zoom: null, positions: null, minRadiusPx: null, timeLapse: null, timeCutoff: null, hoverDim: null };
+    hoverColor: WebGLUniformLocation | null;
+    hoverMix:   WebGLUniformLocation | null;
+  } = { resolution: null, camera: null, zoom: null, positions: null, minRadiusPx: null, timeLapse: null, timeCutoff: null, hoverDim: null, hoverColor: null, hoverMix: null };
 
   // --- Hover / selection state ---
   private _hoveredNodeId  = '';
@@ -771,9 +797,16 @@ export class GraphWebGLRenderer {
   // --- Hover neighborhood state (lightweight dimming, NOT the selection path) ---
   /** The node whose neighborhood is highlighted; null = no neighborhood. */
   private _hoverNeighborhoodId: string | null = null;
-  /** Alpha multiplier applied to nodes/edges outside the neighborhood. */
+  /** Alpha multiplier applied to nodes/edges outside the neighborhood
+   *  (owner ruling 2026-10-13, Obsidian reference: dim-not-hide). */
   private _hoverNeighborhoodDim = 1.0;
-  private readonly HOVER_NEIGHBORHOOD_DIM = 0.15;
+  private readonly HOVER_NEIGHBORHOOD_DIM = 0.2;
+  /** The ACCENT rgb the neighborhood highlights in (u_hoverColor) — passed
+   *  per hover activation by the caller (graphTheme().accent). */
+  private _hoverColorRgb: readonly [number, number, number] = [1, 1, 1];
+  /** 0.0 = highlight off (no neighborhood) — with u_hoverDim = 1.0 this is
+   *  exactly the pre-hover rendering path. */
+  private _hoverColorMix = 0.0;
   /** True when the per-node/per-edge highlight flag buffers need a rewrite. */
   private _hoverDirty = false;
 
@@ -840,7 +873,9 @@ export class GraphWebGLRenderer {
     timeLapse: WebGLUniformLocation | null;
     timeCutoff: WebGLUniformLocation | null;
     hoverDim: WebGLUniformLocation | null;
-  } = { resolution: null, camera: null, zoom: null, minRadiusPx: null, timeLapse: null, timeCutoff: null, hoverDim: null };
+    hoverColor: WebGLUniformLocation | null;
+    hoverMix: WebGLUniformLocation | null;
+  } = { resolution: null, camera: null, zoom: null, minRadiusPx: null, timeLapse: null, timeCutoff: null, hoverDim: null, hoverColor: null, hoverMix: null };
 
   private edgeUniforms: {
     resolution: WebGLUniformLocation | null;
@@ -853,7 +888,9 @@ export class GraphWebGLRenderer {
     timeLapse: WebGLUniformLocation | null;
     timeCutoff: WebGLUniformLocation | null;
     hoverDim: WebGLUniformLocation | null;
-  } = { resolution: null, camera: null, zoom: null, positions: null, edgeMask: null, communityDim: null, hoverEdgeAlpha: null, timeLapse: null, timeCutoff: null, hoverDim: null };
+    hoverColor: WebGLUniformLocation | null;
+    hoverMix: WebGLUniformLocation | null;
+  } = { resolution: null, camera: null, zoom: null, positions: null, edgeMask: null, communityDim: null, hoverEdgeAlpha: null, timeLapse: null, timeCutoff: null, hoverDim: null, hoverColor: null, hoverMix: null };
 
   // --- Pre-allocated typed arrays for uniforms (zero per-frame GC) ---
   private readonly _resBuf = new Float32Array(2);
@@ -914,6 +951,8 @@ export class GraphWebGLRenderer {
       timeLapse:  gl.getUniformLocation(this.nodeProg, 'u_timeLapse'),
       timeCutoff: gl.getUniformLocation(this.nodeProg, 'u_timeCutoff'),
       hoverDim:   gl.getUniformLocation(this.nodeProg, 'u_hoverDim'),
+      hoverColor: gl.getUniformLocation(this.nodeProg, 'u_hoverColor'),
+      hoverMix:   gl.getUniformLocation(this.nodeProg, 'u_hoverMix'),
     };
     this.edgeUniforms = {
       resolution: gl.getUniformLocation(this.edgeProg, 'u_resolution'),
@@ -926,6 +965,8 @@ export class GraphWebGLRenderer {
       timeLapse:  gl.getUniformLocation(this.edgeProg, 'u_timeLapse'),
       timeCutoff: gl.getUniformLocation(this.edgeProg, 'u_timeCutoff'),
       hoverDim:   gl.getUniformLocation(this.edgeProg, 'u_hoverDim'),
+      hoverColor: gl.getUniformLocation(this.edgeProg, 'u_hoverColor'),
+      hoverMix:   gl.getUniformLocation(this.edgeProg, 'u_hoverMix'),
     };
     this.ringUniforms = {
       resolution: gl.getUniformLocation(this.ringProg, 'u_resolution'),
@@ -941,6 +982,8 @@ export class GraphWebGLRenderer {
       timeLapse:  gl.getUniformLocation(this.arrowProg, 'u_timeLapse'),
       timeCutoff: gl.getUniformLocation(this.arrowProg, 'u_timeCutoff'),
       hoverDim:   gl.getUniformLocation(this.arrowProg, 'u_hoverDim'),
+      hoverColor: gl.getUniformLocation(this.arrowProg, 'u_hoverColor'),
+      hoverMix:   gl.getUniformLocation(this.arrowProg, 'u_hoverMix'),
     };
 
     this._initNodeBuffers();
@@ -1421,23 +1464,41 @@ export class GraphWebGLRenderer {
   }
 
   /**
-   * Hover-neighborhood dimming (the lightweight hover path — deliberately
-   * NOT setSelectedNodes, which repacks the whole node instance buffer).
-   * The hovered node, its direct neighbors, and every incident edge render
-   * at full alpha; everything else is multiplied by the dim factor.
-   * `null` (or an unknown id) turns the neighborhood off — rendering returns
-   * to exactly today's behavior. State is recorded here; the per-node/per-edge
-   * Uint8 flag buffers are rewritten once per hover CHANGE, lazily at the next
-   * render (O(N)/O(E), never per frame, no scattered single-element writes).
+   * Hover-neighborhood highlighting (the lightweight hover path —
+   * deliberately NOT setSelectedNodes, which repacks the whole node
+   * instance buffer). Owner ruling (2026-10-13, Obsidian reference): the
+   * hovered node (node flag 2), its direct neighbors (flag 1), and every
+   * incident edge/arrowhead (flag 1) highlight in the app's ACCENT color
+   * (`accent`, defaulting to a neutral gray); everything else stays VISIBLE
+   * but dimmed (HOVER_NEIGHBORHOOD_DIM 0.2) in its own color.
+   * `null` (or an unknown id) turns the neighborhood off — u_hoverMix = 0
+   * and u_hoverDim = 1.0 restore exactly the pre-hover rendering. State is
+   * recorded here; the per-node/per-edge Uint8 flag buffers are rewritten
+   * once per hover CHANGE, lazily at the next render (O(N)/O(E), never per
+   * frame, no scattered single-element writes).
    */
-  setHoverNeighborhood(nodeId: string | null): void {
+  setHoverNeighborhood(
+    nodeId: string | null,
+    accent: readonly [number, number, number] = [0.72, 0.72, 0.72],
+  ): void {
     if (nodeId === this._hoverNeighborhoodId) return;
     this._hoverNeighborhoodId = nodeId;
     this._hoverNeighborhoodDim = nodeId === null ? 1.0 : this.HOVER_NEIGHBORHOOD_DIM;
+    if (nodeId !== null) {
+      this._hoverColorRgb = [accent[0], accent[1], accent[2]];
+      this._hoverColorMix = 1.0;
+    } else {
+      this._hoverColorMix = 0.0;
+    }
     this._hoverDirty = true;
   }
 
-  /** Rewrite the three highlight flag buffers from the current neighborhood. */
+  /**
+   * Rewrite the three highlight flag buffers from the current neighborhood.
+   * Node flags are THREE-level: 0 = outside the neighborhood, 1 = direct
+   * neighbor, 2 = the hovered node itself (the shader accents only ≥1.5,
+   * full-alpha only ≥0.5). Edge/arrow flags stay binary (incident or not).
+   */
   private _applyHoverNeighborhood(): void {
     this._hoverDirty = false;
     const gl = this.gl;
@@ -1447,7 +1508,6 @@ export class GraphWebGLRenderer {
     const focusNodes = new Set<string>();
     const focusEdges = new Set<number>(); // indices into `edges`
     if (focusId !== null) {
-      focusNodes.add(focusId);
       const neighbours = this._adjacency.get(focusId);
       if (neighbours) for (const nb of neighbours) focusNodes.add(nb);
       const incident = this._incidentEdges.get(focusId);
@@ -1463,7 +1523,8 @@ export class GraphWebGLRenderer {
       gl.bufferData(gl.ARRAY_BUFFER, this.nodeHlCapacity, gl.DYNAMIC_DRAW);
     }
     for (let i = 0; i < n; i++) {
-      this.nodeHlData[i] = focusNodes.has(this.nodeIdOrder[i]!) ? 1 : 0;
+      const id = this.nodeIdOrder[i]!;
+      this.nodeHlData[i] = id === focusId ? 2 : focusNodes.has(id) ? 1 : 0;
     }
     gl.bindBuffer(gl.ARRAY_BUFFER, this.nodeHlBuf);
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.nodeHlData, 0, n);
@@ -1792,11 +1853,14 @@ export class GraphWebGLRenderer {
     this._camBuf[0] = cx;
     this._camBuf[1] = cy;
 
-    // ── Build hover / selection rings ────────────────────────────────
+    // ── Build selection rings ────────────────────────────────────────
     // Written so rings are drawn BEFORE nodes (appear under the main circle).
+    // Owner ruling (2026-10-13): the hovered node gets NO ring of its own —
+    // it renders exactly like any highlighted node (full alpha, own color);
+    // rings remain a selection-only indicator.
     this.ringInstCount = 0;
     const wantedRings = Math.min(
-      this._selectedNodeIds.size + (this._hoveredNodeId !== "" ? 1 : 0),
+      this._selectedNodeIds.size,
       GraphWebGLRenderer.MAX_RINGS,
     );
     if (this.ringInstData.length < wantedRings * NODE_STRIDE) {
@@ -1836,15 +1900,10 @@ export class GraphWebGLRenderer {
 
     // Selected: larger glare ring, fully opaque node color (one per selection).
     for (const id of this._selectedNodeIds) {
-      if (id === this._hoveredNodeId) continue;
       writeRing(id, 1.85, 0.80);
     }
-    // Hovered: slightly enlarged glare ring — no dimming of other nodes.
-    if (this._hoveredNodeId !== "") {
-      writeRing(this._hoveredNodeId, 1.55, 0.45);
-    }
 
-    // ── Draw hover/selection rings (UNDER nodes) ────────────────────────────
+    // ── Draw selection rings (UNDER nodes) ────────────────────────────────────
     if (this.ringInstCount > 0 && this.ringVAO && this.positions.length > 0) {
       gl.bindBuffer(gl.ARRAY_BUFFER, this.ringInstBuf);
       gl.bufferSubData(gl.ARRAY_BUFFER, 0, rid, 0, this.ringInstCount * NODE_STRIDE);
@@ -1870,6 +1929,8 @@ export class GraphWebGLRenderer {
       gl.uniform1i( this.edgeUniforms.timeLapse, this._timeLapse ? 1 : 0);
       gl.uniform1f( this.edgeUniforms.timeCutoff, this._timeCutoff);
       gl.uniform1f( this.edgeUniforms.hoverDim, this._hoverNeighborhoodDim);
+      gl.uniform3f( this.edgeUniforms.hoverColor, this._hoverColorRgb[0], this._hoverColorRgb[1], this._hoverColorRgb[2]);
+      gl.uniform1f( this.edgeUniforms.hoverMix, this._hoverColorMix);
       // Bind position texture to unit 0 for the edge shader
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.posTex);
@@ -1888,6 +1949,8 @@ export class GraphWebGLRenderer {
       gl.uniform1i( this.nodeUniforms.timeLapse, this._timeLapse ? 1 : 0);
       gl.uniform1f( this.nodeUniforms.timeCutoff, this._timeCutoff);
       gl.uniform1f( this.nodeUniforms.hoverDim, this._hoverNeighborhoodDim);
+      gl.uniform3f( this.nodeUniforms.hoverColor, this._hoverColorRgb[0], this._hoverColorRgb[1], this._hoverColorRgb[2]);
+      gl.uniform1f( this.nodeUniforms.hoverMix, this._hoverColorMix);
       gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.nodeInstCount);
     }
 
@@ -1902,6 +1965,8 @@ export class GraphWebGLRenderer {
       gl.uniform1i( this.arrowUniforms.timeLapse, this._timeLapse ? 1 : 0);
       gl.uniform1f( this.arrowUniforms.timeCutoff, this._timeCutoff);
       gl.uniform1f( this.arrowUniforms.hoverDim, this._hoverNeighborhoodDim);
+      gl.uniform3f( this.arrowUniforms.hoverColor, this._hoverColorRgb[0], this._hoverColorRgb[1], this._hoverColorRgb[2]);
+      gl.uniform1f( this.arrowUniforms.hoverMix, this._hoverColorMix);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.posTex);
       gl.uniform1i(this.arrowUniforms.positions, 0);

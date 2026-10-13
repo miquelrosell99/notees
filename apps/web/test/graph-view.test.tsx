@@ -5,9 +5,10 @@
  * canvas path is exercised in the browser, the port boundary per the
  * renderer/engine unit suites), the reference empty surfaces (nothing to
  * graph yet / the filtered-out state with its reset / the local depth
- * hint), the kit-composed settings toolbar, and the right rail (Selection +
- * Colors sections, chip openers, search-to-select, local-scope omission,
- * legacy color-group migration).
+ * hint), the kit LoadingScreen projection state, the kit-composed settings
+ * toolbar, and the right rail (Selection + Colors sections, chip openers,
+ * search-to-select, local-scope omission, groups-only painting with the
+ * one-time legacy-DSL and class-colors migrations).
  */
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -324,7 +325,9 @@ describe("GraphView component", () => {
       expect(rail.className).toContain("nt-graph__rail");
       const colorsHeader = within(rail).getByRole("button", { name: "Colors" });
       expect(colorsHeader.getAttribute("aria-expanded")).toBe("true");
-      expect(within(rail).getByText("Class colors")).toBeTruthy();
+      // Groups only since the owner ruling (2026-10-13): the retired
+      // class-colors block is gone, the query builder stays.
+      expect(within(rail).queryByText("Class colors")).toBeNull();
       expect(within(rail).getByText("Query groups")).toBeTruthy();
       // …the Selection section rests collapsed beside it.
       const selectionHeader = within(rail).getByRole("button", { name: /Selection/ });
@@ -450,5 +453,73 @@ describe("GraphView component", () => {
     } finally {
       window.localStorage.clear();
     }
+  });
+
+  it("the retired class-color list migrates one-time into query groups appended after the existing groups", async () => {
+    window.localStorage.clear();
+    const client = await seedClient();
+    const classId = await client.createClass("books");
+    window.localStorage.setItem(
+      "notees.settings.graphPrefs.full",
+      JSON.stringify({
+        showOrphans: false,
+        classColors: [{ classId, color: "sky" }],
+        colorGroups: [
+          {
+            id: "g1",
+            label: "Existing",
+            color: "mint",
+            ast: { type: "group", logic: "and", children: [] },
+          },
+        ],
+      }),
+    );
+    try {
+      await client.createObject({ presentAsMain: true, contentAst: [{ type: "text", text: "Lonely" }] });
+      render(<GraphView client={client} />);
+      await screen.findByText("All nodes hidden by filters");
+
+      // Each class-color entry becomes a class-matching color group AFTER
+      // the existing groups; the retired list clears in the same write.
+      await vi.waitFor(() => {
+        const persisted = JSON.parse(
+          window.localStorage.getItem("notees.settings.graphPrefs.full")!,
+        ) as {
+          classColors: unknown[];
+          colorGroups: Array<{
+            label: string;
+            color: string;
+            ast: { type: string; children: Array<{ type: string; classId?: string }> } | null;
+          }>;
+        };
+        expect(persisted.classColors).toEqual([]);
+        expect(persisted.colorGroups).toHaveLength(2);
+        expect(persisted.colorGroups[0]!.label).toBe("Existing");
+        const migrated = persisted.colorGroups[1]!;
+        expect(migrated.color).toBe("sky");
+        expect(migrated.label).toBe("books"); // the class's display name
+        expect(migrated.ast).not.toBeNull();
+        expect(migrated.ast!.children).toEqual([{ type: "class", classId }]);
+      });
+    } finally {
+      window.localStorage.clear();
+    }
+  });
+
+  it("renders the kit LoadingScreen (inline) while the topology projects", async () => {
+    window.localStorage.clear();
+    const client = await seedClient();
+    render(<GraphView client={client} />);
+    // First paint: display === null — the inline kit LoadingScreen owns the
+    // wrapper (role=status carrying the projection label), not an EmptyState.
+    expect(screen.getByText("Projecting the workspace topology…")).toBeTruthy();
+    expect(
+      screen.getByRole("status", { name: "Projecting the workspace topology…" }),
+    ).toBeTruthy();
+    expect(
+      document.querySelector(".nt-graph--loading .loading-screen--inline"),
+    ).toBeTruthy();
+    // The topology lands and the honest empty surface steps in.
+    expect(await screen.findByText("Nothing to graph yet")).toBeTruthy();
   });
 });
