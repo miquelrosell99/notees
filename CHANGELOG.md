@@ -9,6 +9,35 @@ predating this file.
 
 ## 2026-10-13
 
+- **fix(web): the top-bar padding stacks are gone — the nodeview top bar, the
+  app top bar's gap below, and the sidebar's user section (owner 2026-10-13).**
+  (1) The **nodeview top bar lost its own vertical padding**: the panelled
+  page's `spacing-4` top padding carries the bar's top gap alone now (matching
+  the horizontal padding that carries the sides) — the bar's `spacing-2` used
+  to stack on top of it and read as double (27px above vs 12px below, 17px at
+  the sides). (2) The **main content card's (and right rail's) top margin
+  steps down to `spacing-2`**: the app top bar's 44px height already carries
+  slack below its controls, so the full `spacing-3` margin stacked into a
+  double gap under the bar (18px below the buttons vs 6px above; now 14px).
+  (3) The **sidebar's pinned user section rides the sidebar's own padding**
+  (horizontal row padding → 0, the nav-list law): the avatar lines up with the
+  nav icons and the gear with the rows' right edge instead of the row's
+  `spacing-3` stacking on the sidebar's (24px inset vs the nav column's 20px).
+  (4) **Live measurement is now a durable tool**:
+  `scripts/screenshots/measure-probe.mjs` signs in (the owner-password login
+  API, or an automatic temporary session minted into the relay DB and deleted
+  at exit — the operator key answers account endpoints 401 and is not a UI
+  credential) and dumps every chrome surface's rect + padding/margin/gap as
+  JSON with the recurring derived gaps precomputed, plus a screenshot; run it
+  BEFORE against the live stack and AGAIN after the redeploy to diff.
+  Recorded in `docs/developers/ui-debugging.md` (Live measurement + Auth) and
+  the notees-development skill's development-workflow reference.
+  **Verification:** measured live before/after with measure-probe
+  (card→node-topbar buttons 27→19px — the bar's top edge itself lands at 17,
+  the side padding; topbar→card 12→8px; sidebar avatar 32→20px = the nav
+  column); `pnpm typecheck` + `pnpm test` green (3086 tests); `VERIFY-PASS`
+  from the verify-min smoke after the scoped web redeploy.
+
 - **feat(web): settings align with the fleet design system — a 5-swatch accent
   picker, a 4-option theme control, and a deep-linkable full settings page at
   /settings/<section> beside the slimmed quick-tweaks modal (owner 2026-10-13).**

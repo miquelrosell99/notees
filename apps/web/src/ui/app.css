@@ -638,7 +638,12 @@ select:focus-visible {
   align-items: center;
   gap: var(--spacing-2);
   flex-shrink: 0;
-  padding: var(--spacing-2) 0;
+  /* No vertical padding (owner 2026-10-13): the panelled page's own
+     padding-top carries the bar's top gap, so it matches the horizontal
+     padding that carries the sides — the bar's padding used to stack on
+     top of it and read as double. The spacing-3 bottom margin below the
+     border is the bar's whole bottom gap, like the panels' bottom stop. */
+  padding: 0;
   border-bottom: var(--border-width-default) solid var(--color-outline-variant);
   margin-bottom: var(--spacing-3);
 }

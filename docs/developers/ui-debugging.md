@@ -18,9 +18,28 @@ against pinned `:2.0.0-m1` images by default; point `NOTEES_SYNC_IMAGE` /
 scripts against the LOCAL production stack (`notees-sync` :8377,
 `notees-web` :8378) — the real workspace, the real data, the current build.
 Use them to reproduce a visual bug exactly as the owner sees it. Only
-`probe-template.mjs` is durable; the rest are throwaway diagnostics (copy the
-template, edit, run, delete). `verify-min.mjs` is the post-deploy smoke, not
-a probe.
+`probe-template.mjs` and `measure-probe.mjs` are durable; the rest are
+throwaway diagnostics (copy the template, edit, run, delete).
+`verify-min.mjs` is the post-deploy smoke, not a probe.
+
+**Live measurement — `measure-probe.mjs`.** The durable answer to "the
+padding/spacing looks wrong": it signs in (see Auth below), opens the test
+workspace's day page, and dumps every chrome surface's bounding rect +
+computed padding/margin/gap as JSON, with the recurring derived gaps
+(top-bar→card, card→node-topbar, node-topbar→body, card→panel insets,
+sidebar-footer→viewport) precomputed under `__gaps`. A screenshot lands at
+`/tmp/measure-probe.jpg` (override `NOTEES_SHOT_PATH`). Extra selectors are
+measured on demand:
+
+```sh
+cd scripts/screenshots
+node measure-probe.mjs .nt-some-popup .nt-other-element
+```
+
+Ground the BEFORE numbers against the live stack first, then rebuild +
+redeploy the web image and run it again for the AFTER — the JSON diff is the
+verification (this is how the 2026-10-13 top-bar/sidebar padding slice was
+measured and confirmed).
 
 ## The probe recipe
 
@@ -40,9 +59,30 @@ build; the template then drives the login flow (server URL → Continue →
 email/password → "Your workspaces" picker → workspace card; the picker
 heading is "Your workspaces", not "Choose a workspace"). The operator API
 key (`config/notees/sync/api_key.txt`) is for object-API calls a probe may
-need (fixtures, lookups), not for the UI login. The gitignored ad-hoc probes
-carry the owner's credentials; never commit credentials into anything
-durable.
+need (fixtures, lookups), not for the UI login — account endpoints
+(`listWorkspaces`, `fetchMe`, login) answer it **401**, so a localStorage
+seed with it lands back on the connect screen. To skip the login flow
+entirely, seed a session: `notees.sessionToken` with a valid `nt_` token +
+`notees.workspaceId` with the test-workspace uuid auto-connects straight
+into the app (the `layout-probe.mjs` idiom).
+
+Where does a valid token come from in an unattended session?
+`measure-probe.mjs` automates both paths (copy its `sessionFromLogin` /
+`sessionFromDbMint` helpers):
+
+1. `NOTEES_ADMIN_PASSWORD` (+ `NOTEES_ADMIN_EMAIL`) → the login API mints
+   a real session (the `boot-probe.mjs` idiom).
+2. Fallback: mint a temporary session row directly into the relay DB
+   (`config/notees/sync/relay.db`): a random `nt_` token, only its sha256
+   inserted into `session` for the oldest user row, deleted in a `finally`
+   at exit. One row, scoped, 24h self-expiry even if a run dies. Resolve
+   `better-sqlite3` from `packages/store` (createRequire anchored at
+   `packages/store/package.json`) — it is not a dependency of
+   `scripts/screenshots` and does not resolve from there. `NOTEES_RELAY_DB`
+   overrides the DB path.
+
+The gitignored ad-hoc probes carry the owner's credentials; never commit
+credentials into anything durable.
 
 ### Rules
 
@@ -57,6 +97,10 @@ durable.
 
 ## Gotchas already paid for
 
+- **Live measurement**: `node measure-probe.mjs` from `scripts/screenshots/`
+  dumps chrome rects/paddings/gaps as JSON (see "Live measurement" above).
+  The two auth paths (login-API vs temporary relay-DB session mint) and the
+  401-on-operator-key trap are documented under Auth.
 - **Theme**: seed `localStorage "notees.theme" = "dark" | "light"` in an
   init script before `goto` (the template does it). Otherwise the probe sees
   whatever the default is, not the theme the bug was reported in.

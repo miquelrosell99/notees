@@ -95,6 +95,13 @@ deleted when the verification is done — the test workspace absorbs the mess;
 "Notas" never does. Canonical: `docs/developers/development.md` (Parallel
 sessions).
 
+**Live UI measurement:** `scripts/screenshots/measure-probe.mjs` (run from
+that folder) signs in — `NOTEES_ADMIN_PASSWORD` or an automatic temporary
+session minted into the relay DB — opens the test workspace, and dumps the
+chrome surfaces' rects/paddings/gaps as JSON plus a screenshot. Ground
+BEFORE numbers against the live stack, redeploy, run again for AFTER.
+Canonical: `docs/developers/ui-debugging.md` (Live measurement + Auth).
+
 ## The fixture gate (blocking)
 
 Op fixtures live in `packages/protocol/fixtures/` (envelope-minimal,

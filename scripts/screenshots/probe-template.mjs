@@ -11,7 +11,9 @@
 // below. The operator API key (config/notees/sync/api_key.txt) is for the
 // object-API calls a probe may need (fixtures, lookups), not for the UI
 // login, which is the owner's email/password (the gitignored probe scripts
-// carry it; never commit credentials).
+// carry it; never commit credentials). To skip the flow entirely, copy the
+// session-seed + mint helpers from measure-probe.mjs (notees.sessionToken +
+// notees.workspaceId in localStorage auto-connect straight into the app).
 
 import { chromium } from "playwright";
 import { readFileSync } from "node:fs";

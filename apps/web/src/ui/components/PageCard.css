@@ -35,7 +35,11 @@
   flex: 1;
   min-width: 0;
   min-height: 0;
-  margin: var(--spacing-3) var(--spacing-3) var(--spacing-3) 0;
+  /* The top margin is one step smaller than the others (owner 2026-10-13):
+     the top bar's 44px height already carries slack below its controls, so
+     a full spacing-3 here stacked into a double gap under the bar. The
+     left/right/bottom margins keep the shell's spacing-3 canvas rhythm. */
+  margin: var(--spacing-2) var(--spacing-3) var(--spacing-3) 0;
   background: var(--color-surface);
   border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-card);
