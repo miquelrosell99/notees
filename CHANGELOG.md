@@ -9,6 +9,16 @@ predating this file.
 
 ## 2026-10-13
 
+- **fix(web): the nodeview top bar's divider hairline retires (owner
+  2026-10-13).** The `border-bottom` under the panelled bar is gone — the
+  `spacing-3` margin below stays as the bar's whole separation from the
+  columns, and the bar reads as a plain pinned row like the app top bar
+  above it (which never carried a divider either). `PageChrome.tsx`'s
+  NodeTopbar doc comment updated with it.
+  **Verification:** `pnpm typecheck` + `pnpm test` green; `VERIFY-PASS` from
+  the verify-min smoke after the scoped web redeploy; live screenshot via
+  measure-probe confirms the hairline is gone.
+
 - **fix(web): the top-bar padding stacks are gone — the nodeview top bar, the
   app top bar's gap below, and the sidebar's user section (owner 2026-10-13).**
   (1) The **nodeview top bar lost its own vertical padding**: the panelled
