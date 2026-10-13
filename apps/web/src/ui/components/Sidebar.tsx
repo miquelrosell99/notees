@@ -294,6 +294,7 @@ export function Sidebar({
             const target = client.getNode(id);
             return target === undefined ? null : client.effectiveNodeColor(target);
           }}
+          resolveClassColor={(id) => client.effectiveClassColor(id)}
         />
       </span>
     );

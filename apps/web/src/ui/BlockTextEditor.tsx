@@ -506,6 +506,12 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     (classId: string): string => captureApi.displayName(classId) ?? "",
     [captureApi],
   );
+  // The chip atom's wavy underline tint: the class's effective color — the
+  // read-mode nt-link--class look (owner 2026-10-13).
+  const resolveClassColor = useCallback(
+    (classId: string): string | null => client.effectiveClassColor(classId),
+    [client],
+  );
   const draftRef = useRef(proseFromAst(node.contentAst, resolveClassName));
   const dirtyRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -740,7 +746,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
   useEffect(() => {
     const el = spanRef.current;
     if (el === null) return;
-    buildEditableDom(el, nodeRef.current.contentAst, resolveClassName);
+    buildEditableDom(el, nodeRef.current.contentAst, resolveClassName, resolveClassColor);
     if (typeof caret === "object") focusAtPoint(el, caret.x, caret.y);
     else focusWithCaret(el, caret);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -757,9 +763,9 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     if (el === null || document.activeElement === el || dirtyRef.current) return;
     const domSignature = `${el.textContent ?? ""}#${el.querySelectorAll("[data-atom-key]").length}`;
     if (domSignature !== editableDomSignature(node.contentAst, resolveClassName)) {
-      buildEditableDom(el, node.contentAst, resolveClassName);
+      buildEditableDom(el, node.contentAst, resolveClassName, resolveClassColor);
     }
-  }, [node.contentAst, resolveClassName]);
+  }, [node.contentAst, resolveClassName, resolveClassColor]);
 
   // Pill selection chrome: pills are DOM-built, so the selected class is
   // applied imperatively (re-applied after every rebuild replaces elements).
@@ -857,7 +863,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       timerRef.current = null;
     }
     const prose = proseFromAst(next, resolveClassName);
-    buildEditableDom(el, next, resolveClassName);
+    buildEditableDom(el, next, resolveClassName, resolveClassColor);
     draftRef.current = prose;
     dirtyRef.current = false;
     setSelectedAtomKey(null);

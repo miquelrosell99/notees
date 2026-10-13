@@ -9,6 +9,43 @@ predating this file.
 
 ## 2026-10-13
 
+- **fix(web): the class page's "Extended by" tree nests each extender under
+  its DIRECT parent (owner refinement 2026-10-13).** The first direct-only
+  cut of this section (earlier today) rendered a FLAT list of the direct
+  extenders — the owner clarified the wanted shape: source's section shows
+  book with x nested as book's CHILD, and x never appears as its own
+  top-level row under source. The section is a tree again, but built from
+  DIRECT extends edges only (`getDirectClassChildren` per level, replacing
+  the transitive-closure read that double-listed grandchildren at the top
+  level); the badge counts the direct extenders. The test asserts DOM
+  nesting via the rows' `data-block-id`s — the leaf row sits inside its
+  direct parent's row, and the section carries exactly the two family rows.
+  `docs/ux.md`'s class-page line: "a tree of direct extends edges". Gate:
+  `pnpm test` green.
+
+- **feat(web): inline class mentions wear the node-link look — a class-colored
+  wavy underline, no pill — and their name reads in every flattened surface
+  (owner 2026-10-13).** Read mode renders a `class_chip` as a link styled
+  like a mention (`.nt-link--class`) but with a wavy underline instead of
+  the dashed one, tinted by the class's effective color (the extends-chain
+  `effectiveClassColor` walk) via the new `resolveClassColor` prop on
+  `InlineTokens`; the old read-mode pill chrome (`.nt-chip
+  .nt-class-chip`) is gone, and clicking the chip opens the class exactly
+  like a mention opens its target (read-only projections degrade to the
+  styled non-interactive span). Edit mode keeps the atomic chip but tints
+  its wavy underline at build time (`buildEditableDom` gains an optional
+  `ClassColorResolver`; `OutlinerClient` exposes `effectiveClassColor`),
+  and the arrow-selected state now hides the wavy underline like the
+  mention's dashed border so the focus ring reads as one clean shape.
+  Flattened surfaces include the chip's resolved class name instead of
+  dropping it: `plainTextExcerpt`/`deriveDisplayName` take an optional
+  class-name resolver (a chip's one-off `displayText` still wins), and the
+  browser tab title plus the table view's name cell — its CSV projection
+  and sort key riding the same `nameCellText` — pass it, so a page titled
+  "␣contrato␣ entre GMI…" (chip first) reads complete everywhere.
+  **Verification:** `pnpm typecheck` + `pnpm test` green; `VERIFY-PASS`
+  from the verify-min smoke after the scoped web redeploy.
+
 - **feat(web): the card cover slot renders even when empty — the missing
   cover is visible and fillable in place — plus a card roundness step down
   (owner 2026-10-13).** In cards mode the cover layouts (cover top/left/

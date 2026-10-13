@@ -4,7 +4,9 @@
  * read-mode rendering): a mention is a `contenteditable="false"` span, one
  * caret unit, visually identical to the read-mode dashed-underline link.
  * Class chips render the same way (their label is re-resolved at build
- * time through `resolveClassName` — the wire token stores no text).
+ * time through `resolveClassName` — the wire token stores no text), with
+ * the read-mode class-link look: a wavy underline tinted by the class's
+ * effective color through `resolveClassColor`.
  *
  * Prose offsets stay the single coordinate system (editor/selection.ts):
  * a pill contributes its captured `text` (or the chip's resolved label)
@@ -22,12 +24,17 @@
  */
 
 import { proseFromAst, proseSpans, type ClassNameResolver } from "@/editor/prose.js";
+import { cssColorFor } from "@/ui/components/ui/colorPresets.js";
 
 /** CSS class of the atomic pill element (also the click/hit-test hook). */
 export const ATOM_CLASS = "nt-atom";
 
 /** CSS class distinguishing a class chip from a mention pill. */
 export const CHIP_CLASS = "nt-atom--chip";
+
+/** Resolves a class's effective color (stored preset token or hex) — tints
+ *  the chip atom's wavy underline at build time. */
+export type ClassColorResolver = (classId: string) => string | null;
 
 /** One atomic pill in the editable DOM (top-level token). */
 export interface EditableAtom {
@@ -132,12 +139,15 @@ export function atomFromKey(
  * The pill data-atom-key carries the BUILD-TIME prose range; consumers must
  * validate keys against the CURRENT atom list (offsets drift as the user
  * types — selection state is cleared on input, so a stale key never acts).
- * `resolveClassName` renders class chip labels (re-resolved per build).
+ * `resolveClassName` renders class chip labels (re-resolved per build);
+ * `resolveClassColor` tints the chip's wavy underline with the class's
+ * effective color (the read-mode nt-link--class parity, owner 2026-10-13).
  */
 export function buildEditableDom(
   el: HTMLElement,
   ast: readonly unknown[],
   resolveClassName?: ClassNameResolver,
+  resolveClassColor?: ClassColorResolver,
 ): void {
   el.replaceChildren();
   let offset = 0;
@@ -173,6 +183,10 @@ export function buildEditableDom(
           pill.contentEditable = "false";
           pill.spellcheck = false;
           pill.textContent = label;
+          if (typeof t.classId === "string") {
+            const color = resolveClassColor?.(t.classId) ?? null;
+            if (color !== null) pill.style.textDecorationColor = cssColorFor(color);
+          }
           pill.dataset.atomKey = `${offset}:${offset + label.length}`;
           offset += label.length;
           el.appendChild(pill);

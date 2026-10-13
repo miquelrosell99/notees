@@ -46,11 +46,16 @@ export const DISPLAY_NAME_MAX = 80;
  * deterministic date id (the year/month/day chain) formats from the id, and
  * a compact YYYYMMDD-style excerpt formats only when the node carries a
  * date class — an 8-digit title on an ordinary page stays literal.
+ * `resolveClassName` includes class chips' resolved labels in the excerpt
+ * (optional — the pure default drops bare chips, see plainTextExcerpt).
  */
-export function fullTitleOf(node: NodeLike): string {
+export function fullTitleOf(
+  node: NodeLike,
+  resolveClassName?: (classId: string) => string | null,
+): string {
   const fromId = parseDateNodeId(node.id);
   if (fromId !== null) return dateNodeDisplayLabel(fromId, fromId.precision);
-  const excerpt = plainTextExcerpt(node.contentAst).trim();
+  const excerpt = plainTextExcerpt(node.contentAst, resolveClassName).trim();
   if (!excerpt) return "";
   const dateFormatted = formatDateNodeName(excerpt, node.classIds);
   return dateFormatted ?? excerpt;
@@ -60,12 +65,19 @@ export function fullTitleOf(node: NodeLike): string {
  * Plaintext excerpt of a content token stream (display-name and fallback
  * purposes; the search package owns the full FTS extraction spec).
  * Includes: text runs, typed-link text, mention captured text, a class
- * chip's one-off displayText (the chip's class name is graph state — only
- * the caller that owns resolution can substitute it), math expressions;
- * recurses quotes and headings. Skips: asset_ref/embed_ref/query/whiteboard
- * (structural tokens carry no prose).
+ * chip's label, math expressions; recurses quotes and headings. Skips:
+ * asset_ref/embed_ref/query/whiteboard (structural tokens carry no prose).
+ *
+ * A class chip's label is the class's CURRENT name — graph state this pure
+ * helper cannot resolve on its own. Callers with client access pass
+ * `resolveClassName`; a chip carrying its own one-off `displayText` wins
+ * over the resolved name. Without a resolver a bare chip excerpts to ""
+ * (the caller falls back to the resolved class display name).
  */
-export function plainTextExcerpt(ast: ContentAst | null | undefined): string {
+export function plainTextExcerpt(
+  ast: ContentAst | null | undefined,
+  resolveClassName?: (classId: string) => string | null,
+): string {
   if (!ast) return "";
   const parts: string[] = [];
   const walk = (tokens: readonly ContentToken[]) => {
@@ -78,13 +90,11 @@ export function plainTextExcerpt(ast: ContentAst | null | undefined): string {
         case "mention":
           parts.push(token.displayText ?? token.text);
           break;
-        case "class_chip":
-          // RENDER-ONLY reference: the label is the class's CURRENT name
-          // (graph state this pure helper cannot resolve). A chip carrying
-          // its own one-off wording contributes it; otherwise the excerpt
-          // skips it (callers needing the name resolve it client-side).
-          if (token.displayText !== undefined) parts.push(token.displayText);
+        case "class_chip": {
+          const label = token.displayText ?? (resolveClassName?.(token.classId) ?? null);
+          if (label !== null) parts.push(label);
           break;
+        }
         case "math":
           parts.push(token.expression);
           break;
@@ -123,9 +133,15 @@ export function plainTextExcerpt(ast: ContentAst | null | undefined): string {
  *
  * The result is capped at DISPLAY_NAME_MAX — the dense-chrome budget.
  * Node links/mention chips read fullTitleOf instead (the complete title).
+ * Pass `resolveClassName` to include class chips' resolved labels in the
+ * excerpt (flattened chrome: tab title, table cells); without it a bare
+ * chip contributes nothing.
  */
-export function deriveDisplayName(node: NodeLike): string {
-  return fullTitleOf(node).slice(0, DISPLAY_NAME_MAX);
+export function deriveDisplayName(
+  node: NodeLike,
+  resolveClassName?: (classId: string) => string | null,
+): string {
+  return fullTitleOf(node, resolveClassName).slice(0, DISPLAY_NAME_MAX);
 }
 
 /**

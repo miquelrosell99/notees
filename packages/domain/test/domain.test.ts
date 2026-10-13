@@ -364,8 +364,7 @@ describe("deriveDisplayName", () => {
   it("class chips contribute their one-off displayText (name-only titles resolve client-side)", () => {
     // The chip's LABEL is the class's current name — graph state this pure
     // helper cannot resolve. A chip carrying its own wording contributes it;
-    // a bare chip excerpts to "" (the caller with client access falls back
-    // to the resolved class display name — see Breadcrumbs).
+    // a bare chip excerpts to "" unless the caller passes a resolver.
     expect(
       plainTextExcerpt([
         { type: "text", text: "via" },
@@ -381,6 +380,40 @@ describe("deriveDisplayName", () => {
         contentAst: [{ type: "class_chip", classId: "0192a000-0000-7000-8000-0000000000c1" }],
       }),
     ).toBe("");
+  });
+
+  it("class chips resolve through an optional caller-supplied resolver", () => {
+    const resolve = (classId: string): string | null =>
+      classId.endsWith("c1") ? "contract" : null;
+    expect(
+      plainTextExcerpt(
+        [
+          { type: "class_chip", classId: "0192a000-0000-7000-8000-0000000000c1" },
+          { type: "text", text: "entre GMI" },
+          { type: "class_chip", classId: "0192a000-0000-7000-8000-00000000dead" },
+        ],
+        resolve,
+      ),
+    ).toBe("contract entre GMI");
+    expect(
+      deriveDisplayName(
+        {
+          id: "b4",
+          isClass: false,
+          presentAsMain: false,
+          parentId: "p1",
+          contentAst: [{ type: "class_chip", classId: "0192a000-0000-7000-8000-0000000000c1" }],
+        },
+        resolve,
+      ),
+    ).toBe("contract");
+    // One-off displayText still wins over the resolved name.
+    expect(
+      plainTextExcerpt(
+        [{ type: "class_chip", classId: "0192a000-0000-7000-8000-0000000000c1", displayText: "the source" }],
+        resolve,
+      ),
+    ).toBe("the source");
   });
 
   it("headings recurse like quotes: the excerpt flattens them and stringify does NOT survive them", () => {

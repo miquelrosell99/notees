@@ -3038,6 +3038,22 @@ mark {
   border-bottom-color: var(--color-primary);
 }
 
+/* Inline class references (owner 2026-10-13): the node-link look with a
+   WAVY underline instead of the dashed one mentions wear, tinted by the
+   class's effective color through the inline text-decoration-color — no
+   pill chrome. The non-interactive projection wears the same shape as a
+   plain span. */
+.nt-link--class,
+.nt-class-link {
+  border-bottom: none;
+  text-decoration: underline wavy var(--color-outline);
+  text-underline-offset: 2px;
+}
+
+.nt-link--class:hover {
+  text-decoration-color: var(--color-primary);
+}
+
 /* Atomic node-link pills in the block editor (edit mode): the read-mode
    dashed-underline look, one caret unit (contenteditable=false span). */
 .nt-atom {
@@ -3053,8 +3069,10 @@ mark {
   border-bottom-color: var(--color-primary);
 }
 
-/* Class chip pill (edit mode) — parity: the inline-class mark wore a
-   wavy underline; the read-mode chip keeps its own chip chrome. */
+/* Class chip (edit mode) — the inline-class mark is a wavy underline (not
+   the mention's dashed border), tinted per class by the inline
+   text-decoration-color set at build time; parity with the read-mode
+   nt-link--class look. */
 .nt-atom--chip {
   border-bottom: none;
   text-decoration: underline wavy var(--color-outline);
@@ -3067,14 +3085,15 @@ mark {
 
 /* Arrow/click-selected pill — the only focus hint while selected (the DOM
    caret stays at a boundary). Primary text on an 8% primary tint inside a
-   focus-ring outline; the dashed underline hides (owner call) so the ring
-   reads as one clean shape. Layout-neutral by design — no padding/margin
-   pair (a width delta on selection can flip a tight line into wrapping the
-   pill mid-token). */
+   focus-ring outline; the underline hides (owner call — the mention's
+   dashed border AND the chip's wavy one) so the ring reads as one clean
+   shape. Layout-neutral by design — no padding/margin pair (a width delta
+   on selection can flip a tight line into wrapping the pill mid-token). */
 .nt-atom--selected,
 .nt-atom--selected:hover {
   color: var(--color-primary);
   border-bottom-color: transparent;
+  text-decoration-color: transparent;
   background: color-mix(in srgb, var(--color-primary) 8%, transparent);
   border-radius: var(--shape-extra-small);
   box-shadow: var(--shadow-focus-ring-primary);

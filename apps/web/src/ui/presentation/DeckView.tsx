@@ -105,6 +105,7 @@ function DeckBlock({ tree }: { tree: BlockTreeNode }) {
             const target = client.getNode(id);
             return target === undefined ? null : client.effectiveNodeColor(target);
           }}
+          resolveClassColor={(id) => client.effectiveClassColor(id)}
           renderEmbed={(id, _token, index) => (
             <EmbedView nodeId={id} hostId={node.id} tokenIndex={index} />
           )}
