@@ -9,6 +9,34 @@ predating this file.
 
 ## 2026-10-13
 
+- **feat(web): property provenance flips — manual properties are unmarked,
+  class-sourced ones wear a "C" badge (owner 2026-10-13).** The owner turned
+  the marking scheme around: don't mark "manual" properties (the retired
+  "unbound" pill), mark the ones that come FROM a class. Both properties
+  surfaces (the panel's table + the sidebar's name rows, and the card's
+  table with it) now render a single **C** badge (title "From a class") on
+  rows whose effective value is class-sourced (`boundBy !== null` — an
+  authored value on a bound schema or a derived default), riding the
+  property-NAME cell (the earlier move — between label and value it grouped
+  with the value); manual values carry nothing. The retired "default" pill
+  folds into the same badge; the derived default's muted value color
+  (`nt-property-default`) is unchanged. **Verification:** the panel and
+  annotation specs re-pinned (manual rows unmarked; a bound default wears C;
+  a surviving bound default keeps C after a class unassign while the
+  unbound row stays bare); 100 tests green across the properties/card
+  suites.
+
+- **fix(web): side-cover card grids form TWO columns at desktop widths
+  (owner 2026-10-13).** The owner: "make the side cover layouts have 2
+  columns when screen is this width, not one." Root cause measured in a
+  playwright repro: `column-width: min(400px, 100%)` computes to FULL WIDTH
+  inside a multicol (the percentage resolves against the multicol box
+  itself — circular), collapsing the masonry to one column. The `:has()`
+  override drops the `min()`: `column-width: var(--layout-size-9xl)` gives
+  two ~470px columns at the owner's ~990px content width and degrades to
+  one column naturally below that. **Verification:** the static repro pins
+  the before/after (2 vs 1 columns); the card suites green.
+
 - **docs(developers): the throwaway-stack probe recipe is written down (skill
   + runbook).** Learned the hard way while reproducing an owner screenshot
   against the RUNNING build: `run.sh` pins `:2.0.0-m1`, so hand-roll the two

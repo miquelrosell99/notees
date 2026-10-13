@@ -39,9 +39,13 @@
   box-sizing: border-box;
 }
 
-/* Horizontal-cover cards are wider per column. */
+/* Horizontal-cover cards are wider per column. NO min(..., 100%) here — a
+   percentage inside column-width resolves against the multicol box itself
+   (circular), computing to FULL WIDTH and collapsing the grid to ONE column
+   (measured in a playwright repro, owner 2026-10-13). column-width alone
+   degrades gracefully: below two columns' worth of space it yields one. */
 .cards-grid:has(.node-card--cover-left, .node-card--cover-right) {
-  column-width: min(var(--layout-size-9xl), 100%);
+  column-width: var(--layout-size-9xl);
 }
 
 /* The affordance spans every column (a masonry item otherwise). */

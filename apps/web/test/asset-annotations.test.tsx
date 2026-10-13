@@ -357,10 +357,13 @@ describe("Asset annotations (highlight class)", () => {
     // The class-derived affordance is gone; the authored link itself survives.
     expect(client.getAnnotationsForAsset(assetNodeId)).toEqual([]);
 
-    // The annotation's page view marks the surviving rows "unbound".
+    // The annotation's page view marks nothing on the surviving rows —
+    // manual (unbound) properties carry no badge under the owner 2026-10-13
+    // scheme (only class-sourced ones get the "C" flag).
     render(<PageView client={client} pageId={annotationId} />);
     expandProperties();
-    expect(screen.getAllByText("unbound")).toHaveLength(2);
+    expect(screen.queryByText("unbound")).toBeNull();
+    expect(screen.queryAllByText("C").length).toBe(0);
   });
 
   it("page and note are optional: provenance records the bare origin, no note means no child block", async () => {

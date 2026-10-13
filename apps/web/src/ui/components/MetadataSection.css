@@ -213,6 +213,12 @@ span.pill__text {
   flex-shrink: 0;
 }
 
+/* Inside the name cell the badge needs its own breathing room (the label
+   column is a plain text run). */
+.nt-property-name .nt-property-hint {
+  margin-left: var(--spacing-2);
+}
+
 .nt-property-default .nt-property-value {
   color: var(--color-on-surface-variant);
 }
