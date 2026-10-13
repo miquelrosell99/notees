@@ -811,8 +811,8 @@
   --color-accent-swatch-monochrome: #f4f3f1;
 
   /* Graph view tokens */
-  --graph-node-default: #b8b8b8;
-  --graph-edge-color: #3a3a3a;
+  --graph-node-default: #d0d0d0;
+  --graph-edge-color: #707070;
   --graph-bg: transparent;
   --graph-minimap-dot: #a9a59f;
   --graph-minimap-viewport: #d4d4d4;
