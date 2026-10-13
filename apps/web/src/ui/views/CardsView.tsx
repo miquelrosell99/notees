@@ -300,7 +300,6 @@ export function NodeCard({
             client={client}
             nodeId={item.node.id}
             onOpenNode={openNode}
-            anchor="right"
             editable={false}
           />
         </div>
