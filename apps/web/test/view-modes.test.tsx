@@ -897,9 +897,13 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     render(<NodeView client={client} nodeId={seeded.classId} onOpenNode={() => {}} />);
     await expandClassedNodes();
 
+    // The section opens on its Name-asc default (owner 2026-10-13); the
+    // panel composes on top of it.
     fireEvent.click(screen.getByRole("button", { name: "Sort" }));
     fireEvent.click(screen.getByRole("button", { name: "+ Status" }));
-    fireEvent.click(screen.getByRole("button", { name: "+ Name" }));
+    // [Name asc, Status asc] would let name dominate — promote Status with
+    // the priority reorder (the second entry's Move up).
+    fireEvent.click(screen.getAllByRole("button", { name: "Move up" })[1]!);
     // Status asc: Backlog (Alpha), Doing (Beta); empty sinks last (Gamma).
     expect(rowNames()).toEqual(["Alpha", "Beta", "Gamma"]);
 
@@ -916,7 +920,7 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     fireEvent.click(screen.getByRole("button", { name: "Status: ascending — toggle" }));
     expect(rowNames()).toEqual(["Beta", "Alpha", "Gamma"]);
 
-    // Remove the Status entry: single Name sort remains.
+    // Remove the Status entry: the Name-asc default sort remains.
     fireEvent.click(screen.getByRole("button", { name: "Remove Status sort" }));
     expect(rowNames()).toEqual(["Alpha", "Beta", "Gamma"]);
     // Single sort: the arrow stays, the index badge is gone.

@@ -15,7 +15,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Icon } from "../Icon.js";
 import { useViewModePreference } from "../viewPrefs.js";
 import { NodeCollection, ViewToolbar } from "../views/index.js";
-import type { NodeCollectionItem, TableColumn, ViewMode } from "../views/index.js";
+import type { NodeCollectionItem, SortSpec, TableColumn, ViewMode } from "../views/index.js";
 import type { AnyClient, CardLayout } from "../views/types.js";
 
 export interface CollectionHubProps {
@@ -40,6 +40,13 @@ export interface CollectionHubProps {
    */
   defaultCoverLayout?: CardLayout | undefined;
   tableEditable?: boolean | undefined;
+  /**
+   * Table mode's sort default (owner 2026-10-13 — the hubs' tables open on
+   * Edited, newest first); other modes ignore it. Unset = the container's
+   * row order (the view default is no sort — containers own their table
+   * defaults).
+   */
+  defaultSort?: SortSpec | undefined;
   /** Cards board: the select property whose options seed the board columns. */
   groupByProperty?: string | undefined;
   /**
@@ -68,6 +75,7 @@ export function CollectionHub({
   cardProperties,
   defaultCoverLayout,
   tableEditable = false,
+  defaultSort,
   groupByProperty,
   editable = false,
   emptyTitle,
@@ -104,6 +112,7 @@ export function CollectionHub({
         defaultCoverLayout={defaultCoverLayout}
         propertiesOf={(id) => client.getEffectiveProperties(id)}
         tableEditable={tableEditable}
+        {...(defaultSort !== undefined ? { defaultSort } : {})}
         groupByProperty={groupByProperty}
         emptyTitle={emptyTitle}
         editable={editable}

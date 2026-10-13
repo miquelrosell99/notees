@@ -2412,6 +2412,7 @@ export function HubView({
           defaultMode="table"
           persistKey="hub.tasks"
           tableColumns={taskTableColumns(client)}
+          defaultSort={{ key: "edited", direction: "desc" }}
           cardProperties={TASK_PROPERTY_COLUMNS.map((col) => col.id)}
           tableEditable
           groupByProperty={groupByProperty}
@@ -2454,6 +2455,7 @@ export function HubView({
           defaultCoverLayout="cover-top"
           persistKey="hub.assets"
           tableColumns={HUB_ASSET_COLUMNS}
+          defaultSort={{ key: "edited", direction: "desc" }}
           emptyTitle="No assets yet"
           headerActions={newAssetAction}
           onOpenNode={onOpenNode}

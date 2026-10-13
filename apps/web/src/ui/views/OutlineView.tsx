@@ -29,21 +29,47 @@
  *   action (unassign) or replace the row wholesale via renderItem. The flat
  *   list (and every group of a grouped rendering) is windowed with the
  *   shared affordance.
+ *
+ * SORT (owner 2026-10-13): the read-only projections carry the sort button
+ * (the table's mdi-sort control, generalized) — a small panel offering
+ * Dates first (date pages newest → oldest, then the rest A–Z), Name A–Z,
+ * and Default order (the container's natural order). The mode orders pages:
+ * a grouped rendering sorts its GROUPS (rows inside a group keep their
+ * position order), a tree sorts EVERY sibling level, a flat list sorts its
+ * items; the window re-narrows on every resort. Editable surfaces (the
+ * outliner, the task list) hide the button — there the drag order IS the
+ * order. Hosted collections portal the toolbar into the tab bar's
+ * right-hand cluster (the table/cards precedent); un-hosted it rides the
+ * body top.
  */
 
-import { useContext, useState, type ReactNode } from "react";
+import { useContext, useMemo, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
 import { BlockRow } from "../BlockRow.js";
 import { displayNameFromClient } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import { OutlinerContext, useOutlinerValue } from "../outliner-context.js";
+import { SortMenuButton, type SortMenuOption } from "../components/ui/index.js";
 import { registerView } from "./registry.js";
 import { useWindowed } from "./useWindowed.js";
 import { ShowMoreButton } from "./ShowMoreButton.js";
+import { useViewChromeTarget } from "./viewChrome.js";
+import { compareGroupsByMode, compareItemsByMode, sortTreeByMode } from "./collectionSort.js";
 import type { BlockTreeNode } from "@/core/workspace-client.js";
-import type { CollectionGroup, NodeCollectionItem, NodeCollectionProps } from "./types.js";
+import type { CollectionGroup, NodeCollectionItem, NodeCollectionProps, SortMode } from "./types.js";
 import "./OutlineView.css";
+
+/** The list view's sort vocabulary (the sort-button panel options). */
+const OUTLINE_SORT_OPTIONS: SortMenuOption[] = [
+  { value: "dates-first", label: "Dates first", hint: "Newest → oldest, then A–Z" },
+  { value: "alphabetical", label: "Name A–Z" },
+  { value: "position", label: "Default order" },
+];
+
+/** The modes the list view sorts by — `edit-date` is the cards view's. */
+type OutlineSortMode = "dates-first" | "alphabetical" | "position";
 
 /** Depth cap for safety on deep recursive trees. */
 const TREE_DEPTH_CAP = 64;
@@ -61,15 +87,18 @@ function isTree(items: NodeCollectionItem[]): boolean {
   return items.some((item) => (item.children?.length ?? 0) > 0);
 }
 
-function TreeRows({ items, props }: { items: NodeCollectionItem[]; props: NodeCollectionProps }) {
+function TreeRows({ items, props, resetKey }: { items: NodeCollectionItem[]; props: NodeCollectionProps; resetKey?: string | undefined }) {
   const { client, editable = false, readOnly = !editable, renderItem } = props;
   const resolveName = (id: string) => displayNameFromClient(client, id);
   // Only the READ-ONLY tree windows its top-level set (the child-
   // pages projection and friends); the editable outliner stays whole — it
   // is the live editing surface, and a window could hide a just-created
   // block. A BlockRow's own subtree renders whole (collapse chrome bounds it).
+  // The resetKey re-narrows the window on every resort (the shared
+  // useWindowed contract).
   const { visible, remaining, showMore } = useWindowed(items, {
     enabled: props.windowed ?? true,
+    resetKey,
   });
   const rows = readOnly ? visible : items;
   return (
@@ -122,10 +151,12 @@ function FlatRows({
   items,
   props,
   listClassName = "outline-flat",
+  resetKey,
 }: {
   items: NodeCollectionItem[];
   props: NodeCollectionProps;
-  listClassName?: string;
+  listClassName?: string | undefined;
+  resetKey?: string | undefined;
 }) {
   const {
     client,
@@ -143,6 +174,7 @@ function FlatRows({
   const outer = useContext(OutlinerContext);
   const { visible, remaining, showMore } = useWindowed(items, {
     enabled: props.windowed ?? true,
+    resetKey,
   });
   const outliner = useOutlinerValue(client, visible[0]?.node.id ?? "", {
     openNode: (id) => (onNodeClick ?? outer?.openNode ?? (() => {}))(id),
@@ -178,27 +210,90 @@ function FlatRows({
 }
 
 export function OutlineView(props: NodeCollectionProps) {
-  const { items = [], groups, pagesOnly = false, maxDepth, editable = false, tree = undefined } = props;
+  const { client, items = [], groups, pagesOnly = false, maxDepth, editable = false, tree = undefined } = props;
+  /**
+   * The sort-button state (session-local; the container only names the
+   * starting mode — `defaultSortMode`). `edit-date` is the cards view's
+   * vocabulary; an unsupported mode falls back to `position` (the natural
+   * order) and the button shows that.
+   *
+   * The default stays LIVE (the useWindowed resetKey precedent): when the
+   * container CHANGES `defaultSortMode` and the user has not picked a sort
+   * yet, the state re-derives from the new default. The ranked quick
+   * search rides this (owner 2026-10-13): while the search ranks the pool
+   * the section passes "position" so the ranked order shows; a user-picked
+   * mode latches `chosen` and survives default flips.
+   */
+  const defaultMode: OutlineSortMode =
+    props.defaultSortMode === "dates-first" || props.defaultSortMode === "alphabetical" || props.defaultSortMode === "position"
+      ? props.defaultSortMode
+      : "position";
+  const [sortState, setSortState] = useState<{ mode: OutlineSortMode; chosen: boolean }>({
+    mode: defaultMode,
+    chosen: false,
+  });
+  if (sortState.mode !== defaultMode && !sortState.chosen) {
+    setSortState({ mode: defaultMode, chosen: false });
+  }
+  const sortMode: OutlineSortMode = sortState.mode;
+  const setSortChoice = (mode: SortMode) => setSortState({ mode: mode as OutlineSortMode, chosen: true });
+  const chromeTarget = useViewChromeTarget();
+  const sortedItems = useMemo(() => {
+    const resolveClassName = (classId: string) => client.getDisplayName(classId);
+    if (sortMode === "position") return items;
+    if (tree === true || isTree(items)) return sortTreeByMode(items, sortMode, resolveClassName);
+    return [...items].sort(compareItemsByMode(sortMode, resolveClassName));
+  }, [items, tree, sortMode, client]);
+  const sortedGroups = useMemo(() => {
+    if (groups === undefined || sortMode === "position") return groups;
+    return [...groups].sort(compareGroupsByMode(sortMode));
+  }, [groups, sortMode]);
+
   if (items.length === 0) return null;
 
+  // The sort button rides the read-only projections only: an editable
+  // surface is the live editing/ordering surface (the outliner, the task
+  // list), where a sort would fight the drag order. Hosted collections
+  // portal the toolbar into the tab bar's right-hand cluster (the table /
+  // cards precedent); un-hosted it rides the body top.
+  const toolbar = editable ? null : (
+    <div className="outline-toolbar">
+      <SortMenuButton value={sortMode} options={OUTLINE_SORT_OPTIONS} onChange={(mode) => setSortChoice(mode as SortMode)} />
+    </div>
+  );
+  const chrome = chromeTarget !== null && toolbar !== null ? createPortal(toolbar, chromeTarget) : toolbar;
+
   if (tree === true || isTree(items)) {
-    let tree = items;
+    let tree = sortedItems;
     if (pagesOnly) tree = filterPages(tree);
     if (maxDepth !== undefined) tree = capDepth(tree, maxDepth);
     const className = `nt-block-tree ${editable ? "" : "nt-block-tree--readonly"}`.trim();
     // TreeRows owns its SortableContext so the items match the window.
     return (
-      <div className={className}>
-        <TreeRows items={tree} props={props} />
-      </div>
+      <>
+        {chrome}
+        <div className={className}>
+          <TreeRows items={tree} props={props} resetKey={sortMode} />
+        </div>
+      </>
     );
   }
 
-  if (groups !== undefined && groups.length > 0) {
-    return <GroupedFlat props={props} groups={groups} />;
+  if (sortedGroups !== undefined && sortedGroups.length > 0) {
+    return (
+      <>
+        {chrome}
+        <GroupedFlat props={props} groups={sortedGroups} sortKey={sortMode} />
+      </>
+    );
   }
 
-  return <FlatRows items={items} props={props} />;
+  return (
+    <>
+      {chrome}
+      <FlatRows items={sortedItems} props={props} resetKey={sortMode} />
+    </>
+  );
 }
 
 /**
@@ -209,7 +304,7 @@ export function OutlineView(props: NodeCollectionProps) {
  * group's rows are their own window — the header count names the FULL group
  * while the list renders the loaded slice + the shared affordance.
  */
-function GroupedFlat({ props, groups }: { props: NodeCollectionProps; groups: CollectionGroup[] }) {
+function GroupedFlat({ props, groups, sortKey }: { props: NodeCollectionProps; groups: CollectionGroup[]; sortKey?: string | undefined }) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const toggle = (id: string) => {
     setCollapsed((prev) => {
@@ -257,7 +352,7 @@ function GroupedFlat({ props, groups }: { props: NodeCollectionProps; groups: Co
                 </span>
               )}
             </div>
-            {!isCollapsed && <GroupRows group={group} props={props} />}
+            {!isCollapsed && <GroupRows group={group} props={props} resetKey={sortKey} />}
           </section>
         );
       })}
@@ -266,8 +361,8 @@ function GroupedFlat({ props, groups }: { props: NodeCollectionProps; groups: Co
 }
 
 /** One group's rows + its own window (component-scoped hook). */
-function GroupRows({ group, props }: { group: CollectionGroup; props: NodeCollectionProps }) {
-  return <FlatRows items={group.items} props={props} listClassName="outline-flat outline-group__items" />;
+function GroupRows({ group, props, resetKey }: { group: CollectionGroup; props: NodeCollectionProps; resetKey?: string | undefined }) {
+  return <FlatRows items={group.items} props={props} listClassName="outline-flat outline-group__items" resetKey={resetKey} />;
 }
 
 function capDepth(items: NodeCollectionItem[], maxDepth: number, level = 0): NodeCollectionItem[] {

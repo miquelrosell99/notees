@@ -1,12 +1,19 @@
 /**
  * TableView — the table mode, extended:
  *
- * - Columns: Name (fixed) + Classes/Created + property columns resolved by
+ * - Columns: Name (fixed) + Classes/Created/Edited + property columns resolved by
  *   the container; a "Columns" panel toggles built-ins and adds/removes any
- *   workspace property (session state, defaults from the container).
+ *   workspace property (session state, defaults from the container). The
+ *   Edited column rides `node.updatedAt` in the user's date format.
  * - Sort: per-column header click sets a single quick sort; the "Sort"
  *   panel manages the full multi-column SortSpec list (add/remove,
- *   direction toggle, priority reorder).
+ *   direction toggle, priority reorder). Sort resolution reads every column
+ *   (hidden included) so a sort survives its column being hidden. With no
+ *   container `defaultSort` the table renders the container's row order
+ *   (query results keep the query's order); the hubs pass Edited-desc. The
+ *   container's default stays LIVE: it re-seeds the sort while the user
+ *   has chosen none (the ranked quick search rides this — see
+ *   ClassedNodesSection).
  * - Rows: windowed (the shared useWindowed convention: "Show more
  *   (N remaining)" at the list's end, the window resets on every sort
  *   change); row checkboxes with a tri-state header box when `selectable`
@@ -81,11 +88,13 @@ const DEFAULT_COLUMNS: TableColumn[] = [
   { id: "name", kind: "name", label: "Name", sortable: true },
   { id: "classes", kind: "classes", label: "Classes", sortable: false },
   { id: "created", kind: "created", label: "Created", sortable: true },
+  { id: "edited", kind: "edited", label: "Edited", sortable: true },
 ];
 
 function formatCreated(createdAt: string | null): string {
   // The user's display format (the settings dateFormat) — tables, footers,
-  // and exports all ride the same helper.
+  // and exports all ride the same helper. (Despite the name, the Edited
+  // column rides it too — it formats any ISO date the same way.)
   return formatIsoDate(createdAt) ?? (createdAt === null ? "" : createdAt);
 }
 
@@ -117,6 +126,7 @@ function csvCellText(client: AnyClient, row: TableRow, column: TableColumn): str
       .join(", ");
   }
   if (column.kind === "created") return formatCreated(node.createdAt);
+  if (column.kind === "edited") return formatCreated(node.updatedAt);
   if (column.kind === "isClass") return node.isClass ? "Yes" : "—";
   if (column.kind === "presentAsMain") return node.presentAsMain ? "Yes" : "—";
   const prop = row.properties.find((p) => p.propertySchemaId === column.propertySchemaId);
@@ -139,6 +149,9 @@ function columnSortValue(
   }
   if (column.kind === "created") {
     return row.item.node.createdAt ?? "";
+  }
+  if (column.kind === "edited") {
+    return row.item.node.updatedAt ?? "";
   }
   if (column.kind === "isClass") {
     return row.item.node.isClass ? 1 : 0;
@@ -723,7 +736,34 @@ export function TableView(props: NodeCollectionProps) {
   // Hosted collections: the toolbar portals into the tab bar's right-hand
   // cluster (owner 2026-10-12); un-hosted it rides the body top.
   const chromeTarget = useViewChromeTarget();
-  const [sort, setSort] = useState<SortSpec[]>(defaultSort !== undefined ? [defaultSort] : []);
+  /**
+   * The sort state — session-local, but the container's `defaultSort` stays
+   * LIVE: when it CHANGES and the user has not picked a sort yet, the state
+   * re-derives from the new default (the useWindowed resetKey precedent).
+   * The ranked quick search rides this (owner 2026-10-13): while the search
+   * ranks the pool the section drops its default to "no sort" so the ranked
+   * order shows; the moment the user picks a sort (any Sort panel or header
+   * change) `chosen` latches and the choice survives default flips.
+   */
+  const defaultSortKey = JSON.stringify(defaultSort ?? null);
+  const [sortState, setSortState] = useState<{
+    key: string;
+    specs: SortSpec[];
+    chosen: boolean;
+  }>({
+    key: defaultSortKey,
+    specs: defaultSort !== undefined ? [defaultSort] : [],
+    chosen: false,
+  });
+  if (sortState.key !== defaultSortKey && !sortState.chosen) {
+    setSortState({
+      key: defaultSortKey,
+      specs: defaultSort !== undefined ? [defaultSort] : [],
+      chosen: false,
+    });
+  }
+  const sort = sortState.specs;
+  const setSort = (specs: SortSpec[]) => setSortState({ key: defaultSortKey, specs, chosen: true });
   const [hiddenColumns, setHiddenColumns] = useState<ReadonlySet<string>>(new Set());
   const [extraColumns, setExtraColumns] = useState<ReadonlySet<string>>(new Set());
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -746,19 +786,33 @@ export function TableView(props: NodeCollectionProps) {
       .map((s) => ({ id: s.id, name: s.name }));
   }, [client, columns]);
 
+  /** The workspace property columns the user added via the Columns panel. */
+  const builtExtraColumns = useMemo<TableColumn[]>(
+    () =>
+      [...extraColumns]
+        .map((id) => extraPool.find((s) => s.id === id))
+        .filter((s): s is { id: string; name: string } => s !== undefined)
+        .map((s) => ({ id: s.id, kind: "property" as const, label: s.name, propertySchemaId: s.id, sortable: true })),
+    [extraColumns, extraPool],
+  );
+
   const visibleColumns = useMemo(() => {
     const base = columns.filter((c) => c.kind === "name" || !hiddenColumns.has(c.id));
-    const extras: TableColumn[] = [...extraColumns]
-      .map((id) => extraPool.find((s) => s.id === id))
-      .filter((s): s is { id: string; name: string } => s !== undefined)
-      .map((s) => ({ id: s.id, kind: "property" as const, label: s.name, propertySchemaId: s.id, sortable: true }));
-    return [...base, ...extras];
-  }, [columns, hiddenColumns, extraColumns, extraPool]);
+    return [...base, ...builtExtraColumns];
+  }, [columns, hiddenColumns, builtExtraColumns]);
+
+  /**
+   * Sort resolution reads EVERY column — hidden included — so a sort
+   * survives its column being hidden (the Edited default after the user
+   * hides the column, a multi-sort's lower criterion, …); the Sort panel
+   * offers the same full set, so a hidden column can rejoin the sort.
+   */
+  const allColumns = useMemo(() => [...columns, ...builtExtraColumns], [columns, builtExtraColumns]);
 
   const sorted = useMemo(() => {
     if (sort.length === 0) return rows;
-    return [...rows].sort((rowA, rowB) => compareRows(client, sort, visibleColumns, rowA, rowB));
-  }, [rows, sort, client, visibleColumns]);
+    return [...rows].sort((rowA, rowB) => compareRows(client, sort, allColumns, rowA, rowB));
+  }, [rows, sort, client, allColumns]);
 
   // The display window over the FULL sorted set — every sort change
   // resets it (a resort re-narrows instead of inheriting a grown window).
@@ -774,12 +828,10 @@ export function TableView(props: NodeCollectionProps) {
 
   const cycleSort = (column: TableColumn) => {
     if (column.sortable === false) return;
-    setSort((current) => {
-      const existing = current.find((s) => s.key === column.id);
-      if (existing === undefined) return [{ key: column.id, direction: "asc" }];
-      if (existing.direction === "asc") return [{ key: column.id, direction: "desc" }];
-      return [];
-    });
+    const existing = sort.find((s) => s.key === column.id);
+    if (existing === undefined) setSort([{ key: column.id, direction: "asc" }]);
+    else if (existing.direction === "asc") setSort([{ key: column.id, direction: "desc" }]);
+    else setSort([]);
   };
 
   const toggleHidden = (id: string) =>
@@ -915,6 +967,15 @@ export function TableView(props: NodeCollectionProps) {
         </td>
       );
     }
+    if (column.kind === "edited") {
+      // Plain text (no day-page link — the Edited stamp is a timestamp,
+      // not a page association; the Created cell's link is its own thing).
+      return (
+        <td key={column.id} className="nt-table-created">
+          {node.updatedAt === null ? "—" : formatCreated(node.updatedAt)}
+        </td>
+      );
+    }
     if (column.kind === "isClass") {
       return (
         <td key={column.id} className="nt-table-node-type">
@@ -974,7 +1035,7 @@ export function TableView(props: NodeCollectionProps) {
             <div className="nt-table-panel">
               <div className="nt-table-panel__title">Columns</div>
               {columns
-                .filter((c) => c.kind === "classes" || c.kind === "created" || c.kind === "isClass" || c.kind === "presentAsMain")
+                .filter((c) => c.kind === "classes" || c.kind === "created" || c.kind === "edited" || c.kind === "isClass" || c.kind === "presentAsMain")
                 .map((column) => (
                   <label className="nt-table-panel__check" key={column.id}>
                     <Checkbox size="sm" checked={!hiddenColumns.has(column.id)} onChange={() => toggleHidden(column.id)} />
@@ -1000,7 +1061,7 @@ export function TableView(props: NodeCollectionProps) {
           tooltip="Sort"
           aria-label="Sort configurator"
         >
-          {() => <SortPanel sort={sort} onChange={setSort} columns={visibleColumns} />}
+          {() => <SortPanel sort={sort} onChange={setSort} columns={allColumns} />}
         </ButtonWithPanel>
         {/* The "…" menu — the table's data actions (export/import) live
             here at the far right of the view-type toolbar, next to the

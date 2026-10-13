@@ -5,7 +5,9 @@
  * own direct parent (if book extends source and x extends book, source's
  * section shows book with x nested as book's child — x is never a top-level
  * row under source) — read-only rows that open the subclass. Hidden when
- * empty; expanded by default (identity info, usually short).
+ * empty; expanded by default (identity info, usually short). The tree
+ * opens on the Name A–Z sort (owner 2026-10-13), every sibling level; the
+ * sort button in the section switches it back to the Default order.
  */
 
 import type { WorkerClient } from "@/core/worker-client.js";
@@ -69,6 +71,7 @@ export function ExtendedBySection({
           tree
           readOnly
           hideBacklinkCount
+          defaultSortMode="alphabetical"
           onNodeClick={(id) => onOpenClass?.(id)}
         />
       )}
