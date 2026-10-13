@@ -195,6 +195,7 @@ export function ClassedNodesSection({
           client={client}
           items={memberItems}
           tableColumns={memberColumns}
+          cardProperties={bindings.map((binding) => binding.propertySchemaId)}
           propertiesOf={(id) => client.getEffectiveProperties(id)}
           tableEditable
           groupByProperty={groupByProperty}
