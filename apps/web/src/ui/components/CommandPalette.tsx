@@ -31,8 +31,10 @@
  * home keeps Recent → Random → Commands. The flatten step is a stable sort
  * on the mode-dependent group rank, so score order inside a group survives.
  *  - Commands   the action registry: New page, New class… (#14, where the
- *               host provides it), a typed "Create page …" row, Focus mode
- *               (#12), Toggle theme, Sign out (a contribution point)
+ *               host provides it), a typed "Create page …" row, Merge current
+ *               page into… (where the host provides it and the current node
+ *               is a mergeable page), Focus mode (#12), Toggle theme, Sign
+ *               out (a contribution point)
  *
  * Full keyboard navigation: ArrowUp/Down cycles, Enter selects, Esc closes;
  * the mouse hovers and clicks. Theme toggling dispatches the same
@@ -248,6 +250,8 @@ export function CommandPalette({
   onNewPage,
   onOpenClassCreate = undefined,
   onOpenProperty = undefined,
+  currentNodeId = undefined,
+  onOpenMerge = undefined,
   onSignOut,
   undoState,
   onUndo,
@@ -268,6 +272,16 @@ export function CommandPalette({
   /** Open a property schema's PropertyView inspector — the row appears only
    *  where the host provides it (a contribution point, like the class create). */
   onOpenProperty?: ((propertySchemaId: string) => void) | undefined;
+  /**
+   * The node currently open in the host — the merge action's source. The
+   * "Merge current page into…" row appears only where the host provides both
+   * this and `onOpenMerge`, and the current node is a mergeable page (a
+   * non-class node rendering with document chrome — classes and inline
+   * blocks are not mergeable).
+   */
+  currentNodeId?: string | undefined;
+  /** Open the merge-into modal for `currentNodeId` — a contribution point. */
+  onOpenMerge?: (() => void) | undefined;
   onSignOut: () => void;
   /** The session undo journal state; rows appear only when available. */
   undoState: UndoUiState;
@@ -480,6 +494,26 @@ export function CommandPalette({
             },
           ]
         : []),
+      ...(onOpenMerge !== undefined && currentNodeId !== undefined
+        ? (() => {
+            const current = client.getNode(currentNodeId);
+            const mergeable =
+              current !== undefined &&
+              !current.isClass &&
+              rendersWithDocumentChrome(current);
+            return mergeable
+              ? [
+                  {
+                    key: "merge-page",
+                    label: "Merge current page into…",
+                    icon: "mdiMerge",
+                    keywords: "merge combine absorb move into",
+                    run: () => onOpenMerge(),
+                  },
+                ]
+              : [];
+          })()
+        : []),
       ...(text !== ""
         ? [
             {
@@ -557,7 +591,7 @@ export function CommandPalette({
     return items;
     // cacheVersion: the cached reads resolve asynchronously after their seed;
     // re-derive the sections when the worker cache refreshes.
-  }, [client, dailyOnly, text, onOpenNode, onNewPage, onOpenClassCreate, onOpenProperty, onSignOut, onClose, recentIds, cacheVersion, undoState, onUndo, onRedo]);
+  }, [client, dailyOnly, text, onOpenNode, onNewPage, onOpenClassCreate, onOpenProperty, currentNodeId, onOpenMerge, onSignOut, onClose, recentIds, cacheVersion, undoState, onUndo, onRedo]);
 
   // --- Content section: debounced ranked FTS with snippets ------------------
 
