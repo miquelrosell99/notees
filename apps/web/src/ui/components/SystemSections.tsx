@@ -417,6 +417,7 @@ export function SystemSections({
               items={pages.map((child) => pageTreeOf(client, child))}
               tree
               readOnly
+              hideBacklinkCount
               onNodeClick={(id) => onOpenPage?.(id)}
             />
           )}
