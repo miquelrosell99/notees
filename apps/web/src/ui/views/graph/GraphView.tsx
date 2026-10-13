@@ -1466,11 +1466,18 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   }
 
   if (glError !== null) {
+    // A shader compile/link failure is not a missing-WebGL2 case — say what
+    // actually happened (strict linkers reject programs lenient ones accept).
+    const shaderFailure = /shader|link|compile/i.test(glError);
     return (
       <div className="nt-graph nt-graph--error">
         <EmptyState
-          title="WebGL 2 required"
-          description={`The graph view needs a WebGL 2 capable browser. (${glError})`}
+          title={shaderFailure ? "Graph renderer failed" : "WebGL 2 required"}
+          description={
+            shaderFailure
+              ? `The graph shaders failed to build in this browser. (${glError})`
+              : `The graph view needs a WebGL 2 capable browser. (${glError})`
+          }
         />
       </div>
     );

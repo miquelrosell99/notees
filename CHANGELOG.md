@@ -9,6 +9,25 @@ predating this file.
 
 ## 2026-10-13
 
+- **fix(web): the graph renders again on Firefox-class linkers (Zen included)
+  — the time-lapse uniforms were declared in both shader stages.** The three
+  new uniforms (`u_timeLapse`, `u_timeCutoff`, `u_hoverDim`) were declared in
+  the vertex AND fragment sources, but the vertex shaders default to `highp
+  float` while every fragment header reads `precision mediump float;` — a
+  cross-stage uniform declaration must not carry two precisions, and Firefox's
+  strict linker rejects the program with "Uniform `u_timeCutoff` is not
+  linkable between attached shaders" (Chrome/SwiftShader tolerate it, so the
+  gate's mock-GL and the dev browser both missed it). The vertex stages never
+  used the trio (they only pass `v_time`/`v_hl` through), so the declarations
+  drop to the fragment stage alone; a comment in the node vertex pins the
+  constraint so the mistake can't recur. The GL error empty state also stops
+  blaming the browser: a compile/link failure now reads "Graph renderer
+  failed" with the linker's message, reserving "WebGL 2 required" for a
+  genuinely missing context. **Verification:** `pnpm --filter @notees/web
+  typecheck` + the four graph suites green (55); the scoped `notees-web`
+  redeploy + `verify-min.mjs` smoke reports VERIFY-PASS — final confirmation
+  is the owner's Zen reload.
+
 - **feat(web): graph view round 2 — the right rail (Selection + Colors),
   query-builder color groups, kit-law finish.** The third stage of the round-2
   chrome reorganization (owner directives 2026-10-13): the right edge now owns
