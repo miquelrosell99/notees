@@ -57,7 +57,14 @@ async function flushWrites(): Promise<void> {
 }
 
 function stubNode(contentAst: unknown): Parameters<typeof headingConversionOf>[0] {
-  return { contentAst } as Parameters<typeof headingConversionOf>[0];
+  // A parented non-class node with presentAsMain = 0 — the inline-block
+  // render state the conversion is offered on.
+  return {
+    contentAst,
+    isClass: false,
+    parentId: "0192a000-0000-7000-8000-0000000000ff",
+    presentAsMain: false,
+  } as Parameters<typeof headingConversionOf>[0];
 }
 
 describe("headingConversionOf (unit)", () => {
@@ -79,6 +86,18 @@ describe("headingConversionOf (unit)", () => {
     ).toBeNull();
     expect(headingConversionOf(stubNode([{ type: "quote", children: [] }]))).toBeNull();
     expect(headingConversionOf(stubNode([]))).toBeNull();
+  });
+
+  it("main-node surfaces (class pills, page titles, promoted rows) offer neither direction", () => {
+    const content = [{ type: "text", text: "Plain" }];
+    // A class (is_class) — e.g. the pill in the classes row.
+    expect(
+      headingConversionOf({ ...stubNode(content), isClass: true, parentId: null }),
+    ).toBeNull();
+    // A root/promoted page — the header title row.
+    expect(
+      headingConversionOf({ ...stubNode(content), parentId: null, presentAsMain: true }),
+    ).toBeNull();
   });
 
   it("headingAstOf wraps the run (marks carried); plainTextAstOf flattens the children", () => {
