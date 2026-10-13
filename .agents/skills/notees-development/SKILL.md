@@ -24,7 +24,11 @@ summary here.
    before shipping. A reduced subset is a proposal to the owner, never a
    silent default; wire gaps found mid-port (a v1 construct with no v2
    condition) get the full wiring — protocol condition, compiler arm,
-   evaluation — in the same slice, not an exclusion.
+   evaluation — in the same slice, not an exclusion. The v1 source lives at
+   the **`v1-archive` git tag** on this repo — fetch it
+   (`git fetch origin tag v1-archive`, read with `git show v1-archive:<path>`);
+   the register map: `references/development-workflow.md` (canonical:
+   `docs/developers/development.md` §9).
 1. **The fixture gate is blocking.** A new op type or strict payload change is
    NOT done until fixtures exist in `packages/protocol/fixtures/` and every
    client applier converges — the TS reference here **plus** the GTK and
