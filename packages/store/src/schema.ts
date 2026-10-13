@@ -23,8 +23,9 @@
 
 import type { SqliteDB } from "./db.js";
 import { resolveEdgeTarget } from "./edges.js";
+import { dropSearchIndex, reindexAllSearch } from "./search.js";
 
-export const SCHEMA_VERSION = 18;
+export const SCHEMA_VERSION = 19;
 
 /**
  * The render-path list-reads index: composite for the
@@ -53,6 +54,21 @@ export const RESOLVED_TARGET_INDEX_DDL =
 
 const SEARCH_INDEX_DDL_FTS5 = `CREATE VIRTUAL TABLE IF NOT EXISTS search_index
     USING fts5(content, tokenize = 'unicode61');`;
+
+/**
+ * The v19 diacritic-folding rebuild (kept OUT of the canonical schema DDL
+ * for the RESOLVED_TARGET_INDEX_DDL reason: migrate()'s canonical exec is a
+ * CREATE IF NOT EXISTS no-op on existing tables). Folding is INDEX-TIME,
+ * not tokenizer-level: reindexNode stores diacritic-stripped plaintext and
+ * the MATCH terms are folded in JS before they reach SQLite — the stock
+ * sql.js build's FTS4 unicode61 tokenizer rejects `remove_diacritics`
+ * (verified against the shipped wasm), so a tokenizer option is off the
+ * table for the browser backend. A virtual table's rows cannot be UPDATEd
+ * in place with new text either — pre-v19 indexes are dropped and rebuilt
+ * from the derived plaintext.
+ */
+const SEARCH_INDEX_DDL = (ftsModule: FtsModule): string =>
+  ftsModule === "fts5" ? SEARCH_INDEX_DDL_FTS5 : SEARCH_INDEX_DDL_FTS5.replace("fts5(", "fts4(");
 
 /**
  * Canonical DDL (FTS5). `schemaSql("fts4")` builds the same schema for
@@ -485,7 +501,7 @@ const SCHEMA_SQL_FTS4 = SCHEMA_SQL.replace(
 
 /** Create or upgrade the derived schema in ``db`` (PRAGMA user_version). */
 export function migrate(
-  db: Pick<SqliteDB, "pragma" | "exec" | "prepare">,
+  db: Pick<SqliteDB, "pragma" | "exec" | "prepare" | "transaction">,
   ftsModule: FtsModule = "fts5",
 ): void {
   const current = db.pragma("user_version", { simple: true }) as number;
@@ -797,6 +813,35 @@ export function migrate(
     const nodeColumnsV18 = db.prepare("PRAGMA table_info(node)").all() as { name: string }[];
     if (!nodeColumnsV18.some((c) => c.name === "description")) {
       db.exec("ALTER TABLE node ADD COLUMN description TEXT;");
+    }
+  }
+  // v18 -> v19: diacritic folding in the FTS index (index-time folding —
+  // `peru` matches "Perú"). A virtual table's rows cannot be UPDATEd with
+  // re-tokenized text, so a pre-v19 index is dropped and rebuilt from the
+  // derived plaintext (now folded at insert). Version-gated: every
+  // pre-v19 database has unfolded rows by construction. The rebuild only
+  // runs when the parked table's module matches the connection's declared
+  // module — a cross-backend parked table (restore the other direction) is
+  // the repair path's job, and migrations always run locally before
+  // snapshots ship, so folded rows travel with the bytes.
+  if (current < 19) {
+    const existing = db
+      .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'search_index'")
+      .get() as { sql: string | null } | undefined;
+    const existingSql = existing?.sql?.toLowerCase() ?? null;
+    const existingModule: FtsModule =
+      existingSql === null ? ftsModule : existingSql.includes("using fts5") ? "fts5" : "fts4";
+    if (existing !== undefined && existingModule === ftsModule) {
+      try {
+        db.exec("DROP TABLE IF EXISTS search_index");
+        db.exec(SEARCH_INDEX_DDL(ftsModule));
+        reindexAllSearch(db);
+      } catch {
+        // The module named in sqlite_master is not loadable on this
+        // connection (a synthetic cross-backend restore): the
+        // queryability repair path rebuilds with the local module, and
+        // reindexNode folds at insert — nothing to do here.
+      }
     }
   }
   db.pragma(`user_version = ${SCHEMA_VERSION}`);}

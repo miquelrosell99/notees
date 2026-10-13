@@ -67,6 +67,35 @@ predating this file.
   a v18→v19 migration test (unfolded rows rebuilt, folded rows, ordering
   clean) — 538/538 on both adapters; `pnpm typecheck` green.
 
+- **feat(store): diacritic folding (schema v19) + fuzzy-subsequence rescue —
+  the Capacities "find by intent" pair (owner 2026-10-13).** Two gaps the
+  Capacities search comparison surfaced, closed in the ranker
+  (`packages/store/src/search.ts`). Folding: `peru` now matches "Perú" —
+  implemented as INDEX-TIME folding (`reindexNode` strips combining marks
+  from the indexed plaintext; `compileSearchQuery` folds the MATCH terms —
+  one mirror pair), because the stock sql.js FTS4 tokenizer rejects
+  `remove_diacritics` (verified against the shipped wasm, "unknown
+  tokenizer"), so a tokenizer option is off the table for the browser
+  backend; the tier scorer folds its haystacks through the same
+  `foldSearchText`, and the snippet helper folds only its hit check so
+  excerpts keep their real characters. The v19 migration drops and rebuilds
+  pre-v19 indexes from the derived plaintext (a virtual table's rows cannot
+  be UPDATEd with re-tokenized text), module-aware: a cross-backend parked
+  table is the queryability repair path's job, and migrations run locally
+  before snapshots ship. Fuzzy rescue: the whole query as an ordered
+  subsequence (word-start and consecutive bonuses, the palette's fuzzyScore
+  semantics) — inside the candidate set it lifts a partial match above plain
+  partials, and when NOTHING reached the literal tiers a scan over every
+  main node's title rescues the query (`gmi dntl` finds GMI Dental
+  Implantology) at tier 6, strictly below every exact/prefix match; the scan
+  is gated to ≥3-char default-mode queries and the no-literal-hit case, so
+  the common path never pays for it. Docs: `architecture.md` (the FTS4/5
+  paragraph), `usage.md` (the palette paragraph). **Verification:** the
+  store suite carries both directions of folding, exact-mode folding, the
+  snippet's original characters, the fuzzy rescue and its stay-off gate, and
+  a v18→v19 migration test (unfolded rows rebuilt, folded rows, ordering
+  clean) — 538/538 on both adapters; `pnpm typecheck` green.
+
 - **feat(store,web): priority-ranked search — exact title matches first, `"…"`
   exact mode, `^` starts-with mode, alias terminals, parent-name matches;
   the node picker composes the kit SearchField (owner 2026-10-13).** The

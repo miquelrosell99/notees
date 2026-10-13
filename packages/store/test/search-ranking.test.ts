@@ -269,6 +269,39 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     });
   });
 
+  describe("diacritics + fuzzy rescue (owner 2026-10-13)", () => {
+    it("folds diacritics both directions (`peru` <-> \"Perú\") in default and exact modes", () => {
+      const store = makeStore();
+      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000c1", contentAst: text("GMI Perú") }, 1727200001000));
+      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000c2", contentAst: text("El Peruano") }, 1727200002000));
+      expect(store.search("peru").map((h) => h.nodeId)).toContain("0192a000-0000-7000-8000-0000000000c1");
+      expect(store.search("perú").map((h) => h.nodeId)).toContain("0192a000-0000-7000-8000-0000000000c2");
+      expect(store.search('"peru"').map((h) => h.nodeId)).toContain("0192a000-0000-7000-8000-0000000000c1");
+      // The snippet keeps the ORIGINAL characters while folding the hit check.
+      const snippet = store.getSearchSnippet("0192a000-0000-7000-8000-0000000000c1", "peru");
+      expect(snippet?.text).toContain("Perú");
+    });
+
+    it("fuzzy subsequence rescues queries no token prefix matches", () => {
+      const store = makeStore();
+      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000c3", contentAst: text("GMI Dental Implantology") }, 1727200001000));
+      // No token starts with "dntl" — only the subsequence saves it.
+      const hits = store.search("gmi dntl", 10).map((h) => h.nodeId);
+      expect(hits).toContain("0192a000-0000-7000-8000-0000000000c3");
+    });
+
+    it("the fuzzy scan stays off when an exact title match exists", () => {
+      const store = makeStore();
+      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000c4", contentAst: text("GMI Dental Implantology") }, 1727200001000));
+      // Fuzzy-matches "gmi dental" as a subsequence but shares no
+      // query-term prefix — it could only enter through the rescue scan.
+      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000c5", contentAst: text("Gulf Marine Inspection Depot North Trade Lane") }, 1727200002000));
+      const hits = store.search("gmi dental", 10).map((h) => h.nodeId);
+      expect(hits[0]).toBe("0192a000-0000-7000-8000-0000000000c4");
+      expect(hits).not.toContain("0192a000-0000-7000-8000-0000000000c5");
+    });
+  });
+
   describe("snippets", () => {
     it("excerpts around the match with char-accurate spans", () => {
       const store = makeStore();
@@ -492,5 +525,48 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       const store = pagedStore();
       expect(() => store.searchPage("pageword", { cursor: "not-a-number" })).toThrow(/invalid cursor/);
     });
+  });
+});
+
+describe("v18 -> v19: the diacritic-folding index rebuild (better-sqlite3 only)", () => {
+  it("an unfolded pre-v19 index migrates to folding, rows preserved", () => {
+    const dir = mkdtempSync(join(tmpdir(), "notees-migrate-v19-"));
+    tmpDirs.push(dir);
+    const path = join(dir, "store.db");
+    const PERU = "0192a000-0000-7000-8000-0000000000c9";
+    const GUIDES = "0192a000-0000-7000-8000-0000000000ca";
+
+    // Fresh v19 store with two nodes, then DOWNGRADE to the v18 shape: drop
+    // the index and insert UNfolded plaintext rows by hand (reindexNode
+    // folds now, so the downgrade cannot ride it), pin user_version 18.
+    // The reopen below must run the v19 migration step.
+    const store = Store.open(betterSqlite3Backend(path));
+    store.apply(env("object.create", { objectId: PERU, contentAst: text("GMI Perú") }, 1727200001000));
+    store.apply(env("object.create", { objectId: GUIDES, contentAst: text("Peru official docs") }, 1727200002000));
+    store.database.exec("DROP TABLE search_index");
+    store.database.exec("CREATE VIRTUAL TABLE search_index USING fts5(content, tokenize = 'unicode61')");
+    const insertRow = (nodeId: string, textValue: string): void => {
+      store.database.prepare("INSERT INTO search_index (content) VALUES (?)").run(textValue);
+      store.database
+        .prepare("INSERT OR REPLACE INTO search_index_docid (node_id, docid) VALUES (?, last_insert_rowid())")
+        .run(nodeId);
+    };
+    insertRow(PERU, "GMI Perú"); // unfolded, the v18 shape
+    insertRow(GUIDES, "Peru official docs");
+    store.database.pragma("user_version = 18");
+    store.close();
+
+    const reopened = Store.open(betterSqlite3Backend(path));
+    // The migration rebuilt the index from the derived plaintext…
+    const row = reopened.database
+      .prepare(
+        `SELECT s.content AS indexed FROM search_index s
+         JOIN search_index_docid d ON d.docid = s.rowid WHERE d.node_id = ?`,
+      )
+      .get(PERU) as { indexed: string };
+    expect(row.indexed).toBe("GMI Peru"); // diacritics folded at insert (case rides the tokenizer's fold)
+    // …both rows survived, and the exact-title ordering is tier-0 clean.
+    expect(reopened.search("peru", 10).map((h) => h.nodeId)).toEqual([GUIDES, PERU]);
+    reopened.close();
   });
 });

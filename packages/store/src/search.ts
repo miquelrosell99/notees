@@ -21,8 +21,13 @@ export function reindexNode(db: StoreDatabase, nodeId: string): void {
   if (!row) return;
   // Title-is-content: the indexed text is the content plaintext — a page's
   // title lives in its content, so title search rides the same index; the
-  // node's text-ish property values fold in too.
-  const indexed = extractSearchPlaintext(db, row.content, nodeId);
+  // node's text-ish property values fold in too. Diacritics fold at INDEX
+  // TIME (schema v19): the MATCH query terms are folded in JS before they
+  // reach SQLite, and the stock sql.js FTS4 tokenizer cannot fold for us
+  // (no remove_diacritics support — verified), so folding lives here and
+  // in compileSearchQuery, one mirror pair. Snippets recompute from the
+  // UNfolded source, so excerpts keep their real characters.
+  const indexed = foldSearchText(extractSearchPlaintext(db, row.content, nodeId));
   if (!indexed) {
     removeSearchIndexEntry(db, nodeId);
     return;
@@ -86,20 +91,35 @@ function parseSearchMode(raw: string): { mode: SearchMode; needle: string } | nu
   return { mode: "default", needle: trimmed };
 }
 
+/**
+ * Diacritic folding that mirrors the search_index tokenizer
+ * (`unicode61 remove_diacritics 2`, store schema v19): every combining
+ * mark is stripped, so `peru` and "Perú" compare equal in the tier scorer
+ * exactly when the FTS match folds them. Exported for the snippet helper
+ * and tests.
+ */
+export function foldSearchText(text: string): string {
+  return text.normalize("NFD").replace(/\p{M}/gu, "");
+}
+
 function compileSearchQuery(query: string): (SearchQueryInfo & { phraseCount: number }) | null {
   const parsed = parseSearchMode(query);
   if (parsed === null) return null;
+  // The needle folds here (diacritics) BEFORE the MATCH query is built:
+  // index-time folding (reindexNode) and query folding are the one mirror
+  // pair that makes `peru` match "Perú" on both FTS modules.
+  const needle = foldSearchText(parsed.needle);
   // The candidate MATCH: modes AND their terms (every term must be present
   // for the substring/start filter to pass); default ORs bare terms so
   // partial matches enter the candidate set.
-  const compiled = compileMatch(parsed.needle, parsed.mode === "default" ? "or" : "and");
+  const compiled = compileMatch(needle, parsed.mode === "default" ? "or" : "and");
   if (compiled === null) return null;
-  const terms = matchTerms(parsed.needle).map((t) => t.toLowerCase());
+  const terms = matchTerms(needle).map((t) => t.toLowerCase());
   if (terms.length === 0) return null;
   return {
     match: compiled.match,
     phraseCount: compiled.phraseCount,
-    normalized: parsed.needle.toLowerCase(),
+    normalized: needle.toLowerCase(),
     terms,
     mode: parsed.mode,
   };
@@ -129,7 +149,8 @@ function compileSearchQuery(query: string): (SearchQueryInfo & { phraseCount: nu
 export function buildMatchQuery(query: string): string | null {
   const parsed = parseSearchMode(query);
   if (parsed === null) return null;
-  return compileMatch(parsed.needle, parsed.mode === "default" ? "or" : "and")?.match ?? null;
+  // Folded needle, mirroring compileSearchQuery (the index folds at insert).
+  return compileMatch(foldSearchText(parsed.needle), parsed.mode === "default" ? "or" : "and")?.match ?? null;
 }
 
 /**
@@ -189,14 +210,26 @@ function parseSearchCursor(cursor: string | null | undefined): number {
 // model, and the tier orders — both modules produce the same tier order
 // because the scorer is one shared implementation over the same rows:
 //
-//   0  exact query (case-insensitive substring) in a MAIN node's title
+//   0  exact query (case-insensitive substring, diacritics folded) in a
+//      MAIN node's title
 //   1  exact query in a block's text (parented non-class content)
 //   2  every term, in order but not necessarily adjacent, in a main
 //      node's title
 //   3  every term, in order, in any node's text (title + property values)
-//   4  the node's FIRST PARENT's title matches (exact substring or ordered) — a
-//      block surfaces under a matching page
-//   5  partial: some terms only; more matched terms rank first
+//   4  the node's FIRST PARENT's title matches (exact substring or ordered)
+//      — a block surfaces under a matching page
+//   5  partial: some terms only, more matched terms first; the whole query
+//      as an ordered subsequence (fuzzy) lifts a partial above plain ones
+//   6  fuzzy rescue: the whole query as an ordered subsequence over
+//      main-node titles — scanned only when nothing reached the literal
+//      tiers (Capacities "find by intent", owner 2026-10-13)
+//
+// Diacritics fold everywhere (store schema v19: folding is INDEX-TIME —
+// reindexNode strips combining marks from the indexed plaintext and
+// compileSearchQuery folds the MATCH terms, one mirror pair; the stock
+// sql.js FTS4 tokenizer has no remove_diacritics support — verified
+// against the shipped wasm), so `peru` matches "Perú" in the FTS match
+// and every tier alike.
 //
 // Within a tier: match position / term span (earlier / tighter first),
 // then text length (shorter first), then the FTS score (bm25 on FTS5 —
@@ -322,6 +355,38 @@ function tokenizeLower(text: string): string[] {
 }
 
 /**
+ * Ordered-subsequence fuzzy score (the Capacities "find by intent" rescue,
+ * owner 2026-10-13), or null when the query is not a subsequence of the
+ * target. Word-start and consecutive matches score higher; shorter targets
+ * win ties (the small length penalty). Ported from the palette's fuzzyScore
+ * so both surfaces score identically.
+ */
+export function fuzzySubsequenceScore(query: string, target: string): number | null {
+  if (query === "") return 0;
+  let score = 0;
+  let ti = 0;
+  let lastMatch = -2;
+  for (let qi = 0; qi < query.length; qi += 1) {
+    const ch = query[qi]!;
+    let found = -1;
+    while (ti < target.length) {
+      if (target[ti] === ch) {
+        found = ti;
+        break;
+      }
+      ti += 1;
+    }
+    if (found === -1) return null;
+    score += 1;
+    if (found === 0 || /[\s\-_/.@·]/.test(target[found - 1]!)) score += 3;
+    if (found === lastMatch + 1) score += 2;
+    lastMatch = found;
+    ti = found + 1;
+  }
+  return score - target.length * 0.01;
+}
+
+/**
  * Greedy in-order first positions of every term as a TOKEN PREFIX (the
  * same prefix semantics as the MATCH query): null when any term has no
  * prefix-match. "gmi dental" against "gmi dental implantology" yields
@@ -410,7 +475,7 @@ function scoreCandidate(
   if (row.parentId !== null) {
     const parent = ctx.parentStmt.get(row.parentId) as { content: string } | undefined;
     if (parent !== undefined) {
-      const parentLower = extractContentPlaintext(ctx.db, parent.content).toLowerCase();
+      const parentLower = foldSearchText(extractContentPlaintext(ctx.db, parent.content).toLowerCase());
       const parentLit = parentLower.indexOf(normalized);
       const parentOrder =
         parentLit >= 0 ? null : orderedTermPositions(tokenizeLower(parentLower), terms);
@@ -426,11 +491,15 @@ function scoreCandidate(
 
   // Partial: count the terms with a prefix-match anywhere in the node's own
   // text (FTS guaranteed ≥ 1 for matched rows; alias-expanded terminals
-  // may carry none and sink to the bottom of the tier).
+  // may carry none and sink to the bottom of the tier). The whole query as
+  // an ordered subsequence (fuzzy) lifts a partial above plain partials —
+  // the Capacities "find by intent" signal inside the candidate set.
   const matched = terms.filter(
     (t) => textTokens.some((tok) => tok.startsWith(t)) || titleTokens.some((tok) => tok.startsWith(t)),
   ).length;
-  return { tier: 5, subA: -matched, subB: 0 };
+  const fuzzy =
+    fuzzySubsequenceScore(normalized, titleLower) ?? fuzzySubsequenceScore(normalized, textLower);
+  return { tier: 5, subA: -(matched * 100_000 + Math.round((fuzzy ?? 0) * 100)), subB: 0 };
 }
 
 /** Sum of per-phrase hit counts in this row from a matchinfo('x') blob. */
@@ -534,9 +603,11 @@ export function searchNodesPage(
     row.ftsRank = ftsRank;
     if (seen.has(row.nodeId)) return;
     seen.add(row.nodeId);
-    const titleLower = extractContentPlaintext(db, row.rawContent).toLowerCase();
+    // Folded (diacritic-stripped) haystacks — the v19 tokenizer folds the
+    // FTS side; folding here keeps substring/token tiers consistent.
+    const titleLower = foldSearchText(extractContentPlaintext(db, row.rawContent).toLowerCase());
     const titleTokens = tokenizeLower(titleLower);
-    const textTokens = tokenizeLower(row.indexedText ?? "");
+    const textTokens = tokenizeLower(foldSearchText(row.indexedText ?? ""));
     const score = scoreCandidate(row, ctx, titleLower, titleTokens, textTokens);
     if (score !== null) scored.push({ row, score });
   };
@@ -563,6 +634,53 @@ export function searchNodesPage(
       if (terminal === undefined) break;
       pushRow(terminal, 0);
       current = terminal as unknown as SearchCandidateRow;
+    }
+  }
+
+  // Fuzzy rescue (default mode, owner 2026-10-13): when nothing reached the
+  // literal tiers, scan every MAIN node's raw content for an
+  // ordered-subsequence match (`gmi dntl` finds "GMI Dental…"). The raw
+  // content JSON carries the title text verbatim, so the query's
+  // characters appear in order exactly when the title matches (JSON
+  // syntax can only add characters, never block a subsequence). Blocks
+  // stay off the rescue surface — titles are the intent surface. The scan
+  // is gated to ≥3-char queries and to the no-literal-hit case, so the
+  // common path never pays for it.
+  if (
+    info.mode === "default" &&
+    info.normalized.length >= 3 &&
+    !scored.some((entry) => entry.score.tier <= 1)
+  ) {
+    const rescueRows = db
+      .prepare(
+        `SELECT id AS nodeId, content AS rawContent, updated_at AS updatedAt,
+                is_class AS isClass, parent_id AS parentId,
+                present_as_main AS presentAsMain, aliased_node_id AS aliasedNodeId
+         FROM node
+         WHERE is_active = 1 AND (is_class = 1 OR parent_id IS NULL OR present_as_main = 1)`,
+      )
+      .all() as Array<Record<string, unknown>>;
+    for (const raw of rescueRows) {
+      const nodeId = raw.nodeId as string;
+      if (seen.has(nodeId)) continue;
+      const fuzzy = fuzzySubsequenceScore(
+        info.normalized,
+        foldSearchText(String(raw.rawContent ?? "").toLowerCase()),
+      );
+      if (fuzzy === null) continue;
+      seen.add(nodeId);
+      const row = {
+        nodeId,
+        updatedAt: (raw.updatedAt as string | null) ?? null,
+        isClass: raw.isClass as number,
+        parentId: (raw.parentId as string | null) ?? null,
+        presentAsMain: raw.presentAsMain as number,
+        aliasedNodeId: (raw.aliasedNodeId as string | null) ?? null,
+        rawContent: raw.rawContent as string,
+        indexedText: null,
+        ftsRank: 0,
+      } as SearchCandidateRow;
+      scored.push({ row, score: { tier: 6, subA: -Math.round(fuzzy * 100), subB: 0 } });
     }
   }
 
@@ -619,7 +737,7 @@ export function searchSnippet(
   query: string,
   opts?: { maxTokens?: number; ellipsis?: string },
 ): SearchSnippet | null {
-  const terms = matchTerms(query).map((t) => t.toLowerCase());
+  const terms = matchTerms(query).map((t) => foldSearchText(t.toLowerCase()));
   if (terms.length === 0) return null;
   const row = db.prepare("SELECT content FROM node WHERE id = ?").get(nodeId) as
     | { content: string }
@@ -633,8 +751,12 @@ export function searchSnippet(
     tokens.push({ start: match.index, end: match.index + match[0].length });
   }
   if (tokens.length === 0) return null;
+  // Folded hit check (diacritics, mirroring the v19 tokenizer) over the
+  // ORIGINAL plaintext — the excerpt keeps its real characters.
   const isHit = (token: { start: number; end: number }) =>
-    terms.some((term) => plaintext.slice(token.start, token.end).toLowerCase().startsWith(term));
+    terms.some((term) =>
+      foldSearchText(plaintext.slice(token.start, token.end).toLowerCase()).startsWith(term),
+    );
   if (!tokens.some(isHit)) return null;
 
   const maxTokens = Math.max(1, opts?.maxTokens ?? 24);
