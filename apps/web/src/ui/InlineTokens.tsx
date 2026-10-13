@@ -2,9 +2,12 @@
  * InlineTokens — renders a flat content token stream (SCHEMA.md content
  * grammar) into React elements. Renders only what slice 1 implements;
  * unknown tokens render nothing (never crash). Text marks map to
- * <strong>/<em>/<s>/<mark>/<code>; mentions and class chips render as chips
- * (names resolved through the optional resolveName callback, with graceful
- * fallbacks); external links render as plain hyperlinks (underline + link
+ * <strong>/<em>/<s>/<mark>/<code>; mentions render as dashed-underline
+ * links (names resolved through the optional resolveName callback, with
+ * graceful fallbacks); class chips render as the node-link look with a
+ * WAVY underline tinted by the class's effective color (owner 2026-10-13)
+ * and no pill chrome — they open the class like a mention opens its
+ * target; external links render as plain hyperlinks (underline + link
  * color, never a pill); mentions also notify the app-level hover coordinator
  * (NodeHoverPreview — dwell raises a bounded preview card; the card's pin
  * promotes to a floating editor window); quote and heading recurse (heading
@@ -98,6 +101,12 @@ export interface InlineTokensProps {
   /** Effective-color resolver: tints mention underlines with the target's color. */
   resolveColor?: ((nodeId: string) => string | null) | undefined;
   /**
+   * Class effective-color resolver: tints class-chip wavy underlines with
+   * the class's color (the extends-chain walk). When absent, chips render
+   * the neutral outline underline.
+   */
+  resolveClassColor?: ((classId: string) => string | null) | undefined;
+  /**
    * Right-click menu for mention tokens (the node-link context menu):
    * receives the token identity + pointer position; the caller supplies the
    * owning node's id (see openNodeLinkMenu). Works in every view mode.
@@ -162,6 +171,7 @@ function renderToken(
   assetAlone: boolean,
   onOpenNode: InlineTokensProps["onOpenNode"],
   resolveColor: InlineTokensProps["resolveColor"],
+  resolveClassColor: InlineTokensProps["resolveClassColor"],
   onMentionMenu: InlineTokensProps["onMentionMenu"],
 ): ReactNode {
   if (typeof token !== "object" || token === null) return null;
@@ -258,8 +268,30 @@ function renderToken(
         (classId ? (resolveName?.(classId) ?? undefined) : undefined) ??
         classId;
       if (!name) return null;
+      // The inline class wears the node-link look with a wavy underline
+      // (owner 2026-10-13) tinted by the class's effective color — no pill.
+      // Interactive surfaces open the class exactly like a mention opens
+      // its target; read-only projections degrade to the styled span.
+      if (onOpenNode !== undefined && classId !== "") {
+        const chipColor = resolveClassColor?.(classId) ?? null;
+        return (
+          <button
+            key={key}
+            type="button"
+            className="nt-link nt-link--class"
+            title={classId}
+            style={chipColor !== null ? { textDecorationColor: cssColorFor(chipColor) } : undefined}
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenNode(classId);
+            }}
+          >
+            {name}
+          </button>
+        );
+      }
       return (
-        <span key={key} className="nt-chip nt-class-chip" title={classId || undefined}>
+        <span key={key} className="nt-class-link" title={classId || undefined}>
           {name}
         </span>
       );
@@ -268,7 +300,7 @@ function renderToken(
       const children = Array.isArray(t.children) ? t.children : [];
       return (
         <span key={key} className="nt-quote">
-          <InlineTokens tokens={children} resolveName={resolveName} resolveFullTitle={resolveFullTitle} resolveVerb={resolveVerb} renderEmbed={renderEmbed} onOpenNode={onOpenNode} resolveColor={resolveColor} />
+          <InlineTokens tokens={children} resolveName={resolveName} resolveFullTitle={resolveFullTitle} resolveVerb={resolveVerb} renderEmbed={renderEmbed} onOpenNode={onOpenNode} resolveColor={resolveColor} resolveClassColor={resolveClassColor} />
         </span>
       );
     }
@@ -278,7 +310,7 @@ function renderToken(
       const children = Array.isArray(t.children) ? t.children : [];
       return (
         <span key={key} className="nt-heading">
-          <InlineTokens tokens={children} resolveName={resolveName} resolveFullTitle={resolveFullTitle} resolveVerb={resolveVerb} renderEmbed={renderEmbed} onOpenNode={onOpenNode} resolveColor={resolveColor} />
+          <InlineTokens tokens={children} resolveName={resolveName} resolveFullTitle={resolveFullTitle} resolveVerb={resolveVerb} renderEmbed={renderEmbed} onOpenNode={onOpenNode} resolveColor={resolveColor} resolveClassColor={resolveClassColor} />
         </span>
       );
     }
@@ -354,7 +386,7 @@ function renderToken(
   }
 }
 
-export function InlineTokens({ tokens, resolveName, resolveFullTitle, resolveVerb, renderEmbed, renderEmbedCard, renderQuery, renderWhiteboard, renderAsset, onOpenNode, resolveColor, onMentionMenu }: InlineTokensProps) {
+export function InlineTokens({ tokens, resolveName, resolveFullTitle, resolveVerb, renderEmbed, renderEmbedCard, renderQuery, renderWhiteboard, renderAsset, onOpenNode, resolveColor, resolveClassColor, onMentionMenu }: InlineTokensProps) {
   // SCHEMA.md:61 — an asset_ref alone in its stream renders full-bleed; the
   // flag reaches only the (single) asset token in that stream.
   const assetAlone =
@@ -365,7 +397,7 @@ export function InlineTokens({ tokens, resolveName, resolveFullTitle, resolveVer
     (tokens[0] as { type?: unknown }).type === "asset_ref";
   return (
     <>
-      {tokens.map((token, index) => renderToken(token, index, resolveName, resolveFullTitle, resolveVerb, renderEmbed, renderEmbedCard, renderQuery, renderWhiteboard, renderAsset, assetAlone, onOpenNode, resolveColor, onMentionMenu))}
+      {tokens.map((token, index) => renderToken(token, index, resolveName, resolveFullTitle, resolveVerb, renderEmbed, renderEmbedCard, renderQuery, renderWhiteboard, renderAsset, assetAlone, onOpenNode, resolveColor, resolveClassColor, onMentionMenu))}
     </>
   );
 }

@@ -87,6 +87,18 @@ function formatCreated(createdAt: string | null): string {
 }
 
 /**
+ * The name-column text: the display-name excerpt with inline class chips
+ * resolved to their class's current name (owner 2026-10-13 — a title that
+ * opens with a chip reads complete in the cell, the CSV projection, and
+ * the sort key, all three riding this same text).
+ */
+function nameCellText(client: AnyClient, node: ClientNode): string {
+  return (
+    displayNameForSettings(node, (classId) => client.getDisplayName(classId)) || "Untitled"
+  );
+}
+
+/**
  * The CSV projection of one cell — the same display text the row renders
  * (names, class labels, the locale created date, property display strings),
  * so the downloaded file is WYSIWYG against the on-screen table. Raw ids
@@ -94,7 +106,7 @@ function formatCreated(createdAt: string | null): string {
  */
 function csvCellText(client: AnyClient, row: TableRow, column: TableColumn): string {
   const node = row.item.node;
-  if (column.kind === "name") return displayNameForSettings(node) || "Untitled";
+  if (column.kind === "name") return nameCellText(client, node);
   if (column.kind === "classes") {
     return node.classIds
       .map((classId) => displayNameFromClient(client, classId))
@@ -120,7 +132,7 @@ function columnSortValue(
   row: TableRow,
 ): string | number | null {
   if (column.kind === "name") {
-    return displayNameForSettings(row.item.node) || "Untitled";
+    return nameCellText(client, row.item.node);
   }
   if (column.kind === "created") {
     return row.item.node.createdAt ?? "";
@@ -428,7 +440,7 @@ function NameCell({
 }) {
   const { client } = props;
   const [editing, setEditing] = useState(false);
-  const label = displayNameForSettings(node) || "Untitled";
+  const label = nameCellText(client, node);
   const simple =
     node.contentAst.length === 0 ||
     (node.contentAst.length === 1 &&
