@@ -26,6 +26,7 @@ export type {
   HostedViewsConfig,
   NodeCollectionItem,
   NodeCollectionProps,
+  SortMode,
   TableColumn,
   SortDirection,
   SortSpec,
