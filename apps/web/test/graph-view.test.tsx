@@ -5,12 +5,14 @@
  * canvas path is exercised in the browser, the port boundary per the
  * renderer/engine unit suites), the reference empty surfaces (nothing to
  * graph yet / the filtered-out state with its reset / the local depth
- * hint), and the kit-composed settings toolbar.
+ * hint), the kit-composed settings toolbar, and the right rail (Selection +
+ * Colors sections, chip openers, search-to-select, local-scope omission,
+ * legacy color-group migration).
  */
 
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
@@ -54,7 +56,7 @@ async function seedClient(): Promise<WorkspaceClient> {
 }
 
 function edge(kind: GraphEdge["kind"], source: string, target: string, weight = 1, evidence: string[] | null = null): GraphEdge {
-  return { kind, source, target, weight, evidence };
+  return { kind, source, target, weight, evidence, createdAt: null };
 }
 
 describe("graph display shaping", () => {
@@ -85,6 +87,7 @@ describe("graph display shaping", () => {
       classIds: [],
       color: null,
       icon: null,
+      createdAt: "2026-10-13T00:00:00.000Z",
       contentSize: 0,
       mass: 1,
       ...extra,
@@ -169,8 +172,10 @@ describe("GraphView component", () => {
     // The reference empty surface, and the settings toolbar stays.
     expect(await screen.findByText("Nothing to graph yet")).toBeTruthy();
     expect(screen.getByText("Add pages and blocks to see how they connect.")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Recenter" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Graph settings" })).toBeTruthy();
     expect(document.querySelector(".nt-graph__canvas")).toBeNull();
+    // The control dock is canvas-bound: no canvas, no dock.
+    expect(document.querySelector(".nt-graph__dock")).toBeNull();
   });
 
   it("renders the filtered-out empty state with the reset affordance on the full surface", async () => {
@@ -223,15 +228,22 @@ describe("GraphView component", () => {
         await screen.findByText("No connected nodes within 2 levels"),
       ).toBeTruthy();
       expect(screen.getByText("Try increasing the levels to see more connections.")).toBeTruthy();
+      // The rail (and the Colors chip) are full-surface chrome: the local
+      // card keeps them out, like the other full-surface overlays.
+      expect(screen.queryByRole("button", { name: "Colors" })).toBeNull();
+      expect(document.querySelector(".nt-graph__rail")).toBeNull();
     } finally {
       window.localStorage.clear();
     }
   });
 
-  it("the chrome composes from the kit: ghost icon tools, the Filters popover, the settings popover with the preset dropdown, the bottom mode bar, the search field", async () => {
+  it("the chrome composes from the kit: the Visibility eye, the settings popover with the preset dropdown, the bottom mode bar with the time-lapse toggle, the rail toggle chips", async () => {
     window.localStorage.clear();
     // The stable filtered-out state: toolbar + empty surface, no canvas
-    // mount (so the jsdom WebGL fallback can't replace the chrome).
+    // mount (so the jsdom WebGL fallback can't replace the chrome). The
+    // bottom-left control dock and the time-lapse strip are canvas-bound
+    // (the dock's recenter/zoom/focus operate on the renderer) — the port
+    // boundary per the renderer/engine unit suites.
     window.localStorage.setItem(
       "notees.settings.graphPrefs.full",
       JSON.stringify({ showOrphans: false }),
@@ -243,30 +255,41 @@ describe("GraphView component", () => {
 
       await screen.findByText("All nodes hidden by filters");
 
-      // The bar is the quiet canvas register: icon tools, the filters
-      // chip, the counts, the colors chip, the search field…
-      const recenter = screen.getByRole("button", { name: "Recenter" });
-      expect(recenter.className).toContain("btn");
-      expect(recenter.className).toContain("btn--ghost");
-      expect(screen.getByRole("button", { name: "Pause layout" })).toBeTruthy();
-      expect(screen.getByRole("button", { name: "Filters" })).toBeTruthy();
+      // The bar is the quiet canvas register: the eye, the counts, the
+      // Colors chip (the rail toggle)…
+      const visibility = screen.getByRole("button", { name: "Visibility" });
+      expect(visibility.className).toContain("btn");
+      expect(visibility.className).toContain("btn--ghost");
       expect(screen.getByText(/nodes · .* edges/)).toBeTruthy();
-      // …and the search field is the kit SearchField.
-      expect(screen.getByRole("textbox", { name: "Find node" })).toBeTruthy();
+      const colorsChip = screen.getByRole("button", { name: "Colors" });
+      expect(colorsChip.className).toContain("chip");
+      // …the retired top-bar search field stays retired (search-to-select
+      // lives in the rail's Selection section)…
+      expect(screen.queryByRole("textbox", { name: "Find node" })).toBeNull();
+      // …and the rail rests closed.
+      expect(screen.queryByLabelText("Graph rail")).toBeNull();
 
-      // The layout mode rides the bottom mode bar (the v1 register)…
+      // The layout mode rides the bottom mode bar (the v1 register), now
+      // with the time-lapse toggle beside it…
       expect(screen.getByRole("radio", { name: "Force" })).toBeTruthy();
       expect(screen.getByRole("radio", { name: "Circle" })).toBeTruthy();
+      const timeLapse = screen.getByRole("button", { name: "Time lapse" });
+      expect(timeLapse.className).toContain("btn--ghost");
+      expect(timeLapse.getAttribute("aria-pressed")).toBe("false");
 
-      // The Filters popover carries what-to-draw: families, orphans,
+      // The Visibility popover carries what-to-draw: families, orphans,
       // classes, the journal visibility levels.
-      fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+      fireEvent.click(screen.getByRole("button", { name: "Visibility" }));
       expect(await screen.findByRole("switch", { name: "Class nodes" })).toBeTruthy();
       expect(screen.getByRole("switch", { name: "Orphans" })).toBeTruthy();
       expect(screen.getByRole("switch", { name: "Day pages" })).toBeTruthy();
       expect(screen.getByRole("switch", { name: "Month pages" })).toBeTruthy();
       expect(screen.getByRole("switch", { name: "Year pages" })).toBeTruthy();
       expect(screen.getByRole("switch", { name: "System pages" })).toBeTruthy();
+      // The family toggles are kit Chips (pressed pills).
+      const mentionsChip = screen.getByRole("button", { name: "Mentions" });
+      expect(mentionsChip.className).toContain("chip");
+      expect(mentionsChip.getAttribute("aria-pressed")).toBe("true");
 
       // The settings popover (the kit ButtonWithPanel) carries physics +
       // sizing: the preset is a named dropdown, the register is toggles.
@@ -275,6 +298,155 @@ describe("GraphView component", () => {
       expect(screen.getByRole("switch", { name: "Simulation" })).toBeTruthy();
       expect(screen.getByRole("switch", { name: "Central gravity" })).toBeTruthy();
       expect(screen.getByRole("switch", { name: "Mass accumulation" })).toBeTruthy();
+    } finally {
+      window.localStorage.clear();
+    }
+  });
+
+  it("the right rail: the Colors chip opens the rail onto the Colors section; the Selected chip opens the Selection section; search-to-select rides the shared NodeSelector; the rail is local-scope-only chrome; open state persists per device", async () => {
+    window.localStorage.clear();
+    window.localStorage.setItem(
+      "notees.settings.graphPrefs.full",
+      JSON.stringify({ showOrphans: false }),
+    );
+    try {
+      const client = await seedClient();
+      await client.createObject({ presentAsMain: true, contentAst: [{ type: "text", text: "Lonely" }] });
+      render(<GraphView client={client} />);
+      await screen.findByText("All nodes hidden by filters");
+
+      // The Colors chip opens the rail with the Colors section expanded…
+      // (scoped to the toolbar: the rail's section header shares the name).
+      const toolbar = screen.getByRole("toolbar", { name: "Graph settings" });
+      const colorsChip = () => within(toolbar).getByRole("button", { name: "Colors" });
+      fireEvent.click(colorsChip());
+      const rail = await screen.findByLabelText("Graph rail");
+      expect(rail.className).toContain("nt-graph__rail");
+      const colorsHeader = within(rail).getByRole("button", { name: "Colors" });
+      expect(colorsHeader.getAttribute("aria-expanded")).toBe("true");
+      expect(within(rail).getByText("Class colors")).toBeTruthy();
+      expect(within(rail).getByText("Query groups")).toBeTruthy();
+      // …the Selection section rests collapsed beside it.
+      const selectionHeader = within(rail).getByRole("button", { name: /Selection/ });
+      expect(selectionHeader.getAttribute("aria-expanded")).toBe("false");
+      // The rail is a flex sibling of the stage: the root carries the
+      // rail-open modifier (the toolbar's right edge pulls in).
+      expect(document.querySelector(".nt-graph--rail-open")).toBeTruthy();
+
+      // The open state persists per device (the debounced prefs write).
+      await vi.waitFor(() => {
+        const persisted = JSON.parse(
+          window.localStorage.getItem("notees.settings.graphPrefs.full")!,
+        ) as { railOpen?: boolean };
+        expect(persisted.railOpen).toBe(true);
+      });
+
+      // Clicking the active section's chip again closes the rail.
+      fireEvent.click(colorsChip());
+      expect(screen.queryByLabelText("Graph rail")).toBeNull();
+
+      // Search-to-select: reopen onto Selection, type in the shared
+      // NodeSelector (no create — picking adds to the selection, the
+      // topology never changes), pick the row.
+      fireEvent.click(colorsChip());
+      const rail2 = await screen.findByLabelText("Graph rail");
+      fireEvent.click(within(rail2).getByRole("button", { name: /Selection/ }));
+      const search = within(rail2).getByRole("textbox", { name: "Search to select…" });
+      fireEvent.change(search, { target: { value: "Lon" } });
+      fireEvent.click(await within(rail2).findByRole("button", { name: "Lonely" }));
+
+      // The Selected · N chip appears as count + opener; with its section
+      // already active the chip is the close toggle — collapse first, then
+      // the chip opens the rail onto the Selection section (and scrolls to
+      // it)…
+      const selectedChip = await screen.findByRole("button", { name: "Selected · 1" });
+      expect(selectedChip.className).toContain("chip");
+      fireEvent.click(within(rail2).getByRole("button", { name: /Selection/ }));
+      expect(
+        within(rail2).getByRole("button", { name: /Selection/ }).getAttribute("aria-expanded"),
+      ).toBe("false");
+      fireEvent.click(selectedChip);
+      const railAgain = await screen.findByLabelText("Graph rail");
+      expect(
+        within(railAgain).getByRole("button", { name: /Selection/ }).getAttribute("aria-expanded"),
+      ).toBe("true");
+      // …the reorderable selected list is re-homed here, with the honest
+      // empty state gone and the remove/clear affordances present.
+      expect(within(railAgain).getByText("Lonely")).toBeTruthy();
+      expect(within(railAgain).getByRole("button", { name: "Remove Lonely" })).toBeTruthy();
+      expect(within(railAgain).getByRole("button", { name: "Clear selection" })).toBeTruthy();
+    } finally {
+      window.localStorage.clear();
+    }
+  });
+
+  it("the Selection section's empty state is honest and the search never creates", async () => {
+    window.localStorage.clear();
+    window.localStorage.setItem(
+      "notees.settings.graphPrefs.full",
+      JSON.stringify({ showOrphans: false, railOpen: true }),
+    );
+    try {
+      const client = await seedClient();
+      await client.createObject({ presentAsMain: true, contentAst: [{ type: "text", text: "Lonely" }] });
+      render(<GraphView client={client} />);
+      await screen.findByText("All nodes hidden by filters");
+
+      // The rail opens from the persisted state; both sections rest
+      // collapsed, so the empty selection list is not visible yet.
+      const rail = await screen.findByLabelText("Graph rail");
+      fireEvent.click(within(rail).getByRole("button", { name: /Selection/ }));
+      expect(await within(rail).findByText("No nodes selected")).toBeTruthy();
+      expect(
+        within(rail).getByText("Search above or click nodes in the graph."),
+      ).toBeTruthy();
+
+      // A query without a match shows the picker's honest empty state —
+      // no create row (search-to-select never writes the graph).
+      const search = within(rail).getByRole("textbox", { name: "Search to select…" });
+      fireEvent.change(search, { target: { value: "No such node" } });
+      expect(await within(rail).findByText("No matches found")).toBeTruthy();
+      expect(within(rail).queryByRole("button", { name: /Create/ })).toBeNull();
+    } finally {
+      window.localStorage.clear();
+    }
+  });
+
+  it("legacy text-DSL color groups migrate to ASTs in place at load", async () => {
+    window.localStorage.clear();
+    window.localStorage.setItem(
+      "notees.settings.graphPrefs.full",
+      JSON.stringify({
+        showOrphans: false,
+        colorGroupsOn: true,
+        colorGroups: [
+          { id: "g1", label: "Books", color: "sky", query: "class:books" },
+          { id: "g2", label: "Broken", color: "mint", query: "class:nope-not-a-class" },
+        ],
+      }),
+    );
+    try {
+      const client = await seedClient();
+      await client.createClass("books");
+      await client.createObject({ presentAsMain: true, contentAst: [{ type: "text", text: "Lonely" }] });
+      render(<GraphView client={client} />);
+      await screen.findByText("All nodes hidden by filters");
+
+      // The one-time migration re-persists the groups as ASTs: the good
+      // row gains `ast` and loses `query`; the unresolvable row stays,
+      // marked erroneous (ast null + the parse error) — never silently
+      // dropped.
+      await vi.waitFor(() => {
+        const persisted = JSON.parse(
+          window.localStorage.getItem("notees.settings.graphPrefs.full")!,
+        ) as {
+          colorGroups: Array<Record<string, unknown>>;
+        };
+        expect(persisted.colorGroups[0]!.ast).toBeDefined();
+        expect(persisted.colorGroups[0]!.query).toBeUndefined();
+        expect(persisted.colorGroups[1]!.ast).toBeNull();
+        expect(typeof persisted.colorGroups[1]!.error).toBe("string");
+      });
     } finally {
       window.localStorage.clear();
     }

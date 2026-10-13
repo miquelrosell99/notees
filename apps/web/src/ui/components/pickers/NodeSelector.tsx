@@ -3,7 +3,9 @@
  *
  * Trigger modes:
  * - 'pill-row': row of node pills with an add button (for tags/types/classes)
- * - 'inline': always-expanded search + results list, no toggle
+ * - 'inline': always-expanded search + results list, no toggle — the
+ *   permanent-field idiom (the graph rail's search-to-select): there is no
+ *   picker to close, so outside press / Escape never clears the query
  * - anchored (anchorEl + onClose): only the picker panel, portaled and
  *   anchored below the given element — for embedding the picker under a
  *   custom trigger.
@@ -656,7 +658,9 @@ export function NodeSelector({
     resetMulti();
     if (isAnchored) {
       onClose?.();
-    } else {
+    } else if (trigger !== "inline") {
+      // Inline mode is permanent — there is no picker to close and the
+      // always-visible search field keeps its query on outside press.
       setIsPickerOpen(false);
       setSearchQuery("");
     }
