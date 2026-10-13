@@ -9,6 +9,32 @@ predating this file.
 
 ## 2026-10-13
 
+- **feat(web): the card cover slot renders even when empty — the missing
+  cover is visible and fillable in place — plus a card roundness step down
+  (owner 2026-10-13).** In cards mode the cover layouts (cover top/left/
+  right) previously rendered nothing at all on a coverless node, so the
+  layout's promise ("every card carries a cover") read as a gap with no way
+  to close it. Now the slot renders on every card under a cover layout: a
+  node without a cover shows the quiet **Add cover** affordance (the
+  header CoverCard precedent — image-plus icon + label centered on the
+  matted slot, the 16:9 top slot keeps its shape) which opens the
+  image-only AssetUploadModal;
+  the uploaded asset node becomes the cover through the shared
+  `setNodeCover` write (the `coverAssetId` wire field + the asset class,
+  error → the notification store). The no-cover layout is unchanged —
+  text-only card, no slot, no lazy observation; asset-classed cards never
+  hit the empty state (their imagery is their own bytes). The slot's read
+  was corrected in the same pass: `cardImageAssetId` still probed the
+  RETIRED image-typed `cover` property, so a cover set through the wire
+  field (the CLI, the API, the header card) never showed on cards — it now
+  reads `node.coverAssetId` like every other surface. Card roundness steps
+  down with it: `.node-card` `--shape-card` (20px) → `--shape-extra-large`
+  (12px). Docs: `docs/ux.md` + `docs/usage.md` (the cover paragraphs carry
+  the empty-slot rule). **Verification:** new `covers.test.tsx` block (4
+  specs: the empty slot + its a11y name, the no-cover gate, the
+  upload-modal fill flow landing on the wire field, the wire-field read
+  regression); `pnpm typecheck` + the full `pnpm test` gate green.
+
 - **fix(web): the class page's "Extended by" section lists DIRECT subclasses
   only (owner 2026-10-13).** The section previously built a multi-level tree
   from the transitive extends closure, so a grandchild subclass (x extends

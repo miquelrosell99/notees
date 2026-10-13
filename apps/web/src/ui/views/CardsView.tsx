@@ -32,7 +32,9 @@ import { useViewChromeTarget } from "./viewChrome.js";import { useLazyInView } f
 import { ShowMoreButton } from "./ShowMoreButton.js";
 import { propertyDisplayText } from "./propertyDisplay.js";
 import { assetImageUrl, cardImageAssetId } from "./assetThumbs.js";
-import { isCoverAsset } from "../components/coverProperty.js";
+import { isCoverAsset, setNodeCover } from "../components/coverProperty.js";
+import { AssetUploadModal } from "../components/modals/AssetUploadModal.js";
+import { notificationStore } from "../components/ui/notificationStore.js";
 import { Badge } from "../components/ui/Badge.js";
 import { useCardLayoutPreference } from "../viewPrefs.js";
 import { CardsBoard } from "./CardsBoard.js";
@@ -105,13 +107,21 @@ function TreeCards({ items, props }: { items: NodeCollectionItem[]; props: NodeC
  * The layout prop is the gate, not a cosmetic switch: "no-cover" renders
  * nothing AND skips the lazy fetch (no placeholder, no observation, no
  * bytes) — the card is text-only, as the CoverLayoutToggle advertises.
+ *
+ * The slot is ALSO the empty-state surface (owner 2026-10-13): under a
+ * cover layout the slot renders even when the node has no cover — the
+ * "Add cover" affordance (the CoverCard precedent) opens the
+ * image-only AssetUploadModal and the uploaded asset node becomes the
+ * cover (setNodeCover — the coverAssetId wire field). Asset-classed nodes
+ * never hit it: their imagery is their own bytes.
  */
 function CardCover({ item, props, layout }: { item: NodeCollectionItem; props: NodeCollectionProps; layout: CardLayout }) {
   const client = props.client;
-  const assetId = cardImageAssetId(item.node, props.propertiesOf?.(item.node.id));
+  const assetId = cardImageAssetId(item.node);
   const [sentinelRef, inView] = useLazyInView<HTMLElement>();
   const [url, setUrl] = useState<string | null>(null);
   const [zoomOpen, setZoomOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
   const coverEnabled = layout !== "no-cover";
 
   useEffect(() => {
@@ -126,7 +136,44 @@ function CardCover({ item, props, layout }: { item: NodeCollectionItem; props: N
     };
   }, [coverEnabled, inView, assetId, client]);
 
-  if (!coverEnabled || assetId === null) return null;
+  if (!coverEnabled) return null;
+  if (assetId === null) {
+    return (
+      <>
+        <button
+          type="button"
+          className="node-card__cover node-card__cover--empty"
+          aria-label={`Add cover image to ${displayNameForSettings(item.node) || "Untitled"}`}
+          title="Add cover image"
+          onClick={(event) => {
+            event.stopPropagation();
+            setUploadOpen(true);
+          }}
+        >
+          <Icon path="mdi-image-plus" size={0.9} />
+          <span>Add cover</span>
+        </button>
+        {uploadOpen && (
+          <AssetUploadModal
+            isOpen
+            client={client}
+            assetClassId={SYSTEM_CLASS_UUIDS.asset}
+            accept="image/jpeg,image/png,image/webp"
+            onClose={() => setUploadOpen(false)}
+            onUploaded={(assetNodeId) => {
+              setUploadOpen(false);
+              setNodeCover(client, item.node.id, assetNodeId).catch((err: unknown) => {
+                notificationStore.error(
+                  "Couldn't set the cover",
+                  err instanceof Error ? err.message : String(err),
+                );
+              });
+            }}
+          />
+        )}
+      </>
+    );
+  }
   if (url === null) {
     // Placeholder keeps the layout slot (same class family, no bytes yet).
     return (

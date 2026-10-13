@@ -5,7 +5,9 @@
  * registered: an adaptive CSS-columns masonry on a RAISED container panel
  * (surface-container-high mat, spacing-4 padding, shape-large radius);
  * surface-level cards with a subtle-but-visible blended border
- * (outline at 50% over outline-variant), the 20px --shape-card radius, and
+ * (outline at 50% over outline-variant), the 12px --shape-extra-large
+ * radius (owner 2026-10-13: roundness stepped down from the 20px
+ * --shape-card), and
  * ZERO elevation shadow (the design-system mandate — the original Card
  * elevation was deliberately "none"); row-based padding (the card itself
  * unpadded —
@@ -16,7 +18,8 @@
  * background, spacing-2 inset — the image never bleeds to the card edge).
  * The newer machinery is untouched: useWindowed paging, selection export, the
  * CoverLayoutToggle, useLazyInView covers (the 16:9 cover slot
- * stays so the pending placeholder keeps its size before bytes arrive),
+ * stays so the pending placeholder and the empty Add-cover affordance
+ * keep its size before bytes arrive),
  * content-visibility skipping, and NodeCard shared with the grouped board.
  */
 
@@ -62,7 +65,7 @@
      outline-variant, so blend outline and outline-variant for a subtle but
      visible edge." */
   border: var(--border-width-default) solid color-mix(in srgb, var(--color-outline) 50%, var(--color-outline-variant));
-  border-radius: var(--shape-card);
+  border-radius: var(--shape-extra-large);
   background: var(--color-surface);
   /* lazy rendering: off-screen cards skip layout/paint entirely;
      the intrinsic size keeps the scrollbar stable while skipped. */
@@ -135,6 +138,32 @@
 }
 
 .node-card__cover--button:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-primary);
+  outline-offset: calc(var(--spacing-micro) * -1);
+}
+
+/* The empty slot (owner 2026-10-13): under a cover layout the slot renders
+   even when the node has no cover — the quiet Add affordance (the CoverCard
+   precedent) names the missing cover and opens the image-only upload modal.
+   The mat slot chrome carries over (the background + spacing-2 inset). */
+.node-card__cover--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-1);
+  border: none;
+  color: var(--color-outline);
+  font: var(--font-body-small);
+  cursor: pointer;
+}
+
+.node-card__cover--empty:hover,
+.node-card__cover--empty:focus-visible {
+  color: var(--color-primary);
+}
+
+.node-card__cover--empty:focus-visible {
   outline: var(--border-width-thick) solid var(--color-primary);
   outline-offset: calc(var(--spacing-micro) * -1);
 }
