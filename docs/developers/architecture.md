@@ -268,12 +268,19 @@ and `schemaSql("fts4")` builds the identical docid-map index with FTS4 — same 
 syntax, same `unicode61` tokenizer, same behavior
 (`packages/store/src/schema.ts`, `db.ts`). Search uses the FTS match only as the
 candidate generator: multi-term queries OR their bare terms (partial matches enter the
-set), then one shared JS tier scorer orders every hit — literal match in a main node's
-title → literal in a block → terms in order (non-adjacent) → first-parent title →
-partial (fewer terms last) — with the FTS score, recency, and node id inside a tier, so
+set), then one shared JS tier scorer orders every hit — exact match in a main node's
+title → exact in a block → terms in order (non-adjacent) → first-parent title →
+partial (whole-query fuzzy subsequence lifts a partial above plain ones) → a fuzzy
+rescue scan over main-node titles when nothing reached the literal tiers (Capacities
+"find by intent") — with the FTS score, recency, and node id inside a tier, so
 both modules produce the same tier order (`packages/store/src/search.ts`). Query modes:
-a fully quoted query (`"gmi dental"`) is literal (exact substring only), a leading caret
+a fully quoted query (`"gmi dental"`) is exact (exact substring only), a leading caret
 (`^gmi`) is starts-with. A matching alias page also contributes its terminal node.
+Diacritics fold everywhere (schema v19: index-time folding — `reindexNode` strips
+combining marks from the indexed plaintext and the MATCH terms fold in JS, one mirror
+pair; the stock sql.js FTS4 tokenizer has no `remove_diacritics` support), so `peru`
+matches "Perú"; the v19 migration drops and rebuilds pre-v19 indexes from the derived
+plaintext.
 
 Restore is adapter-specific: better-sqlite3 has no deserialize, so restore writes a temp
 file and swaps the connection (temp dir removed on close); sql.js exports/imports whole
