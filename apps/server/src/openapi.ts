@@ -596,6 +596,23 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     idempotency: true,
     errors: ["not_found", "validation_failed"],
   }],
+  ["post", "/api/objects/:id/merge", {
+    summary: "Merge this object into another: children move, class/tag bindings, authored properties, cover/banner/description, incoming mentions/property references/aliases, and collection memberships remap; the source trashes",
+    description:
+      "The server plans the merge over its derived projection (packages/store planMerge — a batch of EXISTING op types, no wire change) and submits it through the one write path. `?dryRun=true` returns `{ dryRun, summary }` without writing (the CLI's preview contract). Guard failures (trashed/class/collection source, target in the source subtree, source === target) answer 422 `validation_failed` before anything reaches the log.",
+    tags: ["Objects"],
+    requestBody: {
+      type: "object",
+      additionalProperties: false,
+      required: ["targetId"],
+      properties: { targetId: { type: "string", format: "uuid" } },
+    },
+    query: { dryRun: { description: '"true" plans without writing', type: "string" } },
+    success: { description: "{ merged, targetId, summary }" },
+    requiredScope: "objects.write",
+    idempotency: true,
+    errors: ["not_found", "validation_failed"],
+  }],
   ["get", "/api/objects/:id/backlinks", {
     summary: "Edges pointing at the node (mentions, typed links, property refs)",
     tags: ["Objects"],
