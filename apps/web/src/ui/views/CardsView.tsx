@@ -296,11 +296,15 @@ export function NodeCard({
             the chain walks the parents, so a parentless node renders nothing
             and the row collapses away on its own. */}
         <div className="node-card__breadcrumbs">
+          {/* Editable like the top bar's trail (owner 2026-10-13): the hover
+              chevron, the edge menu (Reassign parent… / Remove parent), and
+              the parentless "+ Add parent" pill all ride — the mutations are
+              the component's own client writes. */}
           <Breadcrumbs
             client={client}
             nodeId={item.node.id}
             onOpenNode={openNode}
-            editable={false}
+            editable
           />
         </div>
         <div className="node-card__header">

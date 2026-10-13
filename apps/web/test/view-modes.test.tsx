@@ -376,6 +376,25 @@ describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
     expect(screen.getByRole("menu")).not.toBeNull();
   });
 
+  it("the breadcrumb row is editable like the top bar's — a parentless card offers Add parent", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Orphan" });
+    await flushWrites();
+
+    const { container } = render(
+      <NodeCollection
+        viewMode="cards"
+        client={client}
+        items={[{ node: client.getNode(pageId)! }]}
+        onNodeClick={() => {}}
+      />,
+    );
+    const card = container.querySelector(".node-card") as HTMLElement;
+    // No chain → no crumbs, but the editable trail offers the "+ Add parent"
+    // pill (the top bar's contract — the card's row is the same component).
+    expect(within(card).getByRole("button", { name: /Add parent/ })).not.toBeNull();
+  });
+
   it("table mode never renders children even when the items carry them", async () => {
     const client = await seedClient();
     const pageId = await seedTreePage(client);

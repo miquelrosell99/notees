@@ -9,6 +9,16 @@ predating this file.
 
 ## 2026-10-13
 
+- **fix(web): the card's breadcrumb row is editable like the top bar's (owner
+  2026-10-13).** Same component, but the card instance had been wired with
+  `editable={false}` (the read-only instinct carried over from the first
+  wiring) — no hover chevron, no edge menu, no "+ Add parent" pill. The flag
+  flips: the trail's edit gestures (Reassign parent… / Remove parent on the
+  edge, Add parent on a parentless node; date-locked edges hide themselves
+  inside the component) now ride on the card exactly like the top bar, with
+  the component's own client writes. **Verification:** new spec (a parentless
+  card offers Add parent); `pnpm typecheck` + the view-modes suite green (36).
+
 - **fix(web): the card's breadcrumb row starts at the card's top-left (owner
   2026-10-13).** The card's Breadcrumbs instance had copied the sidebar
   card's `anchor="right"` — the trail hugged the row's right edge instead of
