@@ -46,6 +46,8 @@
  * page" — the create lands IN THE PAGES ZONE and focuses the new child by
  * opening it, the section's row-click behavior; the expanded section's
  * live re-query refreshes the list, so the new row appears at once).
+ * The tree opens on the Name A–Z sort (owner 2026-10-13), every sibling
+ * level — the drag/position order stays one sort-button switch away.
  * Embedded feeds render the sections read-only: no create affordance, and
  * a childless feed entry hides the section as before.
  *
@@ -76,7 +78,7 @@ import {
   type FilterQuery,
 } from "./filterQuery.js";
 import { NodeCollection, groupByContainingPage } from "../views/index.js";
-import type { HostedViewsConfig, NodeCollectionItem } from "../views/index.js";
+import type { HostedViewsConfig, NodeCollectionItem, SortMode } from "../views/index.js";
 import { NodeViewSection } from "./NodeViewSection.js";
 import { useSectionData, type SectionRowFilter } from "./useSectionData.js";
 import "./SystemSections.css";
@@ -111,6 +113,10 @@ function pageTreeOf(client: AnyClient, node: ClientNode, remaining = PAGE_TREE_D
  * unlinked section only): Promote converts the literal match into a mention;
  * Ignore dismisses the source for this page, device-locally.
  *
+ * The list opens on the Dates-first sort (owner 2026-10-13 — the named
+ * mode): date-page groups newest → oldest, then the other pages A–Z; the
+ * sort button in the hosted chrome switches it (Name A–Z / Default order).
+ *
  * Always rendered by its hosts — even empty: the hosted view chrome stays
  * visible on an empty section, and `emptyText` (the section-empty line)
  * rides the collection's empty state.
@@ -126,6 +132,7 @@ export function ReferenceList({
   hostedViews,
   trailing,
   emptyText,
+  defaultSortMode = "dates-first",
 }: {
   entries: ReferenceEntry[];
   client: AnyClient;
@@ -140,6 +147,13 @@ export function ReferenceList({
   trailing?: ReactNode | undefined;
   /** The section-empty line when there is nothing to list (rides the collection's empty state). */
   emptyText?: string | undefined;
+  /**
+   * The list's sort default — Dates first unless the host says otherwise.
+   * The page sections pass "position" while their quick search ranks the
+   * pool (the ranked order leads then; the dates-first default yields
+   * until the user picks a sort — the views' live-default contract).
+   */
+  defaultSortMode?: SortMode | undefined;
 }) {
   const promote = useCallback(
     (source: ClientNode) => {
@@ -175,6 +189,7 @@ export function ReferenceList({
       client={client}
       items={items}
       groups={groups}
+      defaultSortMode={defaultSortMode}
       {...(hostedViews !== undefined ? { hostedViews } : {})}
       {...(trailing !== undefined ? { tabBarTrailing: trailing } : {})}
       {...(emptyText !== undefined ? { emptyText } : {})}
@@ -314,6 +329,7 @@ function ReferenceSection({
           onOpenPage={onOpenPage}
           {...(unlinkedPageId !== undefined ? { unlinkedPageId } : {})}
           hostedViews={{ nodeId: pageId, sectionKey }}
+          defaultSortMode={quickTextOf(filterQuery) === "" ? "dates-first" : "position"}
           trailing={
             <FilterBar
               client={client}
@@ -426,6 +442,7 @@ export function SystemSections({
               tree
               readOnly
               hideBacklinkCount
+              defaultSortMode="alphabetical"
               onNodeClick={(id) => onOpenPage?.(id)}
             />
           )}

@@ -21,7 +21,13 @@
  * collection's windowing sees them, and the eager member-count badge stays
  * UNFILTERED — an active filter reads "0 of N" in the bar and never hides
  * the section. The query is component state — one instance per class page,
- * lost on reload, nothing persisted.
+ * lost on reload, nothing persisted. The member set opens pure
+ * ALPHABETICAL (owner 2026-10-13) in every mode — the list view's Name A–Z
+ * and the table's Name-asc default (containers own table defaults; an
+ * unset table renders the container's row order) — the sort chrome switches
+ * both. While the quick search ranks the pool the ranked order leads (the
+ * search ruling: its ids are membership AND order) and the alphabetical
+ * default yields until the user picks a sort.
  */
 
 import { useCallback, useMemo, useState } from "react";
@@ -120,6 +126,14 @@ export function ClassedNodesSection({
     read: loadMembers,
     filter: memberFilterActive,
   });
+  /**
+   * The sort defaults are LIVE (owner 2026-10-13): pure alphabetical while
+   * the pool is the section's own order — but while the quick search ranks
+   * the pool, the ranked order IS the display order (the search ruling:
+   * membership AND order), so the defaults yield to "no sort" until the
+   * user picks a sort explicitly (the views' chosen-flag reseed).
+   */
+  const quickTextActive = quickTextOf(memberFilter) !== "";
 
   /**
    * A member opens directly when it renders with document chrome; an inline
@@ -206,6 +220,8 @@ export function ClassedNodesSection({
           propertiesOf={(id) => client.getEffectiveProperties(id)}
           tableEditable
           groupByProperty={groupByProperty}
+          defaultSortMode={quickTextActive ? "position" : "alphabetical"}
+          defaultSort={quickTextActive ? undefined : { key: "name", direction: "asc" }}
           onNodeClick={(id) => {
             const member = client.getNode(id);
             if (member !== undefined) openMember(member);

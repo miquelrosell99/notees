@@ -8,6 +8,48 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-13
+- **feat(web): the sort button leaves the table — list and cards views
+  carry it too, the named "dates-first" sort backs the reference sections,
+  and the table opens on Edited (owner 2026-10-13).** The mdi-sort control
+  was table-exclusive; it now rides every collection view. New kit
+  `SortMenuButton` (the ButtonWithPanel sort picker, value-agnostic);
+  `SortMode` vocabulary in `views/types.ts` (`dates-first` /
+  `alphabetical` / `position` / `edit-date`); the comparators in
+  `views/collectionSort.ts` (every one ends in the id tiebreak — stable
+  AND deterministic). **List view**: read-only projections only (an
+  editable surface's drag order IS its order — the button hides there)
+  get a Sort by panel — Dates first / Name A–Z / Default order. Dates
+  first (the named mode) orders the PAGES, never the blocks: date pages
+  newest → oldest, then the other pages A–Z — a grouped rendering sorts
+  its groups (rows inside a group keep their document position), a tree
+  sorts every sibling level, a flat list sorts its items; the window
+  re-narrows on every resort. **Defaults**: Backlinks + Unlinked mentions
+  open Dates first (child pages of a daily note surface first, most recent
+  day leading); Child pages, Extended by, and Classed nodes open Name A–Z
+  — the classed-nodes table included (container `defaultSort` Name-asc).
+  **Cards view**: the flat grid gets the same button — Last edited (the
+  default, `updatedAt` newest first) / Name A–Z; tree contexts and the
+  grouped board hide it. **Table view**: the machinery is unchanged, but
+  an Edited column joins the defaults (`node.updatedAt` in the user's date
+  format, Columns-panel toggle, CSV projection, no day-page link), sort
+  resolution reads every column (hidden included) so a sort survives its
+  column being hidden — and the Sort panel offers the same full set.
+  **Containers own table defaults** (an unset table renders the
+  container's row order — query results keep the query's): classed nodes
+  pass Name-asc, the tasks/assets hubs and the property-view references
+  table pass Edited-desc. **The defaults are live**: a container default
+  change re-seeds the view's sort until the user picks one (the
+  useWindowed resetKey precedent) — while a section's quick search ranks
+  its pool, the ranked order leads (the search ruling: its ids are
+  membership AND order) and the section's default yields to it
+  (classed-nodes alphabetical, references dates-first both step aside;
+  an explicit user-chosen sort survives). All session state, never an op. Docs: `ux.md` (the collection-sort
+  paragraph), `usage.md` (the section-chrome paragraph). **Verification:**
+  new `collection-sort.test.tsx` (12 — comparator units over real
+  deterministic date ids plus DOM wiring: grouped dates-first group order,
+  tree/flat A–Z defaults, the table's Edited-desc opening, the button's
+  presence/vocabulary, its absence on editable surfaces); the full suite
+  and `pnpm typecheck` green on the slice branch.
 
 - **feat(web): a NodeCollection flag hides the block-row backlink count —
   set for the Child pages tree and the Class View's "Extended by" list

@@ -141,7 +141,8 @@ describe("table CSV — the optional selected-rows scope", () => {
     fireEvent.click(screen.getByRole("button", { name: "Export selected as CSV" }));
     expect(download.anchor?.download).toMatch(/^projects-selected-\d{12}\.csv$/);
     const scoped = parseCsv(await readBlobText(download.blob!));
-    expect(scoped[0]).toEqual(["Name", "Classes", "Created"]);
+    // The Edited column rides the default view since owner 2026-10-13.
+    expect(scoped[0]).toEqual(["Name", "Classes", "Created", "Edited"]);
     expect(scoped.map((row) => row[0])).toEqual(["Name", "Alpha", "Beta"]);
 
     // The whole-view export is untouched: all three rows.
