@@ -106,4 +106,23 @@ describe("ExtendedBySection", () => {
     const midSection = screen.getByText("Extended by").closest(".nt-section");
     expect(midSection!.querySelector(`[data-block-id="${leafId}"]`)).not.toBeNull();
   });
+
+  it("hides the backlink count flag on the rows (owner 2026-10-13)", async () => {
+    const client = await seedClient();
+    const parentId = await createTitledClass(client, "work");
+    const midId = await createTitledClass(client, "tv series");
+    await client.setClassExtends(midId, [parentId]);
+    // A page mentioning the mid class gives it a materialized backlink count.
+    const pageId = await client.createObject({});
+    await client.updateObject(pageId, {
+      contentAst: [{ type: "mention", targetNodeId: midId, text: "tv series" }],
+    });
+    expect(client.getBacklinkCount(midId)).toBeGreaterThan(0);
+    render(<NodeView client={client} nodeId={parentId} onOpenNode={() => {}} />);
+    const section = screen.getByText("Extended by").closest(".nt-section");
+    expect(section).not.toBeNull();
+    // The count is real but the gutter toggle stays out of the list.
+    expect(section!.querySelector(".nt-block-backlink-toggle")).toBeNull();
+    expect(section!.querySelector(".nt-block-backlink-refs")).toBeNull();
+  });
 });

@@ -14,7 +14,7 @@
  * stays silent rather than guessing.
  */
 
-import { plainTextExcerpt } from "@notees/domain";
+import { plainTextExcerpt, rendersAsInlineBlock } from "@notees/domain";
 import type { ContentAst, InlineToken } from "@notees/protocol";
 
 import type { ClientNode } from "@/core/workspace-client.js";
@@ -23,6 +23,9 @@ export type HeadingConversion = "to-heading" | "from-heading" | null;
 
 /** The conversion direction a node's content shape supports (null = neither). */
 export function headingConversionOf(node: ClientNode): HeadingConversion {
+  // Block nodes only: a heading is an inline-body render concept — class
+  // pills, page-title chrome, and other main-node surfaces never offer it.
+  if (!rendersAsInlineBlock(node)) return null;
   const ast = node.contentAst;
   if (ast.length !== 1) return null;
   const token = ast[0]!;
