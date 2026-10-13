@@ -297,14 +297,16 @@ export function NodeCard({
             and the row collapses away on its own. */}
         <div className="node-card__breadcrumbs">
           {/* Editable like the top bar's trail (owner 2026-10-13): the hover
-              chevron, the edge menu (Reassign parent… / Remove parent), and
-              the parentless "+ Add parent" pill all ride — the mutations are
-              the component's own client writes. */}
+              chevron and the edge menu (Reassign parent… / Remove parent)
+              ride — the mutations are the component's own client writes. The
+              "+ Add parent" pill stays a top-bar gesture: the card edits only
+              existing parents (addParent={false}). */}
           <Breadcrumbs
             client={client}
             nodeId={item.node.id}
             onOpenNode={openNode}
             editable
+            addParent={false}
           />
         </div>
         <div className="node-card__header">

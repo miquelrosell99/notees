@@ -376,23 +376,41 @@ describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
     expect(screen.getByRole("menu")).not.toBeNull();
   });
 
-  it("the breadcrumb row is editable like the top bar's — a parentless card offers Add parent", async () => {
+  it("the breadcrumb row edits existing parents only — no Add parent noise (owner 2026-10-13)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Orphan" });
+    // A parentless card: no crumbs AND no Add parent pill (the card edits
+    // only existing parents; the pill stays a top-bar gesture).
+    const orphan = await client.createObject({ presentAsMain: true, name: "Orphan" });
+    // A parented card: the chain rides and its edges stay editable (the
+    // right-click edge menu opens).
+    const parent = await client.createObject({ presentAsMain: true, name: "Parent" });
+    const child = await client.createObject({ parentId: parent, contentAst: [{ type: "text", text: "Child" }] });
     await flushWrites();
 
-    const { container } = render(
+    const { container, unmount } = render(
       <NodeCollection
         viewMode="cards"
         client={client}
-        items={[{ node: client.getNode(pageId)! }]}
+        items={[{ node: client.getNode(orphan)! }]}
         onNodeClick={() => {}}
       />,
     );
-    const card = container.querySelector(".node-card") as HTMLElement;
-    // No chain → no crumbs, but the editable trail offers the "+ Add parent"
-    // pill (the top bar's contract — the card's row is the same component).
-    expect(within(card).getByRole("button", { name: /Add parent/ })).not.toBeNull();
+    let card = container.querySelector(".node-card") as HTMLElement;
+    expect(within(card).queryByRole("button", { name: /Add parent/ })).toBeNull();
+    unmount();
+
+    const second = render(
+      <NodeCollection
+        viewMode="cards"
+        client={client}
+        items={[{ node: client.getNode(child)! }]}
+        onNodeClick={() => {}}
+      />,
+    );
+    card = second.container.querySelector(".node-card") as HTMLElement;
+    expect(within(card).getByText("Parent")).not.toBeNull();
+    fireEvent.contextMenu(within(card).getByText("Parent"));
+    expect(screen.getByRole("menu")).not.toBeNull();
   });
 
   it("table mode never renders children even when the items carry them", async () => {
