@@ -108,6 +108,9 @@ export type { ImageModalProps } from './ImageModal.js';
 
 export { InlineConfirmButton } from './InlineConfirmButton.js';
 
+export { HoverRevealButton } from './HoverRevealButton.js';
+export type { HoverRevealButtonProps } from './HoverRevealButton.js';
+
 export { ListSortable } from './ListSortable.js';
 export type { ListSortableProps, ListSortableItem, DragState } from './ListSortable.js';
 

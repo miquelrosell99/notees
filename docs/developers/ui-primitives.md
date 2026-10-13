@@ -44,7 +44,12 @@ Inputs & buttons: `Button`, `Pill`/`AddPill`, `TextField`, `SearchField`,
 single-selection sibling — groups compose by sharing a `name`),
 `ToggleSwitch`, `BooleanToggle`,
 `Slider`, `ColorButton`, `SelectionButton`, `ButtonWithPanel`,
-`InlineConfirmButton`, `CodeTextarea`, `FileDropZone`.
+`InlineConfirmButton`, `CodeTextarea`, `FileDropZone`,
+`HoverRevealButton` (the hover-reveal affordance: zero footprint at rest —
+collapsed width + faded out — expanded on hover of the surrounding
+`.ui-hover-reveal-group`, on keyboard focus, or while an anchored popup is
+open via `aria-expanded` on the trigger; the topbar undo cluster's history
+chevron is the first consumer).
 
 Feedback & status: `Spinner`, `LoadingScreen`/`LoadingSkeleton`,
 `DataStateView`, `EmptyState`, `NotificationToast` (+ `NotificationToaster`

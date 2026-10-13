@@ -16,6 +16,7 @@ import type { UndoUiState } from "@/core/undo-journal.js";
 
 import { Icon } from "../Icon.js";
 import { Button } from "../components/ui/Button.js";
+import { HoverRevealButton } from "../components/ui/HoverRevealButton.js";
 import "./TopBar.css";
 
 /**
@@ -188,7 +189,7 @@ export function TopBar({
           </button>
         )}
         {undoState !== undefined && (
-          <span className="nt-topbar-undo" role="group" aria-label="Undo and redo">
+          <span className="nt-topbar-undo ui-hover-reveal-group" role="group" aria-label="Undo and redo">
             <button
               type="button"
               className="nt-icon-btn"
@@ -199,17 +200,16 @@ export function TopBar({
             >
               <Icon path="mdi-undo-variant" size={1} />
             </button>
-            <button
-              type="button"
+            <HoverRevealButton
               ref={historyButtonRef}
-              className="nt-icon-btn nt-topbar-undo__chevron"
+              className="nt-topbar-undo__chevron"
               title="History (Ctrl+Shift+H)"
               aria-label="Toggle history"
               aria-haspopup="menu"
               onClick={onToggleHistory}
             >
               <Icon path="mdi-chevron-down" size={0.8} />
-            </button>
+            </HoverRevealButton>
             <button
               type="button"
               className="nt-icon-btn"

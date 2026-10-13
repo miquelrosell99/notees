@@ -62,7 +62,29 @@ export function HistoryMenuPopup({
     popupRef,
     popupHeight: 320,
     fixed: true,
+    // Right edge flush with the chevron's right edge — the popup hangs
+    // leftward from the trigger like a dropdown anchored at its end.
+    align: "end",
   });
+
+  /**
+   * The trigger stays revealed while the popup is open (the core
+   * hover-reveal button reveals on aria-expanded) — including when the
+   * popup was opened from the keyboard shortcut, where the pointer may be
+   * nowhere near the undo cluster.
+   */
+  useEffect(() => {
+    const anchor = anchorRef.current;
+    if (!anchor) return;
+    if (!isOpen) {
+      anchor.removeAttribute("aria-expanded");
+      return;
+    }
+    anchor.setAttribute("aria-expanded", "true");
+    return () => {
+      anchor.removeAttribute("aria-expanded");
+    };
+  }, [isOpen, anchorRef]);
 
   usePopupDismissal({
     popupRef,

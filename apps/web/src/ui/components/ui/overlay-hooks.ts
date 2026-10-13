@@ -175,6 +175,9 @@ export interface ViewportFlipOptions {
   popupHeight?: number;
   /** Horizontal/vertical edge padding when clamping (default: 16) */
   edgePadding?: number;
+  /** Horizontal alignment against the anchor: 'start' (default — left
+      edges flush) or 'end' (right edges flush). */
+  align?: 'start' | 'end';
   /** Use fixed positioning coordinates (default: absolute/document coordinates) */
   fixed?: boolean;
 }
@@ -216,6 +219,7 @@ export function useViewportFlip(
     popupRef,
     popupHeight,
     edgePadding = 16,
+    align = 'start',
     fixed = false,
   } = options;
 
@@ -266,8 +270,8 @@ export function useViewportFlip(
         Math.max(top, edgePadding),
         Math.max(edgePadding, viewportH - effectiveH - edgePadding),
       );
-      let left = rect.left;
       const effectiveW = includeWidth ? rect.width : floatingW;
+      let left = align === 'end' ? rect.right - effectiveW : rect.left;
       left = Math.min(
         Math.max(left, edgePadding),
         Math.max(edgePadding, viewportW - effectiveW - edgePadding),
@@ -310,7 +314,7 @@ export function useViewportFlip(
       unobserve();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- position depends on refs, not callback identity
-  }, [isOpen, anchorRef, popupRef, maxPopupHeight, gap, includeWidth, minWidth, popupHeight, edgePadding, fixed]);
+  }, [isOpen, anchorRef, popupRef, maxPopupHeight, gap, includeWidth, minWidth, popupHeight, edgePadding, align, fixed]);
 
   return position;
 }
