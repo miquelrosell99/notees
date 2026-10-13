@@ -397,48 +397,20 @@
   border-top: var(--border-width-default) solid var(--color-outline-variant);
 }
 
-/* ─── The properties section — a row per property, label | value in two
-   columns (the table-row register), hairline-separated rows. ────── */
+/* ─── The properties section — the nodeview properties table itself
+   (PropertiesTable — owner 2026-10-13): the table's own list chrome (name
+   column | value column rows, hairline-separated) renders inside a padded
+   wrapper; the table's top border IS the section hairline. ────── */
 
 .node-card__properties {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0 var(--spacing-3);
-  font-size: var(--font-size-base);
-  border-top: var(--border-width-default) solid var(--color-outline-variant);
-}
-
-.node-card__property {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
   min-width: 0;
-  /* The table-row register: min-height spacing-9, label/value centered. */
-  min-height: var(--spacing-9);
-  border-top: var(--border-width-default) solid var(--color-outline-variant);
+  padding: 0 var(--spacing-3) var(--spacing-2);
 }
 
-/* The section's first row rides directly under the section hairline. */
-.node-card__property:first-child {
-  border-top: none;
-}
-
-.node-card__property dt {
-  flex: 0 0 40%;
-  color: var(--color-on-surface-variant);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.node-card__property dd {
-  flex: 1 1 auto;
-  min-width: 0;
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* The table ships margin-top spacing-2 for the panel's gap — inside the
+   card the wrapper owns the rhythm. */
+.node-card__properties .nt-properties-list {
+  margin-top: 0;
 }
 
 /* The tags row rides the page header's TagsRow composition — the card row
