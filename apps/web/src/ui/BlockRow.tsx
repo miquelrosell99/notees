@@ -406,6 +406,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
         const target = outlinerClient.getNode(id);
         return target === undefined ? null : outlinerClient.effectiveNodeColor(target);
       }}
+      resolveClassColor={(id) => outlinerClient.effectiveClassColor(id)}
       renderEmbed={
         suppressWidget ??
         widget((id: string, _token: unknown, index: number) => <EmbedView nodeId={id} hostId={node.id} tokenIndex={index} />)

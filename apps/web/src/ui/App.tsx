@@ -821,14 +821,18 @@ export function App() {
 
   // Browser tab title follows the open node: "NAME - Notees" (pagesVersion
   // keeps it fresh across renames and sync updates). Date pages format per
-  // the user's dateFormat preference.
+  // the user's dateFormat preference. Inline class chips contribute their
+  // resolved class name — the title reads complete, chip included.
   useEffect(() => {
     if (client === null || selectedPageId === null) {
       document.title = "Notees";
       return;
     }
     const node = client.getNode(selectedPageId);
-    const name = node !== undefined ? displayNameForSettings(node) : "";
+    const name =
+      node !== undefined
+        ? displayNameForSettings(node, (classId) => client.getDisplayName(classId))
+        : "";
     document.title = name !== "" ? `${name} - Notees` : "Notees";
   }, [client, selectedPageId, pagesVersion]);
   // The persisted rail order may carry ids from another workspace (the key
