@@ -64,18 +64,28 @@ export function labelAlphaForZoom(zoom: number): number {
 /**
  * Draw one label pass. Returns the number of regular labels rendered (the
  * hovered/selected emphasis labels don't count against the cap).
+ *
+ * Owner ruling (2026-10-13, Obsidian reference): while a node hover is
+ * active the regular pass STILL runs — zoom threshold and cap respected —
+ * but at a quarter alpha (dimmed, never hidden); the hovered node's label
+ * ALWAYS renders (even below the zoom threshold) at full alpha, nudged a
+ * few pixels below its normal offset; the selected emphasis label is
+ * unaffected (full alpha). Without a hover the behavior is unchanged.
  */
 export function drawLabels(frame: LabelFrame): number {
   const { ctx, width, height, dpr, zoom } = frame;
   ctx.clearRect(0, 0, width, height);
-  if (zoom < 0.12 || frame.order.length === 0) return 0;
+  const hoveredId = frame.hovered;
+  if (frame.order.length === 0) return 0;
+  // The hovered label bypasses the zoom threshold; without a hover the
+  // threshold gates the whole pass as before.
+  if (zoom < 0.12 && hoveredId === null) return 0;
 
   const fontSize = Math.round(Math.min(14, Math.max(9, 11 * zoom)) * dpr);
   const maxLabels = labelCapForZoom(zoom);
   const margin = 100;
 
   ctx.save();
-  ctx.globalAlpha = labelAlphaForZoom(zoom);
   ctx.font = `${fontSize}px system-ui, -apple-system, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
@@ -93,33 +103,41 @@ export function drawLabels(frame: LabelFrame): number {
     const created = frame.createdTimes.get(id);
     return created !== undefined && created > frame.timeCutoffSec;
   };
-  const drawAt = (id: string, index: number, color: string): boolean => {
+  const drawAt = (id: string, index: number, color: string, extraDy = 0): boolean => {
     const name = frame.names.get(id);
     if (name === undefined) return false;
     if (timeHidden(id)) return false;
     const sp = frame.worldToScreen(frame.positions[index * 2]!, frame.positions[index * 2 + 1]!);
     if (sp.x < -margin || sp.x > width + margin || sp.y < -40 || sp.y > height + 40) return false;
     ctx.fillStyle = color;
-    ctx.fillText(truncateLabel(name), sp.x, sp.y + labelOffsetFor(id));
+    ctx.fillText(truncateLabel(name), sp.x, sp.y + labelOffsetFor(id) + extraDy);
     return true;
   };
 
-  ctx.fillStyle = frame.colors.regular;
+  // Regular pass: dimmed (not hidden) while a hover is active.
+  ctx.globalAlpha = labelAlphaForZoom(zoom) * (hoveredId !== null ? 0.25 : 1);
   let rendered = 0;
-  for (let i = 0; i < frame.order.length && rendered < maxLabels; i++) {
-    const id = frame.order[i]!;
-    if (id === frame.selected || id === frame.hovered) continue;
-    if (frame.names.get(id) === undefined) continue;
-    if (drawAt(id, i, frame.colors.regular)) rendered += 1;
+  if (zoom >= 0.12) {
+    ctx.fillStyle = frame.colors.regular;
+    for (let i = 0; i < frame.order.length && rendered < maxLabels; i++) {
+      const id = frame.order[i]!;
+      if (id === frame.selected || id === hoveredId) continue;
+      if (frame.names.get(id) === undefined) continue;
+      if (drawAt(id, i, frame.colors.regular)) rendered += 1;
+    }
   }
 
-  if (frame.hovered !== null && frame.hovered !== frame.selected) {
-    const hIdx = frame.order.indexOf(frame.hovered);
-    if (hIdx >= 0) drawAt(frame.hovered, hIdx, frame.colors.emphasis);
-  }
-  if (frame.selected !== null && frame.selected !== "") {
+  // Emphasis passes at FULL alpha — the dimming never touches them.
+  ctx.globalAlpha = 1;
+  if (zoom >= 0.12 && frame.selected !== null && frame.selected !== "" && frame.selected !== hoveredId) {
     const sIdx = frame.order.indexOf(frame.selected);
     if (sIdx >= 0) drawAt(frame.selected, sIdx, frame.colors.emphasis);
+  }
+  if (hoveredId !== null) {
+    // Always — even below the zoom threshold — with the small downward
+    // nudge that reads as "this is the hovered one".
+    const hIdx = frame.order.indexOf(hoveredId);
+    if (hIdx >= 0) drawAt(hoveredId, hIdx, frame.colors.emphasis, 3 * dpr);
   }
 
   ctx.restore();

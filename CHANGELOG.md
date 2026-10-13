@@ -8,36 +8,63 @@ retired implementation plan and design stack are recoverable from commits
 predating this file.
 
 ## 2026-10-13
-
-- **fix(web): the cover-visible card layout takes the owner's grid — cover
-  cell beside a lead stack, properties and content spanning both columns
-  (owner screenshot + spec 2026-10-13).** The previous subgrid approach broke
-  in practice (rows auto-placed into the cover column; the mat floated over
-  the rows). The structure is now explicit and subgrid-free: for the
-  left/right layouts the content is a two-column grid — column one the COVER
-  as a matted card element in its cell, column two the LEAD stack (the new
-  `.node-card__lead` wrapper: breadcrumbs → title → classes → tags); the
-  cover and the lead share the first row track and stretch together, so the
-  cover is exactly as tall as the lead stack; the PROPERTIES section and the
-  CONTENT row then span BOTH columns. In the top-cover layout the cover is
-  simply the full-width first row, before the breadcrumbs. The image still
-  fills the mat absolutely (a portrait never stretches the card). The
-  full-width hairlines-across-the-cover experiment (the `@supports subgrid`
-  block) retires with the structure that needed it. **Verification:** new
-  structural spec (the lead groups header/classes/tags; properties outside
-  it); the card suites green (82 across view-modes/covers/card-lazy-images/
-  system-sections); `tsc` clean apart from the graph session's in-flight
-  files (reported, not touched).
-- **fix(web): the card's breadcrumb row is read-only again (owner reversal
-  2026-10-13).** Two flips in one afternoon settled here: the editable trail
-  "does not make sense" on the card — parent edits stay in the top bar, the
-  card's trail is navigation context only. The card's Breadcrumbs returns to
-  `editable={false}` (no hover chevron, no edge menu, no Add parent pill);
-  `Breadcrumbs`' new `addParent` opt-out from the intermezzo stays available
-  for future surfaces, just unused by the card. **Verification:** the spec
-  re-pinned (crumbs render for navigation; a crumb right-click opens nothing);
-  the view-modes/system-sections suites green.
-
+- **fix(web): graph view owner corrections — brighter base rendering,
+  Obsidian-style accent hover neighborhood, colors unify on query groups,
+  blank-flash/jank fixes (owner 2026-10-13).** After the round-2 slice
+  shipped, the owner's corrections, two rounds: (A) the dark theme's graph
+  tokens brighten (`--graph-node-default` `#b8b8b8` → `#d0d0d0`,
+  `--graph-edge-color` `#3a3a3a` → `#707070`; the light block untouched).
+  (B) The hover neighborhood reworks to the Obsidian reference: the hovered
+  node, its incident edges, and its linked nodes highlight in the app's
+  current ACCENT color — `graphTheme()` gains `accent` (the `--color-accent`
+  token, MutationObserver already re-resolving on `data-accent` flips) and
+  `setHoverNeighborhood(nodeId, accent?)` carries it into new
+  FRAGMENT-STAGE-ONLY uniforms `u_hoverColor`/`u_hoverMix` on the
+  node/edge/arrow programs (the cross-stage declaration stays banned — it
+  broke Firefox linking once already). Node highlight flags go THREE-level
+  (0 outside · 1 direct neighbor · 2 the hovered node; edges/arrowheads
+  stay binary) — the node shader full-alphas everything ≥0.5 and accents
+  only ≥1.5, the edge/arrow shaders accent their incident instances.
+  Everything outside the neighborhood stays VISIBLE but dimmed at 0.2 alpha
+  (`HOVER_NEIGHBORHOOD_DIM` 0.15 → 0.2 — dim-not-hide, own colors kept);
+  off = `u_hoverMix 0` + `u_hoverDim 1.0`, exactly the prior path. The
+  hovered node's glare ring stays gone (rings are selection-only). The
+  label overlay dims with the graph — the regular pass still runs (zoom
+  threshold + cap respected) at a quarter alpha — while the hovered node's
+  label ALWAYS renders at full alpha, even below the zoom threshold, nudged
+  +3·dpr px below its normal offset as the identifier. (C) Node hover shows
+  NO tooltip box at all (the round-1 name tooltip retired; the NodeHoverPreview
+  card, import, cursor sentinel, notify plumbing, and sentinel CSS stay
+  retired); the edge kind/weight/evidence tooltip is unchanged. (D) The
+  loading branch renders the kit `LoadingScreen` inline ("Projecting the
+  workspace topology…") instead of an EmptyState. (E) Colors unify: the
+  rail's Colors section carries query groups ONLY — the class-colors block
+  (list, add-class dropdown, reorder, handlers) is deleted; a one-time load
+  migration converts each persisted `classColors` entry into a
+  class-matching color group appended after the existing groups (label =
+  the class's display name, `ast` = a group with a single
+  `{type:"class", classId}` condition) and clears the retired list in the
+  same write (the prefs field is retained so old stores round-trip); node
+  color resolution is now group color → node's own color → renderer default
+  (`classColorFor` and the `classColors` parameter retired from
+  `nodeVisuals`), and the Colors chip's active state keys on the groups.
+  (F) Blank-flash/jank fixes ("Obsidian is snappy, ours goes blank from
+  time to time"): `reload` now bails on an unchanged topology — a signature
+  over the node-id set + the edge list skips `setTopology`, so the store's
+  600ms-debounced fan-in no longer tears the renderer down and reheats the
+  physics for an identical graph (every reload used to rebuild the whole GL
+  lifecycle); and the label pass's per-frame `new Map(nodeOrder.map(
+  nameOf))` is cached in a ref, rebuilt only when the renderer's node-order
+  identity changes or the 60-frame names-cache clear fires — no more steady
+  per-frame allocation over ~7k nodes. Specs: the color-precedence unit
+  tests, the renderer's hover contract (three-level flags, accent via the
+  new param, `u_hoverDim` 0.2, `u_hoverMix`/`u_hoverColor` assertions), the
+  label suite (dim-not-hide at 0.25 with cap, hovered label below the zoom
+  threshold with the +3·dpr nudge), and the component suite (class-colors
+  assertions removed; new specs for the classColors→groups migration
+  persisting AST groups + clearing the list and the inline LoadingScreen).
+  Docs: `docs/usage.md`'s graph hover + Colors paragraphs. Gate: `pnpm
+  typecheck && pnpm test` green.
 - **feat(web): the sort button leaves the table — list and cards views
   carry it too, the named "dates-first" sort backs the reference sections,
   and the table opens on Edited (owner 2026-10-13).** The mdi-sort control

@@ -1,8 +1,9 @@
 /**
  * graph sizing tests: the v1 node-radius curve (four size modes, link
- * direction), the color precedence (class colors beat query groups beat the
- * node's own color), and engine mass accumulation (heavy parents accelerate
- * slower). Pure logic — no canvas.
+ * direction), the color precedence (query groups beat the node's own color
+ * — the only painting mechanism since the class-colors list retired into
+ * groups), and engine mass accumulation (heavy parents accelerate slower).
+ * Pure logic — no canvas.
  */
 
 import { describe, expect, it } from "vitest";
@@ -17,9 +18,7 @@ import {
 } from "../src/ui/views/graph/nodeRadius.js";
 import {
   buildNodeVisuals,
-  classColorFor,
   resolveNodeColorRgb,
-  type ClassColorEntry,
 } from "../src/ui/views/graph/nodeVisuals.js";
 import {
   GraphEngine,
@@ -93,49 +92,30 @@ describe("node radius (the v1 curve)", () => {
 });
 
 describe("node color precedence", () => {
-  const classColors: ClassColorEntry[] = [
-    { classId: "class-a", color: "#ff0000" },
-    { classId: "class-b", color: "#00ff00" },
-  ];
   const hexToRgba = (hex: string): [number, number, number, number] | undefined => {
     const m = /^#([0-9a-f]{6})$/i.exec(hex);
     return m === null ? undefined : [parseInt(m[1]!.slice(0, 2), 16) / 255, parseInt(m[1]!.slice(2, 4), 16) / 255, parseInt(m[1]!.slice(4, 6), 16) / 255, 1];
   };
   const resolveCss = (c: string): string => c;
 
-  it("class colors apply first match by list order", () => {
-    expect(classColorFor(node("n", { classIds: ["class-b", "class-a"] }), classColors)).toBe("#ff0000");
-    expect(classColorFor(node("n", { classIds: ["class-b"] }), classColors)).toBe("#00ff00");
-    expect(classColorFor(node("n", { classIds: ["other"] }), classColors)).toBeUndefined();
-  });
-
-  it("precedence: class color > query group > own color > default", () => {
-    const both = resolveNodeColorRgb(
-      node("n", { classIds: ["class-a"], color: "#0000ff" }),
-      classColors,
-      new Map([["n", "#123456"]]),
-      hexToRgba,
-      resolveCss,
-    );
-    expect(both).toEqual([1, 0, 0, 1]);
-    const grouped = resolveNodeColorRgb(node("n", { color: "#0000ff" }), [], new Map([["n", "#123456"]]), hexToRgba, resolveCss);
+  it("precedence: query group > own color > default", () => {
+    const grouped = resolveNodeColorRgb(node("n", { color: "#0000ff" }), new Map([["n", "#123456"]]), hexToRgba, resolveCss);
     expect(grouped).toEqual([0x12 / 255, 0x34 / 255, 0x56 / 255, 1]);
-    const own = resolveNodeColorRgb(node("n", { color: "#0000ff" }), [], new Map(), hexToRgba, resolveCss);
+    const own = resolveNodeColorRgb(node("n", { color: "#0000ff" }), new Map(), hexToRgba, resolveCss);
     expect(own).toEqual([0, 0, 1, 1]);
-    expect(resolveNodeColorRgb(node("n"), [], new Map(), hexToRgba, resolveCss)).toBeUndefined();
+    expect(resolveNodeColorRgb(node("n"), new Map(), hexToRgba, resolveCss)).toBeUndefined();
   });
 
   it("buildNodeVisuals assembles radius + color per node", () => {
     const visuals = buildNodeVisuals(
-      { nodes: [node("n", { classIds: ["class-a"] })] },
+      { nodes: [node("n")] },
       new Map([["n", 12]]),
-      classColors,
       new Map(),
       hexToRgba,
       resolveCss,
     );
     expect(visuals.get("n")!.radius).toBe(12);
-    expect(visuals.get("n")!.color).toBeDefined();
+    expect(visuals.get("n")!.color).toBeUndefined(); // no group, no own color
   });
 });
 

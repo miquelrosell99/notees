@@ -8,9 +8,10 @@
  * edge evidence); the journal chain is in the topology but filtered off by
  * default (per-level: year/month/day); the semantic (co-occurrence) and
  * temporal (same-day) families render weighted, sparsified, and toggleable
- * alongside the structural families; orphan filtering, QueryAST color groups,
- * class colors (the ordered first-match-wins list), the circle/tree layout
- * modes, and per-surface settings persistence ride the same toolbar.
+ * alongside the structural families; orphan filtering, QueryAST color groups
+ * (the ONLY painting mechanism — the retired class colors migrated into
+ * groups), the circle/tree layout modes, and per-surface settings persistence
+ * ride the same toolbar.
  *
  * `local` scopes the topology to a node's neighborhood (the right-rail card);
  * `items` scopes it to a node collection (the registry mode).
@@ -29,8 +30,12 @@
  * too), dragging a node rearranges it (instant local override + worker pin),
  * clicking a node toggles it in the multi-selection, double-click opens,
  * empty click clears — plus the keyboard surface (+/- zoom, arrows pan,
- * F focus, R recenter) and the unified node hover card (the app-standard
- * NodeHoverPreview through a cursor sentinel; edges keep the text tooltip).
+ * F focus, R recenter). Node hover highlights the neighborhood in the app's
+ * accent color (Obsidian-style: the hovered node, its incident edges, and
+ * its linked nodes accent; everything else stays visible but dimmed in its
+ * own color) and the hovered node's label always renders, nudged a few
+ * pixels down as the identifier — no tooltip box; edges keep the richer
+ * kind/weight/evidence tooltip.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -49,17 +54,17 @@ import {
   Dropdown,
   EmptyState,
   ListSortable,
+  LoadingScreen,
   SelectionButton,
   Slider,
   TextField,
 } from "../../components/ui/index.js";
-import { PRESET_COLOR_TOKENS } from "../../components/ui/colorPresets.js";
 import { resolveCssColor } from "../../components/ui/colorPresets.js";
 import { NodeSelector } from "../../components/pickers/NodeSelector.js";
 import { NodeViewSection } from "../../components/NodeViewSection.js";
 import { FilterBlockBuilder } from "../../components/FilterBlockBuilder.js";
 import { readDeviceSetting, writeDeviceSetting } from "../../components/modals/deviceSettings.js";
-import { notifyNodeHover } from "../../components/NodeHoverPreview.js";
+import type { Group } from "@notees/query";
 
 import {
   bboxForNodes,
@@ -91,10 +96,7 @@ import {
   type LinkDirection,
   type NodeSizeMode,
 } from "./nodeRadius.js";
-import {
-  buildNodeVisuals,
-  type ClassColorEntry,
-} from "./nodeVisuals.js";
+import { buildNodeVisuals } from "./nodeVisuals.js";
 import { EngineController, type EngineFrame } from "./engineController.js";
 import { GraphWebGLRenderer, type RendererEdge } from "./renderer/webglRenderer.js";
 import { drawLabels, type LabelFrame } from "./renderer/labelCanvas.js";
@@ -103,6 +105,15 @@ import { GraphMinimap } from "./minimap.js";
 import "./GraphView.css";
 
 type PhysicsPreset = "sparse" | "balanced" | "compact" | "clustered";
+
+/** The RETIRED per-class color entry — kept as a local type because the
+ *  persisted prefs shape still carries the (always-empty-since-migration)
+ *  list so old device stores round-trip. */
+interface RetiredClassColorEntry {
+  classId: string;
+  /** Preset token or #RRGGBB. */
+  color: string;
+}
 
 interface GraphPrefs {
   showClasses: boolean;
@@ -133,8 +144,10 @@ interface GraphPrefs {
   clusterSeparation: number;
   colorGroupsOn: boolean;
   colorGroups: GraphColorGroup[];
-  /** Ordered class colors — first listed class wins (the v1 register). */
-  classColors: ClassColorEntry[];
+  /** The RETIRED per-class color list — retained in the persisted shape so
+   *  old stores round-trip; the one-time load migration converts entries
+   *  into query groups and clears this to []. Painting is groups-only. */
+  classColors: RetiredClassColorEntry[];
   /** The right rail (full surface only): open/closed, persisted per device. */
   railOpen: boolean;
 }
@@ -265,8 +278,16 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   });
   /** The Edges-toggle mirror — the GL lifecycle re-applies it on rebuild. */
   const timeLapseEdgesRef = useRef(true);
-  /** The cursor-anchored sentinel feeding the unified node hover card. */
-  const hoverSentinelRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * The label pass's display-name map (owner 2026-10-13 jank fix): rebuilt
+   * ONLY when the renderer's node-order identity changes or the 60-frame
+   * names-cache clear fires — building a fresh Map over ~7k nodes EVERY
+   * FRAME was a steady per-frame allocation the GC had to chase.
+   */
+  const labelNamesRef = useRef<{ order: readonly string[] | null; map: Map<string, string> }>({
+    order: null,
+    map: new Map(),
+  });
 
   const [topology, setTopology] = useState<GraphTopology | null>(null);
   const [glError, setGlError] = useState<string | null>(null);
@@ -301,13 +322,26 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   const anchorId = local?.anchorId;
   const depth = local?.depth;
 
-  /** Load (or reload) the topology; debounced caller on subscribe below. */
+  /** Load (or reload) the topology; debounced caller on subscribe below.
+   *  Bails on an unchanged topology (signature over the node-id set and the
+   *  edge list): every store event fans in here, and a new topology object
+   *  with the same shape would still re-run the GL lifecycle effect —
+   *  tearing the renderer down and reheating the physics for nothing (the
+   *  blank-flash/jank fix, owner 2026-10-13: "Obsidian is snappy, ours goes
+   *  blank from time to time"). */
+  const topologySigRef = useRef<string | null>(null);
   const reload = useCallback(async () => {
     const result =
       anchorId !== undefined
         ? client.graphTopology({ anchor: anchorId, depth: depth ?? 2 })
         : client.graphTopology();
     const next = await Promise.resolve(result);
+    let sig = `${next.nodes.length}:`;
+    for (const node of next.nodes) sig += node.id;
+    sig += "|";
+    for (const edge of next.edges) sig += `${edge.source}>${edge.target}:${edge.kind};`;
+    if (sig === topologySigRef.current) return;
+    topologySigRef.current = sig;
     setTopology(next);
   }, [client, anchorId, depth]);
 
@@ -386,37 +420,22 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     loopStateRef.current.hovered = hover !== null && hover.kind === "node" ? hover.id : null;
   }, [hover]);
 
-  // Hover change → two cheap sinks: the renderer's neighborhood dimming
-  // (flag rewrite once per change, never per frame) and the app-standard
-  // NodeHoverPreview card through the cursor-riding sentinel. The graph has
-  // no DOM anchors per node — the sentinel stands in for the mention.
+  // Hover change → the renderer's neighborhood highlight (flag rewrite once
+  // per change, never per frame), painted in the app's current accent — the
+  // theme cache re-resolves on data-accent flips. The hovered node's label
+  // (nudged, always-on) is the identifier; there is no hover tooltip box.
   const hoverRef = useRef<string | null>(null);
   useEffect(() => {
-    const renderer = rendererRef.current;
     const prev = hover === null || hover.kind !== "node" ? null : hover.id;
     if (prev !== hoverRef.current) {
-      renderer?.setHoverNeighborhood(prev);
-      const sentinel = hoverSentinelRef.current;
-      if (sentinel !== null) {
-        if (hoverRef.current !== null) notifyNodeHover(hoverRef.current, "leave", sentinel);
-        if (prev !== null) notifyNodeHover(prev, "enter", sentinel);
-      }
+      rendererRef.current?.setHoverNeighborhood(prev, graphTheme().accent);
       hoverRef.current = prev;
     }
-    const sentinel = hoverSentinelRef.current;
-    if (sentinel !== null && hover !== null) {
-      sentinel.style.left = `${hover.x}px`;
-      sentinel.style.top = `${hover.y}px`;
-    }
   }, [hover]);
-  // Unmount only: restore the renderer + dismiss an open hover card.
+  // Unmount only: restore the renderer's neutral (no-neighborhood) state.
   useEffect(
     () => () => {
       rendererRef.current?.setHoverNeighborhood(null);
-      const sentinel = hoverSentinelRef.current;
-      if (sentinel !== null && hoverRef.current !== null) {
-        notifyNodeHover(hoverRef.current, "leave", sentinel);
-      }
     },
     [],
   );
@@ -499,9 +518,10 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     });
   }, [prefs.preset, prefs.centralGravityOn, prefs.linkCountAttraction, prefs.massAccumulation, prefs.clustering, prefs.clusterSeparation, prefs.layoutMode]);
 
-  // Color groups evaluation (first match wins; class colors ride underneath
-  // in the visuals builder — class match beats group match). Async — the
-  // worker client's query runner is async.
+  // Color groups evaluation (first match wins). The ONLY painting mechanism
+  // since the owner ruling (2026-10-13): the retired per-class color list
+  // migrated one-time into groups below. Async — the worker client's query
+  // runner is async.
   const [groupColors, setGroupColors] = useState<Map<string, string>>(new Map());
   useEffect(() => {
     if (!prefs.colorGroupsOn || prefs.colorGroups.length === 0) {
@@ -517,34 +537,6 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     };
   }, [client, prefs.colorGroupsOn, prefs.colorGroups]);
 
-  /** The class picker options: every class not already colored. */
-  const classOptions = useMemo(() => {
-    if (!prefs.railOpen || railSection !== "colors" || local !== undefined) return [];
-    const colored = new Set(prefs.classColors.map((entry) => entry.classId));
-    return client
-      .listClasses()
-      .filter((klass) => !colored.has(klass.id))
-      .map((klass) => ({
-        value: klass.id,
-        label: client.getDisplayName(klass.id) ?? klass.id,
-      }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [client, prefs.railOpen, railSection, local, prefs.classColors]);
-
-  const addClassColor = (classId: string): void => {
-    const color = PRESET_COLOR_TOKENS[prefs.classColors.length % PRESET_COLOR_TOKENS.length]!;
-    patch({ classColors: [...prefs.classColors, { classId, color }] });
-  };
-
-  const moveClassColor = (fromIndex: number, toIndex: number): void => {
-    setPrefs((prev) => {
-      const next = [...prev.classColors];
-      const [moved] = next.splice(fromIndex, 1);
-      next.splice(toIndex, 0, moved!);
-      return { ...prev, classColors: next };
-    });
-  };
-
   /** Query groups sort — the list order IS the first-match-wins priority. */
   const moveColorGroup = (fromIndex: number, toIndex: number): void => {
     setPrefs((prev) => {
@@ -555,18 +547,38 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     });
   };
 
-  // The one-time legacy migration of the persisted color groups (pre-AST
-  // device stores held text-DSL strings): parse through the DSL parser and
-  // re-persist as ASTs — the debounced prefs write below lands the migrated
-  // shape back in the device store. Runs once per mount; already-migrated
-  // rows pass through untouched.
+  // The one-time load migrations, run per device on mount (the debounced
+  // prefs write lands the migrated shape back in the device store):
+  //   1. persisted color groups may still hold pre-AST legacy rows (text-DSL
+  //      strings) — parse through the DSL parser and re-persist as ASTs;
+  //   2. the retired per-class color list (owner ruling 2026-10-13: colors
+  //      unify on query groups) converts each entry into a class-matching
+  //      color group appended AFTER the existing groups, and the list clears.
+  // Already-migrated stores pass through untouched.
   const migratedRef = useRef(false);
   useEffect(() => {
     if (migratedRef.current) return;
     migratedRef.current = true;
     setPrefs((prev) => {
-      if (!prev.colorGroups.some((group) => isLegacyColorGroup(group))) return prev;
-      return { ...prev, colorGroups: prev.colorGroups.map((group) => migrateColorGroup(client, group)) };
+      let colorGroups = prev.colorGroups;
+      if (colorGroups.some((group) => isLegacyColorGroup(group))) {
+        colorGroups = colorGroups.map((group) => migrateColorGroup(client, group));
+      }
+      if (prev.classColors.length > 0) {
+        const fromClassColors: GraphColorGroup[] = prev.classColors.map((entry) => ({
+          id: crypto.randomUUID(),
+          label: client.getDisplayName(entry.classId) ?? "",
+          color: entry.color,
+          ast: {
+            type: "group",
+            logic: "and",
+            children: [{ type: "class", classId: entry.classId }],
+          } as Group,
+        }));
+        colorGroups = [...colorGroups, ...fromClassColors];
+      }
+      if (colorGroups === prev.colorGroups) return prev;
+      return { ...prev, colorGroups, classColors: [] };
     });
   }, [client]);
 
@@ -599,13 +611,12 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       buildNodeVisuals(
         display,
         radii,
-        prefs.classColors,
         groupColors,
         hexToRgba,
         resolveCssColor,
       ),
     );
-  }, [display, prefs.nodeSize, prefs.baseNodeRadius, prefs.linkDirection, prefs.classColors, groupColors]);
+  }, [display, prefs.nodeSize, prefs.baseNodeRadius, prefs.linkDirection, groupColors]);
 
   // ── Engine + renderer lifecycle (rebuilds only on the display set) ─────────
   useEffect(() => {
@@ -643,7 +654,6 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     const visuals = buildNodeVisuals(
       display,
       radii,
-      prefs.classColors,
       groupColors,
       hexToRgba,
       resolveCssColor,
@@ -820,7 +830,17 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
 
       const lctx = labelCanvas.getContext("2d");
       if (lctx !== null) {
-        if (frames % 60 === 0) namesCache.clear();
+        if (frames % 60 === 0) {
+          namesCache.clear();
+          labelNamesRef.current.order = null; // force the name map rebuild
+        }
+        const nodeOrder = renderer.nodeOrder;
+        if (labelNamesRef.current.order !== nodeOrder) {
+          labelNamesRef.current = {
+            order: nodeOrder,
+            map: new Map(nodeOrder.map((id) => [id, nameOf(id)])),
+          };
+        }
         const selected = loopStateRef.current.selected;
         const labelFrame: LabelFrame = {
           ctx: lctx,
@@ -829,8 +849,8 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
           dpr: window.devicePixelRatio || 1,
           zoom: cam.zoom,
           positions: renderer.nodePositions,
-          order: renderer.nodeOrder,
-          names: new Map(renderer.nodeOrder.map((id) => [id, nameOf(id)])),
+          order: nodeOrder,
+          names: labelNamesRef.current.map,
           radii: idRadiusRef.current,
           worldToScreen: (wx, wy) => renderer.worldToScreen(wx, wy),
           baseNodeRadius: 8,
@@ -1262,9 +1282,10 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     </div>
   );
 
-  /** The rail's Colors section: the class colors (ordered, first match wins)
-   *  and the query groups — the visual query builder over a Group AST, the
-   *  list order IS the first-match-wins paint priority. */
+  /** The rail's Colors section: the query groups ONLY (owner ruling
+   *  2026-10-13 — the class-colors list retired into groups) — the visual
+   *  query builder over a Group AST; the list order IS the first-match-wins
+   *  paint priority. */
   const colorsSection = (
     <NodeViewSection
       title="Colors"
@@ -1273,69 +1294,6 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     >
       <div className="nt-graph__rail-stack">
         <div className="nt-graph__rail-row">
-          <span className="nt-graph__rail-heading">Class colors</span>
-          <span className="nt-graph__rail-hint">First match wins · drag to reorder</span>
-        </div>
-        <div className="nt-graph__class-colors">
-          {prefs.classColors.length === 0 && classOptions.length === 0 && (
-            <p className="nt-graph__rail-hint">No classes to color yet.</p>
-          )}
-          {prefs.classColors.length > 0 && (
-            <ListSortable
-              items={prefs.classColors.map((entry) => ({ ...entry, id: entry.classId }))}
-              onReorder={moveClassColor}
-              itemClassName="nt-graph__class-color-item"
-              renderText={(item) => (
-                <span className="nt-graph__class-color-name">
-                  {client.getDisplayName(String(item.classId)) ?? String(item.classId)}
-                </span>
-              )}
-              renderActions={(item) => [
-                <ColorButton
-                  key="color"
-                  color={item.color}
-                  size="xs"
-                  showPicker
-                  aria-label={`Color for ${client.getDisplayName(String(item.classId)) ?? "class"}`}
-                  onColorChange={(color) =>
-                    patch({
-                      classColors: prefs.classColors.map((entry) =>
-                        entry.classId === item.classId
-                          ? { ...entry, color: color ?? "sky" }
-                          : entry,
-                      ),
-                    })
-                  }
-                />,
-                <Button
-                  key="remove"
-                  variant="ghost"
-                  size="xs"
-                  icon="mdi mdi-close"
-                  aria-label={`Remove ${client.getDisplayName(String(item.classId)) ?? "class"}`}
-                  onClick={() =>
-                    patch({
-                      classColors: prefs.classColors.filter(
-                        (entry) => entry.classId !== item.classId,
-                      ),
-                    })
-                  }
-                />,
-              ]}
-            />
-          )}
-          {classOptions.length > 0 && (
-            <Dropdown
-              options={classOptions}
-              placeholder="Add a class…"
-              searchable
-              onChange={(value) => {
-                if (value !== null) addClassColor(value);
-              }}
-            />
-          )}
-        </div>
-        <div className="nt-graph__rail-row nt-graph__rail-row--topline">
           <span className="nt-graph__rail-heading">Query groups</span>
           <BooleanToggle
             size="sm"
@@ -1346,8 +1304,8 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
           />
         </div>
         <p className="nt-graph__rail-hint">
-          Class colors paint first; query groups paint matching nodes in their color — first
-          match wins, top to bottom.
+          Query groups paint matching nodes in their color — first match wins,
+          top to bottom; a node with no match keeps its own color.
         </p>
         {prefs.colorGroups.length > 0 && (
           <ListSortable
@@ -1460,7 +1418,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   if (display === null || counts === null) {
     return (
       <div className="nt-graph nt-graph--loading">
-        <EmptyState title="Loading graph…" description="Projecting the workspace topology." />
+        <LoadingScreen fullscreen={false} label="Projecting the workspace topology…" />
       </div>
     );
   }
@@ -1919,7 +1877,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
               </Chip>
             )}
             <Chip
-              active={prefs.colorGroupsOn || prefs.classColors.length > 0}
+              active={prefs.colorGroupsOn || prefs.colorGroups.length > 0}
               aria-pressed={prefs.colorGroupsOn}
               onClick={toggleColorsRail}
             >
@@ -1967,10 +1925,6 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
         {modeBar}
         {timeLapseStrip}
         {controlDock}
-        {/* The hover-card sentinel: a 1px cursor-riding anchor standing in
-            for the per-node DOM anchors the app-standard NodeHoverPreview
-            host positions its card against. */}
-        <div ref={hoverSentinelRef} className="nt-graph__hover-sentinel" aria-hidden="true" />
         <canvas
           ref={canvasRef}
           className="nt-graph__canvas"
@@ -2036,9 +1990,10 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
             }}
           />
         )}
-        {/* Node hover rides the app-standard NodeHoverPreview card (sentinel
-            above); only EDGES keep this hand-rolled tooltip (kind/weight/
-            evidence). */}
+        {/* The hand-rolled tooltip is EDGES-only (owner ruling 2026-10-13):
+            node hover identifies the node through the nudged always-on
+            label — no tooltip box — so only the edge kind/weight/evidence
+            tooltip renders here. */}
         {hover !== null && hover.kind === "edge" && (
           <div
             className="nt-graph__tooltip"

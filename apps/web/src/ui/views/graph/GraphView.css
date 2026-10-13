@@ -100,18 +100,6 @@
   width: 220px;
 }
 
-/* The hover-card sentinel: a 1px, pointer-transparent anchor the
-   NodeHoverPreview host measures its card position against. */
-.nt-graph__hover-sentinel {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  left: 0;
-  top: 0;
-  z-index: 2;
-  pointer-events: none;
-}
-
 /* The stage is the keyboard surface (+/- zoom, arrows pan, F/R). */
 .nt-graph__stage:focus {
   outline: none;
@@ -357,27 +345,6 @@
 }
 
 .nt-graph__selected-name {
-  font-size: var(--font-size-sm);
-  color: var(--color-on-surface);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* ── The class-colors list (the rail's Colors section) ────────────────── */
-
-.nt-graph__class-colors {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-  margin-top: var(--spacing-1);
-}
-
-.nt-graph__class-color-item {
-  min-height: 28px;
-}
-
-.nt-graph__class-color-name {
   font-size: var(--font-size-sm);
   color: var(--color-on-surface);
   overflow: hidden;
