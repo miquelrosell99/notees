@@ -218,35 +218,7 @@
   margin-bottom: var(--spacing-2);
 }
 
-/* ─── Tree cards — title + body rows (the original header/body register) ── */
-
-/* Original header padding: spacing-2 spacing-3, typography carries the hierarchy
-   — no background tint, no divider. */
-.node-card__title {
-  border: none;
-  background: none;
-  padding: var(--spacing-2) var(--spacing-3);
-  color: var(--color-on-surface);
-  font-size: var(--font-size-body-lg);
-  font-weight: 600;
-  line-height: 1.4;
-  text-align: left;
-  cursor: pointer;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-}
-
-.node-card__title:hover {
-  color: var(--color-primary);
-}
-
-.node-card__untitled {
-  color: var(--color-on-surface-variant);
-  font-weight: 400;
-  font-style: italic;
-}
+/* ─── The card body — child-block rows (the v1 body register) ────── */
 
 /* Original body: padded rows, NO divider — the border-top was a later invention. */
 .node-card__body {
@@ -256,16 +228,86 @@
   overflow: hidden;
 }
 
+/* The collapse chevron hides the body (display state, expanded by default —
+   the owner wants the content visible). */
+.node-card__body--collapsed {
+  display: none;
+}
+
+/* ─── Card header — chevron + title + hover-reveal actions (the v1 header
+   register: the row carries the padding; typography carries the hierarchy) ── */
+
+.node-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  min-width: 0;
+}
+
+/* The optional containing-page breadcrumbs ride above the header row. */
+.node-card__breadcrumbs {
+  padding: var(--spacing-2) var(--spacing-3) 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* The collapse chevron: bordered only when the card carries children (v1). */
+.node-card__collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+  padding: 0;
+  transition:
+    color var(--motion-duration-short) var(--motion-easing-standard),
+    background-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-card__collapse-btn:hover {
+  color: var(--color-on-surface);
+  background-color: var(--color-hover-overlay);
+}
+
+.node-card__collapse-btn--has-children {
+  border: var(--border-width-default) solid var(--color-outline-variant);
+}
+
+/* The hover-reveal action cluster (open-in-sidebar, node actions — the v1
+   header action buttons; revealed like the selection checkbox). */
+.node-card__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex-shrink: 0;
+  opacity: var(--opacity-0);
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-card:hover .node-card__actions,
+.node-card:focus-within .node-card__actions,
+.node-card__actions:focus-within {
+  opacity: var(--opacity-100);
+}
+
 /* ─── Flat card head — the original header register ──────────────── */
 
 .node-card__head {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
+  flex: 1 1 auto;
   min-width: 0;
   border: none;
   background: none;
-  padding: var(--spacing-2) var(--spacing-3);
+  padding: 0;
   color: var(--color-on-surface);
   /* Original card title: font-weight 600, body-lg, 1.4 line height. */
   font-size: var(--font-size-body-lg);
@@ -277,6 +319,18 @@
 
 .node-card__head:hover .node-card__label {
   color: var(--color-primary);
+}
+
+/* ─── Metadata rows — classes + tags chips (the v1 register) ─────── */
+
+.node-card__metadata-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 var(--spacing-3) var(--spacing-2);
 }
 
 .node-card__icon {
