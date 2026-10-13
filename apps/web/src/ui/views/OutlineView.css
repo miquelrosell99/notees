@@ -129,3 +129,14 @@ button.outline-group__label:hover {
 .outline-group > .nt-window-more {
   margin-inline-start: calc(var(--spacing-2) + var(--spacing-3));
 }
+
+/* The sort-button toolbar (the table toolbar's twin): a right-aligned row
+   riding the body top un-hosted, portaling into the hosted tab bar's
+   right-hand cluster otherwise. */
+.outline-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin-bottom: var(--spacing-1);
+}

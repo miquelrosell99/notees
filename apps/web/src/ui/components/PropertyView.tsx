@@ -186,6 +186,7 @@ export function PropertyView({
             client={client}
             items={references.map((node) => ({ node }))}
             tableColumns={referenceColumns}
+            defaultSort={{ key: "edited", direction: "desc" }}
             propertiesOf={(nodeId) =>
               client.getEffectiveProperties(nodeId).filter((p) => p.propertySchemaId === propertySchemaId)
             }

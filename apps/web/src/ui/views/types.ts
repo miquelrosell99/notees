@@ -48,6 +48,24 @@ export interface SortSpec {
 }
 
 /**
+ * A named collection sort mode (the sort-button vocabulary the list and
+ * cards views offer — the table view keeps its per-column SortSpec list).
+ * Each view interprets the modes it supports and falls back to its own
+ * default for the rest:
+ *
+ * - `dates-first` (list): date pages first, newest → oldest, then the other
+ *   pages A–Z; within a page group / sibling level the position order
+ *   stands. The default for the Backlinks and Unlinked mentions sections.
+ * - `alphabetical`: by display name A–Z (the child-pages, Extended-by and
+ *   classed-nodes default).
+ * - `position`: the container's natural order (the list default).
+ * - `edit-date` (cards): by `updatedAt`, most recently edited first (the
+ *   cards default; the table's equivalent is its Edited column's desc
+ *   default).
+ */
+export type SortMode = "dates-first" | "alphabetical" | "position" | "edit-date";
+
+/**
  * A table column. `kind` selects the renderer/comparator; property columns
  * carry the schema id and resolve values per row through `propertiesOf`.
  * The Revision-11 boolean columns (`isClass` / `presentAsMain`) replace the
@@ -55,7 +73,7 @@ export interface SortSpec {
  */
 export interface TableColumn {
   id: string;
-  kind: "name" | "classes" | "created" | "isClass" | "presentAsMain" | "property";
+  kind: "name" | "classes" | "created" | "edited" | "isClass" | "presentAsMain" | "property";
   label: string;
   /** Required when kind === "property". */
   propertySchemaId?: string;
@@ -193,8 +211,30 @@ export interface NodeCollectionProps {
    * "table-export").
    */
   exportFileName?: string | undefined;
-  /** Optional initial sort (session state; the view owns cycling after). */
+  /**
+   * Table's initial sort (session state after — the view owns cycling).
+   * The default is LIVE: when the prop CHANGES and the user has not picked
+   * a sort yet, the view re-seeds from it (the useWindowed resetKey
+   * precedent) — the ranked quick search rides this (a section drops its
+   * default while the search ranks its pool, restoring it when the search
+   * clears). A user-picked sort survives default flips. Unset = no sort:
+   * the container's row order (query results keep the query's order);
+   * containers that want an opening sort pass one (the hubs pass
+   * Edited-desc).
+   */
   defaultSort?: SortSpec | undefined;
+  /**
+   * List/cards: the sort mode the view starts in (session state after; the
+   * view owns the sort button). The list view supports `dates-first` /
+   * `alphabetical` / `position` (default `position`); the cards view
+   * supports `edit-date` / `alphabetical` (default `edit-date`). A mode the
+   * view does not support falls back to its default. Like `defaultSort` the
+   * default is LIVE — it re-seeds while the user has chosen none (the
+   * ranked quick search passes `position` while it ranks the pool). The
+   * table view ignores this prop — it sorts per column (`defaultSort`).
+   * Never an op.
+   */
+  defaultSortMode?: SortMode | undefined;
   /**
    * Cards: property schemas shown on node cards, in order. Undefined = EVERY
    * effective property with a non-empty display text rides the card (the v1
