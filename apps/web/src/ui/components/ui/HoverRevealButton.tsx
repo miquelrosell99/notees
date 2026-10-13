@@ -10,8 +10,8 @@
  * width/height + opacity motion.
  *
  * Built for split-button chevrons and trail affordances — the topbar undo
- * cluster's history chevron is the first consumer; the breadcrumb trails'
- * parent-edit chevron is the pattern's origin.
+ * cluster's history chevron and the breadcrumb trails' parent-edit chevron
+ * compose it (the trails were the pattern's origin).
  */
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode, type Ref } from 'react';
 

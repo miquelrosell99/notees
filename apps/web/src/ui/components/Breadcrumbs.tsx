@@ -34,6 +34,7 @@ import { displayNameForSettings } from "../dateDisplay.js";
 import { untitledLabelOf } from "../renderStateLabel.js";
 import { Icon } from "../Icon.js";
 import { ContextMenu, type ContextMenuItem } from "./ui/ContextMenu.js";
+import { HoverRevealButton } from "./ui/HoverRevealButton.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
 import "./Breadcrumbs.css";
 
@@ -253,7 +254,7 @@ export function Breadcrumbs({
     // no edit affordance (reassign/remove would be rejected by the store).
     const edgeEditable = editable && childBelow !== undefined && !isDateLocked(childBelow);
     return (
-    <span key={key} className="node-breadcrumb-item">
+    <span key={key} className="node-breadcrumb-item ui-hover-reveal-group">
       <button
         type="button"
         className="node-breadcrumb-link"
@@ -274,15 +275,14 @@ export function Breadcrumbs({
         <span className="node-breadcrumb-name">{item.name}</span>
       </button>
       {edgeEditable && (
-        <button
-          type="button"
+        <HoverRevealButton
           className="node-breadcrumb-edit"
           aria-label={`Edit parent of ${crumbNameOf(client, childBelow)}`}
           title="Edit parent"
           onClick={(event) => openEditMenu(event, item.node, childBelow)}
         >
           <Icon path="mdi-menu-down" size={0.7} />
-        </button>
+        </HoverRevealButton>
       )}
       {showSeparator && (
         <Icon path="mdi-chevron-right" size={0.7} className="node-breadcrumb-separator" />

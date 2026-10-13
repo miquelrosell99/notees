@@ -134,42 +134,11 @@
 
 /* ─── Parent-edit gestures ─────────────────────────────────────────────── */
 
-/* The chevron rides inside the crumb item, revealed on hover/focus.
-   Collapsed to zero width at rest (the negative margin cancels its leading
-   gap, so the crumb keeps the exact footprint of one without the
-   affordance — symmetric trails); hovering the crumb expands it to make
-   room for the button. */
-.node-breadcrumb-edit {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  margin-left: calc(-1 * var(--spacing-1));
-  width: 0;
-  height: var(--height-xs);
-  flex-shrink: 0;
-  overflow: hidden;
-  border: none;
-  border-radius: var(--shape-small);
-  background: transparent;
-  color: var(--color-on-surface-variant);
-  cursor: pointer;
-  opacity: var(--opacity-0);
-  transition:
-    width var(--motion-duration-short) var(--motion-easing-standard),
-    opacity var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.node-breadcrumb-item:hover .node-breadcrumb-edit,
-.node-breadcrumb-edit:focus-visible {
-  width: var(--height-xs);
-  opacity: var(--opacity-100);
-}
-
-.node-breadcrumb-edit:hover {
-  background: var(--color-surface-container-high);
-  color: var(--color-on-surface);
-}
+/* The chevron is the core hover-reveal affordance (HoverRevealButton):
+   zero footprint at rest, revealed by hovering the crumb item (the
+   `.ui-hover-reveal-group` on the item), keyboard focus, or an anchored
+   popup left open. The `node-breadcrumb-edit` class stays as the host hook
+   for tests and crumb-scoped overrides; the behavior lives in the kit. */
 
 .node-breadcrumb-add {
   flex-shrink: 0;
