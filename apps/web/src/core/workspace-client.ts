@@ -42,9 +42,11 @@ import { parseQueryAst, runAggregate, runQuery, type QueryAst } from "@notees/qu
 import {
   Store,
   graphTopology as computeGraphTopology,
+  planMerge,
   visiblePropertyValueRows,
   type GraphOptions,
   type GraphTopology,
+  type MergePlanSummary,
   type NodeRow,
 } from "@notees/store";
 import {
@@ -2723,6 +2725,27 @@ export class WorkspaceClient {
     if (afterId !== undefined) payload.afterId = afterId;
     if (beforeId !== undefined) payload.beforeId = beforeId;
     this.enqueueLocal(this.buildEnvelope("object.move", payload, [id]));
+  }
+
+  /**
+   * Merge one page into another (SCHEMA.md "Node merge"): `planMerge` computes
+   * the deterministic plan of EXISTING ops from the local store's read state —
+   * children move, class/tag/property/collection remap, mention +
+   * property-reference rewrites, field copy, the source trash LAST — and the
+   * client applies the whole plan as ONE undo-journal batch (a single undo
+   * restores the merge). `MergeGuardError` fails loud before any op is
+   * emitted; the wire is untouched (every op is an ordinary convergent op).
+   */
+  async mergeNodes(sourceId: string, targetId: string): Promise<MergePlanSummary> {
+    const plan = planMerge(this.store.database, sourceId, targetId);
+    this.undoJournal.batch(() => {
+      for (const op of plan.ops) {
+        this.enqueueLocal(
+          this.buildEnvelope(op.opType, op.payload, [plan.sourceId, plan.targetId]),
+        );
+      }
+    });
+    return plan.summary;
   }
 
   /**
