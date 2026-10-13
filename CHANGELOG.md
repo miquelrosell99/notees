@@ -9,6 +9,18 @@ predating this file.
 
 ## 2026-10-13
 
+- **fix(web): small graphs label at any zoom — the label threshold is now
+  node-count-aware.** The first-frame camera fit parks a fitted sparse graph
+  below the 0.12 label floor (verified by the live headless probe: a fitted
+  54-node graph rendered nodes but zero labels), so graphs up to 150 nodes
+  bypass the floor and label at any zoom on a minimum-alpha ramp (0.3 floor),
+  cap still binding; larger graphs keep the 0.12 fade-in unchanged. The
+  idle-skip signature from the same pass proved innocent — assigning
+  `canvas.width` in the resize observer clears the label canvas, but the
+  width/height signature fields catch it. **Verification:** new spec (small
+  graph at zoom 0.05 → 40 capped labels at 0.3 alpha; large graph → none);
+  the renderer + view suites green.
+
 - **fix(web): the graph opens framed and settles fast — first-frame camera
   fit, 4× alpha cooling, warm quiet start, pre-paint warmup, idle label
   pass (owner 2026-10-13: "blank while loading, movement never stops, not
