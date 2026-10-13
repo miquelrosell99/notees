@@ -4,8 +4,8 @@
  * delete are O(log n) instead of a full docstore scan per statement.
  */
 
-import type { StoreDatabase } from "./types.js";
-import { extractSearchPlaintext } from "./content.js";
+import type { SqliteStatement, StoreDatabase } from "./types.js";
+import { extractContentPlaintext, extractSearchPlaintext } from "./content.js";
 
 export function removeSearchIndexEntry(db: StoreDatabase, nodeId: string): void {
   db.prepare(
@@ -39,9 +39,8 @@ export function reindexNode(db: StoreDatabase, nodeId: string): void {
 }
 
 /**
- * The maximal letter/digit runs of a query — the prefix terms the MATCH
- * query ANDs. Exposed for the snippet helper, which needs the same
- * term splitting without the FTS syntax.
+ * The maximal letter/digit runs of a query. Exposed for the snippet
+ * helper, which needs the same term splitting without the FTS syntax.
  */
 export function matchTerms(query: string): string[] {
   return query
@@ -51,22 +50,104 @@ export function matchTerms(query: string): string[] {
 }
 
 /**
- * Prefix-AND FTS query (the client search pattern) with quoted-phrase
- * support: each maximal run of letters/digits OUTSIDE double quotes
- * becomes a bare prefix token; each double-quoted segment becomes an exact
- * FTS phrase (valid MATCH syntax on FTS4 and FTS5 alike — verified against
- * the shipped sql.js wasm; FTS5's `"term"*` phrase-PREFIX stays off the table
- * because FTS4 silently no-matches it). An unterminated quote degrades to
- * plain text. Splitting at every non-alphanumeric boundary mirrors the
- * unicode61 tokenizer (which splits indexed text at the same boundaries), so
- * "11607-1" compiles to `11607* AND 1*` and matches the indexed tokens
- * instead of merging into a nonexistent "116071". Bare tokens must not carry
- * FTS query syntax (quotes, parens, colons), which is why the quoted segments
- * are extracted before the prefix pass runs.
+ * Query modes (owner 2026-10-13):
+ *  - default   — prefix tokens, multi-term OR, priority tiers + partials
+ *  - exact     — the whole query wrapped in quotes (`"gmi dental"`): only
+ *                rows whose title/text contains that EXACT substring
+ *                (case-insensitive); no prefix, no ordered, no partials
+ *  - starts    — a leading caret (`^gmi dental`): only rows whose
+ *                title/text STARTS WITH the query (case-insensitive)
+ *
+ * A quoted phrase INSIDE a larger query (`"brown fox" jump`) is not the
+ * exact mode — it stays an exact-adjacency clause ANDed with the rest.
+ */
+type SearchMode = "default" | "exact" | "starts";
+
+interface SearchQueryInfo {
+  match: string;
+  /** The trimmed lowercased query (mode needle, quotes/caret stripped). */
+  normalized: string;
+  /** The lowercased maximal letter/digit runs — the token-match needles. */
+  terms: string[];
+  mode: SearchMode;
+}
+
+/** Split a query into (mode, needle text) — the mode prefix/stripping. */
+function parseSearchMode(raw: string): { mode: SearchMode; needle: string } | null {
+  const trimmed = raw.trim();
+  if (trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    const inner = trimmed.slice(1, -1).trim();
+    return inner === "" ? null : { mode: "exact", needle: inner };
+  }
+  if (trimmed.startsWith("^")) {
+    const inner = trimmed.slice(1).trim();
+    return inner === "" ? null : { mode: "starts", needle: inner };
+  }
+  return { mode: "default", needle: trimmed };
+}
+
+function compileSearchQuery(query: string): (SearchQueryInfo & { phraseCount: number }) | null {
+  const parsed = parseSearchMode(query);
+  if (parsed === null) return null;
+  // The candidate MATCH: modes AND their terms (every term must be present
+  // for the substring/start filter to pass); default ORs bare terms so
+  // partial matches enter the candidate set.
+  const compiled = compileMatch(parsed.needle, parsed.mode === "default" ? "or" : "and");
+  if (compiled === null) return null;
+  const terms = matchTerms(parsed.needle).map((t) => t.toLowerCase());
+  if (terms.length === 0) return null;
+  return {
+    match: compiled.match,
+    phraseCount: compiled.phraseCount,
+    normalized: parsed.needle.toLowerCase(),
+    terms,
+    mode: parsed.mode,
+  };
+}
+
+/**
+ * Prefix FTS query with quoted-phrase support: each maximal run of
+ * letters/digits OUTSIDE double quotes becomes a bare prefix token, each
+ * `"quoted"` segment an exact FTS phrase (valid MATCH syntax on FTS4 and
+ * FTS5 alike — verified against the shipped sql.js wasm; FTS5's `"term"*`
+ * phrase-PREFIX stays off the table because FTS4 silently no-matches it).
+ * An unterminated quote degrades to plain text. Splitting at every
+ * non-alphanumeric boundary mirrors the unicode61 tokenizer (which splits
+ * indexed text at the same boundaries), so "11607-1" compiles to
+ * `11607* OR 1*` and matches the indexed tokens instead of merging into a
+ * nonexistent "116071". Bare tokens must not carry FTS query syntax
+ * (quotes, parens, colons), which is why the quoted segments are extracted
+ * before the prefix pass runs.
+ *
+ * Bare-term combination (priority ranking, owner 2026-10-13): multiple
+ * bare terms OR together (`(gmi* OR dental*)`) — every hit carries at
+ * least one term, and the ranker orders whole-query matches first, partial
+ * matches last. A single bare term stays a lone clause, and quoted phrases
+ * AND with the bare group, so `"brown fox" jump` keeps its strict
+ * adjacency + term semantics.
  */
 export function buildMatchQuery(query: string): string | null {
+  const parsed = parseSearchMode(query);
+  if (parsed === null) return null;
+  return compileMatch(parsed.needle, parsed.mode === "default" ? "or" : "and")?.match ?? null;
+}
+
+/**
+ * The MATCH query plus its phrase count — matchinfo('x') on FTS4 is laid
+ * out per PHRASE (a quoted multi-word phrase is one; every bare token is
+ * one, OR group included), and the FTS4 hit scorer sizes the blob with it.
+ * `bareCombine` ORs bare terms in the default mode (partial candidates)
+ * and ANDs them in the exact/starts modes (every term must be present
+ * before the substring/start filter can pass).
+ */
+function compileMatch(
+  query: string,
+  bareCombine: "or" | "and",
+): { match: string; phraseCount: number } | null {
   const clauses: string[] = [];
+  const bare: string[] = [];
   const unquoted: string[] = [];
+  let phraseCount = 0;
   const pattern = /"([^"]*)"/g;
   let last = 0;
   let match: RegExpExecArray | null;
@@ -74,12 +155,19 @@ export function buildMatchQuery(query: string): string | null {
     unquoted.push(query.slice(last, match.index));
     last = match.index + match[0].length;
     const terms = matchTerms(match[1]!);
-    if (terms.length > 0) clauses.push(`"${terms.join(" ")}"`);
+    if (terms.length > 0) {
+      clauses.push(`"${terms.join(" ")}"`);
+      phraseCount += 1;
+    }
   }
   unquoted.push(query.slice(last));
-  for (const term of matchTerms(unquoted.join(" "))) clauses.push(`${term}*`);
+  for (const term of matchTerms(unquoted.join(" "))) bare.push(`${term}*`);
+  phraseCount += bare.length;
+  if (bare.length > 0) {
+    clauses.push(bare.length === 1 ? bare[0]! : `(${bare.join(bareCombine === "or" ? " OR " : " AND ")})`);
+  }
   if (clauses.length === 0) return null;
-  return clauses.join(" AND ");
+  return { match: clauses.join(" AND "), phraseCount };
 }
 
 /**
@@ -96,18 +184,42 @@ function parseSearchCursor(cursor: string | null | undefined): number {
 
 // --- ranked search ---------------------------------------------------------------
 //
-// FTS5 orders by the hidden `rank` column (bm25 — ascending, most negative
-// first) directly in SQL. The stock sql.js build's FTS4 has NO rank column
-// (verified against the shipped wasm: "no such column: rank"), so that
-// module fetches matchinfo('x') hit counts and scores in JS. Both paths
-// tiebreak by recency (node.updated_at DESC — SQLite puts NULLs last in
-// DESC) then node id, so ordering is deterministic and near-identical
-// across modules. The module is a property of the DATABASE, not the
-// backend: a cross-backend snapshot restore can park an FTS4 index inside
+// Priority ranking (owner 2026-10-13): the FTS match is only the CANDIDATE
+// GENERATOR. Every hit is rescored in JS against the query with a tier
+// model, and the tier orders — both modules produce the same tier order
+// because the scorer is one shared implementation over the same rows:
+//
+//   0  exact query (case-insensitive substring) in a MAIN node's title
+//   1  exact query in a block's text (parented non-class content)
+//   2  every term, in order but not necessarily adjacent, in a main
+//      node's title
+//   3  every term, in order, in any node's text (title + property values)
+//   4  the node's FIRST PARENT's title matches (exact substring or ordered) — a
+//      block surfaces under a matching page
+//   5  partial: some terms only; more matched terms rank first
+//
+// Within a tier: match position / term span (earlier / tighter first),
+// then text length (shorter first), then the FTS score (bm25 on FTS5 —
+// ascending, most negative first; matchinfo hit count on the stock sql.js
+// FTS4, negated), then recency (updated_at DESC, NULLs last), then node
+// id — fully deterministic on both adapters, near-identical ordering.
+//
+// Candidate volume: FTS5 caps the bm25-ranked candidate scan at 1000 rows
+// UNIONed with an exact-phrase arm (exact matches can never be capped
+// away); FTS4 cannot ORDER BY rank and scans the full match set, exactly
+// like the old relevance-only ranker did.
+//
+// Aliases: a node alias (the `aliased_node_id` column, many-to-one FROM
+// the alias page) whose own title matches the query also contributes its
+// TERMINAL as a candidate, so the canonical page appears when searched by
+// an alias name. Alias text VALUES need nothing extra — they are property
+// values and already ride the indexed row (tier 3).
+//
+// The module is a property of the DATABASE, not the backend: a
+// cross-backend snapshot restore can park an FTS4 index inside
 // better-sqlite3 (still queryable, so the repair path keeps it), which is
 // why it is detected from sqlite_master and cached per connection (restore
-// swaps the connection, invalidating the cache). The title-weight variant
-// (a first-block column) is a DDL change sequenced after this slice.
+// swaps the connection, invalidating the cache).
 
 export interface RankedSearchHit {
   nodeId: string;
@@ -117,9 +229,9 @@ export interface RankedSearchPage {
   hits: RankedSearchHit[];
   /**
    * Offset cursor for the next page (opaque to callers), or null when this
-   * page exhausted the match set. Ranking is deterministic (relevance,
-   * recency, id), so an offset cursor pages a stable order; a concurrent edit
-   * may shift rows at worst, never corrupt.
+   * page exhausted the match set. Ranking is deterministic (tier, span,
+   * length, FTS score, recency, id), so an offset cursor pages a stable
+   * order; a concurrent edit may shift rows at worst, never corrupt.
    */
   nextCursor: string | null;
 }
@@ -139,10 +251,186 @@ export function searchIndexModule(db: StoreDatabase): "fts5" | "fts4" {
   return module;
 }
 
-interface Fts4MatchRow {
+/** One candidate row: the node's fundamentals + its two texts. */
+interface SearchCandidateRow {
   nodeId: string;
   updatedAt: string | null;
-  mi: unknown;
+  isClass: number;
+  parentId: string | null;
+  presentAsMain: number;
+  aliasedNodeId: string | null;
+  /** Serialized contentAst — the title source. */
+  rawContent: string;
+  /** The indexed plaintext (title + property values + asset names). */
+  indexedText: string | null;
+  /** Normalized FTS score, smaller = better (see the module header). */
+  ftsRank: number;
+}
+
+/** The candidate SELECT — identical on both modules; __FTS_TAIL__ carries
+ *  the module-specific score projection(s). */
+const CANDIDATE_SELECT = `
+  SELECT d.node_id AS nodeId, n.updated_at AS updatedAt, n.is_class AS isClass,
+         n.parent_id AS parentId, n.present_as_main AS presentAsMain,
+         n.aliased_node_id AS aliasedNodeId, n.content AS rawContent,
+         s.content AS indexedText__FTS_TAIL__
+  FROM search_index s
+  JOIN search_index_docid d ON d.docid = s.rowid
+  JOIN node n ON n.id = d.node_id AND n.is_active = 1`;
+
+const TERMINAL_SELECT = `
+  SELECT n.id AS nodeId, n.updated_at AS updatedAt, n.is_class AS isClass,
+         n.parent_id AS parentId, n.present_as_main AS presentAsMain,
+         n.aliased_node_id AS aliasedNodeId, n.content AS rawContent,
+         s.content AS indexedText, 0 AS fts
+  FROM node n
+  LEFT JOIN search_index_docid d ON d.node_id = n.id
+  LEFT JOIN search_index s ON s.rowid = d.docid
+  WHERE n.id = ? AND n.is_active = 1`;
+
+/**
+ * Supplementary candidate source for tier 4 (first-parent-name matching):
+ * children of nodes whose FTS row matches the query. The parent's TITLE
+ * check still happens in the scorer — a parent whose property values match
+ * but whose title does not is generated here and dropped there, keeping
+ * the tier strictly "first parent name".
+ */
+const PARENT_CANDIDATE_SELECT = `
+  SELECT child.id AS nodeId, child.updated_at AS updatedAt, child.is_class AS isClass,
+         child.parent_id AS parentId, child.present_as_main AS presentAsMain,
+         child.aliased_node_id AS aliasedNodeId, child.content AS rawContent,
+         s.content AS indexedText__FTS_TAIL__
+  FROM node child
+  JOIN node p ON p.id = child.parent_id
+  JOIN search_index_docid d ON d.docid IS NOT NULL AND d.node_id = p.id
+  JOIN search_index s ON s.rowid = d.docid
+  WHERE child.is_active = 1`;
+
+/** Recency comparison: newer first; NULL timestamps (never updated) last. */
+function compareRecency(a: string | null, b: string | null): number {
+  if (a === null) return b === null ? 0 : 1;
+  if (b === null) return -1;
+  return a < b ? 1 : a > b ? -1 : 0;
+}
+
+// --- the tier scorer ------------------------------------------------------------
+
+const TOKEN_PATTERN = /[\p{L}\p{N}]+/gu;
+
+function tokenizeLower(text: string): string[] {
+  return text.toLowerCase().match(TOKEN_PATTERN) ?? [];
+}
+
+/**
+ * Greedy in-order first positions of every term as a TOKEN PREFIX (the
+ * same prefix semantics as the MATCH query): null when any term has no
+ * prefix-match. "gmi dental" against "gmi dental implantology" yields
+ * [0, 1]; against "gmi south dental" [0, 2] — order without adjacency.
+ */
+function orderedTermPositions(tokens: string[], terms: string[]): number[] | null {
+  const positions: number[] = [];
+  let from = 0;
+  for (const term of terms) {
+    let found = -1;
+    for (let i = from; i < tokens.length; i++) {
+      if (tokens[i]!.startsWith(term)) {
+        found = i;
+        break;
+      }
+    }
+    if (found < 0) return null;
+    positions.push(found);
+    from = found + 1;
+  }
+  return positions;
+}
+
+interface TierScore {
+  tier: number;
+  /** Literal position or ordered span — earlier / tighter first. */
+  subA: number;
+  /** The matched text's length — shorter (more direct) first. */
+  subB: number;
+}
+
+interface ScoreContext {
+  db: StoreDatabase;
+  query: SearchQueryInfo;
+  /** Only rows that reach tier 4 pay the parent lookup. */
+  parentStmt: SqliteStatement;
+}
+
+/**
+ * Score one candidate against the query. `titleLower`/`titleTokens`/
+ * `textTokens` are precomputed; the parent title is fetched lazily
+ * (tier 4 only). Returns null when the candidate violates the query mode
+ * (exact / starts) — mode-nonconforming rows are dropped, never ranked.
+ */
+function scoreCandidate(
+  row: SearchCandidateRow,
+  ctx: ScoreContext,
+  titleLower: string,
+  titleTokens: string[],
+  textTokens: string[],
+): TierScore | null {
+  const { normalized, terms, mode } = ctx.query;
+  const isMain = row.isClass === 1 || row.parentId === null || row.presentAsMain === 1;
+  const textLower = row.indexedText === null ? "" : row.indexedText.toLowerCase();
+
+  if (mode === "exact") {
+    const titleLit = titleLower.indexOf(normalized);
+    if (isMain && titleLit >= 0) return { tier: 0, subA: titleLit, subB: titleLower.length };
+    const textLit = textLower.indexOf(normalized);
+    if (textLit >= 0) return { tier: 1, subA: textLit, subB: textLower.length };
+    return null;
+  }
+  if (mode === "starts") {
+    if (isMain && titleLower.startsWith(normalized)) {
+      return { tier: 0, subA: 0, subB: titleLower.length };
+    }
+    if (textLower.startsWith(normalized)) return { tier: 1, subA: 0, subB: textLower.length };
+    return null;
+  }
+
+  const titleLit = titleLower.indexOf(normalized);
+  if (isMain && titleLit >= 0) return { tier: 0, subA: titleLit, subB: titleLower.length };
+
+  const textLit = textLower.indexOf(normalized);
+  if (!isMain && textLit >= 0) return { tier: 1, subA: textLit, subB: textLower.length };
+
+  const titleOrder = orderedTermPositions(titleTokens, terms);
+  if (isMain && titleOrder !== null) {
+    return { tier: 2, subA: titleOrder[titleOrder.length - 1]! - titleOrder[0]!, subB: titleLower.length };
+  }
+  const textOrder = orderedTermPositions(textTokens, terms);
+  if (textOrder !== null) {
+    return { tier: 3, subA: textOrder[textOrder.length - 1]! - textOrder[0]!, subB: textLower.length };
+  }
+
+  if (row.parentId !== null) {
+    const parent = ctx.parentStmt.get(row.parentId) as { content: string } | undefined;
+    if (parent !== undefined) {
+      const parentLower = extractContentPlaintext(ctx.db, parent.content).toLowerCase();
+      const parentLit = parentLower.indexOf(normalized);
+      const parentOrder =
+        parentLit >= 0 ? null : orderedTermPositions(tokenizeLower(parentLower), terms);
+      if (parentLit >= 0 || parentOrder !== null) {
+        return {
+          tier: 4,
+          subA: parentLit >= 0 ? parentLit : parentOrder![parentOrder!.length - 1]! - parentOrder![0]!,
+          subB: parentLower.length,
+        };
+      }
+    }
+  }
+
+  // Partial: count the terms with a prefix-match anywhere in the node's own
+  // text (FTS guaranteed ≥ 1 for matched rows; alias-expanded terminals
+  // may carry none and sink to the bottom of the tier).
+  const matched = terms.filter(
+    (t) => textTokens.some((tok) => tok.startsWith(t)) || titleTokens.some((tok) => tok.startsWith(t)),
+  ).length;
+  return { tier: 5, subA: -matched, subB: 0 };
 }
 
 /** Sum of per-phrase hit counts in this row from a matchinfo('x') blob. */
@@ -159,16 +447,10 @@ function matchinfoHitScore(mi: unknown, phraseCount: number): number {
   return score;
 }
 
-/** Recency comparison: newer first; NULL timestamps (never updated) last. */
-function compareRecency(a: string | null, b: string | null): number {
-  if (a === null) return b === null ? 0 : 1;
-  if (b === null) return -1;
-  return a < b ? 1 : a > b ? -1 : 0;
-}
-
 /**
- * Ranked FTS search over active nodes: relevance first (rank / hit count),
- * recency tiebreak, node id for full determinism.
+ * Ranked FTS search over active nodes: priority tiers first (exact
+ * main-title, exact block, ordered terms, parent title, partial), FTS
+ * score, recency, and node id inside a tier.
  */
 export function searchNodes(db: StoreDatabase, query: string, limit: number): RankedSearchHit[] {
   return searchNodesPage(db, query, limit).hits;
@@ -185,46 +467,119 @@ export function searchNodesPage(
   limit: number,
   cursor: string | null = null,
 ): RankedSearchPage {
-  const match = buildMatchQuery(query);
-  if (match === null) return { hits: [], nextCursor: null };
+  const info = compileSearchQuery(query);
+  if (info === null) return { hits: [], nextCursor: null };
   const offset = parseSearchCursor(cursor);
-  if (searchIndexModule(db) === "fts5") {
-    const hits = db
-      .prepare(
-        `SELECT d.node_id AS nodeId FROM search_index s
-         JOIN search_index_docid d ON d.docid = s.rowid
-         JOIN node n ON n.id = d.node_id AND n.is_active = 1
-         WHERE search_index MATCH ?
-         ORDER BY s.rank ASC, n.updated_at DESC, d.node_id ASC
-         LIMIT ? OFFSET ?`,
-      )
-      .all(match, limit, offset) as RankedSearchHit[];
-    return { hits, nextCursor: hits.length === limit ? String(offset + limit) : null };
+
+  const module = searchIndexModule(db);
+  // FTS5's rank is selected straight into `fts` (bm25, smaller = better).
+  // FTS4 has no rank column: matchinfo('x') lands in `mi` and is scored in
+  // JS (matchinfoHitScore), negated so both modules compare smaller-is-better.
+  const selectSql =
+    module === "fts5"
+      ? CANDIDATE_SELECT.replace("__FTS_TAIL__", ", s.rank AS fts")
+      : CANDIDATE_SELECT.replace("__FTS_TAIL__", ", 0 AS fts, matchinfo(search_index, 'x') AS mi");
+
+  // Candidate volume: common-term queries match thousands of rows and deep
+  // partials are noise, so FTS5 caps the bm25-ranked scan — UNIONed with an
+  // exact-phrase arm (all the query's terms adjacent) so exact/adjacency
+  // matches can never fall out through a weak bm25 score. FTS4 cannot
+  // ORDER BY rank (no such column, verified) and rides the full match set
+  // like it always did; the tier scorer orders the survivors identically.
+  const CANDIDATE_CAP = 1000;
+  const phraseMatch = info.terms.length >= 2 ? `"${info.terms.join(" ")}"` : null;
+  const stmtSql =
+    module === "fts5"
+      ? phraseMatch !== null
+        ? `WITH primary_hits AS (${selectSql}\n  WHERE search_index MATCH ?\n  ORDER BY s.rank ASC\n  LIMIT ${CANDIDATE_CAP}),\n     phrase_hits AS (${selectSql}\n  WHERE search_index MATCH ?\n  LIMIT ${CANDIDATE_CAP})\nSELECT * FROM primary_hits\nUNION\nSELECT * FROM phrase_hits`
+        : `${selectSql}\n  WHERE search_index MATCH ?\n  ORDER BY s.rank ASC\n  LIMIT ${CANDIDATE_CAP}`
+      : `${selectSql}\n  WHERE search_index MATCH ?`;
+  const stmt = db.prepare(stmtSql);
+  const rawRows = (
+    phraseMatch !== null && module === "fts5"
+      ? stmt.all(info.match, phraseMatch)
+      : stmt.all(info.match)
+  ) as Array<Record<string, unknown>>;
+  const phraseCount = info.phraseCount;
+
+  // Tier-4 (first-parent-name) candidates: children of matching parents.
+  // Default mode only — the exact/starts modes constrain matching to the
+  // node's own text. A parent whose property values match but whose title
+  // does not is generated here and dropped by the scorer's title check.
+  const parentSql =
+    module === "fts5"
+      ? PARENT_CANDIDATE_SELECT.replace("__FTS_TAIL__", ", s.rank AS fts")
+      : PARENT_CANDIDATE_SELECT.replace("__FTS_TAIL__", ", 0 AS fts, matchinfo(search_index, 'x') AS mi");
+  const parentStmtSql =
+    module === "fts5"
+      ? `${parentSql}\n  AND search_index MATCH ?\n  ORDER BY s.rank ASC\n  LIMIT 500`
+      : `${parentSql}\n  AND search_index MATCH ?`;
+  const parentRows =
+    info.mode === "default"
+      ? (db.prepare(parentStmtSql).all(info.match) as Array<Record<string, unknown>>)
+      : [];
+
+  const ctx: ScoreContext = {
+    db,
+    query: info,
+    parentStmt: db.prepare("SELECT content FROM node WHERE id = ?"),
+  };
+  const terminalStmt = db.prepare(TERMINAL_SELECT);
+
+  const seen = new Set<string>();
+  const scored: Array<{ row: SearchCandidateRow; score: TierScore }> = [];
+
+  const pushRow = (raw: Record<string, unknown>, ftsRank: number): void => {
+    const row = raw as unknown as SearchCandidateRow;
+    row.ftsRank = ftsRank;
+    if (seen.has(row.nodeId)) return;
+    seen.add(row.nodeId);
+    const titleLower = extractContentPlaintext(db, row.rawContent).toLowerCase();
+    const titleTokens = tokenizeLower(titleLower);
+    const textTokens = tokenizeLower(row.indexedText ?? "");
+    const score = scoreCandidate(row, ctx, titleLower, titleTokens, textTokens);
+    if (score !== null) scored.push({ row, score });
+  };
+
+  const ftsRankOf = (raw: Record<string, unknown>): number =>
+    module === "fts5" ? (raw.fts as number) : -matchinfoHitScore(raw.mi, phraseCount);
+
+  for (const raw of rawRows) pushRow(raw, ftsRankOf(raw));
+  for (const raw of parentRows) pushRow(raw, ftsRankOf(raw));
+
+  // Alias expansion: a matching alias PAGE also contributes its TERMINAL —
+  // the canonical page appears when searched by an alias name. The chain
+  // is walked like Store.resolveAlias (revisit = the starting id unchanged,
+  // generous depth cap), so an alias-of-an-alias still lands on the
+  // canonical page.
+  for (const { row } of [...scored]) {
+    if (row.aliasedNodeId === null) continue;
+    if (row.isClass !== 1 && row.parentId !== null && row.presentAsMain !== 1) continue;
+    let current = row;
+    for (let depth = 0; depth < 16 && current.aliasedNodeId !== null; depth++) {
+      const nextId = current.aliasedNodeId;
+      if (seen.has(nextId)) break;
+      const terminal = terminalStmt.get(nextId) as Record<string, unknown> | undefined;
+      if (terminal === undefined) break;
+      pushRow(terminal, 0);
+      current = terminal as unknown as SearchCandidateRow;
+    }
   }
-  const rows = db
-    .prepare(
-      `SELECT d.node_id AS nodeId, n.updated_at AS updatedAt,
-              matchinfo(search_index, 'x') AS mi
-       FROM search_index s
-       JOIN search_index_docid d ON d.docid = s.rowid
-       JOIN node n ON n.id = d.node_id AND n.is_active = 1
-       WHERE search_index MATCH ?`,
-    )
-    .all(match) as unknown as Fts4MatchRow[];
-  // Every AND clause (prefix token or quoted phrase) is exactly one FTS
-  // phrase — 'x' layout is per phrase — so the clause count, not the raw
-  // term count, sizes the matchinfo blob (C1 phrases make them differ).
-  const phraseCount = match.split(" AND ").length;
-  const hits = rows
-    .map((row) => ({ ...row, score: matchinfoHitScore(row.mi, phraseCount) }))
-    .sort(
-      (a, b) =>
-        b.score - a.score ||
-        compareRecency(a.updatedAt, b.updatedAt) ||
-        (a.nodeId < b.nodeId ? -1 : 1),
-    )
-    .slice(offset, offset + limit)
-    .map(({ nodeId }) => ({ nodeId }));
+
+  scored.sort((a, b) => {
+    const s = a.score;
+    const t = b.score;
+    return (
+      s.tier - t.tier ||
+      s.subA - t.subA ||
+      s.subB - t.subB ||
+      a.row.ftsRank - b.row.ftsRank ||
+      compareRecency(a.row.updatedAt, b.row.updatedAt) ||
+      (a.row.nodeId < b.row.nodeId ? -1 : 1)
+    );
+  });
+
+  const hits = scored.slice(offset, offset + limit).map(({ row }) => ({ nodeId: row.nodeId }));
   return { hits, nextCursor: hits.length === limit ? String(offset + limit) : null };
 }
 

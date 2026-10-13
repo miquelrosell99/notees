@@ -423,7 +423,7 @@ describe("node-link context menu", () => {
     // Open the anchored target picker (portaled to the body) and pick a
     // different destination.
     fireEvent.click(within(modal).getByRole("button", { name: "Page target" }));
-    const pickerInput = document.body.querySelector<HTMLElement>(".node-selector__search");
+    const pickerInput = document.body.querySelector<HTMLElement>(".node-selector__search-field .search-field__input");
     if (pickerInput === null) throw new Error("no picker in the modal");
     fireEvent.change(pickerInput, { target: { value: "Else" } });
     const row = document.body.querySelector<HTMLElement>(".node-result-item");
@@ -589,7 +589,7 @@ describe("node-link context menu (read mode)", () => {
     if (modal === null) throw new Error("link edit modal did not open from read mode");
     // The anchored target picker opens on trigger click (portaled to body).
     fireEvent.click(within(modal).getByRole("button", { name: "Page target" }));
-    const pickerInput = document.body.querySelector<HTMLElement>(".node-selector__search");
+    const pickerInput = document.body.querySelector<HTMLElement>(".node-selector__search-field .search-field__input");
     if (pickerInput === null) throw new Error("no picker in the modal");
     fireEvent.change(pickerInput, { target: { value: "Else" } });
     fireEvent.click(document.body.querySelector<HTMLElement>(".node-result-item")!);

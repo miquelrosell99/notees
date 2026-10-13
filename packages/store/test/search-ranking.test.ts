@@ -2,10 +2,11 @@
  * Search store batch: ranked search, snippets, and property values in
  * the FTS index.
  *
- *  - Ranking: ORDER BY rank + recency. FTS5 orders by the hidden rank column in
- *    SQL; the stock sql.js FTS4 has no rank column, so that backend scores
- *    matchinfo('x') hit counts in JS — both must produce relevance-first,
- *    recency-tiebroken, deterministic order (asserted on BOTH adapters).
+ *  - Ranking: priority tiers computed in JS over the FTS candidate set
+ *    (literal main-title > literal block > ordered terms > parent-title >
+ *    partial), FTS score, recency, id — identical on BOTH adapters (the
+ *    tier scorer is one shared implementation; FTS5's bm25 and FTS4's
+ *    matchinfo hit count differ only as the final in-tier tiebreak).
  *  - Snippets: searchSnippet excerpts the densest query-term cluster with
  *    char-accurate match spans, computed in JS over the derived plaintext
  *    (the stock sql.js FTS4 snippet() emits its column index into the
@@ -87,21 +88,36 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
   }
 
   describe("relevance ranking + recency", () => {
-    it("a document with more term hits outranks a single-hit document", () => {
+    it("a document with more term hits outranks a single-hit document at equal title shape", () => {
       const store = makeStore();
-      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000f1", contentAst: text("needle needle needle haystack") }, 1727200001000));
-      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000f2", contentAst: text("needle in a haystack") }, 1727200002000));
+      // Equal-length titles: the tier + length tie, so the in-tier FTS
+      // score decides — the denser document ranks first even though it is
+      // OLDER (relevance dominates the recency tiebreak).
+      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000f1", contentAst: text("needle needle needle x") }, 1727200001000));
+      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000f2", contentAst: text("needle in a haystack y") }, 1727200002000));
       const hits = store.search("needle", 10).map((h) => h.nodeId);
-      // The richer document ranks first even though it is OLDER — relevance
-      // dominates the recency tiebreak.
       expect(hits[0]).toBe("0192a000-0000-7000-8000-0000000000f1");
       expect(hits).toContain("0192a000-0000-7000-8000-0000000000f2");
     });
 
-    it("equal relevance tiebreaks by updated_at recency (newer first)", () => {
+    it("a shorter literal title match outranks a longer one (directness first)", () => {
       const store = makeStore();
-      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000f3", contentAst: text("tournesol watch") }, 1727200001000));
-      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000f4", contentAst: text("tournesol dial") }, 1727200002000));
+      // Both titles carry the literal at position 0 — the shorter, more
+      // direct title wins (the priority-ranking subscore, ahead of the
+      // FTS hit count: density no longer promotes long content pages over
+      // an exact title match).
+      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000f1", contentAst: text("needle needle needle haystack") }, 1727200001000));
+      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000f2", contentAst: text("needle in a haystack") }, 1727200002000));
+      expect(store.search("needle", 10).map((h) => h.nodeId)).toEqual([
+        "0192a000-0000-7000-8000-0000000000f2",
+        "0192a000-0000-7000-8000-0000000000f1",
+      ]);
+    });
+
+    it("equal shape tiebreaks by updated_at recency (newer first)", () => {
+      const store = makeStore();
+      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000f3", contentAst: text("tournesol alfa") }, 1727200001000));
+      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000f4", contentAst: text("tournesol beta") }, 1727200002000));
       expect(store.search("tournesol", 10).map((h) => h.nodeId)).toEqual(["0192a000-0000-7000-8000-0000000000f4", "0192a000-0000-7000-8000-0000000000f3"]);
     });
 
@@ -127,14 +143,129 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000fc", contentAst: text("rhodochrosite rhodochrosite gem") }, 1727200001000));
       store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000fd", contentAst: text("rhodochrosite from peru") }, 1727200002000));
       store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000fe", contentAst: text("rhodochrosite from argentina") }, 1727200003000));
-      // n-a carries two hits (relevance first despite being oldest); n-b and
-      // n-c tie on one hit — the newer n-c wins the recency tiebreak. The
+      // All three are literal main-title matches (tier 0) at position 0 —
+      // the shorter title ranks first (peru 24 < argentina 28 < the
+      // double-hit 29); hit density no longer leads inside the tier. The
       // same order must come out of FTS5's bm25 rank and FTS4's matchinfo
       // scoring, and stay stable across queries.
-      const expected = ["0192a000-0000-7000-8000-0000000000fc", "0192a000-0000-7000-8000-0000000000fe", "0192a000-0000-7000-8000-0000000000fd"];
+      const expected = ["0192a000-0000-7000-8000-0000000000fd", "0192a000-0000-7000-8000-0000000000fe", "0192a000-0000-7000-8000-0000000000fc"];
       for (let i = 0; i < 3; i++) {
         expect(store.search("rhodochrosite", 10).map((h) => h.nodeId)).toEqual(expected);
       }
+    });
+  });
+
+  describe("priority ranking (owner 2026-10-13)", () => {
+    // The GMI scenario: an exact-title main node must lead the results,
+    // ahead of content-heavy pages, blocks, and partial matches.
+    const ORG = "0192a000-0000-7000-8000-0000000000d1";
+    const HEAVY = "0192a000-0000-7000-8000-0000000000d2";
+    const BLOCK = "0192a000-0000-7000-8000-0000000000d3";
+    const BLOCK_PARENT = "0192a000-0000-7000-8000-0000000000d4";
+    const ECUADOR = "0192a000-0000-7000-8000-0000000000d5";
+
+    function gmiStore(): Store {
+      const store = makeStore();
+      store.apply(env("object.create", { objectId: ORG, contentAst: text("GMI Dental Implantology, S.L") }, 1727200001000));
+      store.apply(
+        env("object.create", { objectId: HEAVY, contentAst: text("GMI Dental Implantology/RP-DAD-25134 usability evaluation gmi dental gmi dental gmi dental") }, 1727200002000),
+      );
+      store.apply(env("object.create", { objectId: BLOCK_PARENT, contentAst: text("Parent page") }, 1727200003000));
+      store.apply(env("object.create", { objectId: BLOCK, parentId: BLOCK_PARENT, contentAst: text("notes about gmi dental products") }, 1727200004000));
+      store.apply(env("object.create", { objectId: ECUADOR, contentAst: text("GMI Ecuador") }, 1727200005000));
+      return store;
+    }
+
+    it("literal main-title matches lead; blocks and partial matches follow", () => {
+      const hits = gmiStore().search("gmi dental", 20).map((h) => h.nodeId);
+      expect(hits).toEqual([ORG, HEAVY, BLOCK, ECUADOR]);
+    });
+
+    it("the direct title match leads for prefix refinements and ordered terms", () => {
+      const store = gmiStore();
+      // Both prefix refinements of the direct title.
+      expect(store.search("gmi denta", 20).map((h) => h.nodeId)[0]).toBe(ORG);
+      expect(store.search("gmi dental impl", 20).map((h) => h.nodeId)[0]).toBe(ORG);
+      // Ordered but non-adjacent: "gmi … implantology" — the shorter title
+      // still wins the tier subscore.
+      expect(store.search("gmi implantology", 20).map((h) => h.nodeId)[0]).toBe(ORG);
+    });
+
+    it("ordered non-adjacent term matches rank between literal and partial", () => {
+      const store = makeStore();
+      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000e1", contentAst: text("alpha beta") }, 1727200001000));
+      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000e2", contentAst: text("alpha omega beta") }, 1727200002000));
+      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000e3", contentAst: text("alpha") }, 1727200003000));
+      expect(store.search("alpha beta", 10).map((h) => h.nodeId)).toEqual([
+        "0192a000-0000-7000-8000-0000000000e1",
+        "0192a000-0000-7000-8000-0000000000e2",
+        "0192a000-0000-7000-8000-0000000000e3",
+      ]);
+    });
+
+    it("a fully quoted query is exact mode: exact substring, no partials", () => {
+      const store = gmiStore();
+      // Ordered-but-not-literal: both terms, in order, never adjacent.
+      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000d6", contentAst: text("gmi and dental chronicle") }, 1727200006000));
+      // Default mode includes the scattered node as an ordered match…
+      expect(store.search("gmi dental", 20).map((h) => h.nodeId)).toContain("0192a000-0000-7000-8000-0000000000d6");
+      // …exact mode does not: only exact substrings rank.
+      expect(store.search('"gmi dental"', 20).map((h) => h.nodeId)).toEqual([ORG, HEAVY, BLOCK]);
+      // Case-insensitive, punctuation intact.
+      expect(store.search('"S.L"', 10).map((h) => h.nodeId)).toContain(ORG);
+      expect(store.search('""', 10)).toEqual([]);
+    });
+
+    it("a leading caret is starts-with mode: position 0 only", () => {
+      const store = gmiStore();
+      // A block whose TEXT starts with the query (its title doesn't exist —
+      // a block's text is the haystack).
+      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000d7", parentId: BLOCK_PARENT, contentAst: text("gmi dental products notes") }, 1727200006000));
+      const hits = store.search("^gmi dental", 20).map((h) => h.nodeId);
+      expect(hits).toEqual([ORG, HEAVY, "0192a000-0000-7000-8000-0000000000d7"]);
+      // BLOCK's text mentions the query mid-string — excluded in starts mode.
+      expect(hits).not.toContain(BLOCK);
+      // A broader prefix: every "gmi…" title qualifies, the shortest first.
+      const broad = store.search("^gmi", 10).map((h) => h.nodeId);
+      expect(broad[0]).toBe(ECUADOR);
+      expect(broad).toContain(ORG);
+      expect(store.search("^", 10)).toEqual([]);
+    });
+
+    it("a block surfaces when its first parent's title matches the query", () => {
+      const store = makeStore();
+      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000e4", contentAst: text("Q3 Roadmap") }, 1727200001000));
+      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000e5", parentId: "0192a000-0000-7000-8000-0000000000e4", contentAst: text("budget figures") }, 1727200002000));
+      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000e6", contentAst: text("roadmap archive") }, 1727200003000));
+      // "budget figures" carries no "roadmap" — the block rides its parent's
+      // title (tier 4), below every main-node match but in the list.
+      const hits = store.search("roadmap", 10).map((h) => h.nodeId);
+      expect(hits).toContain("0192a000-0000-7000-8000-0000000000e5");
+      expect(hits.indexOf("0192a000-0000-7000-8000-0000000000e5")).toBeGreaterThan(
+        hits.indexOf("0192a000-0000-7000-8000-0000000000e4"),
+      );
+      expect(hits.indexOf("0192a000-0000-7000-8000-0000000000e5")).toBeGreaterThan(
+        hits.indexOf("0192a000-0000-7000-8000-0000000000e6"),
+      );
+    });
+
+    it("a matching alias page also contributes its terminal node", () => {
+      const store = makeStore();
+      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000e7", contentAst: text("Acme Industries") }, 1727200001000));
+      store.apply(env("object.create", { objectId: "0192a000-0000-7000-8000-0000000000e8", contentAst: text("Acme Corp") }, 1727200002000));
+      store.apply(env("object.update", { objectId: "0192a000-0000-7000-8000-0000000000e8", aliasedNodeId: "0192a000-0000-7000-8000-0000000000e7" }, 1727200003000));
+      // The alias leads (its title IS the query); the terminal appears as
+      // an option even though only one term matches its own title.
+      const hits = store.search("acme corp", 10).map((h) => h.nodeId);
+      expect(hits[0]).toBe("0192a000-0000-7000-8000-0000000000e8");
+      expect(hits).toContain("0192a000-0000-7000-8000-0000000000e7");
+      // A broader query: both rank as literal main-title matches, the
+      // alias first (shorter title).
+      const broad = store.search("acme", 10).map((h) => h.nodeId);
+      expect(broad).toEqual([
+        "0192a000-0000-7000-8000-0000000000e8",
+        "0192a000-0000-7000-8000-0000000000e7",
+      ]);
     });
   });
 

@@ -111,7 +111,7 @@ async function pickRowByText(text: string): Promise<void> {
 }
 
 function searchPicker(query: string): void {
-  const input = pickerPanel().querySelector<HTMLInputElement>(".node-selector__search");
+  const input = pickerPanel().querySelector<HTMLInputElement>(".search-field__input");
   if (input === null) throw new Error("no picker search");
   fireEvent.change(input, { target: { value: query } });
 }

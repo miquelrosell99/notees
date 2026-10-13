@@ -266,8 +266,14 @@ narrowest driver-agnostic interface, and the store test suite runs *every* test 
 sql.js WASM build ships without FTS5, so the sql.js backend declares `ftsModule: "fts4"`
 and `schemaSql("fts4")` builds the identical docid-map index with FTS4 — same MATCH
 syntax, same `unicode61` tokenizer, same behavior
-(`packages/store/src/schema.ts`, `db.ts`). Search itself is prefix-AND over the derived
-node plaintext, ordered by node id (`store.ts:177`).
+(`packages/store/src/schema.ts`, `db.ts`). Search uses the FTS match only as the
+candidate generator: multi-term queries OR their bare terms (partial matches enter the
+set), then one shared JS tier scorer orders every hit — literal match in a main node's
+title → literal in a block → terms in order (non-adjacent) → first-parent title →
+partial (fewer terms last) — with the FTS score, recency, and node id inside a tier, so
+both modules produce the same tier order (`packages/store/src/search.ts`). Query modes:
+a fully quoted query (`"gmi dental"`) is literal (exact substring only), a leading caret
+(`^gmi`) is starts-with. A matching alias page also contributes its terminal node.
 
 Restore is adapter-specific: better-sqlite3 has no deserialize, so restore writes a temp
 file and swaps the connection (temp dir removed on close); sql.js exports/imports whole
