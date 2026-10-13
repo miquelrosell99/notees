@@ -84,6 +84,9 @@ export type { RadioProps, RadioSize } from './Radio.js';
 export { Pill } from './Pill.js';
 export type { PillProps } from './Pill.js';
 
+export { Chip } from './Chip.js';
+export type { ChipProps } from './Chip.js';
+
 export { AddPill } from './AddPill.js';
 export type { AddPillProps } from './AddPill.js';
 

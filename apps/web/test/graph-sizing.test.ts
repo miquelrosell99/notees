@@ -34,6 +34,7 @@ const node = (id: string, extra: Partial<{ contentSize: number; mass: number; cl
   classIds: [] as string[],
   color: null,
   icon: null,
+  createdAt: "2026-10-13T00:00:00.000Z",
   contentSize: 0,
   mass: 1,
   ...extra,
@@ -71,9 +72,9 @@ describe("node radius (the v1 curve)", () => {
       {
         nodes: [node("a"), node("b"), node("c", { mass: 6, contentSize: 50 })],
         edges: [
-          { source: "a", target: "b", kind: "mention", weight: 1, evidence: null },
-          { source: "c", target: "a", kind: "mention", weight: 1, evidence: null },
-          { source: "c", target: "a", kind: "parent", weight: 1, evidence: null },
+          { source: "a", target: "b", kind: "mention", weight: 1, evidence: null, createdAt: null },
+          { source: "c", target: "a", kind: "mention", weight: 1, evidence: null, createdAt: null },
+          { source: "c", target: "a", kind: "parent", weight: 1, evidence: null, createdAt: null },
         ],
       },
       "connections",

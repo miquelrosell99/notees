@@ -17,11 +17,20 @@
  *
  * The chrome composes from the kit (the ghost-button tool idiom, the
  * icon-radio mode selector, the boolean switch, the ButtonWithPanel popovers,
- * ListSortable drag-reorder, the Slider) and the interaction/navigation
- * register is the v1 one 1:1: drag empty space pans, the wheel zooms
- * cursor-anchored, dragging a node rearranges it (instant local override +
- * worker pin), clicking a node toggles it in the multi-selection,
- * double-click opens, empty click clears.
+ * the Chip toggle pills, NodeViewSection collapsible sections, the Card
+ * container, ListSortable drag-reorder, the Slider) and the edges own the
+ * canvas: the bottom edge holds the control dock (recenter/pause/zoom/focus)
+ * bottom-left, the mode bar + time-lapse strip bottom-center, the minimap
+ * bottom-right; the right edge holds the curation rail (Selection + Colors)
+ * — a flex sibling of the stage, so the drawable area excludes it and the
+ * minimap hugs the remaining canvas. The interaction/navigation register
+ * extends the v1 one:
+ * drag empty space pans, the wheel zooms cursor-anchored (the minimap wheel
+ * too), dragging a node rearranges it (instant local override + worker pin),
+ * clicking a node toggles it in the multi-selection, double-click opens,
+ * empty click clears — plus the keyboard surface (+/- zoom, arrows pan,
+ * F focus, R recenter) and the unified node hover card (the app-standard
+ * NodeHoverPreview through a cursor sentinel; edges keep the text tooltip).
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -34,18 +43,33 @@ import {
   BooleanToggle,
   Button,
   ButtonWithPanel,
+  Card,
+  Chip,
   ColorButton,
   Dropdown,
   EmptyState,
   ListSortable,
-  SearchField,
   SelectionButton,
   Slider,
+  TextField,
 } from "../../components/ui/index.js";
 import { PRESET_COLOR_TOKENS } from "../../components/ui/colorPresets.js";
-import { usePopupDismissal } from "../../components/ui/usePopupDismissal.js";
 import { resolveCssColor } from "../../components/ui/colorPresets.js";
+import { NodeSelector } from "../../components/pickers/NodeSelector.js";
+import { NodeViewSection } from "../../components/NodeViewSection.js";
+import { FilterBlockBuilder } from "../../components/FilterBlockBuilder.js";
 import { readDeviceSetting, writeDeviceSetting } from "../../components/modals/deviceSettings.js";
+import { notifyNodeHover } from "../../components/NodeHoverPreview.js";
+
+import {
+  bboxForNodes,
+  clampZoom,
+  fitBoundingBoxCamera,
+  panByScreenDelta,
+  wheelZoomFactor,
+  zoomAtCenter,
+  zoomAtWorldPoint,
+} from "./cameraMath.js";
 
 import {
   DEFAULT_GRAPH_SETTINGS,
@@ -56,7 +80,12 @@ import {
   type GraphSettings,
 } from "./filter.js";
 import { computeFixedLayout, type GraphLayoutMode } from "./layouts.js";
-import { colorGroupError, evaluateColorGroups, type GraphColorGroup } from "./colorGroups.js";
+import {
+  evaluateColorGroups,
+  isLegacyColorGroup,
+  migrateColorGroup,
+  type GraphColorGroup,
+} from "./colorGroups.js";
 import {
   computeNodeSizing,
   type LinkDirection,
@@ -106,6 +135,8 @@ interface GraphPrefs {
   colorGroups: GraphColorGroup[];
   /** Ordered class colors — first listed class wins (the v1 register). */
   classColors: ClassColorEntry[];
+  /** The right rail (full surface only): open/closed, persisted per device. */
+  railOpen: boolean;
 }
 
 const FAMILY_LABELS: Array<{ key: GraphEdgeKind; label: string }> = [
@@ -119,6 +150,8 @@ const FAMILY_LABELS: Array<{ key: GraphEdgeKind; label: string }> = [
 
 const POSITIONS_KEY = (workspaceId: string): string => `notees.graph.positions.${workspaceId}`;
 const PREFS_KEY = (surface: string): string => `graphPrefs.${surface}`;
+/** Time-lapse playback: min → max over ~20s, then rest. */
+const TIME_LAPSE_DURATION_MS = 20_000;
 
 function defaultPrefs(): GraphPrefs {
   return {
@@ -139,10 +172,14 @@ function defaultPrefs(): GraphPrefs {
     colorGroupsOn: false,
     colorGroups: [],
     classColors: [],
+    railOpen: false,
   };
 }
 
-/** Stored prefs merge over the defaults so new keys appear. */
+/** Stored prefs merge over the defaults so new keys appear. The persisted
+ *  color groups may still hold pre-AST legacy rows (text-DSL strings) — the
+ *  type is the post-migration shape; the one-time migration effect rewrites
+ *  them in place on mount. */
 function loadPrefs(surface: string): GraphPrefs {
   const stored = readDeviceSetting<Partial<GraphPrefs> | null>(PREFS_KEY(surface), null);
   const base = defaultPrefs();
@@ -213,19 +250,35 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     paused: false,
   });
   const layoutModeRef = useRef<GraphLayoutMode>("force");
+  /** The latest position frame (Focus bbox + label/pick passes read it live). */
+  const positionsRef = useRef<{ positions: Float32Array; nodeIds: string[] } | null>(null);
+  /** Node creation times, seconds since epoch (id → sec) — the label pass
+   *  and the time-lapse pick filter read this live. */
+  const nodeTimesSecRef = useRef<Map<string, number>>(new Map());
+  /** The stamped / unstamped RendererEdge arrays (the Edges toggle swaps). */
+  const edgesStampsOnRef = useRef<RendererEdge[]>([]);
+  const edgesStampsOffRef = useRef<RendererEdge[]>([]);
+  /** Time-lapse mirror readable by the pointer handlers (pick filtering). */
+  const timeLapseRef = useRef<{ enabled: boolean; cutoffSec: number }>({
+    enabled: false,
+    cutoffSec: 0,
+  });
+  /** The Edges-toggle mirror — the GL lifecycle re-applies it on rebuild. */
+  const timeLapseEdgesRef = useRef(true);
+  /** The cursor-anchored sentinel feeding the unified node hover card. */
+  const hoverSentinelRef = useRef<HTMLDivElement | null>(null);
 
   const [topology, setTopology] = useState<GraphTopology | null>(null);
   const [glError, setGlError] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<GraphPrefs>(() => loadPrefs(prefsSurface));
-  const [groupsOpen, setGroupsOpen] = useState(false);
-  const groupsPanelRef = useRef<HTMLDivElement | null>(null);
-  const groupsButtonRef = useRef<HTMLButtonElement | null>(null);
-  usePopupDismissal({
-    popupRef: groupsPanelRef,
-    anchorRefs: [groupsButtonRef],
-    isOpen: groupsOpen,
-    onClose: () => setGroupsOpen(false),
-  });
+  /**
+   * The rail's expanded section (session-local): which NodeViewSection is
+   * open — the chips open the rail onto their section. Both collapsed
+   * (null) is a valid resting state; the rail itself stays open.
+   */
+  const [railSection, setRailSection] = useState<"selection" | "colors" | null>(null);
+  /** The Selection section wrapper — the Selected chip scrolls to it. */
+  const selectionSectionRef = useRef<HTMLDivElement | null>(null);
   const [hover, setHover] = useState<
     | { kind: "node"; id: string; x: number; y: number }
     | { kind: "edge"; edge: GraphEdge; x: number; y: number }
@@ -233,9 +286,12 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   >(null);
   /** The multi-selection (the v1 register: click toggles, list is reorderable). */
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [search, setSearch] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
   const [, setFps] = useState(0);
+  /** Time-lapse chrome — session-local, like pause (never persisted). */
+  const [timeLapseOpen, setTimeLapseOpen] = useState(false);
+  const [timeLapsePlaying, setTimeLapsePlaying] = useState(false);
+  const [timeLapsePos, setTimeLapsePos] = useState(0);
+  const [timeLapseEdges, setTimeLapseEdges] = useState(true);
 
   const scope = useMemo(
     () => (items !== undefined ? new Set(items.map((item) => item.node.id)) : undefined),
@@ -330,6 +386,106 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     loopStateRef.current.hovered = hover !== null && hover.kind === "node" ? hover.id : null;
   }, [hover]);
 
+  // Hover change → two cheap sinks: the renderer's neighborhood dimming
+  // (flag rewrite once per change, never per frame) and the app-standard
+  // NodeHoverPreview card through the cursor-riding sentinel. The graph has
+  // no DOM anchors per node — the sentinel stands in for the mention.
+  const hoverRef = useRef<string | null>(null);
+  useEffect(() => {
+    const renderer = rendererRef.current;
+    const prev = hover === null || hover.kind !== "node" ? null : hover.id;
+    if (prev !== hoverRef.current) {
+      renderer?.setHoverNeighborhood(prev);
+      const sentinel = hoverSentinelRef.current;
+      if (sentinel !== null) {
+        if (hoverRef.current !== null) notifyNodeHover(hoverRef.current, "leave", sentinel);
+        if (prev !== null) notifyNodeHover(prev, "enter", sentinel);
+      }
+      hoverRef.current = prev;
+    }
+    const sentinel = hoverSentinelRef.current;
+    if (sentinel !== null && hover !== null) {
+      sentinel.style.left = `${hover.x}px`;
+      sentinel.style.top = `${hover.y}px`;
+    }
+  }, [hover]);
+  // Unmount only: restore the renderer + dismiss an open hover card.
+  useEffect(
+    () => () => {
+      rendererRef.current?.setHoverNeighborhood(null);
+      const sentinel = hoverSentinelRef.current;
+      if (sentinel !== null && hoverRef.current !== null) {
+        notifyNodeHover(hoverRef.current, "leave", sentinel);
+      }
+    },
+    [],
+  );
+
+  /** The time-lapse range across ALL displayed nodes (the scrubber maps onto it). */
+  const createdRange = useMemo(() => {
+    if (display === null) return null;
+    let min = Infinity;
+    let max = -Infinity;
+    for (const node of display.nodes) {
+      const sec = Date.parse(node.createdAt) / 1000;
+      if (Number.isFinite(sec)) {
+        min = Math.min(min, sec);
+        max = Math.max(max, sec);
+      }
+    }
+    return min <= max ? { min, max } : null;
+  }, [display]);
+
+  // Time-lapse drive: mirror the cutoff for the pick/label passes and set
+  // the renderer's time uniforms. Scrubbing only moves uniforms — no repack.
+  useEffect(() => {
+    const renderer = rendererRef.current;
+    if (renderer === null) return;
+    if (!timeLapseOpen || createdRange === null) {
+      timeLapseRef.current = { enabled: false, cutoffSec: 0 };
+      renderer.setTimeLapse(false, 0);
+      return;
+    }
+    const cutoffSec =
+      createdRange.min + ((createdRange.max - createdRange.min) * timeLapsePos) / 100;
+    timeLapseRef.current = { enabled: true, cutoffSec };
+    renderer.setTimeLapse(true, cutoffSec);
+  }, [timeLapseOpen, timeLapsePos, createdRange]);
+
+  // The Edges toggle: off = edges WITHOUT stamps (static at full opacity);
+  // on = the topology-derived stamped array. The GL lifecycle effect
+  // (declared below) re-applies the same choice on every rebuild — the
+  // toggle only needs to reach the CURRENT renderer here.
+  useEffect(() => {
+    timeLapseEdgesRef.current = timeLapseEdges;
+    rendererRef.current?.setEdges(
+      timeLapseEdges ? edgesStampsOnRef.current : edgesStampsOffRef.current,
+    );
+  }, [timeLapseEdges]);
+
+  // Playback: animate the cutoff from the current position to max over
+  // ~20s, then rest. The simulation pause is independent of this.
+  useEffect(() => {
+    if (!timeLapseOpen || !timeLapsePlaying || createdRange === null) return;
+    let raf = 0;
+    const from = timeLapsePos;
+    const start = performance.now();
+    const tick = (): void => {
+      const elapsed = performance.now() - start;
+      const next = Math.min(100, from + (elapsed / TIME_LAPSE_DURATION_MS) * 100);
+      setTimeLapsePos(next);
+      if (next >= 100) {
+        setTimeLapsePlaying(false);
+        return;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // timeLapsePos is read at play start; re-running per tick would restart.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeLapsePlaying, timeLapseOpen, createdRange]);
+
   // Live physics tuning — no GL rebuild (force layout only).
   useEffect(() => {
     if (prefs.layoutMode !== "force") return;
@@ -363,7 +519,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
 
   /** The class picker options: every class not already colored. */
   const classOptions = useMemo(() => {
-    if (!groupsOpen || local !== undefined) return [];
+    if (!prefs.railOpen || railSection !== "colors" || local !== undefined) return [];
     const colored = new Set(prefs.classColors.map((entry) => entry.classId));
     return client
       .listClasses()
@@ -373,7 +529,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
         label: client.getDisplayName(klass.id) ?? klass.id,
       }))
       .sort((a, b) => a.label.localeCompare(b.label));
-  }, [client, groupsOpen, local, prefs.classColors]);
+  }, [client, prefs.railOpen, railSection, local, prefs.classColors]);
 
   const addClassColor = (classId: string): void => {
     const color = PRESET_COLOR_TOKENS[prefs.classColors.length % PRESET_COLOR_TOKENS.length]!;
@@ -388,6 +544,42 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       return { ...prev, classColors: next };
     });
   };
+
+  /** Query groups sort — the list order IS the first-match-wins priority. */
+  const moveColorGroup = (fromIndex: number, toIndex: number): void => {
+    setPrefs((prev) => {
+      const next = [...prev.colorGroups];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved!);
+      return { ...prev, colorGroups: next };
+    });
+  };
+
+  // The one-time legacy migration of the persisted color groups (pre-AST
+  // device stores held text-DSL strings): parse through the DSL parser and
+  // re-persist as ASTs — the debounced prefs write below lands the migrated
+  // shape back in the device store. Runs once per mount; already-migrated
+  // rows pass through untouched.
+  const migratedRef = useRef(false);
+  useEffect(() => {
+    if (migratedRef.current) return;
+    migratedRef.current = true;
+    setPrefs((prev) => {
+      if (!prev.colorGroups.some((group) => isLegacyColorGroup(group))) return prev;
+      return { ...prev, colorGroups: prev.colorGroups.map((group) => migrateColorGroup(client, group)) };
+    });
+  }, [client]);
+
+  // The rail toggle register: a chip opens the rail onto its section; the
+  // Selected chip also scrolls its section into view (the rail scrolls when
+  // both sections are tall). jsdom has no scrollIntoView — feature-gated.
+  useEffect(() => {
+    if (!prefs.railOpen || railSection !== "selection") return;
+    const section = selectionSectionRef.current;
+    if (section !== null && typeof section.scrollIntoView === "function") {
+      section.scrollIntoView({ block: "nearest" });
+    }
+  }, [prefs.railOpen, railSection]);
 
   // ── Node sizing + visuals: live, no GL rebuild ────────────────────────────
   // Radii and colors recompute whenever a driver changes and ride
@@ -456,10 +648,37 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       hexToRgba,
       resolveCssColor,
     );
-    renderer.setNodeVisuals(
-      display.nodes.map((node) => node.id),
-      visuals,
-    );
+    const nodeIds = display.nodes.map((node) => node.id);
+    renderer.setNodeVisuals(nodeIds, visuals);
+
+    // Creation times: per-node seconds (index-aligned with the nodeIds just
+    // sent) + a per-edge stamp — the edge's own stamp when it has one, else
+    // the max of its endpoints' (a synthesized parent/class/co-occurrence
+    // edge never appears before both its endpoints).
+    const createdSec = new Map<string, number>();
+    const secondsByIndex = new Float32Array(display.nodes.length);
+    display.nodes.forEach((node, i) => {
+      const sec = Date.parse(node.createdAt) / 1000;
+      if (Number.isFinite(sec)) {
+        createdSec.set(node.id, sec);
+        secondsByIndex[i] = sec;
+      } else {
+        secondsByIndex[i] = -Infinity; // un-stamped: never hidden
+      }
+    });
+    renderer.setNodeTimes(secondsByIndex);
+    nodeTimesSecRef.current = createdSec;
+    const edgeCreatedSec = (edge: GraphEdge): number | undefined => {
+      const endpoints = Math.max(
+        createdSec.get(edge.source) ?? -Infinity,
+        createdSec.get(edge.target) ?? -Infinity,
+      );
+      if (edge.createdAt !== null) {
+        const own = Date.parse(edge.createdAt) / 1000;
+        if (Number.isFinite(own)) return Math.max(own, endpoints);
+      }
+      return endpoints === -Infinity ? undefined : endpoints;
+    };
 
     const fixedLayout =
       layoutModeRef.current === "force" ? null : computeFixedLayout(layoutModeRef.current, display);
@@ -484,19 +703,35 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       type: edge.kind,
       weight: edge.weight,
     }));
-    const renderEdges: RendererEdge[] = display.edges.map((edge) => ({
-      source: edge.source,
-      target: edge.target,
-      linkType: LINK_TYPE_IDS[edge.kind],
-      ...(edge.kind === "semantic" || edge.kind === "temporal"
-        ? { width: 0.7 + Math.min(2.1, edge.weight * 0.3) }
-        : {}),
-      color:
-        edge.kind === "semantic" || edge.kind === "temporal"
-          ? ([...theme.semanticEdge, 0.55] as [number, number, number, number])
-          : ([...theme.edgeDefault, 0.5] as [number, number, number, number]),
-    }));
-    renderer.setEdges(renderEdges);
+    const renderEdges: RendererEdge[] = display.edges.map((edge) => {
+      const createdAt = edgeCreatedSec(edge);
+      return {
+        source: edge.source,
+        target: edge.target,
+        linkType: LINK_TYPE_IDS[edge.kind],
+        // exactOptionalPropertyTypes: omit the key entirely when un-stamped.
+        ...(createdAt !== undefined ? { createdAt } : {}),
+        ...(edge.kind === "semantic" || edge.kind === "temporal"
+          ? { width: 0.7 + Math.min(2.1, edge.weight * 0.3) }
+          : {}),
+        color:
+          edge.kind === "semantic" || edge.kind === "temporal"
+            ? ([...theme.semanticEdge, 0.55] as [number, number, number, number])
+            : ([...theme.edgeDefault, 0.5] as [number, number, number, number]),
+      };
+    });
+    edgesStampsOnRef.current = renderEdges;
+    // The Edges=off time-lapse variant: same topology, no stamps (static).
+    edgesStampsOffRef.current = renderEdges.map(({ createdAt: _stamp, ...rest }) => rest);
+    // Re-apply the session-local time-lapse state on the FRESH renderer
+    // (the driving effects above ran against the pre-rebuild instance):
+    // the cutoff + the Edges=off edge variant survive topology reloads.
+    renderer.setEdges(
+      timeLapseEdgesRef.current ? edgesStampsOnRef.current : edgesStampsOffRef.current,
+    );
+    if (timeLapseRef.current.enabled) {
+      renderer.setTimeLapse(true, timeLapseRef.current.cutoffSec);
+    }
 
     if (fixedLayout === null) {
       const engine = new EngineController((frame) => {
@@ -535,6 +770,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
         positions[i * 2 + 1] = p.y;
       }
       frameRef.current = { positions, nodeIds: order, nodeCount: order.length, energy: 0, ticks: 0, settled: true };
+      positionsRef.current = { positions, nodeIds: order };
       dirtyRef.current = true;
       engineRef.current = null;
       const fit = renderer.fitToCanvas();
@@ -571,6 +807,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       if (frame !== null && dirtyRef.current) {
         dirtyRef.current = false;
         renderer.updatePositions(frame.positions, frame.nodeIds);
+        positionsRef.current = { positions: frame.positions, nodeIds: frame.nodeIds };
       }
       const engine = engineRef.current;
       if (engine !== null && engine.runsOnMainThread && !loopStateRef.current.paused) {
@@ -600,6 +837,8 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
           hovered: loopStateRef.current.hovered,
           selected: selected.length > 0 ? selected[selected.length - 1]! : null,
           colors: graphTheme(),
+          createdTimes: nodeTimesSecRef.current,
+          timeCutoffSec: timeLapseRef.current.enabled ? timeLapseRef.current.cutoffSec : undefined,
         };
         drawLabels(labelFrame);
       }
@@ -661,19 +900,24 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       return next;
     });
 
-  /** Search results over the display set (the v1 register: add to selection). */
-  const searchResults = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    if (needle === "" || display === null) return [];
-    return display.nodes
-      .filter((node) => (client.getDisplayName(node.id) ?? node.id).toLowerCase().includes(needle))
-      .slice(0, 10);
-  }, [search, display, client]);
-
-  const addSearchResultToSelection = (id: string): void => {
-    setSelectedIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
-    setSearch("");
-    setSearchOpen(false);
+  /**
+   * The rail toggle register (the top-bar chips): a chip opens the rail
+   * onto its section; clicking the active section's chip again closes the
+   * rail. The Selected chip additionally scrolls to its section (effect).
+   */
+  const openRailSection = (section: "selection" | "colors"): void => {
+    patch({ railOpen: true });
+    setRailSection(section);
+  };
+  const toggleColorsRail = (): void => {
+    if (!prefs.railOpen) openRailSection("colors");
+    else if (railSection === "colors") patch({ railOpen: false });
+    else setRailSection("colors");
+  };
+  const toggleSelectionRail = (): void => {
+    if (!prefs.railOpen) openRailSection("selection");
+    else if (railSection === "selection") patch({ railOpen: false });
+    else setRailSection("selection");
   };
 
   // ── Interactions ───────────────────────────────────────────────────────────
@@ -689,12 +933,30 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     );
   };
 
+  /**
+   * Node picking with the time-lapse rule: a node created after the current
+   * cutoff is fully hidden on the GL canvas — it must not be hoverable,
+   * draggable, or openable either.
+   */
+  const pickVisibleNode = (worldX: number, worldY: number, radius: number): string | null => {
+    const renderer = rendererRef.current;
+    if (renderer === null) return null;
+    const id = renderer.pickNode(worldX, worldY, radius);
+    if (id === null) return null;
+    const tl = timeLapseRef.current;
+    if (tl.enabled) {
+      const created = nodeTimesSecRef.current.get(id);
+      if (created !== undefined && created > tl.cutoffSec) return null;
+    }
+    return id;
+  };
+
   const onPointerDown = (event: React.PointerEvent<HTMLCanvasElement>): void => {
     const renderer = rendererRef.current;
     const engine = engineRef.current;
     if (renderer === null) return;
     const world = worldAt(event);
-    const nodeId = renderer.pickNode(world.x, world.y, 24 / cameraRef.current.zoom);
+    const nodeId = pickVisibleNode(world.x, world.y, 24 / cameraRef.current.zoom);
     event.currentTarget.setPointerCapture(event.pointerId);
     if (nodeId !== null) {
       draggingRef.current = { nodeId };
@@ -744,7 +1006,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       event.currentTarget.style.cursor = "grabbing";
       return;
     }
-    const nodeId = renderer.pickNode(world.x, world.y, 24 / cameraRef.current.zoom);
+    const nodeId = pickVisibleNode(world.x, world.y, 24 / cameraRef.current.zoom);
     const rect = event.currentTarget.getBoundingClientRect();
     const tip = { x: event.clientX - rect.left, y: event.clientY - rect.top };
     event.currentTarget.style.cursor = nodeId !== null ? "pointer" : "grab";
@@ -774,7 +1036,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       engine?.dragEnd(dragged);
       draggingRef.current = null;
       const world = worldAt(event);
-      const still = rendererRef.current?.pickNode(world.x, world.y, 24 / cameraRef.current.zoom);
+      const still = pickVisibleNode(world.x, world.y, 24 / cameraRef.current.zoom);
       // An un-dragged click toggles the node in the selection (the v1 register).
       if (still === dragged) toggleSelected(dragged);
       return;
@@ -789,16 +1051,100 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   };
 
   // v1 navigation: cursor-anchored zoom (world point under the cursor stays
-  // put) with the v1 clamp range.
+  // put) with the v1 clamp range — shared with the minimap wheel, the dock
+  // buttons, and the keyboard shortcuts via cameraMath.
   const onWheel = (event: React.WheelEvent<HTMLCanvasElement>): void => {
     const renderer = rendererRef.current;
     if (renderer === null) return;
     const world = worldAt(event);
-    const cam = cameraRef.current;
-    const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
-    cam.zoom = Math.max(0.02, Math.min(cam.zoom * factor, 40));
-    cam.x += (world.x - cam.x) * (1 - 1 / factor);
-    cam.y += (world.y - cam.y) * (1 - 1 / factor);
+    cameraRef.current = zoomAtWorldPoint(
+      cameraRef.current,
+      world.x,
+      world.y,
+      wheelZoomFactor(event.deltaY),
+    );
+  };
+
+  /** Dock/keyboard zoom: anchored at the canvas center (the camera position). */
+  const zoomBy = (direction: 1 | -1): void => {
+    cameraRef.current = zoomAtCenter(cameraRef.current, direction);
+  };
+
+  /** Focus: fit the selection's bounding box (single node → center at 1.5). */
+  const focusSelection = (): void => {
+    const frame = positionsRef.current;
+    const canvas = canvasRef.current;
+    if (frame === null || canvas === null || selectedIds.length === 0) return;
+    if (selectedIds.length === 1) {
+      const idx = frame.nodeIds.indexOf(selectedIds[0]!);
+      if (idx < 0) return;
+      cameraRef.current = {
+        x: frame.positions[idx * 2]!,
+        y: frame.positions[idx * 2 + 1]!,
+        zoom: clampZoom(1.5),
+      };
+      return;
+    }
+    const bbox = bboxForNodes(frame.positions, frame.nodeIds, new Set(selectedIds));
+    const dpr = window.devicePixelRatio || 1;
+    const fit = fitBoundingBoxCamera(
+      bbox,
+      canvas.width / dpr,
+      canvas.height / dpr,
+      60,
+    );
+    if (fit !== null) cameraRef.current = fit;
+  };
+
+  /**
+   * The graph surface keyboard register (Obsidian parity): +/- zoom at the
+   * canvas center, arrows pan (Shift = 4×), F focuses the selection, R
+   * recenters. Stage-scoped only — the graph also renders inside the local
+   * card on a page, so no window listeners. Modifiers other than Shift and
+   * text-editing targets pass through untouched.
+   */
+  const onStageKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    const target = event.target;
+    if (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      (target instanceof HTMLElement && target.isContentEditable)
+    ) {
+      return;
+    }
+    const step = 60 * (event.shiftKey ? 4 : 1);
+    switch (event.key) {
+      case "+":
+      case "=":
+        zoomBy(1);
+        event.preventDefault();
+        return;
+      case "-":
+        zoomBy(-1);
+        event.preventDefault();
+        return;
+      case "ArrowLeft":
+        cameraRef.current = panByScreenDelta(cameraRef.current, -step, 0);
+        event.preventDefault();
+        return;
+      case "ArrowRight":
+        cameraRef.current = panByScreenDelta(cameraRef.current, step, 0);
+        event.preventDefault();
+        return;
+      case "ArrowUp":
+        cameraRef.current = panByScreenDelta(cameraRef.current, 0, -step);
+        event.preventDefault();
+        return;
+      case "ArrowDown":
+        cameraRef.current = panByScreenDelta(cameraRef.current, 0, step);
+        event.preventDefault();
+        return;
+      default:
+        break;
+    }
+    if (event.key === "f" || event.key === "F") focusSelection();
+    else if (event.key === "r" || event.key === "R") recenter();
   };
 
   const onDoubleClick = (event: React.MouseEvent<HTMLCanvasElement>): void => {
@@ -806,7 +1152,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     const renderer = rendererRef.current;
     if (renderer === null) return;
     const world = worldAt(event);
-    const hit = renderer.pickNode(world.x, world.y, 24 / cameraRef.current.zoom);
+    const hit = pickVisibleNode(world.x, world.y, 24 / cameraRef.current.zoom);
     if (hit !== null) {
       setSelectedIds([]);
       onNodeClick?.(hit);
@@ -844,6 +1190,272 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       families: { ...DEFAULT_GRAPH_SETTINGS.families },
     });
 
+  // ── The right rail (Selection + Colors) ────────────────────────────────────
+  // Curation chrome, full surface only: a flex sibling of the stage so the
+  // drawable area excludes it (the minimap hugs the remaining canvas).
+  // Sections are kit NodeViewSection collapsibles, both resting collapsed.
+
+  /** The rail's Selection section: the permanent node search (search-to-select —
+   *  the shared NodeSelector, no create: picking adds to the selection and
+   *  never changes topology) above the reorderable selected list. */
+  const selectionSection = (
+    <div ref={selectionSectionRef}>
+      <NodeViewSection
+        title="Selection"
+        count={selectedIds.length}
+        expanded={railSection === "selection"}
+        onExpandedChange={(expanded) => setRailSection(expanded ? "selection" : null)}
+      >
+        <div className="nt-graph__rail-stack">
+          <NodeSelector
+            client={client}
+            trigger="inline"
+            searchMode="all"
+            noCreate
+            value={selectedIds}
+            searchPlaceholder="Search to select…"
+            onAdd={(node) =>
+              setSelectedIds((prev) => (prev.includes(node.id) ? prev : [...prev, node.id]))
+            }
+          />
+          {selectedIds.length === 0 ? (
+            <EmptyState
+              title="No nodes selected"
+              description="Search above or click nodes in the graph."
+            />
+          ) : (
+            <>
+              <ListSortable
+                items={selectedIds.map((id) => ({ id }))}
+                onReorder={moveSelectionItem}
+                itemClassName="nt-graph__selected-item"
+                renderText={(item) => (
+                  <span className="nt-graph__selected-name">
+                    {client.getDisplayName(String(item.id)) ?? String(item.id)}
+                  </span>
+                )}
+                renderAction={(item) => (
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    icon="mdi mdi-close"
+                    aria-label={`Remove ${client.getDisplayName(String(item.id)) ?? String(item.id)}`}
+                    onClick={() =>
+                      setSelectedIds((prev) => prev.filter((s) => s !== item.id))
+                    }
+                  />
+                )}
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                icon="mdi mdi-trash-can-outline"
+                aria-label="Clear selection"
+                onClick={() => setSelectedIds([])}
+              >
+                Clear
+              </Button>
+            </>
+          )}
+        </div>
+      </NodeViewSection>
+    </div>
+  );
+
+  /** The rail's Colors section: the class colors (ordered, first match wins)
+   *  and the query groups — the visual query builder over a Group AST, the
+   *  list order IS the first-match-wins paint priority. */
+  const colorsSection = (
+    <NodeViewSection
+      title="Colors"
+      expanded={railSection === "colors"}
+      onExpandedChange={(expanded) => setRailSection(expanded ? "colors" : null)}
+    >
+      <div className="nt-graph__rail-stack">
+        <div className="nt-graph__rail-row">
+          <span className="nt-graph__rail-heading">Class colors</span>
+          <span className="nt-graph__rail-hint">First match wins · drag to reorder</span>
+        </div>
+        <div className="nt-graph__class-colors">
+          {prefs.classColors.length === 0 && classOptions.length === 0 && (
+            <p className="nt-graph__rail-hint">No classes to color yet.</p>
+          )}
+          {prefs.classColors.length > 0 && (
+            <ListSortable
+              items={prefs.classColors.map((entry) => ({ ...entry, id: entry.classId }))}
+              onReorder={moveClassColor}
+              itemClassName="nt-graph__class-color-item"
+              renderText={(item) => (
+                <span className="nt-graph__class-color-name">
+                  {client.getDisplayName(String(item.classId)) ?? String(item.classId)}
+                </span>
+              )}
+              renderActions={(item) => [
+                <ColorButton
+                  key="color"
+                  color={item.color}
+                  size="xs"
+                  showPicker
+                  aria-label={`Color for ${client.getDisplayName(String(item.classId)) ?? "class"}`}
+                  onColorChange={(color) =>
+                    patch({
+                      classColors: prefs.classColors.map((entry) =>
+                        entry.classId === item.classId
+                          ? { ...entry, color: color ?? "sky" }
+                          : entry,
+                      ),
+                    })
+                  }
+                />,
+                <Button
+                  key="remove"
+                  variant="ghost"
+                  size="xs"
+                  icon="mdi mdi-close"
+                  aria-label={`Remove ${client.getDisplayName(String(item.classId)) ?? "class"}`}
+                  onClick={() =>
+                    patch({
+                      classColors: prefs.classColors.filter(
+                        (entry) => entry.classId !== item.classId,
+                      ),
+                    })
+                  }
+                />,
+              ]}
+            />
+          )}
+          {classOptions.length > 0 && (
+            <Dropdown
+              options={classOptions}
+              placeholder="Add a class…"
+              searchable
+              onChange={(value) => {
+                if (value !== null) addClassColor(value);
+              }}
+            />
+          )}
+        </div>
+        <div className="nt-graph__rail-row nt-graph__rail-row--topline">
+          <span className="nt-graph__rail-heading">Query groups</span>
+          <BooleanToggle
+            size="sm"
+            label="Paint groups"
+            labelPosition="right"
+            checked={prefs.colorGroupsOn}
+            onChange={(event) => patch({ colorGroupsOn: event.target.checked })}
+          />
+        </div>
+        <p className="nt-graph__rail-hint">
+          Class colors paint first; query groups paint matching nodes in their color — first
+          match wins, top to bottom.
+        </p>
+        {prefs.colorGroups.length > 0 && (
+          <ListSortable
+            items={prefs.colorGroups.map((group) => ({ ...group, id: group.id }))}
+            onReorder={moveColorGroup}
+            renderText={(group) => (
+              <div className="nt-graph__rail-group">
+                <TextField
+                  size="sm"
+                  aria-label="Group name"
+                  placeholder="Group name (optional)"
+                  value={group.label}
+                  onChange={(event) =>
+                    patch({
+                      colorGroups: prefs.colorGroups.map((g) =>
+                        g.id === group.id ? { ...g, label: event.target.value } : g,
+                      ),
+                    })
+                  }
+                />
+                {isLegacyColorGroup(group) || group.ast === null ? (
+                  <p role="alert" className="nt-graph__rail-error">
+                    {isLegacyColorGroup(group)
+                      ? "Stored query is being migrated…"
+                      : (group.error ?? "Invalid query")}
+                  </p>
+                ) : (
+                  <FilterBlockBuilder
+                    client={client}
+                    group={group.ast}
+                    // The full offered set — every condition kind evaluates
+                    // through the query runner, so all are paintable.
+                    config={{ class: true, properties: true, dateRange: true }}
+                    onChange={(ast) =>
+                      patch({
+                        colorGroups: prefs.colorGroups.map((g) =>
+                          g.id === group.id ? { ...g, ast } : g,
+                        ),
+                      })
+                    }
+                  />
+                )}
+              </div>
+            )}
+            renderActions={(group) => [
+              <ColorButton
+                key="color"
+                color={group.color}
+                size="xs"
+                showPicker
+                aria-label={`Color for ${group.label || "group"}`}
+                onColorChange={(color) =>
+                  patch({
+                    colorGroups: prefs.colorGroups.map((g) =>
+                      g.id === group.id ? { ...g, color: color ?? "sky" } : g,
+                    ),
+                  })
+                }
+              />,
+              <Button
+                key="remove"
+                variant="ghost"
+                size="xs"
+                icon="mdi mdi-close"
+                aria-label={`Remove ${group.label || "group"}`}
+                onClick={() =>
+                  patch({ colorGroups: prefs.colorGroups.filter((g) => g.id !== group.id) })
+                }
+              />,
+            ]}
+          />
+        )}
+        <Button
+          variant="outline"
+          size="xs"
+          icon="mdi mdi-plus"
+          aria-label="Add group"
+          onClick={() =>
+            patch({
+              colorGroups: [
+                ...prefs.colorGroups,
+                {
+                  id: crypto.randomUUID(),
+                  label: "",
+                  color: "sky",
+                  ast: { type: "group", logic: "and", children: [] },
+                },
+              ],
+            })
+          }
+        >
+          Add group
+        </Button>
+      </div>
+    </NodeViewSection>
+  );
+
+  /** The rail itself (full surface only): kit Card + the two sections. */
+  const railOpenFull = local === undefined && prefs.railOpen;
+  const rail = railOpenFull ? (
+    <aside className="nt-graph__rail" aria-label="Graph rail">
+      <Card variant="outlined" paddingSize="sm" className="nt-graph__rail-card">
+        {selectionSection}
+        {colorsSection}
+      </Card>
+    </aside>
+  ) : null;
+
   // ── Render ─────────────────────────────────────────────────────────────────
   if (display === null || counts === null) {
     return (
@@ -875,8 +1487,8 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   const graphEmpty = display.nodes.length === 0;
   const nothingToGraph = local === undefined && topology !== null && topology.nodes.length === 0;
 
-  /** The settings popover rows (physics + sizing only; filters live in the
-   *  Filters popover, layout mode in the bottom mode bar). */
+  /** The settings popover rows (physics + sizing only; what-to-draw lives in
+   *  the Visibility popover, layout mode + time-lapse in the bottom mode bar). */
   const settingsPanel = (
     <div className="nt-graph__settings">
       {prefs.layoutMode === "force" && (
@@ -994,9 +1606,9 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     </div>
   );
 
-  /** The Filters popover: everything that decides WHAT is drawn — link
-   *  families, node classes, orphans, journal visibility, and the semantic
-   *  web's two bound sliders riding next to their family toggles. */
+  /** The Visibility popover (the eye): everything that decides WHAT is drawn
+   *  — link families, node classes, orphans, journal visibility, and the
+   *  semantic web's two bound sliders riding next to their family toggles. */
   const filtersActive =
     FAMILY_LABELS.some(({ key }) => prefs.families[key] !== true) ||
     !prefs.showClasses ||
@@ -1007,17 +1619,15 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       <span className="nt-graph__settings-heading">Link families</span>
       <div className="nt-graph__filters-chips">
         {FAMILY_LABELS.map(({ key, label }) => (
-          <button
+          <Chip
             key={key}
-            type="button"
-            className={`nt-graph__chip${prefs.families[key] === true ? " nt-graph__chip--on" : ""}`}
-            aria-pressed={prefs.families[key] === true}
+            active={prefs.families[key] === true}
             onClick={() =>
               patch({ families: { ...prefs.families, [key]: !prefs.families[key] } })
             }
           >
             {label}
-          </button>
+          </Chip>
         ))}
       </div>
       <BooleanToggle
@@ -1102,7 +1712,8 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   );
 
   /** The layout mode bar (the v1 register): a transparent dock centered at
-   *  the bottom edge of the stage, overlaying the graph. */
+   *  the bottom edge of the stage, overlaying the graph. The time-lapse
+   *  toggle rides the same bar; its timeline strip opens just above. */
   const modeBar = (
     <div className="nt-graph__modebar">
       <SelectionButton
@@ -1115,32 +1726,131 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
         value={prefs.layoutMode}
         onChange={(value) => patch({ layoutMode: value as GraphLayoutMode })}
       />
+      <Button
+        variant="ghost"
+        size="sm"
+        icon="mdi mdi-animation-play"
+        active={timeLapseOpen}
+        aria-pressed={timeLapseOpen}
+        aria-label="Time lapse"
+        title="Time lapse"
+        onClick={() => {
+          if (timeLapseOpen) {
+            setTimeLapseOpen(false);
+            setTimeLapsePlaying(false);
+          } else {
+            setTimeLapsePos(0);
+            setTimeLapsePlaying(false);
+            setTimeLapseOpen(true);
+          }
+        }}
+      />
+    </div>
+  );
+
+  /** The time-lapse timeline strip (just above the mode bar): play/pause,
+   *  the scrubber over [minCreated, maxCreated], the Edges switch, close. */
+  const timeLapseStrip = timeLapseOpen && (
+    <div className="nt-graph__timelapse">
+      <Button
+        variant="ghost"
+        size="sm"
+        icon={timeLapsePlaying ? "mdi mdi-pause" : "mdi mdi-play"}
+        active={timeLapsePlaying}
+        aria-label={timeLapsePlaying ? "Pause time-lapse" : "Play time-lapse"}
+        title={timeLapsePlaying ? "Pause time-lapse" : "Play time-lapse"}
+        onClick={() => setTimeLapsePlaying((playing) => !playing)}
+      />
+      <Slider
+        className="nt-graph__timelapse-slider"
+        min={0}
+        max={100}
+        step={1}
+        value={Math.round(timeLapsePos)}
+        onChange={(value) => {
+          setTimeLapsePlaying(false);
+          setTimeLapsePos(value);
+        }}
+        aria-label="Time-lapse position"
+      />
+      <BooleanToggle
+        size="sm"
+        label="Edges"
+        labelPosition="right"
+        checked={timeLapseEdges}
+        onChange={(event) => setTimeLapseEdges(event.target.checked)}
+      />
+      <Button
+        variant="ghost"
+        size="sm"
+        icon="mdi mdi-close"
+        aria-label="Close time-lapse"
+        title="Close time-lapse"
+        onClick={() => {
+          setTimeLapseOpen(false);
+          setTimeLapsePlaying(false);
+        }}
+      />
+    </div>
+  );
+
+  /** The bottom-left control dock (mirrors the minimap's bottom-right):
+   *  recenter + pause (moved off the top bar), zoom in/out, and Focus for
+   *  the current selection. */
+  const controlDock = (
+    <div className="nt-graph__dock">
+      <Button
+        variant="ghost"
+        size="sm"
+        icon="mdi mdi-image-filter-center-focus"
+        aria-label="Recenter"
+        title="Recenter"
+        onClick={recenter}
+      />
+      {prefs.layoutMode === "force" && (
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={prefs.paused ? "mdi mdi-play" : "mdi mdi-pause"}
+          active={prefs.paused}
+          aria-pressed={prefs.paused}
+          aria-label={prefs.paused ? "Resume layout" : "Pause layout"}
+          title={prefs.paused ? "Resume layout" : "Pause layout"}
+          onClick={() => patch({ paused: !prefs.paused })}
+        />
+      )}
+      <Button
+        variant="ghost"
+        size="sm"
+        icon="mdi mdi-magnify-plus-outline"
+        aria-label="Zoom in"
+        title="Zoom in"
+        onClick={() => zoomBy(1)}
+      />
+      <Button
+        variant="ghost"
+        size="sm"
+        icon="mdi mdi-magnify-minus-outline"
+        aria-label="Zoom out"
+        title="Zoom out"
+        onClick={() => zoomBy(-1)}
+      />
+      {selectedIds.length > 0 && (
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="mdi mdi-focus-field"
+          aria-label="Focus selection"
+          title="Focus selection"
+          onClick={focusSelection}
+        />
+      )}
     </div>
   );
 
   return (
-    <div className="nt-graph">
+    <div className={railOpenFull ? "nt-graph nt-graph--rail-open" : "nt-graph"}>
       <div className="nt-graph__toolbar" role="toolbar" aria-label="Graph settings">
-        <Button
-          variant="ghost"
-          size="sm"
-          icon="mdi mdi-image-filter-center-focus"
-          aria-label="Recenter"
-          title="Recenter"
-          onClick={recenter}
-        />
-        {prefs.layoutMode === "force" && (
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={prefs.paused ? "mdi mdi-play" : "mdi mdi-pause"}
-            active={prefs.paused}
-            aria-pressed={prefs.paused}
-            aria-label={prefs.paused ? "Resume layout" : "Pause layout"}
-            title={prefs.paused ? "Resume layout" : "Pause layout"}
-            onClick={() => patch({ paused: !prefs.paused })}
-          />
-        )}
         <ButtonWithPanel
           icon="mdi mdi-cog-outline"
           size="sm"
@@ -1156,16 +1866,16 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
         </ButtonWithPanel>
         {local === undefined && (
           <ButtonWithPanel
-            buttonText="Filters"
+            icon="mdi mdi-eye-outline"
             size="sm"
             variant="ghost"
             panelPosition="bottom"
             panelAlignment="start"
             panelWidth={300}
-            title="Filters"
-            aria-label="Filters"
+            title="Visibility"
+            tooltip="Visibility"
             active={filtersActive}
-            buttonClassName={`nt-graph__chip${filtersActive ? " nt-graph__chip--on" : ""}`}
+            buttonProps={{ "aria-pressed": filtersActive }}
           >
             {filtersPanel}
           </ButtonWithPanel>
@@ -1193,101 +1903,25 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
           <>
             <span className="nt-graph__toolbar-spacer" />
             {selectedIds.length > 0 && (
-              <ButtonWithPanel
-                buttonText={`Selected · ${selectedIds.length}`}
-                size="sm"
-                variant="ghost"
-                panelPosition="bottom"
-                panelAlignment="end"
-                panelWidth={260}
-                title="Selected nodes"
+              <Chip
+                active={prefs.railOpen && railSection === "selection"}
                 aria-label="Selected nodes"
-                buttonClassName="nt-graph__selected-trigger"
+                onClick={toggleSelectionRail}
               >
-                <div className="nt-graph__selected-panel">
-                  <ListSortable
-                    items={selectedIds.map((id) => ({ id }))}
-                    onReorder={moveSelectionItem}
-                    itemClassName="nt-graph__selected-item"
-                    renderText={(item) => (
-                      <span className="nt-graph__selected-name">
-                        {client.getDisplayName(String(item.id)) ?? String(item.id)}
-                      </span>
-                    )}
-                    renderAction={(item) => (
-                      <Button
-                        variant="ghost"
-                        size="xs"
-                        icon="mdi mdi-close"
-                        aria-label={`Remove ${client.getDisplayName(String(item.id)) ?? String(item.id)}`}
-                        onClick={() =>
-                          setSelectedIds((prev) => prev.filter((s) => s !== item.id))
-                        }
-                      />
-                    )}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    icon="mdi mdi-trash-can-outline"
-                    aria-label="Clear selection"
-                    onClick={() => setSelectedIds([])}
-                  >
-                    Clear
-                  </Button>
-                </div>
-              </ButtonWithPanel>
+                Selected · {selectedIds.length}
+              </Chip>
             )}
-            <button
-              ref={groupsButtonRef}
-              type="button"
-              className={`nt-graph__chip${prefs.colorGroupsOn || prefs.classColors.length > 0 ? " nt-graph__chip--on" : ""}`}
+            <Chip
+              active={prefs.colorGroupsOn || prefs.classColors.length > 0}
               aria-pressed={prefs.colorGroupsOn}
-              onClick={() => setGroupsOpen((open) => !open)}
+              onClick={toggleColorsRail}
             >
               Colors
-            </button>
-            <div className="nt-graph__search">
-              <SearchField
-                className="nt-graph__search-field"
-                aria-label="Find node"
-                placeholder="Search to add nodes…"
-                value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                  setSearchOpen(true);
-                }}
-                onFocus={() => setSearchOpen(true)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && searchResults.length > 0) {
-                    addSearchResultToSelection(searchResults[0]!.id);
-                  }
-                  if (event.key === "Escape") {
-                    setSearch("");
-                    setSearchOpen(false);
-                  }
-                }}
-              />
-              {searchOpen && searchResults.length > 0 && (
-                <div className="nt-graph__search-results" role="listbox">
-                  {searchResults.map((node) => (
-                    <button
-                      key={node.id}
-                      type="button"
-                      className="nt-graph__search-result"
-                      role="option"
-                      aria-selected={selectedIds.includes(node.id)}
-                      onClick={() => addSearchResultToSelection(node.id)}
-                    >
-                      {client.getDisplayName(node.id) ?? node.id}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            </Chip>
           </>
         )}
       </div>
+      <div className="nt-graph__main">
       {nothingToGraph || graphEmpty ? (
         <div className="nt-graph__stage nt-graph__stage--empty">
           {nothingToGraph ? (
@@ -1310,10 +1944,26 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
             />
           )}
           {modeBar}
+          {timeLapseStrip}
         </div>
       ) : (
-      <div className="nt-graph__stage" ref={containerRef}>
+      <div
+        className="nt-graph__stage"
+        ref={containerRef}
+        tabIndex={0}
+        onKeyDown={onStageKeyDown}
+        onPointerDown={(event) => {
+          // The canvas itself owns drag/pan; chrome clicks keep their focus.
+          if (event.target === canvasRef.current) event.currentTarget.focus();
+        }}
+      >
         {modeBar}
+        {timeLapseStrip}
+        {controlDock}
+        {/* The hover-card sentinel: a 1px cursor-riding anchor standing in
+            for the per-node DOM anchors the app-standard NodeHoverPreview
+            host positions its card against. */}
+        <div ref={hoverSentinelRef} className="nt-graph__hover-sentinel" aria-hidden="true" />
         <canvas
           ref={canvasRef}
           className="nt-graph__canvas"
@@ -1331,6 +1981,26 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
             width={200}
             height={140}
             aria-label="Graph minimap"
+            onWheel={(event) => {
+              // Scroll-to-zoom with the main canvas's exact math: the world
+              // point under the cursor (via the minimap's own linear map)
+              // stays put. Pinch (ctrlKey) behaves the same as the main wheel.
+              const rect = event.currentTarget.getBoundingClientRect();
+              const world = GraphMinimap.screenToWorld(
+                ((event.clientX - rect.left) / rect.width) * event.currentTarget.width,
+                ((event.clientY - rect.top) / rect.height) * event.currentTarget.height,
+                event.currentTarget.width,
+                event.currentTarget.height,
+                frameRef.current,
+                cameraRef.current,
+              );
+              cameraRef.current = zoomAtWorldPoint(
+                cameraRef.current,
+                world.x,
+                world.y,
+                wheelZoomFactor(event.deltaY),
+              );
+            }}
             onPointerDown={(event) => {
               event.currentTarget.setPointerCapture(event.pointerId);
               const rect = event.currentTarget.getBoundingClientRect();
@@ -1359,204 +2029,42 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
             }}
           />
         )}
-        {groupsOpen && local === undefined && (
-          <div className="nt-graph__groups" ref={groupsPanelRef} role="dialog" aria-label="Colors">
-            <div className="nt-graph__groups-head">
-              <strong>Class colors</strong>
-              <span className="nt-graph__groups-hint-inline">First match wins · drag to reorder</span>
-            </div>
-            <div className="nt-graph__class-colors">
-              {prefs.classColors.length === 0 && classOptions.length === 0 && (
-                <p className="nt-graph__groups-hint">No classes to color yet.</p>
-              )}
-              {prefs.classColors.length > 0 && (
-                <ListSortable
-                  items={prefs.classColors.map((entry) => ({ ...entry, id: entry.classId }))}
-                  onReorder={moveClassColor}
-                  itemClassName="nt-graph__class-color-item"
-                  renderText={(item) => (
-                    <span className="nt-graph__class-color-name">
-                      {client.getDisplayName(String(item.classId)) ?? String(item.classId)}
-                    </span>
-                  )}
-                  renderActions={(item) => [
-                    <ColorButton
-                      key="color"
-                      color={item.color}
-                      size="xs"
-                      showPicker
-                      aria-label={`Color for ${client.getDisplayName(String(item.classId)) ?? "class"}`}
-                      onColorChange={(color) =>
-                        patch({
-                          classColors: prefs.classColors.map((entry) =>
-                            entry.classId === item.classId
-                              ? { ...entry, color: color ?? "sky" }
-                              : entry,
-                          ),
-                        })
-                      }
-                    />,
-                    <Button
-                      key="remove"
-                      variant="ghost"
-                      size="xs"
-                      icon="mdi mdi-close"
-                      aria-label={`Remove ${client.getDisplayName(String(item.classId)) ?? "class"}`}
-                      onClick={() =>
-                        patch({
-                          classColors: prefs.classColors.filter(
-                            (entry) => entry.classId !== item.classId,
-                          ),
-                        })
-                      }
-                    />,
-                  ]}
-                />
-              )}
-              {classOptions.length > 0 && (
-                <Dropdown
-                  options={classOptions}
-                  placeholder="Add a class…"
-                  searchable
-                  onChange={(value) => {
-                    if (value !== null) addClassColor(value);
-                  }}
-                />
-              )}
-            </div>
-            <div className="nt-graph__groups-head nt-graph__groups-head--query">
-              <strong>Query groups</strong>
-              <label className="nt-graph__toggle">
-                <input
-                  type="checkbox"
-                  checked={prefs.colorGroupsOn}
-                  onChange={(event) => patch({ colorGroupsOn: event.target.checked })}
-                />
-                Paint groups
-              </label>
-            </div>
-            <p className="nt-graph__groups-hint">
-              Class colors paint first; query groups paint nodes matching a query in its
-              color (first match wins).
-            </p>
-            {prefs.colorGroups.map((group) => {
-              const error = colorGroupError(client, group.query);
-              return (
-                <div key={group.id} className="nt-graph__group-row">
-                  <ColorButton
-                    color={group.color}
-                    size="xs"
-                    showPicker
-                    aria-label={`Color for ${group.label || "group"}`}
-                    onColorChange={(color) =>
-                      patch({
-                        colorGroups: prefs.colorGroups.map((g) =>
-                          g.id === group.id ? { ...g, color: color ?? "sky" } : g,
-                        ),
-                      })
-                    }
-                  />
-                  <input
-                    type="text"
-                    className="nt-graph__group-label"
-                    placeholder="Label"
-                    defaultValue={group.label}
-                    aria-label="Group label"
-                    onBlur={(event) =>
-                      patch({
-                        colorGroups: prefs.colorGroups.map((g) =>
-                          g.id === group.id ? { ...g, label: event.target.value } : g,
-                        ),
-                      })
-                    }
-                  />
-                  <input
-                    type="text"
-                    className="nt-graph__group-query"
-                    placeholder='class:book prop:read:""'
-                    defaultValue={group.query}
-                    aria-label="Group query"
-                    onBlur={(event) =>
-                      patch({
-                        colorGroups: prefs.colorGroups.map((g) =>
-                          g.id === group.id ? { ...g, query: event.target.value } : g,
-                        ),
-                      })
-                    }
-                  />
-                  <button
-                    type="button"
-                    className="nt-graph__tool"
-                    aria-label={`Remove ${group.label || "group"}`}
-                    onClick={() =>
-                      patch({ colorGroups: prefs.colorGroups.filter((g) => g.id !== group.id) })
-                    }
-                  >
-                    ×
-                  </button>
-                  {error !== null && (
-                    <p role="alert" className="nt-graph__group-error">
-                      {error}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
-            <button
-              type="button"
-              className="nt-graph__chip"
-              onClick={() =>
-                patch({
-                  colorGroups: [
-                    ...prefs.colorGroups,
-                    { id: crypto.randomUUID(), label: "", color: "sky", query: "" },
-                  ],
-                })
-              }
-            >
-              + Add group
-            </button>
-          </div>
-        )}
-        {hover !== null && (
+        {/* Node hover rides the app-standard NodeHoverPreview card (sentinel
+            above); only EDGES keep this hand-rolled tooltip (kind/weight/
+            evidence). */}
+        {hover !== null && hover.kind === "edge" && (
           <div
             className="nt-graph__tooltip"
             style={{ left: hover.x + 12, top: hover.y + 12 }}
             role="tooltip"
           >
-            {hover.kind === "node" ? (
-              <div className="nt-graph__tooltip-title">
-                {client.getDisplayName(hover.id) ?? hover.id}
+            <div className="nt-graph__tooltip-title">
+              {hover.edge.kind === "semantic"
+                ? "Semantic link"
+                : hover.edge.kind === "temporal"
+                  ? "Temporal link"
+                  : `${hover.edge.kind} link`}
+              {hover.edge.weight > 1 ? ` · ×${hover.edge.weight}` : ""}
+            </div>
+            <div className="nt-graph__tooltip-hint">
+              {client.getDisplayName(hover.edge.source) ?? hover.edge.source} ↔{" "}
+              {client.getDisplayName(hover.edge.target) ?? hover.edge.target}
+            </div>
+            {hover.edge.evidence !== null && hover.edge.evidence.length > 0 && (
+              <div className="nt-graph__tooltip-evidence">
+                {hover.edge.kind === "temporal" ? "Also dated: " : "Co-mentioned in: "}
+                {hover.edge.evidence
+                  .slice(0, 3)
+                  .map((id) => client.getDisplayName(id) ?? id)
+                  .join(" · ")}
               </div>
-            ) : (
-              <>
-                <div className="nt-graph__tooltip-title">
-                  {hover.edge.kind === "semantic"
-                    ? "Semantic link"
-                    : hover.edge.kind === "temporal"
-                      ? "Temporal link"
-                      : `${hover.edge.kind} link`}
-                  {hover.edge.weight > 1 ? ` · ×${hover.edge.weight}` : ""}
-                </div>
-                <div className="nt-graph__tooltip-hint">
-                  {client.getDisplayName(hover.edge.source) ?? hover.edge.source} ↔{" "}
-                  {client.getDisplayName(hover.edge.target) ?? hover.edge.target}
-                </div>
-                {hover.edge.evidence !== null && hover.edge.evidence.length > 0 && (
-                  <div className="nt-graph__tooltip-evidence">
-                    {hover.edge.kind === "temporal" ? "Also dated: " : "Co-mentioned in: "}
-                    {hover.edge.evidence
-                      .slice(0, 3)
-                      .map((id) => client.getDisplayName(id) ?? id)
-                      .join(" · ")}
-                  </div>
-                )}
-              </>
             )}
           </div>
         )}
       </div>
       )}
+      {rail}
+      </div>
     </div>
   );
 }
