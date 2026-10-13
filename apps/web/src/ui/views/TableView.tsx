@@ -12,6 +12,9 @@
  *   change); row checkboxes with a tri-state header box when `selectable`
  *   (default on) — selection is session state. The header box selects the
  *   LOADED window (labeled so); exports and counts always read the full set.
+ *   Rows are ALWAYS flat — one row per item, children never render, whatever
+ *   the tree/maxDepth props say (owner 2026-10-13, the cards-mode ruling's
+ *   twin: cards always resolve children, table never shows them).
  * - Cells: boolean + select edit inline; text/url/email and number/integer
  *   commit on blur/Enter (empty unsets); date cells open the canonical
  *   date-picker popup (suggestions / All-day / Range / Remove) writing the

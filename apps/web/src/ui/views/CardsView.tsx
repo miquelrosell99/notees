@@ -1,20 +1,40 @@
 /**
- * CardsView — cards mode.
+ * CardsView — cards mode, the v1 node card 1:1 (owner 2026-10-13; the
+ * register read from the v1-archive tag: `KanbanCard.tsx` + `CardItem.css`).
  *
- * - TREE (child blocks): each FIRST-LEVEL block becomes a card titled by its
- *   own content; its child blocks render inside the card (read-only rows).
- *   Clicking a card's title opens the block; the outline mode remains the
- *   editing surface in this slice.
+ * ONE card shape on every surface (the flat grid, the grouped board, tree
+ * contexts):
  *
- * - FLAT (tasks/assets/…): one card per node — icon + title + type + the
- *   cardProperties row (resolved per node through propertiesOf).
+ *   - the cover slot (no-cover / top / left / right) with its empty-state
+ *     Add-cover affordance;
+ *   - the header: a collapse chevron, the title (click opens the node,
+ *     shift-click opens the sidebar when the surface wires it), and the
+ *     hover-reveal action cluster (open-in-sidebar, the node-actions menu —
+ *     the v1 right-click context menu rides as the menu button, the v2
+ *     grammar for that menu);
+ *   - the classes chips row and the tags chips row (NodePills / NodePill,
+ *     read-only — hidden when empty, the v1 read-only rule);
+ *   - the property rows (the container's cardProperties, or EVERY effective
+ *     property with a non-empty display text when none are named — the v1
+ *     register);
+ *   - the body: the node's child blocks, ALWAYS resolved and shown (owner
+ *     2026-10-13): attached `children` win (tree contexts); flat collections
+ *     resolve them from the client per card. Cards ignore the tree/maxDepth
+ *     prop family on purpose. The chevron collapses the body (display state,
+ *     expanded by default — the owner wants the content visible).
  *
- * the top-level card set is windowed in both shapes (the shared
- * useWindowed + ShowMoreButton convention) — the grid renders the loaded
- * window and names the remaining count at its end.
+ * Read-only surface: the outline mode remains the editing surface (the v2
+ * cards grammar since the first cards slice) — the v1 card's inline editors,
+ * add-class/add-tag/add-block affordances, and slash commands stay in the
+ * outline; the chips open the node on click.
+ *
+ * The top-level card set is windowed (the shared useWindowed +
+ * ShowMoreButton convention) — the grid renders the loaded window and names
+ * the remaining count at its end. Selection-export checkboxes ride the flat
+ * node sets (tree contexts stay chrome-less, the established contract).
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, useContext } from "react";
 import { createPortal } from "react-dom";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
@@ -25,6 +45,7 @@ import { BlockRow } from "../BlockRow.js";
 import { nodeIcon } from "../iconFor.js";
 import { displayNameForSettings, displayNameFromClient } from "../dateDisplay.js";
 import { renderStateLabel } from "../renderStateLabel.js";
+import { OutlinerContext, useOutlinerValue } from "../outliner-context.js";
 import { SelectionButton, Checkbox, ImageModal } from "../components/ui/index.js";
 import { registerView } from "./registry.js";
 import { useWindowed } from "./useWindowed.js";
@@ -36,6 +57,10 @@ import { isCoverAsset, setNodeCover } from "../components/coverProperty.js";
 import { AssetUploadModal } from "../components/modals/AssetUploadModal.js";
 import { notificationStore } from "../components/ui/notificationStore.js";
 import { Badge } from "../components/ui/Badge.js";
+import { Breadcrumbs } from "../components/Breadcrumbs.js";
+import { NodeMenuButton } from "../components/NodeMenuButton.js";
+import { NodePill, NodePills } from "../components/NodePills.js";
+import { childQuery } from "../components/childQuery.js";
 import { useCardLayoutPreference } from "../viewPrefs.js";
 import { CardsBoard } from "./CardsBoard.js";
 import { useViewSelection, SelectionExportControls } from "./selectionExport.js";
@@ -44,56 +69,6 @@ import "./CardsView.css";
 
 function toBlockTree(item: NodeCollectionItem): import("@/core/workspace-client.js").BlockTreeNode {
   return { node: item.node, children: (item.children ?? []).map(toBlockTree) };
-}
-
-function hasChildren(items: NodeCollectionItem[]): boolean {
-  return items.some((item) => (item.children?.length ?? 0) > 0);
-}
-
-function TreeCards({ items, props }: { items: NodeCollectionItem[]; props: NodeCollectionProps }) {
-  const { client, onNodeClick, onNodeShiftClick } = props;
-  const resolveName = (id: string) => displayNameFromClient(client, id);
-  const open = (item: NodeCollectionItem) => (event: { shiftKey: boolean }) => {
-    if (event.shiftKey) onNodeShiftClick?.(item.node.id);
-    else onNodeClick?.(item.node.id);
-  };
-  // the top-level card set is the windowed collection (a card's own
-  // children render whole inside it — they are the block's page, not the set).
-  const { visible, remaining, showMore } = useWindowed(items, {
-    enabled: props.windowed ?? true,
-  });
-  return (
-    <div className="cards-grid">
-      {visible.map((item) => {
-        const title = displayNameForSettings(item.node);
-        return (
-          <article className="node-card" key={item.node.id} data-node-id={item.node.id}>
-            <button
-              type="button"
-              className="node-card__title"
-              title={title}
-              onClick={open(item)}
-            >
-              {title === "" ? <span className="node-card__untitled">Untitled block</span> : title}
-            </button>
-            {(item.children?.length ?? 0) > 0 && (
-              <SortableContext
-                items={(item.children ?? []).map((child) => child.node.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="nt-block-tree nt-block-tree--readonly node-card__body">
-                  {(item.children ?? []).map((child) => (
-                    <BlockRow key={child.node.id} tree={toBlockTree(child)} client={client} resolveName={resolveName} readOnly />
-                  ))}
-                </div>
-              </SortableContext>
-            )}
-          </article>
-        );
-      })}
-      <ShowMoreButton remaining={remaining} onShowMore={showMore} />
-    </div>
-  );
 }
 
 /**
@@ -213,7 +188,13 @@ function CardCover({ item, props, layout }: { item: NodeCollectionItem; props: N
   );
 }
 
-/** One flat node card — also the grouped board's card body. */
+/**
+ * One node card — the flat grid's card AND the grouped board's card body
+ * (the v1 NodeCard register, read-only adaptation; see the file header).
+ * Child blocks: attached `children` win (tree contexts); a flat collection
+ * resolves them from the client — cards ALWAYS show content, ignoring the
+ * tree/maxDepth prop family (owner 2026-10-13).
+ */
 export function NodeCard({
   item,
   props,
@@ -230,13 +211,43 @@ export function NodeCard({
    */
   selection?: { checked: boolean; onToggle: () => void } | undefined;
 }) {
-  const { client, onNodeClick, onNodeShiftClick, cardProperties, propertiesOf } = props;
+  const { client, onNodeClick, onNodeShiftClick, cardProperties, propertiesOf, showBreadcrumbs } = props;
   const icon = nodeIcon(item.node, client.effectiveClassIcons());
   const label = displayNameForSettings(item.node) || "Untitled";
+  const resolveName = (id: string) => displayNameFromClient(client, id);
+  const openNode = (id: string) => onNodeClick?.(id);
+  /**
+   * The body set: the item's attached children when the container built a
+   * tree, else the client's live child blocks (comments cut — the childQuery
+   * contract). The memo keys on the item identity: a selection toggle or a
+   * chrome re-render does not re-walk the tree, a section re-resolution
+   * (fresh item) does.
+   */
+  const childItems = useMemo(
+    () => item.children ?? childQuery(client, item.node.id),
+    [item, client],
+  );
+  /** The body collapse — display state, expanded by default (the owner wants the content visible). */
+  const [bodyCollapsed, setBodyCollapsed] = useState(false);
+  /**
+   * The property rows: the container's cardProperties in order, or EVERY
+   * effective property with a non-empty display text (the v1 register).
+   */
   const properties = propertiesOf?.(item.node.id) ?? [];
-  const cardRows = (cardProperties ?? [])
-    .map((schemaId) => properties.find((p) => p.propertySchemaId === schemaId))
-    .filter((prop) => prop !== undefined && propertyDisplayText(client, prop) !== "");
+  const cardRows =
+    cardProperties !== undefined
+      ? cardProperties
+          .map((schemaId) => properties.find((p) => p.propertySchemaId === schemaId))
+          .filter((prop) => prop !== undefined && propertyDisplayText(client, prop) !== "")
+      : properties.filter((prop) => propertyDisplayText(client, prop) !== "");
+  /**
+   * The tags chips: the node's tags, alphabetical (the owner rule the
+   * TagsRow rides), resolved to live nodes — dead ids drop out.
+   */
+  const tagNodes = [...item.node.tagIds]
+    .sort((a, b) => (displayNameFromClient(client, a) ?? a).localeCompare(displayNameFromClient(client, b) ?? b))
+    .map((tagId) => client.getNode(tagId))
+    .filter((tag) => tag !== undefined);
   return (
     <article
       className={`node-card node-card--${coverLayout}${
@@ -262,21 +273,79 @@ export function NodeCard({
       )}
       <CardCover item={item} props={props} layout={coverLayout} />
       <div className="node-card__content">
-        <button
-          type="button"
-          className="node-card__head"
-          title={label}
-          onClick={(event) => {
-            if (event.shiftKey) onNodeShiftClick?.(item.node.id);
-            else onNodeClick?.(item.node.id);
-          }}
-        >
-          {icon !== null && <Icon path={icon} size={1} className="node-card__icon" />}
-          <span className="node-card__label">{label}</span>
-          {!rendersWithDocumentChrome(item.node) && (
-            <span className="node-card__type">{renderStateLabel(item.node)}</span>
-          )}
-        </button>
+        {showBreadcrumbs === true && (
+          <div className="node-card__breadcrumbs">
+            <Breadcrumbs
+              client={client}
+              nodeId={item.node.id}
+              onOpenNode={openNode}
+              anchor="right"
+              editable={false}
+            />
+          </div>
+        )}
+        <div className="node-card__header">
+          <button
+            type="button"
+            className={`node-card__collapse-btn${
+              childItems.length > 0 ? " node-card__collapse-btn--has-children" : ""
+            }`}
+            title={bodyCollapsed ? "Expand" : "Collapse"}
+            aria-label={bodyCollapsed ? `Expand ${label}` : `Collapse ${label}`}
+            aria-expanded={!bodyCollapsed}
+            onClick={(event) => {
+              event.stopPropagation();
+              setBodyCollapsed((value) => !value);
+            }}
+          >
+            <Icon path={bodyCollapsed ? "mdi-chevron-right" : "mdi-chevron-down"} size={0.8} />
+          </button>
+          <button
+            type="button"
+            className="node-card__head"
+            title={label}
+            onClick={(event) => {
+              if (event.shiftKey) onNodeShiftClick?.(item.node.id);
+              else onNodeClick?.(item.node.id);
+            }}
+          >
+            {icon !== null && <Icon path={icon} size={1} className="node-card__icon" />}
+            <span className="node-card__label">{label}</span>
+            {!rendersWithDocumentChrome(item.node) && (
+              <span className="node-card__type">{renderStateLabel(item.node)}</span>
+            )}
+          </button>
+          <span className="node-card__actions">
+            {onNodeShiftClick !== undefined && (
+              <button
+                type="button"
+                className="nt-icon-btn"
+                title="Open in sidebar"
+                aria-label={`Open ${label} in sidebar`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onNodeShiftClick(item.node.id);
+                }}
+              >
+                <Icon path="mdi-dock-right" size={1} />
+              </button>
+            )}
+            <NodeMenuButton client={client} node={item.node} onOpenNode={openNode} />
+          </span>
+        </div>
+        {/* Classes row — the read-only rule: hidden when empty (v1). */}
+        {item.node.classIds.length > 0 && (
+          <div className="node-card__metadata-row node-card__classes-row">
+            <NodePills
+              client={client}
+              nodeId={item.node.id}
+              classIds={item.node.classIds}
+              sortable={false}
+              readOnly
+              onOpenPage={openNode}
+            />
+          </div>
+        )}
         {cardRows.length > 0 && (
           <dl className="node-card__properties">
             {cardRows.map((prop) => (
@@ -286,6 +355,44 @@ export function NodeCard({
               </div>
             ))}
           </dl>
+        )}
+        {/* Tags row — hidden when empty (the v1 read-only rule). */}
+        {tagNodes.length > 0 && (
+          <div className="node-card__metadata-row node-card__tags-row">
+            <div className="nt-property-chips node-metadata-pills">
+              {tagNodes.map((tag) => (
+                <NodePill
+                  key={tag.id}
+                  color={client.effectiveNodeColor(tag)}
+                  icon={tag.icon}
+                  label={displayNameFromClient(client, tag.id) ?? tag.id}
+                  onOpen={() => openNode(tag.id)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+        {/* Body — the child blocks, always resolved (cards ignore the
+            tree/maxDepth prop family); the chevron collapses them. */}
+        {childItems.length > 0 && (
+          <div className={`node-card__body${bodyCollapsed ? " node-card__body--collapsed" : ""}`}>
+            <SortableContext
+              items={childItems.map((child) => child.node.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="nt-block-tree nt-block-tree--readonly">
+                {childItems.map((child) => (
+                  <BlockRow
+                    key={child.node.id}
+                    tree={toBlockTree(child)}
+                    client={client}
+                    resolveName={resolveName}
+                    readOnly
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </div>
         )}
       </div>
     </article>
@@ -333,7 +440,18 @@ function FlatCards({
   const { visible, remaining, showMore } = useWindowed(items, {
     enabled: props.windowed ?? true,
   });
-  const selectable = props.selectable ?? true;
+  const selectable = (props.selectable ?? true) && props.tree !== true;
+  /**
+   * The card bodies render read-only BlockRows on EVERY cards surface (the
+   * v1 card always shows content) — the grid hosts its own OutlinerContext
+   * (the FlatRows precedent): the enclosing page/class view is the
+   * navigation fallback, the shell hubs have none of their own.
+   */
+  const outer = useContext(OutlinerContext);
+  const outliner = useOutlinerValue(props.client, visible[0]?.node.id ?? "", {
+    openNode: (id) => (props.onNodeClick ?? outer?.openNode ?? (() => {}))(id),
+    openInSidebar: (id) => (props.onNodeShiftClick ?? outer?.openInSidebar ?? (() => {}))(id),
+  });
   // Hosted collections: the toolbar portals into the tab bar's right-hand
   // cluster (owner 2026-10-12); un-hosted it rides the body top.
   const chromeTarget = useViewChromeTarget();
@@ -346,44 +464,46 @@ function FlatCards({
   return (
     <div>
       {chromeTarget !== null ? createPortal(toolbar, chromeTarget) : toolbar}
-      <div className="cards-grid">
-        {visible.map((item) => (
-          <NodeCard
-            key={item.node.id}
-            item={item}
-            props={props}
-            coverLayout={coverLayout}
-            selection={
-              selectable
-                ? {
-                    checked: selection.isSelected(item.node.id),
-                    onToggle: () => selection.toggle(item.node.id),
-                  }
-                : undefined
-            }
-          />
-        ))}
-        <ShowMoreButton remaining={remaining} onShowMore={showMore} />
-      </div>
+      <OutlinerContext.Provider value={outliner}>
+        <div className="cards-grid">
+          {visible.map((item) => (
+            <NodeCard
+              key={item.node.id}
+              item={item}
+              props={props}
+              coverLayout={coverLayout}
+              selection={
+                selectable
+                  ? {
+                      checked: selection.isSelected(item.node.id),
+                      onToggle: () => selection.toggle(item.node.id),
+                    }
+                  : undefined
+              }
+            />
+          ))}
+          <ShowMoreButton remaining={remaining} onShowMore={showMore} />
+        </div>
+      </OutlinerContext.Provider>
     </div>
   );
 }
 
 export function CardsView(props: NodeCollectionProps) {
-  const { client, items = [], tree = undefined, groupByProperty } = props;
+  const { client, items = [], groupByProperty } = props;
   // The cover layout persists device-locally — one preference
   // per device shared by every cards surface; never an op.
   // A surface may only shape the unset fallback (defaultCoverLayout);
   // a persisted choice wins everywhere.
   const [coverLayout, setCoverLayout] = useCardLayoutPreference(props.defaultCoverLayout ?? "no-cover");
-  // selection export — flat collections only (tree cards are block
-  // contexts, not a node-set export surface).
+  // selection export — flat node sets only (tree contexts stay chrome-less).
   const selection = useViewSelection();
   if (items.length === 0) return null;
-  if (tree === true || hasChildren(items)) return <TreeCards items={items} props={props} />;
   // The grouped board IS cards mode with a property-dimension groupBy: the
   // container passes a usable select schema → the same cards render as board
-  // columns with between-column drops; otherwise the flat grid.
+  // columns with between-column drops; otherwise the flat grid. ONE card
+  // shape serves both (and tree contexts) — the card resolves its own
+  // children, so the tree/hasChildren dispatch is gone.
   const grouping =
     groupByProperty !== undefined
       ? client.listPropertySchemas().find((s) => s.id === groupByProperty)

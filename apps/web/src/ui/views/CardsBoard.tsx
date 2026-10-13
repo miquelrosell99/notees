@@ -20,7 +20,7 @@
  * "Show more" affordance names the hidden count at the column's end.
  */
 
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   DndContext,
@@ -43,6 +43,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { EmptyState } from "../components/ui/index.js";
 import { Icon } from "../Icon.js";
 import { displayNameForSettings } from "../dateDisplay.js";
+import { OutlinerContext, useOutlinerValue } from "../outliner-context.js";
 import { useCardLayoutPreference } from "../viewPrefs.js";
 import { NodeCard, CoverLayoutToggle } from "./CardsView.js";
 import { useViewSelection, SelectionExportControls } from "./selectionExport.js";
@@ -231,6 +232,17 @@ export function CardsBoard({ props }: { props: NodeCollectionProps }) {
   // cluster (owner 2026-10-12); un-hosted it rides the body top.
   const chromeTarget = useViewChromeTarget();
   const selectable = props.selectable ?? true;
+  /**
+   * The board's cards carry the v1 node-card body (child-block rows), which
+   * consume the OutlinerContext — the board hosts its own (the FlatRows
+   * precedent) with the container's handlers wired in. Hooks above the
+   * early returns (the empty states) — hook order stays unconditional.
+   */
+  const outer = useContext(OutlinerContext);
+  const outliner = useOutlinerValue(client, items[0]?.node.id ?? "", {
+    openNode: (id) => (props.onNodeClick ?? outer?.openNode ?? (() => {}))(id),
+    openInSidebar: (id) => (props.onNodeShiftClick ?? outer?.openInSidebar ?? (() => {}))(id),
+  });
 
   const schema =
     groupByProperty !== undefined
@@ -345,23 +357,25 @@ export function CardsBoard({ props }: { props: NodeCollectionProps }) {
         onDragEnd={handleDragEnd}
         onDragCancel={() => setDragging(null)}
       >
-        <div className="board">
-          {columns.map((column) => (
-            <BoardColumn
-              key={column.id}
-              columnId={column.id}
-              label={column.label}
-              count={buckets.get(column.id)?.length ?? 0}
-              items={ordered(column.id)}
-              props={props}
-              collapsed={collapsedColumns.has(column.id)}
-              onToggleCollapse={() => toggleCollapse(column.id)}
-              coverLayout={coverLayout}
-              selectable={selectable}
-              selection={selection}
-            />
-          ))}
-        </div>
+        <OutlinerContext.Provider value={outliner}>
+          <div className="board">
+            {columns.map((column) => (
+              <BoardColumn
+                key={column.id}
+                columnId={column.id}
+                label={column.label}
+                count={buckets.get(column.id)?.length ?? 0}
+                items={ordered(column.id)}
+                props={props}
+                collapsed={collapsedColumns.has(column.id)}
+                onToggleCollapse={() => toggleCollapse(column.id)}
+                coverLayout={coverLayout}
+                selectable={selectable}
+                selection={selection}
+              />
+            ))}
+          </div>
+        </OutlinerContext.Provider>
         <DragOverlay dropAnimation={null}>
           {dragging !== null && (
             <div className="board-ghost">{displayNameForSettings(dragging.node) || "Untitled"}</div>
