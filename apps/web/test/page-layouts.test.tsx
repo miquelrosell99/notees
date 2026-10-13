@@ -587,6 +587,35 @@ describe("L4 breadcrumb edit gestures", () => {
     expect(screen.queryByRole("button", { name: "+ Add parent" })).toBeNull();
     expect(screen.queryByRole("button", { name: "agent" })).toBeNull();
   });
+
+  it("date-chain parenting lock: editable renders no parent-edit affordance on a date page", async () => {
+    const client = await seedClient();
+    const chain = await client.ensureDateChain("2026-09-27");
+
+    const { container } = render(
+      <Breadcrumbs client={client} nodeId={chain.day} onOpenNode={() => {}} editable />,
+    );
+    // The trail still renders (month → year crumbs, date-formatted)…
+    expect(screen.getByRole("button", { name: "2026/09" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "2026" })).not.toBeNull();
+    // …but every chain edge is locked: no chevron buttons at all, and the
+    // right-click menu never opens (both crumbs' edges lead into date nodes).
+    expect(container.querySelector(".node-breadcrumb-edit")).toBeNull();
+    fireEvent.contextMenu(screen.getByRole("button", { name: "2026/09" }));
+    fireEvent.contextMenu(screen.getByRole("button", { name: "2026" }));
+    expect(screen.queryByRole("menuitem")).toBeNull();
+    expect(screen.queryByRole("button", { name: "+ Add parent" })).toBeNull();
+    // Sanity: an ordinary page under an ordinary page still shows the
+    // affordance in the same render session (the lock keys on the date id).
+    const parent = await client.createObject({ presentAsMain: true, name: "Ordinary Parent" });
+    const child = await client.createObject({ parentId: parent, presentAsMain: true, name: "Ordinary Child" });
+    const second = render(
+      <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} editable />,
+    );
+    expect(
+      second.container.querySelector(".node-breadcrumb-edit"),
+    ).not.toBeNull();
+  });
 });
 
 // --- L4: unlinked references promote/ignore -----------------------------------------
