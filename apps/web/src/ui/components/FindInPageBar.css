@@ -1,0 +1,79 @@
+/* FindInPageBar — docked at the top of the page content column (the host
+   mounts it sticky inside the nodeview's scroll box, below the node top
+   bar). Tokens only (the css-token-drift gate); the values mirror the
+   FindReplaceWidget companion. */
+
+.find-in-page {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-100);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1-5);
+  padding: var(--spacing-2);
+  margin: 0 calc(-1 * var(--spacing-2));
+  background: var(--color-surface-bright);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-large);
+}
+
+.find-in-page__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1-5);
+}
+
+.find-in-page__input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--spacing-1) var(--spacing-2);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  font-size: var(--font-size-button);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+}
+
+.find-in-page__count {
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+  min-width: var(--spacing-8);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.find-in-page__btn {
+  padding: var(--spacing-1) var(--spacing-2);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  min-width: var(--button-min-height);
+  min-height: var(--button-min-height);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.find-in-page__btn:hover:not(:disabled) {
+  background: var(--color-surface-container-high);
+}
+
+.find-in-page__btn:disabled {
+  opacity: var(--opacity-50);
+  cursor: not-allowed;
+}
+
+.find-in-page__btn--active {
+  background: var(--accent-color);
+  color: var(--color-on-accent);
+  border-color: var(--accent-color);
+}
+
+.find-in-page__btn--icon {
+  padding: 0;
+  width: var(--button-icon-only-xs);
+}

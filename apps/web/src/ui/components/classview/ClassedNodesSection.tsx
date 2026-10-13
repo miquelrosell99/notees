@@ -41,6 +41,7 @@ import {
   EMPTY_FILTER_QUERY,
   filterQueryToGroup,
   isFilterInactive,
+  quickTextOf,
   type FilterQuery,
 } from "../filterQuery.js";
 import { useSectionData, type SectionRowFilter } from "../useSectionData.js";
@@ -102,8 +103,14 @@ export function ClassedNodesSection({
   const [memberFilter, setMemberFilter] = useState<FilterQuery>(EMPTY_FILTER_QUERY);
   const memberFilterActive = useMemo<SectionRowFilter<ClientNode> | undefined>(() => {
     if (isFilterInactive(memberFilter)) return undefined;
+    // The quick text narrows the pool by the ranked search before the
+    // structured group applies — it rides the filter, not the AST.
     const group = filterQueryToGroup(memberFilter);
-    return group === null ? undefined : { group, nodeOf: (member) => member };
+    return {
+      group: group ?? { type: "group", logic: "and", children: [] },
+      text: quickTextOf(memberFilter),
+      nodeOf: (member) => member,
+    };
   }, [memberFilter]);
   const loadMembers = useCallback(() => client.getClassMembers(classId), [client, classId]);
   const [expanded, setExpanded] = useState(true);

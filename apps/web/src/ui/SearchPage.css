@@ -1,0 +1,66 @@
+/**
+ * SearchPage styles — the full-page search surface at /search.
+ *
+ * Rides the nav-hub chrome conventions (.nt-hub padding + header) from
+ * app.css; everything here is token-only (variables.css), adaptive values
+ * (em/rem/ch/%), no hard-coded px.
+ */
+
+.search-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  height: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* The filter row: scope tabs left, class dropdown right; the results
+   panel (inside the Tabs root) drops to its own line below. */
+.search-page__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+}
+
+.search-page__scope-tabs {
+  flex: 1;
+  min-width: min(100%, 32ch);
+}
+
+.search-page__class-filter {
+  flex-shrink: 0;
+  min-width: 12ch;
+}
+
+.search-page__results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  max-width: 72ch;
+  margin-top: var(--spacing-3);
+}
+
+/* The snippet excerpt rides under the result row, indented to the row's
+   name column (icon width + gap, the NodeResultItem crumbs precedent). */
+.search-page__snippet {
+  padding-left: calc(var(--icon-size-md) + var(--spacing-2));
+  margin-top: calc(-1 * var(--spacing-1));
+  margin-bottom: var(--spacing-1);
+  overflow: hidden;
+}
+
+.search-page__show-more {
+  align-self: flex-start;
+  margin-top: var(--spacing-2);
+}
+
+.search-page__hint,
+.search-page__empty,
+.search-page__loading {
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+  padding: var(--spacing-4) 0;
+}
