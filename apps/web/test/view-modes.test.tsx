@@ -171,9 +171,11 @@ describe("child-blocks triad", () => {
 
     const cards = screen.getAllByRole("article");
     expect(cards.length).toBe(2);
-    // Card 1: the childless root. Card 2: title + the nested child inside.
+    // Card 1: the childless root. Card 2: title + the nested child in the
+    // collapsible blocks row (collapsed by default — expand it).
     expect(within(cards[0]!).getByText("root one")).not.toBeNull();
     expect(within(cards[1]!).getByText("root two")).not.toBeNull();
+    fireEvent.click(within(cards[1]!).getByRole("button", { name: "Expand root two" }));
     expect(within(cards[1]!).getByText("nested under two")).not.toBeNull();
   });
 });
@@ -235,9 +237,10 @@ describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
       />,
     );
     const card = container.querySelector(".node-card") as HTMLElement;
-    // The body is collapsed by default (the v1 register) — the chevron
-    // shows the content on demand.
-    expect(card.querySelector(".node-card__body")!.className).toContain("node-card__body--collapsed");
+    // The blocks row renders its header at rest (chevron + label), the body
+    // collapsed by default — the chevron shows the content on demand.
+    expect(card.querySelector(".node-card__body")).toBeNull();
+    expect(within(card).getByText("Blocks")).not.toBeNull();
     fireEvent.click(within(card).getByRole("button", { name: "Expand Member" }));
     expect(within(card).getByText("member body block")).not.toBeNull();
     expect(within(card).getByText("body grandchild")).not.toBeNull();
@@ -247,7 +250,7 @@ describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
     expect(chevron.className).toContain("node-card__collapse-btn--has-children");
   });
 
-  it("the collapse chevron shows and hides the body (display state, never an op)", async () => {
+  it("the blocks-row chevron shows and hides the child blocks (display state, never an op)", async () => {
     const client = await seedClient();
     const member = await client.createObject({ presentAsMain: true, name: "Foldable" });
     await client.createObject({
@@ -266,15 +269,14 @@ describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
     );
     const card = container.querySelector(".node-card") as HTMLElement;
     const body = () => card.querySelector(".node-card__body");
-    // Collapsed at rest…
-    expect(body()!.className).toContain("node-card__body--collapsed");
-    // …expand shows it (display:none released — jsdom keeps the text in the
-    // DOM either way, so the assertion is structural)…
+    // Collapsed at rest (the body is not mounted)…
+    expect(body()).toBeNull();
+    // …expand mounts it…
     fireEvent.click(within(card).getByRole("button", { name: "Expand Foldable" }));
-    expect(body()!.className).not.toContain("node-card__body--collapsed");
-    // …collapse hides it again.
+    expect(body()).not.toBeNull();
+    // …collapse unmounts it again.
     fireEvent.click(within(card).getByRole("button", { name: "Collapse Foldable" }));
-    expect(body()!.className).toContain("node-card__body--collapsed");
+    expect(body()).toBeNull();
     const chevron = within(card).getByRole("button", { name: "Expand Foldable" });
     expect(chevron.getAttribute("aria-expanded")).toBe("false");
   });

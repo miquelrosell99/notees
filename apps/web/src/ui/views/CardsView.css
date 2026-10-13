@@ -218,9 +218,10 @@
   margin-bottom: var(--spacing-2);
 }
 
-/* ─── The card body — child-block rows (the v1 body register) ────── */
+/* ─── The blocks row — header (chevron + label) over the child blocks ── */
 
-/* Original body: padded rows, NO divider — the border-top was a later invention. */
+/* Original body: padded rows; the blocks row's header carries the hairline
+   above it (every card row is hairline-separated, owner 2026-10-13). */
 .node-card__body {
   padding: var(--spacing-2) var(--spacing-3) var(--spacing-3);
   font-size: var(--font-size-sm);
@@ -228,10 +229,21 @@
   overflow: hidden;
 }
 
-/* The collapse chevron hides the body (display state, collapsed by default —
-   the v1 register; the chevron shows the content on demand). */
-.node-card__body--collapsed {
-  display: none;
+.node-card__blocks-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
+  min-width: 0;
+}
+
+.node-card__blocks-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ─── Card header — chevron + title + hover-reveal actions (the v1 header
@@ -325,7 +337,9 @@
   color: var(--color-primary);
 }
 
-/* ─── Metadata rows — classes + tags chips (the v1 register) ─────── */
+/* ─── Metadata rows — classes + tags chips: their OWN rows, hairline-
+   separated (owner 2026-10-13 — the v1 row structure, the dividers new;
+   v1 carried no row dividers, only the cover mat's edges). ─────── */
 
 .node-card__metadata-row {
   display: flex;
@@ -334,17 +348,20 @@
   align-items: center;
   min-width: 0;
   overflow: hidden;
-  padding: 0 var(--spacing-3) var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
 }
 
-/* ─── Property rows — the original two-column register ───────────── */
+/* ─── The properties section — a row per property, label | value in two
+   columns (the table-row register), hairline-separated rows. ────── */
 
 .node-card__properties {
   display: flex;
   flex-direction: column;
   margin: 0;
-  padding: 0 var(--spacing-3) var(--spacing-2);
+  padding: 0 var(--spacing-3);
   font-size: var(--font-size-base);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .node-card__property {
@@ -352,8 +369,14 @@
   align-items: center;
   gap: var(--spacing-2);
   min-width: 0;
-  /* Original property-row: min-height spacing-9, label/value centered. */
+  /* The table-row register: min-height spacing-9, label/value centered. */
   min-height: var(--spacing-9);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
+}
+
+/* The section's first row rides directly under the section hairline. */
+.node-card__property:first-child {
+  border-top: none;
 }
 
 .node-card__property dt {

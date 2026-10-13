@@ -9,6 +9,33 @@ predating this file.
 
 ## 2026-10-13
 
+- **feat(web): the card's rows take the owner's layout — classes row, tags
+  row, then the properties section, every row hairline-separated; the blocks
+  move under their own header row (owner 2026-10-13).** Three layout rulings
+  on the v1 card (with the honest v1 note the owner asked about: the v1
+  archive's card DID give classes its own row, but carried NO row dividers —
+  v1's header comment reads "No background tint or divider — typography
+  carries the hierarchy"; its only hairlines were the cover mat's edges. The
+  dividers are the owner's refinement, the rows the v1 structure). (1) The
+  classes row is its own row under a hairline, then the tags row, then the
+  properties section — the owner-pinned order (the first cut had properties
+  between them). (2) The properties section reads as a table: a row per
+  property, label | value in two columns (label 40%, the table-row register
+  — min-height spacing-9, centered), every row hairline-separated; scope
+  unchanged (every effective property unless the container names
+  `cardProperties` — the classed-nodes cards mirror the table's bound
+  columns). (3) The child blocks move out of the title header's chevron into
+  a BLOCKS ROW — a header bar (the collapse chevron, bordered, + a "Blocks"
+  label) riding over the child blocks under a hairline, collapsed by default;
+  the title header is title + actions only. The collapsed body now unmounts
+  (conditional render — a collapsed card with a deep subtree holds no dead
+  rows), so the old `node-card__body--collapsed` display-none rule retires.
+  Docs: `docs/ux.md` + `docs/usage.md` carry the row layout. **Verification:**
+  the card specs re-pinned (blocks header at rest, expand/collapse mount
+  round trip, the triad's cards test expands the row); `pnpm typecheck` green
+  and the full `pnpm test` gate green (two single-test flakes under the
+  concurrent sessions' load, green on immediate standalone re-runs).
+
 - **feat(web): the v1 card's body collapses by default, and the card title
   IS the page-view title row (owner refinements 2026-10-13).** Two amendments
   to the v1 node card shipped earlier today. (1) The child-block body starts

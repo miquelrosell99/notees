@@ -17,11 +17,13 @@
  *     header's trampoline contract); document-chrome nodes carry text-only
  *     titles (the store's flatten invariant), so rich chips ride block
  *     members' cards;
- *   - the classes chips row and the tags chips row (NodePills / NodePill,
- *     read-only — hidden when empty, the v1 read-only rule);
- *   - the property rows (the container's cardProperties, or EVERY effective
- *     property with a non-empty display text when none are named — the v1
- *     register);
+ *   - the classes chips row, the tags chips row, and the property rows (in
+ *     that order — owner 2026-10-13): their own hairline-separated rows (the
+ *     dividers are the owner's refinement; v1's rows were bare), the chips
+ *     read-only and hidden when empty (the v1 read-only rule), the
+ *     properties a row per property in two columns (the table-row register) —
+ *     the container's cardProperties, or EVERY effective property with a
+ *     non-empty display text when none are named (the v1 register);
  *   - the body: the node's child blocks, ALWAYS resolved (owner
  *     2026-10-13): attached `children` win (tree contexts); flat collections
  *     resolve them from the client per card. Cards ignore the tree/maxDepth
@@ -288,21 +290,6 @@ export function NodeCard({
           </div>
         )}
         <div className="node-card__header">
-          <button
-            type="button"
-            className={`node-card__collapse-btn${
-              childItems.length > 0 ? " node-card__collapse-btn--has-children" : ""
-            }`}
-            title={bodyCollapsed ? "Expand" : "Collapse"}
-            aria-label={bodyCollapsed ? `Expand ${label}` : `Collapse ${label}`}
-            aria-expanded={!bodyCollapsed}
-            onClick={(event) => {
-              event.stopPropagation();
-              setBodyCollapsed((value) => !value);
-            }}
-          >
-            <Icon path={bodyCollapsed ? "mdi-chevron-right" : "mdi-chevron-down"} size={0.8} />
-          </button>
           {/* The title IS the page-view title — the same bullet-less BlockRow
               (variant="title", read-only): the content stream renders its
               inline tokens (class links, mentions), a click opens the node
@@ -335,7 +322,8 @@ export function NodeCard({
             <NodeMenuButton client={client} node={item.node} onOpenNode={openNode} />
           </span>
         </div>
-        {/* Classes row — the read-only rule: hidden when empty (v1). */}
+        {/* Classes row — its own row under a hairline (owner 2026-10-13), the
+            read-only rule: hidden when empty (v1). */}
         {item.node.classIds.length > 0 && (
           <div className="node-card__metadata-row node-card__classes-row">
             <NodePills
@@ -348,17 +336,7 @@ export function NodeCard({
             />
           </div>
         )}
-        {cardRows.length > 0 && (
-          <dl className="node-card__properties">
-            {cardRows.map((prop) => (
-              <div className="node-card__property" key={prop!.propertySchemaId}>
-                <dt>{prop!.schema?.name ?? "Property"}</dt>
-                <dd>{propertyDisplayText(client, prop)}</dd>
-              </div>
-            ))}
-          </dl>
-        )}
-        {/* Tags row — hidden when empty (the v1 read-only rule). */}
+        {/* Tags row — own row, hairline, hidden when empty (the v1 rule). */}
         {tagNodes.length > 0 && (
           <div className="node-card__metadata-row node-card__tags-row">
             <div className="nt-property-chips node-metadata-pills">
@@ -374,26 +352,57 @@ export function NodeCard({
             </div>
           </div>
         )}
-        {/* Body — the child blocks, always resolved (cards ignore the
-            tree/maxDepth prop family); the chevron collapses them. */}
-        {childItems.length > 0 && (
-          <div className={`node-card__body${bodyCollapsed ? " node-card__body--collapsed" : ""}`}>
-            <SortableContext
-              items={childItems.map((child) => child.node.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="nt-block-tree nt-block-tree--readonly">
-                {childItems.map((child) => (
-                  <BlockRow
-                    key={child.node.id}
-                    tree={toBlockTree(child)}
-                    client={client}
-                    resolveName={resolveName}
-                    readOnly
-                  />
-                ))}
+        {/* The properties section: a row per property, label | value in two
+            columns (the table-row register), hairline-separated rows. */}
+        {cardRows.length > 0 && (
+          <dl className="node-card__properties">
+            {cardRows.map((prop) => (
+              <div className="node-card__property" key={prop!.propertySchemaId}>
+                <dt>{prop!.schema?.name ?? "Property"}</dt>
+                <dd>{propertyDisplayText(client, prop)}</dd>
               </div>
-            </SortableContext>
+            ))}
+          </dl>
+        )}
+        {/* The blocks row: a header row (the collapse chevron + the label)
+            rides over the child blocks (owner 2026-10-13) — collapsed by
+            default, the chevron shows the content on demand. Cards always
+            resolve the children (the tree/maxDepth prop family is ignored). */}
+        {childItems.length > 0 && (
+          <div className="node-card__blocks">
+            <div className="node-card__blocks-header">
+              <button
+                type="button"
+                className="node-card__collapse-btn node-card__collapse-btn--has-children"
+                title={bodyCollapsed ? "Expand" : "Collapse"}
+                aria-label={bodyCollapsed ? `Expand ${label}` : `Collapse ${label}`}
+                aria-expanded={!bodyCollapsed}
+                onClick={() => setBodyCollapsed((value) => !value)}
+              >
+                <Icon path={bodyCollapsed ? "mdi-chevron-right" : "mdi-chevron-down"} size={0.8} />
+              </button>
+              <span className="node-card__blocks-label">Blocks</span>
+            </div>
+            {!bodyCollapsed && (
+              <div className="node-card__body">
+                <SortableContext
+                  items={childItems.map((child) => child.node.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="nt-block-tree nt-block-tree--readonly">
+                    {childItems.map((child) => (
+                      <BlockRow
+                        key={child.node.id}
+                        tree={toBlockTree(child)}
+                        client={client}
+                        resolveName={resolveName}
+                        readOnly
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </div>
+            )}
           </div>
         )}
       </div>
