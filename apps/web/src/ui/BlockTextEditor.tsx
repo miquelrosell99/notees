@@ -151,7 +151,7 @@ import {
 } from "react";
 
 import type { ContentAst, Mark } from "@notees/protocol";
-import { chainNodeIds, deriveDisplayName, rendersAsInlineBlock, SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { chainNodeIds, deriveDisplayName, parseDateNodeId, rendersAsInlineBlock, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import { uuidv7 } from "uuidv7";
 
 import { focusAtPoint, focusWithCaret, type CaretPlacement } from "@/editor/caret.js";
@@ -832,6 +832,9 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
         return { kind: "tag", start: caret - 1, query: "", index: 0, anchor: { top: anchor.top, left: anchor.left } };
       }
       if (ch === "+") {
+        // Date-chain class lock (SCHEMA.md "Datetime"): the class set is
+        // fixed — the "+" capture never opens on a date node.
+        if (parseDateNodeId(nodeRef.current.id) !== null) return null;
         const anchor = caretLineAnchor();
         return { kind: "class", start: caret - 1, query: "", index: 0, anchor: { top: anchor.top, left: anchor.left } };
       }
@@ -929,6 +932,9 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       // Title-is-content: the name lives in the class's content — the
       // convenience `name` column is null on class nodes, so the probe
       // compares the derived display name (same rule as taskCycle).
+      // Date-chain class lock (SCHEMA.md "Datetime"): the token applies but
+      // a date node's class set is fixed — no task assignment.
+      if (parseDateNodeId(nodeRef.current.id) !== null) return;
       const taskClassId =
         captureApi
           .listClasses()
