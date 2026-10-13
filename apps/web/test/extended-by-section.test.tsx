@@ -1,7 +1,8 @@
 /**
  * ExtendedBySection tests (jsdom): the "Extended by" system section on a
- * class page — hidden while no class extends this one, a tree of the
- * transitive extenders once any do.
+ * class page — hidden while no class extends this one, a flat list of the
+ * DIRECT extenders once any do (transitive extenders show only under their
+ * own direct parent).
  *
  * The hide-when-empty early return sat BEFORE the useMemo — a
  * rules-of-hooks violation in the historical title-editor crash class.
@@ -72,7 +73,7 @@ describe("ExtendedBySection", () => {
     expect(screen.getByText("Extended by")).not.toBeNull();
   });
 
-  it("shows the transitive extender tree", async () => {
+  it("shows only direct extenders — no transitive nesting", async () => {
     const client = await seedClient();
     const parentId = await createTitledClass(client, "work");
     const midId = await createTitledClass(client, "tv series");
@@ -83,8 +84,14 @@ describe("ExtendedBySection", () => {
     const header = screen.getByText("Extended by");
     const section = header.closest(".nt-section");
     expect(section).not.toBeNull();
-    // Both levels render — the leaf nests under the mid class row.
+    // Only the direct extender renders — the transitive leaf (episode, under
+    // tv series) does NOT also appear under the grandparent class.
     expect(section!.textContent).toContain("tv series");
-    expect(section!.textContent).toContain("episode");
+    expect(section!.textContent).not.toContain("episode");
+    // The leaf DOES render under its direct parent's section.
+    view.rerender(<NodeView client={client} nodeId={midId} onOpenNode={() => {}} />);
+    const midHeader = screen.getByText("Extended by");
+    const midSection = midHeader.closest(".nt-section");
+    expect(midSection!.textContent).toContain("episode");
   });
 });

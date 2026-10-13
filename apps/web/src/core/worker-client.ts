@@ -90,6 +90,7 @@ const READ_INVALIDATION: Record<string, "change" | "structure" | "scope"> = {
   getAnnotationsForAsset: "scope",
   getClassParents: "scope",
   getClassChildren: "scope",
+  getDirectClassChildren: "scope",
   getClassMembers: "scope",
   getClassMemberCount: "scope",
   getClassBindings: "scope",
@@ -436,6 +437,10 @@ export class WorkerClient {
 
   getClassChildren(classId: string): import("@/core/workspace-client.js").ClientNode[] {
     return this.cachedRead("getClassChildren", [classId], []);
+  }
+
+  getDirectClassChildren(classId: string): import("@/core/workspace-client.js").ClientNode[] {
+    return this.cachedRead("getDirectClassChildren", [classId], []);
   }
 
   getClassMembers(classId: string): ClientNode[] {
