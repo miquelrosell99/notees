@@ -9,7 +9,12 @@
 
 .node-view-section {
   border-top: var(--border-width-default) solid var(--color-outline-variant);
-  padding-top: var(--spacing-3);
+  /* One step tight (owner 2026-10-13): the hairline sits directly at the
+     block surface's ghost row above, so spacing-3 here read as a void
+     between the child blocks and the first section (Created on date pages,
+     Classed nodes on class pages). spacing-2 keeps the header's clearance
+     without the float. */
+  padding-top: var(--spacing-2);
 }
 
 .node-view-section__header-row {
