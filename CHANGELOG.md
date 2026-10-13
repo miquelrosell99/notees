@@ -9,6 +9,22 @@ predating this file.
 
 ## 2026-10-13
 
+- **fix(web): the first section below the block tree stops floating — the
+  Created section on date pages and Classed nodes on class pages (owner
+  2026-10-13).** Both wear the shared `NodeViewSection` chrome, whose
+  `padding-top` steps down `spacing-3`→`spacing-2`: the hairline already
+  sits directly at the child-blocks ghost row (0px above it — measured), so
+  the 12px below it read as a void between the blocks and the section
+  header. The sidebar-panel and `.nt-page-sections` overrides (both 0) are
+  untouched; the gap below every section hairline in the content flow
+  tightens with it, one step, in line with the chrome passes above.
+  **Verification:** `pnpm typecheck` + `pnpm test` green (single-test flakes
+  under the concurrent session's load, green on immediate re-runs);
+  `VERIFY-PASS` from the verify-min smoke after the scoped web redeploy;
+  live measure-probe diff on a fixture day page in the test workspace
+  (ghost row→section header 34→30px; section `padding-top` 12→8px), fixture
+  trashed after.
+
 - **feat(web): the topbar's history chevron becomes a hover-reveal
   affordance, and its popup right-anchors to it (owner 2026-10-13).** The
   undo cluster's dropdown arrow now hides at rest — the cluster keeps the
