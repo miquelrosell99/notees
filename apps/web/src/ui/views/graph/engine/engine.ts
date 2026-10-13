@@ -399,6 +399,12 @@ export class GraphEngine {
     this.spatialHash = new FastSpatialHash(config.localRepelRadius, 512);
     this._initForces();
     this.setTopology(nodes, edges);
+    // Warm-quiet start (owner 2026-10-13): a FRESH engine seeds its per-node
+    // activity from config.initialAlpha (default 1.0 = full unfold). Cached
+    // workspaces pass 0.2 — nearly still on open. setTopology's internal
+    // reheat (full activity) is deliberate: topology changes re-animate the
+    // whole graph; only the fresh start is quieted.
+    this.alphaArr.fill(config.initialAlpha ?? 1.0, 0, this.n);
   }
 
   private _initForces(): void {

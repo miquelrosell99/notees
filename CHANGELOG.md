@@ -9,6 +9,32 @@ predating this file.
 
 ## 2026-10-13
 
+- **fix(web): the graph opens framed and settles fast — first-frame camera
+  fit, 4× alpha cooling, warm quiet start, pre-paint warmup, idle label
+  pass (owner 2026-10-13: "blank while loading, movement never stops, not
+  smooth").** Live headless probes against the deployed stack isolated three
+  real causes (the GL renderer itself was exonerated by an isolated harness
+  reproducing the exact per-frame call sequence): (1) the force path never
+  fit the camera — `cameraRef` kept its `{0,0,0.5}` initial and only the
+  fixed-layout branch called `fitToCanvas()`, so an opening view whose
+  cached layout sat off-origin painted an empty canvas; the loop now fits
+  once on the first engine frame (`fitDoneRef`, never reset — rebuilds keep
+  the user's camera). (2) `alphaDecay 0.005` needed ~1050 ticks minimum
+  before the settle gate could even fire — minutes of visible wobble at 7.4k
+  nodes; decay is now 0.02 (settle horizon ~265–290 ticks, forces unchanged
+  in shape), the worker's pre-paint fast-forward runs 150 ticks at 3× dt,
+  and a workspace with ≥70% cached positions starts at `initialAlpha 0.2` —
+  returning users see ~64% less drift over the first 100 ticks, i.e. the map
+  opens nearly still and finishes cooling in about a second (reheats and
+  topology updates keep full-alpha semantics). (3) the canvas2d label pass
+  redrew unconditionally every frame; a pure `labelSignatureChanged` gate
+  (camera, frame identity, hover, selection, name map, time-lapse state,
+  canvas size) now skips redraws when nothing that affects labels changed.
+  **Verification:** `pnpm typecheck` + `pnpm test` green (1580 incl. new
+  warm-start-settles-sooner, signature-gate, and first-frame-fit specs);
+  suite settle numbers: fresh 291 ticks vs warm-start 211–265, first-100-tick
+  drift 290k vs 801k world-units.
+
 - **feat(web): property provenance flips — manual properties are unmarked,
   class-sourced ones wear a "C" badge (owner 2026-10-13).** The owner turned
   the marking scheme around: don't mark "manual" properties (the retired
