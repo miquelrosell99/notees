@@ -48,10 +48,11 @@ type AnyClient = WorkspaceClient | WorkerClient;
  * WHOLE card above the column split (owner 2026-10-09): the properties
  * collapse toggle and the classes pills on the left; on the right the
  * host's blocks view switcher, the context collapse toggle (absent on the
- * class variant — no context column), and the "…" node menu — over a
- * full-width divider border like the sidebar's. Full-width so the bar never
- * rescales when a panel column shows or hides; each panel toggle sits
- * directly above the column it reveals.
+ * class variant — no context column), and the "…" node menu. The divider
+ * border under the row retired (owner 2026-10-13) — the spacing-3 margin
+ * below the bar is its whole separation from the columns. Full-width so
+ * the bar never rescales when a panel column shows or hides; each panel
+ * toggle sits directly above the column it reveals.
  */
 export function NodeTopbar({
   client,

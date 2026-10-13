@@ -628,23 +628,21 @@ select:focus-visible {
 
 /* The nodeview top bar: the properties collapse toggle and the classes
    pills on the left, the view-mode switcher + context toggle + node menu on
-   the right, over a divider border like the sidebar's. The bar spans the
-   WHOLE card, above the column split (owner 2026-10-09): its controls act
-   on the layout's columns, so it must not rescale when a panel shows or
-   hides — the page's own horizontal padding carries both edges, and each
-   panel toggle sits directly above the column it reveals. */
+   the right. The bar spans the WHOLE card, above the column split (owner
+   2026-10-09): its controls act on the layout's columns, so it must not
+   rescale when a panel shows or hides — the page's own horizontal padding
+   carries both edges, and each panel toggle sits directly above the column
+   it reveals. No vertical padding (owner 2026-10-13): the panelled page's
+   padding-top carries the bar's top gap so it matches the horizontal
+   padding that carries the sides. No divider border either (owner
+   2026-10-13): the spacing-3 margin below is the bar's whole separation
+   from the columns. */
 .nt-node-topbar {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
   flex-shrink: 0;
-  /* No vertical padding (owner 2026-10-13): the panelled page's own
-     padding-top carries the bar's top gap, so it matches the horizontal
-     padding that carries the sides — the bar's padding used to stack on
-     top of it and read as double. The spacing-3 bottom margin below the
-     border is the bar's whole bottom gap, like the panels' bottom stop. */
   padding: 0;
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
   margin-bottom: var(--spacing-3);
 }
 
