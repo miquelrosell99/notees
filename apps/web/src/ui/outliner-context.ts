@@ -32,6 +32,8 @@ import { displayNameFromClient } from "./dateDisplay.js";
 export interface OutlinerClient {
   getNode(id: string): ClientNode | undefined;
   effectiveNodeColor(node: Pick<ClientNode, "color" | "classIds">): string | null;
+  /** Class effectiveColor (the extends-chain walk): tints class-chip underlines. */
+  effectiveClassColor(classId: string): string | null;
   createObject(partial: CreateObjectInput): Promise<string>;
   updateObject(id: string, fields: UpdateObjectInput): Promise<void>;
   deleteObject(id: string, opts?: DeleteObjectOptions): Promise<void>;
