@@ -17,6 +17,13 @@ export interface GraphEnginePhysicsConfig {
   massAccumulation?: boolean;
   /** Cluster separation slider (0–100) — scales the inter-cluster margin. */
   clusterSeparation?: number;
+  /**
+   * Starting per-node activity for a FRESH engine only (default 1.0).
+   * GraphView passes 0.2 when ≥70% of the nodes carry cached positions — a
+   * warm layout opens nearly still and finishes cooling in a second or two.
+   * Topology updates and reheats always restore full activity regardless.
+   */
+  initialAlpha?: number;
 }
 
 /** Raw numeric configuration consumed by the engine. */
@@ -40,6 +47,8 @@ export interface GraphEngineConfig {
   alphaDecay: number;
   /** Below this alpha a node contributes no force and is eligible to freeze. */
   alphaMin: number;
+  /** Per-node activity seeded when a FRESH engine starts (default 1.0). */
+  initialAlpha?: number;
   /** Mean kinetic energy under which the graph counts as still. */
   settleEnergyEps: number;
   /** Consecutive still ticks required before the engine declares settled. */
