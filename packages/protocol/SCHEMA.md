@@ -162,6 +162,24 @@ The design contradiction (one assessment deemed `node_alias` obsolete while the 
 - **Name-equivalence:** an alias page's title is one of the main page's names — the unlinked-references pass matches it for the main page (a source that *links* the alias is already linked by alias, so it never lists as unlinked). `resolveNodeByName` resolves an exact alias-page title to the alias page (the mention target it creates is the alias page; navigation resolves it per the rule above); the server's `GET /api/resolve` folds node aliases to the terminal via the same chain walker.
 - **Coexistence:** text aliases (`…0028`) and node aliases (the wire field) are independent and may combine: "Cats" as a text alias of **Cat** is just another name; **Cats** as a node alias is a page whose inbound links roll up to **Cat** while its own view stays separate.
 
+## Node merge (NORMATIVE, owner 2026-10-13 — the v1 mergePages port, extended to the v2 model)
+
+**Merging absorbs one node into another.** `merge(source → target)` consolidates the source page into the target page and trashes the source. It is a **client/server-composed gesture of EXISTING op types — there is deliberately NO `object.merge` op**: a merge plans to a deterministic batch of ordinary convergent ops, so every client (web local-first, GTK, Flutter, CLI) converges on it by replay with zero applier changes, the web's undo journal inverts it as one gesture, and the wire stays untouched.
+
+The normative semantics (the TS reference planner is `packages/store` `planMerge`; the server exposes it at `POST /api/objects/:id/merge` with a `?dryRun=true` preview):
+
+1. **Children** — the source's active children move to the target (append, relative order preserved; sequential `object.move` with `afterId` chaining). The source's own title content is NOT carried over — title-is-content means the target keeps its title.
+2. **Class & tag bindings** — the target gains each of the source's memberships (the re-issued `object.create` add carrier); the source's memberships tombstone (`class.unassign` / `tag.unassign`). The OR-Set remap is idempotent.
+3. **Authored properties** — copy source → target: a **single-value slot copies only when the target has no authored value there** (the target wins; a populated slot is reported as skipped, never overwritten); a **multi-value slot appends the source's value-distinct elements under FRESH PG5 element ids** (element identity is per-row; copying the id would collide). Node references to the source inside copied values/metadata rewrite to the target.
+4. **Content links** — every active node's `contentAst` gets its **`mention` tokens pointing at the source retargeted to the target** (`object.update`, the edge index re-derives); nested occurrences (inside `quote`/`heading` children) included. Aliases are not followed here: a mention of an alias of the source keeps pointing at the alias (leg 5 repoints the alias, resolution lands on the target).
+5. **Aliases** — every node whose `aliasedNodeId` is the source repoints to the target.
+6. **Property references** — node-typed property values (object/asset refs, datetime anchors, date-qualified `startDate`/`endDate` metadata) on ANY active node that reference the source rewrite to the target via `property.set` re-addressing the same element id (LWW overwrite).
+7. **Collections** — each collection holding the source gains the target and drops the source (`collection.member.add` / `remove`).
+8. **Wire fields** — `coverAssetId` / `bannerAssetId` / `description` copy only when the target's field is empty.
+9. **The source trashes last** (`object.delete {permanent: false}`) — every other leg reads source state at plan time and the delete must not precede its own plan's application.
+
+**Guards fail loud BEFORE anything reaches the log** (`MergeGuardError` / 422 `validation_failed`): either node missing or trashed, either node a class, source === target, the target inside the source's subtree (trashing the source would trash the target), or the source a non-empty collection (membership remap into an arbitrary node is out of scope). A merge is a deliberate, previewable gesture: the plan's numeric summary (children moved, bindings/properties/links/aliases/collections remapped, properties skipped) is the `--dry-run` / dialog contract.
+
 ## Select options: colors + icons (NORMATIVE, PG16 colors owner 2026-10-04; icons 2026-10-05)
 
 A select/multi_select option record is `{ id, label }` plus an **optional `color`** — a preset token or a custom `#RRGGBB` hex; absent/null = no color (additive JSON inside the existing options array — no op-shape change). Clients render the color on the selection pill (themed background, contrast-appropriate foreground — the class-pill convention) and expose a per-option color control in the schema settings; the settings/settings-freeze contract is unchanged (options replace wholesale on `propertySchema.update`, colors included).
