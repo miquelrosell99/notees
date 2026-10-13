@@ -147,6 +147,50 @@ predating this file.
   (card→node-topbar buttons 27→17px, topbar→card 12→8px, sidebar avatar
   32→20px = nav column); `pnpm typecheck` + `pnpm test` green; verify-min
   smoke after the scoped web redeploy.
+- **feat(store,server,web): node merge — the v1 merge gesture, extended to the
+  v2 model, composed of existing ops (no wire change).** A merge absorbs one
+  page into another and trashes the source. The heart is a pure planner over
+  the derived store — `packages/store` `planMerge(db, sourceId, targetId)`
+  (SCHEMA.md "Node merge", the normative semantics) — emitting a deterministic
+  batch of ordinary convergent ops: the source's active children move to the
+  target (order preserved, `afterId` chaining); class/tag bindings remap (the
+  re-issued `object.create` add carrier + `class.unassign`/`tag.unassign`
+  tombstones); authored properties copy into EMPTY target slots only (target
+  wins; multi-value slots union under fresh PG5 element ids; self-references
+  rewrite); incoming mention tokens in every active referencing page retarget
+  (quote/heading nesting included; the edge index re-derives); aliases
+  repoint; node-typed property values (object/asset refs, datetime anchors,
+  date-qualified metadata) rewrite by re-addressing the same element;
+  collection memberships remap; cover/banner/description fill empty target
+  fields; the source trashes LAST. Guards fail loud before anything reaches
+  the log (`MergeGuardError` → 422): class/collection/trashed source, target
+  inside the source subtree, source === target. Because the wire is untouched,
+  GTK/Flutter clients converge on a merge by replay alone — no applier
+  changes, no fixture-gate slice; the CLI ships its own surface in
+  `notees-cli` (`notees object merge`, vendor pin to this commit).
+  **Store:** `src/merge.ts` + exports + the `uuidv7` dep; 12 new specs on both
+  adapters (end-to-end merge, guards, wipe→replay determinism, field copy,
+  rewrite helpers) — **503 tests green**. **Server:** `POST
+  /api/objects/:id/merge {targetId}` plans over the server's projection and
+  submits through the one write path; `?dryRun=true` returns the plan summary
+  without writing (the CLI preview contract); OpenAPI route-table entry (the
+  coverage gate pins it); 5 new route specs — **230 tests green**. **Web:**
+  `WorkspaceClient.mergeNodes` applies the plan as ONE undo-journal batch (a
+  single undo restores the merge); `MergeNodesModal` (source prefilled from
+  the open page, pages-only target picker, danger confirmation naming both
+  pages) and a command-palette row **"Merge current page into…"** shown only
+  while a mergeable page is open (non-class, document chrome; the host
+  contributes it only in the in-process store mode — the worker mode has no
+  local DB for the planner yet); 7 new specs — **1487 web tests green**.
+  Docs in the same pass: SCHEMA.md "Node merge", `docs/usage.md` (web app
+  item + the API table row), `docs/ux.md` (the merge section + undo
+  coverage), `docs/developers/architecture.md` (the composite-gestures
+  precedent + file map). **Verification:** `pnpm typecheck` clean;
+  `pnpm test` green per package (store 503, server 230, web 1487; the
+  server suite needed one re-run — concurrent sessions' test loads on the
+  shared host timed out 25 unrelated specs, all green on retry).
+  **Redeployed:** `notees-sync` + `notees-web` rebuilt, `verify-min.mjs`
+  VERIFY-PASS.
 
 ## 2026-10-12
 

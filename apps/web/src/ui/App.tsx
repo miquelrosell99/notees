@@ -81,6 +81,7 @@ import { NodeSelector } from "./components/pickers/NodeSelector.js";
 import { createNodesWithClasses } from "./components/createNodesWithClasses.js";
 import { QuickAddModal } from "./components/modals/QuickAddModal.js";
 import { ClassCreateModal } from "./components/modals/ClassCreateModal.js";
+import { MergeNodesModal } from "./components/modals/MergeNodesModal.js";
 import { PropertyView } from "./components/PropertyView.js";
 import { AssetUploadModal } from "./components/modals/AssetUploadModal.js";
 import { QuickCreateFab } from "./components/QuickCreateFab.js";
@@ -744,6 +745,9 @@ export function App() {
   const [classCreateOpen, setClassCreateOpen] = useState(false);
   /** The palette's Properties section: the picked schema's PropertyView. */
   const [propertyViewFor, setPropertyViewFor] = useState<string | null>(null);
+  /** The palette's "Merge current page into…" command (in-process store only —
+   *  the planner reads the local SQLite database directly). */
+  const [mergeOpen, setMergeOpen] = useState(false);
   /**
    * The session undo journal's chrome state (availability + labels).
    * Refreshed on a macrotask coalescer off every client notification (the
@@ -2108,6 +2112,8 @@ export function App() {
         onNewPage={(title) => void handleNewPage(title)}
         onOpenClassCreate={() => setClassCreateOpen(true)}
         onOpenProperty={(schemaId) => setPropertyViewFor(schemaId)}
+        currentNodeId={selectedPageId ?? undefined}
+        onOpenMerge={storeMode === "in-process" ? () => setMergeOpen(true) : undefined}
         onSignOut={() => void handleSignOut()}
         undoState={undoUi}
         onUndo={() => {
@@ -2143,6 +2149,18 @@ export function App() {
           client={client}
           onClose={() => setClassCreateOpen(false)}
           onCreated={(id) => openPage(id)}
+        />
+      )}
+      {mergeOpen && selectedPageId !== null && client instanceof WorkspaceClient && (
+        <MergeNodesModal
+          isOpen
+          client={client}
+          sourceId={selectedPageId}
+          onClose={() => setMergeOpen(false)}
+          onMerged={(targetId) => {
+            setMergeOpen(false);
+            openPage(targetId);
+          }}
         />
       )}
       {propertyViewFor !== null && (
