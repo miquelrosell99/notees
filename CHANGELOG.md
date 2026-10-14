@@ -17,11 +17,16 @@ predating this file.
   children rows vanish) — the click toggles every direct child's own
   collapse state at once: the children rows remain, their subtrees fold; a
   childless child is skipped (nothing to fold); when every collapsible
-  child is already folded the click unfolds them all. The line extension
-  (reaches the bullet across the metadata) is untouched. **Verification:**
-  the rail probe asserts the full contract — after one click the grandchild
-  hides while the direct children rows AND the owner's expanded chevron
-  stay; a second click unfolds; the metadata-gap click behaves the same.
+  child is already folded the click unfolds them all. (The first ship of the
+  ruling inverted the toggle condition — `!==` where `===` belongs — and the
+  click silently no-op'd: "clicking the vertical thread does nothing now".
+  The live probe caught it; the fix rides the same entry.) The line
+  extension (reaches the bullet across the metadata) is untouched.
+  **Verification:** a jsdom spec pins the fold / owner-untouched / unfold
+  contract; the rail probe asserts the full contract in the real browser —
+  after one click the grandchild hides while the direct children rows AND
+  the owner's expanded chevron stay; a second click unfolds; the
+  metadata-gap click behaves the same.
 
 - **fix(web): clicking the indent rail collapses the block's WHOLE children
   group at once (owner correction 2026-10-14: "it collapses the child block

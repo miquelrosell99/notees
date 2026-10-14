@@ -240,7 +240,8 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
     if (collapsible.length === 0) return;
     const allCollapsed = collapsible.every((child) => collapsed.has(child.node.id));
     for (const child of collapsible) {
-      if (collapsed.has(child.node.id) !== allCollapsed) toggleCollapse(child.node.id);
+      // Target: collapsed unless every child is already folded (then unfold).
+      if (collapsed.has(child.node.id) === allCollapsed) toggleCollapse(child.node.id);
     }
   };
 
