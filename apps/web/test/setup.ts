@@ -16,8 +16,8 @@ if (typeof globalThis.ResizeObserver === "undefined") {
 // jsdom has no canvas backend: getContext would log a "Not implemented"
 // virtual-console error on EVERY call (the context column mounts a graph
 // card with each page view) before returning null. Return null quietly —
-// the same value, without the noise; the graph's WebGL-missing path renders
-// its honest empty state either way.
+// the same value, without the noise; the graph's renderer-missing path
+// renders its honest empty state either way.
 if (typeof HTMLCanvasElement !== "undefined") {
   HTMLCanvasElement.prototype.getContext = (() =>
     null) as unknown as typeof HTMLCanvasElement.prototype.getContext;

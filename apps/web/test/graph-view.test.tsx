@@ -1,7 +1,7 @@
 /**
  * graph-view tests: the display-shaping contract (settings filters,
  * semantic sparsification, edge LOD masks), the registry slot, the
- * component's honest WebGL-2-missing fallback (jsdom has no GL — the real
+ * component's honest renderer-failed fallback (jsdom has no GPU backend — the real
  * canvas path is exercised in the browser, the port boundary per the
  * renderer/engine unit suites), the reference empty surfaces (nothing to
  * graph yet / the filtered-out state with its reset / the local depth
@@ -160,7 +160,7 @@ describe("GraphView component", () => {
     expect(entry!.label).toBe("Graph");
   });
 
-  it("renders the honest WebGL 2 fallback when GL is unavailable", async () => {
+  it("renders the honest renderer-failed fallback when the GPU backend is unavailable", async () => {
     const client = await seedClient();
     // A live display (two connected nodes) mounts the stage — the renderer
     // init then fails honestly on jsdom's missing GL.
@@ -171,7 +171,7 @@ describe("GraphView component", () => {
       contentAst: [{ type: "mention", targetNodeId: pageB, text: "Beta" }],
     });
     render(<GraphView client={client} />);
-    expect(await screen.findByText("WebGL 2 required")).toBeTruthy();
+    expect(await screen.findByText("Graph renderer failed")).toBeTruthy();
   });
 
   it("renders 'Nothing to graph yet' on an empty workspace — no canvas mounts", async () => {
@@ -235,10 +235,10 @@ describe("GraphView component", () => {
 
       // The reset returns the filters to the shipped defaults (orphans
       // visible): the lone page appears and the empty surface steps aside
-      // (the jsdom WebGL fallback replaces it — the canvas path is a
-      // browser concern).
+      // (the jsdom renderer-failed fallback replaces it — the canvas path
+      // is a browser concern).
       fireEvent.click(screen.getByRole("button", { name: "Reset filters" }));
-      await screen.findByText("WebGL 2 required", {}, { timeout: 3000 }).catch(() => {});
+      await screen.findByText("Graph renderer failed", {}, { timeout: 3000 }).catch(() => {});
       expect(screen.queryByText("All nodes hidden by filters")).toBeNull();
     } finally {
       window.localStorage.clear();
@@ -276,7 +276,7 @@ describe("GraphView component", () => {
   it("the chrome composes from the kit: the Visibility eye, the settings popover with the preset dropdown, the bottom mode bar with the time-lapse toggle, the rail toggle chips", async () => {
     window.localStorage.clear();
     // The stable filtered-out state: toolbar + empty surface, no canvas
-    // mount (so the jsdom WebGL fallback can't replace the chrome). The
+    // mount (so the jsdom renderer-failed fallback can't replace the chrome). The
     // bottom-left control dock and the time-lapse strip are canvas-bound
     // (the dock's recenter/zoom/focus operate on the renderer) — the port
     // boundary per the renderer/engine unit suites.
@@ -573,8 +573,8 @@ describe("GraphView component", () => {
     // frame (the force path never fitted the opening camera — the "blank
     // while loading" fix).
     vi.resetModules();
-    vi.doMock("../src/ui/views/graph/renderer/webglRenderer.js", () => ({
-      GraphWebGLRenderer: class StubRenderer {
+    vi.doMock("../src/ui/views/graph/renderer/pixiRenderer.js", () => ({
+      GraphPixiRenderer: class StubRenderer {
         cameras: Array<{ x: number; y: number; zoom: number }> = [];
         constructor() {
           glStub.instances.push(this);
