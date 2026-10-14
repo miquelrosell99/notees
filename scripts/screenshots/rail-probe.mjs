@@ -1,8 +1,8 @@
 // Indent-rail probe: the collapse rail must (1) REACH the block's row
 // bottom across its metadata sections (the line starts at the bullet), and
-// (2) target per height: a click beside a direct child collapses THAT
-// child's children, a click beside a childless block does nothing, and a
-// click in the metadata gap (above the first child) collapses the owner's.
+// (2) fold EACH direct child individually — the owner's own expansion
+// stays, the children rows remain, their subtrees fold at once; a second
+// click unfolds them all (owner 2026-10-14).
 // TEST workspace; cleans up after itself.
 import { chromium } from "playwright";
 
@@ -97,47 +97,49 @@ try {
   };
   const visible = (id) => pg.evaluate((bid) => document.querySelector(`[data-block-id="${bid}"]`) !== null, id);
 
-  // ── 2. Click beside a2 → a2's children collapse (NOT the owner A) ──
+  const ownerExpanded = () =>
+    pg.evaluate((aid) => {
+      const chevron = document.querySelector(`[data-block-id="${aid}"] .nt-block-chevron`);
+      return chevron === null ? null : chevron.getAttribute("aria-expanded");
+    }, A);
+
+  // ── 2. Click beside a child → EACH direct child folds individually: a2's
+  //    subtree hides (a2a gone) but a2's row stays; childless a2b stays; the
+  //    OWNER's own expansion is untouched. ──
   {
     const g = await geom();
     await clickRailAt(g.a2Top + 8);
     const a2aGone = !(await visible(a2a));
     const a2Still = await visible(a2);
-    console.log("click beside a2 → a2a hidden:", a2aGone, " a2 visible:", a2Still);
-    if (!a2aGone) throw new Error("a2's children did not collapse");
-    if (!a2Still) throw new Error("a2 itself must stay visible");
-    if (!(await visible(A))) throw new Error("the owner A must stay visible");
+    const a2bStill = await visible(a2b);
+    const ownerStillExpanded = (await ownerExpanded()) === "true";
+    console.log("rail click → a2a hidden:", a2aGone, " a2 visible:", a2Still, " a2b visible:", a2bStill, " owner expanded:", ownerStillExpanded);
+    if (!a2aGone) throw new Error("a2's subtree did not fold");
+    if (!a2Still || !a2bStill) throw new Error("the direct children rows must remain");
+    if (!ownerStillExpanded) throw new Error("the owner's own expansion must stay untouched");
+
+    // ── 3. Click again → every folded child unfolds. ──
+    await clickRailAt(g.a2Top + 8);
+    const a2aBack = await visible(a2a);
+    console.log("second rail click → a2a back:", a2aBack);
+    if (!a2aBack) throw new Error("the second click did not unfold the children");
   }
 
-  // ── 3. Reload; click beside a2b (a childless DIRECT child) → nothing
-  //    collapses ──
-  await pg.reload({ waitUntil: "commit" });
-  await pg.waitForSelector(`[data-block-id="${A}"] .nt-block-children__rail`, { timeout: 60_000 });
-  {
-    const g = await geom();
-    await clickRailAt(g.a2bTop + 8);
-    const allThere = (await visible(a2a)) && (await visible(a2)) && (await visible(a2b)) && (await visible(A));
-    console.log("click beside childless a2b → everything still visible:", allThere);
-    if (!allThere) throw new Error("a click beside a childless block collapsed something");
-  }
-
-  // ── 4. Reload; click in the metadata gap (above the first child) → the
-  //    owner's children collapse ──
+  // ── 4. Reload; a click in the metadata gap folds the same way ──
   await pg.reload({ waitUntil: "commit" });
   await pg.waitForSelector(`[data-block-id="${A}"] .nt-block-children__rail`, { timeout: 60_000 });
   {
     const g = await geom();
     const gapY = (g.rowBottom + g.firstChildTop) / 2;
     await clickRailAt(gapY);
-    const a2Gone = !(await visible(a2));
-    const aStill = await visible(A);
-    console.log("click in the metadata gap → a2 (A's children) hidden:", a2Gone, " A visible:", aStill);
-    if (!a2Gone) throw new Error("the owner's children did not collapse from the gap segment");
-    if (!aStill) throw new Error("A itself must stay visible");
+    const a2aGone = !(await visible(a2a));
+    const a2Still = await visible(a2);
+    console.log("gap click → a2a hidden:", a2aGone, " a2 visible:", a2Still);
+    if (!a2aGone || !a2Still) throw new Error("the gap click did not fold each child individually");
   }
 
   if (consoleErrors.length > 0) throw new Error("console errors: " + consoleErrors.join(" | "));
-  console.log("PROBE-PASS: the rail reaches the bullet and collapses per height");
+  console.log("PROBE-PASS: the rail reaches the bullet and folds each child individually");
   await browser.close();
 } finally {
   await fetch(`${API}/api/objects/${pageId}`, { method: "DELETE", headers: { "x-api-key": KEY, "x-workspace-id": WS } }).catch(() => {});
