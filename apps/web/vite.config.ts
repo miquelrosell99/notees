@@ -9,7 +9,12 @@ export default defineConfig({
   server: {
     // Same-origin API in dev: /api/* proxies to a local sync server (the
     // deployed web container does the same in nginx — one origin for UI+API).
-    proxy: { "/api": "http://localhost:8377" },
+    proxy: { "/api": { target: "http://localhost:8377", ws: true } },
+  },
+  preview: {
+    // Same-origin API for `vite preview` (local build verification against a
+    // running sync server — the graph probes ride this).
+    proxy: { "/api": { target: "http://localhost:8377", ws: true } },
   },
   plugins: [react()],
   resolve: {
