@@ -1,0 +1,47 @@
+# Design overrides — Notees
+
+Per-project override register for the RosellRamos design system (contract:
+`rosellramos-design-system` → `references/overrides.md`). Every deviation from
+the skill's defaults/foundations is recorded here; an undocumented deviation
+is drift, a documented one is a decision. Newest first. Entries bind until the
+rule they override changes, the review trigger fires, or the owner re-rules.
+
+### The night is seed-tinted
+- **Rule**: rosellramos-design-system default 2 (warm near-black ground, monochrome surfaces) + foundations.md §2 (surface neutrals are near-gray).
+- **Decision**: the dark theme's background/surface/outline family derives from `--md-sys-color-primary` via `color-mix` at 4–13% (`variables.css` `[data-theme="dark"]` block) — the night wears the active seed. The monochrome preset is near-achromatic, so it still lands on untinted graphite; the light ground stays brand paper regardless of seed.
+- **Rationale**: personalization is the product's identity (the accent IS the theme, Material You dynamic-color model); a neutral night would make the picker decorative.
+- **Scope**: global (dark theme).
+- **Ruled**: 2026-10-14, token migration slice (the tint predates it — the migration made the derivation explicit and single-track).
+- **Review trigger**: an accessibility or contrast finding against tinted surfaces, or a fleet-wide ruling that dark grounds must be untinted.
+
+### Active/selected states wear the seed's primary-container, not secondary-container
+- **Rule**: foundations.md §2 usage mapping — nav active indicator = `secondary-container`; M3 keeps primary emphasis for buttons.
+- **Decision**: selected chrome (settings section nav, selected segmented options, selected rows) fills `--md-sys-color-primary-container` (seed-derived), with `on-primary-container` ink.
+- **Rationale**: one accent hue active at a time (skill hard rule) — the fleet's "accent is the selected signal" table takes precedence over M3's quieter nav register; Notees has no secondary hue in play.
+- **Scope**: global (selected/active chrome).
+- **Ruled**: 2026-10-14, single-track token migration (semantic preservation of the pre-migration primary-container usage).
+- **Review trigger**: an M3-conformance audit finding active chrome too loud, or the introduction of a real secondary palette.
+
+### Accent presets are brand-specific (Margin Green, not fleet copper)
+- **Rule**: rosellramos-design-system default 4 (fleet default accent = copper, brand accent may replace it).
+- **Decision**: the five presets are Margin Green (brand, default), Monochrome, Brown, Teal, Blue; each sets only `--md-sys-color-primary` + `--md-sys-color-on-primary`, all other primary roles derive via `color-mix`.
+- **Rationale**: brand identity — "the margin is permanent, the green is the act of adding" (brand/palette.json).
+- **Scope**: global.
+- **Ruled**: brand lock (palette.json `locked: true`), carried into the seed model 2026-10-14.
+- **Review trigger**: brand refresh.
+
+### Settings is a full page; the quick-tweaks modal is retired
+- **Rule**: rosellramos-design-system decision table (≤5–7 simple controls may use a modal; hybrid modal+page approved).
+- **Decision**: the gear / Ctrl/Cmd+, / workspace-manager entry all open the full settings page directly; the two-control quick modal was deleted (2026-10-14 slice).
+- **Rationale**: the modal held only theme+accent, both duplicated on the page — no unique function, an extra surface to maintain.
+- **Scope**: global (settings surface).
+- **Ruled**: owner, 2026-10-14 (changelog).
+- **Review trigger**: a future quick-tweak control that is NOT on the page (then re-justify the hybrid).
+
+### Chrome register rulings (owner 2026-10-09 fleet button audit)
+- **Rule**: rosellramos-design-system button registers (skilled commits eccd78e, 1a0045e, 6d437ab).
+- **Decision**: modal/form footers run primary confirm + outline secondary + ghost tertiary-only (default is not a chrome register); the outline register is for state-carrying chrome only — action buttons stay borderless even in chrome; a collapsible section's scoped create affordance rides the section header's trailing action (no in-content add rows).
+- **Rationale**: owner rulings from the Notees button audit, fleet-normative via the skill's own commits.
+- **Scope**: components (buttons, modals, sections).
+- **Ruled**: owner 2026-10-09.
+- **Review trigger**: a fleet-wide register revision in the skill.

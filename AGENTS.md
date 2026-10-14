@@ -40,7 +40,7 @@ AGENTS.md
 - `apps/web` — React/Vite outliner editor + worker (`notees-web` image); carries the session-local op-inverse **undo journal** (`src/core/undo-journal.ts` — client convenience only, inverses compose existing ops, per-tab)
 - `apps/cli` — MOVED 2026-10-05: lives in its own repo (`notees-cli`, sibling to the GTK/Flutter clients, consuming the packages via a pinned `vendor/notees` submodule)
 - `docs/` — **person-facing only**: `usage.md`, `ux.md`, `philosophy.md` + the `developers/` runbooks (indexed by `docs/developers/README.md`). **Internal notes never go in `docs/`; user docs never go in dot-folders.**
-- `.plans/` — date-stamped proposal folders (`YYYY-MM-DD-HHMM-<slug>/`, owner sorting convention 2026-10-06 — first: `2026-10-06-1352-main-content-restructure/`). The old implementation plan + decision record retired 2026-10-06 (pre-retirement history is recoverable from git history); the shipped-work record lives in `CHANGELOG.md`. · `.audits/` — internal audit reports · `.agents/` — internal agent reference: `parked-decisions.md` + the **project skills** (`skills/notees-development`, `skills/notees-operations` — Kimi Code auto-discovers project skills from `.agents/skills/`, Project scope)
+- `.plans/` — date-stamped proposal folders (`YYYY-MM-DD-HHMM-<slug>/`, owner sorting convention 2026-10-06 — first: `2026-10-06-1352-main-content-restructure/`). The old implementation plan + decision record retired 2026-10-06 (pre-retirement history is recoverable from git history); the shipped-work record lives in `CHANGELOG.md`. · `.audits/` — internal audit reports · `.agents/` — internal agent reference: `parked-decisions.md` + `design-overrides.md` (the per-project register of deviations from the RosellRamos design system — contract: the skill's `references/overrides.md`; audits treat a documented deviation as a decision, an undocumented one as drift) + the **project skills** (`skills/notees-development`, `skills/notees-operations` — Kimi Code auto-discovers project skills from `.agents/skills/`, Project scope)
 
 Full file map: `docs/developers/architecture.md` · normative model & wire: `packages/protocol/SCHEMA.md` (and `WIRE.md`).
 
@@ -86,6 +86,7 @@ All chrome MUST compose from `apps/web/src/ui/components/ui/` — one element pe
 | Shipped work | `CHANGELOG.md` (newest first, one entry per slice) |
 | In-flight proposals | `.plans/YYYY-MM-DD-HHMM-<slug>/` |
 | Parked decisions | `.agents/parked-decisions.md` |
+| Design overrides (deviations from the RosellRamos design system) | `.agents/design-overrides.md` |
 | Audit reports | `.audits/` |
 
 ## Parked decisions (owner)
