@@ -7,6 +7,37 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-10-14
+
+- **fix(web): graph load and hover corrections — a stage loading overlay, no
+  lifecycle rebuild on color groups, an instant cached paint, labels that
+  arrive together at a closer zoom, and a color-only hover (owner rulings
+  2026-10-13/14).** (1) Between "topology projected" (counts shown) and the
+  first engine frame the canvas sat blank for seconds at 7.4k nodes — the
+  stage now carries a `LoadingScreen` overlay ("Warming up the layout…") until
+  the first pixels, and a workspace with ≥70% cached positions paints the
+  previous session's map synchronously inside the lifecycle effect (no overlay
+  at all — the map is there on the first composite). (2) The GL lifecycle
+  effect took `groupColors` as a dep: the async color-group queries resolving
+  seconds after mount rebuilt the whole renderer + engine mid-load — the
+  visuals effect already re-applies colors live, so the dep is gone. (3)
+  Labels appeared sporadically because the cap labeled the first N nodes in
+  array order: the regular pass is now viewport-first with radius priority
+  (the hubs claim a bound cap), the large-graph floor moved 0.12 → 0.3 with
+  the fade running 0.3 → 0.7 ("all of them at the same time, at a much higher
+  zoom"), and once everything visible fits the cap, every visible label
+  renders at once. (4) Hover is a pure COLOR operation, never opacity (owner:
+  "the hovered node was not visible at all, the rest became too faint — 20%
+  darker COLOR, not opacity"): the hovered node fills the accent, linked nodes
+  keep their color, incident edges and arrowheads paint the accent, and
+  everything outside the neighborhood darkens 20% toward black at full alpha;
+  `u_hoverDim` and the alpha-dimming path are gone from all three programs.
+  **Verification:** `pnpm --filter @notees/web typecheck` green (the 3 red
+  files are another session's in-flight BlockRow work, untouched) + the five
+  graph suites green (76 specs incl. the recast cap/fade/hover contract and a
+  new viewport-priority spec); live headless probe + compositor screenshot
+  confirm the fitted graph renders labeled.
+
 ## 2026-10-13
 
 - **fix(web): small graphs label at any zoom — the label threshold is now

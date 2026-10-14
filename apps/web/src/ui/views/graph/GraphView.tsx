@@ -317,6 +317,12 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
 
   const [topology, setTopology] = useState<GraphTopology | null>(null);
   const [glError, setGlError] = useState<string | null>(null);
+  // The stage overlay between "topology shown (counts)" and "first pixels":
+  // the engine init + warmup used to leave a blank canvas for seconds (owner
+  // 2026-10-14: "loading modal overlay"). Ref mirrors the state so the rAF
+  // loop can clear it without re-rendering every frame.
+  const [awaitingFirstFrame, setAwaitingFirstFrame] = useState(false);
+  const awaitingFirstFrameRef = useRef(false);
   const [prefs, setPrefs] = useState<GraphPrefs>(() => loadPrefs(prefsSurface));
   /**
    * The rail's expanded section (session-local): which NodeViewSection is
@@ -645,12 +651,19 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   }, [display, prefs.nodeSize, prefs.baseNodeRadius, prefs.linkDirection, groupColors]);
 
   // ── Engine + renderer lifecycle (rebuilds only on the display set) ─────────
+  // groupColors is deliberately NOT a dep: it resolves asynchronously seconds
+  // after mount (the color-group queries), and the visuals effect above
+  // already re-applies colors live — a lifecycle rebuild mid-load wiped the
+  // canvas ("blank until all nodes get loaded", owner 2026-10-14).
   useEffect(() => {
     if (display === null) return;
     const canvas = canvasRef.current;
     const labelCanvas = labelCanvasRef.current;
     const container = containerRef.current;
     if (canvas === null || labelCanvas === null || container === null) return;
+
+    awaitingFirstFrameRef.current = true;
+    setAwaitingFirstFrame(true);
 
     const renderer = new GraphWebGLRenderer({ defaultRadius: 8, edgeWidth: 0.8, cullMargin: 150 });
     try {
@@ -769,6 +782,42 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       renderer.setTimeLapse(true, timeLapseRef.current.cutoffSec);
     }
 
+    // Instant paint from the cached layout: a returning workspace paints the
+    // previous session's map in the same tick as the renderer init — no blank
+    // window while the engine warms up. Uncached nodes sit at the origin until
+    // the first engine frame re-homes them (only when the cache covers the
+    // graph; a stale/partial cache would misrepresent the layout).
+    if (fixedLayout === null && nodeIds.length > 0) {
+      let covered = 0;
+      for (const id of nodeIds) if (cached.has(id)) covered++;
+      if (covered / nodeIds.length >= 0.7) {
+        const positions = new Float32Array(nodeIds.length * 2);
+        nodeIds.forEach((id, i) => {
+          const p = cached.get(id);
+          if (p !== undefined) {
+            positions[i * 2] = p.x;
+            positions[i * 2 + 1] = p.y;
+          }
+        });
+        renderer.updatePositions(positions, nodeIds);
+        positionsRef.current = { positions, nodeIds };
+        frameRef.current = {
+          positions,
+          nodeIds,
+          nodeCount: nodeIds.length,
+          energy: 0,
+          ticks: 0,
+          settled: false,
+        };
+        cameraRef.current = renderer.fitToCanvas();
+        fitDoneRef.current = true;
+        renderer.setCamera(cameraRef.current.x, cameraRef.current.y, cameraRef.current.zoom);
+        renderer.render();
+        awaitingFirstFrameRef.current = false;
+        setAwaitingFirstFrame(false);
+      }
+    }
+
     if (fixedLayout === null) {
       const engine = new EngineController((frame) => {
         frameRef.current = frame;
@@ -867,6 +916,11 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       renderer.setCamera(cam.x, cam.y, cam.zoom);
       renderer.setEdgeMask(edgeMaskForZoom(cam.zoom));
       renderer.render();
+      // First real pixels are on the canvas — the stage overlay steps aside.
+      if (awaitingFirstFrameRef.current) {
+        awaitingFirstFrameRef.current = false;
+        setAwaitingFirstFrame(false);
+      }
 
       const lctx = labelCanvas.getContext("2d");
       if (lctx !== null) {
@@ -959,7 +1013,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       rendererRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [display, client, groupColors]);
+  }, [display, client]);
 
   // ── Selection helpers ──────────────────────────────────────────────────────
   const toggleSelected = (id: string): void =>
@@ -2074,6 +2128,17 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
                   .join(" · ")}
               </div>
             )}
+          </div>
+        )}
+        {/* The loading overlay covers the stage between "topology projected"
+            and "first pixels" — engine init + warmup at 7.4k nodes used to
+            leave a blank canvas here for seconds (owner 2026-10-14: a loading
+            modal, not a blank view). It never renders for cached workspaces:
+            the pre-paint paints synchronously in the lifecycle effect and
+            clears the flag before the browser composites. */}
+        {awaitingFirstFrame && (
+          <div className="nt-graph__stage-loading">
+            <LoadingScreen fullscreen={false} label="Warming up the layout…" />
           </div>
         )}
       </div>
