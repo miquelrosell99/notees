@@ -696,12 +696,24 @@ function applyObjectDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
     return summary(opType, [...affected]);
   }
 
-  // Permanent delete: record retention metadata, then hard-delete the subtree.
+  permanentlyDeleteSubtree(db, p.objectId, ts);
+  return summary(opType, [...affected]);
+}
+
+/**
+ * Hard-delete a subtree and record the root's permanent retention row —
+ * the shared body of `object.delete {permanent: true}` and `trash.empty`
+ * (SCHEMA.md deletion semantics). Every descendant table owned by the
+ * subtree is purged; incoming references from SURVIVING nodes keep their
+ * rows (PB1 — see the object.delete applier's comment) and the alias/edge
+ * projections are re-materialized for the deleted id set.
+ */
+function permanentlyDeleteSubtree(db: StoreDatabase, objectId: string, ts: string): void {
   db.prepare(
     "INSERT OR REPLACE INTO trash (node_id, deleted_at, is_permanent) VALUES (?, ?, 1)",
-  ).run(p.objectId, ts);
+  ).run(objectId, ts);
 
-  const ids = subtreeIds(db, p.objectId);
+  const ids = subtreeIds(db, objectId);
   const placeholders = ids.map(() => "?").join(",");
   db.prepare(`DELETE FROM node WHERE id IN (${placeholders})`).run(...ids);
   db.prepare(
@@ -730,12 +742,40 @@ function applyObjectDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
   db.prepare(`DELETE FROM node_link WHERE source_id IN (${placeholders})`).run(...ids);
   db.prepare(`DELETE FROM edge WHERE source_id IN (${placeholders})`).run(...ids);
   db.prepare(`DELETE FROM node_stats WHERE node_id IN (${placeholders})`).run(...ids);
-  db.prepare(`DELETE FROM trash WHERE node_id IN (${placeholders}) AND node_id != ?`).run(...ids, p.objectId);
+  db.prepare(`DELETE FROM trash WHERE node_id IN (${placeholders}) AND node_id != ?`).run(...ids, objectId);
   for (const id of ids) removeSearchIndexEntry(db, id);
   // Deleted rows are ghosts that never resolve through: re-materialize the
   // rows whose alias chains touched the subtree (incoming edges keep their
   // rows by design — PB1 — with the resolution their chain now yields).
   reresolveEdgeTargets(db, ids);
+}
+
+/**
+ * Empty the trash (the trash.empty op): permanently delete every node
+ * carrying a non-permanent trash row. The root set is snapshotted at apply
+ * time and each root goes through the same subtree purge as `object.delete
+ * {permanent: true}` — a root consumed by an earlier iteration (its own
+ * subtree contained another independently-trashed root) has no node row
+ * left and is skipped. A stale non-permanent trash row with no node row
+ * (legacy dangling state) is swept as cleanup instead of failing replay.
+ * Replay is idempotent: an empty trash table no-ops.
+ */
+function applyTrashEmpty(db: StoreDatabase, env: Envelope): ChangeSummary {
+  const opType = "trash.empty";
+  const ts = env.timestamp;
+  const roots = db
+    .prepare("SELECT node_id FROM trash WHERE is_permanent = 0 ORDER BY node_id")
+    .all() as { node_id: string }[];
+  const affected = new Set<string>();
+  for (const { node_id } of roots) {
+    if (getNodeRow(db, node_id) === undefined) {
+      db.prepare("DELETE FROM trash WHERE node_id = ?").run(node_id);
+      continue;
+    }
+    affected.add(node_id);
+    for (const id of ancestorIds(db, node_id)) affected.add(id);
+    permanentlyDeleteSubtree(db, node_id, ts);
+  }
   rebuildNodeStats(db, [...affected]);
   return summary(opType, [...affected]);
 }
@@ -2132,6 +2172,7 @@ const APPLIERS: Record<
   "object.delete": applyObjectDelete,
   "object.restore": applyObjectRestore,
   "object.move": applyObjectMove,
+  "trash.empty": applyTrashEmpty,
   "class.create": applyClassCreate,
   "class.update": applyClassUpdate,
   "class.delete": applyClassDelete,
