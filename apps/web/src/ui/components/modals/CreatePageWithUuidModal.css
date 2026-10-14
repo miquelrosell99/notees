@@ -16,26 +16,26 @@
 
 .create-uuid-modal__label {
   font: var(--font-label-medium);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .create-uuid-modal__required {
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
 }
 
 .create-uuid-modal__input {
   width: 100%;
   padding: var(--spacing-2) var(--spacing-3);
-  border: var(--border-width-default) solid var(--color-outline-variant);
-  background: var(--color-surface-container-low);
-  color: var(--color-on-surface);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface);
   font: var(--font-body-medium);
   outline: none;
   box-sizing: border-box;
 }
 
 .create-uuid-modal__input:focus {
-  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-outline-variant));
+  border-color: color-mix(in srgb, var(--md-sys-color-primary) 35%, var(--md-sys-color-outline-variant));
 }
 
 .create-uuid-modal__input--mono {
@@ -59,5 +59,5 @@
 .create-uuid-modal__error {
   margin: 0;
   font: var(--font-body-small);
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
 }

@@ -432,7 +432,7 @@ void main() {
 
 export interface NodeVisual {
   radius: number;
-  /** Explicit RGBA color. When undefined, the renderer uses --color-outline from CSS. */
+  /** Explicit RGBA color. When undefined, the renderer uses --md-sys-color-outline from CSS. */
   color?: Float32Array;
   /** When true, the node is rendered slightly brighter as a pinned indicator. */
   pin?: boolean;
@@ -562,7 +562,7 @@ function getCssNodeDefaultColor(): [number, number, number, number] {
       cssCache.nodeDefault = hexToTuple(val);
     } else {
       const fallback = getComputedStyle(document.documentElement)
-        .getPropertyValue('--color-on-surface-variant').trim();
+        .getPropertyValue('--md-sys-color-on-surface-variant').trim();
       cssCache.nodeDefault = fallback ? hexToTuple(fallback) : [0.72, 0.72, 0.72, 1.0];
     }
   }

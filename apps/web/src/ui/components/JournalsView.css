@@ -21,16 +21,16 @@
   gap: var(--spacing-2);
   margin: 0;
   font: var(--font-title-large);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   flex: 1;
   min-width: 0;
 }
 
 .journals-view__today-btn {
   background: none;
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-full);
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
   font: var(--font-label-large);
   padding: var(--spacing-1) var(--spacing-3);
   cursor: pointer;
@@ -49,8 +49,8 @@
 }
 
 .journals-view__today-btn:hover {
-  background: var(--color-primary-container);
-  border-color: var(--color-outline);
+  background: var(--md-sys-color-primary-container);
+  border-color: var(--md-sys-color-outline);
 }
 
 .journals-list {
@@ -73,7 +73,7 @@
      the items shrink to fit and their taller page content paints over the
      siblings below. */
   flex-shrink: 0;
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   padding-bottom: var(--spacing-8);
   position: relative;
   min-height: var(--layout-size-xs);
@@ -96,22 +96,22 @@
   justify-content: center;
   gap: var(--spacing-3);
   padding: var(--spacing-12) var(--spacing-4);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   text-align: center;
 }
 
 .journals-empty__action {
-  background: var(--color-primary);
+  background: var(--md-sys-color-primary);
   border: none;
   border-radius: var(--shape-full);
-  color: var(--color-on-primary);
+  color: var(--md-sys-color-on-primary);
   font: var(--font-label-large);
   padding: var(--spacing-2) var(--spacing-4);
   cursor: pointer;
 }
 
 .journals-empty__action:hover {
-  background: var(--color-primary-hover);
+  background: var(--md-sys-color-primary-hover);
 }
 
 /* The embedded page title is a navigation button, not an editor. */
@@ -122,14 +122,14 @@
   margin: 0;
   text-align: left;
   font: var(--font-headline-medium);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   cursor: pointer;
   min-width: 0;
   border-radius: var(--shape-small);
 }
 
 .nt-page-title-link:hover {
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
 }
 
 @media (width <= 768px) {

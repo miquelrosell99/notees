@@ -41,9 +41,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: var(--border-width-thick) solid var(--color-outline);
+  border: var(--border-width-thick) solid var(--md-sys-color-outline);
   border-radius: 50%;
-  background: var(--color-surface);
+  background: var(--md-sys-color-surface);
   pointer-events: none;
   transition:
     background-color var(--motion-duration-short) var(--motion-easing-standard),
@@ -70,7 +70,7 @@
   width: 55%;
   height: 55%;
   border-radius: 50%;
-  background: var(--color-on-accent);
+  background: var(--md-sys-color-on-primary);
   opacity: var(--opacity-0);
   transform: scale(0.5);
   transition:
@@ -80,17 +80,17 @@
 
 /* States */
 .radio-input:hover + .radio-dot {
-  border-color: var(--color-accent);
+  border-color: var(--md-sys-color-primary);
 }
 
 .radio-input:focus-visible + .radio-dot {
-  outline: var(--border-width-thick) solid var(--color-accent);
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: var(--spacing-micro);
 }
 
 .radio-input:checked + .radio-dot {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
+  background: var(--md-sys-color-primary);
+  border-color: var(--md-sys-color-primary);
 }
 
 .radio-input:checked + .radio-dot .radio-dot-inner {
@@ -107,6 +107,6 @@
 
 .radio-label {
   font: var(--font-body-small);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   cursor: pointer;
 }

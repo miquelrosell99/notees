@@ -18,13 +18,25 @@ the pointer and the law.
    is a hard-coded color with extra steps.)
 3. **Never mention legacy version names** in files, comments, or class
    names; provenance lives in git history.
-4. **Popups compose `usePopupDismissal`**: one dismissal layer —
+4. **Color tokens are Material You roles, single track.** Every color is a
+   `--md-sys-color-*` custom property (`primary`, `on-primary`,
+   `primary-container`, `on-primary-container`, `secondary`, `tertiary`,
+   `error`, the `surface`/`surface-container` family, `outline`,
+   `inverse-*`, …) defined ONLY in `variables.css`. The selected accent IS
+   the primary role: the `[data-accent]` blocks set just
+   `--md-sys-color-primary` + `--md-sys-color-on-primary`, and
+   `primary-container` / `on-primary-container` / `primary-hover` /
+   `primary-pressed` / `inverse-primary` derive from them via `color-mix`
+   in the theme blocks — there is no second accent track and no legacy
+   color alias. New colors extend the role list in `variables.css`; they
+   never appear as literals in component CSS.
+5. **Popups compose `usePopupDismissal`**: one dismissal layer —
    Escape (when the keydown didn't originate inside the popup) +
    pointer-down outside — so every picker/popover/menu closes the same way.
    (`usePopupDismissal.ts` lives in the library; overlay helpers and the
    sheet gesture seam sit beside it in `overlay-hooks.ts` /
    `sheetGesture.ts`.)
-5. **Adaptive values over hard-coded numbers.** When a value tracks type
+6. **Adaptive values over hard-coded numbers.** When a value tracks type
    metrics or layout, write the adaptive form, never a fixed literal:
    `1lh` / `em` / `ch` / `%` for anything line- or glyph-sized, the
    spacing, radius, and motion tokens for rhythm and chrome, and

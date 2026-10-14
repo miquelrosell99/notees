@@ -19,7 +19,7 @@
 }
 
 .nt-dateslot__button:hover {
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
 }
 
 .nt-dateslot__clear {
@@ -27,11 +27,11 @@
   background: none;
   padding: 0;
   font: inherit;
-  color: var(--text-muted);
+  color: var(--md-sys-color-on-surface-variant);
   cursor: pointer;
   line-height: 1;
 }
 
 .nt-dateslot__clear:hover {
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }

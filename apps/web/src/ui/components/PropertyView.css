@@ -10,13 +10,13 @@
 .nt-property-view__type {
   margin: 0;
   font-size: var(--font-size-sm);
-  color: var(--text-muted);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-property-view__meta {
   margin: 0;
   font-size: var(--font-size-sm);
-  color: var(--text-muted);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-property-view__row {

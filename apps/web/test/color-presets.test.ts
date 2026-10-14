@@ -31,14 +31,14 @@ const readFile = (
 const variablesCss = readFile(`${process.cwd()}/src/ui/variables.css`, "utf8");
 
 describe("colorPresets", () => {
-  it("PRESET_HEX mirrors variables.css --color-preset-* exactly (drift guard)", () => {
+  it("PRESET_HEX mirrors variables.css --md-sys-color-preset-* exactly (drift guard)", () => {
     for (const token of COLOR_PRESET_TOKENS) {
-      const match = new RegExp(`--color-preset-${token}:\\s*(#[0-9a-fA-F]{6})`).exec(variablesCss);
-      expect(match, `variables.css lacks --color-preset-${token}`).not.toBeNull();
+      const match = new RegExp(`--md-sys-color-preset-${token}:\\s*(#[0-9a-fA-F]{6})`).exec(variablesCss);
+      expect(match, `variables.css lacks --md-sys-color-preset-${token}`).not.toBeNull();
       expect(PRESET_HEX[token]).toBe(match![1]!.toLowerCase());
     }
     // No stray preset vars in CSS that the TS map doesn't know.
-    const cssVars = [...variablesCss.matchAll(/--color-preset-([a-z]+):/g)].map((m) => m[1]);
+    const cssVars = [...variablesCss.matchAll(/--md-sys-color-preset-([a-z]+):/g)].map((m) => m[1]);
     expect(cssVars.sort()).toEqual([...COLOR_PRESET_TOKENS].sort());
   });
 
@@ -48,7 +48,7 @@ describe("colorPresets", () => {
   });
 
   it("cssColorFor maps tokens to themed vars and passes hex through", () => {
-    expect(cssColorFor("sky")).toBe("var(--color-preset-sky)");
+    expect(cssColorFor("sky")).toBe("var(--md-sys-color-preset-sky)");
     expect(cssColorFor("#123abc")).toBe("#123abc");
   });
 
@@ -58,17 +58,17 @@ describe("colorPresets", () => {
   });
 
   it("canonicalColor folds the retired var() encoding to its token", () => {
-    expect(canonicalColor("var(--color-preset-red)")).toBe("red");
-    expect(canonicalColor("var(--color-preset-sky)")).toBe("sky");
+    expect(canonicalColor("var(--md-sys-color-preset-red)")).toBe("red");
+    expect(canonicalColor("var(--md-sys-color-preset-sky)")).toBe("sky");
     // Unknown var names and everything else pass through untouched.
-    expect(canonicalColor("var(--color-preset-nope)")).toBe("var(--color-preset-nope)");
+    expect(canonicalColor("var(--md-sys-color-preset-nope)")).toBe("var(--md-sys-color-preset-nope)");
     expect(canonicalColor("teal")).toBe("teal");
     expect(canonicalColor("#abcdef")).toBe("#abcdef");
   });
 
   it("helpers agree: cssColorFor(resolveCssColor(x)) never throws and hex is stable", () => {
     for (const token of COLOR_PRESET_TOKENS) {
-      expect(cssColorFor(token)).toBe(`var(--color-preset-${token})`);
+      expect(cssColorFor(token)).toBe(`var(--md-sys-color-preset-${token})`);
       expect(resolveCssColor(token)).toMatch(/^#[0-9a-f]{6}$/);
     }
   });
@@ -77,12 +77,12 @@ describe("colorPresets", () => {
     // Tokens resolve to the themed var; the foreground is picked from the
     // concrete hex luminance (same convention as the class pills).
     const sky = coloredPillStyle("sky")!;
-    expect(sky.background).toBe("var(--color-preset-sky)");
-    expect([ "var(--color-black)", "var(--color-white)" ]).toContain(sky.color);
+    expect(sky.background).toBe("var(--md-sys-color-preset-sky)");
+    expect([ "var(--md-sys-color-black)", "var(--md-sys-color-white)" ]).toContain(sky.color);
     // A dark custom hex gets light text and passes the hex through.
     const dark = coloredPillStyle("#102030")!;
     expect(dark.background).toBe("#102030");
-    expect(dark.color).toBe("var(--color-white)");
+    expect(dark.color).toBe("var(--md-sys-color-white)");
     // Absence is undefined (callers spread unconditionally).
     expect(coloredPillStyle(null)).toBeUndefined();
     expect(coloredPillStyle(undefined)).toBeUndefined();

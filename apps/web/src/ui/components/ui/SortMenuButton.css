@@ -17,7 +17,7 @@
   padding: var(--spacing-2) var(--spacing-3) var(--spacing-1);
   font-size: var(--font-size-xs);
   font-weight: 600;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -32,7 +32,7 @@
   background-color: transparent;
   cursor: pointer;
   font-size: var(--font-size-base);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   text-align: left;
   border-radius: var(--shape-small);
   outline: none;
@@ -41,21 +41,21 @@
 
 .sort-menu__option:hover,
 .sort-menu__option:focus-visible {
-  background-color: var(--color-hover-overlay);
+  background-color: var(--md-sys-color-hover-overlay);
 }
 
 .sort-menu__option:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-primary);
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: calc(var(--spacing-micro) * -1);
 }
 
 .sort-menu__option--active {
-  background: var(--color-primary-container);
+  background: var(--md-sys-color-primary-container);
 }
 
 .sort-menu__check {
   flex-shrink: 0;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .sort-menu__label {
@@ -64,5 +64,5 @@
 
 .sort-menu__hint {
   font-size: var(--font-size-xs);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
