@@ -14,6 +14,7 @@ import {
   objectUpdatePayload,
   payloadSchemaFor,
   PROTOCOL_VERSION,
+  trashEmptyPayload,
 } from "../src/index.js";
 
 const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures");
@@ -41,7 +42,7 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the twenty-six required fixtures", () => {
+  it("has exactly the twenty-seven required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "class-convert.json",
@@ -67,6 +68,7 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       "property-datetime.json",
       "property-set-lww.json",
       "property-value-elements.json",
+      "trash-empty.json",
       "typed-link-mark-deleted.json",
       "typed-link-mark.json",
       "workspace-feature-set.json",
@@ -153,6 +155,26 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
     });
     expect(garbage.success).toBe(false);
     // Applicable in sequence: HLCs strictly ascend.
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
+  });
+
+  it("trash-empty fixture pins the apply-time bulk semantics: empty payload, no author-time affected set, restore-before-empty precedes the empty", () => {
+    const fixture = fixtures.find((f) => f.name === "trash-empty.json")!;
+    const last = fixture.envelopes[fixture.envelopes.length - 1]!;
+    expect(last.opType).toBe("trash.empty");
+    expect(last.payload).toEqual({});
+    expect(last.affectedNodeIds).toEqual([]);
+    // Strict schema: any field at all is rejected.
+    expect(trashEmptyPayload.safeParse({ objectId: "0192a000-0000-7000-8000-0000000000f3" }).success).toBe(false);
+    // The fixture carries two soft-deleted roots (one with an
+    // independently-trashed descendant), a restore that lands BEFORE the
+    // empty, and HLCs that strictly ascend.
+    const opTypes = fixture.envelopes.map((env) => env.opType);
+    expect(opTypes.filter((t) => t === "object.delete")).toHaveLength(4);
+    const restoreIdx = fixture.envelopes.findIndex((env) => env.opType === "object.restore");
+    expect(restoreIdx).toBeGreaterThan(-1);
+    expect(restoreIdx).toBeLessThan(fixture.envelopes.length - 1);
     const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
     expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
   });
