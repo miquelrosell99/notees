@@ -9,6 +9,16 @@ predating this file.
 
 ## 2026-10-14
 
+- **fix(web): the export modal's orphaned CSS fragment is gone — every build
+  since the Oct 9 kit-Radio restyle logged esbuild css-syntax warnings.**
+  `5d328784` inserted the radio-group rules into the middle of
+  `.export-modal__select-label`, orphaning its `box-sizing: border-box; }`
+  tail as a selector-less fragment (unparseable, so it never applied — the
+  warnings were the only symptom). The declaration moves back into its
+  owner rule; the bundle now builds warning-free and the select label gets
+  the border-box it was always meant to have. **Verification:** `vite
+  build` logs zero css-syntax warnings (was 2).
+
 - **feat(web): the block-drag preview is frozen, edge auto-scroll finds
   off-screen positions, and a selection stack drags as one (owner
   2026-10-14).** Four owner asks in one slice. (1) Nothing moves during a
