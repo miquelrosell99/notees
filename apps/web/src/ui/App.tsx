@@ -90,6 +90,7 @@ import { QuickCreateFab } from "./components/QuickCreateFab.js";
 import { WorkspacesView } from "./components/WorkspacesView.js";
 import {
   SettingsPage,
+  SETTINGS_SECTIONS,
   pathForSettingsSection,
   settingsSectionFromPath,
   type SettingsSection,
@@ -919,11 +920,18 @@ export function App() {
   const selectedPageIdRef = useRef<string | null>(null);
   selectedPageIdRef.current = selectedPageId;
 
-  // Browser tab title follows the open node: "NAME - Notees" (pagesVersion
-  // keeps it fresh across renames and sync updates). Date pages format per
-  // the user's dateFormat preference. Inline class chips contribute their
-  // resolved class name — the title reads complete, chip included.
+  // Browser tab title follows the open surface: the node's "NAME - Notees"
+  // (pagesVersion keeps it fresh across renames and sync updates; date pages
+  // format per the user's dateFormat preference; inline class chips
+  // contribute their resolved class name), or "SECTION - Notees" on the
+  // settings route — a view without a selection was leaving the title stale.
   useEffect(() => {
+    if (settingsSection !== null) {
+      const label =
+        SETTINGS_SECTIONS.find((section) => section.id === settingsSection)?.label ?? "Settings";
+      document.title = `${label} - Notees`;
+      return;
+    }
     if (client === null || selectedPageId === null) {
       document.title = "Notees";
       return;
@@ -934,7 +942,7 @@ export function App() {
         ? displayNameForSettings(node, (classId) => client.getDisplayName(classId))
         : "";
     document.title = name !== "" ? `${name} - Notees` : "Notees";
-  }, [client, selectedPageId, pagesVersion]);
+  }, [client, selectedPageId, pagesVersion, settingsSection]);
   // The persisted rail order may carry ids from another workspace (the key
   // is device-global, the recents precedent): drop the ones this client
   // doesn't know — the persistence effect writes the filtered list through.
