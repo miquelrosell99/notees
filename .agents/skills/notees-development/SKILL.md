@@ -62,6 +62,13 @@ summary here.
    `c491595f-9f94-5ade-a620-e30ed063d8d2` (fixed uuid, disposable), never
    the personal default "Notas" `3b30e070-039b-47bc-ad0d-2440a2f173c5` (the
    owner's live data). Probe data is created there and deleted when done.
+9. **New view surfaces own their URL AND their tab title** (owner
+   2026-10-14) — a route without both ships neither: deep-linkable
+   pushState/popstate URL plus the App's single title effect naming the
+   surface. Two shipped traps behind this: the PageCard render-precedence
+   race (openers clear what they replace) and the stale "Notees" title when
+   a view clears the selection. Detail: `references/coding-conventions.md`
+   (canonical: `docs/developers/development.md` §7).
    Detail: `references/development-workflow.md`.
 
 ## Gate before declaring done
