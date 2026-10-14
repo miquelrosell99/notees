@@ -129,6 +129,25 @@ describe("ingest validation (WIRE error shapes)", () => {
     expect(res.json().error.code).toBe("validation_failed");
   });
 
+  it("accepts the payload-less trash.empty op and round-trips it through catch-up; rejects any field on it", async () => {
+    server = await makeTestServer();
+    const ok = testEnvelope({ opType: "trash.empty", payload: {} });
+    const res = await ingest(server, [ok]);
+    expect(res.statusCode).toBe(200);
+    const catchUp = await server.app.inject({
+      method: "POST",
+      url: "/api/relay/v2/catch-up",
+      headers: { "content-type": "application/json", ...server.authHeaders },
+      payload: { workspaceId: server.workspaceId, afterSeq: 0, limit: 100 },
+    });
+    expect(catchUp.json().envelopes.map((e: { id: string }) => e.id)).toContain(ok.id);
+
+    const stray = testEnvelope({ opType: "trash.empty", payload: { objectId: crypto.randomUUID() } });
+    const rejected = await ingest(server, [stray]);
+    expect(rejected.statusCode).toBe(422);
+    expect(rejected.json().error.code).toBe("validation_failed");
+  });
+
   it("rejects the retired nodeType payload key outright (envelope v3, no backward compatibility)", async () => {
     server = await makeTestServer();
     const env = testEnvelope({

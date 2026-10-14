@@ -32,6 +32,7 @@ const LISTING_AFFECTING_OPS: ReadonlySet<string> = new Set([
   "propertySchema.create",
   "propertySchema.update",
   "propertySchema.delete",
+  "trash.empty",
   "workspace.feature.set",
 ]);
 
