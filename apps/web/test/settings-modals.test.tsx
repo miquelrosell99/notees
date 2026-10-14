@@ -233,8 +233,7 @@ describe("UserSettingsModal", () => {
   });
 
   it("applies the focus mode toggle to <html> and persists it device-locally", () => {
-    // Focus mode lives on the top bar's eye button now;
-    // the write path is the shared toggleFocusMode helper it rides.
+    // Focus mode lives on the top bar's crop-free button now; the write path is the shared toggleFocusMode helper it rides.
     toggleFocusMode();
     expect(document.documentElement.dataset.focus).toBe("true");
     expect(localStorage.getItem("notees.settings.focusMode")).toBe("true");

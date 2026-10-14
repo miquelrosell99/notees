@@ -5,7 +5,7 @@
  * picker — the appearance changes worth reaching in one gesture (the
  * sidebar gear or Ctrl/Cmd+,). Everything else lives on the full settings
  * page at /settings/<section>, linked from the "Advanced settings" row at
- * the bottom; focus mode moved to the top bar's eye button.
+ * the bottom; focus mode moved to the top bar's crop-free button.
  */
 import { Modal } from "../ui/Modal.js";
 import { Card } from "../ui/Card.js";
