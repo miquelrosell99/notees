@@ -6,9 +6,10 @@
  * appearance); section changes ride window.history so back/forward and
  * reloads work like every other surface.
  *
- * The quick tweaks modal (UserSettingsModal) composes the shared
- * ThemeModeControl / AccentColorPicker from this module — one
- * implementation, two homes.
+ * The quick-tweaks modal retired (owner 2026-10-14): the theme / accent /
+ * font controls live here exclusively; the sidebar gear and Ctrl/Cmd+,
+ * open this page (Appearance) directly, and the palette's Toggle theme
+ * command flips light/dark without opening it.
  */
 import { useState } from "react";
 

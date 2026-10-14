@@ -1,10 +1,10 @@
 /**
- * Settings modals tests (jsdom): the recovered workspace/user/system
- * settings modals render their ported chrome; the workspace rename talks to
- * the real PATCH /workspaces/:id endpoint; the quick-tweaks user modal
- * (theme / accent) applies appearance choices to <html> data-* attributes
- * and persists them under `notees.settings.*` (focus mode rides the shared
- * top-bar toggle helper); the full settings
+ * Settings modals tests (jsdom): the recovered workspace/system settings
+ * modals render their ported chrome; the workspace rename talks to the
+ * real PATCH /workspaces/:id endpoint; the appearance controls (theme /
+ * accent — the quick-tweaks modal retired, owner 2026-10-14) apply choices
+ * to <html> data-* attributes and persist them under `notees.settings.*`
+ * (focus mode rides the shared top-bar toggle helper); the full settings
  * page specs (sections, API keys, sync, routing) live in
  * settings-page.test.tsx; the workspace switcher offers create-from-query
  * and opens Manage Workspaces; the Manage Workspaces modal lists, renames,
@@ -16,9 +16,9 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { WorkspaceSettingsModal } from "../src/ui/components/modals/WorkspaceSettingsModal.js";
-import { UserSettingsModal } from "../src/ui/components/modals/UserSettingsModal.js";
 import { SystemSettingsModal } from "../src/ui/components/modals/SystemSettingsModal.js";
 import { toggleFocusMode } from "../src/ui/components/modals/deviceSettings.js";
+import { AccentColorPicker, ThemeModeControl } from "../src/ui/components/SettingsPage.js";
 import { WorkspacesView } from "../src/ui/components/WorkspacesView.js";
 import { Sidebar, type AnyClient } from "../src/ui/components/Sidebar.js";
 import { WorkspaceSwitcher } from "../src/ui/components/WorkspaceSwitcher.js";
@@ -192,14 +192,9 @@ describe("WorkspaceSettingsModal", () => {
   });
 });
 
-describe("UserSettingsModal", () => {
-  const renderModal = (extra: Partial<Parameters<typeof UserSettingsModal>[0]> = {}) =>
-    render(
-      <UserSettingsModal isOpen onClose={() => {}} onOpenAdvanced={() => {}} {...extra} />,
-    );
-
+describe("appearance controls (the quick-tweaks modal's survivors)", () => {
   it("applies the Light theme choice to <html> and persists it device-locally", () => {
-    renderModal();
+    render(<ThemeModeControl id="user-theme" />);
     fireEvent.click(screen.getByRole("radio", { name: "Light theme" }));
     expect(document.documentElement.dataset.theme).toBe("light");
     expect(document.documentElement.dataset.oled).toBe("false");
@@ -208,7 +203,7 @@ describe("UserSettingsModal", () => {
   });
 
   it("maps the four theme modes onto the theme + oled keys", () => {
-    renderModal();
+    render(<ThemeModeControl id="user-theme" />);
     const pick = (name: string) =>
       fireEvent.click(screen.getByRole("radio", { name }));
 
@@ -244,14 +239,14 @@ describe("UserSettingsModal", () => {
   });
 
   it("applies an accent preset to <html> and persists it device-locally", () => {
-    renderModal();
+    render(<AccentColorPicker />);
     fireEvent.click(screen.getByRole("button", { name: "Teal" }));
     expect(document.documentElement.dataset.accent).toBe("teal");
     expect(localStorage.getItem("notees.settings.accentColor")).toBe('"teal"');
   });
 
   it("offers exactly the five curated presets — no custom swatch", () => {
-    renderModal();
+    render(<AccentColorPicker />);
     const group = screen.getByRole("group", { name: "Accent Color" });
     const swatches = within(group).getAllByRole("button");
     expect(swatches).toHaveLength(5);
@@ -259,14 +254,6 @@ describe("UserSettingsModal", () => {
       expect(within(group).getByRole("button", { name: label })).toBeInTheDocument();
     }
     expect(within(group).queryByRole("button", { name: /custom/i })).toBeNull();
-  });
-
-  it("carries no server chrome — the advanced row links to the full page", () => {
-    const onOpenAdvanced = vi.fn();
-    renderModal({ onOpenAdvanced });
-    expect(screen.queryByText(/disconnect & forget this server/i)).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /^open$/i }));
-    expect(onOpenAdvanced).toHaveBeenCalled();
   });
 });
 

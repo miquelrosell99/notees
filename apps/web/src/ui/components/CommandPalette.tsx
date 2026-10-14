@@ -52,7 +52,7 @@ import type { UndoUiState } from "@/core/undo-journal.js";
 
 import { displayNameForSettings, isDatePageNode, rawDateKeywordOf } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
-import { toggleFocusMode } from "./modals/deviceSettings.js";
+import { flipTheme, toggleFocusMode } from "./modals/deviceSettings.js";
 import { parseDate, isPlainYearQuery } from "./pickers/dateParser.js";
 import { Button } from "./ui/Button.js";
 import { SearchField } from "./ui/SearchField.js";
@@ -61,7 +61,6 @@ import "./CommandPalette.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
-const THEME_KEY = "notees.theme";
 /** The Sidebar's device-local recents key — same contract, read-only here. */
 const RECENTS_KEY = "notees.recents";
 /** The Random section's row count (the original section's slice size). */
@@ -128,16 +127,6 @@ function bestScore(query: string, label: string, keywords: string): number | nul
   return labelScore !== null && keywordScore !== null
     ? Math.max(labelScore, keywordScore)
     : (labelScore ?? keywordScore);
-}
-
-function toggleTheme(): void {
-  const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
-  document.documentElement.dataset.theme = next;
-  try {
-    localStorage.setItem(THEME_KEY, next);
-  } catch {
-    // Storage unavailable (private mode); the flip just won't persist.
-  }
 }
 
 /** Snippet excerpt with the match spans highlighted (the shared nt-search-* styles). */
@@ -570,7 +559,9 @@ export function CommandPalette({
         label: themeIsDark ? "Toggle theme: switch to light" : "Toggle theme: switch to dark",
         icon: themeIsDark ? "mdi-white-balance-sunny" : "mdi-weather-night",
         keywords: "theme dark light appearance",
-        run: () => toggleTheme(),
+        run: () => {
+          flipTheme();
+        },
       },
       {
         key: "sign-out",

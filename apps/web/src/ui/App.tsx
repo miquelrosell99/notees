@@ -88,7 +88,6 @@ import { PropertyView } from "./components/PropertyView.js";
 import { AssetUploadModal } from "./components/modals/AssetUploadModal.js";
 import { QuickCreateFab } from "./components/QuickCreateFab.js";
 import { WorkspacesView } from "./components/WorkspacesView.js";
-import { UserSettingsModal } from "./components/modals/UserSettingsModal.js";
 import {
   SettingsPage,
   pathForSettingsSection,
@@ -725,7 +724,6 @@ export function App() {
    */
   const [signupEnabled, setSignupEnabled] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState("");
-  const [settingsOpen, setSettingsOpen] = useState(false);
   /** The sync indicator's details modal (resync + conflicts). */
   const [syncDetailsOpen, setSyncDetailsOpen] = useState(false);
   /** Manage Workspaces view, opened from the workspace switcher popup. */
@@ -1137,7 +1135,9 @@ export function App() {
     const handler = keymapChordHandler({
       client: () => clientRef.current,
       openPage,
-      openSettings: () => setSettingsOpen(true),
+      // The quick-tweaks modal is gone (owner 2026-10-14): the chord opens
+      // the full settings page at Appearance, like the sidebar gear.
+      openSettings: () => openSettingsSection("appearance"),
       toggleSidebar: () => setSidebarOpen((open) => !open),
     });
     document.addEventListener("keydown", handler);
@@ -1639,7 +1639,6 @@ export function App() {
     clearStored(STORAGE_KEYS.apiKey);
     setToken("");
     setUser(null);
-    setSettingsOpen(false);
     const live = clientRef.current;
     clientRef.current = null;
     live?.close();
@@ -1660,7 +1659,6 @@ export function App() {
     setToken("");
     setUser(null);
     setSessionSignedIn(false);
-    setSettingsOpen(false);
     const live = clientRef.current;
     clientRef.current = null;
     live?.close();
@@ -1683,7 +1681,6 @@ export function App() {
     clientRef.current = null;
     live?.close();
     setClient(null);
-    setSettingsOpen(false);
     setServerUrl(url);
     setPhase({ name: "server" });
     void connectTo(url);
@@ -1981,7 +1978,15 @@ export function App() {
         }}
         onRenamed={(_id, name) => setWorkspaceName(name)}
         onOpenUserSettings={
-          sessionSignedIn && user !== null ? () => setSettingsOpen(true) : undefined
+          sessionSignedIn && user !== null
+            ? () => {
+                // The quick modal is gone: the manager's settings entry opens
+                // the full settings page (the shell re-renders once the
+                // manager closes).
+                setManagerOpen(false);
+                openSettingsSection("appearance");
+              }
+            : undefined
         }
         onSignOut={() => void handleSignOut()}
         onClose={enteringFromApp ? () => setManagerOpen(false) : undefined}
@@ -2149,7 +2154,7 @@ export function App() {
           user={user}
           offline={offline}
           showSettings={sessionSignedIn && user !== null && !offline}
-          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSettings={() => openSettingsSection("appearance")}
           selectedPageId={selectedPageId}
           activeNav={activeNav}
           onSelectNav={(key) => {
@@ -2305,16 +2310,6 @@ export function App() {
         }}
         cacheVersion={pagesVersion}
       />
-      {settingsOpen && sessionSignedIn && user !== null && !offline && (
-        <UserSettingsModal
-          isOpen={settingsOpen}
-          onClose={() => setSettingsOpen(false)}
-          onOpenAdvanced={() => {
-            setSettingsOpen(false);
-            openSettingsSection("appearance");
-          }}
-        />
-      )}
       {quickAddOpen && (
         <QuickAddModal isOpen={quickAddOpen} onClose={() => setQuickAddOpen(false)} client={client} />
       )}
