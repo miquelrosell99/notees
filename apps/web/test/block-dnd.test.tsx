@@ -401,7 +401,7 @@ describe("block drag-and-drop", () => {
   it("keeps the dragged row pinned and muted; the overlay chip is the only preview", async () => {
     const client = await seedClient();
     const { pageId, ids } = await seedThreeBlocks(client);
-    const [one] = ids;
+    const [one, two] = ids;
     const { container } = renderPage(client, pageId);
 
     const fromRect = rowEl(container, one).getBoundingClientRect();
@@ -419,23 +419,46 @@ describe("block drag-and-drop", () => {
       pointerId: 1,
     });
 
-    // The source row stays in place (no drag transform) and reads muted.
-    const source = rowEl(container, one);
-    expect(source.className).toContain("nt-block--drag-source");
-    expect(source.style.transform).toBe("");
-    // The floating overlay is the small name chip — no block preview inside.
+    // In free flight (no drop target near) the filled card rides the pointer.
     const ghost = document.querySelector<HTMLElement>(".nt-drag-ghost");
     expect(ghost).not.toBeNull();
     expect(ghost!.textContent).toContain("one");
     expect(ghost!.querySelector("[data-block-id]")).toBeNull();
+    expect(document.querySelector(".nt-drop-preview")).toBeNull();
+
+    // The source row stays in place (no drag transform) and reads muted.
+    const source = rowEl(container, one);
+    expect(source.className).toContain("nt-block--drag-source");
+    expect(source.style.transform).toBe("");
+
+    // Onto a target: the card parks below the indicator line and the
+    // pointer-riding chip steps aside.
+    const target = rowEl(container, two).getBoundingClientRect();
+    for (let i = 0; i < 3; i += 1) {
+      fireEvent.pointerMove(document, {
+        clientX: target.left + 4,
+        clientY: target.top + 24 + i,
+        buttons: 1,
+        pointerId: 1,
+      });
+    }
+    expect(rowEl(container, two).className).toContain("nt-drop-below");
+    expect(document.querySelector(".nt-drag-ghost")).toBeNull();
+    const preview = document.body.querySelector<HTMLElement>(".nt-drop-preview");
+    expect(preview).not.toBeNull();
+    expect(preview!.textContent).toContain("one");
+    // Parked at the anchor: left = the row's gutter x, top just below the line.
+    expect(preview!.style.left).toBe(`${target.left}px`);
+    expect(preview!.style.top).toBe(`${target.top + target.height + 4}px`);
 
     fireEvent.pointerUp(document, {
-      clientX: fromRect.left + 210,
-      clientY: fromRect.top + 16,
+      clientX: target.left + 4,
+      clientY: target.top + 26,
       button: 0,
       pointerId: 1,
     });
     await flushMoves();
+    expect(document.body.querySelector(".nt-drop-preview")).toBeNull();
     expect(rowEl(container, one).className).not.toContain("nt-block--drag-source");
   });
 
@@ -522,10 +545,14 @@ describe("block drag-and-drop", () => {
       fireEvent.pointerMove(document, { clientX: x, clientY: y + i, buttons: 1, pointerId: 1 });
     }
 
-    // The chip names the stack; every root row renders faint in place.
+    // The card parked below the line names the stack and carries the lead
+    // block's text; the pointer-riding chip steps aside once snapped.
     const ghost = document.querySelector<HTMLElement>(".nt-drag-ghost");
-    expect(ghost).not.toBeNull();
-    expect(ghost!.textContent).toContain("2 blocks");
+    expect(ghost).toBeNull();
+    const preview = document.body.querySelector<HTMLElement>(".nt-drop-preview");
+    expect(preview).not.toBeNull();
+    expect(preview!.textContent).toContain("2 blocks");
+    expect(preview!.textContent).toContain("one");
     expect(rowEl(container, one).className).toContain("nt-block--drag-source");
     expect(rowEl(container, ids[2]!).className).toContain("nt-block--drag-source");
     expect(rowEl(container, two).className).not.toContain("nt-block--drag-source");

@@ -257,7 +257,14 @@ export function useWorkspaceDnd(opts: {
   onRailCardReorderRef.current = opts.onRailCardReorder;
   const sensors = useBlockDndSensors();
   const [dropLine, setDropLine] = useState<DropLine | null>(null);
-  const [dragging, setDragging] = useState<{ id: string; label: string } | null>(null);
+  const [dragging, setDragging] = useState<{
+    id: string;
+    label: string;
+    /** The lead block's flattened text — the filled preview card's body. */
+    previewText: string;
+    /** The selection-stack size (1 = a lone block). */
+    count: number;
+  } | null>(null);
   const [dragSources, setDragSources] = useState<ReadonlySet<string> | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
   const [dragUi, setDragUi] = useState<WorkspaceDndDragUi>({
@@ -435,10 +442,8 @@ export function useWorkspaceDnd(opts: {
       // A rail-card reorder drag: the block machinery stays out — no zone
       // measuring, no drop line, no transient expands. The feedback is the
       // overlay chip + the target header's reorder edge.
-      setDragging({
-        id,
-        label: displayNameFromClient(railCard.client, railCard.nodeId) ?? railCard.nodeId,
-      });
+      const label = displayNameFromClient(railCard.client, railCard.nodeId) ?? railCard.nodeId;
+      setDragging({ id, label, previewText: label, count: 1 });
       setDragSources(null);
       setDragUi({ headerDropId: null, expandedNodeIds: new Set(), railReorder: null });
       sessionRef.current = { kind: "rail", activeId: id, dragIds: [id], perZone: new Map(), merged: [] };
@@ -456,12 +461,12 @@ export function useWorkspaceDnd(opts: {
         ? effectiveDragIds(selection, homePositions)
         : [id];
     const leadId = dragIds[0] ?? id;
+    const leadName = (client === undefined ? null : displayNameFromClient(client, leadId)) ?? leadId;
     setDragging({
       id,
-      label:
-        dragIds.length > 1
-          ? `${dragIds.length} blocks`
-          : ((client === undefined ? null : displayNameFromClient(client, id)) ?? id),
+      label: dragIds.length > 1 ? `${dragIds.length} blocks` : leadName,
+      previewText: leadName,
+      count: dragIds.length,
     });
     setDragSources(new Set(dragIds));
     setDragUi({ headerDropId: null, expandedNodeIds: new Set(), railReorder: null });
@@ -783,8 +788,28 @@ export function WorkspaceDndHost({
             )}
             {children}
             <DragOverlay dropAnimation={null}>
-              {dnd.dragging !== null && <div className="nt-drag-ghost">{dnd.dragging.label}</div>}
+              {/* The filled card rides the pointer in free flight; once a
+                  drop target snaps it parks below the indicator line (the
+                  nt-drop-preview portal) and the chip steps aside. */}
+              {dnd.dragging !== null && dnd.dropAnchor === null && (
+                <div className="nt-drag-ghost">{dnd.dragging.label}</div>
+              )}
             </DragOverlay>
+            {dnd.dropAnchor !== null && dnd.dragging !== null && typeof document !== "undefined"
+              ? createPortal(
+                  <div
+                    className="nt-drop-preview"
+                    style={{ left: dnd.dropAnchor.x, top: dnd.dropAnchor.y + 4 }}
+                    aria-hidden="true"
+                  >
+                    {dnd.dragging.count > 1 && (
+                      <div className="nt-drop-preview__badge">{dnd.dragging.count} blocks</div>
+                    )}
+                    <div className="nt-drop-preview__text">{dnd.dragging.previewText}</div>
+                  </div>,
+                  document.body,
+                )
+              : null}
             {dnd.dropAnchor !== null &&
               typeof document !== "undefined" &&
               createPortal(
