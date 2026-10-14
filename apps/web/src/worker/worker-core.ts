@@ -10,13 +10,14 @@
  *    (getPage / listPages / getBlockTree / search / getBacklinks /
  *    resolveAlias / aliasNodesOf /
  *    getLinkedReferences / getReferences / getReferenceCount /
- *    getUnlinkedReferences / getChildPages / getChildren
+ *    getUnlinkedReferences / getChildPages / getChildren / listTrashed
  *    / runQueryAst / runAggregateAst / getBacklinkCount / getChildPageCount / getDisplayName /
  *    getNode / getNodeRaw / getEffectiveProperties / getAssetInfo /
  *    getAnnotationsForAsset / listPropertySchemas / isFeatureEnabled /
  *    listFeatureRows / getFeatureInstanceCount), the batched read surface
  *    (multiRead — one round-trip per cache refresh), the write
- *    surface (createObject / updateObject / deleteObject / moveObject /
+ *    surface (createObject / updateObject / deleteObject / restoreObject /
+ *    moveObject /
  *    setClassProperty / unsetClassProperty / createPropertySchema /
  *    setProperty / unsetProperty / attachAsset), the session undo journal
  *    (undoState / undo / redo), syncOnce, the realtime
@@ -59,6 +60,7 @@ import {
   type ReferenceEntry,
   type SetClassPropertyInput,
   type SyncStatusSnapshot,
+  type TrashedEntry,
   type UpdateObjectInput,
   type UpdatePropertySchemaInput,
 } from "../core/workspace-client.js";
@@ -148,6 +150,7 @@ const READ_METHODS: ReadonlySet<string> = new Set([
   "getPage",
   "listPages",
   "roots",
+  "listTrashed",
   "listClasses",
   "classIcons",
   "effectiveClassIcons",
@@ -463,6 +466,10 @@ export class WorkerCore {
     return this.client.roots();
   }
 
+  listTrashed(): TrashedEntry[] {
+    return this.client.listTrashed();
+  }
+
   listClasses(): ClientNode[] {
     return this.client.listClasses();
   }
@@ -670,6 +677,8 @@ export class WorkerCore {
         return this.listPages();
       case "roots":
         return this.roots();
+      case "listTrashed":
+        return this.listTrashed();
       case "listClasses":
         return this.listClasses();
       case "classIcons":
@@ -712,6 +721,8 @@ export class WorkerCore {
           args[0] as string,
           args[1] as string,
         );
+      case "fetchNodeHistory":
+        return this.client.fetchNodeHistory(args[0] as string);
       case "getBacklinks":
         return this.getBacklinks(args[0] as string);
       case "resolveAlias":
@@ -805,6 +816,8 @@ export class WorkerCore {
         return this.updateObject(args[0] as string, args[1] as UpdateObjectInput);
       case "deleteObject":
         return this.deleteObject(args[0] as string, args[1] as DeleteObjectOptions | undefined);
+      case "restoreObject":
+        return this.client.restoreObject(args[0] as string);
       case "moveObject":
         return this.moveObject(
           args[0] as string,
