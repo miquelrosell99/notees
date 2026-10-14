@@ -44,7 +44,7 @@
  * rendering and the full block editor, minus the outline chrome.
  */
 
-import { useContext, useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
@@ -199,6 +199,61 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
     id: node.id,
     disabled: readOnly || isTitle || !dragScope,
   });
+
+  // --- the indent rail -----------------------------------------------------
+  // The rail (the collapse control riding the children container's left
+  // border) extends UP from the children container across the block's
+  // metadata sections to the row's bottom edge (owner: the line reaches the
+  // bullet) — so its top is measured, not a CSS constant: the metadata
+  // stack (properties / tags / backlinks) varies per block and per
+  // expansion state. A ResizeObserver re-measures on any layout change
+  // (row wraps, a metadata section expands, a tag arrives).
+  const blockRef = useRef<HTMLDivElement | null>(null);
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const childrenRef = useRef<HTMLDivElement | null>(null);
+  const railRef = useRef<HTMLButtonElement | null>(null);
+  const extendRail = useCallback(() => {
+    const childrenEl = childrenRef.current;
+    const rowEl = rowRef.current;
+    const railEl = railRef.current;
+    if (childrenEl === null || rowEl === null || railEl === null) return;
+    const gap = childrenEl.getBoundingClientRect().top - rowEl.getBoundingClientRect().bottom;
+    railEl.style.top = `${-Math.max(0, gap)}px`;
+  }, []);
+  useLayoutEffect(() => {
+    extendRail();
+    const blockEl = blockRef.current;
+    if (blockEl === null || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => extendRail());
+    observer.observe(blockEl);
+    return () => observer.disconnect();
+  }, [extendRail, isCollapsed, children.length, editing, backlinksExpanded, node.tagIds.length]);
+
+  // Per-height rail targeting (owner): a click collapses the children of the
+  // DIRECT CHILD whose span the click sits beside — the block that "has"
+  // that segment of the line — not always the owner; the segment across the
+  // owner's own metadata (above the first child) collapses the owner's.
+  const collapseFromRailClick = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    const childrenEl = childrenRef.current;
+    if (childrenEl === null) {
+      toggleCollapse(node.id);
+      return;
+    }
+    const y = event.clientY;
+    const rowsEls = Array.from(childrenEl.querySelectorAll<HTMLElement>(":scope > .nt-block"));
+    let index = -1;
+    for (const [i, rowEl] of rowsEls.entries()) {
+      if (rowEl.getBoundingClientRect().top <= y) index = i;
+      else break;
+    }
+    if (index === -1) {
+      toggleCollapse(node.id);
+      return;
+    }
+    const target = children[index];
+    if (target !== undefined && target.children.length > 0) toggleCollapse(target.node.id);
+  };
 
   useEffect(() => {
     if (focusRequest === null || focusRequest.id !== node.id) return;
@@ -502,10 +557,13 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
   return (
     <div
       className={`nt-block${readOnly ? " nt-block--readonly" : ""}${readOnly && readOnlyInert ? " nt-block--inert" : ""}${editing ? " nt-block--editing" : ""}${dropClass}${selectedClass}${dragSourceClass}`}
-      ref={setNodeRef}
+      ref={(el) => {
+        blockRef.current = el;
+        setNodeRef(el);
+      }}
       data-block-id={node.id}
     >
-      <div className="nt-block-row">
+      <div className="nt-block-row" ref={rowRef}>
         <span
           className="nt-block-grip"
           title="Drag to move"
@@ -778,22 +836,21 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
       <>
         {children.length > 0 && !isCollapsed && (
           <SortableContext items={children.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
-            <div className="nt-block-children">
+            <div className="nt-block-children" ref={childrenRef}>
               {/* The vertical indent line is itself the collapse control (the
-                  v1 pattern): clicking anywhere on the full-height rail hides
-                  the direct children of the node the line starts from — the
-                  same session-local collapse the chevron toggles. */}
+                  v1 pattern, per-height refined): the segment beside a child
+                  collapses THAT child's children; the segment across this
+                  block's own metadata (above the first child) collapses this
+                  block's. The rail's top extends to the row's bottom edge
+                  across the metadata sections (see extendRail). */}
               {!ignoreCollapse && (
                 <button
                   type="button"
                   className="nt-block-children__rail"
                   aria-label="Collapse children"
                   title="Collapse children"
-                  onClick={(event) => {
-                    // A display toggle, not content editing.
-                    event.stopPropagation();
-                    toggleCollapse(node.id);
-                  }}
+                  ref={railRef}
+                  onClick={collapseFromRailClick}
                 />
               )}
               {children.map((child) => (

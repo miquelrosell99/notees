@@ -81,7 +81,7 @@ export function useDeviceSetting<T>(
 // --- Appearance (theme / OLED / accent / font) ----------------------------------
 
 export type ThemePreference = "light" | "dark" | "system";
-export type AccentColor = "margin" | "monochrome" | "brown" | "teal" | "purple";
+export type AccentColor = "margin" | "monochrome" | "brown" | "teal" | "blue";
 /** The UI font family: bundled (Instrument Sans/Newsreader/JetBrains Mono,
  * self-hosted in fonts.css) or the platform system stack. */
 export type UiFontPreference = "bundled" | "system";
@@ -94,7 +94,7 @@ export const ACCENT_COLOR_OPTIONS: { value: AccentColor; label: string; hex: str
   { value: "monochrome", label: "Monochrome", hex: "#1c1a16" },
   { value: "brown", label: "Brown", hex: "#a16b45" },
   { value: "teal", label: "Teal", hex: "#1fbdad" },
-  { value: "purple", label: "Purple", hex: "#8c47d1" },
+  { value: "blue", label: "Blue", hex: "#3d6a96" },
 ];
 
 /** Legacy key the theme used to live under; read as a fallback on migration. */
