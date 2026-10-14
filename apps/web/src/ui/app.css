@@ -1952,30 +1952,18 @@ select:focus-visible {
 /* The portaled drop indicator: the same line repainted ABOVE the floating
    drag chip. The chip is opaque and rides the pointer, so it covered the
    class-based line's start — the indentation cue (owner). The snapped
-   candidate's anchor is the line's start: sibling lines begin at the row's
-   left edge, the child line at the child offset. The start tick (a small
-   vertical bar straddling the line) marks that x on top of everything, so
-   the drop level reads even where the chip overlaps. Rides
-   --z-node-overlay — one step above dnd-kit's DragOverlay (999). The
-   row-level ::before/::after lines stay as the no-host / no-candidate
-   fallback. */
+   candidate's anchor is the line's START: sibling lines begin at the row's
+   left edge, the child line at the child offset, so the line's left edge
+   alone reads the nesting level — a straight line, no cap (owner: "use a
+   straight line, not the T"). Rides --z-node-overlay — one step above
+   dnd-kit's DragOverlay (999). The row-level ::before/::after lines stay
+   as the no-host / no-candidate fallback. */
 .nt-drop-indicator {
   position: fixed;
   height: 2px;
   background: var(--color-accent);
   pointer-events: none;
   z-index: var(--z-node-overlay);
-}
-
-.nt-drop-indicator::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: -4px;
-  width: 3px;
-  height: 10px;
-  background: var(--color-accent);
-  border-radius: 0 2px 2px 0;
 }
 
 /* The dragged source stays in place and reads muted — the floating name
