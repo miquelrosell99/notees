@@ -8,12 +8,29 @@
 
 import type { LabelColors } from "./labelCanvas.js";
 
-function hexVarToRgba(varName: string, alpha: number, fallback: string): string {
+/**
+ * Resolves a custom property to a concrete `#rrggbb` string, following ONE
+ * level of `var(--other)` indirection — custom properties read via
+ * getComputedStyle keep `var()` references UNRESOLVED (substitution happens
+ * at use-site), so a token that aliases another token (e.g.
+ * `--graph-minimap-viewport: var(--color-accent)`) must be chased one hop.
+ * Returns null when the value is anything but a plain hex color.
+ */
+function resolveHexVar(varName: string): string | null {
   const raw = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
-  const match = /^#([0-9a-f]{6})$/i.exec(raw);
-  if (match === null) return fallback;
-  const rgb = parseInt(match[1]!, 16);
-  const channel = (shift: number) => ((rgb >> shift) & 0xff).toString().padStart(2, "0");
+  const alias = /^var\(\s*(--[\w-]+)\s*\)$/.exec(raw);
+  const resolved = alias !== null
+    ? getComputedStyle(document.documentElement).getPropertyValue(alias[1]!).trim()
+    : raw;
+  const match = /^#([0-9a-f]{6})$/i.exec(resolved);
+  return match === null ? null : match[1]!;
+}
+
+function hexVarToRgba(varName: string, alpha: number, fallback: string): string {
+  const hex = resolveHexVar(varName);
+  if (hex === null) return fallback;
+  const rgb = parseInt(hex, 16);
+  const channel = (shift: number) => ((rgb >> shift) & 0xff).toString(16).padStart(2, "0");
   return `#${channel(16)}${channel(8)}${channel(0)}${Math.round(alpha * 255).toString(16).padStart(2, "0")}`;
 }
 
@@ -22,10 +39,9 @@ function hexVarToRgbaTuple(
   alpha: number,
   fallback: [number, number, number, number],
 ): [number, number, number, number] {
-  const raw = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
-  const match = /^#([0-9a-f]{6})$/i.exec(raw);
-  if (match === null) return fallback;
-  const rgb = parseInt(match[1]!, 16);
+  const hex = resolveHexVar(varName);
+  if (hex === null) return fallback;
+  const rgb = parseInt(hex, 16);
   return [((rgb >> 16) & 0xff) / 255, ((rgb >> 8) & 0xff) / 255, (rgb & 0xff) / 255, alpha];
 }
 
@@ -33,10 +49,9 @@ function hexVarToRgbTriple(
   varName: string,
   fallback: [number, number, number],
 ): [number, number, number] {
-  const raw = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
-  const match = /^#([0-9a-f]{6})$/i.exec(raw);
-  if (match === null) return fallback;
-  const rgb = parseInt(match[1]!, 16);
+  const hex = resolveHexVar(varName);
+  if (hex === null) return fallback;
+  const rgb = parseInt(hex, 16);
   return [((rgb >> 16) & 0xff) / 255, ((rgb >> 8) & 0xff) / 255, (rgb & 0xff) / 255];
 }
 
