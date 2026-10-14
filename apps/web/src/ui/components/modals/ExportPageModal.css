@@ -100,6 +100,7 @@
   font: var(--font-label-medium);
   color: var(--color-on-surface);
   flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 /* The dropdown stays a compact control — the kit container defaults to
@@ -121,8 +122,6 @@
   align-items: center;
   gap: var(--spacing-1);
   white-space: nowrap;
-}
-  box-sizing: border-box;
 }
 
 /* ── Preview area ── */
