@@ -814,8 +814,8 @@
   --graph-node-default: #d0d0d0;
   --graph-edge-color: #707070;
   --graph-bg: transparent;
-  --graph-minimap-dot: #a9a59f;
-  --graph-minimap-viewport: #d4d4d4;
+  --graph-minimap-dot: #d0d0d0;
+  --graph-minimap-viewport: var(--color-accent);
 
   /* Graph semantic colors */
   --graph-edge-cooccurrence: #a78bd4;

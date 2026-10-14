@@ -73,16 +73,19 @@ export const GraphMinimap = {
 
     // Viewport rectangle — the main canvas shows viewWidthPx / zoom world
     // units across; both the dots and the rect ride the same linear map.
+    // A faint accent wash inside makes the viewed region read at a glance
+    // (owner 2026-10-14: the minimap was an unreadable black blob).
     const viewW = viewWidthPx / Math.max(0.05, camera.zoom);
     const viewH = viewHeightPx / Math.max(0.05, camera.zoom);
+    const rectX = toMiniX(camera.x - viewW / 2);
+    const rectY = toMiniY(camera.y - viewH / 2);
+    const rectW = viewW * scale;
+    const rectH = viewH * scale;
+    ctx.fillStyle = graphTheme().minimapViewportFill;
+    ctx.fillRect(rectX, rectY, rectW, rectH);
     ctx.strokeStyle = graphTheme().minimapViewport;
     ctx.lineWidth = 1;
-    ctx.strokeRect(
-      toMiniX(camera.x - viewW / 2),
-      toMiniY(camera.y - viewH / 2),
-      viewW * scale,
-      viewH * scale,
-    );
+    ctx.strokeRect(rectX, rectY, rectW, rectH);
   },
 
   /** Map a minimap pixel to world coordinates (click/drag navigation). */
