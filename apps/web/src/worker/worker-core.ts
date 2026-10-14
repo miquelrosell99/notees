@@ -17,7 +17,7 @@
  *    listFeatureRows / getFeatureInstanceCount), the batched read surface
  *    (multiRead — one round-trip per cache refresh), the write
  *    surface (createObject / updateObject / deleteObject / restoreObject /
- *    moveObject /
+ *    emptyTrash / moveObject /
  *    setClassProperty / unsetClassProperty / createPropertySchema /
  *    setProperty / unsetProperty / attachAsset), the session undo journal
  *    (undoState / undo / redo), syncOnce, the realtime
@@ -561,6 +561,10 @@ export class WorkerCore {
     return this.client.deleteObject(id, opts);
   }
 
+  emptyTrash(): Promise<void> {
+    return this.client.emptyTrash();
+  }
+
   moveObject(id: string, parentId: string | null, afterId?: string, beforeId?: string): Promise<void> {
     return this.client.moveObject(id, parentId, afterId, beforeId);
   }
@@ -816,6 +820,8 @@ export class WorkerCore {
         return this.updateObject(args[0] as string, args[1] as UpdateObjectInput);
       case "deleteObject":
         return this.deleteObject(args[0] as string, args[1] as DeleteObjectOptions | undefined);
+      case "emptyTrash":
+        return this.emptyTrash();
       case "restoreObject":
         return this.client.restoreObject(args[0] as string);
       case "moveObject":

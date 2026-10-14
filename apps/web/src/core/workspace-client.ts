@@ -2765,6 +2765,17 @@ export class WorkspaceClient {
   }
 
   /**
+   * Empty the trash (trash.empty): permanently delete every soft-trashed
+   * subtree root. The op evaluates the set at apply time — an object.restore
+   * that lands before it survives, one after is log-order LWW. Irreversible,
+   * so the Trash hub confirms first; permanent deletes never enter the undo
+   * journal. No-op when the trash is already empty (the applier no-ops).
+   */
+  async emptyTrash(): Promise<void> {
+    this.enqueueLocal(this.buildEnvelope("trash.empty", {}, []));
+  }
+
+  /**
    * Reparent a node (outliner indent/outdent gesture) — issues `object.move`.
    * `parentId` null means workspace root — legal for any non-class node (a
    * parentless node simply renders with document chrome; only a class under

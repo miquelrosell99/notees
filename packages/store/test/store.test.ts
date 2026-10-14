@@ -295,6 +295,38 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ).toBeUndefined();
     });
 
+    it("trash-empty.json permanently deletes every trashed root, spares the restored-before-empty page", () => {
+      const store = makeStore();
+      store.applyMany(allFixtureEnvelopes());
+      const a = "0192a000-0000-7000-8000-0000000000f3";
+      const aChild = "0192a000-0000-7000-8000-0000000000f4";
+      const b = "0192a000-0000-7000-8000-0000000000f5";
+      const bChild = "0192a000-0000-7000-8000-0000000000f6";
+      const c = "0192a000-0000-7000-8000-0000000000f7";
+      // Both trashed subtrees (including the independently-trashed child
+      // inside A's subtree) are hard-deleted.
+      for (const id of [a, aChild, b, bChild]) {
+        expect(store.getNode(id), id).toBeUndefined();
+      }
+      // The page restored before the empty survived it.
+      expect(store.getNode(c)).toMatchObject({ is_active: 1, present_as_main: 1 });
+      // Retention rows: exactly the two emptied roots, permanent.
+      const rows = store.database
+        .prepare("SELECT node_id, is_permanent FROM trash ORDER BY node_id")
+        .all() as { node_id: string; is_permanent: number }[];
+      const mine = rows.filter((r) => [a, aChild, b, bChild, c].includes(r.node_id));
+      expect(mine).toEqual([
+        { node_id: a, is_permanent: 1 },
+        { node_id: b, is_permanent: 1 },
+      ]);
+      // Idempotent: a second empty (fresh envelope, so the applier itself
+      // runs again rather than the applied_envelope dedupe) is a no-op.
+      store.apply(env("trash.empty", {}, 1727200009000));
+      expect(
+        (store.database.prepare("SELECT COUNT(*) AS n FROM trash WHERE is_permanent = 0").get() as { n: number }).n,
+      ).toBe(0);
+    });
+
     it("converges the property LWW fixture to the higher-HLC phone value", () => {
       const store = makeStore();
       store.applyMany(allFixtureEnvelopes());

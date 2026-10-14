@@ -646,6 +646,11 @@ export class WorkerClient {
     await this.call("deleteObject", [id, opts]);
   }
 
+  /** Empty the trash (trash.empty — permanently delete every trashed subtree root). */
+  async emptyTrash(): Promise<void> {
+    await this.call("emptyTrash", []);
+  }
+
   /** Restore a trashed node and its subtree (object.restore). */
   async restoreObject(id: string): Promise<void> {
     await this.call("restoreObject", [id]);
