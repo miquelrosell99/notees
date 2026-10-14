@@ -1978,18 +1978,47 @@ select:focus-visible {
   border-radius: var(--shape-small);
 }
 
-/* The row clone that follows the pointer (DragOverlay). */
-.nt-drag-ghost {
-  padding: 2px 8px;
+/* The floating drag preview: a FILLED card with the block's full text (owner
+   2026-10-14: "way better card text visibility"). Two positional modes share
+   the card look:
+   - .nt-drag-ghost rides the pointer in free flight (dnd-kit's DragOverlay);
+   - .nt-drop-preview PARKS just below the indicator line when a drop target
+     snaps — at the anchor's x (the winning indentation), so the card shows
+     exactly what the document will look like after the drop. It glides
+     between targets on a short transition ("snaps"). */
+.nt-drag-ghost,
+.nt-drop-preview {
+  max-width: 480px;
+  padding: var(--spacing-2) var(--spacing-3);
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   box-shadow: var(--shadow-elevation-2);
   font-size: var(--font-size-base);
-  max-width: 480px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.nt-drop-preview {
+  position: fixed;
+  z-index: var(--z-node-overlay);
+  pointer-events: none;
+  transition:
+    left var(--motion-duration-shorter) var(--motion-easing-standard),
+    top var(--motion-duration-shorter) var(--motion-easing-standard);
+}
+
+.nt-drop-preview__badge {
+  margin-bottom: var(--spacing-1);
+  font: var(--font-label-medium);
+  color: var(--color-accent);
+}
+
+.nt-drop-preview__text {
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* Transient guard message (refused drop, store MoveGuardError, …).
