@@ -5,7 +5,8 @@
  * icons on top (the full-text SearchBox below the switcher was removed —
  * search lives in the top-bar button / Ctrl+K palette); NAVIGATION rows
  * switch the main view (Today / Journal / Inbox / Pages /
- * Whiteboards / Tasks hubs — never an inline page dump); FAVORITES and
+ * Whiteboards / Tasks hubs — never an inline page dump — and the Trash
+ * hub: browse + restore + permanently delete trashed subtrees); FAVORITES and
  * RECENTS are cross-device UI state — the server per-user prefs
  * store is the authority, device-local cache offline; see nodePrefs.ts);
  * MORE reveals the class list. Favorites/recents live here (moved out of
@@ -42,7 +43,7 @@ import "./Sidebar.css";
 
 export type AnyClient = WorkspaceClient | WorkerClient;
 
-export type NavKey = "today" | "journal" | "calendar" | "inbox" | "pages" | "classes" | "whiteboards" | "tasks" | "assets" | "queries" | "graph";
+export type NavKey = "today" | "journal" | "calendar" | "inbox" | "pages" | "classes" | "whiteboards" | "tasks" | "assets" | "queries" | "graph" | "trash";
 
 export const NAV_ENTRIES: Array<{ key: NavKey; label: string; icon: string }> = [
   { key: "today", label: "Today", icon: "mdi-calendar-today-outline" },
@@ -56,6 +57,7 @@ export const NAV_ENTRIES: Array<{ key: NavKey; label: string; icon: string }> = 
   { key: "assets", label: "Assets", icon: "mdi-folder-multiple-image" },
   { key: "queries", label: "Queries", icon: "mdi-database-search-outline" },
   { key: "graph", label: "Graph", icon: "mdi-graph-outline" },
+  { key: "trash", label: "Trash", icon: "mdi-delete-outline" },
 ];
 
 const STORAGE_KEYS = {

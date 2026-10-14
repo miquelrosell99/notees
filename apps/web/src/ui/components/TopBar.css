@@ -43,6 +43,16 @@
   font-size: var(--font-size-sm);
 }
 
+/* The in-app Back/Forward pair: rides directly left of the breadcrumbs
+   (the browser-chrome convention — the address-bar analog is the trail). */
+.nt-topbar-nav {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin-right: var(--spacing-2);
+}
+
 .nt-topbar-right {
   display: flex;
   align-items: center;

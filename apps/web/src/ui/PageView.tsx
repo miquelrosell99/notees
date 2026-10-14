@@ -38,7 +38,9 @@
  * is now THREE columns — NodeView · properties · context. The context
  * column (`.nt-page-context`) hosts, top-down: LocalGraphCard, TocSection,
  * the Activity section (relocated from the card-bottom stack —
- * `SystemSections`' activity branch died with the move), the Comments
+ * `SystemSections`' activity branch died with the move), the Version
+ * history section (the per-node op-log slice, owner 2026-10-14), the
+ * Comments
  * section (the original model: child blocks classed `comment`, threaded,
  * quick-add/reply), and — as its bottom section, the footer with the word
  * count + Created/Updated stamps (the card-bottom bar relocated here,
@@ -54,7 +56,7 @@
  * Backlinks section stays the one home in the SectionStack — since the
  * tab strip's retirement (owner 2026-10-09) a normal NodeCollection
  * section. The context column keeps graph + TOC +
- * Activity + Comments ONLY. Embedded/journal/calendar surfaces and the
+ * Activity + Version history + Comments ONLY. Embedded/journal/calendar surfaces and the
  * focus/compact variants render NO context column (main-surface chrome
  * only); the class variant joined the PANELLED layout owner 2026-10-12 —
  * Metadata + Class properties + Templates ride its first column — and its
@@ -101,6 +103,7 @@ import { NodeContextMenu } from "./components/NodeContextMenu.js";
 import { DayPageSections } from "./components/DayPageSections.js";
 import { CreatedSection } from "./components/CreatedSection.js";
 import { ActivityLogSection } from "./components/ActivityLogSection.js";
+import { VersionHistorySection } from "./components/VersionHistorySection.js";
 import { ClassPillsList } from "./components/ClassPillsList.js";
 import { pageVariantOf } from "./components/pageVariant.js";
 import { definedNodeIcon } from "./iconFor.js";
@@ -848,6 +851,10 @@ export function PageView({
                 <LocalGraphCard client={client} nodeId={pageId} onOpenNode={(id) => onOpenPage?.(id)} />
                 <TocSection client={client} pageId={pageId} onJumpToBlock={jumpToBlock} />
                 <ActivityLogSection client={client} nodeId={pageId} />
+                {/* Version history — the per-node op-log slice (content
+                    snapshots + restore); lazy like Activity, fetched on the
+                    first expand. */}
+                <VersionHistorySection client={client} nodeId={pageId} />
                 {/* Comments — child blocks classed `comment`, threaded. */}
                 <CommentsSection client={client} nodeId={pageId} onOpenNode={onOpenPage} />
                 {/* The footer (word count + Created/Updated stamps) is the

@@ -41,6 +41,7 @@ import type {
   SearchSnippetData,
   SetClassPropertyInput,
   SyncStatusSnapshot,
+  TrashedEntry,
   UpdateObjectInput,
   UpdatePropertySchemaInput,
 } from "./workspace-client.js";
@@ -417,6 +418,11 @@ export class WorkerClient {
     return this.cachedRead<ClientNode[]>("roots", [], []);
   }
 
+  /** The Trash hub's read: soft-trashed subtree roots, newest first. */
+  listTrashed(): TrashedEntry[] {
+    return this.cachedRead<TrashedEntry[]>("listTrashed", [], []);
+  }
+
   listClasses(): ClientNode[] {
     return this.cachedRead<ClientNode[]>("listClasses", [], []);
   }
@@ -536,6 +542,15 @@ export class WorkerClient {
     return (await this.call("fetchOperationsFor", [objectId, propertySchemaId])) as OperationFeedEntry[];
   }
 
+  /**
+   * Per-node version history feed — async RPC into the worker's
+   * WorkspaceClient (same REST-owned-by-the-worker contract as the property
+   * feed). Rejects with the feed error when the server is unreachable.
+   */
+  async fetchNodeHistory(nodeId: string): Promise<OperationFeedEntry[]> {
+    return (await this.call("fetchNodeHistory", [nodeId])) as OperationFeedEntry[];
+  }
+
   getChildren(id: string): ClientNode[] {
     return this.cachedRead<ClientNode[]>("getChildren", [id], []);
   }
@@ -629,6 +644,11 @@ export class WorkerClient {
 
   async deleteObject(id: string, opts?: DeleteObjectOptions): Promise<void> {
     await this.call("deleteObject", [id, opts]);
+  }
+
+  /** Restore a trashed node and its subtree (object.restore). */
+  async restoreObject(id: string): Promise<void> {
+    await this.call("restoreObject", [id]);
   }
 
   /** Reparent a node (outliner indent/outdent; `afterId`/`beforeId` = sibling placement). */
