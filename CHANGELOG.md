@@ -9,6 +9,35 @@ predating this file.
 
 ## 2026-10-14
 
+- **feat(web)!: the Pixi renderer graduates — the default AND the only
+  graph renderer; the WebGL adapter is deleted for good (owner ruling,
+  go/no-go Stage 3 complete).** The 50k load test made the call: Pixi at
+  parity-plus (2× pan/zoom, 5× hover, clean console vs the WebGL
+  position-texture 16k wall), the left-drag hang fixed by the
+  delta-based streamed-frame path. What changed: `webglRenderer.ts`
+  (2,086 lines) is gone — its shared, adapter-agnostic pieces moved to a
+  neutral `renderer/edgePlan.ts` (the `CameraState`/`NodeVisual`/
+  `RendererEdge`/`RendererOptions`/`EdgeRenderPlan` types, the pure
+  `planEdgeRender`, the theme-reactive `getCssEdgeColor`; the three
+  GL-only color helpers died with zero consumers); `graphRenderer.ts`
+  (the contract) stays, now retargeted at edgePlan. GraphView constructs
+  the Pixi adapter unconditionally and the `graphPrefs.renderer` device
+  pref is retired — field, load coercion, lifecycle dep, and the
+  settings-popover "Renderer" row (WebGL / Pixi beta) all removed; the
+  popover opens on the physics preset. The error register is one honest
+  empty state: "Graph renderer failed" (shader-link failures keep their
+  specific description; the missing-backend case no longer brands "WebGL
+  2 required" — Pixi's init throws "no WebGL2 backend for the graph
+  renderer"). Specs: `graph-renderer.test.ts` keeps the label-overlay
+  contract, the idle-skip signature, the edge/arrow planning, the LOD
+  contract, and a retargeted adapter camera-math spec (19 kept, plus the
+  Pixi suite's 28); the two WebGL-only describes (honest-error via the GL
+  adapter, and the time-lapse/hover uniform contract, ~9 specs) delete
+  with the file; `graph-view.test.tsx`'s renderer stub re-points at the
+  Pixi module and its fallback specs expect the new register. Docs:
+  `docs/usage.md` drops the beta-flag sentence and names the single
+  PixiJS renderer. **Verification:** `pnpm typecheck` + `pnpm test`
+  green from the repo root; no wire/store/sync touch (web-only).
 - **docs(agents): AGENTS.md carries the fleet-workflow block — greenfield/features route through `autonomous-app-builder`, all visuals defer to `rosellramos-design-system`.** Follows the fleet entry-point consolidation and this repo's design-override register: any agent session now finds the workflow and the visual authority in one hop from the repo root, with `.agents/design-overrides.md` as the documented-deviation home per the skill's `references/overrides.md` contract. One-bullet addition to the Skills section; no runtime behavior.
 - **docs(agents): Notees adopts the design-override register — `.agents/design-overrides.md` seeds with five rulings and AGENTS.md names it.** The RosellRamos design system gained an override contract (`references/overrides.md`: one register per app, entries cite the rule they override with rationale/ruling/review-trigger, audits treat documented deviations as PASS-with-note and undocumented ones as Critical). Notees is the first registered project: the seed records the seed-tinted dark surfaces, selected chrome wearing the seed's primary-container (M3's nav register says secondary-container — no secondary hue in play), the Margin Green presets replacing fleet copper, the full-page settings ruling, and the 2026-10-09 chrome-register rulings. AGENTS.md's `.agents/` line and the records index point at the register. Repo-record slice only — no runtime behavior, no redeploy.
 - **fix(web): the browser tab title names the selection-less surfaces — the open nav hub ("Trash - Notees", "Graph - Notees", "Tasks - Notees", "Assets - Notees", …) and the full-page search ("Search - Notees").** The settings-title fix branched the ONE title effect on the settings route, but a hub view (which clears the selection) still fell through to the bare "Notees" — the same stale-title trap the settings branch fixed for its own surface. The branching rule is now the exported pure `tabTitle` (mirroring the PageCard render precedence: settings section → open node → search → active nav hub, named from `NAV_ENTRIES`; the effect is the only writer and only assigns), so the whole surface register is pinned by `test/tab-title.test.ts` — every nav hub's label, node-over-hub, search-over-hub, settings-over-everything, signed-out fallback. Verified: `pnpm typecheck` + `pnpm test` green; web-only, no wire/store/sync touch.

@@ -1,9 +1,11 @@
 /**
- * PixiJS v8 graph renderer — the experimental adapter behind GraphRenderer
- * (owner 2026-10-14: adapter-first Pixi migration, flagged via
- * graphPrefs.renderer, default stays WebGL until parity is proven).
+ * PixiJS v8 graph renderer — the ONLY graph renderer since the owner
+ * graduation ruling (2026-10-14): the WebGL adapter reached parity, beat it
+ * at 50k nodes (2× pan/zoom, 5× hover, no texture-overflow wall), and
+ * deleted; GraphView constructs this class behind the GraphRenderer
+ * contract.
  *
- * Visual semantics are ported from webglRenderer.ts. What is identical:
+ * Visual semantics are ported from the retired WebGL adapter. What is identical:
  *   • Camera math (world→screen, fit, pick) — same formulas.
  *   • Node color pipeline: per-node RGBA × pin-brighten × selection dim
  *     (alpha × 0.55) × hover-neighborhood color rules (owner 2026-10-14:
@@ -59,7 +61,7 @@ import {
   type NodeVisual,
   type RendererEdge,
   type RendererOptions,
-} from "./webglRenderer.js";
+} from "./edgePlan.js";
 
 /** Radius of the pre-rendered white-circle node texture, in pixels. */
 const NODE_TEXTURE_RADIUS_PX = 64;
@@ -422,12 +424,14 @@ export class GraphPixiRenderer implements GraphRenderer {
   // ─── Lifecycle ────────────────────────────────────────────────────────────
 
   init(canvas: HTMLCanvasElement): void {
-    // Honest synchronous failure (same contract as the GL adapter): a
+    // Honest synchronous failure (the GraphRenderer init contract): a
     // detached probe canvas, so Pixi still owns the real context's
-    // attributes on the provided canvas.
+    // attributes on the provided canvas. The message names the backend
+    // requirement without branding the register — GraphView surfaces a
+    // single "Graph renderer failed" empty state either way.
     const probe = document.createElement("canvas");
     if (probe.getContext("webgl2") === null) {
-      throw new Error("WebGL2 not supported");
+      throw new Error("no WebGL2 backend for the graph renderer");
     }
     this.canvasW = canvas.width;
     this.canvasH = canvas.height;
