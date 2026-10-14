@@ -213,16 +213,26 @@ export interface OutlinerContextValue {
   /**
    * Block multi-selection — session-local display state (never an
    * op): the selected block-id set plus the anchor the range gestures
-   * extend from. The set is always whole-subtree — every write path
-   * closes it over the selected blocks' descendants (selecting a block
-   * selects its children), so the visual stays one contiguous card.
-   * `selectionEnabled` is a view-level opt-in (the main page
+   * extend from. The stack is LEVEL-CAPPED (owner rule): every write maps
+   * its raw ids to their ancestors at the stack's shallowest depth, so a
+   * selection can never mix a block with a descendant of its sibling
+   * ("14" stands in for its whole subtree — dragging the range onto the
+   * child selects the ancestor instead). The exposed `selection` stays
+   * whole-subtree — the roots' descendants close in implicitly — so the
+   * visual stays one contiguous card. `selectionEnabled` is a view-level opt-in (the main page
    * body enables it; embedded feeds and read-only projections don't), so a
    * surface without the action bar never accumulates a selection.
    */
   selectionEnabled: boolean;
   /** The selected block ids — always closed over subtrees (see above). */
   selection: ReadonlySet<string>;
+  /**
+   * The level-capped selection stack itself: the shallowest-level roots the
+   * gestures resolved to (never a block whose ancestor is also in the set).
+   * The block-drag machinery drags these — the whole stack moves, internal
+   * structure preserved.
+   */
+  selectionRoots: ReadonlySet<string>;
   selectionAnchor: string | null;
   setSelectionAnchor: (blockId: string | null) => void;
   replaceSelection: (blockIds: ReadonlySet<string>, anchor?: string | null) => void;
@@ -286,11 +296,13 @@ export function useOutlinerValue(
     });
   }, []);
 
-  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set<string>());
+  const [selectedRoots, setSelectedRoots] = useState<ReadonlySet<string>>(() => new Set<string>());
   const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
   // Latest-value subtree map: the selection callbacks are stable ([]) and
   // must close over the CURRENT tree, not the render that created them.
   const subtreeOfRef = useRef<Map<string, string[]>>(new Map());
+  // Latest-value positions mirror — the cap rule reads parent chains live.
+  const positionsRef = useRef<OutlinePositionMap>(new Map());
   const closeOverSubtrees = (ids: ReadonlySet<string>): Set<string> => {
     const next = new Set<string>();
     for (const id of ids) {
@@ -300,22 +312,89 @@ export function useOutlinerValue(
     }
     return next;
   };
+  // Depth within this tree: top-level rows are 0 (their parent is the page,
+  // which is not itself a row). Ids without facts (stale) read as depth 0 —
+  // they cap nothing and map to themselves.
+  const depthOf = (id: string): number => {
+    let depth = 0;
+    const seen = new Set<string>();
+    let current = positionsRef.current.get(id)?.parentId;
+    while (typeof current === "string" && !seen.has(current)) {
+      if (positionsRef.current.get(current) === undefined) break; // the page root
+      seen.add(current);
+      depth += 1;
+      current = positionsRef.current.get(current)?.parentId;
+    }
+    return depth;
+  };
+  const isDescendantOf = (id: string, ancestorId: string): boolean => {
+    const seen = new Set<string>();
+    let current = positionsRef.current.get(id)?.parentId;
+    while (typeof current === "string" && !seen.has(current)) {
+      if (current === ancestorId) return true;
+      seen.add(current);
+      current = positionsRef.current.get(current)?.parentId;
+    }
+    return false;
+  };
+  /**
+   * The level cap (owner rule): a selection stack is capped at its
+   * shallowest level — every raw id maps to its ancestor at the stack's
+   * min depth, so a range can never mix "14" (depth 0) with its child
+   * "el hecho de proteger…" (depth 1): dragging onto the child selects
+   * "14" instead. The result is the capped ROOT set; subtree closure is
+   * implicit (`selection` derives from these).
+   */
+  const capSelection = (raw: ReadonlySet<string>): Set<string> => {
+    if (raw.size === 0) return new Set();
+    let cap = Number.POSITIVE_INFINITY;
+    const depths = new Map<string, number>();
+    for (const id of raw) {
+      const depth = depthOf(id);
+      depths.set(id, depth);
+      cap = Math.min(cap, depth);
+    }
+    const capped = new Set<string>();
+    for (const id of raw) {
+      const depth = depths.get(id)!;
+      if (depth <= cap) {
+        capped.add(id);
+        continue;
+      }
+      let mapped = id;
+      for (let level = depth; level > cap; level -= 1) {
+        const parent = positionsRef.current.get(mapped)?.parentId;
+        if (typeof parent !== "string") break;
+        mapped = parent;
+      }
+      capped.add(mapped);
+    }
+    return capped;
+  };
   const replaceSelection = useCallback((blockIds: ReadonlySet<string>, anchor?: string | null) => {
-    setSelectedIds(closeOverSubtrees(blockIds));
+    setSelectedRoots(capSelection(blockIds));
     if (anchor !== undefined) setSelectionAnchor(anchor);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- closeOverSubtrees reads the latest tree through subtreeOfRef.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- capSelection reads the latest tree through positionsRef.
   }, []);
   const toggleSelected = useCallback((blockId: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(blockId)) next.delete(blockId);
-      else next.add(blockId);
-      return closeOverSubtrees(next);
+    setSelectedRoots((prev) => {
+      if (prev.has(blockId)) {
+        const next = new Set(prev);
+        next.delete(blockId);
+        return next;
+      }
+      // Inside an already-selected subtree the ancestor is the selected
+      // entity — toggling the row would open a deeper level in the stack,
+      // which the cap rule forbids. No-op.
+      for (const root of prev) {
+        if (isDescendantOf(blockId, root)) return prev;
+      }
+      return capSelection(new Set([...prev, blockId]));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- same derivation as replaceSelection.
   }, []);
   const clearSelection = useCallback(() => {
-    setSelectedIds(new Set<string>());
+    setSelectedRoots(new Set<string>());
     setSelectionAnchor(null);
   }, []);
   const dragClickRef = useRef(false);
@@ -330,9 +409,12 @@ export function useOutlinerValue(
 
   const tree = client.getBlockTree(rootId);
   const positions = buildOutlinePositions(tree, rootId);
-  // The multi-selection is whole-subtree: selecting a block also selects its
-  // children (recursively) — the visual is one card around the contiguous
-  // range, and a partial subtree would break the rectangle.
+  positionsRef.current = positions;
+  // The stored stack is level-capped roots; the exposed set is whole-subtree
+  // (selecting a block also exposes its children — the visual is one card
+  // around the contiguous range, and a partial subtree would break the
+  // rectangle).
+  const selection = closeOverSubtrees(selectedRoots);
   const subtreeOf = new Map<string, string[]>();
   const collectSubtrees = (nodes: readonly BlockTreeNode[]): string[] => {
     const all: string[] = [];
@@ -369,7 +451,8 @@ export function useOutlinerValue(
     openInSidebar: options?.openInSidebar ?? (() => {}),
     focusMode: options?.focusMode ?? false,
     selectionEnabled: options?.selection ?? false,
-    selection: selectedIds,
+    selection: selection,
+    selectionRoots: selectedRoots,
     selectionAnchor,
     setSelectionAnchor,
     replaceSelection,

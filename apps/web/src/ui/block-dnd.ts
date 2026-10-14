@@ -42,10 +42,20 @@
  * vertical center at the child-offset x. The dragged block's own subtree is
  * excluded. Each pointer move projects the pointer onto the nearest anchor
  * within a y threshold (x distance breaks ties); far from every anchor, no
- * indicator renders. The dragged row itself stays in place and renders
- * muted (see BlockRow's drag-source class); the floating DragOverlay chip
- * is the only preview. Keyboard drags (no pointer) keep the event-driven
- * path below.
+ * indicator renders. The preview is FROZEN by design: no row ever applies
+ * the sortable strategy transform (BlockRow dropped it), so nothing slides
+ * to make room — the feedback is the highlight line at the drop position
+ * (the drop- intent classes), the dragged source(s) reading faint in place
+ * (the drag-source class, whole selection stack included), and the floating
+ * DragOverlay chip. At the edges of a scrollable view the session auto-
+ * scrolls (see the edge-scroll section) and re-measures the anchors on
+ * every scroll so the indicator tracks the content. Keyboard drags (no
+ * pointer) keep the event-driven path below.
+ *
+ * Selection stacks: dragging the grip of a SELECTED row (or the stack's
+ * lead) drags the whole level-capped selection — only the top-level roots
+ * reparent, internal structure preserved (planStackMove). The chip reads
+ * "N blocks".
  *
  * The workspace session (useWorkspaceDnd.ts): ONE drag session owns the
  * whole workspace — the host in App wraps the main content card, the right
@@ -89,6 +99,13 @@ export interface DropLine {
 /** Live drop indicator, provided by the workspace host while a drag is in
  *  flight. BlockRow reads it; surfaces never provide it themselves. */
 export const DropLineContext = createContext<DropLine | null>(null);
+
+/**
+ * The drag session's source set (the dragged block plus the rest of the
+ * selection stack), provided by the workspace host while a drag is in
+ * flight — every listed row renders faint in place. Null outside a drag.
+ */
+export const DragSourcesContext = createContext<ReadonlySet<string> | null>(null);
 
 /**
  * The workspace drag-scope law: block rows are draggable ONLY inside a
@@ -235,20 +252,22 @@ export function measureDragRows(root: HTMLElement | null): DragRowRect[] {
 
 /**
  * The valid-location set for a drag session: for every visible row except
- * the dragged subtree (the dragged block itself included — dropping onto it
- * is a no-op the indicator should not suggest), a sibling pair above/below
- * the row and a child candidate, each carrying its anchor point.
+ * the dragged subtrees (the dragged block itself included — dropping onto
+ * it is a no-op the indicator should not suggest; `extraExcluded` carries
+ * the rest of a selection stack's roots), a sibling pair above/below the
+ * row and a child candidate, each carrying its anchor point.
  */
 export function dropCandidatesOf(
   positions: OutlinePositionMap,
   activeId: string,
   rows: readonly DragRowRect[],
+  extraExcluded?: ReadonlySet<string>,
 ): DropCandidate[] {
   const inDraggedSubtree = (startId: string): boolean => {
     let current: string | null | undefined = startId;
     const seen = new Set<string>();
     while (typeof current === "string" && !seen.has(current)) {
-      if (current === activeId) return true;
+      if (current === activeId || extraExcluded?.has(current) === true) return true;
       seen.add(current);
       current = positions.get(current)?.parentId ?? null;
     }
@@ -550,4 +569,335 @@ export async function executeZoneMove(args: {
   if (dragged !== undefined && dragged.presentAsMain !== (zone === "main")) {
     await client.updateObject(activeId, { presentAsMain: zone === "main" });
   }
+}
+
+// --- selection-stack drags ---------------------------------------------------
+//
+// Dragging the grip of a SELECTED row drags the whole level-capped selection
+// stack: only the top-level roots reparent — a selected block's selected
+// descendants ride inside it, so the internal structure is preserved by
+// construction. The planner works on SiblingFacts (positions map or client)
+// with list semantics: drop the stack into the parent's child list (drag ids
+// removed) right after the anchor; a block whose current (parent, previous
+// sibling) already matches its intended placement is skipped by the executor.
+
+/**
+ * The effective drag set for a selection stack: the selected roots in
+ * document order (the positions map iterates in document order). The stack
+ * is level-capped upstream (outliner-context), so no root is another's
+ * descendant — descendants ride implicitly inside their root's subtree.
+ */
+export function effectiveDragIds(
+  selectionRoots: ReadonlySet<string>,
+  positions: OutlinePositionMap,
+): string[] {
+  const ids: string[] = [];
+  for (const [id] of positions) {
+    if (selectionRoots.has(id)) ids.push(id);
+  }
+  return ids;
+}
+
+/** Sibling/parent reads the stack planner needs — from positions or client. */
+export interface SiblingFacts {
+  /** The parent id, or null when unknown (outside this tree). */
+  parentOf(id: string): string | null;
+  /** The previous sibling in document order, or null (first child / unknown). */
+  prevOf(id: string): string | null;
+  /** The children of a parent in document order. */
+  childrenOf(parentId: string): string[];
+}
+
+export function siblingFactsFromPositions(positions: OutlinePositionMap): SiblingFacts {
+  // The positions map iterates in document order, so per-parent accumulation
+  // yields document-ordered child lists.
+  const children = new Map<string, string[]>();
+  for (const [id, pos] of positions) {
+    if (pos.parentId === null) continue;
+    const list = children.get(pos.parentId);
+    if (list === undefined) children.set(pos.parentId, [id]);
+    else list.push(id);
+  }
+  return {
+    parentOf: (id) => positions.get(id)?.parentId ?? null,
+    prevOf: (id) => positions.get(id)?.previousSiblingId ?? null,
+    childrenOf: (parentId) => children.get(parentId) ?? [],
+  };
+}
+
+export function siblingFactsFromClient(client: ClientShape): SiblingFacts {
+  const cache = new Map<string, string[]>();
+  const childrenOf = (parentId: string): string[] => {
+    const cached = cache.get(parentId);
+    if (cached !== undefined) return cached;
+    const list = client.getChildren(parentId).map((child) => child.id);
+    cache.set(parentId, list);
+    return list;
+  };
+  return {
+    parentOf: (id) => client.getNode(id)?.parentId ?? null,
+    prevOf: (id) => {
+      const parentId = client.getNode(id)?.parentId;
+      if (parentId === undefined || parentId === null) return null;
+      const list = childrenOf(parentId);
+      const index = list.indexOf(id);
+      return index > 0 ? list[index - 1]! : null;
+    },
+    childrenOf,
+  };
+}
+
+/** One block's move in a stack plan. */
+export interface PlannedMove {
+  id: string;
+  command: MoveCommand;
+  /** The block already sits at its intended placement — the executor skips it. */
+  alreadyThere: boolean;
+  /**
+   * First-slot anchor: a reorder with afterId null executes as the
+   * three-phase swap (see executeStackPlan); the current first child is
+   * carried here.
+   */
+  firstSlotSwapWith?: string;
+}
+
+export type StackPlan =
+  | { status: "move"; moves: PlannedMove[] }
+  | { status: "noop" }
+  | { status: "refused"; reason: string };
+
+/**
+ * Plan a selection-stack drop under the intent model's list semantics.
+ * Guards: the would-be parent (reorder) or target (child) may not lie in any
+ * dragged block's own subtree — checked per block, loud refusal. The plan
+ * covers EVERY stack block (already-there ones included) so the first-slot
+ * swap can order the whole stack deterministically.
+ */
+export function planStackMove(
+  ids: readonly string[],
+  line: DropLine,
+  facts: SiblingFacts,
+): StackPlan {
+  const idSet = new Set(ids);
+  if (idSet.has(line.targetId)) return { status: "noop" };
+
+  const inOwnSubtree = (startId: string, blockId: string): boolean => {
+    const seen = new Set<string>();
+    let current: string | null = startId;
+    while (typeof current === "string" && !seen.has(current)) {
+      if (current === blockId) return true;
+      seen.add(current);
+      current = facts.parentOf(current);
+    }
+    return false;
+  };
+
+  if (line.intent === "child") {
+    const target = line.targetId;
+    for (const id of ids) {
+      if (inOwnSubtree(target, id)) {
+        return { status: "refused", reason: "Can't drop a block into its own subtree" };
+      }
+    }
+    // Intended placement: the stack appended at the END of the target's
+    // children in stack order; the lead's intended previous sibling is the
+    // last child that is not part of the stack.
+    const remaining = facts.childrenOf(target).filter((child) => !idSet.has(child));
+    const intendedPrev0 = remaining[remaining.length - 1] ?? null;
+    return finishPlan(
+      ids.map((id, index) => ({
+        id,
+        command: { kind: "child", parentId: target } as MoveCommand,
+        parentMatches: facts.parentOf(id) === target,
+        prevMatches: facts.prevOf(id) === (index === 0 ? intendedPrev0 : ids[index - 1]!),
+      })),
+    );
+  }
+
+  const parent = facts.parentOf(line.targetId);
+  if (parent === null) return { status: "noop" };
+  for (const id of ids) {
+    if (inOwnSubtree(parent, id)) {
+      return { status: "refused", reason: "Can't drop a block into its own subtree" };
+    }
+  }
+  // The parent's child list with the stack removed; the stack inserts right
+  // after the anchor row ("above" anchors on the row before the target).
+  const siblings = facts.childrenOf(parent).filter((child) => !idSet.has(child));
+  const targetIndex = siblings.indexOf(line.targetId);
+  if (targetIndex === -1) return { status: "noop" };
+  const insertAfter = line.intent === "below" ? targetIndex : targetIndex - 1;
+  const intendedPrev0 = insertAfter >= 0 ? (siblings[insertAfter] ?? null) : null;
+  const firstSlotSwapWith = intendedPrev0 === null ? siblings[0] : undefined;
+  return finishPlan(
+    ids.map((id, index) => ({
+      id,
+      command: {
+        kind: "reorder",
+        parentId: parent,
+        afterId: index === 0 ? intendedPrev0 : ids[index - 1]!,
+      } as MoveCommand,
+      parentMatches: facts.parentOf(id) === parent,
+      prevMatches: facts.prevOf(id) === (index === 0 ? intendedPrev0 : ids[index - 1]!),
+      ...(firstSlotSwapWith !== undefined && index === 0 ? { firstSlotSwapWith } : {}),
+    })),
+  );
+}
+
+/**
+ * Assemble the moves + the alreadyThere flags. The flag is PREFIX-GATED: a
+ * block may keep its place only while every block before it in the stack
+ * does too — block i's intended previous sibling is block i-1, so the
+ * moment a predecessor issues a move, every successor must be re-anchored
+ * on it (the chain rebuilds the stack sequence from the anchor). All flags
+ * true → the whole plan is a noop.
+ */
+function finishPlan(
+  drafted: Array<{
+    id: string;
+    command: MoveCommand;
+    parentMatches: boolean;
+    prevMatches: boolean;
+    firstSlotSwapWith?: string;
+  }>,
+): StackPlan {
+  let prefixIntact = true;
+  const moves: PlannedMove[] = drafted.map((move) => {
+    const stays = prefixIntact && move.parentMatches && move.prevMatches;
+    if (!stays) prefixIntact = false;
+    const { parentMatches, prevMatches, ...rest } = move;
+    return { ...rest, alreadyThere: stays };
+  });
+  if (moves.every((move) => move.alreadyThere)) return { status: "noop" };
+  return { status: "move", moves };
+}
+
+/**
+ * Issue a stack plan: each pending block moves to its intended placement,
+ * chained on the stack's own order (block i lands after block i-1). The
+ * first-slot reorder (afterId null) runs the three-phase swap from
+ * executeMove, generalized to the stack: the whole stack moves after the
+ * current first child in order, then the first child moves after the stack —
+ * the stack ends up ahead of it, order kept.
+ */
+export async function executeStackPlan(
+  moves: readonly PlannedMove[],
+  moveObject: (id: string, parentId: string | null, afterId?: string) => Promise<void>,
+): Promise<void> {
+  if (moves.every((move) => move.alreadyThere)) return;
+  const lead = moves[0]!;
+  if (lead.command.kind === "reorder" && lead.command.afterId === null) {
+    const firstId = lead.firstSlotSwapWith;
+    if (typeof firstId !== "string") return;
+    await moveObject(lead.id, lead.command.parentId, firstId);
+    for (let index = 1; index < moves.length; index += 1) {
+      const move = moves[index]!;
+      if (move.command.kind === "reorder") {
+        await moveObject(move.id, move.command.parentId, moves[index - 1]!.id);
+      }
+    }
+    await moveObject(firstId, lead.command.parentId, moves[moves.length - 1]!.id);
+    return;
+  }
+  for (const move of moves) {
+    if (move.alreadyThere) continue;
+    if (move.command.kind === "child") {
+      await moveObject(move.id, move.command.parentId);
+    } else if (move.command.afterId !== null) {
+      await moveObject(move.id, move.command.parentId, move.command.afterId);
+    }
+  }
+}
+
+/**
+ * The zone executor for a stack drop: issue the plan through the surface's
+ * client and flip every dragged block's present-as-main bit to the zone the
+ * drop landed in (`dropZoneOf` — the same line decides for the whole stack).
+ */
+export async function executeStackZoneMove(args: {
+  line: DropLine;
+  plan: Extract<StackPlan, { status: "move" }>;
+  client: MoveExecutionClient;
+}): Promise<void> {
+  const { line, plan, client } = args;
+  const moveObject = (id: string, parentId: string | null, afterId?: string) =>
+    afterId === undefined ? client.moveObject(id, parentId) : client.moveObject(id, parentId, afterId);
+  await executeStackPlan(plan.moves, moveObject);
+  const zone = dropZoneOf(line, (id) => client.getNode(id));
+  for (const move of plan.moves) {
+    const dragged = client.getNode(move.id);
+    if (dragged !== undefined && dragged.presentAsMain !== (zone === "main")) {
+      await client.updateObject(move.id, { presentAsMain: zone === "main" });
+    }
+  }
+}
+
+// --- drag-session edge auto-scroll ------------------------------------------
+//
+// A block drag auto-scrolls the scrollable views it rides (the page body,
+// a rail card, a floating editor) when the pointer sits in the edge band of
+// a container that can still scroll that way — the only motion during a
+// drag, which is otherwise frozen. The rAF loop lives in the workspace
+// host; these are its pure, unit-tested pieces.
+
+/** Pointer distance from a scrollable container's edge that arms the drag edge-scroll. */
+export const DRAG_EDGE_SCROLL_BAND_PX = 40;
+
+/** Maximum per-frame scroll step at the container's very edge. */
+export const DRAG_EDGE_SCROLL_MAX_SPEED_PX = 6;
+
+/**
+ * The scrollable ancestors of a zone root, innermost first: every element
+ * in the root's ancestor chain (the root included) whose overflow-y is
+ * auto/scroll and whose content overflows vertically, then the document
+ * scroller when it overflows.
+ */
+export function scrollContainersOf(root: HTMLElement | null): HTMLElement[] {
+  if (root === null) return [];
+  const doc = root.ownerDocument;
+  const view = doc.defaultView;
+  const containers: HTMLElement[] = [];
+  const collect = (el: HTMLElement): void => {
+    if (containers.includes(el)) return;
+    const overflowY = view === null ? "" : view.getComputedStyle(el).overflowY;
+    if (overflowY !== "auto" && overflowY !== "scroll") return;
+    if (el.scrollHeight <= el.clientHeight) return;
+    containers.push(el);
+  };
+  for (let el: HTMLElement | null = root; el !== null; el = el.parentElement) collect(el);
+  const scroller = doc.scrollingElement;
+  if (scroller instanceof HTMLElement) collect(scroller);
+  return containers;
+}
+
+/**
+ * The per-frame vertical scroll step for a pointer near a container's edge:
+ * within the band of the top edge the container scrolls up, of the bottom
+ * edge down, linearly ramping from zero at the band's outer bound to the
+ * max speed at the edge; the nearer edge wins on short containers. Zero
+ * when the pointer sits outside the band or the container cannot scroll
+ * further in that direction. Pure — the host feeds live rect + scroll facts
+ * each frame.
+ */
+export function edgeScrollVelocity(args: {
+  pointerY: number;
+  rectTop: number;
+  rectHeight: number;
+  canScrollUp: boolean;
+  canScrollDown: boolean;
+}): number {
+  const { pointerY, rectTop, rectHeight, canScrollUp, canScrollDown } = args;
+  const band = DRAG_EDGE_SCROLL_BAND_PX;
+  const max = DRAG_EDGE_SCROLL_MAX_SPEED_PX;
+  const distFromTop = pointerY - rectTop;
+  const distFromBottom = rectTop + rectHeight - pointerY;
+  const topIn = distFromTop >= 0 && distFromTop < band && canScrollUp;
+  const bottomIn = distFromBottom >= 0 && distFromBottom < band && canScrollDown;
+  if (topIn && (!bottomIn || distFromTop <= distFromBottom)) {
+    return -Math.ceil(((band - distFromTop) / band) * max);
+  }
+  if (bottomIn) {
+    return Math.ceil(((band - distFromBottom) / band) * max);
+  }
+  return 0;
 }

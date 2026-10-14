@@ -28,6 +28,22 @@
  *   unchanged from the intent model in block-dnd.ts — the hierarchy-end
  *   disambiguation and the drag-end fallback (nothing near → event-driven
  *   line) carry over; keyboard drags keep the event-driven path.
+ * - Selection stacks: dragging the grip of a SELECTED row drags the whole
+ *   level-capped selection (the zone facts expose `getSelection`) — the
+ *   session's `dragIds` carries the top-level roots (document order), the
+ *   chip reads "N blocks", every stack row renders faint via
+ *   DragSourcesContext, and the drop plans + executes one chained move per
+ *   root (planStackMove — internal structure preserved, first-slot swaps
+ *   generalized). Single-block drags keep the resolveMove/executeZoneMove
+ *   path untouched.
+ * - Edge auto-scroll: the session collects the scrollable ancestors of
+ *   every zone root and runs a rAF loop — a pointer in a container's edge
+ *   band scrolls it (ramped speed, the innermost scroller under the
+ *   pointer, dnd-kit's built-in autoScroll stays OFF to avoid double
+ *   scrolls). ANY scroll during a block session re-measures every zone
+ *   into the session and re-projects the drop line at the last pointer, so
+ *   the indicator tracks content moving under a stationary pointer and
+ *   freshly revealed rows become droppable.
  *
  * Card header drops (the card frame's header is a droppable):
  *
@@ -88,21 +104,30 @@ import type { OutlinePositionMap } from "@/editor/outline.js";
 
 import { displayNameFromClient } from "./dateDisplay.js";
 import {
+  DragSourcesContext,
   DropLineContext,
   blockCollisionDetection,
   dragPointerOf,
   dropCandidatesOf,
   dropLineFromDragEvent,
+  edgeScrollVelocity,
+  effectiveDragIds,
+  executeStackZoneMove,
   executeZoneMove,
   measureDragRows,
   mergeZoneCandidates,
   moveErrorMessage,
   nearestCandidate,
+  planStackMove,
   resolveMove,
   resolveMoveFromClient,
+  scrollContainersOf,
+  siblingFactsFromClient,
+  siblingFactsFromPositions,
   useBlockDndSensors,
   type DropCandidate,
   type DropLine,
+  type StackPlan,
   type ZoneDropCandidate,
 } from "./block-dnd.js";
 
@@ -116,6 +141,12 @@ export interface WorkspaceDndZoneFacts {
   rootRef: RefObject<HTMLElement | null>;
   /** The surface's live outline positions (sibling/parent facts). */
   getPositions: () => OutlinePositionMap;
+  /**
+   * The surface's level-capped selection stack: dragging the grip of a
+   * selected row promotes the drag to the whole stack. Absent on surfaces
+   * without block multi-selection.
+   */
+  getSelection?: () => ReadonlySet<string>;
   /** The write client (resolution + execution + display names). */
   client: AnyClient;
 }
@@ -175,7 +206,10 @@ export function workspaceRailCardDraggableId(nodeId: string): string {
 interface DragSession {
   /** Rail sessions reorder the App's card stack; block sessions move blocks. */
   kind: "blocks" | "rail";
+  /** The dragged block (the grip row); the first of `dragIds` in a stack drag. */
   activeId: string;
+  /** The blocks the session moves — a lone block, or the selection stack. */
+  dragIds: readonly string[];
   /** Per-zone valid-location sets; the merged projection rides alongside
    *  (empty for rail sessions — the block machinery stays out). */
   perZone: Map<string, readonly DropCandidate[]>;
@@ -223,6 +257,7 @@ export function useWorkspaceDnd(opts: {
   const sensors = useBlockDndSensors();
   const [dropLine, setDropLine] = useState<DropLine | null>(null);
   const [dragging, setDragging] = useState<{ id: string; label: string } | null>(null);
+  const [dragSources, setDragSources] = useState<ReadonlySet<string> | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
   const [dragUi, setDragUi] = useState<WorkspaceDndDragUi>({
     headerDropId: null,
@@ -233,6 +268,14 @@ export function useWorkspaceDnd(opts: {
   const headersRef = useRef(new Map<string, WorkspaceDndHeaderFacts>());
   const railCardsRef = useRef(new Map<string, WorkspaceRailCardFacts>());
   const sessionRef = useRef<DragSession | null>(null);
+  // Drag edge auto-scroll: the last live pointer (null for keyboard drags),
+  // the session's scrollable containers (collected at drag start), and the
+  // rAF loop handle.
+  const pointerRef = useRef<{ x: number; y: number } | null>(null);
+  const scrollContainersRef = useRef<readonly HTMLElement[]>([]);
+  const edgeScrollRafRef = useRef<number | null>(null);
+  // Scroll re-measure: the rAF coalescer for the capture-phase scroll listener.
+  const remeasureRafRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (moveError === null) return;
@@ -240,10 +283,82 @@ export function useWorkspaceDnd(opts: {
     return () => clearTimeout(timer);
   }, [moveError]);
 
-  const measureZone = useCallback((facts: WorkspaceDndZoneFacts, activeId: string) => {
-    const rows = measureDragRows(facts.rootRef.current);
-    return dropCandidatesOf(facts.getPositions(), activeId, rows);
+  const edgeScrollTick = useCallback(() => {
+    edgeScrollRafRef.current = null;
+    const session = sessionRef.current;
+    const pointer = pointerRef.current;
+    if (session === null || pointer === null) return;
+    for (const container of scrollContainersRef.current) {
+      const rect = container.getBoundingClientRect();
+      if (pointer.x < rect.left || pointer.x > rect.right) continue;
+      const step = edgeScrollVelocity({
+        pointerY: pointer.y,
+        rectTop: rect.top,
+        rectHeight: rect.height,
+        canScrollUp: container.scrollTop > 0,
+        canScrollDown: container.scrollTop + container.clientHeight < container.scrollHeight - 1,
+      });
+      if (step !== 0) {
+        container.scrollTop += step;
+        // The innermost container under the pointer scrolls — one scroller
+        // per frame (nested scrollers would compound into a jump).
+        break;
+      }
+    }
+    edgeScrollRafRef.current = requestAnimationFrame(edgeScrollTick);
   }, []);
+
+  const stopEdgeScroll = useCallback(() => {
+    if (edgeScrollRafRef.current !== null) {
+      cancelAnimationFrame(edgeScrollRafRef.current);
+      edgeScrollRafRef.current = null;
+    }
+  }, []);
+
+  const measureZone = useCallback(
+    (facts: WorkspaceDndZoneFacts, activeId: string, dragIds: readonly string[] = [activeId]) => {
+      const rows = measureDragRows(facts.rootRef.current);
+      // The whole stack's roots are excluded — nothing may drop into a
+      // dragged subtree (the lead's own subtree included via activeId).
+      const extraExcluded = dragIds.length > 1 ? new Set(dragIds) : undefined;
+      return dropCandidatesOf(facts.getPositions(), activeId, rows, extraExcluded);
+    },
+    [],
+  );
+
+  /**
+   * Re-anchor the snap set after ANY scroll while a block drag is live (the
+   * session's own edge auto-scroll, the wheel, a trackpad): the measured
+   * anchors are viewport-fixed and go stale the moment content moves, and
+   * rows revealed by the scroll become droppable only once measured. The
+   * drop line re-projects at the last pointer so the indicator tracks
+   * content moving under a stationary pointer. Coalesced to one re-measure
+   * per animation frame.
+   */
+  const handleScrollCapture = useCallback(() => {
+    const session = sessionRef.current;
+    if (session === null || session.kind !== "blocks") return;
+    if (remeasureRafRef.current !== null) return;
+    remeasureRafRef.current = requestAnimationFrame(() => {
+      remeasureRafRef.current = null;
+      const live = sessionRef.current;
+      if (live === null || live.kind !== "blocks") return;
+      for (const [zoneId, facts] of zonesRef.current) {
+        live.perZone.set(zoneId, measureZone(facts, live.activeId, live.dragIds));
+      }
+      rebuildMerged(live);
+      const pointer = pointerRef.current;
+      if (pointer !== null) {
+        const candidate = nearestCandidate(pointer, live.merged);
+        setDropLine(candidate === null ? null : { targetId: candidate.targetId, intent: candidate.intent });
+      }
+    });
+  }, [measureZone]);
+
+  useEffect(() => {
+    window.addEventListener("scroll", handleScrollCapture, { capture: true, passive: true });
+    return () => window.removeEventListener("scroll", handleScrollCapture, { capture: true });
+  }, [handleScrollCapture]);
 
   const registerZone = useCallback(
     (facts: WorkspaceDndZoneFacts) => {
@@ -252,7 +367,7 @@ export function useWorkspaceDnd(opts: {
       if (session !== null) {
         // Mid-session registration (a collapsed card's body mounting on a
         // transient expand): measure the zone straight into the session.
-        session.perZone.set(facts.id, measureZone(facts, session.activeId));
+        session.perZone.set(facts.id, measureZone(facts, session.activeId, session.dragIds));
         rebuildMerged(session);
       }
       return () => {
@@ -297,6 +412,24 @@ export function useWorkspaceDnd(opts: {
     const id = String(event.active.id);
     const railCard = railCardsRef.current.get(id);
     setMoveError(null);
+    // Session-owned edge auto-scroll: the live pointer rides pointerRef, the
+    // scrollable containers are collected from every zone, and the rAF loop
+    // starts (it no-ops until the pointer nears an edge).
+    pointerRef.current = dragPointerOf({ delta: { x: 0, y: 0 }, activatorEvent: event.activatorEvent });
+    const containers: HTMLElement[] = [];
+    const seenContainers = new Set<HTMLElement>();
+    for (const facts of zonesRef.current.values()) {
+      for (const el of scrollContainersOf(facts.rootRef.current)) {
+        if (!seenContainers.has(el)) {
+          seenContainers.add(el);
+          containers.push(el);
+        }
+      }
+    }
+    scrollContainersRef.current = containers;
+    if (edgeScrollRafRef.current === null && containers.length > 0) {
+      edgeScrollRafRef.current = requestAnimationFrame(edgeScrollTick);
+    }
     if (railCard !== undefined) {
       // A rail-card reorder drag: the block machinery stays out — no zone
       // measuring, no drop line, no transient expands. The feedback is the
@@ -305,25 +438,46 @@ export function useWorkspaceDnd(opts: {
         id,
         label: displayNameFromClient(railCard.client, railCard.nodeId) ?? railCard.nodeId,
       });
+      setDragSources(null);
       setDragUi({ headerDropId: null, expandedNodeIds: new Set(), railReorder: null });
-      sessionRef.current = { kind: "rail", activeId: id, perZone: new Map(), merged: [] };
+      sessionRef.current = { kind: "rail", activeId: id, dragIds: [id], perZone: new Map(), merged: [] };
       return;
     }
     const home = zoneFor(id, id);
     const client = home?.client;
-    setDragging({ id, label: (client === undefined ? null : displayNameFromClient(client, id)) ?? id });
+    // The selection stack: a grip drag on a SELECTED row (with more than one
+    // root selected) promotes the session to the whole stack — only the
+    // top-level roots move, internal structure preserved.
+    const homePositions = home?.getPositions() ?? NO_POSITIONS;
+    const selection = home?.getSelection?.() ?? null;
+    const dragIds =
+      selection !== null && selection.size > 1 && selection.has(id)
+        ? effectiveDragIds(selection, homePositions)
+        : [id];
+    const leadId = dragIds[0] ?? id;
+    setDragging({
+      id,
+      label:
+        dragIds.length > 1
+          ? `${dragIds.length} blocks`
+          : ((client === undefined ? null : displayNameFromClient(client, id)) ?? id),
+    });
+    setDragSources(new Set(dragIds));
     setDragUi({ headerDropId: null, expandedNodeIds: new Set(), railReorder: null });
     const perZone = new Map<string, readonly DropCandidate[]>();
     for (const [zoneId, facts] of zonesRef.current) {
-      perZone.set(zoneId, measureZone(facts, id));
+      perZone.set(zoneId, measureZone(facts, leadId, dragIds));
     }
-    const session: DragSession = { kind: "blocks", activeId: id, perZone, merged: [] };
+    const session: DragSession = { kind: "blocks", activeId: leadId, dragIds, perZone, merged: [] };
     rebuildMerged(session);
     sessionRef.current = session;
-  }, [measureZone, zoneFor]);
+  }, [edgeScrollTick, measureZone, zoneFor]);
 
   const handleDragMove = useCallback(
     (event: DragMoveEvent) => {
+      // The edge-scroll loop reads the live pointer between pointer events.
+      const livePointer = dragPointerOf(event);
+      if (livePointer !== null) pointerRef.current = livePointer;
       const railSession = sessionRef.current;
       if (railSession?.kind === "rail") {
         // Rail reorder: only another card's header is a target (block-row
@@ -397,6 +551,11 @@ export function useWorkspaceDnd(opts: {
       sessionRef.current = null;
       setDropLine(null);
       setDragging(null);
+      setDragSources(null);
+      // The edge-scroll loop and its pointer end with the session.
+      pointerRef.current = null;
+      scrollContainersRef.current = [];
+      stopEdgeScroll();
       // Drag-scoped UI releases: header drops, transient expansions, and
       // the rail reorder edge all end with the session.
       setDragUi({ headerDropId: null, expandedNodeIds: new Set(), railReorder: null });
@@ -416,6 +575,7 @@ export function useWorkspaceDnd(opts: {
         );
         return;
       }
+      const dragIds = session?.dragIds ?? [activeId];
       const pointer = dragPointerOf(event);
       const overId = event.over === null ? null : String(event.over.id);
       const header = overId === null ? undefined : headersRef.current.get(overId);
@@ -441,7 +601,18 @@ export function useWorkspaceDnd(opts: {
         try {
           if (header !== undefined) {
             // Header path: one code path with a child drop on the card node,
-            // resolved straight from the header's client.
+            // resolved straight from the header's client. A stack drops its
+            // roots as the card's children in stack order.
+            if (dragIds.length > 1) {
+              const plan = planStackMove(dragIds, line, siblingFactsFromClient(header.client));
+              if (plan.status === "noop") return;
+              if (plan.status === "refused") {
+                setMoveError(plan.reason);
+                return;
+              }
+              await executeStackZoneMove({ line, plan, client: header.client });
+              return;
+            }
             const resolution = resolveMoveFromClient({ activeId, line, client: header.client });
             if (resolution.status === "noop") return;
             if (resolution.status === "refused") {
@@ -460,6 +631,24 @@ export function useWorkspaceDnd(opts: {
           }
           if (zone === undefined) return;
           const positions = zone.getPositions();
+          if (dragIds.length > 1) {
+            // Selection-stack drop: plan over the zone's sibling facts; when
+            // one end lives outside the zone's own tree (a linked reference /
+            // embed target, a block dragged in from ANOTHER surface), re-plan
+            // straight from the client — cross-zone stack drops are always
+            // moves, never copy/link.
+            let plan: StackPlan = planStackMove(dragIds, line, siblingFactsFromPositions(positions));
+            if (plan.status === "noop" && positions.get(line.targetId) === undefined) {
+              plan = planStackMove(dragIds, line, siblingFactsFromClient(zone.client));
+            }
+            if (plan.status === "noop") return;
+            if (plan.status === "refused") {
+              setMoveError(plan.reason);
+              return;
+            }
+            await executeStackZoneMove({ line, plan, client: zone.client });
+            return;
+          }
           let resolution = resolveMove({ activeId, line, positions });
           let crossTree = false;
           if (
@@ -491,15 +680,19 @@ export function useWorkspaceDnd(opts: {
         }
       })();
     },
-    [zoneFor],
+    [stopEdgeScroll, zoneFor],
   );
 
   const handleDragCancel = useCallback(() => {
     sessionRef.current = null;
     setDropLine(null);
     setDragging(null);
+    setDragSources(null);
+    pointerRef.current = null;
+    scrollContainersRef.current = [];
+    stopEdgeScroll();
     setDragUi({ headerDropId: null, expandedNodeIds: new Set(), railReorder: null });
-  }, []);
+  }, [stopEdgeScroll]);
 
   const hostApi = useMemo<WorkspaceDndHostApi>(
     () => ({ registerZone, registerHeader, registerRailCard, dragUi }),
@@ -510,6 +703,7 @@ export function useWorkspaceDnd(opts: {
     sensors,
     dropLine,
     dragging,
+    dragSources,
     moveError,
     hostApi,
     handleDragStart,
@@ -547,17 +741,23 @@ export function WorkspaceDndHost({
         onDragMove={dnd.handleDragMove}
         onDragEnd={dnd.handleDragEnd}
         onDragCancel={dnd.handleDragCancel}
+        // The host owns edge auto-scroll (the rAF loop + the snap-set
+        // re-anchor on scroll): dnd-kit's built-in would double-scroll and
+        // move content without re-measuring the anchors.
+        autoScroll={false}
       >
         <DropLineContext.Provider value={dnd.dropLine}>
-          {dnd.moveError !== null && (
-            <div role="alert" className="nt-dnd-error">
-              {dnd.moveError}
-            </div>
-          )}
-          {children}
-          <DragOverlay dropAnimation={null}>
-            {dnd.dragging !== null && <div className="nt-drag-ghost">{dnd.dragging.label}</div>}
-          </DragOverlay>
+          <DragSourcesContext.Provider value={dnd.dragSources}>
+            {dnd.moveError !== null && (
+              <div role="alert" className="nt-dnd-error">
+                {dnd.moveError}
+              </div>
+            )}
+            {children}
+            <DragOverlay dropAnimation={null}>
+              {dnd.dragging !== null && <div className="nt-drag-ghost">{dnd.dragging.label}</div>}
+            </DragOverlay>
+          </DragSourcesContext.Provider>
         </DropLineContext.Provider>
       </DndContext>
     </WorkspaceDndHostContext.Provider>

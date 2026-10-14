@@ -1338,9 +1338,12 @@ select:focus-visible {
    The selection reads as ONE card per contiguous run of selected rows: the
    set is whole-subtree (outliner-context closes every write over
    descendants), so a run always wraps its children and the outline is a
-   true rectangle. The card spans the surface's full width from the first
-   run row's top to the last run row's bottom; the rows themselves stay
-   un-tinted — the card's fill + border carry the emphasis — and pointer
+   true rectangle. The stack itself is level-capped at its shallowest
+   depth — a range can never mix a block with a descendant of its sibling.
+   The card is an UNDERLAY (z-index -1: behind the rows, above the page)
+   spanning the run's block elements — first run row's top to last run
+   row's bottom, shallowest left edge to deepest right edge — in primary-
+   tinted surface tokens, so the text on top stays fully readable; pointer
    events pass straight through. The floating action bar rides the bottom
    of the viewport while a selection is live. */
 .nt-select-surface {
@@ -1349,10 +1352,13 @@ select:focus-visible {
 
 .nt-selection-outline {
   position: absolute;
+  /* The card is an UNDERLAY: behind the rows (z-index -1 inside the surface)
+     so the text stays fully readable; pointer events pass straight through. */
+  z-index: -1;
   box-sizing: border-box;
-  border: var(--border-width-default) solid color-mix(in srgb, var(--color-primary) 45%, transparent);
+  border: var(--border-width-default) solid color-mix(in srgb, var(--color-primary) 30%, transparent);
   border-radius: var(--shape-medium);
-  background: color-mix(in srgb, var(--color-primary-container) 30%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 7%, var(--color-surface-container));
   pointer-events: none;
 }
 
