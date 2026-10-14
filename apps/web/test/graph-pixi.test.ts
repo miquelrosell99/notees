@@ -84,6 +84,7 @@ vi.mock("pixi.js", () => {
   return {
     Application: MockApp,
     Container: MockContainer,
+    Culler: { shared: { cull: vi.fn() } },
     Graphics: MockGraphics,
     Sprite: MockSprite,
   };
@@ -96,7 +97,9 @@ import {
   nodeEffectiveRadius,
   sampleEdgePoints,
   shouldDrawEdgesAtLod,
+  syncIndicesForView,
   timeLapseVisible,
+  viewCullRect,
 } from "../src/ui/views/graph/renderer/pixiRenderer.js";
 
 const ACCENT: readonly [number, number, number] = [0.1, 0.2, 0.3];
@@ -317,6 +320,215 @@ describe("mocked-Application smoke (init → data → render → destroy)", () =
     expect(sprites[0]!.visible).toBe(true);
     expect(sprites[1]!.visible).toBe(false); // created after the cutoff
     expect(renderer.stats.edgeInstCount).toBe(0); // its only edge is post-cutoff too
+    vi.restoreAllMocks();
+  });
+});
+
+describe("culled-sync helpers (the streamed-frame delta path)", () => {
+  it("viewCullRect centers on the camera with the margin at zoom", () => {
+    const rect = viewCullRect({ x: 10, y: -20, zoom: 2 }, 800, 600, 64);
+    expect(rect.maxX - rect.minX).toBeCloseTo((800 + 128) / 2, 6);
+    expect(rect.maxY - rect.minY).toBeCloseTo((600 + 128) / 2, 6);
+    expect((rect.minX + rect.maxX) / 2).toBeCloseTo(10, 6);
+    expect((rect.minY + rect.maxY) / 2).toBeCloseTo(-20, 6);
+    // zoom 0.5 doubles the world extents.
+    const wide = viewCullRect({ x: 0, y: 0, zoom: 0.5 }, 800, 600, 64);
+    expect(wide.maxX - wide.minX).toBeCloseTo(2 * (800 + 128), 6);
+  });
+
+  it("syncIndicesForView keeps in-rect candidates, drops out-of-rect ones, preserves order", () => {
+    const positions = new Float32Array([
+      0, 0, // 0: inside
+      500, 500, // 1: outside
+      100, 0, // 2: inside
+      -1000, 0, // 3: outside
+    ]);
+    const rect = { minX: -50, minY: -50, maxX: 150, maxY: 50 };
+    const inside = syncIndicesForView([3, 0, 2, 1], positions, rect, () => 1);
+    expect(inside).toEqual([0, 2]);
+  });
+
+  it("a node clipped by the rect edge still syncs (radius expansion)", () => {
+    const positions = new Float32Array([155, 0, // 0: center outside, radius reaches in
+      400, 0, // 1: far outside
+    ]);
+    const rect = { minX: -50, minY: -50, maxX: 150, maxY: 50 };
+    const inside = syncIndicesForView([0, 1], positions, rect, (i) => (i === 0 ? 10 : 1));
+    expect(inside).toEqual([0]);
+  });
+});
+
+describe("streamed-frame gates (the 50k left-drag hang)", () => {
+  function stubWebgl2(): void {
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
+      ((type: string) => (type === "webgl2" ? {} : null)) as typeof HTMLCanvasElement.prototype.getContext,
+    );
+  }
+
+  interface SpriteLike {
+    position: { x: number; y: number; set: (x: number, y: number) => unknown };
+    scale: { set: (x: number, y: number) => unknown };
+  }
+  interface BucketLike {
+    clear: () => unknown;
+    strokes: unknown[];
+  }
+
+  const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+  const EDGE_BUCKETS_INTERNAL = 128;
+
+  async function dragRenderer() {
+    const canvas = document.createElement("canvas");
+    canvas.width = 800;
+    canvas.height = 600;
+    const renderer = new GraphPixiRenderer();
+    renderer.init(canvas);
+    await flush();
+    await flush();
+    const ids: string[] = [];
+    const positions = new Float32Array(200 * 2);
+    for (let i = 0; i < 200; i++) {
+      ids.push(`n${i}`);
+      positions[i * 2] = (i % 20) * 10;
+      positions[i * 2 + 1] = Math.floor(i / 20) * 10;
+    }
+    // Node n0 (the drag target) carries 5 incident edges; 195 more edges
+    // belong to other nodes.
+    const edges: Array<{ source: string; target: string; linkType: number }> = [];
+    for (let k = 1; k <= 5; k++) edges.push({ source: "n0", target: `n${k}`, linkType: 0 });
+    for (let k = 0; k < 195; k++) {
+      edges.push({ source: `n${10 + (k % 180)}`, target: `n${11 + ((k + 7) % 180)}`, linkType: 3 });
+    }
+    renderer.setNodeVisuals(ids, new Map());
+    renderer.updatePositions(positions, ids);
+    renderer.setEdges(edges);
+    renderer.setCamera(95, 45, 1); // the 200-node grid sits inside the rect
+    renderer.render(); // first full pass: pool + all buckets
+    return { renderer, positions, ids };
+  }
+
+  it("an unchanged position frame rewrites no sprites and no edge buckets", async () => {
+    stubWebgl2();
+    const { renderer, positions, ids } = await dragRenderer();
+    const sprites = (
+      renderer as unknown as { spriteByIndex: SpriteLike[] }
+    ).spriteByIndex.map((s) => vi.spyOn(s.position, "set"));
+    const buckets = (
+      renderer as unknown as { edgeBuckets: BucketLike[] }
+    ).edgeBuckets.map((b) => vi.spyOn(b, "clear"));
+
+    // Same content in a fresh array — a settled engine tick.
+    renderer.updatePositions(positions.slice(), ids);
+    renderer.render();
+
+    expect(sprites.filter((s) => s.mock.calls.length > 0)).toHaveLength(0);
+    expect(buckets.filter((b) => b.mock.calls.length > 0)).toHaveLength(0);
+    vi.restoreAllMocks();
+  });
+
+  it("a one-node drag writes only that sprite and rides the overlay — no bucket churn", async () => {
+    stubWebgl2();
+    const { renderer } = await dragRenderer();
+    // planEdgeRender dedupes parallel edges — capture the post-full-rebuild
+    // totals and assert the streamed pass keeps them exactly.
+    const edgesBefore = renderer.stats.edgeInstCount;
+    const arrowsBefore = renderer.stats.arrowInstCount;
+    const sprites = (
+      renderer as unknown as { spriteByIndex: SpriteLike[] }
+    ).spriteByIndex.map((s) => vi.spyOn(s.position, "set"));
+    const buckets = (
+      renderer as unknown as { edgeBuckets: BucketLike[] }
+    ).edgeBuckets.map((b) => vi.spyOn(b, "clear"));
+    const overlay = (renderer as unknown as { edgeOverlay: BucketLike }).edgeOverlay;
+    const overlaySpy = vi.spyOn(overlay, "clear");
+
+    renderer.overridePosition("n0", 150, 120); // in view for the (95,45) camera
+    renderer.render();
+
+    expect(sprites.filter((s) => s.mock.calls.length > 0)).toHaveLength(1);
+    expect(sprites[0]!.mock.calls.length).toBeGreaterThan(0);
+    // The full-E bucket geometry redraws only on the membership transition:
+    // n0's five edges (indices 0–4 → buckets 0–4) leave their buckets for
+    // the overlay, and the buckets repaint without them.
+    const cleared = buckets.map((b, i) => (b.mock.calls.length > 0 ? i : -1)).filter((i) => i >= 0);
+    expect(cleared).toEqual([0, 1, 2, 3, 4]);
+    expect(overlaySpy.mock.calls.length).toBeGreaterThan(0);
+    expect(overlay.strokes.length).toBeGreaterThan(0);
+    // The totals still account for every drawn edge/arrow (buckets skip the
+    // dynamic edges; the overlay adds them back).
+    expect(renderer.stats.edgeInstCount).toBe(edgesBefore);
+    expect(renderer.stats.arrowInstCount).toBe(arrowsBefore);
+
+    // Steady state: the next drag frame churns NOTHING — the overlay alone
+    // re-strokes the moved edges.
+    for (const b of buckets) b.mockClear();
+    renderer.overridePosition("n0", 151, 121);
+    renderer.render();
+    expect(buckets.filter((b) => b.mock.calls.length > 0)).toHaveLength(0);
+    expect(renderer.stats.edgeInstCount).toBe(edgesBefore);
+    expect(renderer.stats.arrowInstCount).toBe(arrowsBefore);
+    vi.restoreAllMocks();
+  });
+
+  it("when the drag stream goes quiet the overlay returns its edges to the buckets", async () => {
+    stubWebgl2();
+    const { renderer } = await dragRenderer();
+    renderer.overridePosition("n0", 150, 120);
+    renderer.render();
+    const internals = renderer as unknown as {
+      dynamicEdges: Set<number>;
+      edgeOverlay: BucketLike;
+      edgeBuckets: BucketLike[];
+    };
+    expect(internals.dynamicEdges.size).toBe(5);
+    expect(internals.edgeOverlay.strokes.length).toBeGreaterThan(0);
+
+    // Quiet frames (no position change): one settle pass, no movement after.
+    renderer.render();
+    renderer.render();
+
+    expect(internals.dynamicEdges.size).toBe(0);
+    expect(internals.edgeOverlay.strokes.length).toBe(0);
+    // The five edges are back in their buckets (0–4, edge index mod 128).
+    const overlay = internals.edgeOverlay;
+    void overlay;
+    vi.restoreAllMocks();
+  });
+
+  it("a node moved outside the view stays pending and syncs when panned into view", async () => {
+    stubWebgl2();
+    const { renderer } = await dragRenderer();
+    const sprite0 = (renderer as unknown as { spriteByIndex: SpriteLike[] }).spriteByIndex[0]!;
+    const internals = renderer as unknown as { pendingPositionSync: Set<number> };
+
+    renderer.overridePosition("n0", 5000, 5000); // far outside the cull rect
+    renderer.render();
+    expect(sprite0.position.x).not.toBe(5000);
+    expect(internals.pendingPositionSync.size).toBe(1);
+
+    renderer.setCamera(5000, 5000, 1); // pan to it: no full sync on a pan
+    renderer.render();
+    expect(sprite0.position.x).toBe(5000);
+    expect(internals.pendingPositionSync.size).toBe(0);
+    vi.restoreAllMocks();
+  });
+
+  it("a zoom change still forces the full sprite sync and edge rebuild", async () => {
+    stubWebgl2();
+    const { renderer } = await dragRenderer();
+    const sprites = (
+      renderer as unknown as { spriteByIndex: SpriteLike[] }
+    ).spriteByIndex.map((s) => vi.spyOn(s.position, "set"));
+    const buckets = (
+      renderer as unknown as { edgeBuckets: BucketLike[] }
+    ).edgeBuckets.map((b) => vi.spyOn(b, "clear"));
+
+    renderer.setCamera(95, 45, 2); // min-radius clamp changes → full pass
+    renderer.render();
+
+    expect(sprites.filter((s) => s.mock.calls.length > 0)).toHaveLength(200);
+    expect(buckets.filter((b) => b.mock.calls.length > 0).length).toBe(EDGE_BUCKETS_INTERNAL);
     vi.restoreAllMocks();
   });
 });
