@@ -9,6 +9,27 @@ predating this file.
 
 ## 2026-10-14
 
+- **test(web): the 50k-node graph load test runs — Pixi at parity-plus, one
+  blocker before any default-flip (go/no-go Stage 3 of the renderer
+  migration).** The test workspace seeded 50,000 main pages + 25,000 mention
+  edges through the relay batch ingest (~6 min; edges ride on parented
+  blocks — title-is-content flattens mentions in a page's own content), both
+  renderers measured from one persistent profile, all probe data deleted and
+  verified gone afterward (permanent delete took 34 min at ~24/s). Headless
+  SwiftShader floors the absolute numbers, but paired and identical:
+  Pixi 2× WebGL's pan/zoom throughput (11.6 vs 5.6 fps; 9.6 vs 4.4), 5×
+  hover latency (0.39s vs 2.17s), clean console vs the WebGL path's texture-
+  upload overflow at 50k (its RG32F position texture exceeds the 16k max,
+  breaking edges — a genuine WebGL scalability wall Pixi doesn't have).
+  **Blocker found:** a left-button drag at 50k nodes pegs the Pixi renderer
+  at ~195% CPU and never recovers (middle-drag pan is fine; WebGL unaffected)
+  — must be fixed before the flag can flip. Also noted: first paint is a
+  stacked blob until physics spreads it (shared engine, both renderers), and
+  the settle metric is uninformative at overview LOD. Verdict: conditional GO
+  — fix the left-drag hang, then re-measure on real GPU hardware before
+  considering Pixi as default. Tooling: `graph-loadtest-seed.mjs`
+  (count|seed|edges|delete), `graph-loadtest-probe.mjs` (paired probe), two
+  diagnostics.
 - **feat(web): block collapse state is device-persisted per page (owner:
   "collapse state, at least when triggered from thread line click, is not
   being persisted").** Collapse was documented — and behaved — as
