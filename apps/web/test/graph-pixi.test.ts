@@ -249,12 +249,14 @@ describe("mocked-Application smoke (init → data → render → destroy)", () =
 
   const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
-  it("throws the honest error when WebGL2 is unavailable", () => {
+  it("throws the honest error when the browser has no GPU backend", () => {
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
       (() => null) as typeof HTMLCanvasElement.prototype.getContext,
     );
     const renderer = new GraphPixiRenderer();
-    expect(() => renderer.init(document.createElement("canvas"))).toThrow("WebGL2 not supported");
+    expect(() => renderer.init(document.createElement("canvas"))).toThrow(
+      "no WebGL2 backend for the graph renderer",
+    );
     vi.restoreAllMocks();
   });
 
