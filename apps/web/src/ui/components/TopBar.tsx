@@ -107,10 +107,11 @@ export function TopBar({
   sectionsLayout = false,
   onToggleLayout,
   /**
-   * Focus mode (#12): the device-local display state; the icon names the
-   * CURRENT mode (the eye-off icon the active, dimmed state). Undefined
-   * hides the button (boot screens); Esc exits focus mode regardless.
-   * Relocated from the quick settings modal (owner 2026-10-14).
+   * Focus mode (#12): the device-local display state; the crop-free bracket
+   * icon names the mode either way — the active chrome carries the on/off
+   * state (the calendar button's precedent). Undefined hides the button
+   * (boot screens); Esc exits focus mode regardless. Relocated from the
+   * quick settings modal (owner 2026-10-14).
    */
   focusMode = false,
   onToggleFocusMode,
@@ -244,7 +245,7 @@ export function TopBar({
             aria-pressed={focusMode}
             onClick={onToggleFocusMode}
           >
-            <Icon path={focusMode ? "mdi-eye-off-outline" : "mdi-eye-outline"} size={1} />
+            <Icon path="mdi-crop-free" size={1} />
           </button>
         )}
         {onToggleLayout !== undefined && (
