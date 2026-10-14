@@ -9,6 +9,43 @@ predating this file.
 
 ## 2026-10-14
 
+- **fix(web): the Pixi adapter's streamed-frame path is delta-based — the
+  50k left-drag hang is fixed (go/no-go Stage 3 blocker resolved).** Root
+  cause, proven in an isolated harness (esbuild bundle + real Pixi under
+  headless SwiftShader, same GL flags as the load-test probe, 50k nodes /
+  25k edges, drag frames driven exactly like GraphView's pointer handlers):
+  every engine frame during a node drag called `updatePositions`, which
+  flagged the full dirty gates — so each rAF frame rewrote all 50k sprites
+  AND cleared+rebuilt all ~25k stroked edges + 5k arrowheads in one
+  Graphics, while a middle-drag pan only moves the GPU camera transform
+  (the asymmetry). Harness numbers: ~260–290 ms/frame at every zoom level
+  INCLUDING unchanged "settled tick" frames. The fix is three layers.
+  (1) Identity gate: `updatePositions` diffs incoming frames against the
+  last accepted positions — unchanged content dirties nothing.
+  (2) Culled sprite sync: moved nodes get sprite position/scale writes
+  only inside the view cull rect (`viewCullRect`/`syncIndicesForView` pure
+  helpers; a node moved outside the rect stays pending and syncs when it
+  re-enters — a plain pan never re-dirties; zoom still forces the full
+  min-radius pass).
+  (3) Edges incident to moved nodes draw in a small dynamic overlay
+  re-stroked per frame, bounded by the moved set; the full-E bucket
+  geometry redraws only on overlay membership transitions, and wide motion
+  (a settling graph) takes throttled (150 ms) full rebuilds — because the
+  bisect showed sustained per-frame clear+rebuild of stroked Graphics is
+  what melted software GL (variant with the edge redraw disabled: no stall;
+  sprite sync alone: stall). Plus sprite/bucket culling via Pixi's Culler,
+  which both removed the residual multi-minute SwiftShader stalls and cut
+  every frame ~2× (off-screen sprites and empty buckets skip GPU
+  emission). After: ~7.5 ms steady drag frames at 50k at every LOD
+  (~35–38× faster than the hang), ~88 ms only while a 3k-node-wide
+  reheat jiggles per frame, identity frames ~8 ms. Hover/selection/mask/
+  time-lapse/structural changes still force full passes; the WebGL adapter
+  is untouched. **Verification:** new specs in graph-pixi.test.ts — the
+  culled-sync helpers, the identity gate (no sprite/bucket writes on
+  unchanged frames), one-node drag writes exactly one sprite with zero
+  steady bucket churn (overlay only), quiet stream returns overlay edges to
+  their buckets, out-of-view moves stay pending until panned into view,
+  zoom still full-syncs; graph-pixi suite green (24); full gate green.
 - **test(web): the 50k-node graph load test runs — Pixi at parity-plus, one
   blocker before any default-flip (go/no-go Stage 3 of the renderer
   migration).** The test workspace seeded 50,000 main pages + 25,000 mention
@@ -21,9 +58,13 @@ predating this file.
   hover latency (0.39s vs 2.17s), clean console vs the WebGL path's texture-
   upload overflow at 50k (its RG32F position texture exceeds the 16k max,
   breaking edges — a genuine WebGL scalability wall Pixi doesn't have).
-  **Blocker found:** a left-button drag at 50k nodes pegs the Pixi renderer
-  at ~195% CPU and never recovers (middle-drag pan is fine; WebGL unaffected)
-  — must be fixed before the flag can flip. Also noted: first paint is a
+  **Blocker found (fixed the same day — see the streamed-frame delta fix
+  entry above):** a left-button drag at 50k nodes pegged the Pixi renderer
+  at ~195% CPU and never recovered (middle-drag pan was fine; WebGL
+  unaffected) — every engine frame rewrote all N sprites and rebuilt all E
+  edges. The delta-based streamed-frame path (identity gate + culled sprite
+  sync + dynamic edge overlay + culling) removed it: harness drag frames at
+  50k went from ~260–290 ms to ~7.5 ms. Also noted: first paint is a
   stacked blob until physics spreads it (shared engine, both renderers), and
   the settle metric is uninformative at overview LOD. Verdict: conditional GO
   — fix the left-drag hang, then re-measure on real GPU hardware before
