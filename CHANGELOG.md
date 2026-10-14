@@ -10,6 +10,37 @@ predating this file.
 ## 2026-10-14
 
 - **feat(web): the quick-tweaks settings modal is dropped — the sidebar gear, Ctrl/Cmd+,, and the workspace manager's settings entry open the full settings page (Appearance) directly; the command palette's Toggle theme command now actually persists.** The modal held exactly two controls (theme, accent), both duplicated on Settings → Appearance, and linked onward via its "Advanced settings" row — a surface with no unique function. `UserSettingsModal.tsx`/`.css` are deleted; the styles the full page shared transitively (accent swatches, about/links/privacy/support) moved into `SettingsPage.css`. The palette's Toggle theme existed but wrote the LEGACY `notees.theme` key through a private helper, which the modern `notees.settings.theme` overrides on reload — the flip didn't stick; it now rides a canonical `flipTheme()` in deviceSettings (resolves system → flips → writes the modern key → broadcasts, OLED flag survives a dark round trip). Verified: `pnpm typecheck` + `pnpm test` green (modal tests re-aimed at the exported ThemeModeControl/AccentColorPicker; new palette theme-flip test covering the persist + OLED survival), live probe, and the verify-min smoke; web-only; no wire/store/sync touch, no client lockstep.
+- **feat(protocol,store,web): `trash.empty` — the Trash hub's Empty trash is
+  a first-class bulk op, with GTK + Flutter lockstep.** A new additive op
+  (envelope v3 unchanged, payload the strict empty object — any field is
+  rejected outright) permanently deletes every soft-trashed subtree root,
+  sharing the `object.delete {permanent: true}` subtree-purge body (extracted
+  to `permanentlyDeleteSubtree` in the store appliers). The set is evaluated
+  at APPLY time against the trash table, not authored as an id list: the
+  envelope stays small at any trash size, and `object.restore` keeps plain
+  log-order LWW — a restore landing before the empty survives it (no trash
+  row at apply time), one landing after is LWW against the permanent
+  tombstones. Roots are snapshotted in id order; a root consumed by an
+  earlier iteration (its subtree contained another independently-trashed
+  root) is skipped by the missing-row check, and a stale non-permanent trash
+  row with no node row is swept rather than failing replay. Replay is
+  idempotent. Web surface: the Trash hub header gains an **Empty trash**
+  button (hidden when the trash is empty), confirmed through the danger
+  ConfirmationModal, emitting one `trash.empty` via
+  `client.emptyTrash()` on both the direct and worker clients; permanent
+  deletes stay outside the undo journal by design. `trash.empty` joins the
+  sync package's listing-affecting ops so remote empties invalidate
+  conservatively. Spec: SCHEMA.md deletion/restore semantics; op catalog
+  entry; canonical `trash-empty.json` fixture (gate list 26→27: two trashed
+  pages, one with an independently-trashed child, a restore-before-empty
+  page that must survive).
+  **Verification:** `pnpm install && pnpm -r build && pnpm typecheck &&
+  pnpm test` green — protocol 366, store 552 (both adapters, incl. the new
+  fixture semantic + idempotency pins), sync 25, server 231 (incl. relay
+  ingest accept/reject + catch-up round-trip for the payload-less op), web
+  1645. **Lockstep:** `notees-gtk` and `notees-flutter` ports of the same
+  fixture bytes + applier semantics land in the same window (their
+  changelogs record the hashes).
 
 - **fix(web): the quick modal's "Advanced settings →" button was a no-op with a page open — fixed; focus mode moved to the top bar; the Back/Forward arrows moved to the top bar's right side.** Root cause of the dead button: `openSettingsSection` set the settings route but never cleared `selectedPageId` / `searchOpen`, and the PageCard slot checks the selection FIRST — so with a page open the settings page lost the render race and nothing visibly happened (deep links at boot worked, which masked it). The fix is the two clearing calls, mirroring `openSearchPage`. Focus mode left the quick-tweaks modal and the full settings page (theme + accent remain; the description row named page chrome that focus mode no longer hides) for a crop-free bracket button in the top bar's right section — the active chrome carries the on/off state, Esc still exits, Ctrl/Cmd+Alt+F and the palette command ride the same `toggleFocusMode` write path. The in-app Back/Forward arrows moved off the center section (the breadcrumbs alone keep the center) to the head of the right section. The settings page itself also left the card's generic centered 800px cap for a full-card frame — the section nav rides the card's left edge, the content column caps at 900px — and `/settings/<section>` URLs now survive reload (the connect keep-path guard recognizes the settings routes). Verified: `pnpm typecheck` + `pnpm test` green (the modal's focus switch test re-aimed at the shared toggle helper; new top-bar button tests), a live probe over the test workspace (deep link → screenshot → reload keeps the URL → screenshot), and the verify-min smoke; web-only; no wire/store/sync touch, no client lockstep.
 
