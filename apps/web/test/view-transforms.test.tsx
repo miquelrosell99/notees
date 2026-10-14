@@ -123,6 +123,29 @@ describe("block collapse", () => {
     expect(container.querySelectorAll(".nt-block-children").length).toBe(2);
   });
 
+  it("collapse state is device-persisted per page: folds survive a remount (owner 2026-10-14)", async () => {
+    const client = await seedClient();
+    const pageId = await seedTreePage(client);
+    const first = render(<PageView client={client} pageId={pageId} />);
+
+    collapseRootParent();
+    expect(treeQueryByText(first.container, "nested child")).toBeNull();
+    first.unmount();
+
+    // A fresh mount of the same page restores the fold from localStorage.
+    const second = render(<PageView client={client} pageId={pageId} />);
+    expect(treeQueryByText(second.container, "nested child")).toBeNull();
+    expect(treeByText(second.container, "parent")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Expand block" })).not.toBeNull();
+
+    // Expanding persists too.
+    fireEvent.click(screen.getByRole("button", { name: "Expand block" }));
+    expect(treeByText(second.container, "nested child")).not.toBeNull();
+    second.unmount();
+    const third = render(<PageView client={client} pageId={pageId} />);
+    expect(treeByText(third.container, "nested child")).not.toBeNull();
+  });
+
   it("the indent rail folds EACH child individually: one click folds every child's subtree (owner untouched), a second unfolds", async () => {
     const client = await seedClient();
     const pageId = await seedTreePage(client);

@@ -192,8 +192,10 @@ export interface OutlinerContextValue {
   requestFocus: (blockId: string, caret?: CaretPlacement) => void;
   acknowledgeFocus: () => void;
   /**
-   * Session-local display collapse (never persisted, never written to the
-   * store): ids of blocks whose entire subtree is hidden from rendering.
+   * Display collapse — DEVICE-PERSISTED per page (owner 2026-10-14: the
+   * folds must survive reloads; device state stays out of the op log, so it
+   * rides localStorage keyed by the page id, never the store): ids of
+   * blocks whose entire subtree is hidden from rendering.
    */
   collapsed: ReadonlySet<string>;
   toggleCollapse: (blockId: string) => void;
@@ -274,6 +276,38 @@ export interface OutlinerContextValue {
  * render-cascade navigation for projections that navigate (query result
  * lists); it defaults to a no-op.
  */
+/**
+ * Collapse persistence (owner 2026-10-14) — the fold set survives reloads,
+ * device-locally. Device state never becomes an op, so this rides
+ * localStorage keyed by the page id (`notees.collapse.v1.<rootId>`); node
+ * ids are UUIDv7-globally-unique, so no workspace scoping is needed. Stale
+ * ids (deleted blocks) are inert — `collapsed.has` only matches rendered
+ * rows — and are dropped the next time the set is rewritten.
+ */
+const COLLAPSE_STORAGE_PREFIX = "notees.collapse.v1.";
+
+function loadCollapsedState(rootId: string): Set<string> {
+  if (typeof localStorage === "undefined") return new Set();
+  try {
+    const raw = localStorage.getItem(COLLAPSE_STORAGE_PREFIX + rootId);
+    if (raw === null) return new Set();
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((id): id is string => typeof id === "string"));
+  } catch {
+    return new Set();
+  }
+}
+
+function persistCollapsedState(rootId: string, ids: ReadonlySet<string>): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(COLLAPSE_STORAGE_PREFIX + rootId, JSON.stringify([...ids]));
+  } catch {
+    // Storage full / blocked: collapse stays session-local, never loud.
+  }
+}
+
 export function useOutlinerValue(
   client: OutlinerClient & OutlinerReader,
   rootId: string,
@@ -288,15 +322,21 @@ export function useOutlinerValue(
   },
 ): OutlinerContextValue {
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
-  const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(() => new Set<string>());
-  const toggleCollapse = useCallback((blockId: string) => {
-    setCollapsedIds((prev) => {
-      const next = new Set(prev);
+  const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(() => loadCollapsedState(rootId));
+  // Mirror for the toggle (computes the next set outside the state updater,
+  // where the persistence write would be an impure side effect).
+  const collapsedRef = useRef<ReadonlySet<string>>(collapsedIds);
+  const toggleCollapse = useCallback(
+    (blockId: string) => {
+      const next = new Set(collapsedRef.current);
       if (next.has(blockId)) next.delete(blockId);
       else next.add(blockId);
-      return next;
-    });
-  }, []);
+      collapsedRef.current = next;
+      setCollapsedIds(next);
+      persistCollapsedState(rootId, next);
+    },
+    [rootId],
+  );
 
   const [selectedRoots, setSelectedRoots] = useState<ReadonlySet<string>>(() => new Set<string>());
   const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
