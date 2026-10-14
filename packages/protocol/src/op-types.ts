@@ -129,6 +129,21 @@ export const objectRestorePayload = z
   .strict();
 
 /**
+ * Empty the trash (the web Trash hub's "Empty trash" bulk gesture, 2026-10-14).
+ * Permanently deletes every node carrying a non-permanent trash row — the
+ * whole subtree rides with each root, exactly as `object.delete
+ * {permanent: true}` — evaluated at APPLY time against the trash table, not
+ * against an author-time id list: the envelope stays small regardless of
+ * trash size, and an `object.restore` that lands before this op keeps its
+ * node alive (it no longer carries a trash row, so empty does not touch it)
+ * while one landing after is plain log-order LWW against the delete
+ * tombstones. The op carries no payload; `affectedNodeIds` is the empty set
+ * at author time. Replay is idempotent: a second application finds no
+ * non-permanent trash rows and no-ops.
+ */
+export const trashEmptyPayload = z.object({}).strict();
+
+/**
  * Reparenting + sibling ordering (the outliner's indent/outdent/Enter
  * placement). `parentId` null means workspace root and is legal ONLY for
  * pages — the store's placement CHECKs reject a parentless block, and the
@@ -547,6 +562,7 @@ export const OP_PAYLOAD_SCHEMAS = {
   "object.delete": objectDeletePayload,
   "object.restore": objectRestorePayload,
   "object.move": objectMovePayload,
+  "trash.empty": trashEmptyPayload,
   "class.create": classCreatePayload,
   "class.update": classUpdatePayload,
   "class.delete": classDeletePayload,

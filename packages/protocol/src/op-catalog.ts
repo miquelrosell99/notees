@@ -44,6 +44,13 @@ export const OP_CATALOG: OpCatalogEntry[] = [
     affected: "objectId",
   },
   {
+    opType: "trash.empty",
+    description:
+      "Empty the trash: permanently delete every soft-trashed subtree root (the subtree rides, like object.delete permanent). Apply-time set, no payload; restore-before-empty survives, restore-after-empty is log-order LWW.",
+    example: {},
+    affected: "none",
+  },
+  {
     opType: "object.move",
     description: "Reparent + fractional sibling order (afterId/beforeId anchors; null parent = workspace root).",
     example: { objectId: "<uuid>", parentId: "<parent-uuid>", afterId: "<sibling-uuid>" },

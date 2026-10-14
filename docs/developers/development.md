@@ -172,7 +172,7 @@ The single most important process rule:
 **an op type is not done until its fixture validates.** Canonical fixtures live in
 `packages/protocol/fixtures/` as JSON files of envelopes (or `{"envelopes": [...]}`
 groups). The exact file set is the contract — the gate test below asserts it
-verbatim (25 files after the 2026-10-09 datetime batch); the core
+verbatim (27 files after the 2026-10-14 `trash-empty` batch); the core
 scenarios:
 
 | Fixture | Scenario it pins |
@@ -188,6 +188,7 @@ scenarios:
 | `object-wire-fields.json` | the cover/banner/alias wire fields set + clear through `object.update` |
 | `class-convert.json` | `class.create` on an existing node declares it a class (the retired class-class ruling) |
 | `property-asset-type.json` | the `asset` property type through `propertySchema.create` + a coexisting update |
+| `trash-empty.json` | the `trash.empty` bulk op: apply-time permanent delete of every trashed root, a restore-before-empty survives |
 
 The gate is enforced by `packages/protocol/test/protocol.test.ts`:
 
