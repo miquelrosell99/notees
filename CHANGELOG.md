@@ -9,6 +9,75 @@ predating this file.
 
 ## 2026-10-14
 
+- **feat(web): drag-and-drop feedback and the indent rail move to the accent
+  color; the child intent is a line, not a bar; the rail reaches the bullet
+  and collapses per height; the pink-purple accent retires in favor of a
+  dusty blue (owner 2026-10-14).** (1) Accent: the selection card, the drop
+  indicator lines, the child-intent line, and the drag-source tint rode
+  `--color-primary` — the neutral ink, which never follows the chosen
+  accent — so a green-accent workspace still got grey selection/drop chrome.
+  They now ride `--color-accent` (and accent-tinted surface mixes), the same
+  engagement color as the focus ring and the editing bullet. (2) The child
+  intent ("first child of X") rendered as a 3px bar + row tint ON the row —
+  at the child-offset x it read as a stray caret mid-text (owner: "I get the
+  vertical line again"). It is now the same 2px divider line as the sibling
+  intents, starting at the child indentation — "insert here, one level
+  deeper" reads as a line. (3) The indent rail (the collapse line under a
+  block with children) started below the block's metadata sections and its
+  click always collapsed the owner: it now extends from the row's bottom
+  edge (measured + ResizeObserver — the line reaches the bullet, across the
+  properties section) and targets per height — the segment beside a direct
+  child collapses THAT child's children, the segment across the owner's
+  metadata collapses the owner's, and a childless block's segment is inert.
+  (4) The curated accent presets swap Purple (#8c47d1, reading pink —
+  "looks super ugly") for Blue (#3d6a96 light / #6d99c2 dark, on-accent
+  contrast ≥4.5:1 both schemes); stored "purple" selections fall back to the
+  default Advance Green through the existing retired-preset path.
+  **Verification:** `pnpm typecheck` + `pnpm test` green (settings accent
+  specs updated to Blue); three live probes on the deployed stack — rail
+  (top == row bottom across a 50px metadata gap; per-height clicks collapse
+  the child / no-op on childless / owner from the gap), drop-targets (three
+  x-bands land correctly, child line at the element bottom, clean release;
+  magenta override moved to `--color-accent`), selection card (differential
+  pixel check still passes with the accent tint).
+
+- **feat(web): the experimental PixiJS graph renderer lands behind a device
+  flag — Stage 2 of the renderer migration (adapter-first, flagged,
+  load-test-gated).** `GraphPixiRenderer` implements the landed
+  `GraphRenderer` contract (Stage 1) as a PixiJS v8 adapter: one pre-rendered
+  white-circle texture + one Sprite per node (color = tint, the
+  multiply semantics the GL fragment shader computed per-pixel), a world
+  `Container` carrying the camera as a GPU transform (the GL NDC y-flip is
+  the container's negative Y scale), one Graphics for edges and one for
+  arrowheads rebuilt only on dirty gates (edges / position frames / hover /
+  selection / time-lapse / mask / zoom), selection rings as a ring Graphics
+  pass under the nodes. The visual semantics are ported from the WebGL
+  adapter: the owner-ruling hover recolor (hovered = accent fill, neighbors
+  unchanged, everything else 20% darker, color only never alpha), selection
+  dim (alpha × 0.55), edge-hover alpha 0.35, LOD link-type mask, time-lapse
+  discard, min screen radius, min 1px edge width, the shared
+  `planEdgeRender` arrow eligibility, and the same camera/pick/fit math.
+  Documented simplifications: edge color gradient and width taper collapse
+  to source color / average width, dashes (no current producer sets them)
+  render as sampled 2-on/4-off screen-space dots, and edge geometry is
+  CPU-rebuilt on position frames instead of the GL adapter's position
+  texture — the 50k load test (Stage 3) decides if edge batching needs the
+  same trick. Selection: the graph settings popover gains a **Renderer**
+  row (WebGL / Pixi beta, persisted per device in `graphPrefs.renderer`,
+  default WebGL); switching rebuilds the renderer+engine like a display
+  change. Labels stay on the untouched canvas2d overlay. New dependency:
+  `pixi.js` v8 (~560 kB parsed added to the web bundle, one-time — the
+  priced-in trade for batched GPU rendering without shader/context-loss
+  maintenance). Verified: `pnpm typecheck && pnpm test` green (16 new specs
+  in `apps/web/test/graph-pixi.test.ts` — pure hover/mask/LOD/time-lapse/
+  curve/camera specs plus a mocked-Application smoke spec), and a live
+  probe (`scripts/screenshots/graph-pixi-probe.mjs`) against a local
+  preview build with the flag seeded: the graph paints under Pixi, labels
+  draw, console clean. Bundle: +258 kB minified (+80 kB gzip) on the index
+  chunk, plus Pixi's lazily-loaded renderer backend chunks (~75 kB more on
+  first graph mount) — the priced-in one-time trade for batched GPU
+  rendering without shader/context-loss maintenance.
+
 - **fix(web): drop targets are correct and multi-level at every divider — the
   line rides the block ELEMENT's bottom, and the pointer's indentation picks
   the nesting level (owner: "I can't position 13 before 14… the drop targets
