@@ -1318,14 +1318,16 @@ export function App() {
         setSessionSignedIn(false);
       }
       setWorkspaceName(options.label ?? "Workspace");
-      // Keep meaningful URLs across connect: a hub route (/journal, /inbox, …)
-      // or a node deep link survives workspace (re)connects; anything else
+      // Keep meaningful URLs across connect: a hub route (/journal, /inbox, …),
+      // a node deep link, the full-page search, or a settings section
+      // (/settings/<section>) survives workspace (re)connects; anything else
       // (e.g. /workspaces after entering) resolves to the app root. replaceState
       // (no new entry): the manager's landing navigation owns the history slot.
       const bootPath = window.location.pathname;
       const keepPath =
         navFromPath(bootPath) !== null ||
         bootPath === "/search" ||
+        settingsSectionFromPath(bootPath) !== null ||
         /^\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(bootPath);
       window.history.replaceState({ view: "app" }, "", keepPath ? bootPath : "/");
       clientRef.current = nextClient;
