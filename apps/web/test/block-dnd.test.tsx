@@ -540,6 +540,50 @@ describe("block drag-and-drop", () => {
     expect(rootOrder(client, pageId)).toEqual([two, four, one, ids[2]]);
   });
 
+  it("the portaled indicator repaints the line above the chip at the snapped anchor", async () => {
+    const client = await seedClient();
+    const { pageId, ids } = await seedThreeBlocks(client);
+    const [one, two] = ids;
+    const { container } = renderPage(client, pageId);
+
+    const fromRect = rowEl(container, one).getBoundingClientRect();
+    const grip = gripOf(rowEl(container, one));
+    fireEvent.pointerDown(grip, {
+      clientX: fromRect.left + 200,
+      clientY: fromRect.top + 16,
+      button: 0,
+      pointerId: 1,
+    });
+    fireEvent.pointerMove(document, {
+      clientX: fromRect.left + 210,
+      clientY: fromRect.top + 16,
+      buttons: 1,
+      pointerId: 1,
+    });
+    const target = rowEl(container, two).getBoundingClientRect();
+    for (let i = 0; i < 3; i += 1) {
+      fireEvent.pointerMove(document, {
+        clientX: 4,
+        clientY: target.top + 8 + i,
+        buttons: 1,
+        pointerId: 1,
+      });
+    }
+
+    // The portal rides in document.body, above the DragOverlay chip, at the
+    // snapped anchor: "above two" anchors at (two.left, two.top) with the
+    // row's width (synthetic layout: left 0, top 80, width 400).
+    const portal = document.body.querySelector<HTMLElement>(".nt-drop-indicator");
+    expect(portal).not.toBeNull();
+    expect(portal!.style.left).toBe("0px");
+    expect(portal!.style.top).toBe("79px");
+    expect(portal!.style.width).toBe("400px");
+
+    fireEvent.pointerUp(document, { clientX: 4, clientY: target.top + 10, button: 0, pointerId: 1 });
+    await flushMoves();
+    expect(document.body.querySelector(".nt-drop-indicator")).toBeNull();
+  });
+
   it("edge auto-scroll scrolls a scrollable view at the pointer's edge; a scroll re-anchors the drop line", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Scroll" });

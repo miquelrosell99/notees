@@ -95,6 +95,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
+import { createPortal } from "react-dom";
 
 import { DndContext, DragOverlay, useDraggable, useDroppable, type DragEndEvent, type DragMoveEvent, type DragStartEvent, type DraggableAttributes, type DraggableSyntheticListeners } from "@dnd-kit/core";
 
@@ -699,9 +700,36 @@ export function useWorkspaceDnd(opts: {
     [registerZone, registerHeader, registerRailCard, dragUi],
   );
 
+  /**
+   * The live indicator geometry for the portaled drop line (owner: the
+   * floating chip covered the class-based line's start — the indentation
+   * cue). The snapped candidate's anchor IS the line's start: sibling lines
+   * begin at the row's left edge, the child line at the child offset. The
+   * row-level ::before/::after lines stay as the no-host/no-candidate
+   * fallback; this portal repaints the same line (plus its start tick)
+   * above the DragOverlay at --z-node-overlay. Anchors re-measure on scroll,
+   * and the drop line re-projects right after, so a render keyed on dropLine
+   * always reads fresh geometry.
+   */
+  const dropAnchor = useMemo(() => {
+    if (dropLine === null) return null;
+    const session = sessionRef.current;
+    if (session === null || session.kind !== "blocks") return null;
+    const candidate = session.merged.find(
+      (c) => c.targetId === dropLine.targetId && c.intent === dropLine.intent,
+    );
+    if (candidate === undefined) return null;
+    return {
+      x: candidate.anchorX,
+      y: candidate.anchorY,
+      right: candidate.rowRight,
+    };
+  }, [dropLine]);
+
   return {
     sensors,
     dropLine,
+    dropAnchor,
     dragging,
     dragSources,
     moveError,
@@ -757,6 +785,19 @@ export function WorkspaceDndHost({
             <DragOverlay dropAnimation={null}>
               {dnd.dragging !== null && <div className="nt-drag-ghost">{dnd.dragging.label}</div>}
             </DragOverlay>
+            {dnd.dropAnchor !== null &&
+              typeof document !== "undefined" &&
+              createPortal(
+                <div
+                  className="nt-drop-indicator"
+                  style={{
+                    left: dnd.dropAnchor.x,
+                    top: dnd.dropAnchor.y - 1,
+                    width: Math.max(0, dnd.dropAnchor.right - dnd.dropAnchor.x),
+                  }}
+                />,
+                document.body,
+              )}
           </DragSourcesContext.Provider>
         </DropLineContext.Provider>
       </DndContext>
