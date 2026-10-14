@@ -210,14 +210,13 @@ try {
     console.log("band depth-2, live indicator:", ind?.label);
     if (ind === null || ind.intent !== "child") throw new Error(`expected a child intent, got ${ind?.label}`);
     const indFresh = await indicator();
-    // The floating chip covers the line's middle (it rides the pointer); a
-    // 30px visible run is enough to prove the line paints.
+    // The portaled line paints above the chip, so the full run is visible.
     const rows = await magentaRowsIn({
       x: indFresh.elementLeft,
       y: indFresh.rowBottom - 4,
       width: Math.min(indFresh.elementWidth, 700),
       height: indFresh.elementBottom + 6 - (indFresh.rowBottom - 4),
-    }, 30);
+    });
     console.log("band depth-2, magenta rows:", rows, "elementBottom", Math.round(ind.elementBottom));
     if (!rows.some((r) => Math.abs(r - ind.elementBottom) <= 3))
       throw new Error(`no child line at the element bottom (${ind.elementBottom}); rows=${rows}`);
