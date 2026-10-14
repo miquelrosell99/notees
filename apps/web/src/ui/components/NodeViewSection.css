@@ -8,7 +8,7 @@
  */
 
 .node-view-section {
-  border-top: var(--border-width-default) solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   /* One step tight (owner 2026-10-13): the hairline sits directly at the
      block surface's ghost row above, so spacing-3 here read as a void
      between the child blocks and the first section (Created on date pages,
@@ -43,12 +43,12 @@
 /* The hover effect lives on the collapse ARROW, not the whole header
    (owner rule 2026-10-01). */
 .node-view-section__header:hover .node-view-section__toggle {
-  background: var(--color-hover-overlay);
+  background: var(--md-sys-color-hover-overlay);
   border-radius: var(--shape-small);
 }
 
 .node-view-section__header:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-accent);
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: calc(var(--spacing-micro) * -1);
 }
 
@@ -59,7 +59,7 @@
   width: var(--icon-size-md);
   height: var(--icon-size-md);
   flex-shrink: 0;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .node-view-section__chevron {
@@ -81,13 +81,13 @@
 .node-view-section__icon {
   display: flex;
   align-items: center;
-  color: var(--color-accent);
+  color: var(--md-sys-color-primary);
   flex-shrink: 0;
 }
 
 .node-view-section__title {
   font: var(--font-title-small);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -97,8 +97,8 @@
   font: var(--font-label-medium);
   font-size: var(--font-size-xs);
   line-height: 1;
-  color: var(--color-on-surface-variant);
-  background: var(--color-surface-container-high);
+  color: var(--md-sys-color-on-surface-variant);
+  background: var(--md-sys-color-surface-container-high);
   border-radius: var(--shape-medium);
   padding: 3px 8px;
   flex-shrink: 0;
@@ -117,17 +117,17 @@
   border: none;
   border-radius: var(--shape-small);
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   cursor: pointer;
 }
 
 .node-view-section__action:hover {
-  background: var(--color-hover-overlay);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
 }
 
 .node-view-section__action:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-accent);
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: calc(var(--spacing-micro) * -1);
 }
 

@@ -14,7 +14,7 @@
 .duplicate-page-modal__description {
   margin: 0;
   font: var(--font-body-medium);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   line-height: 1.5;
 }
 
@@ -25,9 +25,9 @@
 .duplicate-page-modal__input {
   width: 100%;
   padding: var(--spacing-2) var(--spacing-3);
-  border: var(--border-width-default) solid var(--color-outline-variant);
-  background: var(--color-surface-container-low);
-  color: var(--color-on-surface);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface);
   font: var(--font-body-medium);
   outline: none;
   box-sizing: border-box;
@@ -36,7 +36,7 @@
 /* Quiet focus like every other search bar — the border shift, no accent
    tint or ring (owner 2026-10-09). */
 .duplicate-page-modal__input:focus {
-  border-color: var(--color-outline);
+  border-color: var(--md-sys-color-outline);
 }
 
 .duplicate-page-modal__input:focus-visible {
@@ -50,7 +50,7 @@
   gap: var(--spacing-1);
   max-height: var(--layout-size-4xl);
   overflow-y: auto;
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--radius-sm);
   padding: var(--spacing-1);
 }
@@ -63,7 +63,7 @@
   border: none;
   border-radius: var(--radius-xs);
   background: transparent;
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   font: var(--font-body-medium);
   cursor: pointer;
   text-align: left;
@@ -71,20 +71,20 @@
 }
 
 .duplicate-page-modal__class-item:hover {
-  background: var(--color-surface-container);
+  background: var(--md-sys-color-surface-container);
 }
 
 .duplicate-page-modal__class-item--selected {
-  background: var(--color-primary-container);
-  color: var(--color-on-primary-container);
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
 }
 
 .duplicate-page-modal__class-item--selected:hover {
-  background: var(--color-primary-container);
+  background: var(--md-sys-color-primary-container);
 }
 
 .duplicate-page-modal__class-item--create {
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
   font-style: italic;
 }
 
@@ -110,7 +110,7 @@
   margin: 0;
   padding: var(--spacing-3);
   text-align: center;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font: var(--font-body-small);
 }
 
@@ -118,8 +118,8 @@
   margin: 0;
   padding: var(--spacing-2) var(--spacing-3);
   border-radius: var(--radius-sm);
-  background: var(--color-error-container);
-  color: var(--color-on-error-container);
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
   font: var(--font-body-small);
 }
 

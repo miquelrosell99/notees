@@ -41,7 +41,7 @@
 }
 
 .toggle-switch:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-accent);
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: var(--spacing-micro);
   border-radius: var(--shape-small);
 }
@@ -49,13 +49,13 @@
 /* Labels */
 .toggle-switch__label {
   font-size: var(--font-size-sm);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   transition: color var(--motion-duration-short) var(--motion-easing-standard);
   white-space: nowrap;
 }
 
 .toggle-switch__label--active {
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   font-weight: 500;
 }
 
@@ -64,8 +64,8 @@
   position: relative;
   display: flex;
   align-items: center;
-  background: var(--color-surface-container-high);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface-container-high);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-full);
   transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
 }
@@ -89,14 +89,14 @@
 /* Thumb */
 .toggle-switch__thumb {
   position: absolute;
-  background: var(--color-on-surface-variant);
+  background: var(--md-sys-color-on-surface-variant);
   border-radius: 50%;
   transition: transform var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 /* Active thumb (checked state) */
 .toggle-switch--checked .toggle-switch__thumb {
-  background: var(--color-accent);
+  background: var(--md-sys-color-primary);
 }
 
 /* Thumb sizes and resting position */
@@ -133,7 +133,7 @@
 
 /* Hover state */
 .toggle-switch:not(.toggle-switch--disabled):hover .toggle-switch__track {
-  background: var(--color-surface-container-highest);
+  background: var(--md-sys-color-surface-container-highest);
 }
 
 /* Size variants for labels */

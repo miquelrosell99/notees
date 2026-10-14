@@ -5,26 +5,26 @@
   align-items: center;
   gap: var(--spacing-3);
   padding: var(--spacing-4) 0;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font: var(--font-body-medium);
 }
 
 .nt-property-history__empty {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font: var(--font-body-medium);
   padding: var(--spacing-3) 0;
 }
 
 .nt-property-history__unavailable {
-  border: var(--border-width-default) dashed var(--color-outline-variant);
+  border: var(--border-width-default) dashed var(--md-sys-color-outline-variant);
   border-radius: var(--radius-md);
   padding: var(--spacing-4);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   font: var(--font-body-medium);
 }
 
 .nt-property-history__unavailable-note {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font: var(--font-body-small);
   margin-top: var(--spacing-2);
 }
@@ -44,12 +44,12 @@
   gap: var(--spacing-3);
   padding: var(--spacing-2) var(--spacing-3);
   border-radius: var(--radius-sm);
-  background: var(--color-surface-container-low);
+  background: var(--md-sys-color-surface-container-low);
   font: var(--font-body-medium);
 }
 
 .nt-property-history__time {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font: var(--font-body-small);
   flex: none;
   min-width: var(--layout-size-3xl);
@@ -58,11 +58,11 @@
 .nt-property-history__op {
   flex: none;
   font: var(--font-label-small);
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
 }
 
 .nt-property-history__op--unset {
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
 }
 
 .nt-property-history__value {
@@ -74,12 +74,12 @@
 
 .nt-property-history__idx {
   margin-left: var(--spacing-2);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-family: inherit;
 }
 
 .nt-property-history__actor {
   flex: none;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font: var(--font-body-small);
 }

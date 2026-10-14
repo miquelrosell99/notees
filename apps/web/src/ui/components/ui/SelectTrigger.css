@@ -23,9 +23,9 @@
   /* The trigger is a bare <button>: without this reset the BROWSER default
      button face shows through (grey headless, blue-tinted on some
      platforms) — found via a computed-style dump on the export modal. */
-  background: var(--color-surface);
-  color: var(--color-on-surface);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-extra-large);
   transition: 
     border-color var(--motion-duration-short) var(--motion-easing-standard),
@@ -33,7 +33,7 @@
 }
 
 .select-trigger:hover:not(.select-trigger--disabled) {
-  border-color: var(--color-outline);
+  border-color: var(--md-sys-color-outline);
   transform: none;
 }
 
@@ -43,7 +43,7 @@
 
 .select-trigger:focus {
   outline: none;
-  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-outline-variant));
+  border-color: color-mix(in srgb, var(--md-sys-color-primary) 35%, var(--md-sys-color-outline-variant));
 }
 
 .select-trigger:focus-visible {
@@ -52,11 +52,11 @@
 }
 
 .select-trigger--open {
-  border-color: var(--color-primary);
+  border-color: var(--md-sys-color-primary);
 }
 
 .select-trigger--error {
-  border-color: var(--color-error);
+  border-color: var(--md-sys-color-error);
 }
 
 .select-trigger--disabled {
@@ -112,7 +112,7 @@
 .select-trigger__chevron {
   display: flex;
   align-items: center;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   flex-shrink: 0;
 }
 
@@ -131,6 +131,6 @@
 
 /* Placeholder styling (when used with text content) */
 .select-trigger__placeholder {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   opacity: var(--opacity-70);
 }

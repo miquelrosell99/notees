@@ -15,7 +15,7 @@
   margin: 0;
   font-size: var(--font-size-sm);
   line-height: 1.5;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .import-modal__hint code {
@@ -27,7 +27,7 @@
   margin: 0;
   font-size: var(--font-size-sm);
   line-height: 1.5;
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
 }
 
 .import-modal__mapping {
@@ -39,8 +39,8 @@
 .import-modal__chip {
   padding: var(--spacing-1) var(--spacing-2);
   border-radius: var(--radius-full);
-  background-color: var(--color-surface-container);
-  color: var(--color-on-surface-variant);
+  background-color: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-xs);
   line-height: 1.4;
 }
@@ -63,7 +63,7 @@
 .import-modal__table th,
 .import-modal__table td {
   padding: var(--spacing-1) var(--spacing-2);
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   text-align: left;
   white-space: nowrap;
   max-width: 16rem;
@@ -72,7 +72,7 @@
 }
 
 .import-modal__table th {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-weight: 500;
 }
 
@@ -89,5 +89,5 @@
   overflow-y: auto;
   font-size: var(--font-size-xs);
   line-height: 1.5;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }

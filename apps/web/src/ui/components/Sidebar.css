@@ -39,15 +39,15 @@
   border: var(--border-width-default) solid transparent;
   border-radius: var(--shape-medium);
   background: transparent;
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   font-weight: var(--font-weight-semibold);
   font-size: var(--font-size-sm);
   letter-spacing: 0.04em;
 }
 
 .nt-ws-switch:hover {
-  background: var(--color-hover-overlay);
-  border-color: var(--color-outline-variant);
+  background: var(--md-sys-color-hover-overlay);
+  border-color: var(--md-sys-color-outline-variant);
 }
 
 .nt-sidebar-search {
@@ -91,7 +91,7 @@
   font-weight: var(--font-weight-semibold);
   letter-spacing: var(--letter-spacing-section);
   text-transform: uppercase;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-side-list {
@@ -119,7 +119,7 @@
   border: none;
   border-radius: var(--shape-medium);
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-family: var(--font-family-base);
   font-size: var(--font-size-sm);
   text-align: left;
@@ -127,8 +127,8 @@
 }
 
 .nt-side-item:hover {
-  background: var(--color-hover-overlay);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
 }
 
 /* Active row: the hover-fill step + a small accent bar at the row's left
@@ -136,8 +136,8 @@
 .nt-side-item-active,
 .nt-side-item-active:hover {
   position: relative;
-  background: var(--color-surface-container-high);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-side-item-active::before {
@@ -149,17 +149,17 @@
   width: 3px;
   height: 60%;
   border-radius: var(--shape-full);
-  background: var(--color-accent);
+  background: var(--md-sys-color-primary);
 }
 
 .nt-side-item-icon {
   flex-shrink: 0;
   display: inline-flex;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-side-item-active .nt-side-item-icon {
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-side-item-label {
@@ -184,7 +184,7 @@
   border: none;
   border-radius: var(--shape-small);
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-side-row:hover .nt-side-star {
@@ -192,8 +192,8 @@
 }
 
 .nt-side-star:hover {
-  background: var(--color-pressed-overlay);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-pressed-overlay);
+  color: var(--md-sys-color-on-surface);
 }
 
 /* Drag-sorting favorites (owner 2026-10-12): the lifted row reads above its
@@ -201,7 +201,7 @@
 .nt-side-row--dragging {
   position: relative;
   z-index: 10;
-  background: var(--color-surface-container-high);
+  background: var(--md-sys-color-surface-container-high);
   border-radius: var(--shape-small);
   box-shadow: var(--shadow-elevation-2);
   opacity: 0.9;
@@ -212,7 +212,7 @@
 .nt-side-empty {
   padding: var(--spacing-1) var(--spacing-2);
   font-size: var(--font-size-xs);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   opacity: 0.75;
 }
 
@@ -221,9 +221,9 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-2);
-  border-top: var(--border-width-default) solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   font-size: var(--font-size-sm);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-sidebar-user {
@@ -265,7 +265,7 @@
   align-items: center;
   gap: var(--spacing-1);
   padding: var(--spacing-2) 0;
-  border-top: var(--border-width-default) solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   position: relative;
 }
 
@@ -279,8 +279,8 @@
   flex-direction: column;
   gap: 2px;
   padding: var(--spacing-2);
-  background: var(--color-surface-container-high);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface-container-high);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-floating-panel);
   box-shadow: var(--shadow-elevation-2);
 }
@@ -288,7 +288,7 @@
 .nt-account-email {
   padding: 4px var(--spacing-2);
   font-size: var(--font-size-sm);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -303,13 +303,13 @@
   border: none;
   border-radius: var(--shape-small);
   background: transparent;
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   font-size: var(--font-size-button);
   text-align: left;
 }
 
 .nt-account-menu button:hover {
-  background: var(--color-hover-overlay);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 /* Profile block: avatar + name/email + settings gear. */
@@ -327,7 +327,7 @@
 }
 
 .nt-profile:hover {
-  background: var(--color-hover-overlay);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-profile-avatar {
@@ -339,8 +339,8 @@
   width: 30px;
   height: 30px;
   border-radius: var(--shape-full);
-  background: var(--color-surface-container-high);
-  color: var(--color-on-surface-variant);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-sm);
   font-weight: 600;
   overflow: hidden;
@@ -363,7 +363,7 @@
 .nt-profile-name {
   font-size: var(--font-size-button);
   font-weight: 600;
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -371,7 +371,7 @@
 
 .nt-profile-email {
   font-size: var(--font-size-xs);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   opacity: 0.75;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -384,8 +384,8 @@
   flex-shrink: 0;
   padding: 0 var(--spacing-1);
   border-radius: var(--radius-full);
-  background: var(--color-surface-variant);
-  color: var(--color-on-surface-variant);
+  background: var(--md-sys-color-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-xs);
   line-height: 1.4;
   text-transform: uppercase;

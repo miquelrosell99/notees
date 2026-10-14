@@ -41,7 +41,7 @@ describe("mobile layout (app.css responsive pass)", () => {
     const block = responsiveBlock();
     // The drawer gets a real surface above the page beneath.
     expect(block).toContain(".nt-sidebar-open .nt-sidebar");
-    expect(block).toContain("--color-surface-container-low");
+    expect(block).toContain("--md-sys-color-surface-container-low");
     // Touch targets: sidebar rows, the favorite star, and the shell icon
     // buttons all reach the 44px button token floor.
     expect(block).toContain("--height-button-lg");

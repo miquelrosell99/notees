@@ -5,8 +5,8 @@
   flex-direction: column;
   min-width: 16rem;
   max-width: 22rem;
-  background: var(--color-bg-primary);
-  border: 1px solid var(--color-border);
+  background: var(--md-sys-color-surface);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-elevation-2);
   overflow: hidden;
@@ -15,13 +15,13 @@
 .template-list-popup__header {
   padding: var(--spacing-2) var(--spacing-3);
   font: var(--font-label-medium);
-  color: var(--color-on-surface-variant);
-  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--md-sys-color-on-surface-variant);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .template-list-popup__search {
   padding: var(--spacing-2) var(--spacing-3);
-  border-bottom: 1px solid var(--color-border-subtle);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .template-list-popup__list {
@@ -39,14 +39,14 @@
   border: none;
   background: transparent;
   border-radius: var(--radius-sm);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   font: var(--font-body-medium);
   text-align: left;
   cursor: pointer;
 }
 
 .template-list-popup__row--selected {
-  background: var(--color-bg-hover);
+  background: var(--md-sys-color-surface-container-high);
 }
 
 .template-list-popup__row-name {
@@ -58,15 +58,15 @@
 .template-list-popup__empty {
   padding: var(--spacing-3);
   font: var(--font-body-small);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .template-list-popup__footer {
   padding: var(--spacing-2) var(--spacing-3);
-  border-top: 1px solid var(--color-border-subtle);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .template-list-popup__hint {
   font: var(--font-label-small);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }

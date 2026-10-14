@@ -21,12 +21,12 @@
   border: none;
   border-radius: var(--shape-medium);
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .workspace-switcher__trigger:hover {
-  background: var(--color-hover-overlay);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
 }
 
 .workspace-switcher__name {
@@ -44,8 +44,8 @@
   left: 0;
   right: 0;
   z-index: 60;
-  background: var(--color-surface-container-high);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface-container-high);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-floating-panel);
   box-shadow: var(--shadow-elevation-2);
   overflow: hidden;
@@ -56,22 +56,22 @@
 
 .workspace-switcher__search {
   padding: var(--spacing-2);
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 }
 
 .workspace-switcher__search-input {
   width: 100%;
   padding: var(--spacing-2) var(--spacing-3);
-  border: var(--border-width-default) solid var(--color-outline-variant);
-  background: var(--color-surface);
-  color: var(--color-on-surface);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
   font-size: var(--font-size-button);
 }
 
 /* Quiet focus like every other search bar — no accent ring (owner
    2026-10-09). */
 .workspace-switcher__search-input:focus {
-  border-color: var(--color-outline);
+  border-color: var(--md-sys-color-outline);
 }
 
 .workspace-switcher__search-input:focus-visible {
@@ -113,14 +113,14 @@
   border: none;
   border-radius: var(--shape-medium);
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   opacity: 0;
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .workspace-switcher__settings-btn:hover {
-  background: var(--color-hover-overlay);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
 }
 
 .workspace-switcher__item {
@@ -132,18 +132,18 @@
   border: none;
   border-radius: var(--shape-small);
   background: transparent;
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   font-size: var(--font-size-button);
   text-align: left;
 }
 
 .workspace-switcher__item:hover {
-  background: var(--color-hover-overlay);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .workspace-switcher__item-icon {
   flex-shrink: 0;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   display: inline-flex;
 }
 
@@ -160,23 +160,23 @@
   font-size: var(--font-size-xs);
   padding: 1px 8px;
   border-radius: var(--shape-full);
-  background: var(--color-primary-container);
-  color: var(--color-on-primary-container);
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
 }
 
 .workspace-switcher__create-suggestion {
   font-weight: 500;
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
 }
 
 .workspace-switcher__create-suggestion .workspace-switcher__item-icon {
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
 }
 
 .workspace-switcher__empty {
   padding: var(--spacing-3);
   font-size: var(--font-size-sm);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .workspace-switcher__footer {
@@ -191,18 +191,18 @@
   padding: var(--spacing-2) var(--spacing-3);
   border: none;
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-sm);
 }
 
 .workspace-switcher__manage:hover {
-  background: var(--color-hover-overlay);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
 }
 
 .workspace-switcher__error {
   margin: 0;
   padding: 0 var(--spacing-3) var(--spacing-2);
   font-size: var(--font-size-sm);
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
 }

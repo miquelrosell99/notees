@@ -20,7 +20,7 @@
   border: none;
   border-radius: var(--shape-small);
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   cursor: pointer;
   opacity: var(--opacity-0);
   transition:
@@ -39,6 +39,6 @@
 }
 
 .ui-hover-reveal:hover {
-  background: var(--color-surface-container-high);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
 }

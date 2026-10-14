@@ -11,6 +11,42 @@ predating this file.
 
 - **fix(web): the browser tab title names the selection-less surfaces — the open nav hub ("Trash - Notees", "Graph - Notees", "Tasks - Notees", "Assets - Notees", …) and the full-page search ("Search - Notees").** The settings-title fix branched the ONE title effect on the settings route, but a hub view (which clears the selection) still fell through to the bare "Notees" — the same stale-title trap the settings branch fixed for its own surface. The branching rule is now the exported pure `tabTitle` (mirroring the PageCard render precedence: settings section → open node → search → active nav hub, named from `NAV_ENTRIES`; the effect is the only writer and only assigns), so the whole surface register is pinned by `test/tab-title.test.ts` — every nav hub's label, node-over-hub, search-over-hub, settings-over-everything, signed-out fallback. Verified: `pnpm typecheck` + `pnpm test` green; web-only, no wire/store/sync touch.
 
+- **refactor(web)!: the color system is single-track Material You — every
+  color token is a `--md-sys-color-*` role, and the selected accent IS the
+  primary role (derived, not duplicated).** The old dual-track palette (a
+  fixed monochrome `--color-primary*` family beside a user-selectable
+  `--color-accent*` family) meant active states could render in an
+  accent-independent color (the settings nav's "weird" active tab). Now:
+  the five `[data-accent]` presets set ONLY `--md-sys-color-primary` +
+  `--md-sys-color-on-primary`, and `primary-container`,
+  `on-primary-container`, `primary-hover`, `primary-pressed`, and
+  `inverse-primary` derive from them via `color-mix` in the theme blocks —
+  one source of truth per theme, the Material You dynamic-color model with
+  the curated seed standing in for wallpaper-derived color. The entire
+  accent token family is gone (`--color-accent*`, `--color-on-accent`),
+  the legacy bare color aliases are deleted (`--accent-color`, `--surface`,
+  `--text-secondary`, … — ~65 indirections; their ~14 real consumers now
+  reference the canonical role), and every remaining `--color-*` reference
+  across ~143 files (CSS, TS `getComputedStyle`/string readers, test
+  expectations) was renamed to `--md-sys-color-*`. Also swept: two sizing
+  tokens that wrongly carried a `--color-` prefix (`--color-btn-size-*` →
+  `--btn-size-*`), the duplicate `--shadow-inset-accent-ring` (→
+  `--shadow-inset-primary-ring`), and the dead `--color-accent-subtle`.
+  The settings accent picker is unchanged behaviorally (swatch previews
+  still preview each preset; the monochrome preview keeps its
+  theme-constant token, renamed `--md-sys-color-swatch-monochrome`).
+  Note: `colorPresets.ts`'s legacy-var fold now matches
+  `var(--md-sys-color-preset-*)` — safe because the 2026-10-03 migration
+  rewrote all stored data off the retired `var(--color-preset-*)`
+  encoding. Web-only CSS/token rename — no wire/store/sync touch, no
+  client lockstep. **Verification:** `pnpm install && pnpm -r build &&
+  pnpm typecheck && pnpm test` green in the worktree (protocol 366,
+  domain 80, export 240, store 552, sync 25, query 203, server 231, web
+  1645 — the css-token-drift gate passes against the new namespace), plus
+  the four zero-residue greps (`--color-`, bare aliases,
+  `--shadow-inset-accent-ring`). Docs: the ui-primitives law gains the
+  Material You color-role rule (renumbered 1–6).
+
 - **fix(web): the browser tab title names the open settings section ("Appearance - Notees", …) — and the development skill now requires URL + tab title for every new view.** The title effect only knew the open node, so any surface without a selection (settings, and the same dead spot for search/hubs) left the title stale at "Notees"; it now branches on the settings route and names the section from `SETTINGS_SECTIONS`. Same-pass skill change per the docs-are-part-of-the-change law: new law 9 in `notees-development` (view surfaces own their URL AND their tab title), mirrored in `references/coding-conventions.md` and canonical `docs/developers/development.md` §7, with the two shipped traps recorded (the PageCard render-precedence race; the stale title on selection-clearing views). Verified: `pnpm typecheck` + `pnpm test` green, live probe (settings view → tab title), verify-min smoke; web-only.
 
 - **feat(web): the quick-tweaks settings modal is dropped — the sidebar gear, Ctrl/Cmd+,, and the workspace manager's settings entry open the full settings page (Appearance) directly; the command palette's Toggle theme command now actually persists.** The modal held exactly two controls (theme, accent), both duplicated on Settings → Appearance, and linked onward via its "Advanced settings" row — a surface with no unique function. `UserSettingsModal.tsx`/`.css` are deleted; the styles the full page shared transitively (accent swatches, about/links/privacy/support) moved into `SettingsPage.css`. The palette's Toggle theme existed but wrote the LEGACY `notees.theme` key through a private helper, which the modern `notees.settings.theme` overrides on reload — the flip didn't stick; it now rides a canonical `flipTheme()` in deviceSettings (flips the resolved on-screen theme — the same source the command's label names → writes the modern key → broadcasts, OLED flag survives a dark round trip). Verified: `pnpm typecheck` + `pnpm test` green (modal tests re-aimed at the exported ThemeModeControl/AccentColorPicker; new palette theme-flip test covering the persist + OLED survival), live probe, and the verify-min smoke; web-only; no wire/store/sync touch, no client lockstep.
