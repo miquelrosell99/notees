@@ -308,6 +308,28 @@ Verified against `tsconfig.base.json`, the package manifests, and git history:
   model violations (move a class, cycle `extends`) throw; they never coerce or silently
   drop. The one designed exception: unknown WS frame types are ignored (WIRE.md).
 
+### View surfaces own their URL and their tab title
+
+Every new full-view surface (a settings section, a hub, the search page, anything that
+takes the PageCard slot) ships BOTH, in the same slice — not as a later fix:
+
+1. **A URL route** — deep-linkable at boot (the initial state reads
+   `window.location.pathname`), in-app navigation funnels through the pushState seam
+   (`pushNav` / `pushSettingsSection` / …), and the `popStateNavHandler` maps the path
+   back on back/forward. A view that only flips React state is unreachable by reload,
+   back, and bookmarks.
+2. **A tab title** — `document.title` names the surface ("NAME - Notees" for a node,
+   "SECTION - Notees" for a settings section). The App has ONE title effect
+   (`App.tsx`, keyed on the open surface) — extend it; never add a parallel writer.
+
+Two traps already shipped and cost fixes (2026-10-14):
+
+- **The render-precedence race** — the PageCard slot checks `selectedPageId` BEFORE the
+  view flags, so a view opener that doesn't clear the open page/search route loses the
+  slot silently (the "click does nothing" class of bug). Openers clear what they replace.
+- **The stale title** — a view that clears the selection drops the title effect's only
+  input to "Notees"; the effect must branch on the view itself, not just the node.
+
 ## 8. Where things are designed but not built (don't fake them)
 
 Registered so contributors don't re-invent or mis-document them: typed-link target

@@ -59,6 +59,12 @@ summary here.
    probes (seed `notees.workspaceId`, don't click through the picker), CLI
    writes, verification data — happens in the test workspace
    (fixed seed uuid, disposable), never the owner's live workspace. Probe data is created there and deleted when done.
+9. **New view surfaces own their URL AND their tab title** a route without both ships neither: deep-linkable
+   pushState/popstate URL plus the App's single title effect naming the
+   surface. Two shipped traps behind this: the PageCard render-precedence
+   race (openers clear what they replace) and the stale "Notees" title when
+   a view clears the selection. Detail: `references/coding-conventions.md`
+   (canonical: `docs/developers/development.md` §7).
    Detail: `references/development-workflow.md`.
 
 ## Gate before declaring done

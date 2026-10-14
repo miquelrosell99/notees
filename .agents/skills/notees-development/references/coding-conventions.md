@@ -41,6 +41,25 @@ Full catalog and drift classes: `docs/developers/ui-primitives.md`.
    run the web suite after touching CSS; a failure in your blast radius is
    yours to fix before claiming done.
 
+## View surfaces own their URL and their tab title
+
+Binding for any new full-view surface (settings section, hub, search page,
+anything taking the PageCard slot) — ship BOTH in the same slice, not as a
+later fix (canonical: `docs/developers/development.md` §7):
+
+1. **A URL route** — deep-linkable at boot, the pushState seam for in-app
+   navigation, and the `popStateNavHandler` mapping on back/forward. A view
+   that only flips React state is unreachable by reload/back/bookmarks.
+2. **A tab title** — the App's ONE title effect (`App.tsx`) names the open
+   surface ("NAME - Notees" / "SECTION - Notees"); extend it, never add a
+   parallel writer.
+
+Two traps with shipped fixes behind them: the render-precedence race (the
+PageCard slot checks `selectedPageId` first — openers must clear what they
+replace, or the click silently does nothing) and the stale title (a view
+that clears the selection must still update the title — the effect branches
+on the view, not only the node).
+
 ## Anti-hallucination register
 
 `docs/developers/development.md` lists the designed-not-built items
