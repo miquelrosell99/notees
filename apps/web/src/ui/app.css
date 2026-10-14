@@ -1911,14 +1911,15 @@ select:focus-visible {
   margin-left: 26px;
 }
 
-/* Drop indicator: the line rides the BLOCK ELEMENT's edges — above at the
-   element's top, below at the element's bottom, i.e. after THE ENTIRE
-   block (text row, properties, linked references, children), never mid-
-   element at the text row. The child intent is the same line at the bottom
-   divider, starting at the child-offset indentation (48px — CHILD_DROP_
-   OFFSET_PX — where the dropped child would sit): "insert here, one level
-   deeper" reads as a line, consistent with the sibling intents. All lines
-   ride the accent (the engagement color), not the neutral ink. */
+/* Drop indicator (the fallback layer): the line rides the BLOCK ELEMENT's
+   edges — above at the element's top, below at the element's bottom, i.e.
+   after THE ENTIRE block (text row, properties, linked references,
+   children), never mid-element at the text row. The child intent is the
+   same line at the bottom divider, starting at the child-offset indentation
+   (48px — CHILD_DROP_OFFSET_PX — where the dropped child would sit). The
+   primary visual is the portaled `.nt-drop-indicator` (above the floating
+   chip — see below); these class lines carry the same geometry where the
+   portal is absent (no host, or a drop line the snap set can't resolve). */
 .nt-block.nt-drop-above::before,
 .nt-block.nt-drop-below::after,
 .nt-block.nt-drop-child::after {
@@ -1943,6 +1944,35 @@ select:focus-visible {
 /* The child line starts at the child-offset indentation. */
 .nt-block.nt-drop-child::after {
   left: 48px;
+}
+
+/* The portaled drop indicator: the same line repainted ABOVE the floating
+   drag chip. The chip is opaque and rides the pointer, so it covered the
+   class-based line's start — the indentation cue (owner). The snapped
+   candidate's anchor is the line's start: sibling lines begin at the row's
+   left edge, the child line at the child offset. The start tick (a small
+   vertical bar straddling the line) marks that x on top of everything, so
+   the drop level reads even where the chip overlaps. Rides
+   --z-node-overlay — one step above dnd-kit's DragOverlay (999). The
+   row-level ::before/::after lines stay as the no-host / no-candidate
+   fallback. */
+.nt-drop-indicator {
+  position: fixed;
+  height: 2px;
+  background: var(--color-accent);
+  pointer-events: none;
+  z-index: var(--z-node-overlay);
+}
+
+.nt-drop-indicator::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: -4px;
+  width: 3px;
+  height: 10px;
+  background: var(--color-accent);
+  border-radius: 0 2px 2px 0;
 }
 
 /* The dragged source stays in place and reads muted — the floating name

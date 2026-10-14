@@ -201,17 +201,17 @@ describe("mergeZoneCandidates", () => {
       {
         zoneId: "zone-a",
         candidates: [
-          { targetId: "a1", intent: "above", anchorX: 0, anchorY: 40 },
-          { targetId: "a1", intent: "child", anchorX: 48, anchorY: 56 },
+          { targetId: "a1", intent: "above", anchorX: 0, anchorY: 40, rowRight: 400 },
+          { targetId: "a1", intent: "child", anchorX: 48, anchorY: 56, rowRight: 400 },
         ],
       },
-      { zoneId: "zone-b", candidates: [{ targetId: "b1", intent: "below", anchorX: 0, anchorY: 96 }] },
+      { zoneId: "zone-b", candidates: [{ targetId: "b1", intent: "below", anchorX: 0, anchorY: 96, rowRight: 400 }] },
     ]);
 
     expect(merged).toEqual([
-      { targetId: "a1", intent: "above", anchorX: 0, anchorY: 40, zoneId: "zone-a" },
-      { targetId: "a1", intent: "child", anchorX: 48, anchorY: 56, zoneId: "zone-a" },
-      { targetId: "b1", intent: "below", anchorX: 0, anchorY: 96, zoneId: "zone-b" },
+      { targetId: "a1", intent: "above", anchorX: 0, anchorY: 40, rowRight: 400, zoneId: "zone-a" },
+      { targetId: "a1", intent: "child", anchorX: 48, anchorY: 56, rowRight: 400, zoneId: "zone-a" },
+      { targetId: "b1", intent: "below", anchorX: 0, anchorY: 96, rowRight: 400, zoneId: "zone-b" },
     ]);
   });
 
@@ -220,7 +220,7 @@ describe("mergeZoneCandidates", () => {
     expect(
       mergeZoneCandidates([
         { zoneId: "empty", candidates: [] },
-        { zoneId: "full", candidates: [{ targetId: "x", intent: "above", anchorX: 0, anchorY: 0 }] },
+        { zoneId: "full", candidates: [{ targetId: "x", intent: "above", anchorX: 0, anchorY: 0, rowRight: 400 }] },
       ]).map((c) => c.zoneId),
     ).toEqual(["full"]);
   });
