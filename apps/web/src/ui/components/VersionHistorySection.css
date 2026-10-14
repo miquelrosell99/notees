@@ -1,0 +1,117 @@
+/**
+ * VersionHistorySection styles — the version feed rows: summary + relative
+ * stamp, the expandable snapshot preview, the restore action. Token-only
+ * (the activity-log row precedent).
+ */
+
+.version-history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.version-history__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.version-history__row {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--shape-small);
+}
+
+.version-history__line {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: var(--height-md);
+  padding: 0 var(--spacing-1);
+}
+
+.version-history__preview-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-width: 0;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.version-history__chevron {
+  flex-shrink: 0;
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.version-history__chevron--open {
+  transform: rotate(90deg);
+}
+
+.version-history__event {
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface);
+}
+
+.version-history__event--plain {
+  padding-left: calc(var(--spacing-1) + 0.8em + var(--spacing-1));
+}
+
+.version-history__stamp {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: var(--font-size-2xs);
+  color: var(--color-on-surface-variant);
+}
+
+.version-history__snapshot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+  margin: var(--spacing-1) 0 var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-left: var(--border-width-default) solid var(--color-outline-variant);
+}
+
+.version-history__snapshot-text {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.version-history__empty {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+}
+
+.version-history__loading {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+}
+
+.version-history__unavailable p {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface);
+}
+
+.version-history__unavailable-note {
+  margin-top: var(--spacing-1) !important;
+  font-size: var(--font-size-2xs) !important;
+  color: var(--color-on-surface-variant) !important;
+}

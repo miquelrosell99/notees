@@ -3,7 +3,8 @@
  *  LEFT   dock-left (sidebar show/hide at every width), the workspace
  *         selector (the wordmark's permanent replacement), and icon-only New + search buttons to its right;
  *         sync status rides the section's end
- *  CENTER the current node's breadcrumbs, left-aligned within the section
+ *  CENTER the in-app Back/Forward arrows + the current node's breadcrumbs,
+ *         left-aligned within the section
  *  RIGHT  undo/redo (the session journal, topbar buttons + the
  *         history chevron), calendar, right-sidebar show/hide
  */
@@ -60,6 +61,16 @@ export function TopBar({
   breadcrumbs,
   sidebarOpen,
   rightPanelOpen,
+  /**
+   * The in-app Back/Forward arrows: window.history
+   * back/forward through the App's OWN navigation stack (tracked in the App
+   * layer — the browser stack reaches beyond the app). Undefined hides the
+   * pair (boot screens); the disabled states ride the stack cursor.
+   */
+  canGoBack = false,
+  canGoForward = false,
+  onGoBack,
+  onGoForward,
   calendarOpen = false,
   onToggleCalendar,
   calendarButtonRef,
@@ -97,6 +108,12 @@ export function TopBar({
   breadcrumbs?: ReactNode;
   sidebarOpen: boolean;
   rightPanelOpen: boolean;
+  /** In-app navigation stack cursor: false at the oldest entry. */
+  canGoBack?: boolean | undefined;
+  /** In-app navigation stack cursor: false at the newest entry. */
+  canGoForward?: boolean | undefined;
+  onGoBack?: (() => void) | undefined;
+  onGoForward?: (() => void) | undefined;
   /** Calendar popup state; the popup itself renders in the App layer (it needs the client). */
   calendarOpen?: boolean;
   onToggleCalendar?: (() => void) | undefined;
@@ -172,7 +189,33 @@ export function TopBar({
 
         <SyncDot snapshot={syncStatus} onOpen={onOpenSyncDetails} />
       </div>
-      <div className="nt-topbar-center">{breadcrumbs}</div>
+      <div className="nt-topbar-center">
+        {(onGoBack !== undefined || onGoForward !== undefined) && (
+          <span className="nt-topbar-nav" role="group" aria-label="Back and forward">
+            <button
+              type="button"
+              className="nt-icon-btn"
+              disabled={!canGoBack}
+              title="Back (Alt+←)"
+              aria-label="Back"
+              onClick={onGoBack}
+            >
+              <Icon path="mdi-arrow-left" size={1} />
+            </button>
+            <button
+              type="button"
+              className="nt-icon-btn"
+              disabled={!canGoForward}
+              title="Forward (Alt+→)"
+              aria-label="Forward"
+              onClick={onGoForward}
+            >
+              <Icon path="mdi-arrow-right" size={1} />
+            </button>
+          </span>
+        )}
+        {breadcrumbs}
+      </div>
       <div className="nt-topbar-right">
         {onToggleLayout !== undefined && (
           <button
