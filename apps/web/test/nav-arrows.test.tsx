@@ -4,7 +4,8 @@
  * (recordNavPush/recordNavPop) exists because the browser stack reaches
  * beyond the app, so the arrows' disabled states ride our cursor, never the
  * browser's. The popstate handler reports every landing to the tracker via
- * the onNavigated seam.
+ * the onNavigated seam. The focus-mode button (relocated from the quick
+ * settings modal, owner 2026-10-14) renders beside them with pressed state.
  */
 
 import { describe, expect, it, vi } from "vitest";
@@ -141,5 +142,50 @@ describe("the top bar Back/Forward arrows", () => {
     // A disabled arrow swallows the gesture.
     fireEvent.click(forward);
     expect(onGoForward).not.toHaveBeenCalled();
+  });
+});
+
+describe("the top bar focus-mode button", () => {
+  function renderBar(overrides: { focusMode?: boolean } = {}) {
+    const onToggleFocusMode = vi.fn();
+    render(
+      <TopBar
+        syncStatus={SYNC}
+        sidebarOpen
+        rightPanelOpen={false}
+        onToggleSidebar={() => {}}
+        onToggleRightPanel={() => {}}
+        onToggleFocusMode={onToggleFocusMode}
+        focusMode={overrides.focusMode ?? false}
+      />,
+    );
+    return { onToggleFocusMode };
+  }
+
+  it("hidden without a handler (boot screens), rendered with pressed state otherwise", () => {
+    const { unmount } = render(
+      <TopBar
+        syncStatus={SYNC}
+        sidebarOpen
+        rightPanelOpen={false}
+        onToggleSidebar={() => {}}
+        onToggleRightPanel={() => {}}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Focus mode" })).toBeNull();
+    unmount();
+
+    renderBar();
+    const button = screen.getByRole("button", { name: "Focus mode" });
+    expect(button).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("the active state names the exit; clicks fire the handler", () => {
+    const { onToggleFocusMode } = renderBar({ focusMode: true });
+    const button = screen.getByRole("button", { name: "Exit focus mode" });
+    expect(button).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(button);
+    expect(onToggleFocusMode).toHaveBeenCalledTimes(1);
   });
 });

@@ -9,6 +9,8 @@ predating this file.
 
 ## 2026-10-14
 
+- **fix(web): the quick modal's "Advanced settings →" button was a no-op with a page open — fixed; focus mode moved to the top bar; the Back/Forward arrows moved to the top bar's right side.** Root cause of the dead button: `openSettingsSection` set the settings route but never cleared `selectedPageId` / `searchOpen`, and the PageCard slot checks the selection FIRST — so with a page open the settings page lost the render race and nothing visibly happened (deep links at boot worked, which masked it). The fix is the two clearing calls, mirroring `openSearchPage`. Focus mode left the quick-tweaks modal (theme + accent remain; the description row named page chrome that focus mode no longer hides) for an eye button in the top bar's right section — active state with the eye-off icon, Esc still exits, Ctrl/Cmd+Alt+F and the palette command ride the same `toggleFocusMode` write path. The in-app Back/Forward arrows moved off the center section (the breadcrumbs alone keep the center) to the head of the right section. Verified: `pnpm typecheck` + `pnpm test` green (the modal's focus switch test re-aimed at the shared toggle helper; new top-bar button tests), web-only; no wire/store/sync touch, no client lockstep.
+
 - **fix(web): the Pixi adapter's streamed-frame path is delta-based — the
   50k left-drag hang is fixed (go/no-go Stage 3 blocker resolved).** Root
   cause, proven in an isolated harness (esbuild bundle + real Pixi under

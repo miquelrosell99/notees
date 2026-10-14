@@ -965,10 +965,15 @@ export function App() {
 
   /**
    * Open a settings section: state + URL together (the pushState seam the
-   * popstate handler maps back on back/forward).
+   * popstate handler maps back on back/forward). Clears the open page and
+   * the search route — the PageCard slot checks the selection FIRST, so a
+   * stale selectedPageId would keep winning the slot over the settings
+   * page (the "Advanced settings does nothing" bug).
    */
   function openSettingsSection(section: SettingsSection): void {
     setSettingsSection(section);
+    setSearchOpen(false);
+    setSelectedPageId(null);
     setNavStack((stack) => recordNavPush(stack, pathForSettingsSection(section)));
     pushSettingsSection(section);
   }
@@ -2040,6 +2045,8 @@ export function App() {
         newButtonRef={newButtonRef}
         sectionsLayout={sectionsLayout}
         onToggleLayout={selectedPageId !== null ? () => setSectionsLayout((v) => !v) : undefined}
+        focusMode={focusMode}
+        onToggleFocusMode={() => setFocusMode(toggleFocusMode())}
         workspaceSwitcher={
           offline ? undefined : (
             <WorkspaceSwitcher
