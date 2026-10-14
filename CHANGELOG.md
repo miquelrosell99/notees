@@ -9,6 +9,70 @@ predating this file.
 
 ## 2026-10-14
 
+- **feat(web): the block-drag preview is frozen, edge auto-scroll finds
+  off-screen positions, and a selection stack drags as one (owner
+  2026-10-14).** Four owner asks in one slice. (1) Nothing moves during a
+  drag anymore: BlockRow never applies the sortable strategy transform (the
+  source had suppressed only its own), so sibling rows no longer slide to
+  make room — the feedback is the highlight line at the drop position, the
+  dragged block(s) reading faint in place (opacity 45, already the drag-
+  source treatment), and the floating name chip; the reorder commits on
+  drop. (2) A block drag auto-scrolls a scrollable view (the page body, a
+  rail card, a floating editor) when the pointer sits in its 40px edge band
+  — ramped 6px/frame rAF loop over the zone roots' scrollable ancestors,
+  dnd-kit's built-in autoScroll off to avoid double scrolls — and ANY scroll
+  during a block session re-measures every zone into the snap set and
+  re-projects the drop line at the last pointer, so the indicator tracks
+  content under a stationary pointer and freshly revealed rows are
+  droppable. (3) Dragging the grip of a SELECTED row drags the whole
+  selection stack: the session's dragIds carry the level-capped roots in
+  document order, the chip reads "N blocks", every root row renders faint,
+  and planStackMove issues one chained move per root (each lands after its
+  stack predecessor; the first-slot two-move swap generalizes to a
+  three-phase stack swap; blocks already sitting at their intended spot are
+  skipped with a prefix gate — a successor is re-anchored the moment a
+  predecessor moves; internal structure preserved — only top-level roots
+  reparent). Cross-zone and card-header stack drops re-plan from the client.
+  (4) The selection itself is now level-capped at its shallowest depth: any
+  write maps raw rows to their ancestors at the stack's min depth, so the
+  screenshot configuration — "11" (depth 0) mixed with "el hecho de
+  proteger…" (depth 1) — is unconstructible: extending a range onto the
+  child selects "14" instead, ctrl+clicking inside an already-selected
+  subtree is a no-op, and adding a deeper row to a shallower stack promotes
+  it to its ancestor. The stored stack (`selectionRoots`) feeds the drag;
+  the exposed `selection` stays whole-subtree for the card + group ops.
+  Riding along, the selection card is rebuilt to the owner's direction: an
+  UNDERLAY (z-index below the rows, so text stays fully readable) spanning
+  the run's block elements — shallowest left edge to deepest right edge,
+  not the surface's full width — in primary-tinted surface tokens; the
+  pointer-through underlay supersedes the earlier border-drag idea (a
+  pointer-through layer can't be a drag handle — the bullet grip of any
+  selected row is the stack-drag gesture). **Verification:** `pnpm
+  typecheck` + `pnpm test` green (16 new specs: frozen-preview transform
+  sweep, stack drag end-to-end with faint rows + "2 blocks" chip + chained
+  moves, edge auto-scroll + scroll re-anchor end-to-end in a synthetic
+  scroller, planner units for chained/first-slot/child/noop/refusal paths,
+  edge-velocity + scroll-container units, three level-cap gesture specs);
+  50 block-dnd/selection tests pass.
+
+- **fix(web): no focus ring on the content card when clicking the graph, and
+  a minimap that reads (owner 2026-10-14).** (1) Clicking the canvas focuses
+  the graph stage for keyboard navigation; the stage's `:focus-visible`
+  outline drew a 2px accent ring inset at the stage edge — indistinguishable
+  from a border around the whole content card. The stage is a chrome-less
+  keyboard surface: both `:focus` and `:focus-visible` outlines are now none
+  (the keyboard behavior is unchanged). (2) The minimap at 7.4k nodes was an
+  unreadable black blob: the dark-theme dot token (`#a9a59f` at 0.55 alpha)
+  vanished on the dark surface and thousands of overlapping dots compounded
+  into a solid mass. The dark dot token now matches the brightened node color
+  (`#d0d0d0`), the viewport rectangle rides the app accent
+  (`--graph-minimap-viewport: var(--color-accent)`), and the viewed region
+  gets a faint accent wash (`minimapViewportFill`, 0.12) under the stroke so
+  it reads at a glance. **Verification:** the five graph suites green (the
+  graph-view suite file was blocked mid-run by another session's transient
+  `block-dnd.ts` syntax error — unrelated, re-verified after) + `pnpm
+  --filter @notees/web typecheck` green on the graph files.
+
 - **fix(web): graph load and hover corrections — a stage loading overlay, no
   lifecycle rebuild on color groups, an instant cached paint, labels that
   arrive together at a closer zoom, and a color-only hover (owner rulings

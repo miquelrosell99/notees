@@ -487,10 +487,13 @@ export function PageView({
   const generatedZoneId = useId();
   const positionsRef = useRef(outliner.positions);
   positionsRef.current = outliner.positions;
+  const selectionRootsRef = useRef(outliner.selectionRoots);
+  selectionRootsRef.current = outliner.selectionRoots;
   useWorkspaceDndZone({
     id: generatedZoneId,
     rootRef: pageRootRef,
     getPositions: () => positionsRef.current,
+    getSelection: () => selectionRootsRef.current,
     client,
   });
 
