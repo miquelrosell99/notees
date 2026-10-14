@@ -99,6 +99,7 @@ import {
 import { buildNodeVisuals } from "./nodeVisuals.js";
 import { EngineController, type EngineFrame } from "./engineController.js";
 import { GraphWebGLRenderer, type RendererEdge } from "./renderer/webglRenderer.js";
+import { GraphPixiRenderer } from "./renderer/pixiRenderer.js";
 import type { GraphRenderer } from "./renderer/graphRenderer.js";
 import { drawLabels, labelSignatureChanged, type LabelDrawSignature, type LabelFrame } from "./renderer/labelCanvas.js";
 import { graphTheme } from "./renderer/theme.js";
@@ -151,6 +152,10 @@ interface GraphPrefs {
   classColors: RetiredClassColorEntry[];
   /** The right rail (full surface only): open/closed, persisted per device. */
   railOpen: boolean;
+  /** The graph renderer adapter (owner 2026-10-14 Pixi migration, Stage 2):
+   *  the experimental PixiJS path behind the GraphRenderer interface.
+   *  Default stays "webgl" until parity is proven. */
+  renderer: "webgl" | "pixi";
 }
 
 const FAMILY_LABELS: Array<{ key: GraphEdgeKind; label: string }> = [
@@ -187,6 +192,7 @@ function defaultPrefs(): GraphPrefs {
     colorGroups: [],
     classColors: [],
     railOpen: false,
+    renderer: "webgl",
   };
 }
 
@@ -204,6 +210,8 @@ function loadPrefs(surface: string): GraphPrefs {
     families: { ...base.families, ...(stored.families ?? {}) },
     colorGroups: Array.isArray(stored.colorGroups) ? stored.colorGroups : [],
     classColors: Array.isArray(stored.classColors) ? stored.classColors : [],
+    // The device store can hold anything — coerce the renderer flag.
+    renderer: stored.renderer === "pixi" ? "pixi" : "webgl",
   };
 }
 
@@ -246,8 +254,9 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const labelCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const minimapCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  // Typed as the interface, constructed as the concrete class — Stage 2 of
-  // the Pixi migration swaps the construction site behind a device flag.
+  // Typed as the interface, constructed as the concrete class — the Pixi
+  // migration's Stage 2 selects the adapter by the graphPrefs.renderer
+  // device flag (default WebGL).
   const rendererRef = useRef<GraphRenderer | null>(null);
   const engineRef = useRef<EngineController | null>(null);
   const cameraRef = useRef({ x: 0, y: 0, zoom: 0.5 });
@@ -668,7 +677,10 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     awaitingFirstFrameRef.current = true;
     setAwaitingFirstFrame(true);
 
-    const renderer = new GraphWebGLRenderer({ defaultRadius: 8, edgeWidth: 0.8, cullMargin: 150 });
+    const renderer: GraphRenderer =
+      prefs.renderer === "pixi"
+        ? new GraphPixiRenderer({ defaultRadius: 8, edgeWidth: 0.8 })
+        : new GraphWebGLRenderer({ defaultRadius: 8, edgeWidth: 0.8, cullMargin: 150 });
     try {
       const dpr = window.devicePixelRatio || 1;
       canvas.width = Math.max(1, Math.floor(container.clientWidth * dpr));
@@ -1016,7 +1028,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       rendererRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [display, client]);
+  }, [display, client, prefs.renderer]);
 
   // ── Selection helpers ──────────────────────────────────────────────────────
   const toggleSelected = (id: string): void =>
@@ -1566,6 +1578,21 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
    *  the Visibility popover, layout mode + time-lapse in the bottom mode bar). */
   const settingsPanel = (
     <div className="nt-graph__settings">
+      <div className="nt-graph__settings-row">
+        <span className="nt-graph__settings-label">Renderer</span>
+        <SelectionButton
+          size="sm"
+          options={[
+            { value: "webgl", icon: "mdi mdi-hexagon-outline", label: "WebGL" },
+            { value: "pixi", icon: "mdi mdi-hexagon-multiple-outline", label: "Pixi (beta)" },
+          ]}
+          value={prefs.renderer}
+          onChange={(value) => patch({ renderer: value as "webgl" | "pixi" })}
+        />
+        <span className="nt-graph__settings-hint">
+          Pixi is the experimental rendering path — switch back any time.
+        </span>
+      </div>
       {prefs.layoutMode === "force" && (
         <>
           <div className="nt-graph__settings-row">
