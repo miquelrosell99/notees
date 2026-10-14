@@ -684,6 +684,39 @@ export function drawerDismissHandler(opts: {
 }
 
 /**
+ * The ONE tab-title rule (law 9 — view surfaces own their tab title): names
+ * the open surface, mirroring the PageCard render precedence — the settings
+ * section first, then the open node, then the full-page search, then the
+ * active nav hub ("Trash - Notees", "Graph - Notees", …). A view without a
+ * selection no longer leaves a stale title. The effect below is the only
+ * writer; exported for the title tests, mirroring the other handler
+ * factories.
+ */
+export function tabTitle(opts: {
+  /** False while signed out / booting — the bare app name. */
+  clientPresent: boolean;
+  selectedPageId: string | null;
+  settingsSection: SettingsSection | null;
+  searchOpen: boolean;
+  activeNav: NavKey;
+  /** The resolved display name of the open node ("" when unknown). */
+  nodeName: string;
+}): string {
+  if (opts.settingsSection !== null) {
+    const label =
+      SETTINGS_SECTIONS.find((section) => section.id === opts.settingsSection)?.label ?? "Settings";
+    return `${label} - Notees`;
+  }
+  if (!opts.clientPresent) return "Notees";
+  if (opts.selectedPageId !== null) {
+    return opts.nodeName !== "" ? `${opts.nodeName} - Notees` : "Notees";
+  }
+  if (opts.searchOpen) return "Search - Notees";
+  const entry = NAV_ENTRIES.find((item) => item.key === opts.activeNav);
+  return entry !== undefined ? `${entry.label} - Notees` : "Notees";
+}
+
+/**
  * Initial view: a hub URL in the address bar wins; otherwise the journal
  * feed is the default ("open in journal view") with the device-local
  * "default view" preference overriding it (legacy choices that have no hub
@@ -920,29 +953,28 @@ export function App() {
   const selectedPageIdRef = useRef<string | null>(null);
   selectedPageIdRef.current = selectedPageId;
 
-  // Browser tab title follows the open surface: the node's "NAME - Notees"
-  // (pagesVersion keeps it fresh across renames and sync updates; date pages
-  // format per the user's dateFormat preference; inline class chips
-  // contribute their resolved class name), or "SECTION - Notees" on the
-  // settings route — a view without a selection was leaving the title stale.
+  // Browser tab title: the ONE writer — the tabTitle rule (law 9; exported
+  // and unit-tested). pagesVersion keeps the open node's title fresh across
+  // renames and sync updates; searchOpen/activeNav name the selection-less
+  // surfaces (hubs and the full-page search).
   useEffect(() => {
-    if (settingsSection !== null) {
-      const label =
-        SETTINGS_SECTIONS.find((section) => section.id === settingsSection)?.label ?? "Settings";
-      document.title = `${label} - Notees`;
-      return;
-    }
-    if (client === null || selectedPageId === null) {
-      document.title = "Notees";
-      return;
-    }
-    const node = client.getNode(selectedPageId);
-    const name =
-      node !== undefined
-        ? displayNameForSettings(node, (classId) => client.getDisplayName(classId))
-        : "";
-    document.title = name !== "" ? `${name} - Notees` : "Notees";
-  }, [client, selectedPageId, pagesVersion, settingsSection]);
+    document.title = tabTitle({
+      clientPresent: client !== null,
+      selectedPageId,
+      settingsSection,
+      searchOpen,
+      activeNav,
+      nodeName:
+        client !== null && selectedPageId !== null
+          ? (() => {
+              const node = client.getNode(selectedPageId);
+              return node !== undefined
+                ? displayNameForSettings(node, (classId) => client.getDisplayName(classId))
+                : "";
+            })()
+          : "",
+    });
+  }, [client, selectedPageId, pagesVersion, settingsSection, searchOpen, activeNav]);
   // The persisted rail order may carry ids from another workspace (the key
   // is device-global, the recents precedent): drop the ones this client
   // doesn't know — the persistence effect writes the filtered list through.
