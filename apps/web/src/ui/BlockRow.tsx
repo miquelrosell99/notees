@@ -229,30 +229,19 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
     return () => observer.disconnect();
   }, [extendRail, isCollapsed, children.length, editing, backlinksExpanded, node.tagIds.length]);
 
-  // Per-height rail targeting (owner): a click collapses the children of the
-  // DIRECT CHILD whose span the click sits beside — the block that "has"
-  // that segment of the line — not always the owner; the segment across the
-  // owner's own metadata (above the first child) collapses the owner's.
+  // The rail click folds EACH direct child individually (owner rule
+  // 2026-10-14: "collapse EACH INDIVIDUAL CHILD BLOCK, not the block that
+  // owns the thread"): the owner's own expansion stays, the direct children
+  // rows remain, their subtrees fold at once. When every collapsible child
+  // is already folded, the click unfolds them all.
   const collapseFromRailClick = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    const childrenEl = childrenRef.current;
-    if (childrenEl === null) {
-      toggleCollapse(node.id);
-      return;
+    const collapsible = children.filter((child) => child.children.length > 0);
+    if (collapsible.length === 0) return;
+    const allCollapsed = collapsible.every((child) => collapsed.has(child.node.id));
+    for (const child of collapsible) {
+      if (collapsed.has(child.node.id) !== allCollapsed) toggleCollapse(child.node.id);
     }
-    const y = event.clientY;
-    const rowsEls = Array.from(childrenEl.querySelectorAll<HTMLElement>(":scope > .nt-block"));
-    let index = -1;
-    for (const [i, rowEl] of rowsEls.entries()) {
-      if (rowEl.getBoundingClientRect().top <= y) index = i;
-      else break;
-    }
-    if (index === -1) {
-      toggleCollapse(node.id);
-      return;
-    }
-    const target = children[index];
-    if (target !== undefined && target.children.length > 0) toggleCollapse(target.node.id);
   };
 
   useEffect(() => {
@@ -847,12 +836,13 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
         {children.length > 0 && !isCollapsed && (
           <SortableContext items={children.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
             <div className="nt-block-children" ref={childrenRef}>
-              {/* The vertical indent line is itself the collapse control (the
-                  v1 pattern, per-height refined): the segment beside a child
-                  collapses THAT child's children; the segment across this
-                  block's own metadata (above the first child) collapses this
-                  block's. The rail's top extends to the row's bottom edge
-                  across the metadata sections (see extendRail). */}
+              {/* The vertical indent line is itself the fold control (owner
+                  rule 2026-10-14): one click anywhere on it folds EACH direct
+                  child individually — the owner's own expansion stays, the
+                  children rows remain, their subtrees fold at once. The
+                  rail's top extends to the row's bottom edge across the
+                  metadata sections (see extendRail), so the line reaches
+                  the bullet. */}
               {!ignoreCollapse && (
                 <button
                   type="button"

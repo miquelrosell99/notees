@@ -1428,15 +1428,18 @@ select:focus-visible {
   border-left: 1px solid var(--color-outline-variant);
 }
 
-/* The indent rail: the vertical hairline is itself a control (the v1
-   pattern, per-height refined — see collapseFromRailClick in BlockRow).
-   The rail rides the children container's left border but its TOP extends
-   across the block's metadata sections up to the row's bottom edge (set
-   inline by BlockRow's extendRail), so the line reaches the bullet. The
-   resting hairline is drawn BY the rail, aligned with the border column
-   (1px from the rail's left edge), one continuous line from the row down;
-   hover/focus strengthens it to a 2px accent hairline on the same column.
-   No child content lives in the strip, so it never eats child clicks. */
+/* The indent rail: the vertical hairline is itself a control — one click
+   anywhere on it folds EACH direct child individually (the owner rule
+   2026-10-14): the owner's own expansion stays untouched, the direct
+   children rows remain, their subtrees fold at once; when every collapsible
+   child is folded, the click unfolds them all. The rail rides the children
+   container's left border but its TOP extends across the block's metadata
+   sections up to the row's bottom edge (set inline by BlockRow's
+   extendRail), so the line reaches the bullet. The resting hairline is
+   drawn BY the rail, aligned with the border column (1px from the rail's
+   left edge), one continuous line from the row down; hover/focus
+   strengthens it to a 2px accent hairline on the same column. No child
+   content lives in the strip, so it never eats child clicks. */
 .nt-block-children__rail {
   position: absolute;
   top: 0;

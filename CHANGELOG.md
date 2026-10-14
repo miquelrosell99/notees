@@ -9,6 +9,34 @@ predating this file.
 
 ## 2026-10-14
 
+- **fix(web): the indent rail folds EACH direct child individually — the
+  owner's own expansion stays untouched (owner 2026-10-14, final ruling:
+  "it should collapse EACH INDIVIDUAL CHILD BLOCK, not the block that owns
+  the thread").** The ruling sequence settled the semantics: not per-height
+  (one child per click), not owner-collapse (the owner's chevron flips, the
+  children rows vanish) — the click toggles every direct child's own
+  collapse state at once: the children rows remain, their subtrees fold; a
+  childless child is skipped (nothing to fold); when every collapsible
+  child is already folded the click unfolds them all. The line extension
+  (reaches the bullet across the metadata) is untouched. **Verification:**
+  the rail probe asserts the full contract — after one click the grandchild
+  hides while the direct children rows AND the owner's expanded chevron
+  stay; a second click unfolds; the metadata-gap click behaves the same.
+
+- **fix(web): clicking the indent rail collapses the block's WHOLE children
+  group at once (owner correction 2026-10-14: "it collapses the child block
+  located at the vertical level where the cursor is — it should collapse ALL
+  children at the same time").** The same-day per-height targeting (each
+  segment beside a child collapsed that child's children) was a misread of
+  the earlier ask; the owner rule is one gesture, one subtree: a click
+  anywhere on the line — whatever segment it lands on — collapses the
+  owner's entire children group. The per-height plumbing is removed
+  (`collapseFromRailClick` toggles the owner again); the line extension
+  (reaches the bullet across the metadata) is untouched. **Verification:**
+  the rail probe's interaction cases rewritten — a click beside a child and
+  a click in the metadata gap each hide ALL the direct children together
+  while the owner stays; collapse specs + typecheck green.
+
 - **feat(web): the drop indicator repaints above the floating drag chip,
   with a start tick at the line's first pixel — the indentation level is
   never hidden (owner proposal round: "the floating dragged block card
