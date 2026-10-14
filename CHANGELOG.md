@@ -9,6 +9,29 @@ predating this file.
 
 ## 2026-10-14
 
+- **fix(web): selection and edit mode are mutually exclusive (owner
+  2026-10-14: "selecting blocks while in edit mode on another block should
+  exit edit mode… while blocks are selected, it requires two clicks to enter
+  edit mode on a different block").** Root cause of both: the selection
+  surface preventDefaults every read-mode mousedown to keep read content
+  unselectable — which also suppresses the browser's default focus shift, so
+  a block still editing elsewhere kept its caret (and its edit state) while
+  a selection formed around it; the stale editor then ate the first click on
+  the block you actually wanted, reading as "two clicks to edit". Two-lane
+  fix: (1) state-level truth — whichever block is editing hands back to read
+  mode the moment a selection forms (BlockRow effect), holding in jsdom and
+  every browser regardless of focus-event behavior; (2) the selection
+  surface's mousedown now blurs the active editor explicitly (focus
+  hygiene — the flush-and-exit runs on the gesture that takes the surface
+  over). One plain click with a live selection already cleared + edited in a
+  single handler; with the stale-editor state gone it now lands on the first
+  click. The edit-mode drag contract updates with the rule: when the
+  gesture arms block-select at the border exit, the pressed block's editor
+  exits too. **Verification:** two new specs (shift+click selection exits
+  edit mode; drag-select exits edit mode; one-click edit with a live
+  selection over the full press sequence) + the updated edit-mode-drag spec;
+  block-dnd/selection suites green (53).
+
 - **feat(web): drag-and-drop feedback and the indent rail move to the accent
   color; the child intent is a line, not a bar; the rail reaches the bullet
   and collapses per height; the pink-purple accent retires in favor of a

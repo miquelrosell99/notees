@@ -263,6 +263,15 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
     setEditing(true);
   }, [focusRequest, node.id, acknowledgeFocus, readOnly]);
 
+  // Selection and edit mode are mutually exclusive (owner 2026-10-14):
+  // whichever block is editing hands back to read mode the moment a
+  // selection forms — the selection surface has taken over. (The DOM-focus
+  // side rides the selection surface's explicit editor blur; this is the
+  // state-level truth, so it holds even where focus events don't fire.)
+  useEffect(() => {
+    if (editing && selection.size > 0) setEditing(false);
+  }, [editing, selection]);
+
   const enterEdit = (event: MouseEvent<HTMLDivElement>) => {
     if (editing) return;
     // A trailing click right after a selection drag must not enter edit mode.

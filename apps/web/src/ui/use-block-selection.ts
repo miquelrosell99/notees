@@ -165,6 +165,18 @@ export function useBlockSelectionSurface(
       };
       return;
     }
+    // The press lives on a read-mode row. The preventDefault below (and the
+    // shift+click guard's) keeps read-mode content unselectable — and also
+    // suppresses the browser's default focus shift, so a block still editing
+    // elsewhere would keep its caret while the selection surface takes over
+    // (owner 2026-10-14: selecting blocks must exit edit mode). Blur the
+    // active editor explicitly; its blur flushes and hands back to read
+    // mode. Modifier clicks (selection gestures), plain clicks that enter
+    // edit on another row, and drag-select arming all ride this path.
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active.closest("[contenteditable]") !== null) {
+      active.blur();
+    }
     const row = target.closest("[data-block-id]");
     const id = row?.getAttribute("data-block-id") ?? null;
     if (id === null) return;
