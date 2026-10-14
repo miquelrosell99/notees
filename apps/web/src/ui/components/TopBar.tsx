@@ -4,10 +4,12 @@
  *         selector (the wordmark's permanent replacement — owner
  *         2026-10-06), and icon-only New + search buttons to its right;
  *         sync status rides the section's end
- *  CENTER the in-app Back/Forward arrows + the current node's breadcrumbs,
- *         left-aligned within the section
- *  RIGHT  undo/redo (the session journal, topbar buttons + the
- *         history chevron), calendar, right-sidebar show/hide
+ *  CENTER the current node's breadcrumbs, left-aligned within the section
+ *  RIGHT  the in-app Back/Forward arrows (owner 2026-10-14: relocated
+ *         from the center, beside the breadcrumbs — they now open the
+ *         section), the focus-mode toggle, the session layout toggle,
+ *         undo/redo (the session journal, topbar buttons + the history
+ *         chevron), calendar, right-sidebar show/hide
  */
 
 import type { ReactNode, RefObject } from "react";
@@ -66,7 +68,9 @@ export function TopBar({
    * The in-app Back/Forward arrows (owner 2026-10-14): window.history
    * back/forward through the App's OWN navigation stack (tracked in the App
    * layer — the browser stack reaches beyond the app). Undefined hides the
-   * pair (boot screens); the disabled states ride the stack cursor.
+   * pair (boot screens); the disabled states ride the stack cursor. The
+   * pair rides the RIGHT section (owner 2026-10-14: moved off the center,
+   * which now carries the breadcrumbs alone).
    */
   canGoBack = false,
   canGoForward = false,
@@ -102,6 +106,14 @@ export function TopBar({
    */
   sectionsLayout = false,
   onToggleLayout,
+  /**
+   * Focus mode (#12): the device-local display state; the icon names the
+   * CURRENT mode (the eye-off icon the active, dimmed state). Undefined
+   * hides the button (boot screens); Esc exits focus mode regardless.
+   * Relocated from the quick settings modal (owner 2026-10-14).
+   */
+  focusMode = false,
+  onToggleFocusMode,
 }: {
   syncStatus: SyncStatusSnapshot;
   /** Opens the sync details modal; undefined on boot screens. */
@@ -145,6 +157,10 @@ export function TopBar({
   sectionsLayout?: boolean | undefined;
   /** Flips the session layout mode; undefined hides the toggle. */
   onToggleLayout?: (() => void) | undefined;
+  /** Focus mode's current state (drives the pressed/active chrome). */
+  focusMode?: boolean | undefined;
+  /** Flips focus mode (the App layer owns the device-setting write). */
+  onToggleFocusMode?: (() => void) | undefined;
 }) {
   return (
     <header className="nt-topbar">
@@ -192,6 +208,9 @@ export function TopBar({
         <SyncDot snapshot={syncStatus} onOpen={onOpenSyncDetails} />
       </div>
       <div className="nt-topbar-center">
+        {breadcrumbs}
+      </div>
+      <div className="nt-topbar-right">
         {(onGoBack !== undefined || onGoForward !== undefined) && (
           <span className="nt-topbar-nav" role="group" aria-label="Back and forward">
             <button
@@ -216,9 +235,18 @@ export function TopBar({
             </button>
           </span>
         )}
-        {breadcrumbs}
-      </div>
-      <div className="nt-topbar-right">
+        {onToggleFocusMode !== undefined && (
+          <button
+            type="button"
+            className={focusMode ? "nt-icon-btn nt-icon-btn-active" : "nt-icon-btn"}
+            title={focusMode ? "Exit focus mode (Esc)" : "Focus mode (Ctrl+Alt+F)"}
+            aria-label={focusMode ? "Exit focus mode" : "Focus mode"}
+            aria-pressed={focusMode}
+            onClick={onToggleFocusMode}
+          >
+            <Icon path={focusMode ? "mdi-eye-off-outline" : "mdi-eye-outline"} size={1} />
+          </button>
+        )}
         {onToggleLayout !== undefined && (
           <button
             type="button"

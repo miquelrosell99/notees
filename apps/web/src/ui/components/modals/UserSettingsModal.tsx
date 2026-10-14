@@ -1,18 +1,17 @@
 /**
  * UserSettingsModal Component
  *
- * The quick-tweaks modal: the theme segmented control, the accent picker,
- * and focus mode — the appearance changes worth reaching in one gesture
- * (the sidebar gear or Ctrl/Cmd+,). Everything else lives on the full
- * settings page at /settings/<section>, linked from the "Advanced settings"
- * row at the bottom.
+ * The quick-tweaks modal: the theme segmented control and the accent
+ * picker — the appearance changes worth reaching in one gesture (the
+ * sidebar gear or Ctrl/Cmd+,). Everything else lives on the full settings
+ * page at /settings/<section>, linked from the "Advanced settings" row at
+ * the bottom; focus mode moved to the top bar's eye button (owner
+ * 2026-10-14).
  */
 import { Modal } from "../ui/Modal.js";
 import { Card } from "../ui/Card.js";
-import { BooleanToggle } from "../ui/BooleanToggle.js";
 import { Icon } from "../../Icon.js";
 import { AccentColorPicker, ThemeModeControl } from "../SettingsPage.js";
-import { applyAppearance, useDeviceSetting } from "./deviceSettings.js";
 
 import "./settingsModal.css";
 import "./UserSettingsModal.css";
@@ -25,8 +24,6 @@ export interface UserSettingsModalProps {
 }
 
 export function UserSettingsModal({ isOpen, onClose, onOpenAdvanced }: UserSettingsModalProps) {
-  const [focusMode, setFocusMode] = useDeviceSetting("focusMode", false);
-
   if (!isOpen) return null;
 
   return (
@@ -61,27 +58,6 @@ export function UserSettingsModal({ isOpen, onClose, onOpenAdvanced }: UserSetti
                   </p>
                 </div>
                 <AccentColorPicker />
-              </div>
-
-              <div className="settings-item">
-                <div className="settings-item__info">
-                  <label htmlFor="user-focus-mode" className="settings-item__label">
-                    Focus mode
-                  </label>
-                  <p className="settings-item__description">
-                    Only the editor stays bright — the rest of the interface dims and the
-                    page chrome (backlinks, icons, properties) hides. Esc exits.
-                  </p>
-                </div>
-                <BooleanToggle
-                  id="user-focus-mode"
-                  checked={focusMode}
-                  onChange={(e) => {
-                    setFocusMode(e.target.checked);
-                    applyAppearance();
-                  }}
-                  size="md"
-                />
               </div>
 
               <div className="settings-item">

@@ -2,8 +2,9 @@
  * Settings modals tests (jsdom): the recovered workspace/user/system
  * settings modals render their ported chrome; the workspace rename talks to
  * the real PATCH /workspaces/:id endpoint; the quick-tweaks user modal
- * (theme / accent / focus) applies appearance choices to <html> data-*
- * attributes and persists them under `notees.settings.*`; the full settings
+ * (theme / accent) applies appearance choices to <html> data-* attributes
+ * and persists them under `notees.settings.*` (focus mode rides the shared
+ * top-bar toggle helper); the full settings
  * page specs (sections, API keys, sync, routing) live in
  * settings-page.test.tsx; the workspace switcher offers create-from-query
  * and opens Manage Workspaces; the Manage Workspaces modal lists, renames,
@@ -17,6 +18,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { WorkspaceSettingsModal } from "../src/ui/components/modals/WorkspaceSettingsModal.js";
 import { UserSettingsModal } from "../src/ui/components/modals/UserSettingsModal.js";
 import { SystemSettingsModal } from "../src/ui/components/modals/SystemSettingsModal.js";
+import { toggleFocusMode } from "../src/ui/components/modals/deviceSettings.js";
 import { WorkspacesView } from "../src/ui/components/WorkspacesView.js";
 import { Sidebar, type AnyClient } from "../src/ui/components/Sidebar.js";
 import { WorkspaceSwitcher } from "../src/ui/components/WorkspaceSwitcher.js";
@@ -230,12 +232,13 @@ describe("UserSettingsModal", () => {
     expect(document.documentElement.dataset.oled).toBe("false");
   });
 
-  it("applies the focus mode choice to <html> and persists it device-locally", () => {
-    renderModal();
-    fireEvent.click(screen.getByRole("switch", { name: /focus mode/i }));
+  it("applies the focus mode toggle to <html> and persists it device-locally", () => {
+    // Focus mode lives on the top bar's eye button now (owner 2026-10-14);
+    // the write path is the shared toggleFocusMode helper it rides.
+    toggleFocusMode();
     expect(document.documentElement.dataset.focus).toBe("true");
     expect(localStorage.getItem("notees.settings.focusMode")).toBe("true");
-    fireEvent.click(screen.getByRole("switch", { name: /focus mode/i }));
+    toggleFocusMode();
     expect(document.documentElement.dataset.focus).toBe("false");
     expect(localStorage.getItem("notees.settings.focusMode")).toBe("false");
   });
