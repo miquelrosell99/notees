@@ -60,7 +60,10 @@ try {
 
   await pg.goto(`${WEB}/${pageId}`, { waitUntil: "commit", timeout: 120_000 });
   await pg.waitForSelector(`[data-block-id="${A}"] .nt-block-children__rail`, { timeout: 60_000 });
-  console.log("page open");
+  // The property op syncs after the first render — wait for the metadata
+  // section before measuring the gap it creates.
+  await pg.waitForSelector(`[data-block-id="${A}"] .node-metadata-section`, { timeout: 30_000 });
+  console.log("page open, metadata section synced");
 
   const geom = () =>
     pg.evaluate(([aid, a2id, a2bid]) => {
@@ -125,9 +128,16 @@ try {
     if (!a2aBack) throw new Error("the second click did not unfold the children");
   }
 
-  // ── 4. Reload; a click in the metadata gap folds the same way ──
+  // ── 4. Reload (collapse persists now — reset it for a fresh state); a
+  //    click in the metadata gap folds the same way ──
+  await pg.evaluate(() => {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith("notees.collapse.")) localStorage.removeItem(k);
+    }
+  });
   await pg.reload({ waitUntil: "commit" });
   await pg.waitForSelector(`[data-block-id="${A}"] .nt-block-children__rail`, { timeout: 60_000 });
+  await pg.waitForSelector(`[data-block-id="${A}"] .node-metadata-section`, { timeout: 30_000 });
   {
     const g = await geom();
     const gapY = (g.rowBottom + g.firstChildTop) / 2;

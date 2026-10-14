@@ -9,6 +9,22 @@ predating this file.
 
 ## 2026-10-14
 
+- **feat(web): block collapse state is device-persisted per page (owner:
+  "collapse state, at least when triggered from thread line click, is not
+  being persisted").** Collapse was documented — and behaved — as
+  session-local: folds vanished on reload. It now survives: every toggle
+  (chevron and the indent-rail fold ride the same `toggleCollapse`) writes
+  the fold set to localStorage keyed by the page id
+  (`notees.collapse.v1.<rootId>`), loaded at outliner mount. Device state
+  never becomes an op, so the op log is untouched; node ids are UUIDv7-
+  globally-unique so no workspace scoping is needed, and stale ids (deleted
+  blocks) are inert until the set is next rewritten. The outliner-context
+  doc comment, the rail probe (which resets the persisted state before its
+  reload), and `docs/ux.md` move from "session-local" to "device-persisted".
+  **Verification:** new spec — fold via chevron, unmount, remount: the fold
+  (and its expand) restore from storage across three mounts; view-transforms
+  suite green (8).
+
 - **feat(web): the drag preview is a FILLED card that PARKS below the drop
   line when a target snaps (owner 2026-10-14: "a better UI would be the
   filled background floating card — way better card text visibility — and
