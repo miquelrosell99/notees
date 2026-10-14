@@ -32,14 +32,22 @@
  *     change (O(N) on the zoom input, not per frame).
  *   • Edge/arrow geometry is CPU-rebuilt when positions change (the GL
  *     adapter samples positions from a texture per frame instead). Static
- *     graphs — the resting state — ride the GPU world transform for free;
- *     a settling graph rebuilds per frame. The 50k load test decides if
- *     edge batching needs the same texture trick.
+ *     graphs — the resting state — ride the GPU world transform for free.
+ *     Streamed position frames (a node drag, a settling graph) take the
+ *     delta path: sprites receive position/scale writes only for moved
+ *     nodes inside the view cull rect (the 50k load test melted when every
+ *     engine frame rewrote all N sprites and rebuilt all E edges), and
+ *     edges incident to moved nodes draw in a small dynamic overlay — the
+ *     full-E bucket geometry only redraws on overlay membership transitions
+ *     or wide-motion throttle ticks, because sustained per-frame
+ *     clear+rebuild of stroked Graphics is what hung the software-GL load
+ *     test. Hover/selection/mask/time-lapse changes still force the full
+ *     rebuild.
  *   • u_communityDim is stored and accepted but inert, matching the GL
  *     adapter: the same-community flag is hard-wired to 1 in the data path.
  */
 
-import { Application, Container, Graphics, Sprite, type Texture } from "pixi.js";
+import { Application, Container, Culler, Graphics, Sprite, type Texture } from "pixi.js";
 
 import { MIN_NODE_SCREEN_RADIUS_PX } from "./graphConstants.js";
 import type { GraphRenderer } from "./graphRenderer.js";
@@ -73,6 +81,26 @@ const ARROW_VERTS: ReadonlyArray<readonly [number, number]> = [
 /** Sampling resolution for curved/dashed edges (screen px per segment). */
 const CURVE_SEGMENTS = 16;
 const DASH_SEGMENTS_PER_PX = 0.5;
+/**
+ * Edge/arrow Graphics bucket count. A streamed drag rebuilds only the
+ * buckets holding a moved edge (~E/BUCKET edges each) instead of all E.
+ */
+const EDGE_BUCKETS = 128;
+/**
+ * Screen-pixel margin around the view rect for the incremental sprite
+ * position sync. A moved node outside view+margin keeps its pending write
+ * until it re-enters the rect (it renders nothing until then anyway).
+ */
+const CULL_MARGIN_PX = 64;
+/**
+ * Streamed-edge tiers. Below the fraction of kept edges, moved edges draw
+ * in the dynamic overlay (per-frame, bounded by the moved set). Above it
+ * (a settling graph) full rebuilds run at most this often — per-frame
+ * full-E rebuilds are the honest cost of wide motion, but 60 of them per
+ * second are a slideshow.
+ */
+const BIG_MOTION_FRACTION = 1 / 8;
+const STREAMED_REBUILD_MIN_MS = 150;
 
 // ─── Pure helpers (unit-tested without a GPU) ───────────────────────────────
 
@@ -123,6 +151,50 @@ export function timeLapseVisible(
 /** Constellation LOD (level 0) skips edges unless a hover is active. */
 export function shouldDrawEdgesAtLod(lod: number, hoverActive: boolean): boolean {
   return lod > 0 || hoverActive;
+}
+
+/** World-space rect of the current view plus a screen-pixel cull margin. */
+export interface ViewCullRect {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+export function viewCullRect(
+  camera: CameraState,
+  canvasW: number,
+  canvasH: number,
+  marginPx: number,
+): ViewCullRect {
+  const hw = (canvasW * 0.5 + marginPx) / camera.zoom;
+  const hh = (canvasH * 0.5 + marginPx) / camera.zoom;
+  return { minX: camera.x - hw, minY: camera.y - hh, maxX: camera.x + hw, maxY: camera.y + hh };
+}
+
+/**
+ * Which of the candidate sprite indices must receive a position write for
+ * the given cull rect: every index whose node disc intersects the rect
+ * (expanded by the node's own world radius — an edge-clipped sprite still
+ * syncs). Candidate order is preserved; the dragged node is always a
+ * candidate, so it always syncs.
+ */
+export function syncIndicesForView(
+  candidates: Iterable<number>,
+  positions: Float32Array,
+  rect: ViewCullRect,
+  radiusForIndex: (index: number) => number,
+): number[] {
+  const inside: number[] = [];
+  for (const i of candidates) {
+    const r = radiusForIndex(i);
+    const x = positions[i * 2]!;
+    const y = positions[i * 2 + 1]!;
+    if (x + r >= rect.minX && x - r <= rect.maxX && y + r >= rect.minY && y - r <= rect.maxY) {
+      inside.push(i);
+    }
+  }
+  return inside;
 }
 
 /**
@@ -234,8 +306,25 @@ export class GraphPixiRenderer implements GraphRenderer {
   private app: Application | null = null;
   private world: Container = new Container();
   private ringGraphics: Graphics = new Graphics();
-  private edgeGraphics: Graphics = new Graphics();
-  private arrowGraphics: Graphics = new Graphics();
+  private edgeBuckets: Graphics[] = [];
+  private arrowBuckets: Graphics[] = [];
+  private edgeBucketCounts: number[] = [];
+  private arrowBucketCounts: number[] = [];
+  /** plan.keep / plan.arrows partitioned by bucket at the last full rebuild.
+   *  During streamed frames the buckets draw only their STATIC members —
+   *  edges currently in the dynamic overlay (and per-frame moved edges) are
+   *  skipped here and drawn by the overlay instead. */
+  private edgeBucketMembers: number[][] = [];
+  private arrowBucketMembers: Array<Array<{ edge: number; i1: number; i2: number }>> = [];
+  /** Streamed-frame dynamic edge overlay: the edges incident to recently
+   *  moved nodes draw here (re-stroked per streamed frame, bounded by the
+   *  moved set) so the buckets — the full ~E geometry — never churn per
+   *  frame. Sustained clear+rebuild of stroked Graphics at 50k melted
+   *  SwiftShader (the left-drag hang's second layer). */
+  private edgeOverlay: Graphics = new Graphics();
+  private arrowOverlay: Graphics = new Graphics();
+  private overlayEdgeCount = 0;
+  private overlayArrowCount = 0;
   private nodeLayer: Container = new Container();
   private nodeTexture: Texture | null = null;
   private spriteByIndex: Sprite[] = [];
@@ -289,6 +378,35 @@ export class GraphPixiRenderer implements GraphRenderer {
   // --- Dirty gates ---
   private nodesDirty = false;
   private edgesDirty = false;
+  /**
+   * Position-only delta: true when accepted positions moved nodes since the
+   * last render. Drives the culled incremental sprite sync and the bucketed
+   * edge redraw — a streamed engine frame must never fall back to the full
+   * O(N)/O(E) passes (the 50k left-drag hang).
+   */
+  private positionsChanged = false;
+  /** Node indices whose positions changed since the last render. */
+  private changedNodeIndices = new Set<number>();
+  /** Changed indices not yet written to their sprite (outside the cull
+   *  rect) — flushed the moment they re-enter the view. */
+  private pendingPositionSync = new Set<number>();
+  /** Snapshot of the last accepted position frame for incoming-frame
+   *  diffs (frames arrive as fresh arrays; overridePosition also writes
+   *  through to keep the baseline honest). */
+  private frameBaseline: Float32Array = new Float32Array(0);
+
+  // --- Streamed-edge tiers ---
+  /** Edges currently drawn by the dynamic overlay (their buckets skip
+   *  them). Settled per streamed frame: an edge survives one frame without
+   *  its endpoints moving, then returns to its bucket. */
+  private dynamicEdges = new Set<number>();
+  /** Edges incident to the nodes that moved in the PREVIOUS streamed
+   *  frame — the one-frame survival window against flapping. */
+  private prevMovedEdges = new Set<number>();
+  /** True while the moved set is large (a settling graph): full rebuilds
+   *  run throttled instead of the overlay path. */
+  private bigMotion = false;
+  private lastStreamedRebuildMs = 0;
 
   private opts: Required<Omit<RendererOptions, "cullMargin" | "initialCapacity">>;
 
@@ -316,8 +434,23 @@ export class GraphPixiRenderer implements GraphRenderer {
 
     const world = this.world;
     world.addChild(this.ringGraphics);
-    world.addChild(this.edgeGraphics);
-    world.addChild(this.arrowGraphics);
+    this.ringGraphics.cullable = true;
+    for (let i = 0; i < EDGE_BUCKETS; i++) {
+      const eg = new Graphics();
+      const ag = new Graphics();
+      eg.cullable = true;
+      ag.cullable = true;
+      this.edgeBuckets.push(eg);
+      this.arrowBuckets.push(ag);
+      this.edgeBucketCounts.push(0);
+      this.arrowBucketCounts.push(0);
+      world.addChild(eg);
+      world.addChild(ag);
+    }
+    this.edgeOverlay.cullable = true;
+    this.arrowOverlay.cullable = true;
+    world.addChild(this.edgeOverlay);
+    world.addChild(this.arrowOverlay);
     world.addChild(this.nodeLayer);
 
     const app = new Application();
@@ -394,7 +527,6 @@ export class GraphPixiRenderer implements GraphRenderer {
   }
 
   updatePositions(positions: Float32Array, nodeIds: string[]): void {
-    this.positions = positions;
     if (nodeIds.length !== this.nodeIdOrder.length) {
       this.nodeIndex.clear();
       this.nodeIdOrder = nodeIds.slice();
@@ -402,9 +534,39 @@ export class GraphPixiRenderer implements GraphRenderer {
         this.nodeIndex.set(nodeIds[i]!, i);
       }
       this.edgesDirty = true;
+      this.nodesDirty = true;
+      this.changedNodeIndices.clear();
+      this.pendingPositionSync.clear();
+      this.positions = positions;
+      this.frameBaseline = positions.slice();
+      this.positionsChanged = false;
+      return;
     }
-    this.nodesDirty = true;
-    this.edgesDirty = true; // edge geometry rides the position frames
+    const n = this.nodeIdOrder.length;
+    if (positions.length !== n * 2) {
+      // Defensive: the contract is positions aligned to the node order.
+      this.nodesDirty = true;
+      this.edgesDirty = true;
+      this.positions = positions;
+      this.frameBaseline = positions.slice();
+      return;
+    }
+    // Diff against the last accepted frame. A settled engine tick re-sends
+    // the same positions in a fresh array — that frame must not dirty
+    // anything (identity gate: no sprite rewrites on unchanged content).
+    const baseline = this.frameBaseline;
+    let changed = false;
+    for (let i = 0; i < n; i++) {
+      if (positions[i * 2] !== baseline[i * 2] || positions[i * 2 + 1] !== baseline[i * 2 + 1]) {
+        this.changedNodeIndices.add(i);
+        changed = true;
+      }
+    }
+    this.positions = positions;
+    if (changed) {
+      this.positionsChanged = true;
+      this.frameBaseline = positions.slice();
+    }
   }
 
   overridePosition(nodeUuid: string, x: number, y: number): void {
@@ -413,8 +575,12 @@ export class GraphPixiRenderer implements GraphRenderer {
     if (this.positions.length >= (idx + 1) * 2) {
       this.positions[idx * 2] = x;
       this.positions[idx * 2 + 1] = y;
-      this.nodesDirty = true;
-      this.edgesDirty = true;
+      if (this.frameBaseline.length >= (idx + 1) * 2) {
+        this.frameBaseline[idx * 2] = x;
+        this.frameBaseline[idx * 2 + 1] = y;
+      }
+      this.changedNodeIndices.add(idx);
+      this.positionsChanged = true;
     }
   }
 
@@ -655,9 +821,10 @@ export class GraphPixiRenderer implements GraphRenderer {
   }
 
   /**
-   * Node sprite sync — the tint/alpha/scale/visibility pass. O(N) on
-   * position frames, zoom changes, and hover/selection/time-lapse changes;
-   * nothing runs on a plain pan.
+   * Full node sprite sync — the tint/alpha/scale/visibility pass. O(N), runs
+   * on node-set/visual changes and zoom changes (the min-radius clamp);
+   * streamed position frames take the incremental syncNodePositions instead.
+   * Nothing runs on a plain pan.
    */
   private syncNodes(): void {
     if (this.nodeTexture === null) return;
@@ -668,6 +835,7 @@ export class GraphPixiRenderer implements GraphRenderer {
     while (this.spriteByIndex.length < n) {
       const sprite = new Sprite(this.nodeTexture);
       sprite.anchor.set(0.5);
+      sprite.cullable = true; // off-screen sprites skip GPU emission
       this.nodeLayer.addChild(sprite);
       this.spriteByIndex.push(sprite);
     }
@@ -734,28 +902,230 @@ export class GraphPixiRenderer implements GraphRenderer {
         .fill({ color: rgbaToTint([nodeCol[0]!, nodeCol[1]!, nodeCol[2]!]), alpha: 0.8 });
       ringCount++;
     }
+
+    // Every sprite was rewritten — no incremental work pending.
+    this.changedNodeIndices.clear();
+    this.pendingPositionSync.clear();
+  }
+
+  /** World radius (min-screen-radius clamp applied) for the cull expansion. */
+  private worldRadiusAt(index: number): number {
+    const vis = this.nodeVisuals.get(this.nodeIdOrder[index]!);
+    return Math.max(
+      vis?.radius ?? this.opts.defaultRadius,
+      this.opts.minNodeRadiusPx / (2.0 * this.camera.zoom),
+    );
   }
 
   /**
-   * Edge + arrow rebuild. Grouped by stroke style (color/alpha/width/dash)
-   * so each group costs one Graphics stroke; curved/dashed edges are sampled
-   * from the GL curve math.
+   * Incremental sprite sync for streamed position frames: position/scale
+   * writes only for moved nodes inside the view cull rect (the culled-sync
+   * pure helpers keep the decision testable). Moved nodes outside the rect
+   * stay pending and flush when they re-enter the view; the full visual
+   * pass (syncNodes) covers tint/alpha/visibility.
+   */
+  private syncNodePositions(): void {
+    if (this.nodeTexture === null) return;
+    const candidates = [...this.changedNodeIndices, ...this.pendingPositionSync];
+    this.changedNodeIndices.clear();
+    if (candidates.length === 0) return;
+    const rect = viewCullRect(this.camera, this.canvasW, this.canvasH, CULL_MARGIN_PX);
+    const inside = syncIndicesForView(candidates, this.positions, rect, (i) => this.worldRadiusAt(i));
+    const insideSet = new Set(inside);
+    for (const i of inside) {
+      const sprite = this.spriteByIndex[i];
+      if (sprite === undefined) {
+        // The sprite pool builds in the full pass — force it (first frame).
+        this.nodesDirty = true;
+        continue;
+      }
+      sprite.position.set(this.positions[i * 2]!, this.positions[i * 2 + 1]!);
+      sprite.scale.set(this.worldRadiusAt(i) / NODE_TEXTURE_RADIUS_PX);
+      this.pendingPositionSync.delete(i);
+    }
+    for (const i of candidates) {
+      if (!insideSet.has(i)) this.pendingPositionSync.add(i);
+    }
+  }
+
+  /**
+   * Full edge + arrow rebuild across all buckets. Grouped by stroke style
+   * (color/alpha/width/dash) so each group costs one Graphics stroke;
+   * curved/dashed edges are sampled from the GL curve math. Also empties
+   * the dynamic overlay and resets its membership (the full geometry
+   * covers every edge again). The per-bucket member lists are cached for
+   * the streamed-frame path.
    */
   private rebuildEdges(): void {
-    const { zoom } = this.camera;
-    const lod = lodLevelForZoom(zoom);
-    const hoverOn = this.hoverActive();
-    const hoverForEdges = hoverOn || this.hoveredEdgeIndex >= 0;
-
-    const edges = this.edgeGraphics;
-    edges.clear();
+    for (let b = 0; b < EDGE_BUCKETS; b++) {
+      this.edgeBuckets[b]!.clear();
+      this.arrowBuckets[b]!.clear();
+      this.edgeBucketCounts[b] = 0;
+      this.arrowBucketCounts[b] = 0;
+    }
+    this.edgeOverlay.clear();
+    this.arrowOverlay.clear();
+    this.overlayEdgeCount = 0;
+    this.overlayArrowCount = 0;
+    this.dynamicEdges.clear();
+    this.prevMovedEdges.clear();
     this.edgeDrawCount = 0;
-    if (!shouldDrawEdgesAtLod(lod, hoverForEdges) || this.positions.length === 0) {
-      this.rebuildArrows();
+    this.arrowDrawCount = 0;
+    this.edgeBucketMembers = Array.from({ length: EDGE_BUCKETS }, () => []);
+    this.arrowBucketMembers = Array.from({ length: EDGE_BUCKETS }, () => []);
+    const lod = lodLevelForZoom(this.camera.zoom);
+    if (!shouldDrawEdgesAtLod(lod, this.hoverActive() || this.hoveredEdgeIndex >= 0)) return;
+    if (this.positions.length === 0) return;
+
+    for (const ei of this.edgePlan.keep) this.edgeBucketMembers[ei % EDGE_BUCKETS]!.push(ei);
+    for (let b = 0; b < EDGE_BUCKETS; b++) {
+      const members = this.edgeBucketMembers[b]!;
+      if (members.length > 0) {
+        this.edgeBucketCounts[b] = this.strokeEdgesInto(this.edgeBuckets[b]!, members);
+        this.edgeDrawCount += this.edgeBucketCounts[b]!;
+      }
+    }
+    for (const a of this.edgePlan.arrows) this.arrowBucketMembers[a.edge % EDGE_BUCKETS]!.push(a);
+    for (let b = 0; b < EDGE_BUCKETS; b++) {
+      const members = this.arrowBucketMembers[b]!;
+      if (members.length > 0) {
+        this.arrowBucketCounts[b] = this.drawArrowsInto(this.arrowBuckets[b]!, members);
+        this.arrowDrawCount += this.arrowBucketCounts[b]!;
+      }
+    }
+  }
+
+  /**
+   * Streamed-frame edge follow. Small moved set: the moved edges (and the
+   * still-recent ones) draw in the dynamic overlay, re-stroked per frame
+   * bounded by the moved set; buckets redraw only on membership
+   * transitions — a steady drag churns nothing. Wide motion (a settling
+   * graph): throttled full rebuilds. Stream idle: everything returns to
+   * the buckets in one redraw pass.
+   */
+  private syncStreamedEdges(changed: number[]): void {
+    const lod = lodLevelForZoom(this.camera.zoom);
+    const edgesDrawn = shouldDrawEdgesAtLod(lod, this.hoverActive() || this.hoveredEdgeIndex >= 0);
+    const moving = changed.length > 0;
+
+    const settleAll = (): void => {
+      this.clearOverlay();
+      if (this.bigMotion) {
+        this.bigMotion = false;
+        this.lastStreamedRebuildMs = 0;
+        this.rebuildEdges();
+        return;
+      }
+      if (this.dynamicEdges.size > 0) {
+        const dirty = new Set<number>();
+        for (const ei of this.dynamicEdges) dirty.add(ei % EDGE_BUCKETS);
+        this.dynamicEdges.clear();
+        this.prevMovedEdges.clear();
+        this.redrawBuckets(dirty, new Set());
+      }
+    };
+
+    if (!moving || !edgesDrawn || this.positions.length === 0 || this.edgePlan.keep.length === 0) {
+      settleAll();
       return;
     }
 
-    const plan = this.edgePlan;
+    const movedEdges = new Set<number>();
+    for (const idx of changed) {
+      const incident = this.incidentEdges.get(this.nodeIdOrder[idx]!);
+      if (incident === undefined) continue;
+      for (const ei of incident) movedEdges.add(ei);
+    }
+
+    if (movedEdges.size > this.edgePlan.keep.length * BIG_MOTION_FRACTION) {
+      // Wide motion: the overlay would carry a large share of the graph —
+      // throttled full rebuilds are the honest cost of that motion.
+      this.bigMotion = true;
+      this.dynamicEdges.clear();
+      this.prevMovedEdges = movedEdges;
+      const now = Date.now();
+      if (now - this.lastStreamedRebuildMs >= STREAMED_REBUILD_MIN_MS) {
+        this.lastStreamedRebuildMs = now;
+        this.rebuildEdges();
+      }
+      return;
+    }
+    this.bigMotion = false;
+
+    // Small moved set: overlay membership = moved ∪ (dynamic ∩ recently
+    // moved) — an edge survives one still frame before returning.
+    const nextDynamic = new Set<number>(movedEdges);
+    for (const ei of this.dynamicEdges) {
+      if (this.prevMovedEdges.has(ei)) nextDynamic.add(ei);
+    }
+    const dirty = new Set<number>();
+    for (const ei of nextDynamic) {
+      if (!this.dynamicEdges.has(ei)) dirty.add(ei % EDGE_BUCKETS); // stale stroke leaves the bucket
+    }
+    for (const ei of this.dynamicEdges) {
+      if (!nextDynamic.has(ei)) dirty.add(ei % EDGE_BUCKETS); // edge returns to the bucket
+    }
+    this.dynamicEdges = nextDynamic;
+    this.prevMovedEdges = movedEdges;
+    this.redrawBuckets(dirty, this.dynamicEdges);
+    this.redrawOverlay();
+  }
+
+  /** Bucket redraws on membership transitions only; skips overlay edges. */
+  private redrawBuckets(dirty: Set<number>, skip: Set<number>): void {
+    if (dirty.size === 0) return;
+    if (dirty.size >= EDGE_BUCKETS) {
+      this.rebuildEdges();
+      return;
+    }
+    for (const b of dirty) {
+      this.edgeBuckets[b]!.clear();
+      this.arrowBuckets[b]!.clear();
+      this.edgeDrawCount -= this.edgeBucketCounts[b]!;
+      this.arrowDrawCount -= this.arrowBucketCounts[b]!;
+      this.edgeBucketCounts[b] = this.strokeEdgesInto(
+        this.edgeBuckets[b]!,
+        this.edgeBucketMembers[b] ?? [],
+        skip,
+      );
+      this.arrowBucketCounts[b] = this.drawArrowsInto(
+        this.arrowBuckets[b]!,
+        (this.arrowBucketMembers[b] ?? []).filter((a) => !skip.has(a.edge)),
+      );
+      this.edgeDrawCount += this.edgeBucketCounts[b]!;
+      this.arrowDrawCount += this.arrowBucketCounts[b]!;
+    }
+  }
+
+  /** Re-stroke the overlay from the current dynamic set (bounded, small). */
+  private redrawOverlay(): void {
+    this.clearOverlay();
+    if (this.dynamicEdges.size === 0) return;
+    this.overlayEdgeCount = this.strokeEdgesInto(this.edgeOverlay, [...this.dynamicEdges]);
+    this.overlayArrowCount = this.drawArrowsInto(
+      this.arrowOverlay,
+      this.edgePlan.arrows.filter((a) => this.dynamicEdges.has(a.edge)),
+    );
+    this.edgeDrawCount += this.overlayEdgeCount;
+    this.arrowDrawCount += this.overlayArrowCount;
+  }
+
+  /** Empty the overlay, keeping the drawn-count totals exact. */
+  private clearOverlay(): void {
+    this.edgeOverlay.clear();
+    this.arrowOverlay.clear();
+    this.edgeDrawCount -= this.overlayEdgeCount;
+    this.arrowDrawCount -= this.overlayArrowCount;
+    this.overlayEdgeCount = 0;
+    this.overlayArrowCount = 0;
+  }
+
+  /** Stroke a set of edges (a bucket's members or the overlay), grouped by
+   *  style key; `skip` excludes edges currently carried by the overlay.
+   *  Returns the drawn count for the caller's accounting. */
+  private strokeEdgesInto(g: Graphics, edgeIndices: number[], skip?: Set<number>): number {
+    const { zoom } = this.camera;
+    const hoverOn = this.hoverActive();
     const pos = this.positions;
     const defaultColor = getCssEdgeColor();
     const hasFocus = this.highlightedIds.size > 0;
@@ -769,9 +1139,11 @@ export class GraphPixiRenderer implements GraphRenderer {
     // Minimum full stroke width in world units (the GL min-pixel-width rule).
     const minWorldWidth = 1.0 / zoom;
     const groups = new Map<string, EdgeStyleGroup>();
+    let drawn = 0;
 
-    for (let k = 0; k < plan.keep.length; k++) {
-      const ei = plan.keep[k]!;
+    for (let k = 0; k < edgeIndices.length; k++) {
+      const ei = edgeIndices[k]!;
+      if (skip?.has(ei)) continue;
       const e = this.edges[ei]!;
       const linkType = e.linkType ?? 0;
       if (!linkTypeVisible(linkType, this.edgeMask)) continue;
@@ -833,24 +1205,24 @@ export class GraphPixiRenderer implements GraphRenderer {
         groups.set(key, group);
       }
       group.polylines.push({ pts, screenLen: sampleScreenLen });
-      this.edgeDrawCount++;
+      drawn++;
     }
 
     for (const group of groups.values()) {
       for (const poly of group.polylines) {
         if (!group.dashed) {
-          edges.moveTo(poly.pts[0]!, poly.pts[1]!);
+          g.moveTo(poly.pts[0]!, poly.pts[1]!);
           for (let s = 1; s < poly.pts.length / 2; s++) {
-            edges.lineTo(poly.pts[s * 2]!, poly.pts[s * 2 + 1]!);
+            g.lineTo(poly.pts[s * 2]!, poly.pts[s * 2 + 1]!);
           }
         } else {
-          this.strokeDashed(edges, poly.pts, poly.screenLen);
+          this.strokeDashed(g, poly.pts, poly.screenLen);
         }
       }
-      edges.stroke({ color: group.color, alpha: group.alpha, width: group.width });
+      g.stroke({ color: group.color, alpha: group.alpha, width: group.width });
     }
 
-    this.rebuildArrows();
+    return drawn;
   }
 
   /** Dotted strokes: 2px on / 4px off along the curve in screen space. */
@@ -897,17 +1269,9 @@ export class GraphPixiRenderer implements GraphRenderer {
     if (on) g.lineTo(prevX, prevY);
   }
 
-  /** Arrowheads — the shared render plan, the GL triangle geometry. */
-  private rebuildArrows(): void {
-    const g = this.arrowGraphics;
-    g.clear();
-    this.arrowDrawCount = 0;
-    // Arrows ignore the LOD mask in the GL adapter — only constellation
-    // hiding and time-lapse apply.
-    const lod = lodLevelForZoom(this.camera.zoom);
-    if (!shouldDrawEdgesAtLod(lod, this.hoverActive() || this.hoveredEdgeIndex >= 0)) return;
-    if (this.positions.length === 0) return;
-
+  /** Arrowheads for a set of plan items (a bucket's or the overlay's).
+   *  Returns the drawn count for the caller's accounting. */
+  private drawArrowsInto(g: Graphics, items: Array<{ edge: number; i1: number; i2: number }>): number {
     const { zoom } = this.camera;
     const pos = this.positions;
     const defaultColor = getCssEdgeColor();
@@ -920,7 +1284,8 @@ export class GraphPixiRenderer implements GraphRenderer {
       if (incident) for (const ei of incident) focusEdgeSet.add(ei);
     }
 
-    for (const { edge, i1, i2 } of this.edgePlan.arrows) {
+    let drawn = 0;
+    for (const { edge, i1, i2 } of items) {
       const e = this.edges[edge]!;
       if (!timeLapseVisible(e.createdAt ?? NO_TIME, this.timeLapse, this.timeCutoff)) continue;
       const x1 = pos[i1 * 2]!;
@@ -959,8 +1324,9 @@ export class GraphPixiRenderer implements GraphRenderer {
         poly.push(cx0 + sx * px + sy * nx, cy0 + sx * py + sy * ny);
       }
       g.poly(poly, true).fill({ color: rgbaToTint(tinted), alpha: finalAlpha });
-      this.arrowDrawCount++;
+      drawn++;
     }
+    return drawn;
   }
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -976,16 +1342,34 @@ export class GraphPixiRenderer implements GraphRenderer {
     this.world.position.set(this.canvasW * 0.5, this.canvasH * 0.5);
     this.world.scale.set(zoom, -zoom);
 
-    if (this.nodesDirty || zoom !== this.lastZoom) {
+    // Streamed position frames (a node drag, a settling graph) take the
+    // delta paths — a changed node captured before the sprite sync consumes
+    // the set. Unchanged frames leave every gate false and cost nothing.
+    const zoomChanged = zoom !== this.lastZoom;
+    const streamedChanged = this.positionsChanged ? [...this.changedNodeIndices] : [];
+    if (this.nodesDirty || zoomChanged) {
       this.nodesDirty = false;
       this.syncNodes();
+    } else if (this.positionsChanged || this.pendingPositionSync.size > 0) {
+      this.syncNodePositions();
     }
-    if (this.edgesDirty || zoom !== this.lastZoom) {
+    if (this.edgesDirty || zoomChanged) {
       this.edgesDirty = false;
       this.edgePlan = planEdgeRender(this.edges, this.nodeIndex);
       this.rebuildEdges();
+    } else if (streamedChanged.length > 0) {
+      this.syncStreamedEdges(streamedChanged);
+    } else if (this.dynamicEdges.size > 0 || this.bigMotion) {
+      // Stream went quiet: return the dynamic edges to their buckets /
+      // run the pending big-motion rebuild, one pass.
+      this.syncStreamedEdges([]);
     }
+    this.positionsChanged = false;
     this.lastZoom = zoom;
+
+    // Cull off-screen sprites/geometry before the render walk — at 50k
+    // nodes only a sliver of the graph is on screen at lod 1+.
+    Culler.shared.cull(this.world, app.renderer.screen, false);
 
     app.render();
   }
