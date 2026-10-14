@@ -274,8 +274,9 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
 
   const enterEdit = (event: MouseEvent<HTMLDivElement>) => {
     if (editing) return;
-    // A trailing click right after a selection drag must not enter edit mode.
-    if (consumeDragClick()) return;
+    // The click that RELEASED a selection drag is swallowed (accidental);
+    // any other click edits normally.
+    if (consumeDragClick(node.id)) return;
     if (readOnly) {
       // Read-only projection: a content click opens the node — except the
       // inert flat-list variant, where the bullet is the only open gesture.

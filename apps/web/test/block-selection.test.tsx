@@ -705,3 +705,38 @@ describe("edit mode vs the selection (owner 2026-10-14)", () => {
     expect(selectionBar()).toBeNull();
   });
 });
+
+describe("the drag's trailing click swallow is scoped to the release row (owner 2026-10-14)", () => {
+  it("after a drag-select, clicking a DIFFERENT block edits it in one click; the release row's own click stays swallowed", async () => {
+    const client = await seedClient();
+    const pageId = await seedPage(client, ["one", "two", "three"]);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const rows = blockContents(container);
+    const ids = rows.map((r) => r.closest("[data-block-id]")!.getAttribute("data-block-id")!);
+
+    // Drag-select from row 0 arching over row 1 (the drag ends on row 1).
+    const pressRow = rows[0]!.closest("[data-block-id]") as HTMLElement;
+    vi.spyOn(pressRow, "getBoundingClientRect").mockReturnValue({
+      x: 0, y: 0, top: 0, left: 0, right: 400, bottom: 20, width: 400, height: 20,
+      toJSON: () => ({}),
+    } as DOMRect);
+    fireEvent.mouseDown(rows[0]!, { clientX: 10, clientY: 10 });
+    fireEvent.mouseMove(rows[1]!, { clientX: 30, clientY: 40 });
+    fireEvent.mouseUp(document);
+    expect(selectedIds(container)).toEqual([ids[0], ids[1]]);
+
+    // One click on a DIFFERENT row (row 2): not the release row — deliberate,
+    // must edit immediately (the old global swallow ate this click).
+    fireEvent.click(rows[2]!);
+    expect(rows[2]!.querySelector(".nt-block-text")).not.toBeNull();
+
+    // Fresh drag ending on row 2; its OWN release click stays swallowed.
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.mouseDown(rows[0]!, { clientX: 10, clientY: 10 });
+    fireEvent.mouseMove(rows[2]!, { clientX: 30, clientY: 80 });
+    fireEvent.mouseUp(document);
+    expect(selectedIds(container)).toEqual(ids);
+    fireEvent.click(rows[2]!); // the release row's trailing click
+    expect(rows[2]!.querySelector(".nt-block-text")).toBeNull();
+  });
+});
