@@ -870,10 +870,14 @@ export const DRAG_EDGE_SCROLL_BAND_PX = 40;
 export const DRAG_EDGE_SCROLL_MAX_SPEED_PX = 6;
 
 /**
- * The scrollable ancestors of a zone root, innermost first: every element
- * in the root's ancestor chain (the root included) whose overflow-y is
+ * The scrollable views a zone root rides, innermost first: every element in
+ * the root's ancestor chain (the root included) whose overflow-y is
  * auto/scroll and whose content overflows vertically, then the document
- * scroller when it overflows.
+ * scroller when it overflows, then — the PageView case — the root's own
+ * SUBTREE: the zone root spans the whole page chrome while the scrolling
+ * cell (`.nt-nodeview-body`) is its descendant, so an ancestor-only walk
+ * misses the scroller and edge auto-scroll never arms (owner 2026-10-14:
+ * "reaching the top or the bottom of the current list does not scroll").
  */
 export function scrollContainersOf(root: HTMLElement | null): HTMLElement[] {
   if (root === null) return [];
@@ -890,6 +894,9 @@ export function scrollContainersOf(root: HTMLElement | null): HTMLElement[] {
   for (let el: HTMLElement | null = root; el !== null; el = el.parentElement) collect(el);
   const scroller = doc.scrollingElement;
   if (scroller instanceof HTMLElement) collect(scroller);
+  // Subtree sweep — same cost class as the drag-start row measurement (one
+  // querySelectorAll pass over the zone root).
+  for (const el of Array.from(root.querySelectorAll<HTMLElement>("*"))) collect(el);
   return containers;
 }
 

@@ -9,6 +9,20 @@ predating this file.
 
 ## 2026-10-14
 
+- **fix(web): drag edge auto-scroll works on the real page layout (owner:
+  "reaching the top or the bottom of the current list does not scroll").**
+  The live repro pinned it precisely: the drag session was healthy (chip,
+  indicator, rAF all confirmed mid-drag) but the scroll-container collection
+  at drag start returned nothing — PageView's zone root spans the WHOLE page
+  chrome while the scrolling cell (`.nt-nodeview-body`) is its DESCENDANT,
+  and `scrollContainersOf` only walked ancestors. The scroller sweep now
+  also covers the root's subtree (one querySelectorAll pass, the same cost
+  class as the drag-start row measurement); the jsdom spec gains the
+  root-wraps-scroller case. **Verification:** new live probe on the deployed
+  stack — 30 blocks overflowing the nodeview body, grip dragged to the
+  scroller's live bottom edge and held: before, scrollTop stayed 0 with
+  every predicate confirmed green; after, the list scrolls (PROBE-PASS).
+
 - **fix(web): the indent rail folds EACH direct child individually — the
   owner's own expansion stays untouched (owner 2026-10-14, final ruling:
   "it should collapse EACH INDIVIDUAL CHILD BLOCK, not the block that owns
