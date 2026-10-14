@@ -875,6 +875,9 @@ select:focus-visible {
 .nt-block {
   display: flex;
   flex-direction: column;
+  /* The drop-indicator lines (::before/::after below) anchor to the block
+     element's edges. */
+  position: relative;
 }
 
 /* Block-level metadata (BlockRow → MetadataSection with hideWhenEmpty):
@@ -1902,14 +1905,28 @@ select:focus-visible {
   margin-left: 26px;
 }
 
-/* Drop indicator: a line at the drop line, or a bar at the child-offset
-   position (48px — where a dropped child would sit) for the child intent. */
-.nt-block.nt-drop-above > .nt-block-row {
-  box-shadow: 0 -2px 0 0 var(--color-primary);
+/* Drop indicator: the line rides the BLOCK ELEMENT's edges — above at the
+   element's top, below at the element's bottom, i.e. after THE ENTIRE
+   block (text row, properties, linked references, children), never mid-
+   element at the text row. The child intent keeps its row highlight (the
+   bar at the child-offset x where a dropped child would sit). */
+.nt-block.nt-drop-above::before,
+.nt-block.nt-drop-below::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--color-primary);
+  pointer-events: none;
 }
 
-.nt-block.nt-drop-below > .nt-block-row {
-  box-shadow: 0 2px 0 0 var(--color-primary);
+.nt-block.nt-drop-above::before {
+  top: 0;
+}
+
+.nt-block.nt-drop-below::after {
+  bottom: 0;
 }
 
 .nt-block.nt-drop-child > .nt-block-row {
