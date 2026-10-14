@@ -285,10 +285,18 @@ describe("mocked-Application smoke (init → data → render → destroy)", () =
     expect(renderer.stats.nodeInstCount).toBe(2);
     expect(renderer.stats.edgeInstCount).toBe(2);
     expect(renderer.stats.arrowInstCount).toBe(1);
-    // The world container carries the camera as a GPU transform.
-    const world = (renderer as unknown as { world: { scale: { x: number; y: number } } }).world;
+    // The world container carries the camera as a GPU transform: it IS
+    // worldToScreen (canvas pixels are y-down — no NDC flip, which would
+    // mirror the graph against picking and labels).
+    const world = (
+      renderer as unknown as {
+        world: { scale: { x: number; y: number }; position: { x: number; y: number } };
+      }
+    ).world;
     expect(world.scale.x).toBe(1);
-    expect(world.scale.y).toBe(-1); // the GL NDC y-flip
+    expect(world.scale.y).toBe(1);
+    expect(world.position.x).toBe(800 * 0.5 - 50 * 1); // camera x applied
+    expect(world.position.y).toBe(600 * 0.5 - 0 * 1);
 
     renderer.destroy();
     expect(app.destroy).toHaveBeenCalled();
@@ -427,6 +435,46 @@ describe("streamed-frame gates (the 50k left-drag hang)", () => {
     vi.restoreAllMocks();
   });
 
+  it("drag release: streamed settling frames move the released node's sprite", async () => {
+    stubWebgl2();
+    const { renderer, positions, ids } = await dragRenderer();
+    const sprite0 = (renderer as unknown as { spriteByIndex: SpriteLike[] }).spriteByIndex[0]!;
+
+    // The drag: GraphView's overridePosition carries the node with the
+    // pointer; the sprite follows.
+    renderer.overridePosition("n0", 150, 120);
+    renderer.render();
+    expect(sprite0.position.x).toBe(150);
+    expect(sprite0.position.y).toBe(120);
+
+    // Release. Engine frame 1: node still at the drop point (unpinned, zero
+    // velocity, not yet integrated) — an identity frame, correctly a no-op.
+    const frame1 = positions.slice();
+    renderer.updatePositions(frame1, ids);
+    renderer.render();
+    expect(sprite0.position.x).toBe(150);
+
+    // Engine frames 2..k: physics relaxes the node — every streamed frame
+    // must move the sprite. (The owner 2026-10-14 report: the released node
+    // "stays pinned" — this is the regression gate for that.)
+    const relaxPath = [
+      [149, 118.5],
+      [147.5, 116],
+      [144, 112],
+      [139.5, 107],
+    ] as const;
+    for (const [x, y] of relaxPath) {
+      const frame = positions.slice();
+      frame[0] = x;
+      frame[1] = y;
+      renderer.updatePositions(frame, ids);
+      renderer.render();
+      expect(sprite0.position.x).toBeCloseTo(x, 5);
+      expect(sprite0.position.y).toBeCloseTo(y, 5);
+    }
+    vi.restoreAllMocks();
+  });
+
   it("a one-node drag writes only that sprite and rides the overlay — no bucket churn", async () => {
     stubWebgl2();
     const { renderer } = await dragRenderer();
@@ -530,5 +578,94 @@ describe("streamed-frame gates (the 50k left-drag hang)", () => {
     expect(sprites.filter((s) => s.mock.calls.length > 0)).toHaveLength(200);
     expect(buckets.filter((b) => b.mock.calls.length > 0).length).toBe(EDGE_BUCKETS_INTERNAL);
     vi.restoreAllMocks();
+  });
+});
+
+describe("pan regression (owner 2026-10-14: panning did nothing)", () => {
+  function stubWebgl2(): void {
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
+      ((type: string) => (type === "webgl2" ? {} : null)) as typeof HTMLCanvasElement.prototype.getContext,
+    );
+  }
+
+  const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+  interface WorldLike {
+    position: { x: number; y: number };
+    scale: { x: number; y: number };
+  }
+
+  async function pannedRenderer() {
+    const canvas = document.createElement("canvas");
+    canvas.width = 800;
+    canvas.height = 600;
+    const renderer = new GraphPixiRenderer({ defaultRadius: 8 });
+    renderer.init(canvas);
+    await flush();
+    await flush();
+    renderer.setNodeVisuals(["a", "b"], new Map());
+    renderer.updatePositions(new Float32Array([10, 20, 300, 400]), ["a", "b"]);
+    renderer.setCamera(0, 0, 1);
+    renderer.render();
+    return renderer;
+  }
+
+  it("a pan-only camera change moves the world transform (the graph follows)", async () => {
+    stubWebgl2();
+    const renderer = await pannedRenderer();
+    const world = (renderer as unknown as { world: WorldLike }).world;
+
+    // Pre-pan: the transform IS worldToScreen — position = canvas/2 − camera×zoom.
+    expect(world.position.x).toBeCloseTo(400, 6);
+    expect(world.position.y).toBeCloseTo(300, 6);
+    expect(world.scale.x).toBe(1);
+    expect(world.scale.y).toBe(1);
+
+    renderer.setCamera(150, -80, 1); // pure pan, zoom unchanged
+    renderer.render();
+
+    expect(world.position.x).toBeCloseTo(400 - 150, 6);
+    expect(world.position.y).toBeCloseTo(300 - -80, 6);
+    expect(world.scale.x).toBe(1); // scale untouched by a pan
+    expect(world.scale.y).toBe(1);
+
+    // And the mapping matches worldToScreen for a node on BOTH axes.
+    const s = renderer.worldToScreen(10, 20);
+    expect(s.x).toBeCloseTo((10 - 150) + 400, 6);
+    expect(s.y).toBeCloseTo((20 - -80) + 300, 6);
+    vi.restoreAllMocks();
+  });
+
+  it("the cull pass runs on every render including pan-only frames", async () => {
+    stubWebgl2();
+    const renderer = await pannedRenderer();
+    const pixi = await import("pixi.js");
+    const cullSpy = pixi.Culler.shared.cull as ReturnType<typeof vi.fn>;
+    cullSpy.mockClear();
+
+    renderer.setCamera(150, -80, 1); // pan: no dirty gates fire
+    renderer.render();
+
+    expect(cullSpy).toHaveBeenCalledTimes(1);
+    vi.restoreAllMocks();
+  });
+
+  it("the cull rect follows the camera (viewCullRect is camera-centred)", () => {
+    // Directly pins the owner's suspect (b): the rect is derived from the
+    // camera each frame, so a pan re-derives what is in view.
+    const before = viewCullRect({ x: 0, y: 0, zoom: 1 }, 800, 600, 64);
+    const after = viewCullRect({ x: 500, y: -200, zoom: 1 }, 800, 600, 64);
+    expect(after.minX - before.minX).toBeCloseTo(500, 6);
+    expect(after.maxX - before.maxX).toBeCloseTo(500, 6);
+    expect(after.minY - before.minY).toBeCloseTo(-200, 6);
+    expect(after.maxY - before.maxY).toBeCloseTo(-200, 6);
+    // A node panned into view is inside the new rect.
+    const inside = syncIndicesForView(
+      [0],
+      new Float32Array([500, -200]),
+      after,
+      () => 8,
+    );
+    expect(inside).toEqual([0]);
   });
 });

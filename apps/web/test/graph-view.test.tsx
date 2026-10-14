@@ -187,6 +187,33 @@ describe("GraphView component", () => {
     expect(document.querySelector(".nt-graph__dock")).toBeNull();
   });
 
+  it("full surface names the tab 'Graph - Notees' on mount and restores on unmount", async () => {
+    const client = await seedClient();
+    document.title = "Journal - Notees";
+    const { unmount } = render(<GraphView client={client} />);
+
+    expect(document.title).toBe("Graph - Notees");
+    unmount();
+    expect(document.title).toBe("Journal - Notees");
+  });
+
+  it("the embedded local-graph card never touches the tab title", async () => {
+    const client = await seedClient();
+    const anchor = await client.createObject({
+      presentAsMain: true,
+      contentAst: [{ type: "text", text: "Anchor" }],
+    });
+    document.title = "Anchor - Notees";
+    const { unmount } = render(
+      <GraphView client={client} local={{ anchorId: anchor, depth: 1 }} />,
+    );
+
+    // Mounted and torn down — the host page's title stands untouched.
+    expect(document.title).toBe("Anchor - Notees");
+    unmount();
+    expect(document.title).toBe("Anchor - Notees");
+  });
+
   it("renders the filtered-out empty state with the reset affordance on the full surface", async () => {
     window.localStorage.clear();
     // A lone page with the orphan filter off (a device pref): the topology
