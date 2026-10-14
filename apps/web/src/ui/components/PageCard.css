@@ -74,31 +74,54 @@
 }
 
 /* Right sidebar: the cards-only rail — workspace cards (the
-   generic frame around NodeView). The EXTERNAL container is one surface
-   step below the main card; the node view renders INSIDE it on
-   --color-surface, so it reads as a card within the card. The
-   node-relevant widgets (graph/TOC/Activity/Comments) live in the page
-   chrome's context column now. */
+   generic frame around NodeView). FIXED HEIGHT by design (owner
+   2026-10-14): the rail wears the raised-card panel treatment (the
+   placeholder's precedent — background, hairline, radius, shadow) and
+   stretches the full body height regardless of how many cards it holds;
+   it scrolls internally when the cards outgrow it. The visible sidebar
+   surface no longer shrinks to fit the cards. The top margin matches the
+   main content card's (both sit below the top bar). */
 .nt-right-card {
   width: 340px;
   flex-shrink: 0;
-  margin: var(--spacing-3) var(--spacing-3) var(--spacing-3) 0;
+  align-self: stretch;
+  margin: var(--spacing-2) var(--spacing-3) var(--spacing-3) 0;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
   min-height: 0;
   overflow-y: auto;
+  padding: var(--spacing-3);
+  background: var(--color-sidebar-card);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-card);
+  box-shadow: var(--shadow-elevation-1);
 }
 
+/* The rail's management bar (owner 2026-10-14): the "Clear all" affordance
+   rides above the card stack. */
+.nt-right-card__bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  padding: 0 var(--spacing-1);
+}
+
+.nt-right-card__bar-label {
+  font-size: var(--font-size-2xs);
+  color: var(--color-on-surface-variant);
+}
+
+/* The nested card: a transparent section inside the surfaced rail now (the
+   card chrome moved to the rail itself) — the body keeps its own surface,
+   the content card within the panel, like the context column's pattern. */
 .nt-sidebar-card {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   max-height: 70%;
-  background: var(--color-surface-container-low);
-  border: var(--border-width-default) solid var(--color-outline-variant);
-  border-radius: var(--shape-card);
-  box-shadow: var(--shadow-elevation-1);
   overflow: hidden;
 }
 
@@ -107,10 +130,10 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-3);
+  padding: 0 var(--spacing-1);
   /* The lead "…" clip chip in right-anchored breadcrumb trails masks with
-     this surface. */
-  --breadcrumb-clip-bg: var(--color-surface-container-low);
+     the rail panel's surface (the header is transparent inside it). */
+  --breadcrumb-clip-bg: var(--color-sidebar-card);
 }
 
 /* The reorder grip (the drag handle — the block-row grip precedent):
@@ -198,14 +221,6 @@
 /* The full-page chrome assumes a large card; peek cards keep it compact. */
 .nt-sidebar-card__body .nt-page {
   padding: var(--spacing-4) var(--spacing-4) var(--spacing-6);
-}
-
-.nt-right-card-placeholder {
-  flex: 1;
-  background: var(--color-surface-container-low);
-  border: var(--border-width-default) solid var(--color-outline-variant);
-  border-radius: var(--shape-card);
-  box-shadow: var(--shadow-elevation-1);
 }
 
 /* Focus mode (#12): the shell chrome dims to a whisper while the page card

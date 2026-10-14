@@ -89,6 +89,55 @@ predating this file.
   the rail probe's interaction cases rewritten — a click beside a child and
   a click in the metadata gap each hide ALL the direct children together
   while the owner stays; collapse specs + typecheck green.
+- **feat(web): Version history in the nodeview's context column, the Trash
+  hub (browse / restore / delete permanently), Back/Forward arrows in the
+  main top bar, a "Clear all" for the right rail, and the rail as a
+  fixed-height panel (owner 2026-10-14: four UI-only gaps — "the op log
+  already retains every edit per node, so a version surface would be a
+  projection slice with no wire change").** (1) **Version history**: a new
+  context-column section (graph · TOC · Activity · **Version history** ·
+  Comments) — lazy like Activity (the first expand fetches, collapsed costs
+  nothing), reading the per-node slice of the existing `GET /api/operations`
+  relay-log feed (`WorkspaceClient.fetchNodeHistory`, the
+  `fetchOperationsFor` pattern generalized: ops whose payload names the
+  node, newest-first by HLC, same 30-page bound, same throw-when-unreachable
+  honest note). Content-bearing ops carry a full `contentAst` snapshot: each
+  expands to a read-only preview, and **Restore this version** composes an
+  ordinary `object.update` with that snapshot — the current content keeps
+  its own op in the log, so restoring never destroys anything (the
+  undo-journal philosophy; the wire is untouched). (2) **Trash hub**: the
+  v1 sidebar surface restored — a Trash navigation entry + hub listing
+  soft-trashed subtree roots (newest first, deletion stamps) with
+  **Restore** (the `object.restore` op, now a first-class web write
+  `client.restoreObject` — the CLI's `object restore` is no longer the only
+  surface) and **Delete permanently** behind the confirmation modal
+  (`object.delete permanent`). Reads ride a new `client.listTrashed()`
+  (the `trash` table joined to the inactive node rows — the one surface
+  reading the other side of `is_active`). (3) **Back/Forward arrows** in
+  the top bar's center, left of the breadcrumbs: `window.history`
+  back/forward through the App's OWN navigation stack — every in-app
+  pushState now funnels through one `pushNav` seam that records
+  (`recordNavPush` truncates the forward tail), and the popstate handler
+  reports landings via a new `onNavigated` seam (`recordNavPop` steps
+  toward the matching neighbor, resets on a foreign URL) — the disabled
+  states ride our cursor, never the browser's (whose stack reaches beyond
+  the app); the Alt+←/→ chords are unchanged. (4) **Right rail**: a
+  "Clear all" button (under a "Peeked pages" label) closes every card and
+  the panel with them (the last-card-close precedent), and the rail is now
+  a fixed-height, surfaced panel (the empty-state placeholder's card
+  treatment: background, hairline, radius, shadow, explicit
+  `align-self: stretch`, internal scroll) instead of a transparent strip
+  whose visible area shrank to fit the cards; the nested cards go
+  transparent inside it (their bodies keep their content surface). Live
+  measurement (`scripts/screenshots/sidebar-height-probe.mjs`, Work-offline
+  boot, 0/1/3 real Shift+clicked cards): the rail's border-box held
+  constant (889px, Δ24 = its margins) across every card count, before and
+  after; the ≤480px bottom-sheet treatment overrides the panel unchanged.
+  **Verification:** three new suites green — version history
+  (summaries/snapshot/restore/unavailable, 5), trash hub (list/restore +
+  open/permanent-delete + cancel, 4), nav arrows (stack tracker pure fns,
+  the popstate seam, TopBar states, 7) — plus `pnpm typecheck` +
+  `pnpm test` all green.
 
 - **feat(web): the drop indicator repaints above the floating drag chip,
   with a start tick at the line's first pixel — the indentation level is

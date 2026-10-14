@@ -75,6 +75,7 @@ import { todayIsoLocal } from "./components/calendarViewUtils.js";
 import { CalendarPopup } from "./components/ui/CalendarPopup.js";
 import { HistoryMenuPopup } from "./components/HistoryMenuPopup.js";
 import { QueriesHub } from "./components/QueriesHub.js";
+import { TrashHub } from "./components/TrashHub.js";
 import { GraphView } from "./views/graph/GraphView.js";
 import { TopBar } from "./components/TopBar.js";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher.js";
@@ -303,6 +304,7 @@ const NAV_PATHS: Record<string, NavKey> = {
   assets: "assets",
   queries: "queries",
   graph: "graph",
+  trash: "trash",
 };
 
 export function navFromPath(pathname: string): NavKey | null {
@@ -332,9 +334,12 @@ export function popStateNavHandler(opts: {
   setSettingsSection: (section: SettingsSection | null) => void;
   /** The /search route flag; omitted by older callers (a no-op). */
   setSearch?: ((open: boolean) => void) | undefined;
+  /** The back/forward tracker's seam: fires with the landed URL (every branch). */
+  onNavigated?: ((url: string) => void) | undefined;
 }): () => void {
   return () => {
     const path = window.location.pathname;
+    opts.onNavigated?.(path + window.location.search);
     opts.setSettingsSection(settingsSectionFromPath(path));
     if (path === "/workspaces") {
       opts.openManager();
@@ -424,6 +429,40 @@ export function historyNavKeyHandler(): (event: KeyboardEvent) => void {
     if (event.key === "ArrowLeft") window.history.back();
     else window.history.forward();
   };
+}
+
+/**
+ * The in-app navigation stack behind the top bar's Back/Forward arrows.
+ * Every in-app navigation is a pushState with a distinct URL, so the App
+ * tracks its OWN stack (entries + cursor) rather than asking the browser
+ * (the browser stack reaches beyond the app — a Back that leaves Notees is
+ * never what the arrows mean). Pure; exported for the routing tests.
+ */
+export interface NavStack {
+  entries: string[];
+  index: number;
+}
+
+/** The URL identity of a navigation: path + query (e.g. /search?q=x). */
+export function currentNavUrl(loc: Pick<Location, "pathname" | "search"> = window.location): string {
+  return loc.pathname + loc.search;
+}
+
+/** A push: truncate any forward tail, append, move the cursor. */
+export function recordNavPush(stack: NavStack, url: string): NavStack {
+  return { entries: [...stack.entries.slice(0, stack.index + 1), url], index: stack.index + 1 };
+}
+
+/**
+ * A popstate landing: step the cursor toward the matching neighbor, or reset
+ * to a single-entry stack when the URL is foreign (deep link typed by hand,
+ * boot) — the stack only ever describes navigations the app recorded.
+ */
+export function recordNavPop(stack: NavStack, url: string): NavStack {
+  if (stack.entries[stack.index - 1] === url) return { ...stack, index: stack.index - 1 };
+  if (stack.entries[stack.index + 1] === url) return { ...stack, index: stack.index + 1 };
+  if (stack.entries[stack.index] === url) return stack;
+  return { entries: [url], index: 0 };
 }
 
 /**
@@ -841,6 +880,21 @@ export function App() {
   });
   const [activeNav, setActiveNav] = useState<NavKey>(initialNav);
   /**
+   * The in-app Back/Forward stack behind the top-bar arrows: our own
+   * entries + cursor (the browser stack reaches beyond the app — see
+   * recordNavPush/recordNavPop). Boots at the deep-linked URL.
+   */
+  const [navStack, setNavStack] = useState<NavStack>(() => ({
+    entries: [currentNavUrl()],
+    index: 0,
+  }));
+
+  /** Every in-app navigation funnels here: record on our stack, then pushState. */
+  function pushNav(url: string, state: Record<string, unknown>): void {
+    setNavStack((stack) => recordNavPush(stack, url));
+    window.history.pushState(state, "", url);
+  }
+  /**
    * The settings page route: non-null while the URL is /settings/<section>
    * (deep link at boot, section nav, back/forward). Takes precedence over
    * the hub views in the PageCard slot, like an open node.
@@ -905,7 +959,7 @@ export function App() {
     setSettingsSection(null);
     setSearchOpen(false);
     setSelectedPageId(id);
-    window.history.pushState({ node: id }, "", `/${id}`);
+    pushNav(`/${id}`, { node: id });
     recordRecent(id);
   }
 
@@ -915,6 +969,7 @@ export function App() {
    */
   function openSettingsSection(section: SettingsSection): void {
     setSettingsSection(section);
+    setNavStack((stack) => recordNavPush(stack, pathForSettingsSection(section)));
     pushSettingsSection(section);
   }
 
@@ -942,7 +997,7 @@ export function App() {
     setSelectedPageId(null);
     const path =
       query !== undefined && query !== "" ? `/search?q=${encodeURIComponent(query)}` : "/search";
-    window.history.pushState({ view: "search" }, "", path);
+    pushNav(path, { view: "search" });
   }
 
   /**
@@ -959,7 +1014,7 @@ export function App() {
       setSearchOpen(false);
       setActiveNav(nav);
       setSelectedPageId(null);
-      window.history.pushState({ nav }, "", path);
+      pushNav(path, { nav });
     };
     if (view === "today" && live !== null) {
       const now = new Date();
@@ -990,6 +1045,7 @@ export function App() {
       setNode: setSelectedPageId,
       setSettingsSection,
       setSearch: setSearchOpen,
+      onNavigated: (url) => setNavStack((stack) => recordNavPop(stack, url)),
     });
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
@@ -1445,7 +1501,7 @@ export function App() {
     try {
       const { workspaces: list } = await listWorkspaces(url, sessionToken);
       setWorkspaces(list);
-      window.history.pushState({ view: "workspaces" }, "", "/workspaces");
+      pushNav("/workspaces", { view: "workspaces" });
       setPhase({ name: "workspaces", user: account });
     } catch (err) {
       setPhase({ name: "server" });
@@ -1581,7 +1637,7 @@ export function App() {
     clientRef.current = null;
     live?.close();
     setClient(null);
-    window.history.pushState({ view: "login" }, "", "/login");
+    pushNav("/login", { view: "login" });
     setPhase({ name: "server" });
   }
 
@@ -1606,7 +1662,7 @@ export function App() {
     setError(null);
     setHint(null);
     setServerSuggestion(null);
-    window.history.pushState({ view: "login" }, "", "/login");
+    pushNav("/login", { view: "login" });
     setPhase({ name: "server" });
   }
 
@@ -1955,6 +2011,10 @@ export function App() {
         }
         sidebarOpen={sidebarOpen}
         rightPanelOpen={rightPanelOpen}
+        canGoBack={navStack.index > 0}
+        canGoForward={navStack.index < navStack.entries.length - 1}
+        onGoBack={() => window.history.back()}
+        onGoForward={() => window.history.forward()}
         calendarOpen={calendarOpen}
         onToggleCalendar={() => setCalendarOpen((open) => !open)}
         calendarButtonRef={calendarButtonRef}
@@ -1997,7 +2057,7 @@ export function App() {
                 });
               }}
               onManageWorkspaces={() => {
-                window.history.pushState({ view: "workspaces" }, "", "/workspaces");
+                pushNav("/workspaces", { view: "workspaces" });
                 setManagerOpen(true);
               }}
               onRenamed={(id, name) => {
@@ -2097,7 +2157,7 @@ export function App() {
             setSearchOpen(false);
             setActiveNav(key);
             setSelectedPageId(null);
-            window.history.pushState({ node: null, nav: key }, "", pathForNav(key));
+            pushNav(pathForNav(key), { node: null, nav: key });
           }}
           onOpenPage={openPage}
           onSignOut={() => void handleSignOut()}
@@ -2157,6 +2217,11 @@ export function App() {
             <div className="nt-graph-surface">
               <GraphView client={client} onNodeClick={openPage} />
             </div>
+          ) : activeNav === "trash" ? (
+            /* The Trash hub: browse / restore / permanently delete trashed
+               subtrees (the data path always existed — this is the v1
+               sidebar surface restored for the web). */
+            <TrashHub client={client} onOpenNode={openPage} />
           ) : (
             <HubView client={client} nav={activeNav} onOpenNode={openPage} onOpenInSidebar={openInSidebar} />
           )}
@@ -2166,21 +2231,36 @@ export function App() {
             {/* The cards-only rail: the node-relevant widgets
                 (graph/TOC/Activity/Comments) relocated into the page chrome's
                 context column; this rail hosts workspace cards exclusively —
-                the generic frame around NodeView. */}
-            {sidebarCards.length === 0 ? (
-              <div className="nt-right-card-placeholder" />
-            ) : (
-              sidebarCards.map((cardId) => (
-                <NodeCardFrame
-                  key={cardId}
-                  client={client}
-                  nodeId={cardId}
-                  onOpenNode={openPage}
-                  onOpenNodeRaw={openPageAt}
-                  onClose={() => closeSidebarCard(cardId)}
-                />
-              ))
+                the generic frame around NodeView. Fixed-height surfaced panel
+                (owner 2026-10-14): it stretches the body height regardless
+                of the card count and scrolls internally when the stack
+                outgrows it. */}
+            {sidebarCards.length > 0 && (
+              <div className="nt-right-card__bar">
+                <span className="nt-right-card__bar-label">Peeked pages</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSidebarCards([]);
+                    setRightPanelOpen(false);
+                  }}
+                >
+                  Clear all
+                </Button>
+              </div>
             )}
+            {sidebarCards.map((cardId) => (
+              <NodeCardFrame
+                key={cardId}
+                client={client}
+                nodeId={cardId}
+                onOpenNode={openPage}
+                onOpenNodeRaw={openPageAt}
+                onClose={() => closeSidebarCard(cardId)}
+              />
+            ))}
           </aside>
         )}
         </FloatingEditorHost>

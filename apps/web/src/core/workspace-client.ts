@@ -375,6 +375,17 @@ export interface OperationFeedEntry {
   hlc: { physical: number; logical: number };
 }
 
+/**
+ * One trashed subtree root, as the Trash hub lists it: the node row (which
+ * is inactive — every normal read filters it) plus its soft-delete stamp
+ * from the derived `trash` table. Permanent deletes leave no entry (their
+ * rows are `is_permanent = 1` tombstones with no node row behind them).
+ */
+export interface TrashedEntry {
+  node: ClientNode;
+  deletedAt: string;
+}
+
 /** Editable fields of a propertySchema.update write (all optional — patch). */
 export interface UpdatePropertySchemaInput {
   name?: string;
@@ -1308,6 +1319,27 @@ export class WorkspaceClient {
     return this.cachedListRead("roots", () =>
       this.store.roots(this.workspaceId).map((row) => this.mapNodeCached(row)),
     );
+  }
+
+  /**
+   * The Trash hub's read: soft-trashed subtree roots (the `trash` table
+   * joined to the inactive node rows), newest deletion first. Every normal
+   * read filters `is_active = 1`; this is the one surface that deliberately
+   * reads the other side. `is_permanent = 0` keeps hard-delete tombstones
+   * out — they have no node row to restore.
+   */
+  listTrashed(): TrashedEntry[] {
+    return this.cachedListRead("listTrashed", () => {
+      const rows = this.store.database
+        .prepare(
+          `SELECT n.*, t.deleted_at AS deleted_at FROM trash t
+           JOIN node n ON n.id = t.node_id
+           WHERE n.workspace_id = ? AND n.is_active = 0 AND t.is_permanent = 0
+           ORDER BY t.deleted_at DESC, n.id`,
+        )
+        .all(this.workspaceId) as Array<NodeRow & { deleted_at: string }>;
+      return rows.map((row) => ({ node: this.mapNodeCached(row), deletedAt: row.deleted_at }));
+    });
   }
 
   /** All active classes in the workspace, deterministic order (# capture). */
@@ -2720,6 +2752,19 @@ export class WorkspaceClient {
   }
 
   /**
+   * Restore a trashed object and its subtree (object.restore — the same
+   * first-class convergent op the undo journal and the merge flow compose;
+   * LWW vs delete by log order). No-op when the node is active or unknown —
+   * the op itself is idempotent, and the guard avoids noise writes. This is
+   * the web surface the CLI's `object restore` already had.
+   */
+  async restoreObject(id: string): Promise<void> {
+    const node = this.getNodeRaw(id);
+    if (node === undefined || node.isActive) return;
+    this.enqueueLocal(this.buildEnvelope("object.restore", { objectId: id }, [id]));
+  }
+
+  /**
    * Reparent a node (outliner indent/outdent gesture) — issues `object.move`.
    * `parentId` null means workspace root — legal for any non-class node (a
    * parentless node simply renders with document chrome; only a class under
@@ -3479,13 +3524,43 @@ export class WorkspaceClient {
     objectId: string,
     propertySchemaId: string,
   ): Promise<OperationFeedEntry[]> {
-    const { serverUrl, apiKey } = this.requireRest();
     const matches = (op: OperationFeedEntry): boolean =>
       (op.opType === "property.set" || op.opType === "property.unset") &&
       typeof op.payload === "object" &&
       op.payload !== null &&
       op.payload.objectId === objectId &&
       op.payload.propertySchemaId === propertySchemaId;
+    return this.fetchOperationFeed(matches);
+  }
+
+  /**
+   * Per-node version history feed: the same relay-log read filtered to the
+   * ops whose payload names THIS node as `objectId` — object.create/update/
+   * delete/restore/move, property.set/unset, class/tag unassigns, asset
+   * attach/detach. Newest-first by HLC; same 30-page bound and the same
+   * throw-when-unreachable contract as the property feed (the section
+   * renders the device-local note). This is a pure projection slice — the
+   * wire is untouched.
+   */
+  async fetchNodeHistory(nodeId: string): Promise<OperationFeedEntry[]> {
+    const matches = (op: OperationFeedEntry): boolean =>
+      typeof op.payload === "object" &&
+      op.payload !== null &&
+      op.payload.objectId === nodeId;
+    return this.fetchOperationFeed(matches);
+  }
+
+  /**
+   * The paged GET /api/operations relay-log read both history feeds share:
+   * envelope-v3 entries trimmed to seq/hlc/actor/timestamp/payload, filtered
+   * by `matches`, sorted newest-first by HLC. Bounded at 30 pages (300k
+   * envelopes) so a huge log cannot hang the UI; throws when the feed is
+   * unreachable.
+   */
+  private async fetchOperationFeed(
+    matches: (op: OperationFeedEntry) => boolean,
+  ): Promise<OperationFeedEntry[]> {
+    const { serverUrl, apiKey } = this.requireRest();
     const entries: OperationFeedEntry[] = [];
     let afterSeq = 0;
     for (let page = 0; page < 30; page++) {
