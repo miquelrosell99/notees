@@ -642,14 +642,41 @@ describe("drag-session snap model", () => {
       "c:child",
     ]);
     // Sibling anchors sit at the row's divider at the row's gutter x; the
-    // child anchor rides at the child-offset x, vertically centered.
+    // child anchor rides the row's BOTTOM divider at the child-offset x —
+    // every anchor's y is an element boundary, and sibling + child
+    // candidates share the bottom divider so indentation picks the level.
     expect(candidates[0]).toMatchObject({ targetId: "c", anchorX: 0, anchorY: 64 });
     expect(candidates[1]).toMatchObject({ targetId: "c", anchorX: 0, anchorY: 96 });
     expect(candidates[2]).toMatchObject({
       targetId: "c",
       anchorX: CHILD_DROP_OFFSET_PX,
-      anchorY: 80,
+      anchorY: 96,
     });
+  });
+
+  it("stacks every nesting level at one divider: the pointer's indentation picks the level", () => {
+    // p (top level) with one child c; x is dragged. The boundary below p's
+    // subtree — p's element bottom, which is also c's element bottom — hosts
+    // three candidates at the same y: a top-level sibling after p, a depth-1
+    // sibling after c, and a first child of either (p's child slot == after
+    // c; c's child slot is one indent deeper). x picks among them.
+    const positions = positionsOf(["x", null], ["p", null], ["c", "p"]);
+    const rows: DragRowRect[] = [
+      { id: "x", left: 0, top: 60, width: 400, height: 15 },
+      { id: "p", left: 0, top: 0, width: 400, height: 30 },
+      { id: "c", left: 24, top: 15, width: 376, height: 15 },
+    ];
+    const candidates = dropCandidatesOf(positions, "x", rows);
+    const at = (x: number) => nearestCandidate({ x, y: 30 }, candidates);
+
+    // Page gutter: a top-level sibling after p (≡ right before the next
+    // top-level row).
+    expect(at(0)).toMatchObject({ targetId: "p", intent: "below" });
+    // The child's gutter: a sibling after c, one level deep under p.
+    expect(at(24)).toMatchObject({ targetId: "c", intent: "below" });
+    // The child-offset bands: p's child slot (48px) vs c's (72px).
+    expect(at(56)).toMatchObject({ targetId: "p", intent: "child" });
+    expect(at(64)).toMatchObject({ targetId: "c", intent: "child" });
   });
 
   it("projects a shallow mid-row pointer to above or below by the row half", () => {

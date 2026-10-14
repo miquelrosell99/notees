@@ -39,14 +39,23 @@
  * row a sibling pair (above/below) plus a child candidate, each anchored at
  * a fixed point. Sibling anchors sit at the row's divider (y = the row
  * boundary) at the row depth's gutter x; the child anchor sits at the row's
- * vertical center at the child-offset x. The dragged block's own subtree is
- * excluded. Each pointer move projects the pointer onto the nearest anchor
- * within a y threshold (x distance breaks ties); far from every anchor, no
- * indicator renders. The preview is FROZEN by design: no row ever applies
- * the sortable strategy transform (BlockRow dropped it), so nothing slides
- * to make room — the feedback is the highlight line at the drop position
- * (the drop- intent classes), the dragged source(s) reading faint in place
- * (the drag-source class, whole selection stack included), and the floating
+ * BOTTOM divider at the child-offset x. Every anchor's y is an ELEMENT
+ * boundary — a block's measured element spans the whole block (text row,
+ * properties, linked references, children), so a "below"/"child" line
+ * always means "after THE ENTIRE block element". Because sibling and child
+ * anchors share the bottom divider, one boundary hosts every nesting level
+ * the surrounding tree allows — e.g. the divider before a top-level row is
+ * simultaneously "previous sibling of it", "next sibling of the subtree
+ * above at its own depth", and "first child of that subtree's last block" —
+ * and the pointer's indentation (x distance, the nearestCandidate tie-
+ * break) picks the level. The dragged block's own subtree is excluded. Each
+ * pointer move projects the pointer onto the nearest anchor within a y
+ * threshold (x distance breaks ties); far from every anchor, no indicator
+ * renders. The preview is FROZEN by design: no row ever applies the
+ * sortable strategy transform (BlockRow dropped it), so nothing slides to
+ * make room — the feedback is the highlight line at the drop position (the
+ * drop- intent classes), the dragged source(s) reading faint in place (the
+ * drag-source class, whole selection stack included), and the floating
  * DragOverlay chip. At the edges of a scrollable view the session auto-
  * scrolls (see the edge-scroll section) and re-measures the anchors on
  * every scroll so the indicator tracks the content. Keyboard drags (no
@@ -212,8 +221,10 @@ export interface DragRowRect {
 /**
  * One valid drop location: the drop line plus the anchor point the pointer
  * snaps to. Sibling anchors sit at the row's divider (y = the row boundary)
- * at the row depth's gutter x; the child anchor sits at the row's vertical
- * center at the child-offset x.
+ * at the row depth's gutter x; the child anchor sits at the row's BOTTOM
+ * divider at the child-offset x — so at every element boundary the sibling
+ * and child candidates share the divider and the pointer's indentation
+ * (nearestCandidate's x tie-break) picks the level.
  */
 export interface DropCandidate {
   targetId: string;
@@ -287,7 +298,7 @@ export function dropCandidatesOf(
       targetId: row.id,
       intent: "child",
       anchorX: row.left + CHILD_DROP_OFFSET_PX,
-      anchorY: row.top + row.height / 2,
+      anchorY: row.top + row.height,
     });
   }
   return candidates;
