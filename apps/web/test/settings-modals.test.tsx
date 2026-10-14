@@ -252,7 +252,7 @@ describe("UserSettingsModal", () => {
     const group = screen.getByRole("group", { name: "Accent Color" });
     const swatches = within(group).getAllByRole("button");
     expect(swatches).toHaveLength(5);
-    for (const label of ["Advance Green", "Monochrome", "Brown", "Teal", "Purple"]) {
+    for (const label of ["Advance Green", "Monochrome", "Brown", "Teal", "Blue"]) {
       expect(within(group).getByRole("button", { name: label })).toBeInTheDocument();
     }
     expect(within(group).queryByRole("button", { name: /custom/i })).toBeNull();
