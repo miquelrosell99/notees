@@ -956,5 +956,18 @@ describe("drag edge auto-scroll", () => {
     expect(scrollContainersOf(root)).toEqual([mid, outer]);
     expect(scrollContainersOf(null)).toEqual([]);
     outer.remove();
+
+    // The PageView case: the zone root WRAPS the scroller — the scrolling
+    // cell is the root's descendant, not an ancestor (owner 2026-10-14:
+    // without the subtree sweep, edge auto-scroll never armed).
+    const wrapRoot = document.createElement("div");
+    const inner = document.createElement("div");
+    inner.style.overflowY = "auto";
+    wrapRoot.appendChild(inner);
+    document.body.appendChild(wrapRoot);
+    mockScroll(inner, 1200, 400);
+    mockScroll(wrapRoot, 400, 400); // not overflowing itself
+    expect(scrollContainersOf(wrapRoot)).toEqual([inner]);
+    wrapRoot.remove();
   });
 });
