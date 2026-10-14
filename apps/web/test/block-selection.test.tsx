@@ -283,9 +283,12 @@ describe("block multi-selection gestures", () => {
     expect(window.getSelection()!.toString()).toBe("");
     fireEvent.mouseUp(document);
 
-    // The trailing click after the drag does not enter edit mode.
+    // The trailing click after the drag does not enter edit mode — and the
+    // block-select arming already exited the pressed block's edit mode
+    // (selection and edit mode are mutually exclusive).
     fireEvent.click(secondRow);
-    expect(container.querySelectorAll(".nt-block-text")).toHaveLength(1);
+    expect(container.querySelectorAll(".nt-block-text")).toHaveLength(0);
+    expect(selectedIds(container)).toEqual(ids);
   });
 });
 
@@ -647,5 +650,58 @@ describe("selection level cap (the stack caps at its shallowest level)", () => {
     // kid two resolves to its ancestor "parent" — the whole subtree joins.
     fireEvent.click(rows[3]!, { shiftKey: true });
     expect(selectedIds(container)).toEqual(ids);
+  });
+});
+
+describe("edit mode vs the selection (owner 2026-10-14)", () => {
+  it("making a selection while another block is editing exits edit mode", async () => {
+    const client = await seedClient();
+    const pageId = await seedPage(client, ["one", "two", "three"]);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const rows = blockContents(container);
+
+    // Shift+click selection while the first block is editing: the selection
+    // takes over the surface — the editing block must hand back to read
+    // mode.
+    fireEvent.click(rows[0]!);
+    expect(rows[0]!.querySelector(".nt-block-text")).not.toBeNull();
+    fireEvent.click(rows[2]!, { shiftKey: true });
+    expect(container.querySelector(".nt-block-text")).toBeNull();
+    expect(selectionBar()).not.toBeNull();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(selectionBar()).toBeNull();
+
+    // The drag-select gesture too: press + arch while "two" is editing.
+    fireEvent.click(rows[1]!);
+    expect(rows[1]!.querySelector(".nt-block-text")).not.toBeNull();
+    const pressRow = rows[0]!.closest("[data-block-id]") as HTMLElement;
+    vi.spyOn(pressRow, "getBoundingClientRect").mockReturnValue({
+      x: 0, y: 0, top: 0, left: 0, right: 400, bottom: 20, width: 400, height: 20,
+      toJSON: () => ({}),
+    } as DOMRect);
+    fireEvent.mouseDown(rows[0]!, { clientX: 10, clientY: 10 });
+    fireEvent.mouseMove(rows[2]!, { clientX: 30, clientY: 40 });
+    expect(container.querySelector(".nt-block-text")).toBeNull();
+    fireEvent.mouseUp(document);
+  });
+
+  it("one plain click enters edit mode on another block while a selection is live", async () => {
+    const client = await seedClient();
+    const pageId = await seedPage(client, ["one", "two", "three"]);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const rows = blockContents(container);
+
+    // Select the first two rows.
+    fireEvent.click(rows[0]!, { shiftKey: true });
+    fireEvent.click(rows[1]!, { shiftKey: true });
+    expect(selectionBar()).not.toBeNull();
+
+    // A full press (mousedown → mouseup → click) on the third row must edit
+    // it in ONE gesture: the selection clears and the editor mounts together.
+    fireEvent.mouseDown(rows[2]!, { clientX: 10, clientY: 10 });
+    fireEvent.mouseUp(document, { clientX: 10, clientY: 10 });
+    fireEvent.click(rows[2]!, { clientX: 10, clientY: 10 });
+    expect(rows[2]!.querySelector(".nt-block-text")).not.toBeNull();
+    expect(selectionBar()).toBeNull();
   });
 });
