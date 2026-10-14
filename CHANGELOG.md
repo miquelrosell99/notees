@@ -9,6 +9,24 @@ predating this file.
 
 ## 2026-10-14
 
+- **feat(web): the drag preview is a FILLED card that PARKS below the drop
+  line when a target snaps (owner 2026-10-14: "a better UI would be the
+  filled background floating card — way better card text visibility — and
+  make it snap to be BELOW the drop target line when the drop target gets
+  triggered").** The one-line truncated name chip becomes a filled surface
+  card carrying the block's full text (multi-line, wrapped, line-clamped at
+  6). Two positional modes share the card look: in free flight the card
+  rides the pointer (dnd-kit's DragOverlay); the moment the snap model finds
+  a target, the card parks in a portal just below the indicator line, at the
+  anchor's x — the winning indentation — so it renders exactly what the
+  document will look like after the drop, gliding between targets on a short
+  transition while the pointer chip steps aside. A selection stack previews
+  as the lead block's text under a "N blocks" badge. The faint in-place
+  source and the straight indicator line are unchanged. **Verification:**
+  the pinned/stack specs now assert both modes (chip in free flight; parked
+  card with the lead text + badge at the anchor's coordinates; unmount at
+  drop); block-dnd suite green (27).
+
 - **fix(web): drag edge auto-scroll works on the real page layout (owner:
   "reaching the top or the bottom of the current list does not scroll").**
   The live repro pinned it precisely: the drag session was healthy (chip,
