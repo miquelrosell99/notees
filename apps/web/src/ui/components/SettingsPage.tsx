@@ -180,7 +180,6 @@ const SPONSORSHIP_CHANNELS: { id: string; name: string; description: string; url
 
 function AppearanceSection() {
   const [uiFont, setUiFont] = useDeviceSetting<UiFontPreference>("uiFont", "bundled");
-  const [focusMode, setFocusMode] = useDeviceSetting("focusMode", false);
   return (
     <div className="settings-section">
       <h3 className="settings-section__title">Appearance</h3>
@@ -228,27 +227,6 @@ function AppearanceSection() {
             </p>
           </div>
           <AccentColorPicker />
-        </div>
-
-        <div className="settings-item">
-          <div className="settings-item__info">
-            <label htmlFor="user-focus-mode" className="settings-item__label">
-              Focus mode
-            </label>
-            <p className="settings-item__description">
-              Only the editor stays bright — the rest of the interface dims and the
-              page chrome (backlinks, icons, properties) hides. Esc exits.
-            </p>
-          </div>
-          <BooleanToggle
-            id="user-focus-mode"
-            checked={focusMode}
-            onChange={(e) => {
-              setFocusMode(e.target.checked);
-              applyAppearance();
-            }}
-            size="md"
-          />
         </div>
       </Card>
     </div>
