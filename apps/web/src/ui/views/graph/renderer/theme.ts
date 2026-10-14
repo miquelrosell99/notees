@@ -55,8 +55,10 @@ export interface GraphTheme extends LabelColors {
   accent: [number, number, number];
   /** Minimap node dots — the --graph-minimap-dot token at low alpha. */
   minimapDot: string;
-  /** Minimap viewport rectangle — the --graph-minimap-viewport token. */
+  /** Minimap viewport rectangle stroke — the --graph-minimap-viewport token. */
   minimapViewport: string;
+  /** Minimap viewport interior wash (the viewed region, accent-tinted). */
+  minimapViewportFill: string;
 }
 
 let cache: GraphTheme | null = null;
@@ -74,6 +76,7 @@ export function graphTheme(): GraphTheme {
     accent: hexVarToRgbTriple("--color-accent", [0.427, 0.655, 0.537]),
     minimapDot: hexVarToRgba("--graph-minimap-dot", 0.55, "rgba(140,140,140,0.55)"),
     minimapViewport: hexVarToRgba("--graph-minimap-viewport", 0.9, "rgba(92,84,76,0.9)"),
+    minimapViewportFill: hexVarToRgba("--graph-minimap-viewport", 0.12, "rgba(92,84,76,0.12)"),
   };
   if (observer === null && typeof MutationObserver !== "undefined") {
     observer = new MutationObserver(() => {
