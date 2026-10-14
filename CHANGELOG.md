@@ -9,6 +9,23 @@ predating this file.
 
 ## 2026-10-14
 
+- **refactor(web): the graph renderer is behind a formal `GraphRenderer`
+  interface — Stage 1 of the owner-approved PixiJS migration (adapter-first,
+  flagged, load-test-gated).**
+  The full public surface of `GraphWebGLRenderer` (init/render lifecycle,
+  visuals/positions/edges/times, the color-only hover contract, camera +
+  picking, the stats/order getters) is extracted into
+  `renderer/graphRenderer.ts`; the class now `implements GraphRenderer`
+  (compiler-enforced conformance — the Pixi adapter must satisfy the same
+  type), and `GraphView`'s ref is typed to the interface so Stage 2 only
+  touches the construction site behind the device flag. The LOD hook is in
+  the contract from day one per the owner's design note: `lodLevelForZoom`
+  (constellation < 0.25, overview < 1.0, detail beyond) is a pure, tested
+  helper every adapter shares, so the 7.5k workspace exercises the same
+  code path a 50k workspace will depend on. No behavior change.
+  **Verification:** web typecheck green on the graph files + the renderer /
+  view / followups suites green (55 + the new LOD spec).
+
 - **fix(web): the graph's canvas colors actually resolve — the minimap was
   never showing its intended colors (latent `toString()` base bug).**
   `hexVarToRgba` built its channels with `.toString()` (base 10): any channel
