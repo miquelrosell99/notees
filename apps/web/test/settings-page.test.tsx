@@ -126,9 +126,9 @@ describe("settings routes", () => {
     applyAppearance();
     expect(document.documentElement.dataset.accent).toBe("margin");
 
-    localStorage.setItem("notees.settings.accentColor", JSON.stringify("purple"));
+    localStorage.setItem("notees.settings.accentColor", JSON.stringify("blue"));
     applyAppearance();
-    expect(document.documentElement.dataset.accent).toBe("purple");
+    expect(document.documentElement.dataset.accent).toBe("blue");
   });
 });
 

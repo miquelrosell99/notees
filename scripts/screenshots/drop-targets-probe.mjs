@@ -60,8 +60,8 @@ try {
   await pg.waitForSelector(`[data-block-id="${C}"] .nt-block-grip`, { timeout: 60_000 });
   console.log("page open");
 
-  // Magenta primary makes the 2px indicator line machine-detectable.
-  await pg.evaluate(() => document.documentElement.style.setProperty("--color-primary", "rgb(255, 0, 255)"));
+  // Magenta accent makes the 2px indicator lines machine-detectable.
+  await pg.evaluate(() => document.documentElement.style.setProperty("--color-accent", "rgb(255, 0, 255)"));
 
   const NAMES = () => ({ [A]: "A", [a2]: "a2", [a2a]: "a2a", [B]: "B", [C]: "C" });
 
@@ -97,9 +97,9 @@ try {
     }, NAMES());
 
   /** Magenta horizontal-line rows (viewport y's) within a clip box. */
-  const magentaRowsIn = async (box) => {
+  const magentaRowsIn = async (box, minRun = 80) => {
     const shot = await pg.screenshot({ clip: box });
-    return pg.evaluate(async ({ dataUrl, base }) => {
+    return pg.evaluate(async ({ dataUrl, base, minRun }) => {
       const img = new Image();
       await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = dataUrl; });
       const c = document.createElement("canvas");
@@ -114,14 +114,14 @@ try {
           const i = (y * img.width + x) * 4;
           const magenta = d[i] > 200 && d[i + 2] > 200 && d[i + 1] < 90;
           run = magenta ? run + 1 : 0;
-          if (run >= 80) {
+          if (run >= minRun) {
             rows.add(Math.round(y + base));
             break;
           }
         }
       }
       return [...rows];
-    }, { dataUrl: `data:image/png;base64,${shot.toString("base64")}`, base: box.y });
+    }, { dataUrl: `data:image/png;base64,${shot.toString("base64")}`, base: box.y, minRun });
   };
 
   /** Assert the line paints at the ELEMENT bottom, not the ROW bottom. */
@@ -198,7 +198,9 @@ try {
     if (!(t.A[t.A.length - 1] === C)) throw new Error("C did not land as A's last child");
   }
 
-  // ── Band 3: depth-2 child x → child of a2a ──
+  // ── Band 3: depth-2 child x → child of a2a (a CHILDESS block — the owner
+  //    case: the child intent must render as a LINE at the element bottom,
+  //    starting at the child indent — no vertical bar on the row) ──
   await recreateC();
   {
     const g = await dividerGeom();
@@ -206,6 +208,19 @@ try {
     await dragTo(xs.depth2ChildX, g.dividerY);
     const ind = await indicator();
     console.log("band depth-2, live indicator:", ind?.label);
+    if (ind === null || ind.intent !== "child") throw new Error(`expected a child intent, got ${ind?.label}`);
+    const indFresh = await indicator();
+    // The floating chip covers the line's middle (it rides the pointer); a
+    // 30px visible run is enough to prove the line paints.
+    const rows = await magentaRowsIn({
+      x: indFresh.elementLeft,
+      y: indFresh.rowBottom - 4,
+      width: Math.min(indFresh.elementWidth, 700),
+      height: indFresh.elementBottom + 6 - (indFresh.rowBottom - 4),
+    }, 30);
+    console.log("band depth-2, magenta rows:", rows, "elementBottom", Math.round(ind.elementBottom));
+    if (!rows.some((r) => Math.abs(r - ind.elementBottom) <= 3))
+      throw new Error(`no child line at the element bottom (${ind.elementBottom}); rows=${rows}`);
     await finishDrag();
     const t = await tree();
     console.log("band depth-2, a2a children:", t.a2a.map((id) => (id === C ? "C" : "?")).join(","));

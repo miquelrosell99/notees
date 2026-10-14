@@ -1345,9 +1345,10 @@ select:focus-visible {
    depth — a range can never mix a block with a descendant of its sibling.
    The card is an UNDERLAY (z-index -1: behind the rows, above the page)
    spanning the run's block elements — first run row's top to last run
-   row's bottom, shallowest left edge to deepest right edge — in primary-
-   tinted surface tokens, so the text on top stays fully readable; pointer
-   events pass straight through. The surface carries `isolation: isolate`
+   row's bottom, shallowest left edge to deepest right edge — in accent-
+   tinted surface tokens (the accent is the engagement color, so the
+   selection wears the active hue), so the text on top stays fully readable;
+   pointer events pass straight through. The surface carries `isolation: isolate`
    so the negative z-index anchors to THE SURFACE's own stacking context —
    without it the card would paint behind the opaque page-card backgrounds
    (a negative child loses to ancestor backgrounds in a shared context)
@@ -1364,9 +1365,9 @@ select:focus-visible {
      so the text stays fully readable; pointer events pass straight through. */
   z-index: -1;
   box-sizing: border-box;
-  border: var(--border-width-default) solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+  border: var(--border-width-default) solid color-mix(in srgb, var(--color-accent) 32%, transparent);
   border-radius: var(--shape-medium);
-  background: color-mix(in srgb, var(--color-primary) 7%, var(--color-surface-container));
+  background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface-container));
   pointer-events: none;
 }
 
@@ -1428,9 +1429,14 @@ select:focus-visible {
 }
 
 /* The indent rail: the vertical hairline is itself a control (the v1
-   pattern). The rail spans the border plus the gutter up to the child's row
-   padding — no child content lives in that strip, so it never eats child
-   clicks. Hover/focus paints an accent hairline as the affordance. */
+   pattern, per-height refined — see collapseFromRailClick in BlockRow).
+   The rail rides the children container's left border but its TOP extends
+   across the block's metadata sections up to the row's bottom edge (set
+   inline by BlockRow's extendRail), so the line reaches the bullet. The
+   resting hairline is drawn BY the rail, aligned with the border column
+   (1px from the rail's left edge), one continuous line from the row down;
+   hover/focus strengthens it to a 2px accent hairline on the same column.
+   No child content lives in the strip, so it never eats child clicks. */
 .nt-block-children__rail {
   position: absolute;
   top: 0;
@@ -1439,14 +1445,14 @@ select:focus-visible {
   width: 9px;
   padding: 0;
   border: none;
-  background: transparent;
   cursor: pointer;
   touch-action: manipulation;
+  background: linear-gradient(to right, transparent 0 1px, var(--color-outline-variant) 1px 2px, transparent 2px);
 }
 
 .nt-block-children__rail:hover,
 .nt-block-children__rail:focus-visible {
-  background: linear-gradient(to right, var(--color-accent) 0 2px, transparent 2px);
+  background: linear-gradient(to right, transparent 0 1px, var(--color-accent) 1px 3px, transparent 3px);
   outline: none;
 }
 
@@ -1908,16 +1914,20 @@ select:focus-visible {
 /* Drop indicator: the line rides the BLOCK ELEMENT's edges — above at the
    element's top, below at the element's bottom, i.e. after THE ENTIRE
    block (text row, properties, linked references, children), never mid-
-   element at the text row. The child intent keeps its row highlight (the
-   bar at the child-offset x where a dropped child would sit). */
+   element at the text row. The child intent is the same line at the bottom
+   divider, starting at the child-offset indentation (48px — CHILD_DROP_
+   OFFSET_PX — where the dropped child would sit): "insert here, one level
+   deeper" reads as a line, consistent with the sibling intents. All lines
+   ride the accent (the engagement color), not the neutral ink. */
 .nt-block.nt-drop-above::before,
-.nt-block.nt-drop-below::after {
+.nt-block.nt-drop-below::after,
+.nt-block.nt-drop-child::after {
   content: "";
   position: absolute;
   left: 0;
   right: 0;
   height: 2px;
-  background: var(--color-primary);
+  background: var(--color-accent);
   pointer-events: none;
 }
 
@@ -1925,26 +1935,25 @@ select:focus-visible {
   top: 0;
 }
 
-.nt-block.nt-drop-below::after {
+.nt-block.nt-drop-below::after,
+.nt-block.nt-drop-child::after {
   bottom: 0;
 }
 
-.nt-block.nt-drop-child > .nt-block-row {
-  background:
-    linear-gradient(var(--color-primary), var(--color-primary)) no-repeat left 48px top 0 / 3px 100%,
-    linear-gradient(var(--color-surface-container-high), var(--color-surface-container-high));
-  border-radius: var(--shape-small);
+/* The child line starts at the child-offset indentation. */
+.nt-block.nt-drop-child::after {
+  left: 48px;
 }
 
 /* The dragged source stays in place and reads muted — the floating name
    chip (DragOverlay) is the only drag preview, so nothing under the
-   pointer reshapes. */
+   pointer reshapes. The row tint carries a whisper of the accent. */
 .nt-block--drag-source {
   opacity: var(--opacity-45);
 }
 
 .nt-block--drag-source > .nt-block-row {
-  background: var(--color-surface-container-high);
+  background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface-container-high));
   border-radius: var(--shape-small);
 }
 
