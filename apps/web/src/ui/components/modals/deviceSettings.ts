@@ -187,3 +187,18 @@ export function toggleFocusMode(): boolean {
   applyAppearance();
   return next;
 }
+
+/**
+ * Flip theme — the palette's "Toggle theme" command: resolves the current
+ * setting (incl. "system") to the concrete theme and stores the opposite,
+ * so the flip always sticks on reload (the palette's old private writer
+ * set the legacy key, which the modern setting overrides — a no-op flip).
+ * The OLED flag rides the dark theme and survives a light→dark round trip.
+ */
+export function flipTheme(): "light" | "dark" {
+  const next: ThemePreference =
+    resolveTheme(readDeviceSetting<ThemePreference>("theme", "system")) === "dark" ? "light" : "dark";
+  writeDeviceSetting("theme", next);
+  applyAppearance();
+  return next;
+}
