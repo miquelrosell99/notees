@@ -258,7 +258,7 @@ describe("ExportPdfDocument component tree", () => {
     const document = fixtureDocument();
     const notes = render(<ExportPdfDocument document={document} options={resolveExportOptions({ layout: "notes" })} />);
     expect(notes.container.querySelector("page")!.getAttribute("style")).toContain("background-color");
-    // Notes carries the warm-paper canvas (the --color-background token value);
+    // Notes carries the warm-paper canvas (the --md-sys-color-background token value);
     // essay/academic are white.
     expect(PDF_THEMES.notes.colors.paper).toBe("#f7f4ec");
     expect(PDF_THEMES.essay.colors.paper).toBe("#ffffff");

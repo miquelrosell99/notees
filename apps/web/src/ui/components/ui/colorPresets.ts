@@ -7,25 +7,25 @@
  *
  * Wire grammar (packages/protocol/src/colors.ts): stored colors are
  * preset TOKENS (`"sky"`) or custom `#RRGGBB` hex — never CSS syntax. The
- * concrete preset hex lives only in variables.css (`--color-preset-*`), so
+ * concrete preset hex lives only in variables.css (`--md-sys-color-preset-*`), so
  * themes remap the palette without rewriting node data.
  *
  * Two render-side helpers bridge stored values:
  *  - `cssColorFor(stored)` — a CSS value for style props (token →
- *    `var(--color-preset-<token>)`, hex passthrough);
+ *    `var(--md-sys-color-preset-<token>)`, hex passthrough);
  *  - `resolveCssColor(stored)` — a concrete hex for math (contrast, canvas;
  *    token → PRESET_HEX, hex passthrough). PRESET_HEX mirrors variables.css
  *    and a parity test (color-presets.test.ts) fails on drift.
  *
  * `canonicalColor(stored)` folds the retired CSS-variable encoding
- * (`var(--color-preset-red)`) to its token — render tolerance for data
+ * (`var(--md-sys-color-preset-red)`) to its token — render tolerance for data
  * read before the log migration / client re-sync window closes; the
  * wire schemas reject that encoding outright.
  */
 
 import { COLOR_PRESET_TOKENS, type ColorToken } from "@notees/protocol";
 
-/** token → concrete hex. MUST mirror variables.css `--color-preset-*`. */
+/** token → concrete hex. MUST mirror variables.css `--md-sys-color-preset-*`. */
 export const PRESET_HEX: Record<ColorToken, string> = {
   red: "#e34d45",
   orange: "#ed822b",
@@ -61,7 +61,7 @@ export const PRESET_COLOR_ENTRIES: ColorEntry[] = [
   { value: "gray", label: "Gray" },
 ] as const;
 
-const LEGACY_VAR_PATTERN = /^var\(--color-preset-([a-z]+)\)$/;
+const LEGACY_VAR_PATTERN = /^var\(--md-sys-color-preset-([a-z]+)\)$/;
 
 /** True when `value` is one of the preset tokens. */
 export function isPresetToken(value: string): value is ColorToken {
@@ -79,11 +79,11 @@ export function canonicalColor(stored: string): string {
 
 /**
  * A CSS color value for style props: a preset token becomes its themed
- * `var(--color-preset-*)` reference; custom hex passes through.
+ * `var(--md-sys-color-preset-*)` reference; custom hex passes through.
  */
 export function cssColorFor(stored: string): string {
   const value = canonicalColor(stored);
-  return isPresetToken(value) ? `var(--color-preset-${value})` : value;
+  return isPresetToken(value) ? `var(--md-sys-color-preset-${value})` : value;
 }
 
 /**
@@ -110,13 +110,13 @@ export function coloredPillStyle(
   const match = /^#([0-9a-f]{6})$/i.exec(resolved);
   const foreground =
     match === null
-      ? "var(--color-on-primary-container)"
+      ? "var(--md-sys-color-on-primary-container)"
       : (() => {
           const rgb = parseInt(match[1]!, 16);
           const channel = (shift: number) => ((rgb >> shift) & 0xff) / 255;
           const luminance =
             0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0);
-          return luminance > 0.45 ? "var(--color-black)" : "var(--color-white)";
+          return luminance > 0.45 ? "var(--md-sys-color-black)" : "var(--md-sys-color-white)";
         })();
   return { background: cssColorFor(stored), color: foreground };
 }

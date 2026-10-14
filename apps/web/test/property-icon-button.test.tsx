@@ -261,7 +261,7 @@ describe("PropertyIconButton boolean mode", () => {
 
     render(<PageView client={client} pageId={pageId} />);
     const button = screen.getByRole("button", { name: "flag: True" });
-    expect(button.querySelector("svg")!.style.color).toContain("--color-preset-green");
+    expect(button.querySelector("svg")!.style.color).toContain("--md-sys-color-preset-green");
 
     fireEvent.click(button);
     const menu = screen.getByRole("menu", { name: "flag" });
@@ -270,7 +270,7 @@ describe("PropertyIconButton boolean mode", () => {
     // False: hollow circle tinted gray, unchecked.
     const falseRow = within(menu).getByRole("menuitem", { name: "False" });
     expect(falseRow.querySelector(".nt-propicon-option__check")).toBeNull();
-    expect(falseRow.querySelector("svg")!.style.color).toContain("--color-preset-gray");
+    expect(falseRow.querySelector("svg")!.style.color).toContain("--md-sys-color-preset-gray");
     // Value set + not required → the None clear row.
     expect(within(menu).getByRole("menuitem", { name: "None" })).not.toBeNull();
   });

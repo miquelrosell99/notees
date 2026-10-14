@@ -10,8 +10,8 @@
 .selection-button {
   position: relative;
   display: inline-flex;
-  background: var(--color-surface-container);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface-container);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
   padding: var(--spacing-1);
   gap: var(--spacing-micro);
@@ -34,7 +34,7 @@
   position: absolute;
   top: var(--spacing-1); /* Match container padding */
   left: var(--spacing-1); /* Match container padding */
-  background: var(--color-accent);
+  background: var(--md-sys-color-primary);
   border-radius: var(--shape-medium);
   transition: transform var(--motion-duration-medium) var(--motion-easing-collapse),
               width var(--motion-duration-shorter) var(--motion-easing-collapse),
@@ -56,7 +56,7 @@
   min-width: var(--button-min-height);
   min-height: var(--button-min-height);
   border-radius: var(--shape-medium);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   cursor: pointer;
   transition: color var(--motion-duration-short) var(--motion-easing-standard);
   z-index: var(--z-1);
@@ -76,16 +76,16 @@
 }
 
 .selection-button__option:hover:not(:disabled, .selection-button__option--selected) {
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 .selection-button__option:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-accent);
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: calc(var(--spacing-micro) * -1);
 }
 
 .selection-button__option--selected {
-  color: var(--color-on-accent);
+  color: var(--md-sys-color-on-primary);
 }
 
 /* Ensure SVG icons are perfectly centered inside flex button */
@@ -110,7 +110,7 @@
   min-width: var(--button-min-height);
   min-height: var(--button-min-height);
   border-radius: var(--shape-medium);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   cursor: pointer;
   transition: color var(--motion-duration-short) var(--motion-easing-standard),
               background var(--motion-duration-short) var(--motion-easing-standard);
@@ -130,17 +130,17 @@
 }
 
 .selection-button__overflow-toggle:hover:not(:disabled) {
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 .selection-button__overflow-toggle:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-accent);
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: calc(var(--spacing-micro) * -1);
 }
 
 .selection-button__overflow-toggle--open {
-  color: var(--color-accent);
-  background: var(--color-surface-container-highest);
+  color: var(--md-sys-color-primary);
+  background: var(--md-sys-color-surface-container-highest);
 }
 
 /* Overflow dropdown */
@@ -154,8 +154,8 @@
   gap: var(--spacing-micro);
   min-width: var(--layout-size-xl);
   padding: var(--spacing-1);
-  background: var(--color-surface);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-floating-panel);
   box-shadow: var(--elevation-2);
 }
@@ -169,7 +169,7 @@
   border: none;
   border-radius: var(--shape-small);
   background: transparent;
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   font: var(--font-label-large);
   cursor: pointer;
   text-align: left;
@@ -177,16 +177,16 @@
 }
 
 .selection-button__overflow-item:hover:not(:disabled) {
-  background: var(--color-surface-container-highest);
+  background: var(--md-sys-color-surface-container-highest);
 }
 
 .selection-button__overflow-item:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-accent);
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: calc(var(--spacing-micro) * -1);
 }
 
 .selection-button__overflow-item--active {
-  color: var(--color-accent);
+  color: var(--md-sys-color-primary);
 }
 
 /* Size variants */
@@ -261,13 +261,13 @@
 
 .selection-button__label {
   font: var(--font-label-large);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   user-select: none;
 }
 
 .selection-button__description {
   font: var(--font-body-small);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 /* Size-specific label adjustments */

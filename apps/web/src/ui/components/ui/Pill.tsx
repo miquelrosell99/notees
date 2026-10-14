@@ -71,7 +71,7 @@ export const Pill: FC<PillProps> = ({
   const pillStyle = color
     // Absolute black/white are contrast-math results against arbitrary
     // user-chosen tag/property colors, not theme surfaces.
-    ? { backgroundColor: color, color: isColorLight(color) ? 'var(--color-black)' : 'var(--color-white)' }
+    ? { backgroundColor: color, color: isColorLight(color) ? 'var(--md-sys-color-black)' : 'var(--md-sys-color-white)' }
     : undefined;
 
   const variantClass = variant === 'default' ? '' : `pill--${variant}`;

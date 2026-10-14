@@ -17,8 +17,8 @@
   min-width: 180px;
   max-height: 280px;
   overflow-y: auto;
-  background: var(--color-surface);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-floating-panel);
   box-shadow: var(--shadow-elevation-2);
   padding: var(--spacing-1);
@@ -38,7 +38,7 @@
   gap: var(--spacing-1);
   padding: var(--spacing-1) var(--spacing-2);
   border-radius: var(--shape-small);
-  background: var(--color-surface);
+  background: var(--md-sys-color-surface);
 }
 
 .class-pills-popup__row--dragging {
@@ -52,14 +52,14 @@
   border: none;
   background: none;
   padding: 0;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   cursor: grab;
 }
 
 .class-pills-popup__icon {
   flex-shrink: 0;
   display: inline-flex;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .class-pills-popup__name {
@@ -69,5 +69,5 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font: var(--font-label-medium);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }

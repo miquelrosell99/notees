@@ -21,8 +21,8 @@
 
 .floating-toolbar__card {
   display: inline-flex;
-  background: var(--color-surface);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 }
 
 .floating-toolbar__actions {
@@ -38,7 +38,7 @@
 }
 
 .floating-toolbar__button:hover {
-  background: var(--color-surface-container-high);
+  background: var(--md-sys-color-surface-container-high);
 }
 
 /* ─── App-shell adaptation ────────────────────────────────────────
@@ -59,7 +59,7 @@
   justify-content: center;
   border: none;
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   border-radius: var(--shape-small);
   cursor: pointer;
   font-family: var(--font-family-base);
@@ -69,6 +69,6 @@
 
 /* .btn--ghost.btn--active */
 .floating-toolbar__button.btn--active {
-  background: var(--color-surface-container-active);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface-container-active);
+  color: var(--md-sys-color-on-surface);
 }

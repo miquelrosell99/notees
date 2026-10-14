@@ -1,7 +1,7 @@
 /* GhostRow — the ghost-block row: row chrome (gutter + bullet) at the
    row's depth, the content area a muted "+ Add block" button. The bullet
    reads FAINT, never at a real bullet's weight: a real block's
-   dot is --color-on-surface-variant at 55% opacity; the ghost's sits at
+   dot is --md-sys-color-on-surface-variant at 55% opacity; the ghost's sits at
    30% and brightens only when the row is reached for. The label stays
    hidden until the row is hovered or focused (the affordance
    reads as a faint bullet until you reach for it). */
@@ -27,7 +27,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--color-on-surface-variant);
+  background: var(--md-sys-color-on-surface-variant);
   opacity: var(--opacity-30);
   flex: none;
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
@@ -41,7 +41,7 @@
   padding: 0;
   text-align: left;
   cursor: text;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font: var(--font-body-small);
   opacity: 0;
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);

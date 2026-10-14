@@ -19,10 +19,10 @@
   flex: 1;
   min-width: 0;
   padding: var(--spacing-1) var(--spacing-2);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-small);
-  background: var(--color-surface);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
   font: var(--font-body-medium);
   font-size: var(--font-size-sm);
 }
@@ -39,7 +39,7 @@
 .nt-comments__list--nested {
   margin-inline-start: var(--spacing-4);
   padding-inline-start: var(--spacing-2);
-  border-left: var(--border-width-default) solid var(--color-outline-variant);
+  border-left: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 }
 
 .nt-comments__item {
@@ -63,7 +63,7 @@
   border: none;
   border-radius: var(--shape-small);
   background: none;
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   font: var(--font-body-medium);
   font-size: var(--font-size-sm);
   text-align: left;
@@ -74,7 +74,7 @@
 }
 
 .nt-comments__text:hover {
-  background: var(--color-hover-overlay);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-comments__actions {
@@ -94,11 +94,11 @@
   border: none;
   border-radius: var(--shape-small);
   background: none;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   cursor: pointer;
 }
 
 .nt-comments__action:hover {
-  background: var(--color-hover-overlay);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
 }

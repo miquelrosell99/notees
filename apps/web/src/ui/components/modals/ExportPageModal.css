@@ -36,24 +36,24 @@
 .export-modal__format-card-icon {
   font-size: var(--font-size-lg);
   line-height: 1;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .export-modal__format-card[aria-checked="true"] .export-modal__format-card-icon {
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
 }
 
 .export-modal__format-card-label {
   font-size: var(--font-size-sm);
   font-weight: 500;
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   overflow-wrap: anywhere;
 }
 
 .export-modal__format-card-reason {
   font-size: var(--font-size-xs);
   line-height: 1.4;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   overflow-wrap: anywhere;
 }
 
@@ -61,9 +61,9 @@
 .export-modal__pdf-preview {
   width: 100%;
   min-height: 22.5rem;
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-medium);
-  background: var(--color-surface-container);
+  background: var(--md-sys-color-surface-container);
 }
 
 /* ── Options ── */
@@ -79,8 +79,8 @@
   flex-direction: column;
   gap: var(--spacing-2);
   padding: var(--spacing-2) var(--spacing-3);
-  background: var(--color-surface-container);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface-container);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-medium);
   width: 100%;
 }
@@ -98,7 +98,7 @@
 
 .export-modal__select-label {
   font: var(--font-label-medium);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   flex-shrink: 0;
   box-sizing: border-box;
 }
@@ -141,10 +141,10 @@
   font-size: var(--font-size-sm);
   line-height: 1.5;
   padding: var(--spacing-3);
-  background: var(--color-surface-container);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface-container);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-medium);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   resize: vertical;
   box-sizing: border-box;
   tab-size: 2;
@@ -152,7 +152,7 @@
 
 .export-modal__preview:focus {
   outline: none;
-  border-color: var(--color-outline);
+  border-color: var(--md-sys-color-outline);
 }
 
 .export-modal__preview--loading {
@@ -165,10 +165,10 @@
 .export-modal__preview-note {
   margin: 0;
   padding: var(--spacing-3);
-  background: var(--color-surface-container);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface-container);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-medium);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-sm);
   line-height: 1.5;
 }
@@ -176,8 +176,8 @@
 /* ── Error ── */
 .export-modal__error {
   padding: var(--spacing-2) var(--spacing-3);
-  background: color-mix(in srgb, var(--color-error) 10%, transparent);
-  color: var(--color-error);
+  background: color-mix(in srgb, var(--md-sys-color-error) 10%, transparent);
+  color: var(--md-sys-color-error);
   border-radius: var(--shape-small);
   font-size: var(--font-size-sm);
 }

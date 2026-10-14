@@ -20,7 +20,7 @@
   justify-content: center;
   gap: var(--spacing-6);
   padding: var(--spacing-12) var(--spacing-16);
-  color: var(--color-on-presentation-stage);
+  color: var(--md-sys-color-on-presentation-stage);
 }
 
 /* --- title slide (P4: derived content title + node icon/color) -------------- */
@@ -31,14 +31,14 @@
 
 .nt-deck-title-icon {
   display: inline-flex;
-  color: var(--color-on-presentation-stage-muted);
+  color: var(--md-sys-color-on-presentation-stage-muted);
   margin-bottom: var(--spacing-4);
 }
 
 .nt-deck-title {
   margin: 0;
   font: var(--font-display-large);
-  color: var(--color-on-presentation-stage);
+  color: var(--md-sys-color-on-presentation-stage);
   overflow-wrap: break-word;
   max-width: 100%;
 }
@@ -59,13 +59,13 @@
 
 .nt-deck-slide-title-icon {
   display: inline-flex;
-  color: var(--color-on-presentation-stage-muted);
+  color: var(--md-sys-color-on-presentation-stage-muted);
 }
 
 .nt-deck-slide-title h2 {
   margin: 0;
   font: var(--font-headline-large);
-  color: var(--color-on-presentation-stage);
+  color: var(--md-sys-color-on-presentation-stage);
   overflow-wrap: break-word;
 }
 
@@ -75,7 +75,7 @@
   margin: 0 auto;
   overflow: auto;
   font: var(--font-body-large);
-  color: var(--color-on-presentation-stage);
+  color: var(--md-sys-color-on-presentation-stage);
 }
 
 /* Density sizing (P4): sparse slides read large, dense slides compact and
@@ -103,7 +103,7 @@
 .nt-deck-block-children {
   margin-left: var(--spacing-4);
   padding-left: var(--spacing-3);
-  border-left: var(--border-width-default) solid var(--color-on-presentation-stage-muted);
+  border-left: var(--border-width-default) solid var(--md-sys-color-on-presentation-stage-muted);
 }
 
 /* --- trailing-image layouts (P4) -------------------------------------------- */

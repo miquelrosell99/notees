@@ -7,7 +7,7 @@
 
 .loading-screen--fullscreen {
   min-height: 100vh;
-  background: var(--color-surface-container);
+  background: var(--md-sys-color-surface-container);
 }
 
 .loading-screen--inline {
@@ -24,12 +24,12 @@
 }
 
 .loading-screen__label {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font: var(--font-body-large);
 }
 
 .loading-screen__message {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font: var(--font-body-medium);
   opacity: 0.8;
   min-height: 1.5em;
@@ -39,14 +39,14 @@
 .loading-screen__progress {
   width: min(280px, 80vw);
   height: var(--bullet-dot-size);
-  background: var(--color-surface-container-highest);
+  background: var(--md-sys-color-surface-container-highest);
   border-radius: var(--radius-full);
   overflow: hidden;
 }
 
 .loading-screen__progress-bar {
   height: 100%;
-  background: var(--color-primary);
+  background: var(--md-sys-color-primary);
   border-radius: var(--radius-full);
   transition: width 150ms ease-out;
 }

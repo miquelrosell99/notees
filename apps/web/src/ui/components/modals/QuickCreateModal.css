@@ -30,5 +30,5 @@
 .quick-create-modal__error {
   margin: 0;
   font-size: var(--font-size-sm);
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
 }

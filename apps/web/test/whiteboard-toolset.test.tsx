@@ -145,7 +145,7 @@ describe("whiteboard toolset layout schema", () => {
     const parsed = parseWhiteboardLayout({
       shapes: [
         // Retired var() encoding and garbage colors do not survive.
-        { id: "s1", kind: "line", x: 0, y: 0, w: 10, h: 0, color: "var(--color-preset-red)" },
+        { id: "s1", kind: "line", x: 0, y: 0, w: 10, h: 0, color: "var(--md-sys-color-preset-red)" },
         { id: "s2", kind: "rect", x: 0, y: 0, w: 10, h: 10, color: "not-a-color", strokeWidth: 0 },
         { id: "s3", kind: "text", x: 0, y: 0, w: 10, h: 10, strokeWidth: -3 },
       ],

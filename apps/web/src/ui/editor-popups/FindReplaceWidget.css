@@ -3,8 +3,8 @@
   top: calc(var(--topbar-height) + var(--spacing-2));
   right: var(--spacing-2);
   z-index: var(--z-1000);
-  background: var(--color-surface-bright);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface-bright);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
   box-shadow: none;
   padding: var(--spacing-2);
@@ -24,26 +24,26 @@
 .find-replace-input {
   flex: 1;
   padding: var(--spacing-1) var(--spacing-2);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-small);
   font-size: var(--font-size-button);
-  background: var(--color-surface);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 .find-replace-count {
   font-size: var(--font-size-sm);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   min-width: var(--spacing-8);
   text-align: center;
 }
 
 .find-replace-btn {
   padding: var(--spacing-1) var(--spacing-2);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-small);
-  background: var(--color-surface);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
   font-size: var(--font-size-sm);
   cursor: pointer;
   white-space: nowrap;
@@ -52,7 +52,7 @@
 }
 
 .find-replace-btn:hover:not(:disabled) {
-  background: var(--color-surface-container-high);
+  background: var(--md-sys-color-surface-container-high);
 }
 
 .find-replace-btn:disabled {
@@ -61,9 +61,9 @@
 }
 
 .find-replace-btn.active {
-  background: var(--accent-color);
-  color: var(--color-on-accent);
-  border-color: var(--accent-color);
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  border-color: var(--md-sys-color-primary);
 }
 
 .find-replace-btn.btn--icon-only {
@@ -96,11 +96,11 @@
    page root. */
 
 .find-replace-hit {
-  background: color-mix(in srgb, var(--color-primary-container) 55%, transparent);
+  background: color-mix(in srgb, var(--md-sys-color-primary-container) 55%, transparent);
   border-radius: var(--shape-small);
 }
 
 .find-replace-current {
-  background: var(--color-primary-container);
+  background: var(--md-sys-color-primary-container);
   border-radius: var(--shape-small);
 }

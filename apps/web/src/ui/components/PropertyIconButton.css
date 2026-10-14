@@ -21,17 +21,17 @@
   border: none;
   background: transparent;
   border-radius: var(--shape-small);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   cursor: pointer;
   transition: background var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .nt-propicon:hover {
-  background: var(--color-hover-overlay);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-propicon:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-accent);
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: calc(var(--spacing-micro) * -1);
 }
 
@@ -54,7 +54,7 @@
   width: 10px;
   height: 10px;
   border-radius: var(--radius-full);
-  background: var(--color-on-surface-variant);
+  background: var(--md-sys-color-on-surface-variant);
 }
 
 /* The options popover under the button — ported to the body and
@@ -66,15 +66,15 @@
   padding: var(--spacing-1);
   display: flex;
   flex-direction: column;
-  background: var(--color-surface);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-floating-panel);
   box-shadow: var(--shadow-elevation-2);
 }
 
 .nt-propicon-popover__empty {
   padding: var(--spacing-2) var(--spacing-3);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font: var(--font-body-small);
 }
 
@@ -87,7 +87,7 @@
   border: none;
   background: none;
   font: inherit;
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   text-align: left;
   cursor: pointer;
   border-radius: var(--shape-small);
@@ -95,7 +95,7 @@
 }
 
 .nt-propicon-option:hover {
-  background: var(--color-hover-overlay);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-propicon-option__glyph {
@@ -115,10 +115,10 @@
 .nt-propicon-option__check {
   display: inline-flex;
   flex: none;
-  color: var(--color-accent);
+  color: var(--md-sys-color-primary);
 }
 
 /* The "None" clear row reads subdued like the unset button. */
 .nt-propicon-option--none .nt-propicon-option__label {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }

@@ -18,16 +18,16 @@
   font: inherit;
   font-size: var(--font-size-sm);
   padding: 6px 10px;
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-small);
-  background: var(--color-surface);
-  color: var(--color-primary-hover);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-primary-hover);
   text-align: left;
   cursor: pointer;
 }
 
 .nt-cover-picker__upload:hover {
-  background: var(--color-hover-overlay);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-cover-picker__error,
@@ -35,8 +35,8 @@
   margin: 0;
   padding: 2px var(--spacing-2);
   border-radius: var(--shape-small);
-  background: var(--color-error-container);
-  color: var(--color-error);
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-error);
   font-size: var(--font-size-sm);
 }
 
@@ -60,7 +60,7 @@
   border: none;
   background: transparent;
   border-radius: var(--shape-small);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   opacity: var(--opacity-60);
   cursor: pointer;
   flex-shrink: 0;
@@ -78,8 +78,8 @@
   min-width: 0;
   border-radius: var(--shape-medium);
   overflow: hidden;
-  background: var(--color-surface-container-low);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 }
 
 .nt-covercard__zoom {
@@ -92,7 +92,7 @@
 }
 
 .nt-covercard__zoom:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-primary);
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: calc(-1 * var(--spacing-1));
 }
 
@@ -116,14 +116,14 @@
   padding: 0 var(--spacing-3);
   border: none;
   background: transparent;
-  color: var(--color-outline);
+  color: var(--md-sys-color-outline);
   font: var(--font-body-small);
   cursor: pointer;
 }
 
 .nt-covercard__empty:hover,
 .nt-covercard__empty:focus-visible {
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
 }
 
 .nt-covercard__placeholder {
@@ -135,15 +135,15 @@
   height: 100%;
   min-width: 132px;
   padding: 0 var(--spacing-3);
-  border: var(--border-width-default) dashed var(--color-outline-variant);
-  color: var(--color-on-surface-variant);
+  border: var(--border-width-default) dashed var(--md-sys-color-outline-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-xs);
   box-sizing: border-box;
 }
 
 .nt-covercard__placeholder-name {
   font-weight: var(--font-weight-semibold);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -159,7 +159,7 @@
   gap: var(--spacing-1);
   padding: var(--spacing-1);
   border-radius: var(--shape-small);
-  background: var(--color-surface-container-high);
+  background: var(--md-sys-color-surface-container-high);
   box-shadow: var(--shadow-elevation-1);
 }
 
@@ -169,8 +169,8 @@
 }
 
 .nt-covercard--dropping .nt-covercard__card {
-  border-color: var(--color-primary);
-  background: var(--color-primary-container);
+  border-color: var(--md-sys-color-primary);
+  background: var(--md-sys-color-primary-container);
 }
 
 /* Mobile: the card stacks under the header (the narrow breakpoint). */
@@ -206,7 +206,7 @@
   border: none;
   border-radius: var(--shape-small);
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   opacity: var(--opacity-60);
   cursor: pointer;
 }
@@ -214,7 +214,7 @@
 .nt-bannercard__strip:hover,
 .nt-bannercard__strip:focus-visible {
   opacity: 1;
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
 }
 
 .nt-bannercard__strip-handle {
@@ -235,8 +235,8 @@
   height: var(--banner-btn-height);
   border-radius: var(--shape-medium);
   overflow: hidden;
-  background: var(--color-surface-container-low);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 }
 
 .nt-bannercard__zoom {
@@ -250,7 +250,7 @@
 }
 
 .nt-bannercard__zoom:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-primary);
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: calc(-1 * var(--spacing-1));
 }
 
@@ -272,14 +272,14 @@
   height: 100%;
   border: none;
   background: transparent;
-  color: var(--color-outline);
+  color: var(--md-sys-color-outline);
   font: var(--font-body-small);
   cursor: pointer;
 }
 
 .nt-bannercard__empty:hover,
 .nt-bannercard__empty:focus-visible {
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
 }
 
 .nt-bannercard__placeholder {
@@ -289,15 +289,15 @@
   gap: var(--spacing-2);
   height: 100%;
   padding: 0 var(--spacing-3);
-  border: var(--border-width-default) dashed var(--color-outline-variant);
+  border: var(--border-width-default) dashed var(--md-sys-color-outline-variant);
   box-sizing: border-box;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-xs);
 }
 
 .nt-bannercard__placeholder-name {
   font-weight: var(--font-weight-semibold);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -316,7 +316,7 @@
   gap: var(--spacing-1);
   padding: var(--spacing-1);
   border-radius: var(--shape-small);
-  background: var(--color-surface-container-high);
+  background: var(--md-sys-color-surface-container-high);
   box-shadow: var(--shadow-elevation-1);
 }
 

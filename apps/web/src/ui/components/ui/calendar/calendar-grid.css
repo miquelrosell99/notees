@@ -14,7 +14,7 @@
   text-align: center;
   font: var(--font-label-small);
   font-weight: 600;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   padding: var(--spacing-1);
 }
 
@@ -46,25 +46,25 @@
 }
 
 .calendar-day.btn.has-note {
-  background: var(--color-primary-container);
-  color: var(--color-on-primary-container);
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
   font-weight: 500;
 }
 
 .calendar-day.btn.has-note:hover {
-  background: var(--color-primary-container);
-  color: var(--color-on-primary-container);
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
 }
 
 .calendar-day.btn.today {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
   font-weight: 600;
 }
 
 .calendar-day.btn.today:hover {
-  background: var(--color-primary-hover);
-  color: var(--color-on-primary);
+  background: var(--md-sys-color-primary-hover);
+  color: var(--md-sys-color-on-primary);
 }
 
 /* The panel's outlined selection — ring, not fill, so it composes with the
@@ -89,11 +89,11 @@
   width: var(--spacing-1);
   height: var(--spacing-1);
   border-radius: var(--radius-full);
-  background: var(--color-primary);
+  background: var(--md-sys-color-primary);
 }
 
 .calendar-day.btn.today.dated::after {
-  background: var(--color-on-primary);
+  background: var(--md-sys-color-on-primary);
 }
 
 /* Reviewed tint: a tertiary dot at the top-right corner, on top
@@ -106,5 +106,5 @@
   width: var(--spacing-1);
   height: var(--spacing-1);
   border-radius: var(--radius-full);
-  background: var(--color-tertiary);
+  background: var(--md-sys-color-tertiary);
 }

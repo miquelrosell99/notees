@@ -5,12 +5,12 @@
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-1);
-  color: var(--text-muted);
+  color: var(--md-sys-color-on-surface-variant);
   cursor: pointer;
 }
 
 .nt-repeat-trigger:hover {
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-repeat-trigger-label {
@@ -22,7 +22,7 @@
 }
 
 .nt-repeat-trigger--active {
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
 }
 
 /* The icon-only trigger's accessible name (the Dropdown owns the wrapper

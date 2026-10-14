@@ -1,7 +1,7 @@
 /* PropertyConvertModal — the PG3 blessed delete+recreate conversion flow (token-only). */
 
 .nt-property-convert__intro {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font: var(--font-body-medium);
   margin: 0 0 var(--spacing-4);
 }
@@ -9,12 +9,12 @@
 .nt-property-convert__plan {
   margin-top: var(--spacing-4);
   font: var(--font-body-medium);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-property-convert__dropped {
   margin-top: var(--spacing-3);
-  border: var(--border-width-default) dashed var(--color-outline-variant);
+  border: var(--border-width-default) dashed var(--md-sys-color-outline-variant);
   border-radius: var(--radius-md);
   padding: var(--spacing-3) var(--spacing-4);
 }
@@ -34,7 +34,7 @@
 .nt-property-convert__dropped code {
   font-family: var(--font-family-mono);
   font-size: var(--font-body-small);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-property-convert__dropped-node {
@@ -43,5 +43,5 @@
 
 .nt-property-convert__result {
   font: var(--font-body-medium);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
