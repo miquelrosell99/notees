@@ -73,6 +73,16 @@
   flex-direction: column;
 }
 
+/* The settings page: a full-card surface like the panelled nodeview — the
+   generic centered 800px cap squeezed the nav rail + content into a
+   floating mid-card band. The page frame carries its own inset (SettingsPage.css)
+   and the content column caps itself. */
+.nt-page-card > .settings-page {
+  max-width: none;
+  margin: 0;
+  width: 100%;
+}
+
 /* Right sidebar: the cards-only rail — workspace cards (the
    generic frame around NodeView). FIXED HEIGHT by design (owner
    2026-10-14): the rail wears the raised-card panel treatment (the

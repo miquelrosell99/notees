@@ -9,6 +9,11 @@
   display: flex;
   align-items: flex-start;
   gap: var(--spacing-6);
+  /* The frame carries the card's inset now (the centered-cap opt-out in
+     PageCard.css): the section nav rides the card's left edge with the
+     panelled page's padding rhythm; the bottom step keeps the last section
+     off the card's bottom edge. */
+  padding: var(--spacing-3) var(--spacing-4) var(--spacing-6);
 }
 
 /* ==================== Section Nav ==================== */
@@ -59,6 +64,9 @@
 .settings-page__content {
   flex: 1;
   min-width: 0;
+  /* The reading cap for settings rows: past ~900px the label/control rows
+     over-stretch (the layout-size token, a genuinely constant dimension). */
+  max-width: var(--layout-size-14xl);
 }
 
 /* Narrow: the nav becomes a horizontal scroll row above the content. */
