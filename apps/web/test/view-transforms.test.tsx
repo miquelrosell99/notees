@@ -123,6 +123,30 @@ describe("block collapse", () => {
     expect(container.querySelectorAll(".nt-block-children").length).toBe(2);
   });
 
+  it("the indent rail folds EACH child individually: one click folds every child's subtree (owner untouched), a second unfolds", async () => {
+    const client = await seedClient();
+    const pageId = await seedTreePage(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const rail = blockTreeEl(container).querySelector<HTMLElement>(".nt-block-children__rail");
+    if (rail === null) throw new Error("no indent rail rendered");
+
+    // One click: the nested child's subtree folds, but its row stays, and
+    // the OWNER's own expansion is untouched (its chevron still collapses).
+    fireEvent.click(rail);
+    expect(treeByText(container, "nested child")).not.toBeNull();
+    expect(treeQueryByText(container, "grandchild")).toBeNull();
+    expect(treeByText(container, "parent")).not.toBeNull();
+    expect(screen.getAllByRole("button", { name: "Collapse block" }).length).toBe(1);
+    expect(screen.getByRole("button", { name: "Expand block" })).not.toBeNull();
+
+    // Second click: everything unfolds.
+    fireEvent.click(rail);
+    expect(treeByText(container, "nested child")).not.toBeNull();
+    expect(treeByText(container, "grandchild")).not.toBeNull();
+    expect(container.querySelectorAll(".nt-block-children").length).toBe(2);
+  });
+
   it("renders a chevron only on blocks that have children", async () => {
     const client = await seedClient();
     const pageId = await seedTreePage(client);
