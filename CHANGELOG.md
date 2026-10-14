@@ -9,7 +9,7 @@ predating this file.
 
 ## 2026-10-14
 
-- **fix(web): the quick modal's "Advanced settings →" button was a no-op with a page open — fixed; focus mode moved to the top bar; the Back/Forward arrows moved to the top bar's right side.** Root cause of the dead button: `openSettingsSection` set the settings route but never cleared `selectedPageId` / `searchOpen`, and the PageCard slot checks the selection FIRST — so with a page open the settings page lost the render race and nothing visibly happened (deep links at boot worked, which masked it). The fix is the two clearing calls, mirroring `openSearchPage`. Focus mode left the quick-tweaks modal (theme + accent remain; the description row named page chrome that focus mode no longer hides) for an eye button in the top bar's right section — active state with the eye-off icon, Esc still exits, Ctrl/Cmd+Alt+F and the palette command ride the same `toggleFocusMode` write path. The in-app Back/Forward arrows moved off the center section (the breadcrumbs alone keep the center) to the head of the right section. Verified: `pnpm typecheck` + `pnpm test` green (the modal's focus switch test re-aimed at the shared toggle helper; new top-bar button tests), web-only; no wire/store/sync touch, no client lockstep.
+- **fix(web): the quick modal's "Advanced settings →" button was a no-op with a page open — fixed; focus mode moved to the top bar; the Back/Forward arrows moved to the top bar's right side.** Root cause of the dead button: `openSettingsSection` set the settings route but never cleared `selectedPageId` / `searchOpen`, and the PageCard slot checks the selection FIRST — so with a page open the settings page lost the render race and nothing visibly happened (deep links at boot worked, which masked it). The fix is the two clearing calls, mirroring `openSearchPage`. Focus mode left the quick-tweaks modal and the full settings page (theme + accent remain; the description row named page chrome that focus mode no longer hides) for a crop-free bracket button in the top bar's right section — the active chrome carries the on/off state, Esc still exits, Ctrl/Cmd+Alt+F and the palette command ride the same `toggleFocusMode` write path. The in-app Back/Forward arrows moved off the center section (the breadcrumbs alone keep the center) to the head of the right section. The settings page itself also left the card's generic centered 800px cap for a full-card frame — the section nav rides the card's left edge, the content column caps at 900px — and `/settings/<section>` URLs now survive reload (the connect keep-path guard recognizes the settings routes). Verified: `pnpm typecheck` + `pnpm test` green (the modal's focus switch test re-aimed at the shared toggle helper; new top-bar button tests), a live probe over the test workspace (deep link → screenshot → reload keeps the URL → screenshot), and the verify-min smoke; web-only; no wire/store/sync touch, no client lockstep.
 
 - **fix(web): the Pixi adapter's streamed-frame path is delta-based — the
   50k left-drag hang is fixed (go/no-go Stage 3 blocker resolved).** Root
@@ -48,6 +48,31 @@ predating this file.
   steady bucket churn (overlay only), quiet stream returns overlay edges to
   their buckets, out-of-view moves stay pending until panned into view,
   zoom still full-syncs; graph-pixi suite green (24); full gate green.
+  **Follow-up (owner regression report, same day): panning did nothing —
+  the graph never moved.** Not a regression from the streamed-frame work
+  (the world-transform lines are byte-identical before and after that
+  commit): the adapter's world container was positioned at the canvas
+  centre with the camera translation NEVER applied — `worldToScreen`/
+  `screenToWorld`/picking/labels all honour the camera, so pan worked in
+  every contract except the pixels, and the load test's "pan 11.6 fps"
+  only counted rAF callbacks without verifying movement. The same porting
+  bug mirrored the graph vertically: the GL shader's NDC y-flip was copied
+  into Pixi's y-down canvas space, painting nodes at `-worldToScreen.y`
+  (labels and hover highlights sat at the unmirrored positions). The fix
+  makes the world transform EXACTLY `worldToScreen` for both axes —
+  `position = canvas/2 − camera×zoom`, `scale = (zoom, zoom)` — so pan
+  moves the graph, cursor-anchored zoom anchors correctly, and rendering
+  matches picking/labels (parity with the WebGL visuals). The cull pass
+  already ran on every render with fresh transforms, so cull re-entry
+  needed no change. **Verification:** harness pixel probes (real Pixi +
+  SwiftShader) — pre-fix a node painted at its mirrored position and the
+  view was identical at every pan stop; post-fix all nodes land at
+  `worldToScreen` before and after a pure pan, the mirrored position is
+  empty, and panning across the 50k field re-renders newly visible sprites
+  every stop at ~10–15 ms/frame with no melt. New specs: pan-only camera
+  change moves the world transform while scale stays, the culler runs on
+  pan-only renders, `viewCullRect` follows the camera; graph-pixi suite
+  green (27); full gate green.
 - **test(web): the 50k-node graph load test runs — Pixi at parity-plus, one
   blocker before any default-flip (go/no-go Stage 3 of the renderer
   migration).** The test workspace seeded 50,000 main pages + 25,000 mention
@@ -56,7 +81,9 @@ predating this file.
   renderers measured from one persistent profile, all probe data deleted and
   verified gone afterward (permanent delete took 34 min at ~24/s). Headless
   SwiftShader floors the absolute numbers, but paired and identical:
-  Pixi 2× WebGL's pan/zoom throughput (11.6 vs 5.6 fps; 9.6 vs 4.4), 5×
+  Pixi 2× WebGL's pan/zoom throughput (11.6 vs 5.6 fps; 9.6 vs 4.4 — the
+  pan figure counted rAF callbacks only; actual pan movement was broken
+  until the world-transform fix in the streamed-frame entry above), 5×
   hover latency (0.39s vs 2.17s), clean console vs the WebGL path's texture-
   upload overflow at 50k (its RG32F position texture exceeds the 16k max,
   breaking edges — a genuine WebGL scalability wall Pixi doesn't have).
