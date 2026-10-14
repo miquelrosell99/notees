@@ -9,6 +9,30 @@ predating this file.
 
 ## 2026-10-14
 
+- **fix(web): the graph's canvas colors actually resolve — the minimap was
+  never showing its intended colors (latent `toString()` base bug).**
+  `hexVarToRgba` built its channels with `.toString()` (base 10): any channel
+  ≥ 100 produced a three-digit decimal group, making the 9-digit result an
+  INVALID CSS color — silently ignored by canvas, which keeps the previous
+  fillStyle (default black). Effects before this fix: every minimap dot was
+  black regardless of token (the "all black elements, visibility is trash"
+  report), and the viewport rect painted as a solid black block; label colors
+  survived only by accident (the dark theme's `--color-on-surface` is a
+  `color-mix`, which rides the light-gray fallback; the light theme's
+  #221a13 mangles into a valid but brighter color). The channel now emits
+  base 16 (`toString(16)`), and `resolveHexVar` chases one level of
+  `var(--token)` aliasing (custom properties read via getComputedStyle keep
+  `var()` unresolved — the `--graph-minimap-viewport: var(--color-accent)`
+  alias was falling back to dark taupe). Verified in an isolated harness at
+  7000 synthetic nodes with the shipped dark tokens: light dot field, dense
+  cluster readable, accent-bordered viewport with a 0.12 wash. **Side
+  effects (token-true, intended):** light-theme graph labels now use the real
+  `#221a13` on-surface token and the label halo becomes the real white
+  surface token (it previously fell back to near-black); the dark theme is
+  visually unchanged (its label colors ride the fallback, as before).
+  **Verification:** the five graph suites green (76 specs) + web typecheck
+  clean on the graph files; harness screenshots before/after.
+
 - **fix(web): the selection card is visible again — the underlay anchored its
   `z-index: -1` to a far stacking context and painted behind the opaque
   page-card backgrounds (owner: "I don't see a selection UI at all, with 3
