@@ -325,6 +325,11 @@
   color: var(--color-on-surface);
 }
 
+.nt-graph__settings-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-on-surface-variant);
+}
+
 .nt-graph__settings-slider {
   display: flex;
   flex-direction: column;
