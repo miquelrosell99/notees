@@ -9,6 +9,29 @@ predating this file.
 
 ## 2026-10-14
 
+- **feat(web): the drop indicator repaints above the floating drag chip,
+  with a start tick at the line's first pixel — the indentation level is
+  never hidden (owner proposal round: "the floating dragged block card
+  covers the start of the line… what UI could we use so users can see the
+  line fully?").** Approved option A. The opaque ghost chip rides the
+  pointer and covered the class-based line's left portion — exactly where
+  the indentation cue lives (the line's start x encodes the nesting level).
+  A stacking-context constraint shaped the implementation: a line inside
+  the editing surface can never paint over dnd-kit's DragOverlay (999)
+  portal, so the host now renders a portaled indicator at the snapped
+  candidate's anchor — the same geometry the class lines carry, plus a
+  3×10px accent tick straddling the line's start — at `--z-node-overlay`
+  (1000, one step above the chip). No new measurement: the candidate set
+  already carries each anchor, re-measures on scroll, and the drop line
+  re-projects right after, so the portal tracks auto-scroll and wheel
+  scrolls for free. The row-level `::before`/`::after` lines stay as the
+  no-host / no-candidate fallback; `DropCandidate` gains `rowRight` for the
+  line's span. **Verification:** new spec (portal geometry at the snapped
+  anchor; unmounts at drop) + the merge-candidates specs updated; the
+  drop-targets live probe restored to its strict 80px visible-run threshold
+  (the 30px stop-gap existed only because the chip occluded the line) and
+  re-run against the deployed stack.
+
 - **fix(web): the drag-select's trailing-click swallow is scoped to the
   release row — clicks on any other block edit immediately (owner:
   "two clicks are still needed to enter edit mode with blocks selected").**
