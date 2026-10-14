@@ -9,7 +9,7 @@
   flex-wrap: nowrap;
   gap: var(--spacing-1);
   font: var(--font-label-medium);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   overflow: hidden;
 }
 
@@ -29,7 +29,7 @@
   border: none;
   border-radius: var(--shape-small);
   cursor: pointer;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   transition:
     background var(--motion-duration-short) var(--motion-easing-standard),
     color var(--motion-duration-short) var(--motion-easing-standard);
@@ -38,14 +38,14 @@
 }
 
 .node-breadcrumb-link:hover {
-  background: var(--color-surface-container-high);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
 }
 
 .node-breadcrumb-icon {
   flex-shrink: 0;
   display: inline-flex;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .node-breadcrumb-name {
@@ -56,7 +56,7 @@
 }
 
 .node-breadcrumb-separator {
-  color: var(--color-outline);
+  color: var(--md-sys-color-outline);
   flex-shrink: 0;
 }
 
@@ -100,8 +100,8 @@
   max-width: var(--layout-size-6xl);
   max-height: var(--layout-size-8xl);
   overflow-y: auto;
-  background: var(--color-surface);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-floating-panel);
   padding: var(--spacing-1);
   box-shadow: var(--shadow-elevation-2);
@@ -115,7 +115,7 @@
   border: none;
   border-radius: var(--shape-small);
   background: transparent;
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   cursor: pointer;
   font: var(--font-label-medium);
   text-align: left;
@@ -124,7 +124,7 @@
 }
 
 .node-breadcrumbs-popup-item:hover {
-  background: var(--color-surface-container-high);
+  background: var(--md-sys-color-surface-container-high);
 }
 
 .node-breadcrumb-popup-icon {
@@ -143,18 +143,18 @@
 .node-breadcrumb-add {
   flex-shrink: 0;
   padding: var(--spacing-1) var(--spacing-2);
-  border: var(--border-width-default) dashed var(--color-outline-variant);
+  border: var(--border-width-default) dashed var(--md-sys-color-outline-variant);
   border-radius: var(--shape-small);
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font: var(--font-label-medium);
   cursor: pointer;
   white-space: nowrap;
 }
 
 .node-breadcrumb-add:hover {
-  background: var(--color-surface-container-high);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
 }
 
 /* ─── Right-anchored trails (sidebar card headers) ─────────────────────── */
@@ -176,7 +176,7 @@
   top: 50%;
   transform: translateY(-50%);
   z-index: 1;
-  background: var(--breadcrumb-clip-bg, var(--color-surface));
+  background: var(--breadcrumb-clip-bg, var(--md-sys-color-surface));
   border-radius: var(--shape-small);
   padding-right: var(--spacing-1);
 }

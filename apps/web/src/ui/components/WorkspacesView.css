@@ -10,7 +10,7 @@
 .workspace-management {
   position: fixed;
   inset: 0;
-  background: var(--color-background);
+  background: var(--md-sys-color-background);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -37,7 +37,7 @@
   justify-content: space-between;
   align-items: center;
   padding-bottom: var(--spacing-4);
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   margin-bottom: var(--spacing-6);
   gap: var(--spacing-4);
 }
@@ -56,7 +56,7 @@
 
 .workspace-management__title {
   font: var(--font-title-large);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   margin: 0;
 }
 
@@ -74,12 +74,12 @@
 
 .workspace-management__welcome h2 {
   font: var(--font-title-large);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   margin: 0 0 var(--spacing-2);
 }
 
 .workspace-management__subtitle {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font: var(--font-body-large);
   margin: 0;
 }
@@ -111,12 +111,12 @@
 }
 
 .workspace-management__card--active {
-  background: var(--color-primary-container);
+  background: var(--md-sys-color-primary-container);
 }
 
 .workspace-management__card--delete-confirm {
-  border-color: var(--color-error);
-  background: var(--color-error-container);
+  border-color: var(--md-sys-color-error);
+  background: var(--md-sys-color-error-container);
 }
 
 .workspace-management__card-content {
@@ -132,8 +132,8 @@
   justify-content: space-between;
   align-items: center;
   padding: var(--spacing-2) var(--spacing-5);
-  background: var(--color-surface-container);
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface-container);
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 }
 
 .workspace-management__card-title {
@@ -152,15 +152,15 @@
 
 .workspace-management__pill--active,
 .workspace-management__pill--active:hover {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
   border-color: transparent;
 }
 
 .workspace-management__pill--shared,
 .workspace-management__pill--shared:hover {
-  background: var(--color-tertiary);
-  color: var(--color-on-tertiary);
+  background: var(--md-sys-color-tertiary);
+  color: var(--md-sys-color-on-tertiary);
   border-color: transparent;
 }
 
@@ -192,7 +192,7 @@
 
 .workspace-management__card-name {
   font: var(--font-title-medium);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 .workspace-management__card-meta {
@@ -200,16 +200,16 @@
   flex-direction: column;
   gap: var(--spacing-1);
   font: var(--font-body-small);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .workspace-management__error {
   padding: var(--spacing-2) var(--spacing-3);
   margin-bottom: var(--spacing-3);
-  border: var(--border-width-default) solid var(--color-error);
+  border: var(--border-width-default) solid var(--md-sys-color-error);
   border-radius: var(--shape-small);
-  background: color-mix(in srgb, var(--color-error) 8%, transparent);
-  color: var(--color-error);
+  background: color-mix(in srgb, var(--md-sys-color-error) 8%, transparent);
+  color: var(--md-sys-color-error);
   font: var(--font-body-small);
 }
 
@@ -217,9 +217,9 @@
 .workspace-management__restore-confirm {
   padding: var(--spacing-2) var(--spacing-3);
   margin-bottom: var(--spacing-2);
-  border: var(--border-width-default) solid var(--color-error);
+  border: var(--border-width-default) solid var(--md-sys-color-error);
   border-radius: var(--shape-small);
-  background: color-mix(in srgb, var(--color-error) 8%, transparent);
+  background: color-mix(in srgb, var(--md-sys-color-error) 8%, transparent);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-1);
@@ -227,12 +227,12 @@
 
 .workspace-management__restore-warn {
   font: var(--font-body-small);
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
 }
 
 .workspace-management__restore-error {
   font: var(--font-label-medium);
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
 }
 
 .workspace-management__restore-actions {
@@ -250,7 +250,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-scrim);
+  background: var(--md-sys-color-scrim);
   backdrop-filter: blur(2px);
   pointer-events: all;
 }
@@ -262,10 +262,10 @@
   align-items: center;
   gap: var(--spacing-4);
   padding: var(--spacing-8) var(--spacing-12);
-  background: var(--color-surface);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-extra-large);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   font: var(--font-title-medium);
 }
 
@@ -273,12 +273,12 @@
 .workspace-management__footer {
   text-align: center;
   padding-top: var(--spacing-4);
-  border-top: var(--border-width-default) solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   margin-top: var(--spacing-6);
 }
 
 .workspace-management__footer p {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font: var(--font-body-small);
   margin: 0;
 }
@@ -316,16 +316,16 @@
   align-items: center;
   gap: var(--spacing-2);
   padding: 6px var(--spacing-3);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-full);
-  background: var(--color-surface);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
   font-size: var(--font-size-button);
   cursor: pointer;
 }
 
 .workspace-management__account-btn:hover {
-  background: var(--color-hover-overlay);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .workspace-management__account-avatar {
@@ -336,7 +336,7 @@
   height: 24px;
   border-radius: var(--shape-full);
   overflow: hidden;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .workspace-management__account-avatar img {
@@ -363,8 +363,8 @@
   flex-direction: column;
   gap: 2px;
   padding: var(--spacing-2);
-  background: var(--color-surface-container-high);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface-container-high);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-floating-panel);
   box-shadow: var(--shadow-elevation-2);
 }
@@ -378,14 +378,14 @@
   border: none;
   border-radius: var(--shape-small);
   background: transparent;
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   font-size: var(--font-size-button);
   text-align: left;
   cursor: pointer;
 }
 
 .workspace-management__account-menu button:hover {
-  background: var(--color-hover-overlay);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 /* Ghost create card at the end of the grid. */
@@ -396,10 +396,10 @@
   justify-content: center;
   gap: var(--spacing-2);
   min-height: 8.5rem;
-  border: var(--border-width-default) dashed var(--color-outline);
+  border: var(--border-width-default) dashed var(--md-sys-color-outline);
   border-radius: var(--shape-card);
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-base);
   cursor: pointer;
   transition:
@@ -409,7 +409,7 @@
 }
 
 .workspace-management__card--create:hover {
-  background: var(--color-hover-overlay);
-  color: var(--color-on-surface);
-  border-color: var(--color-outline);
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+  border-color: var(--md-sys-color-outline);
 }

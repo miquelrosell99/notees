@@ -14,7 +14,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-presentation-stage);
+  background: var(--md-sys-color-presentation-stage);
   z-index: var(--z-10000);
   outline: none;
 }
@@ -60,7 +60,7 @@
   gap: var(--spacing-1);
   padding: var(--spacing-1) var(--spacing-2);
   border-radius: var(--shape-full);
-  background: var(--color-surface-container-high);
+  background: var(--md-sys-color-surface-container-high);
   box-shadow: var(--shadow-elevation-2);
   transition:
     opacity var(--motion-duration-medium) var(--motion-easing-standard),
@@ -70,7 +70,7 @@
 
 .presentation-overlay__counter {
   font: var(--font-label-large);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   min-width: var(--spacing-12);
   text-align: center;
   font-variant-numeric: tabular-nums;
@@ -79,7 +79,7 @@
 .presentation-overlay__toolbar-divider {
   width: var(--border-width-default);
   height: var(--spacing-5);
-  background: var(--color-outline-variant);
+  background: var(--md-sys-color-outline-variant);
 }
 
 /* Auto-hide: chrome fades, the pointer with it; any activity restores both

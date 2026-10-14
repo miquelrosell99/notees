@@ -16,15 +16,15 @@
   position: sticky;
   bottom: 0;
   z-index: 6;
-  background: var(--color-surface);
+  background: var(--md-sys-color-surface);
   margin-left: calc(-1 * var(--spacing-6));
   margin-right: calc(-1 * var(--spacing-6));
   padding-left: var(--spacing-6);
   padding-right: var(--spacing-6);
-  border-top: var(--border-width-default) solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   font: var(--font-body-medium);
   font-size: var(--font-size-sm);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-page-footer__dates {
@@ -45,8 +45,8 @@
 }
 
 .nt-page-footer__date:hover {
-  background: var(--color-hover-overlay);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-page-footer__date:disabled {

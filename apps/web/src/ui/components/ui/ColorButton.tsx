@@ -6,7 +6,7 @@
  * Has a gap between the color fill and the button border.
  *
  * Supports preset tokens (`"sky"`), custom hex colors (`#RRGGBB`), and —
- * for display only — the retired `var(--color-preset-*)` encoding (folded to
+ * for display only — the retired `var(--md-sys-color-preset-*)` encoding (folded to
  * its token by colorPresets). The picker stores preset tokens so themes can
  * remap them without touching node data.
  *
@@ -221,7 +221,7 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
   };
 
   const isHexValid = isValidHexColor(hexInput);
-  const previewColor = isHexValid ? normalizeHex(hexInput) : 'var(--color-disabled)';
+  const previewColor = isHexValid ? normalizeHex(hexInput) : 'var(--md-sys-color-disabled)';
 
   const classNames = [
     'color-btn',

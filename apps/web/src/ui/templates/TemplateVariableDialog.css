@@ -9,7 +9,7 @@
 .template-variable-dialog__description {
   margin: 0;
   font: var(--font-body-small);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .template-variable-dialog__code {
@@ -20,7 +20,7 @@
 .template-variable-dialog__empty {
   margin: 0;
   font: var(--font-body-small);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .template-variable-dialog__section {
@@ -32,7 +32,7 @@
 .template-variable-dialog__section-title {
   margin: 0;
   font: var(--font-title-small);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 .template-variable-dialog__dynamic-row {
@@ -41,19 +41,19 @@
   justify-content: space-between;
   gap: var(--spacing-3);
   padding: var(--spacing-2) var(--spacing-3);
-  background: var(--color-bg-secondary);
+  background: var(--md-sys-color-surface-container);
   border-radius: var(--radius-sm);
 }
 
 .template-variable-dialog__dynamic-name {
   font: var(--font-label-medium);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .template-variable-dialog__dynamic-value {
   font-family: var(--font-family-mono);
   font-size: var(--font-size-sm);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   overflow-wrap: anywhere;
 }
 

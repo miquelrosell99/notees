@@ -8,8 +8,8 @@
   gap: var(--spacing-3);
   padding: var(--spacing-4);
   margin: var(--spacing-3);
-  background: var(--color-surface-variant);
-  border: var(--border-width-default) solid var(--color-warning);
+  background: var(--md-sys-color-surface-variant);
+  border: var(--border-width-default) solid var(--md-sys-color-warning);
   border-radius: var(--shape-medium);
 }
 
@@ -27,13 +27,13 @@
   margin: 0 0 var(--spacing-1) 0;
   font-size: var(--font-size-base);
   font-weight: 600;
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 .error-boundary-fallback__message {
   margin: 0 0 var(--spacing-2) 0;
   font-size: var(--font-size-sm);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-family: var(--font-family-mono);
   overflow-wrap: break-word;
 }
@@ -48,10 +48,10 @@
   align-items: center;
   gap: var(--spacing-1);
   padding: var(--spacing-1) var(--spacing-2);
-  background: var(--color-surface-container-high);
-  border: var(--border-width-default) dashed var(--color-outline-variant);
+  background: var(--md-sys-color-surface-container-high);
+  border: var(--border-width-default) dashed var(--md-sys-color-outline-variant);
   border-radius: var(--shape-small);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-sm);
 }
 

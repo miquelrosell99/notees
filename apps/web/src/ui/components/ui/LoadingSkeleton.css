@@ -10,9 +10,9 @@
   border-radius: var(--shape-small);
   background: linear-gradient(
     90deg,
-    var(--color-surface-container-high) 25%,
-    var(--color-surface-container-highest) 50%,
-    var(--color-surface-container-high) 75%
+    var(--md-sys-color-surface-container-high) 25%,
+    var(--md-sys-color-surface-container-highest) 50%,
+    var(--md-sys-color-surface-container-high) 75%
   );
   background-size: 200% 100%;
   animation: shimmer var(--skeleton-shimmer-duration) var(--motion-easing-linear) infinite;
