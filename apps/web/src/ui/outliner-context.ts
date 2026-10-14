@@ -240,9 +240,11 @@ export interface OutlinerContextValue {
   clearSelection: () => void;
   /** Document-order inclusive id range between two rows ([] when either id is outside this tree). */
   rangeBetween: (a: string, b: string) => string[];
-  /** The drag-selection surface sets a one-shot flag on drag end so the trailing click doesn't enter edit mode. */
-  signalDragClick: () => void;
-  consumeDragClick: () => boolean;
+  /** The drag-selection surface arms a one-shot swallow for the RELEASE row's
+   *  trailing click (the click that ends the drag must not enter edit mode);
+   *  clicks on any OTHER row are deliberate and edit normally. */
+  signalDragClick: (endRowId: string) => void;
+  consumeDragClick: (clickedRowId: string) => boolean;
   /**
    * Capture-gesture reads ([[ mention, # chip): filtered node search, the
    * class list, and name resolution for candidate rows. Provided from the
@@ -397,14 +399,14 @@ export function useOutlinerValue(
     setSelectedRoots(new Set<string>());
     setSelectionAnchor(null);
   }, []);
-  const dragClickRef = useRef(false);
-  const signalDragClick = useCallback(() => {
-    dragClickRef.current = true;
+  const dragClickRef = useRef<string | null>(null);
+  const signalDragClick = useCallback((endRowId: string) => {
+    dragClickRef.current = endRowId;
   }, []);
-  const consumeDragClick = useCallback(() => {
-    if (!dragClickRef.current) return false;
-    dragClickRef.current = false;
-    return true;
+  const consumeDragClick = useCallback((clickedRowId: string) => {
+    const endRowId = dragClickRef.current;
+    dragClickRef.current = null; // one-shot either way
+    return endRowId !== null && endRowId === clickedRowId;
   }, []);
 
   const tree = client.getBlockTree(rootId);
