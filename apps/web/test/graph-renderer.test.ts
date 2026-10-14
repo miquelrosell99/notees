@@ -21,6 +21,18 @@ import {
   planEdgeRender,
   type RendererEdge,
 } from "../src/ui/views/graph/renderer/webglRenderer.js";
+import { lodLevelForZoom } from "../src/ui/views/graph/renderer/graphRenderer.js";
+
+describe("GraphRenderer adapter contract", () => {
+  it("lodLevelForZoom drives the adapter's level-of-detail (contract hook)", () => {
+    expect(lodLevelForZoom(0.05)).toBe(0);
+    expect(lodLevelForZoom(0.24)).toBe(0);
+    expect(lodLevelForZoom(0.25)).toBe(1);
+    expect(lodLevelForZoom(0.99)).toBe(1);
+    expect(lodLevelForZoom(1.0)).toBe(2);
+    expect(lodLevelForZoom(4.0)).toBe(2);
+  });
+});
 
 describe("label overlay contract", () => {
   it("caps labels by zoom (60 / 200 / 500 — the closer-zoom ruling)", () => {

@@ -99,6 +99,7 @@ import {
 import { buildNodeVisuals } from "./nodeVisuals.js";
 import { EngineController, type EngineFrame } from "./engineController.js";
 import { GraphWebGLRenderer, type RendererEdge } from "./renderer/webglRenderer.js";
+import type { GraphRenderer } from "./renderer/graphRenderer.js";
 import { drawLabels, labelSignatureChanged, type LabelDrawSignature, type LabelFrame } from "./renderer/labelCanvas.js";
 import { graphTheme } from "./renderer/theme.js";
 import { GraphMinimap } from "./minimap.js";
@@ -245,7 +246,9 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const labelCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const minimapCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const rendererRef = useRef<GraphWebGLRenderer | null>(null);
+  // Typed as the interface, constructed as the concrete class — Stage 2 of
+  // the Pixi migration swaps the construction site behind a device flag.
+  const rendererRef = useRef<GraphRenderer | null>(null);
   const engineRef = useRef<EngineController | null>(null);
   const cameraRef = useRef({ x: 0, y: 0, zoom: 0.5 });
   const frameRef = useRef<EngineFrame | null>(null);
