@@ -411,6 +411,20 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     return () => clearTimeout(timer);
   }, [prefs, prefsSurface]);
 
+  // Browser tab title for the FULL-SURFACE graph only: name the tab on
+  // mount, restore the previous title on unmount. The string matches the
+  // app shell's one-writer rule (App tabTitle names the graph hub
+  // identically). The embedded local-graph card (right rail) must never
+  // touch the title — the host page names the tab.
+  useEffect(() => {
+    if (local !== undefined) return;
+    const previous = document.title;
+    document.title = "Graph - Notees";
+    return () => {
+      document.title = previous;
+    };
+  }, [local]);
+
   /**
    * The display-shaping settings — field-level deps so unrelated prefs
    * (pause, radius, …) never rebuild the GL stack. layoutMode rides here

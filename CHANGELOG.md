@@ -147,6 +147,40 @@ predating this file.
   change moves the world transform while scale stays, the culler runs on
   pan-only renders, `viewCullRect` follows the camera; graph-pixi suite
   green (27); full gate green.
+  **Second owner report (same day): the released node "stays pinned" —
+  investigated, not reproduced, regression-locked.** The suspected
+  baseline/identity-gate interaction cannot produce a pin: the gate diffs
+  exact float equality, so the first post-release frame that differs from
+  the drop-point baseline re-marks the node changed, and any full sync
+  reads live positions. A high-fidelity harness (the real EngineController
+  in BOTH main-thread and physics-worker modes, 400 and 50k nodes,
+  GraphView's exact call sequence — overridePosition + dragMove per
+  pointermove, dragEnd on release, post-release hover + selection) shows
+  the released node's sprite equal to the engine frame on every one of
+  120+ settling frames (0 mismatches, node swings ~200 world units); a
+  node dragged past the view+margin goes pending and flushes when its true
+  position re-enters the cull rect (sprite parked at its last in-view
+  spot meanwhile — correct). New spec: drag release → streamed settling
+  frames move the sprite (identity first frame correctly a no-op). Live
+  re-verification against the deployed stack was attempted and blocked by
+  an ops finding: the test workspace's op log still carries ~126k
+  envelopes (Stage-3 churn; its snapshot is stale by ~50k ops), so a fresh
+  browser spends 30+ minutes applying catch-up before the shell renders —
+  compacting the test workspace log restores fast boots (ops follow-up,
+  not a renderer defect); graph-pixi suite green (28); full gate green.
+  **Addenda (same batch): minimap zoom verified, tab title owned.**
+  Cursor-anchored zoom on the minimap (GraphView's `zoomAtWorldPoint` on the
+  world point under the cursor) verified working on the Pixi path in the
+  harness: the anchored node's screen position drifts 0 px through a ×1.6
+  anchored zoom (2 ms frame), and a control center-anchored zoom moves it
+  exactly as `worldToScreen` predicts — no fix needed (the handler is
+  renderer-agnostic GraphView camera math; it became correct when the world
+  transform started applying the camera). And the tab title: the
+  full-surface GraphView now sets `document.title` to "Graph - Notees" on
+  mount and restores the previous title on unmount (the same string the app
+  shell's one-writer tabTitle rule emits for the graph hub); the embedded
+  local-graph card never touches it. New specs: full-surface title set +
+  restored, embedded card's hands-off.
 - **test(web): the 50k-node graph load test runs — Pixi at parity-plus, one
   blocker before any default-flip (go/no-go Stage 3 of the renderer
   migration).** The test workspace seeded 50,000 main pages + 25,000 mention

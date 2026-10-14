@@ -1335,12 +1335,16 @@ export class GraphPixiRenderer implements GraphRenderer {
     const app = this.app;
     if (!app || !this.ready || this.destroyed) return;
 
-    const { zoom } = this.camera;
-    // World container: GPU transform, no CPU projection per node. The
-    // negative Y scale reproduces the GL NDC y-flip (screen y-down vs
-    // world y-up).
-    this.world.position.set(this.canvasW * 0.5, this.canvasH * 0.5);
-    this.world.scale.set(zoom, -zoom);
+    // World container carries the whole camera mapping — this is
+    // worldToScreen as a transform (Pixi canvas pixels are y-down, no NDC
+    // flip): a world point w lands at (w − camera) × zoom + canvas/2, for
+    // BOTH axes. Pan (camera x/y) moves the graph; zoom scales it.
+    const { x: camX, y: camY, zoom } = this.camera;
+    this.world.position.set(
+      this.canvasW * 0.5 - camX * zoom,
+      this.canvasH * 0.5 - camY * zoom,
+    );
+    this.world.scale.set(zoom, zoom);
 
     // Streamed position frames (a node drag, a settling graph) take the
     // delta paths — a changed node captured before the sprite sync consumes
