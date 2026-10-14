@@ -130,6 +130,19 @@
   overflow: hidden;
 }
 
+/* The stage loading overlay: between "topology projected" and "first
+   pixels" (engine init + warmup at 7.4k nodes). Sits over the canvases,
+   under the toolbar (z-index 3). */
+.nt-graph__stage-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface);
+}
+
 /* The empty surfaces (nothing to graph / empty neighborhood / everything
    filtered out) ride the stage's slot: centered, no canvas mounted. */
 .nt-graph__stage--empty {
