@@ -26,8 +26,8 @@
   border-collapse: separate;
   border-spacing: 0;
   font-size: var(--font-size-base);
-  background: var(--color-surface);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-medium);
   overflow: hidden;
 }
@@ -40,10 +40,10 @@
   z-index: var(--z-10);
   text-align: left;
   font-weight: 600;
-  color: var(--color-on-surface-variant);
-  background: var(--color-surface-variant);
-  border-right: var(--border-width-default) solid var(--color-outline-variant);
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  color: var(--md-sys-color-on-surface-variant);
+  background: var(--md-sys-color-surface-variant);
+  border-right: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   padding: var(--spacing-2) var(--spacing-3);
   white-space: nowrap;
 }
@@ -54,9 +54,9 @@
 
 /* Body cells: the surface wash + the grid hairlines. */
 .nt-table td {
-  background: var(--color-surface);
-  border-right: var(--border-width-default) solid var(--color-outline-variant);
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface);
+  border-right: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   padding: var(--spacing-2) var(--spacing-3);
   vertical-align: middle;
 }
@@ -67,7 +67,7 @@
 
 /* --hoverable: the row hover paints every cell. */
 .nt-table tbody tr:hover > td {
-  background: var(--color-hover-overlay);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-table-sort {
@@ -87,18 +87,18 @@
 }
 
 .nt-table-sort:not(:disabled):hover {
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-table-sort--active {
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
 }
 
 /* Multi-sort: the priority index rides the sort icon. */
 .nt-table-sort-index {
   font-size: var(--font-size-xs);
   font-weight: 600;
-  color: var(--color-outline);
+  color: var(--md-sys-color-outline);
 }
 
 .nt-table-name-btn {
@@ -110,19 +110,19 @@
   border: none;
   background: none;
   padding: 0;
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
 
 .nt-table-name-btn:hover .nt-table-name-label {
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
 }
 
 .nt-table-name-icon {
   flex-shrink: 0;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   display: inline-flex;
 }
 
@@ -133,7 +133,7 @@
 }
 
 .nt-table-created {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   white-space: nowrap;
 }
 
@@ -145,7 +145,7 @@
 
 .nt-table-chip {
   font-size: var(--font-size-xs);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   border: var(--border-width-default) solid currentColor;
   border-radius: var(--radius-full);
   padding: 0 var(--spacing-2);
@@ -164,13 +164,13 @@
 }
 
 .nt-table-select:hover {
-  background: var(--color-hover-overlay);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-table-select:focus,
 .nt-table-select:focus-visible {
   outline: none;
-  background: var(--color-hover-overlay);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-table-select:focus-visible {
@@ -203,7 +203,7 @@
 
 .nt-table-selection__count {
   font-size: var(--font-size-xs);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-table-panel {
@@ -220,13 +220,13 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   padding: var(--spacing-1) var(--spacing-2) 0;
 }
 
 .nt-table-panel__hint {
   font-size: var(--font-size-xs);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   padding: 0 var(--spacing-2);
 }
 
@@ -239,7 +239,7 @@
 }
 
 .nt-table-panel__row:hover {
-  background: var(--color-hover-overlay);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-table-panel__label {
@@ -256,14 +256,14 @@
   background: none;
   padding: 0 var(--spacing-1);
   border-radius: var(--shape-small);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-sm);
   cursor: pointer;
 }
 
 .nt-table-panel__action:hover:not(:disabled) {
-  background: var(--color-hover-overlay);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-table-panel__action:disabled {
@@ -275,7 +275,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-1);
-  border-top: var(--border-width-default) solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   padding-top: var(--spacing-1);
 }
 
@@ -285,14 +285,14 @@
   text-align: left;
   padding: var(--spacing-1) var(--spacing-2);
   border-radius: var(--shape-small);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-sm);
   cursor: pointer;
 }
 
 .nt-table-panel__add-item:hover {
-  background: var(--color-hover-overlay);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-table-panel__reset {
@@ -300,15 +300,15 @@
   background: none;
   padding: var(--spacing-1);
   border-radius: var(--shape-small);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-sm);
   cursor: pointer;
-  border-top: var(--border-width-default) solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 }
 
 .nt-table-panel__reset:hover {
-  background: var(--color-hover-overlay);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-table-panel__check {
@@ -322,7 +322,7 @@
 }
 
 .nt-table-panel__check:hover {
-  background: var(--color-hover-overlay);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 /* Inline cell editing + selection. */
@@ -341,14 +341,14 @@
 }
 
 .nt-table-input:hover {
-  background: var(--color-hover-overlay);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-table-input:focus,
 .nt-table-input:focus-visible {
   /* Super clean while editing too: no outline, a whisper of surface. */
   outline: none;
-  background: var(--color-hover-overlay);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-table-input:focus-visible {
@@ -367,7 +367,7 @@
 }
 
 .nt-table-date:hover {
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
 }
 
 /* The sticky select column — pinned left with the row-gutter shadow;
@@ -394,7 +394,7 @@
 
 /* url/email cells: read-only values navigate (mailto: for email). */
 .nt-table-link {
-  color: var(--color-accent);
+  color: var(--md-sys-color-primary);
   text-decoration: none;
 }
 
@@ -405,7 +405,7 @@
 /* The selected row: the same hover-overlay wash as the row hover (not a
    primary-container fill). */
 .nt-table-row--selected > td {
-  background: var(--color-hover-overlay);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 /* The shared selection-export chrome (cards/board toolbars use the
@@ -419,7 +419,7 @@
 
 .selection-export__count {
   font-size: var(--font-size-sm);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   white-space: nowrap;
 }
 
@@ -435,7 +435,7 @@
 }
 
 .nt-table-daylink:hover {
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
   text-decoration: underline;
 }
 
@@ -451,7 +451,7 @@
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   opacity: 0;
   cursor: pointer;
   vertical-align: middle;
@@ -464,6 +464,6 @@
 }
 
 .nt-table-open:hover {
-  background: var(--color-hover-overlay);
-  color: var(--color-primary);
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-primary);
 }

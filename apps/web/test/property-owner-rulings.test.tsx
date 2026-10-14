@@ -145,7 +145,7 @@ describe("PG16: select option colors", () => {
     await flushWrites();
     const pill = container.querySelector(".nt-property-select .pill") as HTMLElement;
     expect(pill).not.toBeNull();
-    expect(pill.style.background).toContain("--color-preset-sky");
+    expect(pill.style.background).toContain("--md-sys-color-preset-sky");
     // The uncolored option renders no tint.
     await client.setProperty(page, schemaId, "opt-2", 0);
     await flushWrites();

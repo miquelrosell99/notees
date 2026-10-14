@@ -61,6 +61,6 @@
 .search-page__empty,
 .search-page__loading {
   font: var(--font-body-small);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   padding: var(--spacing-4) 0;
 }

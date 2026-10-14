@@ -25,30 +25,30 @@
 .week-strip__weekday {
   font: var(--font-label-small);
   font-weight: 600;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .week-strip__num {
   font: var(--font-body-small);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 .week-strip__day.has-note {
-  background: var(--color-primary-container);
+  background: var(--md-sys-color-primary-container);
 }
 
 .week-strip__day.has-note .week-strip__num {
-  color: var(--color-on-primary-container);
+  color: var(--md-sys-color-on-primary-container);
   font-weight: 500;
 }
 
 .week-strip__day.today {
-  background: var(--color-primary);
+  background: var(--md-sys-color-primary);
 }
 
 .week-strip__day.today .week-strip__weekday,
 .week-strip__day.today .week-strip__num {
-  color: var(--color-on-primary);
+  color: var(--md-sys-color-on-primary);
 }
 
 .week-strip__day.selected {
@@ -65,11 +65,11 @@
   width: var(--spacing-1);
   height: var(--spacing-1);
   border-radius: var(--radius-full);
-  background: var(--color-primary);
+  background: var(--md-sys-color-primary);
 }
 
 .week-strip__day.today.dated::after {
-  background: var(--color-on-primary);
+  background: var(--md-sys-color-on-primary);
 }
 
 .week-strip__day.reviewed::before {
@@ -80,5 +80,5 @@
   width: var(--spacing-1);
   height: var(--spacing-1);
   border-radius: var(--radius-full);
-  background: var(--color-tertiary);
+  background: var(--md-sys-color-tertiary);
 }

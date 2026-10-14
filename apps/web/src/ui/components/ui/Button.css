@@ -11,7 +11,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--spacing-1);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-button-small);
   font-family: var(--font-family-base);
   font-weight: 500;
@@ -25,15 +25,15 @@
   user-select: none;
   white-space: nowrap;
   text-decoration: none;
-  background: var(--color-surface-container);
-  color: var(--color-on-surface-variant);
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface-variant);
   min-height: var(--button-min-height);
 }
 
 .btn:hover:not(:disabled) {
-  background: var(--color-surface-container-high);
-  color: var(--color-on-surface);
-  border-color: var(--color-outline);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  border-color: var(--md-sys-color-outline);
 }
 
 /* Tactile press feedback — same subtle scale as Pill/Card siblings. */
@@ -42,7 +42,7 @@
 }
 
 .btn:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-primary);
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: var(--focus-outline-offset);
 }
 
@@ -170,153 +170,153 @@
 
 /* Default variant */
 .btn--default {
-  background: var(--color-surface-container);
-  border-color: var(--color-outline-variant);
-  color: var(--color-on-surface-variant);
+  background: var(--md-sys-color-surface-container);
+  border-color: var(--md-sys-color-outline-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .btn--default:hover:not(:disabled) {
-  background: var(--color-surface-container-high);
-  border-color: var(--color-outline);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface-container-high);
+  border-color: var(--md-sys-color-outline);
+  color: var(--md-sys-color-on-surface);
 }
 
 .btn--default.btn--active {
-  background: var(--color-surface-container-active);
-  border-color: var(--color-outline-variant);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface-container-active);
+  border-color: var(--md-sys-color-outline-variant);
+  color: var(--md-sys-color-on-surface);
 }
 
 .btn--default:active:not(:disabled) {
-  background: var(--color-surface-container-highest);
-  border-color: var(--color-outline);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface-container-highest);
+  border-color: var(--md-sys-color-outline);
+  color: var(--md-sys-color-on-surface);
 }
 
 /* Primary variant — functional accent */
 .btn--primary {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
-  color: var(--color-on-accent);
+  background: var(--md-sys-color-primary);
+  border-color: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
 }
 
 .btn--primary:hover:not(:disabled) {
-  background: var(--color-accent-hover);
-  border-color: var(--color-accent-hover);
-  color: var(--color-on-accent);
+  background: var(--md-sys-color-primary-hover);
+  border-color: var(--md-sys-color-primary-hover);
+  color: var(--md-sys-color-on-primary);
 }
 
 .btn--primary.btn--active {
-  background: var(--color-accent-active);
-  border-color: var(--color-accent-active);
-  color: var(--color-on-accent);
+  background: var(--md-sys-color-primary-pressed);
+  border-color: var(--md-sys-color-primary-pressed);
+  color: var(--md-sys-color-on-primary);
 }
 
 .btn--primary:active:not(:disabled) {
-  background: var(--color-accent-active);
-  border-color: var(--color-accent-active);
-  color: var(--color-on-accent);
+  background: var(--md-sys-color-primary-pressed);
+  border-color: var(--md-sys-color-primary-pressed);
+  color: var(--md-sys-color-on-primary);
 }
 
 /* Ghost variant - transparent background with border on hover */
 .btn--ghost {
   background: transparent;
   border-color: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 /* Outline variant — transparent background with a persistent outline
    border; the secondary action style next to a primary filled button. */
 .btn--outline {
   background: transparent;
-  border-color: var(--color-outline);
-  color: var(--color-on-surface-variant);
+  border-color: var(--md-sys-color-outline);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .btn--outline:hover:not(:disabled) {
-  background: var(--color-surface-container-high);
-  border-color: var(--color-outline);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface-container-high);
+  border-color: var(--md-sys-color-outline);
+  color: var(--md-sys-color-on-surface);
 }
 
 .btn--outline.btn--active {
-  background: var(--color-surface-container-active);
-  border-color: var(--color-outline);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface-container-active);
+  border-color: var(--md-sys-color-outline);
+  color: var(--md-sys-color-on-surface);
 }
 
 .btn--outline:active:not(:disabled) {
-  background: var(--color-surface-container-high);
-  border-color: var(--color-outline);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface-container-high);
+  border-color: var(--md-sys-color-outline);
+  color: var(--md-sys-color-on-surface);
 }
 
 .btn--ghost:hover:not(:disabled) {
-  background: var(--color-surface-container);
-  border-color: var(--color-outline-variant);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface-container);
+  border-color: var(--md-sys-color-outline-variant);
+  color: var(--md-sys-color-on-surface);
 }
 
 .btn--ghost.btn--active {
-  background: var(--color-surface-container-active);
-  border-color: var(--color-outline-variant);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface-container-active);
+  border-color: var(--md-sys-color-outline-variant);
+  color: var(--md-sys-color-on-surface);
 }
 
 .btn--ghost:active:not(:disabled) {
-  background: var(--color-surface-container-high);
-  border-color: var(--color-outline-variant);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface-container-high);
+  border-color: var(--md-sys-color-outline-variant);
+  color: var(--md-sys-color-on-surface);
 }
 
 /* Danger variant */
 .btn--danger {
   background: transparent;
   border-color: transparent;
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
 }
 
 .btn--danger:hover:not(:disabled) {
-  background: var(--color-error-container);
+  background: var(--md-sys-color-error-container);
 }
 
 .btn--danger.btn--active {
-  background: var(--color-error-container);
-  border-color: var(--color-error);
-  color: var(--color-error);
+  background: var(--md-sys-color-error-container);
+  border-color: var(--md-sys-color-error);
+  color: var(--md-sys-color-error);
 }
 
 .btn--danger:active:not(:disabled) {
-  background: var(--color-error-container);
-  color: var(--color-error);
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-error);
 }
 
 /* Solid danger variant — destructive confirmations that must read as the
    strongest action on screen (e.g. ConfirmationModal confirm button). */
 .btn--danger-solid {
-  background: var(--color-error);
-  border-color: var(--color-error);
-  color: var(--color-on-error);
+  background: var(--md-sys-color-error);
+  border-color: var(--md-sys-color-error);
+  color: var(--md-sys-color-on-error);
 }
 
 .btn--danger-solid:hover:not(:disabled) {
-  background: var(--color-error-hover);
-  border-color: var(--color-error-hover);
-  color: var(--color-on-error);
+  background: var(--md-sys-color-error-hover);
+  border-color: var(--md-sys-color-error-hover);
+  color: var(--md-sys-color-on-error);
 }
 
 .btn--danger-solid:active:not(:disabled) {
-  background: var(--color-error-pressed);
-  border-color: var(--color-error-pressed);
-  color: var(--color-on-error);
+  background: var(--md-sys-color-error-pressed);
+  border-color: var(--md-sys-color-error-pressed);
+  color: var(--md-sys-color-on-error);
 }
 
 /* Active toggle state hover — keep pressed appearance */
 .btn--default.btn--active:hover:not(:disabled),
 .btn--ghost.btn--active:hover:not(:disabled) {
-  background: var(--color-surface-container-active);
-  border-color: var(--color-outline-variant);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface-container-active);
+  border-color: var(--md-sys-color-outline-variant);
+  color: var(--md-sys-color-on-surface);
 }
 
 /* ==================== States ==================== */
@@ -385,8 +385,8 @@
   width: var(--icon-size-xs);
   height: var(--icon-size-xs);
   border-radius: 50%;
-  background: color-mix(in srgb, var(--color-primary) 50%, transparent);
-  color: var(--color-on-primary);
+  background: color-mix(in srgb, var(--md-sys-color-primary) 50%, transparent);
+  color: var(--md-sys-color-on-primary);
   opacity: var(--opacity-70);
 }
 
@@ -396,8 +396,8 @@
   height: var(--icon-size-sm);
   padding: 0 var(--spacing-1);
   border-radius: var(--shape-full);
-  background: color-mix(in srgb, var(--color-primary) 50%, transparent);
-  color: var(--color-on-primary);
+  background: color-mix(in srgb, var(--md-sys-color-primary) 50%, transparent);
+  color: var(--md-sys-color-on-primary);
   font-size: var(--font-size-xs);
   font-weight: 600;
   line-height: 1;

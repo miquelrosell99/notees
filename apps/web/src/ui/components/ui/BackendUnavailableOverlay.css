@@ -7,7 +7,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-background);
+  background: var(--md-sys-color-background);
   padding: var(--spacing-6);
   text-align: center;
 }
@@ -22,20 +22,20 @@
 
 .backend-unavailable-overlay__title {
   margin: 0;
-  color: var(--color-on-background);
+  color: var(--md-sys-color-on-background);
   font: var(--font-headline-small);
 }
 
 .backend-unavailable-overlay__message {
   margin: 0;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font: var(--font-body-large);
 }
 
 /* Honest risk statement + escape action on the lock. */
 .backend-unavailable-overlay__warning {
   margin: 0;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font: var(--font-body-medium);
   max-width: 52ch;
 }
@@ -52,9 +52,9 @@
   justify-content: center;
   gap: var(--spacing-2);
   padding: var(--spacing-2) var(--spacing-4);
-  background-color: var(--color-error-container);
-  color: var(--color-on-error-container);
-  border-bottom: var(--border-width-default) solid var(--color-error);
+  background-color: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-error);
   font-size: var(--font-size-button);
   font-weight: 500;
   position: sticky;
@@ -86,6 +86,6 @@
 }
 
 .backend-unavailable-banner__dismiss:hover {
-  background-color: var(--color-error);
-  color: var(--color-on-error);
+  background-color: var(--md-sys-color-error);
+  color: var(--md-sys-color-on-error);
 }

@@ -12,9 +12,9 @@
   flex-direction: column;
   gap: var(--spacing-1);
   padding: var(--spacing-2);
-  background: var(--color-surface-container-high);
-  color: var(--color-on-surface);
-  border: 1px solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-floating-panel);
   box-shadow: var(--shadow-elevation-3);
 }
@@ -24,8 +24,8 @@
 .nt-hover-preview__view {
   max-height: 20rem;
   overflow-y: auto;
-  background: var(--color-surface);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-floating-panel);
 }
 
@@ -39,13 +39,13 @@
 
 .nt-hover-preview__backlinks {
   font-size: var(--font-size-xs);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-hover-preview__broken {
   padding: var(--spacing-1) var(--spacing-2);
   font-size: var(--font-size-sm);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-hover-preview__broken code {

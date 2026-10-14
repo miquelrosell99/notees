@@ -6,8 +6,8 @@
 /* ==================== Container ==================== */
 .date-picker-popup {
   position: fixed;
-  background: var(--color-surface);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-floating-panel);
 
   /* Design system: zero visual noise — no elevation shadows */
@@ -28,28 +28,28 @@
   flex: 1;
   padding: var(--spacing-2) var(--spacing-3);
   font: var(--font-body-medium);
-  color: var(--color-on-surface);
-  background: var(--color-surface-container);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-surface-container);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   outline: none;
   transition: border-color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .date-picker-text-input::placeholder {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 /* ==================== Parsed Preview ==================== */
 .date-picker-preview {
   font: var(--font-label-small);
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
   padding: 0 var(--spacing-1);
   margin-bottom: var(--spacing-2);
   min-height: var(--font-size-lg);
 }
 
 .date-picker-preview--invalid {
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
 }
 
 /* ==================== Selected Date Indicator ==================== */
@@ -70,10 +70,10 @@
 /* ==================== Insert Error ==================== */
 .date-picker-error {
   font: var(--font-label-small);
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
   padding: var(--spacing-1) var(--spacing-2);
   margin-bottom: var(--spacing-2);
-  background: var(--color-error-container);
+  background: var(--md-sys-color-error-container);
   border-radius: var(--shape-small);
   overflow-wrap: break-word;
 }
@@ -96,7 +96,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 /* ==================== Header (month ⌄ / year ⌄ + ‹ ›) ==================== */
@@ -116,13 +116,13 @@
   flex-direction: column;
   gap: var(--spacing-2);
   min-width: 10ch;
-  border-left: var(--border-width-default) solid var(--color-outline-variant);
+  border-left: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   padding-left: var(--spacing-3);
 }
 
 .date-picker-side-title {
   font: var(--font-label-small);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .date-picker-suggestions {
@@ -142,7 +142,7 @@
   width: 100%;
   padding: var(--spacing-1) var(--spacing-2);
   font: var(--font-body-small);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   background: none;
   border: none;
   border-radius: var(--shape-small);
@@ -151,11 +151,11 @@
 }
 
 .date-picker-suggestion:hover {
-  background: var(--color-hover-overlay);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .date-picker-suggestion--active {
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
   font-weight: 600;
 }
 
@@ -170,7 +170,7 @@
 
 .date-picker-row-label {
   font: var(--font-body-small);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .date-picker-time-row {
@@ -181,16 +181,16 @@
   inline-size: 6ch;
   padding: var(--spacing-1) var(--spacing-2);
   font: var(--font-body-small);
-  color: var(--color-on-surface);
-  background: var(--color-surface-container);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-surface-container);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-small);
   outline: none;
   transition: border-color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .date-picker-time-input:focus {
-  border-color: var(--color-primary);
+  border-color: var(--md-sys-color-primary);
 }
 
 /* ==================== Range slot rows ==================== */
@@ -212,9 +212,9 @@
   min-width: 0;
   padding: var(--spacing-1) var(--spacing-2);
   font: var(--font-body-small);
-  color: var(--color-on-surface);
-  background: var(--color-surface-container);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-surface-container);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-small);
   cursor: pointer;
   text-align: start;
@@ -224,11 +224,11 @@
 }
 
 .date-picker-slot-btn:hover {
-  background: var(--color-hover-overlay);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .date-picker-slot-btn--target {
-  border-color: var(--color-primary);
+  border-color: var(--md-sys-color-primary);
 }
 
 /* ==================== Remove ==================== */
@@ -239,10 +239,10 @@
   width: 100%;
   padding: var(--spacing-1) var(--spacing-2);
   font: var(--font-body-small);
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
   background: none;
   border: none;
-  border-top: var(--border-width-default) solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: 0;
   padding-top: var(--spacing-2);
   cursor: pointer;
@@ -250,7 +250,7 @@
 }
 
 .date-picker-remove:hover {
-  background: var(--color-hover-overlay);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 /* ==================== Repeat row ==================== */

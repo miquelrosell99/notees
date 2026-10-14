@@ -1,7 +1,7 @@
 /* TemplatesSection — the assigned-template cards + the bind affordance. */
 
 .nt-templates-empty {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-button);
   padding: 4px 8px 4px 20px;
 }
@@ -18,9 +18,9 @@
 .nt-template-card {
   display: inline-flex;
   align-items: center;
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-medium);
-  background: var(--color-surface-container-highest);
+  background: var(--md-sys-color-surface-container-highest);
   overflow: hidden;
 }
 
@@ -32,16 +32,16 @@
   background: transparent;
   padding: 6px 8px 6px 10px;
   font: var(--font-label-medium);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-template-card-open:hover {
-  background: var(--color-hover-overlay);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-template-card-open .icon,
 .nt-template-card-open svg {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-template-card-name {
@@ -55,11 +55,11 @@
   border: none;
   background: transparent;
   padding: 6px 4px;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-template-card-apply:hover {
-  color: var(--color-accent);
+  color: var(--md-sys-color-primary);
 }
 
 .nt-template-card-unbind {
@@ -67,11 +67,11 @@
   background: transparent;
   padding: 6px 8px;
   font-size: var(--font-size-button);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-template-card-unbind:hover {
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
 }
 
 .nt-templates-actions {

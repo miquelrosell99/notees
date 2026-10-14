@@ -26,7 +26,7 @@
    indent, no card, no header/footer bands. */
 .nt-fb-group--nested {
   padding-left: var(--spacing-3);
-  border-left: var(--spacing-hairline) solid var(--color-outline-variant);
+  border-left: var(--spacing-hairline) solid var(--md-sys-color-outline-variant);
 }
 
 .nt-fb-group__header {
@@ -37,7 +37,7 @@
 
 .nt-fb-group__count {
   font: var(--font-label-small);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   white-space: nowrap;
 }
 
@@ -56,7 +56,7 @@
   margin: 0;
   padding: var(--spacing-2);
   font-style: italic;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-fb-group__footer {
@@ -72,18 +72,18 @@
   align-items: flex-start;
   gap: var(--spacing-2);
   padding-left: var(--spacing-2);
-  border-left: var(--spacing-hairline) dashed var(--color-outline);
+  border-left: var(--spacing-hairline) dashed var(--md-sys-color-outline);
 }
 
 .nt-fb-not__badge {
   flex-shrink: 0;
   margin-top: 0.35em;
   padding: 0 var(--spacing-2);
-  border: var(--spacing-hairline) solid var(--color-outline);
+  border: var(--spacing-hairline) solid var(--md-sys-color-outline);
   border-radius: var(--radius-sm);
   font: var(--font-label-small);
   letter-spacing: 0.08em;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-fb-not__body {
@@ -107,7 +107,7 @@
 }
 
 .nt-fb-condition:hover {
-  background: var(--color-hover-overlay);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-fb-condition__icon {
@@ -118,12 +118,12 @@
 .nt-fb-condition__label {
   flex-shrink: 0;
   font-weight: 500;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-fb-condition__word {
   flex-shrink: 0;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-fb-condition__spacer {
@@ -143,10 +143,10 @@
   flex: 1;
   min-width: 10ch;
   padding: var(--spacing-1) var(--spacing-2);
-  border: var(--spacing-hairline) solid var(--color-outline-variant);
+  border: var(--spacing-hairline) solid var(--md-sys-color-outline-variant);
   border-radius: var(--radius-sm);
-  background: var(--color-surface-container-lowest);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface-container-lowest);
+  color: var(--md-sys-color-on-surface);
   font: var(--font-body-small);
   text-align: left;
   cursor: pointer;
@@ -156,7 +156,7 @@
 }
 
 .nt-fb-nodepick:hover {
-  border-color: var(--color-outline);
+  border-color: var(--md-sys-color-outline);
 }
 
 /* The add-condition trigger rides the app's quiet button register

@@ -24,16 +24,16 @@
   gap: var(--spacing-3);
   flex-wrap: wrap;
   padding: var(--spacing-3);
-  background: var(--color-surface-variant);
+  background: var(--md-sys-color-surface-variant);
   border-radius: var(--radius-md);
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--md-sys-color-outline-variant);
 }
 
 .nt-vb__scope-label {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-weight: 500;
   font-size: var(--font-size-base);
   flex-shrink: 0;
@@ -52,14 +52,14 @@
   margin: 0;
   padding: var(--spacing-4);
   text-align: center;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-base);
 }
 
 .nt-vb__card {
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--radius-md);
-  background: var(--color-surface);
+  background: var(--md-sys-color-surface);
 }
 
 /* Unset condition: the dashed "add me" placeholder (a calm affordance). */
@@ -81,7 +81,7 @@
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-vb__card-body {
@@ -94,7 +94,7 @@
 
 /* The fixed operator, prose style: lowercase connective word. */
 .nt-vb__word {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-weight: 500;
   font-size: var(--font-size-base);
   white-space: nowrap;
@@ -105,12 +105,12 @@
 .nt-vb__card-body input {
   flex: 1;
   min-width: 10ch;
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--radius-sm);
   padding: var(--spacing-1) var(--spacing-2);
   font-size: var(--font-size-sm);
-  background: var(--color-surface);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 /* Narrow surfaces: the prose row wraps, the control takes a full row. */

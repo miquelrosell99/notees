@@ -43,22 +43,22 @@
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   font: var(--font-body-small);
   text-align: left;
   cursor: pointer;
 }
 
 .grid-menu__item:hover:not(:disabled) {
-  background: var(--color-surface-container-high);
+  background: var(--md-sys-color-surface-container-high);
 }
 
 .grid-menu__item:active:not(:disabled) {
-  background: var(--color-surface-container-highest);
+  background: var(--md-sys-color-surface-container-highest);
 }
 
 .grid-menu__item:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-primary);
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: var(--focus-outline-offset);
 }
 
@@ -70,7 +70,7 @@
 .grid-menu__icon {
   flex-shrink: 0;
   margin-top: 0.15em;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .grid-menu__text {
@@ -85,5 +85,5 @@
 
 .grid-menu__desc {
   font-size: 0.85em;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }

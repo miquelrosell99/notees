@@ -20,7 +20,7 @@
   padding: var(--spacing-2) var(--spacing-3) var(--spacing-1);
   font-size: var(--font-size-xs);
   font-weight: 600;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -35,7 +35,7 @@
   background-color: transparent;
   cursor: pointer;
   font-size: var(--font-size-base);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   text-align: left;
   transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
   outline: none;
@@ -43,9 +43,9 @@
 }
 
 .context-menu-item:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-primary);
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: calc(var(--spacing-micro) * -1);
-  background-color: var(--color-focus-overlay);
+  background-color: var(--md-sys-color-focus-overlay);
 }
 
 
@@ -53,25 +53,25 @@
 .context-menu .context-menu-item:hover:not(.disabled),
 .context-menu .context-menu-item:focus:not(.disabled),
 button.context-menu-item:hover:not(.disabled) {
-  background-color: var(--color-hover-overlay);
+  background-color: var(--md-sys-color-hover-overlay);
 }
 
 .context-menu-item.focused {
-  background-color: var(--color-hover-overlay);
+  background-color: var(--md-sys-color-hover-overlay);
 }
 
 .context-menu-item.active {
-  background: var(--color-primary-container);
+  background: var(--md-sys-color-primary-container);
 }
 
 .context-menu-item.danger {
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
 }
 
 .context-menu-item.danger:hover:not(.disabled),
 .context-menu-item.danger:focus:not(.disabled),
 .context-menu .context-menu-item.danger:hover:not(.disabled) {
-  background-color: var(--color-error-container);
+  background-color: var(--md-sys-color-error-container);
 }
 
 .context-menu-item.disabled {
@@ -98,9 +98,9 @@ button.context-menu-item:hover:not(.disabled) {
 
 .context-menu-badge {
   font: var(--font-label-small);
-  color: var(--color-on-surface-variant);
-  background: var(--color-surface-container);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  color: var(--md-sys-color-on-surface-variant);
+  background: var(--md-sys-color-surface-container);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   padding: var(--spacing-hairline) var(--spacing-1-5);
   border-radius: var(--shape-extra-large);
   white-space: nowrap;
@@ -111,13 +111,13 @@ button.context-menu-item:hover:not(.disabled) {
 
 .context-menu-shortcut {
   font-size: var(--font-size-xs);
-  color: var(--color-outline);
+  color: var(--md-sys-color-outline);
   margin-left: auto;
 }
 
 .context-menu-arrow {
   font-size: var(--font-size-md);
-  color: var(--color-outline);
+  color: var(--md-sys-color-outline);
   margin-left: auto;
 
   /* Arrow chevron rotates when submenu is open */
@@ -131,8 +131,8 @@ button.context-menu-item:hover:not(.disabled) {
 
 /* Inline submenu — expands inside the menu below the trigger item */
 .context-menu-submenu-inline {
-  border-top: var(--border-width-default) solid var(--color-outline-variant);
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   overflow: hidden;
   animation: submenu-expand var(--motion-duration-long) var(--motion-easing-standard);
 }

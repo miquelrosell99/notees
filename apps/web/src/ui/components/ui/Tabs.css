@@ -37,8 +37,8 @@
 
 /* Contained variant — node-tab pill bar */
 .tabs__list--contained {
-  background: var(--color-surface-container);
-  border: var(--border-width-default) solid color-mix(in srgb, var(--color-outline-variant) 35%, transparent);
+  background: var(--md-sys-color-surface-container);
+  border: var(--border-width-default) solid color-mix(in srgb, var(--md-sys-color-outline-variant) 35%, transparent);
   border-radius: var(--shape-large);
 }
 
@@ -48,7 +48,7 @@
   bottom: 1px;
   left: 0;
   height: var(--shape-extra-small);
-  background: var(--color-accent);
+  background: var(--md-sys-color-primary);
   border-radius: var(--shape-hairline);
   transition:
     transform var(--motion-duration-medium) var(--motion-easing-standard),
@@ -70,7 +70,7 @@
   border: none;
   border-radius: var(--shape-small);
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font: inherit;
   font-size: var(--font-size-button);
   font-weight: 400;
@@ -93,21 +93,21 @@
   top: 25%;
   height: 50%;
   width: 1px;
-  background: var(--color-outline-variant);
+  background: var(--md-sys-color-outline-variant);
   opacity: var(--opacity-40);
 }
 
 .tabs__tab:hover:not(:disabled) {
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 .tabs__tab:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-accent);
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: calc(var(--spacing-micro) * -1);
 }
 
 .tabs__tab--active {
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   font-weight: 500;
 }
 
@@ -147,7 +147,7 @@
 .tabs__section-divider {
   width: 1px;
   height: var(--height-xs);
-  background: var(--color-outline-variant);
+  background: var(--md-sys-color-outline-variant);
   opacity: var(--opacity-40);
   margin: 0 var(--spacing-1);
   flex-shrink: 0;

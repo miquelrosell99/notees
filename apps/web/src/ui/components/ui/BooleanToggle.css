@@ -53,7 +53,7 @@
   position: relative;
   display: flex;
   align-items: center;
-  background: var(--color-surface-variant);
+  background: var(--md-sys-color-surface-variant);
   border-radius: var(--shape-full);
   box-shadow: var(--shadow-inset-outline-ring);
   transition: 
@@ -99,7 +99,7 @@
   left: var(--_pad);
   width: var(--_thumb);
   height: var(--_thumb);
-  background: var(--color-outline);
+  background: var(--md-sys-color-outline);
   border-radius: 50%;
   transform: translateY(-50%);
   transition: 
@@ -120,13 +120,13 @@
 
 .toggle-on-text {
   left: var(--spacing-1);
-  color: var(--color-on-accent);
+  color: var(--md-sys-color-on-primary);
   opacity: var(--opacity-0);
 }
 
 .toggle-off-text {
   right: var(--spacing-1);
-  color: var(--color-outline);
+  color: var(--md-sys-color-outline);
   opacity: var(--opacity-100);
 }
 
@@ -137,21 +137,21 @@
 
 /* States */
 .toggle-input:hover + .toggle-track {
-  box-shadow: var(--shadow-inset-accent-ring);
+  box-shadow: var(--shadow-inset-primary-ring);
 }
 
 .toggle-input:focus-visible + .toggle-track {
-  outline: var(--border-width-thick) solid var(--color-accent);
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: var(--spacing-micro);
 }
 
 .toggle-input:checked + .toggle-track {
-  background: var(--color-accent);
+  background: var(--md-sys-color-primary);
   box-shadow: none;
 }
 
 .toggle-input:checked + .toggle-track .toggle-thumb {
-  background: var(--color-on-accent);
+  background: var(--md-sys-color-on-primary);
   box-shadow: none;
 }
 
@@ -189,7 +189,7 @@
 
 .toggle-label {
   font-size: var(--font-size-base);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   user-select: none;
 }
 
@@ -199,7 +199,7 @@
 
 .toggle-description {
   font-size: var(--font-size-sm);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 /* Size-specific label adjustments */

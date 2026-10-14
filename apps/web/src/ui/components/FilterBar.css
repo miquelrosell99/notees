@@ -52,7 +52,7 @@
 }
 
 .nt-filter-bar__count {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   white-space: nowrap;
 }
 
@@ -65,14 +65,14 @@
   flex-direction: column;
   gap: var(--spacing-3);
   padding: var(--spacing-2);
-  border: var(--spacing-hairline) solid var(--color-outline-variant);
+  border: var(--spacing-hairline) solid var(--md-sys-color-outline-variant);
   border-radius: var(--radius-md);
-  background: var(--color-surface-container);
+  background: var(--md-sys-color-surface-container);
 }
 
 .nt-filter-bar__result {
   margin: 0;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font: var(--font-label-small);
 }
 

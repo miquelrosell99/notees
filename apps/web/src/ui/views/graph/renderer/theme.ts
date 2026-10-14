@@ -13,7 +13,7 @@ import type { LabelColors } from "./labelCanvas.js";
  * level of `var(--other)` indirection — custom properties read via
  * getComputedStyle keep `var()` references UNRESOLVED (substitution happens
  * at use-site), so a token that aliases another token (e.g.
- * `--graph-minimap-viewport: var(--color-accent)`) must be chased one hop.
+ * `--graph-minimap-viewport: var(--md-sys-color-primary)`) must be chased one hop.
  * Returns null when the value is anything but a plain hex color.
  */
 function resolveHexVar(varName: string): string | null {
@@ -63,7 +63,7 @@ export interface GraphTheme extends LabelColors {
   /** Semantic (co-occurrence) edge stroke — the --graph-edge-cooccurrence token. */
   semanticEdge: [number, number, number];
   /**
-   * The app's current accent (--color-accent) — the hover-neighborhood
+   * The app's current accent (--md-sys-color-primary) — the hover-neighborhood
    * highlight color (owner ruling 2026-10-13: the hovered node, its incident
    * edges, and its linked nodes highlight in the accent, Obsidian-style).
    */
@@ -82,13 +82,13 @@ let observer: MutationObserver | null = null;
 export function graphTheme(): GraphTheme {
   if (cache !== null) return cache;
   cache = {
-    regular: hexVarToRgba("--color-on-surface", 0.85, "rgba(220,220,220,0.85)"),
-    emphasis: hexVarToRgba("--color-on-surface", 1.0, "rgba(240,240,240,1.0)"),
-    shadow: hexVarToRgba("--color-surface", 0.9, "rgba(18,18,18,0.9)"),
+    regular: hexVarToRgba("--md-sys-color-on-surface", 0.85, "rgba(220,220,220,0.85)"),
+    emphasis: hexVarToRgba("--md-sys-color-on-surface", 1.0, "rgba(240,240,240,1.0)"),
+    shadow: hexVarToRgba("--md-sys-color-surface", 0.9, "rgba(18,18,18,0.9)"),
     nodeDefault: hexVarToRgbaTuple("--graph-node-default", 1.0, [0.62, 0.62, 0.66, 1.0]),
     edgeDefault: hexVarToRgbTriple("--graph-edge-color", [0.83, 0.83, 0.83]),
     semanticEdge: hexVarToRgbTriple("--graph-edge-cooccurrence", [0.54, 0.42, 0.79]),
-    accent: hexVarToRgbTriple("--color-accent", [0.427, 0.655, 0.537]),
+    accent: hexVarToRgbTriple("--md-sys-color-primary", [0.427, 0.655, 0.537]),
     minimapDot: hexVarToRgba("--graph-minimap-dot", 0.55, "rgba(140,140,140,0.55)"),
     minimapViewport: hexVarToRgba("--graph-minimap-viewport", 0.9, "rgba(92,84,76,0.9)"),
     minimapViewportFill: hexVarToRgba("--graph-minimap-viewport", 0.12, "rgba(92,84,76,0.12)"),

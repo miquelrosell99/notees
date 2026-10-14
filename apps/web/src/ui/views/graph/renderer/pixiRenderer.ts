@@ -277,7 +277,7 @@ export function getCssNodeDefaultColorPixi(): [number, number, number, number] {
       cssCache.nodeDefault = hexToTuple(val);
     } else {
       const fallback = getComputedStyle(document.documentElement)
-        .getPropertyValue("--color-on-surface-variant")
+        .getPropertyValue("--md-sys-color-on-surface-variant")
         .trim();
       cssCache.nodeDefault = fallback ? hexToTuple(fallback) : [0.72, 0.72, 0.72, 1.0];
     }

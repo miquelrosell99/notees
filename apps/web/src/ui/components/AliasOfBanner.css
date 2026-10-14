@@ -16,11 +16,11 @@
 
 .nt-alias-banner:hover .pill,
 .nt-alias-banner:focus-visible .pill {
-  background: var(--color-hover-overlay);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-alias-banner:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-primary);
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: var(--focus-outline-offset);
   border-radius: var(--shape-small);
 }

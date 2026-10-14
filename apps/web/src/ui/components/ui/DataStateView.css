@@ -16,24 +16,24 @@
   text-align: center;
   gap: var(--spacing-3);
   padding: var(--spacing-12) var(--spacing-4);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .data-state-view__error-icon {
   font-size: var(--font-size-lg);
-  color: var(--color-warning);
+  color: var(--md-sys-color-warning);
   opacity: var(--opacity-80);
 }
 
 .data-state-view__error-title {
   font: var(--font-title-medium);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   margin: 0;
 }
 
 .data-state-view__error-message {
   font: var(--font-body-medium);
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
   margin: 0;
   max-width: var(--layout-size-9xl);
 }

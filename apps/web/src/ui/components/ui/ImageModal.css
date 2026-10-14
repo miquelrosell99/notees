@@ -5,7 +5,7 @@
 .image-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: var(--color-scrim);
+  background: var(--md-sys-color-scrim);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -23,13 +23,13 @@
 
 .image-modal-close,
 .image-modal-download {
-  background: var(--color-surface);
+  background: var(--md-sys-color-surface);
   border-radius: var(--shape-full);
 }
 
 .image-modal-close:hover,
 .image-modal-download:hover {
-  background: var(--color-surface-variant);
+  background: var(--md-sys-color-surface-variant);
 }
 
 .image-modal-bullet {

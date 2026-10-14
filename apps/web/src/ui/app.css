@@ -4,8 +4,8 @@
 body {
   margin: 0;
   font-family: var(--font-family-base);
-  background: var(--color-background);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-background);
+  color: var(--md-sys-color-on-surface);
 }
 
 * {
@@ -18,12 +18,12 @@ button {
 }
 
 :focus-visible {
-  outline: var(--border-width-thick) solid var(--color-primary);
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: var(--focus-outline-offset);
 }
 
 button:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-primary);
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: var(--spacing-micro);
 }
 
@@ -32,7 +32,7 @@ textarea,
 select {
   font-family: inherit;
   font-size: inherit;
-  caret-color: var(--color-on-surface);
+  caret-color: var(--md-sys-color-on-surface);
   border-radius: var(--shape-extra-large);
 }
 
@@ -44,8 +44,8 @@ select:focus-visible {
 }
 
 ::selection {
-  background: var(--color-pressed-overlay);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-pressed-overlay);
+  color: var(--md-sys-color-on-surface);
 }
 
 ::-webkit-scrollbar {
@@ -58,12 +58,12 @@ select:focus-visible {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-outline-variant);
+  background: var(--md-sys-color-outline-variant);
   border-radius: var(--shape-full);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-outline);
+  background: var(--md-sys-color-outline);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -89,8 +89,8 @@ select:focus-visible {
   left: var(--spacing-2);
   z-index: var(--z-skip-link);
   padding: var(--spacing-2) var(--spacing-3);
-  background: var(--color-accent);
-  color: var(--color-on-accent);
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
   border-radius: var(--shape-button-small);
   font: var(--font-label-large);
   text-decoration: none;
@@ -100,7 +100,7 @@ select:focus-visible {
 
 .nt-skip-link:focus-visible {
   transform: translateY(0);
-  outline: var(--border-width-thick) solid var(--color-on-accent);
+  outline: var(--border-width-thick) solid var(--md-sys-color-on-primary);
   outline-offset: var(--focus-outline-offset);
 }
 
@@ -115,8 +115,8 @@ select:focus-visible {
 }
 
 .nt-bootstrap-form {
-  background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
   padding: 28px;
   width: 360px;
@@ -140,8 +140,8 @@ select:focus-visible {
   width: 30px;
   height: 30px;
   border-radius: var(--shape-medium);
-  background: var(--color-primary);
-  color: var(--color-on-primary);
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
   font-size: var(--font-size-md);
 }
 
@@ -154,7 +154,7 @@ select:focus-visible {
 .nt-bootstrap-subtitle {
   margin: 0;
   font-size: var(--font-size-button);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-form {
@@ -167,8 +167,8 @@ select:focus-visible {
   display: flex;
   gap: 4px;
   padding: 3px;
-  background: var(--color-surface-container-high);
-  border: 1px solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface-container-high);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large); /* 9px is off the shape scale; nearest token */
 }
 
@@ -178,18 +178,18 @@ select:focus-visible {
   border: none;
   border-radius: var(--shape-medium);
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-button);
 }
 
 .nt-tab:hover {
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-tab-active,
 .nt-tab-active:hover {
-  background: var(--color-surface);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-field {
@@ -197,16 +197,16 @@ select:focus-visible {
   flex-direction: column;
   gap: 5px;
   font-size: var(--font-size-button);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-field input {
   font: inherit;
   padding: 8px 12px;
-  border: 1px solid var(--color-outline);
+  border: 1px solid var(--md-sys-color-outline);
   border-radius: var(--shape-extra-large);
-  background: var(--color-background);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-background);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-field input:disabled {
@@ -216,8 +216,8 @@ select:focus-visible {
 .nt-hint {
   margin: 0;
   font-size: var(--font-size-sm);
-  color: var(--color-on-surface-variant);
-  border-left: 3px solid var(--color-outline);
+  color: var(--md-sys-color-on-surface-variant);
+  border-left: 3px solid var(--md-sys-color-outline);
   padding-left: 10px;
 }
 
@@ -228,7 +228,7 @@ select:focus-visible {
 
 .nt-error {
   margin: 0;
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
   font-size: var(--font-size-button);
 }
 
@@ -249,7 +249,7 @@ select:focus-visible {
 .nt-settings-account {
   margin: 0;
   font-size: var(--font-size-button);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-settings-section {
@@ -266,7 +266,7 @@ select:focus-visible {
 .nt-settings-hint {
   margin: 0;
   font-size: var(--font-size-sm);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-apikey-list {
@@ -283,7 +283,7 @@ select:focus-visible {
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
   font-size: var(--font-size-button);
   flex-wrap: wrap;
@@ -298,21 +298,21 @@ select:focus-visible {
 }
 
 .nt-apikey-prefix {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-sm);
 }
 
 .nt-apikey-meta {
   margin-left: auto;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-sm);
 }
 
 .nt-apikey-revoke,
 .nt-apikey-revoke-confirm button {
-  border: 1px solid var(--color-outline);
+  border: 1px solid var(--md-sys-color-outline);
   background: transparent;
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
   border-radius: var(--shape-medium);
   padding: 3px 8px;
   font-size: var(--font-size-sm);
@@ -320,7 +320,7 @@ select:focus-visible {
 
 .nt-apikey-revoke:hover,
 .nt-apikey-revoke-confirm button:hover {
-  background: var(--color-error-container);
+  background: var(--md-sys-color-error-container);
 }
 
 .nt-apikey-revoke-confirm {
@@ -328,11 +328,11 @@ select:focus-visible {
   align-items: center;
   gap: 6px;
   font-size: var(--font-size-sm);
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
 }
 
 .nt-apikey-empty {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-button);
 }
 
@@ -345,16 +345,16 @@ select:focus-visible {
   flex: 1;
   font: inherit;
   padding: 8px 12px;
-  border: 1px solid var(--color-outline);
+  border: 1px solid var(--md-sys-color-outline);
   border-radius: var(--shape-extra-large);
-  background: var(--color-background);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-background);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-apikey-new button {
-  border: 1px solid var(--color-primary);
-  background: var(--color-primary);
-  color: var(--color-on-primary);
+  border: 1px solid var(--md-sys-color-primary);
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
   border-radius: var(--shape-large);
   padding: 8px 12px;
   font-size: var(--font-size-button);
@@ -365,7 +365,7 @@ select:focus-visible {
 }
 
 .nt-apikey-fresh {
-  border: 1px solid var(--color-primary);
+  border: 1px solid var(--md-sys-color-primary);
   border-radius: var(--shape-large);
   padding: 12px;
   display: flex;
@@ -380,7 +380,7 @@ select:focus-visible {
 
 .nt-apikey-token {
   word-break: break-all;
-  background: var(--color-surface-container-high);
+  background: var(--md-sys-color-surface-container-high);
   border-radius: var(--shape-medium);
   padding: 8px;
   font-size: var(--font-size-sm);
@@ -392,9 +392,9 @@ select:focus-visible {
 }
 
 .nt-apikey-fresh-actions button {
-  border: 1px solid var(--color-outline);
+  border: 1px solid var(--md-sys-color-outline);
   background: transparent;
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   border-radius: var(--shape-medium);
   padding: 5px 10px;
   font-size: var(--font-size-sm);
@@ -413,13 +413,13 @@ select:focus-visible {
   border: none;
   border-radius: var(--shape-medium);
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   flex-shrink: 0;
 }
 
 .nt-icon-btn:hover {
-  background: var(--color-hover-overlay);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
 }
 
 /* --- page ------------------------------------------------------------------- */
@@ -504,7 +504,7 @@ select:focus-visible {
    continuous vertical divider. The divider and its negative-margin reach
    retire; the cards stop a spacing-3 step above the card bottom (one step
    more than the top bar's own spacing-2 below itself — the bar is chrome,
-   the panels are surfaces). The fill is --color-sidebar-card: the same
+   the panels are surfaces). The fill is --md-sys-color-sidebar-card: the same
    surface in light, one tone lighter in dark so the cards stand out. */
 .nt-page-side-panel {
   flex: 0 0 clamp(13rem, 24%, 22rem);
@@ -514,8 +514,8 @@ select:focus-visible {
   overflow-y: auto;
   margin-bottom: var(--spacing-3);
   padding: var(--spacing-4);
-  background: var(--color-sidebar-card);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-sidebar-card);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-card);
   box-shadow: var(--shadow-elevation-1);
 }
@@ -559,8 +559,8 @@ select:focus-visible {
   gap: var(--spacing-4);
   margin-bottom: var(--spacing-3);
   padding: var(--spacing-4);
-  background: var(--color-sidebar-card);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-sidebar-card);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-card);
   box-shadow: var(--shadow-elevation-1);
 }
@@ -714,7 +714,7 @@ select:focus-visible {
 .nt-page-title {
   margin: 0;
   font: var(--font-headline-medium);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   min-width: 0;
 }
 
@@ -756,7 +756,7 @@ select:focus-visible {
    convention, now the display-mode placeholder). */
 .nt-title-content:empty::before {
   content: "Untitled";
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-page-header {
@@ -772,7 +772,7 @@ select:focus-visible {
      title — the old icon-width indent left a gap. */
   margin-left: 0;
   font-size: var(--font-size-xs);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-page-header .node-metadata-row > .section-label {
@@ -780,7 +780,7 @@ select:focus-visible {
   flex: 0 0 auto;
   font: var(--font-label-medium);
   font-size: var(--font-size-xs);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   margin-right: 0;
 }
 
@@ -806,7 +806,7 @@ select:focus-visible {
   height: var(--height-2xl);
   padding: 0;
   flex-shrink: 0;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .page-icon-large {
@@ -830,7 +830,7 @@ select:focus-visible {
   margin: 0;
   font: var(--font-body-medium);
   font-size: var(--font-size-sm);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   cursor: text;
 }
 
@@ -846,23 +846,23 @@ select:focus-visible {
 }
 
 .nt-view-toggle {
-  border: 1px solid var(--color-outline);
-  background: var(--color-surface);
+  border: 1px solid var(--md-sys-color-outline);
+  background: var(--md-sys-color-surface);
   border-radius: var(--shape-medium);
   padding: 2px 10px;
   font-size: var(--font-size-sm);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-view-toggle:hover {
-  background: var(--color-surface-container-highest);
+  background: var(--md-sys-color-surface-container-highest);
 }
 
 .nt-view-toggle-active,
 .nt-view-toggle-active:hover {
-  background: var(--color-primary-container);
-  border-color: var(--color-outline);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-primary-container);
+  border-color: var(--md-sys-color-outline);
+  color: var(--md-sys-color-on-surface);
 }
 
 /* --- blocks ------------------------------------------------------------------- */
@@ -935,7 +935,7 @@ select:focus-visible {
   user-select: none;
   -webkit-user-select: none;
   border-radius: 50%;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   touch-action: manipulation;
   /* Optical alignment: baseline-aligned in the row, the fixed-height bullet
      rides ~2px below the text's visual center — the dot/icon center on the
@@ -963,7 +963,7 @@ select:focus-visible {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: var(--color-on-surface-variant);
+  background-color: var(--md-sys-color-on-surface-variant);
   opacity: 0.55;
   transition:
     opacity var(--motion-duration-short) var(--motion-easing-standard),
@@ -975,7 +975,7 @@ select:focus-visible {
 .nt-bullet:hover .nt-bullet-dot,
 .nt-bullet:focus-visible .nt-bullet-dot {
   opacity: 1;
-  background-color: var(--color-accent);
+  background-color: var(--md-sys-color-primary);
   transform: scale(1.2);
 }
 
@@ -983,7 +983,7 @@ select:focus-visible {
    the block-content hover wash was removed (#4), this is the signal. */
 .nt-block-row:hover .nt-bullet-dot {
   opacity: 1;
-  background-color: var(--color-on-surface);
+  background-color: var(--md-sys-color-on-surface);
 }
 
 .nt-bullet:active .nt-bullet-dot {
@@ -996,7 +996,7 @@ select:focus-visible {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background-color: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  background-color: color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent);
   opacity: 0;
   transition:
     opacity var(--motion-duration-short) var(--motion-easing-standard),
@@ -1009,7 +1009,7 @@ select:focus-visible {
 }
 
 .nt-bullet--collapsed:hover .nt-bullet-ring {
-  background-color: color-mix(in srgb, var(--color-primary) 20%, transparent);
+  background-color: color-mix(in srgb, var(--md-sys-color-primary) 20%, transparent);
 }
 
 /* Class-icon bullets mirror the dot feedback. */
@@ -1026,26 +1026,26 @@ select:focus-visible {
 .nt-bullet:hover .nt-bullet-icon,
 .nt-bullet:focus-visible .nt-bullet-icon {
   opacity: 1;
-  color: var(--color-accent);
+  color: var(--md-sys-color-primary);
   transform: scale(1.2);
 }
 
 .nt-block-row:hover .nt-bullet-icon {
   opacity: 1;
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 /* Edit mode: the active block's bullet carries the hover highlight — the
    block is engaged even though the pointer may be far from the grip. */
 .nt-block--editing .nt-bullet-dot {
   opacity: 1;
-  background-color: var(--color-accent);
+  background-color: var(--md-sys-color-primary);
   transform: scale(1.2);
 }
 
 .nt-block--editing .nt-bullet-icon {
   opacity: 1;
-  color: var(--color-accent);
+  color: var(--md-sys-color-primary);
   transform: scale(1.2);
 }
 
@@ -1058,7 +1058,7 @@ select:focus-visible {
   padding: 0;
   border: none;
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1070,7 +1070,7 @@ select:focus-visible {
 }
 
 .nt-block-chevron:hover {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-block-content {
@@ -1114,12 +1114,12 @@ select:focus-visible {
 .nt-block--inert .nt-block-row:hover .nt-bullet-dot,
 .nt-block--inert .nt-block-row:hover .nt-bullet-icon {
   opacity: 0.55;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   transform: none;
 }
 
 .nt-block-content:focus-within {
-  background: var(--color-surface);
+  background: var(--md-sys-color-surface);
 }
 
 /* The editing surface: text selection is legal only here — the contentEditable
@@ -1195,25 +1195,25 @@ select:focus-visible {
   padding: 2px 6px;
   font-size: var(--font-size-sm);
   font-family: inherit;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   cursor: pointer;
 }
 
 .nt-mark-button:hover {
-  background: var(--color-surface-container-highest);
+  background: var(--md-sys-color-surface-container-highest);
 }
 
 .nt-mark-active,
 .nt-mark-active:hover {
-  background: var(--color-primary-container);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-mark-sep {
   width: 1px;
   align-self: stretch;
   margin: 2px 2px;
-  background: var(--color-outline-variant);
+  background: var(--md-sys-color-outline-variant);
 }
 
 /* --- capture gestures ----------------------------------------------------------- */
@@ -1230,8 +1230,8 @@ select:focus-visible {
   flex-direction: column;
   gap: 6px;
   padding: 8px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-medium);
   box-shadow: var(--shadow-elevation-2);
   z-index: 50;
@@ -1242,15 +1242,15 @@ select:focus-visible {
   flex-direction: column;
   gap: 2px;
   font-size: var(--font-size-xs);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-verb-field input {
   font-size: var(--font-size-button);
   padding: 3px 6px;
-  border: 1px solid var(--color-outline);
+  border: 1px solid var(--md-sys-color-outline);
   border-radius: var(--shape-small);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-verb-actions {
@@ -1270,21 +1270,21 @@ select:focus-visible {
 }
 
 .nt-verb-apply {
-  background: var(--color-primary-container);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-verb-cancel {
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-verb-apply:hover {
-  background: var(--color-outline-variant);
+  background: var(--md-sys-color-outline-variant);
 }
 
 .nt-verb-cancel:hover {
-  background: var(--color-surface-container-highest);
+  background: var(--md-sys-color-surface-container-highest);
 }
 
 /* Schema-at-capture: the bound-verb row under the verb fields —
@@ -1304,12 +1304,12 @@ select:focus-visible {
   font-family: inherit;
   text-align: left;
   cursor: pointer;
-  background: var(--color-secondary-container);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-verb-bind:hover:not(:disabled) {
-  background: var(--color-outline-variant);
+  background: var(--md-sys-color-outline-variant);
 }
 
 .nt-verb-bind:disabled {
@@ -1319,22 +1319,22 @@ select:focus-visible {
 
 .nt-verb-bind-error {
   font-size: var(--font-size-xs);
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
 }
 
 .nt-add-block {
   margin-top: 4px;
-  border: 1px dashed var(--color-outline);
+  border: 1px dashed var(--md-sys-color-outline);
   background: transparent;
   border-radius: var(--shape-medium);
   padding: 4px 12px;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-button);
 }
 
 .nt-add-block:hover {
-  background: var(--color-surface-container-highest);
-  color: var(--color-on-surface-variant);
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 /* ── Block multi-selection ────────────────────────────────────────────────
@@ -1365,9 +1365,9 @@ select:focus-visible {
      so the text stays fully readable; pointer events pass straight through. */
   z-index: -1;
   box-sizing: border-box;
-  border: var(--border-width-default) solid color-mix(in srgb, var(--color-accent) 32%, transparent);
+  border: var(--border-width-default) solid color-mix(in srgb, var(--md-sys-color-primary) 32%, transparent);
   border-radius: var(--shape-medium);
-  background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface-container));
+  background: color-mix(in srgb, var(--md-sys-color-primary) 8%, var(--md-sys-color-surface-container));
   pointer-events: none;
 }
 
@@ -1380,9 +1380,9 @@ select:focus-visible {
   align-items: center;
   gap: var(--spacing-2);
   padding: var(--spacing-1-5) var(--spacing-2-5);
-  background: var(--color-surface-container-high);
-  color: var(--color-on-surface);
-  border: 1px solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-full);
   box-shadow: var(--shadow-2);
   z-index: var(--z-1000);
@@ -1390,7 +1390,7 @@ select:focus-visible {
 
 .nt-selection-bar__count {
   font: var(--font-label-medium);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   padding: 0 var(--spacing-1);
   white-space: nowrap;
 }
@@ -1398,7 +1398,7 @@ select:focus-visible {
 .nt-selection-bar__btn {
   border: none;
   background: transparent;
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   font: var(--font-label-medium);
   padding: 4px 10px;
   border-radius: var(--shape-full);
@@ -1408,11 +1408,11 @@ select:focus-visible {
 
 .nt-selection-bar__btn:hover,
 .nt-selection-bar__btn--active {
-  background: var(--color-surface-container-highest);
+  background: var(--md-sys-color-surface-container-highest);
 }
 
 .nt-selection-bar__btn--danger {
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
 }
 
 .nt-selection-bar__btn--icon {
@@ -1425,7 +1425,7 @@ select:focus-visible {
   position: relative;
   margin-left: 20px;
   padding-left: 8px;
-  border-left: 1px solid var(--color-outline-variant);
+  border-left: 1px solid var(--md-sys-color-outline-variant);
 }
 
 /* The indent rail: the vertical hairline is itself a control — one click
@@ -1450,12 +1450,12 @@ select:focus-visible {
   border: none;
   cursor: pointer;
   touch-action: manipulation;
-  background: linear-gradient(to right, transparent 0 1px, var(--color-outline-variant) 1px 2px, transparent 2px);
+  background: linear-gradient(to right, transparent 0 1px, var(--md-sys-color-outline-variant) 1px 2px, transparent 2px);
 }
 
 .nt-block-children__rail:hover,
 .nt-block-children__rail:focus-visible {
-  background: linear-gradient(to right, transparent 0 1px, var(--color-accent) 1px 3px, transparent 3px);
+  background: linear-gradient(to right, transparent 0 1px, var(--md-sys-color-primary) 1px 3px, transparent 3px);
   outline: none;
 }
 
@@ -1506,11 +1506,11 @@ select:focus-visible {
 .nt-embed {
   display: block;
   margin: 4px 0;
-  border: 1px solid var(--color-outline-variant);
-  border-left: 3px solid var(--color-primary);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-left: 3px solid var(--md-sys-color-primary);
   border-radius: var(--shape-medium);
   padding: 6px 10px;
-  background: var(--color-surface-container-high);
+  background: var(--md-sys-color-surface-container-high);
 }
 
 .nt-embed-header {
@@ -1519,7 +1519,7 @@ select:focus-visible {
   gap: var(--spacing-2);
   font-size: var(--font-size-sm);
   font-weight: 600;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   margin-bottom: 2px;
 }
 
@@ -1537,7 +1537,7 @@ select:focus-visible {
   display: inline-flex;
   flex: none;
   gap: 0;
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-medium);
   overflow: hidden;
 }
@@ -1548,17 +1548,17 @@ select:focus-visible {
   font-size: var(--font-size-2xs);
   font-family: inherit;
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   cursor: pointer;
 }
 
 .nt-embed-view-switch__btn + .nt-embed-view-switch__btn {
-  border-left: var(--border-width-default) solid var(--color-outline-variant);
+  border-left: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 }
 
 .nt-embed-view-switch__btn--active {
-  background: var(--color-surface-container-highest);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-embed-card-wrap {
@@ -1587,7 +1587,7 @@ select:focus-visible {
 .nt-embed-block-children {
   margin-left: 16px;
   padding-left: 8px;
-  border-left: 1px solid var(--color-outline-variant);
+  border-left: 1px solid var(--md-sys-color-outline-variant);
 }
 
 /* --- query blocks (live query token) ----------------------------------------------
@@ -1598,11 +1598,11 @@ select:focus-visible {
 .nt-query {
   display: block;
   margin: 4px 0;
-  border: 1px solid var(--color-outline-variant);
-  border-left: 3px solid var(--color-query-accent);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-left: 3px solid var(--md-sys-color-query-accent);
   border-radius: var(--shape-medium);
   padding: 6px 10px;
-  background: var(--color-surface-container-high);
+  background: var(--md-sys-color-surface-container-high);
 }
 
 .nt-query-header {
@@ -1614,17 +1614,17 @@ select:focus-visible {
 .nt-query-title {
   font-size: var(--font-size-sm);
   font-weight: 600;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-query-badge {
-  background: var(--color-surface-container-highest);
-  border: 1px solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface-container-highest);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-button-compact);
   padding: 0 8px;
   font-size: 0.82em;
   line-height: 1.5;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-query-actions {
@@ -1635,10 +1635,10 @@ select:focus-visible {
 }
 
 .nt-query-action {
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-small);
-  background: var(--color-surface);
-  color: var(--color-on-surface-variant);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-xs);
   padding: 1px 8px;
   cursor: pointer;
@@ -1656,7 +1656,7 @@ select:focus-visible {
 
 .nt-query-more,
 .nt-query-empty {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-sm);
   padding: 2px 4px;
 }
@@ -1670,7 +1670,7 @@ select:focus-visible {
 }
 
 .nt-query-more:hover {
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   text-decoration: underline;
 }
 
@@ -1679,14 +1679,14 @@ select:focus-visible {
 .nt-query-guard {
   margin: 0;
   font-size: var(--font-size-sm);
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
 }
 
 .nt-query-summary {
   margin: 0;
   padding: 0 0 0 18px;
   font-size: var(--font-size-sm);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -1719,32 +1719,32 @@ select:focus-visible {
 
 .nt-view-tab-label-active {
   font-weight: 600;
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-view-tab-default {
   margin-left: 4px;
   font-size: var(--font-size-3xs);
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
 }
 
 .nt-view-tab-menu {
   border: none;
   background: none;
   cursor: pointer;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-sm);
   padding: 0 4px;
 }
 
 .nt-view-tab-menu:hover {
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-queries-host {
   margin: 12px 0 0;
   font-size: var(--font-size-sm);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-link-button {
@@ -1752,26 +1752,26 @@ select:focus-visible {
   background: none;
   padding: 0;
   cursor: pointer;
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
   font-size: inherit;
   text-decoration: underline;
 }
 
 .nt-query-invalid {
-  border: 1px dashed var(--color-outline);
+  border: 1px dashed var(--md-sys-color-outline);
   border-radius: var(--shape-medium);
   margin: 4px 0 0;
   padding: 2px 10px;
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
   font-size: var(--font-size-sm);
-  background: var(--color-surface);
+  background: var(--md-sys-color-surface);
 }
 
 .nt-query-builder {
   margin-top: 6px;
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-medium);
-  background: var(--color-surface);
+  background: var(--md-sys-color-surface);
   padding: 8px 10px;
   display: flex;
   flex-direction: column;
@@ -1785,10 +1785,10 @@ select:focus-visible {
 }
 
 .nt-query-builder-actions button {
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-small);
-  background: var(--color-surface);
-  color: var(--color-on-surface-variant);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-sm);
   padding: 2px 10px;
   cursor: pointer;
@@ -1798,9 +1798,9 @@ select:focus-visible {
 
 
 .nt-query-action[aria-pressed="true"] {
-  background: var(--color-surface-container-highest);
-  border-color: var(--color-on-surface-variant);
-  color: var(--color-on-surface-variant);
+  background: var(--md-sys-color-surface-container-highest);
+  border-color: var(--md-sys-color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 /* Table mode + the aggregate grid: a sober bordered grid in the token's
@@ -1811,20 +1811,20 @@ select:focus-visible {
   margin: 4px 0 0;
   border-collapse: collapse;
   font-size: var(--font-size-button);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-query-table th {
   text-align: left;
   font-size: var(--font-size-xs);
   font-weight: 600;
-  color: var(--color-on-surface-variant);
-  border-bottom: 1px solid var(--color-outline-variant);
+  color: var(--md-sys-color-on-surface-variant);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
   padding: 2px 6px;
 }
 
 .nt-query-table td {
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
   padding: 2px 6px;
   vertical-align: baseline;
 }
@@ -1849,7 +1849,7 @@ select:focus-visible {
   width: 18px;
   flex-shrink: 0;
   cursor: grab;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   touch-action: none;
 }
 
@@ -1884,7 +1884,7 @@ select:focus-visible {
   margin: 0;
   border: none;
   background: transparent;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font: inherit;
   line-height: inherit;
   cursor: pointer;
@@ -1897,7 +1897,7 @@ select:focus-visible {
 .nt-block-backlink-toggle--expanded,
 .nt-block-row-end:focus-within > .nt-block-backlink-toggle {
   opacity: 1;
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 /* Expanded block backlinks: beneath the block row, aligned with the content
@@ -1931,7 +1931,7 @@ select:focus-visible {
   left: 0;
   right: 0;
   height: 2px;
-  background: var(--color-accent);
+  background: var(--md-sys-color-primary);
   pointer-events: none;
 }
 
@@ -1961,7 +1961,7 @@ select:focus-visible {
 .nt-drop-indicator {
   position: fixed;
   height: 2px;
-  background: var(--color-accent);
+  background: var(--md-sys-color-primary);
   pointer-events: none;
   z-index: var(--z-node-overlay);
 }
@@ -1974,7 +1974,7 @@ select:focus-visible {
 }
 
 .nt-block--drag-source > .nt-block-row {
-  background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface-container-high));
+  background: color-mix(in srgb, var(--md-sys-color-primary) 8%, var(--md-sys-color-surface-container-high));
   border-radius: var(--shape-small);
 }
 
@@ -1990,8 +1990,8 @@ select:focus-visible {
 .nt-drop-preview {
   max-width: 480px;
   padding: var(--spacing-2) var(--spacing-3);
-  background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-medium);
   box-shadow: var(--shadow-elevation-2);
   font-size: var(--font-size-base);
@@ -2011,7 +2011,7 @@ select:focus-visible {
 .nt-drop-preview__badge {
   margin-bottom: var(--spacing-1);
   font: var(--font-label-medium);
-  color: var(--color-accent);
+  color: var(--md-sys-color-primary);
 }
 
 .nt-drop-preview__text {
@@ -2032,10 +2032,10 @@ select:focus-visible {
   z-index: var(--z-fixed);
   margin: 0;
   padding: 6px 10px;
-  border: 1px solid var(--color-error);
+  border: 1px solid var(--md-sys-color-error);
   border-radius: var(--shape-medium);
-  background: var(--color-error-container);
-  color: var(--color-error);
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-error);
   font-size: var(--font-size-button);
 }
 
@@ -2069,7 +2069,7 @@ select:focus-visible {
 }
 
 .nt-annotation-page {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: 0.82em;
   white-space: nowrap;
 }
@@ -2085,9 +2085,9 @@ select:focus-visible {
   font: inherit;
   font-size: var(--font-size-button);
   padding: 3px 8px;
-  border: 1px solid var(--color-outline);
+  border: 1px solid var(--md-sys-color-outline);
   border-radius: var(--shape-medium);
-  background: var(--color-surface);
+  background: var(--md-sys-color-surface);
 }
 
 .nt-annotation-quote-input {
@@ -2105,21 +2105,21 @@ select:focus-visible {
 .nt-annotation-add {
   font: inherit;
   font-size: var(--font-size-button);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   background: none;
-  border: 1px solid var(--color-outline);
+  border: 1px solid var(--md-sys-color-outline);
   border-radius: var(--shape-medium);
   padding: 3px 10px;
 }
 
 .nt-annotation-add:hover {
-  border-color: var(--color-on-surface-variant);
+  border-color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-annotation-error {
   margin: 0;
   padding-left: 20px;
-  color: var(--color-error-hover);
+  color: var(--md-sys-color-error-hover);
   font-size: var(--font-size-button);
 }
 
@@ -2134,8 +2134,8 @@ select:focus-visible {
 .nt-datepicker {
   margin: 4px 0 8px 148px;
   width: 280px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
   box-shadow: var(--shadow-elevation-2);
   padding: 8px;
@@ -2152,7 +2152,7 @@ select:focus-visible {
 .nt-datepicker-close {
   font: inherit;
   font-size: var(--font-size-base);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   background: none;
   border: none;
   border-radius: var(--shape-medium);
@@ -2162,7 +2162,7 @@ select:focus-visible {
 
 .nt-datepicker-nav:hover,
 .nt-datepicker-close:hover {
-  background: var(--color-surface-container-highest);
+  background: var(--md-sys-color-surface-container-highest);
 }
 
 .nt-datepicker-breadcrumb {
@@ -2170,14 +2170,14 @@ select:focus-visible {
   text-align: center;
   font-size: var(--font-size-button);
   font-weight: 600;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-datepicker-crumb {
   font: inherit;
   font-size: var(--font-size-button);
   font-weight: 600;
-  color: var(--color-primary-hover);
+  color: var(--md-sys-color-primary-hover);
   background: none;
   border: none;
   padding: 0;
@@ -2197,7 +2197,7 @@ select:focus-visible {
 .nt-datepicker-weekday {
   text-align: center;
   font-size: var(--font-size-xs);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   padding: 2px 0;
 }
 
@@ -2208,14 +2208,14 @@ select:focus-visible {
 }
 
 .nt-datepicker-cellbox:hover {
-  background: var(--color-surface-container-high);
+  background: var(--md-sys-color-surface-container-high);
 }
 
 .nt-datepicker-cell {
   flex: 1;
   font: inherit;
   font-size: var(--font-size-button);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   background: none;
   border: none;
   border-radius: var(--shape-medium);
@@ -2226,7 +2226,7 @@ select:focus-visible {
 
 .nt-datepicker-cell:hover,
 .nt-datepicker-cell:focus {
-  background: var(--color-surface-container-high);
+  background: var(--md-sys-color-surface-container-high);
   outline: none;
 }
 
@@ -2237,15 +2237,15 @@ select:focus-visible {
 
 .nt-datepicker-cell-selected,
 .nt-datepicker-cell-selected:hover {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
 }
 
 .nt-datepicker-cell-drill {
   font: inherit;
   font-size: var(--font-size-3xs);
   line-height: 1;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   background: none;
   border: none;
   border-radius: var(--shape-medium);
@@ -2255,13 +2255,13 @@ select:focus-visible {
 
 .nt-datepicker-cell-drill:hover,
 .nt-datepicker-cell-drill:focus {
-  color: var(--color-primary-hover);
+  color: var(--md-sys-color-primary-hover);
   outline: none;
 }
 
 .nt-datepicker-cell-muted .nt-datepicker-cell,
 .nt-datepicker-cell-muted .nt-datepicker-cell-drill {
-  color: var(--color-outline);
+  color: var(--md-sys-color-outline);
 }
 
 /* --- link qualifiers ---------------------------------------- */
@@ -2289,12 +2289,12 @@ select:focus-visible {
   background: transparent;
   border-radius: var(--shape-medium);
   padding: 4px 8px 4px 20px;
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   font-size: var(--font-size-base);
 }
 
 .nt-section-item:hover {
-  background: var(--color-surface-container-highest);
+  background: var(--md-sys-color-surface-container-highest);
 }
 
 /* Class View member rows: the navigation row plus an unassign × that issues
@@ -2314,19 +2314,19 @@ select:focus-visible {
   background: transparent;
   padding: 4px 10px;
   font-size: var(--font-size-base);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-class-member-remove:hover {
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
 }
 
 .nt-section-crumb {
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-section-source {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: 0.88em;
   min-width: 0;
   overflow: hidden;
@@ -2335,14 +2335,14 @@ select:focus-visible {
 }
 
 .nt-section-context {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: 0.82em;
   font-style: italic;
   white-space: nowrap;
 }
 
 .nt-section-empty {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-button);
   padding: 4px 8px 4px 20px;
 }
@@ -2351,8 +2351,8 @@ select:focus-visible {
 
 .nt-chip {
   display: inline-block;
-  background: var(--color-surface-container-highest);
-  border: 1px solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface-container-highest);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-button-compact);
   padding: 0 8px;
   font-size: 0.92em;
@@ -2360,8 +2360,8 @@ select:focus-visible {
 }
 
 .nt-mention {
-  background: var(--color-primary-container);
-  border: 1px solid var(--color-outline);
+  background: var(--md-sys-color-primary-container);
+  border: 1px solid var(--md-sys-color-outline);
 }
 
 .nt-typed-link {
@@ -2373,10 +2373,10 @@ select:focus-visible {
 
 .nt-quote {
   display: block;
-  border-left: 3px solid var(--color-outline);
+  border-left: 3px solid var(--md-sys-color-outline);
   padding: 2px 12px;
   margin: 4px 0;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 /* The heading token (owner 2026-10-12 — v1's "Convert to heading" marker):
@@ -2388,14 +2388,14 @@ select:focus-visible {
   font-weight: 600;
   line-height: 1.3;
   margin: 0.35em 0 0.15em;
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 /* The Table-of-content entry jump flash (owner 2026-10-12): the targeted
    block outlines briefly so the jump reads. */
 @keyframes nt-block-flash {
   0% {
-    outline: var(--border-width-thick) solid var(--color-primary);
+    outline: var(--border-width-thick) solid var(--md-sys-color-primary);
     outline-offset: 2px;
   }
   100% {
@@ -2412,20 +2412,20 @@ select:focus-visible {
 /* External links read as plain hyperlinks (owner ruling), never a pill:
    underline + link color only — no background, border, or radius. */
 .nt-hyperlink {
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 
 .nt-placeholder {
   display: inline-block;
-  border: 1px dashed var(--color-outline);
+  border: 1px dashed var(--md-sys-color-outline);
   border-radius: var(--shape-medium);
   padding: 0 10px;
   margin: 1px 0;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: 0.88em;
-  background: var(--color-surface-container-high);
+  background: var(--md-sys-color-surface-container-high);
 }
 
 /* --- code_block + hr renderers ---------------------------------------------
@@ -2443,18 +2443,18 @@ select:focus-visible {
   line-height: 1.4;
   padding: 0 8px;
   border-radius: var(--shape-medium) 6px 0 0;
-  background: var(--color-surface-container-highest);
-  color: var(--color-on-surface-variant);
-  border: 1px solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface-variant);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-bottom: none;
 }
 
 .nt-code-block__pre {
   margin: 0;
   padding: 8px 12px;
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
-  background: var(--color-surface-container-low);
+  background: var(--md-sys-color-surface-container-low);
   font-family: var(--font-family-mono);
   font-size: 0.85em;
   line-height: 1.5;
@@ -2475,10 +2475,10 @@ select:focus-visible {
   width: 100%;
   margin: 0;
   padding: var(--spacing-2) var(--spacing-3);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-medium);
-  background: var(--color-surface-container-low);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface);
   font-family: var(--font-family-mono);
   font-size: 0.85em;
   line-height: 1.5;
@@ -2487,7 +2487,7 @@ select:focus-visible {
 
 .nt-hr {
   border: none;
-  border-top: 1px solid var(--color-outline-variant);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
   margin: 6px 0;
   width: 100%;
 }
@@ -2503,10 +2503,10 @@ select:focus-visible {
   max-width: 100%;
   margin: 2px 0;
   padding: 4px 10px;
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
-  background: var(--color-surface-container);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface);
   font: inherit;
   cursor: pointer;
   text-align: left;
@@ -2521,7 +2521,7 @@ select:focus-visible {
 }
 
 .nt-embed-card:hover {
-  background: var(--color-surface-container-high);
+  background: var(--md-sys-color-surface-container-high);
 }
 
 .nt-embed-card__label {
@@ -2530,7 +2530,7 @@ select:focus-visible {
 
 .nt-embed-card__excerpt {
   flex-basis: 100%;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: 0.88em;
   white-space: nowrap;
   overflow: hidden;
@@ -2539,7 +2539,7 @@ select:focus-visible {
 
 .nt-embed-card--broken {
   border-style: dashed;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   cursor: default;
 }
 
@@ -2590,18 +2590,18 @@ select:focus-visible {
   align-items: center;
   gap: var(--spacing-1);
   max-width: 100%;
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
-  background: var(--color-surface-container-high);
-  color: var(--color-on-surface-variant);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface-variant);
   padding: 0 var(--spacing-2);
   line-height: 1.5;
   font-size: 0.88em;
 }
 
 .nt-asset--chip:hover {
-  background: var(--color-surface-container-highest);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-asset-name {
@@ -2609,13 +2609,13 @@ select:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 24em;
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-asset-size {
   flex-shrink: 0;
   font: var(--font-label-small);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-asset--fullbleed.nt-asset--chip {
@@ -2631,14 +2631,14 @@ select:focus-visible {
 }
 
 code {
-  background: var(--color-surface-container-highest);
+  background: var(--md-sys-color-surface-container-highest);
   border-radius: var(--shape-small);
   padding: 0 4px;
   font-size: 0.92em;
 }
 
 mark {
-  background: var(--color-warning-container);
+  background: var(--md-sys-color-warning-container);
   border-radius: var(--shape-extra-small);
   padding: 0 2px;
 }
@@ -2648,9 +2648,9 @@ mark {
 .nt-wb {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
-  background: var(--color-surface-container-high);
+  background: var(--md-sys-color-surface-container-high);
   overflow: hidden;
 }
 
@@ -2665,8 +2665,8 @@ mark {
   flex-wrap: wrap;
   gap: 4px;
   padding: 6px 10px;
-  border-bottom: 1px solid var(--color-outline-variant);
-  background: var(--color-surface);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface);
   font-size: var(--font-size-sm);
 }
 
@@ -2674,7 +2674,7 @@ mark {
   width: 1px;
   align-self: stretch;
   margin: 2px 4px;
-  background: var(--color-outline-variant);
+  background: var(--md-sys-color-outline-variant);
 }
 
 .nt-wb-surface {
@@ -2685,7 +2685,7 @@ mark {
 }
 
 .nt-wb-surface:focus {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--md-sys-color-primary);
   outline-offset: -2px;
 }
 
@@ -2706,7 +2706,7 @@ mark {
   width: 0;
   height: 0;
   transform-origin: 0 0;
-  background-image: radial-gradient(var(--color-outline-variant) 1px, transparent 1px);
+  background-image: radial-gradient(var(--md-sys-color-outline-variant) 1px, transparent 1px);
   background-size: 24px 24px;
 }
 
@@ -2719,31 +2719,31 @@ mark {
 
 .nt-wb-shape rect,
 .nt-wb-shape ellipse {
-  fill: var(--color-hover-overlay);
-  stroke: var(--color-on-surface-variant);
+  fill: var(--md-sys-color-hover-overlay);
+  stroke: var(--md-sys-color-on-surface-variant);
   stroke-width: 1.5;
 }
 
 .nt-wb-shape line {
-  stroke: var(--color-on-surface-variant);
+  stroke: var(--md-sys-color-on-surface-variant);
   stroke-width: 1.5;
 }
 
 .nt-wb-shape text {
-  fill: var(--color-on-surface-variant);
+  fill: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-sm);
   pointer-events: none;
 }
 
 .nt-wb-arrowhead {
-  fill: var(--color-on-surface-variant);
+  fill: var(--md-sys-color-on-surface-variant);
 }
 
 /* Selection is a dashed box under/around the element — it survives inline
    paint colors, which outrank stylesheet strokes. */
 .nt-wb-selection-box {
   fill: none;
-  stroke: var(--color-primary);
+  stroke: var(--md-sys-color-primary);
   stroke-width: 1.5;
   stroke-dasharray: 4 3;
   pointer-events: none;
@@ -2752,12 +2752,12 @@ mark {
 .nt-wb-shape-selected rect,
 .nt-wb-shape-selected ellipse,
 .nt-wb-shape-selected line {
-  stroke: var(--color-primary);
+  stroke: var(--md-sys-color-primary);
 }
 
 .nt-wb-stroke {
   fill: none;
-  stroke: var(--color-on-surface-variant);
+  stroke: var(--md-sys-color-on-surface-variant);
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -2777,19 +2777,19 @@ mark {
 }
 
 .nt-wb-drawing {
-  stroke: var(--color-primary);
+  stroke: var(--md-sys-color-primary);
 }
 
 .nt-wb-text-placeholder {
   fill: none !important;
-  stroke: var(--color-outline) !important;
+  stroke: var(--md-sys-color-outline) !important;
   stroke-dasharray: 3 3;
 }
 
 .nt-wb-marquee {
   position: absolute;
-  border: 1px dashed var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  border: 1px dashed var(--md-sys-color-primary);
+  background: color-mix(in srgb, var(--md-sys-color-primary) 8%, transparent);
   pointer-events: none;
 }
 
@@ -2797,21 +2797,21 @@ mark {
   position: absolute;
   display: flex;
   flex-direction: column;
-  background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-medium);
   overflow: hidden;
 }
 
 .nt-wb-card-selected {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 1px var(--color-primary);
+  border-color: var(--md-sys-color-primary);
+  box-shadow: 0 0 0 1px var(--md-sys-color-primary);
 }
 
 /* Sticky notes: the node color is the card background; the title bar reads
    as a tint of the card instead of the plain surface. */
 .nt-wb-card-colored .nt-wb-card-title {
-  background: color-mix(in srgb, var(--color-surface) 35%, transparent);
+  background: color-mix(in srgb, var(--md-sys-color-surface) 35%, transparent);
 }
 
 .nt-wb-card-title {
@@ -2819,11 +2819,11 @@ mark {
   align-items: center;
   gap: 6px;
   padding: 3px 8px;
-  background: var(--color-surface-container-highest);
-  border-bottom: 1px solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface-container-highest);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
   font-size: var(--font-size-sm);
   font-weight: 600;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   cursor: grab;
   user-select: none;
 }
@@ -2838,14 +2838,14 @@ mark {
 .nt-wb-card-delete {
   border: none;
   background: none;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   padding: 0 2px;
   line-height: 1;
   font-size: var(--font-size-base);
 }
 
 .nt-wb-card-delete:hover {
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
 }
 
 .nt-wb-card-body {
@@ -2865,7 +2865,7 @@ mark {
   position: absolute;
   font-size: var(--font-size-sm);
   padding: 1px 4px;
-  border: 1px solid var(--color-primary);
+  border: 1px solid var(--md-sys-color-primary);
   border-radius: var(--shape-small);
 }
 
@@ -2874,9 +2874,9 @@ mark {
   left: 32px;
   top: 32px;
   padding: 24px 32px;
-  border: 2px dashed var(--color-outline);
+  border: 2px dashed var(--md-sys-color-outline);
   border-radius: var(--shape-button-compact);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-button);
   white-space: nowrap;
   pointer-events: none;
@@ -2884,7 +2884,7 @@ mark {
 
 .nt-wb-missing {
   padding: 16px;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-wb-zoom {
@@ -2895,9 +2895,9 @@ mark {
   align-items: center;
   gap: 2px;
   padding: 3px 6px;
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
-  background: var(--color-surface);
+  background: var(--md-sys-color-surface);
   box-shadow: var(--shadow-elevation-1);
   font-size: var(--font-size-sm);
 }
@@ -2905,7 +2905,7 @@ mark {
 .nt-wb-zoom-level {
   min-width: 44px;
   text-align: center;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-variant-numeric: tabular-nums;
 }
 
@@ -2913,27 +2913,27 @@ mark {
   position: absolute;
   right: 10px;
   bottom: 10px;
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
-  background: var(--color-surface);
+  background: var(--md-sys-color-surface);
   box-shadow: var(--shadow-elevation-1);
   overflow: hidden;
   cursor: pointer;
 }
 
 .nt-wb-minimap-card {
-  fill: var(--color-surface-container-highest);
-  stroke: var(--color-outline);
+  fill: var(--md-sys-color-surface-container-highest);
+  stroke: var(--md-sys-color-outline);
 }
 
 .nt-wb-minimap-shape {
   fill: none;
-  stroke: var(--color-outline-variant);
+  stroke: var(--md-sys-color-outline-variant);
 }
 
 .nt-wb-minimap-viewport {
-  fill: color-mix(in srgb, var(--color-primary) 12%, transparent);
-  stroke: var(--color-primary);
+  fill: color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent);
+  stroke: var(--md-sys-color-primary);
   stroke-width: 1;
 }
 
@@ -2957,16 +2957,16 @@ mark {
   font: inherit;
   font-size: var(--font-size-button);
   padding: 5px 8px;
-  border: 1px solid var(--color-outline);
+  border: 1px solid var(--md-sys-color-outline);
   border-radius: var(--shape-medium);
-  color: var(--color-on-surface);
-  background: var(--color-surface);
+  color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-surface);
 }
 
 /* Quiet focus like every other search bar — no accent ring (owner
    2026-10-09). */
 .nt-search-input:focus {
-  border-color: var(--color-on-surface-variant);
+  border-color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-search-input:focus-visible {
@@ -2975,30 +2975,30 @@ mark {
 }
 
 .nt-search-syntax {
-  border: 1px solid var(--color-outline);
-  background: var(--color-surface);
+  border: 1px solid var(--md-sys-color-outline);
+  background: var(--md-sys-color-surface);
   border-radius: var(--shape-medium);
   width: 28px;
   font-size: var(--font-size-sm);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-search-syntax[aria-expanded="true"] {
-  background: var(--color-surface-container-highest);
+  background: var(--md-sys-color-surface-container-highest);
 }
 
 .nt-search-help {
   font-size: var(--font-size-xs);
   line-height: 1.5;
-  color: var(--color-on-surface-variant);
-  background: var(--color-background);
-  border: 1px solid var(--color-outline-variant);
+  color: var(--md-sys-color-on-surface-variant);
+  background: var(--md-sys-color-background);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-medium);
   padding: 6px 8px;
 }
 
 .nt-search-help code {
-  background: var(--color-surface-container-highest);
+  background: var(--md-sys-color-surface-container-highest);
   border-radius: var(--shape-small);
   padding: 0 3px;
 }
@@ -3006,7 +3006,7 @@ mark {
 .nt-search-error {
   margin: 0;
   font-size: var(--font-size-sm);
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
 }
 
 .nt-search-results {
@@ -3025,8 +3025,8 @@ mark {
   left: 0;
   right: 0;
   z-index: 30;
-  background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-medium);
   box-shadow: var(--shadow-elevation-2);
 }
@@ -3041,13 +3041,13 @@ mark {
   background: transparent;
   text-align: left;
   font-size: var(--font-size-button);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   padding: 3px 6px;
   border-radius: var(--shape-medium);
 }
 
 .nt-search-hit:hover {
-  background: var(--color-surface-container-highest);
+  background: var(--md-sys-color-surface-container-highest);
 }
 
 .nt-search-hit-top {
@@ -3067,7 +3067,7 @@ mark {
 .nt-search-snippet {
   font-size: var(--font-size-xs);
   line-height: 1.4;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -3075,7 +3075,7 @@ mark {
 }
 
 .nt-search-mark {
-  background: var(--color-primary-container);
+  background: var(--md-sys-color-primary-container);
   color: inherit;
   border-radius: var(--shape-tiny);
   padding: 0 1px;
@@ -3087,21 +3087,21 @@ mark {
   background: transparent;
   text-align: center;
   font-size: var(--font-size-sm);
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
   padding: 4px 6px;
   border-radius: var(--shape-medium);
 }
 
 .nt-search-more:hover:not(:disabled) {
-  background: var(--color-surface-container-highest);
+  background: var(--md-sys-color-surface-container-highest);
 }
 
 .nt-search-more:disabled {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .nt-search-empty {
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-sm);
   padding: 2px 4px;
 }
@@ -3112,7 +3112,7 @@ mark {
   display: inline;
   padding: 0;
   border: none;
-  border-bottom: 1px dashed var(--color-outline);
+  border-bottom: 1px dashed var(--md-sys-color-outline);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -3121,8 +3121,8 @@ mark {
 }
 
 .nt-link:hover {
-  color: var(--color-primary);
-  border-bottom-color: var(--color-primary);
+  color: var(--md-sys-color-primary);
+  border-bottom-color: var(--md-sys-color-primary);
 }
 
 /* Inline class references (owner 2026-10-13): the node-link look with a
@@ -3133,18 +3133,18 @@ mark {
 .nt-link--class,
 .nt-class-link {
   border-bottom: none;
-  text-decoration: underline wavy var(--color-outline);
+  text-decoration: underline wavy var(--md-sys-color-outline);
   text-underline-offset: 2px;
 }
 
 .nt-link--class:hover {
-  text-decoration-color: var(--color-primary);
+  text-decoration-color: var(--md-sys-color-primary);
 }
 
 /* Atomic node-link pills in the block editor (edit mode): the read-mode
    dashed-underline look, one caret unit (contenteditable=false span). */
 .nt-atom {
-  border-bottom: 1px dashed var(--color-outline);
+  border-bottom: 1px dashed var(--md-sys-color-outline);
   color: inherit;
   font: inherit;
   cursor: default;
@@ -3152,8 +3152,8 @@ mark {
 }
 
 .nt-atom:hover {
-  color: var(--color-primary);
-  border-bottom-color: var(--color-primary);
+  color: var(--md-sys-color-primary);
+  border-bottom-color: var(--md-sys-color-primary);
 }
 
 /* Class chip (edit mode) — the inline-class mark is a wavy underline (not
@@ -3162,12 +3162,12 @@ mark {
    nt-link--class look. */
 .nt-atom--chip {
   border-bottom: none;
-  text-decoration: underline wavy var(--color-outline);
+  text-decoration: underline wavy var(--md-sys-color-outline);
   text-underline-offset: 2px;
 }
 
 .nt-atom--chip:hover {
-  text-decoration-color: var(--color-primary);
+  text-decoration-color: var(--md-sys-color-primary);
 }
 
 /* Arrow/click-selected pill — the only focus hint while selected (the DOM
@@ -3178,10 +3178,10 @@ mark {
    on selection can flip a tight line into wrapping the pill mid-token). */
 .nt-atom--selected,
 .nt-atom--selected:hover {
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
   border-bottom-color: transparent;
   text-decoration-color: transparent;
-  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  background: color-mix(in srgb, var(--md-sys-color-primary) 8%, transparent);
   border-radius: var(--shape-extra-small);
   box-shadow: var(--shadow-focus-ring-primary);
 }
@@ -3208,7 +3208,7 @@ mark {
   align-items: center;
   gap: var(--spacing-2);
   margin-bottom: var(--spacing-4);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-hub-title {
@@ -3219,7 +3219,7 @@ mark {
 .nt-hub-count {
   flex-shrink: 0;
   font-size: var(--font-size-sm);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 /* The view switcher rides the header row, right-aligned. */
@@ -3255,14 +3255,14 @@ mark {
   font-weight: var(--font-weight-semibold);
   letter-spacing: var(--letter-spacing-section);
   text-transform: uppercase;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   text-align: left;
   cursor: pointer;
 }
 
 .nt-side-header-toggle:hover {
-  background: var(--color-hover-overlay);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-side-header-chevron,
@@ -3285,13 +3285,13 @@ mark {
   font-weight: var(--font-weight-semibold);
   letter-spacing: var(--letter-spacing-section);
   text-transform: uppercase;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   text-align: left;
 }
 
 .nt-side-more:hover {
-  background: var(--color-hover-overlay);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-ws-offline {
@@ -3300,7 +3300,7 @@ mark {
   font-weight: 600;
   font-size: var(--font-size-button);
   letter-spacing: 0.05em;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 /* The quick-create FAB: hidden on desktop
@@ -3323,8 +3323,8 @@ mark {
      the nav reads above the page beneath. */
   .nt-sidebar-open .nt-sidebar {
     width: min(280px, 85vw);
-    background: var(--color-surface-container-low);
-    border-right: var(--border-width-default) solid var(--color-outline-variant);
+    background: var(--md-sys-color-surface-container-low);
+    border-right: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   }
 
   /* The quick-create FAB: a floating action button over the content card. */
@@ -3340,8 +3340,8 @@ mark {
     min-width: var(--height-button-lg);
     border: none;
     border-radius: var(--shape-large);
-    background: var(--color-primary-container);
-    color: var(--color-on-surface);
+    background: var(--md-sys-color-primary-container);
+    color: var(--md-sys-color-on-surface);
     box-shadow: var(--shadow-elevation-2);
     cursor: pointer;
     z-index: 40;
@@ -3403,8 +3403,8 @@ mark {
     margin: 0;
     padding: var(--spacing-2);
     padding-bottom: calc(var(--spacing-2) + env(safe-area-inset-bottom, 0px));
-    background: var(--color-surface-container-low);
-    border-top: var(--border-width-default) solid var(--color-outline-variant);
+    background: var(--md-sys-color-surface-container-low);
+    border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
     border-radius: var(--shape-large) var(--shape-large) 0 0;
     box-shadow: var(--shadow-elevation-2);
     z-index: 40;
@@ -3426,8 +3426,8 @@ mark {
   /* grid-template-columns is set inline from the first row's cell count. */
   grid-auto-columns: minmax(0, 1fr);
   margin: var(--spacing-1) 0;
-  border-top: var(--border-width-default) solid var(--color-outline-variant);
-  border-left: var(--border-width-default) solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-left: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 }
 
 .nt-blocktable-row {
@@ -3440,8 +3440,8 @@ mark {
 .nt-blocktable-row > .nt-block {
   min-width: 0;
   padding: 2px var(--spacing-2);
-  border-right: var(--border-width-default) solid var(--color-outline-variant);
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  border-right: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 }
 
 /* Cells keep their usual chrome but the grip only surfaces on hover —
@@ -3513,12 +3513,12 @@ mark {
   position: sticky;
   top: 0;
   z-index: 6;
-  background: var(--color-surface);
+  background: var(--md-sys-color-surface);
 }
 
 .nt-page-footer {
   position: sticky;
   bottom: 0;
   z-index: 6;
-  background: var(--color-surface);
+  background: var(--md-sys-color-surface);
 }

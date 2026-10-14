@@ -6,22 +6,22 @@
  */
 
 .card {
-  background: var(--color-surface);
+  background: var(--md-sys-color-surface);
 }
 
 /* Variants */
 .card--variant-default {
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 }
 
 .card--variant-outlined {
-  border: var(--border-width-default) solid var(--color-outline);
+  border: var(--border-width-default) solid var(--md-sys-color-outline);
   background: transparent;
 }
 
 .card--variant-filled {
   border: none;
-  background: var(--color-surface-variant);
+  background: var(--md-sys-color-surface-variant);
 }
 
 .card--variant-transparent {
@@ -31,14 +31,14 @@
 }
 
 .card--variant-dashed {
-  border: var(--border-width-thick) dashed var(--color-outline-variant);
+  border: var(--border-width-thick) dashed var(--md-sys-color-outline-variant);
   background: transparent;
 }
 
 .card--variant-dashed:hover,
 .card--variant-dashed:focus-within {
-  border-color: var(--color-primary);
-  background: var(--color-surface-container-high);
+  border-color: var(--md-sys-color-primary);
+  background: var(--md-sys-color-surface-container-high);
 }
 
 /* Border radius
@@ -131,20 +131,20 @@
 }
 
 .card--interactive:hover {
-  background: var(--color-hover-overlay);
-  border-color: var(--color-outline);
+  background: var(--md-sys-color-hover-overlay);
+  border-color: var(--md-sys-color-outline);
   transform: translateY(calc(var(--spacing-hairline) * -1));
 }
 
 .card--interactive:active {
-  background: var(--color-pressed-overlay);
+  background: var(--md-sys-color-pressed-overlay);
   transform: translateY(0) scale(0.99);
 }
 
 /* Selected state */
 .card--selected {
-  border-color: var(--color-primary);
-  background: var(--color-primary-container);
+  border-color: var(--md-sys-color-primary);
+  background: var(--md-sys-color-primary-container);
 }
 
 /* Close button support */

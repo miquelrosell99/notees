@@ -64,11 +64,11 @@ export interface NodePillsActions {
 /** Readable text on a class-color background (stored colors resolved to hex). */
 function contrastFor(color: string): string {
   const match = /^#([0-9a-f]{6})$/i.exec(resolveCssColor(color).trim());
-  if (match === null) return "var(--color-on-primary-container)";
+  if (match === null) return "var(--md-sys-color-on-primary-container)";
   const rgb = parseInt(match[1]!, 16);
   const channel = (shift: number) => ((rgb >> shift) & 0xff) / 255;
   const luminance = 0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0);
-  return luminance > 0.45 ? "var(--color-black)" : "var(--color-white)";
+  return luminance > 0.45 ? "var(--md-sys-color-black)" : "var(--md-sys-color-white)";
 }
 
 function reorder(ids: string[], activeId: string, overId: string): string[] {

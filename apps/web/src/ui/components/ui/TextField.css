@@ -11,7 +11,7 @@
 .text-field__label {
   font-size: var(--font-size-sm);
   font-weight: 500;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .text-field {
@@ -21,10 +21,10 @@
   height: var(--height-xl);
   padding: var(--spacing-2) 0;
   font-size: var(--font-size-sm);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   background: transparent;
   border: none;
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: 0;
   transition:
     border-color var(--motion-duration-short) var(--motion-easing-standard),
@@ -33,30 +33,30 @@
 
 .text-field:focus {
   outline: none;
-  border-bottom-color: var(--color-primary);
+  border-bottom-color: var(--md-sys-color-primary);
 
   /* Second 1px line via box-shadow gives a 2px active underline without layout shift */
-  box-shadow: 0 1px 0 0 var(--color-primary);
+  box-shadow: 0 1px 0 0 var(--md-sys-color-primary);
 }
 
 .text-field:focus-visible {
   outline: none;
-  border-bottom-color: var(--color-primary);
-  box-shadow: 0 1px 0 0 var(--color-primary);
+  border-bottom-color: var(--md-sys-color-primary);
+  box-shadow: 0 1px 0 0 var(--md-sys-color-primary);
 }
 
 .text-field::placeholder {
-  color: var(--color-placeholder);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .text-field--error {
-  border-bottom-color: var(--color-error);
+  border-bottom-color: var(--md-sys-color-error);
 }
 
 .text-field--error:focus,
 .text-field--error:focus-visible {
-  border-bottom-color: var(--color-error);
-  box-shadow: 0 1px 0 0 var(--color-error);
+  border-bottom-color: var(--md-sys-color-error);
+  box-shadow: 0 1px 0 0 var(--md-sys-color-error);
 }
 
 .text-field--disabled {
@@ -79,7 +79,7 @@
 
 .text-field__error {
   font-size: var(--font-size-xs);
-  color: var(--color-error);
+  color: var(--md-sys-color-error);
 }
 
 /* Container for input with icon */
@@ -87,7 +87,7 @@
   display: flex;
   align-items: center;
   width: 100%;
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   background: transparent;
   transition:
     border-color var(--motion-duration-short) var(--motion-easing-standard),
@@ -96,17 +96,17 @@
 
 .text-field__container:focus-within {
   outline: none;
-  border-bottom-color: var(--color-primary);
-  box-shadow: 0 1px 0 0 var(--color-primary);
+  border-bottom-color: var(--md-sys-color-primary);
+  box-shadow: 0 1px 0 0 var(--md-sys-color-primary);
 }
 
 .text-field__container--error {
-  border-bottom-color: var(--color-error);
+  border-bottom-color: var(--md-sys-color-error);
 }
 
 .text-field__container--error:focus-within {
-  border-bottom-color: var(--color-error);
-  box-shadow: 0 1px 0 0 var(--color-error);
+  border-bottom-color: var(--md-sys-color-error);
+  box-shadow: 0 1px 0 0 var(--md-sys-color-error);
 }
 
 .text-field__container--disabled {
@@ -128,7 +128,7 @@
 .text-field__divider {
   width: 1px;
   height: var(--height-xs);
-  background: var(--color-outline-variant);
+  background: var(--md-sys-color-outline-variant);
   margin: 0 var(--spacing-2);
 }
 
@@ -137,5 +137,5 @@
   align-items: center;
   justify-content: center;
   padding-right: var(--spacing-3);
-  color: var(--color-outline);
+  color: var(--md-sys-color-outline);
 }

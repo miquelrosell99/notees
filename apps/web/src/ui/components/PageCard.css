@@ -13,8 +13,8 @@
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
-  background: var(--color-background);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-background);
+  color: var(--md-sys-color-on-surface);
 }
 
 .nt-body {
@@ -40,8 +40,8 @@
      a full spacing-3 here stacked into a double gap under the bar. The
      left/right/bottom margins keep the shell's spacing-3 canvas rhythm. */
   margin: var(--spacing-2) var(--spacing-3) var(--spacing-3) 0;
-  background: var(--color-surface);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-card);
   box-shadow: var(--shadow-elevation-1);
   overflow-y: auto;
@@ -51,7 +51,7 @@
 .nt-empty,
 .nt-page-missing {
   padding: var(--spacing-10);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 
@@ -102,8 +102,8 @@
   min-height: 0;
   overflow-y: auto;
   padding: var(--spacing-3);
-  background: var(--color-sidebar-card);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-sidebar-card);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-card);
   box-shadow: var(--shadow-elevation-1);
 }
@@ -121,7 +121,7 @@
 
 .nt-right-card__bar-label {
   font-size: var(--font-size-2xs);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 /* The nested card: a transparent section inside the surfaced rail now (the
@@ -143,7 +143,7 @@
   padding: 0 var(--spacing-1);
   /* The lead "…" clip chip in right-anchored breadcrumb trails masks with
      the rail panel's surface (the header is transparent inside it). */
-  --breadcrumb-clip-bg: var(--color-sidebar-card);
+  --breadcrumb-clip-bg: var(--md-sys-color-sidebar-card);
 }
 
 /* The reorder grip (the drag handle — the block-row grip precedent):
@@ -157,7 +157,7 @@
   width: var(--height-xs);
   height: var(--height-xs);
   cursor: grab;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   touch-action: none;
 }
 
@@ -168,11 +168,11 @@
 /* The rail reorder drag's target edge: a primary line above or below the
    header (the drop-active underline's reorder sibling). */
 .nt-sidebar-card__header--reorder-before {
-  box-shadow: inset 0 2px 0 0 var(--color-primary);
+  box-shadow: inset 0 2px 0 0 var(--md-sys-color-primary);
 }
 
 .nt-sidebar-card__header--reorder-after {
-  box-shadow: inset 0 -2px 0 0 var(--color-primary);
+  box-shadow: inset 0 -2px 0 0 var(--md-sys-color-primary);
 }
 
 /* The dragged card stays in place, muted — the floating name chip is the
@@ -185,8 +185,8 @@
    appends as the card node's last child — the distinct active-drop state
    (a primary underline + tint, mirroring the row drop indicators). */
 .nt-sidebar-card__header--drop-active {
-  box-shadow: inset 0 -2px 0 0 var(--color-primary);
-  background: var(--color-surface-container-high);
+  box-shadow: inset 0 -2px 0 0 var(--md-sys-color-primary);
+  background: var(--md-sys-color-surface-container-high);
 }
 
 .nt-sidebar-card__actions {
@@ -207,14 +207,14 @@
   padding: 0 var(--spacing-1);
   font-size: var(--font-size-lg);
   line-height: 1;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   cursor: pointer;
   border-radius: var(--shape-small);
 }
 
 .nt-sidebar-card__action:hover {
-  color: var(--color-on-surface);
-  background: var(--color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-surface-container-high);
 }
 
 /* The nested node card: the same surface as the main content card. */
@@ -223,8 +223,8 @@
   min-height: 0;
   overflow-y: auto;
   margin: 0 var(--spacing-2) var(--spacing-2);
-  background: var(--color-surface);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-medium);
 }
 

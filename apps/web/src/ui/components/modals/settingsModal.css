@@ -23,7 +23,7 @@
 /* ==================== Settings Navigation ==================== */
 .settings-modal__container > .tabs {
   padding: 0 var(--spacing-4);
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 }
 
 /* Responsive: full-width settings on small screens */
@@ -57,7 +57,7 @@
 
 .settings-section__title {
   font: var(--font-title-medium);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   margin: 0 0 var(--spacing-4) 0;
 }
 
@@ -67,7 +67,7 @@
 
 .settings-section__subtitle {
   font: var(--font-body-small);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   margin: 0 0 var(--spacing-4) 0;
 }
 
@@ -78,7 +78,7 @@
   justify-content: space-between;
   gap: var(--spacing-4);
   padding: var(--spacing-3) 0;
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 }
 
 .settings-item:last-child {
@@ -93,23 +93,23 @@
 .settings-item__label {
   display: block;
   font: var(--font-label-large);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   margin-bottom: var(--spacing-1);
 }
 
 .settings-item__description {
   font: var(--font-body-small);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   margin: 0;
 }
 
 .settings-item__select {
   padding: var(--spacing-2) var(--spacing-3);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-small);
-  background: var(--color-surface);
+  background: var(--md-sys-color-surface);
   font: var(--font-body-medium);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   cursor: pointer;
 }
 
@@ -120,7 +120,7 @@
 
 .settings-item__loading {
   font: var(--font-body-small);
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
   margin-left: var(--spacing-2);
 }
 
@@ -130,8 +130,8 @@
   align-items: center;
   margin-left: var(--spacing-2);
   padding: var(--spacing-1) var(--spacing-2);
-  background: var(--color-primary-container);
-  color: var(--color-on-primary-container);
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
   font: var(--font-label-small);
   font-weight: 600;
   border-radius: var(--shape-full);
@@ -142,7 +142,7 @@
 .settings-unavailable {
   font: var(--font-body-small);
   font-style: italic;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   flex-shrink: 0;
   max-width: 45%;
   text-align: right;
@@ -174,23 +174,23 @@
 
 .settings-theme-btn {
   padding: var(--spacing-2) var(--spacing-3);
-  border: var(--border-width-default) solid var(--color-outline-variant);
-  background: var(--color-surface);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface);
   border-radius: var(--shape-small);
   font: var(--font-label-medium);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   cursor: pointer;
   transition: background-color var(--motion-duration-short) var(--motion-easing-standard), border-color var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .settings-theme-btn:hover {
-  border-color: var(--color-outline);
+  border-color: var(--md-sys-color-outline);
 }
 
 .settings-theme-btn--active {
-  background: var(--color-primary-container);
-  border-color: var(--color-primary);
-  color: var(--color-on-primary-container);
+  background: var(--md-sys-color-primary-container);
+  border-color: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary-container);
 }
 
 /* ==================== Shortcuts Tab ==================== */
@@ -200,7 +200,7 @@
 
 .settings-shortcuts__group-title {
   font: var(--font-title-small);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   margin: 0 0 var(--spacing-2) 0;
@@ -212,7 +212,7 @@
 }
 
 .settings-shortcuts__row {
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 }
 
 .settings-shortcuts__row:last-child {
@@ -222,7 +222,7 @@
 .settings-shortcuts__description {
   padding: var(--spacing-2) var(--spacing-2) var(--spacing-2) 0;
   font: var(--font-body-medium);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 .settings-shortcuts__key {
@@ -235,22 +235,22 @@
   display: inline-flex;
   align-items: center;
   padding: var(--spacing-1) var(--spacing-2);
-  background: var(--color-surface-container-high);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface-container-high);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-bottom-width: var(--border-width-thick);
   border-radius: var(--shape-extra-small);
   font: var(--font-label-small);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   font-family: var(--font-family-mono);
 }
 
 /* ==================== User Info ==================== */
 .settings-user-card {
   width: 100%;
-  background: var(--color-surface-container);
+  background: var(--md-sys-color-surface-container);
   border-radius: var(--shape-large);
   padding: var(--spacing-5);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 }
 
 .settings-user-info {
@@ -258,7 +258,7 @@
   align-items: center;
   gap: var(--spacing-4);
   padding-bottom: var(--spacing-4);
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   margin-bottom: var(--spacing-4);
 }
 
@@ -268,8 +268,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-primary);
-  color: var(--color-on-primary);
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
   border-radius: var(--shape-full);
   font: var(--font-title-large);
 
@@ -282,13 +282,13 @@
 
 .settings-user-name {
   font: var(--font-title-small);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   margin: 0 0 var(--spacing-1) 0;
 }
 
 .settings-user-id {
   font: var(--font-body-medium);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   margin: 0;
 }
 
@@ -306,19 +306,19 @@
 
 .settings-meta-label {
   font: var(--font-label-small);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .settings-meta-value {
   font: var(--font-body-large);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   font-weight: 500;
 }
 
 .settings-meta-value--active {
-  color: var(--color-tertiary);
+  color: var(--md-sys-color-tertiary);
 }
 
 /* ==================== Account Actions ==================== */
@@ -330,7 +330,7 @@
 
 .settings-actions__title {
   font: var(--font-title-small);
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
   margin: 0;
 }
 
@@ -348,28 +348,28 @@
 
 .settings-form-label {
   font: var(--font-label-medium);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .settings-form-input {
   padding: var(--spacing-2) var(--spacing-3);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-medium);
-  background: var(--color-surface);
-  color: var(--color-on-surface);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
   font: var(--font-body-medium);
   outline: none;
   transition: border-color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .settings-form-input:focus {
-  border-color: var(--color-primary);
+  border-color: var(--md-sys-color-primary);
 }
 
 .settings-error {
   padding: var(--spacing-2) var(--spacing-3);
-  background: var(--color-error-container);
-  color: var(--color-on-error-container);
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
   border-radius: var(--shape-medium);
   font: var(--font-body-small);
   margin-bottom: var(--spacing-3);
@@ -377,8 +377,8 @@
 
 .settings-success {
   padding: var(--spacing-2) var(--spacing-3);
-  background: var(--color-success-container);
-  color: var(--color-on-success-container);
+  background: var(--md-sys-color-success-container);
+  color: var(--md-sys-color-on-success-container);
   border-radius: var(--shape-medium);
   font: var(--font-body-small);
   margin-bottom: var(--spacing-3);
@@ -394,7 +394,7 @@
 /* ==================== Settings Buttons ==================== */
 .settings-divider {
   height: 1px;
-  background: var(--color-outline-variant);
+  background: var(--md-sys-color-outline-variant);
   margin: var(--spacing-4) 0;
 }
 
@@ -426,10 +426,10 @@
   width: 32px;
   height: 32px;
   flex: none;
-  border: 1px solid var(--color-outline-variant);
+  border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
-  color: var(--color-on-surface-variant);
-  background: var(--color-surface-container);
+  color: var(--md-sys-color-on-surface-variant);
+  background: var(--md-sys-color-surface-container);
 }
 
 .settings-feature-row__text {
@@ -442,10 +442,10 @@
 
 .settings-feature-row__title {
   font-weight: 500;
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 .settings-feature-row__powers {
   font-size: 0.85em;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }

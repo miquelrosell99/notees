@@ -32,7 +32,7 @@
   column-gap: var(--spacing-4);
   /* The ungrouped grid rides on a raised container panel so the
      surface-level cards read against the page surface. */
-  background: var(--color-surface-container-high);
+  background: var(--md-sys-color-surface-container-high);
   padding: var(--spacing-4);
   border-radius: var(--shape-large);
   width: 100%;
@@ -68,9 +68,9 @@
   /* "visible border in card view — the container background matches
      outline-variant, so blend outline and outline-variant for a subtle but
      visible edge." */
-  border: var(--border-width-default) solid color-mix(in srgb, var(--color-outline) 50%, var(--color-outline-variant));
+  border: var(--border-width-default) solid color-mix(in srgb, var(--md-sys-color-outline) 50%, var(--md-sys-color-outline-variant));
   border-radius: var(--shape-extra-large);
-  background: var(--color-surface);
+  background: var(--md-sys-color-surface);
   /* lazy rendering: off-screen cards skip layout/paint entirely;
      the intrinsic size keeps the scrollbar stable while skipped. */
   content-visibility: auto;
@@ -100,7 +100,7 @@
   /* The cover is a mat — the image floats on a surface-container-high
      slot inset by spacing-2, never bleeding to the card edge. */
   padding: var(--spacing-2);
-  background: var(--color-surface-container-high);
+  background: var(--md-sys-color-surface-container-high);
 }
 
 /* the lazy placeholder: same slot, no bytes, a quiet pulse
@@ -108,8 +108,8 @@
 .node-card__cover--pending {
   background:
     linear-gradient(
-      var(--color-surface-container-highest),
-      var(--color-surface-container)
+      var(--md-sys-color-surface-container-highest),
+      var(--md-sys-color-surface-container)
     );
   animation: node-card-cover-pulse 1.6s ease-in-out infinite;
 }
@@ -142,7 +142,7 @@
 }
 
 .node-card__cover--button:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-primary);
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: calc(var(--spacing-micro) * -1);
 }
 
@@ -157,18 +157,18 @@
   justify-content: center;
   gap: var(--spacing-1);
   border: none;
-  color: var(--color-outline);
+  color: var(--md-sys-color-outline);
   font: var(--font-body-small);
   cursor: pointer;
 }
 
 .node-card__cover--empty:hover,
 .node-card__cover--empty:focus-visible {
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
 }
 
 .node-card__cover--empty:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-primary);
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: calc(var(--spacing-micro) * -1);
 }
 
@@ -294,13 +294,13 @@
   align-items: center;
   gap: var(--spacing-2);
   padding: var(--spacing-2) var(--spacing-3);
-  border-top: var(--border-width-default) solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   min-width: 0;
 }
 
 .node-card__content-row-label {
   font-size: var(--font-size-xs);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -342,7 +342,7 @@
   background: none;
   border-radius: var(--shape-small);
   cursor: pointer;
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   padding: 0;
   transition:
     color var(--motion-duration-short) var(--motion-easing-standard),
@@ -350,12 +350,12 @@
 }
 
 .node-card__collapse-btn:hover {
-  color: var(--color-on-surface);
-  background-color: var(--color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+  background-color: var(--md-sys-color-hover-overlay);
 }
 
 .node-card__collapse-btn--has-children {
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 }
 
 /* ─── The card title — the page-view title row itself (BlockRow
@@ -373,7 +373,7 @@
   font-size: var(--font-size-body-lg);
   font-weight: 600;
   line-height: 1.4;
-  color: var(--color-on-surface);
+  color: var(--md-sys-color-on-surface);
 }
 
 /* The title opens the node (read-only trampoline) — the pointer + the
@@ -383,7 +383,7 @@
 }
 
 .node-card__title .nt-title-content:hover {
-  color: var(--color-primary);
+  color: var(--md-sys-color-primary);
 }
 
 /* ─── Metadata rows — classes + tags chips: their OWN rows, hairline-
@@ -398,7 +398,7 @@
   min-width: 0;
   overflow: hidden;
   padding: var(--spacing-2) var(--spacing-3);
-  border-top: var(--border-width-default) solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 }
 
 /* ─── The properties section — the nodeview properties table itself
@@ -445,7 +445,7 @@
   justify-content: center;
   padding: var(--spacing-micro);
   border-radius: var(--shape-small);
-  background: var(--color-surface);
+  background: var(--md-sys-color-surface);
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
@@ -462,6 +462,6 @@
 /* Original selected wash: the surface-container-high background + the primary
    focus ring — not the primary-container fill. */
 .node-card--selected {
-  background: var(--color-surface-container-high);
+  background: var(--md-sys-color-surface-container-high);
   box-shadow: var(--shadow-focus-ring-primary);
 }

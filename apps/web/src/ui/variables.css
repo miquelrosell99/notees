@@ -1,11 +1,21 @@
 /**
  * Design System Variables
  *
+ * Material You color roles (https://m3.material.io/styles/color/roles):
+ * every color token carries the --md-sys-color-* prefix and the app styles
+ * reference ONLY these tokens — no hardcoded values in component CSS.
+ *
+ * Dynamic-color model: the primary family IS the user's seed — the selected
+ * accent. The [data-accent] blocks at the bottom set only
+ * --md-sys-color-primary and --md-sys-color-on-primary; every other primary
+ * role (container, on-container, hover, pressed, inverse) derives from them
+ * via color-mix in the theme blocks, so there is exactly one source of truth
+ * per theme and no parallel color track.
+ *
  * Margin Green brand tokens: warm paper light ground (#f7f4ec), warm
  * near-black dark ground (#161412), iron-ink neutrals from the brand scale;
- * Advance Green (#2e5e46) enters through the accent presets (see the
- * [data-accent] blocks below). The canonical brand values live in the brand
- * submodule (brand/assets/tokens/tokens.css).
+ * the default seed is Advance Green (#2e5e46, night variant #6da789). The
+ * canonical brand values live in the brand submodule (brand/assets/tokens/tokens.css).
  */
 
 :root {
@@ -14,114 +24,113 @@
      under dark themes (white inputs, pale button faces). */
   color-scheme: light;
 
-  /* ==================== Primary (Monochrome) ==================== */
-  --color-primary: #111;
-  --color-on-primary: #fff;
-  --color-primary-container: #f0f0f0;
-  --color-on-primary-container: #111;
-  --color-primary-hover: #1a1a1a;
-  --color-primary-pressed: #333;
+  /* ==================== Primary (accent-derived, Material You) ==================== */
+  /* The default seed is the margin (brand) accent; [data-accent] blocks below
+     replace primary/on-primary per user selection — the derived roles follow
+     automatically. */
+  --md-sys-color-primary: #2e5e46;
+  --md-sys-color-on-primary: #fff;
+  --md-sys-color-primary-container: color-mix(in srgb, var(--md-sys-color-primary) 11%, var(--md-sys-color-surface));
+  --md-sys-color-on-primary-container: color-mix(in srgb, var(--md-sys-color-primary) 82%, #221a13);
+  --md-sys-color-primary-hover: color-mix(in srgb, var(--md-sys-color-primary) 88%, black);
+  --md-sys-color-primary-pressed: color-mix(in srgb, var(--md-sys-color-primary) 74%, black);
+  --md-sys-color-inverse-primary: color-mix(in srgb, var(--md-sys-color-primary) 40%, #a6a09a);
 
   /* Absolute black/white for contrast-math results (e.g. text on user-chosen colors) */
-  --color-black: #000;
-  --color-white: #fff;
+  --md-sys-color-black: #000;
+  --md-sys-color-white: #fff;
 
   /* ==================== Secondary ==================== */
-  --color-secondary: #333;
-  --color-on-secondary: #fff;
-  --color-secondary-container: #f7f7f7;
-  --color-on-secondary-container: #333;
-  --color-secondary-hover: #555;
-  --color-secondary-pressed: #444;
+  --md-sys-color-secondary: #333;
+  --md-sys-color-on-secondary: #fff;
+  --md-sys-color-secondary-container: #f7f7f7;
+  --md-sys-color-on-secondary-container: #333;
+  --md-sys-color-secondary-hover: #555;
+  --md-sys-color-secondary-pressed: #444;
 
   /* ==================== Tertiary ==================== */
-  --color-tertiary: #555;
-  --color-on-tertiary: #fff;
-  --color-tertiary-container: #f0f0f0;
-  --color-on-tertiary-container: #333;
-  --color-tertiary-hover: #444;
-  --color-tertiary-pressed: #333;
+  --md-sys-color-tertiary: #555;
+  --md-sys-color-on-tertiary: #fff;
+  --md-sys-color-tertiary-container: #f0f0f0;
+  --md-sys-color-on-tertiary-container: #333;
+  --md-sys-color-tertiary-hover: #444;
+  --md-sys-color-tertiary-pressed: #333;
 
   /* ==================== Error ==================== */
-  --color-error: #c0392b;
-  --color-on-error: #fff;
-  --color-error-container: #fdecea;
-  --color-on-error-container: #611a15;
-  --color-error-hover: #a83227;
-  --color-error-pressed: #89211f;
+  --md-sys-color-error: #c0392b;
+  --md-sys-color-on-error: #fff;
+  --md-sys-color-error-container: #fdecea;
+  --md-sys-color-on-error-container: #611a15;
+  --md-sys-color-error-hover: #a83227;
+  --md-sys-color-error-pressed: #89211f;
 
   /* ==================== Warning ==================== */
-  --color-warning: #8f6216;
-  --color-on-warning: #fff;
-  --color-warning-container: #fffbeb;
-  --color-on-warning-container: #78350f;
+  --md-sys-color-warning: #8f6216;
+  --md-sys-color-on-warning: #fff;
+  --md-sys-color-warning-container: #fffbeb;
+  --md-sys-color-on-warning-container: #78350f;
 
   /* ==================== Success ==================== */
-  --color-success: #3d7253;
-  --color-on-success: #fff;
-  --color-success-container: #d1fae5;
-  --color-on-success-container: #14532d;
+  --md-sys-color-success: #3d7253;
+  --md-sys-color-on-success: #fff;
+  --md-sys-color-success-container: #d1fae5;
+  --md-sys-color-on-success-container: #14532d;
 
   /* ==================== Background & Surface ==================== */
 
   /* Warm paper workspace — the Margin Green identity ground (#f7f4ec, brand
      role --bi-background); surfaces and ink come from the brand neutral scale. */
-  --color-background: #f7f4ec;
-  --color-on-background: #221a13;
-  --color-surface: #fff;
-  --color-on-surface: #221a13;
-  --color-surface-variant: #edeae2;
-  --color-on-surface-variant: #5c544c;
-  --color-surface-dim: #e8e6e3;
-  --color-surface-bright: #fff;
-  --color-surface-container: #fcfaf8;
-  --color-surface-container-active: color-mix(in srgb, var(--color-surface-container) 75%, black);
-  --color-surface-container-low: #f4f3f1;
-  --color-surface-container-high: #edeae2;
-  --color-surface-container-highest: #e8e6e3;
-  --color-surface-container-lowest: #fff;
-  --color-inverse-surface: #221a13;
-  --color-inverse-on-surface: #f7f4ec;
-  --color-inverse-primary: #a6a09a;
+  --md-sys-color-background: #f7f4ec;
+  --md-sys-color-on-background: #221a13;
+  --md-sys-color-surface: #fff;
+  --md-sys-color-on-surface: #221a13;
+  --md-sys-color-surface-variant: #edeae2;
+  --md-sys-color-on-surface-variant: #5c544c;
+  --md-sys-color-surface-dim: #e8e6e3;
+  --md-sys-color-surface-bright: #fff;
+  --md-sys-color-surface-container: #fcfaf8;
+  --md-sys-color-surface-container-active: color-mix(in srgb, var(--md-sys-color-surface-container) 75%, black);
+  --md-sys-color-surface-container-low: #f4f3f1;
+  --md-sys-color-surface-container-high: #edeae2;
+  --md-sys-color-surface-container-highest: #e8e6e3;
+  --md-sys-color-surface-container-lowest: #fff;
+  --md-sys-color-inverse-surface: #221a13;
+  --md-sys-color-inverse-on-surface: #f7f4ec;
 
   /* The sidebar cards' fill (owner 2026-10-09): the nodeview sidebars wear
      the main card's element nested inside it — light keeps the identical
      surface; dark steps one tone LIGHTER (graphite up) so the cards stand
      out against the near-black main surface. */
-  --color-sidebar-card: var(--color-surface);
+  --md-sys-color-sidebar-card: var(--md-sys-color-surface);
 
   /* ==================== Outline & Utility ==================== */
-  --color-outline: #d8d3c7;
-  --color-outline-variant: #e8e6e3;
-  --color-shadow: rgb(0 0 0 / 8%);
-  --color-scrim: rgb(0 0 0 / 50%);
+  --md-sys-color-outline: #d8d3c7;
+  --md-sys-color-outline-variant: #e8e6e3;
+  --md-sys-color-shadow: rgb(0 0 0 / 8%);
+  --md-sys-color-scrim: rgb(0 0 0 / 50%);
 
   /* ==================== Presentation stage ====================
      Fullscreen presentation host (PresentationOverlay): a dark stage in
      EVERY theme (a deck reads like a projector surface, not a page), with
      its own on-stage text colors. */
-  --color-presentation-stage: #17150f;
-  --color-on-presentation-stage: #ece9e3;
-  --color-on-presentation-stage-muted: #9d968c;
+  --md-sys-color-presentation-stage: #17150f;
+  --md-sys-color-on-presentation-stage: #ece9e3;
+  --md-sys-color-on-presentation-stage-muted: #9d968c;
 
   /* ==================== State ==================== */
-  --color-disabled: #d4d4d4;
-  --color-on-disabled: #8a8a8a;
-  --color-hover-overlay: rgb(0 0 0 / 4%);
-  --color-focus-overlay: rgb(0 0 0 / 8%);
-  --color-pressed-overlay: rgb(0 0 0 / 12%);
+  --md-sys-color-disabled: #d4d4d4;
+  --md-sys-color-on-disabled: #8a8a8a;
+  --md-sys-color-hover-overlay: rgb(0 0 0 / 4%);
+  --md-sys-color-focus-overlay: rgb(0 0 0 / 8%);
+  --md-sys-color-pressed-overlay: rgb(0 0 0 / 12%);
 
-  /* ==================== Accent (margin default) ==================== */
-  --color-accent: #2e5e46;
-  --color-on-accent: #fff;
-  --color-accent-hover: color-mix(in srgb, var(--color-accent) 90%, black);
-  --color-accent-active: color-mix(in srgb, var(--color-accent) 80%, black);
-  --color-accent-subtle: #518a6d;
-  --color-surface-tint: transparent;
-  /* The settings swatch previews the monochrome preset per scheme (ink on
-     paper by day, paper white on the night ground) — see
-     [data-accent="monochrome"] for the accent itself. */
-  --color-accent-swatch-monochrome: #1c1a16;
+  --md-sys-color-surface-tint: transparent;
+
+  /* The accent picker's monochrome swatch previews the monochrome SEED, not
+     the active accent — a theme constant (iron ink on paper by day, paper
+     white on the night ground), set per scheme here and scoped to the
+     swatch in SettingsPage.css. */
+  --md-sys-color-swatch-monochrome: #1c1a16;
 
   /* ==================== Data-level preset colors ====================
      Application data colors (node/class/tag colors, selection options):
@@ -129,16 +138,16 @@
      the protocol color grammar (packages/protocol/src/colors.ts); the
      token → hex mapping lives here so themes can remap the palette without
      touching data (colorPresets.ts bridges token → var at render). */
-  --color-preset-red: #e34d45;
-  --color-preset-orange: #ed822b;
-  --color-preset-yellow: #f3b816;
-  --color-preset-green: #30a66f;
-  --color-preset-teal: #27a59c;
-  --color-preset-sky: #20a9e9;
-  --color-preset-blue: #4072e7;
-  --color-preset-purple: #9662da;
-  --color-preset-pink: #de4996;
-  --color-preset-gray: #8c857d;
+  --md-sys-color-preset-red: #e34d45;
+  --md-sys-color-preset-orange: #ed822b;
+  --md-sys-color-preset-yellow: #f3b816;
+  --md-sys-color-preset-green: #30a66f;
+  --md-sys-color-preset-teal: #27a59c;
+  --md-sys-color-preset-sky: #20a9e9;
+  --md-sys-color-preset-blue: #4072e7;
+  --md-sys-color-preset-purple: #9662da;
+  --md-sys-color-preset-pink: #de4996;
+  --md-sys-color-preset-gray: #8c857d;
 
   /* ==================== Graph View (light defaults) ==================== */
   --graph-node-default: #737373;
@@ -469,8 +478,8 @@
   --block-drag-ghost-line-height: 28px;
   --block-drag-ghost-multi-line-height: 26px;
   --block-drag-ghost-row-height: 26px;
-  --color-btn-size-md: 38px;
-  --color-btn-size-lg: 46px;
+  --btn-size-md: 38px;
+  --btn-size-lg: 46px;
   --graph-card-height: 250px;
   --grid-size: 24px;
   --minimap-height: 220px;
@@ -490,8 +499,8 @@
   --qr-size: 256px;
 
   /* QR codes must keep a light mat in every theme or scanners fail;
-     intentionally not themed (like --color-white). */
-  --qr-background: var(--color-white);
+     intentionally not themed (like --md-sys-color-white). */
+  --qr-background: var(--md-sys-color-white);
   --selection-btn-size-lg: 42px;
   --selection-btn-size-md: 34px;
   --selection-btn-size-sm: 26px;
@@ -521,59 +530,11 @@
   --spacing-3-5: 0.875rem;   /* 14px – card headers / tight sections */
   --spacing-7: 1.75rem;
 
-  /* ==================== Legacy variable aliases ==================== */
+  /* ==================== Legacy variable aliases (non-color) ==================== */
 
-  /* These map older/one-off variable names to the canonical design tokens
-     so existing component CSS continues to resolve without undefined tokens. */
-  --primary: var(--color-primary);
-  --primary-color: var(--color-primary);
-  --primary-contrast: var(--color-on-primary);
-  --primary-container: var(--color-primary-container);
-  --secondary-container: var(--color-secondary-container);
-  --tertiary-container: var(--color-tertiary-container);
-  --on-surface: var(--color-on-surface);
-  --on-surface-variant: var(--color-on-surface-variant);
-  --on-secondary-container: var(--color-on-secondary-container);
-  --on-tertiary-container: var(--color-on-tertiary-container);
-  --outline-variant: var(--color-outline-variant);
-  --surface: var(--color-surface);
-  --surface-2: var(--color-surface-container);
-  --surface-bg: var(--color-background);
-  --surface-color: var(--color-surface);
-  --surface-secondary: var(--color-surface-variant);
-  --surface-container: var(--color-surface-container);
-  --surface-container-low: var(--color-surface-container-low);
-  --surface-container-high: var(--color-surface-container-high);
-  --surface-container-highest: var(--color-surface-container-highest);
-  --surface-container-lowest: var(--color-surface-container-lowest);
-  --surface-elevated: var(--color-surface-bright);
-  --background: var(--color-background);
-  --bg-secondary: var(--color-surface-container);
-  --bg-tertiary: var(--color-surface-variant);
-  --hover-bg: var(--color-surface-container-high);
-  --border-color: var(--color-outline-variant);
-  --card-border-color: var(--color-outline-variant);
-  --text-primary: var(--color-on-surface);
-  --text-secondary: var(--color-on-surface-variant);
-  --text-tertiary: var(--color-on-surface-variant);
-  --text-muted: var(--color-on-surface-variant);
-  --color-text: var(--color-on-surface);
-  --color-text-primary: var(--color-on-surface);
-  --color-text-secondary: var(--color-on-surface-variant);
-  --color-text-tertiary: var(--color-on-surface-variant);
-  --color-text-muted: var(--color-on-surface-variant);
-  --color-placeholder: var(--color-on-surface-variant);
-  --color-border: var(--color-outline-variant);
-  --color-border-subtle: var(--color-outline-variant);
-  --color-bg-primary: var(--color-surface);
-  --color-bg-secondary: var(--color-surface-container);
-  --color-bg-tertiary: var(--color-surface-variant);
-  --color-bg-hover: var(--color-surface-container-high);
-  --color-surface-hover: var(--color-surface-container-high);
-  --color-surface-elevated: var(--color-surface-bright);
-  --color-danger: var(--color-error);
-  --accent-color: var(--color-accent);
-  --accent-primary: var(--color-accent);
+  /* Non-color aliases only: the color palette is single-track
+     (--md-sys-color-*) and has no aliases — component CSS references the
+     canonical tokens directly. */
   --shadow-2: var(--elevation-2);
   --shadow-3: var(--elevation-3);
   --shadow-md: var(--elevation-2);
@@ -644,44 +605,43 @@
   /* === Functional tokens === */
 
   /* Functional shadows */
-  --shadow-table-row-gutter: 1px 0 0 0 var(--color-outline-variant);
-  --shadow-drop-target: inset 0 -2px 0 var(--color-primary);
-  --shadow-error-underline: inset 0 -2px 0 var(--color-error);
+  --shadow-table-row-gutter: 1px 0 0 0 var(--md-sys-color-outline-variant);
+  --shadow-drop-target: inset 0 -2px 0 var(--md-sys-color-primary);
+  --shadow-error-underline: inset 0 -2px 0 var(--md-sys-color-error);
   --shadow-presence-ring: 0 0 0 1px rgb(0 0 0 / 10%);
   --shadow-presence-text: 0 1px 2px rgb(0 0 0 / 30%);
 
   /* Query widget accent (the left border that marks an embedded query) */
-  --color-query-accent: #c11574;
+  --md-sys-color-query-accent: #c11574;
 
   /* Callout semantic colors */
-  --color-callout-warning: #8f6216;
-  --color-callout-warning-bg: rgb(143 98 22 / 8%);
-  --color-callout-tip: #3a756d;
-  --color-callout-tip-bg: rgb(58 117 109 / 8%);
-  --color-callout-danger: #b04a45;
-  --color-callout-danger-bg: rgb(176 74 69 / 8%);
-  --color-callout-success: #3d7253;
-  --color-callout-success-bg: rgb(61 114 83 / 8%);
+  --md-sys-color-callout-warning: #8f6216;
+  --md-sys-color-callout-warning-bg: rgb(143 98 22 / 8%);
+  --md-sys-color-callout-tip: #3a756d;
+  --md-sys-color-callout-tip-bg: rgb(58 117 109 / 8%);
+  --md-sys-color-callout-danger: #b04a45;
+  --md-sys-color-callout-danger-bg: rgb(176 74 69 / 8%);
+  --md-sys-color-callout-success: #3d7253;
+  --md-sys-color-callout-success-bg: rgb(61 114 83 / 8%);
 
   /* === Semantic functional tokens === */
 
   /* Focus / error rings */
-  --shadow-focus-ring: 0 0 0 2px var(--color-accent);
-  --shadow-focus-ring-thick: 0 0 0 3px var(--color-accent);
-  --shadow-focus-ring-primary: 0 0 0 2px var(--color-primary);
-  --shadow-focus-ring-primary-subtle: 0 0 0 2px color-mix(in srgb, var(--color-primary) 20%, transparent);
-  --shadow-focus-ring-primary-container: 0 0 0 2px var(--color-primary-container);
-  --shadow-error-ring: 0 0 0 2px var(--color-error);
-  --shadow-error-ring-thick: 0 0 0 3px color-mix(in srgb, var(--color-error) 10%, transparent);
-  --shadow-error-ring-subtle: 0 0 0 2px color-mix(in srgb, var(--color-error) 20%, transparent);
-  --shadow-error-ring-thin: 0 0 0 1px var(--color-error);
-  --shadow-outline-ring: 0 0 0 1px var(--color-outline);
-  --shadow-inset-outline-ring: inset 0 0 0 2px var(--color-outline);
-  --shadow-inset-primary-ring: inset 0 0 0 2px var(--color-primary);
-  --shadow-inset-accent-ring: inset 0 0 0 2px var(--color-accent);
-  --shadow-focus-ring-primary-thin: 0 0 0 1px var(--color-primary);
-  --shadow-success-ring-subtle: 0 0 0 2px color-mix(in srgb, var(--color-success) 20%, transparent);
-  --shadow-error-ring-ghost: 0 0 0 0 color-mix(in srgb, var(--color-error) 40%, transparent);
+  --shadow-focus-ring: 0 0 0 2px var(--md-sys-color-primary);
+  --shadow-focus-ring-thick: 0 0 0 3px var(--md-sys-color-primary);
+  --shadow-focus-ring-primary: 0 0 0 2px var(--md-sys-color-primary);
+  --shadow-focus-ring-primary-subtle: 0 0 0 2px color-mix(in srgb, var(--md-sys-color-primary) 20%, transparent);
+  --shadow-focus-ring-primary-container: 0 0 0 2px var(--md-sys-color-primary-container);
+  --shadow-error-ring: 0 0 0 2px var(--md-sys-color-error);
+  --shadow-error-ring-thick: 0 0 0 3px color-mix(in srgb, var(--md-sys-color-error) 10%, transparent);
+  --shadow-error-ring-subtle: 0 0 0 2px color-mix(in srgb, var(--md-sys-color-error) 20%, transparent);
+  --shadow-error-ring-thin: 0 0 0 1px var(--md-sys-color-error);
+  --shadow-outline-ring: 0 0 0 1px var(--md-sys-color-outline);
+  --shadow-inset-outline-ring: inset 0 0 0 2px var(--md-sys-color-outline);
+  --shadow-inset-primary-ring: inset 0 0 0 2px var(--md-sys-color-primary);
+  --shadow-focus-ring-primary-thin: 0 0 0 1px var(--md-sys-color-primary);
+  --shadow-success-ring-subtle: 0 0 0 2px color-mix(in srgb, var(--md-sys-color-success) 20%, transparent);
+  --shadow-error-ring-ghost: 0 0 0 0 color-mix(in srgb, var(--md-sys-color-error) 40%, transparent);
 
   /* Motion easings */
   --motion-easing-ease: ease;
@@ -690,7 +650,7 @@
   --motion-easing-ease-in-out: ease-in-out;
 
   /* Default node color RGB fallback */
-  --color-node-default-rgb: 128, 128, 128;
+  --md-sys-color-node-default-rgb: 128, 128, 128;
 
   /* Runtime-overridden node color border variables.
      TypeScript sets these dynamically per workspace/accent color;
@@ -704,84 +664,85 @@
   /* Native control chrome follows the dark theme (see :root). */
   color-scheme: dark;
 
-  /* Primary */
-  --color-primary: #e5e5e5;
-  --color-on-primary: #111;
-  --color-primary-container: #262626;
-  --color-on-primary-container: #e5e5e5;
-  --color-primary-hover: #d4d4d4;
-  --color-primary-pressed: #a3a3a3;
+  /* Primary — the night seed (margin default); [data-accent] dark blocks
+     replace primary/on-primary, the derived roles follow via color-mix. */
+  --md-sys-color-primary: #6da789;
+  --md-sys-color-on-primary: #140e08;
+  --md-sys-color-primary-container: color-mix(in srgb, var(--md-sys-color-primary) 20%, var(--md-sys-color-surface));
+  --md-sys-color-on-primary-container: color-mix(in srgb, var(--md-sys-color-primary) 72%, #f4f3f1);
+  --md-sys-color-primary-hover: color-mix(in srgb, var(--md-sys-color-primary) 85%, white);
+  --md-sys-color-primary-pressed: color-mix(in srgb, var(--md-sys-color-primary) 68%, white);
+  --md-sys-color-inverse-primary: color-mix(in srgb, var(--md-sys-color-primary) 50%, #5c544c);
 
   /* Secondary */
-  --color-secondary: #c0c0c0;
-  --color-on-secondary: #111;
-  --color-secondary-container: #262626;
-  --color-on-secondary-container: #d4d4d4;
-  --color-secondary-hover: #d4d4d4;
-  --color-secondary-pressed: #737373;
+  --md-sys-color-secondary: #c0c0c0;
+  --md-sys-color-on-secondary: #111;
+  --md-sys-color-secondary-container: #262626;
+  --md-sys-color-on-secondary-container: #d4d4d4;
+  --md-sys-color-secondary-hover: #d4d4d4;
+  --md-sys-color-secondary-pressed: #737373;
 
   /* Tertiary */
-  --color-tertiary: #9e9e9e;
-  --color-on-tertiary: #111;
-  --color-tertiary-container: #262626;
-  --color-on-tertiary-container: #c0c0c0;
+  --md-sys-color-tertiary: #9e9e9e;
+  --md-sys-color-on-tertiary: #111;
+  --md-sys-color-tertiary-container: #262626;
+  --md-sys-color-on-tertiary-container: #c0c0c0;
 
   /* Error */
-  --color-error: #ef5550;
-  --color-on-error: #111;
-  --color-error-container: #611a15;
-  --color-on-error-container: #fdecea;
+  --md-sys-color-error: #ef5550;
+  --md-sys-color-on-error: #111;
+  --md-sys-color-error-container: #611a15;
+  --md-sys-color-on-error-container: #fdecea;
 
   /* Warning */
-  --color-warning: #f28b3f;
-  --color-on-warning: #111;
-  --color-warning-container: #78350f;
-  --color-on-warning-container: #fffbeb;
+  --md-sys-color-warning: #f28b3f;
+  --md-sys-color-on-warning: #111;
+  --md-sys-color-warning-container: #78350f;
+  --md-sys-color-on-warning-container: #fffbeb;
 
   /* Success */
-  --color-success: #29b672;
-  --color-on-success: #111;
-  --color-success-container: #14532d;
-  --color-on-success-container: #d1fae5;
+  --md-sys-color-success: #29b672;
+  --md-sys-color-on-success: #111;
+  --md-sys-color-success-container: #14532d;
+  --md-sys-color-on-success-container: #d1fae5;
 
   /* Background & Surface — the night is accent-tinted: a neutral dark family
-     washed with ~4–13% of the active accent (color-mix resolves per accent
+     washed with ~4–13% of the active seed (color-mix resolves per accent
      preset, monochrome included). The monochrome accent is near-achromatic,
      so its dark mode lands on untinted graphite. The light ground stays the
      brand paper regardless of accent. */
-  --color-background: color-mix(in oklab, var(--color-accent) 6%, #141414);
-  --color-on-background: color-mix(in oklab, var(--color-accent) 3%, #f4f3f1);
-  --color-surface: color-mix(in oklab, var(--color-accent) 8%, #1b1b1a);
-  --color-on-surface: color-mix(in oklab, var(--color-accent) 3%, #f4f3f1);
-  --color-surface-variant: color-mix(in oklab, var(--color-accent) 10%, #212120);
-  --color-on-surface-variant: color-mix(in oklab, var(--color-accent) 7%, #a9a59f);
-  --color-surface-dim: color-mix(in oklab, var(--color-accent) 4%, #100f0e);
-  --color-surface-bright: color-mix(in oklab, var(--color-accent) 10%, #212120);
-  --color-surface-container: color-mix(in oklab, var(--color-accent) 8%, #1b1b1a);
-  --color-surface-container-low: color-mix(in oklab, var(--color-accent) 6%, #141414);
-  --color-surface-container-high: color-mix(in oklab, var(--color-accent) 10%, #212120);
-  --color-surface-container-highest: color-mix(in oklab, var(--color-accent) 13%, #292925);
-  --color-surface-container-lowest: color-mix(in oklab, var(--color-accent) 4%, #100f0e);
-  --color-inverse-surface: #f4f3f1;
-  --color-inverse-on-surface: color-mix(in oklab, var(--color-accent) 6%, #141414);
-  --color-inverse-primary: #5c544c;
+  --md-sys-color-background: color-mix(in oklab, var(--md-sys-color-primary) 6%, #141414);
+  --md-sys-color-on-background: color-mix(in oklab, var(--md-sys-color-primary) 3%, #f4f3f1);
+  --md-sys-color-surface: color-mix(in oklab, var(--md-sys-color-primary) 8%, #1b1b1a);
+  --md-sys-color-on-surface: color-mix(in oklab, var(--md-sys-color-primary) 3%, #f4f3f1);
+  --md-sys-color-surface-variant: color-mix(in oklab, var(--md-sys-color-primary) 10%, #212120);
+  --md-sys-color-on-surface-variant: color-mix(in oklab, var(--md-sys-color-primary) 7%, #a9a59f);
+  --md-sys-color-surface-dim: color-mix(in oklab, var(--md-sys-color-primary) 4%, #100f0e);
+  --md-sys-color-surface-bright: color-mix(in oklab, var(--md-sys-color-primary) 10%, #212120);
+  --md-sys-color-surface-container: color-mix(in oklab, var(--md-sys-color-primary) 8%, #1b1b1a);
+  --md-sys-color-surface-container-low: color-mix(in oklab, var(--md-sys-color-primary) 6%, #141414);
+  --md-sys-color-surface-container-high: color-mix(in oklab, var(--md-sys-color-primary) 10%, #212120);
+  --md-sys-color-surface-container-highest: color-mix(in oklab, var(--md-sys-color-primary) 13%, #292925);
+  --md-sys-color-surface-container-lowest: color-mix(in oklab, var(--md-sys-color-primary) 4%, #100f0e);
+  --md-sys-color-inverse-surface: #f4f3f1;
+  --md-sys-color-inverse-on-surface: color-mix(in oklab, var(--md-sys-color-primary) 6%, #141414);
 
   /* The sidebar cards' fill: one tone lighter than the main surface so the
      nested cards read against the near-black card (light keeps the same
      surface — see the light block). OLED inherits the step through its own
      container-highest override. */
-  --color-sidebar-card: var(--color-surface-container-highest);
+  --md-sys-color-sidebar-card: var(--md-sys-color-surface-container-highest);
 
   /* Outline & Utility */
-  --color-outline: color-mix(in oklab, var(--color-accent) 13%, #292925);
-  --color-outline-variant: color-mix(in oklab, var(--color-accent) 10%, #212120);
-  --color-shadow: rgb(0 0 0 / 50%);
-  --color-scrim: rgb(0 0 0 / 70%);
+  --md-sys-color-outline: color-mix(in oklab, var(--md-sys-color-primary) 13%, #292925);
+  --md-sys-color-outline-variant: color-mix(in oklab, var(--md-sys-color-primary) 10%, #212120);
+  --md-sys-color-shadow: rgb(0 0 0 / 50%);
+  --md-sys-color-scrim: rgb(0 0 0 / 70%);
 
   /* Presentation stage — dark in every theme (see the light block). */
-  --color-presentation-stage: #0a0a09;
-  --color-on-presentation-stage: #e8e6e1;
-  --color-on-presentation-stage-muted: #a8a29e;
+  --md-sys-color-presentation-stage: #0a0a09;
+  --md-sys-color-on-presentation-stage: #e8e6e1;
+  --md-sys-color-on-presentation-stage-muted: #a8a29e;
 
   /* Dark-theme elevation: stronger casts so lifted surfaces register
      against near-black backgrounds. */
@@ -796,26 +757,109 @@
     0 18px 48px 8px rgb(0 0 0 / 52%);
 
   /* State */
-  --color-disabled: #404040;
-  --color-on-disabled: #a8a29e;
-  --color-query-accent: #f06fb0;
-  --color-hover-overlay: rgb(255 255 255 / 5%);
-  --color-focus-overlay: rgb(255 255 255 / 8%);
-  --color-pressed-overlay: rgb(255 255 255 / 12%);
+  --md-sys-color-disabled: #404040;
+  --md-sys-color-on-disabled: #a8a29e;
+  --md-sys-color-query-accent: #f06fb0;
+  --md-sys-color-hover-overlay: rgb(255 255 255 / 5%);
+  --md-sys-color-focus-overlay: rgb(255 255 255 / 8%);
+  --md-sys-color-pressed-overlay: rgb(255 255 255 / 12%);
+  --md-sys-color-swatch-monochrome: #f4f3f1;
+}
 
-  /* Accent — the dark-mode baseline rides the brand's night-green roles so
-     primary actions stay readable before the accent attribute resolves. */
-  --color-accent: #6da789;
-  --color-accent-subtle: #80bb9b;
-  --color-on-accent: #140e08;
-  --color-accent-swatch-monochrome: #f4f3f1;
+/* ==================== OLED Pure-Black Overrides ==================== */
+[data-oled="true"] {
+  --md-sys-color-background: #000;
+  --md-sys-color-on-background: #f4f3f1;
+  --md-sys-color-surface: #000;
+  --md-sys-color-surface-variant: #0a0a0a;
+  --md-sys-color-surface-dim: #000;
+  --md-sys-color-surface-bright: #111;
+  --md-sys-color-surface-container: #000;
+  --md-sys-color-surface-container-low: #000;
+  --md-sys-color-surface-container-high: #0a0a0a;
+  --md-sys-color-surface-container-highest: #17130e;
+  --md-sys-color-surface-container-lowest: #000;
+  --md-sys-color-outline-variant: #221c15;
 
-  /* Graph view tokens */
+  /* Presentation stage — dark in every theme (see the light block). */
+  --md-sys-color-presentation-stage: #000;
+  --md-sys-color-on-presentation-stage: #e8e6e1;
+  --md-sys-color-on-presentation-stage-muted: #a8a29e;
+}
+
+/* ==================== Accent presets (the Material You seed) ==================== */
+
+/* Placed after the dark theme so user-selected seeds win in both light and
+   dark modes. Each preset sets ONLY --md-sys-color-primary and
+   --md-sys-color-on-primary; every other primary role (container,
+   on-container, hover, pressed, inverse) derives from them in the theme
+   blocks above — one source of truth, no parallel color track. */
+/* Monochrome — ink, not grey: iron ink on paper by day, paper white on the
+   night ground by night (the dark value lives in the override below). */
+[data-accent="monochrome"] {
+  --md-sys-color-primary: #1c1a16;
+  --md-sys-color-on-primary: #f7f4ec;
+}
+
+/* Margin — the brand accent: Advance Green (#2e5e46), the act of adding. */
+[data-accent="margin"] {
+  --md-sys-color-primary: #2e5e46;
+  --md-sys-color-on-primary: #fff;
+}
+
+/* Curated hues — dark variants are the light value lightened ~L+20% (the
+   copper precedent); on-primary is computed per pair to keep ≥4.5:1. */
+[data-accent="brown"] {
+  --md-sys-color-primary: #a16b45;
+  --md-sys-color-on-primary: #000;
+}
+
+[data-accent="teal"] {
+  --md-sys-color-primary: #1fbdad;
+  --md-sys-color-on-primary: #140e08;
+}
+
+[data-accent="blue"] {
+  --md-sys-color-primary: #3d6a96;
+  --md-sys-color-on-primary: #fff;
+}
+
+/* ==================== Dark-mode accent (seed) overrides ==================== */
+
+/* Lightened/desaturated seeds so primary actions remain readable on dark surfaces. */
+[data-theme="dark"][data-accent="monochrome"] {
+  --md-sys-color-primary: #f4f3f1;
+  --md-sys-color-on-primary: #161412;
+}
+
+[data-theme="dark"][data-accent="margin"] {
+  --md-sys-color-primary: #6da789;
+  --md-sys-color-on-primary: #140e08;
+}
+
+[data-theme="dark"][data-accent="brown"] {
+  --md-sys-color-primary: #caa082;
+  --md-sys-color-on-primary: #140e08;
+}
+
+[data-theme="dark"][data-accent="teal"] {
+  --md-sys-color-primary: #5de5d7;
+  --md-sys-color-on-primary: #140e08;
+}
+
+[data-theme="dark"][data-accent="blue"] {
+  --md-sys-color-primary: #6d99c2;
+  --md-sys-color-on-primary: #140e08;
+}
+
+/* Graph view tokens (dark scheme; light defaults live in :root). The
+   minimap viewport rides the active seed. */
+[data-theme="dark"] {
   --graph-node-default: #d0d0d0;
   --graph-edge-color: #707070;
   --graph-bg: transparent;
   --graph-minimap-dot: #d0d0d0;
-  --graph-minimap-viewport: var(--color-accent);
+  --graph-minimap-viewport: var(--md-sys-color-primary);
 
   /* Graph semantic colors */
   --graph-edge-cooccurrence: #a78bd4;
@@ -837,100 +881,7 @@
   --graph-fallback-msg-color: rgb(163 163 163 / 55%);
 }
 
-/* ==================== OLED Pure-Black Overrides ==================== */
-[data-oled="true"] {
-  --color-background: #000;
-  --color-on-background: #f4f3f1;
-  --color-surface: #000;
-  --color-surface-variant: #0a0a0a;
-  --color-surface-dim: #000;
-  --color-surface-bright: #111;
-  --color-surface-container: #000;
-  --color-surface-container-low: #000;
-  --color-surface-container-high: #0a0a0a;
-  --color-surface-container-highest: #17130e;
-  --color-surface-container-lowest: #000;
-  --color-outline-variant: #221c15;
-
-  /* Presentation stage — dark in every theme (see the light block). */
-  --color-presentation-stage: #000;
-  --color-on-presentation-stage: #e8e6e1;
-  --color-on-presentation-stage-muted: #a8a29e;
-}
-
-/* ==================== Functional Accent Colors ==================== */
-
-/* Placed after the dark theme so user-selected accent colors win in both
-   light and dark modes. */
-/* Monochrome — ink, not grey: iron ink on paper by day, paper white on the
-   night ground by night (the dark value lives in the override below). */
-[data-accent="monochrome"] {
-  --color-accent: #1c1a16;
-  --color-accent-subtle: #6b6560;
-  --color-on-accent: #f7f4ec;
-}
-
-/* Margin — the brand accent: Advance Green (#2e5e46), the act of adding. */
-[data-accent="margin"] {
-  --color-accent: #2e5e46;
-  --color-accent-subtle: #518a6d;
-  --color-on-accent: #fff;
-}
-
-/* Curated hues — dark variants are the light value lightened ~L+20% (the
-   copper precedent); on-accent is computed per pair to keep ≥4.5:1. */
-[data-accent="brown"] {
-  --color-accent: #a16b45;
-  --color-accent-subtle: #744d32;
-  --color-on-accent: #000;
-}
-
-[data-accent="teal"] {
-  --color-accent: #1fbdad;
-  --color-accent-subtle: #1c8c7f;
-  --color-on-accent: #140e08;
-}
-
-[data-accent="blue"] {
-  --color-accent: #3d6a96;
-  --color-accent-subtle: #6f97bd;
-  --color-on-accent: #fff;
-}
-
-/* ==================== Dark-mode accent overrides ==================== */
-
-/* Lightened/desaturated accents so primary buttons remain readable on dark surfaces. */
-[data-theme="dark"][data-accent="monochrome"] {
-  --color-accent: #f4f3f1;
-  --color-accent-subtle: #9c978f;
-  --color-on-accent: #161412;
-}
-
-[data-theme="dark"][data-accent="margin"] {
-  --color-accent: #6da789;
-  --color-accent-subtle: #80bb9b;
-  --color-on-accent: #140e08;
-}
-
-[data-theme="dark"][data-accent="brown"] {
-  --color-accent: #caa082;
-  --color-accent-subtle: #977760;
-  --color-on-accent: #140e08;
-}
-
-[data-theme="dark"][data-accent="teal"] {
-  --color-accent: #5de5d7;
-  --color-accent-subtle: #49a99d;
-  --color-on-accent: #140e08;
-}
-
-[data-theme="dark"][data-accent="blue"] {
-  --color-accent: #6d99c2;
-  --color-accent-subtle: #52749a;
-  --color-on-accent: #140e08;
-}
-
-/* OLED inherits the dark accent values above; accent colors are not dimmed further
+/* OLED inherits the dark seed values above; accent colors are not dimmed further
    so primary actions stay legible on pure-black surfaces. */
 
 /* Mobile: shallower block indent so deep trees keep usable text width */
@@ -1006,4 +957,3 @@
     transform: scale(1);
   }
 }
-

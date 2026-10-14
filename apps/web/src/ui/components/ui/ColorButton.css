@@ -13,12 +13,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
   cursor: pointer;
   padding: 0;
   flex-shrink: 0;
-  background: var(--color-surface-container);
+  background: var(--md-sys-color-surface-container);
   overflow: hidden;
   min-width: var(--button-min-height);
   min-height: var(--button-min-height);
@@ -28,12 +28,12 @@
 }
 
 .color-btn:hover:not(:disabled) {
-  border-color: var(--color-outline);
+  border-color: var(--md-sys-color-outline);
   box-shadow: var(--shadow-outline-ring);
 }
 
 .color-btn:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-primary);
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: var(--spacing-micro);
 }
 
@@ -69,7 +69,7 @@
 }
 
 .color-btn--md {
-  width: var(--color-btn-size-md);
+  width: var(--btn-size-md);
   height: var(--height-lg);
   padding: 0;
   border-radius: var(--shape-large);
@@ -80,7 +80,7 @@
 }
 
 .color-btn--lg {
-  width: var(--color-btn-size-lg);
+  width: var(--btn-size-lg);
   height: var(--height-xl);
   padding: 0;
   border-radius: var(--shape-large);
@@ -92,7 +92,7 @@
 
 /* Active state */
 .color-btn--active {
-  border-color: var(--color-primary);
+  border-color: var(--md-sys-color-primary);
   box-shadow: var(--shadow-focus-ring-primary-thin);
 }
 
@@ -104,8 +104,8 @@
 
 /* Color Picker Popover */
 .color-btn-picker {
-  background: var(--color-surface-container-high);
-  border: var(--border-width-default) solid var(--color-outline-variant);
+  background: var(--md-sys-color-surface-container-high);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
   padding: var(--spacing-2);
   min-width: 0;
@@ -126,7 +126,7 @@
   gap: var(--spacing-1-5);
   align-items: center;
   padding-top: var(--spacing-2);
-  border-top: var(--border-width-default) solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 }
 
 

@@ -17,7 +17,7 @@
 
 .day-page-header__weekday {
   font: var(--font-label-large);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .day-page-header__today {
@@ -27,8 +27,8 @@
   letter-spacing: var(--letter-spacing-label);
   font-weight: 700;
   text-transform: uppercase;
-  color: var(--color-on-primary);
-  background: var(--color-primary);
+  color: var(--md-sys-color-on-primary);
+  background: var(--md-sys-color-primary);
   border-radius: var(--shape-full);
   padding: var(--spacing-micro) var(--spacing-2);
 }
@@ -42,6 +42,6 @@
 
 .day-page-header__week {
   font: var(--font-label-large);
-  color: var(--color-on-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
   flex-shrink: 0;
 }

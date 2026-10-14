@@ -4,7 +4,7 @@
 
 .separator {
   flex-shrink: 0;
-  background: var(--color-outline-variant);
+  background: var(--md-sys-color-outline-variant);
 }
 
 /* Orientation */
