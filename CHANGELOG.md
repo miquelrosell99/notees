@@ -9,6 +9,39 @@ predating this file.
 
 ## 2026-10-14
 
+- **fix(web): drop targets are correct and multi-level at every divider — the
+  line rides the block ELEMENT's bottom, and the pointer's indentation picks
+  the nesting level (owner: "I can't position 13 before 14… the drop targets
+  are incorrect… they should support multiple levels in the same
+  position… the lines should always be after the entire block element").**
+  Two long-standing defects compounded. (1) The `below` indicator painted at
+  the **text row's** bottom (a box-shadow on `> .nt-block-row`), while the
+  snap anchor sat at the **element's** bottom — for a block carrying
+  properties/children the visible line drew far above where the drop would
+  land (live repro: 64px above the pointer on a subtree block), making
+  precise positioning impossible. The above/below lines now render as
+  `::before`/`::after` on `.nt-block` itself (the element is
+  `position: relative`) — always at the element's top/bottom edge, i.e.
+  after THE ENTIRE block element: text row, properties, linked references,
+  children. (2) The child candidate anchored at the element's vertical
+  CENTER — hundreds of px from any divider on a tall block, so "first child
+  of X" was unreachable where it matters. Child anchors now ride the
+  element's bottom divider at the child-offset x: at one boundary every
+  nesting level the tree allows stacks by indentation (previous sibling of
+  the row below at the page gutter, next sibling of the subtree above at its
+  own gutter, first child at the child offset) and `nearestCandidate`'s x
+  tie-break picks the level — the owner example ("just before 14": sibling
+  of 14 / sibling of "el niño no es un adulto" / child of it) is exactly the
+  three bands. The mid-element "weird vertical line" (the child bar floating
+  at 48px mid-block) disappears with it: child intent only exists at
+  dividers now. **Verification:** new unit spec (three x-bands at one
+  divider) + updated anchor expectations (26 block-dnd tests green); new
+  live probe `scripts/screenshots/drop-targets-probe.mjs` against the
+  deployed stack — before: magenta line at the text-row bottom, none at the
+  element bottom (repro); after: three bands land C right before B / as A's
+  last child / as a child of a2a, the line at the element bottom, no stuck
+  indicators — PROBE-PASS.
+
 - **refactor(web): the graph renderer is behind a formal `GraphRenderer`
   interface — Stage 1 of the owner-approved PixiJS migration (adapter-first,
   flagged, load-test-gated).**
