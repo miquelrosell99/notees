@@ -586,3 +586,66 @@ describe("ghost trailing block", () => {
     expect(container.querySelector("[data-ghost]")).toBeNull();
   });
 });
+
+describe("selection level cap (the stack caps at its shallowest level)", () => {
+  /** parent(kid one, kid two), other — the kids sit one level deep. */
+  async function seedNestedPage(client: WorkspaceClient): Promise<string> {
+    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const parentId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "parent" }],
+    });
+    await client.createObject({ parentId, contentAst: [{ type: "text", text: "kid one" }] });
+    await client.createObject({ parentId, contentAst: [{ type: "text", text: "kid two" }] });
+    await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "other" }] });
+    return pageId;
+  }
+
+  it("ctrl+clicking a deeper row while a shallower one is selected promotes it to the shallow level", async () => {
+    const client = await seedClient();
+    const pageId = await seedNestedPage(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const rows = blockContents(container);
+    const ids = rows.map((r) => r.closest("[data-block-id]")!.getAttribute("data-block-id")!);
+
+    fireEvent.click(rows[3]!, { ctrlKey: true }); // "other" (top level)
+    fireEvent.click(rows[1]!, { ctrlKey: true }); // "kid one" (depth 1)
+    // Uncapped this would select {kid one, other} — a partial subtree. The
+    // cap promotes kid one to its ancestor: the stack is {parent, other}.
+    expect(selectedIds(container)).toEqual(ids);
+  });
+
+  it("ctrl+clicking inside an already-selected subtree is a no-op (no partial subtree)", async () => {
+    const client = await seedClient();
+    const pageId = await seedNestedPage(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const rows = blockContents(container);
+    const ids = rows.map((r) => r.closest("[data-block-id]")!.getAttribute("data-block-id")!);
+
+    fireEvent.click(rows[0]!, { ctrlKey: true }); // parent → the whole subtree
+    expect(selectedIds(container)).toEqual([ids[0], ids[1], ids[2]]);
+    // A row inside the selected subtree is implicitly selected through its
+    // root — toggling it would open a deeper level, which the cap forbids.
+    fireEvent.click(rows[1]!, { ctrlKey: true });
+    expect(selectedIds(container)).toEqual([ids[0], ids[1], ids[2]]);
+    // The root itself still toggles off.
+    fireEvent.click(rows[0]!, { ctrlKey: true });
+    expect(selectedIds(container)).toEqual([]);
+  });
+
+  it("a range touching a shallower row re-caps the stack: the deep anchor resolves to its ancestor", async () => {
+    const client = await seedClient();
+    const pageId = await seedNestedPage(client);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const rows = blockContents(container);
+    const ids = rows.map((r) => r.closest("[data-block-id]")!.getAttribute("data-block-id")!);
+
+    // Anchor deep: kid two alone is a legal (depth-1) stack.
+    fireEvent.click(rows[2]!, { shiftKey: true });
+    expect(selectedIds(container)).toEqual([ids[2]]);
+    // Extending the range onto "other" (depth 0) caps the stack at depth 0:
+    // kid two resolves to its ancestor "parent" — the whole subtree joins.
+    fireEvent.click(rows[3]!, { shiftKey: true });
+    expect(selectedIds(container)).toEqual(ids);
+  });
+});

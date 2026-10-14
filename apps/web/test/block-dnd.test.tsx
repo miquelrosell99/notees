@@ -20,11 +20,39 @@ import {
   CHILD_DROP_OFFSET_PX,
   DROP_SNAP_MAX_DY_PX,
   dropCandidatesOf,
+  edgeScrollVelocity,
+  effectiveDragIds,
+  executeStackPlan,
   nearestCandidate,
+  planStackMove,
+  scrollContainersOf,
+  siblingFactsFromPositions,
   type DragRowRect,
 } from "../src/ui/block-dnd.js";
 import { PageView } from "../src/ui/PageView.js";
 import { WorkspaceDndHost } from "../src/ui/useWorkspaceDnd.js";
+
+/**
+ * jsdom (without pretendToBeVisual) has no requestAnimationFrame: the drag
+ * session's edge-scroll loop and the scroll re-measure ride a manual queue
+ * the tests pump explicitly.
+ */
+const rafCallbacks = new Map<number, FrameRequestCallback>();
+let rafNextId = 0;
+
+/** Run `count` generations of queued rAF callbacks (each generation runs
+ *  the callbacks scheduled by the previous one). */
+function pumpFrames(count: number): void {
+  for (let frame = 0; frame < count; frame += 1) {
+    const pending = Array.from(rafCallbacks.values());
+    rafCallbacks.clear();
+    for (const callback of pending) callback(0);
+  }
+}
+
+/** Simulated content scroll for the edge-scroll tests: row tops shift up by
+ *  this many px, as after the scroller scrolled up. */
+let layoutScrollShift = 0;
 
 /**
  * The page renders inside the workspace drag session (the host owns the
@@ -67,6 +95,14 @@ class PointerEventPolyfill extends MouseEvent {
 beforeAll(async () => {
   sqlModule = await initSqlJs();
   window.PointerEvent = PointerEventPolyfill as unknown as typeof PointerEvent;
+  window.requestAnimationFrame = ((callback: FrameRequestCallback): number => {
+    rafNextId += 1;
+    rafCallbacks.set(rafNextId, callback);
+    return rafNextId;
+  }) as typeof window.requestAnimationFrame;
+  window.cancelAnimationFrame = ((id: number): void => {
+    rafCallbacks.delete(id);
+  }) as typeof window.cancelAnimationFrame;
   // Synthetic layout for the block rows (jsdom has none).
   Element.prototype.getBoundingClientRect = function (this: Element): DOMRect {
     const row = this.closest("[data-block-id]");
@@ -78,7 +114,7 @@ beforeAll(async () => {
         if (el.classList.contains("nt-block-children")) depth += 1;
       }
       const left = depth * 24;
-      const top = index * 40;
+      const top = index * 40 - layoutScrollShift;
       return {
         x: left,
         y: top,
@@ -402,6 +438,190 @@ describe("block drag-and-drop", () => {
     await flushMoves();
     expect(rowEl(container, one).className).not.toContain("nt-block--drag-source");
   });
+
+  it("the drag preview is frozen: no row carries a transform, only the line renders", async () => {
+    const client = await seedClient();
+    const { pageId, ids } = await seedThreeBlocks(client);
+    const [one, two] = ids;
+    const { container } = renderPage(client, pageId);
+
+    const fromRect = rowEl(container, one).getBoundingClientRect();
+    const grip = gripOf(rowEl(container, one));
+    fireEvent.pointerDown(grip, {
+      clientX: fromRect.left + 200,
+      clientY: fromRect.top + 16,
+      button: 0,
+      pointerId: 1,
+    });
+    const target = rowEl(container, two).getBoundingClientRect();
+    for (let i = 0; i < 3; i += 1) {
+      fireEvent.pointerMove(document, {
+        clientX: target.left + 4,
+        clientY: target.top + 24 + i,
+        buttons: 1,
+        pointerId: 1,
+      });
+    }
+
+    // The highlight line is the only live feedback — every row sits exactly
+    // where it started (no sortable strategy transform anywhere).
+    expect(rowEl(container, two).className).toContain("nt-drop-below");
+    for (const row of container.querySelectorAll<HTMLElement>("[data-block-id]")) {
+      expect(row.style.transform).toBe("");
+      expect(row.style.transition).toBe("");
+    }
+
+    fireEvent.pointerUp(document, {
+      clientX: target.left + 4,
+      clientY: target.top + 26,
+      button: 0,
+      pointerId: 1,
+    });
+    await flushMoves();
+  });
+
+  it("dragging the grip of a selected row drags the whole stack: roots only, order kept", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "DnD" });
+    const texts = ["one", "two", "three", "four"];
+    const ids: string[] = [];
+    for (const text of texts) {
+      ids.push(await client.createObject({
+        parentId: pageId,
+        contentAst: [{ type: "text", text }],
+      }));
+    }
+    const [one, two, , four] = ids as [string, string, string, string];
+    const { container } = renderPage(client, pageId);
+    const moveSpy = vi.spyOn(client, "moveObject");
+
+    // Ctrl+click "one" and "three" — the level-capped stack {one, three}.
+    const contents = Array.from(container.querySelectorAll<HTMLElement>(".nt-block-content"));
+    fireEvent.click(contents[0]!, { ctrlKey: true });
+    fireEvent.click(contents[2]!, { ctrlKey: true });
+
+    // Drag the grip of "three" (any selected row's grip drags the stack).
+    const fromRect = rowEl(container, ids[2]!).getBoundingClientRect();
+    const grip = gripOf(rowEl(container, ids[2]!));
+    fireEvent.pointerDown(grip, {
+      clientX: fromRect.left + 200,
+      clientY: fromRect.top + 16,
+      button: 0,
+      pointerId: 1,
+    });
+    fireEvent.pointerMove(document, {
+      clientX: fromRect.left + 210,
+      clientY: fromRect.top + 16,
+      buttons: 1,
+      pointerId: 1,
+    });
+    const target = rowEl(container, four).getBoundingClientRect();
+    const x = target.left + 4;
+    const y = target.top + 24;
+    for (let i = 0; i < 3; i += 1) {
+      fireEvent.pointerMove(document, { clientX: x, clientY: y + i, buttons: 1, pointerId: 1 });
+    }
+
+    // The chip names the stack; every root row renders faint in place.
+    const ghost = document.querySelector<HTMLElement>(".nt-drag-ghost");
+    expect(ghost).not.toBeNull();
+    expect(ghost!.textContent).toContain("2 blocks");
+    expect(rowEl(container, one).className).toContain("nt-block--drag-source");
+    expect(rowEl(container, ids[2]!).className).toContain("nt-block--drag-source");
+    expect(rowEl(container, two).className).not.toContain("nt-block--drag-source");
+
+    fireEvent.pointerUp(document, { clientX: x, clientY: y + 2, button: 0, pointerId: 1 });
+    await flushMoves();
+
+    // one lands after four, three after one — internal order kept.
+    expect(moveSpy).toHaveBeenCalledTimes(2);
+    expect(moveSpy).toHaveBeenNthCalledWith(1, one, pageId, four);
+    expect(moveSpy).toHaveBeenNthCalledWith(2, ids[2], pageId, one);
+    expect(rootOrder(client, pageId)).toEqual([two, four, one, ids[2]]);
+  });
+
+  it("edge auto-scroll scrolls a scrollable view at the pointer's edge; a scroll re-anchors the drop line", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Scroll" });
+    const ids: string[] = [];
+    for (let i = 0; i < 20; i += 1) {
+      ids.push(await client.createObject({
+        parentId: pageId,
+        contentAst: [{ type: "text", text: `b${i}` }],
+      }));
+    }
+    const { container } = render(
+      <WorkspaceDndHost>
+        <div data-testid="scroller" style={{ overflowY: "auto" }}>
+          <PageView client={client} pageId={pageId} />
+        </div>
+      </WorkspaceDndHost>,
+    );
+    const scroller = screen.getByTestId("scroller");
+    Object.defineProperty(scroller, "scrollHeight", { value: 2000, configurable: true });
+    Object.defineProperty(scroller, "clientHeight", { value: 400, configurable: true });
+    vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue({
+      x: 0, y: 0, top: 0, left: 0, right: 800, bottom: 400, width: 800, height: 400,
+      toJSON: () => ({}),
+    } as DOMRect);
+    const moveSpy = vi.spyOn(client, "moveObject");
+
+    const fromRect = rowEl(container, ids[0]!).getBoundingClientRect();
+    const grip = gripOf(rowEl(container, ids[0]!));
+    fireEvent.pointerDown(grip, {
+      clientX: fromRect.left + 200,
+      clientY: fromRect.top + 16,
+      button: 0,
+      pointerId: 1,
+    });
+    // First move beyond the 4px activation distance so the drag starts.
+    fireEvent.pointerMove(document, {
+      clientX: fromRect.left + 210,
+      clientY: fromRect.top + 16,
+      buttons: 1,
+      pointerId: 1,
+    });
+    // Into the bottom edge band of the scroller (y 380 of 400), shallow x so
+    // a reorder intent (not the child anchor) wins the projection.
+    fireEvent.pointerMove(document, {
+      clientX: 10,
+      clientY: 380,
+      buttons: 1,
+      pointerId: 1,
+    });
+
+    // The frozen preview means no row is near y 380 yet — no drop line.
+    expect(rowEl(container, ids[17]!).className).not.toContain("nt-drop-above");
+    act(() => {
+      pumpFrames(3);
+    });
+    // The pointer sat in the edge band: the scroller scrolled on its own.
+    expect(scroller.scrollTop).toBeGreaterThan(0);
+
+    // The scroll reveals row 17 at the pointer: the scroll listener
+    // re-measures every zone and re-projects the line at the last pointer.
+    // (The page title row occupies mock index 0, so b17's row top is
+    // 18 * 40 − shift — a 340px shift parks its divider at the pointer.)
+    layoutScrollShift = 340;
+    fireEvent.scroll(scroller);
+    act(() => {
+      pumpFrames(2);
+    });
+    expect(rowEl(container, ids[17]!).className).toContain("nt-drop-above");
+
+    // The drop resolves against the re-anchored set: b0 lands below b16.
+    layoutScrollShift = 0;
+    fireEvent.pointerUp(document, {
+      clientX: 10,
+      clientY: 380,
+      button: 0,
+      pointerId: 1,
+    });
+    await flushMoves();
+    expect(moveSpy).toHaveBeenCalledWith(ids[0], pageId, ids[16]);
+    // b0 moved out of slot 0: it lands right after b16, b17+ shift down.
+    expect(rootOrder(client, pageId).slice(15, 19)).toEqual([ids[16], ids[0], ids[17], ids[18]]);
+  });
 });
 
 describe("drag-session snap model", () => {
@@ -508,5 +728,162 @@ describe("drag-session snap model", () => {
     // A tighter threshold turns a near miss into nothing.
     expect(nearestCandidate({ x: 26, y: 51 }, candidates, { maxDyPx: 4 })).toBeNull();
     expect(nearestCandidate({ x: 26, y: 51 }, [])).toBeNull();
+  });
+});
+
+describe("selection-stack planner", () => {
+  const factsOf = (...entries: Array<[string, string | null]>) =>
+    siblingFactsFromPositions(positionsOf(...entries));
+
+  it("orders the effective drag set in document order", () => {
+    const positions = positionsOf(["a", null], ["b", "a"], ["c", null]);
+    expect(effectiveDragIds(new Set(["c", "a"]), positions)).toEqual(["a", "c"]);
+    expect(effectiveDragIds(new Set(), positions)).toEqual([]);
+  });
+
+  it("plans a reorder drop as one chained move per stack block", () => {
+    const facts = factsOf(["a", "root"], ["b", "root"], ["c", "root"], ["d", "root"]);
+    const plan = planStackMove(["a", "b"], { targetId: "d", intent: "below" }, facts);
+
+    expect(plan.status).toBe("move");
+    if (plan.status !== "move") return;
+    expect(plan.moves.map((move) => [move.id, move.command])).toEqual([
+      ["a", { kind: "reorder", parentId: "root", afterId: "d" }],
+      ["b", { kind: "reorder", parentId: "root", afterId: "a" }],
+    ]);
+    // a moves, so b must be re-anchored on it even though b's current
+    // previous sibling already IS a (the prefix gate).
+    expect(plan.moves.map((move) => move.alreadyThere)).toEqual([false, false]);
+  });
+
+  it("skips a block only while the stack prefix before it stays put", async () => {
+    // The stack [a, c] already sits right after x; b stays behind.
+    const facts = factsOf(["x", "root"], ["a", "root"], ["b", "root"], ["c", "root"]);
+    const plan = planStackMove(["a", "c"], { targetId: "x", intent: "below" }, facts);
+    expect(plan.status).toBe("move");
+    if (plan.status !== "move") return;
+    expect(plan.moves.map((move) => [move.id, move.command, move.alreadyThere])).toEqual([
+      ["a", { kind: "reorder", parentId: "root", afterId: "x" }, true],
+      ["c", { kind: "reorder", parentId: "root", afterId: "a" }, false],
+    ]);
+
+    const calls: Array<[string, string | null, string | undefined]> = [];
+    await executeStackPlan(plan.moves, async (id, parentId, afterId) => {
+      calls.push([id, parentId, afterId]);
+    });
+    // Only c issues — a already sits at the anchor.
+    expect(calls).toEqual([["c", "root", "a"]]);
+  });
+
+  it("the whole plan is a noop when the stack already sits at the drop spot", () => {
+    const facts = factsOf(["x", "root"], ["a", "root"], ["b", "root"]);
+    expect(planStackMove(["a", "b"], { targetId: "x", intent: "below" }, facts).status).toBe("noop");
+  });
+
+  it("plans the first-slot reorder as the three-phase swap and executes it in order", async () => {
+    // Current [x, a, c, b]: the stack [a, b] drops ABOVE x (first slot).
+    const facts = factsOf(["x", "root"], ["a", "root"], ["c", "root"], ["b", "root"]);
+    const plan = planStackMove(["a", "b"], { targetId: "x", intent: "above" }, facts);
+
+    expect(plan.status).toBe("move");
+    if (plan.status !== "move") return;
+    expect(plan.moves[0]).toMatchObject({
+      id: "a",
+      command: { kind: "reorder", parentId: "root", afterId: null },
+      firstSlotSwapWith: "x",
+    });
+    expect(plan.moves[1]).toMatchObject({
+      id: "b",
+      command: { kind: "reorder", parentId: "root", afterId: "a" },
+    });
+
+    const calls: Array<[string, string | null, string | undefined]> = [];
+    await executeStackPlan(plan.moves, async (id, parentId, afterId) => {
+      calls.push([id, parentId, afterId]);
+    });
+    expect(calls).toEqual([
+      ["a", "root", "x"],
+      ["b", "root", "a"],
+      ["x", "root", "b"],
+    ]);
+  });
+
+  it("plans a child drop appending the stack in order", async () => {
+    const facts = factsOf(["p", "root"], ["a", "root"], ["b", "root"]);
+    const plan = planStackMove(["a", "b"], { targetId: "p", intent: "child" }, facts);
+
+    expect(plan.status).toBe("move");
+    if (plan.status !== "move") return;
+    expect(plan.moves.map((move) => [move.id, move.command])).toEqual([
+      ["a", { kind: "child", parentId: "p" }],
+      ["b", { kind: "child", parentId: "p" }],
+    ]);
+    const calls: Array<[string, string | null, string | undefined]> = [];
+    await executeStackPlan(plan.moves, async (id, parentId, afterId) => {
+      calls.push([id, parentId, afterId]);
+    });
+    expect(calls).toEqual([
+      ["a", "p", undefined],
+      ["b", "p", undefined],
+    ]);
+  });
+
+  it("refuses dropping the stack into its own subtree, per block", () => {
+    const facts = factsOf(["p", "root"], ["k", "p"], ["s", "root"]);
+    const plan = planStackMove(["p", "s"], { targetId: "k", intent: "child" }, facts);
+    expect(plan.status).toBe("refused");
+    if (plan.status === "refused") expect(plan.reason).toContain("own subtree");
+  });
+});
+
+describe("drag edge auto-scroll", () => {
+  it("ramps the scroll speed by edge proximity and gates on scrollability", () => {
+    const rect = { rectTop: 100, rectHeight: 400 };
+    const both = { canScrollUp: true, canScrollDown: true };
+    // At the very edges: full speed; the ramp floors at zero past the band.
+    expect(edgeScrollVelocity({ pointerY: 100, ...rect, ...both })).toBe(-6);
+    expect(edgeScrollVelocity({ pointerY: 500, ...rect, ...both })).toBe(6);
+    expect(edgeScrollVelocity({ pointerY: 120, ...rect, ...both })).toBe(-3);
+    expect(edgeScrollVelocity({ pointerY: 480, ...rect, ...both })).toBe(3);
+    // Deep inside or outside the rect: nothing.
+    expect(edgeScrollVelocity({ pointerY: 300, ...rect, ...both })).toBe(0);
+    expect(edgeScrollVelocity({ pointerY: 560, ...rect, ...both })).toBe(0);
+    // No scrollable room in that direction: nothing.
+    expect(edgeScrollVelocity({ pointerY: 100, ...rect, canScrollUp: false, canScrollDown: true })).toBe(0);
+    expect(edgeScrollVelocity({ pointerY: 500, ...rect, canScrollUp: true, canScrollDown: false })).toBe(0);
+  });
+
+  it("the nearer edge wins on a container shorter than twice the band", () => {
+    // A 60px container with a 40px band: the middle is in both bands.
+    expect(
+      edgeScrollVelocity({ pointerY: 130, rectTop: 100, rectHeight: 60, canScrollUp: true, canScrollDown: true }),
+    ).toBe(-2);
+    expect(
+      edgeScrollVelocity({ pointerY: 135, rectTop: 100, rectHeight: 60, canScrollUp: true, canScrollDown: true }),
+    ).toBe(3);
+  });
+
+  it("collects overflowing overflow-y ancestors, innermost first, and skips the rest", () => {
+    const root = document.createElement("div");
+    const mid = document.createElement("div");
+    const outer = document.createElement("div");
+    mid.style.overflowY = "auto";
+    outer.style.overflowY = "auto";
+    outer.appendChild(mid);
+    mid.appendChild(root);
+    document.body.appendChild(outer);
+    const mockScroll = (el: HTMLElement, scrollHeight: number, clientHeight: number) => {
+      Object.defineProperty(el, "scrollHeight", { value: scrollHeight, configurable: true });
+      Object.defineProperty(el, "clientHeight", { value: clientHeight, configurable: true });
+    };
+
+    mockScroll(mid, 1000, 400);
+    mockScroll(outer, 400, 400); // not overflowing
+    expect(scrollContainersOf(root)).toEqual([mid]);
+
+    mockScroll(outer, 900, 400);
+    expect(scrollContainersOf(root)).toEqual([mid, outer]);
+    expect(scrollContainersOf(null)).toEqual([]);
+    outer.remove();
   });
 });
