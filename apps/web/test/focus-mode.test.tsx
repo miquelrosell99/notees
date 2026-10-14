@@ -25,6 +25,7 @@ import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { EMPTY_UNDO_STATE } from "../src/core/undo-journal.js";
 import { CommandPalette } from "../src/ui/components/CommandPalette.js";
 import { ensureTaskFamily } from "../src/ui/components/taskFamily.js";
+import { applyAppearance, flipTheme } from "../src/ui/components/modals/deviceSettings.js";
 import { focusModeExitHandler, focusModeKeyHandler } from "../src/ui/App.js";
 import { PageView } from "../src/ui/PageView.js";
 
@@ -208,6 +209,26 @@ describe("focus mode surfaces (#12)", () => {
     fireEvent.click(row);
     expect(document.documentElement.dataset.focus).toBe("true");
     expect(localStorage.getItem("notees.settings.focusMode")).toBe("true");
+  });
+
+  it("the command palette offers a Toggle theme command that persists via the device setting", async () => {
+    const client = await seedClient();
+    // Dark + OLED: the flip must write the modern theme key (the old private
+    // writer set the legacy key, which the modern setting overrode on
+    // reload — a flip that didn't stick), and a dark round-trip keeps OLED.
+    localStorage.setItem("notees.settings.theme", JSON.stringify("dark"));
+    localStorage.setItem("notees.settings.oledMode", "true");
+    applyAppearance();
+    renderPalette(client);
+    const row = await screen.findByText("Toggle theme: switch to light");
+    fireEvent.click(row);
+    expect(document.documentElement.dataset.theme).toBe("light");
+    expect(localStorage.getItem("notees.settings.theme")).toBe('"light"');
+
+    flipTheme();
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(document.documentElement.dataset.oled).toBe("true");
+    expect(localStorage.getItem("notees.settings.oledMode")).toBe("true");
   });
 
   it("Ctrl/Cmd+Alt+F toggles and Esc exits (guarded from text fields)", () => {
