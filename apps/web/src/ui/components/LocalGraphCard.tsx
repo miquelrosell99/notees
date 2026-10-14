@@ -6,7 +6,7 @@
  *
  * Collapsed by default (owner 2026-10-09) and genuinely lazy: the section
  * chrome rides NodeViewSection, which UNMOUNTS its content while collapsed
- * — the GraphView (the graph engine, the WebGL renderer, the topology
+ * — the GraphView (the graph engine, the Pixi renderer, the topology
  * reads) never mounts, so a collapsed card costs nothing at all. The first
  * expand mounts it; collapsing again tears the whole stack down.
  */

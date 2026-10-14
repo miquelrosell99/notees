@@ -1,20 +1,18 @@
 /**
- * graphRenderer.ts — the swappable rendering contract between GraphView and a
- * concrete graph renderer (owner 2026-10-14: the PixiJS migration is
- * adapter-first — this interface IS the adapter boundary; see
- * .plans/2026-10-14-0915-pixi-renderer-migration).
+ * graphRenderer.ts — the rendering contract between GraphView and the graph
+ * renderer (owner 2026-10-14: the Pixi adapter graduated as the ONLY
+ * renderer; the interface stays as the seam GraphView programs against).
  *
- * GraphView must depend only on GraphRenderer, never on a concrete class —
- * a second adapter (Pixi) lands behind the same interface, selected by a
- * device flag, and the WebGL adapter deletes only after parity releases.
+ * GraphView depends only on GraphRenderer, never on the concrete class — the
+ * contract is what the adapter-first migration proved out; a future second
+ * adapter would land behind this same interface.
  *
- * Coordinate contract (shared by all adapters): world space is the force
- * engine's arbitrary units; the camera's (x, y) is the world point at the
- * canvas centre; zoom is pixels per world unit; clip/screen conversions are
- * the adapter's job.
+ * Coordinate contract: world space is the force engine's arbitrary units;
+ * the camera's (x, y) is the world point at the canvas centre; zoom is
+ * pixels per world unit; clip/screen conversions are the adapter's job.
  */
 
-import type { CameraState, NodeVisual, RendererEdge } from "./webglRenderer.js";
+import type { CameraState, NodeVisual, RendererEdge } from "./edgePlan.js";
 
 export interface GraphRenderer {
   /** Bind a canvas and build the GPU/scene stack. Throws on init failure. */

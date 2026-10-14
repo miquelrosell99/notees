@@ -2,7 +2,7 @@
  * GraphView — the workspace graph: every page and class
  * as a node, every rolled-up link as an edge,
  * force-directed in a worker (or on a fixed radial layout), drawn by the
- * WebGL2 renderer with a Canvas 2D label overlay and a minimap.
+ * PixiJS renderer with a Canvas 2D label overlay and a minimap.
  *
  * Owner rulings baked in: blocks NEVER render as nodes (they surface only as
  * edge evidence); the journal chain is in the topology but filtered off by
@@ -98,7 +98,7 @@ import {
 } from "./nodeRadius.js";
 import { buildNodeVisuals } from "./nodeVisuals.js";
 import { EngineController, type EngineFrame } from "./engineController.js";
-import { GraphWebGLRenderer, type RendererEdge } from "./renderer/webglRenderer.js";
+import { type RendererEdge } from "./renderer/edgePlan.js";
 import { GraphPixiRenderer } from "./renderer/pixiRenderer.js";
 import type { GraphRenderer } from "./renderer/graphRenderer.js";
 import { drawLabels, labelSignatureChanged, type LabelDrawSignature, type LabelFrame } from "./renderer/labelCanvas.js";
@@ -152,10 +152,6 @@ interface GraphPrefs {
   classColors: RetiredClassColorEntry[];
   /** The right rail (full surface only): open/closed, persisted per device. */
   railOpen: boolean;
-  /** The graph renderer adapter (owner 2026-10-14 Pixi migration, Stage 2):
-   *  the experimental PixiJS path behind the GraphRenderer interface.
-   *  Default stays "webgl" until parity is proven. */
-  renderer: "webgl" | "pixi";
 }
 
 const FAMILY_LABELS: Array<{ key: GraphEdgeKind; label: string }> = [
@@ -192,7 +188,6 @@ function defaultPrefs(): GraphPrefs {
     colorGroups: [],
     classColors: [],
     railOpen: false,
-    renderer: "webgl",
   };
 }
 
@@ -210,8 +205,6 @@ function loadPrefs(surface: string): GraphPrefs {
     families: { ...base.families, ...(stored.families ?? {}) },
     colorGroups: Array.isArray(stored.colorGroups) ? stored.colorGroups : [],
     classColors: Array.isArray(stored.classColors) ? stored.classColors : [],
-    // The device store can hold anything — coerce the renderer flag.
-    renderer: stored.renderer === "pixi" ? "pixi" : "webgl",
   };
 }
 
@@ -254,9 +247,9 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const labelCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const minimapCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  // Typed as the interface, constructed as the concrete class — the Pixi
-  // migration's Stage 2 selects the adapter by the graphPrefs.renderer
-  // device flag (default WebGL).
+  // Typed as the interface, constructed as the Pixi adapter — the owner
+  // graduation ruling (2026-10-14) made Pixi the only graph renderer; the
+  // GraphRenderer contract stays as the seam.
   const rendererRef = useRef<GraphRenderer | null>(null);
   const engineRef = useRef<EngineController | null>(null);
   const cameraRef = useRef({ x: 0, y: 0, zoom: 0.5 });
@@ -691,10 +684,10 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
     awaitingFirstFrameRef.current = true;
     setAwaitingFirstFrame(true);
 
-    const renderer: GraphRenderer =
-      prefs.renderer === "pixi"
-        ? new GraphPixiRenderer({ defaultRadius: 8, edgeWidth: 0.8 })
-        : new GraphWebGLRenderer({ defaultRadius: 8, edgeWidth: 0.8, cullMargin: 150 });
+    const renderer: GraphRenderer = new GraphPixiRenderer({
+      defaultRadius: 8,
+      edgeWidth: 0.8,
+    });
     try {
       const dpr = window.devicePixelRatio || 1;
       canvas.width = Math.max(1, Math.floor(container.clientWidth * dpr));
@@ -1042,7 +1035,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
       rendererRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [display, client, prefs.renderer]);
+  }, [display, client]);
 
   // ── Selection helpers ──────────────────────────────────────────────────────
   const toggleSelected = (id: string): void =>
@@ -1560,17 +1553,18 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
   }
 
   if (glError !== null) {
-    // A shader compile/link failure is not a missing-WebGL2 case — say what
-    // actually happened (strict linkers reject programs lenient ones accept).
+    // One honest register (owner 2026-10-14 graduation): the graph renderer
+    // failed — say what actually happened (a shader compile/link failure on
+    // strict linkers, or the browser denying the GPU backend).
     const shaderFailure = /shader|link|compile/i.test(glError);
     return (
       <div className="nt-graph nt-graph--error">
         <EmptyState
-          title={shaderFailure ? "Graph renderer failed" : "WebGL 2 required"}
+          title="Graph renderer failed"
           description={
             shaderFailure
               ? `The graph shaders failed to build in this browser. (${glError})`
-              : `The graph view needs a WebGL 2 capable browser. (${glError})`
+              : `The graph could not start its renderer in this browser. (${glError})`
           }
         />
       </div>
@@ -1592,21 +1586,6 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
    *  the Visibility popover, layout mode + time-lapse in the bottom mode bar). */
   const settingsPanel = (
     <div className="nt-graph__settings">
-      <div className="nt-graph__settings-row">
-        <span className="nt-graph__settings-label">Renderer</span>
-        <SelectionButton
-          size="sm"
-          options={[
-            { value: "webgl", icon: "mdi mdi-hexagon-outline", label: "WebGL" },
-            { value: "pixi", icon: "mdi mdi-hexagon-multiple-outline", label: "Pixi (beta)" },
-          ]}
-          value={prefs.renderer}
-          onChange={(value) => patch({ renderer: value as "webgl" | "pixi" })}
-        />
-        <span className="nt-graph__settings-hint">
-          Pixi is the experimental rendering path — switch back any time.
-        </span>
-      </div>
       {prefs.layoutMode === "force" && (
         <>
           <div className="nt-graph__settings-row">
