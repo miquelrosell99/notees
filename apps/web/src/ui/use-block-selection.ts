@@ -92,8 +92,10 @@ export function useBlockSelectionSurface(
     const handleMouseUp = () => {
       const drag = dragRef.current;
       dragRef.current = null;
-      // Swallow the click that follows a drag so it doesn't enter edit mode.
-      if (drag?.dragging === true) outlinerRef.current.signalDragClick();
+      // Swallow only the RELEASE row's trailing click (the click that ends
+      // the drag must not enter edit mode); a later click on any other row
+      // is deliberate and edits normally.
+      if (drag?.dragging === true) outlinerRef.current.signalDragClick(drag.lastExtendId ?? drag.startId);
     };
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);

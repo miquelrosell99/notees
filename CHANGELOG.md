@@ -9,6 +9,22 @@ predating this file.
 
 ## 2026-10-14
 
+- **fix(web): the drag-select's trailing-click swallow is scoped to the
+  release row — clicks on any other block edit immediately (owner:
+  "two clicks are still needed to enter edit mode with blocks selected").**
+  The first mutual-exclusion fix resolved click-made selections (live probes:
+  ctrl/shift selections all edit in one click), but the drag-select path kept
+  its old global one-shot: `signalDragClick` swallowed the NEXT click
+  ANYWHERE — so after drag-selecting blocks, the first click on a different
+  block was eaten as "trailing" and only the second entered edit mode. The
+  swallow now records the drag's release row and only a click on THAT row is
+  treated as the accidental release click; a click on any other row is
+  deliberate and edits (and clears the one-shot either way). **Verification:**
+  new spec (drag ending on row N: a click on a different row edits in one
+  click; the release row's own click stays swallowed) + the existing
+  trailing-click and edit-mode-drag specs; live probe extended with the
+  drag-select → one-click-edit sequence.
+
 - **fix(web): selection and edit mode are mutually exclusive (owner
   2026-10-14: "selecting blocks while in edit mode on another block should
   exit edit mode… while blocks are selected, it requires two clicks to enter
@@ -95,8 +111,10 @@ predating this file.
   in `apps/web/test/graph-pixi.test.ts` — pure hover/mask/LOD/time-lapse/
   curve/camera specs plus a mocked-Application smoke spec), and a live
   probe (`scripts/screenshots/graph-pixi-probe.mjs`) against a local
-  preview build with the flag seeded: the graph paints under Pixi, labels
-  draw, console clean. Bundle: +258 kB minified (+80 kB gzip) on the index
+  preview build with the flag seeded: the graph paints under Pixi (nodes,
+  edges, arrowheads, selection ring, hover accent, selection dim), labels
+  draw, console clean (only headless-swiftshader ReadPixels perf warnings
+  from the one-time texture extraction). Bundle: +258 kB minified (+80 kB gzip) on the index
   chunk, plus Pixi's lazily-loaded renderer backend chunks (~75 kB more on
   first graph mount) — the priced-in one-time trade for batched GPU
   rendering without shader/context-loss maintenance.
