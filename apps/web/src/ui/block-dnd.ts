@@ -231,6 +231,9 @@ export interface DropCandidate {
   intent: DropLine["intent"];
   anchorX: number;
   anchorY: number;
+  /** The row's right edge (viewport x) — the indicator line spans from the
+   *  anchor to here; the row-level class lines use the same geometry. */
+  rowRight: number;
 }
 
 /** Default y threshold for the pointer projection (see nearestCandidate). */
@@ -287,18 +290,27 @@ export function dropCandidatesOf(
   const candidates: DropCandidate[] = [];
   for (const row of rows) {
     if (inDraggedSubtree(row.id)) continue;
-    candidates.push({ targetId: row.id, intent: "above", anchorX: row.left, anchorY: row.top });
+    const rowRight = row.left + row.width;
+    candidates.push({
+      targetId: row.id,
+      intent: "above",
+      anchorX: row.left,
+      anchorY: row.top,
+      rowRight,
+    });
     candidates.push({
       targetId: row.id,
       intent: "below",
       anchorX: row.left,
       anchorY: row.top + row.height,
+      rowRight,
     });
     candidates.push({
       targetId: row.id,
       intent: "child",
       anchorX: row.left + CHILD_DROP_OFFSET_PX,
       anchorY: row.top + row.height,
+      rowRight,
     });
   }
   return candidates;
