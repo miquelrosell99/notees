@@ -22,6 +22,7 @@
     "@notees/sync": "workspace:*",
     "@react-pdf/renderer": "^4.9.0",
     "fflate": "^0.8.2",
+    "pixi.js": "^8.22.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "sql.js": "^1.10.0",
