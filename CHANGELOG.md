@@ -9,6 +9,20 @@ predating this file.
 
 ## 2026-10-14
 
+- **fix(web): the selection card is visible again — the underlay anchored its
+  `z-index: -1` to a far stacking context and painted behind the opaque
+  page-card backgrounds (owner: "I don't see a selection UI at all, with 3
+  blocks selected").** A negative z-index child loses to every ancestor
+  background in the shared stacking context, so the card computed and
+  measured correctly but composited invisible. `.nt-select-surface` now
+  carries `isolation: isolate` — the surface is its own stacking context and
+  the card paints behind the rows but above every ancestor background, which
+  is the underlay semantic. **Verification:** new live headless probe
+  (`scripts/screenshots/selection-card-probe.mjs`, test workspace): creates
+  3 blocks, selects them, pixel-samples the card region with/without the card
+  — delta 0 (invisible) before the fix, delta 63 (tint vs page) after;
+  deployed and re-probed on the running stack.
+
 - **fix(web): the export modal's orphaned CSS fragment is gone — every build
   since the Oct 9 kit-Radio restyle logged esbuild css-syntax warnings.**
   `5d328784` inserted the radio-group rules into the middle of
