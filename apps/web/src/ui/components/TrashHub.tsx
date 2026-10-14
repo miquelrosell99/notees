@@ -9,8 +9,11 @@
  * Rows are soft-trashed subtree roots, newest first, each with a relative
  * deletion stamp and two actions: Restore (the object.restore op) and
  * Delete permanently (object.delete permanent — irreversible, behind the
- * ConfirmationModal). The hub re-renders on client notifications, so a
- * restore lands the row back in the workspace immediately.
+ * ConfirmationModal). The header row carries an Empty trash action — one
+ * trash.empty op (apply-time bulk permanent delete: a concurrent restore
+ * that lands before it survives), confirmed like the per-row permanent
+ * delete. The hub re-renders on client notifications, so a restore lands
+ * the row back in the workspace immediately.
  */
 
 import { useEffect, useState } from "react";
@@ -23,6 +26,7 @@ import type { TrashedEntry, WorkspaceClient } from "@/core/workspace-client.js";
 import { Icon } from "../Icon.js";
 import { nodeIcon } from "../iconFor.js";
 import { relativeTime } from "./ActivityLogSection.js";
+import { Button } from "./ui/Button.js";
 import { ConfirmationModal } from "./ui/ConfirmationModal.js";
 import "./TrashHub.css";
 
@@ -39,6 +43,7 @@ export function TrashHub({
   const [, setVersion] = useState(0);
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
   const [permanentTarget, setPermanentTarget] = useState<TrashedEntry | null>(null);
+  const [emptyConfirmOpen, setEmptyConfirmOpen] = useState(false);
 
   const entries = client.listTrashed();
 
@@ -48,6 +53,19 @@ export function TrashHub({
         <Icon path="mdi-delete-outline" size={1.2} className="nt-hub-icon" />
         <h1 className="nt-hub-title">Trash</h1>
         <span className="nt-hub-count">{entries.length}</span>
+        {entries.length > 0 && (
+          <span className="nt-hub-actions">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              icon="mdi-delete-sweep-outline"
+              onClick={() => setEmptyConfirmOpen(true)}
+            >
+              Empty trash
+            </Button>
+          </span>
+        )}
       </header>
 
       {entries.length === 0 ? (
@@ -114,6 +132,21 @@ export function TrashHub({
             setPermanentTarget(null);
           }}
           onCancel={() => setPermanentTarget(null)}
+        />
+      )}
+
+      {emptyConfirmOpen && (
+        <ConfirmationModal
+          isOpen
+          variant="danger"
+          title="Empty trash?"
+          message={`All ${entries.length} item${entries.length === 1 ? "" : "s"} in the trash will be permanently deleted — this cannot be undone.`}
+          confirmLabel="Empty trash"
+          onConfirm={() => {
+            void client.emptyTrash();
+            setEmptyConfirmOpen(false);
+          }}
+          onCancel={() => setEmptyConfirmOpen(false)}
         />
       )}
     </div>
