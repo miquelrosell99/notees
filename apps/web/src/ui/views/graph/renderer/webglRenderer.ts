@@ -21,6 +21,7 @@
  */
 
 import { MIN_NODE_SCREEN_RADIUS_PX } from './graphConstants.js';
+import type { GraphRenderer } from './graphRenderer.js';
 
 // ─── GLSL Shaders ─────────────────────────────────────────────────────────────
 
@@ -708,7 +709,7 @@ export function planEdgeRender(
 
 // ─── Main Renderer Class ──────────────────────────────────────────────────────
 
-export class GraphWebGLRenderer {
+export class GraphWebGLRenderer implements GraphRenderer {
   private gl: WebGL2RenderingContext | null = null;
 
   // --- Programs ---
