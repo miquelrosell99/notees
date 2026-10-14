@@ -43,11 +43,13 @@ export interface LabelFrame {
   timeCutoffSec?: number | undefined;
 }
 
-/** The label-cap convention: how many labels may render at a zoom level. */
+/** The label-cap convention: how many labels may render at a zoom level.
+ * The pass is viewport-first (see drawLabels), so the cap only binds when
+ * more nodes are on screen than the cap — at close zoom everything visible
+ * labels at once. */
 export function labelCapForZoom(zoom: number): number {
-  if (zoom < 0.3) return 40;
-  if (zoom < 0.6) return 100;
-  if (zoom < 1.0) return 200;
+  if (zoom < 0.5) return 60;
+  if (zoom < 0.8) return 200;
   return 500;
 }
 
@@ -56,11 +58,12 @@ export function truncateLabel(name: string, max = 28): string {
   return name.length > max ? `${name.slice(0, max - 1)}…` : name;
 }
 
-/** Large-graph fade: labels fade in between zoom 0.12 and ~0.47. Small
- * graphs (≤150 nodes) bypass this in drawLabels — they label at any zoom
- * with their own minimum-alpha ramp. */
+/** Large-graph fade: labels start at zoom 0.3 (owner ruling 2026-10-14:
+ * labels appear only when much closer, and all visible ones together) and
+ * reach full alpha at 0.7. Small graphs (≤150 nodes) bypass this in
+ * drawLabels — they label at any zoom with their own minimum-alpha ramp. */
 export function labelAlphaForZoom(zoom: number): number {
-  return Math.min(1, (zoom - 0.12) / 0.35);
+  return Math.min(1, (zoom - 0.3) / 0.4);
 }
 
 /**
@@ -127,7 +130,7 @@ export function drawLabels(frame: LabelFrame): number {
   // lands below the threshold and still names its nodes); large graphs keep
   // the fade-in below.
   const smallGraph = frame.order.length <= 150;
-  const labelFloor = smallGraph ? 0 : 0.12;
+  const labelFloor = smallGraph ? 0 : 0.3;
   // The hovered label bypasses the zoom threshold; without a hover the
   // threshold gates the whole pass as before.
   if (zoom < labelFloor && hoveredId === null) return 0;
@@ -165,8 +168,11 @@ export function drawLabels(frame: LabelFrame): number {
     return true;
   };
 
-  // Regular pass: dimmed (not hidden) while a hover is active. Small graphs
-  // carry a minimum alpha so fitted zoomed-out views still read.
+  // Regular pass: dimmed (not hidden) while a hover is active. Owner ruling
+  // (2026-10-14): labels appear TOGETHER — the pass is viewport-first with
+  // radius priority, so a bound cap spreads across the view instead of
+  // labeling the first N nodes in array order; once close enough that every
+  // visible node fits the cap, ALL visible labels render at once.
   const baseAlpha = smallGraph
     ? Math.min(1, Math.max(0.3, (zoom - 0.02) / 0.25))
     : labelAlphaForZoom(zoom);
@@ -174,11 +180,24 @@ export function drawLabels(frame: LabelFrame): number {
   let rendered = 0;
   if (zoom >= labelFloor) {
     ctx.fillStyle = frame.colors.regular;
-    for (let i = 0; i < frame.order.length && rendered < maxLabels; i++) {
+    const visible: number[] = [];
+    for (let i = 0; i < frame.order.length; i++) {
       const id = frame.order[i]!;
       if (id === frame.selected || id === hoveredId) continue;
       if (frame.names.get(id) === undefined) continue;
-      if (drawAt(id, i, frame.colors.regular)) rendered += 1;
+      if (timeHidden(id)) continue;
+      const sp = frame.worldToScreen(frame.positions[i * 2]!, frame.positions[i * 2 + 1]!);
+      if (sp.x < -margin || sp.x > width + margin || sp.y < -40 || sp.y > height + 40) continue;
+      visible.push(i);
+    }
+    if (visible.length > maxLabels) {
+      // Over the cap: the larger nodes (the hubs) claim the labels.
+      const radiusOf = (i: number): number => frame.radii.get(frame.order[i]!) ?? frame.baseNodeRadius;
+      visible.sort((a, b) => radiusOf(b) - radiusOf(a));
+      visible.length = maxLabels;
+    }
+    for (const i of visible) {
+      if (drawAt(frame.order[i]!, i, frame.colors.regular)) rendered += 1;
     }
   }
 

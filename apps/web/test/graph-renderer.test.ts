@@ -23,13 +23,12 @@ import {
 } from "../src/ui/views/graph/renderer/webglRenderer.js";
 
 describe("label overlay contract", () => {
-  it("caps labels by zoom (40 / 100 / 200 / 500)", () => {
-    expect(labelCapForZoom(0.1)).toBe(40);
-    expect(labelCapForZoom(0.29)).toBe(40);
-    expect(labelCapForZoom(0.3)).toBe(100);
-    expect(labelCapForZoom(0.59)).toBe(100);
-    expect(labelCapForZoom(0.6)).toBe(200);
-    expect(labelCapForZoom(0.99)).toBe(200);
+  it("caps labels by zoom (60 / 200 / 500 — the closer-zoom ruling)", () => {
+    expect(labelCapForZoom(0.1)).toBe(60);
+    expect(labelCapForZoom(0.49)).toBe(60);
+    expect(labelCapForZoom(0.5)).toBe(200);
+    expect(labelCapForZoom(0.79)).toBe(200);
+    expect(labelCapForZoom(0.8)).toBe(500);
     expect(labelCapForZoom(1.0)).toBe(500);
     expect(labelCapForZoom(3.0)).toBe(500);
   });
@@ -41,9 +40,10 @@ describe("label overlay contract", () => {
     expect(truncateLabel("a".repeat(60)).length).toBe(28);
   });
 
-  it("fades labels in below zoom 0.12", () => {
-    expect(labelAlphaForZoom(0.1)).toBeLessThanOrEqual(0);
-    expect(labelAlphaForZoom(0.47)).toBeCloseTo(1, 5);
+  it("fades labels in between zoom 0.3 and 0.7 (the closer-zoom ruling)", () => {
+    expect(labelAlphaForZoom(0.2)).toBeLessThanOrEqual(0);
+    expect(labelAlphaForZoom(0.5)).toBeCloseTo(0.5, 5);
+    expect(labelAlphaForZoom(0.7)).toBeCloseTo(1, 5);
     expect(labelAlphaForZoom(2)).toBe(1);
   });
 
@@ -69,7 +69,7 @@ describe("label overlay contract", () => {
       width: 800,
       height: 600,
       dpr: 1,
-      zoom: 0.5, // cap 100
+      zoom: 0.5, // cap 200
       positions,
       order: ids,
       names,
@@ -89,8 +89,8 @@ describe("label overlay contract", () => {
     // own spec below) and the selected node rides the emphasis pass.
     const { frame, calls } = stubFrame({ selected: "n2" });
     const rendered = drawLabels(frame);
-    expect(rendered).toBe(100);
-    expect(calls.length).toBe(101); // 100 regular + selected emphasis
+    expect(rendered).toBe(200);
+    expect(calls.length).toBe(201); // 200 regular + selected emphasis
     const regular = calls.filter((c) => c.fillStyle === "regular");
     expect(regular.some((c) => c.text === "Node n2")).toBe(false);
     const emphasis = calls.filter((c) => c.fillStyle === "emphasis");
@@ -104,10 +104,11 @@ describe("label overlay contract", () => {
     // emphasis pass at full alpha, 3·dpr px below its normal offset; the
     // selected emphasis label is untouched (full alpha).
     const { frame, calls } = stubFrame({ hovered: "n1", selected: "n2" });
-    expect(drawLabels(frame)).toBe(100); // the cap still binds
+    expect(drawLabels(frame)).toBe(200); // the cap still binds
     const regular = calls.filter((c) => c.fillStyle === "regular");
-    expect(regular.length).toBe(100);
-    expect(regular.every((c) => c.alpha === 0.25)).toBe(true); // zoom 0.5 → labelAlpha 1 × 0.25
+    expect(regular.length).toBe(200);
+    // zoom 0.5 → baseAlpha (0.5−0.3)/0.4 = 0.5, dimmed to a quarter on hover.
+    expect(regular.every((c) => c.alpha === 0.125)).toBe(true);
     expect(regular.some((c) => c.text === "Node n1")).toBe(false); // hovered skips the regular pass
     const emphasis = calls.filter((c) => c.fillStyle === "emphasis");
     expect(emphasis.length).toBe(2);
@@ -135,12 +136,24 @@ describe("label overlay contract", () => {
     small.frame.order = small.frame.order.slice(0, 50);
     small.frame.names = new Map(small.frame.names);
     const rendered = drawLabels(small.frame);
-    expect(rendered).toBe(40); // the zoom-0.05 cap binds (40)
+    expect(rendered).toBe(50); // every node fits under the zoom-0.05 cap (60)
     expect(small.calls.every((c) => c.alpha === 0.3)).toBe(true);
     // A large graph at the same zoom labels nothing (no hover).
     const large = stubFrame({ zoom: 0.05 });
     expect(drawLabels(large.frame)).toBe(0);
     expect(large.calls.length).toBe(0);
+  });
+
+  it("over the cap the labels go to the largest visible nodes (viewport-first, radius priority)", () => {
+    // 300 nodes on a horizontal line 10 units apart — ~91 inside the viewport
+    // + margin, over the zoom-0.4 cap of 60. n7 is the lone hub (radius
+    // 1000) and must keep its label even though array-order capping would
+    // drop it.
+    const positions = new Float32Array(300 * 2);
+    for (let i = 0; i < 300; i++) positions[i * 2] = i * 10;
+    const { frame, calls } = stubFrame({ positions, radii: new Map([["n7", 1000]]), zoom: 0.4 });
+    expect(drawLabels(frame)).toBe(60);
+    expect(calls.some((c) => c.text === "Node n7")).toBe(true);
   });
 
   it("culls labels far outside the viewport", () => {
@@ -431,13 +444,11 @@ describe("webgl renderer: time-lapse + hover-neighborhood contract", () => {
       { source: "a", target: "b", linkType: 0 },
       { source: "b", target: "c", linkType: 2 },
     ]);
-    const hoverDim = () => uniform1fCalls.filter((c) => c.name === "u_hoverDim").at(-1)?.value;
     const hoverMix = () => uniform1fCalls.filter((c) => c.name === "u_hoverMix").at(-1)?.value;
     const hoverColor = () => uniform3fCalls.filter((c) => c.name === "u_hoverColor").at(-1)?.value;
-    // No neighborhood yet: the dim + highlight uniforms stay neutral.
+    // No neighborhood yet: the highlight uniforms stay neutral.
     renderer.setHoverNeighborhood(null);
     renderer.render();
-    expect(hoverDim()).toBe(1.0);
     expect(hoverMix()).toBe(0.0);
 
     const ACCENT: readonly [number, number, number] = [0.1, 0.2, 0.3];
@@ -451,8 +462,8 @@ describe("webgl renderer: time-lapse + hover-neighborhood contract", () => {
     expect([...nodeFlags.slice(0, 3)]).toEqual([1, 2, 1]); // b hovered, a + c neighbors
     const edgeFlags = batch[1]!.data as Uint8Array;
     expect([...edgeFlags.slice(0, 2)]).toEqual([1, 1]); // both edges incident to b
-    // Dim-not-hide (0.2) and the ACCENT rgb highlight at full mix.
-    expect(hoverDim()).toBeCloseTo(0.2, 5);
+    // Owner ruling 2026-10-14: pure COLOR (no alpha dim) — the accent rides
+    // u_hoverColor at full mix.
     expect(hoverMix()).toBe(1.0);
     expect(hoverColor()).toEqual([0.1, 0.2, 0.3]);
 
@@ -462,15 +473,14 @@ describe("webgl renderer: time-lapse + hover-neighborhood contract", () => {
     renderer.render();
     expect(hlBuffers().length).toBe(countAfterFirst);
 
-    // Clearing restores the neutral dim and full-bright flags.
+    // Clearing restores the neutral uniforms and full-bright flags.
     renderer.setHoverNeighborhood(null);
     renderer.render();
-    expect(hoverDim()).toBe(1.0);
     expect(hoverMix()).toBe(0.0);
     expect([...(hlBuffers().at(-3)!.data as Uint8Array).slice(0, 3)]).toEqual([0, 0, 0]);
   });
 
-  it("an unknown hover id dims everything (no node matches the neighborhood)", () => {
+  it("an unknown hover id darkens everything (no node matches the neighborhood)", () => {
     const { renderer, hlBuffers } = liveRenderer();
     renderer.setEdges([{ source: "a", target: "b", linkType: 0 }]);
     renderer.setHoverNeighborhood("ghost");
