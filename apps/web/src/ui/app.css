@@ -1344,10 +1344,15 @@ select:focus-visible {
    spanning the run's block elements — first run row's top to last run
    row's bottom, shallowest left edge to deepest right edge — in primary-
    tinted surface tokens, so the text on top stays fully readable; pointer
-   events pass straight through. The floating action bar rides the bottom
-   of the viewport while a selection is live. */
+   events pass straight through. The surface carries `isolation: isolate`
+   so the negative z-index anchors to THE SURFACE's own stacking context —
+   without it the card would paint behind the opaque page-card backgrounds
+   (a negative child loses to ancestor backgrounds in a shared context)
+   and the selection would read as invisible. The floating action bar
+   rides the bottom of the viewport while a selection is live. */
 .nt-select-surface {
   position: relative;
+  isolation: isolate;
 }
 
 .nt-selection-outline {
