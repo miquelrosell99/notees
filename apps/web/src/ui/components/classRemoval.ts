@@ -59,10 +59,13 @@ export function isClassNonRemovable(classId: string): boolean {
  * that bypass the gesture (undo interleavings, external writers) — the
  * dashed pending rendering covers those.
  *
- * Gesture-level convenience only: the wire stays pure — `class.unassign`
- * never mutates content (appliers can't rewrite other ops), so this is two
- * plain ops (a content `object.update` + the unassign) issued by the client
- * gesture. The session undo journal reverts both, restoring the link.
+ * Wire law (owner ruling 2026-10-15, the no-divergence law): the
+ * `object.update` carrying the stripped content and the `class.unassign`
+ * ride in envelope order — the applier REFUSES the unassign while the
+ * content references the class, so the strip must land first (this helper
+ * awaits exactly that). The session undo journal reverts both, restoring
+ * the link. External writers converge by construction: content carrying a
+ * `class_link` asserts the membership, and a bare unassign fails loud.
  */
 
 

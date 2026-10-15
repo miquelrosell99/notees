@@ -9,6 +9,46 @@ predating this file.
 
 ## 2026-10-15
 
+- **feat(store,protocol)!: the no-divergence law — `class_link` asserts
+  membership at the applier, `class.unassign` refuses while the content
+  references the class, and class deletion sweeps memberships (owner
+  ruling: "external writers should not produce the diverged state,
+  right?").** The divergence between inline references and `class_ids` is
+  now **write-time impossible in both directions**, the house law applied:
+  (1) **Assertion** — `object.create`/`object.update` carrying `class_link`
+  tokens apply the OR-set membership add for the referenced classes, so ANY
+  writer (web, CLI, GTK, Flutter, imports) converges; an inline reference
+  can never exist without its membership. Document-chrome content still
+  flattens (nothing to assert); date-chain nodes keep their fixed class (a
+  foreign link refuses like a foreign classId). (2) **Refusal** —
+  `class.unassign` on a node whose stored content references the class
+  fails loud (MoveGuardError, never applied); the removal gesture's
+  strip-then-unassign order (yesterday's dissolve) is now enforced by the
+  wire, and the web's editor toggle awaits the strip's local apply before
+  the unassign. (3) **Deletion** — trashing or permanently deleting a
+  CLASS node (and `trash.empty`) sweeps its memberships: trash tombstones
+  the pairs, permanent purges them, so a deleted class can never dangle a
+  membership; the content links survive as the one remaining divergence —
+  a dangling reference to a deleted class — which renders pending (the
+  dashed link + click-to-assign machinery now serves exactly this case).
+  The 2026-09-25 render-only decision retires (SCHEMA.md Fork 3 rewritten).
+  This is an applier-semantics change: new `class-link-assertion.json`
+  fixture (29-file gate) exercising the full assert→refuse→strip→unassign
+  lifecycle; store specs pin the assertion (raw create with no classIds
+  class the node; quote children walked; rich-title update asserts) and
+  the refusal (loud, membership intact, strip-then-unassign converges);
+  **GTK lockstep `74d5cff` and Flutter lockstep `224f446` shipped first**.
+  Live data verified safe without a migration: the derived-store scan
+  proved ZERO divergent link/membership pairs (the only historical
+  membership-removal op is class.unassign, so link-present + membership-
+  absent cannot exist unless the refusal would have fired), and the
+  assertion's replay adds are redundant on the verified-converged log.
+  **Verification:** `pnpm typecheck` + `pnpm test` green (protocol 386,
+  store 555, web 1665 — the divergence spec now constructs its state via
+  class deletion, the only reachable path); GTK `pytest`/`ruff`/`mypy`
+  green (800); Flutter `flutter test` green (638). An epoch bump +
+  sync/web redeploy propagates the new derived semantics (the class-delete
+  sweep changes ghost memberships on re-derivation).
 - **feat(web): removal dissolves the reference — every class-removal gesture
   rewrites the node's inline class links to plain text (the owner ruling:
   "when class is removed, the inline class links should be converted to

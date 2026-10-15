@@ -313,18 +313,64 @@ function allocateChildPosition(
   return nextChildPosition(db, parentId);
 }
 
+/**
+ * Content-asserted class membership (the no-divergence law, owner ruling
+ * 2026-10-15): every `class_link` token in a stored content stream IS a
+ * classing of its node. The object appliers apply the OR-set add for these
+ * ids, so ANY writer (web gesture, CLI, GTK, Flutter, imports) converges —
+ * a live reference can never outlive its membership. The inverse lock lives
+ * in applyClassUnassign: it refuses while the content still references the
+ * class (the removal gesture strips the links first, strip-then-unassign).
+ */
+function contentClassLinkIds(ast: unknown): string[] {
+  const found = new Set<string>();
+  const walk = (tokens: unknown): void => {
+    if (!Array.isArray(tokens)) return;
+    for (const token of tokens) {
+      if (typeof token !== "object" || token === null) continue;
+      const t = token as Record<string, unknown>;
+      if (t.type === "class_link" && typeof t.classId === "string") found.add(t.classId);
+      if (Array.isArray(t.children)) walk(t.children);
+    }
+  };
+  walk(ast);
+  return [...found];
+}
+
+/** The class_member_set OR-set upsert shared by the membership carriers
+ *  (object.create seed, the content assertion, class.unassign's remove). */
+const CLASS_MEMBER_UPSERT_SQL = `INSERT INTO class_member_set (node_id, class_id, present, hlc_physical, hlc_logical, actor_id)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(node_id, class_id) DO UPDATE SET
+       present = excluded.present, hlc_physical = excluded.hlc_physical, hlc_logical = excluded.hlc_logical,
+       actor_id = excluded.actor_id
+     WHERE excluded.hlc_physical > hlc_physical
+        OR (excluded.hlc_physical = hlc_physical AND excluded.hlc_logical > hlc_logical)
+        OR (excluded.hlc_physical = hlc_physical AND excluded.hlc_logical = hlc_logical
+            AND excluded.actor_id > COALESCE(actor_id, ''))`;
+
 function applyObjectCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "object.create";
   const p = env.payload as OpPayload<"object.create">;
   const parentId = p.parentId ?? null;
+  // Render bit (Revision 11): the payload may carry presentAsMain; the
+  // applier defaults it by context — a parentless node presents as main
+  // (document chrome by the second cascade branch), a parented one starts
+  // inline (block chrome; the "hide from body" gloss is the 0→1 toggle).
+  const presentAsMain = p.presentAsMain === undefined ? (parentId === null ? 1 : 0) : p.presentAsMain ? 1 : 0;
+  // Content-asserted membership (the no-divergence law, owner ruling
+  // 2026-10-15): an inline block keeps the rich stream, so its class_link
+  // tokens class the node; a document-chrome node's content flattens to
+  // text-only below (by construction — nothing to assert there).
+  const linkClassIds = presentAsMain === 1 ? [] : contentClassLinkIds(p.contentAst);
   // Date-chain class lock (SCHEMA.md "Datetime"): a date node's class set is
   // FIXED to its precision's system class. The re-issued object.create is
   // the OR-Set add carrier (class.assign rides it, also on an existing id),
   // so the guard runs BEFORE the membership seeding and the re-create early
-  // return below.
+  // return below — and over the content-asserted ids too.
   const lockedDateClass = dateChainClassId(p.objectId);
   if (lockedDateClass !== null) {
-    for (const classId of p.classIds) {
+    for (const classId of [...p.classIds, ...linkClassIds]) {
       if (classId !== lockedDateClass) {
         throw new MoveGuardError(
           `${opType}: node ${p.objectId} is a date-chain node; it can only carry the ${lockedDateClass} system class`,
@@ -333,11 +379,6 @@ function applyObjectCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
       }
     }
   }
-  // Render bit (Revision 11): the payload may carry presentAsMain; the
-  // applier defaults it by context — a parentless node presents as main
-  // (document chrome by the second cascade branch), a parented one starts
-  // inline (block chrome; the "hide from body" gloss is the 0→1 toggle).
-  const presentAsMain = p.presentAsMain === undefined ? (parentId === null ? 1 : 0) : p.presentAsMain ? 1 : 0;
   const ts = env.timestamp;
   // Content flatten invariant (SCHEMA.md): document-chrome nodes (is_class
   // or present_as_main) carry text-only content; an inline block keeps the
@@ -387,10 +428,10 @@ const tagMemberUpsert = db.prepare(
   const alreadyExists =
     db.prepare("SELECT 1 FROM node WHERE id = ?").get(p.objectId) !== undefined;
   if (alreadyExists) {
-    for (const classId of p.classIds) {
+    for (const classId of [...p.classIds, ...linkClassIds]) {
       memberUpsert.run(p.objectId, classId, env.hlc.physical, env.hlc.logical, env.actorId);
     }
-    if (p.classIds.length > 0) recomputeClassIds(db, p.objectId);
+    if (p.classIds.length > 0 || linkClassIds.length > 0) recomputeClassIds(db, p.objectId);
     for (const tagId of p.tagIds) {
       tagMemberUpsert.run(p.objectId, tagId, env.hlc.physical, env.hlc.logical, env.actorId);
     }
@@ -450,7 +491,7 @@ const tagMemberUpsert = db.prepare(
     throw error;
   }
 
-  for (const classId of p.classIds) {
+  for (const classId of [...p.classIds, ...linkClassIds]) {
     memberUpsert.run(p.objectId, classId, env.hlc.physical, env.hlc.logical, env.actorId);
   }
   recomputeClassIds(db, p.objectId);
@@ -625,6 +666,7 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
     sets.push("description = ?");
     values.push(p.description);
   }
+  let assertedClassIds: string[] = [];
   if (p.contentAst !== undefined) {
     // Class content stays text-only; every other node keeps the rich token
     // stream it was sent. A page's own content may carry inline tokens
@@ -637,6 +679,18 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
     values.push(
       JSON.stringify(flatten ? stringifyContentAst(p.contentAst as never) : p.contentAst),
     );
+    // Content-asserted membership (the no-divergence law): the class_link
+    // tokens about to be stored class the node. Class rows flatten (never
+    // carry links); date-chain nodes' class set is fixed — a foreign link
+    // there is the same illegal state as a foreign classId on create.
+    assertedClassIds = flatten ? [] : contentClassLinkIds(p.contentAst);
+    const lockedDateClass = dateChainClassId(p.objectId);
+    if (lockedDateClass !== null && assertedClassIds.some((id) => id !== lockedDateClass)) {
+      throw new MoveGuardError(
+        `${opType}: node ${p.objectId} is a date-chain node; it can only carry the ${lockedDateClass} system class`,
+        opType,
+      );
+    }
   }
   sets.push(
     "updated_at = ?",
@@ -660,6 +714,16 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
     reindexNode(db, p.objectId);
     rebuildEdges(db, p.objectId, env.timestamp);
   }
+  // The content assertion lands with the write: every stored class_link
+  // token is an OR-set membership add, so any writer converges (the inline
+  // reference can never outlive the membership).
+  if (assertedClassIds.length > 0) {
+    const memberUpsert = db.prepare(CLASS_MEMBER_UPSERT_SQL);
+    for (const classId of assertedClassIds) {
+      memberUpsert.run(p.objectId, classId, 1, env.hlc.physical, env.hlc.logical, env.actorId);
+    }
+    recomputeClassIds(db, p.objectId);
+  }
   // An alias write re-points every alias chain through this node: re-resolve
   // the resolved_target_id of all edge rows whose target chain touches it
   // (this node's own edges re-derive on the next content rebuild; the
@@ -677,6 +741,16 @@ function applyObjectDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
   requireNode(db, p.objectId, opType);
   const ts = env.timestamp;
   const affected = new Set<string>([p.objectId, ...ancestorIds(db, p.objectId)]);
+  // Class-node deletion sweeps memberships (the no-divergence law): the
+  // class leaves every node's class_ids — a trashed class tombstones the
+  // pairs (restore brings the class back, not the memberships — the same
+  // lossy semantics class.delete documents), a permanent delete purges
+  // them. class_links in survivors' content survive and render pending
+  // (dangling references to a deleted class are a render-side state, not a
+  // membership lie).
+  const deletedIsClass =
+    (db.prepare("SELECT is_class FROM node WHERE id = ?").get(p.objectId) as { is_class: number } | undefined)
+      ?.is_class === 1;
 
   if (!p.permanent) {
     // Soft delete: trash the subtree (SCHEMA.md deletion
@@ -693,11 +767,37 @@ function applyObjectDelete(db: StoreDatabase, env: Envelope): ChangeSummary {
     // THROUGH a trashed node collapse to their last live link.
     reresolveEdgeTargets(db, ids);
     rebuildNodeStats(db, [...affected]);
+    if (deletedIsClass) {
+      sweepClassMembership(db, p.objectId, false);
+    }
     return summary(opType, [...affected]);
   }
 
   permanentlyDeleteSubtree(db, p.objectId, ts);
+  if (deletedIsClass) {
+    sweepClassMembership(db, p.objectId, true);
+  }
   return summary(opType, [...affected]);
+}
+
+/**
+ * A deleted class leaves every node's class_ids (the no-divergence law's
+ * deletion arm): `purge` deletes the membership rows outright (permanent
+ * delete / trash.empty), otherwise the pairs are tombstoned with the op's
+ * HLC (trash — restore brings the class node back; membership is
+ * re-assertable from content or re-assignable). Shared by object.delete's
+ * class path; class.delete's own applier keeps its F4 feature routing.
+ */
+function sweepClassMembership(db: StoreDatabase, classId: string, purge: boolean): void {
+  const members = db
+    .prepare("SELECT node_id FROM class_member_set WHERE class_id = ? AND present = 1")
+    .all(classId) as Array<{ node_id: string }>;
+  if (purge) {
+    db.prepare("DELETE FROM class_member_set WHERE class_id = ?").run(classId);
+  } else {
+    db.prepare("UPDATE class_member_set SET present = 0 WHERE class_id = ?").run(classId);
+  }
+  for (const row of members) recomputeClassIds(db, row.node_id);
 }
 
 /**
@@ -768,13 +868,17 @@ function applyTrashEmpty(db: StoreDatabase, env: Envelope): ChangeSummary {
     .all() as { node_id: string }[];
   const affected = new Set<string>();
   for (const { node_id } of roots) {
-    if (getNodeRow(db, node_id) === undefined) {
+    const row = getNodeRow(db, node_id);
+    if (row === undefined) {
       db.prepare("DELETE FROM trash WHERE node_id = ?").run(node_id);
       continue;
     }
     affected.add(node_id);
     for (const id of ancestorIds(db, node_id)) affected.add(id);
     permanentlyDeleteSubtree(db, node_id, ts);
+    // A class emptied from the trash purges its memberships with it (the
+    // no-divergence law's deletion arm — same sweep object.delete runs).
+    if (row.is_class === 1) sweepClassMembership(db, node_id, true);
   }
   rebuildNodeStats(db, [...affected]);
   return summary(opType, [...affected]);
@@ -1194,6 +1298,21 @@ function applyClassUnassign(db: StoreDatabase, env: Envelope): ChangeSummary {
   if (lockedDateClass !== null && p.classId === lockedDateClass) {
     throw new MoveGuardError(
       `${opType}: node ${p.objectId} is a date-chain node; its ${lockedDateClass} system class cannot be removed`,
+      opType,
+    );
+  }
+  // Content-reference lock (the no-divergence law, owner ruling 2026-10-15):
+  // the stored content still carries an inline class_link to this class —
+  // unassigning would strand a live reference. The removal gesture strips
+  // the links FIRST (strip-then-unassign, envelope order); a raw
+  // class.unassign refuses rather than silently diverging — loud failure,
+  // never applied, the write-time-impossible law.
+  const contentRow = db.prepare("SELECT content FROM node WHERE id = ?").get(p.objectId) as
+    | { content: string }
+    | undefined;
+  if (contentRow !== undefined && contentClassLinkIds(JSON.parse(contentRow.content)).includes(p.classId)) {
+    throw new MoveGuardError(
+      `${opType}: node ${p.objectId} content references class ${p.classId} inline — remove the inline links first`,
       opType,
     );
   }
