@@ -77,6 +77,12 @@
   contain-intrinsic-size: auto 180px;
 }
 
+/* Hover raises the border from the blended hairline to full outline — the
+   card-grid recipe's quiet lift: no shadow, no scale. */
+.node-card:hover {
+  border-color: var(--md-sys-color-outline);
+}
+
 /* clip (not hidden) so the cover image inside doesn't create a BFC
    that constrains its sizing. */
 .node-card--cover-top,
@@ -228,7 +234,8 @@
 .node-card--cover-right .node-card__cover {
   min-height: var(--layout-size-2xl);
   margin: var(--spacing-2);
-  border-radius: var(--shape-medium);
+  /* The card-grid recipe: covers carry the 12px radius. */
+  border-radius: var(--shape-extra-large);
   overflow: clip;
 }
 
@@ -370,7 +377,7 @@
 
 .node-card__title .nt-page-title {
   font: inherit;
-  font-size: var(--font-size-body-lg);
+  font-size: var(--font-size-base);
   font-weight: 600;
   line-height: 1.4;
   color: var(--md-sys-color-on-surface);
