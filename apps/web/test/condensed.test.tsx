@@ -212,13 +212,12 @@ describe("condensed layer over PageView", () => {
     expect(within(tree).getByRole("button", { name: "Condense" })).not.toBeNull();
     expect(within(tree).queryByRole("button", { name: "Show full content" })).toBeNull();
 
-    // Pinned reads at a glance (owner ruling): the pinned "…" wears the
-    // ACCENT treatment, the block root carries the pinned class (the
-    // outline bullet ring rides it), and the condensed mark stays muted.
+    // Pinned reads at a glance (owner ruling): the pinned "…" is a
+    // FILLED CHIP in the app's active-toggle register, and the bullet-ring
+    // hook is gone entirely (the chip is the single cue in every mode).
     const pinnedMark = within(tree).getByRole("button", { name: "Condense" });
     expect(pinnedMark.classList.contains("nt-block-excerpt__ellipsis--pinned")).toBe(true);
-    const pinnedBlock = pinnedMark.closest(".nt-block") as HTMLElement;
-    expect(pinnedBlock.classList.contains("nt-block--pinned")).toBe(true);
+    expect(tree.querySelector(".nt-block--pinned")).toBeNull();
 
     // A pinned row clicks into edit like any block; blur returns it to
     // PINNED read (still stretched — blur never unpins).
@@ -495,24 +494,22 @@ describe("condensed chrome reveal mechanism (CSS source)", () => {
     expect(css).not.toContain("mdi-magnify-plus-outline");
   });
 
-  it("the pinned … wears the accent at rest (the engagement surface's accent)", () => {
-    const accent = /\.nt-block-excerpt__ellipsis--pinned \{[^}]*\}/.exec(css);
-    expect(accent).not.toBeNull();
-    expect(accent![0]).toContain("var(--md-sys-color-primary)");
-    // The rest state reads accent — not opacity-gated to a hover reveal.
-    expect(accent![0]).not.toContain("opacity: 0");
+  it("the pinned … is a filled chip in the app's active-toggle register", () => {
+    const chip = /\.nt-block-excerpt__ellipsis--pinned \{[^}]*\}/.exec(css);
+    expect(chip).not.toBeNull();
+    // The exact fill the focus-mode TopBar button's nt-icon-btn-active
+    // wears (primary-container / on-primary-container) + its radius idiom.
+    expect(chip![0]).toContain("var(--md-sys-color-primary-container)");
+    expect(chip![0]).toContain("var(--md-sys-color-on-primary-container)");
+    expect(chip![0]).toContain("var(--shape-medium)");
+    // The rest state reads filled — not opacity-gated to a hover reveal,
+    // and not the retired accent-text treatment.
+    expect(chip![0]).not.toContain("opacity: 0");
+    expect(chip![0]).not.toContain("color: var(--md-sys-color-primary);");
   });
 
-  it("the pinned bullet ring: quiet accent outline, suppressed while editing and in cards", () => {
-    const ring = /\.nt-block--pinned > \.nt-block-row \.nt-bullet::after \{[^}]*\}/.exec(css);
-    expect(ring).not.toBeNull();
-    expect(ring![0]).toContain("border-radius: 50%");
-    expect(ring![0]).toContain("var(--md-sys-color-primary)");
-    // The editing highlight wins over the ring…
-    expect(css).toMatch(/\.nt-block--editing > \.nt-block-row \.nt-bullet::after/);
-    // …and cards content rows carry the cue on the mark alone.
-    expect(css).toMatch(/\.node-card \.nt-block--pinned > \.nt-block-row \.nt-bullet::after/);
-    // Prose carries no bullet chrome at all (bullets are hidden there).
-    expect(css).toMatch(/\.nt-prose \.nt-bullet \{\s*display: none;/);
+  it("the bullet ring retires — no ring hooks anywhere", () => {
+    expect(css).not.toContain(".nt-block--pinned");
+    expect(css).not.toContain(".nt-bullet::after");
   });
 });
