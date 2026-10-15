@@ -306,6 +306,10 @@ describe("the v1 node card (cards mode)", () => {
     await client.assignClass(member, classId);
     await client.assignTag(member, tag);
     await client.setProperty(member, schemaId, 25);
+    // A second class with NO inline reference:
+    // hides inline-referenced classes' pills, so this chip must still ride.
+    const plainClassId = await createTitledClass(client, "Digimon");
+    await client.assignClass(member, plainClassId);
     await flushWrites();
 
     const opened: string[] = [];
@@ -336,10 +340,13 @@ describe("the v1 node card (cards mode)", () => {
     fireEvent.click(head.querySelector(".nt-title-content")!);
     expect(opened).toEqual([classId, member]);
     // The classes row: the nodeview bar's interactive list — the member's
-    // chip AND the add affordance ride.
+    // chip AND the add affordance ride. Pokemon is referenced INLINE (the
+    // title's class link above), so hides its
+    // pill; a class with no inline reference still wears the chip.
     const classesRow = card.querySelector(".node-card__classes-row")!;
     expect(classesRow).not.toBeNull();
-    expect(within(classesRow as HTMLElement).getByText("Pokemon")).not.toBeNull();
+    expect(within(classesRow as HTMLElement).queryByText("Pokemon")).toBeNull();
+    expect(within(classesRow as HTMLElement).getByText("Digimon")).not.toBeNull();
     expect(within(classesRow as HTMLElement).getByText("Add class")).not.toBeNull();
     // The tags row: the header's TagsRow composition (label hidden) — the
     // assigned tag chip AND the add affordance ride.
