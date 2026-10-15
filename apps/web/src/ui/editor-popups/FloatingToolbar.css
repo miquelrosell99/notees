@@ -38,7 +38,7 @@
 }
 
 .floating-toolbar__button:hover {
-  background: var(--md-sys-color-surface-container-high);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 /* ─── App-shell adaptation ────────────────────────────────────────
