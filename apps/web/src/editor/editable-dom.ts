@@ -73,7 +73,7 @@ function isChip(token: unknown): token is Record<string, unknown> & { classId: s
   return (
     typeof token === "object" &&
     token !== null &&
-    (token as Record<string, unknown>).type === "class_chip" &&
+    (token as Record<string, unknown>).type === "class_link" &&
     typeof (token as Record<string, unknown>).classId === "string"
   );
 }
@@ -175,7 +175,7 @@ export function buildEditableDom(
           el.appendChild(pill);
           break;
         }
-        case "class_chip": {
+        case "class_link": {
           const label = chipText(t, resolveClassName);
           if (label === "") break; // unresolvable and unlabeled: nothing renders
           const pill = document.createElement("span");
@@ -229,7 +229,7 @@ export function editableDomSignature(ast: readonly unknown[], resolveClassName?:
       if (typeof token !== "object" || token === null) continue;
       const t = token as Record<string, unknown>;
       if (t.type === "mention" && typeof t.text === "string") pills += 1;
-      else if (t.type === "class_chip") pills += 1;
+      else if (t.type === "class_link") pills += 1;
       else if (t.type === "quote" && Array.isArray(t.children))
         walk(t.children as readonly unknown[]);
       else if (t.type === "heading" && Array.isArray(t.children))

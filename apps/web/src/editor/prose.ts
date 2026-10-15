@@ -51,7 +51,7 @@ export function proseFromAst(ast: readonly unknown[], resolveClassName?: ClassNa
         case "mention":
           if (typeof t.text === "string") parts.push(t.text);
           break;
-        case "class_chip":
+        case "class_link":
           parts.push(chipLabel(t, resolveClassName));
           break;
         case "math":
@@ -79,7 +79,7 @@ export function proseFromAst(ast: readonly unknown[], resolveClassName?: ClassNa
  * `proseFromAst` builds from it. Tokens the projection skips (asset_ref,
  * embed_ref, query, whiteboard, malformed entries) get a zero-length range
  * at the current offset. Length rules mirror `proseFromAst`: text /
- * typed_link / mention count `text.length`, a class_chip counts its resolved
+ * typed_link / mention count `text.length`, a class_link counts its resolved
  * label length, math counts `expression.length`, hard_break counts 1 (its
  * "\n"), quote counts its inline children.
  */
@@ -105,7 +105,7 @@ export function proseSpans(ast: readonly unknown[], resolveClassName?: ClassName
         case "mention":
           if (typeof t.text === "string") length = t.text.length;
           break;
-        case "class_chip":
+        case "class_link":
           length = chipLabel(t, resolveClassName).length;
           break;
         case "math":
@@ -127,7 +127,7 @@ export function proseSpans(ast: readonly unknown[], resolveClassName?: ClassName
                 typeof c.text === "string"
               )
                 length += c.text.length;
-              else if (c.type === "class_chip")
+              else if (c.type === "class_link")
                 length += chipLabel(c, resolveClassName).length;
               else if (c.type === "math" && typeof c.expression === "string")
                 length += c.expression.length;
