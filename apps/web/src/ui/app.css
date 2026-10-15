@@ -1539,24 +1539,52 @@ select:focus-visible {
    at the first hard_break or the 80-char dense-chrome budget) instead of
    its full content. The excerpt is the head of the block's own prose; the
    row stays EDITABLE — clicking it enters edit on the full content, blur
-   re-condenses. A permanent muted "…" (the classic stretchtext mark) rides
-   after the excerpt text, always visible at rest; the pin button (a
-   magnify-plus-outline lens — "zoom into this block", distinct from the
-   search fields' plain magnify) and the hidden-links badge (the
-   BlockBacklink toggle's count-pill pattern) sit right after it, revealed
-   with the row — row hover + focus-within (the resting-rows-stay-clean law;
-   the permanent "…" already names the truncation at rest); touch reveals
-   them permanently (no hover, the back-arrow's pattern). The pinned row is
-   the ordinary row plus the back-arrow at the END of the block's own
-   content row (before the children — the stretch toggle owns the block's
-   own prose; the collapse chevron owns the subtree): quiet,
-   hover/focus-revealed, keyboard-focusable. */
+   re-condenses. The "…" IS the toggle (owner ruling, fourth pass): the
+   permanent muted stretchtext mark is the layer's ONE control in both
+   directions — on the condensed row it pins the block (tap to stretch in
+   place, generous hit padding around the small glyph); on a pinned row it
+   returns at the END OF THE TEXT (inline after the last word, wherever the
+   text wraps) to un-pin. The hidden-links badge (the BlockBacklink toggle's
+   count-pill pattern) rides beside the mark on condensed rows, revealed
+   with the row — hover + focus-within (the resting-rows-stay-clean law;
+   the permanent "…" names the truncation at rest); touch reveals it
+   permanently. The lens pin button and the re-condense back-arrow are
+   retired — the mark is the affordance. */
 
+/* The mark as the toggle: visually the same muted "…", now a real button —
+   reset, the row-chrome tap floor, and the unified state-layer hover. */
 .nt-block-excerpt__ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin-left: 1px;
+  /* Generous hit padding around the small glyph — the tap-target floor
+     idiom (the grip column already makes the row 22px tall, so the line
+     box holds). */
+  min-width: 22px;
+  min-height: 22px;
+  padding: 0 var(--spacing-1);
+  border: none;
+  background: transparent;
   color: var(--md-sys-color-on-surface-variant);
   opacity: var(--opacity-60);
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  touch-action: manipulation;
+  font: inherit;
+  line-height: inherit;
   white-space: nowrap;
+}
+
+.nt-block-excerpt__ellipsis:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+  opacity: var(--opacity-100);
+}
+
+.nt-block-excerpt__ellipsis:active {
+  background: var(--md-sys-color-pressed-overlay);
+  color: var(--md-sys-color-on-surface);
 }
 
 /* A mixed block (sentence + inline image/embed) names its prose-less
@@ -1580,11 +1608,10 @@ select:focus-visible {
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-/* Hover-reveal (owner ruling 2026-10-15, third pass): the row hover shows
-   the chrome, and focus-within keeps it visible while the keyboard tabs
-   through the pin button / badge — the standard a11y pairing for
-   hover-reveal chrome. Touch has no hover: reveal permanently (the
-   back-arrow's pattern below). */
+/* Hover-reveal: the row hover shows the badge chrome, and focus-within
+   keeps it visible while the keyboard tabs to it — the standard a11y
+   pairing for hover-reveal chrome. Touch has no hover: reveal
+   permanently. */
 .nt-block-row:hover .nt-block-excerpt__chrome,
 .nt-block:focus-within .nt-block-excerpt__chrome {
   opacity: 1;
@@ -1596,9 +1623,7 @@ select:focus-visible {
   }
 }
 
-.nt-block-excerpt__stretch,
-.nt-block-links-badge,
-.nt-block-condense {
+.nt-block-links-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1615,41 +1640,14 @@ select:focus-visible {
   touch-action: manipulation;
 }
 
-.nt-block-excerpt__stretch:hover,
-.nt-block-links-badge:hover,
-.nt-block-condense:hover {
+.nt-block-links-badge:hover {
   background: var(--md-sys-color-hover-overlay);
   color: var(--md-sys-color-on-surface);
 }
 
-.nt-block-excerpt__stretch:active,
-.nt-block-links-badge:active,
-.nt-block-condense:active {
+.nt-block-links-badge:active {
   background: var(--md-sys-color-pressed-overlay);
   color: var(--md-sys-color-on-surface);
-}
-
-/* The re-condense back-arrow rides the stretched row's far edge — revealed
-   with the row like the excerpt chrome (same hover/focus-within pair).
-   Touch has no hover: reveal it permanently (the HoverRevealButton
-   pattern). */
-.nt-block-condense {
-  align-self: center;
-  flex-shrink: 0;
-  padding: 0;
-  opacity: 0;
-  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-@media (hover: none) {
-  .nt-block-condense {
-    opacity: 1;
-  }
-}
-
-.nt-block-row:hover .nt-block-condense,
-.nt-block:focus-within .nt-block-condense {
-  opacity: 1;
 }
 
 /* --- embeds (transclusion) -------------------------------------------------------
