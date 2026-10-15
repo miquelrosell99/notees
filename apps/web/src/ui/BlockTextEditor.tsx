@@ -52,11 +52,13 @@
  *   pages — the create row makes a class); picking assigns it (OR-set add).
  *   Already-assigned classes ride the checkmark (hidden from the empty-query
  *   browse, resurfacing under a matching query): a plain pick REMOVES the
- *   class (the toggle) and a Ctrl/Cmd pick SPLICES THE INLINE CLASS LINK —
- *   the `+` drops, a class_link token takes its place. The MEMBERSHIP is
- *   untouched either way: the classes pills are a derived view that hides
- *   inline-referenced classes (the link IS the marker), so no unassign is
- *   needed to keep one visible reference.
+ *   class (the toggle — AND dissolves every inline class_link to it into
+ *   plain text, the removal-dissolution ruling) and a Ctrl/Cmd pick
+ *   SPLICES THE INLINE CLASS LINK — the `+` drops, a class_link token takes
+ *   its place. The MEMBERSHIP is untouched by the convert: the classes
+ *   pills are a derived view that hides inline-referenced classes (the
+ *   link IS the marker), so no unassign is needed to keep one visible
+ *   reference.
  * - `/`  slash commands: the ported TriggerPopup (inline mode) over the
  *   block-type actions the content grammar executes — Text (strip the
  *   trigger), Quote (wrap the block's inline tokens in a quote token),
@@ -181,6 +183,7 @@ import { proseFromAst, proseSpans } from "@/editor/prose.js";
 import { applyTextEdit, spliceTokens } from "@/editor/edit-apply.js";
 import { applyMarkToRange, marksOnRange, removeMarkFromRange } from "@/editor/marks.js";
 import { withCandidateSpans } from "@/editor/capture.js";
+import { dissolveClassLinksInAst } from "./components/classRemoval.js";
 import type { ClientNode } from "@/core/workspace-client.js";
 
 import { VerbPopover } from "./VerbPopover.js";
@@ -1224,9 +1227,12 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
    * — the checkmarked rows that resurface under a matching query; the
    * capture snapshot idiom mirrors commitNodePick for async closes). The
    * gesture set (owner 2026-10-15): a PLAIN pick REMOVES the class — the
-   * toggle, the row's checkmark reads as its state — and a Ctrl/Cmd pick
-   * SPLICES AN INLINE CLASS LINK at the trigger (the `+` drops, a
-   * `class_link` token takes its place). The MEMBERSHIP is untouched either
+   * toggle, the row's checkmark reads as its state — AND dissolves every
+   * inline class_link to it into plain text (the removal-dissolution
+   * ruling: no dangling reference), computed over the post-trigger-strip
+   * draft in this one gesture; a Ctrl/Cmd pick SPLICES AN INLINE CLASS
+   * LINK at the trigger (the `+` drops, a `class_link` token takes its
+   * place). The MEMBERSHIP is untouched by the convert either
    * way — the classes pills are a derived view: a class referenced inline
    * hides its pill automatically (NodePills parses the content), so the
    * link IS the marker; the same class can still wear pill chrome where
@@ -1253,10 +1259,23 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       el.focus();
       return;
     }
+    // The removal ruling (owner 2026-10-15): the class goes away AND every
+    // inline class_link to it dissolves into plain text — one gesture, never
+    // a dangling reference. Computed over the post-trigger-strip DRAFT
+    // (applyTextEdit keeps unflushed typing), so the draft stays the single
+    // source of truth.
+    const base = spliceTokens(
+      applyTextEdit(nodeRef.current.contentAst, draftRef.current, resolveClassName),
+      state.start,
+      end,
+      [],
+      resolveClassName,
+    );
+    const dissolved = dissolveClassLinksInAst(base, picked.id, (id) => resolveClassName(id) || id);
+    commitAst(withCandidateSpans(dissolved.ast as ContentAst), state.start);
     void client.unassignClass(nodeRef.current.id, picked.id).catch((error: unknown) => {
       console.warn(`[capture] unassignClass (${picked.id}) failed:`, error);
     });
-    stripTrigger(state.start, end);
     el.focus();
   };
 
