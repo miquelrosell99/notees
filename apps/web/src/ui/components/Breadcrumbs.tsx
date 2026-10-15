@@ -33,6 +33,7 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 import { displayNameForSettings } from "../dateDisplay.js";
 import { untitledLabelOf } from "../renderStateLabel.js";
 import { Icon } from "../Icon.js";
+import { AddPill } from "./ui/AddPill.js";
 import { ContextMenu, type ContextMenuItem } from "./ui/ContextMenu.js";
 import { HoverRevealButton } from "./ui/HoverRevealButton.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
@@ -418,18 +419,16 @@ export function Breadcrumbs({
         )}
 
       {showAddParent && (
-        <button
-          type="button"
-          className="node-breadcrumb-add"
-          onClick={(event) =>
+        <AddPill
+          label="Add parent"
+          onClick={(element) => {
+            const rect = element.getBoundingClientRect();
             setParentPicker({
               nodeId: currentNode!.id,
-              position: { x: event.clientX, y: event.clientY },
-            })
-          }
-        >
-          + Add parent
-        </button>
+              position: { x: rect.left + rect.width / 2, y: rect.bottom },
+            });
+          }}
+        />
       )}
 
       {editable && editMenu !== null && !isDateLocked(editMenu.child) && (

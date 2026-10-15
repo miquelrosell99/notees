@@ -140,23 +140,6 @@
    popup left open. The `node-breadcrumb-edit` class stays as the host hook
    for tests and crumb-scoped overrides; the behavior lives in the kit. */
 
-.node-breadcrumb-add {
-  flex-shrink: 0;
-  padding: var(--spacing-1) var(--spacing-2);
-  border: var(--border-width-default) dashed var(--md-sys-color-outline-variant);
-  border-radius: var(--shape-small);
-  background: transparent;
-  color: var(--md-sys-color-on-surface-variant);
-  font: var(--font-label-medium);
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.node-breadcrumb-add:hover {
-  background: var(--md-sys-color-hover-overlay);
-  color: var(--md-sys-color-on-surface);
-}
-
 /* ─── Right-anchored trails (sidebar card headers) ─────────────────────── */
 
 /* Pack the trail toward the RIGHT end; overflow spills invisibly on the

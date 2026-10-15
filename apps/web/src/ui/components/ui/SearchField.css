@@ -1,8 +1,15 @@
 /**
  * SearchField Component Styles
  *
- * Rounded search input with left icon, tinted background,
- * and focus highlight. Shared by SearchBox, NodeSelector, etc.
+ * Borderless filled search bar (the modern register: the tinted fill
+ * carries the shape, no outline; the accent ring appears on focus).
+ * Two placements:
+ *   - default: filled — toolbars, filter bars, list headers (rides on any
+ *     surface via its own container fill);
+ *   - `search-field--borderless`: chromeless — on existing filled surfaces
+ *     (command palette, sheet headers) where even the fill would stack.
+ * Shared: left icon, placeholder, clear affordance with the invisible
+ * hit-area floor, wrapper-carried focus ring.
  */
 
 .search-field-wrapper {
@@ -23,16 +30,30 @@
   gap: var(--spacing-2);
   padding: var(--spacing-2) var(--spacing-3);
   background: var(--md-sys-color-surface-container);
-  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
-  transition: border-color var(--motion-duration-short) var(--motion-easing-standard),
-              background var(--motion-duration-short) var(--motion-easing-standard),
+  transition: background var(--motion-duration-short) var(--motion-easing-standard),
               box-shadow var(--motion-duration-short) var(--motion-easing-standard);
 }
 
+/* Hover: the state-layer wash over the fill (the hover ruling). */
+.search-field:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+/* Focused: the fill steps to the base surface — the field reads "active". */
 .search-field:focus-within {
-  border-color: var(--md-sys-color-outline);
   background: var(--md-sys-color-surface);
+}
+
+/* Focus ring: carried by the wrapper so it hugs the whole pill, not the
+   input box inside the padding (the global input ring moves here —
+   relocated, not suppressed). */
+.search-field:has(.search-field__input:focus-visible) {
+  box-shadow: var(--shadow-focus-ring);
+}
+
+.search-field .search-field__input:focus-visible {
+  box-shadow: none;
 }
 
 .search-field__icon {
@@ -50,13 +71,6 @@
   color: var(--md-sys-color-on-surface);
   outline: none;
   min-width: 0;
-}
-
-/* The global input focus ring applies (the 2026-10-15 ruling reversed the
-   quiet-focus exception); the border + background shift rides along as an
-   additional cue. */
-.search-field:has(.search-field__input:focus-visible) {
-  border-color: var(--md-sys-color-on-surface-variant);
 }
 
 .search-field__input::placeholder {
@@ -98,4 +112,13 @@
 .search-field__clear:hover {
   color: var(--md-sys-color-on-surface);
   background: var(--md-sys-color-hover-overlay);
+}
+
+/* Borderless variant — on existing filled surfaces (the command palette,
+   sheet headers). Even the fill would stack there; the wrapper ring (base
+   rule above) still carries focus. */
+.search-field--borderless,
+.search-field--borderless:hover,
+.search-field--borderless:focus-within {
+  background: transparent;
 }
