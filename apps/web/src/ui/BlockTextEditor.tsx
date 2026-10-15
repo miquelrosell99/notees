@@ -1206,36 +1206,6 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
   };
 
   /**
-   * Multi-select apply from the # / + popup: every picked node is
-   * assigned in pick order (tags / classes), the trigger placeholder is
-   * consumed once, and the block refocuses.
-   */
-  const commitNodePicks = (picked: ClientNode[]) => {
-    const state = capture;
-    if (state === null || state.kind === "slash") return;
-    setCapture(null);
-    const el = spanRef.current;
-    if (el === null) return;
-    const caret = caretOffset(el) ?? state.start + 1;
-    const end = state.replaceEnd ?? Math.max(caret, state.start + 1);
-    if (state.kind === "tag") {
-      for (const node of picked) {
-        void client.assignTag(nodeRef.current.id, node.id).catch((error: unknown) => {
-          console.warn(`[capture] assignTag (${node.id}) failed:`, error);
-        });
-      }
-    } else {
-      for (const node of picked) {
-        void client.assignClass(nodeRef.current.id, node.id).catch((error: unknown) => {
-          console.warn(`[capture] assignClass (${node.id}) failed:`, error);
-        });
-      }
-    }
-    stripTrigger(state.start, end);
-    el.focus();
-  };
-
-  /**
    * The @/#/+ popup closed without a pick (Escape / click outside): keep the
    * trigger char as plain text and hand focus back to the block — unless the
    * click that closed it is focusing something else (another block, the
@@ -2127,8 +2097,6 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
             onClose={closeNodePicker}
             onAdd={commitNodePick}
             hint={capture.kind === "mention" ? capture.hint : undefined}
-            multiSelect={capture.kind !== "mention"}
-            onApplyMulti={capture.kind !== "mention" ? commitNodePicks : undefined}
           />
         ))}
       {templateStage !== null && (
