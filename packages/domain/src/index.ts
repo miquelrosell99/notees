@@ -1,5 +1,6 @@
 export * from "./seeds.js";
 export * from "./node.js";
+export * from "./excerpt.js";
 export * from "./features.js";
 export * from "./dates.js";
 export * from "./recurrence.js";
