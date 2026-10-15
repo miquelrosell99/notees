@@ -148,6 +148,7 @@ function EmbedBlock({
           resolveName={resolveName}
           resolveFullTitle={resolveFullTitle}
           resolveVerb={resolveVerb}
+          resolveClassAssigned={(id) => tree.node.classIds.includes(id)}
           renderEmbed={(id, _token, index) => (
             <EmbedView nodeId={id} hostId={tree.node.id} tokenIndex={index} />
           )}
@@ -242,6 +243,7 @@ export function EmbedView({
               resolveName={resolveName}
               resolveFullTitle={resolveFullTitle}
               resolveVerb={resolveVerb}
+              resolveClassAssigned={(id) => node.classIds.includes(id)}
               renderEmbed={(id, _token, index) => (
                 <EmbedView nodeId={id} hostId={nodeId} tokenIndex={index} />
               )}
