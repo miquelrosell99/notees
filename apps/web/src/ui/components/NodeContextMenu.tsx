@@ -35,7 +35,7 @@ import { displayNameForSettings } from "../dateDisplay.js";
 import { nodeLinkUrl } from "../nodeLink.js";
 import { untitledLabelOf } from "../renderStateLabel.js";
 import { copyToClipboard } from "./modals/clipboard.js";import { notificationStore } from "./ui/notificationStore.js";
-import { refuseClassRemoval } from "./classRemoval.js";
+import { refuseClassRemoval, removeClassDissolvingLinks } from "./classRemoval.js";
 import { headingAstOf, headingConversionOf, plainTextAstOf } from "./headingConvert.js";
 import { ConfirmationModal } from "./ui/ConfirmationModal.js";
 import { ContextMenu, type ContextMenuItem } from "./ui/ContextMenu.js";
@@ -367,7 +367,7 @@ export function NodeContextMenu({
         // System/journal classes refuse membership removal.
         if (refuseClassRemoval(node.id)) return;
         if (onRemoveFromOwner !== undefined) onRemoveFromOwner();
-        else void client.unassignClass(ownerId, node.id);
+        else void removeClassDissolvingLinks(client, ownerId, node.id);
       },
     });
   }
