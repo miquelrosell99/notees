@@ -9,6 +9,42 @@ predating this file.
 
 ## 2026-10-15
 
+- **feat(web): removal dissolves the reference — every class-removal gesture
+  rewrites the node's inline class links to plain text (the owner ruling:
+  "when class is removed, the inline class links should be converted to
+  plain text").** An inline class link is a live reference to the
+  membership, so a removal that left it would dangle. The dissolution lives
+  in `classRemoval.ts` (extended — the non-removable-class rule module):
+  `dissolveClassLinksInAst` deep-rewrites one content AST (every
+  `class_link` for the class becomes a text token of the label it rendered —
+  its `displayText`, else the class's current name, else the raw id; quote
+  children walked), and `removeClassDissolvingLinks` pairs it with the
+  unassign. Every UI removal path rides it: the pill ×, the metadata
+  classes row, the classed-nodes table, the node context menu, the
+  selection bar's bulk unassign, the task-cycle clear — and the `+`
+  picker's toggle, where the dissolve is computed over the
+  post-trigger-strip DRAFT in the same gesture (the editor's draft stays
+  the single source of truth). Gesture-level convenience only: the wire
+  stays pure — `class.unassign` never mutates content — so external writers
+  can still produce the divergent state, which renders dashed and is one
+  click from converged (previous slice). The session undo reverts both ops,
+  restoring the link. Spec: the toggle dissolves [text "meet ", class_link]
+  into [text "meet ", text "correo"] with the membership gone
+  (`suggestion-popup.test.tsx`). `SCHEMA.md` Fork 3 and `docs/ux.md` carry
+  the ruling. **Verification:** `pnpm typecheck` + `pnpm test` green;
+  web-only — no wire touch.
+- **fix(ci): the snapshot-rebuild end-to-end stops flaking — a real 30s
+  budget replaces the 5s default (the email-per-push killer).** Every push
+  mailed the owner a CI failure because
+  `workspace-snapshot-rebuild.test.ts`'s "serves the rebuilt snapshot to a
+  fresh SyncEngine client end-to-end" timed out at vitest's default 5s on
+  shared CI runners (two failures 2026-10-15 — including a docs-only push —
+  both timeouts here, both green on re-run). The test is genuinely heavy —
+  1,050 seeded objects, two full server boots (replay + snapshot rebuild),
+  then a real-socket HTTP pull — IO- and CPU-bound, not assertion-lenient;
+  it gets a budget matching the work, not a weaker assertion.
+  **Verification:** the suite passes locally in ~5s; the push's CI run is
+  watched green.
 - **feat(web): divergence handling for inline class links — the
   referenced-but-not-assigned state is legal, visible (dashed), and
   one click from converged.** The owner's question — "we may end up with

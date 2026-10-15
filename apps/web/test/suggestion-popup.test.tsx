@@ -211,7 +211,51 @@ describe("suggestion popup assigned-class gestures (+ popup)", () => {
     expect(labels.some((l) => l.includes("Assigned"))).toBe(false);
   });
 
-  it("a plain pick on an assigned class REMOVES it (the toggle)", async () => {
+  it("a plain pick on an assigned class REMOVES it — and dissolves the inline link to plain text", async () => {
+    const client = await seedClient();
+    const { pageId, blockId } = await seedBlock(client);
+    const classId = await client.createClass("correo");
+    await client.assignClass(blockId, classId);
+    // The block references the class inline too — the removal ruling
+    // (owner 2026-10-15): the reference dissolves into plain text with the
+    // same gesture, never a dangling link.
+    await client.updateObject(blockId, {
+      contentAst: [
+        { type: "text", text: "meet " },
+        { type: "class_link", classId },
+      ],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    // Append the trigger as a real text node (the shared typeWithCaret
+    // REPLACES the editable text, which would flatten the class_link atom);
+    // the input handler's structure-preserving applyTextEdit keeps the atom
+    // and opens the capture on the trailing " +". The space gives the "+"
+    // its word boundary (capture.ts).
+    editor.appendChild(document.createTextNode(" +"));
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.setStart(editor.lastChild!, 2);
+    range.collapse(true);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    fireEvent.input(editor);
+    typeInPicker("correo");
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    await act(async () => {});
+
+    expect(client.getNode(blockId)?.classIds).toEqual([]);
+    expect(client.getNode(blockId)?.contentAst).toEqual([
+      { type: "text", text: "meet " },
+      { type: "text", text: "correo" },
+      { type: "text", text: " " },
+    ]);
+    expect(editor.textContent).toBe("meet correo "); // trigger stripped, link dissolved
+    expect(picker()).toBeNull();
+  });
+
+  it("a plain pick on an assigned class REMOVES it (no inline link: content untouched)", async () => {
     const client = await seedClient();
     const { pageId, blockId } = await seedBlock(client);
     const classId = await client.createClass("correo");

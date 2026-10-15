@@ -41,7 +41,7 @@ import { displayNameForSettings } from "../../dateDisplay.js";
 import { Icon } from "../../Icon.js";
 import { NodeViewSection } from "../NodeViewSection.js";
 import { useViewModePreference } from "../../viewPrefs.js";
-import { refuseClassRemoval } from "../classRemoval.js";
+import { refuseClassRemoval, removeClassDissolvingLinks } from "../classRemoval.js";
 import { FilterBar } from "../FilterBar.js";
 import {
   EMPTY_FILTER_QUERY,
@@ -186,7 +186,7 @@ export function ClassedNodesSection({
       onClick={() => {
         // System/journal classes refuse membership removal.
         if (refuseClassRemoval(classId)) return;
-        void client.unassignClass(item.node.id, classId);
+        void removeClassDissolvingLinks(client, item.node.id, classId);
       }}
     >
       ×

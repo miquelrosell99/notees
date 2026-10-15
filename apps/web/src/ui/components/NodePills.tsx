@@ -48,6 +48,7 @@ import { AddPill } from "./ui/AddPill.js";
 import { ColorPickerRow } from "./pickers/ColorPickerRow.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
 import { NodeContextMenu } from "./NodeContextMenu.js";
+import { removeClassDissolvingLinks } from "./classRemoval.js";
 import { ClassCreateModal } from "./modals/ClassCreateModal.js";
 import { usePopupDismissal } from "./ui/usePopupDismissal.js";
 import { cssColorFor, resolveCssColor } from "./ui/colorPresets.js";
@@ -420,7 +421,10 @@ export function NodePills({
 
   const onAdd = actions?.add ?? ((classId: string) => void client.assignClass(nodeId, classId));
   const onRemove =
-    actions?.remove ?? ((classId: string) => void client.unassignClass(nodeId, classId));
+    actions?.remove ??
+    // The removal ruling (owner 2026-10-15): dissolve inline class links to
+    // the class into plain text with the same gesture (classRemoval.ts).
+    ((classId: string) => void removeClassDissolvingLinks(client, nodeId, classId));
   const commitOrder = actions?.reorder ?? ((ordered: string[]) => void client.reorderClasses(nodeId, ordered));
   const labelForRemove = removeLabel ?? ((label: string) => `Remove class ${label}`);
 
