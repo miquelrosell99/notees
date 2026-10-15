@@ -764,23 +764,32 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
             <BlockTextEditor node={node} caret={caret} onExitEdit={() => setEditing(false)} />
           ) : excerpted && excerpt !== null ? (
             <>
-              <span className="nt-block-excerpt">{excerpt.text}</span>
-              {/* The classic stretchtext mark — permanent, muted, always
-                  visible at rest (owner ruling: the resting row names its
-                  own truncation). Decorative: the pin button carries the
-                  accessible affordance. */}
-              <span className="nt-block-excerpt__ellipsis" aria-hidden="true">
-                …
-              </span>
-              {mediaCount > 0 && (
-                <span className="nt-block-excerpt__media" title="Contains media">
-                  ⊞ image
+              {/* The pan box wraps ONLY the text flow (text + cut mark +
+                  media chip): Shift+wheel / horizontal trackpad panning
+                  scrolls the hidden text (owner 2026-10-15) — the chrome
+                  must not scroll away, so it rides beside the box (the row
+                  wrapper), never inside it. The "…" honestly scrolls with
+                  the text — it marks the cut point in the flow. */}
+              <span className="nt-block-excerpt__row">
+                <span className="nt-block-excerpt__pan">
+                  <span className="nt-block-excerpt">{excerpt.text}</span>
+                  {/* The classic stretchtext mark — permanent, muted, always
+                      visible at rest (owner ruling: the resting row names
+                      its own truncation). Decorative: the pin button carries
+                      the accessible affordance. */}
+                  <span className="nt-block-excerpt__ellipsis" aria-hidden="true">
+                    …
+                  </span>
+                  {mediaCount > 0 && (
+                    <span className="nt-block-excerpt__media" title="Contains media">
+                      ⊞ image
+                    </span>
+                  )}
                 </span>
-              )}
-              {/* Revealed with the row (hover + focus-within, the CSS pair) —
-                  the pin button stops the click so it pins instead of
-                  editing; the links badge opens the hidden-targets popup. */}
-              <span className="nt-block-excerpt__chrome">
+                {/* Revealed with the row (hover + focus-within, the CSS pair) —
+                    the pin button stops the click so it pins instead of
+                    editing; the links badge opens the hidden-targets popup. */}
+                <span className="nt-block-excerpt__chrome">
                 {hiddenLinks.length > 0 && (
                   <button
                     type="button"
@@ -822,6 +831,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
                     onClose={() => setLinksPopupOpen(false)}
                   />
                 )}
+                </span>
               </span>
             </>
           ) : (
