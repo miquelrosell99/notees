@@ -1,10 +1,12 @@
 /**
  * Suggestion-popup rows — the #/+ capture popup (NodeSelector
- * machinery) gained:
+ * machinery):
  *
- * - Multi-select checkbox mode: row clicks accumulate a picked set (checked
- *   rows ride the top), the Apply footer / Ctrl+Enter commits them all, and
- *   a plain Enter keeps the fast single-assign path (pick + commit).
+ * - Single-pick contract (owner 2026-10-15): a row click or Enter assigns
+ *   THE picked node and closes — the same picker behavior as the @ mention
+ *   picker, no checkboxes / picked set / Apply footer. Ctrl/Cmd+Enter picks
+ *   the highlighted row too (for #/+ the label context is inert; the pick
+ *   assigns like a plain Enter).
  * - Filter prefixes: `daily:` (bare = day pages only) plus the boolean
  *   family `is_daily:` / `is_page:` / `is_class:` refine the candidates;
  *   the tokens strip from the search text (never a created title) and a
@@ -112,57 +114,46 @@ async function seedBlock(client: WorkspaceClient): Promise<{ pageId: string; blo
   return { pageId, blockId };
 }
 
-describe("suggestion popup multi-select (# tags)", () => {
-  it("checkbox clicks accumulate; Apply assigns every picked tag", async () => {
+describe("suggestion popup single-pick (# tags, + classes)", () => {
+  it("a row click assigns exactly that node and closes the popup", async () => {
     const client = await seedClient();
     const { pageId, blockId } = await seedBlock(client);
     const alpha = await client.createObject({ presentAsMain: true, name: "TagA" });
-    const beta = await client.createObject({ presentAsMain: true, name: "TagB" });
+    await client.createObject({ presentAsMain: true, name: "TagB" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "#");
     typeInPicker("Tag"); // matches TagA and TagB
-    expect(pickerRows().length).toBeGreaterThanOrEqual(2);
-
-    // Checkbox-click the two rows: picked rows ride the top, popup stays.
     fireEvent.click(rowByText("TagA"));
-    expect(picker()).not.toBeNull();
-    fireEvent.click(rowByText("TagB"));
-    const panel = picker()!;
-    expect(panel.querySelector(".node-selector__multi-footer")?.textContent).toContain("2 picked");
-
-    // Apply commits the whole set in one gesture.
-    const apply = within(panel).getByRole("button", { name: "Apply 2" });
-    fireEvent.click(apply);
     await act(async () => {});
 
-    expect(client.getNode(blockId)?.tagIds).toEqual([alpha, beta]);
+    expect(client.getNode(blockId)?.tagIds).toEqual([alpha]);
     expect(editor.textContent).toBe(""); // trigger stripped
+    expect(picker()).toBeNull(); // no accumulation — the popup is gone
   });
 
-  it("Ctrl+Enter commits the accumulated set from the keyboard", async () => {
+  it("Ctrl+Enter picks the highlighted row and assigns the class", async () => {
     const client = await seedClient();
     const { pageId, blockId } = await seedBlock(client);
-    const alpha = await client.createObject({ presentAsMain: true, name: "TagA" });
-    const beta = await client.createObject({ presentAsMain: true, name: "TagB" });
+    await client.createClass("ClassB");
+    const classA = await client.createClass("ClassA");
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "+");
-    const classA = await client.createClass("ClassA");
-    const classB = await client.createClass("ClassB");
-    typeInPicker("Class");
-    fireEvent.click(rowByText("ClassA"));
-    fireEvent.click(rowByText("ClassB"));
+    typeInPicker("ClassA");
+    // The query pins exactly one row; Ctrl+Enter must assign it (the
+    // multi-select era swallowed this: apply with an empty picked set).
     fireEvent.keyDown(searchBox(), { key: "Enter", ctrlKey: true });
     await act(async () => {});
 
-    expect(client.getNode(blockId)?.classIds).toEqual([classA, classB]);
+    expect(client.getNode(blockId)?.classIds).toEqual([classA]);
     expect(editor.textContent).toBe("");
+    expect(picker()).toBeNull();
   });
 
-  it("a plain Enter keeps the fast single-assign path (no accumulation)", async () => {
+  it("a plain Enter assigns the highlighted row and closes", async () => {
     const client = await seedClient();
     const { pageId, blockId } = await seedBlock(client);
     const alpha = await client.createObject({ presentAsMain: true, name: "TagA" });
@@ -172,8 +163,6 @@ describe("suggestion popup multi-select (# tags)", () => {
     const editor = clickIntoBlock(container);
     typeWithCaret(editor, "#");
     typeInPicker("TagA"); // prefix-matches TagA and TagAxe
-    // Enter = pick the highlighted row AND commit at once (no accumulation):
-    // exactly one tag is assigned and the popup closes.
     fireEvent.keyDown(searchBox(), { key: "Enter" });
     await act(async () => {});
 
@@ -183,26 +172,19 @@ describe("suggestion popup multi-select (# tags)", () => {
     expect(picker()).toBeNull();
   });
 
-  it("clicking a picked row un-picks it before applying", async () => {
+  it("no checkbox chrome: the popup renders no multi footer", async () => {
     const client = await seedClient();
-    const { pageId, blockId } = await seedBlock(client);
-    const alpha = await client.createObject({ presentAsMain: true, name: "TagA" });
-    const beta = await client.createObject({ presentAsMain: true, name: "TagB" });
+    const { pageId } = await seedBlock(client);
+    await client.createClass("ClassA");
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     const editor = clickIntoBlock(container);
-    typeWithCaret(editor, "#");
-    typeInPicker("Tag");
-    fireEvent.click(rowByText("TagA"));
-    fireEvent.click(rowByText("TagB"));
-    fireEvent.click(rowByText("TagA")); // un-pick
-    const panel = picker()!;
-    expect(panel.querySelector(".node-selector__multi-footer")?.textContent).toContain("1 picked");
-    fireEvent.click(within(panel).getByRole("button", { name: "Apply 1" }));
-    await act(async () => {});
+    typeWithCaret(editor, "+");
+    typeInPicker("ClassA");
 
-    expect(client.getNode(blockId)?.tagIds).toEqual([beta]);
-    void alpha;
+    const panel = picker()!;
+    expect(panel.querySelector(".node-selector__multi-footer")).toBeNull();
+    expect(panel.querySelector(".node-selector__multi-check")).toBeNull();
   });
 });
 
