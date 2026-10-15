@@ -24,7 +24,7 @@
 }
 
 .nt-trash-hub__row:hover {
-  background: var(--md-sys-color-surface-container-high);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-trash-hub__icon {
@@ -73,7 +73,7 @@
 
 .nt-trash-hub__action:hover {
   color: var(--md-sys-color-on-surface);
-  background: var(--md-sys-color-surface-container-highest);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-trash-hub__action--danger:hover {

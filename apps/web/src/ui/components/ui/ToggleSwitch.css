@@ -133,7 +133,7 @@
 
 /* Hover state */
 .toggle-switch:not(.toggle-switch--disabled):hover .toggle-switch__track {
-  background: var(--md-sys-color-surface-container-highest);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 /* Size variants for labels */

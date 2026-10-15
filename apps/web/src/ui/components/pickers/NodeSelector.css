@@ -43,7 +43,7 @@
 
 .node-selector__arrow-btn:hover {
   opacity: var(--opacity-100);
-  background: var(--md-sys-color-surface-container-high);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .node-selector__arrow-btn--open {
@@ -90,7 +90,7 @@
 }
 
 .node-selector__chip:hover {
-  background: var(--md-sys-color-surface-container-highest);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .node-selector__chip--readonly {
@@ -188,7 +188,7 @@
 
 .node-selector__item:hover,
 .node-selector__item--highlighted {
-  background: var(--md-sys-color-surface-container-high);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .node-selector__item--selected {
@@ -202,7 +202,7 @@
 
 .node-selector__item--create:hover,
 .node-selector__item--create.node-selector__item--highlighted {
-  background: var(--md-sys-color-primary-container);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .node-selector__item-icon {
@@ -303,7 +303,7 @@
 
 .node-selector__add-btn:hover {
   opacity: var(--opacity-100);
-  background: var(--md-sys-color-surface-container-high);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .node-selector__add-btn:focus-visible {
@@ -550,7 +550,7 @@
 
 .node-selector__filter-suggestion:hover,
 .node-selector__filter-suggestion--highlighted {
-  background: var(--md-sys-color-surface-container-high);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .node-selector__filter-prefix {
@@ -575,7 +575,7 @@
 
 .node-result-item--filter-suggestion:hover,
 .node-result-item--filter-suggestion.node-result-item--highlighted {
-  background: var(--md-sys-color-primary-container);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 /* Assigned-row gesture hint: rides the picker's bottom while a checkmarked

@@ -43,6 +43,18 @@
   color: var(--md-sys-color-primary);
 }
 
+/* The selected signal is not icon-tint alone: a primary hairline ring
+   (box-shadow, so selection costs no layout shift) plus the 600 label —
+   distinct from hover at a glance. */
+.export-modal__format-card[aria-checked="true"] {
+  box-shadow: 0 0 0 var(--border-width-default) var(--md-sys-color-primary);
+  border-radius: var(--shape-large);
+}
+
+.export-modal__format-card[aria-checked="true"] .export-modal__format-card-label {
+  font-weight: 600;
+}
+
 .export-modal__format-card-label {
   font-size: var(--font-size-sm);
   font-weight: 500;
