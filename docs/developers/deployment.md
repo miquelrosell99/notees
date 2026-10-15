@@ -109,7 +109,13 @@ Two properties fall out of the layout:
   on next access (`apps/server/src/workspace-store.ts`).
 - **`relay.db` plus `workspaces/` is the whole dataset.** `snapshots/` is optional
   acceleration; asset *metadata* (hashes, mime, names, refcounts) is rows in `relay.db`,
-  so asset files are integrity-checkable against it.
+  so asset files are integrity-checkable against it. Snapshot **retention is one
+  per workspace** (owner ruling 2026-10-15): every `saveSnapshot` (the `/compact`
+  and client-upload paths alike) prunes the workspace's older snapshots — rows
+  and files — because a snapshot is a FULL derived checkpoint and only the
+  newest is ever served. Before that ruling the corpus accumulated unboundedly
+  (418 personal snapshots ≈ 49 GB); manual cleanup is only needed for
+  pre-ruling leftovers.
 
 ## 5. The bootstrap key flow
 

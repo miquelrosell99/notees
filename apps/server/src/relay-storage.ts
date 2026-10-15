@@ -319,6 +319,20 @@ export class RelayStorage {
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(snapshotId, workspaceId, hlc.physical, hlc.logical, upToSeq, bytes.length, new Date().toISOString());
+    // Snapshot retention (owner ruling 2026-10-15 — the 49 GB accumulation):
+    // a snapshot is a FULL derived checkpoint and only the newest per
+    // workspace is ever served (latestSnapshot hydration); older ones are
+    // pure waste (418 personal snapshots had piled up; nothing references
+    // them — the log is the authority). Prune them at save time, in the same
+    // transaction, rows + files together.
+    const stale = this.db
+      .prepare("SELECT id FROM snapshot WHERE workspace_id = ? AND id != ?")
+      .all(workspaceId, snapshotId) as Array<{ id: string }>;
+    const dropRow = this.db.prepare("DELETE FROM snapshot WHERE id = ?");
+    for (const row of stale) {
+      dropRow.run(row.id);
+      unlinkSync(this.snapshotPath(row.id));
+    }
   }
 
   latestSnapshot(workspaceId: string): SnapshotRow | null {

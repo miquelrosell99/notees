@@ -9,6 +9,24 @@ predating this file.
 
 ## 2026-10-15
 
+- **feat(sync): snapshot retention is one per workspace — every `saveSnapshot`
+  prunes the workspace's older snapshots (owner ruling after the 49 GB
+  finding).** The owner's two questions — "why are snapshots so huge, why so
+  many" — had one answer: a snapshot is a FULL serialized derived checkpoint
+  of the workspace (each ~90–120 MB at the owner's data volume), the relay
+  kept every snapshot ever taken, and only the newest per workspace is ever
+  served (hydration rides `latestSnapshot`; nothing references older ids —
+  the log is the authority). 418 personal snapshots had accumulated to 49 GB
+  before a manual prune (549 stale snapshots deleted across all workspaces,
+  49 GB → 370 MB). The retention ruling stops the pile-up at the source:
+  `RelayStorage.saveSnapshot` — the single funnel behind both `/compact` and
+  the client-upload path — deletes the workspace's older snapshot rows +
+  files in the same save, so the corpus can never exceed one snapshot per
+  workspace again. `docs/developers/deployment.md`'s data-layout section and
+  the operations maintenance reference carry the ruling; a new
+  `relay-snapshot.test.ts` spec pins the prune (two PUTs → one snapshot, the
+  newest served). **Verification:** `pnpm typecheck` + `pnpm test` green;
+  server-only, `verify-min.mjs` VERIFY-PASS after the scoped rebuild.
 - **refactor(protocol,web)!: the inline class reference is `class_link`, never
   `class_chip` — the token is a node link, class variant, and the name now
   says so (owner ruling); the live log migrated in place (252 envelopes), the
