@@ -646,6 +646,21 @@ select:focus-visible {
   min-width: 0;
 }
 
+/* Focus mode (#12, owner refinement 2026-10-15): the panelled layout stays
+   on (the normal spacing — the compact fallback's re-flow read condensed),
+   but the page body reads CENTERED, not full-bleed — the content column caps
+   at the compact layout's 46rem measure and centers inside the card, with
+   the compact layout's spacing-6 lateral padding carried inside the cap
+   (owner: full-bleed read worse than the old centered column). The nodeview
+   top bar above still spans the whole card — the view switcher + node menu
+   stay put at the card's right. */
+[data-focus="true"] .nt-page--panelled .nt-page-content {
+  flex: 0 1 46rem;
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: var(--spacing-6);
+}
+
 /* The nodeview top bar: the properties collapse toggle and the classes
    pills on the left, the view-mode switcher + context toggle + node menu on
    the right. The bar spans the WHOLE card, above the column split (owner

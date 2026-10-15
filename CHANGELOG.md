@@ -9,6 +9,20 @@ predating this file.
 
 ## 2026-10-15
 
+- **fix(web): focus mode reads centered again — the 46rem cap returns inside
+  the panelled layout (owner feedback 2026-10-15, second pass).** The first
+  pass kept the panelled layout's full-width columns in focus mode; the
+  owner's verdict: full-bleed read worse than the old centered column. Now
+  the content column caps at the compact layout's 46rem measure and centers
+  inside the card (`margin-inline: auto`), with the compact layout's
+  spacing-6 lateral padding carried inside the cap — the panelled spacing/
+  chrome behavior stays (both panels, toggles, classes cluster hidden; view
+  switcher + node menu on the full-width top bar), only the measure is
+  comfortable again. CSS-source spec in `apps/web/test/focus-mode.test.tsx`
+  (the `[data-focus="true"] .nt-page--panelled .nt-page-content` rule: 46rem
+  cap, centered, spacing-6 padding, no row-spacing overrides). Docs:
+  `docs/ux.md` focus-mode clause. **Verification:** `pnpm typecheck` +
+  `pnpm test` green; web-only — no wire touch.
 - **fix(web): focus mode keeps the panelled spacing and hides the chrome;
   the collapse line rides the parent bullet (owner feedback 2026-10-15).**
   Focus mode previously fell back to the compact layout — the page snapped
