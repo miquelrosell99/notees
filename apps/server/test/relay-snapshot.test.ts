@@ -81,6 +81,29 @@ describe("snapshots", () => {
     expect(Buffer.from(data.rawPayload).equals(SNAPSHOT_BYTES)).toBe(true);
   });
 
+  it("a new snapshot prunes the previous one — retention keeps only the newest per workspace (owner ruling 2026-10-15)", async () => {
+    server = await makeTestServer();
+    await ingest(server, [testEnvelope({ opType: "object.create", payload: pagePayload("s") })]);
+    const first = await putSnapshot(100, 2);
+    expect(first.statusCode).toBe(201);
+    const second = await putSnapshot(200, 3);
+    expect(second.statusCode).toBe(201);
+
+    // Only the newest survives: the stats count, the metadata, and the file.
+    const stats = await server.app.inject({
+      method: "GET",
+      url: `/api/relay/v2/stats?workspaceId=${server.workspaceId}`,
+      headers: server.authHeaders,
+    });
+    expect(stats.json().snapshotCount).toBe(1);
+    const meta = await server.app.inject({
+      method: "GET",
+      url: `/api/relay/v2/snapshot?workspaceId=${server.workspaceId}`,
+      headers: server.authHeaders,
+    });
+    expect(meta.json().snapshotId).toBe(second.json().snapshotId);
+  });
+
   it("PUT accepts a body past the global 128 MiB cap — the route rides its own 512 MiB limit", async () => {
     server = await makeTestServer();
     await ingest(server, [testEnvelope({ opType: "object.create", payload: pagePayload("big") })]);

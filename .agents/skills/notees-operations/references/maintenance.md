@@ -27,8 +27,10 @@ future API writes.
 ## Snapshots + compaction
 
 `POST /api/relay/v2/compact {workspaceId, upToHlc, prune, dataBase64}` creates
-snapshots; `snapshots/<id>.db` files are optional accelerators — delete stale
-ones freely (full replay ~35 min), but **after a log rewrite prefer patching
+snapshots; `snapshots/<id>.db` files are optional accelerators — **retention
+is one per workspace** (owner ruling 2026-10-15): every new snapshot prunes
+the workspace's older ones (rows + files) at save time, so manual cleanup is
+only needed for pre-ruling leftovers. After a log rewrite prefer patching
 snapshot bytes** (migrations.md step 5). Snapshot deletes are safe;
 `relay.db` deletion is data loss, full stop.
 
