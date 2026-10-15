@@ -6,6 +6,14 @@ the skill's defaults/foundations is recorded here; an undocumented deviation
 is drift, a documented one is a decision. Newest first. Entries bind until the
 rule they override changes, the review trigger fires, or the owner re-rules.
 
+### Hover is the state-layer overlay everywhere; primary-container is selected/active only
+- **Rule**: audit-checklist §6/§5 — hover feedback per the state-layer idiom; the skill's accent usage table leaves hover unspecified; the pre-ruling codebase mixed three hover fills (`hover-overlay`, `surface-container-high`, `surface-container-high/est`) and used `primary-container` as a hover fill on some rows.
+- **Decision**: every hover background is `--md-sys-color-hover-overlay` (22 stylesheets, owner ruling 2026-10-15); `primary-container` appears only on selected/active chrome (the existing register entry) — never on hover. Controls that are ALREADY active keep their active fill while hovered (combined `--active, --active:hover` rules; the active identity is not washed away). Structural hover that is not a fill (e.g. the support-channel card's border raise) is unaffected.
+- **Rationale**: one hover register to learn; the filled hover read as heavy mid-prose and blurred the selected/active signal.
+- **Scope**: global (all `:hover` fills). Buttons' default/outline/base variants included (overlay over their transparent rest).
+- **Ruled**: owner 2026-10-15 (re-audit carried-forward Notes discussion).
+- **Review trigger**: an interaction finding that the overlay hover is too quiet on a specific surface.
+
 ### Inline row chrome rides a 22px tap floor, not 44px
 - **Rule**: audit-checklist §9 — touch targets ≥44×44px on EVERY interactive control, via an invisible hit-area overlay where the visible control must stay compact.
 - **Decision**: the editor's inline row chrome (the condensed layer's stretch/badge/condense buttons, the collapse chevron, and cousins) carries a 22px minimum with `touch-action: manipulation`, no invisible overlay. An overlay around inline prose chrome would intercept text-selection drags and neighboring glyph taps.

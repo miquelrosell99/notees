@@ -9,11 +9,10 @@
   display: flex;
   align-items: flex-start;
   gap: var(--spacing-6);
-  /* The frame carries the card's inset now (the centered-cap opt-out in
-     PageCard.css): the section nav rides the card's left edge with the
-     panelled page's padding rhythm; the bottom step keeps the last section
-     off the card's bottom edge. */
-  padding: var(--spacing-3) var(--spacing-4) var(--spacing-6);
+  /* Symmetric inset (owner 2026-10-15: the asymmetric steps read broken —
+     top/bottom must match the sides). The section nav rides the card's
+     left edge; the content column caps and centers itself below. */
+  padding: var(--spacing-4);
 }
 
 /* ==================== Section Nav ==================== */
@@ -34,7 +33,8 @@
   display: flex;
   padding: var(--spacing-2) var(--spacing-3);
   border: none;
-  border-radius: var(--shape-small);
+  /* Echoes the card corner: 20px card radius minus the 12px inset. */
+  border-radius: var(--shape-large);
   background: none;
   font: var(--font-label-large);
   color: var(--md-sys-color-on-surface-variant);
@@ -45,7 +45,7 @@
 }
 
 .settings-page__nav-item:hover {
-  background: var(--md-sys-color-surface-container);
+  background: var(--md-sys-color-hover-overlay);
   color: var(--md-sys-color-on-surface);
 }
 
@@ -65,8 +65,11 @@
   flex: 1;
   min-width: 0;
   /* The reading cap for settings rows: past ~900px the label/control rows
-     over-stretch (the layout-size token, a genuinely constant dimension). */
+     over-stretch (the layout-size token, a genuinely constant dimension).
+     Centered inside the remaining space — the capped column must not hug
+     the nav rail. */
   max-width: var(--layout-size-14xl);
+  margin-inline: auto;
 }
 
 /* Narrow: the nav becomes a horizontal scroll row above the content. */
@@ -178,7 +181,7 @@
   align-items: center;
   gap: var(--spacing-2);
   padding: var(--spacing-2) var(--spacing-3);
-  border-radius: var(--shape-small);
+  border-radius: var(--shape-large);
   font: var(--font-label-large);
   color: var(--md-sys-color-primary);
   text-decoration: none;
@@ -190,7 +193,7 @@
 }
 
 .settings-link:hover {
-  background: var(--md-sys-color-primary-container);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 /* ==================== Privacy Card ==================== */

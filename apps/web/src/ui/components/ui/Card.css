@@ -38,7 +38,7 @@
 .card--variant-dashed:hover,
 .card--variant-dashed:focus-within {
   border-color: var(--md-sys-color-primary);
-  background: var(--md-sys-color-surface-container-high);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 /* Border radius

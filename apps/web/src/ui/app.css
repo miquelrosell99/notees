@@ -202,7 +202,7 @@ select:focus-visible {
 
 .nt-field input {
   font: inherit;
-  padding: 8px 12px;
+  padding: var(--spacing-2) var(--spacing-3);
   border: 1px solid var(--md-sys-color-outline);
   border-radius: var(--shape-extra-large);
   background: var(--md-sys-color-background);
@@ -344,7 +344,7 @@ select:focus-visible {
 .nt-apikey-new input {
   flex: 1;
   font: inherit;
-  padding: 8px 12px;
+  padding: var(--spacing-2) var(--spacing-3);
   border: 1px solid var(--md-sys-color-outline);
   border-radius: var(--shape-extra-large);
   background: var(--md-sys-color-background);
@@ -356,7 +356,7 @@ select:focus-visible {
   background: var(--md-sys-color-primary);
   color: var(--md-sys-color-on-primary);
   border-radius: var(--shape-large);
-  padding: 8px 12px;
+  padding: var(--spacing-2) var(--spacing-3);
   font-size: var(--font-size-button);
 }
 
@@ -858,7 +858,7 @@ select:focus-visible {
 }
 
 .nt-view-toggle:hover {
-  background: var(--md-sys-color-surface-container-highest);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-view-toggle-active,
@@ -1203,7 +1203,7 @@ select:focus-visible {
 }
 
 .nt-mark-button:hover {
-  background: var(--md-sys-color-surface-container-highest);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-mark-active,
@@ -1287,7 +1287,7 @@ select:focus-visible {
 }
 
 .nt-verb-cancel:hover {
-  background: var(--md-sys-color-surface-container-highest);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 /* Schema-at-capture: the bound-verb row under the verb fields —
@@ -1336,7 +1336,7 @@ select:focus-visible {
 }
 
 .nt-add-block:hover {
-  background: var(--md-sys-color-surface-container-highest);
+  background: var(--md-sys-color-hover-overlay);
   color: var(--md-sys-color-on-surface-variant);
 }
 
@@ -1584,7 +1584,7 @@ select:focus-visible {
 .nt-block-excerpt__stretch:hover,
 .nt-block-links-badge:hover,
 .nt-block-condense:hover {
-  background: var(--md-sys-color-surface-container-high);
+  background: var(--md-sys-color-hover-overlay);
   color: var(--md-sys-color-on-surface);
 }
 
@@ -1739,7 +1739,7 @@ select:focus-visible {
   background: var(--md-sys-color-surface-container-highest);
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-button-compact);
-  padding: 0 8px;
+  padding: 0 var(--spacing-2);
   font-size: var(--font-size-button);
   line-height: 1.5;
   color: var(--md-sys-color-on-surface-variant);
@@ -2280,7 +2280,7 @@ select:focus-visible {
 
 .nt-datepicker-nav:hover,
 .nt-datepicker-close:hover {
-  background: var(--md-sys-color-surface-container-highest);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-datepicker-breadcrumb {
@@ -2326,7 +2326,7 @@ select:focus-visible {
 }
 
 .nt-datepicker-cellbox:hover {
-  background: var(--md-sys-color-surface-container-high);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-datepicker-cell {
@@ -2344,7 +2344,7 @@ select:focus-visible {
 
 .nt-datepicker-cell:hover,
 .nt-datepicker-cell:focus {
-  background: var(--md-sys-color-surface-container-high);
+  background: var(--md-sys-color-hover-overlay);
   outline: none;
 }
 
@@ -2412,7 +2412,7 @@ select:focus-visible {
 }
 
 .nt-section-item:hover {
-  background: var(--md-sys-color-surface-container-highest);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 /* Class View member rows: the navigation row plus an unassign × that issues
@@ -2472,7 +2472,7 @@ select:focus-visible {
   background: var(--md-sys-color-surface-container-highest);
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-button-compact);
-  padding: 0 8px;
+  padding: 0 var(--spacing-2);
   font-size: var(--font-size-body-lg);
   line-height: 1.5;
 }
@@ -2559,8 +2559,8 @@ select:focus-visible {
   display: inline-block;
   font-size: var(--font-size-xs);
   line-height: 1.4;
-  padding: 0 8px;
-  border-radius: var(--shape-medium) 6px 0 0;
+  padding: 0 var(--spacing-2);
+  border-radius: var(--shape-medium) var(--shape-medium) 0 0;
   background: var(--md-sys-color-surface-container-highest);
   color: var(--md-sys-color-on-surface-variant);
   border: 1px solid var(--md-sys-color-outline-variant);
@@ -2569,7 +2569,7 @@ select:focus-visible {
 
 .nt-code-block__pre {
   margin: 0;
-  padding: 8px 12px;
+  padding: var(--spacing-2) var(--spacing-3);
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
   background: var(--md-sys-color-surface-container-low);
@@ -2639,7 +2639,7 @@ select:focus-visible {
 }
 
 .nt-embed-card:hover {
-  background: var(--md-sys-color-surface-container-high);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-embed-card__label {
@@ -2718,7 +2718,7 @@ select:focus-visible {
 }
 
 .nt-asset--chip:hover {
-  background: var(--md-sys-color-surface-container-highest);
+  background: var(--md-sys-color-hover-overlay);
   color: var(--md-sys-color-on-surface);
 }
 
@@ -3166,7 +3166,7 @@ mark {
 }
 
 .nt-search-hit:hover {
-  background: var(--md-sys-color-surface-container-highest);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-search-hit-top {
@@ -3212,7 +3212,7 @@ mark {
 }
 
 .nt-search-more:hover:not(:disabled) {
-  background: var(--md-sys-color-surface-container-highest);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-search-more:disabled {

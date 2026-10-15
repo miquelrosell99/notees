@@ -49,7 +49,7 @@
 }
 
 .journals-view__today-btn:hover {
-  background: var(--md-sys-color-primary-container);
+  background: var(--md-sys-color-hover-overlay);
   border-color: var(--md-sys-color-outline);
 }
 

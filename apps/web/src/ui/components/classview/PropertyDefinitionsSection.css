@@ -25,7 +25,7 @@
 }
 
 .nt-propdef-row:hover {
-  background: var(--md-sys-color-surface-container-highest);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .nt-propdef--dragging {

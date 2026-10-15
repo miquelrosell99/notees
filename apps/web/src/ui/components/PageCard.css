@@ -214,7 +214,7 @@
 
 .nt-sidebar-card__action:hover {
   color: var(--md-sys-color-on-surface);
-  background: var(--md-sys-color-surface-container-high);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 /* The nested node card: the same surface as the main content card. */

@@ -50,7 +50,7 @@
 }
 
 .grid-menu__item:hover:not(:disabled) {
-  background: var(--md-sys-color-surface-container-high);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .grid-menu__item:active:not(:disabled) {
