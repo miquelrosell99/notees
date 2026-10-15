@@ -9,6 +9,33 @@ predating this file.
 
 ## 2026-10-15
 
+- **fix(web)!: multi-select is deleted everywhere — the top-bar New picker
+  is single-pick (one class, one page), and an exact search for an
+  already-assigned class/tag resurfaces its row instead of dead-ending into
+  the create-class modal (owner ruling).** Two reports, one slice. (1)
+  Ctrl+Enter "still does not add the class inline if the class is already
+  set": reproduced — the header/block classes pickers hide assigned classes
+  outright, so an exact search left only the create row, and Enter/Ctrl+Enter
+  there routed to the **New class** modal (for an existing, already-assigned
+  class) instead of acknowledging the pick. Now assigned nodes hide only
+  while BROWSING (the pinned candidate-set contract in `pickers.test.ts`);
+  a non-empty query resurfaces them, checkmark-marked (`isSelected` finally
+  renders in the anchored pickers), and picking one closes idempotently —
+  no write, no modal. The same contract serves the tags row and every
+  value-based property picker. (2) The owner ruling: no multi-select
+  anywhere — page creation means ONE class ("create a person", "create a
+  project"). `NodeSelector`'s entire multiSelect mode is gone (picked-set
+  state, checkbox column, `N picked`/Apply footer, `⌃↵ apply` hints, the
+  `onApplyMulti` prop, the multi CSS, `NodeResultItem`'s now-orphaned
+  `before` slot); the top-bar New picker commits through plain `onAdd` —
+  pick a class, one untitled page of that class is created and opened.
+  The editor `#`/`+`/`@` single-pick contract from the earlier slice is
+  unchanged. `docs/usage.md`'s New-button sentence and `docs/ux.md`'s
+  picker paragraph rewritten; `pickers.test.ts` gains the regression spec
+  (exact search resurfaces the assigned class checkmarked; Ctrl+Enter
+  closes with no modal, no duplicate write).
+  **Verification:** `pnpm typecheck` + `pnpm test` green from the repo
+  root; web-only, no wire/store/sync touch.
 - **fix(web): the editor's `#`/`+` capture popup is single-pick — the
   checkbox/Apply multi-select layer is gone, and Ctrl/Cmd+Enter assigns the
   highlighted row (owner ruling).** Two complaints, one root: the class/tag

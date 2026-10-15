@@ -2126,20 +2126,14 @@ export function App() {
           client={client}
           anchorEl={newButtonRef.current}
           searchMode="classes"
-          multiSelect
           searchPlaceholder="Search classes…"
           onClose={() => setNewPickerOpen(false)}
           onAdd={(picked) => {
+            // Single-pick contract (owner ruling): one class, one page —
+            // "create a person", "create a project". Picking creates the
+            // untitled page of that class and opens it.
             setNewPickerOpen(false);
             createNodesWithClasses(client, [picked.id], openPage);
-          }}
-          onApplyMulti={(picked) => {
-            setNewPickerOpen(false);
-            createNodesWithClasses(
-              client,
-              picked.map((node) => node.id),
-              openPage,
-            );
           }}
         />
       )}

@@ -40,7 +40,6 @@ import { QuickCreateModal } from "../modals/QuickCreateModal.js";
 import type { QuickCreateClient, QuickCreatePlan } from "../modals/quickCreate.js";
 import { resolveQuickCreate } from "../modals/quickCreate.js";
 import { Tabs } from "../ui/Tabs.js";
-import { Checkbox } from "../ui/Checkbox.js";
 import { SearchField } from "../ui/SearchField.js";
 import { usePopupDismissal } from "../ui/usePopupDismissal.js";
 import "./NodeSelector.css";
@@ -167,14 +166,6 @@ interface NodeSelectorProps {
    * "…"').
    */
   hint?: string | undefined;
-  /**
-   * multi-select checkbox mode: row clicks toggle a picked set
-   * (checked rows accumulate at the top), an Apply footer commits them all
-   * through `onApplyMulti`. The picker stays open across toggles.
-   */
-  multiSelect?: boolean | undefined;
-  /** Commits a multi-select session with the picked nodes (pick order). */
-  onApplyMulti?: ((nodes: ClientNode[]) => void | Promise<unknown>) | undefined;
   /** ID for the root element. */
   id?: string;
   /** Hide the pill's remove icon until the pill is hovered or focused. */
@@ -215,8 +206,6 @@ export function NodeSelector({
   onClose,
   createLabel,
   hint,
-  multiSelect = false,
-  onApplyMulti,
   id,
   rightIconHoverReveal = false,
 }: NodeSelectorProps) {
@@ -224,8 +213,6 @@ export function NodeSelector({
   const [isPickerOpen, setIsPickerOpen] = useState(isAnchored);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const [displayLimit, setDisplayLimit] = useState(DEFAULT_DISPLAY_LIMIT);
-  /** Multi-select: picked ids in pick order. */
-  const [pickedIds, setPickedIds] = useState<string[]>([]);
   /** Active scope-tab filter (only rendered when scopeTabs is set). */
   const [scope, setScope] = useState<"main" | "blocks">("main");
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -284,10 +271,16 @@ export function NodeSelector({
   }, [nodes, valueIds]);
 
   const handleAdd = (node: ClientNode, withLabel = false): void => {
-    if (assignedIds.has(node.id)) return;
-    if (multiSelect) {
-      // Checkbox mode: a pick toggles the set; the picker stays open.
-      togglePicked(node);
+    if (assignedIds.has(node.id)) {
+      // Pick of an already-assigned node (the row carries the checkmark —
+      // assigned rows re-surface when the query matches their name): an
+      // idempotent acknowledgment, not a write. Close like any pick.
+      if (isAnchored) {
+        onClose?.();
+      } else if (trigger === "pill-row") {
+        setIsPickerOpen(false);
+        setSearchQuery("");
+      }
       return;
     }
     if (onChange) {
@@ -442,7 +435,7 @@ export function NodeSelector({
       ? `Create year "${effectiveQuery}"`
       : `Create "${effectiveQuery}"`);
 
-  const handleCreateNew = (applyAfter = false) => {
+  const handleCreateNew = () => {
     if (effectiveCreateNew === undefined) return;
     // Empty-query create is only meaningful for override flows (upload,
     // quick-create modals): the built-in create needs a title, so the row
@@ -450,20 +443,6 @@ export function NodeSelector({
     if (effectiveQuery === "" && onCreateNew === undefined) return;
     const result = effectiveCreateNew(effectiveQuery);
     const onCreated = (created: ClientNode | string | void): void => {
-      if (multiSelect) {
-        // The created node joins the picked set; Enter's fast path commits.
-        const node =
-          typeof created === "string"
-            ? client.getNode(created)
-            : created !== undefined && typeof created === "object" && "id" in created
-              ? (created as ClientNode)
-              : undefined;
-        if (node === undefined) return;
-        const next = pickedIds.includes(node.id) ? pickedNodes : [...pickedNodes, node];
-        setPickedIds(next.map((n) => n.id));
-        if (applyAfter) applyMulti(next);
-        return;
-      }
       resolveCreateResult(created);
     };
     if (result instanceof Promise) {
@@ -478,11 +457,11 @@ export function NodeSelector({
   };
 
   // Parse the query for date formats and offer the date-page suggestion
-  // (hidden in multi-select mode — the original boundary).
+  // (hidden in the classes picker — the original boundary).
   const parsedDate = useMemo(() => {
-    if (searchMode === "classes" || multiSelect) return null;
+    if (searchMode === "classes") return null;
     return parseDate(inlineFilters.query.trim());
-  }, [inlineFilters.query, searchMode, multiSelect]);
+  }, [inlineFilters.query, searchMode]);
 
   // The chain ids are pure (derived from the iso date); existence is read
   // live each render so the suggestion label tracks graph changes under an
@@ -599,47 +578,17 @@ export function NodeSelector({
   const filteredResults = useMemo(
     () =>
       searchResults
-        .filter((node) => !assignedIds.has(node.id))
-        .filter((node) => !multiSelect || !pickedIds.includes(node.id))
+        // Assigned nodes hide while browsing (the picker's candidate set is
+        // the UNASSIGNED pool); a non-empty query surfaces them again —
+        // marked selected (the row checkmark) — so an exact search for an
+        // already-assigned class/tag acknowledges the pick instead of
+        // dead-ending into the create row (the class picker's create row
+        // would open the create-class modal for an existing class).
+        .filter((node) => !assignedIds.has(node.id) || effectiveQuery !== "")
         .filter((node) => node.id !== excludeNodeId)
         .filter((node) => canAdd === undefined || canAdd(node)),
-    [searchResults, assignedIds, multiSelect, pickedIds, excludeNodeId, canAdd],
+    [searchResults, assignedIds, effectiveQuery, excludeNodeId, canAdd],
   );
-
-  // Multi-select: picked nodes resolved in pick order; toggling a
-  // row never closes the picker; Apply commits the whole set at once.
-  const pickedNodes = useMemo(
-    () =>
-      pickedIds
-        .map((pickedId) => client.getNode(pickedId))
-        .filter((node): node is ClientNode => node !== undefined),
-    [client, pickedIds],
-  );
-  const togglePicked = (node: ClientNode): void => {
-    setPickedIds((prev) =>
-      prev.includes(node.id) ? prev.filter((id) => id !== node.id) : [...prev, node.id],
-    );
-  };
-  const resetMulti = (): void => setPickedIds([]);
-  /**
-   * Commit a multi-select session. `explicit` overrides the picked set (the
-   * Enter fast path picks a row AND commits in one gesture). The picker
-   * closes first: the editor's close handler returns the caret to the block,
-   * then the apply strips the trigger and re-places the caret at the splice.
-   */
-  const applyMulti = (explicit?: ClientNode[]): void => {
-    const commit = explicit ?? pickedNodes;
-    if (commit.length === 0) return;
-    if (isAnchored) {
-      onClose?.();
-    } else {
-      setIsPickerOpen(false);
-      setSearchQuery("");
-    }
-    resetMulti();
-    const result = onApplyMulti?.(commit);
-    if (result instanceof Promise) result.catch(() => {});
-  };
 
   const visibleResults = useMemo(
     () => filteredResults.slice(0, displayLimit),
@@ -655,7 +604,6 @@ export function NodeSelector({
   );
 
   const handleClosePicker = () => {
-    resetMulti();
     if (isAnchored) {
       onClose?.();
     } else if (trigger !== "inline") {
@@ -695,51 +643,28 @@ export function NodeSelector({
     }
   }, [isPickerOpen, position]);
 
-  // Total selectable items (date suggestion offsets the list by one;
-  // multi-select puts the picked rows first).
+  // Total selectable items (the date suggestion offsets the list by one).
   const dateOffset = dateSuggestion ? 1 : 0;
-  const pickedOffset = multiSelect ? pickedNodes.length : 0;
-  const createIndex = pickedOffset + dateOffset + visibleResults.length;
+  const createIndex = dateOffset + visibleResults.length;
   const showMoreIndex = createIndex + (showCreateOption ? 1 : 0);
   const totalItems =
-    pickedOffset +
     visibleResults.length +
     dateOffset +
     (showCreateOption ? 1 : 0) +
     (showMoreOption ? 1 : 0);
 
   const handleSelectByIndex = (index: number, modifiers: { ctrlKey: boolean; metaKey: boolean }) => {
-    if (multiSelect) {
-      // Ctrl/Cmd+Enter commits the accumulated set from anywhere.
-      if (modifiers.ctrlKey || modifiers.metaKey) {
-        applyMulti();
-        return;
-      }
-      // Enter on an already-picked row un-picks it (the session stays open).
-      if (index < pickedNodes.length) {
-        togglePicked(pickedNodes[index]!);
-        return;
-      }
-    }
     if (dateSuggestion && index === 0) {
       dateSuggestion.onSelect();
       return;
     }
-    const adjusted = index - pickedOffset - dateOffset;
+    const adjusted = index - dateOffset;
     if (adjusted < visibleResults.length) {
       const node = visibleResults[adjusted]!;
-      if (multiSelect) {
-        // Enter = the fast single-assign path (the pre-multi contract): the
-        // row joins the picked set and the whole set commits at once.
-        // Checkbox clicks accumulate without committing instead.
-        const next = pickedIds.includes(node.id) ? pickedNodes : [...pickedNodes, node];
-        applyMulti(next);
-        return;
-      }
       handleAdd(node, modifiers.ctrlKey || modifiers.metaKey);
     } else if (showCreateOption && adjusted === visibleResults.length) {
-      handleCreateNew(multiSelect);
-    } else if (showMoreOption && adjusted === showMoreIndex - pickedOffset - dateOffset) {
+      handleCreateNew();
+    } else if (showMoreOption && adjusted === showMoreIndex - dateOffset) {
       setDisplayLimit((prev) => prev + 20);
     }
   };
@@ -827,36 +752,19 @@ export function NodeSelector({
 
   const renderResults = (emptyClassName: string, createIconSize: number) => (
     <>
-      {/* Multi-select: picked rows ride the top of the list. */}
-      {multiSelect &&
-        pickedNodes.map((node, index) => (
-          <NodeResultItem
-            key={`picked:${node.id}`}
-            node={node}
-            isHighlighted={index === selectedIndex}
-            isSelected
-            onClick={() => togglePicked(node)}
-            onMouseEnter={() => setSelectedIndex(index)}
-            before={
-              <span className="node-selector__multi-check" aria-hidden="true">
-                <Checkbox size="sm" checked readOnly tabIndex={-1} aria-label="" />
-              </span>
-            }
-          />
-        ))}
       {dateSuggestion && (
         <NodeResultItem
           key={dateSuggestion.key}
           node={{ name: dateSuggestion.label }}
-          isHighlighted={selectedIndex === pickedOffset}
+          isHighlighted={selectedIndex === 0}
           onClick={dateSuggestion.onSelect}
-          onMouseEnter={() => setSelectedIndex(pickedOffset)}
+          onMouseEnter={() => setSelectedIndex(0)}
           className="node-result-item--date"
           iconOverride={<Icon path="mdi-calendar" size={0.7} />}
         />
       )}
       {visibleResults.map((node, index) => {
-        const globalIndex = pickedOffset + dateOffset + index;
+        const globalIndex = dateOffset + index;
         return (
           <NodeResultItem
             key={node.id}
@@ -866,17 +774,10 @@ export function NodeSelector({
             }
             displayClasses={getDisplayClasses(node)}
             isHighlighted={globalIndex === selectedIndex}
-            isSelected={!multiSelect && assignedIds.has(node.id)}
+            isSelected={assignedIds.has(node.id)}
             onClick={() => handleAdd(node)}
             onCtrlClick={() => handleAdd(node, true)}
             onMouseEnter={() => setSelectedIndex(globalIndex)}
-            before={
-              multiSelect ? (
-                <span className="node-selector__multi-check" aria-hidden="true">
-                  <Checkbox size="sm" checked={false} readOnly tabIndex={-1} aria-label="" />
-                </span>
-              ) : undefined
-            }
           />
         );
       })}
@@ -909,22 +810,6 @@ export function NodeSelector({
     </>
   );
 
-  /** Multi-select footer: picked count + Apply + keyboard hints. */
-  const multiFooter = multiSelect ? (
-    <div className="node-selector__multi-footer">
-      <span className="node-selector__multi-count">{pickedNodes.length} picked</span>
-      <button
-        type="button"
-        className="btn btn--primary btn--sm"
-        disabled={pickedNodes.length === 0}
-        onClick={() => applyMulti()}
-      >
-        Apply{pickedNodes.length > 0 ? ` ${pickedNodes.length}` : ""}
-      </button>
-      <span className="node-selector__multi-hint">↵ toggle · ⌃↵ apply</span>
-    </div>
-  ) : null;
-
   /**
    * Search input + results. With scopeTabs the body wraps in a Tabs root:
    * the tablist scopes the results (the shared search input sits between
@@ -956,7 +841,6 @@ export function NodeSelector({
             {renderResults("node-selector__no-results", createIconSize)}
           </div>
         </Tabs.Panel>
-        {multiFooter}
       </Tabs>
     ) : (
       <>
@@ -976,7 +860,6 @@ export function NodeSelector({
         <div className="node-selector__options" ref={listRef}>
           {renderResults("node-selector__no-results", createIconSize)}
         </div>
-        {multiFooter}
       </>
     );
 
