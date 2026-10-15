@@ -113,7 +113,7 @@ detected (`detectConflicts`: `move_move`, `node_deleted`, `class_conflict`,
 
 ## Content + edges
 
-`contentAst: ContentToken[]` (text, class_chip, mention, typed_link,
+`contentAst: ContentToken[]` (text, class_link, mention, typed_link,
 asset_ref, embed_ref, quote, query, whiteboard, external_link, math,
 hard_break) — normative in SCHEMA.md, executable
 `packages/protocol/src/content-mark.ts`. Edge index via `rebuildEdges`
