@@ -9,6 +9,24 @@ predating this file.
 
 ## 2026-10-15
 
+- **feat(web): the pinned block reads at a glance — accent …, outline
+  bullet ring (owner ruling 2026-10-15).** Two cues, both quiet, no row
+  chrome beyond them: (1) the pinned row's trailing "…" toggle wears the
+  ACCENT treatment at rest (`--md-sys-color-primary`, full opacity — the
+  accent every engagement surface wears; hover/pressed get a faint accent
+  state-layer) — the control expresses its own state: muted = "more
+  available", accent = "open". The condensed row's "…" stays muted. (2) In
+  outline mode a pinned block's bullet wears a small accent ring — a 1.5px
+  outline (`color-mix` 70% primary), the bullet stays a bullet, distinct
+  from the collapse ring's filled tint. Prose hides bullets and cards
+  content rows carry the cue on the mark alone — no bullet ring there. The
+  editing highlight wins: while a pinned block edits, its bullet keeps the
+  accent fill and the ring is suppressed; the ring returns on blur. No row
+  backgrounds, no borders, nothing else touched. Specs in
+  `apps/web/test/condensed.test.tsx` (accent modifier on the pinned mark,
+  `nt-block--pinned` root class, CSS-source specs pinning the accent rule,
+  the ring, and the editing/cards suppressions). **Verification:** `pnpm
+  typecheck` + `pnpm test` green; web-only — no wire touch.
 - **feat(web): the condensed layer's … is the toggle — the pin and condense
   buttons retire (owner ruling 2026-10-15).** The permanent muted "…" (the
   classic stretchtext mark) becomes the layer's ONE control in both
