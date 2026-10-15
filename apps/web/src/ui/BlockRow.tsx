@@ -649,7 +649,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
 
   return (
     <div
-      className={`nt-block${readOnly ? " nt-block--readonly" : ""}${readOnly && readOnlyInert ? " nt-block--inert" : ""}${editing ? " nt-block--editing" : ""}${isCollapsed && children.length > 0 ? " nt-block--collapsed" : ""}${stretchedFull ? " nt-block--pinned" : ""}${dropClass}${selectedClass}${dragSourceClass}`}
+      className={`nt-block${readOnly ? " nt-block--readonly" : ""}${readOnly && readOnlyInert ? " nt-block--inert" : ""}${editing ? " nt-block--editing" : ""}${isCollapsed && children.length > 0 ? " nt-block--collapsed" : ""}${dropClass}${selectedClass}${dragSourceClass}`}
       ref={(el) => {
         blockRef.current = el;
         setNodeRef(el);
@@ -850,10 +850,10 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
                   the text wraps, permanent and tappable). Tap → un-pin; the
                   click stops so it condenses instead of entering edit. The
                   badge never rides a pinned row: all text is visible, so
-                  the hidden-link count is 0 by definition. Pinned wears
-                  the ACCENT treatment (owner ruling: the control expresses
-                  its own state — muted = "more available", accent =
-                  "open") — clear at a glance, not on hover. */}
+                  the hidden-link count is 0 by definition. Pinned renders
+                  as a FILLED CHIP in the app's active-toggle register
+                  (owner refinement: muted mark = closed, filled chip =
+                  open) — the chip is the single cue in every mode. */}
               <button
                 type="button"
                 className="nt-block-excerpt__ellipsis nt-block-excerpt__ellipsis--pinned"

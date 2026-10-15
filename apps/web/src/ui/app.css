@@ -1550,8 +1550,10 @@ select:focus-visible {
    the permanent "…" names the truncation at rest); touch reveals it
    permanently. The lens pin button and the re-condense back-arrow are
    retired — the mark is the affordance. A PINNED block reads at a glance:
-   the mark wears the accent, and in outline the bullet wears a quiet
-   accent ring (prose/cards carry the distinction on the mark alone). */
+   the mark becomes a FILLED CHIP in the app's active-toggle register
+   (primary-container fill, the focus-mode TopBar button's register) —
+   muted mark = closed, filled chip = open; no bullet indicator, the chip
+   is the single cue in every mode. */
 
 /* The mark as the toggle: visually the same muted "…", now a real button —
    reset, the row-chrome tap floor, and the unified state-layer hover. */
@@ -1589,44 +1591,25 @@ select:focus-visible {
   color: var(--md-sys-color-on-surface);
 }
 
-/* Pinned cues (owner ruling 2026-10-15): the toggle expresses its own
-   state — muted "…" = "more available", accent "…" = "open" — clear at a
-   glance, not on hover. The accent every engagement surface wears; the
-   hover/pressed layers are a faint accent state-layer. */
+/* The pinned cue (owner ruling 2026-10-15, refined same day): the pinned
+   "…" is a SOLID-FILLED toggle chip in the app's active-toggle register —
+   the exact fill the focus-mode TopBar button's nt-icon-btn-active wears
+   (primary-container / on-primary-container, shape-medium radius), riding
+   the mark's 22px hit zone. The contrast pair: muted mark = closed,
+   filled chip = open. The fill holds through hover/pressed (the
+   nt-icon-btn-active precedent). No bullet indicator — the chip is the
+   single cue in every mode. */
 .nt-block-excerpt__ellipsis--pinned {
-  color: var(--md-sys-color-primary);
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
   opacity: var(--opacity-100);
+  border-radius: var(--shape-medium);
 }
 
-.nt-block-excerpt__ellipsis--pinned:hover {
-  background: color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent);
-  color: var(--md-sys-color-primary);
-}
-
+.nt-block-excerpt__ellipsis--pinned:hover,
 .nt-block-excerpt__ellipsis--pinned:active {
-  background: color-mix(in srgb, var(--md-sys-color-primary) 20%, transparent);
-  color: var(--md-sys-color-primary);
-}
-
-/* Outline-mode cue: the pinned block's bullet wears a quiet accent ring —
-   an outline only (the bullet stays a bullet; the collapse ring's filled
-   tint is a different signal). Prose hides bullets — the accent mark
-   carries the distinction there. Cards content rows too, by the owner's
-   model: no bullet ring inside a card, the accent mark carries it. While
-   EDITING, the bullet already wears the accent fill — the editing
-   highlight wins, and the ring returns on blur. */
-.nt-block--pinned > .nt-block-row .nt-bullet::after {
-  content: "";
-  position: absolute;
-  inset: 3px;
-  border: 1.5px solid color-mix(in srgb, var(--md-sys-color-primary) 70%, transparent);
-  border-radius: 50%;
-  pointer-events: none;
-}
-
-.nt-block--editing > .nt-block-row .nt-bullet::after,
-.node-card .nt-block--pinned > .nt-block-row .nt-bullet::after {
-  display: none;
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
 }
 
 /* A mixed block (sentence + inline image/embed) names its prose-less
