@@ -42,7 +42,14 @@ predating this file.
   the viewPrefs/deviceSettings seam) and the stretched exceptions persist
   beside the folds (`notees.stretched.v1.<rootId>`, the collapse-set
   pattern — multi-expand recommended, with a condense-all reset riding the
-  nodeview top bar only while the set is non-empty). The BlockRow branch is
+  nodeview top bar only while the set is non-empty). The layer toggle
+  itself lives in the app TopBar beside the focus-mode switch and as a
+  command-palette action ("Condensed: enter" / "Condensed: exit", the
+  focus row's pattern — owner directive 2026-10-15; one surface per
+  action, the nodeview-bar toggle removed); both act on the active page's
+  per-page pref, and the condensed chrome (…, badge, back-arrow) stays
+  visible in focus mode — stretching is the reading act, not metadata
+  chrome. The BlockRow branch is
   an explicit opt-in from the page body — the presentation deck, embedded
   feeds, read-only projections, tables, exports, and shares render full
   content by construction. Specs: `excerptOf` (10 domain specs),
