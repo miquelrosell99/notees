@@ -12,7 +12,7 @@ with the class-name normalization from v1 `app/core/derived/class.py`
 - legacyAstToTokens: paragraph/heading children flatten into one stream;
   strong/em/strikethrough/underline/highlight fold into `marks` on text runs
   (underline -> highlight; nested marks merge); node_link pills become
-  `mention` tokens (ref_type class -> `class_chip`); code -> text run with the
+  `mention` tokens (ref_type class -> `class_link`); code -> text run with the
   `code` mark; math/external_link/hard_break map 1:1; user_mention degrades to
   a plain '@label' text run; unknown nodes contribute their children.
 """
@@ -25,7 +25,7 @@ from typing import Any
 MARKS = ("bold", "italic", "strike", "highlight", "code")
 
 FLAT_TYPES = {
-    "text", "typed_link", "mention", "class_chip", "external_link", "math",
+    "text", "typed_link", "mention", "class_link", "external_link", "math",
     "hard_break", "asset_ref", "embed_ref", "query", "whiteboard", "quote",
 }
 
@@ -148,7 +148,7 @@ def _convert_inline(node: dict[str, Any], out: list[dict[str, Any]], inherited: 
         label = node.get("label") if isinstance(node.get("label"), str) else ""
         ref_type = node.get("ref_type") if isinstance(node.get("ref_type"), str) else "node"
         if ref_type == "class":
-            token: dict[str, Any] = {"type": "class_chip", "classId": target}
+            token: dict[str, Any] = {"type": "class_link", "classId": target}
             if label:
                 token["displayText"] = label
             out.append(token)
@@ -228,7 +228,7 @@ def plain_text(tokens: list[dict[str, Any]]) -> str:
             parts.append(token.get("text", ""))
         elif token_type == "mention":
             parts.append(token.get("text", ""))
-        elif token_type == "class_chip":
+        elif token_type == "class_link":
             parts.append(token.get("displayText", ""))
         elif token_type == "external_link":
             parts.append(token.get("text", ""))

@@ -232,7 +232,7 @@ describe("suggestion popup assigned-class gestures (+ popup)", () => {
     expect(picker()).toBeNull();
   });
 
-  it("Ctrl+Enter on an assigned class converts the trigger to inline text", async () => {
+  it("Ctrl+Enter on an assigned class converts the trigger to an inline class link", async () => {
     const client = await seedClient();
     const { pageId, blockId } = await seedBlock(client);
     const classId = await client.createClass("correo");
@@ -245,14 +245,17 @@ describe("suggestion popup assigned-class gestures (+ popup)", () => {
     fireEvent.keyDown(searchBox(), { key: "Enter", ctrlKey: true });
     await act(async () => {});
 
-    // The `+` drops, the typed word stays as plain text; the membership is
-    // untouched (convert, not toggle).
-    expect(editor.textContent).toBe("correo");
+    // The `+` drops and a class_link token splices at the trigger (the
+    // render-only class reference); the membership is untouched (convert,
+    // not toggle).
+    const ast = client.getNode(blockId)?.contentAst;
+    expect(ast).toEqual([{ type: "class_link", classId }]);
+    expect(editor.textContent).toBe("correo"); // the chip renders the label
     expect(client.getNode(blockId)?.classIds).toEqual([classId]);
     expect(picker()).toBeNull();
   });
 
-  it("Ctrl+click on the assigned row converts to inline text too", async () => {
+  it("Ctrl+click on the assigned row converts to an inline class link too", async () => {
     const client = await seedClient();
     const { pageId, blockId } = await seedBlock(client);
     const classId = await client.createClass("correo");
@@ -265,9 +268,47 @@ describe("suggestion popup assigned-class gestures (+ popup)", () => {
     fireEvent.click(rowByText("correo"), { ctrlKey: true });
     await act(async () => {});
 
-    expect(editor.textContent).toBe("correo");
+    expect(client.getNode(blockId)?.contentAst).toEqual([{ type: "class_link", classId }]);
     expect(client.getNode(blockId)?.classIds).toEqual([classId]);
     expect(picker()).toBeNull();
+  });
+
+  it("an exact-name query offers NO create row — the class already exists", async () => {
+    const client = await seedClient();
+    const { pageId, blockId } = await seedBlock(client);
+    const classId = await client.createClass("correo");
+    await client.assignClass(blockId, classId);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "+");
+    typeInPicker("correo");
+
+    // Only the checkmarked class row — creating would duplicate the class.
+    expect(rowByText("correo")).not.toBeNull();
+    expect(pickerRows().some((row) => row.classList.contains("node-result-item--create"))).toBe(
+      false,
+    );
+  });
+
+  it("the gesture hint rides the picker while a checkmarked row is on screen", async () => {
+    const client = await seedClient();
+    const { pageId, blockId } = await seedBlock(client);
+    const classId = await client.createClass("correo");
+    await client.assignClass(blockId, classId);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "+");
+    // Unassigned-only results: no hint.
+    typeInPicker("dirección");
+    expect(picker()!.querySelector(".node-selector__assigned-hint")).toBeNull();
+
+    // The checkmarked row appears: the hint names both gestures.
+    typeInPicker("correo");
+    const hint = picker()!.querySelector(".node-selector__assigned-hint");
+    expect(hint?.textContent).toContain("remove");
+    expect(hint?.textContent).toContain("⌃");
   });
 
   it("the unassigned path is unchanged: Enter assigns, Ctrl+Enter assigns", async () => {

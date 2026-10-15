@@ -75,7 +75,7 @@ function crumbNameOf(client: AnyClient, node: ClientNode): string {
   const excerpt = displayNameForSettings(node);
   if (excerpt !== "") return clipCrumbName(excerpt);
   const chip = node.contentAst.find(
-    (token) => token.type === "class_chip",
+    (token) => token.type === "class_link",
   ) as { classId?: string } | undefined;
   if (chip !== undefined && typeof chip.classId === "string") {
     const resolved = client.getDisplayName(chip.classId);

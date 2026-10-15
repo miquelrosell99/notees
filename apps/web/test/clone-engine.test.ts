@@ -4,7 +4,7 @@
  * 1. Composition over a SYNTHETIC template subtree + fake read surface: the
  *    emitted op list is asserted exactly — fresh ids, beforeId/afterId
  *    anchor chaining, A3 reference semantics per token kind (mention /
- *    class_chip / typed_link keep targets, asset_ref same CAS, embed_ref
+ *    class_link / typed_link keep targets, asset_ref same CAS, embed_ref
  *    same live embed), tags re-issued, class assignments minus the template
  *    marker, whiteboard card geometry re-keyed, authored-only property
  *    values with idx/metadata (derived defaults never materialized).
@@ -126,7 +126,7 @@ const EMBED1 = "00000000-0000-7000-8000-0000000000e9";
 const TPL_ROOT_AST: ContentAst = [
   { type: "text", text: "Weekly sync" },
   { type: "mention", targetNodeId: PERSON, text: "Alice" },
-  { type: "class_chip", classId: MEETING },
+  { type: "class_link", classId: MEETING },
   { type: "typed_link", verb: "prepares", text: "prepares" },
   { type: "asset_ref", assetId: ASSET1 },
   { type: "embed_ref", nodeId: EMBED1 },

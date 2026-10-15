@@ -368,7 +368,7 @@ describe("deriveDisplayName", () => {
     expect(
       plainTextExcerpt([
         { type: "text", text: "via" },
-        { type: "class_chip", classId: "0192a000-0000-7000-8000-0000000000c1", displayText: "the source" },
+        { type: "class_link", classId: "0192a000-0000-7000-8000-0000000000c1", displayText: "the source" },
       ]),
     ).toBe("via the source");
     expect(
@@ -377,7 +377,7 @@ describe("deriveDisplayName", () => {
         isClass: false,
         presentAsMain: false,
         parentId: "p1",
-        contentAst: [{ type: "class_chip", classId: "0192a000-0000-7000-8000-0000000000c1" }],
+        contentAst: [{ type: "class_link", classId: "0192a000-0000-7000-8000-0000000000c1" }],
       }),
     ).toBe("");
   });
@@ -388,9 +388,9 @@ describe("deriveDisplayName", () => {
     expect(
       plainTextExcerpt(
         [
-          { type: "class_chip", classId: "0192a000-0000-7000-8000-0000000000c1" },
+          { type: "class_link", classId: "0192a000-0000-7000-8000-0000000000c1" },
           { type: "text", text: "entre GMI" },
-          { type: "class_chip", classId: "0192a000-0000-7000-8000-00000000dead" },
+          { type: "class_link", classId: "0192a000-0000-7000-8000-00000000dead" },
         ],
         resolve,
       ),
@@ -402,7 +402,7 @@ describe("deriveDisplayName", () => {
           isClass: false,
           presentAsMain: false,
           parentId: "p1",
-          contentAst: [{ type: "class_chip", classId: "0192a000-0000-7000-8000-0000000000c1" }],
+          contentAst: [{ type: "class_link", classId: "0192a000-0000-7000-8000-0000000000c1" }],
         },
         resolve,
       ),
@@ -410,7 +410,7 @@ describe("deriveDisplayName", () => {
     // One-off displayText still wins over the resolved name.
     expect(
       plainTextExcerpt(
-        [{ type: "class_chip", classId: "0192a000-0000-7000-8000-0000000000c1", displayText: "the source" }],
+        [{ type: "class_link", classId: "0192a000-0000-7000-8000-0000000000c1", displayText: "the source" }],
         resolve,
       ),
     ).toBe("the source");

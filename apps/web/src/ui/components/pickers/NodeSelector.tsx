@@ -444,8 +444,22 @@ export function NodeSelector({
   const effectiveQuery = classRefine.query.trim();
   const createEnabled = (allowCreate ?? true) && !noCreate;
   const effectiveCreateNew = onCreateNew ?? defaultCreateNew;
+  // The classes picker's create row is a duplicate-class trap: an exact-name
+  // hit means the class ALREADY exists (assigned or not), so the row offers
+  // nothing but a same-named second class — suppress it (the existing class
+  // rides the results, checkmarked when assigned).
+  const exactClassNameMatch = useMemo(() => {
+    if (searchMode !== "classes" || effectiveQuery === "") return false;
+    const q = effectiveQuery.toLowerCase();
+    return client
+      .listClasses()
+      .some((cls) => (displayNameForSettings(cls) ?? "").toLowerCase() === q);
+  }, [client, searchMode, effectiveQuery]);
   const showCreateOption =
-    !!effectiveCreateNew && createEnabled && (alwaysShowCreate || effectiveQuery.length > 0);
+    !!effectiveCreateNew &&
+    createEnabled &&
+    (alwaysShowCreate || effectiveQuery.length > 0) &&
+    !exactClassNameMatch;
   // A bare year the date system does NOT claim (outside the 1900..2200
   // date-node window — 1711, 1066…) still gets a plain create, but labeled
   // as a year so it reads as a year page rather than a numbered page.
@@ -616,6 +630,16 @@ export function NodeSelector({
     [filteredResults, displayLimit],
   );
   const showMoreOption = filteredResults.length > visibleResults.length;
+
+  // Assigned-row gesture hint: rides the picker's bottom while a checkmarked
+  // row is on screen (the gestures apply to it). Callers with onAssignedPick
+  // own the assigned-row semantics (the editor's `+` toggle); everywhere
+  // else a checkmarked pick acknowledges idempotently.
+  const assignedHintFooter = visibleResults.some((node) => assignedIds.has(node.id)) ? (
+    <div className="node-selector__assigned-hint">
+      {onAssignedPick !== undefined ? "↵ remove · ⌃↵ convert to link" : "✓ already assigned"}
+    </div>
+  ) : null;
 
   // Position the pill-row / anchored picker (fixed, flips above, clamped).
   const position = useViewportPosition(
@@ -862,6 +886,7 @@ export function NodeSelector({
             {renderResults("node-selector__no-results", createIconSize)}
           </div>
         </Tabs.Panel>
+        {assignedHintFooter}
       </Tabs>
     ) : (
       <>
@@ -881,6 +906,7 @@ export function NodeSelector({
         <div className="node-selector__options" ref={listRef}>
           {renderResults("node-selector__no-results", createIconSize)}
         </div>
+        {assignedHintFooter}
       </>
     );
 
