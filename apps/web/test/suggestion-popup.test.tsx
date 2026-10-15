@@ -5,8 +5,12 @@
  * - Single-pick contract (owner 2026-10-15): a row click or Enter assigns
  *   THE picked node and closes — the same picker behavior as the @ mention
  *   picker, no checkboxes / picked set / Apply footer. Ctrl/Cmd+Enter picks
- *   the highlighted row too (for #/+ the label context is inert; the pick
- *   assigns like a plain Enter).
+ *   the highlighted row too (on `@` it keeps the query as a custom label).
+ * - The `+` popup's assigned-class rows (owner 2026-10-15): they hide from
+ *   the empty-query browse and resurface checkmark-marked under a matching
+ *   query — a plain pick REMOVES the class (the toggle), a Ctrl/Cmd pick
+ *   (Enter or click) converts the trigger to inline text (the `+` drops,
+ *   the typed word stays).
  * - Filter prefixes: `daily:` (bare = day pages only) plus the boolean
  *   family `is_daily:` / `is_page:` / `is_class:` refine the candidates;
  *   the tokens strip from the search text (never a created title) and a
@@ -185,6 +189,104 @@ describe("suggestion popup single-pick (# tags, + classes)", () => {
     const panel = picker()!;
     expect(panel.querySelector(".node-selector__multi-footer")).toBeNull();
     expect(panel.querySelector(".node-selector__multi-check")).toBeNull();
+  });
+});
+
+describe("suggestion popup assigned-class gestures (+ popup)", () => {
+  it("assigned classes hide from the empty-query browse", async () => {
+    const client = await seedClient();
+    const { pageId, blockId } = await seedBlock(client);
+    const assigned = await client.createClass("Assigned");
+    const free = await client.createClass("Free");
+    await client.assignClass(blockId, assigned);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "+");
+    // Empty query: the browse lists only the addable pool…
+    const labels = resultRows().map((row) => row.textContent ?? "");
+    expect(labels.some((l) => l.includes("Free"))).toBe(true);
+    expect(labels.some((l) => l.includes("Assigned"))).toBe(false);
+  });
+
+  it("a plain pick on an assigned class REMOVES it (the toggle)", async () => {
+    const client = await seedClient();
+    const { pageId, blockId } = await seedBlock(client);
+    const classId = await client.createClass("correo");
+    await client.assignClass(blockId, classId);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "+");
+    typeInPicker("correo");
+    // The assigned row resurfaces with the checkmark…
+    const row = rowByText("correo");
+    expect(row.querySelector(".node-result-item__check")).not.toBeNull();
+
+    // …and a plain Enter toggles the class OFF.
+    fireEvent.keyDown(searchBox(), { key: "Enter" });
+    await act(async () => {});
+
+    expect(client.getNode(blockId)?.classIds).toEqual([]);
+    expect(editor.textContent).toBe(""); // trigger stripped
+    expect(picker()).toBeNull();
+  });
+
+  it("Ctrl+Enter on an assigned class converts the trigger to inline text", async () => {
+    const client = await seedClient();
+    const { pageId, blockId } = await seedBlock(client);
+    const classId = await client.createClass("correo");
+    await client.assignClass(blockId, classId);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "+");
+    typeInPicker("correo");
+    fireEvent.keyDown(searchBox(), { key: "Enter", ctrlKey: true });
+    await act(async () => {});
+
+    // The `+` drops, the typed word stays as plain text; the membership is
+    // untouched (convert, not toggle).
+    expect(editor.textContent).toBe("correo");
+    expect(client.getNode(blockId)?.classIds).toEqual([classId]);
+    expect(picker()).toBeNull();
+  });
+
+  it("Ctrl+click on the assigned row converts to inline text too", async () => {
+    const client = await seedClient();
+    const { pageId, blockId } = await seedBlock(client);
+    const classId = await client.createClass("correo");
+    await client.assignClass(blockId, classId);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "+");
+    typeInPicker("correo");
+    fireEvent.click(rowByText("correo"), { ctrlKey: true });
+    await act(async () => {});
+
+    expect(editor.textContent).toBe("correo");
+    expect(client.getNode(blockId)?.classIds).toEqual([classId]);
+    expect(picker()).toBeNull();
+  });
+
+  it("the unassigned path is unchanged: Enter assigns, Ctrl+Enter assigns", async () => {
+    const client = await seedClient();
+    const { pageId, blockId } = await seedBlock(client);
+    const classId = await client.createClass("correo");
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "+");
+    typeInPicker("correo");
+    // No checkmark — the class is not assigned yet.
+    expect(rowByText("correo").querySelector(".node-result-item__check")).toBeNull();
+    fireEvent.keyDown(searchBox(), { key: "Enter", ctrlKey: true });
+    await act(async () => {});
+
+    expect(client.getNode(blockId)?.classIds).toEqual([classId]);
+    expect(editor.textContent).toBe("");
+    expect(picker()).toBeNull();
   });
 });
 

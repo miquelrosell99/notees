@@ -9,6 +9,29 @@ predating this file.
 
 ## 2026-10-15
 
+- **feat(web): the inline `+` popup's assigned-class rows are live toggles —
+  plain pick removes, Ctrl/Cmd pick converts the trigger to inline text
+  (owner ruling).** The editor's `+` capture picker now receives the edited
+  node's current classes as the picker's assigned set: already-assigned
+  classes hide from the empty-query browse (the candidate set is what can
+  still be added) and resurface **checkmark-marked** under a matching query.
+  `NodeSelector` gains an opt-in `onAssignedPick` — when set, an assigned-row
+  pick reports to the caller instead of the default idempotent
+  acknowledgment-close (the header/block "+ Add class" pickers keep that
+  ack). The editor's handler implements the owner's gesture set: a **plain
+  pick REMOVES the class** (the toggle; the checkmark reads as state) and a
+  **Ctrl/Cmd+Enter / Ctrl/Cmd+click converts the trigger to inline text** —
+  the `+` drops and the typed word stays as plain block content, the class
+  membership untouched. This also fixes the reported "Ctrl+Enter does
+  nothing": an assigned class's pick used to strip the trigger silently, so
+  `+correo` vanished with no visible effect. `#`/tag rows acknowledge
+  idempotently (checkmark, close, no write); the unassigned class path
+  (plain and Ctrl picks assign) is unchanged. `test/suggestion-popup.test.tsx`
+  gains five specs (browse-hides/uncheck, plain-pick removes, Ctrl+Enter and
+  Ctrl+click convert, unassigned path unchanged); `docs/ux.md`'s editor
+  paragraph and the `BlockTextEditor` header doc carry the contract.
+  **Verification:** `pnpm typecheck` + `pnpm test` green from the repo root;
+  web-only, no wire/store/sync touch.
 - **fix(web)!: multi-select is deleted everywhere — the top-bar New picker
   is single-pick (one class, one page), and an exact search for an
   already-assigned class/tag resurfaces its row instead of dead-ending into
