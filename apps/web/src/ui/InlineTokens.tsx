@@ -107,6 +107,21 @@ export interface InlineTokensProps {
    */
   resolveClassColor?: ((classId: string) => string | null) | undefined;
   /**
+   * Class-assignment resolver (the divergence ruling, owner 2026-10-15): a
+   * class_link whose class is NOT in the OWNING node's class_ids renders
+   * PENDING — a dashed wavy underline, "referenced, not assigned" — instead
+   * of the live solid wavy. The state is legal (undo interleavings, imports,
+   * external writers can produce it); it must be visible, not hidden.
+   * Absent = every link renders live (unwired projections).
+   */
+  resolveClassAssigned?: ((classId: string) => boolean) | undefined;
+  /**
+   * One-gesture divergence fix: clicking a PENDING class link ASSIGNS the
+   * class (the marker becomes live; clicks open the class from then on).
+   * Absent = pending links stay read-only indicators.
+   */
+  onAssignClass?: ((classId: string) => void) | undefined;
+  /**
    * Right-click menu for mention tokens (the node-link context menu):
    * receives the token identity + pointer position; the caller supplies the
    * owning node's id (see openNodeLinkMenu). Works in every view mode.
@@ -172,6 +187,8 @@ function renderToken(
   onOpenNode: InlineTokensProps["onOpenNode"],
   resolveColor: InlineTokensProps["resolveColor"],
   resolveClassColor: InlineTokensProps["resolveClassColor"],
+  resolveClassAssigned: InlineTokensProps["resolveClassAssigned"],
+  onAssignClass: InlineTokensProps["onAssignClass"],
   onMentionMenu: InlineTokensProps["onMentionMenu"],
 ): ReactNode {
   if (typeof token !== "object" || token === null) return null;
@@ -270,20 +287,26 @@ function renderToken(
       if (!name) return null;
       // The inline class wears the node-link look with a wavy underline
       // (owner 2026-10-13) tinted by the class's effective color — no pill.
-      // Interactive surfaces open the class exactly like a mention opens
-      // its target; read-only projections degrade to the styled span.
+      // The DIVERGENCE ruling (owner 2026-10-15): a link whose class is NOT
+      // assigned to the owning node renders PENDING (dashed) — legal state
+      // (undo interleavings, imports, external writers) made visible — and
+      // an interactive click ASSIGNS it (live from then on); the live link
+      // opens the class exactly like a mention opens its target; read-only
+      // projections degrade to the styled span.
+      const assigned = classId === "" ? true : (resolveClassAssigned?.(classId) ?? true);
       if (onOpenNode !== undefined && classId !== "") {
         const chipColor = resolveClassColor?.(classId) ?? null;
         return (
           <button
             key={key}
             type="button"
-            className="nt-link nt-link--class"
-            title={classId}
+            className={`nt-link nt-link--class${assigned ? "" : " nt-link--class-pending"}`}
+            title={assigned ? classId : `Class ${name} not assigned — click to assign`}
             style={chipColor !== null ? { textDecorationColor: cssColorFor(chipColor) } : undefined}
             onClick={(event) => {
               event.stopPropagation();
-              onOpenNode(classId);
+              if (!assigned && onAssignClass !== undefined) onAssignClass(classId);
+              else onOpenNode(classId);
             }}
           >
             {name}
@@ -291,7 +314,11 @@ function renderToken(
         );
       }
       return (
-        <span key={key} className="nt-class-link" title={classId || undefined}>
+        <span
+          key={key}
+          className={`nt-class-link${assigned ? "" : " nt-class-link--pending"}`}
+          title={classId || undefined}
+        >
           {name}
         </span>
       );
@@ -300,7 +327,7 @@ function renderToken(
       const children = Array.isArray(t.children) ? t.children : [];
       return (
         <span key={key} className="nt-quote">
-          <InlineTokens tokens={children} resolveName={resolveName} resolveFullTitle={resolveFullTitle} resolveVerb={resolveVerb} renderEmbed={renderEmbed} onOpenNode={onOpenNode} resolveColor={resolveColor} resolveClassColor={resolveClassColor} />
+          <InlineTokens tokens={children} resolveName={resolveName} resolveFullTitle={resolveFullTitle} resolveVerb={resolveVerb} renderEmbed={renderEmbed} onOpenNode={onOpenNode} resolveColor={resolveColor} resolveClassColor={resolveClassColor} resolveClassAssigned={resolveClassAssigned} onAssignClass={onAssignClass} />
         </span>
       );
     }
@@ -310,7 +337,7 @@ function renderToken(
       const children = Array.isArray(t.children) ? t.children : [];
       return (
         <span key={key} className="nt-heading">
-          <InlineTokens tokens={children} resolveName={resolveName} resolveFullTitle={resolveFullTitle} resolveVerb={resolveVerb} renderEmbed={renderEmbed} onOpenNode={onOpenNode} resolveColor={resolveColor} resolveClassColor={resolveClassColor} />
+          <InlineTokens tokens={children} resolveName={resolveName} resolveFullTitle={resolveFullTitle} resolveVerb={resolveVerb} renderEmbed={renderEmbed} onOpenNode={onOpenNode} resolveColor={resolveColor} resolveClassColor={resolveClassColor} resolveClassAssigned={resolveClassAssigned} onAssignClass={onAssignClass} />
         </span>
       );
     }
@@ -386,7 +413,7 @@ function renderToken(
   }
 }
 
-export function InlineTokens({ tokens, resolveName, resolveFullTitle, resolveVerb, renderEmbed, renderEmbedCard, renderQuery, renderWhiteboard, renderAsset, onOpenNode, resolveColor, resolveClassColor, onMentionMenu }: InlineTokensProps) {
+export function InlineTokens({ tokens, resolveName, resolveFullTitle, resolveVerb, renderEmbed, renderEmbedCard, renderQuery, renderWhiteboard, renderAsset, onOpenNode, resolveColor, resolveClassColor, resolveClassAssigned, onAssignClass, onMentionMenu }: InlineTokensProps) {
   // SCHEMA.md:61 — an asset_ref alone in its stream renders full-bleed; the
   // flag reaches only the (single) asset token in that stream.
   const assetAlone =
@@ -397,7 +424,7 @@ export function InlineTokens({ tokens, resolveName, resolveFullTitle, resolveVer
     (tokens[0] as { type?: unknown }).type === "asset_ref";
   return (
     <>
-      {tokens.map((token, index) => renderToken(token, index, resolveName, resolveFullTitle, resolveVerb, renderEmbed, renderEmbedCard, renderQuery, renderWhiteboard, renderAsset, assetAlone, onOpenNode, resolveColor, resolveClassColor, onMentionMenu))}
+      {tokens.map((token, index) => renderToken(token, index, resolveName, resolveFullTitle, resolveVerb, renderEmbed, renderEmbedCard, renderQuery, renderWhiteboard, renderAsset, assetAlone, onOpenNode, resolveColor, resolveClassColor, resolveClassAssigned, onAssignClass, onMentionMenu))}
     </>
   );
 }

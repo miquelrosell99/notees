@@ -3144,6 +3144,20 @@ mark {
   text-decoration-color: var(--md-sys-color-primary);
 }
 
+/* Pending class link (owner 2026-10-15 — the divergence ruling): the class
+   is referenced inline but NOT assigned to the owning node. Legal state
+   (undo interleavings, imports, external writers); it renders DASHED —
+   "referenced, not assigned" — and an interactive click assigns it (the
+   tooltip says so). Live links stay solid wavy. */
+.nt-link--class-pending,
+.nt-class-link--pending {
+  text-decoration-style: dashed;
+}
+
+.nt-atom--chip-pending {
+  text-decoration-style: dashed;
+}
+
 /* Atomic node-link pills in the block editor (edit mode): the read-mode
    dashed-underline look, one caret unit (contenteditable=false span). */
 .nt-atom {

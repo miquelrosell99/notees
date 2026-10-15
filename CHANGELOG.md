@@ -9,6 +9,29 @@ predating this file.
 
 ## 2026-10-15
 
+- **feat(web): divergence handling for inline class links — the
+  referenced-but-not-assigned state is legal, visible (dashed), and
+  one click from converged.** The owner's question — "we may end up with
+  out-of-sync nodes, where they kept the inline class and the class_ids got
+  removed; how do we handle these?" — found live data CLEAN (all 75 inline
+  `class_link` tokens sit on assigned nodes, verified against the derived
+  store), so no migration; the handling is forward-looking. Ruling: the
+  state is legal (undo interleavings, v1 imports, external writers can
+  produce it; it is not corruption) and must be RENDERED, not hidden.
+  `InlineTokens` gains `resolveClassAssigned` + `onAssignClass`: a class
+  link whose class is not in the OWNING node's `class_ids` draws the dashed
+  "pending" underline (read mode AND the edit-mode atom via the parallel
+  `editable-dom` resolver), with a "not assigned — click to assign"
+  tooltip; clicking ASSIGNS the class (live — and pill-hidden — from then
+  on; subsequent clicks open the class). Wired at every token host: the
+  block/title row (both resolvers), the two `EmbedView` surfaces (resolver —
+  read-only projections indicate without writing), with quote/heading
+  recursion passing the resolvers through. This ships the pre-designed
+  class-chip lint (SCHEMA.md's suggestion mechanism — updated to shipped).
+  Specs: the pending render + click-to-assign, and the live-render
+  regression (`rendering.test.tsx`). `SCHEMA.md` Fork 3 and `docs/ux.md`
+  carry the ruling. **Verification:** `pnpm typecheck` + `pnpm test` green;
+  web-only — no wire touch.
 - **feat(web,protocol): the class pills are a derived view — a class the
   content references inline hides its pill; and the inline class link is
   confirmed NOT a node link (backlinks/graph never saw it).** The owner's
