@@ -212,6 +212,14 @@ describe("condensed layer over PageView", () => {
     expect(within(tree).getByRole("button", { name: "Condense" })).not.toBeNull();
     expect(within(tree).queryByRole("button", { name: "Show full content" })).toBeNull();
 
+    // Pinned reads at a glance (owner ruling): the pinned "…" wears the
+    // ACCENT treatment, the block root carries the pinned class (the
+    // outline bullet ring rides it), and the condensed mark stays muted.
+    const pinnedMark = within(tree).getByRole("button", { name: "Condense" });
+    expect(pinnedMark.classList.contains("nt-block-excerpt__ellipsis--pinned")).toBe(true);
+    const pinnedBlock = pinnedMark.closest(".nt-block") as HTMLElement;
+    expect(pinnedBlock.classList.contains("nt-block--pinned")).toBe(true);
+
     // A pinned row clicks into edit like any block; blur returns it to
     // PINNED read (still stretched — blur never unpins).
     fireEvent.click(within(tree).getByText(LONG));
@@ -225,6 +233,9 @@ describe("condensed layer over PageView", () => {
     expect(within(tree).queryByText(LONG)).toBeNull();
     expect(within(tree).getByText(excerpt.text)).not.toBeNull();
     expect(localStorage.getItem(`notees.stretched.v1.${pageId}`)).toBe("[]");
+    // The condensed row's mark is the muted one — no accent modifier.
+    const condensedMark = within(tree).getByRole("button", { name: "Show full content" });
+    expect(condensedMark.classList.contains("nt-block-excerpt__ellipsis--pinned")).toBe(false);
   });
 
   it("one-line blocks render the ordinary row — no toggle", async () => {
@@ -482,5 +493,26 @@ describe("condensed chrome reveal mechanism (CSS source)", () => {
     expect(css).not.toContain(".nt-block-excerpt__stretch");
     expect(css).not.toContain(".nt-block-condense");
     expect(css).not.toContain("mdi-magnify-plus-outline");
+  });
+
+  it("the pinned … wears the accent at rest (the engagement surface's accent)", () => {
+    const accent = /\.nt-block-excerpt__ellipsis--pinned \{[^}]*\}/.exec(css);
+    expect(accent).not.toBeNull();
+    expect(accent![0]).toContain("var(--md-sys-color-primary)");
+    // The rest state reads accent — not opacity-gated to a hover reveal.
+    expect(accent![0]).not.toContain("opacity: 0");
+  });
+
+  it("the pinned bullet ring: quiet accent outline, suppressed while editing and in cards", () => {
+    const ring = /\.nt-block--pinned > \.nt-block-row \.nt-bullet::after \{[^}]*\}/.exec(css);
+    expect(ring).not.toBeNull();
+    expect(ring![0]).toContain("border-radius: 50%");
+    expect(ring![0]).toContain("var(--md-sys-color-primary)");
+    // The editing highlight wins over the ring…
+    expect(css).toMatch(/\.nt-block--editing > \.nt-block-row \.nt-bullet::after/);
+    // …and cards content rows carry the cue on the mark alone.
+    expect(css).toMatch(/\.node-card \.nt-block--pinned > \.nt-block-row \.nt-bullet::after/);
+    // Prose carries no bullet chrome at all (bullets are hidden there).
+    expect(css).toMatch(/\.nt-prose \.nt-bullet \{\s*display: none;/);
   });
 });
