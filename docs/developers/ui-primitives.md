@@ -92,13 +92,27 @@ where the token doesn't exist), stray hex/rgba literals, and micro-text
 below readable floors. Keep new primitives inside the token system.
 
 The 2026-10-08 design-system audit fixed that drift and extended the gate
-(`css-token-drift.test.ts`, 5 checks): **(1)** every `var(--token)` names a
+(`css-token-drift.test.ts`, 6 checks): **(1)** every `var(--token)` names a
 defined token (or the JS-scoped allowlist), **(2)** no bare color literal
 outside the defining files, **(3)** no px `font-size` at all outside the
 defining files (the scale is rem-token based), **(4)** no px
 `border-radius` outside the defining files (the `--shape-*` scale owns
 corners), **(5)** no color literal inside a `var()` fallback (a fallback
 that always wins is a hardcoded color; honest fallbacks are `var()` chains
-or unitless defaults like `0`/`1`). The gate is CSS-only — TS canvas/paint
+or unitless defaults like `0`/`1`), **(6)** no `em` `font-size` outside the
+defining files except the allowlisted adaptive sites (`EM_FONT_SIZE_ALLOWLIST`
+— heading scale source, inline code, deck density multipliers; each entry
+self-checks it still uses em). The gate is CSS-only — TS canvas/paint
 code stays ungated, so token resolution in canvas code (the
 `views/graph/renderer/theme.ts` pattern) is a code-review duty.
+
+The 2026-10-15 design-system audit (report in `.audits/`) closed its
+findings in the same pass: the three undocumented deviations registered or
+reverted (transparent "chrome on canvas" sidebar → override register;
+dialogs at the 28px `--shape-sheet` radius; static page-panel shadows
+removed), the loading-timing rule implemented for data views
+(`DataStateView` rides `useDelayedVisible`), pressed states on the quiet
+chrome controls, the touch-floor overlays, and the appearance seam unified —
+`src/ui/appearance.ts` is the one resolver, the index.html pre-paint
+bootstrap mirrors it, and `test/appearance-bootstrap-parity.test.ts` gates
+the two against each other across a scenario matrix.

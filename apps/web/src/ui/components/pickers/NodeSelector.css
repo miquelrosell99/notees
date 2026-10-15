@@ -146,7 +146,7 @@
   color: var(--md-sys-color-on-surface-variant);
   font-style: italic;
   opacity: var(--opacity-45);
-  font-size: 0.85em;
+  font-size: var(--font-size-button);
 }
 
 /* Dropdown (for select mode portal) */
@@ -389,7 +389,7 @@
 
 /* Parent hierarchy path prefix (faded text before page name) */
 .node-selector__item-path {
-  font-size: 0.7em;
+  font-size: var(--font-size-2xs);
   color: var(--md-sys-color-on-surface-variant);
   opacity: var(--opacity-60);
   white-space: nowrap;

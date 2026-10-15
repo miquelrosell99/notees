@@ -131,6 +131,11 @@
   color: var(--md-sys-color-on-surface);
 }
 
+.nt-side-item:active {
+  background: var(--md-sys-color-pressed-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
 /* Active row: the hover-fill step + a small accent bar at the row's left
    edge (the design-system "small accent signal" — never a full accent fill). */
 .nt-side-item-active,
@@ -138,6 +143,10 @@
   position: relative;
   background: var(--md-sys-color-surface-container-high);
   color: var(--md-sys-color-on-surface);
+}
+
+.nt-side-item-active:active {
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) 12%, var(--md-sys-color-surface-container-high));
 }
 
 .nt-side-item-active::before {
@@ -244,7 +253,7 @@
 .nt-sidebar-open .nt-sidebar {
   display: flex;
 }
-  @media (max-width: 768px) {
+  @media (width <= 768px) {
   .nt-sidebar-open .nt-sidebar {
     position: fixed;
     top: var(--topbar-height);

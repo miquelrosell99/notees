@@ -26,7 +26,7 @@
 
 .sync-details-row dt {
   color: var(--md-sys-color-on-surface-variant);
-  font-size: 0.9em;
+  font-size: var(--font-size-base);
 }
 
 .sync-details-row dd {
@@ -47,18 +47,18 @@
 
 .sync-details-hint {
   color: var(--md-sys-color-on-surface-variant);
-  font-size: 0.85em;
+  font-size: var(--font-size-button);
 }
 
 .sync-details-error {
   margin: 0;
   color: var(--md-sys-color-error);
-  font-size: 0.9em;
+  font-size: var(--font-size-base);
 }
 
 .sync-details-conflicts-heading {
   margin: 0;
-  font-size: 1em;
+  font-size: var(--font-size-md);
   font-weight: 600;
 }
 
@@ -90,10 +90,10 @@
 
 .sync-details-conflict-type {
   color: var(--md-sys-color-on-surface-variant);
-  font-size: 0.9em;
+  font-size: var(--font-size-base);
 }
 
 .sync-details-conflict-meta {
   color: var(--md-sys-color-on-surface-variant);
-  font-size: 0.8em;
+  font-size: var(--font-size-sm);
 }

@@ -94,7 +94,7 @@
   justify-content: center;
   width: var(--icon-size-md);
   height: var(--icon-size-md);
-  font-size: 1.2em;
+  font-size: var(--font-size-lg);
   font-style: normal;
   font-weight: 600;
 }

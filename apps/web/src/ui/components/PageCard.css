@@ -251,7 +251,7 @@
   }
 }
 
-  @media (max-width: 1024px) {
+  @media (width <= 1024px) {
   .nt-right-card {
     display: none;
   }

@@ -14,6 +14,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { resolveAppearanceAttributes } from "../../appearance.js";
+
 export const DEVICE_SETTINGS_PREFIX = "notees.settings.";
 
 const SETTINGS_CHANGED_EVENT = "notees-settings-changed";
@@ -97,9 +99,6 @@ export const ACCENT_COLOR_OPTIONS: { value: AccentColor; label: string; hex: str
   { value: "blue", label: "Blue", hex: "#3d6a96" },
 ];
 
-/** Legacy key the theme used to live under; read as a fallback on migration. */
-const LEGACY_THEME_KEY = "notees.theme";
-
 export function isValidHexColor(hex: string): boolean {
   return /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(hex);
 }
@@ -139,31 +138,25 @@ export function resolveTheme(theme: ThemePreference): "light" | "dark" {
 /**
  * applyAppearance — push the persisted appearance settings onto <html>.
  * Theme resolution honors "system" live; OLED only applies to the dark theme
- * (pure-black overrides exist for dark surfaces only).
+ * (pure-black overrides exist for dark surfaces only). The theme/OLED/accent
+ * trio resolves in src/ui/appearance.ts — the index.html pre-paint bootstrap
+ * mirrors it, and a parity test gates the two against each other.
  */
 export function applyAppearance(): void {
   if (typeof document === "undefined") return;
-  const stored = readDeviceSetting<ThemePreference | null>("theme", null);
-  const legacy = (() => {
-    try {
-      return localStorage.getItem(LEGACY_THEME_KEY);
-    } catch {
-      return null;
-    }
-  })();
-  const theme: ThemePreference =
-    stored ?? (legacy === "light" || legacy === "dark" ? legacy : "system");
-  const resolved = resolveTheme(theme);
-  document.documentElement.dataset.theme = resolved;
-  const oled = readDeviceSetting("oledMode", false);
-  document.documentElement.dataset.oled = oled && resolved === "dark" ? "true" : "false";
-
-  const accent = readDeviceSetting<AccentColor>("accentColor", "margin");
-  document.documentElement.dataset.accent = ACCENT_COLOR_OPTIONS.some(
-    (option) => option.value === accent,
-  )
-    ? accent
-    : "margin";
+  const attrs = resolveAppearanceAttributes(
+    (key) => {
+      try {
+        return localStorage.getItem(key);
+      } catch {
+        return null;
+      }
+    },
+    systemPrefersDark(),
+  );
+  document.documentElement.dataset.theme = attrs.theme;
+  document.documentElement.dataset.oled = attrs.oled;
+  document.documentElement.dataset.accent = attrs.accent;
 
   // The UI font rides the same pre-paint data-attribute path.
   const uiFont = readDeviceSetting<UiFontPreference>("uiFont", "bundled");
