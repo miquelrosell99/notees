@@ -9,6 +9,27 @@ predating this file.
 
 ## 2026-10-15
 
+- **feat(web): the audit's residual grid/component notes closed — card-grid
+  recipe conformance, and the design-system skill gains Layout & grids as a
+  dedicated sweep area.** The follow-up verification of the 10-15 audit's
+  residual notes shipped: (1) card titles ride the spec's 14px
+  (`--font-size-base`, was 15px); (2) the card grid gains the recipe's
+  quiet hover lift — the border raises from the blended hairline to full
+  outline, no shadow/no scale; (3) the side-cover mat takes the recipe's
+  12px cover radius; (4) search-result rows (`NodeResultItem`) join the
+  list-row recipe: primary name 14px/600 (was 12px/400); (5) the two
+  remaining 6px floating panels — `CalendarPopup`, `CondensedLinksPopup` —
+  move to the 8px `--shape-floating-panel` tier, and the settings form
+  inputs take the spec's 12px input tier (6px was a stray register).
+  Skill-side (rosellramos-design-system `47d4fee`): the audit checklist's
+  new §5 "Layout & grids" makes grids a dedicated sweep area — named
+  collection surfaces, token gaps, adaptive column derivation, grid-item
+  anatomy per the surface recipe, masonry hygiene, table density — and §0
+  step 2 walks areas × an explicit surface inventory (shell, editor,
+  collections, overlays, forms, feedback, content renderers), requiring the
+  report to state which surfaces were swept. Gate: full `pnpm typecheck` +
+  `pnpm test` green.
+
 - **feat(web): the condensed layer — stretchtext as a view transform
   (Nelson, 1967): every block in the page body renders its excerpt until
   stretched, over whichever view mode the body wears.** Owner ruling: the
