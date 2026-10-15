@@ -135,7 +135,14 @@ predating this file.
   chrome permanently). The pin button wears a magnify-plus-outline lens
   (`mdi-magnify-plus-outline` — "zoom into this block"; the launch
   `unfold-more` read ambiguously, and `chevron-down` was never an option —
-  it already names the collapse chevron's expanded state). (2) **The
+  it already names the collapse chevron's expanded state). The excerpt text
+  also **pans** (owner clarification, fourth same-day pass): Shift+wheel and
+  horizontal trackpad scrolling scroll the hidden text inside the one-line
+  row — pure CSS (`overflow-x: auto`, hidden scrollbar), user-driven, no
+  animation; the pin button and badge ride beside the pan box, fixed, and
+  plain wheel chains back to the page at the pan's end (the standard
+  scrollable-region contract — pure CSS cannot gate by modifier, and the box
+  only consumes wheel while it actually overflows). (2) **The
   interaction contract**: the excerpt click no longer stretches — clicking a
   condensed row now enters EDIT on the block's full content (the standard
   outline click-to-edit; the excerpt is display chrome and the editor always
@@ -147,7 +154,8 @@ predating this file.
   the back-arrow / condense-all un-pins. Specs: the rewritten + new specs
   in `apps/web/test/condensed.test.tsx` (permanent mark, click-enters-edit,
   blur re-condenses, pin survives edit cycles, back-arrow un-pins — plus a
-  source-level CSS spec pinning the hover/focus-within reveal); `docs/ux.md`'s
+  source-level CSS spec pinning the hover/focus-within reveal and the pan
+  rules); `docs/ux.md`'s
   editor entry carries the contract.
   **Verification:** `pnpm typecheck` + `pnpm test` green; web-only — no
   wire touch.
