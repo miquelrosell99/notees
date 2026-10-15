@@ -4,6 +4,12 @@
  * (parent-class) row: colored pills (effective color), click to open, × to
  * remove, right-click for the node menu (Change color…), and a "+" picker.
  *
+ * The pills are a DERIVED VIEW (owner ruling 2026-10-15): a class referenced
+ * by a `class_link` token in the node's own content is already visible
+ * inline — the link IS the marker — so its pill hides automatically
+ * (membership untouched; the picker still lists the class checkmarked and
+ * the plain-pick toggle still removes it).
+ *
  * The write path is parameterizable (`actions`): the default is class
  * membership on a node (assignClass / unassignClass / reorderClasses); the
  * class view's extends row passes setClassExtends-based handlers instead.
@@ -15,7 +21,7 @@
  * button; clicking it opens a popup with the full sortable list.
  */
 
-import { useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   DndContext,
@@ -384,6 +390,30 @@ export function NodePills({
     .map((classId) => client.getNode(classId))
     .filter((node): node is ClientNode => node !== undefined);
 
+  // Inline-linked classes hide their pill (owner ruling 2026-10-15): the
+  // classes pills are a DERIVED VIEW — a class referenced by a class_link
+  // token in the node's own content is already visible inline (the link IS
+  // the marker), so rendering the pill too would duplicate the reference.
+  // Membership is untouched: the picker still lists the class (checkmarked)
+  // and the plain-pick toggle still removes it. Quote children are walked
+  // too (tokens nest).
+  const inlineLinkedClassIds = useMemo(() => {
+    const found = new Set<string>();
+    const walk = (tokens: unknown): void => {
+      if (!Array.isArray(tokens)) return;
+      for (const token of tokens) {
+        if (token === null || typeof token !== "object") continue;
+        const t = token as Record<string, unknown>;
+        if (t.type === "class_link" && typeof t.classId === "string") found.add(t.classId);
+        if (Array.isArray(t.children)) walk(t.children);
+      }
+    };
+    walk(client.getNode(nodeId)?.contentAst);
+    return found;
+  }, [client, nodeId]);
+
+  const displayClassIds = classIds.filter((classId) => !inlineLinkedClassIds.has(classId));
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
   );
@@ -400,8 +430,8 @@ export function NodePills({
     commitOrder(reorder(classIds, String(active.id), String(over.id)));
   };
 
-  const visible = overflow && classIds.length > 1 ? classIds.slice(0, 1) : classIds;
-  const extraCount = classIds.length - visible.length;
+  const visible = overflow && displayClassIds.length > 1 ? displayClassIds.slice(0, 1) : displayClassIds;
+  const extraCount = displayClassIds.length - visible.length;
 
   const onContextMenuNode = (node: ClientNode, x: number, y: number) =>
     setNodeMenu({ node, x, y });
@@ -444,7 +474,7 @@ export function NodePills({
         <span className="nt-class-add-anchor">
           <AddPill
             ref={addButtonRef}
-            className={iconOnlyAdd || classIds.length > 0 ? "pill--icon-only" : ""}
+            className={iconOnlyAdd || displayClassIds.length > 0 ? "pill--icon-only" : ""}
             label={addLabel}
             aria-expanded={pickerOpen}
             onClick={(element) => {
@@ -490,9 +520,9 @@ export function NodePills({
               onMouseDown={(e) => e.stopPropagation()}
             >
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-                <SortableContext items={classIds} strategy={verticalListSortingStrategy}>
+                <SortableContext items={displayClassIds} strategy={verticalListSortingStrategy}>
                   <ul className="node-pills-popup__list">
-                    {classIds.map((classId) => (
+                    {displayClassIds.map((classId) => (
                       <PopupRow
                         key={classId}
                         classId={classId}

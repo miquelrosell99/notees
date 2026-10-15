@@ -3129,11 +3129,14 @@ mark {
    WAVY underline instead of the dashed one mentions wear, tinted by the
    class's effective color through the inline text-decoration-color — no
    pill chrome. The non-interactive projection wears the same shape as a
-   plain span. */
+   plain span. The NEUTRAL fallback rides on-surface-variant, not outline
+   (owner 2026-10-15 — the hairline outline token was almost invisible on
+   dark surfaces; on-surface-variant is the secondary-text role, hue-free
+   but legible). */
 .nt-link--class,
 .nt-class-link {
   border-bottom: none;
-  text-decoration: underline wavy var(--md-sys-color-outline);
+  text-decoration: underline wavy var(--md-sys-color-on-surface-variant);
   text-underline-offset: 2px;
 }
 
@@ -3159,10 +3162,10 @@ mark {
 /* Class chip (edit mode) — the inline-class mark is a wavy underline (not
    the mention's dashed border), tinted per class by the inline
    text-decoration-color set at build time; parity with the read-mode
-   nt-link--class look. */
+   nt-link--class look, neutral fallback included (on-surface-variant). */
 .nt-atom--chip {
   border-bottom: none;
-  text-decoration: underline wavy var(--md-sys-color-outline);
+  text-decoration: underline wavy var(--md-sys-color-on-surface-variant);
   text-underline-offset: 2px;
 }
 

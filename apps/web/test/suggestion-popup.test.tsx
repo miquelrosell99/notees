@@ -9,8 +9,10 @@
  * - The `+` popup's assigned-class rows (owner 2026-10-15): they hide from
  *   the empty-query browse and resurface checkmark-marked under a matching
  *   query — a plain pick REMOVES the class (the toggle), a Ctrl/Cmd pick
- *   (Enter or click) converts the trigger to inline text (the `+` drops,
- *   the typed word stays).
+ *   (Enter or click) splices the inline class link (`class_link` token).
+ *   Membership stays: the classes pills are a derived view that hides
+ *   inline-referenced classes, and the edge index never treats the token as
+ *   a link (no backlinks/graph edges).
  * - Filter prefixes: `daily:` (bare = day pages only) plus the boolean
  *   family `is_daily:` / `is_page:` / `is_class:` refine the candidates;
  *   the tokens strip from the search text (never a created title) and a
@@ -232,7 +234,7 @@ describe("suggestion popup assigned-class gestures (+ popup)", () => {
     expect(picker()).toBeNull();
   });
 
-  it("Ctrl+Enter on an assigned class converts the trigger to an inline class link", async () => {
+  it("Ctrl+Enter on an assigned class splices the inline link — membership stays", async () => {
     const client = await seedClient();
     const { pageId, blockId } = await seedBlock(client);
     const classId = await client.createClass("correo");
@@ -245,17 +247,17 @@ describe("suggestion popup assigned-class gestures (+ popup)", () => {
     fireEvent.keyDown(searchBox(), { key: "Enter", ctrlKey: true });
     await act(async () => {});
 
-    // The `+` drops and a class_link token splices at the trigger (the
-    // render-only class reference); the membership is untouched (convert,
-    // not toggle).
+    // The `+` drops and a class_link token splices at the trigger; the
+    // MEMBERSHIP stays (owner ruling: the pill row hides inline-referenced
+    // classes — the link IS the marker).
     const ast = client.getNode(blockId)?.contentAst;
     expect(ast).toEqual([{ type: "class_link", classId }]);
-    expect(editor.textContent).toBe("correo"); // the chip renders the label
+    expect(editor.textContent).toBe("correo"); // the link renders the label
     expect(client.getNode(blockId)?.classIds).toEqual([classId]);
     expect(picker()).toBeNull();
   });
 
-  it("Ctrl+click on the assigned row converts to an inline class link too", async () => {
+  it("Ctrl+click on the assigned row splices the inline link too — membership stays", async () => {
     const client = await seedClient();
     const { pageId, blockId } = await seedBlock(client);
     const classId = await client.createClass("correo");
@@ -271,6 +273,27 @@ describe("suggestion popup assigned-class gestures (+ popup)", () => {
     expect(client.getNode(blockId)?.contentAst).toEqual([{ type: "class_link", classId }]);
     expect(client.getNode(blockId)?.classIds).toEqual([classId]);
     expect(picker()).toBeNull();
+  });
+
+  it("the classes pills hide a class that is referenced inline (membership untouched)", async () => {
+    const client = await seedClient();
+    const { pageId, blockId } = await seedBlock(client);
+    const inline = await client.createClass("correo");
+    const pillOnly = await client.createClass("proyecto");
+    await client.assignClass(blockId, inline);
+    await client.assignClass(blockId, pillOnly);
+    // The block references `correo` inline; `proyecto` rides the pill row.
+    await client.updateObject(blockId, {
+      contentAst: [{ type: "class_link", classId: inline }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    // Only the non-inline class wears a pill (the block row's classes
+    // column); the inline-referenced class is still assigned (the picker's
+    // checkmarked toggle still removes it).
+    const pills = container.querySelectorAll(".nt-block-classes .pill:not(.pill--add)");
+    expect(pills.length).toBe(1);
+    expect(client.getNode(blockId)?.classIds).toEqual([inline, pillOnly]);
   });
 
   it("an exact-name query offers NO create row — the class already exists", async () => {
