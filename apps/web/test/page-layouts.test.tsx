@@ -438,7 +438,7 @@ describe("L4 breadcrumb edit gestures", () => {
     render(
       <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} editable />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "+ Add parent" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add parent" }));
     fireEvent.change(screen.getByLabelText("Search pages…"), { target: { value: "Parent" } });
     await flushWrites();
     fireEvent.click(
@@ -554,7 +554,7 @@ describe("L4 breadcrumb edit gestures", () => {
       name: "Child Page",
     });
     render(<Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} />);
-    expect(screen.queryByRole("button", { name: "+ Add parent" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add parent" })).toBeNull();
     expect(document.querySelector(".node-breadcrumb-edit")).toBeNull();
     fireEvent.contextMenu(screen.getByRole("button", { name: "Parent Page" }));
     expect(screen.queryByRole("menuitem")).toBeNull();
@@ -571,7 +571,7 @@ describe("L4 breadcrumb edit gestures", () => {
     expect(screen.queryByRole("button", { name: "Lonely Page" })).toBeNull();
     expect(container.querySelector(".node-breadcrumb-current")).toBeNull();
     // …only the Add parent affordance.
-    expect(screen.getByRole("button", { name: "+ Add parent" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Add parent" })).not.toBeNull();
   });
 
   it("owner rule: class nodes render no breadcrumbs at all — no self crumb, no Add parent", async () => {
@@ -584,7 +584,7 @@ describe("L4 breadcrumb edit gestures", () => {
     // Classes are always roots: a parent is unrepresentable, so the whole
     // trail (self + affordance) stays hidden.
     expect(container.querySelector(".node-breadcrumbs")).toBeNull();
-    expect(screen.queryByRole("button", { name: "+ Add parent" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add parent" })).toBeNull();
     expect(screen.queryByRole("button", { name: "agent" })).toBeNull();
   });
 
@@ -604,7 +604,7 @@ describe("L4 breadcrumb edit gestures", () => {
     fireEvent.contextMenu(screen.getByRole("button", { name: "2026/09" }));
     fireEvent.contextMenu(screen.getByRole("button", { name: "2026" }));
     expect(screen.queryByRole("menuitem")).toBeNull();
-    expect(screen.queryByRole("button", { name: "+ Add parent" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add parent" })).toBeNull();
     // Sanity: an ordinary page under an ordinary page still shows the
     // affordance in the same render session (the lock keys on the date id).
     const parent = await client.createObject({ presentAsMain: true, name: "Ordinary Parent" });

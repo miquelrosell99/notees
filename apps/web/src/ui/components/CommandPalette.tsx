@@ -797,6 +797,7 @@ export function CommandPalette({
       >
         <SearchField
           autoFocus
+          className="search-field--borderless"
           value={query}
           placeholder="Search pages, classes, actions… (is_daily: for dates)"
           aria-label="Command palette search"
