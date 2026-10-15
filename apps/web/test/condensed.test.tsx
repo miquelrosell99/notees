@@ -143,7 +143,7 @@ describe("hiddenLinksOf", () => {
 });
 
 describe("condensed layer over PageView", () => {
-  it("renders the excerpt with a permanent … mark and always-visible chrome; click enters edit, blur re-condenses", async () => {
+  it("renders the excerpt with a permanent … mark and the chrome in the row; click enters edit, blur re-condenses", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Condensed" });
     await client.createObject({
@@ -157,13 +157,22 @@ describe("condensed layer over PageView", () => {
     expect(tree).not.toBeNull();
 
     // The excerpt is the head of the prose; the tail is not rendered. The
-    // stretchtext mark and the pin button are visible at rest (owner
-    // ruling — no hover-reveal gating).
+    // stretchtext mark is permanent; the pin button + badge ride in the row
+    // (their visibility is CSS hover/focus-reveal — jsdom applies no
+    // :hover/:focus-within, so the mechanism is asserted source-level in the
+    // CSS spec below; here we assert the chrome exists and stays reachable).
     const excerpt = excerptOf([{ type: "text", text: LONG }]);
     expect(within(tree).getByText(excerpt.text)).not.toBeNull();
     expect(within(tree).queryByText(LONG)).toBeNull();
     expect(tree.querySelector(".nt-block-excerpt__ellipsis")).not.toBeNull();
     expect(within(tree).getByRole("button", { name: "Show full content" })).not.toBeNull();
+    // The lens icon: the plus-outline variant (distinct from the search
+    // fields' plain magnify).
+    expect(
+      tree
+        .querySelector(".nt-block-excerpt__stretch use")
+        ?.getAttribute("href"),
+    ).toContain("mdi-magnify-plus-outline");
 
     // Click anywhere on the row → EDIT mode on the full content (the
     // standard click-to-edit contract; the excerpt is display chrome).
@@ -438,5 +447,35 @@ describe("condensed layer switch surfaces (owner directive 2026-10-15)", () => {
     renderPalette({ condensedActive: true, onToggleCondensed });
     expect(await screen.findByText("Condensed: exit")).not.toBeNull();
     expect(screen.queryByText("Condensed: enter")).toBeNull();
+  });
+});
+
+describe("condensed chrome reveal mechanism (CSS source)", () => {
+  // jsdom applies no :hover/:focus-within — the reveal contract is asserted
+  // at the source level (the css-token-drift pattern).
+  const process_ = process as unknown as {
+    getBuiltinModule(name: string): typeof import("node:fs");
+  };
+  const fs = process_.getBuiltinModule("node:fs");
+  const path = process_.getBuiltinModule("node:path") as unknown as typeof import("node:path");
+  const css = fs.readFileSync(path.join(process.cwd(), "src", "ui", "app.css"), "utf8");
+
+  it("the pin button + badge chrome hides at rest and reveals on row hover AND focus-within", () => {
+    const base = /\.nt-block-excerpt__chrome \{[^}]*\}/.exec(css);
+    expect(base).not.toBeNull();
+    expect(base![0]).toContain("opacity: 0");
+    expect(css).toContain(".nt-block-row:hover .nt-block-excerpt__chrome");
+    expect(css).toContain(".nt-block:focus-within .nt-block-excerpt__chrome");
+  });
+
+  it("the … mark is permanent — never opacity-gated", () => {
+    const mark = /\.nt-block-excerpt__ellipsis \{[^}]*\}/.exec(css);
+    expect(mark).not.toBeNull();
+    expect(mark![0]).not.toContain("opacity: 0");
+  });
+
+  it("the pinned row's back-arrow shares the hover/focus-within reveal pair", () => {
+    expect(css).toContain(".nt-block-row:hover .nt-block-condense");
+    expect(css).toContain(".nt-block:focus-within .nt-block-condense");
   });
 });

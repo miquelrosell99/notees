@@ -28,9 +28,10 @@
  * feedback — the opt-in `condensed` prop, page body only): a truncatable
  * block renders its one-line excerpt (`excerptOf`, the prose-flatten
  * derivation) instead of its full content, with a PERMANENT muted "…"
- * stretchtext mark after the text and trailing chrome — the pin button and
- * the hidden-links badge — visible at rest (owner ruling: visibility over
- * resting-row minimalism for these controls). The interaction contract:
+ * stretchtext mark after the text and trailing chrome — the pin button
+ * (a magnify-plus-outline lens) and the hidden-links badge — revealed with
+ * the row (hover + focus-within; the resting-rows-stay-clean law — the
+ * permanent "…" names the truncation at rest). The interaction contract:
  * CLICKING THE ROW ENTERS EDIT on the block's full content (the standard
  * outline click-to-edit — the excerpt is display chrome, the editor always
  * edits the real content); BLUR RE-CONDENSES the row again. The pin button
@@ -776,10 +777,9 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
                   ⊞ image
                 </span>
               )}
-              {/* Visible at rest (owner ruling: visibility over resting-row
-                  minimalism for these controls) — the pin button stops the
-                  click so it pins instead of editing; the links badge opens
-                  the hidden-targets popup. */}
+              {/* Revealed with the row (hover + focus-within, the CSS pair) —
+                  the pin button stops the click so it pins instead of
+                  editing; the links badge opens the hidden-targets popup. */}
               <span className="nt-block-excerpt__chrome">
                 {hiddenLinks.length > 0 && (
                   <button
@@ -808,7 +808,10 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
                     toggleStretched(node.id);
                   }}
                 >
-                  <Icon path="mdi-unfold-more-horizontal" size={0.8} />
+                  {/* The lens: "zoom into this block" — the plus-outline
+                      variant, distinct from the search fields' plain
+                      magnify. */}
+                  <Icon path="mdi-magnify-plus-outline" size={0.8} />
                 </button>
                 {linksPopupOpen && (
                   <CondensedLinksPopup
