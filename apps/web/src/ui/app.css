@@ -1519,27 +1519,28 @@ select:focus-visible {
   padding: 8px 0;
 }
 
-/* --- view transforms: the condensed layer (stretchtext, owner 2026-10-15) --------
+/* --- view transforms: the condensed layer (stretchtext, owner 2026-10-15,
+   refined same day after owner feedback) ------------------------------------
    A DISPLAY LAYER over the view modes, not a mode: under the layer a
    truncatable block renders its excerpt (the `excerptOf` prose flatten, cut
    at the first hard_break or the 80-char dense-chrome budget) instead of
-   its full content. The excerpt is the head of the block's own prose —
-   one click anywhere on it stretches the block in place. The trailing
-   chrome (the "…" stretch toggle + the hidden-links badge, the BlockBacklink
-   toggle's count-pill pattern) is revealed with the row, like the collapse
-   chevron — resting rows stay clean. The stretched row is the ordinary row
-   plus the back-arrow at the END of the block's own content row (before the
-   children — the stretch toggle owns the block's own prose; the collapse
-   chevron owns the subtree): quiet, hover-revealed, keyboard-focusable. */
+   its full content. The excerpt is the head of the block's own prose; the
+   row stays EDITABLE — clicking it enters edit on the full content, blur
+   re-condenses. A permanent muted "…" (the classic stretchtext mark) rides
+   after the excerpt text, always visible; the pin button (unfold-more —
+   "more of this block") and the hidden-links badge (the BlockBacklink
+   toggle's count-pill pattern) sit right after it, visible at rest by the
+   owner's ruling — visibility over resting-row minimalism for these
+   controls. The pinned row is the ordinary row plus the back-arrow at the
+   END of the block's own content row (before the children — the stretch
+   toggle owns the block's own prose; the collapse chevron owns the
+   subtree): quiet, hover-revealed, keyboard-focusable. */
 
-.nt-block-excerpt {
-  cursor: pointer;
-}
-
-/* The excerpted content div is the stretch gesture, not the edit gesture —
-   the pointer cursor says so honestly. */
-.nt-block-content--excerpt {
-  cursor: pointer;
+.nt-block-excerpt__ellipsis {
+  margin-left: 1px;
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: var(--opacity-60);
+  white-space: nowrap;
 }
 
 /* A mixed block (sentence + inline image/embed) names its prose-less
@@ -1559,13 +1560,6 @@ select:focus-visible {
   gap: var(--spacing-1);
   margin-left: var(--spacing-2);
   vertical-align: baseline;
-  opacity: 0;
-  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.nt-block-row:hover .nt-block-excerpt__chrome,
-.nt-block:focus-within .nt-block-excerpt__chrome {
-  opacity: 1;
 }
 
 .nt-block-excerpt__stretch,
