@@ -96,7 +96,7 @@
 
 .calendar-month-btn.btn:hover,
 .calendar-year-btn.btn:hover {
-  background: var(--md-sys-color-surface-container-high);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .calendar-month-btn.btn,
@@ -176,12 +176,12 @@
 }
 
 .calendar-day.btn:hover {
-  background: var(--md-sys-color-surface-container-high);
+  background: var(--md-sys-color-hover-overlay);
   color: var(--md-sys-color-on-surface);
 }
 
 .calendar-day.btn.has-note:hover {
-  background: var(--md-sys-color-primary-container);
+  background: var(--md-sys-color-hover-overlay);
   color: var(--md-sys-color-on-primary-container);
 }
 
@@ -258,7 +258,7 @@
 }
 
 .calendar-today-btn:hover {
-  background: var(--md-sys-color-primary-container);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 /* ==================== Tag Filter ==================== */
@@ -325,7 +325,7 @@
 
 .calendar-month.btn:hover,
 .calendar-year-pick.btn:hover {
-  background: var(--md-sys-color-surface-container-high);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .calendar-month.btn.selected,

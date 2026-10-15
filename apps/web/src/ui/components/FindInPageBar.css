@@ -59,7 +59,7 @@
 }
 
 .find-in-page__btn:hover:not(:disabled) {
-  background: var(--md-sys-color-surface-container-high);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .find-in-page__btn:disabled {

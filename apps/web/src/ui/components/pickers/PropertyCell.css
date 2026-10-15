@@ -159,7 +159,7 @@ button.property-cell {
 }
 
 .property-cell__add-button:hover {
-  background: var(--md-sys-color-surface-container-high);
+  background: var(--md-sys-color-hover-overlay);
   color: var(--md-sys-color-on-surface);
 }
 
