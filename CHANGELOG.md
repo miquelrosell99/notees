@@ -9,6 +9,30 @@ predating this file.
 
 ## 2026-10-15
 
+- **feat(web,protocol): the class pills are a derived view — a class the
+  content references inline hides its pill; and the inline class link is
+  confirmed NOT a node link (backlinks/graph never saw it).** The owner's
+  model, two rulings. (1) Membership stays the single semantic truth — the
+  Ctrl/Cmd convert in the `+` popup splices the `class_link` token and
+  NOTHING else (a short-lived unassign-on-convert was reverted within the
+  same session: the reference is semantic, the dedup belongs at the view
+  layer). `NodePills` — the one component behind the header classes row,
+  the block classes column, and every read-only projection — parses the
+  node's content for `class_link` tokens (quote children walked too) and
+  hides those pills: the link IS the marker, never two visible references
+  to the same class. The picker still lists the class checkmarked and the
+  plain-pick toggle still removes it; the reorder anchors ride the full
+  assigned set. (2) The inverse, verified and pinned: the store's edge
+  index extracts `mention`/`typed_link`/property edges only — `class_link`
+  never produced backlinks, the backlink gutter, graph edges, or link
+  analytics; a `graph.test.ts` spec now locks that in. Also this slice: the
+  neutral (non-color-tinted) class-link underline rides
+  `--md-sys-color-on-surface-variant` instead of the hairline `outline`
+  token (owner — it was almost invisible on dark surfaces; read mode and
+  edit mode both). `SCHEMA.md`'s Fork 3, `docs/ux.md`, the component and
+  editor header docs carry the rulings. **Verification:** `pnpm typecheck`
+  + `pnpm test` green (new specs: pill-hiding with membership intact, the
+  no-edge pinning); web-only CSS/TS — no wire touch.
 - **feat(sync): snapshot retention is one per workspace — every `saveSnapshot`
   prunes the workspace's older snapshots (owner ruling after the 49 GB
   finding).** The owner's two questions — "why are snapshots so huge, why so

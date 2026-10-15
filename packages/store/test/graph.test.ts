@@ -105,6 +105,24 @@ describe("graphTopology", () => {
     expect(rolled!.weight).toBe(1);
   });
 
+  it("an inline class_link is NOT a link: no edge to the class (the membership edge carries it)", () => {
+    const store = setup(
+      env("class.create", { classId: CLASS_X }),
+      createPage(PAGE_A),
+      createBlock(BLOCK_B1, PAGE_A),
+      env("object.update", {
+        objectId: BLOCK_B1,
+        contentAst: [{ type: "class_link", classId: CLASS_X }],
+      }),
+    );
+    const topology = graphTopology(store, WS);
+    // The class_link token names the class inline — the owner's ruling
+    // (2026-10-15): it is a CLASS MARKER, never a node link, so backlinks,
+    // the backlink gutter, the graph, and link analytics must not see an
+    // edge for it (edges.ts extracts mention/typed_link only).
+    expect(topology.edges.every((e) => e.target !== CLASS_X && e.source !== CLASS_X)).toBe(true);
+  });
+
   it("parent edges exist only between main nodes; class membership edges appear", () => {
     const store = setup(
       env("class.create", { classId: CLASS_X }),

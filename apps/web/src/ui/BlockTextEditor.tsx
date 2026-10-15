@@ -52,8 +52,11 @@
  *   pages — the create row makes a class); picking assigns it (OR-set add).
  *   Already-assigned classes ride the checkmark (hidden from the empty-query
  *   browse, resurfacing under a matching query): a plain pick REMOVES the
- *   class (the toggle) and a Ctrl/Cmd pick CONVERTS THE TRIGGER TO AN INLINE
- *   CLASS LINK — the `+` drops, a class_link token splices at the trigger.
+ *   class (the toggle) and a Ctrl/Cmd pick SPLICES THE INLINE CLASS LINK —
+ *   the `+` drops, a class_link token takes its place. The MEMBERSHIP is
+ *   untouched either way: the classes pills are a derived view that hides
+ *   inline-referenced classes (the link IS the marker), so no unassign is
+ *   needed to keep one visible reference.
  * - `/`  slash commands: the ported TriggerPopup (inline mode) over the
  *   block-type actions the content grammar executes — Text (strip the
  *   trigger), Quote (wrap the block's inline tokens in a quote token),
@@ -1215,10 +1218,12 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
    * capture snapshot idiom mirrors commitNodePick for async closes). The
    * gesture set (owner 2026-10-15): a PLAIN pick REMOVES the class — the
    * toggle, the row's checkmark reads as its state — and a Ctrl/Cmd pick
-   * CONVERTS THE TRIGGER TO AN INLINE CLASS LINK: the `+` drops and a
-   * `class_link` token (the render-only class reference — inserting a chip
-   * never mutates class_ids) splices at the trigger, the membership
-   * untouched.
+   * SPLICES AN INLINE CLASS LINK at the trigger (the `+` drops, a
+   * `class_link` token takes its place). The MEMBERSHIP is untouched either
+   * way — the classes pills are a derived view: a class referenced inline
+   * hides its pill automatically (NodePills parses the content), so the
+   * link IS the marker; the same class can still wear pill chrome where
+   * the content does not reference it.
    */
   const commitAssignedClassPick = (picked: ClientNode, context?: NodePickContext) => {
     const state = capture ?? captureSnapshotRef.current;
@@ -1229,8 +1234,9 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     const caret = caretOffset(el) ?? state.start + 1;
     const end = state.replaceEnd ?? Math.max(caret, state.start + 1);
     if (context !== undefined && context.withLabel) {
-      // Inline class link: no displayText — the chip renders the class's
+      // Inline class link: no displayText — the link renders the class's
       // current name (re-resolved at every build; the wire stores no text).
+      // Membership stays: the pill row hides inline-referenced classes.
       applySplice(
         state.start,
         end,
