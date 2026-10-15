@@ -9,6 +9,70 @@ predating this file.
 
 ## 2026-10-15
 
+- **feat(web): the condensed layer — stretchtext as a view transform
+  (Nelson, 1967): every block in the page body renders its excerpt until
+  stretched, over whichever view mode the body wears.** Owner ruling: the
+  condensed layer is a DISPLAY LAYER, not a fourth view mode — view mode
+  answers how the tree lays out, condensed answers how much of each block's
+  own prose shows, and the axes commute (condensed over prose — a flat page
+  of excerpts — is the most Nelson-like surface, which a four-member enum
+  would lock out). Under the layer a truncatable block renders its
+  one-line excerpt — `excerptOf` (new `packages/domain/src/excerpt.ts`,
+  exported from the index): the prose-flatten derivation (the same token
+  rules as `fullTitleOf`/`proseFromAst`, one coordinate system), cut at the
+  first `hard_break` OR the 80-char dense-chrome budget, returning the cut
+  offset so hidden tokens classify without a second grammar — with trailing
+  chrome revealed with the row: the "…" stretch toggle (one click anywhere
+  on the excerpt stretches in place; the stretched row is the ordinary row
+  plus a back-arrow at the END of the block's own content row, before the
+  children — the reader re-condensing has just finished reading) and the
+  links badge: a quiet count pill naming the MENTION tokens hidden past the
+  cut (`hiddenLinksOf`, computed over the shared `proseSpans` projection;
+  typed links are targetless and chips render-only — the badge never
+  implies a link the graph can't resolve), opening a bounded popup listing
+  the hidden targets (the `@` picker row convention — block targets
+  breadcrumbed with their containing page; clicking a row opens the node,
+  Esc/outside-click dismissal per the one convention). Prose-less blocks
+  (images, queries, code, whiteboards) and one-line blocks never condense —
+  nothing silently hidden; a mixed block names its media with a quiet chip.
+  In cards mode the card content rows condense as display-only growth (the
+  card grows, the masonry reflows — read-only, no edit entry); title,
+  classes, tags, properties rows never condense. State is device view
+  state, never an op: the toggle persists per page (`condensed.<pageId>`,
+  the viewPrefs/deviceSettings seam) and the stretched exceptions persist
+  beside the folds (`notees.stretched.v1.<rootId>`, the collapse-set
+  pattern — multi-expand recommended, with a condense-all reset riding the
+  nodeview top bar only while the set is non-empty). The BlockRow branch is
+  an explicit opt-in from the page body — the presentation deck, embedded
+  feeds, read-only projections, tables, exports, and shares render full
+  content by construction. Specs: `excerptOf` (10 domain specs),
+  `hiddenLinksOf` alignment, the stretch/re-condense round trip, the badge
+  popup open/Esc, one-line blocks, off-by-default, and prose-mode fold
+  honoring (`apps/web/test/condensed.test.tsx`). `docs/ux.md` carries the
+  ruling (feature table, outliner table, the view-modes layer axis).
+  **Verification:** `pnpm typecheck` + `pnpm test` green (domain dist
+  rebuilt per the dev-condition law); web-only — no wire touch.
+- **feat(web): prose mode honors collapse — folded subtrees hide, the
+  chevron start-anchors the prose row, and the persistent chevron IS the
+  collapsed indicator (owner ruling 2026-10-15).** Shipped until today:
+  prose ignored the collapse set — every subtree rendered and no chevron
+  mounted. The ruling: collapse is read, not ignored, making the two view
+  layers (collapse, condensed) consistent across modes — flipping back to
+  outline shows the same folds, and the `Ctrl+.` / `Ctrl+Alt+←/→` fold
+  chords now act on the honored state in prose too (they already rode the
+  shared collapse set — no chord change needed). The chevron start-anchors
+  the prose row (prose has no bullet gutter): hover-revealed like the
+  outline gutter idiom and PERSISTENT at rest while the block is collapsed
+  — nothing silently hidden. The v1 indent-line fold gesture stays
+  outline-only (prose flattens the indents — there is no line to ride;
+  `ignoreCollapse` became `proseMode`, which hides only the rail).
+  Collapsed and condensed compose on the same row: the chevron speaks for
+  the children, the "…"/back-arrow for the block's own prose. Specs: the
+  prose-fold spec in `apps/web/test/condensed.test.tsx` (subtree hidden,
+  persistent `aria-expanded=false` chevron, rail absent, click unfolds);
+  `docs/ux.md`'s outliner table and editor entries rewritten.
+  **Verification:** `pnpm typecheck` + `pnpm test` green; web-only — no
+  wire touch.
 - **feat(web): the 2026-10-15 design-system audit findings closed in one
   pass — override registered, dialogs to 28px, static-panel shadows gone,
   every warning fixed, and the appearance seam unified behind one gated
