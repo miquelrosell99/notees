@@ -9,6 +9,35 @@ predating this file.
 
 ## 2026-10-15
 
+- **feat(web): the SearchField gets the modern register — borderless, with
+  wrapper-carried focus — and "Add parent" joins the AddPill (owner
+  screenshots + ruling 2026-10-15).** The outlined search box stacked three
+  cues (hairline border + border-color shift + focus ring), worst inside
+  the command palette. The component is redesigned on the Spotlight/Linear/
+  GitHub register: no hairline outline — the tinted fill carries the shape;
+  hover is the state-layer wash, focus steps the fill to the base surface,
+  and the accent ring wraps the whole field wrapper (relocated from the
+  bare input — replaced, never suppressed). Two placements: filled
+  (toolbars/filter bars/list headers) and `search-field--borderless`
+  (chromeless on existing filled surfaces — the palette, sheet headers).
+  Documented in the design-system skill: `patterns.md` gains the "Search
+  field" recipe, the audit checklist §7 gains its row. The breadcrumbs'
+  hand-rolled dashed "+ Add parent" button (a third add dialect, despite
+  comments calling it a pill) now composes `AddPill` — one add-affordance
+  register everywhere. Gate: full `pnpm typecheck` + `pnpm test` green.
+
+- **feat(web): the block's text owns the bullet's context menu (owner ruling
+  2026-10-15).** Right-clicking anywhere on a block's prose — the rendered
+  tokens or the condensed excerpt — now opens the same node context menu the
+  bullet grip carries (BlockRow's `.nt-block-content` mirrors the grip
+  handler). While editing, the session keeps its own context-menu flow
+  (mention pills, typed links, browser menu on plain text) — the guard
+  returns before `preventDefault` so that path is untouched; read-only
+  projections suppress the native menu without opening anything, exactly
+  like the grip. Gate: `pnpm typecheck` + `pnpm test` green;
+  `apps/web/test/block-context-menu.test.tsx` covers text / grip parity,
+  the editing guard, and the read-only suppression.
+
 - **feat(web): one add-affordance register — the page-header add actions join
   the dashed AddPill (owner ruling 2026-10-15).** "Add icon" / "Add
   description" / "Add aliases" in the page header were plain ghost Buttons —
