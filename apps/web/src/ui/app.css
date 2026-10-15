@@ -1550,13 +1550,45 @@ select:focus-visible {
    the ordinary row plus the back-arrow at the END of the block's own
    content row (before the children — the stretch toggle owns the block's
    own prose; the collapse chevron owns the subtree): quiet,
-   hover/focus-revealed, keyboard-focusable. */
+   hover/focus-revealed, keyboard-focusable. The excerpt text itself pans:
+   Shift+wheel / horizontal trackpad scroll the hidden text inside the pan
+   box; the chrome rides beside the box, fixed, never scrolled away. */
 
 .nt-block-excerpt__ellipsis {
   margin-left: 1px;
   color: var(--md-sys-color-on-surface-variant);
   opacity: var(--opacity-60);
   white-space: nowrap;
+}
+
+/* The excerpt row: a flex pair — the pan box (text flow only) + the chrome
+   beside it. The chrome must never scroll away, so it lives outside the
+   overflow box. */
+.nt-block-excerpt__row {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+}
+
+/* The pan box (owner 2026-10-15, fourth pass): Shift+wheel and horizontal
+   trackpad panning scroll the hidden excerpt text — user-controlled,
+   pure CSS, no animation. One line only (nowrap); the scrollbar stays
+   hidden (the pan is gesture-driven). Always pan-able, not hover-gated:
+   the box only consumes wheel while it actually overflows (the 80-char
+   excerpt on narrow panes / deep indents), and at the pan's end the wheel
+   chains to the page — the standard scrollable-region contract, same as
+   the code surface's horizontal scroll. */
+.nt-block-excerpt__pan {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+.nt-block-excerpt__pan::-webkit-scrollbar {
+  display: none;
 }
 
 /* A mixed block (sentence + inline image/embed) names its prose-less
