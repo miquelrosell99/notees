@@ -872,9 +872,9 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
    * caret, and push the token array. Direct write — the flush's
    * draft-equals-prose guard would skip a prose-identical draft.
    */
-  const commitAst = (next: ContentAst, caretAfter: number) => {
+  const commitAst = (next: ContentAst, caretAfter: number): Promise<void> => {
     const el = spanRef.current;
-    if (el === null) return;
+    if (el === null) return Promise.resolve();
     if (timerRef.current !== null) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
@@ -885,7 +885,10 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     dirtyRef.current = false;
     setSelectedAtomKey(null);
     placeCaret(el, caretAfter);
-    void client.updateObject(nodeRef.current.id, { contentAst: next });
+    // Returned (not fire-and-forget): callers that write MORE state keyed
+    // on this content (the removal toggle's unassign — the applier refuses
+    // while the content references the class) must await the local apply.
+    return client.updateObject(nodeRef.current.id, { contentAst: next });
   };
 
   /**
@@ -1272,10 +1275,14 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       resolveClassName,
     );
     const dissolved = dissolveClassLinksInAst(base, picked.id, (id) => resolveClassName(id) || id);
-    commitAst(withCandidateSpans(dissolved.ast as ContentAst), state.start);
-    void client.unassignClass(nodeRef.current.id, picked.id).catch((error: unknown) => {
-      console.warn(`[capture] unassignClass (${picked.id}) failed:`, error);
-    });
+    // The unassign MUST land after the strip's local apply — the applier
+    // refuses a class.unassign while the content references the class (the
+    // no-divergence law), and the strip is what un-references it.
+    void commitAst(withCandidateSpans(dissolved.ast as ContentAst), state.start)
+      .then(() => client.unassignClass(nodeRef.current.id, picked.id))
+      .catch((error: unknown) => {
+        console.warn(`[capture] class removal (${picked.id}) failed:`, error);
+      });
     el.focus();
   };
 

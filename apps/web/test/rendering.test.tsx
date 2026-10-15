@@ -159,7 +159,7 @@ describe("PageView rendering", () => {
     expect(link.classList.contains("nt-chip")).toBe(false);
   });
 
-  it("an inline class link whose class is NOT assigned renders pending; clicking assigns", async () => {
+  it("a class_link whose class was DELETED renders pending; clicking re-assigns", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Divergence" });
     const classId = await client.createClass("correo");
@@ -167,18 +167,22 @@ describe("PageView rendering", () => {
       parentId: pageId,
       contentAst: [{ type: "class_link", classId }],
     });
+    // The content assertion assigned the class at create — and class.unassign
+    // refuses while the content references it, so the ONLY reachable
+    // divergence is a deleted class: the delete sweeps memberships, the
+    // content link remains.
+    expect(client.getNode(blockId)?.classIds).toEqual([classId]);
+    await client.deleteObject(classId); // trash: the class-delete sweep clears memberships, the content link remains
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
     const tree = container.querySelector(".nt-block-tree") as HTMLElement;
 
-    // The divergence is LEGAL (undo interleavings, imports, external writers)
-    // and VISIBLE: dashed pending underline, assign tooltip.
-    const link = within(tree).getByText("correo");
-    expect(link.className).toContain("nt-link--class-pending");
+    // Legal, visible: dashed pending underline, assign tooltip.
+    const link = tree.querySelector(".nt-link--class-pending") as HTMLElement;
+    expect(link).not.toBeNull();
     expect(link.getAttribute("title")).toContain("not assigned");
 
-    // One click assigns — the marker becomes live (the pill stays hidden:
-    // the content references the class).
+    // One click assigns the class back onto the node.
     fireEvent.click(link);
     await act(async () => {});
     expect(client.getNode(blockId)?.classIds).toEqual([classId]);
