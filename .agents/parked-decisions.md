@@ -4,6 +4,30 @@ The owner-parked calls, newest context first. Each entry records what is
 parked, the date, and what would un-park it. Referenced from AGENTS.md;
 the record of shipped work lives in `CHANGELOG.md`.
 
+## Tauri desktop client — PARKED (owner, 2026-10-15)
+
+A Tauri client is not being built for now. The client map stays: web (TS),
+GTK (native Linux, kept for the GNOME feel), Flutter (mobile).
+
+- **The niche question was settled narrow**: with GTK retained, Tauri's only
+  justification is a Windows/macOS desktop target — on Linux it would merely
+  wrap the web UI and duplicate GTK. The browser tab bridges any other gap.
+- **Cheap to add later, so no reason to build speculatively**: a Tauri client
+  is just another peer with a derived SQLite projection of the op log; it
+  reuses the web UI, the TS packages, and the fixture corpus (its only new
+  seam is the store backend — sql.js in the webview or a Rust SQLite plugin
+  that must stay fixture-identical). No migration cost, no lockstep debt
+  until it exists.
+- **If it ever ships, it is the Windows/macOS client** — GTK stays
+  Linux-native; the two must not overlap.
+- It would force the deferred **web split** (the parked preconditions:
+  gate/CI redesign, deploy-path redesign, quiet tree, same-pass docs), since
+  Tauri wants the web app consumable as a library.
+
+**Un-park condition**: a concrete, non-Linux desktop requirement (owner
+needs Windows/macOS installs, or a second non-Linux user appears). "Someday
+maybe" does not un-park it.
+
 ## SDK publish — ARCHIVED (owner, 2026-10-03)
 
 The npmjs token is not being pursued for now. Publish infra stays in the
