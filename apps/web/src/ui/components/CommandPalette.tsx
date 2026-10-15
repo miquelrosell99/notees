@@ -33,7 +33,9 @@
  *  - Commands   the action registry: New page, New class… (#14, where the
  *               host provides it), a typed "Create page …" row, Merge current
  *               page into… (where the host provides it and the current node
- *               is a mergeable page), Focus mode (#12), Toggle theme, Sign
+ *               is a mergeable page), Focus mode (#12), Condensed: enter /
+ *               exit (the condensed layer, where the host provides it and a
+ *               page is open), Toggle theme, Sign
  *               out (a contribution point)
  *
  * Full keyboard navigation: ArrowUp/Down cycles, Enter selects, Esc closes;
@@ -241,6 +243,8 @@ export function CommandPalette({
   onOpenProperty = undefined,
   currentNodeId = undefined,
   onOpenMerge = undefined,
+  condensedActive = undefined,
+  onToggleCondensed = undefined,
   onOpenSearch = undefined,
   onSignOut,
   undoState,
@@ -272,6 +276,15 @@ export function CommandPalette({
   currentNodeId?: string | undefined;
   /** Open the merge-into modal for `currentNodeId` — a contribution point. */
   onOpenMerge?: (() => void) | undefined;
+  /**
+   * The condensed layer (owner 2026-10-15): the "Condensed: enter/exit" row
+   * appears only where the host provides this and an eligible page is open
+   * (the host gates the callback on its selection) — the conditional-row
+   * pattern of the merge action. `condensedActive` names the row and icon
+   * (the active page's per-page pref, the TopBar toggle's twin surface).
+   */
+  condensedActive?: boolean | undefined;
+  onToggleCondensed?: (() => void) | undefined;
   /**
    * The full-page search handoff: with a non-empty query the footer row
    * "Search all for …" appears and navigates to /search carrying the query
@@ -554,6 +567,17 @@ export function CommandPalette({
           toggleFocusMode();
         },
       },
+      ...(onToggleCondensed !== undefined
+        ? [
+            {
+              key: "toggle-condensed",
+              label: condensedActive === true ? "Condensed: exit" : "Condensed: enter",
+              icon: condensedActive === true ? "mdiUnfoldMoreHorizontal" : "mdiUnfoldLessHorizontal",
+              keywords: "condensed stretchtext excerpt summary layer view",
+              run: () => onToggleCondensed(),
+            },
+          ]
+        : []),
       {
         key: "toggle-theme",
         label: themeIsDark ? "Toggle theme: switch to light" : "Toggle theme: switch to dark",
@@ -589,7 +613,7 @@ export function CommandPalette({
     return items;
     // cacheVersion: the cached reads resolve asynchronously after their seed;
     // re-derive the sections when the worker cache refreshes.
-  }, [client, dailyOnly, text, onOpenNode, onNewPage, onOpenClassCreate, onOpenProperty, currentNodeId, onOpenMerge, onSignOut, onClose, recentIds, cacheVersion, undoState, onUndo, onRedo]);
+  }, [client, dailyOnly, text, onOpenNode, onNewPage, onOpenClassCreate, onOpenProperty, currentNodeId, onOpenMerge, onToggleCondensed, condensedActive, onSignOut, onClose, recentIds, cacheVersion, undoState, onUndo, onRedo]);
 
   // --- Content section: debounced ranked FTS with snippets ------------------
 

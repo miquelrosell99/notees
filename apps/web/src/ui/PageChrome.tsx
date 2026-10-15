@@ -47,8 +47,9 @@ type AnyClient = WorkspaceClient | WorkerClient;
  * NodeTopbar — the panelled main layout's pinned top row, spanning the
  * WHOLE card above the column split (owner 2026-10-09): the properties
  * collapse toggle and the classes pills on the left; on the right the
- * host's blocks view switcher, the condensed-layer toggle (the layer is a
- * display transform, not a switcher member — owner 2026-10-15), the context
+ * host's blocks view switcher, the condensed layer's condense-all reset
+ * (the layer TOGGLE lives in the app TopBar + palette — owner directive
+ * 2026-10-15, one surface per action), the context
  * collapse toggle (absent on the class variant — no context column), and
  * the "…" node menu. The divider
  * border under the row retired (owner 2026-10-13) — the spacing-3 margin

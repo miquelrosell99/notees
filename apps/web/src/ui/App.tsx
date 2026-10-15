@@ -97,6 +97,7 @@ import {
 } from "./components/SettingsPage.js";
 import { SyncDetailsModal } from "./components/modals/SyncDetailsModal.js";
 import { applyAppearance, readDeviceSetting, toggleFocusMode, useDeviceSetting } from "./components/modals/deviceSettings.js";
+import { useCondensedPreference } from "./viewPrefs.js";
 import { BackendUnavailableOverlay } from "./components/ui/BackendUnavailableOverlay.js";
 import { InProcessStoreBanner } from "./components/ui/InProcessStoreBanner.js";
 import { Button } from "./components/ui/Button.js";
@@ -910,6 +911,14 @@ export function App() {
     );
     return match !== null ? match[1]! : null;
   });
+  /**
+   * The condensed layer's per-page pref for the ACTIVE page (owner
+   * 2026-10-15): the TopBar toggle and the command-palette row both flip
+   * this; PageView reads the same seam for the page body. Selection-null
+   * reads the inert "condensed." key — never written, so the toggle stays
+   * hidden (the onToggleLayout gating idiom: no eligible page, no button).
+   */
+  const [condensedActive, setCondensedPref] = useCondensedPreference(selectedPageId ?? "");
   const [activeNav, setActiveNav] = useState<NavKey>(initialNav);
   /**
    * The in-app Back/Forward stack behind the top-bar arrows: our own
@@ -2094,6 +2103,10 @@ export function App() {
         onToggleLayout={selectedPageId !== null ? () => setSectionsLayout((v) => !v) : undefined}
         focusMode={focusMode}
         onToggleFocusMode={() => setFocusMode(toggleFocusMode())}
+        condensedActive={condensedActive}
+        onToggleCondensed={
+          selectedPageId !== null ? () => setCondensedPref(!condensedActive) : undefined
+        }
         workspaceSwitcher={
           offline ? undefined : (
             <WorkspaceSwitcher
@@ -2327,6 +2340,10 @@ export function App() {
         onOpenProperty={(schemaId) => setPropertyViewFor(schemaId)}
         currentNodeId={selectedPageId ?? undefined}
         onOpenMerge={storeMode === "in-process" ? () => setMergeOpen(true) : undefined}
+        condensedActive={condensedActive}
+        onToggleCondensed={
+          selectedPageId !== null ? () => setCondensedPref(!condensedActive) : undefined
+        }
         onOpenSearch={(query) => openSearchPage(query)}
         onSignOut={() => void handleSignOut()}
         undoState={undoUi}

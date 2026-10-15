@@ -267,10 +267,13 @@ export function PageView({
    * triad, NOT a view mode: it answers how much of each block's own prose
    * shows, independent of how the tree lays out. Persisted per page through
    * the device-settings seam (`condensed.<pageId>`), like the view modes.
-   * The stretched set (the exceptions rendered full) lives in the outliner
-   * context and survives a layer toggle and a reload, like the folds.
+   * The layer TOGGLE itself lives in the app TopBar + the command palette
+   * (owner directive 2026-10-15 — one surface per action); this view only
+   * READS the pref and opts the body in. The stretched set (the exceptions
+   * rendered full) lives in the outliner context and survives a layer
+   * toggle and a reload, like the folds.
    */
-  const [condensedPref, setCondensedPref] = useCondensedPreference(pageId);
+  const [condensedPref] = useCondensedPreference(pageId);
   // The layer reaches the page BODY only: embedded feeds (journal, calendar
   // day pages) and the preview seam render full content exactly as today,
   // and every read-only projection never even receives the opt-in.
@@ -792,31 +795,20 @@ export function PageView({
   ) : null;
 
   /**
-   * The condensed layer's chrome (owner 2026-10-15), riding the card's
-   * top-right cluster beside the view switcher: the quiet layer toggle (the
-   * focus-mode precedent — a display toggle, NOT a switcher member; the
-   * engaged state wears the accent highlight like every engagement surface)
-   * plus the condense-all reset, shown only while the layer is on AND the
-   * stretched set is non-empty — no dead chrome. Main-surface chrome only:
-   * where the "…" menu is (chromeMenu), i.e. never on embedded feeds or the
-   * preview seam. Toggling off restores the ordinary rendering and leaves
-   * the stretched set intact (inert while the layer is off, like the folds
-   * where a surface ignores them).
+   * The condensed layer's per-page-body chrome (owner 2026-10-15): the
+   * condense-all reset ONLY — the layer toggle itself moved to the app
+   * TopBar + the command palette (owner directive 2026-10-15, one surface
+   * per action). The reset rides the card's top-right cluster beside the
+   * view switcher, shown only while the layer is on AND the stretched set
+   * is non-empty — no dead chrome. Main-surface chrome only: where the "…"
+   * menu is (chromeMenu), i.e. never on embedded feeds or the preview seam.
+   * Toggling the layer off (from the TopBar) restores the ordinary
+   * rendering and leaves the stretched set intact (inert while the layer
+   * is off, like the folds where a surface ignores them).
    */
   const condensedChrome =
     chromeMenu !== undefined && !embedded && !preview ? (
       <>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          icon="mdi mdi-unfold-less-horizontal"
-          aria-label="Condensed"
-          aria-pressed={condensedPref}
-          title="Condensed"
-          active={condensedPref}
-          onClick={() => setCondensedPref(!condensedPref)}
-        />
         {layerActive && outliner.stretched.size > 0 && (
           <Button
             type="button"
