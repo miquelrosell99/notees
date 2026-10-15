@@ -9,6 +9,21 @@ predating this file.
 
 ## 2026-10-15
 
+- **feat(web): the block's text owns the bullet's context menu (owner ruling
+  2026-10-15).** Right-clicking anywhere on a block's prose — the rendered
+  tokens or the condensed excerpt — now opens the same node context menu the
+  bullet grip carries (BlockRow's `.nt-block-content` mirrors the grip
+  handler). Two carve-outs: while editing, the session keeps its own
+  context-menu flow (mention pills, typed links, browser menu on plain
+  text) — the guard returns before `preventDefault` so that path is
+  untouched; and an inner element that already claimed the menu (the
+  mention pill preventDefaults on its own `onContextMenu`) wins through
+  `defaultPrevented`, so the read-mode node-link menu is not overridden.
+  Read-only projections suppress the native menu without opening anything,
+  exactly like the grip. Gate: `pnpm typecheck` + `pnpm test` green;
+  `apps/web/test/block-context-menu.test.tsx` covers text / grip parity,
+  the pill carve-out, the editing guard, and the read-only suppression.
+
 - **feat(web): the SearchField gets the modern register — borderless, with
   wrapper-carried focus — and "Add parent" joins the AddPill (owner
   screenshots + ruling 2026-10-15).** The outlined search box stacked three
@@ -25,18 +40,6 @@ predating this file.
   hand-rolled dashed "+ Add parent" button (a third add dialect, despite
   comments calling it a pill) now composes `AddPill` — one add-affordance
   register everywhere. Gate: full `pnpm typecheck` + `pnpm test` green.
-
-- **feat(web): the block's text owns the bullet's context menu (owner ruling
-  2026-10-15).** Right-clicking anywhere on a block's prose — the rendered
-  tokens or the condensed excerpt — now opens the same node context menu the
-  bullet grip carries (BlockRow's `.nt-block-content` mirrors the grip
-  handler). While editing, the session keeps its own context-menu flow
-  (mention pills, typed links, browser menu on plain text) — the guard
-  returns before `preventDefault` so that path is untouched; read-only
-  projections suppress the native menu without opening anything, exactly
-  like the grip. Gate: `pnpm typecheck` + `pnpm test` green;
-  `apps/web/test/block-context-menu.test.tsx` covers text / grip parity,
-  the editing guard, and the read-only suppression.
 
 - **feat(web): one add-affordance register — the page-header add actions join
   the dashed AddPill (owner ruling 2026-10-15).** "Add icon" / "Add
