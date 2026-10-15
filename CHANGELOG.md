@@ -7,6 +7,32 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-10-15
+
+- **fix(web): the editor's `#`/`+` capture popup is single-pick — the
+  checkbox/Apply multi-select layer is gone, and Ctrl/Cmd+Enter assigns the
+  highlighted row (owner ruling).** Two complaints, one root: the class/tag
+  capture popup rode `NodeSelector`'s `multiSelect` mode (checkbox rows, a
+  picked set, an Apply footer, a `↵ toggle · ⌃↵ apply` hint), so Ctrl+Enter
+  with nothing checked ran `applyMulti` on an empty set and silently did
+  nothing — the reported "can't Ctrl+Enter to add a class inline". The owner
+  ruling: `@`, `#`, and `+` all share the ONE single-pick node-picker
+  contract — one row, one assignment, the popup closes; stacking classes
+  means re-opening the picker. `BlockTextEditor`'s capture `NodeSelector`
+  drops `multiSelect`/`onApplyMulti` (the now-dead `commitNodePicks` goes
+  with them) and every kind commits through the existing `commitNodePick`,
+  which already carried the per-kind writes (mention splice / `assignTag` /
+  `assignClass`); Ctrl/Cmd+Enter now maps to the same pick (its
+  `withLabel` context stays mention-only, as designed). The `NodeSelector`
+  multi-select machinery itself survives — the top-bar **New** picker
+  (`App.tsx`) legitimately creates one page per checked class and keeps it.
+  `test/suggestion-popup.test.tsx` re-pins the contract: row-click assigns
+  exactly one node and closes, plain Enter and Ctrl+Enter both assign the
+  highlighted row, and no checkbox/footer chrome renders; `docs/ux.md`'s
+  editor paragraph rewrites the `#`/`+` sentences to the single-pick ruling.
+  **Verification:** `pnpm typecheck` + `pnpm test` green from the repo root;
+  web-only, no wire/store/sync touch.
+
 ## 2026-10-14
 
 - **feat(web)!: the Pixi renderer graduates — the default AND the only
