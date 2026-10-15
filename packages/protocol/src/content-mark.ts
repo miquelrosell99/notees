@@ -66,9 +66,9 @@ export const mentionTokenSchema = z
  * 2026-09-25): inserting or deleting a chip does NOT mutate the block's
  * class_ids. Assignment is a separate gesture; a lint may suggest it.
  */
-export const classChipTokenSchema = z
+export const classLinkTokenSchema = z
   .object({
-    type: z.literal("class_chip"),
+    type: z.literal("class_link"),
     classId: uuid,
     /** Optional one-off wording; default renders the class's current name. */
     displayText: z.string().min(1).max(512).optional(),
@@ -195,7 +195,7 @@ export const inlineTokenSchema = z.discriminatedUnion("type", [
   textTokenSchema,
   typedLinkMarkSchema,
   mentionTokenSchema,
-  classChipTokenSchema,
+  classLinkTokenSchema,
   externalLinkTokenSchema,
   mathTokenSchema,
   hardBreakTokenSchema,
@@ -228,7 +228,7 @@ export const contentTokenSchema = z.discriminatedUnion("type", [
   textTokenSchema,
   typedLinkMarkSchema,
   mentionTokenSchema,
-  classChipTokenSchema,
+  classLinkTokenSchema,
   externalLinkTokenSchema,
   mathTokenSchema,
   hardBreakTokenSchema,

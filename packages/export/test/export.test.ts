@@ -115,9 +115,9 @@ describe("token → markdown mapping", () => {
 
   it("renders class chips as #name with displayText override and whitespace folding", () => {
     const node = page("aaaaaaaa-0000-4000-8000-000000000004", "chips", [
-      { type: "class_chip", classId: PERSON_CLASS_ID },
+      { type: "class_link", classId: PERSON_CLASS_ID },
       { type: "text", text: " " },
-      { type: "class_chip", classId: PERSON_CLASS_ID, displayText: "human being" },
+      { type: "class_link", classId: PERSON_CLASS_ID, displayText: "human being" },
     ]);
     const md = nodeToMarkdown(node, makeCtx());
     expect(md).toContain("#person");

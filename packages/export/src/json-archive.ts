@@ -148,7 +148,7 @@ function edgesOf(node: ExportNode): JsonArchiveEdge[] {
         case "embed_ref":
           edges.push({ kind: "embed", targetNodeId: token.nodeId });
           break;
-        case "class_chip":
+        case "class_link":
           edges.push({ kind: "class", classId: token.classId });
           break;
         case "typed_link":

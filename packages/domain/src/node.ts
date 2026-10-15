@@ -90,7 +90,7 @@ export function plainTextExcerpt(
         case "mention":
           parts.push(token.displayText ?? token.text);
           break;
-        case "class_chip": {
+        case "class_link": {
           const label = token.displayText ?? (resolveClassName?.(token.classId) ?? null);
           if (label !== null) parts.push(label);
           break;

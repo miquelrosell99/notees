@@ -248,7 +248,7 @@ describe("inline spans", () => {
 
   it("maps class chips to #name pills", () => {
     const node = page("aaaaaaaa-0000-4000-8000-000000000027", "chip", [
-      { type: "class_chip", classId: PERSON_CLASS_ID },
+      { type: "class_link", classId: PERSON_CLASS_ID },
     ]);
     expect(toHtml(node, makeCtx())).toContain('<span class="chip">#person</span>');
   });

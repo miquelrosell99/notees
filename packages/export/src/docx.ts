@@ -40,7 +40,7 @@
  *  |                |   highlight → HighlightColor.YELLOW, code → Courier New     |
  *  | hard_break     | TextRun({ break: 1 })                                       |
  *  | mention        | resolved name (plain text — no relationships)              |
- *  | class_chip     | `#name`                                                     |
+ *  | class_link     | `#name`                                                     |
  *  | typed_link     | runs: verb (bold) + " " + text + " (locator)"               |
  *  | external_link  | runs: text + " (href)"                                      |
  *  | math           | `$expression$`                                              |
@@ -125,7 +125,7 @@ function renderSpan(span: ExportSpan): TextRun[] {
       // Resolved name as plain text (docx Hyperlink needs relationship ids —
       // deliberately not a link projection, see module doc comment).
       return [new TextRun(span.name)];
-    case "classChip":
+    case "classLink":
       return [new TextRun(`#${span.name}`)];
     case "typedLink": {
       const runs = [
