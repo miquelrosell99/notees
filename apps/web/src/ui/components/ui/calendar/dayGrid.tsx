@@ -110,6 +110,7 @@ export function CalendarDayGrid({
               <Button
                 variant="ghost"
                 size="sm"
+                aria-pressed={selectedDate === iso}
                 aria-label={new Date(year, month, day).toLocaleDateString(undefined, {
                   weekday: "long",
                   year: "numeric",

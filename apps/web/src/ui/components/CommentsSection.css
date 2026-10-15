@@ -11,8 +11,16 @@
 
 .nt-comments__composer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-1);
+}
+
+.nt-comments__error {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-error);
 }
 
 .nt-comments__input {

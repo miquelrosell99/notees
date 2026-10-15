@@ -252,7 +252,7 @@
 }
 
 .btn--ghost:hover:not(:disabled) {
-  background: var(--md-sys-color-surface-container);
+  background: var(--md-sys-color-hover-overlay);
   border-color: var(--md-sys-color-outline-variant);
   color: var(--md-sys-color-on-surface);
 }

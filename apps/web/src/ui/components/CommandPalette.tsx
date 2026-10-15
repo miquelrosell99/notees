@@ -786,6 +786,14 @@ export function CommandPalette({
         role="dialog"
         aria-label="Command palette"
         onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          // The input handler covers focus-in-input; this covers focus that
+          // has Tabbed onto a row — Escape closes from anywhere inside.
+          if (event.key === "Escape") {
+            event.stopPropagation();
+            onClose();
+          }
+        }}
       >
         <SearchField
           autoFocus
