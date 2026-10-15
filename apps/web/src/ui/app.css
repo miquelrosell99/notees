@@ -1549,7 +1549,9 @@ select:focus-visible {
    with the row — hover + focus-within (the resting-rows-stay-clean law;
    the permanent "…" names the truncation at rest); touch reveals it
    permanently. The lens pin button and the re-condense back-arrow are
-   retired — the mark is the affordance. */
+   retired — the mark is the affordance. A PINNED block reads at a glance:
+   the mark wears the accent, and in outline the bullet wears a quiet
+   accent ring (prose/cards carry the distinction on the mark alone). */
 
 /* The mark as the toggle: visually the same muted "…", now a real button —
    reset, the row-chrome tap floor, and the unified state-layer hover. */
@@ -1585,6 +1587,46 @@ select:focus-visible {
 .nt-block-excerpt__ellipsis:active {
   background: var(--md-sys-color-pressed-overlay);
   color: var(--md-sys-color-on-surface);
+}
+
+/* Pinned cues (owner ruling 2026-10-15): the toggle expresses its own
+   state — muted "…" = "more available", accent "…" = "open" — clear at a
+   glance, not on hover. The accent every engagement surface wears; the
+   hover/pressed layers are a faint accent state-layer. */
+.nt-block-excerpt__ellipsis--pinned {
+  color: var(--md-sys-color-primary);
+  opacity: var(--opacity-100);
+}
+
+.nt-block-excerpt__ellipsis--pinned:hover {
+  background: color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent);
+  color: var(--md-sys-color-primary);
+}
+
+.nt-block-excerpt__ellipsis--pinned:active {
+  background: color-mix(in srgb, var(--md-sys-color-primary) 20%, transparent);
+  color: var(--md-sys-color-primary);
+}
+
+/* Outline-mode cue: the pinned block's bullet wears a quiet accent ring —
+   an outline only (the bullet stays a bullet; the collapse ring's filled
+   tint is a different signal). Prose hides bullets — the accent mark
+   carries the distinction there. Cards content rows too, by the owner's
+   model: no bullet ring inside a card, the accent mark carries it. While
+   EDITING, the bullet already wears the accent fill — the editing
+   highlight wins, and the ring returns on blur. */
+.nt-block--pinned > .nt-block-row .nt-bullet::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border: 1.5px solid color-mix(in srgb, var(--md-sys-color-primary) 70%, transparent);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.nt-block--editing > .nt-block-row .nt-bullet::after,
+.node-card .nt-block--pinned > .nt-block-row .nt-bullet::after {
+  display: none;
 }
 
 /* A mixed block (sentence + inline image/embed) names its prose-less
