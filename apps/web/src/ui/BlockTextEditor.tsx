@@ -50,6 +50,10 @@
  *   creates + assigns the page.
  * - `+`  class: the same popup over classes only (no pages, no auto-create of
  *   pages — the create row makes a class); picking assigns it (OR-set add).
+ *   Already-assigned classes ride the checkmark (hidden from the empty-query
+ *   browse, resurfacing under a matching query): a plain pick REMOVES the
+ *   class (the toggle) and a Ctrl/Cmd pick CONVERTS THE TRIGGER TO INLINE
+ *   TEXT — the `+` drops, the typed word stays as plain content.
  * - `/`  slash commands: the ported TriggerPopup (inline mode) over the
  *   block-type actions the content grammar executes — Text (strip the
  *   trigger), Quote (wrap the block's inline tokens in a quote token),
@@ -1206,6 +1210,43 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
   };
 
   /**
+   * Assigned-class pick from the `+` popup (`NodeSelector`'s `onAssignedPick`
+   * — the checkmarked rows that resurface under a matching query; the
+   * capture snapshot idiom mirrors commitNodePick for async closes). The
+   * gesture set (owner 2026-10-15): a PLAIN pick REMOVES the class — the
+   * toggle, the row's checkmark reads as its state — and a Ctrl/Cmd pick
+   * CONVERTS THE TRIGGER TO INLINE TEXT: the `+` drops and the typed word
+   * stays as plain block content (the query, or the class's display name
+   * when the query is empty), the membership untouched.
+   */
+  const commitAssignedClassPick = (picked: ClientNode, context?: NodePickContext) => {
+    const state = capture ?? captureSnapshotRef.current;
+    if (state === null || state.kind === "slash") return;
+    setCapture(null);
+    const el = spanRef.current;
+    if (el === null) return;
+    const caret = caretOffset(el) ?? state.start + 1;
+    const end = state.replaceEnd ?? Math.max(caret, state.start + 1);
+    if (context !== undefined && context.withLabel) {
+      const text =
+        context.query !== "" ? context.query : (captureApi.displayName(picked.id) ?? "");
+      applySplice(
+        state.start,
+        end,
+        text !== "" ? [{ type: "text", text }] : [],
+        state.start + text.length,
+      );
+      el.focus();
+      return;
+    }
+    void client.unassignClass(nodeRef.current.id, picked.id).catch((error: unknown) => {
+      console.warn(`[capture] unassignClass (${picked.id}) failed:`, error);
+    });
+    stripTrigger(state.start, end);
+    el.focus();
+  };
+
+  /**
    * The @/#/+ popup closed without a pick (Escape / click outside): keep the
    * trigger char as plain text and hand focus back to the block — unless the
    * click that closed it is focusing something else (another block, the
@@ -2087,6 +2128,22 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
             scopeTabs={capture.kind === "mention"}
             excludeNodeId={nodeRef.current.id}
             initialSearchQuery={capture.kind === "mention" ? capture.query : ""}
+            // The relation's current members: assigned rows carry the
+            // checkmark and re-surface under a matching query (they hide
+            // from the empty-query browse — the candidate set is what can
+            // still be added). The `+` popup's assigned rows report through
+            // onAssignedPick (toggle / convert-to-inline); `#`'s acknowledge
+            // idempotently.
+            nodes={
+              capture.kind === "mention"
+                ? undefined
+                : (capture.kind === "class"
+                    ? (client.getNode(nodeRef.current.id)?.classIds ?? [])
+                    : (client.getNode(nodeRef.current.id)?.tagIds ?? [])
+                  )
+                    .map((id) => client.getNode(id))
+                    .filter((n): n is ClientNode => n !== undefined)
+            }
             searchPlaceholder={
               capture.kind === "mention"
                 ? "Search pages and blocks…"
@@ -2096,6 +2153,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
             }
             onClose={closeNodePicker}
             onAdd={commitNodePick}
+            onAssignedPick={capture.kind === "class" ? commitAssignedClassPick : undefined}
             hint={capture.kind === "mention" ? capture.hint : undefined}
           />
         ))}
