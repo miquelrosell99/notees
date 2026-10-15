@@ -299,7 +299,7 @@ describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
       parentId: dex,
       contentAst: [
         { type: "text", text: "A wild " },
-        { type: "class_chip", classId },
+        { type: "class_link", classId },
         { type: "text", text: " appears" },
       ],
     });

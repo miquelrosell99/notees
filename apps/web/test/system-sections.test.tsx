@@ -567,7 +567,7 @@ describe("crumb labels over class chips (issue #2)", () => {
     const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
     const parentId = await client.createObject({
       parentId: pageId,
-      contentAst: [{ type: "class_chip", classId }],
+      contentAst: [{ type: "class_link", classId }],
     });
     const childId = await client.createObject({ parentId, contentAst: [{ type: "text", text: "Child" }] });
 
@@ -589,7 +589,7 @@ describe("crumb labels over class chips (issue #2)", () => {
       parentId: pageId,
       contentAst: [
         { type: "text", text: "on " },
-        { type: "class_chip", classId, displayText: "the Republic" },
+        { type: "class_link", classId, displayText: "the Republic" },
       ],
     });
     const childId = await client.createObject({ parentId, contentAst: [{ type: "text", text: "Child" }] });

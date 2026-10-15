@@ -199,7 +199,7 @@ edge derivation: implemented (`packages/store/src/edges.ts`). Roll-up/filter-inh
 designed, not implemented (see below).*
 
 **Content.** A block's content is one flat token array (`contentAst: ContentToken[]`) —
-`text` (with `marks`), `class_chip`, `mention`, `typed_link`, `asset_ref`, `embed_ref`,
+`text` (with `marks`), `class_link`, `mention`, `typed_link`, `asset_ref`, `embed_ref`,
 `quote`, `query`, `whiteboard`, `external_link`, `math`, `hard_break`. Normative grammar in
 `SCHEMA.md`; executable form in `content-mark.ts`. Key semantics:
 

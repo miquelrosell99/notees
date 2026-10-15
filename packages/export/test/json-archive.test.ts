@@ -116,7 +116,7 @@ describe("buildJsonArchive", () => {
     const node = page(PAGE_ID, [
       { type: "mention", targetNodeId: AUTHOR_ID, text: "Le Guin" },
       { type: "embed_ref", nodeId: EMBED_ID },
-      { type: "class_chip", classId: PERSON_CLASS_ID },
+      { type: "class_link", classId: PERSON_CLASS_ID },
       { type: "typed_link", verb: "cites", text: "claim" },
       { type: "typed_link", verb: { propertySchemaId: PUBLISHED_SCHEMA_ID }, text: "journal" },
       { type: "asset_ref", assetId: ASSET_ID },

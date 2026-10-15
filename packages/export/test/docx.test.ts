@@ -260,7 +260,7 @@ describe("inline spans", () => {
 
   it("maps class chips to #name runs", async () => {
     const node = page("aaaaaaaa-0000-4000-8000-000000000025", "chip", [
-      { type: "class_chip", classId: PERSON_CLASS_ID },
+      { type: "class_link", classId: PERSON_CLASS_ID },
     ]);
     const { document } = await toDocx(node, makeCtx());
     expect(document).toContain('<w:t xml:space="preserve">#person</w:t>');

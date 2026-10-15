@@ -9,6 +9,49 @@ predating this file.
 
 ## 2026-10-15
 
+- **refactor(protocol,web)!: the inline class reference is `class_link`, never
+  `class_chip` — the token is a node link, class variant, and the name now
+  says so (owner ruling); the live log migrated in place (252 envelopes), the
+  49 GB stale-snapshot accumulation pruned to 370 MB.** The owner's naming
+  ruling: `class_chip` renamed to `class_link` across the protocol schema
+  (`classLinkTokenSchema`), domain flattening, all five export serializers +
+  the export IR (`classLink`), the PDF renderer, and every web surface; the
+  "chip" name now names only the membership pills (untouched — a different
+  concept). The rename is a strict-schema wire change: new
+  `class-link.json` fixture (28-file gate), GTK lockstep (`0d4e520`), Flutter
+  lockstep (`4d915a7`), then `scripts/migrate-class-chip-rename.mts` (the
+  migrations.md §B sequence) rewrote the 252 live envelopes, patched the two
+  remaining snapshots + the server derived store, bumped restore_epoch to 7,
+  and verified by a full 234,975-envelope scratch replay with zero retired
+  bytes; both images rebuilt, `verify-min.mjs` VERIFY-PASS. The owner-facing
+  snapshot corpus was pruned in the same stopped-server window: 549 stale
+  snapshots deleted (only the newest per workspace is ever served for
+  hydration) — **49 GB → 370 MB**. `SCHEMA.md` and `migrations.md` (script
+  catalog) carry the contract; a few inert `class_chip` bytes linger in
+  relay.db free pages (SQL state clean; a future quiet window may VACUUM).
+  **Verification:** `pnpm typecheck` + `pnpm test` green (1,661 tests); GTK
+  `pytest`/`ruff`/`mypy` green (799 tests); Flutter `flutter test` green
+  (637 tests); live migration verified per the runbook; stack smoke
+  VERIFY-PASS.
+- **fix(web): two picker refinements from the gesture work — the classes
+  picker's create row no longer duplicates an existing class, and the
+  assigned-row gestures are advertised.** (1) An exact-name query (`correo`
+  with a class correo already in the graph — assigned or not) used to offer
+  `Create "correo"` next to the existing class's row: a duplicate-class trap;
+  the create row now suppresses whenever the query exactly names an existing
+  class. (2) Nothing in the UI named the checkmarked rows' gestures: the
+  picker renders a footer hint while an assigned row is on screen —
+  `↵ remove · ⌃↵ convert to link` where the toggle lives (the editor's `+`
+  popup), `✓ already assigned` at the idempotent-acknowledgment pickers.
+  Also the turn's headline fix: the Ctrl+Enter convert in the `+` popup
+  spliced PLAIN TEXT — the owner meant an inline class LINK; the gesture now
+  splices the `class_link` token (render-only class reference, wavy
+  underline, no membership effect). `test/suggestion-popup.test.tsx` gains
+  the specs (create-row suppression, hint on/off, the chip token in the
+  converted AST — updated from the text assertion); `docs/ux.md` and the
+  `BlockTextEditor` header doc carry the contract.
+  **Verification:** `pnpm typecheck` + `pnpm test` green; web-only until the
+  rename slice shipped it.
 - **feat(web): the inline `+` popup's assigned-class rows are live toggles —
   plain pick removes, Ctrl/Cmd pick converts the trigger to inline text
   (owner ruling).** The editor's `+` capture picker now receives the edited

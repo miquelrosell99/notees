@@ -318,7 +318,7 @@ async function seededChip() {
     parentId: pageId,
     contentAst: [
       { type: "text", text: "this is " },
-      { type: "class_chip", classId },
+      { type: "class_link", classId },
       { type: "text", text: " work" },
     ],
   });
@@ -358,7 +358,7 @@ describe("editor atoms — class chips", () => {
 
     expect(client.getNode(blockId)?.contentAst).toEqual([
       { type: "text", text: "this is " },
-      { type: "class_chip", classId },
+      { type: "class_link", classId },
       { type: "text", text: " work!" },
     ]);
   });
@@ -375,7 +375,7 @@ describe("editor atoms — class chips", () => {
 
     expect(client.getNode(blockId)?.contentAst).toEqual([
       { type: "text", text: "my this is " },
-      { type: "class_chip", classId },
+      { type: "class_link", classId },
       { type: "text", text: " work" },
     ]);
   });
@@ -395,7 +395,7 @@ describe("editor atoms — class chips", () => {
 
     expect(client.getNode(blockId)?.contentAst).toEqual([
       { type: "text", text: "this is " },
-      { type: "class_chip", classId },
+      { type: "class_link", classId },
       { type: "text", text: " work" },
     ]);
   });
@@ -429,7 +429,7 @@ describe("editor atoms — class chips", () => {
       parentId: pageId,
       contentAst: [
         { type: "text", text: "keep " },
-        { type: "class_chip", classId: missing },
+        { type: "class_link", classId: missing },
         { type: "text", text: " typing" },
       ],
     });
@@ -447,7 +447,7 @@ describe("editor atoms — class chips", () => {
     // The dead chip token is NOT silently flattened away by the edit.
     expect(client.getNode(blockId)?.contentAst).toEqual([
       { type: "text", text: "keep " },
-      { type: "class_chip", classId: missing },
+      { type: "class_link", classId: missing },
       { type: "text", text: " typing!" },
     ]);
   });

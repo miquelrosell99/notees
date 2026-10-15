@@ -101,7 +101,7 @@ export interface InlineTokensProps {
   /** Effective-color resolver: tints mention underlines with the target's color. */
   resolveColor?: ((nodeId: string) => string | null) | undefined;
   /**
-   * Class effective-color resolver: tints class-chip wavy underlines with
+   * Class effective-color resolver: tints class-link wavy underlines with
    * the class's color (the extends-chain walk). When absent, chips render
    * the neutral outline underline.
    */
@@ -261,7 +261,7 @@ function renderToken(
         </span>
       );
     }
-    case "class_chip": {
+    case "class_link": {
       const classId = typeof t.classId === "string" ? t.classId : "";
       const name =
         (typeof t.displayText === "string" ? t.displayText : undefined) ??
