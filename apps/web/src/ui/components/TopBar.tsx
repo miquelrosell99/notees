@@ -7,7 +7,8 @@
  *  CENTER the current node's breadcrumbs, left-aligned within the section
  *  RIGHT  the in-app Back/Forward arrows (owner 2026-10-14: relocated
  *         from the center, beside the breadcrumbs — they now open the
- *         section), the focus-mode toggle, the session layout toggle,
+ *         section), the focus-mode toggle, the condensed-layer toggle
+ *         (owner 2026-10-15, beside focus), the session layout toggle,
  *         undo/redo (the session journal, topbar buttons + the history
  *         chevron), calendar, right-sidebar show/hide
  */
@@ -115,6 +116,17 @@ export function TopBar({
    */
   focusMode = false,
   onToggleFocusMode,
+  /**
+   * The condensed layer toggle (owner 2026-10-15): rides directly beside the
+   * focus-mode button, the same icon-button idiom (the pressed chrome
+   * carries the on/off state). It acts on the ACTIVE page's per-page pref
+   * (`condensed.<pageId>` — the App layer owns the write, placement does not
+   * change the model). Undefined hides the button — the App passes none
+   * where there is no eligible main-surface page (no selection, embedded /
+   * preview surfaces), the `onToggleLayout` gating idiom.
+   */
+  condensedActive = false,
+  onToggleCondensed,
 }: {
   syncStatus: SyncStatusSnapshot;
   /** Opens the sync details modal; undefined on boot screens. */
@@ -162,6 +174,10 @@ export function TopBar({
   focusMode?: boolean | undefined;
   /** Flips focus mode (the App layer owns the device-setting write). */
   onToggleFocusMode?: (() => void) | undefined;
+  /** The condensed layer's current state for the ACTIVE page (pressed chrome). */
+  condensedActive?: boolean | undefined;
+  /** Flips the active page's condensed pref (the App layer owns the write). */
+  onToggleCondensed?: (() => void) | undefined;
 }) {
   return (
     <header className="nt-topbar">
@@ -246,6 +262,18 @@ export function TopBar({
             onClick={onToggleFocusMode}
           >
             <Icon path="mdi-crop-free" size={1} />
+          </button>
+        )}
+        {onToggleCondensed !== undefined && (
+          <button
+            type="button"
+            className={condensedActive ? "nt-icon-btn nt-icon-btn-active" : "nt-icon-btn"}
+            title={condensedActive ? "Condensed: exit" : "Condensed: enter"}
+            aria-label={condensedActive ? "Exit condensed mode" : "Condensed mode"}
+            aria-pressed={condensedActive}
+            onClick={onToggleCondensed}
+          >
+            <Icon path="mdi-unfold-less-horizontal" size={1} />
           </button>
         )}
         {onToggleLayout !== undefined && (

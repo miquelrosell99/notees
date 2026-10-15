@@ -19,11 +19,26 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { DISPLAY_NAME_MAX, excerptOf } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
+import type { SyncStatusSnapshot } from "../src/core/workspace-client.js";
+import { EMPTY_UNDO_STATE } from "../src/core/undo-journal.js";
 import { hiddenLinksOf } from "../src/editor/condensed.js";
 import { PageView } from "../src/ui/PageView.js";
+import { TopBar } from "../src/ui/components/TopBar.js";
+import { CommandPalette } from "../src/ui/components/CommandPalette.js";
 import { writeViewModePref } from "../src/ui/viewPrefs.js";
 import { writeDeviceSetting } from "../src/ui/components/modals/deviceSettings.js";
 import type { ContentAst } from "@notees/protocol";
+
+const SYNC: SyncStatusSnapshot = {
+  status: "idle",
+  error: null,
+  pending: 0,
+  failed: 0,
+  quarantined: 0,
+  parked: 0,
+  realtime: false,
+  cursorSeq: 0,
+};
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -287,5 +302,98 @@ describe("prose mode honors collapse (companion ruling)", () => {
     // Clicking the chevron unfolds, prose included.
     fireEvent.click(chevron);
     expect(within(tree).getByText("hidden nested child")).not.toBeNull();
+  });
+});
+
+describe("condensed layer switch surfaces (owner directive 2026-10-15)", () => {
+  it("TopBar: hidden without a handler (no eligible page), pressed chrome otherwise", () => {
+    const { unmount } = render(
+      <TopBar
+        syncStatus={SYNC}
+        sidebarOpen
+        rightPanelOpen={false}
+        onToggleSidebar={() => {}}
+        onToggleRightPanel={() => {}}
+      />,
+    );
+    // The App passes no handler where there is no eligible main-surface
+    // page — the button simply doesn't render (the onToggleLayout idiom).
+    expect(screen.queryByRole("button", { name: "Condensed mode" })).toBeNull();
+    unmount();
+
+    const onToggleCondensed = vi.fn();
+    render(
+      <TopBar
+        syncStatus={SYNC}
+        sidebarOpen
+        rightPanelOpen={false}
+        onToggleSidebar={() => {}}
+        onToggleRightPanel={() => {}}
+        condensedActive={false}
+        onToggleCondensed={onToggleCondensed}
+      />,
+    );
+    const button = screen.getByRole("button", { name: "Condensed mode" });
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    expect(button.title).toBe("Condensed: enter");
+    fireEvent.click(button);
+    expect(onToggleCondensed).toHaveBeenCalledTimes(1);
+    unmount();
+
+    render(
+      <TopBar
+        syncStatus={SYNC}
+        sidebarOpen
+        rightPanelOpen={false}
+        onToggleSidebar={() => {}}
+        onToggleRightPanel={() => {}}
+        condensedActive
+        onToggleCondensed={() => {}}
+      />,
+    );
+    // The engaged state wears the pressed chrome and names the exit.
+    const active = screen.getByRole("button", { name: "Exit condensed mode" });
+    expect(active).toHaveAttribute("aria-pressed", "true");
+    expect(active.classList.contains("nt-icon-btn-active")).toBe(true);
+  });
+
+  it("command palette: the Condensed row mirrors the focus row and is absent without a handler", async () => {
+    const client = await seedClient();
+    const renderPalette = (props: { condensedActive?: boolean; onToggleCondensed?: () => void }) => {
+      return render(
+        <CommandPalette
+          client={client}
+          open
+          onRequestOpen={() => {}}
+          onClose={() => {}}
+          onOpenNode={() => {}}
+          onNewPage={() => {}}
+          onSignOut={() => {}}
+          undoState={EMPTY_UNDO_STATE}
+          onUndo={() => {}}
+          onRedo={() => {}}
+          cacheVersion={0}
+          {...props}
+        />,
+      );
+    };
+
+    // No eligible page: the App passes no callback — the row is absent
+    // (the merge action's conditional-row pattern).
+    const first = renderPalette({});
+    expect(screen.queryByText("Condensed: enter")).toBeNull();
+    expect(screen.queryByText("Condensed: exit")).toBeNull();
+    first.unmount();
+
+    const onToggleCondensed = vi.fn();
+    const second = renderPalette({ condensedActive: false, onToggleCondensed });
+    const enter = await screen.findByText("Condensed: enter");
+    fireEvent.click(enter);
+    expect(onToggleCondensed).toHaveBeenCalledTimes(1);
+    second.unmount();
+
+    renderPalette({ condensedActive: true, onToggleCondensed });
+    expect(await screen.findByText("Condensed: exit")).not.toBeNull();
+    expect(screen.queryByText("Condensed: enter")).toBeNull();
   });
 });
