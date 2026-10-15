@@ -9,6 +9,33 @@ predating this file.
 
 ## 2026-10-15
 
+- **feat(web): the owner rulings from the carried-forward Notes land — hover
+  unified on the state-layer overlay, settings layout repaired, and the
+  mechanical notes closed.** (1) **Hover ruling (owner)**: every hover
+  background is `--md-sys-color-hover-overlay` across 22 stylesheets —
+  rows, links, chips, icon chrome, Button base/default/outline variants,
+  calendar/datepicker cells, GridMenu, breadcrumbs, toolbars; combined
+  `--active, --active:hover` rules keep the active fill (active identity is
+  not washed away); `primary-container` is selected/active-only, per the
+  existing register entry. Registered as a decision in
+  `.agents/design-overrides.md`. (2) **Settings layout (owner
+  screenshots)**: the page inset goes symmetric (`--spacing-4` all around,
+  was 12/16/24); the section-nav pills take the card-echoing 8px radius
+  (the card's 20px minus the 12px inset — was 4px); the capped content
+  column centers in the remaining space (`margin-inline: auto` — it hugged
+  the nav rail). (3) **CardsBoard**: columns go adaptive
+  `clamp(16rem, 22vw, 20rem)` (was fixed 260px), the 120px min-height maps
+  to `--layout-size-sm`, the 40px mins to `--spacing-10`. (4) **Export
+  modal**: the selected format card gains a real selected signal — a
+  primary hairline ring (box-shadow, no layout shift) + 600 label, icon
+  tint alone was too quiet. (5) **Content-renderer px literals**: code-block
+  and field paddings map to the spacing scale, the code badge's duplicated
+  6px corner takes `--shape-medium`, cover-card max-width takes
+  `--layout-size-3xl` (220px), cover-picker paddings take spacing tokens.
+  The calendar accent-ink hover the audit flagged is already gone (the
+  concurrent condensed slice removed it — its button hovers were normalized
+  by the sweep). Gate: full `pnpm typecheck` + `pnpm test` green.
+
 - **feat(web): the design-system re-audit (second pass, updated checklist)
   — all 13 prior fixes verified, the surface-inventory sweep closes its
   Warning cluster, zero Criticals (report:
