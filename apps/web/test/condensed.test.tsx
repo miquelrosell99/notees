@@ -157,25 +157,22 @@ describe("condensed layer over PageView", () => {
     expect(tree).not.toBeNull();
 
     // The excerpt is the head of the prose; the tail is not rendered. The
-    // stretchtext mark is permanent; the pin button + badge ride in the row
-    // (their visibility is CSS hover/focus-reveal — jsdom applies no
-    // :hover/:focus-within, so the mechanism is asserted source-level in the
-    // CSS spec below; here we assert the chrome exists and stays reachable).
+    // "…" IS the toggle (owner ruling): the mark button sits in the row; the
+    // badge rides beside it (CSS hover/focus-reveal — asserted source-level
+    // in the CSS spec below; here we assert the chrome exists and stays
+    // reachable). The retired controls are gone.
     const excerpt = excerptOf([{ type: "text", text: LONG }]);
     expect(within(tree).getByText(excerpt.text)).not.toBeNull();
     expect(within(tree).queryByText(LONG)).toBeNull();
     expect(tree.querySelector(".nt-block-excerpt__ellipsis")).not.toBeNull();
     expect(within(tree).getByRole("button", { name: "Show full content" })).not.toBeNull();
-    // The lens icon: the plus-outline variant (distinct from the search
-    // fields' plain magnify).
-    expect(
-      tree
-        .querySelector(".nt-block-excerpt__stretch use")
-        ?.getAttribute("href"),
-    ).toContain("mdi-magnify-plus-outline");
+    // The retired lens pin button and back-arrow: no element, no CSS hook.
+    expect(tree.querySelector(".nt-block-excerpt__stretch")).toBeNull();
+    expect(tree.querySelector(".nt-block-condense")).toBeNull();
 
-    // Click anywhere on the row → EDIT mode on the full content (the
-    // standard click-to-edit contract; the excerpt is display chrome).
+    // Click anywhere on the row (the text body) → EDIT mode on the full
+    // content (the standard click-to-edit contract; the excerpt is display
+    // chrome).
     fireEvent.click(within(tree).getByText(excerpt.text));
     const editor = tree.querySelector(".nt-block-text") as HTMLElement;
     expect(editor).not.toBeNull();
@@ -189,7 +186,7 @@ describe("condensed layer over PageView", () => {
     expect(within(tree).queryByText(LONG)).toBeNull();
   });
 
-  it("the pin button stretches in place; the pin survives edit cycles; the back-arrow unpins", async () => {
+  it("the … pins in place and un-pins at the text's end; the pin survives edit cycles", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Pinned" });
     await client.createObject({
@@ -202,14 +199,18 @@ describe("condensed layer over PageView", () => {
     const tree = container.querySelector(".nt-block-tree") as HTMLElement;
     const excerpt = excerptOf([{ type: "text", text: LONG }]);
 
-    // The pin button (not the row click) is the only way into the pinned
-    // read-mode row.
+    // The "…" (not the row click) is the only way into the pinned read-mode
+    // row: tap → pin.
     fireEvent.click(within(tree).getByRole("button", { name: "Show full content" }));
     expect(within(tree).getByText(LONG)).not.toBeNull();
     expect(tree.querySelector(".nt-block-text")).toBeNull();
     expect(JSON.parse(localStorage.getItem(`notees.stretched.v1.${pageId}`) ?? "[]")).toEqual([
       expect.any(String),
     ]);
+    // The mark returned at the END OF THE TEXT, permanent and tappable (the
+    // back-arrow is gone; the condensed row's pin label is gone too).
+    expect(within(tree).getByRole("button", { name: "Condense" })).not.toBeNull();
+    expect(within(tree).queryByRole("button", { name: "Show full content" })).toBeNull();
 
     // A pinned row clicks into edit like any block; blur returns it to
     // PINNED read (still stretched — blur never unpins).
@@ -219,8 +220,8 @@ describe("condensed layer over PageView", () => {
     fireEvent.blur(editor);
     expect(within(tree).getByText(LONG)).not.toBeNull();
 
-    // The back-arrow unpins: the excerpt returns.
-    fireEvent.click(within(tree).getByRole("button", { name: "Condense block" }));
+    // Tap the trailing "…" → un-pin: the excerpt returns.
+    fireEvent.click(within(tree).getByRole("button", { name: "Condense" }));
     expect(within(tree).queryByText(LONG)).toBeNull();
     expect(within(tree).getByText(excerpt.text)).not.toBeNull();
     expect(localStorage.getItem(`notees.stretched.v1.${pageId}`)).toBe("[]");
@@ -460,7 +461,7 @@ describe("condensed chrome reveal mechanism (CSS source)", () => {
   const path = process_.getBuiltinModule("node:path") as unknown as typeof import("node:path");
   const css = fs.readFileSync(path.join(process.cwd(), "src", "ui", "app.css"), "utf8");
 
-  it("the pin button + badge chrome hides at rest and reveals on row hover AND focus-within", () => {
+  it("the badge chrome hides at rest and reveals on row hover AND focus-within", () => {
     const base = /\.nt-block-excerpt__chrome \{[^}]*\}/.exec(css);
     expect(base).not.toBeNull();
     expect(base![0]).toContain("opacity: 0");
@@ -468,14 +469,18 @@ describe("condensed chrome reveal mechanism (CSS source)", () => {
     expect(css).toContain(".nt-block:focus-within .nt-block-excerpt__chrome");
   });
 
-  it("the … mark is permanent — never opacity-gated", () => {
+  it("the … mark is the toggle: permanent, tap-floored, never opacity-gated", () => {
     const mark = /\.nt-block-excerpt__ellipsis \{[^}]*\}/.exec(css);
     expect(mark).not.toBeNull();
     expect(mark![0]).not.toContain("opacity: 0");
+    // Generous hit padding around the small glyph — the tap-target floor.
+    expect(mark![0]).toContain("min-width: 22px");
+    expect(mark![0]).toContain("min-height: 22px");
   });
 
-  it("the pinned row's back-arrow shares the hover/focus-within reveal pair", () => {
-    expect(css).toContain(".nt-block-row:hover .nt-block-condense");
-    expect(css).toContain(".nt-block:focus-within .nt-block-condense");
+  it("the retired controls leave no CSS hooks behind", () => {
+    expect(css).not.toContain(".nt-block-excerpt__stretch");
+    expect(css).not.toContain(".nt-block-condense");
+    expect(css).not.toContain("mdi-magnify-plus-outline");
   });
 });
