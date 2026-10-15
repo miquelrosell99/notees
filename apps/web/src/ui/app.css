@@ -1540,14 +1540,17 @@ select:focus-visible {
    its full content. The excerpt is the head of the block's own prose; the
    row stays EDITABLE — clicking it enters edit on the full content, blur
    re-condenses. A permanent muted "…" (the classic stretchtext mark) rides
-   after the excerpt text, always visible; the pin button (unfold-more —
-   "more of this block") and the hidden-links badge (the BlockBacklink
-   toggle's count-pill pattern) sit right after it, visible at rest by the
-   owner's ruling — visibility over resting-row minimalism for these
-   controls. The pinned row is the ordinary row plus the back-arrow at the
-   END of the block's own content row (before the children — the stretch
-   toggle owns the block's own prose; the collapse chevron owns the
-   subtree): quiet, hover-revealed, keyboard-focusable. */
+   after the excerpt text, always visible at rest; the pin button (a
+   magnify-plus-outline lens — "zoom into this block", distinct from the
+   search fields' plain magnify) and the hidden-links badge (the
+   BlockBacklink toggle's count-pill pattern) sit right after it, revealed
+   with the row — row hover + focus-within (the resting-rows-stay-clean law;
+   the permanent "…" already names the truncation at rest); touch reveals
+   them permanently (no hover, the back-arrow's pattern). The pinned row is
+   the ordinary row plus the back-arrow at the END of the block's own
+   content row (before the children — the stretch toggle owns the block's
+   own prose; the collapse chevron owns the subtree): quiet,
+   hover/focus-revealed, keyboard-focusable. */
 
 .nt-block-excerpt__ellipsis {
   margin-left: 1px;
@@ -1573,6 +1576,24 @@ select:focus-visible {
   gap: var(--spacing-1);
   margin-left: var(--spacing-2);
   vertical-align: baseline;
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+/* Hover-reveal (owner ruling 2026-10-15, third pass): the row hover shows
+   the chrome, and focus-within keeps it visible while the keyboard tabs
+   through the pin button / badge — the standard a11y pairing for
+   hover-reveal chrome. Touch has no hover: reveal permanently (the
+   back-arrow's pattern below). */
+.nt-block-row:hover .nt-block-excerpt__chrome,
+.nt-block:focus-within .nt-block-excerpt__chrome {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .nt-block-excerpt__chrome {
+    opacity: 1;
+  }
 }
 
 .nt-block-excerpt__stretch,
@@ -1609,8 +1630,9 @@ select:focus-visible {
 }
 
 /* The re-condense back-arrow rides the stretched row's far edge — revealed
-   with the row like the "…" it replaces. Touch has no hover: reveal it
-   permanently (the HoverRevealButton pattern). */
+   with the row like the excerpt chrome (same hover/focus-within pair).
+   Touch has no hover: reveal it permanently (the HoverRevealButton
+   pattern). */
 .nt-block-condense {
   align-self: center;
   flex-shrink: 0;
@@ -1626,7 +1648,7 @@ select:focus-visible {
 }
 
 .nt-block-row:hover .nt-block-condense,
-.nt-block-condense:focus-visible {
+.nt-block:focus-within .nt-block-condense {
   opacity: 1;
 }
 
