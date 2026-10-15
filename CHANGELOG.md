@@ -9,6 +9,22 @@ predating this file.
 
 ## 2026-10-15
 
+- **fix(web): the pinned cue becomes a filled chip; the bullet ring retires
+  (owner feedback 2026-10-15).** The owner's screenshot verdict on the first
+  cue — "looks weird. Making the … a solid fill like the other toggle
+  buttons would be better, and dropping the bullet indicator." The pinned
+  "…" is now a SOLID-FILLED toggle chip in the app's active-toggle register:
+  the exact fill the focus-mode TopBar button's `nt-icon-btn-active` wears
+  (`--md-sys-color-primary-container` / `--md-sys-color-on-primary-container`,
+  `--shape-medium` radius), riding the mark's 22px hit zone, the fill held
+  through hover/pressed (the active-toggle precedent). The contrast pair:
+  muted mark = closed, filled chip = open. The bullet ring is gone
+  completely — its `nt-block--pinned` root class (no other consumers), the
+  `::after` ring rules, and the editing/cards suppressions all retire; the
+  chip is the single cue in outline, prose, and cards alike. Specs updated
+  in `apps/web/test/condensed.test.tsx` (chip class + fill/radius pinned by
+  the CSS-source spec; the ring hooks asserted absent). **Verification:**
+  `pnpm typecheck` + `pnpm test` green; web-only — no wire touch.
 - **feat(web): the pinned block reads at a glance — accent …, outline
   bullet ring (owner ruling 2026-10-15).** Two cues, both quiet, no row
   chrome beyond them: (1) the pinned row's trailing "…" toggle wears the
