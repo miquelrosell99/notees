@@ -16,6 +16,8 @@
   background: var(--md-sys-color-surface-container-high);
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-floating-panel);
+  /* Sibling parity: floating transient layers carry the soft elevation. */
+  box-shadow: var(--shadow-elevation-2);
 }
 
 .nt-condensed-links__count {

@@ -186,6 +186,14 @@
   border-radius: var(--shape-medium);
 }
 
+.nt-sync-dot:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-sync-dot:active {
+  background: var(--md-sys-color-pressed-overlay);
+}
+
 .nt-sync-dot::after {
   content: '';
   position: absolute;

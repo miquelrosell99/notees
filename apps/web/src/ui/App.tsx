@@ -675,7 +675,7 @@ export function drawerDismissHandler(opts: {
   return (event) => {
     if (!opts.isSidebarOpen()) return;
     if (typeof window.matchMedia !== "function") return;
-    if (!window.matchMedia("(max-width: 768px)").matches) return;
+    if (!window.matchMedia("(width <= 768px)").matches) return;
     const target = event.target;
     if (!(target instanceof Element)) return;
     if (target.closest(".nt-sidebar") !== null) return;
