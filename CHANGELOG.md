@@ -9,6 +9,32 @@ predating this file.
 
 ## 2026-10-15
 
+- **fix(web): the condensed row's affordance is visible at rest, and the row
+  stays editable — click enters edit on the full content, blur re-condenses
+  (owner feedback 2026-10-15, same-day refinement of the condensed layer).**
+  The owner caught the shipped row's affordance nearly invisible — a tiny
+  hover-gated glyph at the line end. Two fixes. (1) **Visibility**: a
+  permanent muted "…" (the classic stretchtext mark) now rides after the
+  excerpt text on every condensed row, and the pin button wears an
+  unambiguous unfold-more icon (`mdi-unfold-more-horizontal` — "more of
+  this block"; deliberately NOT `chevron-down`, which already names the
+  collapse chevron's expanded state in this app) with the hidden-links
+  badge beside it — all visible at rest; the hover-reveal gating is dropped
+  for this chrome (the owner's ruling: visibility over resting-row
+  minimalism for these controls). (2) **The interaction contract**: the
+  excerpt click no longer stretches — clicking a condensed row now enters
+  EDIT on the block's full content (the standard outline click-to-edit; the
+  excerpt is display chrome and the editor always edits the real content,
+  so no data-path change), and blur re-condenses the row. Only the pin
+  button adds to `notees.stretched.v1` — the set is purely the
+  button-pinned set: editing never pins, blur never unpins; a pinned row
+  clicks into edit like any block and returns to pinned read on blur; only
+  the back-arrow / condense-all un-pins. Specs: the rewritten + new specs
+  in `apps/web/test/condensed.test.tsx` (permanent mark + always-visible
+  chrome, click-enters-edit, blur re-condenses, pin survives edit cycles,
+  back-arrow un-pins); `docs/ux.md`'s editor entry carries the contract.
+  **Verification:** `pnpm typecheck` + `pnpm test` green; web-only — no
+  wire touch.
 - **feat(web): the audit's residual grid/component notes closed — card-grid
   recipe conformance, and the design-system skill gains Layout & grids as a
   dedicated sweep area.** The follow-up verification of the 10-15 audit's
@@ -43,11 +69,12 @@ predating this file.
   rules as `fullTitleOf`/`proseFromAst`, one coordinate system), cut at the
   first `hard_break` OR the 80-char dense-chrome budget, returning the cut
   offset so hidden tokens classify without a second grammar — with trailing
-  chrome revealed with the row: the "…" stretch toggle (one click anywhere
-  on the excerpt stretches in place; the stretched row is the ordinary row
-  plus a back-arrow at the END of the block's own content row, before the
-  children — the reader re-condensing has just finished reading) and the
-  links badge: a quiet count pill naming the MENTION tokens hidden past the
+  chrome (visible at rest after the same-day refinement above): the pin
+  button (launch day: a "…" click-anywhere stretch — refined above to
+  click-edits / the button pins; the pinned row is the ordinary row plus a
+  back-arrow at the END of the block's own content row, before the children
+  — the reader re-condensing has just finished reading) and the links
+  badge: a quiet count pill naming the MENTION tokens hidden past the
   cut (`hiddenLinksOf`, computed over the shared `proseSpans` projection;
   typed links are targetless and chips render-only — the badge never
   implies a link the graph can't resolve), opening a bounded popup listing
