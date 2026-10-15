@@ -174,15 +174,23 @@ select:focus-visible {
 
 .nt-tab {
   flex: 1;
-  padding: 6px 10px;
+  min-height: var(--button-min-height);
+  padding: var(--spacing-1-5) var(--spacing-2-5);
   border: none;
   border-radius: var(--shape-medium);
   background: transparent;
   color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-button);
+  cursor: pointer;
 }
 
 .nt-tab:hover {
+  background: var(--md-sys-color-hover-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-tab:active {
+  background: var(--md-sys-color-pressed-overlay);
   color: var(--md-sys-color-on-surface);
 }
 
@@ -425,6 +433,11 @@ select:focus-visible {
 .nt-icon-btn:active {
   background: var(--md-sys-color-pressed-overlay);
   color: var(--md-sys-color-on-surface);
+}
+
+.nt-icon-btn:disabled {
+  opacity: var(--opacity-50);
+  cursor: not-allowed;
 }
 
 /* --- page ------------------------------------------------------------------- */
@@ -3070,29 +3083,6 @@ mark {
   gap: 4px;
 }
 
-.nt-search-input {
-  flex: 1;
-  min-width: 0;
-  font: inherit;
-  font-size: var(--font-size-button);
-  padding: 5px 8px;
-  border: 1px solid var(--md-sys-color-outline);
-  border-radius: var(--shape-medium);
-  color: var(--md-sys-color-on-surface);
-  background: var(--md-sys-color-surface);
-}
-
-/* Quiet focus like every other search bar — no accent ring (owner
-   2026-10-09). */
-.nt-search-input:focus {
-  border-color: var(--md-sys-color-on-surface-variant);
-}
-
-.nt-search-input:focus-visible {
-  outline: none;
-  box-shadow: none;
-}
-
 .nt-search-syntax {
   border: 1px solid var(--md-sys-color-outline);
   background: var(--md-sys-color-surface);
@@ -3195,7 +3185,7 @@ mark {
 
 .nt-search-mark {
   background: var(--md-sys-color-primary-container);
-  color: inherit;
+  color: var(--md-sys-color-on-primary-container);
   border-radius: var(--shape-tiny);
   padding: 0 1px;
 }

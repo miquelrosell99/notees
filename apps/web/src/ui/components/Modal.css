@@ -1,9 +1,11 @@
 /**
  * Modal — the shared dialog chrome (backdrop + panel).
  *
- * Extracted from app.css so every modal (SettingsPanel, CommandPalette)
- * renders from one source. The backdrop scrim comes from --md-sys-color-scrim and
+ * Extracted from app.css so every dialog-surface consumer renders from one
+ * source. The backdrop scrim comes from --md-sys-color-scrim and
  * the panel lift from --shadow-elevation-3 (no raw rgba hardcodes).
+ * Today consumed by the CommandPalette only (SettingsPanel composes the
+ * ui/Modal primitive).
  */
 
 .nt-modal-backdrop {
@@ -20,7 +22,8 @@
 .nt-modal {
   background: var(--md-sys-color-surface);
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
-  border-radius: var(--shape-extra-large);
+  /* Dialog register: 28px, per the 2026-10-15 ruling (was 12px). */
+  border-radius: var(--shape-sheet);
   width: var(--modal-width-md);
   max-width: 100%;
   max-height: 80vh;

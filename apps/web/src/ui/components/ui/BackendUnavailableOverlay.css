@@ -74,6 +74,7 @@
 }
 
 .backend-unavailable-banner__dismiss {
+  position: relative;
   margin-left: var(--spacing-2);
   padding: var(--spacing-1) var(--spacing-2);
   background: transparent;
@@ -85,7 +86,21 @@
   font-weight: 600;
 }
 
+/* The invisible hit-area floor. */
+.backend-unavailable-banner__dismiss::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+}
+
 .backend-unavailable-banner__dismiss:hover {
-  background-color: var(--md-sys-color-error);
-  color: var(--md-sys-color-on-error);
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.backend-unavailable-banner__dismiss:active {
+  background: var(--md-sys-color-pressed-overlay);
 }

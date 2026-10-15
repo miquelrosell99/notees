@@ -48,5 +48,5 @@
   height: 100%;
   background: var(--md-sys-color-primary);
   border-radius: var(--radius-full);
-  transition: width 150ms ease-out;
+  transition: width var(--motion-duration-short) var(--motion-easing-standard);
 }

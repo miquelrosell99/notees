@@ -283,7 +283,7 @@
 }
 
 .calendar-view__agenda-day-title:hover {
-  color: var(--md-sys-color-primary);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .calendar-view__error {

@@ -1843,7 +1843,7 @@ export function App() {
                 Change server
               </Button>
               {hint !== null && <p className="nt-hint">{hint}</p>}
-              {error !== null && <p className="nt-error">{error}</p>}
+              {error !== null && <p className="nt-error" role="alert">{error}</p>}
             </form>
           ) : (
             <form
@@ -1972,7 +1972,7 @@ export function App() {
                 </Button>
               )}
               {hint !== null && <p className="nt-hint">{hint}</p>}
-              {error !== null && <p className="nt-error">{error}</p>}
+              {error !== null && <p className="nt-error" role="alert">{error}</p>}
             </form>
           )}
           {serverSuggestion !== null && (
@@ -2046,12 +2046,12 @@ export function App() {
   if (phase.name === "connecting" || client === null) {
     return (
       <div className="nt-bootstrap">
-        <div className="nt-bootstrap-form">
+        <div className="nt-bootstrap-form" role="status" aria-busy="true">
           <h1 className="nt-bootstrap-title">Notees</h1>
           <p className="nt-bootstrap-subtitle">
             {phase.name === "connecting" ? phase.label : "Starting…"}
           </p>
-          {error !== null && <p className="nt-error">{error}</p>}
+          {error !== null && <p className="nt-error" role="alert">{error}</p>}
         </div>
       </div>
     );
