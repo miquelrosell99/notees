@@ -9,6 +9,26 @@ predating this file.
 
 ## 2026-10-15
 
+- **feat(web): the condensed layer's … is the toggle — the pin and condense
+  buttons retire (owner ruling 2026-10-15).** The permanent muted "…" (the
+  classic stretchtext mark) becomes the layer's ONE control in both
+  directions: on a condensed row it is a real tappable button (generous hit
+  padding — it is a small glyph; visually the same muted mark, `title`
+  "Show full content") that pins the block; on a pinned row it returns at
+  the END OF THE TEXT — inline after the last word, wherever the text wraps,
+  not the row's right edge (the detached placement was the owner's
+  complaint) — tap to un-pin (`title` "Condense"). The lens pin button and
+  the back-arrow condense button are deleted with their CSS; no replacement
+  icons — the mark is the affordance. The hidden-links badge never rides a
+  pinned row (all text visible, the hidden count is 0 by definition).
+  Everything else holds: click-to-edit on the body, blur re-condenses only
+  the un-pinned, the stretched set stays purely mark-pinned, condense-all
+  stays on the nodeview bar. Specs rewritten in
+  `apps/web/test/condensed.test.tsx` (mark pins/unpins with storage
+  asserted, retired controls gone, mark aria labels, tap-floor CSS source
+  spec); `docs/ux.md` carries the ruling.
+  **Verification:** `pnpm typecheck` + `pnpm test` green; web-only — no
+  wire touch.
 - **feat(web): the block's text owns the bullet's context menu (owner ruling
   2026-10-15).** Right-clicking anywhere on a block's prose — the rendered
   tokens or the condensed excerpt — now opens the same node context menu the
