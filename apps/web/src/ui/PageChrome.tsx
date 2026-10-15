@@ -56,7 +56,11 @@ type AnyClient = WorkspaceClient | WorkerClient;
  * border under the row retired (owner 2026-10-13) — the spacing-3 margin
  * below the bar is its whole separation from the columns. Full-width so
  * the bar never rescales when a panel column shows or hides; each panel
- * toggle sits directly above the column it reveals.
+ * toggle sits directly above the column it reveals. Focus mode (#12) keeps
+ * the bar but hides the LEFT cluster — the panel toggles would control
+ * panels the mode hides, and the classes pills are exactly the chrome it
+ * suppresses; the view switcher + the node menu stay (the page is still
+ * a working surface).
  */
 export function NodeTopbar({
   client,
@@ -70,6 +74,7 @@ export function NodeTopbar({
   condensedChrome,
   chromeMenu,
   onOpenPage,
+  focusMode = false,
   /**
    * The classes-cluster override: the class variant's corner renders the
    * extends relation's ClassPillsList (the cornerPills config) instead of
@@ -87,8 +92,8 @@ export function NodeTopbar({
   contextPanelCollapsed: boolean;
   /**
    * The context-panel toggle; UNDEFINED hides the button (kept for hosts
-   * that render no context column — none today: every panelled page carries
-   * the column, class pages included, owner 2026-10-12).
+   * that render no context column — focus mode hides the column, so the
+   * host passes undefined while it is on).
    */
   onToggleContextPanel?: (() => void) | undefined;
   chromeModes: ReactNode;
@@ -103,25 +108,34 @@ export function NodeTopbar({
   onOpenPage?: ((pageId: string) => void) | undefined;
   /** Classes-cluster override (the class variant's extends pills). */
   classesCorner?: ReactNode;
+  /** Focus mode (#12): hides the left cluster (the properties-panel toggle
+   *  and the classes pills) — the panels are hidden and the classes are
+   *  the suppressed chrome; the right cluster (view switcher, node menu)
+   *  renders untouched. */
+  focusMode?: boolean;
 }) {
   return (
     <div className="nt-node-topbar">
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        icon="mdi mdi-format-list-bulleted"
-        aria-label={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
-        aria-pressed={!sidePanelCollapsed}
-        title={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
-        active={!sidePanelCollapsed}
-        onClick={onToggleSidePanel}
-      />
-      <div className="nt-node-topbar__classes">
-        {classesCorner ?? (
-          <ClassesRow client={client} nodeId={nodeId} classIds={classIds} onOpenPage={onOpenPage} />
-        )}
-      </div>
+      {!focusMode && (
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            icon="mdi mdi-format-list-bulleted"
+            aria-label={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
+            aria-pressed={!sidePanelCollapsed}
+            title={sidePanelCollapsed ? "Show properties panel" : "Hide properties panel"}
+            active={!sidePanelCollapsed}
+            onClick={onToggleSidePanel}
+          />
+          <div className="nt-node-topbar__classes">
+            {classesCorner ?? (
+              <ClassesRow client={client} nodeId={nodeId} classIds={classIds} onOpenPage={onOpenPage} />
+            )}
+          </div>
+        </>
+      )}
       <span className="nt-node-topbar__spacer" aria-hidden="true" />
       <div className="nt-node-topbar__right">
         {chromeModes}

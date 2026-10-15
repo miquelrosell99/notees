@@ -897,10 +897,11 @@ select:focus-visible {
 }
 
 /* Block-level metadata (BlockRow → MetadataSection with hideWhenEmpty):
-   aligns with the block text column (bullet 12px + row gap 8px) and keeps
-   the chrome compact so a metadata-carrying block reads as one row. */
+   rides the children container's indent grid (same margin — the section
+   hangs off the row into the children column) and keeps the chrome compact
+   so a metadata-carrying block reads as one row. */
 .nt-block > .node-metadata-section {
-  margin-left: 20px;
+  margin-left: 24px;
   padding-bottom: var(--spacing-1);
   /* No top divider: the section's border-top read as a stray hairline
      between the block and its children (owner 2026-10-12) — in-flow block
@@ -1439,7 +1440,11 @@ select:focus-visible {
 
 .nt-block-children {
   position: relative;
-  margin-left: 20px;
+  /* The indent line rides the parent bullet's center: the row's chevron
+     gutter (14px) + half the 22px bullet = 25px, so the 1px border lands
+     one half-step left of it (owner 2026-10-15: the line sat a noticeable
+     step left of the bullet). */
+  margin-left: 24px;
   padding-left: 8px;
   border-left: 1px solid var(--md-sys-color-outline-variant);
 }
