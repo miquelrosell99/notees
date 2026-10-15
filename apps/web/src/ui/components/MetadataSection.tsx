@@ -90,6 +90,7 @@ import { propertyLinkHref } from "../views/propertyDisplay.js";
 import { cssColorFor, resolveCssColor } from "./ui/colorPresets.js";
 import { ClassPillsList } from "./ClassPillsList.js";
 import { NodePill } from "./NodePills.js";
+import { removeClassDissolvingLinks } from "./classRemoval.js";
 import { ContextMenu } from "./ui/ContextMenu.js";
 import { Modal } from "./ui/Modal.js";
 import { Button } from "./ui/Button.js";
@@ -1650,7 +1651,7 @@ export function ClassesRow({
         nodeId={nodeId}
         query={classIds}
         add={(classId) => void client.assignClass(nodeId, classId)}
-        remove={(classId) => void client.unassignClass(nodeId, classId)}
+        remove={(classId) => void removeClassDissolvingLinks(client, nodeId, classId)}
         reorder={(ordered) => void client.reorderClasses(nodeId, ordered)}
         onOpenPage={onOpenPage}
         readOnly={locked}

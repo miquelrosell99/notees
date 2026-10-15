@@ -226,5 +226,10 @@ describe("snapshot self-heal after replay", () => {
     expect(clientNodes).toBe(serverNodes);
     expect(clientNodes).toBe(SNAPSHOT_REBUILD_MIN_ENVELOPES + 51);
     clientStore.close();
-  });
+    // A genuinely heavy end-to-end: 1,050 seeded objects, two full server
+    // boots (replay + snapshot rebuild), then a real-socket HTTP pull. The
+    // default 5s timeout flakes on shared CI runners (two failures
+    // 2026-10-15, both timeouts here, both green on re-run) — the test is
+    // IO- and CPU-bound, not assertion-lenient, so it gets a real budget.
+  }, 30_000);
 });
