@@ -39,6 +39,10 @@
   font-weight: 600;
 }
 
+.in-process-banner__dismiss:active {
+  background: var(--md-sys-color-pressed-overlay);
+}
+
 .in-process-banner__dismiss:hover {
   background-color: var(--md-sys-color-warning);
   color: var(--md-sys-color-on-warning);

@@ -10,7 +10,7 @@
 
   background: var(--md-sys-color-surface);
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
-  border-radius: var(--shape-extra-large);
+  border-radius: var(--shape-floating-panel);
   width: var(--emoji-picker-width);
   max-width: calc(100vw - var(--spacing-4));
   max-height: var(--emoji-picker-max-height);
@@ -67,14 +67,11 @@
   box-sizing: border-box;
 }
 
-/* Quiet focus like every other search bar — no accent ring (owner
-   2026-10-09). */
+/* The global input focus ring applies (the --shadow-focus-ring box-shadow):
+   no suppression, per the 2026-10-15 ruling that reversed the old
+   quiet-focus exception. */
 .ep-search-input:focus {
   border-color: var(--md-sys-color-outline);
-}
-
-.ep-search-input:focus-visible {
-  box-shadow: none;
 }
 
 .ep-search-input::placeholder {
@@ -154,7 +151,7 @@
 }
 
 .ep-item.btn:hover {
-  transform: scale(1.12);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 .ep-emoji-item.btn {

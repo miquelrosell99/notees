@@ -479,15 +479,10 @@ span.pill__text {
   font-size: var(--font-size-sm);
 }
 
-/* Quiet focus like every other search bar — no accent ring (owner
-   2026-10-09). */
+/* The global input focus ring applies — no suppression, per the
+   2026-10-15 ruling that reversed the old quiet-focus exception. */
 .nt-add-property-popup input:focus {
   border-color: var(--md-sys-color-outline);
-}
-
-.nt-add-property-popup input:focus-visible {
-  outline: none;
-  box-shadow: none;
 }
 
 .nt-add-property-popup ul {

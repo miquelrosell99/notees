@@ -72,7 +72,7 @@ export function FilterBar({ client, value, onChange, config, matchCount, totalCo
    * whose popup carries the field (the kit ButtonWithPanel — anchored,
    * toggling, Escape/outside dismissal). Wide widths keep the inline field.
    */
-  const narrowSearch = useMediaQuery("(max-width: 768px)");
+  const narrowSearch = useMediaQuery("(width <= 768px)");
 
   const showText = config?.text ?? true;
   const showClass = config?.class ?? true;

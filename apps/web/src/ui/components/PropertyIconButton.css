@@ -49,6 +49,10 @@
   background: var(--md-sys-color-hover-overlay);
 }
 
+.nt-propicon:active {
+  background: var(--md-sys-color-pressed-overlay);
+}
+
 .nt-propicon:focus-visible {
   outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: calc(var(--spacing-micro) * -1);
@@ -115,6 +119,10 @@
 
 .nt-propicon-option:hover {
   background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-propicon-option:active {
+  background: var(--md-sys-color-pressed-overlay);
 }
 
 .nt-propicon-option__glyph {
