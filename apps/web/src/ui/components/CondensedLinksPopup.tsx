@@ -64,7 +64,21 @@ export function CondensedLinksPopup({
   const popupRef = useRef<HTMLDivElement | null>(null);
   usePopupDismissal({ popupRef, anchorRefs: [anchorRef], isOpen: true, onClose });
   return (
-    <div className="nt-condensed-links" ref={popupRef} role="dialog" aria-label="Hidden links">
+    <div
+      className="nt-condensed-links"
+      ref={popupRef}
+      role="dialog"
+      aria-label="Hidden links"
+      onKeyDown={(event) => {
+        // usePopupDismissal ignores Escape originating INSIDE the popup —
+        // the sibling-popup convention wires the root handler ourselves so
+        // a keyboard user who Tabs into the list can always Esc out.
+        if (event.key === "Escape") {
+          event.stopPropagation();
+          onClose();
+        }
+      }}
+    >
       <div className="nt-condensed-links__count">
         {links.length} hidden link{links.length === 1 ? "" : "s"}
       </div>

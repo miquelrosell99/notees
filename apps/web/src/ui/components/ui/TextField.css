@@ -10,7 +10,7 @@
 
 .text-field__label {
   font-size: var(--font-size-sm);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--md-sys-color-on-surface-variant);
 }
 
