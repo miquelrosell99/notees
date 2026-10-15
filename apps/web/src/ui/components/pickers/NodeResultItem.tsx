@@ -26,8 +26,6 @@ export interface NodeResultItemProps {
   onMouseEnter?: () => void;
   /** Extra CSS classes on the root button */
   className?: string;
-  /** Slot rendered before the icon (e.g. a Checkbox in multi-select mode) */
-  before?: React.ReactNode;
   /** Slot rendered after the name (e.g. an alias badge) */
   after?: React.ReactNode;
   /** Override the default node icon (e.g. a calendar icon for date suggestions) */
@@ -44,7 +42,6 @@ export function NodeResultItem({
   onCtrlClick,
   onMouseEnter,
   className = "",
-  before,
   after,
   iconOverride,
 }: NodeResultItemProps) {
@@ -69,7 +66,6 @@ export function NodeResultItem({
         </div>
       )}
       <div className="node-result-item__row">
-        {before}
         <span className="node-result-item__icon">
           {iconOverride ?? (icon !== null ? <Icon path={icon} size={0.7} /> : null)}
         </span>

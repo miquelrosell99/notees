@@ -131,6 +131,36 @@ describe("metadata pickers (ported popups)", () => {
     expect(client.getNode(pageId)?.classIds).toContain(essays!.id);
   });
 
+  it("an already-assigned class resurfaces on an exact query; Ctrl+Enter closes idempotently (no create-class modal)", async () => {
+    const client = await seedClient();
+    const poetryId = await createTitledClass(client, "Poetry");
+    const pageId = await client.createObject({ presentAsMain: true, name: "Book" });
+    await client.assignClass(pageId, poetryId);
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add class" }));
+    const dialog = screen.getByRole("dialog", { name: "Select node" });
+
+    // Browsing keeps the assigned class hidden (the candidate set is the
+    // UNASSIGNED pool)…
+    expect(within(dialog).queryByText("Poetry")).toBeNull();
+
+    // …but an exact search for it resurfaces the row, checkmark-marked —
+    // picking it acknowledges the already-set state instead of dead-ending
+    // into the create row (which routes to the create-class modal).
+    fireEvent.change(within(dialog).getByLabelText("Search classes"), { target: { value: "Poetry" } });
+    const row = within(dialog).getByText("Poetry").closest(".node-result-item")!;
+    expect(row.querySelector(".node-result-item__check")).not.toBeNull();
+
+    fireEvent.keyDown(within(dialog).getByLabelText("Search classes"), { key: "Enter", ctrlKey: true });
+    await flushWrites();
+
+    expect(screen.queryByRole("dialog", { name: "Select node" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "New class" })).toBeNull();
+    expect(client.getNode(pageId)?.classIds).toEqual([poetryId]); // no duplicate write
+    expect(container.querySelectorAll(".nt-classes-row .pill:not(.pill--add)").length).toBe(1);
+  });
+
   it("right-clicking a class pill opens the node menu; Change color leads to the swatches", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "Genre");
