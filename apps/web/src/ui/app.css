@@ -422,6 +422,11 @@ select:focus-visible {
   color: var(--md-sys-color-on-surface);
 }
 
+.nt-icon-btn:active {
+  background: var(--md-sys-color-pressed-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
 /* --- page ------------------------------------------------------------------- */
 
 .nt-page {
@@ -517,7 +522,6 @@ select:focus-visible {
   background: var(--md-sys-color-sidebar-card);
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-card);
-  box-shadow: var(--shadow-elevation-1);
 }
 
 /* The class variant's first-column stack (owner 2026-10-12): Class
@@ -562,7 +566,6 @@ select:focus-visible {
   background: var(--md-sys-color-sidebar-card);
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-card);
-  box-shadow: var(--shadow-elevation-1);
 }
 
 /* The context column's bottom section (owner 2026-10-09): the page footer
@@ -1622,7 +1625,7 @@ select:focus-visible {
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-button-compact);
   padding: 0 8px;
-  font-size: 0.82em;
+  font-size: var(--font-size-button);
   line-height: 1.5;
   color: var(--md-sys-color-on-surface-variant);
 }
@@ -2070,7 +2073,7 @@ select:focus-visible {
 
 .nt-annotation-page {
   color: var(--md-sys-color-on-surface-variant);
-  font-size: 0.82em;
+  font-size: var(--font-size-button);
   white-space: nowrap;
 }
 
@@ -2327,7 +2330,7 @@ select:focus-visible {
 
 .nt-section-source {
   color: var(--md-sys-color-on-surface-variant);
-  font-size: 0.88em;
+  font-size: var(--font-size-base);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2336,7 +2339,7 @@ select:focus-visible {
 
 .nt-section-context {
   color: var(--md-sys-color-on-surface-variant);
-  font-size: 0.82em;
+  font-size: var(--font-size-button);
   font-style: italic;
   white-space: nowrap;
 }
@@ -2355,7 +2358,7 @@ select:focus-visible {
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-button-compact);
   padding: 0 8px;
-  font-size: 0.92em;
+  font-size: var(--font-size-body-lg);
   line-height: 1.5;
 }
 
@@ -2424,7 +2427,7 @@ select:focus-visible {
   padding: 0 10px;
   margin: 1px 0;
   color: var(--md-sys-color-on-surface-variant);
-  font-size: 0.88em;
+  font-size: var(--font-size-base);
   background: var(--md-sys-color-surface-container-high);
 }
 
@@ -2439,7 +2442,7 @@ select:focus-visible {
 
 .nt-code-block__lang {
   display: inline-block;
-  font-size: 0.72em;
+  font-size: var(--font-size-xs);
   line-height: 1.4;
   padding: 0 8px;
   border-radius: var(--shape-medium) 6px 0 0;
@@ -2456,7 +2459,7 @@ select:focus-visible {
   border-radius: var(--shape-large);
   background: var(--md-sys-color-surface-container-low);
   font-family: var(--font-family-mono);
-  font-size: 0.85em;
+  font-size: var(--font-size-button);
   line-height: 1.5;
   overflow-x: auto;
   white-space: pre;
@@ -2480,7 +2483,7 @@ select:focus-visible {
   background: var(--md-sys-color-surface-container-low);
   color: var(--md-sys-color-on-surface);
   font-family: var(--font-family-mono);
-  font-size: 0.85em;
+  font-size: var(--font-size-button);
   line-height: 1.5;
   resize: vertical;
 }
@@ -2531,7 +2534,7 @@ select:focus-visible {
 .nt-embed-card__excerpt {
   flex-basis: 100%;
   color: var(--md-sys-color-on-surface-variant);
-  font-size: 0.88em;
+  font-size: var(--font-size-base);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2596,7 +2599,7 @@ select:focus-visible {
   color: var(--md-sys-color-on-surface-variant);
   padding: 0 var(--spacing-2);
   line-height: 1.5;
-  font-size: 0.88em;
+  font-size: var(--font-size-base);
 }
 
 .nt-asset--chip:hover {
@@ -2621,7 +2624,6 @@ select:focus-visible {
 .nt-asset--fullbleed.nt-asset--chip {
   display: flex;
   padding: var(--spacing-2);
-  font-size: 1em;
 }
 
 .nt-asset--fullbleed.nt-asset--chip .nt-asset-name {
@@ -2634,6 +2636,8 @@ code {
   background: var(--md-sys-color-surface-container-highest);
   border-radius: var(--shape-small);
   padding: 0 4px;
+  /* em, not a rem token: inline code must track the surrounding content
+     size — including inside headings — the sanctioned adaptive pattern. */
   font-size: 0.92em;
 }
 
@@ -3334,7 +3338,7 @@ mark {
    sidebar drawer + touch targets, and the phone step (480px) where the peek
    card becomes a full-width bottom sheet instead of the 1100px hide. */
 
-@media (max-width: 768px) {
+@media (width <= 768px) {
   /* The drawer floats over content (Sidebar.css positions it fixed) but
      inherited the desktop transparent canvas — give it a real surface so
      the nav reads above the page beneath. */
@@ -3404,7 +3408,7 @@ mark {
   }
 }
 
-@media (max-width: 480px) {
+@media (width <= 480px) {
   /* The peek card / right rail is hidden below 1100px (PageCard.css); at
      phone widths an open panel becomes a full-width bottom sheet (the
      row's "References bottom sheet") instead of unreachable chrome. */

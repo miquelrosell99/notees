@@ -6,6 +6,14 @@ the skill's defaults/foundations is recorded here; an undocumented deviation
 is drift, a documented one is a decision. Newest first. Entries bind until the
 rule they override changes, the review trigger fires, or the owner re-rules.
 
+### The sidebar is a transparent "chrome on canvas" navigator
+- **Rule**: rosellramos-design-system default 3 (solid sidebar on the ground, hairline separated; the card-on-backdrop exception still keeps the sidebar solid).
+- **Decision**: `.nt-sidebar` carries no surface fill (`background: transparent`) at any width — the app background hosts the chrome directly, separated from content by a hairline rule; the sidebar reveals/hides via the TopBar hamburger at every width (below 768px it becomes a fixed overlay drawer with a real surface + shadow). Related responsive ruling: the navigator is **state-driven at every width** — there is no rail morph at 1024 and no 1440-wide adaptation; sidebar adaptation is drawer-below-768 only.
+- **Rationale**: the workspace canvas is the hero of a knowledge environment; a filled sidebar panel would partition the ground and compete with the content cards it navigates. Hamburger-at-every-width keeps one navigator behavior to learn.
+- **Scope**: global (app shell).
+- **Ruled**: owner 2026-10-09 shell design, registered 2026-10-15 after the design-system audit found the deviation undocumented.
+- **Review trigger**: a fleet-wide ruling on shell layouts, or an adaptiveness finding against the missing rail.
+
 ### The night is seed-tinted
 - **Rule**: rosellramos-design-system default 2 (warm near-black ground, monochrome surfaces) + foundations.md §2 (surface neutrals are near-gray).
 - **Decision**: the dark theme's background/surface/outline family derives from `--md-sys-color-primary` via `color-mix` at 4–13% (`variables.css` `[data-theme="dark"]` block) — the night wears the active seed. The monochrome preset is near-achromatic, so it still lands on untinted graphite; the light ground stays brand paper regardless of seed.

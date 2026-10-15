@@ -61,9 +61,9 @@
 }
 
 .card--radius-md {
-  /* Reduced (owner 2026-10-09): the floating chrome — popups, panels,
-     modals — reads better with a subtler corner than the 20px content
-     cards. */
+  /* Floating chrome that is not a dialog (inline panels, default Cards)
+     rides the subtler 12px corner; dialogs pass radius="xl" for the 28px
+     sheet/dialog spec (owner 2026-10-15, design-system audit). */
   border-radius: var(--shape-extra-large);
   overflow: hidden;
 }

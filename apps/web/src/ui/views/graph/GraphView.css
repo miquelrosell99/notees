@@ -100,12 +100,17 @@
   width: 220px;
 }
 
-/* The stage is the keyboard surface (+/- zoom, arrows pan, F/R) but shows
-   no focus ring of its own: the inset outline read as a border around the
-   whole content card (owner 2026-10-14). */
-.nt-graph__stage:focus,
-.nt-graph__stage:focus-visible {
+/* The stage is the keyboard surface (+/- zoom, arrows pan, F/R). Pointer
+   focus stays clean (owner 2026-10-14: an always-on inset outline read as a
+   border around the whole content card) but keyboard focus gets the accent
+   ring — an outline:none with no replacement fails the a11y rule. */
+.nt-graph__stage:focus {
   outline: none;
+}
+
+.nt-graph__stage:focus-visible {
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
+  outline-offset: calc(var(--border-width-thick) * -1);
 }
 
 .nt-graph__toolbar-spacer {

@@ -9,6 +9,53 @@ predating this file.
 
 ## 2026-10-15
 
+- **feat(web): the 2026-10-15 design-system audit findings closed in one
+  pass — override registered, dialogs to 28px, static-panel shadows gone,
+  every warning fixed, and the appearance seam unified behind one gated
+  resolver (report: `.audits/design-system-2026-10-15.md`).** The
+  full-sweep audit against the RosellRamos checklist found the token
+  architecture clean (single-track color, drift gate green) and drift
+  concentrated in three undocumented deviations and interaction-state gaps.
+  Shipped: (1) the transparent "chrome on canvas" sidebar + the
+  state-driven navigator (no rail at 1024) are registered as decisions in
+  `.agents/design-overrides.md`; (2) dialogs render at the 28px
+  `--shape-sheet` radius (`Modal.tsx` passes `radius="xl"`; the 12px tier
+  remains for non-dialog floating chrome); (3) the static page side/context
+  panels lose their `shadow-elevation-1` (zero-noise rule — hairline +
+  surface-step carries the separation); (4) ~24 ad-hoc `em` font sizes map
+  to the `--font-size-*` scale — only the four genuinely adaptive sites
+  keep em (heading scale source, inline code, the two deck density
+  multipliers), and the drift gate gains check 6 (`em` font-size ban +
+  self-checking allowlist) so the px ban can't be walked past again; (5)
+  `DataStateView` rides `useDelayedVisible` — sub-300ms fetches no longer
+  flash a skeleton; (6) pressed states on `.nt-icon-btn`, sidebar rows,
+  chips, and sortable rows (`--md-sys-color-pressed-overlay`), the chip's
+  selected-hover now takes a state-layer step toward the on-container ink
+  (selected and hover were identical), chip labels 600; (7) focus restored
+  where it was suppressed: the graph stage gets an accent ring on
+  `:focus-visible` only (pointer focus stays clean per the 2026-10-14 owner
+  ruling) and the Dropdown search input stops killing the global focus ring;
+  (8) touch floors: `.nt-propicon` and `.nt-sync-dot` get the invisible
+  `::after` hit-area overlay (static projections excepted), `HoverReveal`
+  shows permanently at 44px on `(hover: none)` touch, and the sync-dot
+  pulse freezes under reduced motion; (9) media queries normalize to range
+  syntax (`width <= Npx`) and the unused breakpoint tokens drop — only
+  `--breakpoint-tablet` survives, the one JS actually reads; (10) the
+  appearance seam: `src/ui/appearance.ts` is now the ONE resolver,
+  `applyAppearance()` consumes it, the `index.html` pre-paint bootstrap
+  mirrors it verbatim, and `test/appearance-bootstrap-parity.test.ts`
+  executes both against a ~300-scenario matrix (stored prefs × system
+  scheme × malformed JSON × the legacy key) — the gate fails on any drift.
+  Two behavior fixes fall out of the unification: the bootstrap validates
+  the accent pre-paint (invalid values fell on the DOM before), and the
+  no-preference default is follow-system in both writers (the bootstrap's
+  hard dark default fought the runtime's system default — a first-paint
+  flash for fresh light-OS users). Token hygiene: `--shape-button: 16px`
+  completes the button-radius scale, the `variables.css` header comment
+  names the real `#141414` tint base, and the stale breakpoint-token comment
+  is rewritten. Gate: full `pnpm typecheck` + `pnpm test` green (1667
+  tests); the `mobile-layout` contract test pins the new range syntax.
+
 - **feat(store,protocol)!: the no-divergence law — `class_link` asserts
   membership at the applier, `class.unassign` refuses while the content
   references the class, and class deletion sweeps memberships (owner

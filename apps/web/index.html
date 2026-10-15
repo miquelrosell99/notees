@@ -12,11 +12,15 @@
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#161412" />
     <title>Notees</title>
     <script>
-      // Theme bootstrap: dark is the default; a stored preference wins.
-      // "system" follows the OS color scheme. Runs before first paint (and
-      // before /config.js) to avoid a theme flash. Device-local appearance
-      // settings live under "notees.settings.*"; "notees.theme" is the
-      // legacy key, still read as a fallback.
+      // Theme bootstrap — the pre-paint writer of the appearance data-*
+      // attributes. MUST mirror src/ui/appearance.ts's
+      // resolveAppearanceAttributes verbatim: test/appearance-bootstrap-parity.test.ts
+      // executes both implementations against a scenario matrix and fails
+      // the gate on any drift. Runs before first paint (and before
+      // /config.js) so a stored preference or the system scheme wins
+      // without a theme flash. Device-local appearance settings live under
+      // "notees.settings.*"; "notees.theme" is the legacy key, still read
+      // as a fallback.
       (() => {
         const read = (key) => {
           try {
@@ -25,40 +29,37 @@
             return null;
           }
         };
-        let t = read("notees.settings.theme");
-        if (t !== null) {
+        const parseStored = (raw) => {
+          if (raw === null) return null;
           try {
-            t = JSON.parse(t);
+            return JSON.parse(raw);
           } catch {
-            t = null;
+            return null;
           }
-        }
-        if (t === null) t = read("notees.theme");
+        };
+        const stored = parseStored(read("notees.settings.theme"));
+        const themePref =
+          stored === "light" || stored === "dark" || stored === "system"
+            ? stored
+            : (() => {
+                const legacy = read("notees.theme");
+                return legacy === "light" || legacy === "dark" ? legacy : "system";
+              })();
         const systemDark =
           window.matchMedia &&
           window.matchMedia("(prefers-color-scheme: dark)").matches;
-        const resolved =
-          t === "system" ? (systemDark ? "dark" : "light") : t === "light" ? "light" : "dark";
-        document.documentElement.dataset.theme = resolved;
-        let oled = read("notees.settings.oledMode");
-        if (oled !== null) {
-          try {
-            oled = JSON.parse(oled);
-          } catch {
-            oled = false;
-          }
-        }
-        document.documentElement.dataset.oled = oled === true && resolved === "dark" ? "true" : "false";
-        let accent = read("notees.settings.accentColor");
-        if (accent !== null) {
-          try {
-            accent = JSON.parse(accent);
-          } catch {
-            accent = null;
-          }
-        }
-        accent = accent ?? "margin";
-        document.documentElement.dataset.accent = accent;
+        const theme =
+          themePref === "system" ? (systemDark ? "dark" : "light") : themePref;
+        document.documentElement.dataset.theme = theme;
+        const oledOn = parseStored(read("notees.settings.oledMode")) === true;
+        document.documentElement.dataset.oled =
+          oledOn && theme === "dark" ? "true" : "false";
+        const accentRaw = parseStored(read("notees.settings.accentColor"));
+        const ACCENT_VALUES = ["margin", "monochrome", "brown", "teal", "blue"];
+        document.documentElement.dataset.accent =
+          typeof accentRaw === "string" && ACCENT_VALUES.indexOf(accentRaw) !== -1
+            ? accentRaw
+            : "margin";
       })();
     </script>
     <script src="/config.js"></script>
