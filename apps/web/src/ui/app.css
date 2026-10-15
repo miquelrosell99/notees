@@ -1479,13 +1479,30 @@ select:focus-visible {
 /* --- view transforms: prose mode -------------------------------------------------
    A VIEW transform only (SCHEMA.md): the tree shape and data are untouched.
    Bullets disappear, nesting indents flatten to full-width rows (structure is
-   still implied by order), and blocks get paragraph spacing. Collapse state
-   is IGNORED, not cleared (ProseView passes BlockRow `ignoreCollapse`): every
-   subtree renders and no collapse chevron mounts, so nothing can be hidden
-   in this mode. */
+   still implied by order), and blocks get paragraph spacing. Collapse is
+   HONORED here, not ignored (owner ruling 2026-10-15): collapsed subtrees
+   hide exactly as in outline, the fold chords act on the same state, and the
+   chevron start-anchors the row (prose has no bullet gutter — the chevron
+   rides the row's left padding): hover-revealed like the outline gutter
+   idiom, and PERSISTENT at rest while the block is collapsed — the
+   persistent chevron IS the collapsed indicator, and the hidden subtree is
+   the other half of the read (nothing silently hidden). The v1 indent-line
+   rail stays outline-only (prose flattens the indents — BlockRow does not
+   mount it under `proseMode`). */
 
 .nt-prose .nt-block-chevron {
-  display: none;
+  opacity: 0;
+}
+
+/* Row-hover reveal (prose has no bullet to hover — the row is the surface). */
+.nt-prose .nt-block-row:hover .nt-block-chevron,
+.nt-prose .nt-block:focus-within > .nt-block-row .nt-block-chevron {
+  opacity: 1;
+}
+
+/* Persistent at rest while collapsed: the chevron IS the indicator. */
+.nt-prose .nt-block--collapsed > .nt-block-row .nt-block-chevron {
+  opacity: 1;
 }
 
 .nt-prose .nt-bullet {
@@ -1500,6 +1517,96 @@ select:focus-visible {
 
 .nt-prose .nt-block-row {
   padding: 8px 0;
+}
+
+/* --- view transforms: the condensed layer (stretchtext, owner 2026-10-15) --------
+   A DISPLAY LAYER over the view modes, not a mode: under the layer a
+   truncatable block renders its excerpt (the `excerptOf` prose flatten, cut
+   at the first hard_break or the 80-char dense-chrome budget) instead of
+   its full content. The excerpt is the head of the block's own prose —
+   one click anywhere on it stretches the block in place. The trailing
+   chrome (the "…" stretch toggle + the hidden-links badge, the BlockBacklink
+   toggle's count-pill pattern) is revealed with the row, like the collapse
+   chevron — resting rows stay clean. The stretched row is the ordinary row
+   plus the back-arrow at the END of the block's own content row (before the
+   children — the stretch toggle owns the block's own prose; the collapse
+   chevron owns the subtree): quiet, hover-revealed, keyboard-focusable. */
+
+.nt-block-excerpt {
+  cursor: pointer;
+}
+
+/* The excerpted content div is the stretch gesture, not the edit gesture —
+   the pointer cursor says so honestly. */
+.nt-block-content--excerpt {
+  cursor: pointer;
+}
+
+/* A mixed block (sentence + inline image/embed) names its prose-less
+   payload in the excerpt row — nothing silently hidden. */
+.nt-block-excerpt__media {
+  margin-left: var(--spacing-2);
+  font: var(--font-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: var(--opacity-60);
+  white-space: nowrap;
+}
+
+.nt-block-excerpt__chrome {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin-left: var(--spacing-2);
+  vertical-align: baseline;
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-block-row:hover .nt-block-excerpt__chrome,
+.nt-block:focus-within .nt-block-excerpt__chrome {
+  opacity: 1;
+}
+
+.nt-block-excerpt__stretch,
+.nt-block-links-badge,
+.nt-block-condense {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  /* Tap-target floor (the narrow-screen law) — the row chrome idiom. */
+  min-width: 22px;
+  min-height: 22px;
+  padding: 0 var(--spacing-1);
+  border: none;
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.nt-block-excerpt__stretch:hover,
+.nt-block-links-badge:hover,
+.nt-block-condense:hover {
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+}
+
+/* The re-condense back-arrow rides the stretched row's far edge — revealed
+   with the row like the "…" it replaces. */
+.nt-block-condense {
+  align-self: center;
+  flex-shrink: 0;
+  padding: 0;
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-block-row:hover .nt-block-condense,
+.nt-block-condense:focus-visible {
+  opacity: 1;
 }
 
 /* --- embeds (transclusion) -------------------------------------------------------

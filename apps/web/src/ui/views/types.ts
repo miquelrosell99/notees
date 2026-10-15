@@ -172,7 +172,16 @@ export interface NodeCollectionProps {
    */
   hideBacklinkCount?: boolean | undefined;
   /** Tree paths filter children to main children (the Pages zone). */
-  pagesOnly?: boolean | undefined;
+  pagesOnly?: boolean;
+  /**
+   * The condensed layer opt-in (owner 2026-10-15): the page body sets it
+   * while its condensed toggle is engaged, and ONLY the page body — every
+   * other surface (embedded feeds, read-only projections, tables, hubs,
+   * exports, shares) never passes it, so those rows render full content by
+   * construction. Not a view mode: the layer rides over whichever mode the
+   * collection wears.
+   */
+  condensed?: boolean | undefined;
   /** Depth cap for recursive tree rendering (the outline surface; cards and
    *  table ignore it — cards always resolve children, table never shows them). */
   maxDepth?: number | undefined;

@@ -38,7 +38,13 @@
  *     `children` win (tree contexts); flat collections resolve them from the
  *     client per card. Cards ignore the tree/maxDepth prop family on purpose.
  *     Collapsed by default — the chevron shows the content on demand; the
- *     collapsed body unmounts (no dead rows on a deep subtree).
+ *     collapsed body unmounts (no dead rows on a deep subtree). When the
+ *     page body's condensed layer is on (`props.condensed`), the content
+ *     rows condense as DISPLAY-ONLY growth (owner 2026-10-15): stretching
+ *     works, the card grows in the grid and the masonry reflows — the rows
+ *     are read-only, so there is no edit entry. The title header and the
+ *     classes/tags/properties rows never condense — the layer owns block
+ *     prose only.
  *
  * Editing split (owner 2026-10-13): classes, tags, and properties (the
  * nodeview table) are editable on the card; the title and child blocks stay
@@ -417,6 +423,7 @@ export function NodeCard({
                         resolveName={resolveName}
                         readOnly
                         hideBacklinks={props.hideBacklinkCount}
+                        condensed={props.condensed}
                       />
                     ))}
                   </div>

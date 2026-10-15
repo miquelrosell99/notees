@@ -105,7 +105,7 @@ function TreeRows({ items, props, resetKey }: { items: NodeCollectionItem[]; pro
     <SortableContext items={rows.map((row) => row.node.id)} strategy={verticalListSortingStrategy}>
       {rows.map((item) => {
         const row = (
-          <BlockRow key={item.node.id} tree={toBlockTree(item)} client={client} resolveName={resolveName} readOnly={readOnly} hideBacklinks={props.hideBacklinkCount} />
+          <BlockRow key={item.node.id} tree={toBlockTree(item)} client={client} resolveName={resolveName} readOnly={readOnly} hideBacklinks={props.hideBacklinkCount} condensed={props.condensed} />
         );
         if (renderItem === undefined) return row;
         return (

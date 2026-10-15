@@ -16,10 +16,27 @@
  *
  * A collapsed block (session-local display state from OutlinerContext) hides
  * its entire subtree — the children container is not rendered. The chevron
- * toggles collapse without entering edit mode (stopPropagation). In prose
- * view (`ignoreCollapse`) collapse state is ignored instead: every subtree
- * renders and no chevron mounts — the session set is left untouched, so
- * switching back to outline restores the hidden subtrees.
+ * toggles collapse without entering edit mode (stopPropagation). Collapse
+ * is honored in EVERY view mode (owner ruling 2026-10-15): in prose view
+ * (`proseMode`) the chevron start-anchors the row — hover-revealed like the
+ * outline gutter idiom and PERSISTENT at rest while the block is collapsed
+ * (the persistent chevron IS the collapsed indicator — nothing silently
+ * hidden); the v1 indent-line rail stays outline-only (prose has no indent
+ * line — indents are flattened by definition).
+ *
+ * The condensed layer (owner 2026-10-15, the opt-in `condensed` prop — only
+ * the page body sets it): a truncatable block renders its one-line excerpt
+ * (`excerptOf`, the prose-flatten derivation) instead of its full content,
+ * with trailing chrome — the "…" stretch toggle and the hidden-links badge
+ * — revealed with the row. One click anywhere on the excerpt stretches the
+ * block in place; the stretched row is the ordinary row plus a back-arrow
+ * at the END of the block's own content row (before the children — the
+ * stretch toggle owns the block's own prose, the collapse chevron owns the
+ * subtree). Prose-less, untruncated, and editing blocks render the ordinary
+ * full row — a one-line block is its own excerpt and no caret can ever sit
+ * inside a derived projection. Stretch state rides the OutlinerContext
+ * (`stretched`, device-persisted like the folds); collapse and stretch stay
+ * orthogonal and compose on the same row.
  *
  * Drag-and-drop: each row is sortable within its sibling group (dnd-kit,
  * vertical strategy) via the bullet/chevron grip handle — only inside a
@@ -48,8 +65,11 @@ import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, u
 
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
+import { excerptOf } from "@notees/domain";
+
 import type { BlockTreeNode, EffectiveProperty, WorkspaceClient } from "@/core/workspace-client.js";
 import type { WorkerClient } from "@/core/worker-client.js";
+import { hiddenLinksOf } from "@/editor/condensed.js";
 
 import { Icon } from "./Icon.js";
 import { InlineTokens } from "./InlineTokens.js";
@@ -71,6 +91,8 @@ import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
 import { DragSourcesContext, DropLineContext, WorkspaceDragScopeContext } from "./block-dnd.js";
 import { useOutliner } from "./outliner-context.js";
 import { Button } from "./components/ui/index.js";
+import { Badge } from "./components/ui/Badge.js";
+import { CondensedLinksPopup } from "./components/CondensedLinksPopup.js";
 import { InlineConfirmButton } from "./components/ui/InlineConfirmButton.js";
 import { tableClassIdOf } from "./components/tableFamily.js";
 import { addTableColumn, addTableRow, deleteTableColumn, deleteTableRow, tableColumnCount } from "./components/tableGrid.js";
@@ -112,11 +134,24 @@ interface BlockRowProps {
    */
   suppressWidgets?: boolean | undefined;
   /**
-   * Prose-view transform: collapse state is ignored — collapsed ids still
-   * render their full subtree and no chevron mounts (nothing left to expand
-   * or collapse). Threaded down the recursion by the view that sets it.
+   * Prose-view transform: the row rides the `nt-prose` flattening (bullets
+   * hidden, indents flattened by CSS). Collapse is HONORED (owner ruling
+   * 2026-10-15): the chevron start-anchors the row, hover-revealed and
+   * persistent while collapsed; only the v1 indent-line rail stays
+   * outline-only (prose has no indent line). Threaded down the recursion by
+   * the view that sets it.
    */
-  ignoreCollapse?: boolean | undefined;
+  proseMode?: boolean | undefined;
+  /**
+   * The condensed layer opt-in (owner 2026-10-15): set ONLY by the page
+   * body while its condensed toggle is engaged — every other surface
+   * (embedded feeds, read-only projections, exports, shares) never passes
+   * it and renders full content by construction. Under the layer a
+   * truncatable block renders its excerpt row (stretch via the context's
+   * `stretched` set); prose-less and one-line blocks render the ordinary
+   * row. Threaded down the recursion by the view that sets it.
+   */
+  condensed?: boolean | undefined;
   /**
    * Table-row projection: set by the table container's grid branch
    * on each of its row children. The row root becomes a CSS-subgrid row and
@@ -146,7 +181,7 @@ interface BlockRowProps {
   hideBacklinks?: boolean | undefined;
 }
 
-export function BlockRow({ tree, client, resolveName, readOnly = false, readOnlyInert = false, suppressWidgets = false, ignoreCollapse = false, tableRow = false, variant = "block", hideBacklinks = false }: BlockRowProps) {
+export function BlockRow({ tree, client, resolveName, readOnly = false, readOnlyInert = false, suppressWidgets = false, proseMode = false, tableRow = false, variant = "block", hideBacklinks = false, condensed = false }: BlockRowProps) {
   const [gripMenu, setGripMenu] = useState<{ x: number; y: number } | null>(null);
   const { node, children } = tree;
   const isTitle = variant === "title";
@@ -159,6 +194,8 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
     acknowledgeFocus,
     collapsed,
     toggleCollapse,
+    stretched,
+    toggleStretched,
     selectionEnabled,
     selection,
     selectionAnchor,
@@ -184,7 +221,11 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
   // row-end's count branch all stay out.
   const backlinkCount = hideBacklinks ? 0 : client.getBacklinkCount(node.id);
   const [backlinksExpanded, setBacklinksExpanded] = useState(false);
-  const isCollapsed = !ignoreCollapse && collapsed.has(node.id);
+  const isCollapsed = collapsed.has(node.id);
+  // The links-badge popup (condensed layer): position-free state — the
+  // popup unmounts with the excerpt chrome when the row stretches.
+  const [linksPopupOpen, setLinksPopupOpen] = useState(false);
+  const linksBadgeRef = useRef<HTMLButtonElement | null>(null);
   // Sortable within this row's sibling group; the bullet/chevron area is the
   // drag handle (whole-row drag would fight text editing). A small activation
   // distance keeps plain clicks untouched. The title row is never sortable
@@ -335,7 +376,8 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
               client={client}
               resolveName={resolveName}
               readOnly={readOnly}
-              ignoreCollapse={ignoreCollapse}
+              proseMode={proseMode}
+              condensed={condensed}
               suppressWidgets={suppressWidgets}
               hideBacklinks={hideBacklinks}
             />
@@ -529,9 +571,43 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
     />
   );
 
+  // --- the condensed layer (owner 2026-10-15) --------------------------------
+  // The excerpt re-derives at render (names-are-projections at block level):
+  // an edit updates every resting block for free. The derivation rides the
+  // prose coordinate system — `cutOffset` classifies each mention token as
+  // visible (span start before the cut) or hidden (start at/after it) with
+  // no second flatten grammar. Prose-less blocks (an excerpt of "") and
+  // one-line blocks (!truncated) are their own row: they never condense.
+  const excerpt = condensed ? excerptOf(node.contentAst, (classId) => outlinerClient.getDisplayName(classId)) : null;
+  const stretchedFull = condensed && stretched.has(node.id);
+  const excerpted =
+    condensed && !editing && excerpt !== null && excerpt.text !== "" && excerpt.truncated && !stretchedFull;
+  // A hidden link is a MENTION past the cut (typed links are targetless —
+  // the badge never implies a link the graph can't resolve; class chips are
+  // render-only by decree).
+  const hiddenLinks =
+    excerpted && excerpt !== null
+      ? hiddenLinksOf(node.contentAst, excerpt.cutOffset, (classId) => outlinerClient.getDisplayName(classId) ?? "")
+      : [];
+  // A mixed block (sentence + inline image) names its prose-less payload in
+  // the excerpt row — nothing silently hidden.
+  const mediaCount = (() => {
+    let count = 0;
+    const walk = (stream: readonly unknown[]): void => {
+      for (const token of stream) {
+        if (typeof token !== "object" || token === null) continue;
+        const t = token as { type?: unknown; children?: unknown };
+        if (t.type === "asset_ref" || t.type === "embed_ref") count += 1;
+        else if ((t.type === "quote" || t.type === "heading") && Array.isArray(t.children)) walk(t.children);
+      }
+    };
+    walk(node.contentAst);
+    return count;
+  })();
+
   // Title projection: the page header's editable title — bullet-less and
-  // chrome-less by definition, only the content column renders. The
-  // heading role keeps the page-title landmark; the wrapper class is
+  // chrome-less by definition, only the content column renders. The heading
+  // role keeps the page-title landmark; the wrapper class is
   // title-specific (NOT .nt-block-content) so body-row selectors never
   // match the header row. All hooks ran above, so the early return is safe.
   if (isTitle) {
@@ -562,7 +638,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
 
   return (
     <div
-      className={`nt-block${readOnly ? " nt-block--readonly" : ""}${readOnly && readOnlyInert ? " nt-block--inert" : ""}${editing ? " nt-block--editing" : ""}${dropClass}${selectedClass}${dragSourceClass}`}
+      className={`nt-block${readOnly ? " nt-block--readonly" : ""}${readOnly && readOnlyInert ? " nt-block--inert" : ""}${editing ? " nt-block--editing" : ""}${isCollapsed && children.length > 0 ? " nt-block--collapsed" : ""}${dropClass}${selectedClass}${dragSourceClass}`}
       ref={(el) => {
         blockRef.current = el;
         setNodeRef(el);
@@ -582,7 +658,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
             setGripMenu({ x: event.clientX, y: event.clientY });
           }}
         >
-          {children.length > 0 && !ignoreCollapse && (
+          {children.length > 0 && (
             <button
               type="button"
               className="nt-block-chevron"
@@ -669,9 +745,75 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
             ))}
           </span>
         )}
-        <div className="nt-block-content" onClick={enterEdit}>
+        {/* The condensed row is chrome, not the editable (owner ruling): one
+            click anywhere on the excerpt stretches the block in place — the
+            click-to-edit contract resumes on the stretched (ordinary) row,
+            so the second click enters edit. The trailing "…" and links badge
+            are the explicit affordances, revealed with the row. */}
+        <div
+          className={`nt-block-content${excerpted ? " nt-block-content--excerpt" : ""}`}
+          onClick={excerpted ? undefined : enterEdit}
+        >
           {editing ? (
             <BlockTextEditor node={node} caret={caret} onExitEdit={() => setEditing(false)} />
+          ) : excerpted && excerpt !== null ? (
+            <>
+              <span
+                className="nt-block-excerpt"
+                title="Show full content"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  toggleStretched(node.id);
+                }}
+              >
+                {excerpt.text}
+              </span>
+              {mediaCount > 0 && (
+                <span className="nt-block-excerpt__media" title="Contains media">
+                  ⊞ image
+                </span>
+              )}
+              <span className="nt-block-excerpt__chrome">
+                {hiddenLinks.length > 0 && (
+                  <button
+                    type="button"
+                    ref={linksBadgeRef}
+                    className="nt-block-links-badge"
+                    aria-label={`${hiddenLinks.length} hidden links`}
+                    aria-expanded={linksPopupOpen}
+                    title={`${hiddenLinks.length} hidden links`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setLinksPopupOpen((open) => !open);
+                    }}
+                  >
+                    <Icon path="mdi-link-variant" size={0.7} />
+                    <Badge size="xs">{hiddenLinks.length}</Badge>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="nt-block-excerpt__stretch"
+                  aria-label="Show full content"
+                  title="Show full content"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toggleStretched(node.id);
+                  }}
+                >
+                  <Icon path="mdi-dots-horizontal" size={0.8} />
+                </button>
+                {linksPopupOpen && (
+                  <CondensedLinksPopup
+                    client={client}
+                    links={hiddenLinks}
+                    anchorRef={linksBadgeRef}
+                    onOpenNode={openNode}
+                    onClose={() => setLinksPopupOpen(false)}
+                  />
+                )}
+              </span>
+            </>
           ) : (
             tokens
           )}
@@ -706,6 +848,26 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
               />
             )}
           </div>
+        )}
+        {/* The condensed layer's re-condense affordance (owner ruling): the
+            back-arrow sits at the END of the block's OWN content row, before
+            the children — the reader re-condensing has just finished reading,
+            and the toggle marks the far edge of what is shown. Children are
+            the collapse chevron's concern; the stretch toggle owns the
+            block's own prose. Quiet and hover-revealed like the "…". */}
+        {condensed && stretchedFull && !editing && (
+          <button
+            type="button"
+            className="nt-block-condense"
+            title="Condense"
+            aria-label="Condense block"
+            onClick={(event) => {
+              event.stopPropagation();
+              toggleStretched(node.id);
+            }}
+          >
+            <Icon path="mdi-arrow-left" size={0.8} />
+          </button>
         )}
       </div>
       {/* Expanded block backlinks: the linked-references system query scoped
@@ -828,7 +990,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
                     client={client}
                     resolveName={resolveName}
                     readOnly={readOnly}
-                    ignoreCollapse={ignoreCollapse}
+                    proseMode={proseMode}
                     tableRow
                     suppressWidgets={suppressWidgets}
                     hideBacklinks={hideBacklinks}
@@ -850,7 +1012,10 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
                   rail's top extends to the row's bottom edge across the
                   metadata sections (see extendRail), so the line reaches
                   the bullet. */}
-              {!ignoreCollapse && (
+              {/* The indent-line fold gesture stays OUTLINE-ONLY (owner ruling
+                  2026-10-15): prose flattens the indents, so there is no rail
+                  to ride — collapse in prose owns the chevron alone. */}
+              {!proseMode && (
                 <button
                   type="button"
                   className="nt-block-children__rail"
@@ -867,7 +1032,8 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
                   client={client}
                   resolveName={resolveName}
                   readOnly={readOnly}
-                  ignoreCollapse={ignoreCollapse}
+                  proseMode={proseMode}
+                  condensed={condensed}
                   suppressWidgets={suppressWidgets}
                   hideBacklinks={hideBacklinks}
                 />

@@ -200,6 +200,18 @@ export interface OutlinerContextValue {
   collapsed: ReadonlySet<string>;
   toggleCollapse: (blockId: string) => void;
   /**
+   * The condensed layer's stretch state (owner 2026-10-15) — DEVICE-PERSISTED
+   * per page like the folds (`notees.stretched.v1.<rootId>`): ids of blocks
+   * rendered at FULL content while the condensed layer is on (the layer's
+   * default is the one-line excerpt, so the set stores the exceptions).
+   * View state only, never an op; inert ids (deleted blocks) never match a
+   * rendered row and drop on the next rewrite. `clearStretched` is the
+   * condense-all reset.
+   */
+  stretched: ReadonlySet<string>;
+  toggleStretched: (blockId: string) => void;
+  clearStretched: () => void;
+  /**
    * Shift+click "peek" target: opens the node as an independent card in the
    * right sidebar instead of the main view. Defaults to a no-op where the
    * host shell has no right sidebar.
@@ -286,10 +298,20 @@ export interface OutlinerContextValue {
  */
 const COLLAPSE_STORAGE_PREFIX = "notees.collapse.v1.";
 
-function loadCollapsedState(rootId: string): Set<string> {
+/**
+ * Stretch persistence — the condensed layer's (stretchtext) twin of the
+ * collapse set: the ids of blocks stretched to their FULL content while the
+ * layer is on (the default under the layer is excerpted, so the set stores
+ * the exceptions). Same device-local ruling (`notees.stretched.v1.<rootId>`,
+ * never an op), same inert-id semantics (deleted blocks never match a
+ * rendered row; stale ids drop the next time the set is rewritten).
+ */
+const STRETCHED_STORAGE_PREFIX = "notees.stretched.v1.";
+
+function loadIdSet(prefix: string, rootId: string): Set<string> {
   if (typeof localStorage === "undefined") return new Set();
   try {
-    const raw = localStorage.getItem(COLLAPSE_STORAGE_PREFIX + rootId);
+    const raw = localStorage.getItem(prefix + rootId);
     if (raw === null) return new Set();
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return new Set();
@@ -299,13 +321,21 @@ function loadCollapsedState(rootId: string): Set<string> {
   }
 }
 
-function persistCollapsedState(rootId: string, ids: ReadonlySet<string>): void {
+function persistIdSet(prefix: string, rootId: string, ids: ReadonlySet<string>): void {
   if (typeof localStorage === "undefined") return;
   try {
-    localStorage.setItem(COLLAPSE_STORAGE_PREFIX + rootId, JSON.stringify([...ids]));
+    localStorage.setItem(prefix + rootId, JSON.stringify([...ids]));
   } catch {
-    // Storage full / blocked: collapse stays session-local, never loud.
+    // Storage full / blocked: the set stays session-local, never loud.
   }
+}
+
+function loadCollapsedState(rootId: string): Set<string> {
+  return loadIdSet(COLLAPSE_STORAGE_PREFIX, rootId);
+}
+
+function persistCollapsedState(rootId: string, ids: ReadonlySet<string>): void {
+  persistIdSet(COLLAPSE_STORAGE_PREFIX, rootId, ids);
 }
 
 export function useOutlinerValue(
@@ -337,6 +367,30 @@ export function useOutlinerValue(
     },
     [rootId],
   );
+  // The stretched set — the condensed layer's exceptions (blocks rendered
+  // full while the layer is on). Same persistence shape and toggle pattern
+  // as the collapse set; `clearStretched` is the condense-all reset.
+  const [stretchedIds, setStretchedIds] = useState<ReadonlySet<string>>(() =>
+    loadIdSet(STRETCHED_STORAGE_PREFIX, rootId),
+  );
+  const stretchedRef = useRef<ReadonlySet<string>>(stretchedIds);
+  const toggleStretched = useCallback(
+    (blockId: string) => {
+      const next = new Set(stretchedRef.current);
+      if (next.has(blockId)) next.delete(blockId);
+      else next.add(blockId);
+      stretchedRef.current = next;
+      setStretchedIds(next);
+      persistIdSet(STRETCHED_STORAGE_PREFIX, rootId, next);
+    },
+    [rootId],
+  );
+  const clearStretched = useCallback(() => {
+    const next = new Set<string>();
+    stretchedRef.current = next;
+    setStretchedIds(next);
+    persistIdSet(STRETCHED_STORAGE_PREFIX, rootId, next);
+  }, [rootId]);
 
   const [selectedRoots, setSelectedRoots] = useState<ReadonlySet<string>>(() => new Set<string>());
   const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
@@ -510,6 +564,9 @@ export function useOutlinerValue(
     acknowledgeFocus: () => setFocusRequest(null),
     collapsed: collapsedIds,
     toggleCollapse,
+    stretched: stretchedIds,
+    toggleStretched,
+    clearStretched,
     capture: {
       /**
        * `@` mention candidates, by DISPLAY NAME (SCHEMA.md derivation). The

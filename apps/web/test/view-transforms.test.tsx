@@ -1,11 +1,13 @@
 /**
  * View-transform tests: block collapse and prose mode over PageView (jsdom).
  * Both are display-only transforms per SCHEMA.md — collapse is session-local
- * state that hides a subtree from rendering; prose mode ignores collapse
- * (every subtree renders, no chevrons) while flattening bullets/indents.
- * Neither writes to the store. The prose/cards modes ride the per-page
- * device preference (`viewMode.nodeBlocks.<pageId>`) — the switcher moved
- * to the App-level NodeView chrome (owner 2026-10-06), so a directly
+ * state that hides a subtree from rendering; prose mode flattens
+ * bullets/indents and HONORS collapse (owner ruling 2026-10-15: folded
+ * subtrees hide, the chevron start-anchors the row — hover-revealed,
+ * persistent at rest while collapsed — and only the indent-line rail stays
+ * outline-only). Neither writes to the store. The prose/cards modes ride the
+ * per-page device preference (`viewMode.nodeBlocks.<pageId>`) — the switcher
+ * moved to the App-level NodeView chrome (owner 2026-10-06), so a directly
  * rendered PageView hosts no header switcher to click.
  */
 
@@ -224,7 +226,7 @@ describe("block collapse", () => {
 });
 
 describe("prose mode", () => {
-  it("mounts no collapse chevrons", async () => {
+  it("honors collapse: the chevron start-anchors the row and the folded subtree hides", async () => {
     const client = await seedClient();
     const pageId = await seedTreePage(client);
     // The NodeView switcher's seam: the per-page device preference.
@@ -232,11 +234,14 @@ describe("prose mode", () => {
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     expect(blockTreeEl(container).classList.contains("nt-prose")).toBe(true);
-    expect(container.querySelectorAll(".nt-block-chevron").length).toBe(0);
-    expect(screen.queryByRole("button", { name: /collapse block|expand block/i })).toBeNull();
+    // The two parents get a chevron exactly as in outline (owner ruling
+    // 2026-10-15 — collapse is honored, not ignored).
+    expect(container.querySelectorAll(".nt-block-chevron").length).toBe(2);
+    // The indent-line rail stays outline-only: prose flattens the indents.
+    expect(container.querySelector(".nt-block-children__rail")).toBeNull();
   });
 
-  it("ignores collapse state — collapsed subtrees still render, and outline restores them hidden", async () => {
+  it("reads the same collapse set — prose hides the fold, outline round-trips nothing lost", async () => {
     const client = await seedClient();
     const pageId = await seedTreePage(client);
     const { container } = render(<PageView client={client} pageId={pageId} />);
@@ -247,14 +252,20 @@ describe("prose mode", () => {
     // Prose: the device preference re-renders the page in place.
     act(() => writeViewModePref(`nodeBlocks.${pageId}`, "prose"));
 
-    // Ignored, not cleared: the hidden subtree renders in prose mode.
+    // Honored, not ignored: the hidden subtree stays hidden in prose, and
+    // the persistent chevron is the collapsed indicator.
+    expect(treeQueryByText(container, "nested child")).toBeNull();
+    expect(treeByText(container, "parent")).not.toBeNull();
+    const expand = screen.getByRole("button", { name: "Expand block" });
+    expect(expand.closest(".nt-block")?.classList.contains("nt-block--collapsed")).toBe(true);
+
+    // Clicking the prose chevron unfolds, exactly as in outline.
+    fireEvent.click(expand);
     expect(treeByText(container, "nested child")).not.toBeNull();
-    expect(treeByText(container, "grandchild")).not.toBeNull();
-    expect(screen.queryByRole("button", { name: /collapse block|expand block/i })).toBeNull();
 
+    // Fold it again, then flip back to outline: the session set is intact.
+    fireEvent.click(screen.getAllByRole("button", { name: "Collapse block" })[0]!);
     act(() => writeViewModePref(`nodeBlocks.${pageId}`, "outline"));
-
-    // The session collapse set is intact: the subtree is hidden again.
     expect(treeQueryByText(container, "nested child")).toBeNull();
     expect(screen.getByRole("button", { name: "Expand block" })).not.toBeNull();
   });
