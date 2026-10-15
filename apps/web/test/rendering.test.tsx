@@ -5,7 +5,7 @@
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import initSqlJs, { type SqlJsStatic } from "sql.js";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, fireEvent, act } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import type { ContentAst } from "@notees/protocol";
@@ -157,5 +157,47 @@ describe("PageView rendering", () => {
     // and none of the chip chrome.
     expect(link.classList.contains("nt-hyperlink")).toBe(true);
     expect(link.classList.contains("nt-chip")).toBe(false);
+  });
+
+  it("an inline class link whose class is NOT assigned renders pending; clicking assigns", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Divergence" });
+    const classId = await client.createClass("correo");
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "class_link", classId }],
+    });
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const tree = container.querySelector(".nt-block-tree") as HTMLElement;
+
+    // The divergence is LEGAL (undo interleavings, imports, external writers)
+    // and VISIBLE: dashed pending underline, assign tooltip.
+    const link = within(tree).getByText("correo");
+    expect(link.className).toContain("nt-link--class-pending");
+    expect(link.getAttribute("title")).toContain("not assigned");
+
+    // One click assigns — the marker becomes live (the pill stays hidden:
+    // the content references the class).
+    fireEvent.click(link);
+    await act(async () => {});
+    expect(client.getNode(blockId)?.classIds).toEqual([classId]);
+  });
+
+  it("an inline class link whose class IS assigned renders live (solid)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Converged" });
+    const classId = await client.createClass("correo");
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "class_link", classId }],
+    });
+    await client.assignClass(blockId, classId);
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const tree = container.querySelector(".nt-block-tree") as HTMLElement;
+    const link = within(tree).getByText("correo");
+    expect(link.className).toContain("nt-link--class");
+    expect(link.className).not.toContain("nt-link--class-pending");
   });
 });

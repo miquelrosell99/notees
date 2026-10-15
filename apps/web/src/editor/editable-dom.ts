@@ -148,6 +148,7 @@ export function buildEditableDom(
   ast: readonly unknown[],
   resolveClassName?: ClassNameResolver,
   resolveClassColor?: ClassColorResolver,
+  resolveClassAssigned?: (classId: string) => boolean,
 ): void {
   el.replaceChildren();
   let offset = 0;
@@ -178,8 +179,9 @@ export function buildEditableDom(
         case "class_link": {
           const label = chipText(t, resolveClassName);
           if (label === "") break; // unresolvable and unlabeled: nothing renders
+          const assigned = typeof t.classId === "string" ? (resolveClassAssigned?.(t.classId) ?? true) : true;
           const pill = document.createElement("span");
-          pill.className = `${ATOM_CLASS} ${CHIP_CLASS}`;
+          pill.className = `${ATOM_CLASS} ${CHIP_CLASS}${assigned ? "" : " nt-atom--chip-pending"}`;
           pill.contentEditable = "false";
           pill.spellcheck = false;
           pill.textContent = label;
