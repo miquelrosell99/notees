@@ -266,7 +266,7 @@ export function Modal({
         className={`modal modal--${size} ${isSheet ? 'modal--sheet' : ''} ${className}`}
         elevation="high"
         padding={false}
-        radius={isSheet ? 'none' : 'md'}
+        radius={isSheet ? 'none' : 'xl'}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

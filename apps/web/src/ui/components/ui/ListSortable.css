@@ -43,6 +43,10 @@
   background: var(--md-sys-color-hover-overlay);
 }
 
+.list-sortable__item:active {
+  background: var(--md-sys-color-pressed-overlay);
+}
+
 .list-sortable__item:focus-visible {
   outline: var(--border-width-thick) solid var(--md-sys-color-primary);
   outline-offset: calc(var(--spacing-micro) * -1);

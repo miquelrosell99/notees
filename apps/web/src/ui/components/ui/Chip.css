@@ -12,6 +12,7 @@
   background: transparent;
   color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-xs);
+  font-weight: 600;
   line-height: 1;
   cursor: pointer;
   user-select: none;
@@ -22,14 +23,25 @@
   background: var(--md-sys-color-surface-variant);
 }
 
+.chip:active {
+  background: var(--md-sys-color-pressed-overlay);
+}
+
 .chip--on {
   background: var(--md-sys-color-primary-container);
   color: var(--md-sys-color-on-primary-container);
   border-color: transparent;
 }
 
+/* Selected-hover and selected-pressed take a state-layer step toward the
+   on-container ink so the selected chip reads distinct from its rest and
+   hover states (the two used to be identical). */
 .chip--on:hover {
-  background: var(--md-sys-color-primary-container);
+  background: color-mix(in srgb, var(--md-sys-color-on-primary-container) 8%, var(--md-sys-color-primary-container));
+}
+
+.chip--on:active {
+  background: color-mix(in srgb, var(--md-sys-color-on-primary-container) 12%, var(--md-sys-color-primary-container));
 }
 
 .chip__icon {
