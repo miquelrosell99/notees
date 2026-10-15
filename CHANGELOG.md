@@ -9,6 +9,19 @@ predating this file.
 
 ## 2026-10-15
 
+- **feat(web): one add-affordance register — the page-header add actions join
+  the dashed AddPill (owner ruling 2026-10-15).** "Add icon" / "Add
+  description" / "Add aliases" in the page header were plain ghost Buttons —
+  a second dialect for the same meaning the metadata sections speak with the
+  dashed `AddPill` ("+ Add class" / "+ Add tag" / "+ Add property"). They
+  now compose `AddPill` (dashed hairline + plus + label; the aliases pill
+  keeps its popup anchor ref + `aria-expanded`). The add-affordance audit:
+  every optional field already has exactly one affordance at its locus —
+  cover/banner at the banner's empty-slot Add, classes/tags/properties at
+  their rows, description/aliases/icon at the header — so no new buttons;
+  more header chrome would be noise. Gate: full `pnpm typecheck` + `pnpm
+  test` green.
+
 - **feat(web): flat everywhere — the right rail loses its shadow (owner
   ruling 2026-10-15, re-audit thread).** The nodeview panel layer now speaks
   one register: side/context panels (10-15 audit) + the right rail (this
