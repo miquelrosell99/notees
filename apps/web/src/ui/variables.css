@@ -12,10 +12,12 @@
  * via color-mix in the theme blocks, so there is exactly one source of truth
  * per theme and no parallel color track.
  *
- * Margin Green brand tokens: warm paper light ground (#f7f4ec), warm
- * near-black dark ground (#161412), iron-ink neutrals from the brand scale;
- * the default seed is Advance Green (#2e5e46, night variant #6da789). The
- * canonical brand values live in the brand submodule (brand/assets/tokens/tokens.css).
+ * Margin Green brand tokens: warm paper light ground (#f7f4ec), seed-tinted
+ * graphite dark ground (background = color-mix(primary 6%, #141414) in the
+ * [data-theme="dark"] block — the "night is seed-tinted" override), iron-ink
+ * neutrals from the brand scale; the default seed is Advance Green (#2e5e46,
+ * night variant #6da789). The canonical brand values live in the brand
+ * submodule (brand/assets/tokens/tokens.css).
  */
 
 :root {
@@ -333,6 +335,7 @@
   --shape-extra-large: 12px;
   --shape-card: 20px;
   --shape-layout-card: 12px;
+  --shape-button: 16px;
   --shape-button-small: 12px;
   --shape-sheet: 28px;
   --shape-button-compact: 10px;
@@ -593,14 +596,12 @@
 
   /* ==================== Responsive Breakpoints ==================== */
 
-  /* CSS custom properties cannot be used in media queries, so breakpoints are
-     hardcoded across the codebase. Keep these tokens in sync with the px values
-     in: features/layout/components/TopBar.css, features/layout/components/Layout.css,
-     features/layout/components/MobileLayout.css, features/content/pages/NodeView.css. */
-  --breakpoint-mobile: 480px;
+  /* CSS custom properties cannot be used in media queries, so breakpoint
+     values are hardcoded at each @media site (480 / 768 / 1024). This token
+     is the single JS-read value — overlay positioning in
+     components/ui/overlay-hooks.ts — and must stay in sync with the 768px
+     media queries. */
   --breakpoint-tablet: 768px;
-  --breakpoint-desktop: 1024px;
-  --breakpoint-wide: 1440px;
 
   /* === Functional tokens === */
 

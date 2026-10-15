@@ -102,6 +102,20 @@ function inSpans(index: number, spans: Array<[number, number]>): boolean {
 
 const COLOR_LITERAL = /#[0-9a-fA-F]{3,8}\b|\brgba?\(/g;
 
+/**
+ * font-size in em is reserved for the sanctioned adaptive pattern — sizes
+ * that must track the parent's type metrics (a heading scale source, inline
+ * code that can sit inside a heading, slide-density multipliers). Every
+ * other font-size rides the rem-based --font-size-* scale; px is banned by
+ * test 3 and unlisted em by test 6. Each entry: [selector, file, reason].
+ */
+const EM_FONT_SIZE_ALLOWLIST: Array<[string, string, string]> = [
+  [".nt-heading", "app.css", "heading scale source — the block content sizes relative to it"],
+  ["code", "app.css", "inline code tracks the surrounding content size (headings included)"],
+  [".nt-deck-slide--sparse .nt-deck-body", "deck.css", "slide density multiplier (P4)"],
+  [".nt-deck-slide--dense .nt-deck-body", "deck.css", "slide density multiplier (P4)"],
+];
+
 describe("css token drift gate", () => {
   const cssFiles = walkCssFiles(UI_DIR);
 
@@ -193,6 +207,43 @@ describe("css token drift gate", () => {
           `${path.relative(UI_DIR, file)} has a color literal inside a var() fallback: ${line.trim()}`,
         );
       }
+    }
+  });
+
+  it("6. no em font-size outside the defining files except allowlisted adaptive sites", () => {
+    // Collect every rule that sets an em font-size: one entry per selector
+    // in the rule's selector list. Nested (media) preludes are stripped so
+    // the selector compares clean.
+    const emRules: Array<{ selector: string; file: string }> = [];
+    for (const file of cssFiles) {
+      if (DEFINING_FILES.has(path.basename(file))) continue;
+      const css = stripComments(fs.readFileSync(file, "utf8"));
+      for (const match of css.matchAll(/font-size\s*:\s*[0-9.]+em\b/g)) {
+        const afterLastClose = css.lastIndexOf("}", match.index!) + 1;
+        const between = css.slice(afterLastClose, match.index!);
+        const openBrace = between.lastIndexOf("{");
+        let selPart = openBrace === -1 ? between : between.slice(0, openBrace);
+        const mediaCut = selPart.lastIndexOf("{");
+        if (mediaCut !== -1) selPart = selPart.slice(mediaCut + 1);
+        for (const selector of selPart.split(",").map((s) => s.trim()).filter(Boolean)) {
+          emRules.push({ selector, file: path.basename(file) });
+        }
+      }
+    }
+    const allowed = new Set(EM_FONT_SIZE_ALLOWLIST.map(([sel, file]) => `${file}::${sel}`));
+    for (const rule of emRules) {
+      if (allowed.has(`${rule.file}::${rule.selector}`)) continue;
+      expect.fail(
+        `${rule.file} sets font-size in em on "${rule.selector}" — use the --font-size-* scale, or add an adaptive entry to EM_FONT_SIZE_ALLOWLIST with a reason`,
+      );
+    }
+    // Rot check: every allowlisted site must still declare an em font-size.
+    const declared = new Set(emRules.map((r) => `${r.file}::${r.selector}`));
+    for (const [sel, file, reason] of EM_FONT_SIZE_ALLOWLIST) {
+      expect(
+        declared.has(`${file}::${sel}`),
+        `EM_FONT_SIZE_ALLOWLIST entry ${sel} (${file}) no longer uses em — remove it (${reason})`,
+      ).toBe(true);
     }
   });
 });

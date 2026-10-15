@@ -24,6 +24,7 @@ import { LoadingSkeleton } from './LoadingSkeleton.js';
 import { EmptyState } from './EmptyState.js';
 import { Button } from './Button.js';
 import { Icon } from '../../Icon.js';
+import { useDelayedVisible } from './useDelayedVisible.js';
 import './DataStateView.css';
 
 export interface DataStateViewProps {
@@ -73,7 +74,11 @@ export function DataStateView({
   className = '',
   children,
 }: DataStateViewProps) {
+  // The loading-timing rule: a fetch that resolves in <300ms shows nothing,
+  // never a skeleton flash (useDelayedVisible gates the shimmer on).
+  const showSkeleton = useDelayedVisible(isLoading);
   if (isLoading) {
+    if (!showSkeleton) return null;
     return (
       <div className={`data-state-view data-state-view--loading ${className}`} aria-busy="true">
         <LoadingSkeleton rows={skeletonRows} showHeading={skeletonShowHeading} />
