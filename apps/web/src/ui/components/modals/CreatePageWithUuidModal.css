@@ -40,7 +40,7 @@
 
 .create-uuid-modal__input--mono {
   font-family: var(--font-mono);
-  font-size: 0.85em;
+  font-size: var(--font-size-button);
   flex: 1;
 }
 

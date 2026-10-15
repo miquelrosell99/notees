@@ -155,7 +155,7 @@
   color: var(--md-sys-color-on-surface);
 }
 
-  @media (max-width: 768px) {
+  @media (width <= 768px) {
   .nt-topbar-search-hint {
     display: none;
   }
@@ -172,7 +172,8 @@
 }
 
 /* Sync dot — the indicator is a button once the client is live:
-   plain button chrome, same disc states. */
+   plain button chrome, same disc states. The visible box stays a 21px
+   square; the ::after overlay gives the control the 44px hit-area floor. */
 .nt-sync-dot {
   position: relative;
   display: inline-flex;
@@ -183,6 +184,16 @@
   border: none;
   cursor: pointer;
   border-radius: var(--shape-medium);
+}
+
+.nt-sync-dot::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
 }
 
 button.nt-sync-dot:focus-visible {
@@ -222,4 +233,12 @@ button.nt-sync-dot:focus-visible {
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+/* Reduced motion: the sync pulse freezes on its solid state — the status is
+   color-coded, the pulse is decoration. */
+@media (prefers-reduced-motion: reduce) {
+  .nt-sync-dot-syncing .nt-sync-dot-disc {
+    animation: none;
+  }
 }

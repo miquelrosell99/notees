@@ -42,3 +42,14 @@
   background: var(--md-sys-color-surface-container-high);
   color: var(--md-sys-color-on-surface);
 }
+
+/* Touch: the reveal pattern has no hover to expand it — show the button
+   permanently and size the visible control to the 44px hit-area floor
+   (an ::after overlay would clip inside the button's overflow:hidden). */
+@media (hover: none) {
+  .ui-hover-reveal {
+    width: var(--button-min-height);
+    height: var(--button-min-height);
+    opacity: var(--opacity-100);
+  }
+}

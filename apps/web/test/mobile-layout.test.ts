@@ -33,8 +33,8 @@ function responsiveBlock(): string {
 describe("mobile layout (app.css responsive pass)", () => {
   it("keeps the two breakpoint steps", () => {
     const block = responsiveBlock();
-    expect(block).toContain("@media (max-width: 768px)");
-    expect(block).toContain("@media (max-width: 480px)");
+    expect(block).toContain("@media (width <= 768px)");
+    expect(block).toContain("@media (width <= 480px)");
   });
 
   it("adapts the sidebar drawer, touch targets, and the page chrome", () => {

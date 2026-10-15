@@ -10,8 +10,11 @@
   align-items: center;
 }
 
-/* The icon button itself (20px hit target around a ~14px glyph). */
+/* The icon button itself (~14px glyph on a 20px visible box, with the
+   invisible ::after hit-area floor — the control must stay tappable even
+   where the visible box must stay compact). */
 .nt-propicon {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -24,6 +27,22 @@
   color: var(--md-sys-color-on-surface-variant);
   cursor: pointer;
   transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-propicon::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+}
+
+/* The static projection is not interactive — the floor doesn't apply and
+   its overlay must not swallow row clicks. */
+.nt-propicon--static::after {
+  display: none;
 }
 
 .nt-propicon:hover {
