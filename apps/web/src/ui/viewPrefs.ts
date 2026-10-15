@@ -93,6 +93,20 @@ export function useCardLayoutPreference(fallback: CardLayout = "no-cover"): [Car
   return [layout, (next) => setStored(next)];
 }
 
+// --- Condensed layer (the stretchtext view transform) -------------------------
+
+/**
+ * useCondensedPreference — the condensed layer toggle, persisted per page
+ * (`condensed.<pageId>`, the view-modes seam: device-local, never synced,
+ * never an op). The layer is NOT a view mode: it rides over the
+ * outline/prose/cards triad, so it keeps its own key family rather than a
+ * `viewMode.*` entry.
+ */
+export function useCondensedPreference(pageId: string): [boolean, (condensed: boolean) => void] {
+  const [raw, setRaw] = useDeviceSetting<boolean>(`condensed.${pageId}`, false);
+  return [raw === true, setRaw];
+}
+
 // --- Unlinked-reference ignore list (L4) ---------------------------------------
 
 const ignoredCache = new Map<string, string[]>();
