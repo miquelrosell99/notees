@@ -24,17 +24,25 @@
  * hidden); the v1 indent-line rail stays outline-only (prose has no indent
  * line — indents are flattened by definition).
  *
- * The condensed layer (owner 2026-10-15, the opt-in `condensed` prop — only
- * the page body sets it): a truncatable block renders its one-line excerpt
- * (`excerptOf`, the prose-flatten derivation) instead of its full content,
- * with trailing chrome — the "…" stretch toggle and the hidden-links badge
- * — revealed with the row. One click anywhere on the excerpt stretches the
- * block in place; the stretched row is the ordinary row plus a back-arrow
- * at the END of the block's own content row (before the children — the
- * stretch toggle owns the block's own prose, the collapse chevron owns the
- * subtree). Prose-less, untruncated, and editing blocks render the ordinary
- * full row — a one-line block is its own excerpt and no caret can ever sit
- * inside a derived projection. Stretch state rides the OutlinerContext
+ * The condensed layer (owner 2026-10-15, refined same day after owner
+ * feedback — the opt-in `condensed` prop, page body only): a truncatable
+ * block renders its one-line excerpt (`excerptOf`, the prose-flatten
+ * derivation) instead of its full content, with a PERMANENT muted "…"
+ * stretchtext mark after the text and trailing chrome — the pin button and
+ * the hidden-links badge — visible at rest (owner ruling: visibility over
+ * resting-row minimalism for these controls). The interaction contract:
+ * CLICKING THE ROW ENTERS EDIT on the block's full content (the standard
+ * outline click-to-edit — the excerpt is display chrome, the editor always
+ * edits the real content); BLUR RE-CONDENSES the row again. The pin button
+ * (and only it) adds the block to the context's `stretched` set: a pinned
+ * row renders full content in read mode with the back-arrow at the END of
+ * the block's own content row (before the children — the stretch toggle
+ * owns the block's own prose, the collapse chevron owns the subtree), and
+ * the set becomes purely the button-pinned set — editing never pins, blur
+ * never unpins; only the back-arrow / condense-all unpins. Prose-less and
+ * untruncated rows never condense — a one-line block is its own excerpt;
+ * no caret can ever sit inside a derived projection (the excerpt row swaps
+ * in the full editor). Stretch state rides the OutlinerContext
  * (`stretched`, device-persisted like the folds); collapse and stretch stay
  * orthogonal and compose on the same row.
  *
@@ -745,34 +753,33 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
             ))}
           </span>
         )}
-        {/* The condensed row is chrome, not the editable (owner ruling): one
-            click anywhere on the excerpt stretches the block in place — the
-            click-to-edit contract resumes on the stretched (ordinary) row,
-            so the second click enters edit. The trailing "…" and links badge
-            are the explicit affordances, revealed with the row. */}
-        <div
-          className={`nt-block-content${excerpted ? " nt-block-content--excerpt" : ""}`}
-          onClick={excerpted ? undefined : enterEdit}
-        >
+        {/* The condensed row stays EDITABLE (owner refinement 2026-10-15):
+            clicking anywhere on it enters edit on the block's FULL content —
+            the excerpt is display chrome and the editor always edits the
+            real content (no data-path change). Blur re-condenses the row;
+            the pin button is the only way into the pinned read-mode row. */}
+        <div className="nt-block-content" onClick={enterEdit}>
           {editing ? (
             <BlockTextEditor node={node} caret={caret} onExitEdit={() => setEditing(false)} />
           ) : excerpted && excerpt !== null ? (
             <>
-              <span
-                className="nt-block-excerpt"
-                title="Show full content"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  toggleStretched(node.id);
-                }}
-              >
-                {excerpt.text}
+              <span className="nt-block-excerpt">{excerpt.text}</span>
+              {/* The classic stretchtext mark — permanent, muted, always
+                  visible at rest (owner ruling: the resting row names its
+                  own truncation). Decorative: the pin button carries the
+                  accessible affordance. */}
+              <span className="nt-block-excerpt__ellipsis" aria-hidden="true">
+                …
               </span>
               {mediaCount > 0 && (
                 <span className="nt-block-excerpt__media" title="Contains media">
                   ⊞ image
                 </span>
               )}
+              {/* Visible at rest (owner ruling: visibility over resting-row
+                  minimalism for these controls) — the pin button stops the
+                  click so it pins instead of editing; the links badge opens
+                  the hidden-targets popup. */}
               <span className="nt-block-excerpt__chrome">
                 {hiddenLinks.length > 0 && (
                   <button
@@ -801,7 +808,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
                     toggleStretched(node.id);
                   }}
                 >
-                  <Icon path="mdi-dots-horizontal" size={0.8} />
+                  <Icon path="mdi-unfold-more-horizontal" size={0.8} />
                 </button>
                 {linksPopupOpen && (
                   <CondensedLinksPopup

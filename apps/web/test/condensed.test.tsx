@@ -143,7 +143,7 @@ describe("hiddenLinksOf", () => {
 });
 
 describe("condensed layer over PageView", () => {
-  it("renders the excerpt, stretches on click, re-condenses via the back-arrow", async () => {
+  it("renders the excerpt with a permanent … mark and always-visible chrome; click enters edit, blur re-condenses", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ presentAsMain: true, name: "Condensed" });
     await client.createObject({
@@ -156,22 +156,65 @@ describe("condensed layer over PageView", () => {
     const tree = container.querySelector(".nt-block-tree") as HTMLElement;
     expect(tree).not.toBeNull();
 
-    // The excerpt is the head of the prose; the tail is not rendered.
+    // The excerpt is the head of the prose; the tail is not rendered. The
+    // stretchtext mark and the pin button are visible at rest (owner
+    // ruling — no hover-reveal gating).
     const excerpt = excerptOf([{ type: "text", text: LONG }]);
     expect(within(tree).getByText(excerpt.text)).not.toBeNull();
     expect(within(tree).queryByText(LONG)).toBeNull();
-    // A block that fits one line is its own excerpt: the second seeded
-    // block below asserts the untruncated branch by absence of chrome on
-    // one-line rows in the badge specs.
+    expect(tree.querySelector(".nt-block-excerpt__ellipsis")).not.toBeNull();
+    expect(within(tree).getByRole("button", { name: "Show full content" })).not.toBeNull();
 
-    // One click anywhere on the excerpt stretches the block in place.
+    // Click anywhere on the row → EDIT mode on the full content (the
+    // standard click-to-edit contract; the excerpt is display chrome).
     fireEvent.click(within(tree).getByText(excerpt.text));
+    const editor = tree.querySelector(".nt-block-text") as HTMLElement;
+    expect(editor).not.toBeNull();
+    // Editing never pins: the stretched set stays empty…
+    expect(localStorage.getItem(`notees.stretched.v1.${pageId}`)).toBeNull();
+
+    // Blur → the row renders condensed again (blur never pins either).
+    fireEvent.blur(editor);
+    expect(tree.querySelector(".nt-block-text")).toBeNull();
+    expect(within(tree).getByText(excerpt.text)).not.toBeNull();
+    expect(within(tree).queryByText(LONG)).toBeNull();
+  });
+
+  it("the pin button stretches in place; the pin survives edit cycles; the back-arrow unpins", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ presentAsMain: true, name: "Pinned" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: LONG }],
+    });
+    writeDeviceSetting(`condensed.${pageId}`, true);
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const tree = container.querySelector(".nt-block-tree") as HTMLElement;
+    const excerpt = excerptOf([{ type: "text", text: LONG }]);
+
+    // The pin button (not the row click) is the only way into the pinned
+    // read-mode row.
+    fireEvent.click(within(tree).getByRole("button", { name: "Show full content" }));
+    expect(within(tree).getByText(LONG)).not.toBeNull();
+    expect(tree.querySelector(".nt-block-text")).toBeNull();
+    expect(JSON.parse(localStorage.getItem(`notees.stretched.v1.${pageId}`) ?? "[]")).toEqual([
+      expect.any(String),
+    ]);
+
+    // A pinned row clicks into edit like any block; blur returns it to
+    // PINNED read (still stretched — blur never unpins).
+    fireEvent.click(within(tree).getByText(LONG));
+    const editor = tree.querySelector(".nt-block-text") as HTMLElement;
+    expect(editor).not.toBeNull();
+    fireEvent.blur(editor);
     expect(within(tree).getByText(LONG)).not.toBeNull();
 
-    // The back-arrow re-condenses (owner ruling: it sits at the row's end).
+    // The back-arrow unpins: the excerpt returns.
     fireEvent.click(within(tree).getByRole("button", { name: "Condense block" }));
     expect(within(tree).queryByText(LONG)).toBeNull();
     expect(within(tree).getByText(excerpt.text)).not.toBeNull();
+    expect(localStorage.getItem(`notees.stretched.v1.${pageId}`)).toBe("[]");
   });
 
   it("one-line blocks render the ordinary row — no toggle", async () => {
