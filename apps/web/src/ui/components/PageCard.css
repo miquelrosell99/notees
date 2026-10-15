@@ -85,12 +85,14 @@
 
 /* Right sidebar: the cards-only rail — workspace cards (the
    generic frame around NodeView). FIXED HEIGHT by design (owner
-   2026-10-14): the rail wears the raised-card panel treatment (the
-   placeholder's precedent — background, hairline, radius, shadow) and
-   stretches the full body height regardless of how many cards it holds;
-   it scrolls internally when the cards outgrow it. The visible sidebar
-   surface no longer shrinks to fit the cards. The top margin matches the
-   main content card's (both sit below the top bar). */
+   2026-10-14): the rail stretches the full body height regardless of how
+   many cards it holds; it scrolls internally when the cards outgrow it.
+   The visible sidebar surface no longer shrinks to fit the cards. The top
+   margin matches the main content card's (both sit below the top bar).
+   Flat by ruling (owner 2026-10-15, re-audit thread): static panels carry
+   surface-step + hairline only, no elevation — matching the nodeview
+   side/context panels; only the main content card keeps its lift (it is
+   the card-on-backdrop surface, not a panel). */
 .nt-right-card {
   width: 340px;
   flex-shrink: 0;
@@ -105,7 +107,6 @@
   background: var(--md-sys-color-sidebar-card);
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-card);
-  box-shadow: var(--shadow-elevation-1);
 }
 
 /* The rail's management bar (owner 2026-10-14): the "Clear all" affordance

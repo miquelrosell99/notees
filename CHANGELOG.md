@@ -9,6 +9,17 @@ predating this file.
 
 ## 2026-10-15
 
+- **feat(web): flat everywhere — the right rail loses its shadow (owner
+  ruling 2026-10-15, re-audit thread).** The nodeview panel layer now speaks
+  one register: side/context panels (10-15 audit) + the right rail (this
+  slice) carry surface-step + hairline only; elevation remains on transient
+  layers (popups, menus, drag ghosts, hover toolbars) and on the main
+  content card alone — its lift is the sanctioned card-on-backdrop surface
+  (owner file-header ruling), not a panel. Rationale recorded in-code:
+  shadows are near-invisible on the dark-first tinted ground, the zero-noise
+  rule forbids static-card elevation, and this removes a deviation instead
+  of registering a new one. Gate: full `pnpm typecheck` + `pnpm test` green.
+
 - **feat(web): the unswept surfaces get their pass — palette/search, calendar
   grids, activity/comments, boot screens — with two density exceptions
   registered.** Three sweeps covered the surfaces the re-audit left open;
