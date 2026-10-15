@@ -759,7 +759,27 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
             the excerpt is display chrome and the editor always edits the
             real content (no data-path change). Blur re-condenses the row;
             the pin button is the only way into the pinned read-mode row. */}
-        <div className="nt-block-content" onClick={enterEdit}>
+        {/* The text owns the bullet's context menu: right-click anywhere on
+            the block's prose opens the node menu (owner 2026-10-15). While
+            editing the session keeps its own menu (mention pills, typed
+            links, browser menu on plain text) — the guard returns before
+            preventDefault so that flow is untouched. An inner element that
+            already claimed the menu (the mention pill preventDefaults on
+            its own onContextMenu) wins through defaultPrevented. Read-only
+            mirrors the grip: the native menu is suppressed, nothing
+            opens. */}
+        <div
+          className="nt-block-content"
+          onClick={enterEdit}
+          onContextMenu={(event) => {
+            if (editing) return;
+            if (event.defaultPrevented) return;
+            event.preventDefault();
+            event.stopPropagation();
+            if (readOnly) return;
+            setGripMenu({ x: event.clientX, y: event.clientY });
+          }}
+        >
           {editing ? (
             <BlockTextEditor node={node} caret={caret} onExitEdit={() => setEditing(false)} />
           ) : excerpted && excerpt !== null ? (
