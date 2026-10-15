@@ -29,7 +29,7 @@
   align-items: flex-start;
   gap: var(--spacing-2);
   padding: var(--spacing-3);
-  border-radius: var(--shape-medium);
+  border-radius: var(--shape-floating-panel);
   background: var(--md-sys-color-surface);
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 
@@ -109,7 +109,7 @@
 }
 
 .notification-toast__title {
-  font-weight: 500;
+  font-weight: 600;
   color: var(--md-sys-color-on-surface);
   font-size: var(--font-size-sm);
 }
@@ -125,6 +125,7 @@
 }
 
 .notification-toast__dismiss {
+  position: relative;
   flex-shrink: 0;
   width: var(--icon-size-md);
   height: var(--icon-size-md);
@@ -141,7 +142,23 @@
   transition: opacity var(--motion-duration-shorter) var(--motion-easing-standard);
 }
 
+/* The invisible hit-area floor — the visible box stays compact. */
+.notification-toast__dismiss::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+}
+
 .notification-toast__dismiss:hover {
   opacity: var(--opacity-100);
   background: var(--md-sys-color-hover-overlay);
+}
+
+.notification-toast__dismiss:active {
+  opacity: var(--opacity-100);
+  background: var(--md-sys-color-pressed-overlay);
 }

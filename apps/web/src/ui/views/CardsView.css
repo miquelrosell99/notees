@@ -381,6 +381,10 @@
   font-weight: 600;
   line-height: 1.4;
   color: var(--md-sys-color-on-surface);
+  /* The card-grid recipe: title is a single line with ellipsis. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* The title opens the node (read-only trampoline) — the pointer + the
