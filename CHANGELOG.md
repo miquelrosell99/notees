@@ -126,25 +126,29 @@ predating this file.
   (owner feedback 2026-10-15, same-day refinement of the condensed layer).**
   The owner caught the shipped row's affordance nearly invisible — a tiny
   hover-gated glyph at the line end. Two fixes. (1) **Visibility**: a
-  permanent muted "…" (the classic stretchtext mark) now rides after the
-  excerpt text on every condensed row, and the pin button wears an
-  unambiguous unfold-more icon (`mdi-unfold-more-horizontal` — "more of
-  this block"; deliberately NOT `chevron-down`, which already names the
-  collapse chevron's expanded state in this app) with the hidden-links
-  badge beside it — all visible at rest; the hover-reveal gating is dropped
-  for this chrome (the owner's ruling: visibility over resting-row
-  minimalism for these controls). (2) **The interaction contract**: the
-  excerpt click no longer stretches — clicking a condensed row now enters
-  EDIT on the block's full content (the standard outline click-to-edit; the
-  excerpt is display chrome and the editor always edits the real content,
+  permanent muted "…" (the classic stretchtext mark) rides after the excerpt
+  text on every condensed row, always visible at rest; the pin button and
+  the hidden-links badge sit right after it — revealed with the row on hover
+  AND focus-within (corrected in the same day's third pass: resting rows
+  stay clean, the "…" names the truncation — the always-visible experiment
+  read as noise once the mark existed; `(hover: none)` touch reveals the
+  chrome permanently). The pin button wears a magnify-plus-outline lens
+  (`mdi-magnify-plus-outline` — "zoom into this block"; the launch
+  `unfold-more` read ambiguously, and `chevron-down` was never an option —
+  it already names the collapse chevron's expanded state). (2) **The
+  interaction contract**: the excerpt click no longer stretches — clicking a
+  condensed row now enters EDIT on the block's full content (the standard
+  outline click-to-edit; the excerpt is display chrome and the editor always
+  edits the real content,
   so no data-path change), and blur re-condenses the row. Only the pin
   button adds to `notees.stretched.v1` — the set is purely the
   button-pinned set: editing never pins, blur never unpins; a pinned row
   clicks into edit like any block and returns to pinned read on blur; only
   the back-arrow / condense-all un-pins. Specs: the rewritten + new specs
-  in `apps/web/test/condensed.test.tsx` (permanent mark + always-visible
-  chrome, click-enters-edit, blur re-condenses, pin survives edit cycles,
-  back-arrow un-pins); `docs/ux.md`'s editor entry carries the contract.
+  in `apps/web/test/condensed.test.tsx` (permanent mark, click-enters-edit,
+  blur re-condenses, pin survives edit cycles, back-arrow un-pins — plus a
+  source-level CSS spec pinning the hover/focus-within reveal); `docs/ux.md`'s
+  editor entry carries the contract.
   **Verification:** `pnpm typecheck` + `pnpm test` green; web-only — no
   wire touch.
 - **feat(web): the audit's residual grid/component notes closed — card-grid
@@ -181,7 +185,7 @@ predating this file.
   rules as `fullTitleOf`/`proseFromAst`, one coordinate system), cut at the
   first `hard_break` OR the 80-char dense-chrome budget, returning the cut
   offset so hidden tokens classify without a second grammar — with trailing
-  chrome (visible at rest after the same-day refinement above): the pin
+  chrome (revealed with the row after the same-day refinements above): the pin
   button (launch day: a "…" click-anywhere stretch — refined above to
   click-edits / the button pins; the pinned row is the ordinary row plus a
   back-arrow at the END of the block's own content row, before the children
