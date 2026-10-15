@@ -37,6 +37,7 @@ import { BannerCard, CoverCard } from "./components/PageBanner.js";
 import { PageFooter } from "./components/PageFooter.js";
 import { BlockRow } from "./BlockRow.js";
 import { Icon } from "./Icon.js";
+import { AddPill } from "./components/ui/AddPill.js";
 import { Button } from "./components/ui/Button.js";
 import { TextField } from "./components/ui/TextField.js";
 import { displayNameForSettings, displayNameFromClient } from "./dateDisplay.js";
@@ -269,40 +270,28 @@ export function PageHeaderChrome({
         {chromeActions && showActionsRow && (
           <div className="page-header-actions">
             {headerIcon === null && (
-              <Button
-                variant="ghost"
-                size="sm"
-                icon="mdi mdi-emoticon-outline"
-                onClick={(event) =>
+              <AddPill
+                label="Add icon"
+                onClick={(element) =>
                   setIconPickerAnchor((anchor) =>
-                    anchor === null ? event.currentTarget : null,
+                    anchor === null ? element : null,
                   )
                 }
-              >
-                Add icon
-              </Button>
+              />
             )}
             {description === null && (
-              <Button
-                variant="ghost"
-                size="sm"
-                icon="mdi mdi-text-short"
+              <AddPill
+                label="Add description"
                 onClick={() => setDescriptionEditing(true)}
-              >
-                Add description
-              </Button>
+              />
             )}
             {!hasAliases && (
-              <Button
-                variant="ghost"
-                size="sm"
-                icon="mdi mdi-file-multiple-outline"
+              <AddPill
+                label="Add aliases"
                 ref={aliasButtonRef}
                 aria-expanded={aliasPickerOpen}
                 onClick={() => setAliasPickerOpen(true)}
-              >
-                Add aliases
-              </Button>
+              />
             )}
           </div>
         )}
