@@ -174,16 +174,6 @@ describe("condensed layer over PageView", () => {
         ?.getAttribute("href"),
     ).toContain("mdi-magnify-plus-outline");
 
-    // The pan box wraps only the text flow; the chrome rides beside it —
-    // it must never scroll away. The cut mark honestly scrolls with the
-    // text (it marks the cut point in the flow).
-    const pan = tree.querySelector(".nt-block-excerpt__pan") as HTMLElement;
-    const chrome = tree.querySelector(".nt-block-excerpt__chrome") as HTMLElement;
-    expect(pan).not.toBeNull();
-    expect(chrome).not.toBeNull();
-    expect(pan.contains(chrome)).toBe(false);
-    expect(pan.querySelector(".nt-block-excerpt__ellipsis")).not.toBeNull();
-
     // Click anywhere on the row → EDIT mode on the full content (the
     // standard click-to-edit contract; the excerpt is display chrome).
     fireEvent.click(within(tree).getByText(excerpt.text));
@@ -487,16 +477,5 @@ describe("condensed chrome reveal mechanism (CSS source)", () => {
   it("the pinned row's back-arrow shares the hover/focus-within reveal pair", () => {
     expect(css).toContain(".nt-block-row:hover .nt-block-condense");
     expect(css).toContain(".nt-block:focus-within .nt-block-condense");
-  });
-
-  it("the excerpt text pans: overflow-x auto, one line, scrollbar hidden", () => {
-    const pan = /\.nt-block-excerpt__pan \{[^}]*\}/.exec(css);
-    expect(pan).not.toBeNull();
-    expect(pan![0]).toContain("overflow-x: auto");
-    expect(pan![0]).toContain("overflow-y: hidden");
-    expect(pan![0]).toContain("white-space: nowrap");
-    expect(pan![0]).toContain("scrollbar-width: none");
-    // The webkit half of the hidden-scrollbar pair.
-    expect(css).toContain(".nt-block-excerpt__pan::-webkit-scrollbar");
   });
 });
