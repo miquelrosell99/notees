@@ -476,6 +476,12 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
         return target === undefined ? null : outlinerClient.effectiveNodeColor(target);
       }}
       resolveClassColor={(id) => outlinerClient.effectiveClassColor(id)}
+      resolveClassAssigned={(id) => node.classIds.includes(id)}
+      onAssignClass={(id) => {
+        void outlinerClient.assignClass(node.id, id).catch((error: unknown) => {
+          console.warn(`[block] assignClass (${id}) failed:`, error);
+        });
+      }}
       renderEmbed={
         suppressWidget ??
         widget((id: string, _token: unknown, index: number) => <EmbedView nodeId={id} hostId={node.id} tokenIndex={index} />)
