@@ -6,6 +6,22 @@ the skill's defaults/foundations is recorded here; an undocumented deviation
 is drift, a documented one is a decision. Newest first. Entries bind until the
 rule they override changes, the review trigger fires, or the owner re-rules.
 
+### Calendar and date-grid cells ride the panel width, not the 44px floor
+- **Rule**: audit-checklist §9 — touch targets ≥44×44px on every interactive control.
+- **Decision**: calendar day cells, week-strip cells, and month/year picks size from the grid that contains them (`aspect-ratio: 1` / the strip height), computing ≈36–40px in the fixed 320px side panel — no invisible overlay. The grid is the control: forcing 44px cells would overflow the panel or drop columns.
+- **Rationale**: a date grid's hit geometry is inseparable from its column width; the panel itself is chrome-adjacent (a secondary surface), and each cell carries a full-date `aria-label` + `aria-pressed` for the selected day.
+- **Scope**: calendar grids (calendar-grid, MonthCalendar, WeekStrip) and datepicker cells.
+- **Ruled**: registered 2026-10-15 (unswept-surfaces pass) after the sweep found the density unregistered.
+- **Review trigger**: a touch-usability finding on the calendar, or a layout change that widens the panel.
+
+### The context column rides a dense type register
+- **Rule**: audit-checklist §7 components — list rows primary 14px/600, secondary 12px muted.
+- **Decision**: the narrow context column (Activity log, Version history, Comments, Property history) renders rows at 12px/400 primary with 10px secondary stamps — one step under the list-row spec, by design for the ~340px rail.
+- **Rationale**: the row spec assumes content-width surfaces; these feeds live in the right rail beside the page card, where 14px/600 rows would wrap aggressively and crowd the content they annotate.
+- **Scope**: the context-column feeds only — full-width surfaces keep the 14px/600 register.
+- **Ruled**: registered 2026-10-15 (unswept-surfaces pass).
+- **Review trigger**: the context column widening, or a readability finding against the dense register.
+
 ### Hover is the state-layer overlay everywhere; primary-container is selected/active only
 - **Rule**: audit-checklist §6/§5 — hover feedback per the state-layer idiom; the skill's accent usage table leaves hover unspecified; the pre-ruling codebase mixed three hover fills (`hover-overlay`, `surface-container-high`, `surface-container-high/est`) and used `primary-container` as a hover fill on some rows.
 - **Decision**: every hover background is `--md-sys-color-hover-overlay` (22 stylesheets, owner ruling 2026-10-15); `primary-container` appears only on selected/active chrome (the existing register entry) — never on hover. Controls that are ALREADY active keep their active fill while hovered (combined `--active, --active:hover` rules; the active identity is not washed away). Structural hover that is not a fill (e.g. the support-channel card's border raise) is unaffected.

@@ -9,6 +9,38 @@ predating this file.
 
 ## 2026-10-15
 
+- **feat(web): the unswept surfaces get their pass — palette/search, calendar
+  grids, activity/comments, boot screens — with two density exceptions
+  registered.** Three sweeps covered the surfaces the re-audit left open;
+  findings closed: (1) **CommandPalette** — the orphaned `components/Modal.css`
+  chrome joins the 28px dialog register (was 12px); the active row wears the
+  registered primary-container register (mouse hover drives activeIndex, one
+  state covers both); Escape closes from anywhere inside (focus may have
+  Tabbed onto a row). (2) **SearchField** — the quiet-focus suppression is
+  removed per the 2026-10-15 reversal (global ring applies; border/background
+  shift stays); the clear button gets the invisible 44px floor.
+  `.nt-search-mark` takes `on-primary-container` ink (dark-mode 4.4:1 → the
+  designed pair); the dead `.nt-search-input` block leaves app.css. (3) **Boot
+  screens** — form errors announce (`role="alert"` ×3), the connecting phase
+  is a `role="status"` region, the auth tabs get the floor + unified
+  hover/pressed + kit tokens, the backend-unavailable dismiss trades its solid
+  error flood for the overlay + floor, LoadingScreen takes motion tokens.
+  (4) **Ghost buttons** join the hover ruling (`.btn--ghost:hover` was missed
+  by the first sweep — `surface-container` wasn't in its fill tuple; calendar
+  day cells inherit the fix). (5) **Calendar** — the selected day announces
+  (`aria-pressed`), the agenda-day-title accent hover-ink becomes the overlay;
+  arrow-key grid navigation stays a designed-not-built note. (6) **Comments**
+  — the composer stops swallowing failures (busy state + inline `role="alert"`
+  error + the text stays for retry), the lists go `aria-live="polite"`, the
+  version-history preview toggle gets hover/pressed feedback, `.nt-icon-btn`
+  gains a global disabled treatment. (7) Two density exceptions registered:
+  calendar/date-grid cells ride the panel width (≈36–40px, the grid is the
+  control), and the context column rides a dense type register (12px/400
+  primary) — both were unregistered drift until now. Cover-card min-width
+  takes `--layout-size-md` (the 132px literal). Remaining owner decision: the
+  nodeview side-panel shadow (recommendation registered in the audit thread).
+  Gate: full `pnpm typecheck` + `pnpm test` green.
+
 - **feat(web): the owner rulings from the carried-forward Notes land — hover
   unified on the state-layer overlay, settings layout repaired, and the
   mechanical notes closed.** (1) **Hover ruling (owner)**: every hover

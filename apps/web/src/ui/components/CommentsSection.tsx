@@ -87,16 +87,31 @@ function CommentComposer({
     inputRef.current?.focus();
   }, []);
 
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
   const submit = () => {
     const trimmed = text.trim();
-    if (trimmed === "") return;
-    void client.createObject({
-      parentId,
-      classIds: [SYSTEM_CLASS_UUIDS.comment],
-      name: trimmed,
-    });
-    setText("");
-    onClose();
+    if (trimmed === "" || submitting) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    void client
+      .createObject({
+        parentId,
+        classIds: [SYSTEM_CLASS_UUIDS.comment],
+        name: trimmed,
+      })
+      .then(() => {
+        setText("");
+        onClose();
+      })
+      .catch((error: unknown) => {
+        // The text stays in the composer — the retry is just resubmitting.
+        setSubmitError(error instanceof Error ? error.message : "Could not add the comment.");
+      })
+      .finally(() => {
+        setSubmitting(false);
+      });
   };
 
   return (
@@ -108,7 +123,11 @@ function CommentComposer({
         value={text}
         placeholder={placeholder}
         aria-label={placeholder}
-        onChange={(event) => setText(event.target.value)}
+        aria-busy={submitting}
+        onChange={(event) => {
+          setText(event.target.value);
+          setSubmitError(null);
+        }}
         onKeyDown={(event) => {
           if (event.key === "Enter") {
             event.preventDefault();
@@ -128,12 +147,17 @@ function CommentComposer({
         className="nt-icon-btn"
         aria-label="Send comment"
         title="Send comment"
-        disabled={text.trim() === ""}
+        disabled={text.trim() === "" || submitting}
         onMouseDown={(event) => event.preventDefault() /* keep the input focused */}
         onClick={submit}
       >
         <Icon path="mdi-send" size={0.8} />
       </button>
+      {submitError !== null && (
+        <p className="nt-comments__error" role="alert">
+          {submitError}
+        </p>
+      )}
     </div>
   );
 }
@@ -198,7 +222,7 @@ function CommentRow({
         />
       )}
       {thread.children.length > 0 && (
-        <ul className="nt-comments__list nt-comments__list--nested">
+        <ul className="nt-comments__list nt-comments__list--nested" aria-live="polite">
           {thread.children.map((child) => (
             <CommentRow key={child.node.id} client={client} thread={child} onOpenNode={onOpenNode} />
           ))}
@@ -272,7 +296,7 @@ export function CommentsSection({
           (rows.length === 0 ? (
             <div className="nt-section-empty">No comments.</div>
           ) : (
-            <ul className="nt-comments__list">
+            <ul className="nt-comments__list" aria-live="polite">
               {rows.map((thread) => (
                 <CommentRow key={thread.node.id} client={client} thread={thread} onOpenNode={onOpenNode} />
               ))}

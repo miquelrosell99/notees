@@ -33,6 +33,14 @@
   padding: 0 var(--spacing-1);
 }
 
+.version-history__preview-toggle:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.version-history__preview-toggle:active {
+  background: var(--md-sys-color-pressed-overlay);
+}
+
 .version-history__preview-toggle {
   display: inline-flex;
   align-items: center;
