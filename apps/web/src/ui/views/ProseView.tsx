@@ -3,9 +3,15 @@
  * BlockRow tree with the `nt-prose` display transform (app.css): bullets
  * hidden, nesting indents flattened to full-width rows, paragraph spacing.
  * Structure and editing are untouched — a view transform only (SCHEMA.md:
- * display state, never content). Collapse state is ignored here, not
- * cleared: `ignoreCollapse` renders every subtree and mounts no chevron,
- * leaving the session collapse set untouched for the outline view.
+ * display state, never content). Collapse is HONORED, not ignored (owner
+ * ruling 2026-10-15): the fold set is read exactly as in outline — collapsed
+ * subtrees hide, the chevron start-anchors the row (hover-revealed; PERSISTENT
+ * at rest while collapsed — the persistent chevron IS the collapsed
+ * indicator), and the fold chords act on the same state. Only the v1
+ * indent-line rail stays outline-only (prose has no indent line — the
+ * `proseMode` flag hides it). The condensed layer composes over prose — the
+ * most Nelson-like surface: a flat page of excerpts (the page body passes
+ * `condensed` through).
  * Like the editable outline tree, the prose surface is the live
  * editing tree — deliberately NOT windowed (a window could hide a
  * just-created block).
@@ -23,7 +29,7 @@ function toBlockTree(item: NodeCollectionItem): import("@/core/workspace-client.
 }
 
 export function ProseView(props: NodeCollectionProps) {
-  const { client, items = [], editable = false } = props;
+  const { client, items = [], editable = false, condensed = false } = props;
   const readOnly = !editable;
   const resolveName = (id: string) => displayNameFromClient(client, id);
   if (items.length === 0) return null;
@@ -37,7 +43,8 @@ export function ProseView(props: NodeCollectionProps) {
             client={client}
             resolveName={resolveName}
             readOnly={readOnly}
-            ignoreCollapse
+            proseMode
+            condensed={condensed}
           />
         ))}
       </div>

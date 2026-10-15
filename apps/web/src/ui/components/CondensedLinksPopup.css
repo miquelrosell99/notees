@@ -1,0 +1,35 @@
+/* CondensedLinksPopup — the links-badge popup of the condensed layer
+   (stretchtext). A bounded-scroll surface anchored at the excerpt row's
+   trailing chrome: the count names what the list holds, the list reuses the
+   picker row (NodeResultItem — a block target carries its containing page
+   as the breadcrumb, the `@` picker convention). Token-only CSS. */
+
+.nt-condensed-links {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: var(--z-dropdown);
+  min-width: 14em;
+  max-width: min(24em, 80vw);
+  margin-top: var(--spacing-1);
+  padding: var(--spacing-1);
+  background: var(--md-sys-color-surface-container-high);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-medium);
+}
+
+.nt-condensed-links__count {
+  padding: var(--spacing-1) var(--spacing-2);
+  font: var(--font-label-small);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* Bounded by height, honest when it scrolls: a block hiding dozens of
+   mentions is rare; the count above names the full set. */
+.nt-condensed-links__list {
+  max-height: min(16em, 50vh);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}

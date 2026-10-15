@@ -47,8 +47,10 @@ type AnyClient = WorkspaceClient | WorkerClient;
  * NodeTopbar — the panelled main layout's pinned top row, spanning the
  * WHOLE card above the column split (owner 2026-10-09): the properties
  * collapse toggle and the classes pills on the left; on the right the
- * host's blocks view switcher, the context collapse toggle (absent on the
- * class variant — no context column), and the "…" node menu. The divider
+ * host's blocks view switcher, the condensed-layer toggle (the layer is a
+ * display transform, not a switcher member — owner 2026-10-15), the context
+ * collapse toggle (absent on the class variant — no context column), and
+ * the "…" node menu. The divider
  * border under the row retired (owner 2026-10-13) — the spacing-3 margin
  * below the bar is its whole separation from the columns. Full-width so
  * the bar never rescales when a panel column shows or hides; each panel
@@ -63,6 +65,7 @@ export function NodeTopbar({
   contextPanelCollapsed,
   onToggleContextPanel,
   chromeModes,
+  condensedChrome,
   chromeMenu,
   onOpenPage,
   /**
@@ -87,6 +90,13 @@ export function NodeTopbar({
    */
   onToggleContextPanel?: (() => void) | undefined;
   chromeModes: ReactNode;
+  /**
+   * The condensed layer's chrome (owner 2026-10-15): the layer toggle beside
+   * the view switcher + the condense-all reset, composed by the host
+   * (PageView). Undefined renders nothing — surfaces without the toggle
+   * (embedded feeds, the preview seam) pass none.
+   */
+  condensedChrome?: ReactNode;
   chromeMenu: ReactNode;
   onOpenPage?: ((pageId: string) => void) | undefined;
   /** Classes-cluster override (the class variant's extends pills). */
@@ -113,6 +123,7 @@ export function NodeTopbar({
       <span className="nt-node-topbar__spacer" aria-hidden="true" />
       <div className="nt-node-topbar__right">
         {chromeModes}
+        {condensedChrome}
         {onToggleContextPanel !== undefined && (
           <Button
             type="button"

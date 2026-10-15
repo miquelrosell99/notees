@@ -76,7 +76,9 @@
  * outline position map (sibling/parent facts for Tab/Backspace), the focus
  * request that hands the caret between blocks after structural gestures, and
  * the session-local view transforms: subtree collapse (a Set of hidden node
- * ids, display-only) and prose mode (the `nt-prose` class on the tree).
+ * ids, display-only), prose mode (the `nt-prose` class on the tree), and the
+ * condensed layer (the per-page display toggle whose stretched set rides the
+ * context — owner 2026-10-15).
  *
  * Editor chrome owned here: the find & replace widget (Ctrl/Cmd+Shift+F)
  * searching the block tree's prose projection, the Capacities-parity
@@ -131,7 +133,8 @@ import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
 import { OutlinerContext } from "./outliner-context.js";
 import { NodeCollection } from "./views/index.js";
 import type { ViewMode } from "./views/index.js";
-import { useViewModePreference } from "./viewPrefs.js";
+import { useViewModePreference, useCondensedPreference } from "./viewPrefs.js";
+import { Button } from "./components/ui/Button.js";
 import { FindReplaceWidget } from "./editor-popups/FindReplaceWidget.js";
 import { FindInPageBar } from "./components/FindInPageBar.js";
 import {
@@ -259,6 +262,19 @@ export function PageView({
   );
   const blocksMode = blocksModeProp ?? internalBlocksMode;
   const setBlocksMode = onBlocksModeChange ?? setInternalBlocksMode;
+  /**
+   * The condensed layer (owner 2026-10-15) — a display toggle over the
+   * triad, NOT a view mode: it answers how much of each block's own prose
+   * shows, independent of how the tree lays out. Persisted per page through
+   * the device-settings seam (`condensed.<pageId>`), like the view modes.
+   * The stretched set (the exceptions rendered full) lives in the outliner
+   * context and survives a layer toggle and a reload, like the folds.
+   */
+  const [condensedPref, setCondensedPref] = useCondensedPreference(pageId);
+  // The layer reaches the page BODY only: embedded feeds (journal, calendar
+  // day pages) and the preview seam render full content exactly as today,
+  // and every read-only projection never even receives the opt-in.
+  const layerActive = condensedPref && !embedded && !preview;
   /**
    * Focus mode (#12) — device-local: the page keeps its title and editable
    * body, but the surrounding chrome (classes corner, header icon, tags,
@@ -578,6 +594,7 @@ export function PageView({
                   items={blockItems}
                   tree
                   editable={!preview}
+                  condensed={layerActive}
                   maxDepth={preview ? PREVIEW_BODY_DEPTH : undefined}
                   onNodeClick={(id) => onOpenPage?.(id)}
                   onNodeShiftClick={(id) => onOpenInSidebar?.(id)}
@@ -774,6 +791,46 @@ export function PageView({
     />
   ) : null;
 
+  /**
+   * The condensed layer's chrome (owner 2026-10-15), riding the card's
+   * top-right cluster beside the view switcher: the quiet layer toggle (the
+   * focus-mode precedent — a display toggle, NOT a switcher member; the
+   * engaged state wears the accent highlight like every engagement surface)
+   * plus the condense-all reset, shown only while the layer is on AND the
+   * stretched set is non-empty — no dead chrome. Main-surface chrome only:
+   * where the "…" menu is (chromeMenu), i.e. never on embedded feeds or the
+   * preview seam. Toggling off restores the ordinary rendering and leaves
+   * the stretched set intact (inert while the layer is off, like the folds
+   * where a surface ignores them).
+   */
+  const condensedChrome =
+    chromeMenu !== undefined && !embedded && !preview ? (
+      <>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          icon="mdi mdi-unfold-less-horizontal"
+          aria-label="Condensed"
+          aria-pressed={condensedPref}
+          title="Condensed"
+          active={condensedPref}
+          onClick={() => setCondensedPref(!condensedPref)}
+        />
+        {layerActive && outliner.stretched.size > 0 && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            icon="mdi mdi-arrow-collapse-vertical"
+            aria-label="Condense all"
+            title="Condense all"
+            onClick={() => outliner.clearStretched()}
+          />
+        )}
+      </>
+    ) : undefined;
+
   const pageChrome = fullscreenWhiteboard ? (
     <WhiteboardCanvas client={client} hostId={pageId} tokenIndex={whiteboardTokenIndex} />
   ) : (
@@ -795,6 +852,7 @@ export function PageView({
             contextPanelCollapsed={contextPanelCollapsed}
             onToggleContextPanel={() => setContextPanelCollapsed(!contextPanelCollapsed)}
             chromeModes={chromeModes}
+            condensedChrome={condensedChrome}
             chromeMenu={chromeMenu}
             onOpenPage={onOpenPage}
             classesCorner={
@@ -875,6 +933,7 @@ export function PageView({
           {(chromeModes !== undefined || chromeMenu !== undefined) && (
             <div className="nt-node-view__corner">
               {chromeModes}
+              {condensedChrome}
               {chromeMenu}
             </div>
           )}
