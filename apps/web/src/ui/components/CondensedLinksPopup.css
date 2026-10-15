@@ -15,7 +15,7 @@
   padding: var(--spacing-1);
   background: var(--md-sys-color-surface-container-high);
   border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--shape-medium);
+  border-radius: var(--shape-floating-panel);
 }
 
 .nt-condensed-links__count {

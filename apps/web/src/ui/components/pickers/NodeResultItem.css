@@ -72,7 +72,9 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font: var(--font-body-small);
+  /* The list-row recipe: primary 14px/600. */
+  font-size: var(--font-size-base);
+  font-weight: 600;
   color: var(--md-sys-color-on-surface);
 }
 
