@@ -1588,14 +1588,28 @@ select:focus-visible {
   color: var(--md-sys-color-on-surface);
 }
 
+.nt-block-excerpt__stretch:active,
+.nt-block-links-badge:active,
+.nt-block-condense:active {
+  background: var(--md-sys-color-pressed-overlay);
+  color: var(--md-sys-color-on-surface);
+}
+
 /* The re-condense back-arrow rides the stretched row's far edge — revealed
-   with the row like the "…" it replaces. */
+   with the row like the "…" it replaces. Touch has no hover: reveal it
+   permanently (the HoverRevealButton pattern). */
 .nt-block-condense {
   align-self: center;
   flex-shrink: 0;
   padding: 0;
   opacity: 0;
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+@media (hover: none) {
+  .nt-block-condense {
+    opacity: 1;
+  }
 }
 
 .nt-block-row:hover .nt-block-condense,

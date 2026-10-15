@@ -6,8 +6,15 @@ the skill's defaults/foundations is recorded here; an undocumented deviation
 is drift, a documented one is a decision. Newest first. Entries bind until the
 rule they override changes, the review trigger fires, or the owner re-rules.
 
-### The sidebar is a transparent "chrome on canvas" navigator
-- **Rule**: rosellramos-design-system default 3 (solid sidebar on the ground, hairline separated; the card-on-backdrop exception still keeps the sidebar solid).
+### Inline row chrome rides a 22px tap floor, not 44px
+- **Rule**: audit-checklist §9 — touch targets ≥44×44px on EVERY interactive control, via an invisible hit-area overlay where the visible control must stay compact.
+- **Decision**: the editor's inline row chrome (the condensed layer's stretch/badge/condense buttons, the collapse chevron, and cousins) carries a 22px minimum with `touch-action: manipulation`, no invisible overlay. An overlay around inline prose chrome would intercept text-selection drags and neighboring glyph taps.
+- **Rationale**: in-code owner idiom ("Tap-target floor (the narrow-screen law) — the row chrome idiom", app.css, 2026-10-15 condensed slice); these controls sit mid-sentence inside content rows where a 44px zone is a text-editing hazard, and each has a keyboard-equivalent or larger sibling path. Registered 2026-10-15 after the re-audit found the idiom undocumented.
+- **Scope**: editor/content row chrome only — chrome controls in panels, bars, and popovers (propicon, sync dot, hover-reveal, toasts, pills) DO carry the 44px floor and are not covered by this entry.
+- **Ruled**: owner in-code (condensed slice), registered 2026-10-15 (re-audit).
+- **Review trigger**: a touch-usability finding against the row chrome, or a fleet ruling that no interactive control may go below 44px under any circumstances.
+
+### The sidebar is a transparent "chrome on canvas" navigator- **Rule**: rosellramos-design-system default 3 (solid sidebar on the ground, hairline separated; the card-on-backdrop exception still keeps the sidebar solid).
 - **Decision**: `.nt-sidebar` carries no surface fill (`background: transparent`) at any width — the app background hosts the chrome directly, separated from content by a hairline rule; the sidebar reveals/hides via the TopBar hamburger at every width (below 768px it becomes a fixed overlay drawer with a real surface + shadow). Related responsive ruling: the navigator is **state-driven at every width** — there is no rail morph at 1024 and no 1440-wide adaptation; sidebar adaptation is drawer-below-768 only.
 - **Rationale**: the workspace canvas is the hero of a knowledge environment; a filled sidebar panel would partition the ground and compete with the content cards it navigates. Hamburger-at-every-width keeps one navigator behavior to learn.
 - **Scope**: global (app shell).

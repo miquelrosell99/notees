@@ -9,6 +9,35 @@ predating this file.
 
 ## 2026-10-15
 
+- **feat(web): the design-system re-audit (second pass, updated checklist)
+  — all 13 prior fixes verified, the surface-inventory sweep closes its
+  Warning cluster, zero Criticals (report:
+  `.audits/design-system-2026-10-15-reaudit.md`).** The re-run walked the
+  updated skill checklist (Layout & grids is now a dedicated §5; §0 walks
+  areas × surfaces): step 0 verified every finding from the first report at
+  HEAD; the deeper sweep then closed: the card title gains the recipe's
+  single-line ellipsis; the label-weight 500 cluster goes 600 (TextField
+  label, toast title, NodeSelector selected/create rows, settings feature
+  rows); the two surviving "quiet focus" focus-ring kills (IconPickerPopup,
+  MetadataSection add-property popup — stale owner-2026-10-09 comments that
+  predated the ruling reversal) are removed like Dropdown's was;
+  IconPickerPopup joins the 8px floating tier and loses its hover
+  scale(1.12); NodeSelector rows get rounded highlight corners + a pressed
+  layer + the pill-remove floor; the toast joins the 8px tier with a
+  floored/pressed dismiss; the in-process banner, PropertyIconButton (base +
+  popover rows), and the sync dot gain pressed layers; the JS matchMedia
+  strings normalize to range syntax. The condensed layer (landed mid-day by
+  a parallel session) gets its pass: row-chrome pressed states, a
+  `(hover: none)` reveal for the re-condense arrow, keyboard Escape wired
+  inside CondensedLinksPopup (the sibling-popup convention), elevation
+  parity — and its 22px row-chrome tap floor registers as a deviation
+  decision (inline prose chrome cannot carry a 44px zone; panels/bars/
+  popovers keep the floor, expressly out of scope). Carried forward as
+  Notes: the three-way hover-fill idiom + accent-container hover rows (need
+  one owner ruling), board magic numbers, TopBar crowding at ≤768px
+  (arithmetic-only flag, needs a visual check). Gate: full `pnpm typecheck`
+  + `pnpm test` green.
+
 - **fix(web): the condensed row's affordance is visible at rest, and the row
   stays editable — click enters edit on the full content, blur re-condenses
   (owner feedback 2026-10-15, same-day refinement of the condensed layer).**
