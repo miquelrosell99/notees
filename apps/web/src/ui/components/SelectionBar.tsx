@@ -25,7 +25,7 @@ import type { WorkspaceClient } from "@/core/workspace-client.js";
 import { ConfirmationModal } from "./ui/ConfirmationModal.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
 import { notificationStore } from "./ui/notificationStore.js";
-import { classRemovalRefusal } from "./classRemoval.js";
+import { classRemovalRefusal, removeClassDissolvingLinks } from "./classRemoval.js";
 import { useOutliner } from "../outliner-context.js";
 import { Icon } from "../Icon.js";
 
@@ -75,7 +75,7 @@ export function SelectionBar({ client }: { client: AnyClient }) {
         notificationStore.warning("Class can't be removed", refusal);
         return;
       }
-      void applyToAll((id) => client.unassignClass(id, nodeId)).catch((error: unknown) => {
+      void applyToAll((id) => removeClassDissolvingLinks(client, id, nodeId)).catch((error: unknown) => {
         console.warn("[selection] bulk unassignClass failed:", error);
       });
       return;

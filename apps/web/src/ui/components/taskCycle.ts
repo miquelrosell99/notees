@@ -33,6 +33,7 @@ import {
 import type { WorkspaceClient } from "@/core/workspace-client.js";
 
 import { ensureTaskFamily, type TaskFamilyClient } from "./taskFamily.js";
+import { removeClassDissolvingLinks } from "./classRemoval.js";
 
 /** The cycle's composed client surface: the family ensure plus the direct
  *  reads/writes. Structural pick — satisfied by WorkspaceClient,
@@ -48,6 +49,7 @@ type CycleClient = TaskFamilyClient &
     | "unassignClass"
     | "setProperty"
     | "unsetProperty"
+    | "updateObject"
   >;
 
 /** Resolve a status option by its live label; undefined when the schema
@@ -121,7 +123,7 @@ export async function cycleTaskState(client: CycleClient, id: string): Promise<v
     // task + a closed status (Done/Cancelled) -> not a task: unset the status
     // at its row idx and drop the class (the clearTask pair).
     await client.unsetProperty(id, statusSchemaId, row?.idx ?? 0);
-    await client.unassignClass(id, taskClassId);
+    await removeClassDissolvingLinks(client, id, taskClassId);
     return;
   }
 
