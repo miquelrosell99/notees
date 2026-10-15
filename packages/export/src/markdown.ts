@@ -58,7 +58,7 @@
  *  |                |   (broken targets render the id; SCHEMA Fork 4); when       |
  *  |                |   ctx.linkTarget resolves the target's exported file,       |
  *  |                |   `[name](<path>)` instead (multi-file/zip delivery)    |
- *  | class_chip     | `#name` — displayText ?? ctx.nameOf(class) ?? raw id;  |
+ *  | class_link     | `#name` — displayText ?? ctx.nameOf(class) ?? raw id;  |
  *  |                |   whitespace collapsed to `-`, leading `#` stripped    |
  *  | typed_link     | `**verb** text (locator)` — verb string, or bound      |
  *  |                |   propertySchemaId resolved via ctx.nameOf; locator   |
@@ -319,7 +319,7 @@ function renderSpan(span: ExportSpan, atLineStart: boolean): string {
       return span.linkPath !== undefined
         ? `[${escapeLinkText(span.name)}](${renderHref(span.linkPath)})`
         : `[[${escapeMentionName(span.name)}]]`;
-    case "classChip":
+    case "classLink":
       return `#${escapeChipName(span.name)}`;
     case "typedLink": {
       const locator = span.locator === null ? "" : ` (${escapeLocator(span.locator)})`;

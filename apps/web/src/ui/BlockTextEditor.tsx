@@ -52,8 +52,8 @@
  *   pages — the create row makes a class); picking assigns it (OR-set add).
  *   Already-assigned classes ride the checkmark (hidden from the empty-query
  *   browse, resurfacing under a matching query): a plain pick REMOVES the
- *   class (the toggle) and a Ctrl/Cmd pick CONVERTS THE TRIGGER TO INLINE
- *   TEXT — the `+` drops, the typed word stays as plain content.
+ *   class (the toggle) and a Ctrl/Cmd pick CONVERTS THE TRIGGER TO AN INLINE
+ *   CLASS LINK — the `+` drops, a class_link token splices at the trigger.
  * - `/`  slash commands: the ported TriggerPopup (inline mode) over the
  *   block-type actions the content grammar executes — Text (strip the
  *   trigger), Quote (wrap the block's inline tokens in a quote token),
@@ -429,7 +429,7 @@ const QUOTE_CHILD_TYPES = new Set([
   "text",
   "typed_link",
   "mention",
-  "class_chip",
+  "class_link",
   "external_link",
   "math",
   "hard_break",
@@ -1215,9 +1215,10 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
    * capture snapshot idiom mirrors commitNodePick for async closes). The
    * gesture set (owner 2026-10-15): a PLAIN pick REMOVES the class — the
    * toggle, the row's checkmark reads as its state — and a Ctrl/Cmd pick
-   * CONVERTS THE TRIGGER TO INLINE TEXT: the `+` drops and the typed word
-   * stays as plain block content (the query, or the class's display name
-   * when the query is empty), the membership untouched.
+   * CONVERTS THE TRIGGER TO AN INLINE CLASS LINK: the `+` drops and a
+   * `class_link` token (the render-only class reference — inserting a chip
+   * never mutates class_ids) splices at the trigger, the membership
+   * untouched.
    */
   const commitAssignedClassPick = (picked: ClientNode, context?: NodePickContext) => {
     const state = capture ?? captureSnapshotRef.current;
@@ -1228,13 +1229,13 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     const caret = caretOffset(el) ?? state.start + 1;
     const end = state.replaceEnd ?? Math.max(caret, state.start + 1);
     if (context !== undefined && context.withLabel) {
-      const text =
-        context.query !== "" ? context.query : (captureApi.displayName(picked.id) ?? "");
+      // Inline class link: no displayText — the chip renders the class's
+      // current name (re-resolved at every build; the wire stores no text).
       applySplice(
         state.start,
         end,
-        text !== "" ? [{ type: "text", text }] : [],
-        state.start + text.length,
+        [{ type: "class_link", classId: picked.id }],
+        state.start + 1,
       );
       el.focus();
       return;

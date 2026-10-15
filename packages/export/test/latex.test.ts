@@ -217,7 +217,7 @@ describe("spans and marks", () => {
         { type: "text", text: "See " },
         { type: "mention", targetNodeId: EMBED_ID, text: "Embedded target" },
         { type: "text", text: " and " },
-        { type: "class_chip", classId: PERSON_CLASS_ID },
+        { type: "class_link", classId: PERSON_CLASS_ID },
         { type: "text", text: " per " },
         { type: "typed_link", verb: "cites", text: "page 12", metadata: { locator: "ch. 3" } },
         { type: "external_link", text: "Example Site", href: "https://example.com/a_b" },

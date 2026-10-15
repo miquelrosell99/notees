@@ -36,7 +36,7 @@
  *  | hard_break     | <br>                                                        |
  *  | mention        | <span class="mention">name</span>; when ctx.linkTarget      |
  *  |                |   resolved the file, <a class="mention" href> instead (E5)  |
- *  | class_chip     | <span class="chip">#name</span>                             |
+ *  | class_link     | <span class="chip">#name</span>                             |
  *  | typed_link     | <strong class="verb">verb</strong> text (locator)           |
  *  | asset_ref      | <figure class="asset"><div class="asset-box">asset · id</div>|
  *  |                |   [<figcaption>path</figcaption>]</figure> — caption only   |
@@ -322,7 +322,7 @@ function renderSpan(span: ExportSpan): string {
       return span.linkPath !== undefined
         ? `<a class="mention" href="${escapeHtml(span.linkPath)}">${escapeHtml(span.name)}</a>`
         : `<span class="mention">${escapeHtml(span.name)}</span>`;
-    case "classChip":
+    case "classLink":
       return `<span class="chip">#${escapeHtml(span.name)}</span>`;
     case "typedLink": {
       const locator = span.locator === null ? "" : ` (${escapeHtml(span.locator)})`;

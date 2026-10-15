@@ -56,7 +56,7 @@ function doc(): ExportDocument {
           { kind: "text", text: " italic", marks: ["italic"] },
           { kind: "text", text: " code", marks: ["code"] },
           { kind: "mention", targetNodeId: "n2", name: "Mention" },
-          { kind: "classChip", classId: "c1", name: "chip" },
+          { kind: "classLink", classId: "c1", name: "chip" },
           { kind: "typedLink", verb: "by", text: "Author", locator: "p. 1" },
           { kind: "externalLink", text: "link", href: "https://example.com" },
           { kind: "math", expression: "x^2" },

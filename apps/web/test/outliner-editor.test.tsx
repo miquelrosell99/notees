@@ -294,7 +294,7 @@ describe("outliner editor", () => {
       parentId: pageId,
       contentAst: [
         { type: "text", text: "before " },
-        { type: "class_chip", classId },
+        { type: "class_link", classId },
         { type: "text", text: " after" },
       ],
     });
@@ -313,7 +313,7 @@ describe("outliner editor", () => {
     // The chip rides the head (it sits before the caret) — never cut.
     expect(tree[0]!.node.contentAst).toEqual([
       { type: "text", text: "before " },
-      { type: "class_chip", classId },
+      { type: "class_link", classId },
       { type: "text", text: " " },
     ]);
     expect(tree[1]!.node.contentAst).toEqual([{ type: "text", text: "after" }]);

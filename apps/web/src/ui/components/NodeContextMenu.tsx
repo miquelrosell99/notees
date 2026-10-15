@@ -84,7 +84,7 @@ export function displayLabelOf(node: ClientNode): string {
  */
 const FLATTEN_TOKEN_LABELS: Record<string, string> = {
   mention: "mentions",
-  class_chip: "class chips",
+  class_link: "class chips",
   typed_link: "typed links",
   external_link: "external links",
   math: "math",

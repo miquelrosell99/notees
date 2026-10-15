@@ -175,7 +175,7 @@ export type ExportSpan =
        *  when present the serializer emits `[name](path)` over `[[name]]`. */
       linkPath?: string | undefined;
     }
-  | { kind: "classChip"; classId: string; name: string }
+  | { kind: "classLink"; classId: string; name: string }
   | { kind: "typedLink"; verb: string; text: string; locator: string | null }
   | { kind: "externalLink"; text: string; href: string }
   | { kind: "math"; expression: string };
@@ -670,11 +670,11 @@ function buildSpan(token: InlineToken, ctx: ExportContext): ExportSpan {
         ...(link !== undefined ? { linkPath: link.path } : {}),
       };
     }
-    case "class_chip": {
+    case "class_link": {
       const raw = token.displayText ?? ctx.nameOf(token.classId) ?? token.classId;
       // Chip convention: whitespace folds to "-", leading # stripped (kept
       // from the original renderer — the serializer emits `#${name}` verbatim).
-      return { kind: "classChip", classId: token.classId, name: normalizeInlineName(raw).replace(/\s+/g, "-").replace(/^#+/, "") };
+      return { kind: "classLink", classId: token.classId, name: normalizeInlineName(raw).replace(/\s+/g, "-").replace(/^#+/, "") };
     }
     case "typed_link": {
       const locator = token.metadata?.locator;

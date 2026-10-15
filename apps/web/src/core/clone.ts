@@ -14,7 +14,7 @@
  * global log).
  *
  * Reference semantics are SCHEMA.md "Templates" (A3 + D3): content tokens
- * keep their targets (mention/class_chip/typed_link), tags are re-issued on
+ * keep their targets (mention/class_link/typed_link), tags are re-issued on
  * the fresh id, class assignments are copied minus the caller's strip set
  * (template instantiation strips the `template` marker class — the original rule),
  * node-typed property values copy the reference, asset_ref re-points at the

@@ -71,7 +71,7 @@
  *  |                |   code spans, `\texttt` content is parsed)                  |
  *  | hard_break     | `\\` line break                                             |
  *  | mention        | escaped name; multi-file hook resolved: `[name](path)`      |
- *  | class_chip     | `#name` (escaped)                                           |
+ *  | class_link     | `#name` (escaped)                                           |
  *  | typed_link     | `\textbf{verb} text (locator)` — all escaped                |
  *  | external_link  | `\href{escaped url}{escaped text}` (hyperref)               |
  *  | math           | `$expression$` VERBATIM (authored LaTeX)                    |
@@ -198,7 +198,7 @@ function renderSpan(span: ExportSpan): string {
       return span.linkPath !== undefined
         ? `[${escapeLatex(span.name)}](${escapeLatex(span.linkPath)})`
         : escapeLatex(span.name);
-    case "classChip":
+    case "classLink":
       return `#${escapeLatex(span.name)}`;
     case "typedLink": {
       const locator = span.locator === null ? "" : ` (${escapeLatex(span.locator)})`;

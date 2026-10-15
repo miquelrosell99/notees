@@ -6,7 +6,7 @@
  * depth-first through the workspace client (node + recursive getChildren),
  * so collapsed/hidden blocks are found exactly like rendered ones. Per block
  * the searchable text is the domain's plainTextExcerpt projection (text
- * runs, typed links, mention captured text, class-chip labels, math, quotes
+ * runs, typed links, mention captured text, class-link labels, math, quotes
  * and headings recursed; structural tokens carry no prose).
  *
  * v1 documented scope:
@@ -97,7 +97,7 @@ function collectParts(tokens: readonly ContentToken[], depth: number, parts: { t
       case "mention":
         pushPart(parts, token.displayText ?? token.text, tokenIndex);
         break;
-      case "class_chip":
+      case "class_link":
         pushPart(parts, token.displayText ?? "", tokenIndex);
         break;
       case "math":

@@ -16,7 +16,7 @@
  *   (typing at the end of a bold run stays bold — contentEditable behavior),
  *   the last run inherits the marks abutting the splice end.
  *
- * Rich tokens (mention, typed_link, class_chip, external_link, math, quote)
+ * Rich tokens (mention, typed_link, class_link, external_link, math, quote)
  * are prose-visible but not structurally editable: a change strictly before
  * or after them leaves them intact (a mention's captured text may go stale
  * when text is inserted next to it — display resolves the target name, so
@@ -61,12 +61,12 @@ function isPlainToken(token: unknown): boolean {
   return type === "text" || type === "hard_break";
 }
 
-/** A class_chip token — the atomic display reference (label re-resolved). */
+/** A class_link token — the atomic display reference (label re-resolved). */
 export function isChipToken(token: unknown): boolean {
   return (
     typeof token === "object" &&
     token !== null &&
-    (token as Record<string, unknown>).type === "class_chip"
+    (token as Record<string, unknown>).type === "class_link"
   );
 }
 
@@ -313,7 +313,7 @@ function sliceBoundaryToken(token: unknown, from: number, to: number | undefined
 
 /**
  * Capture-splice: replace the prose range [start, end) with the given tokens
- * (mention / class_chip / typed_link insertion). Unlike `applyTextEdit` the
+ * (mention / class_link / typed_link insertion). Unlike `applyTextEdit` the
  * caller is authoritative — tokens land verbatim, no ambiguity flatten. Runs
  * outside the range keep their marks and identity; boundary text runs are
  * trimmed; boundary rich tokens (a mention the range cuts into) keep their

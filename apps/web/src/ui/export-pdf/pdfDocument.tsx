@@ -229,7 +229,7 @@ function PdfSpan({ span, styles, theme, chrome }: { span: ExportSpan; styles: St
         </Text>
       );
     }
-    case "classChip":
+    case "classLink":
       return <Text style={styles.pill}>#{span.name}</Text>;
     case "typedLink":
       return (
