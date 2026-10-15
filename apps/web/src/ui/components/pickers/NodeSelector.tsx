@@ -119,6 +119,17 @@ interface NodeSelectorProps {
   onColorChange?: ((node: ClientNode, color: string | null) => void) | undefined;
   /** Callback when adding a node from the picker (receives the pick context). */
   onAdd?: ((node: ClientNode, context: NodePickContext) => void) | undefined;
+  /**
+   * Assigned-row pick handler (opt-in). When set, picking a row whose node
+   * is already assigned (the checkmarked rows that resurface under a
+   * matching query) reports HERE instead of the default idempotent
+   * acknowledgment-close — the caller owns the semantics. The pick context
+   * carries the same `withLabel` Ctrl/Cmd modifier as any pick (the
+   * editor's `+` popup: a plain pick removes the class, a Ctrl/Cmd pick
+   * converts the trigger to inline text). Anchored hosts own the close
+   * (the callback unmounts the picker); pill-row closes itself as usual.
+   */
+  onAssignedPick?: ((node: ClientNode, context: NodePickContext) => void) | undefined;
   /** Callback when the value changes (value-based API). */
   onChange?: ((value: string | string[] | null) => void) | undefined;
   /** Callback when creating a new node (overrides the built-in create). */
@@ -191,6 +202,7 @@ export function NodeSelector({
   onRemove,
   onColorChange,
   onAdd,
+  onAssignedPick,
   onChange,
   onCreateNew,
   allowCreate,
@@ -272,9 +284,18 @@ export function NodeSelector({
 
   const handleAdd = (node: ClientNode, withLabel = false): void => {
     if (assignedIds.has(node.id)) {
-      // Pick of an already-assigned node (the row carries the checkmark —
-      // assigned rows re-surface when the query matches their name): an
-      // idempotent acknowledgment, not a write. Close like any pick.
+      if (onAssignedPick !== undefined) {
+        // The caller owns assigned-row semantics (the editor's toggle).
+        const query = searchQuery.trim();
+        onAssignedPick(node, { withLabel: withLabel && query.length > 0, query });
+        if (trigger === "pill-row") {
+          setIsPickerOpen(false);
+          setSearchQuery("");
+        }
+        return;
+      }
+      // Otherwise an idempotent acknowledgment, not a write: the row carries
+      // the checkmark — close like any pick.
       if (isAnchored) {
         onClose?.();
       } else if (trigger === "pill-row") {
