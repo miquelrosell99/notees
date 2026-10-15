@@ -9,6 +9,27 @@ predating this file.
 
 ## 2026-10-15
 
+- **fix(web): focus mode keeps the panelled spacing and hides the chrome;
+  the collapse line rides the parent bullet (owner feedback 2026-10-15).**
+  Focus mode previously fell back to the compact layout — the page snapped
+  into a 46rem centered column, which read as condensed in the block list.
+  Now the panelled main layout stays on in focus mode: the content column
+  keeps the full-width normal spacing, and the chrome simply doesn't
+  render — both side panels (properties + context; the device collapse
+  prefs untouched, exiting focus mode restores them exactly), the nodeview
+  top bar's panel toggles + classes cluster (dead chrome while the panels
+  are hidden), plus the already-suppressed banner/cover/icon/tags/
+  properties/system sections/footer. The view switcher, the condensed
+  chrome, and the node menu stay — the page is still a working surface.
+  Same pass: the outline's vertical collapse line (the `.nt-block-children`
+  left border + rail) moved from a 20px to a 24px indent so it rides the
+  parent bullet's center (14px chevron gutter + half the 22px bullet ≈
+  25px — the line sat a noticeable step to the left); the in-flow block
+  metadata indent rides the same grid, and the 48px child-drop line/zone
+  now lands within ~1px of the child row's actual start. Specs updated in
+  `apps/web/test/focus-mode.test.tsx` (panelled root class + top bar stay,
+  both panels + toggles + classes cluster asserted hidden). **Verification:**
+  `pnpm typecheck` + `pnpm test` green; web-only — no wire touch.
 - **fix(web): the pinned cue becomes a filled chip; the bullet ring retires
   (owner feedback 2026-10-15).** The owner's screenshot verdict on the first
   cue — "looks weird. Making the … a solid fill like the other toggle

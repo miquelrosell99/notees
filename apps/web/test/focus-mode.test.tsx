@@ -3,10 +3,13 @@
  *
  *  - the device setting persists under `notees.settings.focusMode` and
  *    applies the `data-focus` attribute to <html> (via applyAppearance);
- *  - with the mode on, the page chrome is suppressed — top bar, classes
- *    pills, header icon, tags row, cover, properties side panel, system
- *    sections, footer — while the title row stays (the landmark that says
- *    where you are) and text editing still works;
+ *  - with the mode on, the page chrome is suppressed — classes
+ *    pills, header icon, tags row, cover, both side panels (properties +
+ *    context), the top bar's panel toggles, system sections, footer — while
+ *    the panelled layout itself stays (the normal spacing; owner
+ *    2026-10-15), the title row stays (the landmark that says where you
+ *    are), the node top bar keeps the view switcher + node menu, and text
+ *    editing still works;
  *  - BlockRow hides its backlink gutter + panel and the property
  *    icon buttons;
  *  - the command palette offers a "Focus mode" command that flips the
@@ -126,18 +129,26 @@ describe("focus mode page chrome (#12)", () => {
     expect(screen.queryByRole("button", { name: /Unlinked mentions/ })).toBeNull();
   });
 
-  it("mode on: chrome is suppressed; the title and the editable body stay", async () => {
+  it("mode on: chrome is suppressed; the panelled geometry, the title, and the editable body stay", async () => {
     const { client, pageId } = await seedChromeWorld();
     setFocusMode(true);
     const { container } = render(<PageView client={client} pageId={pageId} />);
     await flushSync();
 
-    // The suppressed chrome list (no side panel, no top bar, no classes
-    // corner/topbar, no tags, no footer, no backlinks section).
+    // The suppressed chrome list (no side panels, no classes corner/topbar
+    // cluster, no tags, no footer, no backlinks section).
     expect(container.querySelector(".nt-page-side-panel")).toBeNull();
-    expect(container.querySelector(".nt-node-topbar")).toBeNull();
+    expect(container.querySelector(".nt-page-context")).toBeNull();
     expect(container.querySelector(".nt-page-classes-corner")).toBeNull();
     expect(container.querySelector(".nt-node-topbar__classes")).toBeNull();
+    // ...and the top bar's panel toggles with them (dead chrome while the
+    // panels are hidden).
+    expect(
+      container.querySelector(".nt-node-topbar button[title='Hide properties panel']"),
+    ).toBeNull();
+    expect(
+      container.querySelector(".nt-node-topbar button[title='Hide context panel']"),
+    ).toBeNull();
     expect(container.querySelector(".nt-tags-row")).toBeNull();
     expect(container.querySelector(".nt-page-footer")).toBeNull();
     expect(screen.queryByRole("button", { name: /Backlinks/ })).toBeNull();
@@ -145,6 +156,12 @@ describe("focus mode page chrome (#12)", () => {
     expect(container.querySelector(".nt-page-sections")).toBeNull();
     // The header icon + picker are gone; the title is not.
     expect(container.querySelector(".page-icon-btn")).toBeNull();
+
+    // The panelled LAYOUT stays (owner 2026-10-15: focus mode keeps the
+    // normal spacing and simply hides the chrome — no compact fallback),
+    // and the node top bar still carries the working-surface controls.
+    expect(container.querySelector(".nt-page--panelled")).not.toBeNull();
+    expect(container.querySelector(".nt-node-topbar")).not.toBeNull();
 
     // The title row stays — the landmark that says where you are.
     expect(container.querySelector(".nt-page-title")).not.toBeNull();

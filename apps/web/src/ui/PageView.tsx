@@ -279,9 +279,13 @@ export function PageView({
   // and every read-only projection never even receives the opt-in.
   const layerActive = condensedPref && !embedded && !preview;
   /**
-   * Focus mode (#12) — device-local: the page keeps its title and editable
-   * body, but the surrounding chrome (classes corner, header icon, tags,
-   * cover, date bar, properties, system sections, footer) steps aside.
+   * Focus mode (#12) — device-local: the page keeps its title, its editable
+   * body, AND the panelled layout's geometry (owner 2026-10-15: the compact
+   * fallback's 46rem column read condensed; focus mode keeps the normal
+   * spacing and simply hides the chrome) — the surrounding chrome (classes
+   * corner, header icon, tags, cover, date bar, properties, system sections,
+   * footer, and in the panelled layout both side panels + the top bar's
+   * panel toggles/classes cluster) steps aside.
    */
   const [focusMode] = useDeviceSetting("focusMode", false);
   /**
@@ -311,10 +315,13 @@ export function PageView({
    * Classed nodes the content column). The context column rides EVERY
    * panelled page, class pages included (owner 2026-10-12, "for any
    * nodeview in general" — graph/TOC/Activity/Comments are node-relevant
-   * whatever the node kind).
+   * whatever the node kind). Focus mode KEEPS this layout (owner
+   * 2026-10-15 — the normal spacing, elements hidden, not the compact
+   * fallback's narrowed column): the two panel asides and the top bar's
+   * panel controls/classes simply don't render while it is on.
    */
   const panelled =
-    layout === "default" && !embedded && !focusMode && !preview;
+    layout === "default" && !embedded && !preview;
   const [headerMenu, setHeaderMenu] = useState<{ x: number; y: number } | null>(null);
   const [exporting, setExporting] = useState<{ pageId: string; name: string } | null>(null);
   const [sharing, setSharing] = useState<{ pageId: string; name: string } | null>(null);
@@ -842,11 +849,14 @@ export function PageView({
             sidePanelCollapsed={sidePanelCollapsed}
             onToggleSidePanel={() => setSidePanelCollapsed(!sidePanelCollapsed)}
             contextPanelCollapsed={contextPanelCollapsed}
-            onToggleContextPanel={() => setContextPanelCollapsed(!contextPanelCollapsed)}
+            onToggleContextPanel={
+              focusMode ? undefined : () => setContextPanelCollapsed(!contextPanelCollapsed)
+            }
             chromeModes={chromeModes}
             condensedChrome={condensedChrome}
             chromeMenu={chromeMenu}
             onOpenPage={onOpenPage}
+            focusMode={focusMode}
             classesCorner={
               variant.cornerPills !== undefined ? (
                 <ClassPillsList
@@ -859,7 +869,12 @@ export function PageView({
             }
           />
           <div className="nt-page-body">
-            {!sidePanelCollapsed && (
+            {/* Focus mode hides the panels (they are the chrome it
+                suppresses) while keeping the layout — the content column
+                simply takes the full width (owner 2026-10-15). The
+                collapse prefs stay untouched: exiting focus mode restores
+                the panels exactly as they were. */}
+            {!sidePanelCollapsed && !focusMode && (
               <aside className="nt-page-side-panel" aria-label="Properties">
                 <PropertiesSidebar
                   client={client}
@@ -886,7 +901,7 @@ export function PageView({
                 {mainChrome}
               </div>
             </div>
-            {panelled && !contextPanelCollapsed && (
+            {panelled && !contextPanelCollapsed && !focusMode && (
               <aside className="nt-page-context" aria-label="Context">
                 {/* The node-relevant widgets, relocated from the right
                     rail (the rail is workspace cards only). The references
