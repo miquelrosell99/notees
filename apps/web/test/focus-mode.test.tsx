@@ -172,6 +172,29 @@ describe("focus mode page chrome (#12)", () => {
     await flushSync();
     expect(container.querySelector(".nt-block-content [contenteditable]")).not.toBeNull();
   });
+
+  it("the page body reads centered: 46rem cap + lateral padding under data-focus (CSS-source spec)", () => {
+    // jsdom applies no layout — the centered-measure contract is asserted
+    // at the source level (the css-token-drift pattern).
+    const process_ = process as unknown as {
+      getBuiltinModule(name: string): typeof import("node:fs");
+    };
+    const fs = process_.getBuiltinModule("node:fs");
+    const path = process_.getBuiltinModule("node:path") as unknown as typeof import("node:path");
+    const css = fs.readFileSync(path.join(process.cwd(), "src", "ui", "app.css"), "utf8");
+    const rule = /\[data-focus="true"\] \.nt-page--panelled \.nt-page-content \{[^}]*\}/.exec(css);
+    expect(rule).not.toBeNull();
+    // The compact layout's measure (46rem) — focus mode caps the panelled
+    // content column at the same comfortable line length.
+    expect(rule![0]).toContain("flex: 0 1 46rem");
+    // Centered inside the card, with the compact layout's spacing-6 lateral
+    // padding carried inside the cap (owner 2026-10-15: full-bleed read
+    // worse than the old centered column).
+    expect(rule![0]).toContain("margin-inline: auto");
+    expect(rule![0]).toContain("padding-inline: var(--spacing-6)");
+    // The normal (panelled) spacing stays — the rule only caps + centers.
+    expect(css).not.toContain('[data-focus="true"] .nt-block-row');
+  });
 });
 
 describe("focus mode block chrome (#12)", () => {
