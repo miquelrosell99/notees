@@ -403,7 +403,7 @@ export function NodeContextMenu({
           : []),
         {
           id: "extract-children-stay",
-          label: "Children stay here",
+          label: "Extract without children",
           tooltip:
             "The block becomes a root page; a link block takes its place in this page, and the children stay nested under the link.",
           icon: "mdi-file-document-outline",
@@ -411,7 +411,7 @@ export function NodeContextMenu({
         },
         {
           id: "extract-children-follow",
-          label: "Children follow",
+          label: "Extract with children",
           tooltip:
             "The block becomes a root page; a link block takes its place, and the children stay with the block — the same node, now a root page.",
           icon: "mdi-file-document-multiple-outline",

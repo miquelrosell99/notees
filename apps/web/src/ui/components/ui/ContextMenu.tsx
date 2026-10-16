@@ -5,7 +5,8 @@
  * at the specified position. Uses the Card component for consistent styling.
  * Submenus (custom `submenu` content or a native `submenuItems` action
  * list) fly out to the SIDE of the parent row — the Notion pattern — as a
- * second card overlapping the menu edge by a hair (a hover bridge), aligned
+ * second card riding FLUSH against the menu edge (the owner ruling
+ * 2026-10-16: no overlap), aligned
  * to the parent row's top, flipping to the left side at the viewport edge
  * and clamping vertically. Opening rides hover on pointer-fine devices and
  * click/tap everywhere.
@@ -125,8 +126,10 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
 
   // Hover seam: entering a submenu parent opens its flyout; entering any
   // other top-level item closes the open one. The flyout carries no item
-  // handlers, so the pointer can travel into its rows — the panel overlaps
-  // the menu edge by a hair, forming a hover bridge with no dead gap.
+  // handlers, so the pointer can travel into its rows. No hover bridge is
+  // needed: leaving the parent fires no close (enter-only semantics), and
+  // crossing to the panel hits no handler either — the flyout rides flush
+  // against the menu edge.
   const handleItemEnter = useCallback(
     (item: ContextMenuItem) => {
       if (!canHover || item.disabled || item.separator) return;
@@ -341,8 +344,8 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
 
       // The flyout submenu rides to the SIDE of the parent row (never
       // inside the menu's flow — growing the menu there made the whole
-      // menu re-fit and dance when the panel opened/closed). It overlaps
-      // the menu edge by a hair (a hover bridge), aligns its top with the
+      // menu re-fit and dance when the panel opened/closed). It rides
+      // FLUSH against the menu edge (no overlap — owner 2026-10-16), aligns its top with the
       // parent row, flips left when the right side lacks room, and clamps
       // vertically into the viewport. Absolutely positioned inside the
       // card, it never changes the menu's own box, so the position above
@@ -359,7 +362,7 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
           const triggerRect = trigger.getBoundingClientRect();
           const flyoutW = flyout.offsetWidth;
           const flyoutH = flyout.offsetHeight;
-          const overlap = 4;
+          const overlap = 0; // flush edge — no bridge (enter-only hover)
           const roomRight = viewportW - menuRect.right + overlap - VIEWPORT_PADDING;
           const roomLeft = menuRect.left + overlap - VIEWPORT_PADDING;
           const openRight = roomRight >= flyoutW - overlap || roomRight >= roomLeft;

@@ -9,6 +9,20 @@ predating this file.
 
 ## 2026-10-16
 
+- **fix(web): the extract rows read "Extract without children" / "Extract
+  with children", and the flyout rides flush against the menu — no overlap
+  (owner feedback 2026-10-16).** The labels name what the extracted node
+  keeps, from its own perspective — it is the same node becoming a page,
+  not a new one — and stay short for the row; the hover tooltips carry the
+  full explanation (link block in its place, children under the link or
+  with the block). The flyout's 4px overlap (the original "hover bridge")
+  visually covered the parent rows' right edge; it retires — enter-only
+  hover semantics never needed it (leaving the parent fires no close, and
+  crossing to the panel hits no handler), so the panels now share a flush
+  edge. Same pass in the design system's web-patterns submenu entry and
+  the ui-primitives catalog line. **Verification:** `pnpm typecheck` +
+  `pnpm test` green (menu specs assert the new labels and the tooltip
+  strings); web-only — no wire touch.
 - **fix(web): the Convert to page extract rows read short — "Children stay
   here" / "Children follow" — with the full explanation on hover tooltips
   (owner feedback 2026-10-16: "Extract to root — children stay here" is too
