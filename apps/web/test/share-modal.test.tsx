@@ -170,7 +170,7 @@ describe("NodeContextMenu Share… item", () => {
     return {
       workspaceId: "ws1",
       isClass: false,
-      presentAsMain: true,
+      isEmbedded: false,
       parentId: null,
       classIds: [],
       tagIds: [],

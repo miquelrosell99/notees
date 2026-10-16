@@ -52,7 +52,7 @@ export async function uploadCoverAsset(
 ): Promise<void> {
   const uploaded = await client.uploadAsset(file, file.name);
   const assetNodeId = await client.createObject({
-    presentAsMain: true,
+    isEmbedded: false,
     name: uploaded.originalName,
     classIds: [SYSTEM_CLASS_UUIDS.asset],
   });

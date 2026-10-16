@@ -7,9 +7,9 @@
  *
  *   - slide 0 is always the title slide (the page's own text content,
  *     rendered by the view with the node's icon/color per P4);
- *   - every `present_as_main=1` top-level child is one section slide — the
+ *   - every standalone (isEmbedded = 0) top-level child is one section slide — the
  *     child's own content is the slide title, its children the body;
- *   - runs of `present_as_main=0` (inline body) children chunk into intro
+ *   - runs of embedded (isEmbedded = 1) children chunk into intro
  *     slides by a density rule (greedy: a chunk closes when adding the next
  *     block would pass the character target or the block cap);
  *   - an `embed_ref` found anywhere in a slide's blocks expands (P5): the
@@ -27,7 +27,7 @@ import { proseFromAst } from "@/editor/prose.js";
 /** The minimal node shape the builder reads (ClientNode satisfies it). */
 export interface DeckNode {
   id: string;
-  presentAsMain: boolean;
+  isEmbedded: boolean;
   contentAst: readonly unknown[];
 }
 
@@ -198,7 +198,7 @@ function emitChildrenSlides(
   };
 
   for (const child of children) {
-    if (child.node.presentAsMain) {
+    if (!child.node.isEmbedded) {
       flushIntro();
       const chars = child.children.reduce((sum, entry) => sum + deckSubtreeLength(entry), 0);
       out.push({

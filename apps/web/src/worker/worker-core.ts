@@ -669,7 +669,7 @@ export class WorkerCore {
             icon: string | null;
             classIds: string[];
             isClass: boolean;
-            presentAsMain: boolean;
+            isEmbedded: boolean;
             parentId: string | null;
           },
         );

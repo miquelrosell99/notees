@@ -267,7 +267,7 @@ export async function createSourceObject(
   input: SourceCreateInput,
 ): Promise<string> {
   const id = await client.createObject({
-    presentAsMain: true,
+    isEmbedded: false,
     name: input.title,
     classIds: [input.classId],
   });
@@ -317,7 +317,7 @@ export async function createAgentObject(
   if (displayName === "") throw new Error("Agent name is required");
   const classId =
     input.agentType === "person" ? SYSTEM_CLASS_UUIDS.person : SYSTEM_CLASS_UUIDS.organization;
-  const id = await client.createObject({ presentAsMain: true, name: displayName, classIds: [classId] });
+  const id = await client.createObject({ isEmbedded: false, name: displayName, classIds: [classId] });
   if (isPerson) {
     const givenName = input.givenName?.trim();
     const familyName = input.familyName?.trim();

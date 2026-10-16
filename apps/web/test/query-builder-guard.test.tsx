@@ -76,8 +76,8 @@ const WORKSPACE = (): Scope => ({ type: "entire_workspace" });
 
 async function seedWorld(client: WorkspaceClient) {
   const city = await client.createClass("City");
-  const paris = await client.createObject({ presentAsMain: true, name: "Paris", classIds: [city] });
-  const host = await client.createObject({ presentAsMain: true, name: "Host" });
+  const paris = await client.createObject({ isEmbedded: false, name: "Paris", classIds: [city] });
+  const host = await client.createObject({ isEmbedded: false, name: "Host" });
   return { city, paris, host };
 }
 

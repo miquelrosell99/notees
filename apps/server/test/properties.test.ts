@@ -27,7 +27,7 @@ function api(method: string, url: string, options: { payload?: unknown } = {}) {
 }
 
 async function createObject(name: string): Promise<string> {
-  const res = await api("POST", "/api/objects", { payload: { presentAsMain: true, name } });
+  const res = await api("POST", "/api/objects", { payload: { isEmbedded: false, name } });
   expect(res.statusCode).toBe(201);
   return res.json().id as string;
 }
@@ -221,7 +221,7 @@ describe("objects list property filter", () => {
     const other = await createObject("filter-plain");
     const book = (
       await api("POST", "/api/objects", {
-        payload: { presentAsMain: true, name: "filter-book", classIds: [SYSTEM_CLASS_UUIDS.book] },
+        payload: { isEmbedded: false, name: "filter-book", classIds: [SYSTEM_CLASS_UUIDS.book] },
       })
     ).json().id as string;
     await api("POST", `/api/objects/${book}/properties`, {
@@ -406,7 +406,7 @@ describe("class property binding routes", () => {
     expect(schemaPatched.statusCode).toBe(200);
 
     const member = (
-      await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "pg7-book", classIds: [classId] } })
+      await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "pg7-book", classIds: [classId] } })
     ).json().id as string;
     const effective = await api("GET", `/api/objects/${member}/effective-properties`);
     const row = (effective.json().properties as Array<Record<string, unknown>>).find(
@@ -455,7 +455,7 @@ describe("class property binding routes", () => {
       payload: { propertySchemaId: schemaId, sequence: 0, defaultValue: "def" },
     });
     const member = (
-      await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "pg7-member", classIds: [classId] } })
+      await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "pg7-member", classIds: [classId] } })
     ).json().id as string;
     await api("POST", `/api/objects/${member}/properties`, {
       payload: { propertySchemaId: schemaId, value: "mine" },
@@ -485,7 +485,7 @@ describe("effective-properties endpoint", () => {
     // binding op below requires the source class node to exist).
     const created = await api("POST", "/api/objects", {
       payload: {
-        presentAsMain: true,
+        isEmbedded: false,
         name: "EffPage",
         classIds: [SYSTEM_CLASS_UUIDS.source],
       },

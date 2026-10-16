@@ -40,7 +40,7 @@ function page(id: string, contentAst: ContentAst = [], extra: Partial<ExportNode
   return {
     id,
     isClass: 0,
-    presentAsMain: 1,
+    isEmbedded: 0,
     parentId: null,
     name: null,
     contentAst,
@@ -53,10 +53,10 @@ function page(id: string, contentAst: ContentAst = [], extra: Partial<ExportNode
 describe("buildJsonArchive", () => {
   it("emits the versioned envelope with a stable format discriminator", () => {
     expect(JSON_ARCHIVE_FORMAT).toBe("notees-json-archive");
-    expect(JSON_ARCHIVE_VERSION).toBe(1);
+    expect(JSON_ARCHIVE_VERSION).toBe(2); // Revision 12: presentAsMain -> isEmbedded (inverted)
     const archive = buildJsonArchive([page(PAGE_ID)], makeCtx(), { now: NOW });
     expect(archive.format).toBe("notees-json-archive");
-    expect(archive.version).toBe(1);
+    expect(archive.version).toBe(2);
     expect(archive.generatedAt).toBe(NOW);
     expect(archive.nodes).toHaveLength(1);
   });
@@ -84,7 +84,7 @@ describe("buildJsonArchive", () => {
     expect(archive.nodes[0]).toMatchObject({
       id: PAGE_ID,
       isClass: false,
-      presentAsMain: true,
+      isEmbedded: false,
       parentId: null,
       // Title-is-content: the display name derives from the content excerpt.
       displayName: "Bold Le Guin",
@@ -217,7 +217,7 @@ describe("renderJsonArchive", () => {
     expect(JSON.parse(rendered)).toEqual(archive);
     const parsed = JSON.parse(rendered) as { format: string; version: number; nodes: unknown[] };
     expect(parsed.format).toBe("notees-json-archive");
-    expect(parsed.version).toBe(1);
+    expect(parsed.version).toBe(2);
     expect(parsed.nodes).toHaveLength(1);
   });
 });

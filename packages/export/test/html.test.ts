@@ -40,7 +40,7 @@ function page(
   return {
     id,
     isClass: 0,
-    presentAsMain: 1,
+    isEmbedded: 0,
     parentId: null,
     name: null,
     contentAst: contentAst.length > 0 ? contentAst : [{ type: "text", text }],
@@ -87,7 +87,7 @@ describe("document structure", () => {
     const inline: ExportNode = {
       id: "aaaaaaaa-0000-4000-8000-000000000004",
       isClass: 0,
-      presentAsMain: 0,
+      isEmbedded: 1,
       parentId: "bbbbbbbb-0000-4000-8000-000000000000",
       name: null,
       contentAst: [{ type: "text", text: "inline body" }],
@@ -362,10 +362,10 @@ describe("outline", () => {
     const root = page("aaaaaaaa-0000-4000-8000-000000000050", "root");
     const child = page("bbbbbbbb-0000-4000-8000-000000000001", "child", [
       { type: "text", text: "child body" },
-    ]);
+    ], { isEmbedded: 1, parentId: "aaaaaaaa-0000-4000-8000-000000000050" });
     const grandchild = page("cccccccc-0000-4000-8000-000000000001", "grandchild", [
       { type: "text", text: "grandchild body" },
-    ]);
+    ], { isEmbedded: 1, parentId: "bbbbbbbb-0000-4000-8000-000000000001" });
     const children = new Map<string, ExportNode[]>([
       [root.id, [child]],
       [child.id, [grandchild]],
@@ -392,8 +392,28 @@ describe("outline", () => {
     expect(html).not.toContain("child body");
   });
 
-  it("renders cycle and depth cuts as visible ![[uuid]] items", () => {
-    const cyclic = page("dddddddd-0000-4000-8000-000000000060", "cyclic", [
+  it("splits the zones (Revision 12): embedded children in the outline, standalone children in a child-pages section", () => {
+    const root = page("aaaaaaaa-0000-4000-8000-000000000070", "root");
+    const embedded = page("bbbbbbbb-0000-4000-8000-000000000071", "embedded", [
+      { type: "text", text: "embedded body" },
+    ], { isEmbedded: 1, parentId: root.id });
+    const standalone = page("cccccccc-0000-4000-8000-000000000072", "Standalone page");
+    const children = new Map<string, ExportNode[]>([
+      [root.id, [embedded, standalone]],
+      [embedded.id, []],
+      [standalone.id, []],
+    ]);
+    const html = toHtml(root, makeCtx({ childrenOf: (id) => children.get(id) ?? [] }));
+    expect(html).toContain('<section class="outline">');
+    expect(html).toContain("<p>embedded body</p>");
+    expect(html).toContain('<section class="child-pages">');
+    expect(html).toContain("<h2>Pages</h2>");
+    expect(html).toContain('<li class="child-page">Standalone page</li>');
+    // The standalone child's own body never inlines into the parent's file.
+    expect(html).not.toContain("cccccccc");
+  });
+
+  it("renders cycle and depth cuts as visible ![[uuid]] items", () => {    const cyclic = page("dddddddd-0000-4000-8000-000000000060", "cyclic", [
       { type: "text", text: "cycle" },
     ]);
     const selfChildren = new Map<string, ExportNode[]>([[cyclic.id, [cyclic]]]);
