@@ -32,6 +32,35 @@ predating this file.
   (new `apps/web/test/extract-to-page.test.tsx`: composition anchors +
   child-order chaining + keepChildren + guards, menu presence/badge/
   modifier-click wiring); web-only — no wire touch.
+- **fix(web): all locally-copied workspaces stay reachable offline — the
+  device-local workspace registry backs the switcher and the manager
+  (owner question 2026-10-16).** The outage-resume slice opened the
+  remembered workspace locally but left the workspace *list* server-only:
+  every workspace the user had ever opened on the device already holds a
+  full local copy (the OPFS worker store is keyed by workspace id), yet the
+  switcher and the manager fetched the list live and showed an error when
+  it failed — so offline, the other workspaces were unreachable. New
+  `apps/web/src/core/workspace-registry.ts` persists the device-local
+  chrome the derived stores intentionally don't carry (the list is not
+  op-log data): the last server list seen (`notees.workspaces`, replaced
+  on every successful fetch, rename-aware) and the ids this device has
+  booted (`notees.localWorkspaces`, a superset proxy for "has a local
+  copy"). When the list fetch fails, the switcher and the manager fall
+  back to the remembered entries that hold a local copy — openable now,
+  switching included — under an explicit "Offline — showing workspaces
+  stored on this device" caption; server-only affordances wait for
+  recovery instead of failing loudly (switcher: per-row settings gear and
+  the create suggestion; manager: create/rename/delete/export, read-only
+  otherwise). The offline-resume label reads the registry too, so the
+  topbar shows the real workspace name while the server is down.
+  Boundary, by design: a workspace never opened on this device has no
+  local copy and is not offered offline; a server-side delete lingers in
+  the registry until the next successful list fetch. Docs: `usage.md`
+  account-boot clause. **Verification:** new `app-smoke.test.tsx` case
+  (offline switcher + manager fall back to the local copy, non-local and
+  server-only surfaces stay hidden); `pnpm typecheck` + `pnpm test` green.
+  Web-only — no wire touch.
+
 - **fix(web): a server outage on load no longer signs the user out — the
   remembered workspace opens from its local copy and syncs on recovery
   (owner report 2026-10-16).** Fresh tab with the server down used to land
