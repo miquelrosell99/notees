@@ -117,14 +117,14 @@ NAME                                        KIND   ID
 Visited the Louvre with Paris trip          block  01a0dd78-ce72-769e-a424-e4d372a3ff62
 ```
 
-(The `page` rows in that listing are `--presentAsMain` children — the parent's main-children zone; `block` rows are the inline body.)
+(The `page` rows in that listing are standalone (`--no-isEmbedded`) children — the parent's main-children zone; `block` rows are the inline body.)
 
 **3. Search.** Unified FTS over active nodes:
 
 ```console
 $ notees search "Louvre"
 { "results": [ { "id": "01a0dd78-ce72-…", "name": "Visited the Louvre with Paris trip",
-                 "isClass": false, "presentAsMain": false,
+                 "isClass": false, "isEmbedded": true,
                  "parentId": "01a0dd78-cd48-…", "updatedAt": "2026-09-26T11:27:57.042Z" } ] }
 ```
 
@@ -244,11 +244,11 @@ server http://localhost:8477: 54 envelopes (restoreEpoch 0)
 local cursor: seq 0 — 54 behind
 ```
 
-Useful supporting commands: `notees object list --presentAsMain --q <text> --limit 20 --cursor <id>` (add `--all` to follow the cursor to exhaustion; `--parent <id>` and `--trashed` filter direct children and the trash), `notees object get <id>` (`--ids <uuid…>` fetches many, in order), `notees object children <id>`, `notees object restore <id>…`, `notees object property set|delete <id> <schema> <value> [--idx N]`, `notees object update <id> --name … --presentAsMain|--no-presentAsMain --icon … --color …` (`--color` takes a preset token — `red orange yellow green teal sky blue purple pink gray` — or a custom `#RRGGBB` hex; `--color none` clears; this is also promotion/demotion — flipping the render bit in place, identity and links intact; see [ux.md](ux.md#promotion-and-demotion)), and `notees ops [opType]` — the operation catalog (one-line description, example payload, affected-node shape per op) that backs the shell's `submitOp`.
+Useful supporting commands: `notees object list --isEmbedded --q <text> --limit 20 --cursor <id>` (add `--all` to follow the cursor to exhaustion; `--parent <id>` and `--trashed` filter direct children and the trash), `notees object get <id>` (`--ids <uuid…>` fetches many, in order), `notees object children <id>`, `notees object restore <id>…`, `notees object property set|delete <id> <schema> <value> [--idx N]`, `notees object update <id> --name … --isEmbedded|--no-isEmbedded --icon … --color …` (`--color` takes a preset token — `red orange yellow green teal sky blue purple pink gray` — or a custom `#RRGGBB` hex; `--color none` clears; this is also promotion/demotion — flipping the embedding flag in place, identity and links intact; see [ux.md](ux.md#promotion-and-demotion)), and `notees ops [opType]` — the operation catalog (one-line description, example payload, affected-node shape per op) that backs the shell's `submitOp`.
 
 ## Use cases
 
-**Seeding a class from a dataset** — build a JSON array of create bodies and import it in one process with `object create --batch` (the 1,025-species Pokédex imports in about a minute). Each entry is exactly one `POST /api/objects` body — `name`/`contentAst`, `parentId`, `presentAsMain`, `classIds`:
+**Seeding a class from a dataset** — build a JSON array of create bodies and import it in one process with `object create --batch` (the 1,025-species Pokédex imports in about a minute). Each entry is exactly one `POST /api/objects` body — `name`/`contentAst`, `parentId`, `isEmbedded`, `classIds`:
 
 ```console
 $ notees object create --isClass --name Pokemon
@@ -271,7 +271,7 @@ $ notees object upsert --name "bulbasaur" --class 01a101c6-…
 
 More than one node matches the title in scope and upsert refuses (exit 2, names the ambiguity) — narrow it with `--class` or `--parent` rather than guessing.
 
-**Structuring each imported node** — combine the two: upsert the node, then batch its info blocks as children. Blocks are children with the render bit unset, so they render inline in the body's zone; `--presentAsMain` children land in the main-children (Pages) zone instead:
+**Structuring each imported node** — combine the two: upsert the node, then batch its info blocks as children. Blocks are children with the embedding flag set (the default), so they render inline in the body's zone; `--no-isEmbedded` children land in the main-children (Pages) zone instead:
 
 ```console
 $ POKEMON=$(notees object upsert --name "Venusaur" --class 01a101c6-…)
@@ -513,17 +513,17 @@ Base URL `http://localhost:8377`, auth header `X-API-Key: nk_…` on every call 
 
 | Endpoint | What it does |
 |---|---|
-| `GET /api/objects?isClass=&presentAsMain=&class=&q=&limit=&cursor=` | List objects (paginated, filterable; `presentAsMain` selects the document-chrome rows — "pages" — its negation the inline body) |
-| `POST /api/objects` | Create an object; body `{"name": …, "parentId": …, "presentAsMain": …, "classIds": [...], "contentAst": [...]}` (`isClass: true` declares a class — a root) — returns the full object |
+| `GET /api/objects?isClass=&isEmbedded=&class=&q=&limit=&cursor=` | List objects (paginated, filterable; `isEmbedded=true` selects the embedded body rows — blocks — `isEmbedded=false` the standalone rows — pages) |
+| `POST /api/objects` | Create an object; body `{"name": …, "parentId": …, "isEmbedded": …, "classIds": [...], "contentAst": [...]}` (`isClass: true` declares a class — a root) — returns the full object |
 | `GET /api/objects/:id` | Fetch one object, including `contentAst`, `classes`, `properties` (each property entry carries its stable `elementId` — the multi-value element identity) |
 | `GET /api/objects/:id/children` | Direct children in child-position order (both render zones; active only) |
-| `PATCH /api/objects/:id` | Update `name`, `presentAsMain`, `contentAst`, `icon`, `color`; optional `baseRevision: {physical, logical}` — the object's `hlc` as last seen — 409s when stale (the only route with a natural per-node revision; see `x-revision-checks`) |
+| `PATCH /api/objects/:id` | Update `name`, `isEmbedded`, `contentAst`, `icon`, `color`; optional `baseRevision: {physical, logical}` — the object's `hlc` as last seen — 409s when stale (the only route with a natural per-node revision; see `x-revision-checks`) |
 | `PUT /api/objects/:id/classes/:classId` | Assign the object to a class (idempotent OR-Set add; class nodes are rejected — identity is the `is_class` bit) |
 | `DELETE /api/objects/:id/classes/:classId` | Remove the class membership (idempotent tombstone; authored property values survive) |
 | `DELETE /api/objects/:id` | Trash (subtree); `?permanent=true&confirm=<id>` hard-deletes |
 | `POST /api/objects/:id/merge` | Merge the object into another: body `{targetId}` — children move, class/tag bindings + authored properties + cover/banner/description remap (target wins populated fields), incoming mentions/property references/aliases/collection memberships retarget, the source trashes; `?dryRun=true` returns `{dryRun, summary}` without writing. Guards (class/collection/trashed source, target in the source subtree) fail 422 before anything reaches the log |
 | `GET /api/objects/:id/backlinks` | Edges pointing at the node (mentions, typed links, property refs) |
-| `GET /api/search?q=&isClass=&presentAsMain=&limit=&cursor=` | Full-text search over active nodes — priority-ranked: exact matches in page titles first, then exact matches in blocks, then terms in order (non-adjacent), then first-parent-name matches, then partial matches (fewer terms last); terms prefix-match, and a matching alias page also surfaces its canonical page. Query modes: a fully quoted query (`"gmi dental"`) matches the exact substring only, a leading caret (`^gmi`) matches at the start only; `cursor` (a previous response's `nextCursor`) pages until it comes back `null` |
+| `GET /api/search?q=&isClass=&isEmbedded=&limit=&cursor=` | Full-text search over active nodes — priority-ranked: exact matches in page titles first, then exact matches in blocks, then terms in order (non-adjacent), then first-parent-name matches, then partial matches (fewer terms last); terms prefix-match, and a matching alias page also surfaces its canonical page. Query modes: a fully quoted query (`"gmi dental"`) matches the exact substring only, a leading caret (`^gmi`) matches at the start only; `cursor` (a previous response's `nextCursor`) pages until it comes back `null` |
 | `GET /api/resolve?name=` | Resolve a node's id from its exact display name (case-insensitive; 404 when no active node carries it) — the one-round-trip counterpart of `/api/search` for name→id lookups |
 | `GET /api/classes` · `GET /api/classes/:id` | Class catalog and detail (bindings, members) |
 | `GET /api/property-schemas` · `GET /api/property-schemas/:id` | Active property schemas (list and one) |

@@ -31,21 +31,25 @@ determinism — edge ids are sha256 over `(source, type, target, verb, metadata,
 occurrence)`, so **wipe → replay → identical**. FTS: canonical FTS5; the
 sql.js backend uses `ftsModule: "fts4"` + `schemaSql("fts4")`.
 
-## Axes: render-state model (SCHEMA.md "Node structure")
+## Axes: the embedding model (SCHEMA.md "Node structure", Revision 12)
 
-Nodes carry two booleans + one CHECK: `is_class`, `present_as_main`,
-`CHECK (is_class = 0 OR parent_id IS NULL)`. "Page"/"block" are render states,
-not node kinds. **Main node vs block node** (owner 2026-10-09; the parent-page
-condition joins 2026-10-15): a main node renders with document chrome —
-`is_class = 1`, OR `parent_id IS NULL` (no parent), OR `present_as_main = 1`
-on a parented non-class node **whose parent also renders with document
-chrome**; a block node is any other parented non-class node — the bit unset,
-or set but inert under a class/block parent — inline in the parent's body, no
-title/chrome. The condition is write-time enforced (`MoveGuardError` on
-create/promotion/move under a non-page parent; demotion of a parented page
-with main children) and old logs are normalized by
-`scripts/migrate-main-parent-page.mts` (LOCKSTEP-PENDING for the GTK/Flutter
-ports). `rendersWithDocumentChrome` / `rendersAsInlineBlock`
+Nodes carry two booleans + one CHECK: `is_class`, `is_embedded`,
+`CHECK (is_class = 0 OR parent_id IS NULL)`. "Page"/"block" are the two
+structural roles of one node kind, not stored kinds. **Page role vs Block
+role** (owner 2026-10-09; the parent-page condition joins 2026-10-15; the
+Revision-12 rename + inversion 2026-10-16): a node in the Page role renders
+with document chrome — `is_class = 1`, OR `parent_id IS NULL` (no parent,
+standalone by definition), OR `is_embedded = 0` (the standalone claim) on a
+parented non-class node **whose parent also renders with document chrome**;
+a node in the Block role is any other parented non-class node — `is_embedded
+= 1` (the DEFAULT for parented nodes), or the claim inert under a class/block
+parent — inline in the parent's body, no title/chrome. The condition is
+write-time enforced (`MoveGuardError` on create/promotion/move of a
+standalone node under a non-page parent; demotion of a parented page with
+standalone children) and old logs are normalized by
+`scripts/migrate-main-parent-page.mts` + `scripts/migrate-is-embedded.mts`
+(LOCKSTEP-PENDING for the GTK/Flutter ports). `rendersWithDocumentChrome` /
+`rendersAsInlineBlock`
 (`packages/domain/src/node.ts`) are the two branches every surface speaks
 ("child pages" = main-zone children, "child blocks" = the inline zone).
 **Title-is-content** (2026-10-01): no `name` on the wire — a
