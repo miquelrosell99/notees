@@ -124,14 +124,28 @@ describe("chevron visibility (owner 2026-10-16 feedback)", () => {
     expect(menuCss).not.toContain("context-menu-submenu-inline");
     const menuRootBlock = menuCss.split(".card.context-menu {")[1]!.split("}")[0]!;
     expect(menuRootBlock).toContain("overflow: visible");
-    // The menu and its flyout ride the raised chrome surface (the sidebar
-    // token — surface-container-highest in the dark theme): elevation
-    // shadows are banned app-wide, so the surface step carries the whole
-    // separation from the backdrop (owner ruling 2026-10-16, registered
-    // in .agents/design-overrides.md).
-    expect(menuRootBlock).toContain("var(--md-sys-color-sidebar-card)");
+    // The menu and its flyout ride surface-container-high — the top of the
+    // design system's card ladder — and cite the Material role directly
+    // (the md-sys namespace is Material-only; the css-token-drift gate's
+    // check 7 rejects surface aliases like --md-sys-color-sidebar-card
+    // outside their own surface).
+    expect(menuRootBlock).toContain("var(--md-sys-color-surface-container-high)");
+    expect(menuRootBlock).not.toContain("sidebar-card");
     const flyoutSurface = menuCss.split(".context-menu-submenu-flyout {")[1]!.split("}")[0]!;
-    expect(flyoutSurface).toContain("var(--md-sys-color-sidebar-card)");
+    expect(flyoutSurface).toContain("var(--md-sys-color-surface-container-high)");
+
+    // The elevation table is back: Card's levels map to the design
+    // system's floating-layer shadows (static stays shadow-free).
+    const cardCss = readCss(["src", "ui", "components", "ui", "Card.css"]);
+    expect(cardCss.split(".card--elevation-medium {")[1]!.split("}")[0]!).toContain(
+      "var(--shadow-floating)",
+    );
+    expect(cardCss.split(".card--elevation-high {")[1]!.split("}")[0]!).toContain(
+      "var(--shadow-modal)",
+    );
+    expect(cardCss.split(".card--elevation-low {")[1]!.split("}")[0]!).toContain(
+      "box-shadow: none",
+    );
 
     const crumbsCss = readCss(["src", "ui", "components", "Breadcrumbs.css"]);
     const separatorBlock = crumbsCss.split(".node-breadcrumb-separator {")[1]!.split("}")[0]!;

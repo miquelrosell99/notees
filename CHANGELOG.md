@@ -9,6 +9,31 @@ predating this file.
 
 ## 2026-10-16
 
+- **fix(web): the app implements the skill's elevation table instead of
+  registering its drift — floating layers regain their shadows, the menu
+  cites Material roles directly, and the token gate now rejects both
+  failure modes for good (owner ruling 2026-10-16: "don't override in the
+  app", "make sure this never happens again").** The previous slice had it
+  backwards: Card zeroed every elevation level (contradicting the skill's
+  elevation table, which gives popovers/menus a soft level-1 shadow), and
+  that drift was about to be registered as a project override while a menu
+  cited the app alias `--md-sys-color-sidebar-card`. Corrected at the
+  source: `variables.css` gains the table's shadow values as
+  `--shadow-floating` (level 1) / `--shadow-modal` (level 2), per theme;
+  Card's elevations map to them (`medium` = level 1, `high` = level 2,
+  static stays shadow-free); ContextMenu and Dropdown move to `medium`
+  (menus/popovers are level 1), Modal keeps `high`. The menu root and
+  flyout cite `--md-sys-color-surface-container-high` — the top of the
+  skill's card ladder — directly, and the design-overrides entry from the
+  previous slice is deleted (nothing to register: the app matches the
+  skill). **Never again, enforced:** css-token-drift gains check 7 —
+  definitions in the `--md-sys-color-*` namespace must be canonical
+  Material roles or registered extensions (with a reason), and a surface
+  alias may only be cited on its home files. The skill itself gains the
+  standard (`tokens.md` → Namespace hygiene). **Verification:** `pnpm
+  typecheck` + `pnpm test` green (drift check 7 incl. its first live catch
+  — the alias itself was unregistered; `submenu-chevron` pins the new
+  surface + the elevation mapping); web-only — no wire touch.
 - **fix(web): floating context menus ride the raised chrome surface — the
   sidebar color — instead of vanishing into the backdrop (owner feedback
   2026-10-16: "menus get lost over the background color").** The menu card

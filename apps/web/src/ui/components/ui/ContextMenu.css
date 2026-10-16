@@ -24,18 +24,16 @@
    carry their own radius. The .card qualification beats the radius
    class's overflow without !important.
 
-   The menu also rides the raised chrome surface, not base surface: this
-   app bans elevation shadows (Card zeroes every elevation level), so with
-   no shadow to separate a floating menu from the backdrop, the surface
-   step must carry the whole separation — the design system's "pick the
-   step by elevation of content" rule, taken to the top of the container
-   ladder. Same token the nodeview sidebars ride (--md-sys-color-sidebar-
-   card = surface-container-highest in the dark theme); owner-directed
-   (2026-10-16, "menus get lost over the background color"). Registered
-   in .agents/design-overrides.md. */
+   The menu rides surface-container-high — the top of the design system's
+   card ladder ("cards/sheets/dialogs: surface-container-low → -high as
+   the surface gets more transient") — with its level-1 floating shadow
+   from the elevation table (Card elevation="medium"). Both are Material
+   roles cited directly; the md-sys namespace is for Material roles only,
+   never app aliases like --md-sys-color-sidebar-card (the css-token-drift
+   gate enforces this). */
 .card.context-menu {
   overflow: visible;
-  background: var(--md-sys-color-sidebar-card);
+  background: var(--md-sys-color-surface-container-high);
 }
 
 .context-menu-title {
@@ -158,12 +156,12 @@ button.context-menu-item:hover:not(.disabled) {
    edge, vertically clamped. Absolutely positioned inside the card, it
    never changes the menu's own box — so opening/closing it can never
    re-fit the menu the way the old inline expansion did. Rides the same
-   raised chrome surface as the menu root (see .card.context-menu). */
+   surface as the menu root (see .card.context-menu). */
 .context-menu-submenu-flyout {
   position: absolute;
   min-width: 11.25rem;
   max-width: var(--layout-size-6xl);
-  background: var(--md-sys-color-sidebar-card);
+  background: var(--md-sys-color-surface-container-high);
   padding: var(--spacing-1);
   z-index: 1;
   animation: panelFadeIn var(--motion-duration-long) var(--motion-easing-standard);

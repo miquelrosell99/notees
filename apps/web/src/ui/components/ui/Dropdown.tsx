@@ -246,7 +246,7 @@ export function Dropdown<T = string>({
           <Card
             ref={menuRef}
             className="dropdown-menu dropdown-menu--portal"
-            elevation="high"
+            elevation="medium"
             padding={false}
             style={
               menuPosition
