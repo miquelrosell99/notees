@@ -9,6 +9,21 @@ predating this file.
 
 ## 2026-10-16
 
+- **docs(design): the 100%-alignment program opens — sidebar, top bar, and
+  canvas chrome are the documented exceptions; everything else is in scope
+  (owner ruling 2026-10-16).** The owner directed the app to 100% alignment
+  with the RosellRamos design system except three surfaces: the sidebar, the
+  top bar, and on-canvas chrome (whiteboard/graph/presentation). Registered
+  as one entry in `.agents/design-overrides.md` per the override contract —
+  the exceptions are documented decisions, and every other deviation
+  (documented or not) is drift to fix. The program then works the known
+  list: the three fixable register deviations (calendar date-grid cells,
+  context-column dense type, editor row-chrome floors), the four
+  carried-forward notes from the 2026-10-15 re-audit (calendar title hover
+  ink, export-modal selected signal, CardsBoard geometry, content-renderer
+  px literals), and a fresh §1–§10 walk of the surfaces the re-audit did
+  not sweep. **Verification:** docs-only slice — the register is the
+  record; no runtime change.
 - **fix(web): the app implements the skill's elevation table instead of
   registering its drift — floating layers regain their shadows, the menu
   cites Material roles directly, and the token gate now rejects both
