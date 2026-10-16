@@ -7,6 +7,7 @@ import {
   DISPLAY_NAME_MAX,
   fullTitleOf,
   isClassNode,
+  isRuleContent,
   isTextOnlyContent,
   plainTextExcerpt,
   rendersAsInlineBlock,
@@ -432,6 +433,47 @@ describe("deriveDisplayName", () => {
     // structure, not a survivor like whiteboard/query/code_block).
     expect(stringifyContentAst(headingAst)).toEqual([{ type: "text", text: "The argument restated" }]);
     expect(isTextOnlyContent(headingAst)).toBe(false);
+  });
+});
+
+describe("isRuleContent — the display-time horizontal-rule derivation", () => {
+  it("accepts exactly one plain text run equal to ---", () => {
+    expect(isRuleContent([{ type: "text", text: "---" }])).toBe(true);
+    // The wire grammar's explicit "no marks" is still no marks.
+    expect(isRuleContent([{ type: "text", text: "---", marks: [] }])).toBe(true);
+  });
+
+  it("rejects near misses — no whitespace tolerance, no partial matches", () => {
+    expect(isRuleContent([{ type: "text", text: "--" }])).toBe(false);
+    expect(isRuleContent([{ type: "text", text: "----" }])).toBe(false);
+    expect(isRuleContent([{ type: "text", text: "--- x" }])).toBe(false);
+    expect(isRuleContent([{ type: "text", text: "x ---" }])).toBe(false);
+    expect(isRuleContent([{ type: "text", text: " ---" }])).toBe(false);
+    expect(isRuleContent([{ type: "text", text: "---\n" }])).toBe(false);
+    expect(isRuleContent([{ type: "text", text: "" }])).toBe(false);
+  });
+
+  it("rejects marks, extra tokens, and empty content", () => {
+    expect(isRuleContent([{ type: "text", text: "---", marks: ["code"] }])).toBe(false);
+    expect(
+      isRuleContent([
+        { type: "text", text: "above" },
+        { type: "text", text: "---" },
+      ]),
+    ).toBe(false);
+    expect(
+      isRuleContent([
+        {
+          type: "quote",
+          children: [{ type: "text", text: "---" }],
+        } as ContentAst[number],
+      ]),
+    ).toBe(false);
+    expect(isRuleContent([])).toBe(false);
+    expect(isRuleContent(null)).toBe(false);
+    expect(isRuleContent(undefined)).toBe(false);
+    expect(isRuleContent("---")).toBe(false);
+    expect(isRuleContent([{ type: "hr" }])).toBe(false);
   });
 });
 

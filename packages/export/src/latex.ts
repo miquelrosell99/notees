@@ -255,6 +255,11 @@ function renderBlock(block: ExportBlock): string {
       return `\\begin{verbatim}\n${JSON.stringify(block.queryAst, null, 2)}\n\\end{verbatim}`;
     case "whiteboard":
       return `\\begin{verbatim}\n${JSON.stringify(block.layout, null, 2)}\n\\end{verbatim}`;
+    case "rule":
+      // Display-time rule: the literal dashes —
+      // byte-identical to the paragraph pass-through from before the
+      // derivation existed.
+      return "---";
   }
 }
 

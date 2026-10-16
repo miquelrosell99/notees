@@ -402,6 +402,12 @@ function renderBlocksToLines(
           text = fenced("json", JSON.stringify(block.layout, null, 2));
         }
         break;
+      case "rule":
+        // Display-time rule: markdown keeps the literal
+        // dashes — byte-identical to the paragraph pass-through the block
+        // rendered before the derivation existed.
+        text = "---";
+        break;
     }
     if (text.trim().length > 0) lines.push(text);
   }
