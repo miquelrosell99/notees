@@ -11,11 +11,13 @@
  * then is just the link-block replacement, children untouched).
  *
  * The gesture COMPOSES existing carriers — deliberately NO new op type:
- * one `object.create` (the link block, anchored at the source slot with
- * the m2 beforeId/afterId carriers) + `object.move` to the workspace root
- * + one `object.move` per reparented child (afterId chaining, the
- * merge-plan children precedent). Every client converges by replay with
- * zero applier changes; the wire stays untouched.
+ * one `object.create` (the link block, anchored with `beforeId` AT THE
+ * SOURCE — it lands immediately ahead of the block, so the block's
+ * departure leaves the link holding its exact slot on every position) +
+ * `object.move` to the workspace root + one `object.move` per reparented
+ * child (afterId chaining, the merge-plan children precedent). Every
+ * client converges by replay with zero applier changes; the wire stays
+ * untouched.
  *
  * Guards fail loud BEFORE anything reaches the log: the node must exist,
  * be an inline block (a page or class converts nothing), and not be a
@@ -77,28 +79,25 @@ export async function extractBlockToPage(
   }
 
   // rendersAsInlineBlock guarantees a parent. ALL reads happen before ANY
-  // write: the write surface applies asynchronously and the child/sibling
-  // order must be the pre-gesture state the anchors are computed from.
+  // write: the write surface applies asynchronously and the child order
+  // must be the pre-gesture state the reparent plan is computed from.
   const parentId = node.parentId as string;
-  const siblings = reads.getChildren(parentId);
   const children = reads.getChildren(nodeId);
-  const index = siblings.findIndex((sibling) => sibling.id === nodeId);
-  const prev = index > 0 ? siblings[index - 1] : undefined;
-  const next = index >= 0 && index < siblings.length - 1 ? siblings[index + 1] : undefined;
 
   const linkBlockId = await writes.createObject({
     parentId,
     contentAst: [
       { type: "mention", targetNodeId: nodeId, text: deriveDisplayName(node) || "Untitled" },
     ],
-    // Land exactly in the block's old slot: after the previous sibling when
-    // there is one, otherwise before the next (the block is the first
-    // child), otherwise the parent was empty of other children — append.
-    ...(prev !== undefined
-      ? { afterId: prev.id }
-      : next !== undefined
-        ? { beforeId: next.id }
-        : {}),
+    // Anchor BEFORE the block itself: the applier's beforeId midpoint lands
+    // the link immediately ahead of the block on EVERY position (first,
+    // middle, last), and the block's own departure to the root leaves the
+    // link holding its exact slot. Anchoring against the source also beats
+    // sibling lookups — a stale cached children read can miss the block
+    // (index -1) or mis-order siblings, which appended the link at the end
+    // (the reported "link block lands last" bug). The source node is always
+    // present in the store.
+    beforeId: nodeId,
   });
   await writes.moveObject(nodeId, null);
   if (options.keepChildren !== true) {
