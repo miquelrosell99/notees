@@ -17,6 +17,14 @@
  *                    with no server, sync pending until a later login
  *                    adopts it.
  *
+ * Session resume (fresh tab with a remembered credential) validates it
+ * against the server first: 401/403 clears it and lands on the sign-in
+ * screen, but a server that does not answer keeps the credential and opens
+ * the remembered workspace from its local copy — the boot is local-first,
+ * the sync-status banner reports "working locally until it recovers", and
+ * the realtime reconnect catches up when the server returns. Only sign-out,
+ * "Disconnect & forget", or a rejected credential returns to screen 1.
+ *
  * The shell components live in ./components (TopBar, Sidebar, PageCard,
  * CommandPalette); App stays composition + boot phases.
  *
@@ -43,6 +51,7 @@ import {
   logout,
   setupAccount,
   signup,
+  AuthRequestError,
   type AccountUser,
   type WorkspaceEntry,
 } from "@/core/auth-api.js";
@@ -1354,8 +1363,16 @@ export function App() {
               workspaceId,
               sqlJsConfig: { locateFile: () => sqlWasmUrl },
             });
-        // The worker path bootstraps during init; the in-process path syncs here.
-        await nextClient.bootstrapWorkspace(workspaceId);
+        // The worker path bootstraps during init; the in-process path syncs
+        // here. Local-first on both: an unreachable relay must not block boot
+        // from local bytes (WorkerCore.create already swallows the same
+        // failure) — the sync error surfaces through the status callbacks and
+        // the realtime reconnect catches up on recovery.
+        try {
+          await nextClient.bootstrapWorkspace(workspaceId);
+        } catch {
+          // Working locally until the server recovers.
+        }
       }
       if (options.credentialType === "session") {
         writeStored(STORAGE_KEYS.sessionToken, credential);
@@ -1457,10 +1474,34 @@ export function App() {
             label: list.find((ws) => ws.id === rememberedWorkspace)?.name ?? "Workspace",
           });
         })
-        .catch(() => {
-          clearStored(STORAGE_KEYS.sessionToken);
-          clearStored(STORAGE_KEYS.apiKey);
-          setToken("");
+        .catch((err: unknown) => {
+          // Unreachable ≠ unauthorized. Only a rejected credential clears the
+          // session (an expired session or revoked key must land on the
+          // sign-in screen). A server that does not answer — network failure
+          // or any non-401 response — keeps the credential and opens the
+          // remembered workspace from its local copy instead: the worker
+          // boots from local bytes even with the relay down, the sync-status
+          // banner says "working locally until it recovers", and the
+          // realtime reconnect catches up when the server returns.
+          if (
+            err instanceof AuthRequestError &&
+            (err.status === 401 || err.status === 403)
+          ) {
+            clearStored(STORAGE_KEYS.sessionToken);
+            clearStored(STORAGE_KEYS.apiKey);
+            setToken("");
+            setPhase({ name: "server" });
+            return;
+          }
+          if (rememberedWorkspace !== "") {
+            return connect(rememberedUrl, credential, rememberedWorkspace, {
+              isOffline: false,
+              credentialType,
+              label: "Workspace",
+            });
+          }
+          // No workspace to open locally (the manager was the last surface):
+          // the server form, credential intact.
           setPhase({ name: "server" });
         });
       return;

@@ -7,6 +7,36 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-10-16
+
+- **fix(web): a server outage on load no longer signs the user out — the
+  remembered workspace opens from its local copy and syncs on recovery
+  (owner report 2026-10-16).** Fresh tab with the server down used to land
+  on the "select a sync server" screen — and, worse, the boot resume treated
+  the network failure as an invalid credential: it cleared the stored
+  session/API key, so even after the server returned the user had to sign in
+  again. Clicking "Work offline" from there opened the separate device-local
+  workspace, so the user's workspaces read as gone. Now the resume effect
+  distinguishes the two failure classes: a 401/403 (`AuthRequestError`,
+  new typed error in `auth-api.ts` carrying the HTTP status) still clears
+  the credential and lands on the sign-in screen, while an unreachable or
+  erroring server keeps the credential and `connect()`s to the remembered
+  workspace in the normal online mode — the worker store already boots from
+  local bytes when the relay is down, the `BackendUnavailableOverlay`
+  banner reports "working locally until it recovers", and the realtime
+  transport's backoff reconnect catches up when the server returns. The
+  in-process store fallback (`connect()` in `App.tsx`) now swallows the
+  bootstrap sync failure the same way `WorkerCore.create` already did, so
+  the degraded path behaves identically in both store modes. With no
+  workspace remembered yet, the server form shows with the credential
+  intact. The no-account "Work offline" flow (device-local workspace) is
+  unchanged. Docs: `App.tsx` boot-flow header + `docs/usage.md` account-boot
+  clause. **Verification:** new `app-smoke.test.tsx` cases (unreachable
+  server keeps the credential and opens the remembered workspace with the
+  degraded banner; no remembered workspace keeps the credential on the
+  server form); `pnpm typecheck` + `pnpm test` green. Web-only — no wire
+  touch.
+
 ## 2026-10-15
 
 - **fix(web): focus mode reads centered again — the 46rem cap returns inside
