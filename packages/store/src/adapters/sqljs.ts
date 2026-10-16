@@ -27,23 +27,24 @@ import type { SqliteDB, SqliteStatement, StoreBackend } from "../db.js";
  *
  * sql.js ALSO throws bare values at the API boundary — notably the frozen
  * STRING "Database closed" after close() — which carry no stack and fail
- * every `error instanceof Error` check downstream (they would surface as
- * stack-less unhandled rejections from any fire-and-forget caller). Wrap any
- * non-Error throw in a real Error with the same message: the translation
- * path is unchanged (no code is attached), but the failure is diagnosable.
+ * every `error instanceof Error` check downstream (they surface as
+ * stack-less "Unknown Error" unhandled rejections from any fire-and-forget
+ * caller). Wrap ANY non-Error throw (strings included — they cannot take a
+ * `code` property, so the translation path is unchanged) in a real Error
+ * with the same message: the failure becomes diagnosable.
  */
 function tagSqliteError(error: unknown): never {
-  if (typeof error !== "string" && !(error instanceof Error)) {
-    throw new Error(String(error));
-  }
-  if (error instanceof Error && !("code" in error)) {
-    try {
-      (error as { code?: string }).code = "SQLITE_ERROR";
-    } catch {
-      // Non-extensible error object: leave it untagged.
+  if (error instanceof Error) {
+    if (!("code" in error)) {
+      try {
+        (error as { code?: string }).code = "SQLITE_ERROR";
+      } catch {
+        // Non-extensible error object: leave it untagged.
+      }
     }
+    throw error;
   }
-  throw error;
+  throw new Error(String(error));
 }
 
 function bindParams(params: unknown[]): SqlValue[] {
