@@ -9,6 +9,20 @@ predating this file.
 
 ## 2026-10-16
 
+- **fix(web): the flyout submenu renders again — the menu card no longer
+  clips it (owner report 2026-10-16: submenu invisible even on click).**
+  The flyout paints past the menu card's right edge, and the card radius
+  class (`.card--radius-floating`) sets `overflow: hidden` — so the first
+  deployed flyout was cut from view entirely (jsdom asserts structure, not
+  paint, so the gate stayed green; a CSS-source pin now guards the
+  override). The menu card overrides back to `overflow: visible` with a
+  specificity-qualified rule (`.card.context-menu`, no `!important`); the
+  rows inside still can't bleed — they are inset by the card padding and
+  carry their own radius. Same caveat recorded in the design system's
+  web-patterns submenu entry. **Verification:** `pnpm typecheck` + `pnpm
+  test` green (the `submenu-chevron` CSS-source spec now pins the menu
+  card's `overflow: visible` alongside the flyout's absolute positioning);
+  web-only — no wire touch.
 - **fix(web): submenus fly out to the side of the parent row (the Notion
   pattern) instead of expanding inline — ending the grow-then-refit dance
   at the viewport's bottom edge (owner feedback 2026-10-16).** The inline
