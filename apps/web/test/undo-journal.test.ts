@@ -83,6 +83,7 @@ function fakeCapture(overrides: {
     isEmbedded: true,
     icon: null,
     color: null,
+    listStyle: null,
     contentAst: [{ type: "text", text: "before" }],
     classIds: [CLASS_A],
     tagIds: [TAG],
@@ -125,6 +126,7 @@ describe("invertEnvelope — the inversion matrix", () => {
     isEmbedded: true,
     icon: null,
     color: null,
+    listStyle: null,
     contentAst: [{ type: "text", text: "before" }],
     classIds: [CLASS_A],
     tagIds: [TAG],
@@ -178,6 +180,28 @@ describe("invertEnvelope — the inversion matrix", () => {
     expect(
       invertEnvelope(env("object.update", { objectId: NODE, icon: "mdi-star" }), fakeCapture({})),
     ).toBeNull();
+  });
+
+  it("object.update touching listStyle restores the prior style — null prior included (present-null clears)", () => {
+    // Set on a bullet-default block: undo restores null, which the wire
+    // expresses honestly as a clear (unlike `icon`).
+    expect(
+      invertEnvelope(
+        env("object.update", { objectId: NODE, listStyle: "numbered" }),
+        fakeCapture({}),
+      ),
+    ).toEqual([
+      { opType: "object.update", payload: { objectId: NODE, listStyle: null }, affected: [NODE] },
+    ]);
+    // Clear on a styled block: undo restores the captured style.
+    expect(
+      invertEnvelope(
+        env("object.update", { objectId: NODE, listStyle: null }),
+        fakeCapture({ node: snapOf({ listStyle: "alpha" }) }),
+      ),
+    ).toEqual([
+      { opType: "object.update", payload: { objectId: NODE, listStyle: "alpha" }, affected: [NODE] },
+    ]);
   });
 
   it("soft object.delete inverts as object.restore; permanent delete is data loss (skipped)", () => {
@@ -673,6 +697,8 @@ describe("UndoJournal — mechanics (fake clock)", () => {
     expect(journal.undoLabel()).toBe("Undo promote");
     journal.commit(journal.prepare(env("object.update", { objectId: NODE, color: "sky" })), "normal");
     expect(journal.undoLabel()).toBe("Undo change color");
+    journal.commit(journal.prepare(env("object.update", { objectId: NODE, listStyle: "roman" })), "normal");
+    expect(journal.undoLabel()).toBe("Undo change list style");
     journal.commit(journal.prepare(env("property.set", { objectId: NODE, propertySchemaId: SCHEMA, value: "v" })), "normal");
     expect(journal.undoLabel()).toBe("Undo set property");
     expect(journal.redoLabel()).toBeNull();

@@ -127,6 +127,7 @@ describe("NodeContextMenu zone gestures (Convert to page / Move to content)", ()
       icon: null,
       coverAssetId: null,
       bannerAssetId: null,
+      listStyle: null,
       aliasedNodeId: null,
       description: null,
       color: null,

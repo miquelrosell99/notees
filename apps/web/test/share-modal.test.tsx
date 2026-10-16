@@ -179,6 +179,7 @@ describe("NodeContextMenu Share… item", () => {
       icon: null,
       coverAssetId: null,
       bannerAssetId: null,
+      listStyle: null,
       aliasedNodeId: null,
       description: null,
       color: null,

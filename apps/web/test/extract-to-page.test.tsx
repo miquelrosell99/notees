@@ -39,6 +39,7 @@ function nodeOf(partial: Partial<ClientNode> & { id: string }): ClientNode {
     icon: null,
     coverAssetId: null,
     bannerAssetId: null,
+    listStyle: null,
     aliasedNodeId: null,
     description: null,
     color: null,
