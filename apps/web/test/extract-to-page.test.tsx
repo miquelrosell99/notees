@@ -13,7 +13,7 @@
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import initSqlJs from "sql.js";
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { fireEvent, render, waitFor, within } from "@testing-library/react";
 
 import { dayNodeId } from "@notees/domain";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
@@ -267,25 +267,29 @@ describe('NodeContextMenu "Convert to page" submenu', () => {
     // The stub cannot resolve the parent node itself — the fallback reads
     // "parent"; the production label carries the parent's display name.
     expect(getByText('Keep under "parent"')).not.toBeNull();
-    expect(getByText("Extract to root — children stay here")).not.toBeNull();
-    expect(getByText("Extract to root — children follow")).not.toBeNull();
+    expect(getByText("Children stay here")).not.toBeNull();
+    expect(getByText("Children follow")).not.toBeNull();
   });
 
-  it("the extract rows say a link block is left in place (the description lines)", () => {
+  it("the extract rows carry the explanation as hover tooltips (short labels, full text on hover)", () => {
     const { getByText } = renderMenu(inlineTarget, stubClient(scenario()).client);
     fireEvent.click(getByText("Convert to page"));
-    // The owner's clarity ruling (2026-10-16): the menu must state that a
-    // node link takes the block's place — and that "follow" means the SAME
-    // node keeps its children (the extracted page is not new; the block's
-    // parent_id is removed, identity untouched).
-    expect(
-      getByText("A link block takes its place; the children remain here, nested under the link."),
-    ).not.toBeNull();
-    expect(
-      getByText(
-        "A link block takes its place; the children stay with the block — the same node, now a root page.",
-      ),
-    ).not.toBeNull();
+    // The owner's ruling (2026-10-16): the rows read short; the full
+    // explanation — a link block takes the block's place, and "follow"
+    // means the SAME node keeps its children (the page is not new; the
+    // block's parent_id is removed, identity untouched) — rides the
+    // native title tooltips.
+    const stay = getByText("Children stay here").closest("button")!;
+    expect(stay.getAttribute("title")).toBe(
+      "The block becomes a root page; a link block takes its place in this page, and the children stay nested under the link.",
+    );
+    const follow = getByText("Children follow").closest("button")!;
+    expect(follow.getAttribute("title")).toBe(
+      "The block becomes a root page; a link block takes its place, and the children stay with the block — the same node, now a root page.",
+    );
+    // The visible explanation line is gone — the row carries no second-line
+    // text (the tooltip owns the explanation).
+    expect(within(stay).queryByText(/takes its place/)).toBeNull();
   });
 
   it("a plain click on 'children stay here' reparents the children to the link block", async () => {
@@ -294,7 +298,7 @@ describe('NodeContextMenu "Convert to page" submenu', () => {
     const { getByText } = renderMenu(inlineTarget, stub.client);
 
     fireEvent.click(getByText("Convert to page"));
-    fireEvent.click(getByText("Extract to root — children stay here"));
+    fireEvent.click(getByText("Children stay here"));
 
     await waitFor(() => expect(stub.moves.map((m) => m.id)).toEqual(["t1", "c1"]));
     expect(stub.creates).toEqual([
@@ -313,7 +317,7 @@ describe('NodeContextMenu "Convert to page" submenu', () => {
     const { getByText } = renderMenu(inlineTarget, stub.client);
 
     fireEvent.click(getByText("Convert to page"));
-    fireEvent.click(getByText("Extract to root — children follow"));
+    fireEvent.click(getByText("Children follow"));
 
     await waitFor(() =>
       expect(stub.moves).toEqual([{ id: "t1", parentId: null, afterId: undefined, beforeId: undefined }]),
