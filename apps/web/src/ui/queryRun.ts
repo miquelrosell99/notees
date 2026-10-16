@@ -144,15 +144,21 @@ export function openQueryResult(
   onOpenNode: ((nodeId: string) => void) | undefined,
 ): void {
   if (onOpenNode === undefined) return;
-  if (!rendersAsInlineBlock(row)) {
+  if (!rendersAsInlineBlock(row, client.getNode(row.parentId ?? ""))) {
     onOpenNode(row.id);
     return;
   }
+  // Ancestor walk with the parent-page condition: a bit under a non-page
+  // parent is inert, so the walk continues past it to the real page.
   const seen = new Set<string>([row.id]);
   let current = client.getNode(row.parentId ?? "");
-  while (current !== undefined && !rendersWithDocumentChrome(current) && !seen.has(current.id)) {
+  let currentParent =
+    current !== undefined && current.parentId !== null ? client.getNode(current.parentId) : undefined;
+  while (current !== undefined && !rendersWithDocumentChrome(current, currentParent) && !seen.has(current.id)) {
     seen.add(current.id);
-    current = current.parentId !== null ? client.getNode(current.parentId) : undefined;
+    current = currentParent;
+    currentParent =
+      current !== undefined && current.parentId !== null ? client.getNode(current.parentId) : undefined;
   }
-  onOpenNode(current !== undefined && rendersWithDocumentChrome(current) ? current.id : row.id);
+  onOpenNode(current !== undefined && rendersWithDocumentChrome(current, currentParent) ? current.id : row.id);
 }

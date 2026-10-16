@@ -190,6 +190,14 @@ export interface BlockTreeNode {
   children: BlockTreeNode[];
 }
 
+/** The parent node's render facts for the parent-page condition (owner
+ *  ruling 2026-10-15) — undefined when the node is parentless or the
+ *  parent row is not at hand (the store's write-time invariant covers
+ *  that case). */
+type ParentRenderFacts =
+  | Pick<ClientNode, "isClass" | "parentId" | "presentAsMain">
+  | undefined;
+
 /**
  * Typed error for a `query` content token whose serialized AST fails
  * validation (`parseQueryAst` — unknown condition types / versions fail loud)
@@ -1288,11 +1296,19 @@ export class WorkspaceClient {
   /**
    * A document-chrome node (Revision 11): non-class and parentless or
    * present-as-main — the Page View's read; anything else (a class, an
-   * inline block) is not a page here.
+   * inline block) is not a page here. The parent-page condition (owner
+   * ruling 2026-10-15) is honored via the parent's render facts.
    */
   getPage(id: string): ClientNode | undefined {
     const node = this.getNode(id);
-    return node !== undefined && rendersWithDocumentChrome(node) ? node : undefined;
+    return node !== undefined && rendersWithDocumentChrome(node, this.parentFactsOf(node))
+      ? node
+      : undefined;
+  }
+
+  /** The parent's render facts for the parent-page condition, when known. */
+  private parentFactsOf(node: { parentId: string | null }): ParentRenderFacts {
+    return node.parentId !== null ? this.getNode(node.parentId) : undefined;
   }
 
   /** All document-chrome nodes (parentless or main children), deterministic order. */
@@ -2210,7 +2226,7 @@ export class WorkspaceClient {
   /** Source ids matching the node's name, minus itself and linked sources. */
   private unlinkedReferenceIds(id: string): string[] {
     const node = this.getNode(id);
-    if (!node || !rendersWithDocumentChrome(node)) return [];
+    if (!node || !rendersWithDocumentChrome(node, this.parentFactsOf(node))) return [];
     // A source linking the node OR any of its alias pages is already linked
     // (the linked-references set rolls alias-targeted edges in — see
     // getLinkedReferences), so the unlinked list excludes both families.
@@ -2250,7 +2266,7 @@ export class WorkspaceClient {
     const ids: string[] = [];
     for (const aliasId of this.store.aliasNodesOf(id)) {
       const alias = this.getNode(aliasId);
-      if (alias === undefined || !rendersWithDocumentChrome(alias)) continue;
+      if (alias === undefined || !rendersWithDocumentChrome(alias, this.parentFactsOf(alias))) continue;
       ids.push(aliasId);
     }
     return ids;
@@ -2265,7 +2281,7 @@ export class WorkspaceClient {
     const nodes: ClientNode[] = [];
     for (const aliasId of this.store.aliasNodesOf(id)) {
       const alias = this.getNode(aliasId);
-      if (alias === undefined || !rendersWithDocumentChrome(alias)) continue;
+      if (alias === undefined || !rendersWithDocumentChrome(alias, this.parentFactsOf(alias))) continue;
       nodes.push(alias);
     }
     return nodes;
@@ -2370,13 +2386,13 @@ export class WorkspaceClient {
    */
   private referenceEntry(source: ClientNode): ReferenceEntry {
     let current = source;
-    for (
-      let guard = 0;
-      !rendersWithDocumentChrome(current) && current.parentId !== null && guard < 64;
-      guard += 1
-    ) {
+    for (let guard = 0; guard < 64; guard += 1) {
+      if (current.parentId === null) break;
       const parent = this.getNode(current.parentId);
-      if (!parent) break;
+      // The parent-page condition rides along (owner ruling 2026-10-15): a
+      // bit under a non-page parent is inert, so the walk continues past
+      // it to the real containing page.
+      if (parent === undefined || rendersWithDocumentChrome(current, parent)) break;
       current = parent;
     }
     return {

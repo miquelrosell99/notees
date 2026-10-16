@@ -159,9 +159,10 @@ function propertyCarrierIdsOf(client: ExportReadSurface, nodeId: string): Set<st
  *  Carrier blocks excluded (they render in the property row, not the body). */
 function blockChildrenOf(client: ExportReadSurface, id: string): ExportNode[] {
   const carriers = propertyCarrierIdsOf(client, id);
+  const hostNode = client.getNode(id);
   const nodes: ExportNode[] = [];
   for (const child of client.getChildren(id)) {
-    if (!rendersAsInlineBlock(child)) continue;
+    if (!rendersAsInlineBlock(child, hostNode)) continue;
     if (carriers.has(child.id)) continue;
     const mapped = toExportNode(client, child.id);
     if (mapped !== undefined) nodes.push(mapped);

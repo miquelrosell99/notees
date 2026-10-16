@@ -863,7 +863,7 @@ export function App() {
    * journal / pages hub). Inline blocks vanish in place — no navigation.
    */
   function handleNodeDeleted(node: ClientNode): void {
-    if (rendersAsInlineBlock(node)) return;
+    if (rendersAsInlineBlock(node, clientRef.current?.getNode(node.parentId ?? ""))) return;
     if (node.parentId !== null) {
       openPage(node.parentId);
       return;
@@ -1166,7 +1166,8 @@ export function App() {
       if (openId === null) return;
       const live = clientRef.current;
       const node = live?.getNode(openId);
-      if (node === undefined || !rendersWithDocumentChrome(node)) return;
+      if (node === undefined || !rendersWithDocumentChrome(node, live?.getNode(node.parentId ?? "")))
+        return;
       event.preventDefault();
       setPresentingId(openId);
     };

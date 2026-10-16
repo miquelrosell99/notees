@@ -6,7 +6,12 @@
  * Render cascade (SCHEMA.md): is_class → ClassView; parentless → document
  * chrome (the bit unread); otherwise the bit decides — present_as_main = the
  * parent's main-children zone + document chrome when zoomed, unset = the
- * inline body + block chrome.
+ * inline body + block chrome. The bit is only EFFECTIVE under a page parent
+ * (owner ruling 2026-10-15): a parented node renders with document chrome
+ * ONLY when present_as_main is set AND its parent also renders with document
+ * chrome — classes are not pages (ClassView), so present_as_main under a
+ * class or a block parent is inert. The store enforces the invariant
+ * write-time; render assumes it.
  */
 
 import type { ContentAst, ContentToken } from "@notees/protocol";
@@ -212,20 +217,34 @@ export function isClassNode(node: Pick<NodeLike, "isClass">): boolean {
  * Document-chrome predicate: ClassView rows excluded (first cascade branch),
  * parentless non-class rows render as documents regardless of the bit
  * (second branch), and a parented row renders with document chrome exactly
- * when present_as_main is set (third branch).
+ * when present_as_main is set AND its parent also renders with document
+ * chrome (owner ruling 2026-10-15 — the parent-page condition; a class or
+ * block parent makes the bit inert).
+ *
+ * `parent` is the parent row's render facts, when the caller has them. The
+ * store enforces the invariant write-time (a bit under a non-page parent is
+ * never stored), so an omitted/absent parent means "not at hand" and the bit
+ * is trusted — deeper ancestry than one level rides the same invariant.
  */
 export function rendersWithDocumentChrome(
   node: Pick<NodeLike, "isClass" | "parentId" | "presentAsMain">,
+  parent?: Pick<NodeLike, "isClass" | "parentId" | "presentAsMain"> | null,
 ): boolean {
-  return !node.isClass && (node.parentId == null || !!node.presentAsMain);
+  if (node.isClass) return false;
+  if (node.parentId == null) return true;
+  if (!node.presentAsMain) return false;
+  if (parent == null) return true;
+  return rendersWithDocumentChrome(parent);
 }
 
 /**
- * Inline-block predicate: a parented non-class node with the render bit
- * unset — the inline body + block chrome branch of the cascade.
+ * Inline-block predicate: a parented non-class node that does NOT render
+ * with document chrome — the bit unset, or set but inert under a non-page
+ * parent (the parent-page condition).
  */
 export function rendersAsInlineBlock(
   node: Pick<NodeLike, "isClass" | "parentId" | "presentAsMain">,
+  parent?: Pick<NodeLike, "isClass" | "parentId" | "presentAsMain"> | null,
 ): boolean {
-  return !node.isClass && node.parentId != null && !node.presentAsMain;
+  return !node.isClass && node.parentId != null && !rendersWithDocumentChrome(node, parent);
 }

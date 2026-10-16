@@ -72,6 +72,7 @@ import { parseDateNodeId, rendersWithDocumentChrome, SYSTEM_CLASS_UUIDS } from "
 import { Icon } from "../Icon.js";
 import { BlockRow } from "../BlockRow.js";
 import { displayNameForSettings, displayNameFromClient } from "../dateDisplay.js";
+import { parentRenderFacts } from "../renderStateLabel.js";
 import { OutlinerContext, useOutlinerValue } from "../outliner-context.js";
 import { SelectionButton, Checkbox, ImageModal, SortMenuButton, type SortMenuOption } from "../components/ui/index.js";
 import { registerView } from "./registry.js";
@@ -338,7 +339,7 @@ export function NodeCard({
           </div>
           {menu !== null && (
             <NodeContextMenu
-              state={{ x: menu.x, y: menu.y, node: item.node, isPage: rendersWithDocumentChrome(item.node) }}
+              state={{ x: menu.x, y: menu.y, node: item.node, isPage: rendersWithDocumentChrome(item.node, parentRenderFacts(client, item.node)) }}
               client={client}
               onClose={() => setMenu(null)}
               onOpenNode={(id: string) => {

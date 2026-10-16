@@ -27,7 +27,7 @@
 
 import { useState } from "react";
 
-import { parseDateNodeId, rendersAsInlineBlock } from "@notees/domain";
+import { parseDateNodeId, rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
 import type { ContentAst } from "@notees/protocol";
 
 import { cloneSubtree, type CloneReadSurface, type CloneWriteSurface } from "@/core/clone.js";
@@ -36,7 +36,7 @@ import type { ClientNode, ClientPropertySchema } from "@/core/workspace-client.j
 
 import { displayNameForSettings } from "../dateDisplay.js";
 import { nodeLinkUrl } from "../nodeLink.js";
-import { untitledLabelOf } from "../renderStateLabel.js";
+import { parentRenderFacts, untitledLabelOf } from "../renderStateLabel.js";
 import { copyToClipboard } from "./modals/clipboard.js";import { notificationStore } from "./ui/notificationStore.js";
 import { clipboardMarkdown } from "./modals/exportSubtree.js";
 import { refuseClassRemoval, removeClassDissolvingLinks } from "./classRemoval.js";
@@ -230,6 +230,9 @@ export function NodeContextMenu({
   const { node, ownerId, isPage } = state;
   const favorite = readFavorites().includes(node.id);
   const name = displayLabelOf(node);
+  // The parent's render facts, for the parent-page condition (owner ruling
+  // 2026-10-15) — undefined when parentless or the row is not at hand.
+  const parentFacts = parentRenderFacts(client, node);
   // What a promotion would flatten (empty when the content is already
   // text-only — the confirm modal stays out of that path entirely).
   const flattenTypes = promotionFlattenTypes(node);
@@ -300,7 +303,7 @@ export function NodeContextMenu({
   ];
   // Favorites surface pages/classes in the sidebar; an inline block has no
   // sidebar presence, so the toggle is hidden for the inline-body branch.
-  if (!rendersAsInlineBlock(node)) {
+  if (!rendersAsInlineBlock(node, parentFacts)) {
     items.push({
       id: "favorite",
       label: favorite ? "Remove from favorites" : "Add to favorites",
@@ -357,6 +360,13 @@ export function NodeContextMenu({
   if (rendersAsInlineBlock(node) && parseDateNodeId(node.id) === null) {
     const parentNode = node.parentId === null ? undefined : client.getNode(node.parentId);
     const parentName = parentNode === undefined ? "parent" : displayLabelOf(parentNode);
+    // Parent-page condition (owner ruling 2026-10-15): KEEP UNDER only
+    // exists under a page parent — the store rejects the bit under a class
+    // or an inline block (move the block under a page first). A missing
+    // parent row means "not at hand": the write-time invariant covers it.
+    // EXTRACT TO ROOT is always legal (a parentless node renders with
+    // document chrome by the second cascade branch).
+    const promoteAllowed = parentNode === undefined || rendersWithDocumentChrome(parentNode);
     const extract = (keepChildren: boolean): void => {
       void extractBlockToPage(client, client, node.id, { keepChildren })
         .then(() => notificationStore.success("Converted to page", name))
@@ -370,18 +380,22 @@ export function NodeContextMenu({
       label: "Convert to page",
       icon: "mdi-file-document-outline",
       submenuItems: [
-        {
-          id: "keep-under-parent",
-          label: `Keep under "${parentName}"`,
-          icon: "mdi-file-tree-outline",
-          onClick: () => {
-            // BC4 guard: this direction flattens rich tokens to one text
-            // run — ask first, naming what will flatten. Text-only content
-            // (or widgets that survive) converts immediately.
-            if (flattenTypes.length > 0) setPendingPromote(node);
-            else void client.updateObject(node.id, { presentAsMain: true });
-          },
-        },
+        ...(promoteAllowed
+          ? [
+              {
+                id: "keep-under-parent",
+                label: `Keep under "${parentName}"`,
+                icon: "mdi-file-tree-outline",
+                onClick: () => {
+                  // BC4 guard: this direction flattens rich tokens to one text
+                  // run — ask first, naming what will flatten. Text-only content
+                  // (or widgets that survive) converts immediately.
+                  if (flattenTypes.length > 0) setPendingPromote(node);
+                  else void client.updateObject(node.id, { presentAsMain: true });
+                },
+              },
+            ]
+          : []),
         {
           id: "extract-children-stay",
           label: "Extract to root — children stay here",
@@ -474,7 +488,7 @@ export function NodeContextMenu({
   items.push({ id: "s2", label: "", separator: true });
   // Inline blocks delete instantly; pages and classes ask in the reusable
   // ConfirmationModal (danger) — the menu closes, the modal decides.
-  const confirmDelete = !rendersAsInlineBlock(node);
+  const confirmDelete = !rendersAsInlineBlock(node, parentFacts);
   items.push(
     confirmDelete
       ? {

@@ -64,6 +64,8 @@ import type {
 import { AnnotationsSection } from "../AnnotationsSection.js";
 import { todayIsoLocal } from "./calendarViewUtils.js";
 import { displayNameFromClient, datetimeValueText } from "../dateDisplay.js";
+
+import { parentRenderFacts } from "../renderStateLabel.js";
 import { assetImageUrl } from "../views/assetThumbs.js";
 import { Icon } from "../Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
@@ -1837,7 +1839,8 @@ export function AliasesRow({
   useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
 
   const node = client.getNode(nodeId);
-  if (node === undefined || !rendersWithDocumentChrome(node)) return null;
+  if (node === undefined || !rendersWithDocumentChrome(node, parentRenderFacts(client, node)))
+    return null;
 
   const aliases = client.aliasNodesOf(nodeId);
 
@@ -2288,7 +2291,9 @@ function ScalarPropertyValue({
         : null;
   const rawNode = rawRef !== null ? client.getNode(rawRef) : undefined;
   const carrier =
-    rawNode !== undefined && rendersAsInlineBlock(rawNode) ? rawNode : undefined;
+    rawNode !== undefined && rendersAsInlineBlock(rawNode, parentRenderFacts(client, rawNode))
+      ? rawNode
+      : undefined;
   // Dead carrier (owner bug report 2026-10-04): the value references a
   // carrier block that was deleted/trashed from the value cell. The
   // content is GONE — display EMPTY, never the raw uuid; editing authors
