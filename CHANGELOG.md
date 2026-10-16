@@ -9,6 +9,21 @@ predating this file.
 
 ## 2026-10-16
 
+- **fix(web): the Convert to page extract rows read short — "Children stay
+  here" / "Children follow" — with the full explanation on hover tooltips
+  (owner feedback 2026-10-16: "Extract to root — children stay here" is too
+  long for a menu entry; move the text to a hover tooltip).** The
+  description-line experiment (visible muted second line, shipped hours
+  earlier) is replaced by the native `title` tooltip on submenu items — a
+  new optional `tooltip` on ContextMenuItem, zero new chrome. Hovering
+  either extract row now spells it out: the block becomes a ROOT page (the
+  same node, parent_id removed — never "a new page"), a link block takes
+  its exact place, and the children stay under the link or with the block.
+  "Keep under" gains a tooltip too. The `description` field and its stacked
+  label CSS retire unused. Docs: `usage.md` item 17. **Verification:**
+  `pnpm typecheck` + `pnpm test` green (menu specs assert the short labels,
+  the exact tooltip strings, and that no explanation text renders in the
+  row); web-only — no wire touch.
 - **fix(web): "children stay here" actually keeps the children — the
   extraction plans its reparenting from a FRESH children read, not the
   render cache (owner report 2026-10-16: the children stayed with the

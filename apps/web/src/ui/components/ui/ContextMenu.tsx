@@ -34,11 +34,11 @@ export interface ContextMenuItem {
   id: string;
   label: string;
   /**
-   * Optional second line under the label (submenu items only — the
-   * self-describing variant rows: what the action leaves behind, what
-   * follows where). Renders muted one step under the label.
+   * Optional hover tooltip (the native `title`) — the explanatory line for
+   * a submenu variant row: what the action leaves behind, what follows
+   * where. Kept off the visible row so the label stays short.
    */
-  description?: string | undefined;
+  tooltip?: string | undefined;
   icon?: string | undefined;
   shortcut?: string | undefined;
   badge?: string | undefined;
@@ -194,18 +194,12 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
         disabled={sub.disabled}
         role="menuitem"
         tabIndex={-1}
+        {...(sub.tooltip !== undefined ? { title: sub.tooltip } : {})}
       >
         <span className="context-menu-icon-wrapper">
           {sub.icon && <Icon path={sub.icon} size={0.7} className="context-menu-icon" />}
         </span>
-        <span
-          className={`context-menu-label${sub.description !== undefined ? " context-menu-label--stack" : ""}`}
-        >
-          <span>{sub.label}</span>
-          {sub.description !== undefined && (
-            <span className="context-menu-description">{sub.description}</span>
-          )}
-        </span>
+        <span className="context-menu-label">{sub.label}</span>
         {sub.badge && <span className="context-menu-badge">{sub.badge}</span>}
         {sub.shortcut && <span className="context-menu-shortcut">{sub.shortcut}</span>}
       </button>
