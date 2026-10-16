@@ -9,6 +9,25 @@ predating this file.
 
 ## 2026-10-16
 
+- **fix(web): offline, every remembered workspace stays listed — the ones
+  without a local copy render muted with a cloud-off marker instead of
+  hiding (owner ruling 2026-10-16).** The registry slice offered only the
+  workspaces holding a synced copy; the rest of the account's workspaces
+  vanished from the switcher and the manager during an outage, which read
+  as data loss. Now the offline fallback lists every remembered workspace:
+  rows/cards without a copy on this device stay visible but inert — reduced
+  opacity, a `mdi-cloud-off-outline` marker, a disabled open/switch with an
+  honest title ("Not available offline — open it once while online to keep
+  a copy on this device"), and a "Not on this device" meta line on the
+  manager card — while the local ones keep switching normally. Captions name
+  the rule ("Offline — workspaces without a copy on this device can't
+  open"). `offlineWorkspaceList()` retires; the surfaces list
+  `rememberedWorkspaceList()` and mark availability per row via
+  `localWorkspaceCopies()`. Docs: `usage.md` account-boot clause.
+  **Verification:** `app-smoke.test.tsx` case updated (Orchard present,
+  disabled, muted, titled; the local Garden still opens); `pnpm typecheck`
+  + `pnpm test` green. Web-only — no wire touch.
+
 - **feat(web): a block's context menu converts it to a page — a mention link
   block takes its slot, children stay by default, Shift/Ctrl/Cmd-click
   carries them over (owner request 2026-10-16).** New **Convert to page**

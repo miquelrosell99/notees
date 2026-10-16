@@ -141,6 +141,15 @@
   background: var(--md-sys-color-hover-overlay);
 }
 
+/* Remembered but not on this device (offline fallback): visible, honest,
+ * inert. */
+.workspace-switcher__item--unavailable,
+.workspace-switcher__item--unavailable:hover {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: transparent;
+}
+
 .workspace-switcher__item-icon {
   flex-shrink: 0;
   color: var(--md-sys-color-on-surface-variant);
