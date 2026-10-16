@@ -300,7 +300,7 @@ describe("the block query builder", () => {
     await act(async () => {});
   });
 
-  it("a Parent-is condition keeps only rows anywhere inside the chosen node's parents tree", async () => {
+  it("a Child-path condition keeps only rows anywhere inside the chosen node's tree (v1's CHILD PATH)", async () => {
     const client = await seedClient();
     const classId = await seedClass(client, "project");
     const hub = await client.createObject({ isEmbedded: false, name: "Hub" });
@@ -323,15 +323,21 @@ describe("the block query builder", () => {
     expect(tableRowCount()).toBe(3);
 
     const panel = openPanel(section);
-    addCondition(panel, /^Parent Nodes/);
-    pickNode(panel, "Hub");
+    addCondition(panel, /^Child path/);
+    fireEvent.click(within(panel).getByRole("button", { name: "Add node" }));
+    fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "Hub" } });
+    fireEvent.click(
+      document.querySelector(
+        ".node-result-item:not(.node-result-item--create):not(.node-result-item--date)",
+      )!,
+    );
 
-    // The direct child AND the grandchild ride the parents tree; the
+    // The direct child AND the grandchild ride the subtree; the
     // unparented row is out. Sync evaluation — no probe round.
     expect(tableRowCount()).toBe(2);
     expect(within(section).getByText("2 of 3")).not.toBeNull();
     // The sync arm: rows filter on the same render — no probe round happens
-    // for the parent-tree condition (the Links-to test owns the probe arm).
+    // for the subtree condition (the Links-to test owns the probe arm).
   });
 
   it("dynamic Links: the target set is a nested query — links to a node matching class + property", async () => {
@@ -595,6 +601,87 @@ describe("the block query builder", () => {
 
       pickOption(panel, "Operator", "is not any of");
       expect(tableRowCount()).toBe(2);
+    });
+
+    it("Parent (v1's direct parent): is any of the picked nodes + the set bit", async () => {
+      const client = await seedClient();
+      const projectId = await seedClass(client, "project");
+      const p = await client.createObject({ isEmbedded: false, name: "P" });
+      const q = await client.createObject({ isEmbedded: false, name: "Q" });
+      await client.createObject({ name: "ChildOfP", classIds: [projectId], parentId: p });
+      await client.createObject({ name: "ChildOfQ", classIds: [projectId], parentId: q });
+      await client.createObject({ isEmbedded: false, name: "RootMember", classIds: [projectId] });
+
+      render(<NodeView client={client} nodeId={projectId} onOpenNode={() => {}} />);
+      const section = classedNodesSection();
+      expect(tableRowCount()).toBe(3);
+
+      const panel = openPanel(section);
+      addCondition(panel, /^Parent The/);
+      addNodeViaPicker(panel, "Add parent", "P");
+      expect(tableRowCount()).toBe(1);
+      expect(within(section).getByText("ChildOfP")).not.toBeNull();
+
+      // is set = has a parent at all (the root member drops out).
+      pickOption(panel, "Operator", "is set");
+      expect(tableRowCount()).toBe(2);
+      expect(within(section).queryByText("RootMember")).toBeNull();
+    });
+
+    it("Child (v1's direct child): contains any of the picked nodes + the set bit", async () => {
+      const client = await seedClient();
+      const projectId = await seedClass(client, "project");
+      const withKid = await client.createObject({ isEmbedded: false, name: "WithKid", classIds: [projectId] });
+      await client.createObject({ isEmbedded: false, name: "Kid", parentId: withKid });
+      await client.createObject({ isEmbedded: false, name: "NoKid", classIds: [projectId] });
+
+      render(<NodeView client={client} nodeId={projectId} onOpenNode={() => {}} />);
+      const section = classedNodesSection();
+
+      const panel = openPanel(section);
+      addCondition(panel, /^Child Contains/);
+      addNodeViaPicker(panel, "Add child", "Kid");
+      pickOption(panel, "Operator", "contains any of");
+      expect(tableRowCount()).toBe(1);
+      expect(within(section).getByText("WithKid")).not.toBeNull();
+
+      // is set = has a direct child at all (NoKid drops out).
+      pickOption(panel, "Operator", "is set");
+      expect(tableRowCount()).toBe(1);
+    });
+
+    it("Reference path (v1's rollup): the node or its ancestors reference the targets — or sit inside them", async () => {
+      const client = await seedClient();
+      const projectId = await seedClass(client, "project");
+      const target = await client.createObject({ isEmbedded: false, name: "Target" });
+      // Edge arm: Linker (a BLOCK — create-as-page stringifies rich content,
+      // so the mention must ride a block's own content) mentions Target.
+      const holder = await client.createObject({ isEmbedded: false, name: "Holder" });
+      await client.createObject({
+        name: "Linker",
+        classIds: [projectId],
+        parentId: holder,
+        contentAst: [{ type: "mention", targetNodeId: target, text: "Target" }],
+      });
+      // Containment arm: InsideT sits inside Target.
+      await client.createObject({ isEmbedded: false, name: "InsideT", classIds: [projectId], parentId: target });
+      await client.createObject({ isEmbedded: false, name: "Plain", classIds: [projectId] });
+      const probe = vi.spyOn(client, "runQueryAst");
+
+      render(<NodeView client={client} nodeId={projectId} onOpenNode={() => {}} />);
+      const section = classedNodesSection();
+      expect(tableRowCount()).toBe(3);
+
+      const panel = openPanel(section);
+      addCondition(panel, /^Reference path/);
+      addNodeViaPicker(panel, "Add target", "Target");
+      // The rollup rides the probe path — the membership set lands a beat
+      // later. (Linker's title IS its mention text — "Target" — so the count
+      // and InsideT's presence stand in for it.)
+      await waitFor(() => expect(tableRowCount()).toBe(2));
+      expect(within(section).getByText("InsideT")).not.toBeNull();
+      expect(within(section).queryByText("Plain")).toBeNull();
+      expect(probe).toHaveBeenCalled();
     });
 
     it("content: the text operators (is / starts with / is set)", async () => {
