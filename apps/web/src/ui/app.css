@@ -2686,7 +2686,7 @@ select:focus-visible {
 
 .nt-code-block {
   display: block;
-  margin: 4px 0;
+  margin: var(--spacing-1) 0;
 }
 
 .nt-code-block__lang {
@@ -2697,14 +2697,14 @@ select:focus-visible {
   border-radius: var(--shape-medium) var(--shape-medium) 0 0;
   background: var(--md-sys-color-surface-container-highest);
   color: var(--md-sys-color-on-surface-variant);
-  border: 1px solid var(--md-sys-color-outline-variant);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-bottom: none;
 }
 
 .nt-code-block__pre {
   margin: 0;
   padding: var(--spacing-2) var(--spacing-3);
-  border: 1px solid var(--md-sys-color-outline-variant);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--shape-large);
   background: var(--md-sys-color-surface-container-low);
   font-family: var(--font-family-mono);
@@ -2884,7 +2884,7 @@ select:focus-visible {
 code {
   background: var(--md-sys-color-surface-container-highest);
   border-radius: var(--shape-small);
-  padding: 0 4px;
+  padding: 0 var(--spacing-1);
   /* em, not a rem token: inline code must track the surrounding content
      size — including inside headings — the sanctioned adaptive pattern. */
   font-size: 0.92em;
@@ -2893,7 +2893,7 @@ code {
 mark {
   background: var(--md-sys-color-warning-container);
   border-radius: var(--shape-extra-small);
-  padding: 0 2px;
+  padding: 0 var(--spacing-micro);
 }
 
 /* --- whiteboard canvas ------------------------------------------------------ */

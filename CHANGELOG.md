@@ -64,6 +64,31 @@ predating this file.
   markdown + html. **LOCKSTEP-PENDING:** the live migration run is gated on
   the GTK/Flutter/CLI ports converging on the renamed fixture corpus — the
   wire change is not live until then.
+- **fix(web): the four carried-forward re-audit notes close — export
+  selected signal joins the established register, residual renderer px
+  literals convert (the board/calendar notes verified already closed by
+  the 2026-10-15 owner-rulings slice).** The re-audit's carried-forward
+  list (`.audits/design-system-2026-10-15-reaudit.md`) walked against
+  HEAD: CardsBoard's columns/min-heights and the calendar title button's
+  hover were already closed by `fdc31c65` (the clamp + token min-heights
+  and the hover-overlay ruling verified in place, unchanged here). The
+  export modal's format cards had that slice's one miss — a primary
+  hairline ring + 600 label, a third selected variant next to the app's
+  established register; it retires in favor of the shared Card's
+  `card--selected` (primary-container fill + primary border), the same
+  register as the Dropdown's selected option, already applied via the
+  Card's `selected` prop — the local CSS overlay (ring, radius, label
+  weight, icon tint) is deleted. The renderer note's headline literals
+  were already on tokens; this pass sweeps the co-located residue it
+  missed: the code-block margin (4px → `--spacing-1`), the badge/pre
+  hairline borders (1px → `--border-width-default`, the component idiom —
+  no px kept), inline `code`/`mark` paddings (4px/2px → `--spacing-1` /
+  `--spacing-micro`), the cover-picker popover offset (calc 4px →
+  `--spacing-1`), the cover placeholder gap (2px → `--spacing-micro`),
+  and the placeholder-name ellipsis cap (160px → `--layout-size-xl`, the
+  exact token). No visual density changes; sidebar, top bar, and canvas
+  surfaces untouched. **Verification:** `pnpm typecheck` + `pnpm test`
+  green; web-only — no wire touch.
 - **fix(web): the extract rows read "Extract without children" / "Extract
   with children", and the flyout rides flush against the menu — no overlap
   (owner feedback 2026-10-16).** The labels name what the extracted node

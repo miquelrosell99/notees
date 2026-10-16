@@ -6,7 +6,7 @@
 
 .nt-cover-picker {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + var(--spacing-1));
   right: 0;
   z-index: var(--z-dropdown);
   display: flex;
@@ -131,7 +131,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: var(--spacing-micro);
   height: 100%;
   min-width: var(--layout-size-md);
   padding: 0 var(--spacing-3);
@@ -144,7 +144,7 @@
 .nt-covercard__placeholder-name {
   font-weight: var(--font-weight-semibold);
   color: var(--md-sys-color-on-surface);
-  max-width: 160px;
+  max-width: var(--layout-size-xl);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
