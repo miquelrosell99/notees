@@ -1,0 +1,202 @@
+/**
+ * The drift-sweep alignment slice (2026-10-16) — CSS-source pins for the
+ * hover/press/hit-area register, the §7 list-row register, and the §8
+ * range-syntax media queries across the palette, the hub rows, the settings
+ * accents, and the two JS matchMedia call sites. jsdom applies no layout —
+ * the contracts are asserted at the source level (the css-token-drift
+ * pattern). The hover ruling (design-overrides.md): hover is the
+ * hover-overlay everywhere; primary-container is selected/active only, and
+ * already-active controls keep their active fill while hovered (combined
+ * `--active, --active:hover` rules).
+ */
+
+import { describe, expect, it } from "vitest";
+
+const process_ = process as unknown as {
+  getBuiltinModule(name: string): typeof import("node:fs");
+};
+const fs = process_.getBuiltinModule("node:fs");
+const path = process_.getBuiltinModule("node:path") as unknown as typeof import("node:path");
+
+function readCss(...segments: string[]): string {
+  return fs.readFileSync(path.join(process.cwd(), "src", "ui", ...segments), "utf8");
+}
+
+const OVERLAY_WIDTH = "width: max(100%, var(--button-min-height))";
+const OVERLAY_HEIGHT = "height: max(100%, var(--button-min-height))";
+
+function expectHitAreaOverlay(css: string, selector: string): void {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const base = new RegExp(`${escaped} \\{[^}]*position: relative[^}]*\\}`).exec(css);
+  expect(base, `${selector} positions the overlay`).not.toBeNull();
+  const overlay = new RegExp(`${escaped}::after \\{[^}]*\\}`).exec(css);
+  expect(overlay, `${selector}::after`).not.toBeNull();
+  expect(overlay![0]).toContain(OVERLAY_WIDTH);
+  expect(overlay![0]).toContain(OVERLAY_HEIGHT);
+  expect(overlay![0]).toContain("pointer-events: auto");
+}
+
+const paletteCss = readCss("components", "CommandPalette.css");
+const commentsCss = readCss("components", "CommentsSection.css");
+const trashCss = readCss("components", "TrashHub.css");
+const taskBucketsCss = readCss("components", "TaskBuckets.css");
+const calendarViewCss = readCss("components", "CalendarView.css");
+const settingsPageCss = readCss("components", "SettingsPage.css");
+const settingsModalCss = readCss("components", "modals", "settingsModal.css");
+const journalsCss = readCss("components", "JournalsView.css");
+
+describe("command palette rows: the cursor is a genuine active state", () => {
+  it("plain hover rides the hover overlay; the combined active rule keeps primary-container", () => {
+    const hover = /\.nt-palette-item:hover \{[^}]*\}/.exec(paletteCss);
+    expect(hover).not.toBeNull();
+    expect(hover![0]).toContain("background: var(--md-sys-color-hover-overlay)");
+    const active =
+      /\.nt-palette-item\[data-active="true"\],\s*\.nt-palette-item\[data-active="true"\]:hover \{[^}]*\}/.exec(
+        paletteCss,
+      );
+    expect(active).not.toBeNull();
+    expect(active![0]).toContain("background: var(--md-sys-color-primary-container)");
+    expect(active![0]).toContain("color: var(--md-sys-color-on-primary-container)");
+  });
+
+  it("the palette row carries the pressed layer", () => {
+    const pressed = /\.nt-palette-item:active \{[^}]*\}/.exec(paletteCss);
+    expect(pressed).not.toBeNull();
+    expect(pressed![0]).toContain("background: var(--md-sys-color-pressed-overlay)");
+  });
+});
+
+describe("compact hub actions reach the 44px floor and press", () => {
+  it("the comments Reply/Delete actions: invisible overlay + pressed layer", () => {
+    expectHitAreaOverlay(commentsCss, ".nt-comments__action");
+    const pressed = /\.nt-comments__action:active \{[^}]*\}/.exec(commentsCss);
+    expect(pressed).not.toBeNull();
+    expect(pressed![0]).toContain("background: var(--md-sys-color-pressed-overlay)");
+  });
+
+  it("the trash restore/delete-permanently actions: invisible overlay + pressed layer", () => {
+    expectHitAreaOverlay(trashCss, ".nt-trash-hub__action");
+    const pressed = /\.nt-trash-hub__action:active \{[^}]*\}/.exec(trashCss);
+    expect(pressed).not.toBeNull();
+    expect(pressed![0]).toContain("background: var(--md-sys-color-pressed-overlay)");
+  });
+});
+
+describe("hub/list row names ride the §7 list-row register", () => {
+  it("task bucket rows: primary 14px/600, the single-line ellipsis contract kept", () => {
+    const name = /\.task-buckets__row-name \{[^}]*\}/.exec(taskBucketsCss);
+    expect(name).not.toBeNull();
+    expect(name![0]).toContain("font-weight: 600");
+    expect(name![0]).toContain("text-overflow: ellipsis");
+    expect(name![0]).toContain("white-space: nowrap");
+    const day = /\.task-buckets__row-day \{[^}]*\}/.exec(taskBucketsCss);
+    expect(day).not.toBeNull();
+    expect(day![0]).toContain("font-size: var(--font-size-sm)");
+    expect(day![0]).toContain("var(--md-sys-color-on-surface-variant)");
+  });
+
+  it("calendar view rows: primary 14px/600, the single-line ellipsis contract kept", () => {
+    // The ^ anchor keeps the variant rules
+    // (.calendar-view__row--overdue .calendar-view__row-name) from matching.
+    const name = /^\.calendar-view__row-name \{[^}]*\}/m.exec(calendarViewCss);
+    expect(name).not.toBeNull();
+    expect(name![0]).toContain("font-weight: 600");
+    expect(name![0]).toContain("text-overflow: ellipsis");
+    expect(name![0]).toContain("white-space: nowrap");
+    const day = /^\.calendar-view__row-day \{[^}]*\}/m.exec(calendarViewCss);
+    expect(day).not.toBeNull();
+    expect(day![0]).toContain("font-size: var(--font-size-sm)");
+    expect(day![0]).toContain("var(--md-sys-color-on-surface-variant)");
+  });
+
+  it("trash hub rows: the name joins the register at 14px/600", () => {
+    const name = /\.nt-trash-hub__name \{[^}]*\}/.exec(trashCss);
+    expect(name).not.toBeNull();
+    expect(name![0]).toContain("font-size: var(--font-size-base)");
+    expect(name![0]).toContain("font-weight: 600");
+    expect(name![0]).toContain("text-overflow: ellipsis");
+    const stamp = /\.nt-trash-hub__stamp \{[^}]*\}/.exec(trashCss);
+    expect(stamp).not.toBeNull();
+    expect(stamp![0]).toContain("font-size: var(--font-size-sm)");
+    expect(stamp![0]).toContain("var(--md-sys-color-on-surface-variant)");
+  });
+});
+
+describe("custom buttons carry the pressed layer (skill §6 tactile press)", () => {
+  it("the journals Today button presses with the overlay", () => {
+    const pressed = /\.journals-view__today-btn:active \{[^}]*\}/.exec(journalsCss);
+    expect(pressed).not.toBeNull();
+    expect(pressed![0]).toContain("background: var(--md-sys-color-pressed-overlay)");
+  });
+
+  it("the journals empty-state CTA presses with the primary-pressed register (a filled primary button)", () => {
+    const pressed = /\.journals-empty__action:active \{[^}]*\}/.exec(journalsCss);
+    expect(pressed).not.toBeNull();
+    expect(pressed![0]).toContain("background: var(--md-sys-color-primary-pressed)");
+  });
+
+  it("the settings theme buttons press with the overlay, before the active register", () => {
+    const pressed = /\.settings-theme-btn:active \{[^}]*\}/.exec(settingsModalCss);
+    expect(pressed).not.toBeNull();
+    expect(pressed![0]).toContain("background: var(--md-sys-color-pressed-overlay)");
+    // The active theme button keeps its container fill when pressed.
+    expect(settingsModalCss.indexOf(".settings-theme-btn:active")).toBeLessThan(
+      settingsModalCss.indexOf(".settings-theme-btn--active"),
+    );
+  });
+});
+
+describe("settings accents: state layers, not hover-scale", () => {
+  it("the swatch has no hover-scale — feedback rides the state-layer overlay", () => {
+    expect(settingsPageCss).not.toMatch(/\.settings-accent-swatch:hover \{\s*transform: scale/);
+    // Hover + press share one combined overlay rule (the ::after rides the
+    // inline accent fill).
+    const overlay =
+      /\.settings-accent-swatch:hover::after,\s*\.settings-accent-swatch:active::after \{[^}]*\}/.exec(
+        settingsPageCss,
+      );
+    expect(overlay).not.toBeNull();
+    expect(overlay![0]).toContain("opacity: 1");
+    const base = /^\.settings-accent-swatch::after \{[^}]*\}/m.exec(settingsPageCss);
+    expect(base).not.toBeNull();
+    expect(base![0]).toContain("background: var(--md-sys-color-hover-overlay)");
+    const pressed =
+      /\.settings-accent-swatch:active::after \{[^}]*background: var\(--md-sys-color-pressed-overlay\)[^}]*\}/.exec(
+        settingsPageCss,
+      );
+    expect(pressed).not.toBeNull();
+  });
+
+  it("the selected register survives: border + ring on the active swatch", () => {
+    const active = /\.settings-accent-swatch--active \{[^}]*\}/.exec(settingsPageCss);
+    expect(active).not.toBeNull();
+    expect(active![0]).toContain("border-color: var(--md-sys-color-primary)");
+  });
+});
+
+describe("media queries ride the range syntax (skill §8 — no legacy min/max-width)", () => {
+  const overlayHooksSrc = readCss("components", "ui", "overlay-hooks.ts");
+  const appSrc = readCss("App.tsx");
+
+  it("useIsMobile builds range-syntax queries from the token breakpoint", () => {
+    expect(overlayHooksSrc).toContain("window.matchMedia(`(width <= ${getMobileBreakpoint()}px)`)");
+    expect(overlayHooksSrc).not.toContain("(max-width:");
+  });
+
+  it("the sidebar open-by-default gate keeps its deliberate 801px threshold in range syntax", () => {
+    expect(appSrc).toContain('window.matchMedia("(width >= 801px)")');
+    expect(appSrc).not.toContain("(min-width:");
+    // 801px is a deliberate non-register threshold — behavior preservation
+    // over breakpoint purity (noted at the call site).
+    expect(appSrc).toMatch(/non-register threshold/);
+  });
+});
+
+describe("token citations", () => {
+  it("the shortcuts group title cites --letter-spacing-section", () => {
+    const title = /\.settings-shortcuts__group-title \{[^}]*\}/.exec(settingsModalCss);
+    expect(title).not.toBeNull();
+    expect(title![0]).toContain("letter-spacing: var(--letter-spacing-section)");
+    expect(title![0]).not.toContain("letter-spacing: 0.08em");
+  });
+});

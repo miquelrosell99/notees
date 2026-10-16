@@ -169,20 +169,18 @@
   position: relative;
 }
 
-.calendar-day.btn.has-note {
-  background: var(--md-sys-color-primary-container);
-  color: var(--md-sys-color-on-primary-container);
-  font-weight: 500;
-}
-
 .calendar-day.btn:hover {
   background: var(--md-sys-color-hover-overlay);
   color: var(--md-sys-color-on-surface);
 }
 
+/* The has-note fill is the genuine active identity — the combined rule keeps
+   primary-container while hovered (the hover ruling's pattern). */
+.calendar-day.btn.has-note,
 .calendar-day.btn.has-note:hover {
-  background: var(--md-sys-color-hover-overlay);
+  background: var(--md-sys-color-primary-container);
   color: var(--md-sys-color-on-primary-container);
+  font-weight: 600;
 }
 
 .calendar-day.btn:focus-visible {

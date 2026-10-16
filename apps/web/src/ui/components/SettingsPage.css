@@ -108,18 +108,37 @@
 }
 
 .settings-accent-swatch {
+  position: relative;
   width: var(--icon-size-xl);
   height: var(--icon-size-xl);
   aspect-ratio: 1;
   border-radius: 50%;
   border: var(--border-width-thick) solid transparent;
   cursor: pointer;
-  transition: transform var(--motion-duration-short) var(--motion-easing-tactile),
-              border-color var(--motion-duration-short) var(--motion-easing-standard);
+  transition: border-color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-.settings-accent-swatch:hover {
-  transform: scale(1.15);
+/* The hover/press feedback rides state layers (the 2026-10-15 re-audit
+   removed the IconPickerPopup's hover-scale; hover-scale is not in the
+   tactile map). The accent fill is the inline seed color, so the layer
+   composes as an inset ::after overlay instead of a background swap. */
+.settings-accent-swatch::after {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--border-width-thick));
+  border-radius: 50%;
+  background: var(--md-sys-color-hover-overlay);
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.settings-accent-swatch:hover::after,
+.settings-accent-swatch:active::after {
+  opacity: 1;
+}
+
+.settings-accent-swatch:active::after {
+  background: var(--md-sys-color-pressed-overlay);
 }
 
 .settings-accent-swatch:focus-visible {
