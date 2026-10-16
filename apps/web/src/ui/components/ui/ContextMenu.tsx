@@ -33,6 +33,12 @@ import { Icon } from '../../Icon.js';
 export interface ContextMenuItem {
   id: string;
   label: string;
+  /**
+   * Optional second line under the label (submenu items only — the
+   * self-describing variant rows: what the action leaves behind, what
+   * follows where). Renders muted one step under the label.
+   */
+  description?: string | undefined;
   icon?: string | undefined;
   shortcut?: string | undefined;
   badge?: string | undefined;
@@ -192,7 +198,14 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
         <span className="context-menu-icon-wrapper">
           {sub.icon && <Icon path={sub.icon} size={0.7} className="context-menu-icon" />}
         </span>
-        <span className="context-menu-label">{sub.label}</span>
+        <span
+          className={`context-menu-label${sub.description !== undefined ? " context-menu-label--stack" : ""}`}
+        >
+          <span>{sub.label}</span>
+          {sub.description !== undefined && (
+            <span className="context-menu-description">{sub.description}</span>
+          )}
+        </span>
         {sub.badge && <span className="context-menu-badge">{sub.badge}</span>}
         {sub.shortcut && <span className="context-menu-shortcut">{sub.shortcut}</span>}
       </button>

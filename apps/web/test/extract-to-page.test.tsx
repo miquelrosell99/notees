@@ -11,17 +11,20 @@
  * a self-describing plain click.
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import initSqlJs from "sql.js";
 import { fireEvent, render, waitFor } from "@testing-library/react";
 
 import { dayNodeId } from "@notees/domain";
+import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { extractBlockToPage } from "../src/core/extractToPage.js";
-import type { ClientNode } from "../src/core/workspace-client.js";
+import { WorkspaceClient, type ClientNode } from "../src/core/workspace-client.js";
 import { NodeContextMenu } from "../src/ui/components/NodeContextMenu.js";
 import { notificationStore } from "../src/ui/components/ui/notificationStore.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
+const ACTOR = "0192a000-0000-7000-8000-000000000002";
 
 function nodeOf(partial: Partial<ClientNode> & { id: string }): ClientNode {
   return {
@@ -102,7 +105,11 @@ describe("extractBlockToPage composition", () => {
       {
         parentId: "p1",
         contentAst: [{ type: "mention", targetNodeId: "t1", text: "Question?" }],
-        afterId: "a1",
+        // Anchored AT THE SOURCE: the link lands immediately before the
+        // block and inherits its slot when the block leaves — no sibling
+        // lookup that a stale cached read can break (the "link lands last"
+        // bug).
+        beforeId: "t1",
       },
     ]);
     expect(moves).toEqual([
@@ -112,18 +119,15 @@ describe("extractBlockToPage composition", () => {
     ]);
   });
 
-  it("anchors with beforeId when the block is the first child, and bare when it is the only child", async () => {
+  it("anchors beforeId the source itself on every position (first, middle, only child)", async () => {
     const target = nodeOf({ id: "t1", parentId: "p1" });
     const b = nodeOf({ id: "b1", parentId: "p1" });
-    const first = stubSurfaces(new Map([["p1", [target, b]]]));
-    await extractBlockToPage(first.reads, first.writes, "t1");
-    expect(first.creates[0]).toMatchObject({ beforeId: "b1" });
-    expect(first.creates[0]).not.toHaveProperty("afterId");
-
-    const only = stubSurfaces(new Map([["p1", [target]]]));
-    await extractBlockToPage(only.reads, only.writes, "t1");
-    expect(only.creates[0]).not.toHaveProperty("afterId");
-    expect(only.creates[0]).not.toHaveProperty("beforeId");
+    for (const siblings of [[target, b], [b, target], [target]] as const) {
+      const stub = stubSurfaces(new Map([["p1", [...siblings]]]));
+      await extractBlockToPage(stub.reads, stub.writes, "t1");
+      expect(stub.creates[0]).toMatchObject({ beforeId: "t1" });
+      expect(stub.creates[0]).not.toHaveProperty("afterId");
+    }
   });
 
   it("keepChildren moves nothing but the block itself (children follow the page)", async () => {
@@ -238,6 +242,19 @@ describe('NodeContextMenu "Convert to page" submenu', () => {
     expect(getByText("Extract to root — children follow")).not.toBeNull();
   });
 
+  it("the extract rows say a link block is left in place (the description lines)", () => {
+    const { getByText } = renderMenu(inlineTarget, stubClient(scenario()).client);
+    fireEvent.click(getByText("Convert to page"));
+    // The owner's clarity ruling (2026-10-16): the menu must state that a
+    // node link takes the block's place — the labels alone don't carry it.
+    expect(
+      getByText("A link block takes its place; the children stay nested under the link."),
+    ).not.toBeNull();
+    expect(
+      getByText("A link block takes its place; the children move with the new page."),
+    ).not.toBeNull();
+  });
+
   it("a plain click on 'children stay here' reparents the children to the link block", async () => {
     notificationStore.clearAll();
     const stub = stubClient(scenario());
@@ -251,7 +268,7 @@ describe('NodeContextMenu "Convert to page" submenu', () => {
       {
         parentId: "p1",
         contentAst: [{ type: "mention", targetNodeId: "t1", text: "Question?" }],
-        afterId: "a1",
+        beforeId: "t1",
       },
     ]);
     expect(notificationStore.notifications.at(-1)?.title).toBe("Converted to page");
@@ -269,5 +286,78 @@ describe('NodeContextMenu "Convert to page" submenu', () => {
       expect(stub.moves).toEqual([{ id: "t1", parentId: null, afterId: undefined, beforeId: undefined }]),
     );
     expect(stub.creates).toHaveLength(1);
+  });
+});
+
+describe("extractBlockToPage against the real store (slot placement)", () => {
+  // The composition tests above assert the op payloads on stub surfaces;
+  // these run the gesture through the real client + applier — the owner
+  // reported the link block landing as the LAST sibling, which a stale
+  // sibling read produced; anchoring beforeId the source itself keeps the
+  // slot on every position.
+  let sqlModule: Awaited<ReturnType<typeof initSqlJs>>;
+  const clients: WorkspaceClient[] = [];
+
+  beforeAll(async () => {
+    sqlModule = await initSqlJs();
+  });
+  afterEach(() => {
+    while (clients.length > 0) clients.pop()!.close();
+  });
+
+  async function seed() {
+    const client = await WorkspaceClient.create({
+      transport: new MemoryTransport(new MemoryRelay()),
+      actorId: ACTOR,
+      sqlJs: sqlModule,
+    });
+    clients.push(client);
+    await client.bootstrapWorkspace(WS);
+    return client;
+  }
+
+  async function block(client: WorkspaceClient, parentId: string, text: string) {
+    return client.createObject({ parentId, contentAst: [{ type: "text", text }] });
+  }
+
+  it("the link inherits the slot — middle, first, and last child", async () => {
+    const client = await seed();
+    const page = await client.createObject({ presentAsMain: true, name: "P" });
+    const a = await block(client, page, "A");
+    const t1 = await block(client, page, "T1");
+    const b = await block(client, page, "B");
+
+    // Middle of three.
+    const link1 = await extractBlockToPage(client, client, t1, { keepChildren: false });
+    expect(client.getChildren(page).map((c) => c.id)).toEqual([a, link1, b]);
+
+    // First of the remaining.
+    const link2 = await extractBlockToPage(client, client, a, { keepChildren: false });
+    expect(client.getChildren(page).map((c) => c.id)).toEqual([link2, link1, b]);
+
+    // Last of the remaining.
+    const link3 = await extractBlockToPage(client, client, b, { keepChildren: false });
+    expect(client.getChildren(page).map((c) => c.id)).toEqual([link2, link1, link3]);
+  });
+
+  it("the link is the only child left when the block was the only child", async () => {
+    const client = await seed();
+    const page = await client.createObject({ presentAsMain: true, name: "P" });
+    const t = await block(client, page, "T");
+    const link = await extractBlockToPage(client, client, t, { keepChildren: false });
+    expect(client.getChildren(page).map((c) => c.id)).toEqual([link]);
+  });
+
+  it("children stay: they land under the link block in their order", async () => {
+    const client = await seed();
+    const page = await client.createObject({ presentAsMain: true, name: "P" });
+    const target = await block(client, page, "TARGET");
+    const c1 = await block(client, target, "c1");
+    const c2 = await block(client, target, "c2");
+
+    const linkId = await extractBlockToPage(client, client, target, { keepChildren: false });
+
+    expect(client.getChildren(linkId).map((c) => c.id)).toEqual([c1, c2]);
+    expect(client.getNode(target)!.parentId).toBeNull();
   });
 });
