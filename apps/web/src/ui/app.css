@@ -3343,7 +3343,11 @@ mark {
   display: inline;
   padding: 0;
   border: none;
-  border-bottom: 1px dashed var(--md-sys-color-outline);
+  /* Resting underline rides on-surface-variant, the established link
+     underline token (the class-link family wears it) — outline is
+     nearly invisible on the dark graphite surface (owner report
+     2026-10-16). Hover still lifts to primary. */
+  border-bottom: 1px dashed var(--md-sys-color-on-surface-variant);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -3392,7 +3396,8 @@ mark {
 /* Atomic node-link pills in the block editor (edit mode): the read-mode
    dashed-underline look, one caret unit (contenteditable=false span). */
 .nt-atom {
-  border-bottom: 1px dashed var(--md-sys-color-outline);
+  /* The edit-mode link underline rides the same token as .nt-link. */
+  border-bottom: 1px dashed var(--md-sys-color-on-surface-variant);
   color: inherit;
   font: inherit;
   cursor: default;
