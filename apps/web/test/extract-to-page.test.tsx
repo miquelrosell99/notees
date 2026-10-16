@@ -267,8 +267,8 @@ describe('NodeContextMenu "Convert to page" submenu', () => {
     // The stub cannot resolve the parent node itself — the fallback reads
     // "parent"; the production label carries the parent's display name.
     expect(getByText('Keep under "parent"')).not.toBeNull();
-    expect(getByText("Children stay here")).not.toBeNull();
-    expect(getByText("Children follow")).not.toBeNull();
+    expect(getByText("Extract without children")).not.toBeNull();
+    expect(getByText("Extract with children")).not.toBeNull();
   });
 
   it("the extract rows carry the explanation as hover tooltips (short labels, full text on hover)", () => {
@@ -279,11 +279,11 @@ describe('NodeContextMenu "Convert to page" submenu', () => {
     // means the SAME node keeps its children (the page is not new; the
     // block's parent_id is removed, identity untouched) — rides the
     // native title tooltips.
-    const stay = getByText("Children stay here").closest("button")!;
+    const stay = getByText("Extract without children").closest("button")!;
     expect(stay.getAttribute("title")).toBe(
       "The block becomes a root page; a link block takes its place in this page, and the children stay nested under the link.",
     );
-    const follow = getByText("Children follow").closest("button")!;
+    const follow = getByText("Extract with children").closest("button")!;
     expect(follow.getAttribute("title")).toBe(
       "The block becomes a root page; a link block takes its place, and the children stay with the block — the same node, now a root page.",
     );
@@ -298,7 +298,7 @@ describe('NodeContextMenu "Convert to page" submenu', () => {
     const { getByText } = renderMenu(inlineTarget, stub.client);
 
     fireEvent.click(getByText("Convert to page"));
-    fireEvent.click(getByText("Children stay here"));
+    fireEvent.click(getByText("Extract without children"));
 
     await waitFor(() => expect(stub.moves.map((m) => m.id)).toEqual(["t1", "c1"]));
     expect(stub.creates).toEqual([
@@ -317,7 +317,7 @@ describe('NodeContextMenu "Convert to page" submenu', () => {
     const { getByText } = renderMenu(inlineTarget, stub.client);
 
     fireEvent.click(getByText("Convert to page"));
-    fireEvent.click(getByText("Children follow"));
+    fireEvent.click(getByText("Extract with children"));
 
     await waitFor(() =>
       expect(stub.moves).toEqual([{ id: "t1", parentId: null, afterId: undefined, beforeId: undefined }]),
