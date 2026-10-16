@@ -502,15 +502,16 @@ const tagMemberUpsert = db.prepare(
     db.prepare(
       `INSERT INTO node (
          id, workspace_id, is_class, is_embedded, parent_id, class_ids, name, content, icon, color,
-         is_active, created_at, updated_at, created_by, updated_by,
+         list_style, is_active, created_at, updated_at, created_by, updated_by,
          hlc_physical, hlc_logical, actor_id
-       ) VALUES (?, ?, 0, ?, ?, '[]', NULL, ?, NULL, NULL, 1, ?, ?, ?, ?, ?, ?, ?)`,
+       ) VALUES (?, ?, 0, ?, ?, '[]', NULL, ?, NULL, NULL, ?, 1, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       p.objectId,
       env.workspaceId,
       isEmbedded,
       parentId,
       content,
+      p.listStyle ?? null,
       ts,
       ts,
       env.actorId,
@@ -727,6 +728,13 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
   if (p.description !== undefined) {
     sets.push("description = ?");
     values.push(p.description);
+  }
+  // Per-block list style (store schema v23): presence writes, present-null
+  // clears back to the bullet default — the same keep/clear contract as
+  // `color`.
+  if (p.listStyle !== undefined) {
+    sets.push("list_style = ?");
+    values.push(p.listStyle);
   }
   let assertedClassIds: string[] = [];
   if (p.contentAst !== undefined) {

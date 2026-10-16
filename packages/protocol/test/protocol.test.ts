@@ -42,7 +42,7 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the thirty-two required fixtures", () => {
+  it("has exactly the thirty-three required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "class-convert.json",
@@ -64,6 +64,7 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       "object-color.json",
       "object-create.json",
       "object-is-embedded.json",
+      "object-list-style.json",
       "object-move-before.json",
       "object-move.json",
       "object-restore.json",
@@ -220,6 +221,35 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
     expect(
       objectUpdatePayload.safeParse({ objectId: page, description: null }).success,
     ).toBe(true);
+    // Applicable in sequence: HLCs strictly ascend.
+    const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
+    expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
+  });
+
+  it("object-list-style fixture exercises create-with-style, set, and null-clear", () => {
+    const fixture = fixtures.find((f) => f.name === "object-list-style.json")!;
+    const block = "0192a000-0000-7000-8000-00000000056b";
+    const page = "0192a000-0000-7000-8000-00000000056a";
+    const create = fixture.envelopes[1]!;
+    expect(create.payload).toMatchObject({ objectId: block, parentId: page, listStyle: "numbered" });
+    const updates = fixture.envelopes.filter((env) => env.opType === "object.update");
+    expect(updates.map((env) => (env.payload as { listStyle: unknown }).listStyle)).toEqual([
+      "alpha",
+      null,
+      "roman",
+    ]);
+    // Strict schema: an unknown style value is rejected outright, on both ops.
+    expect(
+      payloadSchemaFor("object.create")!.safeParse({ objectId: block, listStyle: "bullets" }).success,
+    ).toBe(false);
+    expect(
+      objectUpdatePayload.safeParse({ objectId: block, listStyle: "upper-alpha" }).success,
+    ).toBe(false);
+    // The number is never stored: the payload carries the STYLE only — no
+    // index/ordinal key exists on either op.
+    for (const env of [create, ...updates]) {
+      expect(Object.keys(env.payload as Record<string, unknown>)).not.toContain("listIndex");
+    }
     // Applicable in sequence: HLCs strictly ascend.
     const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
     expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);

@@ -1003,6 +1003,19 @@ select:focus-visible {
     transform var(--motion-duration-short) var(--motion-easing-standard);
 }
 
+/* Per-block list style (store schema v23): the derived marker (1. / a. /
+   i.) renders where the bullet dot would — same muted weight, end-aligned so
+   the markers of a run stack on their period. */
+.nt-list-marker {
+  min-inline-size: 2ch;
+  text-align: end;
+  font-size: 0.8em;
+  line-height: 1;
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: 0.85;
+  transition: color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
 /* Hover / press: grow + accent (the tactile feedback). */
 .nt-bullet:hover .nt-bullet-dot,
 .nt-bullet:focus-visible .nt-bullet-dot {
@@ -1011,11 +1024,21 @@ select:focus-visible {
   transform: scale(1.2);
 }
 
+.nt-bullet:hover .nt-list-marker,
+.nt-bullet:focus-visible .nt-list-marker {
+  color: var(--md-sys-color-primary);
+}
+
 /* Row-hover: hovering anywhere on the row brightens the bullet —
    the block-content hover wash was removed (#4), this is the signal. */
 .nt-block-row:hover .nt-bullet-dot {
   opacity: 1;
   background-color: var(--md-sys-color-on-surface);
+}
+
+.nt-block-row:hover .nt-list-marker {
+  color: var(--md-sys-color-on-surface);
+  opacity: 1;
 }
 
 .nt-bullet:active .nt-bullet-dot {
@@ -1073,6 +1096,11 @@ select:focus-visible {
   opacity: 1;
   background-color: var(--md-sys-color-primary);
   transform: scale(1.2);
+}
+
+.nt-block--editing .nt-list-marker {
+  color: var(--md-sys-color-primary);
+  opacity: 1;
 }
 
 .nt-block--editing .nt-bullet-icon {
@@ -1165,7 +1193,8 @@ select:focus-visible {
 /* Inert rows: no full-row hover feedback — the bullet alone carries it
    (the row-hover brightening is scoped back to the bullet's own hover). */
 .nt-block--inert .nt-block-row:hover .nt-bullet-dot,
-.nt-block--inert .nt-block-row:hover .nt-bullet-icon {
+.nt-block--inert .nt-block-row:hover .nt-bullet-icon,
+.nt-block--inert .nt-block-row:hover .nt-list-marker {
   opacity: 0.55;
   color: var(--md-sys-color-on-surface-variant);
   transform: none;

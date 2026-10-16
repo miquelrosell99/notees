@@ -36,6 +36,7 @@ import {
   newEnvelope,
   type ContentAst,
   type Envelope,
+  type ListStyle,
   type WorkspaceFeature,
 } from "@notees/protocol";
 import { parseQueryAst, runAggregate, runQuery, type QueryAst } from "@notees/query";
@@ -180,6 +181,10 @@ export interface ClientNode {
   /** The page subtitle in the core chrome (wire node field, store schema
    * v18) — plain text, null when unset. */
   description: string | null;
+  /** Per-block list style (wire node field, store schema v23): the bullet
+   * dot's replacement. Null = bullet (the default); the marker NUMBER is
+   * derived at render time, never stored. */
+  listStyle: ListStyle | null;
   isActive: boolean;
   createdAt: string | null;
   updatedAt: string | null;
@@ -595,6 +600,9 @@ export interface UpdateObjectInput {
   aliasedNodeId?: string | null;
   /** The page subtitle in the core chrome (store schema v18). */
   description?: string | null;
+  /** Per-block list style (store schema v23): null clears back to the
+   * bullet default (the color keep/clear contract). */
+  listStyle?: ListStyle | null;
 }
 
 export interface DeleteObjectOptions {
@@ -964,6 +972,12 @@ function normalizeSectionViewList(body: unknown): SectionView[] {
   return value.views.map(normalizeSectionView);
 }
 
+/** The stored column is TEXT; only the wire enum values map through
+ * (cross-version snapshots can predate the column or carry drift). */
+function parseListStyle(raw: string | null | undefined): ListStyle | null {
+  return raw === "numbered" || raw === "alpha" || raw === "roman" ? raw : null;
+}
+
 function mapNode(row: NodeRow): ClientNode {
   // Each column parses independently: a missing/legacy column must never
   // wipe the other (cross-version snapshots can predate a column).
@@ -999,6 +1013,7 @@ function mapNode(row: NodeRow): ClientNode {
     bannerAssetId: row.banner_asset_id ?? null,
     aliasedNodeId: row.aliased_node_id ?? null,
     description: row.description ?? null,
+    listStyle: parseListStyle(row.list_style),
     isActive: row.is_active === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -1044,6 +1059,7 @@ function nodeRowStamp(row: NodeRow): { h1: number; h2: number } {
   mix(row.banner_asset_id);
   mix(row.aliased_node_id);
   mix(row.description);
+  mix(row.list_style);
   mix(row.is_active);
   mix(row.created_at);
   mix(row.updated_at);
@@ -2484,6 +2500,7 @@ export class WorkspaceClient {
           isEmbedded: row.is_embedded === 1,
           icon: row.icon,
           color: row.color,
+          listStyle: parseListStyle(row.list_style),
           contentAst: parseContentAst(row.content),
           classIds: stringList(row.class_ids),
           tagIds: stringList(row.tag_ids),
@@ -2763,6 +2780,7 @@ export class WorkspaceClient {
     if (fields.bannerAssetId !== undefined) payload.bannerAssetId = fields.bannerAssetId;
     if (fields.aliasedNodeId !== undefined) payload.aliasedNodeId = fields.aliasedNodeId;
     if (fields.description !== undefined) payload.description = fields.description;
+    if (fields.listStyle !== undefined) payload.listStyle = fields.listStyle;
     this.enqueueLocal(this.buildEnvelope("object.update", payload, [id]));
   }
 

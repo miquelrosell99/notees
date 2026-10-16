@@ -9,6 +9,39 @@ predating this file.
 
 ## 2026-10-16
 
+- **feat(model): per-block list styles — numbered / alpha / roman via the
+  `listStyle` wire node field (owner 2026-10-16).** Block rows rendered a
+  bullet dot and nothing else; a block can now carry a **list style** that
+  replaces the dot with a derived marker — **numbered** (`1.`), **alpha**
+  (`a.`), **roman** (`i.`). Wire: `object.create`/`object.update` gain the
+  optional nullable `listStyle` (strict enum; absent/null = bullet, the
+  zero-migration default; present-null clears — the `icon`/`color`
+  precedent). Store: `node.list_style TEXT` (schema v22→v23, guarded
+  additive ALTER; presence writes, null clears, rides the row LWW).
+  **The number is never stored**: it derives at render time from the
+  node's position in the contiguous run of same-style siblings directly
+  above it — any sibling without the same style resets the count — so
+  inserts and reorders renumber automatically and nested lists number
+  independently. Web: the marker renders in the bullet's place (the
+  class-icon and collapse-chevron logic untouched — listStyle is
+  orthogonal to class membership and task cycling); the block context
+  menu gains **List style ›** (Bullet / Numbered / Alphabetical / Roman,
+  checkmark on the current) writing through the standard `object.update`
+  path — undo/redo (`change list style`, the prior null restores
+  honestly) and sync pick it up for free. Fixtures: gate 32→33
+  (`object-list-style.json`, create-with-style + set + null-clear).
+  **LOCKSTEP-PENDING**: strict-payload additive, so the GTK/Flutter ports
+  accept the key before the marker clears — no log migration, pre-existing
+  nodes default to bullet. Presentation state is not queryable: no query
+  predicate, no export change. Docs: SCHEMA.md "Node structure", WIRE.md,
+  releases.md (current wire + lockstep table), ux.md/usage.md.
+  **Verification:** `pnpm build` + `pnpm typecheck` (8/8) + `pnpm test`
+  green — protocol 421, store 583 (both adapters), web 1760 including the
+  new list-style suites and the css-token-drift gate; one benign
+  `status=error: Failed to fetch` sync-poll line in the web suite (the
+  backend-down overlay's own path) and one pre-existing block-dnd flake
+  under full-suite parallel load (passes in isolation; unrelated to this
+  slice — no dnd code touched).
 - **fix(web): node-link underlines rest on the visible link token, not
   outline (owner report 2026-10-16: dark-mode underlines are gray and
   almost invisible when the node has no color).** `.nt-link` (read mode)

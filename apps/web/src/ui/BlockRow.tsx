@@ -108,6 +108,7 @@ import { CondensedLinksPopup } from "./components/CondensedLinksPopup.js";
 import { InlineConfirmButton } from "./components/ui/InlineConfirmButton.js";
 import { tableClassIdOf } from "./components/tableFamily.js";
 import { addTableColumn, addTableRow, deleteTableColumn, deleteTableRow, tableColumnCount } from "./components/tableGrid.js";
+import { deriveListMarker } from "./listStyle.js";
 
 /** Display positions (schema-level) a block row surfaces itself; the
  *  collapsed properties panel below omits them (no duplicated value read). */
@@ -357,6 +358,17 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
   // now reaches the row.
   const classIcons = outlinerClient.effectiveClassIcons();
   const gripIcon = useMemo(() => nodeIcon(node, classIcons), [node, classIcons]);
+  // Per-block list style (store schema v23): when the node carries one, the
+  // derived marker replaces the bullet dot. The NUMBER is render-time
+  // derivation only — the position within the contiguous run of same-style
+  // siblings directly above (any other sibling resets the count) — so it is
+  // computed from the parent's child list per render, never stored. The
+  // class-icon branch above is untouched (listStyle is orthogonal to class
+  // membership and task cycling).
+  const listMarker =
+    node.listStyle !== null && node.parentId !== null
+      ? deriveListMarker(node, client.getChildren(node.parentId))
+      : null;
 
   const dropClass =
     dropLine !== null && dropLine.targetId === node.id ? ` nt-drop-${dropLine.intent}` : "";
@@ -723,6 +735,10 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
             {!focusMode && gripIcon !== null ? (
               <span className="nt-bullet-icon">
                 <Icon path={gripIcon} size={0.8} />
+              </span>
+            ) : listMarker !== null ? (
+              <span className="nt-list-marker" aria-hidden="true">
+                {listMarker}
               </span>
             ) : (
               <span className="nt-bullet-dot" aria-hidden="true" />

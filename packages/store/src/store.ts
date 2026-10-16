@@ -76,6 +76,10 @@ export interface NodeRow {
   /** The page subtitle in the core chrome (wire node field, store schema
    * v18) — plain text, max 512 chars, NULL = unset. */
   description: string | null;
+  /** Per-block list style (wire node field, store schema v23): "numbered" |
+   * "alpha" | "roman", NULL = bullet (the default). Mapped by
+   * object.create/update. */
+  list_style: string | null;
   is_active: number;
   created_at: string | null;
   updated_at: string | null;

@@ -3551,6 +3551,69 @@ describe.each(adapters)("$name: v18 — description wire node field", ({ makeBac
   });
 });
 
+// --- v23: the per-block list style (listStyle) --------------------------------
+
+describe.each(adapters)("$name: v23 — listStyle wire node field", ({ makeBackend }) => {
+  const PAGE = "0192a000-0000-7000-8000-00000000056a";
+  const BLOCK = "0192a000-0000-7000-8000-00000000056b";
+
+  function makeStore(): Store {
+    return Store.open(makeBackend());
+  }
+
+  it("the fixture lands create-with-style, set, and null-clear", () => {
+    const store = makeStore();
+    const [createPage_, createBlock, setAlpha, clear, setRoman] = loadFixture("object-list-style.json");
+    store.apply(createPage_!);
+    store.apply(createBlock!);
+    expect(store.getNode(BLOCK)?.list_style).toBe("numbered");
+    store.apply(setAlpha!);
+    expect(store.getNode(BLOCK)?.list_style).toBe("alpha");
+    store.apply(clear!);
+    expect(store.getNode(BLOCK)?.list_style).toBeNull();
+    store.apply(setRoman!);
+    expect(store.getNode(PAGE)?.list_style).toBe("roman");
+    store.close();
+  });
+
+  it("absence preserves, present-null clears, and the field rides the row LWW", () => {
+    const store = makeStore();
+    store.apply(createPage(PAGE, 1727200000000));
+    expect(store.getNode(PAGE)?.list_style).toBeNull();
+    store.apply(env("object.update", { objectId: PAGE, listStyle: "numbered" }, 1727200001000));
+    expect(store.getNode(PAGE)?.list_style).toBe("numbered");
+    // An absent field is not a write: an icon-only update keeps the style.
+    store.apply(env("object.update", { objectId: PAGE, icon: "mdiStar" }, 1727200002000));
+    expect(store.getNode(PAGE)).toMatchObject({ icon: "mdiStar", list_style: "numbered" });
+    // A stale-HLC update loses the row LWW race: nothing changes.
+    store.apply(env("object.update", { objectId: PAGE, listStyle: null }, 1727200000500));
+    expect(store.getNode(PAGE)?.list_style).toBe("numbered");
+    // The winning clear.
+    store.apply(env("object.update", { objectId: PAGE, listStyle: null }, 1727200003000));
+    expect(store.getNode(PAGE)?.list_style).toBeNull();
+    store.close();
+  });
+
+  it("adds the column idempotently when a v22 database migrates", () => {
+    const store = makeStore();
+    store.apply(createPage(PAGE, 1727200000000));
+    // Simulate a pre-v23 database: rewind the version and drop the column
+    // (the v18 description precedent).
+    store.database.exec("ALTER TABLE node DROP COLUMN list_style;");
+    store.database.pragma("user_version = 22");
+    migrate(store.database, "fts5");
+    expect(store.database.pragma("user_version", { simple: true })).toBe(SCHEMA_VERSION);
+    expect(store.getNode(PAGE)?.list_style).toBeNull();
+    // Idempotent: a second migrate is a no-op that stays current.
+    migrate(store.database, "fts5");
+    expect(store.database.pragma("user_version", { simple: true })).toBe(SCHEMA_VERSION);
+    // The migrated table still maps the field on update.
+    store.apply(env("object.update", { objectId: PAGE, listStyle: "alpha" }, 1727200001000));
+    expect(store.getNode(PAGE)?.list_style).toBe("alpha");
+    store.close();
+  });
+});
+
 describe.each(adapters)("$name: backlinksWithRollup — the alias family rides resolved_target_id", ({ makeBackend }) => {
   const MAIN = "0192a000-0000-7000-8000-0000000005c1";
   const ALIAS = "0192a000-0000-7000-8000-0000000005c2";

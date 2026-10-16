@@ -60,7 +60,7 @@ Repo checkouts used for releases (both clean, tagged from `main`):
   try-out builds).
 
 **Current wire (owner review 2026-10-05, wire node fields added 2026-10-07, the `heading`
-content token added 2026-10-12):** envelope v3; Revision-11
+content token added 2026-10-12, the per-block list style added 2026-10-16):** envelope v3; Revision-11
 render state; `object.restore`; the color grammar; the
 workspace-feature batch (`workspace.feature.set`, `code_block`/`hr`, `embed_ref.view`, PG5
 element ids, PC4 `active`, PC6 qualifiers); number formats; the
@@ -71,7 +71,11 @@ contracts `display`/`readonly`/`hideWhenEmpty` on the PROPERTY SCHEMA
 `object.update` gains optional nullable `coverAssetId`/`bannerAssetId`/`aliasedNodeId`
 (store v16; fixture `object-wire-fields.json`), superseding the retired
 cover/banner/aliasOf property schemas (live assertions migrate via
-`scripts/migrate-cover-banner-alias.mts`). **GTK/Flutter ports of the wire
+`scripts/migrate-cover-banner-alias.mts`); the per-block list style —
+`object.create`/`object.update` gain optional nullable `listStyle`
+(`"numbered" | "alpha" | "roman"`, absent/null = bullet; store v23; fixture
+`object-list-style.json`; the marker number is derived at render time, never
+stored). **GTK/Flutter ports of the wire
 fields are a separate follow-up in the clients repo — pending at shipment, so
 the live migration run waits for them.** TS reference: main repo
 **v3.4.4** (store v16); GTK **v3.1.2** (store v12); Flutter **v3.1.2**
@@ -128,6 +132,7 @@ this batch = bumping the package pins + releases, not code ports.
 | the asset property type | 2026-10-07 | `propertySchema.create`'s type enum gains `asset` (implicit asset-class filter; gate 23→24, `property-asset-type.json`); the attachments schema (…0011) retypes object→asset by `migrate-attachments-asset-type.mts` (values ride untouched) — **GTK/Flutter ports pending** (strict-enum additive) |
 | alias read paths (the final alias-program slice) | 2026-10-07 | every alias read repointed onto the `aliased_node_id` column: the universal redirect (the App open funnels ride `resolveAliasOpen` over `Store.resolveAlias` — mentions, links, palette, breadcrumbs, graph clicks, backlink/query rows), the linked-references roll-up via a new recursive store read `Store.aliasNodesOf` (chains included; the property-based `aliasOfTarget` retires), graph exclusion (aliases are not vertices; incident edges repoint to the terminal and merge), the server `/resolve` chain fold, and the aliases UI (the title-row Aliases button/list with the backward write + the NAVIGATE bypass; the alias-side "Aliased node" pseudo-property row) — NO wire change, NO store schema change; store API delta: `aliasNodesOf` added / `aliasOfTarget` retired (clients on the store package ride `resolveAlias`/`aliasNodesOf`); web+server read layer, TS-only |
 | unified datetime | 2026-10-09 | the `date`/`date_range` property types unify into one `datetime` type (strict `propertySchema.create` type enum — the retired values are rejected outright; gate 24→25, `property-datetime.json`); values ride untouched (every legacy shape is a legal member of the new union), so the live rewrite is payload-only: `scripts/migrate-unified-datetime.mts` (Path B, no compensation) — TS **v4.1.0** (ghcr `notees-sync`/`notees-web` v4.1.0 + latest from the tag); **client alignment: GTK v4.1.0 + Flutter v4.0.1 + CLI v4.1.0 tagged** (fixtures sha256-matched 25/25; CLI vendor pin → af57c5bb); live migration run the same day (owner workspace 82 envelopes rewritten, epoch 6; test workspace 3, epoch 1; snapshots patched both; full-replay verified) and the stack redeployed — VERIFY-PASS |
+| per-block list style | 2026-10-16 | `object.create`/`object.update` gain the optional nullable `listStyle` (`"numbered" \| "alpha" \| "roman"`; absent/null = bullet — store v22→v23, gate 32→33, `object-list-style.json`); the marker number is render-time derivation from the sibling run, never stored; no query predicate (presentation state) — **LOCKSTEP-PENDING: GTK/Flutter ports accept the key in the clients repo** (strict-payload additive; no log migration — pre-existing nodes default to bullet) |
 
 ## 5. The SDK/repo splits (parked, owner)
 
