@@ -2,7 +2,7 @@
  * Query builder state <-> AST — the shared condition subset the builder UI
  * (QueryBlockView's popover, the FilterBuilderModal) represents honestly:
  *
- *  - a flat AND root of: class / isClass / presentAsMain / content-contains /
+ *  - a flat AND root of: class / isClass / isEmbedded / content-contains /
  *    createdAfter / createdBefore conditions;
  *  - at most ONE sort spec (field + direction);
  *  - at most ONE aggregation dimension + ONE measure.
@@ -30,8 +30,8 @@ export interface QueryBuilderState {
   classId: string | null;
   /** isClass filter (Revision-11 boolean condition); "" = any. */
   isClass: "" | "true" | "false";
-  /** presentAsMain filter (Revision-11 boolean condition); "" = any. */
-  presentAsMain: "" | "true" | "false";
+  /** isEmbedded filter (Revision-11 boolean condition); "" = any. */
+  isEmbedded: "" | "true" | "false";
   /** content contains filter (trimmed on write); "" = none. */
   contains: string;
   /** createdAfter timestamp (ISO datetime or `{today}`-style placeholder); "" = none. */
@@ -42,7 +42,7 @@ export interface QueryBuilderState {
   sortField: "" | SortField;
   /** Primary sort direction (meaningful when sortField !== ""). */
   sortDir: "asc" | "desc";
-  /** Aggregation group-by; "" / absent = none. "isClass" | "presentAsMain" | `class:<id>` | `property:<id>`. */
+  /** Aggregation group-by; "" / absent = none. "isClass" | "isEmbedded" | `class:<id>` | `property:<id>`. */
   groupBy?: string;
   /** Aggregation measure. "count" (default) | "countDistinct" | `<fn>:<propertyId>`. */
   measure?: string;
@@ -52,7 +52,7 @@ export const DEFAULT_BUILDER_STATE: QueryBuilderState = {
   scope: "workspace",
   classId: null,
   isClass: "",
-  presentAsMain: "",
+  isEmbedded: "",
   contains: "",
   createdAfter: "",
   createdBefore: "",
@@ -93,7 +93,7 @@ export function builderUnsupportedConstructs(ast: QueryAst | null): string[] {
             if (child.op === "fts") found.add("full-text search conditions");
             break;
           default:
-            break; // class / isClass / presentAsMain / createdAfter / createdBefore are representable
+            break; // class / isClass / isEmbedded / createdAfter / createdBefore are representable
         }
       }
     }
@@ -134,8 +134,8 @@ export function extractBuilderState(ast: QueryAst | null): QueryBuilderState {
     for (const child of ast.root.children) {
       if (child.type === "class") state.classId = child.classId;
       else if (child.type === "isClass") state.isClass = child.isClass ? "true" : "false";
-      else if (child.type === "presentAsMain") {
-        state.presentAsMain = child.presentAsMain ? "true" : "false";
+      else if (child.type === "isEmbedded") {
+        state.isEmbedded = child.isEmbedded ? "true" : "false";
       } else if (child.type === "content" && child.op === "contains") {
         state.contains = child.value;
       } else if (child.type === "createdAfter") {
@@ -158,8 +158,8 @@ export function extractBuilderState(ast: QueryAst | null): QueryBuilderState {
         ? ""
         : dimension.kind === "isClass"
           ? "isClass"
-          : dimension.kind === "presentAsMain"
-            ? "presentAsMain"
+          : dimension.kind === "isEmbedded"
+            ? "isEmbedded"
             : `${dimension.kind}:${dimension.id}`;
     const measure = aggregation.measures[0];
     if (measure === undefined) {
@@ -192,8 +192,8 @@ export function composeAggregation(state: QueryBuilderState): QueryAst["aggregat
   const dimensions: NonNullable<QueryAst["aggregation"]>["dimensions"] = [];
   if (groupBy === "isClass") {
     dimensions.push({ kind: "isClass" });
-  } else if (groupBy === "presentAsMain") {
-    dimensions.push({ kind: "presentAsMain" });
+  } else if (groupBy === "isEmbedded") {
+    dimensions.push({ kind: "isEmbedded" });
   } else if (groupBy.startsWith("class:")) {
     dimensions.push({ kind: "class", id: groupBy.slice("class:".length) });
   } else if (groupBy.startsWith("property:")) {
@@ -229,8 +229,8 @@ export function composeQueryAst(
     children.push({ type: "class", classId: state.classId });
   }
   if (state.isClass !== "") children.push({ type: "isClass", isClass: state.isClass === "true" });
-  if (state.presentAsMain !== "") {
-    children.push({ type: "presentAsMain", presentAsMain: state.presentAsMain === "true" });
+  if (state.isEmbedded !== "") {
+    children.push({ type: "isEmbedded", isEmbedded: state.isEmbedded === "true" });
   }
   const contains = state.contains.trim();
   if (contains !== "") children.push({ type: "content", op: "contains", value: contains });
@@ -269,8 +269,8 @@ export function describeBuilderState(
     lines.push(`Class: ${labels.className(state.classId)}`);
   }
   if (state.isClass !== "") lines.push(`Class bit: ${state.isClass === "true" ? "class" : "not a class"}`);
-  if (state.presentAsMain !== "") {
-    lines.push(`Render bit: ${state.presentAsMain === "true" ? "main children" : "inline body"}`);
+  if (state.isEmbedded !== "") {
+    lines.push(`Structural role: ${state.isEmbedded === "true" ? "Block (embedded in body)" : "Page (standalone)"}`);
   }
   if (state.contains.trim() !== "") lines.push(`Text contains: "${state.contains.trim()}"`);
   if (state.createdAfter.trim() !== "") lines.push(`Created after: ${state.createdAfter.trim()}`);
@@ -281,8 +281,8 @@ export function describeBuilderState(
     const dimension =
       groupBy === "isClass"
         ? "Class bit"
-        : groupBy === "presentAsMain"
-          ? "Render bit"
+        : groupBy === "isEmbedded"
+          ? "Structural role"
           : groupBy.startsWith("class:")
             ? `Class: ${labels.className(groupBy.slice("class:".length))}`
             : `Property: ${labels.propertyName(groupBy.slice("property:".length))}`;

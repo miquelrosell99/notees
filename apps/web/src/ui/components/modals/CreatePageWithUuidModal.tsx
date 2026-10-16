@@ -97,7 +97,7 @@ export function CreatePageWithUuidModal({
         const newId = await client.createObject({
           id: trimmedUuid,
           name: trimmedName,
-          presentAsMain: isPage,
+          isEmbedded: isPage,
           parentId: isPage ? null : parentUuid,
         });
 

@@ -81,7 +81,7 @@ async function seedCoverClassed(
   await client.setClassExtends(COVER_CLASS_ID, [SYSTEM_CLASS_UUIDS.asset]);
   const ids: string[] = [];
   for (const member of members) {
-    const id = await client.createObject({ presentAsMain: true, name: member.name });
+    const id = await client.createObject({ isEmbedded: false, name: member.name });
     await client.assignClass(id, COVER_CLASS_ID);
     if (member.withAsset) await client.assignClass(id, SYSTEM_CLASS_UUIDS.asset);
     ids.push(id);

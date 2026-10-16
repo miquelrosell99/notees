@@ -11,8 +11,8 @@
  *
  * For every active node whose id is one of the deterministic date shapes
  * (year `…00bb-YYYY00000000`, month `…00aa-YYYYMM000000`, day
- * `…00dd-YYYYMMDD0000`) with present_as_main = 0, append an
- * object.update {presentAsMain: true} envelope — the immutable log is never
+ * `…00dd-YYYYMMDD0000`) with is_embedded = 1, append an
+ * object.update {isEmbedded: false} envelope — the immutable log is never
  * edited; the corrective ops flow through the normal relay ingest so every
  * derived database and client converges.
  *
@@ -51,7 +51,7 @@ let scanned = 0;
 for (const workspaceId of auth.listAllWorkspaceIds()) {
   const store = workspaces.storeFor(workspaceId);
   const rows = store.database
-    .prepare(`SELECT id FROM node WHERE is_active = 1 AND present_as_main = 0 AND (${DATE_NODE})`)
+    .prepare(`SELECT id FROM node WHERE is_active = 1 AND is_embedded = 1 AND (${DATE_NODE})`)
     .all() as Array<{ id: string }>;
 
   const envelopes = [];
@@ -66,7 +66,7 @@ for (const workspaceId of auth.listAllWorkspaceIds()) {
         hlc: { physical: Date.now(), logical: envelopes.length },
         affectedNodeIds: [row.id],
         opType: "object.update",
-        payload: { objectId: row.id, presentAsMain: true },
+        payload: { objectId: row.id, isEmbedded: false },
       }),
     );
   }

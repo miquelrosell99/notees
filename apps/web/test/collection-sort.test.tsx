@@ -66,7 +66,7 @@ async function seedClient(): Promise<WorkspaceClient> {
 }
 
 async function createTitledPage(client: WorkspaceClient, title: string, parentId: string | null = null): Promise<string> {
-  const id = await client.createObject({ parentId, presentAsMain: true });
+  const id = await client.createObject({ parentId, isEmbedded: false });
   await client.updateObject(id, { contentAst: [{ type: "text", text: title }] });
   return id;
 }
@@ -81,7 +81,7 @@ function fakeNode(id: string, title: string, updatedAt: string | null = null): C
     id,
     workspaceId: WS,
     isClass: false,
-    presentAsMain: true,
+    isEmbedded: false,
     parentId: null,
     classIds: [],
     tagIds: [],

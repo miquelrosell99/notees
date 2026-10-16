@@ -336,7 +336,7 @@ export function CalendarView({
     schemaId: string,
     templateId: string | null,
   ): Promise<void> => {
-    const id = await client.createObject({ presentAsMain: true, classIds: [classId] });
+    const id = await client.createObject({ isEmbedded: false, classIds: [classId] });
     if (templateId !== null) {
       // Graft the template root onto the fresh object + clone its children
       // beneath it (SCHEMA.md "Templates", instantiate-at-create).

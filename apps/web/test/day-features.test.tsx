@@ -145,7 +145,7 @@ async function createTask(
   opts: { scheduled?: string; deadline?: string; done?: boolean } = {},
 ): Promise<string> {
   const id = await client.createObject({
-    presentAsMain: true,
+    isEmbedded: false,
     name,
     classIds: [SYSTEM_CLASS_UUIDS.task],
   });
@@ -172,7 +172,7 @@ async function createDatedMeeting(
   const classId = await client.createClass("meeting");
   await client.updateObject(classId, { contentAst: [{ type: "text", text: "meeting" }] });
   await client.setClassProperty(classId, schemaId, {});
-  const id = await client.createObject({ presentAsMain: true, name, classIds: [classId] });
+  const id = await client.createObject({ isEmbedded: false, name, classIds: [classId] });
   await client.setDatetimeProperty(id, schemaId, { iso });
   return id;
 }
@@ -459,7 +459,7 @@ describe("PageView day branch", () => {
 
   it("shows the Created section for today, chain nodes excluded", async () => {
     const client = await seedClient();
-    await client.createObject({ presentAsMain: true, name: "Fresh today" });
+    await client.createObject({ isEmbedded: false, name: "Fresh today" });
     const { day } = await client.ensureDateChain(todayIsoLocal());
     await flushWrites();
 

@@ -93,16 +93,19 @@ export function qualifierTail(
 
 /**
  * The node shape the exporter needs — satisfied by the object-API full
- * object. Revision-11 render-state model: the two booleans replace the
+ * object. Revision-12 embedding model: the two booleans replace the
  * retired node_type enumeration (store row shape, 0/1).
  */
 export interface ExportNode {
   id: string;
   /** Class identity bit: 1 = class node (always a root). */
   isClass: 0 | 1;
-  /** Render bit for parented non-class nodes: 1 = main-children zone +
-   * document chrome; 0 = inline body + block chrome. */
-  presentAsMain: 0 | 1;
+  /** Embedding flag (Revision 12) for parented non-class nodes: 1 (the
+   * default) = embedded in the parent's body — the Block role; 0 = a
+   * standalone structural element — the Page role (the parent's
+   * main-children zone + document chrome). Unread for parentless nodes and
+   * classes. */
+  isEmbedded: 0 | 1;
   /** Tree placement; null = workspace root. */
   parentId: string | null;
   name: string | null;
@@ -217,14 +220,14 @@ export interface ExportDocumentChild {
    * child has no content-derived name) — the bibliography (L1) uses it as
    * the CSL title, via `nodeToCsl`. */
   title: string;
-  /** The child's main-zone bit (Revision-11 render state): true = the child
-   * is a main node (a child PAGE — titled outline entry); false = an inline
-   * body BLOCK (renders body-only, nested in its parent's content, no title
-   * heading — the same main-node vs block-node distinction the chrome
-   * predicate encodes for the root). Serializers that render a nested
-   * outline split the zones on this bit (the PDF layout); zone-blind
-   * bullet outlines ignore it. */
-  presentAsMain: boolean;
+  /** The child's embedding flag (Revision 12 structural role): false = a
+   * standalone child (a child PAGE — excluded from the parent's body
+   * content); true = an embedded body BLOCK (renders body-only, nested in
+   * its parent's content, no title heading). Serializers that render a
+   * nested outline split the zones on this flag: a parent's exported body
+   * carries the embedded children only; the standalone children render as
+   * a separate child-pages section (the PDF and markdown/html layouts). */
+  isEmbedded: boolean;
   /** The child's class ids — serializers that need per-node identity
    * (L1's bibliography: which children are source-classed, via
    * csl.ts `sourceClassOf`) read them here. */
@@ -252,12 +255,14 @@ export interface ExportDocument {
   nodeId: string;
   /** Resolved display title ("" when the node has no content-derived name). */
   title: string;
-  /** Document-chrome predicate (Revision-11 third cascade branch): false for
-   * parented non-class nodes with the render bit unset — inline blocks carry
-   * no `# title` heading and no frontmatter name line. */
+  /** Document-chrome predicate (Revision 12 third cascade branch): false for
+   * embedded parented non-class nodes — inline blocks carry no `# title`
+   * heading and no frontmatter name line. */
   rendersDocumentChrome: boolean;
   isClass: boolean;
-  presentAsMain: boolean;
+  /** The node's own embedding flag (Revision 12): true = embedded in the
+   * parent's body (the Block role); false = standalone (the Page role). */
+  isEmbedded: boolean;
   parentId: string | null;
   /** The node's own content, folded to blocks. */
   blocks: readonly ExportBlock[];
@@ -402,9 +407,9 @@ export function buildExportDocument(
   return {
     nodeId: node.id,
     title,
-    rendersDocumentChrome: !(node.isClass === 0 && node.parentId !== null && node.presentAsMain === 0),
+    rendersDocumentChrome: !(node.isClass === 0 && node.parentId !== null && node.isEmbedded === 1),
     isClass: node.isClass === 1,
-    presentAsMain: node.presentAsMain === 1,
+    isEmbedded: node.isEmbedded === 1,
     parentId: node.parentId,
     blocks,
     properties: node.properties.map((property) => ({
@@ -714,13 +719,13 @@ function buildChildren(
   const out: ExportDocumentChild[] = [];
   for (const child of rows) {
     if (visited.has(child.id)) {
-      out.push({ id: child.id, title: "", presentAsMain: true, classIds: [], classNames: [], properties: [], blocks: [], children: [], cut: "cycle" });
+      out.push({ id: child.id, title: "", isEmbedded: false, classIds: [], classNames: [], properties: [], blocks: [], children: [], cut: "cycle" });
       continue;
     }
     // Full closure by default; an explicit cap collapses deeper levels to a
     // visible cut entry (the root's children sit at depth 1).
     if (options.maxDepth !== null && depth > options.maxDepth) {
-      out.push({ id: child.id, title: "", presentAsMain: true, classIds: [], classNames: [], properties: [], blocks: [], children: [], cut: "depth" });
+      out.push({ id: child.id, title: "", isEmbedded: false, classIds: [], classNames: [], properties: [], blocks: [], children: [], cut: "depth" });
       continue;
     }
     const childVisited = new Set(visited);
@@ -728,7 +733,7 @@ function buildChildren(
     out.push({
       id: child.id,
       title: deriveDisplayName(child),
-      presentAsMain: child.presentAsMain === 1,
+      isEmbedded: child.isEmbedded === 1,
       classIds: child.classIds,
       classNames: child.classIds.map((id) => normalizeInlineName(ctx.nameOf(id) ?? id)),
       ...(ctx.colorOf !== undefined

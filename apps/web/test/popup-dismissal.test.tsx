@@ -267,7 +267,7 @@ function typeWithCaret(editor: HTMLElement, text: string): void {
 describe("dismissal matrix: slash command popup (TriggerPopup)", () => {
   async function seedPage() {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     await client.createObject({ parentId: pageId, contentAst: [] });
     const rendered = render(<PageView client={client} pageId={pageId} />);
     const editor = clickIntoBlock(rendered.container);
@@ -307,7 +307,7 @@ describe("dismissal matrix: slash command popup (TriggerPopup)", () => {
 describe("dismissal matrix: anchored NodeSelector (mention picker)", () => {
   it("Escape closes; outside click closes; inside press does not", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     await client.createObject({ parentId: pageId, contentAst: [] });
     const { container, unmount } = render(<PageView client={client} pageId={pageId} />);
     const editor = clickIntoBlock(container);
@@ -460,7 +460,7 @@ describe("regression: TemplateListPopup keeps dismissal when focus left the filt
 describe("regression: NodePills overflow popup + color menu gain Escape", () => {
   async function seedClassedPage() {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const classIds: string[] = [];
     for (const name of ["Alpha", "Beta", "Gamma"]) {
       classIds.push(await client.createClass(name));
@@ -501,7 +501,7 @@ describe("regression: NodePill right-click color row gains Escape", () => {
     id: "0192a000-0000-7000-8000-0000000000c1",
     workspaceId: WS,
     isClass: true,
-    presentAsMain: false,
+    isEmbedded: true,
     parentId: null,
     classIds: [],
     tagIds: [],

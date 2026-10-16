@@ -42,7 +42,7 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the thirty required fixtures", () => {
+  it("has exactly the thirty-one required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "class-convert.json",
@@ -59,13 +59,14 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       "envelope-minimal.json",
       "heading-content.json",
       "hr.json",
+      "is-embedded-parent-page.json",
       "object-color.json",
       "object-create.json",
+      "object-is-embedded.json",
       "object-move-before.json",
       "object-move.json",
       "object-restore.json",
       "object-wire-fields.json",
-      "present-as-main-parent-page.json",
       "property-asset-type.json",
       "property-date-qualifier.json",
       "property-datetime.json",
@@ -446,8 +447,8 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       language: "python",
       text: "print('hi')\nprint('bye')",
     });
-    // The promotion is the third envelope: presentAsMain true on the block.
-    expect(fixture.envelopes[2]!.payload).toMatchObject({ presentAsMain: true });
+    // The promotion is the third envelope: isEmbedded false on the block.
+    expect(fixture.envelopes[2]!.payload).toMatchObject({ isEmbedded: false });
     // A language-less code_block is legal (plain text default).
     const plain = fixture.envelopes[3]!;
     expect((plain.payload as { contentAst: unknown[] }).contentAst).toEqual([
@@ -496,7 +497,7 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
     const blockCreate = fixture.envelopes[1]!;
     const ast = contentAstSchema.parse((blockCreate.payload as { contentAst: unknown }).contentAst);
     expect(ast.map((token) => token.type)).toEqual(["text", "hr", "text"]);
-    expect(fixture.envelopes[2]!.payload).toMatchObject({ presentAsMain: true });
+    expect(fixture.envelopes[2]!.payload).toMatchObject({ isEmbedded: false });
     const hlcs = fixture.envelopes.map((env) => (env.hlc as { physical: number }).physical);
     expect([...hlcs].sort((x, y) => x - y)).toEqual(hlcs);
   });

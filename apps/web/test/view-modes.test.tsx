@@ -94,7 +94,7 @@ async function createTitledClass(client: WorkspaceClient, title: string, id?: st
 
 /** Page with two root blocks, the first holding a nested child. */
 async function seedTreePage(client: WorkspaceClient): Promise<string> {
-  const pageId = await client.createObject({ presentAsMain: true, name: "Modes" });
+  const pageId = await client.createObject({ isEmbedded: false, name: "Modes" });
   await client.createObject({
     parentId: pageId,
     contentAst: [{ type: "text", text: "root one" }],
@@ -186,7 +186,7 @@ describe("classed-nodes table", () => {
     // The reserved system id: the seed-spec fallback synthesizes the source
     // family's columns with the manifest's normal-wording names.
     const classId = await createTitledClass(client, "Source", SYSTEM_CLASS_UUIDS.source);
-    const member = await client.createObject({ presentAsMain: true, name: "A book" });
+    const member = await client.createObject({ isEmbedded: false, name: "A book" });
     await client.assignClass(member, classId);
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
 
@@ -212,7 +212,7 @@ describe("classed-nodes table", () => {
 describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
   it("a flat card resolves the node's child blocks from the client — the classed-nodes case", async () => {
     const client = await seedClient();
-    const member = await client.createObject({ presentAsMain: true, name: "Member" });
+    const member = await client.createObject({ isEmbedded: false, name: "Member" });
     await client.createObject({
       parentId: member,
       contentAst: [{ type: "text", text: "member body block" }],
@@ -252,7 +252,7 @@ describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
 
   it("the blocks-row chevron shows and hides the child blocks (display state, never an op)", async () => {
     const client = await seedClient();
-    const member = await client.createObject({ presentAsMain: true, name: "Foldable" });
+    const member = await client.createObject({ isEmbedded: false, name: "Foldable" });
     await client.createObject({
       parentId: member,
       contentAst: [{ type: "text", text: "fold me away" }],
@@ -290,11 +290,11 @@ describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
     // empty row (owner 2026-10-13 — the class's full column set).
     const noteId = await client.createPropertySchema({ name: "Note", type: "text" });
     await client.setClassProperty(classId, noteId, { sequence: 1 });
-    const tag = await client.createObject({ presentAsMain: true, name: "favorites" });
+    const tag = await client.createObject({ isEmbedded: false, name: "favorites" });
     // A BLOCK member (parented — inline-block render state): document-chrome
     // nodes carry text-only titles (the store's flatten invariant), so the
     // rich class chip survives only on a block's content.
-    const dex = await client.createObject({ presentAsMain: true, name: "Dex" });
+    const dex = await client.createObject({ isEmbedded: false, name: "Dex" });
     const member = await client.createObject({
       parentId: dex,
       contentAst: [
@@ -369,7 +369,7 @@ describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
 
   it("right-click on the title opens the node menu; the three-dot is gone (the checkbox stays)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const member = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "Child" }] });
     await flushWrites();
 
@@ -397,9 +397,9 @@ describe("the v1 node card (cards mode, owner 2026-10-13)", () => {
   it("the breadcrumb row is read-only on the card — crumbs navigate, nothing edits (owner reversal 2026-10-13)", async () => {
     const client = await seedClient();
     // A parentless card: no crumbs, no Add parent pill.
-    const orphan = await client.createObject({ presentAsMain: true, name: "Orphan" });
+    const orphan = await client.createObject({ isEmbedded: false, name: "Orphan" });
     // A parented card: the chain rides for navigation, but no edit gestures.
-    const parent = await client.createObject({ presentAsMain: true, name: "Parent" });
+    const parent = await client.createObject({ isEmbedded: false, name: "Parent" });
     const child = await client.createObject({ parentId: parent, contentAst: [{ type: "text", text: "Child" }] });
     await flushWrites();
 
@@ -452,9 +452,9 @@ describe("tasks hub", () => {
     // The hub authors the task family on open — ensure up front
     // so no write is in flight when the test teardown closes the client.
     await ensureTaskFamily(client);
-    const taskPage = await client.createObject({ presentAsMain: true, name: "Write report" });
+    const taskPage = await client.createObject({ isEmbedded: false, name: "Write report" });
     await client.assignClass(taskPage, SYSTEM_CLASS_UUIDS.task);
-    const host = await client.createObject({ presentAsMain: true, name: "Host" });
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
     const taskBlock = await client.createObject({
       parentId: host,
       contentAst: [{ type: "text", text: "Call the office" }],
@@ -495,7 +495,7 @@ describe("tasks hub", () => {
 
   it("list view opens via the bullet: read-only rows are inert (content click does nothing)", async () => {
     const client = await seedClient();
-    const parentless = await client.createObject({ presentAsMain: true, name: "Solo" });
+    const parentless = await client.createObject({ isEmbedded: false, name: "Solo" });
 
     // A read-only flat collection (no editable): the owner-facing inert
     // contract — clicking the content does NOT open; the bullet element
@@ -525,11 +525,11 @@ describe("tasks hub", () => {
     const client = await seedClient();
     await ensureTaskFamily(client);
     await client.assignClass(
-      await client.createObject({ presentAsMain: true, name: "Zulu" }),
+      await client.createObject({ isEmbedded: false, name: "Zulu" }),
       SYSTEM_CLASS_UUIDS.task,
     );
     await client.assignClass(
-      await client.createObject({ presentAsMain: true, name: "Alpha" }),
+      await client.createObject({ isEmbedded: false, name: "Alpha" }),
       SYSTEM_CLASS_UUIDS.task,
     );
     render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
@@ -565,7 +565,7 @@ describe("cards board (property-dimension groupBy)", () => {
   }
 
   async function seedTask(client: WorkspaceClient, title: string): Promise<string> {
-    const id = await client.createObject({ presentAsMain: true, name: title });
+    const id = await client.createObject({ isEmbedded: false, name: title });
     await client.assignClass(id, SYSTEM_CLASS_UUIDS.task);
     return id;
   }
@@ -637,7 +637,7 @@ describe("cards board (property-dimension groupBy)", () => {
 
     // A hub whose members carry no usable select property renders the flat
     // cards grid instead (the Assets hub defaults to cards).
-    const host = await client.createObject({ presentAsMain: true, name: "Attachments" });
+    const host = await client.createObject({ isEmbedded: false, name: "Attachments" });
     const asset = await client.createObject({
       parentId: host,
       contentAst: [{ type: "text", text: "scanned-receipt.pdf" }],
@@ -676,7 +676,7 @@ describe("cards board (property-dimension groupBy)", () => {
 describe("assets hub", () => {
   it("defaults to cards and switches to table", async () => {
     const client = await seedClient();
-    const host = await client.createObject({ presentAsMain: true, name: "Attachments" });
+    const host = await client.createObject({ isEmbedded: false, name: "Attachments" });
     const asset = await client.createObject({
       parentId: host,
       contentAst: [{ type: "text", text: "scanned-receipt.pdf" }],
@@ -698,9 +698,9 @@ describe("assets hub", () => {
 describe("pages hub (workspace roots)", () => {
   it("lists top-level pages only — subpages render nested under their parent's row", async () => {
     const client = await seedClient();
-    await client.createObject({ presentAsMain: true, name: "Top Level" });
-    const parentId = await client.createObject({ presentAsMain: true, name: "Parent" });
-    await client.createObject({ parentId, presentAsMain: true, name: "Subpage" });
+    await client.createObject({ isEmbedded: false, name: "Top Level" });
+    const parentId = await client.createObject({ isEmbedded: false, name: "Parent" });
+    await client.createObject({ parentId, isEmbedded: false, name: "Subpage" });
 
     render(<HubView client={client} nav="pages" onOpenNode={() => {}} />);
 
@@ -728,12 +728,12 @@ describe("pages hub (workspace roots)", () => {
 describe("groupBy: references grouped by containing page", () => {
   /** Target page with one mention from each of two source pages. */
   async function seedReferencedPage(client: WorkspaceClient): Promise<string> {
-    const targetId = await client.createObject({ presentAsMain: true, name: "Zebra" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Zebra" });
     for (const name of ["Source One", "Source Two"]) {
-      const sourceId = await client.createObject({ presentAsMain: true, name });
+      const sourceId = await client.createObject({ isEmbedded: false, name });
       await client.createObject({
         parentId: sourceId,
-        contentAst: [{ type: "mention", targetNodeId: targetId, text: "Zebra" }],
+        contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: targetId, text: "Zebra" }],
       });
     }
     return targetId;
@@ -778,24 +778,24 @@ describe("groupBy: references grouped by containing page", () => {
 
   it("group headers render the containing page's effective icon — own icon and class-chain icon", async () => {
     const client = await seedClient();
-    const targetId = await client.createObject({ presentAsMain: true, name: "Zebra" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Zebra" });
     // Source One carries its own authored icon.
-    const sourceOne = await client.createObject({ presentAsMain: true, name: "Source One" });
+    const sourceOne = await client.createObject({ isEmbedded: false, name: "Source One" });
     await client.updateObject(sourceOne, { icon: "mdi-star" });
     await client.createObject({
       parentId: sourceOne,
-      contentAst: [{ type: "mention", targetNodeId: targetId, text: "Zebra" }],
+      contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: targetId, text: "Zebra" }],
     });
     // Source Two inherits its icon through the class-extends chain (the
     // daily-page shape: no own icon, the glyph arrives via its class).
     const glyphParent = await client.createClass("Glyph Parent", { icon: "mdi-heart" });
     const glyphChild = await client.createClass("Glyph Child");
     await client.setClassExtends(glyphChild, [glyphParent]);
-    const sourceTwo = await client.createObject({ presentAsMain: true, name: "Source Two" });
+    const sourceTwo = await client.createObject({ isEmbedded: false, name: "Source Two" });
     await client.assignClass(sourceTwo, glyphChild);
     await client.createObject({
       parentId: sourceTwo,
-      contentAst: [{ type: "mention", targetNodeId: targetId, text: "Zebra" }],
+      contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: targetId, text: "Zebra" }],
     });
 
     render(<PageView client={client} pageId={targetId} onOpenPage={() => {}} />);
@@ -828,8 +828,8 @@ describe("groupBy: references grouped by containing page", () => {
 
   it("groups two references from the same page under one header with count 2", async () => {
     const client = await seedClient();
-    const targetId = await client.createObject({ presentAsMain: true, name: "Zebra" });
-    const sourceId = await client.createObject({ presentAsMain: true, name: "Double Source" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Zebra" });
+    const sourceId = await client.createObject({ isEmbedded: false, name: "Double Source" });
     for (const text of ["first", "second"]) {
       await client.createObject({
         parentId: sourceId,
@@ -887,9 +887,9 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
     ] as const) {
       await client.setClassProperty(classId, schema, { sequence });
     }
-    const alpha = await client.createObject({ presentAsMain: true, name: "Alpha" });
-    const beta = await client.createObject({ presentAsMain: true, name: "Beta" });
-    const gamma = await client.createObject({ presentAsMain: true, name: "Gamma" });
+    const alpha = await client.createObject({ isEmbedded: false, name: "Alpha" });
+    const beta = await client.createObject({ isEmbedded: false, name: "Beta" });
+    const gamma = await client.createObject({ isEmbedded: false, name: "Gamma" });
     for (const id of [alpha, beta, gamma]) await client.assignClass(id, classId);
     await client.setProperty(alpha, statusId, OPT_BACKLOG, 0);
     await client.setProperty(beta, statusId, OPT_DOING, 0);
@@ -1015,7 +1015,7 @@ describe("table polish: multi-sort, column selector, inline editing, selection",
   it("node cells pick a target through the anchored NodeSelector", async () => {
     const client = await seedClient();
     const seeded = await seedProjectTable(client);
-    const paris = await client.createObject({ presentAsMain: true, name: "Paris" });
+    const paris = await client.createObject({ isEmbedded: false, name: "Paris" });
     render(<NodeView client={client} nodeId={seeded.classId} onOpenNode={() => {}} />);
     await expandClassedNodes();
 
@@ -1149,9 +1149,9 @@ describe("table export: CSV view export + selection-scoped export", () => {
     ] as const) {
       await client.setClassProperty(classId, schema, { sequence });
     }
-    const alpha = await client.createObject({ presentAsMain: true, name: "Alpha" });
-    const beta = await client.createObject({ presentAsMain: true, name: "Beta" });
-    const gamma = await client.createObject({ presentAsMain: true, name: "Gamma" });
+    const alpha = await client.createObject({ isEmbedded: false, name: "Alpha" });
+    const beta = await client.createObject({ isEmbedded: false, name: "Beta" });
+    const gamma = await client.createObject({ isEmbedded: false, name: "Gamma" });
     for (const id of [alpha, beta, gamma]) await client.assignClass(id, classId);
     await client.setProperty(alpha, statusId, "00000000-0000-0000-00c5-000000000011", 0);
     await client.setProperty(beta, statusId, "00000000-0000-0000-00c5-000000000012", 0);
@@ -1276,10 +1276,10 @@ describe("cards board polish: multi-select grouping, collapsible columns", () =>
         { id: "00000000-0000-0000-0005-000000000022", label: "Doing" },
       ],
     });
-    const both = await client.createObject({ presentAsMain: true, name: "Both" });
+    const both = await client.createObject({ isEmbedded: false, name: "Both" });
     await client.assignClass(both, SYSTEM_CLASS_UUIDS.task);
     await client.setProperty(both, statusId, ["00000000-0000-0000-0005-000000000021"], 0);
-    const other = await client.createObject({ presentAsMain: true, name: "Other" });
+    const other = await client.createObject({ isEmbedded: false, name: "Other" });
     await client.assignClass(other, SYSTEM_CLASS_UUIDS.task);
 
     // The tasks hub groups by the authored single-select status,
@@ -1315,7 +1315,7 @@ describe("cards board polish: multi-select grouping, collapsible columns", () =>
   it("columns collapse and expand via their header chevron", async () => {
     const client = await seedClient();
     const { schemaId, optionId } = await ensureTaskStatus(client);
-    const task = await client.createObject({ presentAsMain: true, name: "Solo" });
+    const task = await client.createObject({ isEmbedded: false, name: "Solo" });
     await client.assignClass(task, SYSTEM_CLASS_UUIDS.task);
     await client.setProperty(task, schemaId, optionId("Backlog"), 0);
 
@@ -1337,7 +1337,7 @@ describe("cards board polish: multi-select grouping, collapsible columns", () =>
 describe("card covers and asset thumbnails", () => {
   it("image assets render a thumbnail only under a cover layout; the toggle switches placements", async () => {
     const client = await seedClient();
-    const host = await client.createObject({ presentAsMain: true, name: "Attachments" });
+    const host = await client.createObject({ isEmbedded: false, name: "Attachments" });
     const asset = await client.createObject({
       parentId: host,
       contentAst: [{ type: "text", text: "photo.png" }],
@@ -1362,7 +1362,7 @@ describe("card covers and asset thumbnails", () => {
 
   it("cards surfaces without a cover default stay no-cover until a choice is made", async () => {
     const client = await seedClient();
-    const host = await client.createObject({ presentAsMain: true, name: "Attachments" });
+    const host = await client.createObject({ isEmbedded: false, name: "Attachments" });
     const asset = await client.createObject({
       parentId: host,
       contentAst: [{ type: "text", text: "photo.png" }],

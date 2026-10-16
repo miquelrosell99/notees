@@ -114,7 +114,7 @@ describe("resolveQuickCreate", () => {
   it("returns null for unrelated filters and empty filters", async () => {
     const client = await seedClient();
     await seedFamilies(client);
-    const tag = await client.createObject({ presentAsMain: true, name: "Some tag" });
+    const tag = await client.createObject({ isEmbedded: false, name: "Some tag" });
     const tagClass = await client.createClass("taglike");
     await client.assignClass(tag, tagClass);
     expect(resolveQuickCreate(client, [tagClass])).toBeNull();

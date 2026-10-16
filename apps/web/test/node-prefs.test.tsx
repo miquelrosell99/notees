@@ -277,7 +277,7 @@ function renderSidebar(client: AnyClient) {
 describe("Sidebar favorites/recents", () => {
   it("renders the Favorites section from the server prefs copy", async () => {
     const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
-    const pageId = await client.createObject({ presentAsMain: true, name: "Alpha" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Alpha" });
     stubPrefsFetch(() => ({ favorites: [pageId], recents: [], updatedAt: 1 }));
     renderSidebar(client);
     await screen.findByText("Alpha");
@@ -295,7 +295,7 @@ describe("Sidebar favorites/recents", () => {
 
   it("star toggle on a row writes the new list to the server", async () => {
     const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
-    const pageId = await client.createObject({ presentAsMain: true, name: "Beta" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Beta" });
     const calls = stubPrefsFetch(({ method, body }) =>
       method === "PUT" && body !== undefined ? { ...JSON.parse(body), updatedAt: 2 } : { favorites: [], recents: [pageId], updatedAt: 1 },
     );
@@ -311,8 +311,8 @@ describe("Sidebar favorites/recents", () => {
 
   it("reorderNodeFavorites writes the drag-sorted order to the server", async () => {
     const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
-    const a = await client.createObject({ presentAsMain: true, name: "A" });
-    const b = await client.createObject({ presentAsMain: true, name: "B" });
+    const a = await client.createObject({ isEmbedded: false, name: "A" });
+    const b = await client.createObject({ isEmbedded: false, name: "B" });
     const calls = stubPrefsFetch(({ method, body }) =>
       method === "PUT" && body !== undefined
         ? { ...JSON.parse(body), updatedAt: 2 }
@@ -330,7 +330,7 @@ describe("Sidebar favorites/recents", () => {
 
   it("opening a page (recordRecent) lands in the sidebar Recents and syncs", async () => {
     const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
-    const pageId = await client.createObject({ presentAsMain: true, name: "Gamma" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Gamma" });
     const calls = stubPrefsFetch(() => ({ favorites: [], recents: [], updatedAt: 1 }));
     renderSidebar(client);
     await act(async () => {
@@ -346,7 +346,7 @@ describe("Sidebar favorites/recents", () => {
 
   it("removing a recent from the row menu syncs the removal", async () => {
     const client = await seedClient({ serverUrl: SERVER, apiKey: CREDENTIAL });
-    const pageId = await client.createObject({ presentAsMain: true, name: "Delta" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Delta" });
     const calls = stubPrefsFetch(({ method, body }) =>
       method === "PUT" && body !== undefined ? { ...JSON.parse(body), updatedAt: 2 } : { favorites: [], recents: [pageId], updatedAt: 1 },
     );

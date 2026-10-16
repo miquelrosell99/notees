@@ -12,7 +12,7 @@
  * rows are list rows — transparent with a hover fill.
  *
  * The registers are the v1 ones (owner 2026-10-09: the 1:1 block model) —
- * each block is a row of COLUMNS: a TYPE select (Class, Type, Placement,
+ * each block is a row of COLUMNS: a TYPE select (Class, Type, Structural role,
  * Content, Property, Links, Parent, Cover, Banner, Alias, Created, Edited),
  * an OPERATOR select whose options vary by family (is / is not / contains /
  * is set / is not set / ordering / after / before / full-text — the
@@ -415,7 +415,7 @@ function familyOf(condition: Condition): ConditionKind {
       return "class";
     case "isClass":
       return "type";
-    case "presentAsMain":
+    case "isEmbedded":
       return "placement";
     case "property":
       return "property";
@@ -512,8 +512,8 @@ function operatorOf(condition: Condition, negated: boolean): string {
       return negated ? "is-not" : "is";
     case "isClass":
       return condition.isClass ? "is" : "is-not";
-    case "presentAsMain":
-      return condition.presentAsMain ? "is" : "is-not";
+    case "isEmbedded":
+      return condition.isEmbedded ? "is" : "is-not";
     case "content":
       if (condition.op === "fts") return "fts";
       return negated ? "not-contains" : "contains";
@@ -552,8 +552,8 @@ function applyOperator(condition: Condition, op: string): Child {
       return op === "is-not" ? neg(condition) : wrap(condition);
     case "isClass":
       return { ...condition, isClass: op !== "is-not" };
-    case "presentAsMain":
-      return { ...condition, presentAsMain: op !== "is-not" };
+    case "isEmbedded":
+      return { ...condition, isEmbedded: op !== "is-not" };
     case "content":
       if (op === "fts") return { ...condition, op: "fts" };
       return op === "not-contains" ? neg({ ...condition, op: "contains" }) : wrap({ ...condition, op: "contains" });
@@ -791,17 +791,17 @@ function BlockValue({
           <option value="false">Not a class</option>
         </select>
       );
-    case "presentAsMain":
+    case "isEmbedded":
       return (
         <select
-          aria-label="Placement"
-          value={String(condition.presentAsMain)}
+          aria-label="Structural role"
+          value={String(condition.isEmbedded)}
           onChange={(event) =>
-            onChange({ ...condition, presentAsMain: event.target.value === "true" })
+            onChange({ ...condition, isEmbedded: event.target.value === "true" })
           }
         >
-          <option value="true">Main children</option>
-          <option value="false">Inline body</option>
+          <option value="true">Block (embedded in body)</option>
+          <option value="false">Page (standalone)</option>
         </select>
       );
     case "content":

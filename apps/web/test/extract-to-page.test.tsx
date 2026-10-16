@@ -30,7 +30,7 @@ function nodeOf(partial: Partial<ClientNode> & { id: string }): ClientNode {
   return {
     workspaceId: WS,
     isClass: false,
-    presentAsMain: false,
+    isEmbedded: true,
     parentId: null,
     classIds: [],
     tagIds: [],
@@ -175,7 +175,7 @@ describe("extractBlockToPage composition", () => {
   });
 
   it("fails loud for a parentless node and a date-chain node, writing nothing", async () => {
-    const page = nodeOf({ id: "r1", parentId: null, presentAsMain: true });
+    const page = nodeOf({ id: "r1", parentId: null, isEmbedded: false });
     const parentless = stubSurfaces(new Map([["ws-root", [page]]]));
     await expect(extractBlockToPage(parentless.reads, parentless.writes, "r1")).rejects.toThrow(
       /only an inline block/,
@@ -244,12 +244,12 @@ describe('NodeContextMenu "Convert to page" submenu', () => {
     expect(shown.queryByText("Convert to page")).not.toBeNull();
     shown.unmount();
 
-    const page = nodeOf({ id: "r1", parentId: null, presentAsMain: true });
+    const page = nodeOf({ id: "r1", parentId: null, isEmbedded: false });
     const pageRender = renderMenu(page, stubClient(new Map()).client);
     expect(pageRender.queryByText("Convert to page")).toBeNull();
     pageRender.unmount();
 
-    const mainChild = nodeOf({ id: "m1", parentId: "p1", presentAsMain: true });
+    const mainChild = nodeOf({ id: "m1", parentId: "p1", isEmbedded: false });
     const mainRender = renderMenu(mainChild, stubClient(new Map()).client);
     expect(mainRender.queryByText("Convert to page")).toBeNull();
     mainRender.unmount();

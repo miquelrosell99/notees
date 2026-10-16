@@ -53,8 +53,8 @@ function text(value: string): ContentAst {
 describe("embeds", () => {
   it("renders the target page's name and its block subtree", async () => {
     const client = await seedClient();
-    const pageA = await client.createObject({ presentAsMain: true, name: "Host" });
-    const target = await client.createObject({ presentAsMain: true, name: "Target Page" });
+    const pageA = await client.createObject({ isEmbedded: false, name: "Host" });
+    const target = await client.createObject({ isEmbedded: false, name: "Target Page" });
     await client.createObject({ parentId: target, contentAst: text("child one") });
     const childTwo = await client.createObject({
       parentId: target,
@@ -85,8 +85,8 @@ describe("embeds", () => {
 
   it("re-renders when the target's content changes (notify flow)", async () => {
     const client = await seedClient();
-    const pageA = await client.createObject({ presentAsMain: true, name: "Host" });
-    const holder = await client.createObject({ presentAsMain: true, name: "Holder" });
+    const pageA = await client.createObject({ isEmbedded: false, name: "Host" });
+    const holder = await client.createObject({ isEmbedded: false, name: "Holder" });
     const target = await client.createObject({
       parentId: holder,
       contentAst: text("before"),
@@ -109,8 +109,8 @@ describe("embeds", () => {
 
   it("renders nested embeds inside an embedded subtree", async () => {
     const client = await seedClient();
-    const pageA = await client.createObject({ presentAsMain: true, name: "Host" });
-    const holder = await client.createObject({ presentAsMain: true, name: "Holder" });
+    const pageA = await client.createObject({ isEmbedded: false, name: "Host" });
+    const holder = await client.createObject({ isEmbedded: false, name: "Holder" });
     const deep = await client.createObject({
       parentId: holder,
       contentAst: text("deep body"),
@@ -133,8 +133,8 @@ describe("embeds", () => {
 
   it("renders a recursive placeholder for a cycle instead of hanging", async () => {
     const client = await seedClient();
-    const pageA = await client.createObject({ presentAsMain: true, name: "Host" });
-    const holder = await client.createObject({ presentAsMain: true, name: "Holder" });
+    const pageA = await client.createObject({ isEmbedded: false, name: "Host" });
+    const holder = await client.createObject({ isEmbedded: false, name: "Holder" });
     // a1 embeds b1, b1 embeds a1 — the renderer must stop at the re-entry.
     const a1 = await client.createObject({ parentId: pageA, contentAst: [] });
     const b1 = await client.createObject({ parentId: holder, contentAst: embed(a1) });
@@ -150,8 +150,8 @@ describe("embeds", () => {
 
   it("stops at the depth cap for long chains", async () => {
     const client = await seedClient();
-    const pageA = await client.createObject({ presentAsMain: true, name: "Host" });
-    const holder = await client.createObject({ presentAsMain: true, name: "Holder" });
+    const pageA = await client.createObject({ isEmbedded: false, name: "Host" });
+    const holder = await client.createObject({ isEmbedded: false, name: "Holder" });
     // b1 → b2 → … → b7, a 7-deep chain; the cap is 5 rendered embed frames.
     let next = await client.createObject({
       parentId: holder,
@@ -171,7 +171,7 @@ describe("embeds", () => {
 
   it("renders a broken-embed placeholder with the raw id when the target is missing", async () => {
     const client = await seedClient();
-    const pageA = await client.createObject({ presentAsMain: true, name: "Host" });
+    const pageA = await client.createObject({ isEmbedded: false, name: "Host" });
     const missing = "0192a000-0000-7000-8000-0000000000ff";
     await client.createObject({ parentId: pageA, contentAst: embed(missing) });
 
@@ -183,7 +183,7 @@ describe("embeds", () => {
 
   it("the embed header's view switcher writes the token's view field", async () => {
     const client = await seedClient();
-    const pageA = await client.createObject({ presentAsMain: true, name: "Host" });
+    const pageA = await client.createObject({ isEmbedded: false, name: "Host" });
     const holder = await client.createObject({
       parentId: pageA,
       contentAst: text("holder body"),
@@ -233,8 +233,8 @@ describe("embeds", () => {
 
   it("a card-view embed renders the switcher beside the card and switches to the full embed", async () => {
     const client = await seedClient();
-    const pageA = await client.createObject({ presentAsMain: true, name: "Host" });
-    const target = await client.createObject({ presentAsMain: true, name: "Card Target" });
+    const pageA = await client.createObject({ isEmbedded: false, name: "Host" });
+    const target = await client.createObject({ isEmbedded: false, name: "Card Target" });
     const hostBlock = await client.createObject({
       parentId: pageA,
       contentAst: [{ type: "embed_ref", nodeId: target, view: "small_card" }],

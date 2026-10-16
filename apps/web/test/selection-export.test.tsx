@@ -120,7 +120,7 @@ function parseCsv(text: string): string[][] {
 async function makeItems(client: WorkspaceClient, names: string[]): Promise<NodeCollectionItem[]> {
   const items: NodeCollectionItem[] = [];
   for (const name of names) {
-    const id = await client.createObject({ presentAsMain: true, name });
+    const id = await client.createObject({ isEmbedded: false, name });
     items.push({ node: client.getNode(id) as ClientNode });
   }
   return items;
@@ -202,8 +202,8 @@ describe("cards board selection export", () => {
         { id: "00000000-0000-0000-00c5-000000000012", label: "Doing" },
       ],
     });
-    const alpha = await client.createObject({ presentAsMain: true, name: "Alpha" });
-    const beta = await client.createObject({ presentAsMain: true, name: "Beta" });
+    const alpha = await client.createObject({ isEmbedded: false, name: "Alpha" });
+    const beta = await client.createObject({ isEmbedded: false, name: "Beta" });
     await client.setProperty(alpha, statusId, "00000000-0000-0000-00c5-000000000011", 0);
     await client.setProperty(beta, statusId, "00000000-0000-0000-00c5-000000000012", 0);
     const items: NodeCollectionItem[] = [alpha, beta].map(

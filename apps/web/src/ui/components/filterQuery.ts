@@ -16,7 +16,7 @@
  * an AST condition cannot express).
  *
  * The offered subset is the full wire grammar: class, isClass,
- * presentAsMain, content (contains AND full-text), property, linkedTo
+ * isEmbedded, content (contains AND full-text), property, linkedTo
  * ("links to"), descendantOf ("parent is — anywhere up the parents tree",
  * owner 2026-10-09), createdAfter/createdBefore, and the three wire-field
  * exists predicates (coverAsset/bannerAsset/aliasedNode). The sync-
@@ -84,7 +84,7 @@ export interface FilterBarConfig {
  * link/parent with no node picked), nested groups recurse (emptied ones
  * drop), a not drops when its child pruned away, and the DYNAMIC
  * link/parent sets drop when their nested group pruned to empty. Anything
- * fully specified — isClass, presentAsMain, the wire-field predicates —
+ * fully specified — isClass, isEmbedded, the wire-field predicates —
  * survives verbatim.
  */
 function pruneChild(child: Child): Child | null {
@@ -190,7 +190,7 @@ export interface FilterKindOption {
 export const FILTER_KIND_OPTIONS: readonly FilterKindOption[] = [
   { value: "class", label: "Class", icon: "mdi mdi-tag-outline", description: "Filter by node class" },
   { value: "type", label: "Type", icon: "mdi mdi-shape-outline", description: "A class or not a class" },
-  { value: "placement", label: "Placement", icon: "mdi mdi-format-align-left", description: "Main children or inline body" },
+  { value: "placement", label: "Structural role", icon: "mdi mdi-format-align-left", description: "Page (standalone) or Block (embedded in body)" },
   { value: "content", label: "Content", icon: "mdi mdi-text-box-outline", description: "Filter by text content" },
   { value: "property", label: "Property", icon: "mdi mdi-code-braces", description: "Filter by property value" },
   { value: "links", label: "Links", icon: "mdi mdi-link-variant", description: "Nodes that link to a node or a nested query" },
@@ -226,7 +226,7 @@ export function createCondition(kind: ConditionKind): Condition {
     case "type":
       return { type: "isClass", isClass: true };
     case "placement":
-      return { type: "presentAsMain", presentAsMain: true };
+      return { type: "isEmbedded", isEmbedded: false };
     case "content":
       return { type: "content", op: "contains", value: "" };
     case "property":

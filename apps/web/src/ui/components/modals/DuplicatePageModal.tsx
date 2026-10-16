@@ -89,7 +89,7 @@ export function DuplicatePageModal({
     try {
       const newId = await client.createObject({
         name: pageName,
-        presentAsMain: true,
+        isEmbedded: false,
         parentId,
         classIds: [selectedClass.id],
       });
@@ -117,7 +117,7 @@ export function DuplicatePageModal({
       // Then create the page with the new class
       const newId = await client.createObject({
         name: pageName,
-        presentAsMain: true,
+        isEmbedded: false,
         parentId,
         classIds: [newClassId],
       });

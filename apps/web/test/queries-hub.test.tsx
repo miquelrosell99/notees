@@ -56,8 +56,8 @@ async function seedClient(): Promise<WorkspaceClient> {
 
 async function seedWorld(client: WorkspaceClient) {
   const city = await client.createClass("City");
-  await client.createObject({ presentAsMain: true, name: "Paris", classIds: [city] });
-  await client.createObject({ presentAsMain: true, name: "London", classIds: [city] });
+  await client.createObject({ isEmbedded: false, name: "Paris", classIds: [city] });
+  await client.createObject({ isEmbedded: false, name: "London", classIds: [city] });
   return { city };
 }
 

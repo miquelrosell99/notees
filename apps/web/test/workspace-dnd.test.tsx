@@ -229,7 +229,7 @@ describe("mergeZoneCandidates", () => {
 describe("the workspace drag session", () => {
   it("a drop on a rail card's header appends the block as the card node's last child", async () => {
     const client = await seedClient();
-    const cardNodeId = await client.createObject({ presentAsMain: true, name: "Carded" });
+    const cardNodeId = await client.createObject({ isEmbedded: false, name: "Carded" });
     const a = await seedBlock(client, cardNodeId, "alpha");
     const b = await seedBlock(client, cardNodeId, "beta");
     const { container } = render(
@@ -253,7 +253,7 @@ describe("the workspace drag session", () => {
 
   it("the header shows its distinct active-drop state while it is the target", async () => {
     const client = await seedClient();
-    const cardNodeId = await client.createObject({ presentAsMain: true, name: "Carded" });
+    const cardNodeId = await client.createObject({ isEmbedded: false, name: "Carded" });
     const a = await seedBlock(client, cardNodeId, "alpha");
     const { container } = render(
       <WorkspaceDndHost>
@@ -296,9 +296,9 @@ describe("the workspace drag session", () => {
 
   it("a collapsed card transiently expands under drag-hover and re-collapses at drag end", async () => {
     const client = await seedClient();
-    const mainPageId = await client.createObject({ presentAsMain: true, name: "Main" });
+    const mainPageId = await client.createObject({ isEmbedded: false, name: "Main" });
     const x = await seedBlock(client, mainPageId, "wanderer");
-    const cardNodeId = await client.createObject({ presentAsMain: true, name: "Carded" });
+    const cardNodeId = await client.createObject({ isEmbedded: false, name: "Carded" });
     const inside = await seedBlock(client, cardNodeId, "inside");
     const { container } = render(
       <WorkspaceDndHost>
@@ -330,9 +330,9 @@ describe("the workspace drag session", () => {
 
   it("a block dragged from the main body into a rail card lands re-parented (cross-zone move)", async () => {
     const client = await seedClient();
-    const mainPageId = await client.createObject({ presentAsMain: true, name: "Main" });
+    const mainPageId = await client.createObject({ isEmbedded: false, name: "Main" });
     const x = await seedBlock(client, mainPageId, "wanderer");
-    const cardNodeId = await client.createObject({ presentAsMain: true, name: "Carded" });
+    const cardNodeId = await client.createObject({ isEmbedded: false, name: "Carded" });
     const r = await seedBlock(client, cardNodeId, "resident");
     const { container } = render(
       <WorkspaceDndHost>
@@ -356,7 +356,7 @@ describe("the workspace drag session", () => {
 
   it("the card's document-level shortcuts stay off (main-surface-only)", async () => {
     const client = await seedClient();
-    const cardNodeId = await client.createObject({ presentAsMain: true, name: "Carded" });
+    const cardNodeId = await client.createObject({ isEmbedded: false, name: "Carded" });
     await seedBlock(client, cardNodeId, "inside");
     const { unmount } = render(
       <WorkspaceDndHost>
@@ -370,7 +370,7 @@ describe("the workspace drag session", () => {
 
     unmount();
     // The main surface keeps the chord (control): the widget opens.
-    const mainPageId = await client.createObject({ presentAsMain: true, name: "Main" });
+    const mainPageId = await client.createObject({ isEmbedded: false, name: "Main" });
     render(
       <WorkspaceDndHost>
         <PageView client={client} pageId={mainPageId} />
@@ -439,8 +439,8 @@ describe("the rail card reorder", () => {
 
   it("dragging a card's grip below another card's header reorders after it", async () => {
     const client = await seedClient();
-    const first = await client.createObject({ presentAsMain: true, name: "First" });
-    const second = await client.createObject({ presentAsMain: true, name: "Second" });
+    const first = await client.createObject({ isEmbedded: false, name: "First" });
+    const second = await client.createObject({ isEmbedded: false, name: "Second" });
     const calls: Array<[string, string, "before" | "after"]> = [];
     const { container } = renderTwoCards(client, first, second, (...args) => calls.push(args));
 
@@ -456,8 +456,8 @@ describe("the rail card reorder", () => {
 
   it("dragging a card's grip above another card's header reorders before it", async () => {
     const client = await seedClient();
-    const first = await client.createObject({ presentAsMain: true, name: "First" });
-    const second = await client.createObject({ presentAsMain: true, name: "Second" });
+    const first = await client.createObject({ isEmbedded: false, name: "First" });
+    const second = await client.createObject({ isEmbedded: false, name: "Second" });
     const calls: Array<[string, string, "before" | "after"]> = [];
     const { container } = renderTwoCards(client, first, second, (...args) => calls.push(args));
 
@@ -471,8 +471,8 @@ describe("the rail card reorder", () => {
 
   it("shows the target header's reorder edge while a card drag hovers it", async () => {
     const client = await seedClient();
-    const first = await client.createObject({ presentAsMain: true, name: "First" });
-    const second = await client.createObject({ presentAsMain: true, name: "Second" });
+    const first = await client.createObject({ isEmbedded: false, name: "First" });
+    const second = await client.createObject({ isEmbedded: false, name: "Second" });
     const { container } = renderTwoCards(client, first, second, () => {});
 
     const grip = cardGrip(container, first);
@@ -507,8 +507,8 @@ describe("the rail card reorder", () => {
 
   it("dropping a card onto its own header reports nothing", async () => {
     const client = await seedClient();
-    const first = await client.createObject({ presentAsMain: true, name: "First" });
-    const second = await client.createObject({ presentAsMain: true, name: "Second" });
+    const first = await client.createObject({ isEmbedded: false, name: "First" });
+    const second = await client.createObject({ isEmbedded: false, name: "Second" });
     const calls: Array<[string, string, "before" | "after"]> = [];
     const { container } = renderTwoCards(client, first, second, (...args) => calls.push(args));
 
@@ -523,7 +523,7 @@ describe("the rail card reorder", () => {
     // The two gestures share one header and must not conflict: a BLOCK
     // drag onto the grip-bearing header still appends as the last child.
     const client = await seedClient();
-    const cardNodeId = await client.createObject({ presentAsMain: true, name: "Carded" });
+    const cardNodeId = await client.createObject({ isEmbedded: false, name: "Carded" });
     const a = await seedBlock(client, cardNodeId, "alpha");
     const b = await seedBlock(client, cardNodeId, "beta");
     const calls: Array<[string, string, "before" | "after"]> = [];

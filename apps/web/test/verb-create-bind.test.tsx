@@ -102,7 +102,7 @@ function edgesOf(client: WorkspaceClient, sourceId: string): Array<{ type: strin
 describe("verb create-and-bind", () => {
   it("creates the property schema at capture and binds the mark to it", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "As Smith argues" }],
@@ -173,7 +173,7 @@ describe("verb create-and-bind", () => {
       multi: true,
       targetClassFilter: [],
     });
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "Smith argues" }],
@@ -206,7 +206,7 @@ describe("verb create-and-bind", () => {
 
   it("the free-string path is untouched: Link submits the plain verb", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "Smith argues" }],
@@ -246,7 +246,7 @@ describe("verb create-and-bind", () => {
 
   it("right-clicking a typed-link word opens the modal's verb field; save rewrites the verb", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [

@@ -123,7 +123,7 @@ export function QueryBuilderFields({ state, onChange, facts, rootIsPage }: Query
   // into the AST exactly when its trimmed value differs from the default.
   const classActive = state.classId !== null && state.classId !== "";
   const classBitActive = state.isClass !== "";
-  const renderBitActive = state.presentAsMain !== "";
+  const renderBitActive = state.isEmbedded !== "";
   const containsActive = state.contains.trim() !== "";
   const createdAfterActive = state.createdAfter.trim() !== "";
   const createdBeforeActive = state.createdBefore.trim() !== "";
@@ -192,21 +192,21 @@ export function QueryBuilderFields({ state, onChange, facts, rootIsPage }: Query
           </select>
         </ConditionCard>
         <ConditionCard
-          label="Render bit"
+          label="Structural role"
           active={renderBitActive}
-          onRemove={() => onChange({ presentAsMain: "" })}
+          onRemove={() => onChange({ isEmbedded: "" })}
         >
           <span className="nt-vb__word">is</span>
           <select
-            aria-label="Render bit"
-            value={state.presentAsMain}
+            aria-label="Structural role"
+            value={state.isEmbedded}
             onChange={(event) =>
-              onChange({ presentAsMain: event.target.value as QueryBuilderState["presentAsMain"] })
+              onChange({ isEmbedded: event.target.value as QueryBuilderState["isEmbedded"] })
             }
           >
             <option value="">Any</option>
-            <option value="true">Main children</option>
-            <option value="false">Inline body</option>
+            <option value="true">Block (embedded in body)</option>
+            <option value="false">Page (standalone)</option>
           </select>
         </ConditionCard>
         <ConditionCard
@@ -270,7 +270,7 @@ export function QueryBuilderFields({ state, onChange, facts, rootIsPage }: Query
             <option value="name">Name</option>
             <option value="createdAt">Created</option>
             <option value="isClass">Class bit</option>
-            <option value="presentAsMain">Render bit</option>
+            <option value="isEmbedded">Structural role</option>
           </select>
           {state.sortField !== "" && (
             <select
@@ -297,7 +297,7 @@ export function QueryBuilderFields({ state, onChange, facts, rootIsPage }: Query
           >
             <option value="">None</option>
             <option value="isClass">Class bit</option>
-            <option value="presentAsMain">Render bit</option>
+            <option value="isEmbedded">Structural role</option>
             {classes.map((cls) => (
               <option key={cls.id} value={`class:${cls.id}`}>
                 Class: {displayNameForSettings(cls) || cls.id}

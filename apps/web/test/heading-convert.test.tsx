@@ -57,13 +57,13 @@ async function flushWrites(): Promise<void> {
 }
 
 function stubNode(contentAst: unknown): Parameters<typeof headingConversionOf>[0] {
-  // A parented non-class node with presentAsMain = 0 — the inline-block
+  // A parented non-class node with isEmbedded = 0 — the inline-block
   // render state the conversion is offered on.
   return {
     contentAst,
     isClass: false,
     parentId: "0192a000-0000-7000-8000-0000000000ff",
-    presentAsMain: false,
+    isEmbedded: true,
   } as Parameters<typeof headingConversionOf>[0];
 }
 
@@ -96,7 +96,7 @@ describe("headingConversionOf (unit)", () => {
     ).toBeNull();
     // A root/promoted page — the header title row.
     expect(
-      headingConversionOf({ ...stubNode(content), parentId: null, presentAsMain: true }),
+      headingConversionOf({ ...stubNode(content), parentId: null, isEmbedded: false }),
     ).toBeNull();
   });
 
@@ -142,7 +142,7 @@ describe("the block context menu heading conversion (end to end)", () => {
 
   it("Convert to heading writes the heading token; Convert to plain text flattens it back", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Doc" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Doc" });
     const block = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "Section head" }],
@@ -165,7 +165,7 @@ describe("the block context menu heading conversion (end to end)", () => {
 
   it("a multi-run block offers neither direction", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Doc" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Doc" });
     const block = await client.createObject({
       parentId: pageId,
       contentAst: [

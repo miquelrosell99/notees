@@ -59,7 +59,7 @@ async function flushSync(): Promise<void> {
 describe("the header action row", () => {
   it("renders the three quiet actions above the title on the main surface", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Probe" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Probe" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
     await flushSync();
 
@@ -74,7 +74,7 @@ describe("the header action row", () => {
 
   it("stays off the embedded and preview surfaces", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Probe" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Probe" });
 
     const embedded = render(
       <PageView client={client} pageId={pageId} embedded onOpenPage={() => {}} />,
@@ -93,7 +93,7 @@ describe("the header action row", () => {
     // A day-precision id renders the DayPageHeader contract — the action row
     // and the subtitle ride non-day pages only.
     const dayId = dayNodeId("2026-10-09");
-    await client.createObject({ presentAsMain: true, name: "20261009", id: dayId });
+    await client.createObject({ isEmbedded: false, name: "20261009", id: dayId });
     const { container } = render(<PageView client={client} pageId={dayId} />);
     await flushSync();
     expect(container.querySelector(".page-header-actions")).toBeNull();
@@ -103,7 +103,7 @@ describe("the header action row", () => {
 describe("the header icon element (hide-when-none)", () => {
   it("renders no icon element for a classless page with no icon — the row button is the affordance", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Plain" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Plain" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
     await flushSync();
 
@@ -127,7 +127,7 @@ describe("the header icon element (hide-when-none)", () => {
 
   it("an icon defined by a class shows the element; clearing the last definition hides it", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Member" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Member" });
     const classId = await client.createClass("Person");
     await client.updateObject(classId, { icon: "🧑" });
     await client.assignClass(pageId, classId);
@@ -150,7 +150,7 @@ describe("the header icon element (hide-when-none)", () => {
 describe("the description subtitle (the description wire node field)", () => {
   it("add → render → click-edit → clear round-trips through object.update", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Described" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Described" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
     await flushSync();
 
@@ -189,8 +189,8 @@ describe("the description subtitle (the description wire node field)", () => {
 describe("the header alias action (the shared backward write)", () => {
   it("Add aliases picks a page and writes the picked node's aliasedNodeId", async () => {
     const client = await seedClient();
-    const mainId = await client.createObject({ presentAsMain: true, name: "Main" });
-    const dogId = await client.createObject({ presentAsMain: true, name: "Dog" });
+    const mainId = await client.createObject({ isEmbedded: false, name: "Main" });
+    const dogId = await client.createObject({ isEmbedded: false, name: "Dog" });
     render(<PageView client={client} pageId={mainId} />);
     await flushSync();
 
@@ -211,13 +211,13 @@ describe("the header alias action (the shared backward write)", () => {
 
   it("the whole row disappears once every gap is filled", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Complete" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Complete" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
     await flushSync();
     expect(container.querySelector(".page-header-actions")).not.toBeNull();
 
     await client.updateObject(pageId, { icon: "😀", description: "Done" });
-    const aliasId = await client.createObject({ presentAsMain: true, name: "Also" });
+    const aliasId = await client.createObject({ isEmbedded: false, name: "Also" });
     await client.updateObject(aliasId, { aliasedNodeId: pageId });
     await flushSync();
 

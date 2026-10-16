@@ -11,7 +11,10 @@
  * and the future re-import harness's input. It is still not the log: HLC
  * clocks, actor ids, and op history are coordination state and stay out.
  *
- * Shape (envelope version 1 — `JSON_ARCHIVE_VERSION`):
+ * Shape (envelope version 2 — `JSON_ARCHIVE_VERSION`; version 2 is the
+ * Revision-12 rename `presentAsMain` → `isEmbedded` with inverted polarity —
+ * `isEmbedded: true` = the node's content belongs to the parent's body, the
+ * Block role; `false` = standalone, the Page role):
  *
  * ```json
  * {
@@ -20,7 +23,7 @@
  *   "generatedAt": "<ISO-8601>",
  *   "nodes": [
  *     {
- *       "id": "<uuid>", "isClass": false, "presentAsMain": true,
+ *       "id": "<uuid>", "isClass": false, "isEmbedded": false,
  *       "parentId": "<uuid|null>",
  *       "displayName": "<derived — title-is-content; redundant by design>",
  *       "contentAst": [ …verbatim content tokens… ],
@@ -57,7 +60,7 @@ import type { ExportContext, ExportNode, ExportPropertyValue } from "./document.
 export const JSON_ARCHIVE_FORMAT = "notees-json-archive";
 
 /** Envelope version — bump on any breaking shape change. */
-export const JSON_ARCHIVE_VERSION = 1;
+export const JSON_ARCHIVE_VERSION = 2;
 
 /**
  * One explicit graph edge mined from a node's content stream or property
@@ -77,9 +80,9 @@ export type JsonArchiveEdge =
 /** One node in the archive — the full projection, verbatim payloads. */
 export interface JsonArchiveNode {
   id: string;
-  /** Revision-11 render-state booleans (class identity + render bit). */
+  /** Revision-12 booleans (class identity + embedding flag). */
   isClass: boolean;
-  presentAsMain: boolean;
+  isEmbedded: boolean;
   parentId: string | null;
   /** Content-derived display name (title-is-content) — redundant by design,
    *  present so the artifact stays human-readable without replaying
@@ -201,7 +204,7 @@ export function buildJsonArchive(
     out.push({
       id: node.id,
       isClass: node.isClass === 1,
-      presentAsMain: node.presentAsMain === 1,
+      isEmbedded: node.isEmbedded === 1,
       parentId: node.parentId,
       displayName: deriveDisplayName(node),
       contentAst: node.contentAst,

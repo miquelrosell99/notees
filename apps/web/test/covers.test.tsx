@@ -77,10 +77,10 @@ async function seedAssetClass(client: WorkspaceClient): Promise<void> {
 async function seedPageAndAsset(client: WorkspaceClient): Promise<[string, string]> {
   await seedAssetClass(client);
   const asset = await client.createObject({
-    presentAsMain: true,
+    isEmbedded: false,
     name: "cover.png",
   });
-  const pageId = await client.createObject({ presentAsMain: true, name: "Covered" });
+  const pageId = await client.createObject({ isEmbedded: false, name: "Covered" });
   await client.assignClass(pageId, SYSTEM_CLASS_UUIDS.source);
   return [pageId, asset];
 }
@@ -173,7 +173,7 @@ describe("covers", () => {
 
   it("a bare (non-cover) asset shows no badge", async () => {
     const client = await seedClient();
-    const asset = await client.createObject({ presentAsMain: true, name: "plain.png" });
+    const asset = await client.createObject({ isEmbedded: false, name: "plain.png" });
     await client.assignClass(asset, SYSTEM_CLASS_UUIDS.asset);
     await flushWrites();
 
@@ -210,7 +210,7 @@ describe("covers", () => {
   it("the collapsible element renders EVEN WHEN EMPTY — collapsed to the chevron, expanding to the Add cover card", async () => {
     const client = await seedClient();
     await seedAssetClass(client);
-    const pageId = await client.createObject({ presentAsMain: true, name: "Empty Page" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Empty Page" });
     await flushWrites();
 
     render(<PageView client={client} pageId={pageId} />);
@@ -294,7 +294,7 @@ describe("the dedicated header element", () => {
   it("EVERY document-chrome page hosts the cover element — no schema gate (the banner precedent)", async () => {
     const client = await seedClient();
     // A plain page: no classes, no cover — the element still renders.
-    const pageId = await client.createObject({ presentAsMain: true, name: "Plain" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Plain" });
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
     expect(screen.getByRole("button", { name: "Expand cover" })).not.toBeNull();
@@ -307,7 +307,7 @@ describe("the global cover (owner bug 2026-10-04: any page)", () => {
     const client = await seedClient();
     vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,GLOBAL");
     await seedAssetClass(client);
-    const pageId = await client.createObject({ presentAsMain: true, name: "Wartortle" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Wartortle" });
     await flushWrites();
 
     vi.spyOn(client, "uploadAsset").mockResolvedValue({
@@ -352,7 +352,7 @@ describe("the global cover (owner bug 2026-10-04: any page)", () => {
     vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,CHANGE");
     await seedAssetClass(client);
     const [pageId, firstAsset] = await seedPageAndAsset(client);
-    const secondAsset = await client.createObject({ presentAsMain: true, name: "other.png" });
+    const secondAsset = await client.createObject({ isEmbedded: false, name: "other.png" });
     await client.assignClass(firstAsset, SYSTEM_CLASS_UUIDS.asset);
     await client.assignClass(secondAsset, SYSTEM_CLASS_UUIDS.asset);
     await setNodeCover(client, pageId, firstAsset);
@@ -401,7 +401,7 @@ describe("the recovered cover", () => {
 
   it("dropping an image file on the Add cover strip uploads and sets the cover (the original drag-and-drop)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Drop Target" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Drop Target" });
     await seedAssetClass(client);
     await flushWrites();
 
@@ -439,7 +439,7 @@ describe("the card cover slot (cards mode, owner 2026-10-13)", () => {
 
   it("under a cover layout the slot renders EVEN WHEN EMPTY — the Add affordance names the missing cover", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Bare Page" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Bare Page" });
     await flushWrites();
     writeCardLayoutPref("cover-top");
 
@@ -462,7 +462,7 @@ describe("the card cover slot (cards mode, owner 2026-10-13)", () => {
 
   it("no-cover stays text-only: no cover element at all (the layout gate is unchanged)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Text Only" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Text Only" });
     await flushWrites();
 
     const { container } = render(
@@ -478,7 +478,7 @@ describe("the card cover slot (cards mode, owner 2026-10-13)", () => {
   it("the empty slot's Add cover opens the upload modal; uploading sets the cover (the wire field)", async () => {
     const client = await seedClient();
     await seedAssetClass(client);
-    const pageId = await client.createObject({ presentAsMain: true, name: "Card Fill" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Card Fill" });
     await flushWrites();
     writeCardLayoutPref("cover-top");
 

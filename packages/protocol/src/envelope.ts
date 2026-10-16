@@ -13,7 +13,8 @@
  *    the envelope (it rides on catch-up frames / WS ops frames instead).
  *
  * v3 (Revision 11): the node model moves from `node_type ∈ {page, block, class}`
- * to two booleans (`is_class`, `present_as_main`); the retired `nodeType`
+ * to two booleans (`is_class`, `is_embedded` — Revision 12; `present_as_main`
+ * retired, logs rewritten by scripts/migrate-is-embedded.mts); the retired `nodeType`
  * payload key is rejected outright (no wire compat — stored v2-era logs are
  * rewritten in place by the one-time migration script, planned).
  */

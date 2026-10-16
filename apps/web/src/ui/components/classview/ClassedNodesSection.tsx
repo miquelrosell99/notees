@@ -171,7 +171,7 @@ export function ClassedNodesSection({
    * member row appears without a manual refresh.
    */
   const addMember = () => {
-    void client.createObject({ presentAsMain: true, classIds: [classId] });
+    void client.createObject({ isEmbedded: false, classIds: [classId] });
   };
 
   const memberItems: NodeCollectionItem[] = (members ?? []).map((member) => ({ node: member }));

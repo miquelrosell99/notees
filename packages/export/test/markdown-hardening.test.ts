@@ -34,7 +34,7 @@ function makeCtx(overrides: Partial<ExportContext> = {}): ExportContext {
 }
 
 function page(id: string, name: string, contentAst: ContentAst = [], extra: Partial<ExportNode> = {}): ExportNode {
-  return { id, isClass: 0, presentAsMain: 1, parentId: null, name, contentAst, classIds: [], properties: [], ...extra };
+  return { id, isClass: 0, isEmbedded: 0, parentId: null, name, contentAst, classIds: [], properties: [], ...extra };
 }
 
 describe("metacharacter escaping", () => {
@@ -169,7 +169,7 @@ describe("full closure and visible depth cuts", () => {
       const node: ExportNode = {
         id,
         isClass: 0,
-        presentAsMain: 0,
+        isEmbedded: 1,
         parentId: index === 0 ? null : (ids[index - 1] ?? null),
         name: null,
         contentAst: [{ type: "text", text: `level ${index + 1}` }],
@@ -347,7 +347,7 @@ describe("includeEmbedded", () => {
     const child: ExportNode = {
       id: "bbbbbbbb-0000-4000-8000-000000000001",
       isClass: 0,
-      presentAsMain: 0,
+      isEmbedded: 1,
       parentId: EMBED_ID,
       name: null,
       contentAst: [{ type: "text", text: "child bullet" }],
@@ -369,7 +369,7 @@ describe("includeOutline", () => {
     const child: ExportNode = {
       id: "bbbbbbbb-0000-4000-8000-000000000002",
       isClass: 0,
-      presentAsMain: 0,
+      isEmbedded: 1,
       parentId: "aaaaaaaa-0000-4000-8000-000000000017",
       name: null,
       contentAst: [{ type: "text", text: "child body" }],

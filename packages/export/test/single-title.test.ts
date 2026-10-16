@@ -33,12 +33,12 @@ function makeCtx(overrides: Partial<ExportContext> = {}): ExportContext {
 
 function page(id: string, contentAst: ContentAst, extra: Partial<ExportNode> = {}): ExportNode {
   // A parentless non-class node: document chrome, title derived from content.
-  return { id, isClass: 0, presentAsMain: 1, parentId: null, name: null, contentAst, classIds: [], properties: [], ...extra };
+  return { id, isClass: 0, isEmbedded: 0, parentId: null, name: null, contentAst, classIds: [], properties: [], ...extra };
 }
 
 function block(id: string, contentAst: ContentAst): ExportNode {
   // A parented node with the render bit unset: no document chrome.
-  return { id, isClass: 0, presentAsMain: 0, parentId: "ffffffff-0000-4000-8000-000000000000", name: null, contentAst, classIds: [], properties: [] };
+  return { id, isClass: 0, isEmbedded: 1, parentId: "ffffffff-0000-4000-8000-000000000000", name: null, contentAst, classIds: [], properties: [] };
 }
 
 describe("single-title rule (markdown)", () => {
@@ -52,7 +52,7 @@ describe("single-title rule (markdown)", () => {
         "---",
         `name: ${JSON.stringify(TITLE)}`,
         "isClass: false",
-        "presentAsMain: true",
+        "isEmbedded: false",
         "---",
         "",
         `# ${TITLE}`,

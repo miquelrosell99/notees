@@ -102,7 +102,7 @@ async function createEvent(
   iso: string,
   repeat?: string,
 ): Promise<string> {
-  const id = await client.createObject({ presentAsMain: true, name, classIds: [classId] });
+  const id = await client.createObject({ isEmbedded: false, name, classIds: [classId] });
   await client.setDatetimeProperty(id, schemaId, { iso }, 0, repeat !== undefined ? { repeat } : undefined);
   return id;
 }
@@ -182,7 +182,7 @@ describe("CalendarView recurrence", () => {
 
     const makeTask = async (name: string, iso: string, repeat?: string) => {
       const id = await client.createObject({
-        presentAsMain: true,
+        isEmbedded: false,
         name,
         classIds: [SYSTEM_CLASS_UUIDS.task],
       });

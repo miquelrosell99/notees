@@ -79,7 +79,7 @@ function typeSlashCommand(editor: HTMLElement, command: string, argument = ""): 
 describe("code_block editing surface", () => {
   it("clicking a code block mounts the textarea with the language badge; typing writes the token's text", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Code" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Code" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "code_block", language: "python", text: "print('hi')" }],
@@ -124,7 +124,7 @@ describe("code_block editing surface", () => {
 
   it("a /code-created block is editable in place; the sentence became the code", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Code" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Code" });
     const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
@@ -169,7 +169,7 @@ describe("code_block editing surface", () => {
 
   it("a language-less code block edits without a badge and keeps it language-less", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Code" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Code" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "code_block", text: "plain" }],
@@ -195,7 +195,7 @@ describe("code_block editing surface", () => {
 
   it("mixed content keeps the ordinary prose editor (the surface is the pure-code block only)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Code" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Code" });
     await client.createObject({
       parentId: pageId,
       contentAst: [
