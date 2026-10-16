@@ -116,10 +116,14 @@ describe("chevron visibility (owner 2026-10-16 feedback)", () => {
     // The flyout is absolutely positioned — outside the menu's flow, so
     // opening/closing it can never change the menu's box and re-fit it
     // (the inline expansion used to grow the menu near the bottom edge and
-    // make the whole thing dance on hover).
+    // make the whole thing dance on hover). And the menu card must NOT
+    // clip: the card radius class hides overflow, which made the flyout
+    // invisible — the menu overrides it back to visible.
     const flyoutBlock = menuCss.split(".context-menu-submenu-flyout {")[1]!.split("}")[0]!;
     expect(flyoutBlock).toContain("position: absolute");
     expect(menuCss).not.toContain("context-menu-submenu-inline");
+    const menuRootBlock = menuCss.split(".card.context-menu {")[1]!.split("}")[0]!;
+    expect(menuRootBlock).toContain("overflow: visible");
 
     const crumbsCss = readCss(["src", "ui", "components", "Breadcrumbs.css"]);
     const separatorBlock = crumbsCss.split(".node-breadcrumb-separator {")[1]!.split("}")[0]!;

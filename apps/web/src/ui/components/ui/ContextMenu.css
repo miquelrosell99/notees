@@ -16,6 +16,17 @@
   animation: panelFadeIn var(--motion-duration-long) var(--motion-easing-standard);
 }
 
+/* The card radius normally clips (overflow: hidden on .card--radius-
+   floating), but the menu hosts the flyout submenu — a second card
+   painted OUTSIDE this card's right edge. Clipping hid the flyout
+   completely (owner report 2026-10-16: submenu never visible, even on
+   click). Nothing else inside bleeds: rows are inset by the padding and
+   carry their own radius. The .card qualification beats the radius
+   class's overflow without !important. */
+.card.context-menu {
+  overflow: visible;
+}
+
 .context-menu-title {
   padding: var(--spacing-2) var(--spacing-3) var(--spacing-1);
   font-size: var(--font-size-xs);
