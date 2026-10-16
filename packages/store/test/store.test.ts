@@ -2731,6 +2731,35 @@ describe("restore migrates older-schema snapshots", () => {
   });
 });
 
+// --- v19 -> v20: the bulk-replay read indexes -----------------------------------
+
+describe.each(adapters)("$name: v19 -> v20 migration (the bulk-replay read indexes)", ({ makeBackend }) => {
+  const indexNames = (db: Store["database"], table: string): string[] =>
+    (db.prepare(`PRAGMA index_list(${table})`).all() as { name: string }[]).map((row) => row.name);
+
+  it("fresh stores carry the alias-source and child-order-child indexes at v20", () => {
+    const store = Store.open(makeBackend());
+    expect(store.database.pragma("user_version", { simple: true })).toBe(SCHEMA_VERSION);
+    expect(indexNames(store.database, "node")).toContain("idx_node_aliased_source");
+    expect(indexNames(store.database, "node_child_order")).toContain("idx_node_child_order_child");
+  });
+
+  it("a v19-stamped store migrates to v20 and gains both indexes", () => {
+    const store = Store.open(makeBackend());
+    const db = store.database;
+    // Simulate a pre-v20 database: drop the indexes and rewind the stamp.
+    db.exec("DROP INDEX IF EXISTS idx_node_aliased_source;");
+    db.exec("DROP INDEX IF EXISTS idx_node_child_order_child;");
+    db.pragma("user_version = 19");
+
+    migrate(db, "fts5");
+
+    expect(db.pragma("user_version", { simple: true })).toBe(SCHEMA_VERSION);
+    expect(indexNames(db, "node")).toContain("idx_node_aliased_source");
+    expect(indexNames(db, "node_child_order")).toContain("idx_node_child_order_child");
+  });
+});
+
 
 // --- v7 -> v8 migration: node_type -> (is_class, present_as_main) -------------
 
@@ -2940,8 +2969,10 @@ describe.each(adapters)("$name: v16 — wire node fields", ({ makeBackend }) => 
     const store = makeStore();
     store.apply(createPage(PAGE, 1727200000000));
     // Simulate a pre-v16 database: rewind the version and drop the columns
-    // (SQLite 3.35+ DROP COLUMN; the v14 index-precedent shape).
+    // (SQLite 3.35+ DROP COLUMN; the v14 index-predecent shape — the v20
+    // alias-source index references aliased_node_id, so it drops first).
     store.database.exec(`
+      DROP INDEX IF EXISTS idx_node_aliased_source;
       ALTER TABLE node DROP COLUMN cover_asset_id;
       ALTER TABLE node DROP COLUMN banner_asset_id;
       ALTER TABLE node DROP COLUMN aliased_node_id;

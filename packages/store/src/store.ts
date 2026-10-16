@@ -39,7 +39,14 @@ import {
   type SearchSnippet,
 } from "./search.js";
 import { MoveGuardError } from "./errors.js";
-import { LIST_READS_INDEX_DDL, migrate, RESOLVED_TARGET_INDEX_DDL, schemaSql } from "./schema.js";
+import {
+  ALIAS_SOURCE_INDEX_DDL,
+  CHILD_ORDER_CHILD_INDEX_DDL,
+  LIST_READS_INDEX_DDL,
+  migrate,
+  RESOLVED_TARGET_INDEX_DDL,
+  schemaSql,
+} from "./schema.js";
 
 export interface NodeRow {
   id: string;
@@ -858,6 +865,10 @@ export class Store {
       next.exec(LIST_READS_INDEX_DDL);
       // …and the v17 resolved-target index (same ladder-gated reason).
       next.exec(RESOLVED_TARGET_INDEX_DDL);
+      // …and the v20 bulk-replay indexes (same reason — the alias-closure
+      // walk and the child-order-by-child cleanup read them by column).
+      next.exec(ALIAS_SOURCE_INDEX_DDL);
+      next.exec(CHILD_ORDER_CHILD_INDEX_DDL);
       reindexAllSearch(next);
     }
     this.db.close?.();
