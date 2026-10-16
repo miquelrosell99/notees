@@ -64,6 +64,9 @@ function stubSurfaces(entries: Map<string, ClientNode[]>) {
   const reads = {
     getNode: (id: string) => nodes.get(id),
     getChildren: (id: string) => entries.get(id) ?? [],
+    // The fresh read the extraction actually plans from — tests can stub
+    // it independently of the (possibly stale) cached read.
+    getChildrenFresh: async (id: string) => entries.get(id) ?? [],
   };
   const writes = {
     createObject: async (partial: Record<string, unknown>) => {
@@ -146,6 +149,31 @@ describe("extractBlockToPage composition", () => {
     expect(moves).toEqual([{ id: "t1", parentId: null, afterId: undefined, beforeId: undefined }]);
   });
 
+  it("a stale CACHED children read cannot drop the child moves (the fresh read carries the plan)", async () => {
+    // The production bug (owner report 2026-10-16): the WorkerClient's
+    // cachedRead answered the children key with the cold-cache default []
+    // — the composition planned zero child moves and the children stayed
+    // with the extracted page despite "children stay here". The plan now
+    // rides the fresh read; the cached read is irrelevant to it.
+    const target = nodeOf({ id: "t1", parentId: "p1" });
+    const a = nodeOf({ id: "a1", parentId: "p1" });
+    const c1 = nodeOf({ id: "c1", parentId: "t1" });
+    const c2 = nodeOf({ id: "c2", parentId: "t1" });
+    const { reads, writes, moves } = stubSurfaces(
+      new Map([
+        ["p1", [a, target]],
+        ["t1", [c1, c2]],
+      ]),
+    );
+    // Simulate the cold render cache: cached getChildren always [].
+    reads.getChildren = () => [];
+
+    await extractBlockToPage(reads, writes, "t1", { keepChildren: false });
+
+    expect(moves.map((m) => m.id)).toEqual(["t1", "c1", "c2"]);
+    expect(moves.filter((m) => m.parentId === "link-1").map((m) => m.id)).toEqual(["c1", "c2"]);
+  });
+
   it("fails loud for a parentless node and a date-chain node, writing nothing", async () => {
     const page = nodeOf({ id: "r1", parentId: null, presentAsMain: true });
     const parentless = stubSurfaces(new Map([["ws-root", [page]]]));
@@ -178,6 +206,7 @@ describe('NodeContextMenu "Convert to page" submenu', () => {
       getEffectiveProperties: () => [],
       getNode: base.reads.getNode,
       getChildren: base.reads.getChildren,
+      getChildrenFresh: base.reads.getChildrenFresh,
       listPropertySchemas: () => [],
       effectiveClassColor: () => null,
       effectiveClassIcons: () => new Map<string, string | null>(),
@@ -246,12 +275,16 @@ describe('NodeContextMenu "Convert to page" submenu', () => {
     const { getByText } = renderMenu(inlineTarget, stubClient(scenario()).client);
     fireEvent.click(getByText("Convert to page"));
     // The owner's clarity ruling (2026-10-16): the menu must state that a
-    // node link takes the block's place — the labels alone don't carry it.
+    // node link takes the block's place — and that "follow" means the SAME
+    // node keeps its children (the extracted page is not new; the block's
+    // parent_id is removed, identity untouched).
     expect(
-      getByText("A link block takes its place; the children stay nested under the link."),
+      getByText("A link block takes its place; the children remain here, nested under the link."),
     ).not.toBeNull();
     expect(
-      getByText("A link block takes its place; the children move with the new page."),
+      getByText(
+        "A link block takes its place; the children stay with the block — the same node, now a root page.",
+      ),
     ).not.toBeNull();
   });
 

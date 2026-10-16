@@ -2016,6 +2016,16 @@ export class WorkspaceClient {
   }
 
   /**
+   * Uncached alias of {@link getChildren} for write-compositions that must
+   * not read render-cache state (extractBlockToPage's child reparenting).
+   * In-process reads are already fresh; the Promise shape matches the
+   * WorkerClient's raw-RPC variant.
+   */
+  getChildrenFresh(id: string): Promise<ClientNode[]> {
+    return Promise.resolve(this.getChildren(id));
+  }
+
+  /**
    * Class effectiveColor: the class's own color, else the nearest ancestor
    * in the extends chain with a color (walked via class_extends edges).
    */

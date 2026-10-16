@@ -556,6 +556,17 @@ export class WorkerClient {
   }
 
   /**
+   * Uncached children read — one raw RPC straight to the store, bypassing
+   * the render cache (which can answer a cold key with the empty default
+   * before the refresh round-trip). Write-compositions that plan reparents
+   * from the child list (extractBlockToPage) ride this: a stale [] would
+   * silently drop the child moves.
+   */
+  async getChildrenFresh(id: string): Promise<ClientNode[]> {
+    return (await this.call("getChildren", [id])) as ClientNode[];
+  }
+
+  /**
    * Live-query bridge (async RPC; an invalid AST rejects with the worker's
    * Error message — the view renders the "invalid query" placeholder).
    */

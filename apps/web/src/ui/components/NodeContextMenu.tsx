@@ -65,6 +65,8 @@ interface MenuClient extends CloneReadSurface, CloneWriteSurface {
     afterId?: string,
     beforeId?: string,
   ): Promise<void>;
+  /** The extraction's child reparenting plans from a FRESH read, never the render cache. */
+  getChildrenFresh(id: string): Promise<ClientNode[]> | ClientNode[];
   /** The Copy › markdown shapes compose through exportSubtree's read surface. */
   listPropertySchemas(): ClientPropertySchema[];
   effectiveClassColor(classId: string): string | null;
@@ -399,14 +401,15 @@ export function NodeContextMenu({
         {
           id: "extract-children-stay",
           label: "Extract to root — children stay here",
-          description: "A link block takes its place; the children stay nested under the link.",
+          description: "A link block takes its place; the children remain here, nested under the link.",
           icon: "mdi-file-document-outline",
           onClick: () => extract(false),
         },
         {
           id: "extract-children-follow",
           label: "Extract to root — children follow",
-          description: "A link block takes its place; the children move with the new page.",
+          description:
+            "A link block takes its place; the children stay with the block — the same node, now a root page.",
           icon: "mdi-file-document-multiple-outline",
           onClick: () => extract(true),
         },

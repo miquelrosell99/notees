@@ -151,6 +151,7 @@ describe("NodeContextMenu zone gestures (Convert to page / Move to content)", ()
         // markdown shapes and "Duplicate" compose through them).
         getNode: () => undefined,
         getChildren: () => [],
+        getChildrenFresh: async () => [],
         getEffectiveProperties: () => [],
         createObject: async () => "unused",
         setProperty: async () => {},
