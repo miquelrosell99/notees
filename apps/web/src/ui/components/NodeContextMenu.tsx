@@ -353,12 +353,14 @@ export function NodeContextMenu({
   // modal — the gesture is reversible, the choice is two clicks). KEEP UNDER
   // the parent = the presentAsMain zone flip (the node stays in the family,
   // listed in the parent's Pages zone; its rich content flattens — hence
-  // the BC4 confirm when it carries rich tokens). EXTRACT TO ROOT = the
-  // block leaves the parent and becomes a root page, a mention link block
-  // takes its exact slot, and the children either STAY in the page (under
-  // the link block, order preserved) or FOLLOW the extracted page. Root is
-  // in every extract label on purpose — the distinction the owner asked
-  // for. Date-chain nodes are parent-locked and never offered.
+  // the BC4 confirm when it carries rich tokens). EXTRACT = the block leaves
+  // the parent and becomes a root page — the SAME node, not a new one — a
+  // mention link block takes its exact slot, and the children either STAY
+  // in the page (under the link block, order preserved) or FOLLOW the
+  // block. The rows read short ("Children stay here" / "Children follow");
+  // the full explanation — the link block, the same-node ruling — rides
+  // the hover tooltips. Date-chain nodes are parent-locked and never
+  // offered.
   if (rendersAsInlineBlock(node) && parseDateNodeId(node.id) === null) {
     const parentNode = node.parentId === null ? undefined : client.getNode(node.parentId);
     const parentName = parentNode === undefined ? "parent" : displayLabelOf(parentNode);
@@ -387,6 +389,7 @@ export function NodeContextMenu({
               {
                 id: "keep-under-parent",
                 label: `Keep under "${parentName}"`,
+                tooltip: "The block stays in this page, listed in its Pages zone.",
                 icon: "mdi-file-tree-outline",
                 onClick: () => {
                   // BC4 guard: this direction flattens rich tokens to one text
@@ -400,16 +403,17 @@ export function NodeContextMenu({
           : []),
         {
           id: "extract-children-stay",
-          label: "Extract to root — children stay here",
-          description: "A link block takes its place; the children remain here, nested under the link.",
+          label: "Children stay here",
+          tooltip:
+            "The block becomes a root page; a link block takes its place in this page, and the children stay nested under the link.",
           icon: "mdi-file-document-outline",
           onClick: () => extract(false),
         },
         {
           id: "extract-children-follow",
-          label: "Extract to root — children follow",
-          description:
-            "A link block takes its place; the children stay with the block — the same node, now a root page.",
+          label: "Children follow",
+          tooltip:
+            "The block becomes a root page; a link block takes its place, and the children stay with the block — the same node, now a root page.",
           icon: "mdi-file-document-multiple-outline",
           onClick: () => extract(true),
         },
