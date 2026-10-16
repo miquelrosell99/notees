@@ -9,6 +9,23 @@ predating this file.
 
 ## 2026-10-16
 
+- **fix(web): floating context menus ride the raised chrome surface — the
+  sidebar color — instead of vanishing into the backdrop (owner feedback
+  2026-10-16: "menus get lost over the background color").** The menu card
+  used base `surface` (≈8% primary tint) over a page card of nearly the
+  same tone, and this app bans elevation shadows (Card zeroes every
+  elevation level) — so a floating menu had nothing separating it from
+  what sat behind it. Now the menu root and its flyout submenu ride
+  `--md-sys-color-sidebar-card` — the same step the nodeview sidebars
+  use (`surface-container-highest` in the dark theme), the top of the
+  container ladder per the design system's "pick the surface step by the
+  elevation of content" rule: with no shadow to do the work, the step
+  carries the whole separation. Scoped to the context menu (the sole
+  `radius="floating"` consumer); modals keep their scrim-backed register.
+  Registered in `.agents/design-overrides.md` with a review trigger.
+  **Verification:** `pnpm typecheck` + `pnpm test` green (the
+  `submenu-chevron` CSS-source spec pins the raised surface on both the
+  menu root and the flyout); web-only — no wire touch.
 - **fix(web): the flyout submenu renders again — the menu card no longer
   clips it (owner report 2026-10-16: submenu invisible even on click).**
   The flyout paints past the menu card's right edge, and the card radius

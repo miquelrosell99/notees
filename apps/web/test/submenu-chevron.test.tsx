@@ -124,6 +124,14 @@ describe("chevron visibility (owner 2026-10-16 feedback)", () => {
     expect(menuCss).not.toContain("context-menu-submenu-inline");
     const menuRootBlock = menuCss.split(".card.context-menu {")[1]!.split("}")[0]!;
     expect(menuRootBlock).toContain("overflow: visible");
+    // The menu and its flyout ride the raised chrome surface (the sidebar
+    // token — surface-container-highest in the dark theme): elevation
+    // shadows are banned app-wide, so the surface step carries the whole
+    // separation from the backdrop (owner ruling 2026-10-16, registered
+    // in .agents/design-overrides.md).
+    expect(menuRootBlock).toContain("var(--md-sys-color-sidebar-card)");
+    const flyoutSurface = menuCss.split(".context-menu-submenu-flyout {")[1]!.split("}")[0]!;
+    expect(flyoutSurface).toContain("var(--md-sys-color-sidebar-card)");
 
     const crumbsCss = readCss(["src", "ui", "components", "Breadcrumbs.css"]);
     const separatorBlock = crumbsCss.split(".node-breadcrumb-separator {")[1]!.split("}")[0]!;
