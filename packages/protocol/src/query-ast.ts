@@ -86,7 +86,16 @@ export const childSchema: z.ZodType<Child> = z.lazy(() =>
  * numerically, everything else (ISO-8601 dates in particular) lexicographically.
  */
 export type PropertyOp = "eq" | "neq" | "contains" | "exists" | "gt" | "gte" | "lt" | "lte";
-export type ContentOp = "contains" | "fts";
+export type ContentOp = "contains" | "fts" | "eq" | "neq" | "starts" | "ends";
+/**
+ * The date-comparison family (Odoo's date operators, owner 2026-10-16):
+ * eq/neq are DAY-granular equality (the whole local day matches), gt/gte/lt/lte
+ * compare against the resolved instant. `between`/`within` ride their own
+ * condition shapes.
+ */
+export type DateOp = "eq" | "neq" | "gt" | "gte" | "lt" | "lte";
+/** The relative periods ("is within today / this week / this month / this year"). */
+export type DatePeriod = "today" | "this_week" | "this_month" | "this_year";
 /**
  * The node wire-field predicates (coverAsset/bannerAsset/aliasedNode — the
  * node-table columns the fields project to): eq/neq against a node id,
@@ -175,6 +184,50 @@ export type Condition =
   | { type: "updatedAfter"; timestamp: string }
   /** node.updated_at <= timestamp. */
   | { type: "updatedBefore"; timestamp: string }
+  /** ANY-of over the container classes: the containing page is classed with at least one. */
+  | { type: "pageClassAny"; classIds: string[] }
+  /** ANY-of: some strict ancestor is classed with at least one picked class. */
+  | { type: "ancestorClassedAny"; classIds: string[] }
+  /** ANY-of: the workspace-root ancestor is classed with at least one picked class. */
+  | { type: "rootClassAny"; classIds: string[] }
+  /** The containing page carries at least one class (the container "is set"). */
+  | { type: "pageClassSet" }
+  /** Some strict ancestor carries at least one class. */
+  | { type: "ancestorClassedSet" }
+  /** The workspace-root ancestor carries at least one class. */
+  | { type: "rootClassSet" }
+  /** The title/content plaintext is non-empty (the content "is set"). */
+  | { type: "contentSet" }
+  /** Tag membership: the OR-set tag_ids carries tagId (a tag is any page). */
+  | { type: "tag"; tagId: string }
+  /** ANY-of tag membership (Odoo "one of" over tags). */
+  | { type: "tagAny"; tagIds: string[] }
+  /** At least one tag rides the node. */
+  | { type: "tagSet" }
+  /** backlinksWithRollup membership of ANY picked node (the links "one of"). */
+  | { type: "linkedToAny"; nodeIds: string[] }
+  /** At least one inbound link (a direct edge targets the node). */
+  | { type: "linkSet" }
+  /** Subtree membership of ANY picked node (the parent "one of"), anchors excluded. */
+  | { type: "descendantOfAny"; nodeIds: string[] }
+  /** The node has a parent at all (parent_id IS NOT NULL). */
+  | { type: "parentSet" }
+  /** Date comparison (Odoo's =/!=/>/>=/</<=) over created_at. */
+  | { type: "createdCmp"; op: DateOp; timestamp: string }
+  /** Date comparison over updated_at. */
+  | { type: "updatedCmp"; op: DateOp; timestamp: string }
+  /** Inclusive created-at range (from day-start to to day-end). */
+  | { type: "createdBetween"; from: string; to: string }
+  /** Inclusive updated-at range. */
+  | { type: "updatedBetween"; from: string; to: string }
+  /** created_at inside a relative period (today / this week / this month / this year). */
+  | { type: "createdWithin"; period: DatePeriod }
+  /** updated_at inside a relative period. */
+  | { type: "updatedWithin"; period: DatePeriod }
+  /** The effective property value sits inside the inclusive [from, to] range. */
+  | { type: "propertyBetween"; schemaId: string; from?: unknown; to?: unknown }
+  /** The effective date-valued property sits inside the relative period. */
+  | { type: "propertyWithin"; schemaId: string; period: DatePeriod }
   /** node.cover_asset_id comparison — the page cover's asset node (the wire field). */
   | { type: "coverAsset"; op: NodeFieldOp; value?: string | undefined }
   /** node.banner_asset_id comparison — the page banner's asset node (the wire field). */
@@ -194,11 +247,12 @@ export const conditionSchema = z.discriminatedUnion("type", [
   /**
    * contains: LIKE substring over the derived search plaintext (the same text
    * the FTS index holds: name + content tokens, case-insensitive for ASCII).
-   * fts: prefix-AND FTS MATCH over search_index.
+   * fts: prefix-AND FTS MATCH over search_index. eq/neq: plaintext equality;
+   * starts/ends: prefix/suffix LIKE — the Odoo text operator set.
    */
   z.object({
     type: z.literal("content"),
-    op: z.enum(["contains", "fts"]),
+    op: z.enum(["contains", "fts", "eq", "neq", "starts", "ends"]),
     value: z.string().min(1),
   }).strict(),
   z.object({
@@ -234,6 +288,51 @@ export const conditionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("createdBefore"), timestamp: z.string().min(1) }).strict(),
   z.object({ type: z.literal("updatedAfter"), timestamp: z.string().min(1) }).strict(),
   z.object({ type: z.literal("updatedBefore"), timestamp: z.string().min(1) }).strict(),
+  /** The container ANY-of + set shapes (the class operator set over page/parent-path/root). */
+  z.object({ type: z.literal("pageClassAny"), classIds: z.array(uuid).min(1) }).strict(),
+  z.object({ type: z.literal("ancestorClassedAny"), classIds: z.array(uuid).min(1) }).strict(),
+  z.object({ type: z.literal("rootClassAny"), classIds: z.array(uuid).min(1) }).strict(),
+  z.object({ type: z.literal("pageClassSet") }).strict(),
+  z.object({ type: z.literal("ancestorClassedSet") }).strict(),
+  z.object({ type: z.literal("rootClassSet") }).strict(),
+  /** The content "is set" bit. */
+  z.object({ type: z.literal("contentSet") }).strict(),
+  /** Tag shapes (the OR-set tag_ids; a tag is any page). */
+  z.object({ type: z.literal("tag"), tagId: uuid }).strict(),
+  z.object({ type: z.literal("tagAny"), tagIds: z.array(uuid).min(1) }).strict(),
+  z.object({ type: z.literal("tagSet") }).strict(),
+  /** Node-target ANY-of + set shapes (the class operator set over links/parent). */
+  z.object({ type: z.literal("linkedToAny"), nodeIds: z.array(uuid).min(1) }).strict(),
+  z.object({ type: z.literal("linkSet") }).strict(),
+  z.object({ type: z.literal("descendantOfAny"), nodeIds: z.array(uuid).min(1) }).strict(),
+  z.object({ type: z.literal("parentSet") }).strict(),
+  /** The Odoo date operators: comparison, inclusive range, relative period, edited-set. */
+  z.object({
+    type: z.literal("createdCmp"),
+    op: z.enum(["eq", "neq", "gt", "gte", "lt", "lte"]),
+    timestamp: z.string().min(1),
+  }).strict(),
+  z.object({
+    type: z.literal("updatedCmp"),
+    op: z.enum(["eq", "neq", "gt", "gte", "lt", "lte"]),
+    timestamp: z.string().min(1),
+  }).strict(),
+  z.object({ type: z.literal("createdBetween"), from: z.string().min(1), to: z.string().min(1) }).strict(),
+  z.object({ type: z.literal("updatedBetween"), from: z.string().min(1), to: z.string().min(1) }).strict(),
+  z.object({ type: z.literal("createdWithin"), period: z.enum(["today", "this_week", "this_month", "this_year"]) }).strict(),
+  z.object({ type: z.literal("updatedWithin"), period: z.enum(["today", "this_week", "this_month", "this_year"]) }).strict(),
+  /** The property range/period shapes (numbers numerically, ISO dates lexicographically). */
+  z.object({
+    type: z.literal("propertyBetween"),
+    schemaId: uuid,
+    from: z.unknown(),
+    to: z.unknown(),
+  }).strict(),
+  z.object({
+    type: z.literal("propertyWithin"),
+    schemaId: uuid,
+    period: z.enum(["today", "this_week", "this_month", "this_year"]),
+  }).strict(),
   /** Wire-field predicates over the node-table columns (uuid refs; eq/neq/exists). */
   z.object({
     type: z.literal("coverAsset"),

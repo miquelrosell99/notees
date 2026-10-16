@@ -1589,3 +1589,158 @@ describe.each(adapters)("$name: Odoo operator-set conditions", ({ makeStore }) =
     expect(negated.ids).not.toContain(PARIS_BLOCK);
   });
 });
+
+
+// --- the full Odoo operator-set slice (owner 2026-10-16, round 2) ----------
+// Content text ops + contentSet, tags, the node-target ANY-of/set shapes
+// (links / parent), the date operators (cmp day-equality / between / within /
+// edited-set), propertyBetween, and the container ANY-of/set shapes — over
+// the France/Paris/Lone world (France is parentless, classed Place; Paris a
+// main child of France, classed City extends Place; blocks beneath; Lone an
+// unclassed parentless page; FR_BLOCK links to Paris, OUT_BLOCK links to Lone).
+
+describe.each(adapters)("$name: the full Odoo operator set", ({ makeStore }) => {
+  function worldStore(): Store {
+    const store = makeStore();
+    store.applyMany(worldEnvelopes());
+    return store;
+  }
+
+  it("content text ops: eq/neq/starts/ends + the contentSet bit", () => {
+    const store = worldStore();
+    expect(runQuery(store, ast(entire, [{ type: "content", op: "starts", value: "The capital" }])).ids).toEqual([FR_BLOCK]);
+    expect(runQuery(store, ast(entire, [{ type: "content", op: "ends", value: "cooking" }])).ids).toEqual([LONE_BLOCK]);
+    // eq tests the folded plaintext for full equality ("Sync"-less world:
+    // the folded row is exactly the block's text).
+    expect(runQuery(store, ast(entire, [{ type: "content", op: "eq", value: "Capital of France" }])).ids).toEqual([PARIS_BLOCK]);
+    expect(
+      runQuery(store, ast(entire, [
+        { type: "not", child: { type: "content", op: "eq", value: "Capital of France" } },
+      ])).ids,
+    ).not.toContain(PARIS_BLOCK);
+    // Every world node carries text.
+    expect(runQuery(store, ast(entire, [{ type: "contentSet" }])).ids).toHaveLength(9);
+    expect(
+      runQuery(store, ast(entire, [{ type: "not", child: { type: "contentSet" } }])).ids,
+    ).toHaveLength(0);
+  });
+
+  it("tags: membership, ANY-of, and the set bit over the OR-set tag_ids", () => {
+    const TAG_A = "0192a000-0000-7000-8000-000000000501";
+    const TAG_B = "0192a000-0000-7000-8000-000000000502";
+    const store = makeStore();
+    const t = (i: number) => T0 + 100 * STEP + i * STEP;
+    const text = (s: string) => [{ type: "text", text: s }];
+    store.applyMany([
+      env("object.create", { objectId: FRANCE, contentAst: text("France"), tagIds: [TAG_A] }, t(0)),
+      env("object.create", { objectId: PARIS, contentAst: text("Paris"), tagIds: [TAG_A, TAG_B] }, t(1)),
+      env("object.create", { objectId: LONE, contentAst: text("Lone") }, t(2)),
+    ]);
+    expect(runQuery(store, ast(entire, [{ type: "tag", tagId: TAG_A }])).ids.sort()).toEqual([FRANCE, PARIS].sort());
+    expect(runQuery(store, ast(entire, [{ type: "tag", tagId: TAG_B }])).ids).toEqual([PARIS]);
+    expect(
+      runQuery(store, ast(entire, [{ type: "tagAny", tagIds: [TAG_A, TAG_B] }])).ids.sort(),
+    ).toEqual([FRANCE, PARIS].sort());
+    expect(runQuery(store, ast(entire, [{ type: "tagSet" }])).ids.sort()).toEqual([FRANCE, PARIS].sort());
+    expect(
+      runQuery(store, ast(entire, [{ type: "not", child: { type: "tagSet" } }])).ids,
+    ).toEqual([LONE]);
+  });
+
+  it("links: ANY-of over picked nodes + the inbound-link set bit", () => {
+    const store = worldStore();
+    // FR_BLOCK links to Paris, OUT_BLOCK links to Lone.
+    expect(
+      runQuery(store, ast(entire, [{ type: "linkedToAny", nodeIds: [PARIS, LONE] }])).ids.sort(),
+    ).toEqual([FR_BLOCK, OUT_BLOCK].sort());
+    expect(runQuery(store, ast(entire, [{ type: "linkSet" }])).ids.sort()).toEqual([LONE, PARIS].sort());
+    expect(
+      runQuery(store, ast(entire, [{ type: "not", child: { type: "linkSet" } }])).ids,
+    ).not.toContain(PARIS);
+  });
+
+  it("parent: ANY-of over picked subtrees + the has-a-parent bit", () => {
+    const store = worldStore();
+    expect(
+      runQuery(store, ast(entire, [{ type: "descendantOfAny", nodeIds: [FRANCE, LONE] }])).ids.sort(),
+    ).toEqual([FR_BLOCK, LONE_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort());
+    expect(runQuery(store, ast(entire, [{ type: "parentSet" }])).ids).not.toContain(FRANCE);
+    expect(runQuery(store, ast(entire, [{ type: "parentSet" }])).ids).not.toContain(LONE);
+    expect(runQuery(store, ast(entire, [{ type: "parentSet" }])).ids).toContain(PARIS_BLOCK);
+  });
+
+  it("dates: day-granular equality, the instant comparisons, the range, the period", () => {
+    const store = worldStore();
+    const now = new Date(T0);
+    // Day equality: every world node was created on the pinned day.
+    expect(
+      runQuery(store, ast(entire, [{ type: "createdCmp", op: "eq", timestamp: "{today}" }]), { now }).ids,
+    ).toHaveLength(9);
+    expect(
+      runQuery(store, ast(entire, [{ type: "createdCmp", op: "neq", timestamp: "{today}" }]), { now }).ids,
+    ).toHaveLength(0);
+    // Instant comparisons against a plain date: lexicographic over ISO.
+    expect(
+      runQuery(store, ast(entire, [{ type: "createdCmp", op: "gt", timestamp: "2024-09-24" }])).ids,
+    ).toHaveLength(9);
+    expect(
+      runQuery(store, ast(entire, [{ type: "createdCmp", op: "lte", timestamp: "2024-09-24" }])).ids,
+    ).toHaveLength(0);
+    // The inclusive range covers the creation day.
+    expect(
+      runQuery(store, ast(entire, [
+        { type: "createdBetween", from: "2024-09-24", to: "2024-09-25" },
+      ])).ids,
+    ).toHaveLength(9);
+    expect(
+      runQuery(store, ast(entire, [
+        { type: "createdBetween", from: "2024-09-25", to: "2024-09-26" },
+      ])).ids,
+    ).toHaveLength(0);
+    // The relative period: pinned to the creation year everything matches, a
+    // year later nothing does.
+    expect(
+      runQuery(store, ast(entire, [{ type: "createdWithin", period: "this_year" }]), { now }).ids,
+    ).toHaveLength(9);
+    expect(
+      runQuery(store, ast(entire, [{ type: "createdWithin", period: "this_year" }]), {
+        now: new Date("2025-06-15T12:00:00"),
+      }).ids,
+    ).toHaveLength(0);
+  });
+
+  it("propertyBetween: the effective value inside the inclusive range", () => {
+    const store = worldStore();
+    // rating: France rides the Place binding default 1, Paris authors 3.
+    expect(
+      runQuery(store, ast(entire, [{ type: "propertyBetween", schemaId: RATING, from: 1, to: 5 }])).ids.sort(),
+    ).toEqual([FRANCE, PARIS].sort());
+    expect(
+      runQuery(store, ast(entire, [{ type: "propertyBetween", schemaId: RATING, from: 4, to: 10 }])).ids,
+    ).toEqual([]);
+  });
+
+  it("container ANY-of + set: page / parent path / root over picked classes", () => {
+    const store = worldStore();
+    expect(
+      runQuery(store, ast(entire, [{ type: "pageClassAny", classIds: [CITY] }])).ids.sort(),
+    ).toEqual([PARIS, PARIS_BLOCK].sort());
+    expect(
+      runQuery(store, ast(entire, [{ type: "ancestorClassedAny", classIds: [CITY] }])).ids,
+    ).toEqual([PARIS_BLOCK]);
+    expect(
+      runQuery(store, ast(entire, [{ type: "rootClassAny", classIds: [PLACE, CITY] }])).ids.sort(),
+    ).toEqual([FRANCE, FR_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort());
+    // The set bits: the France-subtree containers all carry classes; Lone's
+    // do not (and the class nodes' own sets are empty).
+    expect(runQuery(store, ast(entire, [{ type: "pageClassSet" }])).ids.sort()).toEqual(
+      [FRANCE, FR_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort(),
+    );
+    expect(
+      runQuery(store, ast(entire, [{ type: "ancestorClassedSet" }])).ids.sort(),
+    ).toEqual([FR_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort());
+    expect(runQuery(store, ast(entire, [{ type: "rootClassSet" }])).ids.sort()).toEqual(
+      [FRANCE, FR_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort(),
+    );
+  });
+});

@@ -30,6 +30,8 @@ export type {
   Child,
   Condition,
   ContentOp,
+  DateOp,
+  DatePeriod,
   Group,
   NodeFieldOp,
   Not,

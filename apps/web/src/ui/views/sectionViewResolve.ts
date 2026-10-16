@@ -48,7 +48,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { plainTextExcerpt, parseDateNodeId } from "@notees/domain";
-import { parseQueryAst, resolveTimestampPlaceholder, type PropertyOp, type QueryAst } from "@notees/query";
+import { parseQueryAst, placeholderEndDate, placeholderStartDate, resolveDayBounds, resolvePeriodBounds, resolveTimestampPlaceholder, type DateOp, type PropertyOp, type QueryAst } from "@notees/query";
 
 import type { ClientNode, EffectiveProperty } from "@/core/workspace-client.js";
 
@@ -103,6 +103,8 @@ function treeNeedsProbe(children: QueryAst["root"]["children"]): boolean {
 
 function leafNeedsProbe(condition: QueryAst["root"]["children"][number]): boolean {
   if (condition.type === "linkedTo") return true;
+  if (condition.type === "linkedToAny") return true;
+  if (condition.type === "linkSet") return true;
   // Dynamic target sets resolve through the query channel (edges + the
   // nested group's own leaves) — never locally.
   if (condition.type === "linkedToQuery") return true;
@@ -154,6 +156,42 @@ function classedWith(ctx: EvalContext, node: ClientNode, classId: string): boole
     ctx.closures.set(classId, closure);
   }
   return node.classIds.some((id) => closure!.has(id));
+}
+
+/**
+ * Closure-aware ANY-of membership test (the container ANY-of arms): memoized
+ * per id, stopping at the first hit.
+ */
+function classedWithAny(ctx: EvalContext, node: ClientNode, classIds: string[]): boolean {
+  return classIds.some((classId) => classedWith(ctx, node, classId));
+}
+
+/**
+ * The Odoo date comparison (createdCmp/updatedCmp) — the evaluator mirror of
+ * the compiler's dateCmpSql: eq/neq are DAY-granular (the whole resolved
+ * local day matches), gt/gte/lt/lte compare against the resolved instant.
+ * A NULL column (never-edited for updated_at) matches nothing but neq/set.
+ */
+function dateCmpMatches(column: string | null, op: DateOp, timestamp: string): boolean {
+  if (op === "eq" || op === "neq") {
+    const day = resolveDayBounds(timestamp);
+    const inDay = column !== null && column >= day.from && column <= day.to;
+    return op === "eq" ? inDay : !inDay;
+  }
+  if (column === null) return false;
+  const bound = resolveTimestampPlaceholder(timestamp, op === "gt" || op === "gte" ? "after" : "before");
+  switch (op) {
+    case "gt":
+      return column > bound;
+    case "gte":
+      return column >= bound;
+    case "lt":
+      return column < bound;
+    case "lte":
+      return column <= bound;
+    default:
+      return false;
+  }
 }
 
 /**
@@ -416,13 +454,161 @@ function conditionMatches(ctx: EvalContext, condition: QueryAst["root"]["childre
       }
       return classedWith(ctx, current, condition.classId);
     }
+    case "pageClassAny": {
+      const page = containingPageOf(ctx, node);
+      return page !== undefined && classedWithAny(ctx, page, condition.classIds);
+    }
+    case "ancestorClassedAny": {
+      const seen = new Set<string>([node.id]);
+      let current = node.parentId;
+      while (current !== null && !seen.has(current)) {
+        const ancestor = ctx.client.getNode(current);
+        if (ancestor === undefined) return false;
+        if (classedWithAny(ctx, ancestor, condition.classIds)) return true;
+        seen.add(current);
+        current = ancestor.parentId;
+      }
+      return false;
+    }
+    case "rootClassAny": {
+      const seen = new Set<string>([node.id]);
+      let current: ClientNode | undefined = node;
+      while (current.parentId !== null && !seen.has(current.parentId)) {
+        const parent = ctx.client.getNode(current.parentId);
+        if (parent === undefined) return false;
+        seen.add(parent.id);
+        current = parent;
+      }
+      return classedWithAny(ctx, current, condition.classIds);
+    }
+    case "pageClassSet": {
+      const page = containingPageOf(ctx, node);
+      return page !== undefined && page.classIds.length > 0;
+    }
+    case "ancestorClassedSet": {
+      const seen = new Set<string>([node.id]);
+      let current = node.parentId;
+      while (current !== null && !seen.has(current)) {
+        const ancestor = ctx.client.getNode(current);
+        if (ancestor === undefined) return false;
+        if (ancestor.classIds.length > 0) return true;
+        seen.add(current);
+        current = ancestor.parentId;
+      }
+      return false;
+    }
+    case "rootClassSet": {
+      const seen = new Set<string>([node.id]);
+      let current: ClientNode | undefined = node;
+      while (current.parentId !== null && !seen.has(current.parentId)) {
+        const parent = ctx.client.getNode(current.parentId);
+        if (parent === undefined) return false;
+        seen.add(parent.id);
+        current = parent;
+      }
+      return current.classIds.length > 0;
+    }
+    case "contentSet":
+      // The title/content plaintext is non-empty (the content "is set").
+      return titleTextOf(node) !== "";
+    case "tag":
+      return node.tagIds.includes(condition.tagId);
+    case "tagAny":
+      return condition.tagIds.some((tagId) => node.tagIds.includes(tagId));
+    case "tagSet":
+      return node.tagIds.length > 0;
+    case "descendantOfAny": {
+      // Subtree membership of ANY picked node: the parent chain hits one of
+      // the ids (the ancestor-walk inverse of the compiler's subtree CTE).
+      const targets = new Set(condition.nodeIds);
+      const seen = new Set<string>([node.id]);
+      let current = node.parentId;
+      while (current !== null && !seen.has(current)) {
+        if (targets.has(current)) return true;
+        seen.add(current);
+        const parent = ctx.client.getNode(current);
+        current = parent?.parentId ?? null;
+      }
+      return false;
+    }
+    case "parentSet":
+      return node.parentId !== null;
+    case "createdCmp":
+      return dateCmpMatches(node.createdAt, condition.op, condition.timestamp);
+    case "updatedCmp":
+      return dateCmpMatches(node.updatedAt, condition.op, condition.timestamp);
+    case "createdBetween":
+      return node.createdAt !== null &&
+        node.createdAt >= resolveTimestampPlaceholder(condition.from, "after") &&
+        node.createdAt <= resolveTimestampPlaceholder(condition.to, "before");
+    case "updatedBetween":
+      return node.updatedAt !== null &&
+        node.updatedAt >= resolveTimestampPlaceholder(condition.from, "after") &&
+        node.updatedAt <= resolveTimestampPlaceholder(condition.to, "before");
+    case "createdWithin": {
+      if (node.createdAt === null) return false;
+      const bounds = resolvePeriodBounds(condition.period);
+      return node.createdAt >= bounds.from && node.createdAt <= bounds.to;
+    }
+    case "updatedWithin": {
+      if (node.updatedAt === null) return false;
+      const bounds = resolvePeriodBounds(condition.period);
+      return node.updatedAt >= bounds.from && node.updatedAt <= bounds.to;
+    }
+    case "propertyBetween": {
+      if (condition.from === undefined || condition.to === undefined) return false;
+      const rows = ctx.client
+        .getEffectiveProperties(node.id)
+        .filter((row) => row.propertySchemaId === condition.schemaId);
+      return rows.some(
+        (row) =>
+          valueMatches(row.value, "gte", condition.from) &&
+          valueMatches(row.value, "lte", condition.to),
+      );
+    }
+    case "propertyWithin": {
+      const rows = ctx.client
+        .getEffectiveProperties(node.id)
+        .filter((row) => row.propertySchemaId === condition.schemaId);
+      const token = `{${condition.period}}`;
+      const fromIso = placeholderStartDate(token);
+      const toIso = placeholderEndDate(token);
+      if (fromIso === null || toIso === null) return false;
+      return rows.some((row) => {
+        const refId = refNodeIdOf(row.value);
+        if (refId !== null) {
+          return (
+            dateRefOrder(refId, "gte", fromIso) &&
+            dateRefOrder(refId, "lte", toIso)
+          );
+        }
+        return (
+          typeof row.value === "string" && row.value >= fromIso && row.value <= toIso
+        );
+      });
+    }
     case "isClass":
       return node.isClass === condition.isClass;
     case "isEmbedded":
       return node.isEmbedded === condition.isEmbedded;
-    case "content":
-      // contains only — fts rides the probe path (treeNeedsProbe).
-      return asciiLower(titleTextOf(node)).includes(asciiLower(condition.value));
+    case "content": {
+      // The text operator set over the flattened title/content (fts rides
+      // the probe path — treeNeedsProbe flags it before this arm runs).
+      const text = asciiLower(titleTextOf(node));
+      const bound = asciiLower(condition.value);
+      switch (condition.op) {
+        case "eq":
+          return text === bound;
+        case "neq":
+          return text !== bound;
+        case "starts":
+          return text.startsWith(bound);
+        case "ends":
+          return text.endsWith(bound);
+        default:
+          return text.includes(bound);
+      }
+    }
     case "property":
       // The one-evaluation ruling (owner 2026-10-08): property conditions
       // evaluate synchronously over the effective-values read model — the

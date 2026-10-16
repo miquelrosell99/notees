@@ -28,7 +28,7 @@ import { useMemo, type ReactNode } from "react";
 
 import { QUERY_PLACEHOLDERS } from "@notees/query";
 
-import type { ClassBinding, ClientNode } from "@/core/workspace-client.js";
+import type { ClassBinding, ClientNode, ClientPropertySchema } from "@/core/workspace-client.js";
 
 import { Icon } from "../Icon.js";
 import { Button } from "./ui/Button.js";
@@ -42,12 +42,22 @@ import "./QueryBuilderFields.css";
 export interface BuilderFactsClient {
   listClasses(): ClientNode[];
   getClassBindings(classId: string): ClassBinding[];
+  /** The schema rows (options / target filters) behind the bound ids. */
+  listPropertySchemas(): ClientPropertySchema[];
 }
 
 export interface BuilderFacts {
   classes: ClientNode[];
-  /** Bound properties across all classes (deduped by schema id). */
-  boundProperties: Array<{ id: string; name: string; type: string }>;
+  /** Bound properties across all classes (deduped by schema id), enriched
+   * with the schema row's options + target filter (the type-aware value
+   * controls, owner 2026-10-16). */
+  boundProperties: Array<{
+    id: string;
+    name: string;
+    type: string;
+    options: Array<{ id: string; label: string }> | null;
+    targetClassFilter: string[] | null;
+  }>;
   numericProperties: Array<{ id: string; name: string; type: string }>;
   classNames: Map<string, string>;
   propertyNames: Map<string, string>;
@@ -57,13 +67,21 @@ export interface BuilderFacts {
 export function useBuilderFacts(client: BuilderFactsClient): BuilderFacts {
   const classes = client.listClasses();
   return useMemo(() => {
-    const boundProperties: Array<{ id: string; name: string; type: string }> = [];
+    const schemasById = new Map(client.listPropertySchemas().map((schema) => [schema.id, schema]));
+    const boundProperties: BuilderFacts["boundProperties"] = [];
     const seenSchemas = new Set<string>();
     for (const cls of classes) {
       for (const binding of client.getClassBindings(cls.id)) {
         if (seenSchemas.has(binding.propertySchemaId)) continue;
         seenSchemas.add(binding.propertySchemaId);
-        boundProperties.push({ id: binding.propertySchemaId, name: binding.name, type: binding.type });
+        const schema = schemasById.get(binding.propertySchemaId);
+        boundProperties.push({
+          id: binding.propertySchemaId,
+          name: binding.name,
+          type: binding.type,
+          options: schema?.options ?? null,
+          targetClassFilter: schema?.targetClassFilter ?? binding.targetClassFilter,
+        });
       }
     }
     return {
