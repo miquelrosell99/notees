@@ -39,21 +39,10 @@
   color: var(--md-sys-color-on-surface-variant);
 }
 
-.export-modal__format-card[aria-checked="true"] .export-modal__format-card-icon {
-  color: var(--md-sys-color-primary);
-}
-
-/* The selected signal is not icon-tint alone: a primary hairline ring
-   (box-shadow, so selection costs no layout shift) plus the 600 label —
-   distinct from hover at a glance. */
-.export-modal__format-card[aria-checked="true"] {
-  box-shadow: 0 0 0 var(--border-width-default) var(--md-sys-color-primary);
-  border-radius: var(--shape-large);
-}
-
-.export-modal__format-card[aria-checked="true"] .export-modal__format-card-label {
-  font-weight: 600;
-}
+/* The selected signal is the shared Card's card--selected register
+   (primary-container fill + primary border) — the same register as the
+   Dropdown's selected option, already applied via the Card's `selected`
+   prop; no local overlay. */
 
 .export-modal__format-card-label {
   font-size: var(--font-size-sm);
