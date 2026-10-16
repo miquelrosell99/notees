@@ -104,4 +104,20 @@
   min-height: 0;
   width: 100%;
   padding: var(--spacing-2) var(--spacing-1);
+  position: relative;
+}
+
+/* The invisible 44px hit-area floor (skill §9 — the calendar-grid
+   pattern): the popup's and the datepicker's month/year picks keep their
+   grid geometry; the ::after overlay centered on each reaches ≥44×44. */
+.calendar-month.btn::after,
+.calendar-year-pick.btn::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+  pointer-events: auto;
 }

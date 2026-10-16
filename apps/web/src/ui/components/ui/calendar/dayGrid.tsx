@@ -124,6 +124,9 @@ export function CalendarDayGrid({
                 onClick={() => onSelectDay(iso)}
               >
                 {day}
+                {extra.dated === true ? (
+                  <span className="calendar-day__dot" aria-hidden="true" />
+                ) : null}
               </Button>
             </span>
           );

@@ -73,7 +73,11 @@
   background: none;
   color: var(--md-sys-color-on-surface);
   font: var(--font-body-medium);
-  font-size: var(--font-size-sm);
+  /* The §7 list-row register: primary 14px/600 (the dense-register
+     deviation was retired with the 100%-alignment program, owner
+     2026-10-16). Truncation contract unchanged: single-line ellipsis. */
+  font-size: var(--font-size-base);
+  font-weight: 600;
   text-align: left;
   cursor: pointer;
   overflow: hidden;

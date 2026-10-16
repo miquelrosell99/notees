@@ -479,13 +479,48 @@ describe("condensed chrome reveal mechanism (CSS source)", () => {
     expect(css).toContain(".nt-block:focus-within .nt-block-excerpt__chrome");
   });
 
-  it("the … mark is the toggle: permanent, tap-floored, never opacity-gated", () => {
+  it("the … mark is the toggle: permanent, 44px overlay floor, never opacity-gated", () => {
     const mark = /\.nt-block-excerpt__ellipsis \{[^}]*\}/.exec(css);
     expect(mark).not.toBeNull();
     expect(mark![0]).not.toContain("opacity: 0");
-    // Generous hit padding around the small glyph — the tap-target floor.
+    // The visible box rides the row's 22px floor; the interactive area
+    // reaches the skill's 44px hit-area floor through the invisible ::after
+    // overlay (owner ruling 2026-10-16 — the overlay pattern the icon-only
+    // button established).
     expect(mark![0]).toContain("min-width: 22px");
     expect(mark![0]).toContain("min-height: 22px");
+    expect(mark![0]).toContain("position: relative");
+    const overlay = /\.nt-block-excerpt__ellipsis::after \{[^}]*\}/.exec(css);
+    expect(overlay).not.toBeNull();
+    expect(overlay![0]).toContain("width: max(100%, var(--button-min-height))");
+    expect(overlay![0]).toContain("height: max(100%, var(--button-min-height))");
+    expect(overlay![0]).toContain("pointer-events: auto");
+  });
+
+  it("the links badge carries the same overlay contract: 44px hit area, 22px visible", () => {
+    const badge = /\.nt-block-links-badge \{[^}]*\}/.exec(css);
+    expect(badge).not.toBeNull();
+    expect(badge![0]).toContain("min-width: 22px");
+    expect(badge![0]).toContain("min-height: 22px");
+    const overlay = /\.nt-block-links-badge::after \{[^}]*\}/.exec(css);
+    expect(overlay).not.toBeNull();
+    expect(overlay![0]).toContain("width: max(100%, var(--button-min-height))");
+    expect(overlay![0]).toContain("height: max(100%, var(--button-min-height))");
+    expect(overlay![0]).toContain("pointer-events: auto");
+  });
+
+  it("the collapse chevron rides the 44px overlay floor and self-reveals on overlay hover", () => {
+    const overlay = /\.nt-block-chevron::after \{[^}]*\}/.exec(css);
+    expect(overlay).not.toBeNull();
+    expect(overlay![0]).toContain("width: max(100%, var(--button-min-height))");
+    expect(overlay![0]).toContain("height: max(100%, var(--button-min-height))");
+    expect(overlay![0]).toContain("pointer-events: auto");
+    // The overlay extends past the grip, where the gutter-hover reveal
+    // doesn't fire — the chevron reveals on its own hover so the control
+    // is never an invisible click-eater.
+    const hover = /\.nt-block-chevron:hover \{[^}]*\}/.exec(css);
+    expect(hover).not.toBeNull();
+    expect(hover![0]).toContain("opacity: 1");
   });
 
   it("the retired controls leave no CSS hooks behind", () => {

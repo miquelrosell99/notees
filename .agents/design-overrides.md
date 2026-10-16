@@ -14,22 +14,6 @@ rule they override changes, the review trigger fires, or the owner re-rules.
 - **Ruled**: owner 2026-10-16.
 - **Review trigger**: the owner re-rules any of the three, or a new design-system audit wants a baseline of the excepted surfaces.
 
-### Calendar and date-grid cells ride the panel width, not the 44px floor
-- **Rule**: audit-checklist §9 — touch targets ≥44×44px on every interactive control.
-- **Decision**: calendar day cells, week-strip cells, and month/year picks size from the grid that contains them (`aspect-ratio: 1` / the strip height), computing ≈36–40px in the fixed 320px side panel — no invisible overlay. The grid is the control: forcing 44px cells would overflow the panel or drop columns.
-- **Rationale**: a date grid's hit geometry is inseparable from its column width; the panel itself is chrome-adjacent (a secondary surface), and each cell carries a full-date `aria-label` + `aria-pressed` for the selected day.
-- **Scope**: calendar grids (calendar-grid, MonthCalendar, WeekStrip) and datepicker cells.
-- **Ruled**: registered 2026-10-15 (unswept-surfaces pass) after the sweep found the density unregistered.
-- **Review trigger**: a touch-usability finding on the calendar, or a layout change that widens the panel.
-
-### The context column rides a dense type register
-- **Rule**: audit-checklist §7 components — list rows primary 14px/600, secondary 12px muted.
-- **Decision**: the narrow context column (Activity log, Version history, Comments, Property history) renders rows at 12px/400 primary with 10px secondary stamps — one step under the list-row spec, by design for the ~340px rail.
-- **Rationale**: the row spec assumes content-width surfaces; these feeds live in the right rail beside the page card, where 14px/600 rows would wrap aggressively and crowd the content they annotate.
-- **Scope**: the context-column feeds only — full-width surfaces keep the 14px/600 register.
-- **Ruled**: registered 2026-10-15 (unswept-surfaces pass).
-- **Review trigger**: the context column widening, or a readability finding against the dense register.
-
 ### Hover is the state-layer overlay everywhere; primary-container is selected/active only
 - **Rule**: audit-checklist §6/§5 — hover feedback per the state-layer idiom; the skill's accent usage table leaves hover unspecified; the pre-ruling codebase mixed three hover fills (`hover-overlay`, `surface-container-high`, `surface-container-high/est`) and used `primary-container` as a hover fill on some rows.
 - **Decision**: every hover background is `--md-sys-color-hover-overlay` (22 stylesheets, owner ruling 2026-10-15); `primary-container` appears only on selected/active chrome (the existing register entry) — never on hover. Controls that are ALREADY active keep their active fill while hovered (combined `--active, --active:hover` rules; the active identity is not washed away). Structural hover that is not a fill (e.g. the support-channel card's border raise) is unaffected.
@@ -37,14 +21,6 @@ rule they override changes, the review trigger fires, or the owner re-rules.
 - **Scope**: global (all `:hover` fills). Buttons' default/outline/base variants included (overlay over their transparent rest).
 - **Ruled**: owner 2026-10-15 (re-audit carried-forward Notes discussion).
 - **Review trigger**: an interaction finding that the overlay hover is too quiet on a specific surface.
-
-### Inline row chrome rides a 22px tap floor, not 44px
-- **Rule**: audit-checklist §9 — touch targets ≥44×44px on EVERY interactive control, via an invisible hit-area overlay where the visible control must stay compact.
-- **Decision**: the editor's inline row chrome (the condensed layer's stretch/badge/condense buttons, the collapse chevron, and cousins) carries a 22px minimum with `touch-action: manipulation`, no invisible overlay. An overlay around inline prose chrome would intercept text-selection drags and neighboring glyph taps.
-- **Rationale**: in-code owner idiom ("Tap-target floor (the narrow-screen law) — the row chrome idiom", app.css, 2026-10-15 condensed slice); these controls sit mid-sentence inside content rows where a 44px zone is a text-editing hazard, and each has a keyboard-equivalent or larger sibling path. Registered 2026-10-15 after the re-audit found the idiom undocumented.
-- **Scope**: editor/content row chrome only — chrome controls in panels, bars, and popovers (propicon, sync dot, hover-reveal, toasts, pills) DO carry the 44px floor and are not covered by this entry.
-- **Ruled**: owner in-code (condensed slice), registered 2026-10-15 (re-audit).
-- **Review trigger**: a touch-usability finding against the row chrome, or a fleet ruling that no interactive control may go below 44px under any circumstances.
 
 ### The sidebar is a transparent "chrome on canvas" navigator- **Rule**: rosellramos-design-system default 3 (solid sidebar on the ground, hairline separated; the card-on-backdrop exception still keeps the sidebar solid).
 - **Decision**: `.nt-sidebar` carries no surface fill (`background: transparent`) at any width — the app background hosts the chrome directly, separated from content by a hairline rule; the sidebar reveals/hides via the TopBar hamburger at every width (below 768px it becomes a fixed overlay drawer with a real surface + shadow). Related responsive ruling: the navigator is **state-driven at every width** — there is no rail morph at 1024 and no 1440-wide adaptation; sidebar adaptation is drawer-below-768 only.

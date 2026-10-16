@@ -32,6 +32,34 @@ predating this file.
   `pnpm typecheck` + `pnpm test` green (new pinning tests: fresh stores
   carry both indexes at v20; a v19-stamped store migrates and gains them —
   both adapters).
+- **fix(web): three register deviations retired — calendar cells, context-column
+  type, and editor row chrome align with the skill (the 44px floors via the
+  invisible hit-area overlay, the §7 list-row type register; owner ruling
+  2026-10-16: the selection tradeoff on inline chrome is accepted).** The
+  100%-alignment program's first fixes, one per retired override entry.
+  **Calendar date-grid cells**: the shared day grid, the WeekStrip, and every
+  month/year pick (MonthCalendar, the top-bar popup, the datepicker) keep
+  their visible grid geometry exactly as-is and gain the skill's invisible
+  `::after` hit-area overlay (`max(100%, var(--button-min-height))`, centered)
+  so each cell's interactive area reaches ≥44×44; the range-aware dated dot
+  moved from `.dated::after` to a real span so the overlay owns the
+  pseudo-element. **Context-column feeds**: the Activity log, Version
+  history, and Comments rows (the ~340px right rail) ride the §7 list-row
+  register — primary 14px/600 on-surface, secondary 12px muted — replacing
+  the 12px/400 + 10px dense register; the Comments row keeps its
+  single-line ellipsis contract. **Editor row chrome**: the condensed
+  layer's "…" mark and hidden-links badge (22px visible) and the collapse
+  chevron (14px glyph in the gutter) carry the same 44px overlay; the
+  chevron self-reveals on overlay hover so it is never an invisible
+  click-eater, and the bullet keeps its hit priority above the overlay.
+  The three register entries ("Calendar and date-grid cells ride the panel
+  width", "The context column rides a dense type register", "Inline row
+  chrome rides a 22px tap floor") are deleted from
+  `.agents/design-overrides.md` — nothing to register: the app matches the
+  skill. **Verification:** `pnpm typecheck` + `pnpm test` green
+  (`calendar-hit-area` pins the overlay contract across the four calendar
+  stylesheets; `condensed` + `context-column` pin the overlay + type
+  registers); web-only — no wire touch.
 - **docs(design): the 100%-alignment program opens — sidebar, top bar, and
   canvas chrome are the documented exceptions; everything else is in scope
   (owner ruling 2026-10-16).** The owner directed the app to 100% alignment
