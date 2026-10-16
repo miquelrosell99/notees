@@ -72,6 +72,9 @@ export function WeekStrip({
               {date.toLocaleDateString(undefined, { weekday: "narrow" })}
             </span>
             <span className="week-strip__num">{d}</span>
+            {extra.dated === true ? (
+              <span className="week-strip__dot" aria-hidden="true" />
+            ) : null}
           </Button>
         );
       })}
