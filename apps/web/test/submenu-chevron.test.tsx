@@ -52,7 +52,7 @@ afterEach(() => {
 });
 
 describe("ContextMenu submenu hover (owner 2026-10-16)", () => {
-  it("hovering the parent line opens the submenu on pointer-fine devices", () => {
+  it("hovering the parent line opens the flyout on pointer-fine devices", () => {
     stubHover(true);
     const { getByText, queryByText } = renderMenu();
 
@@ -60,9 +60,14 @@ describe("ContextMenu submenu hover (owner 2026-10-16)", () => {
     fireEvent.mouseEnter(getByText("Copy"));
     expect(queryByText("Markdown")).not.toBeNull();
     expect(queryByText("Link")).not.toBeNull();
+    // The submenu flies out to the SIDE of the parent row — a second card
+    // inside the menu card, never a row inside the list.
+    const flyout = document.querySelector(".context-menu-submenu-flyout");
+    expect(flyout).not.toBeNull();
+    expect(flyout!.parentElement!.classList.contains("context-menu")).toBe(true);
   });
 
-  it("hovering a plain item closes the open submenu", () => {
+  it("hovering a plain item closes the open flyout", () => {
     stubHover(true);
     const { getByText, queryByText } = renderMenu();
 
@@ -92,7 +97,7 @@ describe("chevron visibility (owner 2026-10-16 feedback)", () => {
     expect(use?.getAttribute("href")).toContain("mdi-chevron-right");
   });
 
-  it("the menu arrow and the breadcrumb separator ride the icon role, not outline", () => {
+  it("the menu arrow and the breadcrumb separator ride the icon role, not outline; the submenu flies out absolutely", () => {
     // jsdom applies no layout — the visibility contract is asserted at the
     // source level (the css-token-drift / focus-mode pattern).
     const process_ = process as unknown as {
@@ -107,6 +112,14 @@ describe("chevron visibility (owner 2026-10-16 feedback)", () => {
     const arrowBlock = menuCss.split(".context-menu-arrow {")[1]!.split("}")[0]!;
     expect(arrowBlock).toContain("var(--md-sys-color-on-surface-variant)");
     expect(arrowBlock).not.toContain("--md-sys-color-outline");
+
+    // The flyout is absolutely positioned — outside the menu's flow, so
+    // opening/closing it can never change the menu's box and re-fit it
+    // (the inline expansion used to grow the menu near the bottom edge and
+    // make the whole thing dance on hover).
+    const flyoutBlock = menuCss.split(".context-menu-submenu-flyout {")[1]!.split("}")[0]!;
+    expect(flyoutBlock).toContain("position: absolute");
+    expect(menuCss).not.toContain("context-menu-submenu-inline");
 
     const crumbsCss = readCss(["src", "ui", "components", "Breadcrumbs.css"]);
     const separatorBlock = crumbsCss.split(".node-breadcrumb-separator {")[1]!.split("}")[0]!;
