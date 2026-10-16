@@ -294,7 +294,7 @@ export function Breadcrumbs({
         </HoverRevealButton>
       )}
       {showSeparator && (
-        <Icon path="mdi-chevron-right" size={0.7} className="node-breadcrumb-separator" />
+        <Icon path="mdi-chevron-right" size={0.75} className="node-breadcrumb-separator" />
       )}
     </span>
     );
@@ -317,7 +317,7 @@ export function Breadcrumbs({
           >
             …
           </button>
-          <Icon path="mdi-chevron-right" size={0.7} className="node-breadcrumb-separator" />
+          <Icon path="mdi-chevron-right" size={0.75} className="node-breadcrumb-separator" />
           {leadPopupOpen && (
             <>
               <button
@@ -375,7 +375,7 @@ export function Breadcrumbs({
           >
             …
           </button>
-          <Icon path="mdi-chevron-right" size={0.7} className="node-breadcrumb-separator" />
+          <Icon path="mdi-chevron-right" size={0.75} className="node-breadcrumb-separator" />
           {popupOpen && (
             <>
               <button

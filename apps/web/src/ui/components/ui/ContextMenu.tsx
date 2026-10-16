@@ -10,6 +10,7 @@ import {
   useEffect,
   useCallback,
   useLayoutEffect,
+  useMemo,
   useState,
   type ReactNode,
   type MouseEvent,
@@ -98,6 +99,36 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
   const closeSubmenuAnimated = useCallback(() => {
     setClosingSubmenu(true);
   }, []);
+
+  // Hover opens submenus on pointer-fine devices only: on touch, the tap
+  // must stay the explicit toggle (a synthesized mouseenter would open the
+  // panel a moment before the click collapses it again).
+  const canHover = useMemo(
+    () =>
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(hover: hover)').matches,
+    [],
+  );
+
+  // Hover seam: entering a submenu parent opens its panel; entering any
+  // other top-level item closes the open one. The inline panel itself
+  // carries no handler, so the pointer can travel into the subitems.
+  const handleItemEnter = useCallback(
+    (item: ContextMenuItem) => {
+      if (!canHover || item.disabled || item.separator) return;
+      if (item.submenu !== undefined || item.submenuItems !== undefined) {
+        if (activeSubmenu !== item.id) {
+          setActiveSubmenu(item.id);
+          setClosingSubmenu(false);
+        }
+      } else if (activeSubmenu !== null) {
+        setActiveSubmenu(null);
+        setClosingSubmenu(false);
+      }
+    },
+    [canHover, activeSubmenu],
+  );
 
   // Register with the overlay stack so Escape closes this context menu
   // (or its active submenu first) regardless of where DOM focus is.
@@ -366,6 +397,7 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
               disabled={item.disabled}
               role="menuitem"
               tabIndex={isFocused ? 0 : -1}
+              onMouseEnter={() => handleItemEnter(item)}
             >
               <span className="context-menu-icon-wrapper">
                 {item.icon && (
@@ -380,7 +412,12 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
                 <span className="context-menu-shortcut">{item.shortcut}</span>
               )}
               {(item.submenu !== undefined || item.submenuItems !== undefined) && (
-                <span className={`context-menu-arrow${activeSubmenu === item.id ? ' context-menu-arrow--open' : ''}`}>›</span>
+                <span
+                  className={`context-menu-arrow${activeSubmenu === item.id ? ' context-menu-arrow--open' : ''}`}
+                  aria-hidden="true"
+                >
+                  <Icon path="mdi-chevron-right" size={0.8} />
+                </span>
               )}
             </button>
             {(item.submenu !== undefined || item.submenuItems !== undefined) && activeSubmenu === item.id && (
