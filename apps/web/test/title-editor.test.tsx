@@ -282,8 +282,9 @@ describe("page title row", () => {
 
     const wrap = container.querySelector<HTMLElement>(".nt-page-title-wrap")!;
     fireEvent.contextMenu(wrap);
-    // The page-level menu (isPage) offers Copy link among its items.
-    expect(screen.getByRole("menuitem", { name: "Copy link" })).not.toBeNull();
+    // The page-level menu (isPage) offers the Copy submenu among its items
+    // (the accessible name carries the submenu chevron).
+    expect(screen.getByRole("menuitem", { name: /^Copy/ })).not.toBeNull();
   });
 
   it("renders no editable title row for embedded entries (the static link button)", async () => {

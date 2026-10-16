@@ -24,6 +24,8 @@
  *    rename-free) vs `"slug"` (`<slugified-title>-<id8>.md`, id8 fallback
  *    for empty titles; the id8 suffix — a pure hash of the node id — keeps
  *    names unique for duplicate titles). The server zip reuses this policy.
+ *  - `includeFrontmatter` — the YAML frontmatter block; default ON for every
+ *    download path, OFF for clipboard copies (pasted text carries no noise).
  *
  * Workspace-zip enumeration (owner ruling 2026-10-04):
  * the server zip's page set is `Store.roots` + the main-children DFS MINUS
@@ -87,6 +89,11 @@ export interface ExportOptions {
    * Default OFF.
    */
   includeAssets?: boolean | undefined;
+  /**
+   * Emit the YAML frontmatter block. Default ON (every download path); the
+   * clipboard copy passes OFF — pasted text carries no YAML noise.
+   */
+  includeFrontmatter?: boolean | undefined;
   /** Explicit child-depth cap; null/undefined = full closure (default). */
   maxDepth?: number | null | undefined;
   /** Whiteboard projection: inline fenced json (default) or sidecar file. */
@@ -104,6 +111,8 @@ export interface ResolvedExportOptions {
   pageFormat: "a4" | "letter";
   layout: "notes" | "essay" | "academic";
   includeAssets: boolean;
+  /** Clipboard copies pass false — no YAML frontmatter in pasted text. */
+  includeFrontmatter: boolean;
   /** null = render the whole tree (full closure). */
   maxDepth: number | null;
   whiteboardMode: "inline" | "sidecar";
@@ -119,6 +128,7 @@ export function resolveExportOptions(options?: ExportOptions): ResolvedExportOpt
     pageFormat: options?.pageFormat ?? "a4",
     layout: options?.layout ?? "notes",
     includeAssets: options?.includeAssets ?? false,
+    includeFrontmatter: options?.includeFrontmatter ?? true,
     maxDepth: options?.maxDepth ?? null,
     whiteboardMode: options?.whiteboardMode ?? "inline",
     filenamePolicy: options?.filenamePolicy ?? "uuid",

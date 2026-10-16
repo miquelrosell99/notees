@@ -231,6 +231,18 @@ describe("frontmatter", () => {
     expect(fm).toContain('"tricky: key": "true"');
   });
 
+  it("includeFrontmatter: off drops the YAML block (the clipboard copy), keeping the heading and body", () => {
+    const node = page("aaaaaaaa-0000-4000-8000-000000000021", "Clean Copy", [
+      { type: "text", text: "Clean Copy" },
+    ]);
+    const md = nodeToMarkdown(node, makeCtx(), { includeFrontmatter: false });
+    expect(md.startsWith("---")).toBe(false);
+    expect(md).not.toContain("isClass:");
+    expect(md).toContain("# Clean Copy");
+    // The download default keeps the frontmatter — the option only opts out.
+    expect(nodeToMarkdown(node, makeCtx())).toContain("isClass: false");
+  });
+
   it("PG15: datetime range values emit start/end maps (open side null), not raw JSON", () => {
     const node = page("aaaaaaaa-0000-4000-8000-000000000020", "Range", [
       { type: "text", text: "Range" },

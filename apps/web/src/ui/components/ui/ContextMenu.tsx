@@ -37,6 +37,14 @@ export interface ContextMenuItem {
   keepOpen?: boolean | undefined;
   /** If provided, shows a submenu with custom content when item is clicked */
   submenu?: ReactNode | undefined;
+  /**
+   * If provided, shows an inline submenu of action items when the item is
+   * clicked (the native action-list form — the whiteboard's `submenu` is the
+   * custom-content form). Subitems fire their own onClick and then close
+   * the whole menu (unless keepOpen). They render with the item styling but
+   * are excluded from the top-level arrow-key navigation.
+   */
+  submenuItems?: ContextMenuItem[] | undefined;
   /** If provided, renders custom content directly in the menu row instead of a button */
   content?: ReactNode | undefined;
   onClick?: ((event?: MouseEvent) => void) | undefined;
@@ -113,8 +121,8 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
   const handleItemClick = useCallback((item: ContextMenuItem, event?: MouseEvent) => {
     if (item.disabled || item.separator) return;
 
-    // If item has submenu, toggle it
-    if (item.submenu) {
+    // If item has submenu (custom content or a native action list), toggle it
+    if (item.submenu !== undefined || item.submenuItems !== undefined) {
       if (activeSubmenu === item.id) {
         closeSubmenuAnimated();
       } else {
@@ -129,6 +137,37 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
       onClose();
     }
   }, [activeSubmenu, closeSubmenuAnimated, onClose]);
+
+  // A native submenu item: fires its own action, then closes the whole menu
+  // (unless keepOpen). Rendered inside the parent's inline panel — a real
+  // button (Tab-focusable) but excluded from the arrow-key walk, which is
+  // scoped to the top-level items.
+  const renderSubitem = (sub: ContextMenuItem): ReactNode => {
+    if (sub.separator) {
+      return <Separator key={`sub-sep-${sub.id}`} orientation="horizontal" spacing="sm" />;
+    }
+    return (
+      <button
+        key={sub.id}
+        className={`context-menu-item context-menu-subitem ${sub.danger ? "danger" : ""} ${sub.disabled ? "disabled" : ""}`}
+        onClick={(e) => {
+          if (sub.disabled) return;
+          sub.onClick?.(e);
+          if (!sub.keepOpen) onClose();
+        }}
+        disabled={sub.disabled}
+        role="menuitem"
+        tabIndex={-1}
+      >
+        <span className="context-menu-icon-wrapper">
+          {sub.icon && <Icon path={sub.icon} size={0.7} className="context-menu-icon" />}
+        </span>
+        <span className="context-menu-label">{sub.label}</span>
+        {sub.badge && <span className="context-menu-badge">{sub.badge}</span>}
+        {sub.shortcut && <span className="context-menu-shortcut">{sub.shortcut}</span>}
+      </button>
+    );
+  };
 
   // Handle click outside
   useEffect(() => {
@@ -191,7 +230,7 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
   useEffect(() => {
     if (focusedIndex < 0) return;
     const buttons = menuRef.current?.querySelectorAll<HTMLButtonElement>(
-      '.context-menu-item:not(:disabled)',
+      '.context-menu-item:not(.context-menu-subitem):not(:disabled)',
     );
     const el = buttons?.[focusedIndex];
     if (el) {
@@ -322,7 +361,7 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
         return (
           <Fragment key={item.id}>
             <button
-              className={`context-menu-item ${item.danger ? 'danger' : ''} ${item.disabled ? 'disabled' : ''} ${isFocused ? 'focused' : ''} ${isActive || activeSubmenu === item.id ? 'active' : ''} ${item.submenu ? 'has-submenu' : ''}`}
+              className={`context-menu-item ${item.danger ? 'danger' : ''} ${item.disabled ? 'disabled' : ''} ${isFocused ? 'focused' : ''} ${isActive || activeSubmenu === item.id ? 'active' : ''} ${item.submenu !== undefined || item.submenuItems !== undefined ? 'has-submenu' : ''}`}
               onClick={(e) => handleItemClick(item, e)}
               disabled={item.disabled}
               role="menuitem"
@@ -340,11 +379,11 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
               {item.shortcut && (
                 <span className="context-menu-shortcut">{item.shortcut}</span>
               )}
-              {item.submenu && (
+              {(item.submenu !== undefined || item.submenuItems !== undefined) && (
                 <span className={`context-menu-arrow${activeSubmenu === item.id ? ' context-menu-arrow--open' : ''}`}>›</span>
               )}
             </button>
-            {item.submenu && activeSubmenu === item.id && (
+            {(item.submenu !== undefined || item.submenuItems !== undefined) && activeSubmenu === item.id && (
               <div
                 className={`context-menu-submenu-inline${closingSubmenu ? ' context-menu-submenu-inline--closing' : ''}`}
                 onAnimationEnd={() => {
@@ -354,7 +393,7 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
                   }
                 }}
               >
-                {item.submenu}
+                {item.submenu !== undefined ? item.submenu : item.submenuItems!.map(renderSubitem)}
               </div>
             )}
           </Fragment>

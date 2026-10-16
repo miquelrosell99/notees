@@ -199,6 +199,10 @@ describe("NodeContextMenu Share… item", () => {
     createObject: async () => "unused",
     setProperty: async () => {},
     moveObject: async () => {},
+    listPropertySchemas: () => [],
+    effectiveClassColor: () => null,
+    effectiveClassIcons: () => new Map(),
+    getDisplayName: () => null,
   };
 
   it("offers Share… for a page when a share target is wired, and fires onShare", () => {

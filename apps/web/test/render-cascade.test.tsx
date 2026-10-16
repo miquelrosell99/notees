@@ -113,7 +113,7 @@ describe("NodeView render cascade (Revision 11)", () => {
   });
 });
 
-describe("NodeContextMenu zone gestures (Move to Pages / Move to content)", () => {
+describe("NodeContextMenu zone gestures (Convert to page / Move to content)", () => {
   function menuNode(partial: Partial<ClientNode> & { id: string }): ClientNode {
     return {
       workspaceId: WS,
@@ -147,14 +147,18 @@ describe("NodeContextMenu zone gestures (Move to Pages / Move to content)", () =
         updateObject: async (id: string, fields: Record<string, unknown>) => {
           calls.push({ id, fields });
         },
-        // Clone surfaces the "Duplicate" item composes through (unused by
-        // these move-toggle specs).
+        // Clone + clipboard surfaces these specs never reach (the Copy ›
+        // markdown shapes and "Duplicate" compose through them).
         getNode: () => undefined,
         getChildren: () => [],
         getEffectiveProperties: () => [],
         createObject: async () => "unused",
         setProperty: async () => {},
         moveObject: async () => {},
+        listPropertySchemas: () => [],
+        effectiveClassColor: () => null,
+        effectiveClassIcons: () => new Map(),
+        getDisplayName: () => null,
       },
     };
   }
@@ -170,13 +174,15 @@ describe("NodeContextMenu zone gestures (Move to Pages / Move to content)", () =
     );
   }
 
-  it("a parented inline node offers 'Move to Pages' and toggles the bit on", () => {
+  it("a parented inline node offers 'Convert to page'; keeping it under the parent toggles the bit on", () => {
     const { client, calls } = stubClient();
     const node = menuNode({ id: "n1", parentId: "p1", presentAsMain: false });
     const { queryByText, getByText } = renderMenu(node, client);
 
     expect(queryByText("Move to content")).toBeNull();
-    fireEvent.click(getByText("Move to Pages"));
+    fireEvent.click(getByText("Convert to page"));
+    // The stub cannot resolve the parent name — the fallback reads "parent".
+    fireEvent.click(getByText('Keep under "parent"'));
     expect(calls).toEqual([{ id: "n1", fields: { presentAsMain: true } }]);
   });
 
@@ -185,7 +191,7 @@ describe("NodeContextMenu zone gestures (Move to Pages / Move to content)", () =
     const node = menuNode({ id: "n2", parentId: "p1", presentAsMain: true });
     const { queryByText, getByText } = renderMenu(node, client);
 
-    expect(queryByText("Move to Pages")).toBeNull();
+    expect(queryByText("Convert to page")).toBeNull();
     fireEvent.click(getByText("Move to content"));
     expect(calls).toEqual([{ id: "n2", fields: { presentAsMain: false } }]);
   });
@@ -195,12 +201,12 @@ describe("NodeContextMenu zone gestures (Move to Pages / Move to content)", () =
     const node = menuNode({ id: "n3", parentId: null, presentAsMain: true });
     const { queryByText } = renderMenu(node, client);
 
-    expect(queryByText("Move to Pages")).toBeNull();
+    expect(queryByText("Convert to page")).toBeNull();
     expect(queryByText("Move to content")).toBeNull();
     expect(calls).toEqual([]);
   });
 
-  it("promoting a block with rich tokens asks first, naming what will flatten (BC4 guard)", () => {
+  it("converting a block with rich tokens asks first, naming what will flatten (BC4 guard)", () => {
     const { client, calls } = stubClient();
     const node = menuNode({
       id: "n4",
@@ -214,7 +220,8 @@ describe("NodeContextMenu zone gestures (Move to Pages / Move to content)", () =
     });
     const { getByText, queryByText, getByRole } = renderMenu(node, client);
 
-    fireEvent.click(getByText("Move to Pages"));
+    fireEvent.click(getByText("Convert to page"));
+    fireEvent.click(getByText('Keep under "parent"'));
     // The confirmation names the flattening token families; the write has
     // NOT happened yet. The modal latches its node and renders above the
     // (now-closed) menu — in production the host nulls the menu state on
@@ -228,8 +235,9 @@ describe("NodeContextMenu zone gestures (Move to Pages / Move to content)", () =
     expect(calls).toEqual([]);
     expect(queryByText(/flattens its rich content/)).toBeNull();
 
-    fireEvent.click(getByText("Move to Pages"));
-    fireEvent.click(within(getByRole("dialog")).getByText("Move to Pages"));
+    fireEvent.click(getByText("Convert to page"));
+    fireEvent.click(getByText('Keep under "parent"'));
+    fireEvent.click(within(getByRole("dialog")).getByText("Convert to page"));
     expect(calls).toEqual([{ id: "n4", fields: { presentAsMain: true } }]);
   });
 
@@ -296,11 +304,12 @@ describe("NodeContextMenu zone gestures (Move to Pages / Move to content)", () =
     });
     const { getByText, getByRole, queryByRole } = render(<Host node={richNode} />);
 
-    fireEvent.click(getByText("Move to Pages"));
+    fireEvent.click(getByText("Convert to page"));
+    fireEvent.click(getByText('Keep under "parent"'));
     expect(getByText("menu-closed")).not.toBeNull();
     const dialog = within(getByRole("dialog"));
     expect(dialog.getByText(/flattens its rich content/)).not.toBeNull();
-    fireEvent.click(dialog.getByText("Move to Pages"));
+    fireEvent.click(dialog.getByText("Convert to page"));
     await waitFor(() => expect(queryByRole("dialog")).toBeNull());
     expect(calls).toEqual([{ id: "n6", fields: { presentAsMain: true } }]);
   });
@@ -347,7 +356,8 @@ describe("NodeContextMenu zone gestures (Move to Pages / Move to content)", () =
     });
     const { getByText, queryByText } = renderMenu(node, client);
 
-    fireEvent.click(getByText("Move to Pages"));
+    fireEvent.click(getByText("Convert to page"));
+    fireEvent.click(getByText('Keep under "parent"'));
     expect(queryByText(/flattens its rich content/)).toBeNull();
     expect(calls).toEqual([{ id: "n5", fields: { presentAsMain: true } }]);
   });

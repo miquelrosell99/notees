@@ -1,11 +1,11 @@
 /**
  * NodeContextMenu — right-click menu for node surfaces (page headers, block
- * bullets/rows, class/tag pills). Actions: open, copy link, favorite,
- * move between the body and the Pages zone (parented nodes), convert an
- * inline block to a page (extraction — a mention link block takes its slot),
- * export
- * (document-chrome nodes), the page banner upload (Add/Change banner),
- * remove pill (class/tag on an owner), delete.
+ * bullets/rows, class/tag pills). Actions: open, copy (markdown / node id /
+ * link — the Copy › submenu), favorite, convert an inline block to a page
+ * (the Convert to page › submenu: keep under the parent vs extract to root,
+ * children staying or following), move a main child back to the content,
+ * export (document-chrome nodes), the page banner upload (Add/Change
+ * banner), remove pill (class/tag on an owner), delete.
  * Favorites toggle localStorage directly and broadcast so the sidebar
  * refreshes.
  *
@@ -15,11 +15,11 @@
  * a raw uuid). `onDeleted` lets the host navigate away (parent page, else the
  * default view) once the delete lands. The confirmations latch their node
  * and render even while `state` is null: the menu closes the moment an item
- * fires (the host nulls our state), and the modal must outlive the menu —
- * before this latch, every host's onClose unmounted the confirmation with
- * the menu and neither the delete nor the promote dialog could appear.
+ * fires (the host nulls our state on onClose), and the modal must outlive the
+ * menu — before this latch, every host's onClose unmounted the confirmation
+ * with the menu and neither the delete nor the convert dialog could appear.
  *
- * Promote ("Move to Pages"): promotion stringifies content server-side
+ * Convert › keep-under: promotion stringifies content server-side
  * (the title-is-content flatten — SCHEMA.md), so when the block carries rich
  * tokens the menu asks first, naming what will flatten;
  * extending the survivor set itself stays an owner ruling).
@@ -32,12 +32,13 @@ import type { ContentAst } from "@notees/protocol";
 
 import { cloneSubtree, type CloneReadSurface, type CloneWriteSurface } from "@/core/clone.js";
 import { extractBlockToPage } from "@/core/extractToPage.js";
-import type { ClientNode } from "@/core/workspace-client.js";
+import type { ClientNode, ClientPropertySchema } from "@/core/workspace-client.js";
 
 import { displayNameForSettings } from "../dateDisplay.js";
 import { nodeLinkUrl } from "../nodeLink.js";
 import { untitledLabelOf } from "../renderStateLabel.js";
 import { copyToClipboard } from "./modals/clipboard.js";import { notificationStore } from "./ui/notificationStore.js";
+import { clipboardMarkdown } from "./modals/exportSubtree.js";
 import { refuseClassRemoval, removeClassDissolvingLinks } from "./classRemoval.js";
 import { headingAstOf, headingConversionOf, plainTextAstOf } from "./headingConvert.js";
 import { ConfirmationModal } from "./ui/ConfirmationModal.js";
@@ -53,7 +54,7 @@ import { ContextMenu, type ContextMenuItem } from "./ui/ContextMenu.js";
 interface MenuClient extends CloneReadSurface, CloneWriteSurface {
   unassignClass(id: string, classId: string): Promise<void>;
   deleteObject(id: string, opts?: { permanent?: boolean }): Promise<void>;
-  /** The render-bit toggle behind "Move to Pages" / "Move to content". */
+  /** The render-bit toggle behind "Move to content" / keep-under-parent. */
   updateObject(id: string, fields: { presentAsMain?: boolean }): Promise<void>;
   /** Content rewrites — the heading conversion rides this (headingConvert). */
   updateObject(id: string, fields: { contentAst?: ContentAst }): Promise<void>;
@@ -64,6 +65,11 @@ interface MenuClient extends CloneReadSurface, CloneWriteSurface {
     afterId?: string,
     beforeId?: string,
   ): Promise<void>;
+  /** The Copy › markdown shapes compose through exportSubtree's read surface. */
+  listPropertySchemas(): ClientPropertySchema[];
+  effectiveClassColor(classId: string): string | null;
+  effectiveClassIcons(): ReadonlyMap<string, string | null>;
+  getDisplayName(id: string): string | null;
 }
 
 export type NodeMenuState =
@@ -199,14 +205,14 @@ export function NodeContextMenu({
       <ConfirmationModal
         isOpen={pendingPromote !== null}
         title={
-          pendingPromote === null ? "" : `Move "${displayLabelOf(pendingPromote)}" to Pages?`
+          pendingPromote === null ? "" : `Convert "${displayLabelOf(pendingPromote)}" to a page?`
         }
         message={
           pendingPromote === null
             ? ""
-            : `Promoting this block to a page flattens its rich content to plain text: ${promotionFlattenTypes(pendingPromote).join(", ")}. Whiteboards and queries survive.`
+            : `Keeping it under its parent flattens its rich content to plain text: ${promotionFlattenTypes(pendingPromote).join(", ")}. Whiteboards and queries survive.`
         }
-        confirmLabel="Move to Pages"
+        confirmLabel="Convert to page"
         cancelLabel="Cancel"
         variant="primary"
         onConfirm={async () => {
@@ -228,6 +234,26 @@ export function NodeContextMenu({
   // text-only — the confirm modal stays out of that path entirely).
   const flattenTypes = promotionFlattenTypes(node);
 
+  /** Clipboard write + the success/error toast pair every Copy shape shares. */
+  const copyText = (text: string, successTitle: string): void => {
+    copyToClipboard(text).then(
+      () => notificationStore.success(successTitle, name),
+      () => notificationStore.error("Couldn't copy", "Clipboard access was denied."),
+    );
+  };
+  /** The Copy › markdown shapes — exportSubtree composes, we clipboard it. */
+  const copyMarkdown = (withChildren: boolean): void => {
+    try {
+      copyText(
+        clipboardMarkdown(client, node.id, withChildren),
+        withChildren ? "Markdown with children copied" : "Markdown copied",
+      );
+    } catch (error: unknown) {
+      console.warn(`[context-menu] copy markdown (${node.id}) failed:`, error);
+      notificationStore.error("Couldn't copy as markdown", name);
+    }
+  };
+
   const items: ContextMenuItem[] = [
     {
       id: "open",
@@ -235,16 +261,41 @@ export function NodeContextMenu({
       icon: "mdi-open-in-app",
       onClick: () => onOpenNode(node.id),
     },
+    // Copy › (owner 2026-10-16): one bucket for the clipboard shapes —
+    // the node as markdown (its own content, or with its child blocks as
+    // nested bullets), the raw node id, and the app link. A fire copies
+    // and toasts; a composition failure warns instead of writing nothing.
     {
-      id: "copy-link",
-      label: "Copy link",
-      icon: "mdi-link-variant",
-      onClick: () => {
-        copyToClipboard(nodeLinkUrl(node.id)).then(
-          () => notificationStore.success("Node link copied", name),
-          () => notificationStore.error("Couldn't copy", "Clipboard access was denied."),
-        );
-      },
+      id: "copy",
+      label: "Copy",
+      icon: "mdi-content-copy",
+      submenuItems: [
+        {
+          id: "copy-markdown",
+          label: "Markdown",
+          icon: "mdi-language-markdown-outline",
+          onClick: () => copyMarkdown(false),
+        },
+        {
+          id: "copy-markdown-children",
+          label: "Markdown with children",
+          icon: "mdi-language-markdown",
+          onClick: () => copyMarkdown(true),
+        },
+        {
+          id: "copy-node-id",
+          label: "Node id",
+          icon: "mdi-identifier",
+          onClick: () =>
+            copyText(node.id, "Node id copied"),
+        },
+        {
+          id: "copy-link",
+          label: "Link",
+          icon: "mdi-link-variant",
+          onClick: () => copyText(nodeLinkUrl(node.id), "Node link copied"),
+        },
+      ],
     },
   ];
   // Favorites surface pages/classes in the sidebar; an inline block has no
@@ -257,33 +308,18 @@ export function NodeContextMenu({
       onClick: () => toggleFavorite(node.id),
     });
   }
-  // Zone flip (Revision 11): a parented node shows the one toggle that
-  // changes its render zone — inline body → the Pages zone (promotion
-  // stringifies content server-side), main child → the inline body.
-  // Classes are always parentless by the placement CHECK, so this only ever
-  // targets non-class nodes. One undoable object.update gesture.
-  if (node.parentId !== null) {
-    items.push(
-      node.presentAsMain
-        ? {
-            id: "move-to-content",
-            label: "Move to content",
-            icon: "mdi-format-indent-decrease",
-            onClick: () => void client.updateObject(node.id, { presentAsMain: false }),
-          }
-        : {
-            id: "move-to-pages",
-            label: "Move to Pages",
-            icon: "mdi-file-tree-outline",
-            onClick: () => {
-              // BC4 guard: promotion flattens rich tokens to one text run —
-              // ask first, naming what will flatten. Text-only content (or
-              // widgets that survive) promotes immediately.
-              if (flattenTypes.length > 0) setPendingPromote(node);
-              else void client.updateObject(node.id, { presentAsMain: true });
-            },
-          },
-    );
+  // Zone flip (Revision 11), demote direction only: a parented main child
+  // returns to the inline body. The promote direction (inline → Pages zone)
+  // lives in the "Convert to page" submenu below, grouped with the root
+  // extraction so the two "make this a page" paths read as one deliberate
+  // choice instead of two confusingly-named siblings.
+  if (node.parentId !== null && node.presentAsMain) {
+    items.push({
+      id: "move-to-content",
+      label: "Move to content",
+      icon: "mdi-format-indent-decrease",
+      onClick: () => void client.updateObject(node.id, { presentAsMain: false }),
+    });
   }
   // Heading conversion (owner 2026-10-12 — the v1 "Convert to heading"
   // gesture, on the content grammar's `heading` token): shown conditionally,
@@ -307,28 +343,58 @@ export function NodeContextMenu({
       onClick: () => void client.updateObject(node.id, { contentAst: plainTextAstOf(node) }),
     });
   }
-  // Block → page extraction (owner 2026-10-16): an inline block converts to
-  // a root page in place — a link block holding one mention of it takes its
-  // slot. Children stay in the page under the link block by default;
-  // Shift/Ctrl/Cmd-click carries them over to the extracted page instead
-  // (the badge names the modifier variant). Date-chain nodes are
-  // parent-locked and never offered.
+  // Convert to page (owner 2026-10-16): ONE bucket for "make this block a
+  // page", the variants self-describing plain clicks (no modifier keys, no
+  // modal — the gesture is reversible, the choice is two clicks). KEEP UNDER
+  // the parent = the presentAsMain zone flip (the node stays in the family,
+  // listed in the parent's Pages zone; its rich content flattens — hence
+  // the BC4 confirm when it carries rich tokens). EXTRACT TO ROOT = the
+  // block leaves the parent and becomes a root page, a mention link block
+  // takes its exact slot, and the children either STAY in the page (under
+  // the link block, order preserved) or FOLLOW the extracted page. Root is
+  // in every extract label on purpose — the distinction the owner asked
+  // for. Date-chain nodes are parent-locked and never offered.
   if (rendersAsInlineBlock(node) && parseDateNodeId(node.id) === null) {
+    const parentNode = node.parentId === null ? undefined : client.getNode(node.parentId);
+    const parentName = parentNode === undefined ? "parent" : displayLabelOf(parentNode);
+    const extract = (keepChildren: boolean): void => {
+      void extractBlockToPage(client, client, node.id, { keepChildren })
+        .then(() => notificationStore.success("Converted to page", name))
+        .catch((error: unknown) => {
+          console.warn(`[context-menu] convert-to-page (${node.id}) failed:`, error);
+          notificationStore.error("Couldn't convert to page", name);
+        });
+    };
     items.push({
       id: "convert-to-page",
       label: "Convert to page",
       icon: "mdi-file-document-outline",
-      badge: "⇧ children follow",
-      onClick: (event) => {
-        const keepChildren =
-          event?.shiftKey === true || event?.ctrlKey === true || event?.metaKey === true;
-        void extractBlockToPage(client, client, node.id, { keepChildren })
-          .then(() => notificationStore.success("Converted to page", name))
-          .catch((error: unknown) => {
-            console.warn(`[context-menu] convert-to-page (${node.id}) failed:`, error);
-            notificationStore.error("Couldn't convert to page", name);
-          });
-      },
+      submenuItems: [
+        {
+          id: "keep-under-parent",
+          label: `Keep under "${parentName}"`,
+          icon: "mdi-file-tree-outline",
+          onClick: () => {
+            // BC4 guard: this direction flattens rich tokens to one text
+            // run — ask first, naming what will flatten. Text-only content
+            // (or widgets that survive) converts immediately.
+            if (flattenTypes.length > 0) setPendingPromote(node);
+            else void client.updateObject(node.id, { presentAsMain: true });
+          },
+        },
+        {
+          id: "extract-children-stay",
+          label: "Extract to root — children stay here",
+          icon: "mdi-file-document-outline",
+          onClick: () => extract(false),
+        },
+        {
+          id: "extract-children-follow",
+          label: "Extract to root — children follow",
+          icon: "mdi-file-document-multiple-outline",
+          onClick: () => extract(true),
+        },
+      ],
     });
   }
   // Duplicate: a real subtree clone through the shared
