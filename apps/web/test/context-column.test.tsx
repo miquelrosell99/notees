@@ -201,6 +201,55 @@ describe("the context column (three-column panelled layout)", () => {
   });
 });
 
+describe("context-column feed type rides the §7 list-row register (CSS source)", () => {
+  // jsdom applies no layout — the type register is asserted at the CSS
+  // source level (the css-token-drift pattern). The dense-register
+  // deviation retired with the 100%-alignment program (owner ruling
+  // 2026-10-16): primary 14px/600 on-surface, secondary 12px muted.
+  const process_ = process as unknown as {
+    getBuiltinModule(name: string): typeof import("node:fs");
+  };
+  const fs = process_.getBuiltinModule("node:fs");
+  const path = process_.getBuiltinModule("node:path") as unknown as typeof import("node:path");
+  const readCss = (...segments: string[]) =>
+    fs.readFileSync(path.join(process.cwd(), "src", "ui", ...segments), "utf8");
+
+  const activityCss = readCss("components", "ActivityLogSection.css");
+  const versionCss = readCss("components", "VersionHistorySection.css");
+  const commentsCss = readCss("components", "CommentsSection.css");
+
+  it("the Activity log rows: 14px/600 primary, 12px muted stamps", () => {
+    const event = /\.activity-log__event \{[^}]*\}/.exec(activityCss);
+    expect(event).not.toBeNull();
+    expect(event![0]).toContain("font-size: var(--font-size-base)");
+    expect(event![0]).toContain("font-weight: 600");
+    const stamp = /\.activity-log__stamp \{[^}]*\}/.exec(activityCss);
+    expect(stamp).not.toBeNull();
+    expect(stamp![0]).toContain("font-size: var(--font-size-sm)");
+    expect(stamp![0]).toContain("var(--md-sys-color-on-surface-variant)");
+  });
+
+  it("the Version history rows: 14px/600 primary, 12px muted stamps", () => {
+    const event = /\.version-history__event \{[^}]*\}/.exec(versionCss);
+    expect(event).not.toBeNull();
+    expect(event![0]).toContain("font-size: var(--font-size-base)");
+    expect(event![0]).toContain("font-weight: 600");
+    const stamp = /\.version-history__stamp \{[^}]*\}/.exec(versionCss);
+    expect(stamp).not.toBeNull();
+    expect(stamp![0]).toContain("font-size: var(--font-size-sm)");
+    expect(stamp![0]).toContain("var(--md-sys-color-on-surface-variant)");
+  });
+
+  it("the Comments rows: 14px/600 with the single-line ellipsis contract kept", () => {
+    const text = /\.nt-comments__text \{[^}]*\}/.exec(commentsCss);
+    expect(text).not.toBeNull();
+    expect(text![0]).toContain("font-size: var(--font-size-base)");
+    expect(text![0]).toContain("font-weight: 600");
+    expect(text![0]).toContain("text-overflow: ellipsis");
+    expect(text![0]).toContain("white-space: nowrap");
+  });
+});
+
 describe("NodeView preview surface", () => {
   it("preview renders compact chrome: no corner menu, no top bar, a read-only first-level body, no sections", async () => {
     const client = await seedClient();

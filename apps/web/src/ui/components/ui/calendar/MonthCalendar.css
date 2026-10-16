@@ -72,6 +72,21 @@
   min-height: 0;
   width: 100%;
   padding: var(--spacing-2) var(--spacing-1);
+  position: relative;
+}
+
+/* The invisible 44px hit-area floor (skill §9 — the calendar-grid
+   pattern): the visible pick rides the grid; the ::after overlay centered
+   on it reaches ≥44×44. */
+.month-calendar__pick.btn::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+  pointer-events: auto;
 }
 
 .month-calendar__pick.btn.current {
