@@ -136,9 +136,19 @@ predating this file.
   defaults/explicit-claim/toggle chain and the legal explicit-embedded claim
   under any parent; new web tests pin the link-only transclusion (inline
   render, mixed-content negative); new export tests pin the zone split in
-  markdown + html. **LOCKSTEP-PENDING:** the live migration run is gated on
-  the GTK/Flutter/CLI ports converging on the renamed fixture corpus — the
-  wire change is not live until then.
+  markdown + html. **SHIPPED 2026-10-16 (same day):** the GTK (804 tests +
+  ruff + mypy), Flutter (641 tests + analyze), and CLI (87 tests + pin bump
+  to converged main) ports converged on the renamed fixture corpus, and the
+  kind-B rollout ran in a stopped-server window — stack down → new images →
+  `migrate-is-embedded.mts --apply` (32,371 payload rewrites, zero unmapped,
+  zero stored query-AST references; snapshots dropped, derived DBs rebuilt,
+  restore_epoch bumped; backup at `relay.db.bak-20261016-144149`) → up →
+  full-log rehydrate (~40 min of CPU-bound replay with the v20 indexes,
+  event loop blocked — expected, one-time) → `verify-min.mjs` VERIFY-PASS.
+  Live probe in the test workspace: defaults and explicit claims store
+  correctly, the `isEmbedded` list filter selects blocks/pages, the
+  parent-page guard 422s a standalone claim under an embedded block, and the
+  zip export splits the zones both ways; probe data permanently deleted.
 - **fix(web): the four carried-forward re-audit notes close — export
   selected signal joins the established register, residual renderer px
   literals convert (the board/calendar notes verified already closed by
