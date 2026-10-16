@@ -147,7 +147,7 @@ describe("assets API", () => {
         method: "POST",
         url: "/api/objects",
         headers: { "content-type": "application/json", ...server.authHeaders },
-        payload: { presentAsMain: true, name: "Attachment host" },
+        payload: { isEmbedded: false, name: "Attachment host" },
       })
     ).json();
     const up = await upload(PNG, "attached.png", { objectId: object.id });
@@ -174,7 +174,7 @@ describe("assets API", () => {
           method: "POST",
           url: "/api/objects",
           headers: { "content-type": "application/json", ...headers },
-          payload: { presentAsMain: true, name: "parallel host" },
+          payload: { isEmbedded: false, name: "parallel host" },
         });
         return { i, id: (res.json() as { id: string }).id };
       }),

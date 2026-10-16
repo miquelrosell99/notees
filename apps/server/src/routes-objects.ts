@@ -24,7 +24,7 @@ import {
   propertySetPayload,
   propertyUnsetPayload,
 } from "@notees/protocol";
-import { deriveDisplayName, rendersWithDocumentChrome, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
+import { deriveDisplayName, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import { parseQueryAst, runAggregate, runQuery } from "@notees/query";
 import { visiblePropertyValueRows, type NodeRow, type Store, planMerge, MergeGuardError } from "@notees/store";
 
@@ -41,14 +41,15 @@ const booleanQueryParam = z
 
 const listQuerySchema = z
   .object({
-    /** Class identity bit filter (Revision 11 render-state model). */
+    /** Class identity bit filter (Revision 12 embedding model). */
     isClass: booleanQueryParam.optional(),
     /**
-     * Render-bit filter: true selects the document-chrome rows (non-class
-     * roots plus main children), false the inline-body blocks (parented,
-     * bit unset).
+     * Embedding-flag filter: true selects the embedded body rows (parented
+     * non-class nodes with the flag set — the Block role), false the
+     * standalone rows (non-class roots plus standalone children — the Page
+     * role).
      */
-    presentAsMain: booleanQueryParam.optional(),
+    isEmbedded: booleanQueryParam.optional(),
     class: z.string().uuid().optional(),
     /** Direct-children filter: parent_id equality. */
     parent: z.string().uuid().optional(),
@@ -103,14 +104,15 @@ const mergeBodySchema = z.object({ targetId: z.string().uuid() }).strict();
 const createBodySchema = z
   .object({
     /**
-     * Revision 11 render state. `isClass: true` declares a class node — the
+     * Revision 12 embedding model. `isClass: true` declares a class node — the
      * write becomes a class.create envelope (classes are always roots, so
-     * parentId / classIds / presentAsMain must not accompany it). Otherwise
-     * the write is object.create and `presentAsMain` sets the render bit
-     * (applier default: true when parentless, false when parented).
+     * parentId / classIds / isEmbedded must not accompany it). Otherwise
+     * the write is object.create and `isEmbedded` sets the embedding flag
+     * (applier default: false/standalone when parentless, true/embedded
+     * when parented).
      */
     isClass: z.boolean().optional(),
-    presentAsMain: z.boolean().optional(),
+    isEmbedded: z.boolean().optional(),
     /** Title-is-content: becomes the node's initial text content. */
     name: z.string().max(1024).optional(),
     contentAst: z.array(z.unknown()).optional(),
@@ -125,9 +127,10 @@ const createBodySchema = z
 
 const updateBodySchema = z
   .object({
-    /** Render-bit toggle: promotion/demotion between the parent's
-     * main-children zone and the inline body. */
-    presentAsMain: z.boolean().optional(),
+    /** Embedding-flag toggle: promotion/demotion between the standalone
+     * Page role (isEmbedded: false) and the embedded Block role
+     * (isEmbedded: true) under the parent. */
+    isEmbedded: z.boolean().optional(),
     icon: z.string().max(64).optional(),
     /** Preset token or #RRGGBB hex; null clears (SCHEMA.md color grammar). */
     color: colorValueSchema.nullish(),
@@ -164,7 +167,7 @@ const searchQuerySchema = z
   .object({
     q: z.string().min(1).max(512),
     isClass: booleanQueryParam.optional(),
-    presentAsMain: booleanQueryParam.optional(),
+    isEmbedded: booleanQueryParam.optional(),
     limit: z.coerce.number().int().min(1).max(500).default(50),
     /**
      * Offset cursor from a previous response's `nextCursor` —
@@ -206,12 +209,13 @@ function workspaceFor(ctx: ServerContext, request: FastifyRequest): string {
 interface ApiObject {
   id: string;
   workspaceId: string;
-  /** Class identity bit (Revision 11): true = class node (always a root). */
+  /** Class identity bit (Revision 12): true = class node (always a root). */
   isClass: boolean;
-  /** Render bit for parented non-class nodes: true = the parent's
-   * main-children zone + document chrome when zoomed; false = inline body +
-   * block chrome. Unread for parentless nodes and classes. */
-  presentAsMain: boolean;
+  /** Embedding flag for parented non-class nodes: true = embedded in the
+   * parent's body (the Block role); false = a standalone structural element
+   * (the Page role — the parent's main-children zone + document chrome when
+   * zoomed). Unread for parentless nodes and classes. */
+  isEmbedded: boolean;
   parentId: string | null;
   classIds: string[];
   name: string | null;
@@ -236,7 +240,7 @@ function nodeToApi(row: NodeRow): ApiObject {
     id: row.id,
     workspaceId: row.workspace_id,
     isClass: row.is_class === 1,
-    presentAsMain: row.present_as_main === 1,
+    isEmbedded: row.is_embedded === 1,
     parentId: row.parent_id,
     classIds: JSON.parse(row.class_ids) as string[],
     // Title-is-content: the API name derives from the node's content (the
@@ -245,7 +249,7 @@ function nodeToApi(row: NodeRow): ApiObject {
       deriveDisplayName({
         id: row.id,
         isClass: row.is_class,
-        presentAsMain: row.present_as_main,
+        isEmbedded: row.is_embedded,
         contentAst: JSON.parse(row.content) as NonNullable<Parameters<typeof deriveDisplayName>[0]["contentAst"]>,
         classIds: JSON.parse(row.class_ids) as string[],
       }) || null,
@@ -341,7 +345,7 @@ function classNameFromNode(nodeContent: string | null, nodeClassIds: string | nu
     const derived = deriveDisplayName({
       id: "",
       isClass: 1,
-      presentAsMain: 0,
+      isEmbedded: 0,
       contentAst: JSON.parse(nodeContent) as NonNullable<Parameters<typeof deriveDisplayName>[0]["contentAst"]>,
       classIds: JSON.parse(nodeClassIds ?? "[]") as string[],
     });
@@ -438,7 +442,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid list query");
     }
-    const { isClass, presentAsMain, class: classId, parent, trashed, q, limit, cursor } = parsed.data;
+    const { isClass, isEmbedded, class: classId, parent, trashed, q, limit, cursor } = parsed.data;
     const workspaceId = workspaceFor(ctx, request);
     await ctx.ensureSeeded(workspaceId);
     const store = ctx.workspaces.storeFor(workspaceId);
@@ -453,14 +457,14 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
       clauses.push("n.is_class = ?");
       params.push(isClass ? 1 : 0);
     }
-    if (presentAsMain !== undefined) {
-      // The pages-ish listing is the document-chrome predicate (non-class
-      // roots render as documents regardless of the bit); its negation is
-      // the inline body (parented rows with the bit unset).
+    if (isEmbedded !== undefined) {
+      // The embedding-flag filter reads the column directly (Revision 12):
+      // true selects the embedded body rows (parented, flag set), false the
+      // standalone rows (non-class roots plus standalone children).
       clauses.push(
-        presentAsMain
-          ? "n.is_class = 0 AND (n.parent_id IS NULL OR n.present_as_main = 1)"
-          : "n.is_class = 0 AND n.parent_id IS NOT NULL AND n.present_as_main = 0",
+        isEmbedded
+          ? "n.is_class = 0 AND n.parent_id IS NOT NULL AND n.is_embedded = 1"
+          : "n.is_class = 0 AND (n.parent_id IS NULL OR n.is_embedded = 0)",
       );
     }
     if (classId !== undefined) {
@@ -532,12 +536,12 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
       if (
         parsed.data.parentId !== undefined ||
         parsed.data.classIds.length > 0 ||
-        parsed.data.presentAsMain !== undefined
+        parsed.data.isEmbedded !== undefined
       ) {
         throw new AppError(
           422,
           "validation_failed",
-          "isClass cannot combine with parentId, classIds, or presentAsMain (classes are roots)",
+          "isClass cannot combine with parentId, classIds, or isEmbedded (classes are roots)",
         );
       }
       const payload = {
@@ -569,7 +573,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     }
     const payload = {
       objectId,
-      ...(parsed.data.presentAsMain !== undefined ? { presentAsMain: parsed.data.presentAsMain } : {}),
+      ...(parsed.data.isEmbedded !== undefined ? { isEmbedded: parsed.data.isEmbedded } : {}),
       ...(initialText !== undefined ? { contentAst: initialText } : {}),
       ...(parsed.data.contentAst !== undefined ? { contentAst: parsed.data.contentAst } : {}),
       classIds: parsed.data.classIds,
@@ -1045,7 +1049,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     if (!parsed.success) {
       throw new AppError(422, "validation_failed", parsed.error.issues[0]?.message ?? "invalid search query");
     }
-    const { q, isClass, presentAsMain, limit, cursor } = parsed.data;
+    const { q, isClass, isEmbedded, limit, cursor } = parsed.data;
     const workspaceId = workspaceFor(ctx, request);
     await ctx.ensureSeeded(workspaceId);
     const store = ctx.workspaces.storeFor(workspaceId);
@@ -1056,19 +1060,15 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
       .filter((row) => isClass === undefined || (row.is_class === 1) === isClass)
       .filter(
         (row) =>
-          presentAsMain === undefined ||
-          rendersWithDocumentChrome({
-            isClass: row.is_class,
-            parentId: row.parent_id,
-            presentAsMain: row.present_as_main,
-          }) === presentAsMain,
+          isEmbedded === undefined ||
+          (row.is_embedded === 1) === isEmbedded,
       )
       .map((row) => {
         const api = nodeToApi(row);
         return {
           id: api.id,
           isClass: api.isClass,
-          presentAsMain: api.presentAsMain,
+          isEmbedded: api.isEmbedded,
           name: api.name,
           parentId: api.parentId,
           updatedAt: api.updatedAt,
@@ -1116,7 +1116,7 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
           name: resolved.name,
           id: resolved.id,
           isClass: resolved.isClass,
-          presentAsMain: resolved.presentAsMain,
+          isEmbedded: resolved.isEmbedded,
           parentId: resolved.parentId,
         };
       }
@@ -1163,14 +1163,14 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
             deriveDisplayName({
               id: String(row.id),
               isClass: row.is_class as number,
-              presentAsMain: row.present_as_main as number,
+              isEmbedded: row.is_embedded as number,
               contentAst: JSON.parse((row.content as string | null) ?? "[]") as NonNullable<Parameters<typeof deriveDisplayName>[0]["contentAst"]>,
               classIds: JSON.parse((row.class_ids as string | null) ?? "[]") as string[],
             }) || null;
           const summary: Record<string, unknown> = {
             id: String(row.id),
             isClass: (row.is_class as number) === 1,
-            presentAsMain: (row.present_as_main as number) === 1,
+            isEmbedded: (row.is_embedded as number) === 1,
             name: derived,
             parentId: (row.parent_id as string | null) ?? null,
             createdAt: (row.created_at as string | null) ?? null,
@@ -1244,22 +1244,22 @@ export function registerObjectRoutes(app: FastifyInstance, ctx: ServerContext): 
     const members = (
       store.database
         .prepare(
-          `SELECT n.id, n.is_class AS isClass, n.present_as_main AS presentAsMain, n.content, n.class_ids
+          `SELECT n.id, n.is_class AS isClass, n.is_embedded AS isEmbedded, n.content, n.class_ids
            FROM class_member_set m JOIN node n ON n.id = m.node_id
            WHERE m.class_id = ? AND m.present = 1 AND n.is_active = 1 ORDER BY n.id`,
         )
-        .all(id) as Array<{ id: string; isClass: number; presentAsMain: number; content: string; class_ids: string }>
+        .all(id) as Array<{ id: string; isClass: number; isEmbedded: number; content: string; class_ids: string }>
     ).map((row) => ({
       id: row.id,
       name: deriveDisplayName({
         id: row.id,
         isClass: row.isClass,
-        presentAsMain: row.presentAsMain,
+        isEmbedded: row.isEmbedded,
         contentAst: JSON.parse(row.content) as NonNullable<Parameters<typeof deriveDisplayName>[0]["contentAst"]>,
         classIds: JSON.parse(row.class_ids) as string[],
       }) || null,
       isClass: row.isClass === 1,
-      presentAsMain: row.presentAsMain === 1,
+      isEmbedded: row.isEmbedded === 1,
     }));
     return {
       class: {

@@ -28,7 +28,7 @@ describe("objects API", () => {
   it("create → get round-trip", async () => {
     server = await makeTestServer();
     const created = await api("POST", "/api/objects", {
-      payload: { presentAsMain: true, name: "Round Trip", contentAst: [{ type: "text", text: "hello body" }] },
+      payload: { isEmbedded: false, name: "Round Trip", contentAst: [{ type: "text", text: "hello body" }] },
     });
     expect(created.statusCode).toBe(201);
     const { id } = created.json();
@@ -37,7 +37,7 @@ describe("objects API", () => {
     const fetched = await api("GET", `/api/objects/${id}`);
     expect(fetched.statusCode).toBe(200);
     const object = fetched.json().object;
-    expect(object).toMatchObject({ id, isClass: false, presentAsMain: true, isActive: true });
+    expect(object).toMatchObject({ id, isClass: false, isEmbedded: false, isActive: true });
     // Title-is-content: `name` is no longer stored (the convenience field is
     // dropped when an explicit contentAst rides along); the API name is the
     // title derived from the content.
@@ -48,7 +48,7 @@ describe("objects API", () => {
 
   it("PATCH updates fields (LWW: the later write wins)", async () => {
     server = await makeTestServer();
-    const { id } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Before" } })).json();
+    const { id } = (await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "Before" } })).json();
     const patched = await api("PATCH", `/api/objects/${id}`, { payload: { contentAst: [{ type: "text", text: "After" }] } });
     expect(patched.statusCode).toBe(200);
     expect(patched.json().object.contentAst).toEqual([{ type: "text", text: "After" }]);
@@ -67,7 +67,7 @@ describe("objects API", () => {
 
   it("soft delete keeps the object retrievable; permanent delete removes it", async () => {
     server = await makeTestServer();
-    const { id } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Doomed" } })).json();
+    const { id } = (await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "Doomed" } })).json();
 
     const soft = await api("DELETE", `/api/objects/${id}`);
     expect(soft.statusCode).toBe(200);
@@ -89,28 +89,28 @@ describe("objects API", () => {
     expect(gone.statusCode).toBe(404);
   });
 
-  it("objects list supports isClass/presentAsMain filters and cursor pagination", async () => {
+  it("objects list supports isClass/isEmbedded filters and cursor pagination", async () => {
     server = await makeTestServer();
     const ids: string[] = [];
     for (let i = 0; i < 5; i += 1) {
-      const { id } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: `p${i}` } })).json();
+      const { id } = (await api("POST", "/api/objects", { payload: { isEmbedded: false, name: `p${i}` } })).json();
       ids.push(id);
     }
-    const block = (await api("POST", "/api/objects", { payload: { presentAsMain: false, name: "b1", parentId: ids[0] } })).json();
+    const block = (await api("POST", "/api/objects", { payload: { isEmbedded: true, name: "b1", parentId: ids[0] } })).json();
     expect(block.id).toBeTruthy();
 
     // The pages-ish listing is the document-chrome predicate (non-class
     // roots + main children); parented rows with the bit unset stay out.
-    const page1 = (await api("GET", "/api/objects?presentAsMain=true&limit=2")).json();
+    const page1 = (await api("GET", "/api/objects?isEmbedded=false&limit=2")).json();
     expect(page1.objects).toHaveLength(2);
     expect(page1.nextCursor).not.toBeNull();
-    const page2 = (await api("GET", `/api/objects?presentAsMain=true&limit=2&cursor=${page1.nextCursor}`)).json();
+    const page2 = (await api("GET", `/api/objects?isEmbedded=false&limit=2&cursor=${page1.nextCursor}`)).json();
     expect(page2.objects).toHaveLength(2);
     expect(new Set([...page1.objects.map((o: { id: string }) => o.id), ...page2.objects.map((o: { id: string }) => o.id)]).size).toBe(4);
 
-    const blocks = (await api("GET", "/api/objects?presentAsMain=false")).json();
+    const blocks = (await api("GET", "/api/objects?isEmbedded=true")).json();
     expect(blocks.objects.map((o: { id: string }) => o.id)).toContain(block.id);
-    expect(blocks.objects.every((o: { isClass: boolean; presentAsMain: boolean }) => o.isClass === false && o.presentAsMain === false)).toBe(true);
+    expect(blocks.objects.every((o: { isClass: boolean; isEmbedded: boolean }) => o.isClass === false && o.isEmbedded === true)).toBe(true);
 
     const nonClasses = (await api("GET", "/api/objects?isClass=false")).json();
     expect(nonClasses.objects.map((o: { id: string }) => o.id)).toContain(block.id);
@@ -118,20 +118,20 @@ describe("objects API", () => {
 
   it("children endpoint returns active children in child-position order", async () => {
     server = await makeTestServer();
-    const { id: parent } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Host" } })).json();
+    const { id: parent } = (await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "Host" } })).json();
     const { id: a } = (
-      await api("POST", "/api/objects", { payload: { presentAsMain: false, name: "first", parentId: parent } })
+      await api("POST", "/api/objects", { payload: { isEmbedded: true, name: "first", parentId: parent } })
     ).json();
     const { id: b } = (
-      await api("POST", "/api/objects", { payload: { presentAsMain: false, name: "second", parentId: parent } })
+      await api("POST", "/api/objects", { payload: { isEmbedded: true, name: "second", parentId: parent } })
     ).json();
     const { id: c } = (
-      await api("POST", "/api/objects", { payload: { presentAsMain: false, name: "third", parentId: parent } })
+      await api("POST", "/api/objects", { payload: { isEmbedded: true, name: "third", parentId: parent } })
     ).json();
     // A main child (child page): the endpoint returns every active child,
     // both render zones — filtering to the inline body is the caller's job.
     const { id: main } = (
-      await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "main child", parentId: parent } })
+      await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "main child", parentId: parent } })
     ).json();
 
     // Invert the position order with an object.move (ids stay creation-ordered,
@@ -154,7 +154,7 @@ describe("objects API", () => {
     const children = res.json().children;
     expect(children.map((o: { id: string }) => o.id)).toEqual([c, a, b, main]);
     // The full projection rides along (same shape as GET /objects/:id).
-    expect(children[0]).toMatchObject({ id: c, parentId: parent, presentAsMain: false, isActive: true });
+    expect(children[0]).toMatchObject({ id: c, parentId: parent, isEmbedded: true, isActive: true });
     expect(children[0].contentAst).toEqual([{ type: "text", text: "third" }]);
 
     // Trashing a child drops it from the list (soft delete keeps the
@@ -176,7 +176,7 @@ describe("objects API", () => {
     const { id } = (
       await api("POST", "/api/objects", {
         payload: {
-          presentAsMain: true,
+          isEmbedded: false,
           name: "Searchable",
           contentAst: [{ type: "text", text: "quixotic expedition notes" }],
         },
@@ -191,7 +191,7 @@ describe("objects API", () => {
     server = await makeTestServer();
     for (let i = 0; i < 5; i++) {
       await api("POST", "/api/objects", {
-        payload: { presentAsMain: true, name: `Cursorpage ${i}`, contentAst: [{ type: "text", text: "cursorword body" }] },
+        payload: { isEmbedded: false, name: `Cursorpage ${i}`, contentAst: [{ type: "text", text: "cursorword body" }] },
       });
     }
     const first = await api("GET", "/api/search?q=cursorword&limit=2");
@@ -215,10 +215,10 @@ describe("objects API", () => {
   it("search supports quoted phrases", async () => {
     server = await makeTestServer();
     await api("POST", "/api/objects", {
-      payload: { presentAsMain: true, contentAst: [{ type: "text", text: "the quick brown fox" }] },
+      payload: { isEmbedded: false, contentAst: [{ type: "text", text: "the quick brown fox" }] },
     });
     await api("POST", "/api/objects", {
-      payload: { presentAsMain: true, contentAst: [{ type: "text", text: "quick fox brown" }] },
+      payload: { isEmbedded: false, contentAst: [{ type: "text", text: "quick fox brown" }] },
     });
     const res = await api("GET", "/api/search?q=%22quick%20brown%22");
     expect(res.statusCode).toBe(200);
@@ -228,7 +228,7 @@ describe("objects API", () => {
 
   it("resolve maps an exact display name to an id", async () => {
     server = await makeTestServer();
-    const { id } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "My Source" } })).json();
+    const { id } = (await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "My Source" } })).json();
     const res = await api("GET", `/api/resolve?name=${encodeURIComponent("my source")}`);
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ id, name: "My Source" });
@@ -242,7 +242,7 @@ describe("objects API", () => {
     server = await makeTestServer();
     // The alias schema is seeded (global scope, multi text) — author a value
     // and resolve by it.
-    const { id } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "The Republic" } })).json();
+    const { id } = (await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "The Republic" } })).json();
     const aliasWrite = await api("POST", `/api/objects/${id}/properties`, {
       payload: { propertySchemaId: SYSTEM_PROPERTY_UUIDS.alias, value: "Politeia", idx: 0 },
     });
@@ -257,8 +257,8 @@ describe("objects API", () => {
 
   it("resolve folds a NODE alias to its main page", async () => {
     server = await makeTestServer();
-    const main = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Productivity" } })).json();
-    const alias = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Getting Things Done" } })).json();
+    const main = (await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "Productivity" } })).json();
+    const alias = (await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "Getting Things Done" } })).json();
     // The wire-field carrier: object.update {aliasedNodeId} on the ALIAS.
     const link = await api("PATCH", `/api/objects/${alias.id}`, {
       payload: { aliasedNodeId: main.id },
@@ -276,15 +276,15 @@ describe("objects API", () => {
 
   it("the ApiObject projection exposes the three wire node fields (null = unset)", async () => {
     server = await makeTestServer();
-    const main = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Main" } })).json();
-    const page = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Page" } })).json();
+    const main = (await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "Main" } })).json();
+    const page = (await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "Page" } })).json();
     // Unset fields read null on every read surface.
     let fetched = (await api("GET", `/api/objects/${page.id}`)).json().object;
     expect(fetched).toMatchObject({ coverAssetId: null, bannerAssetId: null, aliasedNodeId: null });
 
     // The cover/banner carry asset node ids; the alias field carries the
     // main page id — all three round-trip through PATCH -> GET.
-    const asset = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Asset" } })).json();
+    const asset = (await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "Asset" } })).json();
     const patched = await api("PATCH", `/api/objects/${page.id}`, {
       payload: { coverAssetId: asset.id, bannerAssetId: asset.id, aliasedNodeId: main.id },
     });
@@ -321,7 +321,7 @@ describe("objects API", () => {
 
   it("apply-time value validation fails loud as 422", async () => {
     server = await makeTestServer();
-    const { id } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Dated" } })).json();
+    const { id } = (await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "Dated" } })).json();
     const schema = (await api("POST", "/api/property-schemas", {
       payload: { propertySchemaId: crypto.randomUUID(), name: "when", type: "datetime" },
     })).json().propertySchema;
@@ -353,14 +353,14 @@ describe("objects API", () => {
 
   it("backlinks reflect an emitted mention", async () => {
     server = await makeTestServer();
-    const { id: target } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Target" } })).json();
-    const { id: source } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Source" } })).json();
+    const { id: target } = (await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "Target" } })).json();
+    const { id: source } = (await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "Source" } })).json();
     // Title-is-content: pages carry text-only content, so the mention token
     // rides in a block child of the source page.
     const { id: block } = (
       await api("POST", "/api/objects", {
         payload: {
-          presentAsMain: false,
+          isEmbedded: true,
           parentId: source,
           contentAst: [{ type: "mention", targetNodeId: target, text: "Target" }],
         },
@@ -395,7 +395,7 @@ describe("objects API", () => {
     server = await makeTestServer();
     const { id } = (
       await api("POST", "/api/objects", {
-        payload: { presentAsMain: true, name: "Task page", classIds: [SYSTEM_CLASS_UUIDS.task] },
+        payload: { isEmbedded: false, name: "Task page", classIds: [SYSTEM_CLASS_UUIDS.task] },
       })
     ).json();
     const detail = (await api("GET", `/api/classes/${SYSTEM_CLASS_UUIDS.task}`)).json();
@@ -409,7 +409,7 @@ describe("objects API", () => {
     const created = await api("POST", "/api/objects", { payload: { isClass: true, name: "Genre" } });
     expect(created.statusCode).toBe(201);
     const { id, object } = created.json();
-    expect(object).toMatchObject({ id, isClass: true, presentAsMain: false, isActive: true });
+    expect(object).toMatchObject({ id, isClass: true, isEmbedded: false, isActive: true });
     expect(object.name).toBe("Genre");
 
     // Classes are always roots: placement/render fields cannot accompany isClass.
@@ -423,19 +423,19 @@ describe("objects API", () => {
     expect(withClassIds.statusCode).toBe(422);
   });
 
-  it("PATCH presentAsMain toggles the render bit (promotion/demotion)", async () => {
+  it("PATCH isEmbedded toggles the render bit (promotion/demotion)", async () => {
     server = await makeTestServer();
-    const { id: parent } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Host" } })).json();
+    const { id: parent } = (await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "Host" } })).json();
     const { id: child } = (
-      await api("POST", "/api/objects", { payload: { presentAsMain: false, name: "Child", parentId: parent } })
+      await api("POST", "/api/objects", { payload: { isEmbedded: true, name: "Child", parentId: parent } })
     ).json();
     expect((await api("GET", `/api/objects/${child}`)).json().object).toMatchObject({
       isClass: false,
-      presentAsMain: false,
+      isEmbedded: true,
     });
-    const patched = await api("PATCH", `/api/objects/${child}`, { payload: { presentAsMain: true } });
+    const patched = await api("PATCH", `/api/objects/${child}`, { payload: { isEmbedded: false } });
     expect(patched.statusCode).toBe(200);
-    expect(patched.json().object.presentAsMain).toBe(true);
+    expect(patched.json().object.isEmbedded).toBe(false);
   });
 
   it("requires the API key on the object surface", async () => {
@@ -447,7 +447,7 @@ describe("objects API", () => {
 
   it("property values endpoint returns stored values", async () => {
     server = await makeTestServer();
-    const { id } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Prop" } })).json();
+    const { id } = (await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "Prop" } })).json();
     const isbnSchema = SYSTEM_PROPERTY_UUIDS.isbn;
     const env = newEnvelope({
       workspaceId: server.ctx.defaultWorkspace,
@@ -484,7 +484,7 @@ describe("class membership endpoints", () => {
   it("PUT assigns idempotently; DELETE unassigns idempotently", async () => {
     server = await makeTestServer();
     const { id: classId } = (await api("POST", "/api/objects", { payload: { isClass: true, name: "Genre" } })).json();
-    const { id } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Novel" } })).json();
+    const { id } = (await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "Novel" } })).json();
 
     const assigned = await api("PUT", `/api/objects/${id}/classes/${classId}`);
     expect(assigned.statusCode).toBe(200);
@@ -517,7 +517,7 @@ describe("class membership endpoints", () => {
     const missingObject = await api("PUT", `/api/objects/${crypto.randomUUID()}/classes/${classId}`);
     expect(missingObject.statusCode).toBe(404);
 
-    const { id } = (await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Novel" } })).json();
+    const { id } = (await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "Novel" } })).json();
     const missingClass = await api("PUT", `/api/objects/${id}/classes/${crypto.randomUUID()}`);
     expect(missingClass.statusCode).toBe(404);
   });
@@ -528,7 +528,7 @@ describe("class title derivation", () => {
     server = await makeTestServer();
     const { id: classId } = (await api("POST", "/api/objects", { payload: { isClass: true, name: "Migrated" } })).json();
     const { id: memberId } = (
-      await api("POST", "/api/objects", { payload: { presentAsMain: true, name: "Member Page", classIds: [classId] } })
+      await api("POST", "/api/objects", { payload: { isEmbedded: false, name: "Member Page", classIds: [classId] } })
     ).json();
 
     // Simulate the pre-title-is-content migration drift: the registry cache

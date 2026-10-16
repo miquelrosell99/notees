@@ -22,7 +22,7 @@ function makeNode(id: string, text: string): ExportNode {
   return {
     id,
     isClass: 0,
-    presentAsMain: 1,
+    isEmbedded: 0,
     parentId: null,
     name: text,
     contentAst: [{ type: "text", text }],

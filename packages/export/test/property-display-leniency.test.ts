@@ -49,7 +49,7 @@ function node(id: string, properties: ExportNode["properties"], extra: Partial<E
   return {
     id,
     isClass: 0,
-    presentAsMain: 1,
+    isEmbedded: 0,
     parentId: null,
     name: null,
     contentAst: [{ type: "text", text: "Root" }] as ContentAst,
@@ -223,18 +223,18 @@ describe("withoutLeadingTitleBlocks (outline children)", () => {
   });
 });
 
-describe("outline children carry the main-zone bit", () => {
-  it("presentAsMain mirrors the child's render bit", () => {
+describe("outline children carry the embedding flag", () => {
+  it("isEmbedded mirrors the child's embedding flag (true = embedded)", () => {
     const ctx = makeCtx({
       childrenOf: (id) =>
         id === "aaaaaaaa-0000-4000-8000-000000000001"
           ? [
-              node("bbbbbbbb-0000-4000-8000-000000000002", [], { presentAsMain: 1, parentId: "aaaaaaaa-0000-4000-8000-000000000001" }),
-              node("cccccccc-0000-4000-8000-000000000003", [], { presentAsMain: 0, parentId: "aaaaaaaa-0000-4000-8000-000000000001" }),
+              node("bbbbbbbb-0000-4000-8000-000000000002", [], { isEmbedded: 0, parentId: "aaaaaaaa-0000-4000-8000-000000000001" }),
+              node("cccccccc-0000-4000-8000-000000000003", [], { isEmbedded: 1, parentId: "aaaaaaaa-0000-4000-8000-000000000001" }),
             ]
           : [],
     });
     const document = docFor([], ctx);
-    expect(document.children.map((child) => child.presentAsMain)).toEqual([true, false]);
+    expect(document.children.map((child) => child.isEmbedded)).toEqual([false, true]);
   });
 });

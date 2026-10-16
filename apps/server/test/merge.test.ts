@@ -33,7 +33,7 @@ function api(
 }
 
 async function createObject(name: string, extra: Record<string, unknown> = {}): Promise<string> {
-  const res = await api("POST", "/api/objects", { payload: { presentAsMain: true, name, ...extra } });
+  const res = await api("POST", "/api/objects", { payload: { isEmbedded: false, name, ...extra } });
   expect(res.statusCode).toBe(201);
   return res.json().id as string;
 }

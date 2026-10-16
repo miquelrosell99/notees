@@ -99,7 +99,7 @@ async function createRule(schemaId: string, overrides: Partial<RuleBody> = {}) {
 async function createNode(name: string, classIds: string[] = []): Promise<string> {
   const res = await api("POST", "/api/objects", {
     payload: {
-      presentAsMain: true,
+      isEmbedded: false,
       contentAst: [{ type: "text", text: name }],
       classIds,
     },
@@ -313,7 +313,7 @@ describe("workflow engine (issue #13)", () => {
 
     const created = await api("POST", "/api/objects", {
       payload: {
-        presentAsMain: true,
+        isEmbedded: false,
         contentAst: [{ type: "text", text: "wf-failing" }],
         classIds: [SYSTEM_CLASS_UUIDS.paper],
       },
@@ -330,7 +330,7 @@ describe("workflow engine (issue #13)", () => {
     expect(runs[0]!.detail).toBeTruthy();
     // …and the client can keep writing (the ingest path is unharmed).
     const after = await api("POST", "/api/objects", {
-      payload: { presentAsMain: true, contentAst: [{ type: "text", text: "wf-after-failure" }] },
+      payload: { isEmbedded: false, contentAst: [{ type: "text", text: "wf-after-failure" }] },
     });
     expect(after.statusCode).toBe(201);
   });

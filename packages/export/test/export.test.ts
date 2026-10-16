@@ -44,16 +44,16 @@ function makeCtx(overrides: Partial<ExportContext> = {}): ExportContext {
 }
 
 function page(id: string, name: string, contentAst: ContentAst = [], extra: Partial<ExportNode> = {}): ExportNode {
-  // A parentless non-class node: document chrome (presentAsMain unread).
-  return { id, isClass: 0, presentAsMain: 1, parentId: null, name, contentAst, classIds: [], properties: [], ...extra };
+  // A parentless non-class node: document chrome (isEmbedded unread).
+  return { id, isClass: 0, isEmbedded: 0, parentId: null, name, contentAst, classIds: [], properties: [], ...extra };
 }
 
 function block(id: string, contentAst: ContentAst, extra: Partial<ExportNode> = {}): ExportNode {
-  // A parented node with the render bit unset: inline body, block chrome.
+  // A parented embedded node (isEmbedded = 1): the Block role — inline body, block chrome.
   return {
     id,
     isClass: 0,
-    presentAsMain: 0,
+    isEmbedded: 1,
     parentId: "ffffffff-0000-4000-8000-000000000000",
     name: null,
     contentAst,
@@ -192,7 +192,7 @@ describe("token → markdown mapping", () => {
 });
 
 describe("frontmatter", () => {
-  it("carries name, isClass, presentAsMain, classIds, and properties with metadata qualifiers", () => {
+  it("carries name, isClass, isEmbedded, classIds, and properties with metadata qualifiers", () => {
     // Title-is-content: the page's display name IS its text content.
     const node = page("aaaaaaaa-0000-4000-8000-000000000009", "The Left Hand", [
       { type: "text", text: "The Left Hand" },
@@ -209,7 +209,7 @@ describe("frontmatter", () => {
     const fm = nodeToMarkdown(node, makeCtx()).split("---\n")[1] ?? "";
     expect(fm).toContain("name: The Left Hand");
     expect(fm).toContain("isClass: false");
-    expect(fm).toContain("presentAsMain: true");
+    expect(fm).toContain("isEmbedded: false");
     expect(fm).toContain(`  - ${PERSON_CLASS_ID}`);
     expect(fm).toContain('  status: active');
     expect(fm).toContain("  year: 1962 (since 1962)");
@@ -410,7 +410,7 @@ describe("frontmatter", () => {
 });
 
 describe("heading rule (document-chrome predicate)", () => {
-  it("heads every node except parented non-class nodes with the render bit unset", () => {
+  it("heads every node except embedded parented non-class nodes", () => {
     const titled = (id: string, title: string, extra: Partial<ExportNode> = {}): ExportNode =>
       page(id, title, [{ type: "text", text: title }], extra);
     // Parentless node: heading (second cascade branch; the bit is unread).
@@ -418,7 +418,7 @@ describe("heading rule (document-chrome predicate)", () => {
     // Parented node presenting as main: heading (main-children zone).
     const mainChild = titled("dddddddd-0000-4000-8000-000000000002", "Main child", {
       parentId: "ffffffff-0000-4000-8000-000000000000",
-      presentAsMain: 1,
+      isEmbedded: 0,
     });
     expect(nodeToMarkdown(mainChild, makeCtx())).toContain("# Main child");
     // Class node: heading (ClassView files stay labeled).
@@ -456,6 +456,31 @@ describe("children as nested bullets", () => {
     expect(md).toContain("  - grandchild line");
   });
 
+  it("splits the zones (Revision 12): the body outline carries embedded children only; standalone children render as a Pages link section", () => {
+    const embedded = block("bbbbbbbb-0000-4000-8000-000000000020", [
+      { type: "text", text: "embedded block" },
+    ]);
+    const standalone = page("bbbbbbbb-0000-4000-8000-000000000021", "unused-name", [
+      { type: "text", text: "Standalone child" },
+    ]);
+    const parent = page("bbbbbbbb-0000-4000-8000-000000000022", "parent", [
+      { type: "text", text: "own body" },
+    ]);
+    const children = new Map([
+      [parent.id, [embedded, standalone]],
+      [embedded.id, []],
+      [standalone.id, []],
+    ]);
+    const ctx = makeCtx({ childrenOf: (id) => children.get(id) ?? [] });
+    const md = nodeToMarkdown(parent, ctx);
+    // The embedded block rides the body outline; the standalone child is a
+    // link in the Pages section — its subtree is NOT expanded in the file.
+    expect(md).toContain("- embedded block");
+    expect(md).toContain("## Pages");
+    expect(md).toContain("- [[Standalone child]]");
+    expect(md.indexOf("- embedded block")).toBeLessThan(md.indexOf("## Pages"));
+  });
+
   it("breaks embed-style cycles with a ![[id]] reference instead of recursing", () => {
     const a = block("bbbbbbbb-0000-4000-8000-000000000010", [{ type: "text", text: "A" }]);
     const children = new Map([[a.id, [a]]]);
@@ -487,7 +512,7 @@ describe("bundle", () => {
         name: "Alpha",
         type: "page",
         isClass: false,
-        presentAsMain: true,
+        isEmbedded: false,
       },
       {
         id: "cccccccc-0000-4000-8000-000000000002",
@@ -495,7 +520,7 @@ describe("bundle", () => {
         name: "Beta",
         type: "page",
         isClass: false,
-        presentAsMain: true,
+        isEmbedded: false,
       },
     ]);
   });
@@ -594,7 +619,7 @@ describe("whiteboard sidecar files", () => {
     const child: ExportNode = {
       id: childId,
       isClass: 0,
-      presentAsMain: 0,
+      isEmbedded: 1,
       parentId: pageId,
       name: null,
       contentAst: [{ type: "whiteboard", layout }],
@@ -673,7 +698,7 @@ describe("link/asset rewriting hooks (multi-file delivery)", () => {
     const node = page("dddddddd-0000-4000-8000-000000000007", "host", []);
     const ctx = makeCtx({
       // The child resolver returns the root as its own child → cycle cut.
-      childrenOf: (id) => (id === node.id ? [{ ...node, presentAsMain: 0, parentId: node.id, contentAst: [] }] : []),
+      childrenOf: (id) => (id === node.id ? [{ ...node, isEmbedded: 1, parentId: node.id, contentAst: [] }] : []),
       linkTarget: () => ({ path: "anywhere.md" }),
     });
     const md = nodeToMarkdown(node, ctx);

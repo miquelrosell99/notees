@@ -4,7 +4,7 @@
  * export-redesign pass.
  *
  * The op log is the truth; this is a lossy, human-facing projection:
- * UUID-or-slug filenames, YAML frontmatter (name/isClass/presentAsMain/
+ * UUID-or-slug filenames, YAML frontmatter (name/isClass/isEmbedded/
  * classes/properties), `[[mentions]]`, `#class-chips`, `![[uuid]]` embeds,
  * fenced ```query / ```json whiteboard blocks, and a workspace
  * UUID↔name↔type manifest (bundle.ts).
@@ -222,7 +222,7 @@ function renderFrontmatter(document: ExportDocument, options: ResolvedExportOpti
   const lines: string[] = ["---"];
   if (document.title.length > 0) lines.push(`name: ${yamlScalar(document.title)}`);
   lines.push(`isClass: ${document.isClass ? "true" : "false"}`);
-  lines.push(`presentAsMain: ${document.presentAsMain ? "true" : "false"}`);
+  lines.push(`isEmbedded: ${document.isEmbedded ? "true" : "false"}`);
   if (document.classIds.length > 0) {
     lines.push("classIds:");
     for (const classId of document.classIds) lines.push(`  - ${yamlScalar(classId)}`);
@@ -410,13 +410,48 @@ function renderBlocksToLines(
 
 /** Inlined embed (includeEmbedded): the target's blocks, then its outline
  * indented one level under the embed point. No frontmatter/heading — the
- * content lives inside the host document. */
+ * content lives inside the host document. The Revision-12 zone split
+ * applies: the embedded body's outline carries the embedded children only;
+ * the target's standalone children list as `[[links]]` at the outline's
+ * end. */
 function renderInlinedEmbed(document: ExportDocument, options: ResolvedExportOptions): string {
   const lines = renderBlocksToLines(document.blocks, document.nodeId, options);
   if (document.children.length > 0) {
-    lines.push(...renderChildBulletLines(document.children, options, 0).map((line) => `  ${line}`));
+    const { body, pages } = splitChildZones(document.children);
+    lines.push(...renderChildBulletLines(body, options, 0).map((line) => `  ${line}`));
+    if (pages.length > 0) {
+      lines.push(
+        ...pages.map((child) =>
+          `  - ${child.title.length > 0 ? `[[${escapeMarkdownText(child.title)}]]` : child.id}`,
+        ),
+      );
+    }
   }
   return lines.join("\n");
+}
+
+/**
+ * The Revision-12 body/pages split: a parent's exported body carries the
+ * EMBEDDED children only (isEmbedded = true — their content belongs to the
+ * parent's body); the standalone children (isEmbedded = false) are separate
+ * structural elements, listed as links in a trailing child-pages section —
+ * their subtrees are NOT expanded in the single-file body (the zip bundle
+ * exports them as separate files, mirroring the web Child pages section).
+ * Cut placeholders (cycle/depth) ride the body outline with the content
+ * flow.
+ */
+function splitChildZones(children: readonly ExportDocumentChild[]): {
+  body: readonly ExportDocumentChild[];
+  pages: readonly ExportDocumentChild[];
+} {
+  const body = children.filter((child) => child.isEmbedded || child.cut !== undefined);
+  const pages = children.filter((child) => !child.isEmbedded && child.cut === undefined);
+  return { body, pages };
+}
+
+/** One standalone child → a markdown link line (`[[name]]`, id fallback). */
+function renderChildPageLine(child: ExportDocumentChild): string {
+  return `- ${child.title.length > 0 ? `[[${escapeMarkdownText(child.title)}]]` : child.id}`;
 }
 
 /** Outline tree → nested bullets; cut entries render the visible `![[uuid]]`. */
@@ -454,7 +489,9 @@ function renderChildBulletLines(
  * chrome (inline blocks carry none), the rendered content — minus the
  * leading title span when it rides in the heading (the single-title rule,
  * {@link withoutLeadingTitle}) — and, unless includeOutline is off, the
- * nested-bullets outline.
+ * nested-bullets outline of the EMBEDDED children, followed by a
+ * `## Pages` link section for the standalone children (the Revision-12
+ * zone split — a parent's body carries embedded content only).
  */
 export function renderExportDocumentToMarkdown(
   document: ExportDocument,
@@ -469,8 +506,13 @@ export function renderExportDocumentToMarkdown(
   const bodyLines = renderBlocksToLines(withoutLeadingTitle(document), document.nodeId, options);
   if (bodyLines.length > 0) parts.push(bodyLines.join("\n"));
   if (document.children.length > 0) {
-    const childLines = renderChildBulletLines(document.children, options, 0);
+    const { body, pages } = splitChildZones(document.children);
+    const childLines = renderChildBulletLines(body, options, 0);
     if (childLines.length > 0) parts.push(childLines.join("\n"));
+    if (pages.length > 0) {
+      const pageLines = pages.map(renderChildPageLine);
+      parts.push(`## Pages\n\n${pageLines.join("\n")}`);
+    }
   }
   return parts.join("\n\n") + "\n";
 }

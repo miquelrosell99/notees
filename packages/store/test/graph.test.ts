@@ -1,6 +1,6 @@
 /**
  * graph.ts topology projection tests: the node set (classes +
- * present-as-main only — blocks never render), the containment rollup for
+ * standalone pages only — blocks never render), the containment rollup for
  * every edge family, the semantic co-occurrence projection (clique, weight,
  * hub guard, evidence), and the local-scope BFS.
  */
@@ -44,7 +44,7 @@ function createPage(id: string): Envelope {
 }
 
 function createBlock(id: string, parentId: string): Envelope {
-  return env("object.create", { objectId: id, parentId, presentAsMain: false });
+  return env("object.create", { objectId: id, parentId, isEmbedded: true });
 }
 
 function mention(target: string, text: string): Record<string, unknown> {
@@ -205,7 +205,7 @@ describe("graphTopology", () => {
       createPage(PAGE_A),
       createPage(PAGE_B),
       createPage(PAGE_C),
-      env("object.create", { objectId: dayNode, presentAsMain: true, classIds: [DAY] }),
+      env("object.create", { objectId: dayNode, isEmbedded: false, classIds: [DAY] }),
       createBlock(BLOCK_B1, dayNode),
       createBlock(BLOCK_C1, dayNode),
       env("object.update", { objectId: BLOCK_B1, contentAst: [mention(PAGE_A, "A"), mention(PAGE_B, "B")] }),
@@ -249,7 +249,7 @@ describe("graphTopology", () => {
     const store = setup(
       createPage(PAGE_A),
       createPage(PAGE_B),
-      env("object.create", { objectId: ALIAS, presentAsMain: true }),
+      env("object.create", { objectId: ALIAS, isEmbedded: false }),
       env("object.update", { objectId: ALIAS, aliasedNodeId: PAGE_B }),
       // An edge authored ON the alias page (a mention of PAGE_A)…
       env("object.update", { objectId: ALIAS, contentAst: [mention(PAGE_A, "A")] }),
@@ -272,7 +272,7 @@ describe("graphTopology", () => {
     const store = setup(
       createPage(PAGE_A),
       createPage(PAGE_B),
-      env("object.create", { objectId: ALIAS, presentAsMain: true }),
+      env("object.create", { objectId: ALIAS, isEmbedded: false }),
       env("object.update", { objectId: ALIAS, aliasedNodeId: PAGE_B }),
       // PAGE_A links both the terminal and its alias: two authored edges,
       // one rendered edge (A → B) with weight 2.
@@ -293,8 +293,8 @@ describe("graphTopology", () => {
     const store = setup(
       createPage(PAGE_A),
       createPage(PAGE_B),
-      env("object.create", { objectId: ALIAS, presentAsMain: true }),
-      env("object.create", { objectId: CHAIN_ALIAS, presentAsMain: true }),
+      env("object.create", { objectId: ALIAS, isEmbedded: false }),
+      env("object.create", { objectId: CHAIN_ALIAS, isEmbedded: false }),
       env("object.update", { objectId: ALIAS, aliasedNodeId: PAGE_B }),
       env("object.update", { objectId: CHAIN_ALIAS, aliasedNodeId: ALIAS }),
       createBlock(BLOCK_B1, PAGE_A),
@@ -317,7 +317,7 @@ describe("graphTopology node metrics", () => {
       createBlock(BLOCK_B1, PAGE_A),
       createBlock(BLOCK_C1, PAGE_A),
       // a nested main node with its own block: not part of PAGE_A's content
-      env("object.create", { objectId: PAGE_D, parentId: PAGE_A, presentAsMain: true }),
+      env("object.create", { objectId: PAGE_D, parentId: PAGE_A, isEmbedded: false }),
       createBlock("0192a000-0000-7000-8000-0000000000d1", PAGE_D),
     );
     const topology = graphTopology(store, WS);
@@ -331,7 +331,7 @@ describe("graphTopology node metrics", () => {
     const store = setup(
       createPage(PAGE_A),
       createBlock(BLOCK_B1, PAGE_A),
-      env("object.create", { objectId: PAGE_D, parentId: PAGE_A, presentAsMain: true }),
+      env("object.create", { objectId: PAGE_D, parentId: PAGE_A, isEmbedded: false }),
       createBlock("0192a000-0000-7000-8000-0000000000d1", PAGE_D),
       env("class.create", { classId: CLASS_X }),
     );
@@ -417,7 +417,7 @@ describe("graphTopology first-appearance stamps", () => {
       env("object.create", { objectId: PAGE_A, classIds: [CLASS_X] }),
       createPage(PAGE_B),
       createPage(PAGE_C),
-      env("object.create", { objectId: PAGE_D, parentId: PAGE_A, presentAsMain: true }),
+      env("object.create", { objectId: PAGE_D, parentId: PAGE_A, isEmbedded: false }),
       createBlock(BLOCK_B1, PAGE_A),
       env("object.update", {
         objectId: BLOCK_B1,

@@ -246,7 +246,7 @@ describe("relay authorization for accounts", () => {
     server = await makeTestServer();
     const setup = await setupAdmin();
     const token = setup.json().token as string;
-    const env = testEnvelope({ opType: "object.create", payload: { objectId: crypto.randomUUID(), presentAsMain: true, contentAst: [{ type: "text", text: "Via session" }] } });
+    const env = testEnvelope({ opType: "object.create", payload: { objectId: crypto.randomUUID(), isEmbedded: false, contentAst: [{ type: "text", text: "Via session" }] } });
     const response = await server.app.inject({
       method: "POST",
       url: "/api/relay/v2/batch",
@@ -271,7 +271,7 @@ describe("relay authorization for accounts", () => {
     const env = testEnvelope({
       workspaceId: workspace,
       opType: "object.create",
-      payload: { objectId: crypto.randomUUID(), presentAsMain: true, contentAst: [{ type: "text", text: "Claimed" }] },
+      payload: { objectId: crypto.randomUUID(), isEmbedded: false, contentAst: [{ type: "text", text: "Claimed" }] },
     });
     const write = await server.app.inject({
       method: "POST",
@@ -306,7 +306,7 @@ describe("relay authorization for accounts", () => {
     // Seed the foreign workspace via the operator key, then attempt a read
     // with the account token (membership exists only on the default ws).
     await ingest(server, [
-      testEnvelope({ workspaceId: foreign, opType: "object.create", payload: { objectId: crypto.randomUUID(), presentAsMain: true, contentAst: [{ type: "text", text: "Foreign" }] } }),
+      testEnvelope({ workspaceId: foreign, opType: "object.create", payload: { objectId: crypto.randomUUID(), isEmbedded: false, contentAst: [{ type: "text", text: "Foreign" }] } }),
     ]);
     const response = await server.app.inject({
       method: "POST",
@@ -497,7 +497,7 @@ describe("workspace delete and export", () => {
         opType: "object.create",
         payload: {
           objectId: pageId,
-          presentAsMain: true,
+          isEmbedded: false,
           contentAst: [{ type: "text", text: "Exported Page" }],
         },
       }),
@@ -512,7 +512,7 @@ describe("workspace delete and export", () => {
         payload: {
           objectId: childPageId,
           parentId: pageId,
-          presentAsMain: true,
+          isEmbedded: false,
           contentAst: [{ type: "text", text: "Child Page" }],
         },
       }),
@@ -649,37 +649,37 @@ describe("workspace delete and export", () => {
       testEnvelope({
         workspaceId,
         opType: "object.create",
-        payload: { objectId: pageId, presentAsMain: true, contentAst: [{ type: "text", text: "Real Page" }] },
+        payload: { objectId: pageId, isEmbedded: false, contentAst: [{ type: "text", text: "Real Page" }] },
       }),
       testEnvelope({
         workspaceId,
         opType: "object.create",
-        payload: { objectId: chain.year, presentAsMain: true, contentAst: [{ type: "text", text: "2026" }] },
+        payload: { objectId: chain.year, isEmbedded: false, contentAst: [{ type: "text", text: "2026" }] },
       }),
       testEnvelope({
         workspaceId,
         opType: "object.create",
-        payload: { objectId: chain.month, parentId: chain.year, presentAsMain: true, contentAst: [{ type: "text", text: "2026-09" }] },
+        payload: { objectId: chain.month, parentId: chain.year, isEmbedded: false, contentAst: [{ type: "text", text: "2026-09" }] },
       }),
       testEnvelope({
         workspaceId,
         opType: "object.create",
-        payload: { objectId: chain.day, parentId: chain.month, presentAsMain: true, contentAst: [{ type: "text", text: "2026-09-27" }] },
+        payload: { objectId: chain.day, parentId: chain.month, isEmbedded: false, contentAst: [{ type: "text", text: "2026-09-27" }] },
       }),
       testEnvelope({
         workspaceId,
         opType: "object.create",
-        payload: { objectId: underDayId, parentId: chain.day, presentAsMain: true, contentAst: [{ type: "text", text: "Under A Day" }] },
+        payload: { objectId: underDayId, parentId: chain.day, isEmbedded: false, contentAst: [{ type: "text", text: "Under A Day" }] },
       }),
       testEnvelope({
         workspaceId,
         opType: "object.create",
-        payload: { objectId: dayParentedPageId, parentId: underDayId, presentAsMain: true, contentAst: [{ type: "text", text: "Nested Under Day" }] },
+        payload: { objectId: dayParentedPageId, parentId: underDayId, isEmbedded: false, contentAst: [{ type: "text", text: "Nested Under Day" }] },
       }),
       testEnvelope({
         workspaceId,
         opType: "object.create",
-        payload: { objectId: SYSTEM_PAGE_UUIDS.inbox, presentAsMain: true, contentAst: [{ type: "text", text: "inbox" }] },
+        payload: { objectId: SYSTEM_PAGE_UUIDS.inbox, isEmbedded: false, contentAst: [{ type: "text", text: "inbox" }] },
       }),
     ]);
     expect(batch.statusCode).toBe(200);
@@ -723,8 +723,8 @@ describe("workspace delete and export", () => {
         version: 2 as const,
         generatedAt: "2026-10-03T00:00:00.000Z",
         nodes: [
-          { id: "id-1", path: "Dup-a1.md", name: "Dup", type: "page" as const, isClass: false, presentAsMain: true },
-          { id: "id-2", path: "Dup-a1.md", name: "Dup", type: "page" as const, isClass: false, presentAsMain: true },
+          { id: "id-1", path: "Dup-a1.md", name: "Dup", type: "page" as const, isClass: false, isEmbedded: false },
+          { id: "id-2", path: "Dup-a1.md", name: "Dup", type: "page" as const, isClass: false, isEmbedded: false },
         ],
       },
     };
@@ -816,7 +816,7 @@ describe("workspace delete and export", () => {
         opType: "object.create",
         payload: {
           objectId: pageId,
-          presentAsMain: true,
+          isEmbedded: false,
           contentAst: [{ type: "text", text: "With Asset" }],
         },
       }),
@@ -1047,7 +1047,7 @@ describe("api keys", () => {
         payload: { name: "sync" },
       })
     ).json().token as string;
-    const env = testEnvelope({ opType: "object.create", payload: { objectId: crypto.randomUUID(), presentAsMain: true, contentAst: [{ type: "text", text: "Via key" }] } });
+    const env = testEnvelope({ opType: "object.create", payload: { objectId: crypto.randomUUID(), isEmbedded: false, contentAst: [{ type: "text", text: "Via key" }] } });
     const response = await server.app.inject({
       method: "POST",
       url: "/api/relay/v2/batch",

@@ -24,7 +24,7 @@ export const DEFAULT_PAGE_ICON = "mdi-file-document-outline";
  * distinction the render cascade exists to make).
  */
 export function defaultIconFor(
-  node: Pick<NodeLike, "isClass" | "parentId" | "presentAsMain">,
+  node: Pick<NodeLike, "isClass" | "parentId" | "isEmbedded">,
 ): string | null {
   if (isClassNode(node)) return DEFAULT_CLASS_ICON;
   return rendersWithDocumentChrome(node) ? DEFAULT_PAGE_ICON : null;

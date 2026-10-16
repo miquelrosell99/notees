@@ -43,7 +43,7 @@ async function createPaper(name: string, year?: number): Promise<string> {
   const { id } = (
     await api("POST", "/api/objects", {
       payload: {
-        presentAsMain: true,
+        isEmbedded: false,
         // Title-is-content: the paper's own content IS its title.
         contentAst: [{ type: "text", text: name }],
         classIds: [SYSTEM_CLASS_UUIDS.paper],
@@ -96,7 +96,7 @@ describe("POST /api/query", () => {
     const byId = new Map(body.rows.map((row: { id: string }) => [row.id, row]));
     expect(byId.get(modern)).toMatchObject({
       isClass: false,
-      presentAsMain: true,
+      isEmbedded: false,
       // Title-is-content: the summary name derives from the node's content.
       name: "query-modern-paper",
       createdAt: expect.any(String),

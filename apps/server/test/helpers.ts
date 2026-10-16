@@ -85,7 +85,7 @@ export function testEnvelope(options: TestEnvelopeOptions): Envelope {
 export function pagePayload(name: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     objectId: crypto.randomUUID(),
-    presentAsMain: true,
+    isEmbedded: false,
     contentAst: [{ type: "text", text: name }],
     ...extra,
   };

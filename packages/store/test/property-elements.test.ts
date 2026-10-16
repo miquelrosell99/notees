@@ -676,7 +676,7 @@ describe("fixture convergence (property-wire batch)", () => {
 
   it("the whole corpus replays into both adapters with the batch fixtures included", () => {
     const all = readdirSync(fixturesDir)
-      .filter((f) => f.endsWith(".json") && f !== "class-extends-cycle.json" && f !== "present-as-main-parent-page.json")
+      .filter((f) => f.endsWith(".json") && f !== "class-extends-cycle.json" && f !== "is-embedded-parent-page.json")
       .sort()
       .flatMap(loadFixture);
     const dumps: Record<string, unknown>[] = [];

@@ -576,7 +576,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
       return {
         id: object.id,
         isClass: object.isClass ? 1 : 0,
-        presentAsMain: object.presentAsMain ? 1 : 0,
+        isEmbedded: object.isEmbedded ? 1 : 0,
         parentId: object.parentId,
         name: object.name,
         contentAst: object.contentAst as ExportNode["contentAst"],
@@ -600,7 +600,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
         deriveDisplayName({
           id: row.id,
           isClass: row.is_class,
-          presentAsMain: row.present_as_main,
+          isEmbedded: row.is_embedded,
           name: row.name,
           contentAst: JSON.parse(row.content) as ExportNode["contentAst"],
           classIds: JSON.parse(row.class_ids) as string[],
@@ -632,7 +632,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
       seenPages.add(row.id);
       pageRows.push(row);
       for (const child of store.children(row.id)) {
-        if (child.is_class === 0 && child.present_as_main === 1 && child.is_active === 1) {
+        if (child.is_class === 0 && child.is_embedded === 0 && child.is_active === 1) {
           visitPage(child);
         }
       }
@@ -652,7 +652,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
       const inlineChildren = (row: NodeRow): NodeRow[] =>
         store
           .children(row.id)
-          .filter((child) => child.is_class === 0 && child.present_as_main === 0 && child.is_active === 1);
+          .filter((child) => child.is_class === 0 && child.is_embedded === 1 && child.is_active === 1);
       const assetRefIds = new Set<string>();
       const walkRefs = (row: NodeRow, visited: Set<string>): void => {
         if (visited.has(row.id)) return;
@@ -693,7 +693,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: ServerContext): vo
       childrenOf: (parentId) =>
         store
           .children(parentId)
-          .filter((row) => row.is_class === 0 && row.present_as_main === 0 && row.is_active === 1)
+          .filter((row) => row.is_class === 0 && row.is_embedded === 1 && row.is_active === 1)
           .map(toExportNode),
       // Relative links between the exported files (same zip directory).
       linkTarget: (nodeId) => {

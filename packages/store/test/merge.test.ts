@@ -66,7 +66,7 @@ function fixtureEnvelopes(): Envelope[] {
     env("object.create", {
       objectId: CHILD_BLOCK,
       parentId: SOURCE,
-      presentAsMain: false,
+      isEmbedded: true,
       contentAst: [{ type: "text", text: "A block" }],
     }),
     env("object.create", {

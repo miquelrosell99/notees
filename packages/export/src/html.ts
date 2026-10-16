@@ -451,6 +451,27 @@ function renderOutlineList(children: readonly ExportDocumentChild[]): string {
   return `<ul class="outline-list">\n${items}\n</ul>`;
 }
 
+/**
+ * The Revision-12 body/pages split: a parent's exported body carries the
+ * EMBEDDED children only; the standalone children are separate structural
+ * elements, listed as a child-pages section (mirroring the web Child pages
+ * section). Cut placeholders ride the outline with the content flow.
+ */
+function splitChildZones(children: readonly ExportDocumentChild[]): {
+  body: readonly ExportDocumentChild[];
+  pages: readonly ExportDocumentChild[];
+} {
+  const body = children.filter((child) => child.isEmbedded || child.cut !== undefined);
+  const pages = children.filter((child) => !child.isEmbedded && child.cut === undefined);
+  return { body, pages };
+}
+
+/** One standalone child → a child-pages list item. */
+function renderChildPageItem(child: ExportDocumentChild): string {
+  const label = child.title.length > 0 ? escapeHtml(child.title) : child.id;
+  return `<li class="child-page">${label}</li>`;
+}
+
 // --- document ---------------------------------------------------------------------
 
 /**
@@ -458,8 +479,10 @@ function renderOutlineList(children: readonly ExportDocumentChild[]): string {
  * document: inlined stylesheet, document header (title + properties), the
  * content blocks (minus the leading title span when it rides in the <h1> —
  * the single-title rule), and — unless includeOutline left the IR without
- * children — the nested-<ul> outline. Everything is inlined; no external
- * resource is ever referenced (privacy-first single file).
+ * children — the nested-<ul> outline of the EMBEDDED children plus a
+ * child-pages section for the standalone ones (the Revision-12 zone split).
+ * Everything is inlined; no external resource is ever referenced
+ * (privacy-first single file).
  */
 export function renderExportDocumentToHtml(
   document: ExportDocument,
@@ -471,7 +494,14 @@ export function renderExportDocumentToHtml(
   if (header.length > 0) body.push(header);
   body.push(`<main class="content">\n${renderBlocks(withoutLeadingTitle(document))}\n</main>`);
   if (document.children.length > 0) {
-    body.push(`<section class="outline">\n<h2>Outline</h2>\n${renderOutlineList(document.children)}\n</section>`);
+    const { body: embedded, pages } = splitChildZones(document.children);
+    if (embedded.length > 0) {
+      body.push(`<section class="outline">\n<h2>Outline</h2>\n${renderOutlineList(embedded)}\n</section>`);
+    }
+    if (pages.length > 0) {
+      const items = pages.map(renderChildPageItem).join("\n");
+      body.push(`<section class="child-pages">\n<h2>Pages</h2>\n<ul class="child-page-list">\n${items}\n</ul>\n</section>`);
+    }
   }
   const parts = [
     "<!DOCTYPE html>",
