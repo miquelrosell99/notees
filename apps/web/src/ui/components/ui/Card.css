@@ -91,7 +91,12 @@
   box-shadow: none !important;
 }
 
-/* Elevation levels — zero visual noise (design system mandate) */
+/* Elevation levels — the design system's elevation table (foundations →
+   Elevation): static surfaces NEVER shadow (zero visual noise); floating
+   transient layers carry soft ambient+key shadows. The values live in
+   variables.css (--shadow-floating / --shadow-modal) so themes own the
+   literals. Level semantics: medium = level 1 (popover, menu, panel);
+   high = level 2 (dialog, modal). */
 .card--elevation-none {
   box-shadow: none;
 }
@@ -101,11 +106,11 @@
 }
 
 .card--elevation-medium {
-  box-shadow: none;
+  box-shadow: var(--shadow-floating);
 }
 
 .card--elevation-high {
-  box-shadow: none;
+  box-shadow: var(--shadow-modal);
 }
 
 /* Padding options */
