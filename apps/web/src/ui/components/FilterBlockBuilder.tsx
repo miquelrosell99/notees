@@ -449,17 +449,15 @@ function familyOf(condition: Condition): ConditionKind {
     case "tagAny":
     case "tagSet":
       return "tags";
-    case "pageClass":
-    case "pageClassAny":
-    case "pageClassSet":
+    case "pageOf":
+    case "pageOfQuery":
+    case "pageSet":
       return "page";
-    case "ancestorClassed":
-    case "ancestorClassedAny":
-    case "ancestorClassedSet":
+    case "ancestorIn":
+    case "ancestorInQuery":
       return "parentPath";
-    case "rootClass":
-    case "rootClassAny":
-    case "rootClassSet":
+    case "rootIn":
+    case "rootInQuery":
       return "root";
     case "coverAsset":
       return "cover";
@@ -551,17 +549,30 @@ function operatorOptions(
         { value: "is-not", label: "is not" },
       ];
     case "page":
-    case "parentPath":
-    case "root":
-      // The classed-container families: the class operator set over the
-      // container (page / parent path / root).
+      // v1's Page block: the containing page is any of the picked nodes (or
+      // the subquery's matches) — plus the lives-inside-a-page set bit.
       return [
-        { value: "is", label: "is" },
-        { value: "is-not", label: "is not" },
-        { value: "one-of", label: "one of" },
-        { value: "not-one-of", label: "not one of" },
+        { value: "is-any-of", label: "is any of" },
+        { value: "is-not-any-of", label: "is not any of" },
         { value: "set", label: "is set" },
         { value: "not-set", label: "is not set" },
+      ];
+    case "parentPath":
+      // v1's Parent path block: the ancestor chain includes any of the
+      // picked nodes (or the subquery's matches) — the v1 "includes" wording.
+      return [
+        { value: "includes", label: "includes" },
+        { value: "not-includes", label: "does not include" },
+        { value: "set", label: "is set" },
+        { value: "not-set", label: "is not set" },
+      ];
+    case "root":
+      // The root walk: the workspace-root ancestor is any of the picked
+      // nodes (or the subquery's matches). The set bit is vacuous — every
+      // node's root exists (a parentless row is its own root).
+      return [
+        { value: "is-any-of", label: "is any of" },
+        { value: "is-not-any-of", label: "is not any of" },
       ];
     case "property":
       return propertyOperatorOptions(condition, facts);
@@ -705,24 +716,17 @@ function operatorOf(condition: Condition, negated: boolean): string {
       return negated ? "not-one-of" : "one-of";
     case "parentSet":
       return negated ? "not-set" : "set";
-    case "pageClass":
-      return negated ? "is-not" : "is";
-    case "pageClassAny":
-      return negated ? "not-one-of" : "one-of";
-    case "pageClassSet":
+    case "pageOf":
+    case "pageOfQuery":
+      return negated ? "is-not-any-of" : "is-any-of";
+    case "pageSet":
       return negated ? "not-set" : "set";
-    case "ancestorClassed":
-      return negated ? "is-not" : "is";
-    case "ancestorClassedAny":
-      return negated ? "not-one-of" : "one-of";
-    case "ancestorClassedSet":
-      return negated ? "not-set" : "set";
-    case "rootClass":
-      return negated ? "is-not" : "is";
-    case "rootClassAny":
-      return negated ? "not-one-of" : "one-of";
-    case "rootClassSet":
-      return negated ? "not-set" : "set";
+    case "ancestorIn":
+    case "ancestorInQuery":
+      return negated ? "not-includes" : "includes";
+    case "rootIn":
+    case "rootInQuery":
+      return negated ? "is-not-any-of" : "is-any-of";
     case "isClass":
       return condition.isClass ? "is" : "is-not";
     case "isEmbedded":
@@ -809,7 +813,13 @@ function applyClassOperator(condition: Condition, op: string): Child {
 /** Carried ids for the node-target families (links / parent / tags morphs). */
 function carriedNodeIds(condition: Condition): string[] {
   if (condition.type === "tagAny") return condition.tagIds;
-  if (condition.type === "linkedToAny" || condition.type === "descendantOfAny") {
+  if (
+    condition.type === "linkedToAny" ||
+    condition.type === "descendantOfAny" ||
+    condition.type === "pageOf" ||
+    condition.type === "ancestorIn" ||
+    condition.type === "rootIn"
+  ) {
     return condition.nodeIds;
   }
   if (condition.type === "linkedTo" || condition.type === "descendantOf") {
@@ -849,47 +859,40 @@ function applyNodeTargetOperator(
   }
 }
 
-/** The container morph (page / parent path / root): single class, ANY-of classes, set. */
-function applyContainerOperator(
+/**
+ * The node-container morph (v1's Page / Parent path / Root blocks): the
+ * static pick and the dynamic subquery share one operator pair (is any of /
+ * is not any of — "includes" on the parent path), plus the set bits where
+ * they mean something (Page is set = lives inside a page; Parent path is
+ * set = has an ancestor at all; Root's set bit is vacuous — never offered).
+ */
+function applyContainerNodeOperator(
   condition: Condition,
   op: string,
   kind: "page" | "path" | "root",
 ): Child {
   const carried: string[] =
-    (condition.type === "pageClassAny" || condition.type === "ancestorClassedAny" || condition.type === "rootClassAny")
-      ? condition.classIds
-      : (condition.type === "pageClass" || condition.type === "ancestorClassed" || condition.type === "rootClass") &&
-          condition.classId !== ""
-        ? [condition.classId]
-        : [];
+    condition.type === "pageOf" || condition.type === "ancestorIn" || condition.type === "rootIn"
+      ? condition.nodeIds
+      : [];
   const single =
     kind === "page"
-      ? (classId: string): Condition => ({ type: "pageClass", classId })
+      ? (nodeIds: string[]): Condition => ({ type: "pageOf", nodeIds })
       : kind === "path"
-        ? (classId: string): Condition => ({ type: "ancestorClassed", classId })
-        : (classId: string): Condition => ({ type: "rootClass", classId });
-  const any =
-    kind === "page"
-      ? (classIds: string[]): Condition => ({ type: "pageClassAny", classIds })
-      : kind === "path"
-        ? (classIds: string[]): Condition => ({ type: "ancestorClassedAny", classIds })
-        : (classIds: string[]): Condition => ({ type: "rootClassAny", classIds });
+        ? (nodeIds: string[]): Condition => ({ type: "ancestorIn", nodeIds })
+        : (nodeIds: string[]): Condition => ({ type: "rootIn", nodeIds });
+  // The parent-path "is set" IS "has a parent" (parentSet); the page's is
+  // "lives inside a page" (pageSet).
   const setType: Condition =
-    kind === "page"
-      ? { type: "pageClassSet" }
-      : kind === "path"
-        ? { type: "ancestorClassedSet" }
-        : { type: "rootClassSet" };
+    kind === "page" ? { type: "pageSet" } : kind === "path" ? { type: "parentSet" } : condition;
   const neg = (next: Condition): Child => ({ type: "not", child: next });
   switch (op) {
-    case "is":
-      return single(carried[0] ?? "");
-    case "is-not":
-      return neg(single(carried[0] ?? ""));
-    case "one-of":
-      return any(carried);
-    case "not-one-of":
-      return neg(any(carried));
+    case "is-any-of":
+    case "includes":
+      return single(carried);
+    case "is-not-any-of":
+    case "not-includes":
+      return neg(single(carried));
     case "set":
       return setType;
     case "not-set":
@@ -1076,18 +1079,16 @@ function applyOperator(condition: Condition, op: string): Child {
         (nodeIds) => ({ type: "descendantOfAny", nodeIds }),
         { type: "parentSet" },
       );
-    case "pageClass":
-    case "pageClassAny":
-    case "pageClassSet":
-      return applyContainerOperator(condition, op, "page");
-    case "ancestorClassed":
-    case "ancestorClassedAny":
-    case "ancestorClassedSet":
-      return applyContainerOperator(condition, op, "path");
-    case "rootClass":
-    case "rootClassAny":
-    case "rootClassSet":
-      return applyContainerOperator(condition, op, "root");
+    case "pageOf":
+    case "pageOfQuery":
+    case "pageSet":
+      return applyContainerNodeOperator(condition, op, "page");
+    case "ancestorIn":
+    case "ancestorInQuery":
+      return applyContainerNodeOperator(condition, op, "path");
+    case "rootIn":
+    case "rootInQuery":
+      return applyContainerNodeOperator(condition, op, "root");
     case "createdAfter":
     case "createdBefore":
     case "createdCmp":
@@ -1172,9 +1173,15 @@ function BlockRow({
   const canMoveUp = onMoveUp !== undefined && index > 0;
   const canMoveDown = onMoveDown !== undefined && index < totalSiblings - 1;
   const showReorder = onMoveUp !== undefined || onMoveDown !== undefined;
-  /** The node-target families: static (picked node) or dynamic (nested query). */
+  /** The node-target families: static (picked node(s)) or dynamic (a nested
+   * query defining the target set — the v1 static/dynamic switch, now on
+   * links / parent / page / parent path / root alike). */
   const dynamic =
-    condition.type === "linkedToQuery" || condition.type === "descendantOfQuery";
+    condition.type === "linkedToQuery" ||
+    condition.type === "descendantOfQuery" ||
+    condition.type === "pageOfQuery" ||
+    condition.type === "ancestorInQuery" ||
+    condition.type === "rootInQuery";
   return (
     <div className="nt-fb-block">
       <div className="nt-fb-block__row">
@@ -1213,24 +1220,45 @@ function BlockRow({
             datalistId={datalistId}
           />
         </div>
-        {(family === "links" || family === "parent") && (
+        {(family === "links" ||
+          family === "parent" ||
+          family === "page" ||
+          family === "parentPath" ||
+          family === "root") && (
           <SelectionButton
             size="sm"
             aria-label="Target mode"
             options={[
-              { value: "static", icon: "mdi mdi-pin-outline", label: "Static — a picked node" },
+              { value: "static", icon: "mdi mdi-pin-outline", label: "Static — picked nodes" },
               { value: "dynamic", icon: "mdi mdi-filter-variant", label: "Dynamic — a nested query" },
             ]}
             value={dynamic ? "dynamic" : "static"}
             onChange={(mode) => {
-              const next: Condition =
-                mode === "dynamic"
-                  ? family === "links"
-                    ? { type: "linkedToQuery", root: { type: "group", logic: "and", children: [] } }
-                    : { type: "descendantOfQuery", root: { type: "group", logic: "and", children: [] } }
-                  : family === "links"
+              const empty = { type: "group", logic: "and", children: [] } as Group;
+              let next: Condition;
+              if (mode === "dynamic") {
+                next =
+                  family === "links"
+                    ? { type: "linkedToQuery", root: empty }
+                    : family === "parent"
+                      ? { type: "descendantOfQuery", root: empty }
+                      : family === "page"
+                        ? { type: "pageOfQuery", root: empty }
+                        : family === "parentPath"
+                          ? { type: "ancestorInQuery", root: empty }
+                          : { type: "rootInQuery", root: empty };
+              } else {
+                next =
+                  family === "links"
                     ? { type: "linkedTo", nodeId: "" }
-                    : { type: "descendantOf", nodeId: "" };
+                    : family === "parent"
+                      ? { type: "descendantOf", nodeId: "" }
+                      : family === "page"
+                        ? { type: "pageOf", nodeIds: [] }
+                        : family === "parentPath"
+                          ? { type: "ancestorIn", nodeIds: [] }
+                          : { type: "rootIn", nodeIds: [] };
+              }
               onChange(negated ? { type: "not", child: next } : next);
             }}
           />
@@ -1364,43 +1392,53 @@ function BlockValue({
         />
       );
     case "classSet":
-    case "pageClassSet":
-    case "ancestorClassedSet":
-    case "rootClassSet":
+    case "pageSet":
     case "tagSet":
     case "linkSet":
     case "parentSet":
     case "contentSet":
       // The set operators carry no value — the operator column IS the condition.
       return null;
-    case "pageClass":
-    case "ancestorClassed":
-    case "rootClass":
+    case "pageOf":
+      // v1's Page block (static): the containing page is any of the picked
+      // nodes.
       return (
-        <ClassPick
-          ariaLabel={
-            condition.type === "pageClass"
-              ? "Page class"
-              : condition.type === "ancestorClassed"
-                ? "Ancestor class"
-                : "Root class"
-          }
-          value={condition.classId}
-          facts={facts}
-          onChange={(classId) => onChange({ ...condition, classId })}
+        <NodeMultiPick
+          ariaLabel="Pages"
+          nodeIds={condition.nodeIds}
+          addLabel="Add page"
+          client={client}
+          onChange={(nodeIds) => onChange({ ...condition, nodeIds })}
         />
       );
-    case "pageClassAny":
-    case "ancestorClassedAny":
-    case "rootClassAny":
+    case "pageOfQuery":
+      return <span className="nt-fb-block__word">matching</span>;
+    case "ancestorIn":
+      // v1's Parent path block (static): some strict ancestor is one of the
+      // picked nodes.
       return (
-        <ClassMultiPick
-          ariaLabel="Classes"
-          values={condition.classIds}
-          facts={facts}
-          onChange={(classIds) => onChange({ ...condition, classIds })}
+        <NodeMultiPick
+          ariaLabel="Ancestors"
+          nodeIds={condition.nodeIds}
+          addLabel="Add ancestor"
+          client={client}
+          onChange={(nodeIds) => onChange({ ...condition, nodeIds })}
         />
       );
+    case "ancestorInQuery":
+      return <span className="nt-fb-block__word">matching</span>;
+    case "rootIn":
+      return (
+        <NodeMultiPick
+          ariaLabel="Roots"
+          nodeIds={condition.nodeIds}
+          addLabel="Add root"
+          client={client}
+          onChange={(nodeIds) => onChange({ ...condition, nodeIds })}
+        />
+      );
+    case "rootInQuery":
+      return <span className="nt-fb-block__word">matching</span>;
     case "isClass":
       return (
         <Dropdown

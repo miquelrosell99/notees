@@ -101,14 +101,18 @@ export function builderUnsupportedConstructs(ast: QueryAst | null): string[] {
           case "classSet":
             found.add("class-set conditions");
             break;
-          case "pageClass":
-            found.add("page-class conditions");
+          case "pageOf":
+          case "pageOfQuery":
+          case "pageSet":
+            found.add("page-container conditions");
             break;
-          case "ancestorClassed":
+          case "ancestorIn":
+          case "ancestorInQuery":
             found.add("parent-path conditions");
             break;
-          case "rootClass":
-            found.add("root-class conditions");
+          case "rootIn":
+          case "rootInQuery":
+            found.add("root-container conditions");
             break;
           case "contentSet":
             found.add("content-set conditions");
@@ -125,18 +129,6 @@ export function builderUnsupportedConstructs(ast: QueryAst | null): string[] {
           case "descendantOfAny":
           case "parentSet":
             found.add("any-of parent conditions");
-            break;
-          case "pageClassAny":
-          case "pageClassSet":
-            found.add("any-of page-class conditions");
-            break;
-          case "ancestorClassedAny":
-          case "ancestorClassedSet":
-            found.add("any-of parent-path conditions");
-            break;
-          case "rootClassAny":
-          case "rootClassSet":
-            found.add("any-of root-class conditions");
             break;
           case "createdCmp":
           case "createdBetween":

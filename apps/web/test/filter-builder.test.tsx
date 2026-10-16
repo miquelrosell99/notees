@@ -498,7 +498,19 @@ describe("the block query builder", () => {
       expect(within(section).getByText("No classed nodes.")).not.toBeNull();
     });
 
-    it("Page filters by the containing page's class — the day-group use case", async () => {
+    /** Drive the chip-list node picker (the "one of" static pick): open the
+     * add trigger by label, search, pick the first real result. */
+    function addNodeViaPicker(scope: HTMLElement, addLabel: string, query: string): void {
+      fireEvent.click(within(scope).getByRole("button", { name: addLabel }));
+      fireEvent.change(screen.getByLabelText("Search..."), { target: { value: query } });
+      fireEvent.click(
+        document.querySelector(
+          ".node-result-item:not(.node-result-item--create):not(.node-result-item--date)",
+        )!,
+      );
+    }
+
+    it("Page: static — the containing page is any of the picked nodes (v1's Page block)", async () => {
       const client = await seedClient();
       const { projectId } = await seedContainerWorld(client);
       render(<NodeView client={client} nodeId={projectId} onOpenNode={() => {}} />);
@@ -506,16 +518,53 @@ describe("the block query builder", () => {
 
       const panel = openPanel(section);
       addCondition(panel, /^Page\b/);
-      pickOption(panel, "Page class", "journal");
+      addNodeViaPicker(panel, "Add page", "Dayish");
       expect(tableRowCount()).toBe(1);
       expect(within(section).getByText("InDay")).not.toBeNull();
 
-      pickOption(panel, "Operator", "is not");
+      pickOption(panel, "Operator", "is not any of");
       expect(tableRowCount()).toBe(2);
       expect(within(section).queryByText("InDay")).toBeNull();
     });
 
-    it("Parent path matches a classed ancestor anywhere up the chain (self excluded)", async () => {
+    it("Page: dynamic — the subquery informs the node set (v1's nested-query mode)", async () => {
+      const client = await seedClient();
+      const { projectId } = await seedContainerWorld(client);
+      render(<NodeView client={client} nodeId={projectId} onOpenNode={() => {}} />);
+      const section = classedNodesSection();
+
+      const panel = openPanel(section);
+      addCondition(panel, /^Page\b/);
+      // Flip the target mode to dynamic — the nested builder appears beneath
+      // the row; the subquery's matches BECOME the page set.
+      fireEvent.click(within(panel).getByRole("radio", { name: "Dynamic — a nested query" }));
+      const nested = panel.querySelector(".nt-fb-block__nested") as HTMLElement;
+      expect(nested).not.toBeNull();
+      addCondition(nested, /^Class /);
+      // Class default is the exact register; membership ("contains") is the intent.
+      pickOption(nested, "Operator", "contains", 0);
+      pickOption(nested, "Class", "journal");
+      // The dynamic container rides the probe path — the membership set
+      // lands one beat after the pick.
+      await waitFor(() => expect(tableRowCount()).toBe(1));
+      expect(within(section).getByText("InDay")).not.toBeNull();
+    });
+
+    it("Page: is set — the row lives inside a page", async () => {
+      const client = await seedClient();
+      const { projectId } = await seedContainerWorld(client);
+      render(<NodeView client={client} nodeId={projectId} onOpenNode={() => {}} />);
+      const section = classedNodesSection();
+
+      const panel = openPanel(section);
+      addCondition(panel, /^Page\b/);
+      pickOption(panel, "Operator", "is set");
+      // InDay/InPlain are embedded blocks; Dual is its own page.
+      expect(tableRowCount()).toBe(2);
+      expect(within(section).queryByText("Dual")).toBeNull();
+    });
+
+    it("Parent path: includes any of the picked nodes (static) + the set bit", async () => {
       const client = await seedClient();
       const { projectId } = await seedContainerWorld(client);
       render(<NodeView client={client} nodeId={projectId} onOpenNode={() => {}} />);
@@ -523,15 +572,16 @@ describe("the block query builder", () => {
 
       const panel = openPanel(section);
       addCondition(panel, /^Parent path/);
-      pickOption(panel, "Ancestor class", "journal");
+      addNodeViaPicker(panel, "Add ancestor", "Dayish");
       expect(tableRowCount()).toBe(1);
       expect(within(section).getByText("InDay")).not.toBeNull();
 
-      pickOption(panel, "Operator", "is not");
-      expect(tableRowCount()).toBe(2);
+      // is set = has an ancestor at all (every member is parented).
+      pickOption(panel, "Operator", "is set");
+      expect(tableRowCount()).toBe(3);
     });
 
-    it("Root matches the workspace-root ancestor's class (a parentless row is its own root)", async () => {
+    it("Root: the workspace-root ancestor is any of the picked nodes", async () => {
       const client = await seedClient();
       const { projectId } = await seedContainerWorld(client);
       render(<NodeView client={client} nodeId={projectId} onOpenNode={() => {}} />);
@@ -539,11 +589,11 @@ describe("the block query builder", () => {
 
       const panel = openPanel(section);
       addCondition(panel, /^Root/);
-      pickOption(panel, "Root class", "journal");
+      addNodeViaPicker(panel, "Add root", "Dayish");
       expect(tableRowCount()).toBe(1);
       expect(within(section).getByText("InDay")).not.toBeNull();
 
-      pickOption(panel, "Operator", "is not");
+      pickOption(panel, "Operator", "is not any of");
       expect(tableRowCount()).toBe(2);
     });
 
@@ -656,29 +706,6 @@ describe("the block query builder", () => {
       fireEvent.change(within(panel).getByLabelText("To"), { target: { value: "10" } });
       expect(tableRowCount()).toBe(1);
       expect(within(section).getByText("High impact")).not.toBeNull();
-    });
-
-    it("page one-of (multi class pick) and page is set", async () => {
-      const client = await seedClient();
-      const { projectId } = await seedContainerWorld(client);
-      render(<NodeView client={client} nodeId={projectId} onOpenNode={() => {}} />);
-      const section = classedNodesSection();
-
-      const panel = openPanel(section);
-      addCondition(panel, /^Page\b/);
-      pickOption(panel, "Operator", "one of");
-      fireEvent.click(within(panel).getByLabelText("Classes"));
-      const menu = () => document.querySelector(".dropdown-menu--portal") as HTMLElement;
-      fireEvent.click(within(menu()).getByRole("button", { name: "journal" }));
-      fireEvent.keyDown(document, { key: "Escape" });
-      expect(tableRowCount()).toBe(1);
-      expect(within(section).getByText("InDay")).not.toBeNull();
-
-      // is set: the container carries at least one class (Plain does not —
-      // InPlain drops; Dual's own set counts — it stays).
-      pickOption(panel, "Operator", "is set");
-      expect(tableRowCount()).toBe(2);
-      expect(within(section).queryByText("InPlain")).toBeNull();
     });
   });
 });
