@@ -28,7 +28,7 @@
 import { useState } from "react";
 
 import { parseDateNodeId, rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
-import type { ContentAst } from "@notees/protocol";
+import type { ContentAst, ListStyle } from "@notees/protocol";
 
 import { cloneSubtree, type CloneReadSurface, type CloneWriteSurface } from "@/core/clone.js";
 import { extractBlockToPage } from "@/core/extractToPage.js";
@@ -56,6 +56,8 @@ interface MenuClient extends CloneReadSurface, CloneWriteSurface {
   deleteObject(id: string, opts?: { permanent?: boolean }): Promise<void>;
   /** The render-bit toggle behind "Move to content" / keep-under-parent. */
   updateObject(id: string, fields: { isEmbedded?: boolean }): Promise<void>;
+  /** Per-block list style — the "List style ›" submenu (null = bullet). */
+  updateObject(id: string, fields: { listStyle?: ListStyle | null }): Promise<void>;
   /** Content rewrites — the heading conversion rides this (headingConvert). */
   updateObject(id: string, fields: { contentAst?: ContentAst }): Promise<void>;
   /** Reparenting — the block→page extraction rides this (extractToPage). */
@@ -347,6 +349,33 @@ export function NodeContextMenu({
       label: "Convert to plain text",
       icon: "mdi-format-letter-case",
       onClick: () => void client.updateObject(node.id, { contentAst: plainTextAstOf(node) }),
+    });
+  }
+  // List style (store schema v23): the per-block marker family — Bullet (the
+  // absent/null default) or a derived marker (numbered / alpha / roman). The
+  // NUMBER is never stored: it derives at render time from the contiguous run
+  // of same-style siblings. An ordinary undoable object.update per pick; the
+  // checkmark names the current style. Blocks only — the marker replaces the
+  // bullet dot, which only the inline body renders.
+  if (rendersAsInlineBlock(node, parentFacts)) {
+    const current: ListStyle | null = node.listStyle;
+    const styleRow = (id: string, label: string, style: ListStyle | null, icon: string) => ({
+      id,
+      label,
+      icon,
+      ...(current === style ? { badge: "✓" } : {}),
+      onClick: () => void client.updateObject(node.id, { listStyle: style }),
+    });
+    items.push({
+      id: "list-style",
+      label: "List style",
+      icon: "mdi-format-list-bulleted",
+      submenuItems: [
+        styleRow("list-style-bullet", "Bullet", null, "mdi-circle-small"),
+        styleRow("list-style-numbered", "Numbered", "numbered", "mdi-order-numeric-ascending"),
+        styleRow("list-style-alpha", "Alphabetical", "alpha", "mdi-sort-alphabetical-ascending"),
+        styleRow("list-style-roman", "Roman", "roman", "mdi-numeric-1-box-multiple-outline"),
+      ],
     });
   }
   // Convert to page (owner 2026-10-16): ONE bucket for "make this block a

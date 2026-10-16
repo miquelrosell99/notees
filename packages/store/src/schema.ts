@@ -28,7 +28,7 @@ import type { SqliteDB } from "./db.js";
 import { resolveEdgeTarget } from "./edges.js";
 import { dropSearchIndex, reindexAllSearch } from "./search.js";
 
-export const SCHEMA_VERSION = 22;
+export const SCHEMA_VERSION = 23;
 
 /**
  * The render-path list-reads index: composite for the
@@ -138,6 +138,11 @@ CREATE TABLE IF NOT EXISTS node (
     banner_asset_id TEXT,
     aliased_node_id TEXT,
     description TEXT,
+    -- Per-block list style (SCHEMA.md "Node structure", store v23): the bullet
+    -- dot's replacement — "numbered" | "alpha" | "roman". NULL = bullet (the
+    -- default); the NUMBER is never stored — clients derive it at render time
+    -- from the contiguous run of same-style siblings.
+    list_style TEXT,
     is_active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT,
     updated_at TEXT,
@@ -972,6 +977,18 @@ export function migrate(
         CREATE INDEX IF NOT EXISTS idx_node_aliased_source ON node (aliased_node_id);
         PRAGMA foreign_keys = ON;
       `);
+    }
+  }
+  // v22 -> v23: the per-block list style (SCHEMA.md "Node structure" — the
+  // listStyle wire node field, the icon/color precedent) lands as a nullable
+  // node column mapped by object.create/update. Purely additive; the column
+  // guard keeps the ALTER idempotent for fresh v23 creates (CREATE TABLE IF
+  // EXISTS never alters), and it runs after every node-table rebuild above so
+  // pre-v21 databases arrive at the current shape through the same path.
+  {
+    const nodeColumnsV23 = db.prepare("PRAGMA table_info(node)").all() as { name: string }[];
+    if (!nodeColumnsV23.some((c) => c.name === "list_style")) {
+      db.exec("ALTER TABLE node ADD COLUMN list_style TEXT;");
     }
   }
   db.pragma(`user_version = ${SCHEMA_VERSION}`);}

@@ -15,6 +15,18 @@ import { colorValueSchema } from "./colors.js";
 
 const uuid = z.string().uuid();
 
+/**
+ * Per-block list style (the icon/color precedent): replaces the bullet dot
+ * with a derived marker. The NUMBER is never stored — clients derive it at
+ * render time from the contiguous run of same-style siblings (any sibling
+ * without the same style resets the count). Absent/null = the bullet default
+ * (the column stores SQL NULL); present-null on object.update CLEARS back to
+ * the bullet, exactly like `color`.
+ */
+export const LIST_STYLES = ["numbered", "alpha", "roman"] as const;
+export type ListStyle = (typeof LIST_STYLES)[number];
+export const listStyleSchema = z.enum(LIST_STYLES);
+
 // --- objects -----------------------------------------------------------------
 
 export const objectCreatePayload = z
@@ -60,6 +72,8 @@ export const objectCreatePayload = z
      */
     afterId: uuid.optional(),
     beforeId: uuid.optional(),
+    /** Initial list style; absent/null = bullet (the default). */
+    listStyle: listStyleSchema.nullish(),
   })
   .strict();
 
@@ -104,6 +118,8 @@ export const objectUpdatePayload = z
      * class-bound property. Presence writes, null clears; max 512 chars.
      */
     description: z.string().max(512).nullish(),
+    /** List style; null CLEARS back to the bullet default (like `color`). */
+    listStyle: listStyleSchema.nullish(),
     /** Canonical wire carrier: base64 incremental CRDT delta. */
     contentDeltaB64: z.string().optional(),
     /** Readable carrier (fixtures, tests, plain-text editor path before the Yjs port). */
