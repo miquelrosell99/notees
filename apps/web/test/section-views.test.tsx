@@ -105,6 +105,7 @@ function resolveClient(overrides: Partial<SectionViewResolveClient> = {}): Secti
   return {
     getNode: () => undefined,
     getClassChildren: () => [],
+    getChildren: () => [],
     getEffectiveProperties: () => [],
     runQueryAst: async () => ({ ids: [] }),
     subscribe: () => () => {},

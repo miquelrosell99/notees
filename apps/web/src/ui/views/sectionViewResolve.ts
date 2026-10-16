@@ -59,6 +59,8 @@ export interface SectionViewResolveClient {
   /** The node read (the descendantOf ancestor-chain walk). */
   getNode(id: string): ClientNode | undefined;
   getClassChildren(classId: string): ClientNode[];
+  /** The direct-children read (the child / child-path conditions' sync arms). */
+  getChildren(id: string): ClientNode[];
   /** The effective-values read model (the property condition's sync arm). */
   getEffectiveProperties(id: string): EffectiveProperty[];
   runQueryAst(rawAst: unknown):
@@ -112,6 +114,10 @@ function leafNeedsProbe(condition: QueryAst["root"]["children"][number]): boolea
   if (condition.type === "pageOfQuery") return true;
   if (condition.type === "ancestorInQuery") return true;
   if (condition.type === "rootInQuery") return true;
+  if (condition.type === "parentOfQuery") return true;
+  if (condition.type === "childOfQuery") return true;
+  if (condition.type === "referencePathOf") return true;
+  if (condition.type === "referencePathOfQuery") return true;
   if (condition.type === "content" && condition.op === "fts") return true;
   return false;
 }
@@ -453,6 +459,36 @@ function conditionMatches(ctx: EvalContext, condition: QueryAst["root"]["childre
         current = parent;
       }
       return targets.has(current.id);
+    }
+    case "parentOf":
+      // v1's PARENT block (static): the DIRECT parent is one of the picked
+      // nodes (a parentless row's NULL parent matches nothing).
+      return node.parentId !== null && condition.nodeIds.includes(node.parentId);
+    case "childOf":
+      // v1's CHILD block (static): a DIRECT child is one of the picked nodes.
+      return ctx.client
+        .getChildren(node.id)
+        .some((child) => condition.nodeIds.includes(child.id));
+    case "childSet":
+      // The CHILD "is set": at least one direct child.
+      return ctx.client.getChildren(node.id).length > 0;
+    case "descendantSet": {
+      // The CHILD PATH "is set": at least one descendant at any depth below.
+      // Depth-first over the direct-children read; cycle-guarded.
+      const seen = new Set<string>([node.id]);
+      const stack = ctx.client.getChildren(node.id).map((child) => child.id);
+      while (stack.length > 0) {
+        const current = stack.pop()!;
+        if (seen.has(current)) continue;
+        seen.add(current);
+        const child = ctx.client.getNode(current);
+        if (child === undefined) continue;
+        if (child.isActive) return true;
+        for (const grandchild of ctx.client.getChildren(child.id)) {
+          if (!seen.has(grandchild.id)) stack.push(grandchild.id);
+        }
+      }
+      return false;
     }
     case "contentSet":
       // The title/content plaintext is non-empty (the content "is set").
