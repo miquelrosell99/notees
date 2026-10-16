@@ -201,7 +201,7 @@ A bullet's prominence is soft state — one op flips it, and identity is preserv
 
 The canonical story: a `meeting`-classed bullet in a daily note sits quietly for months. When it starts to matter, promote it — set its render bit (`--presentAsMain`), optionally nest it under the company page. Same node, same id, all links intact.
 
-The flip is real from the CLI and object API (`notees object update <id> --presentAsMain` — see [usage.md](usage.md#a-real-session)) and from the editor: the block's context menu offers **Move to Pages** / **Move to content** (one undoable `object.update`). Because promotion flattens a block's content to plain text (title-is-content), Move to Pages asks first when the block carries rich tokens — the confirmation names what will flatten (mentions, typed links, attachments, …); whiteboards and queries survive untouched, and plain text promotes without asking. Recents/dropdown re-ranking and the class-declaration flow are designed.
+The flip is real from the CLI and object API (`notees object update <id> --presentAsMain` — see [usage.md](usage.md#a-real-session)) and from the editor: the block's context menu carries it as **Convert to page › Keep under "…"** (promote) and **Move to content** (demote, on a parented page) — one undoable `object.update` each. Because promotion flattens a block's content to plain text (title-is-content), the conversion asks first when the block carries rich tokens — the confirmation names what will flatten (mentions, typed links, attachments, …); whiteboards and queries survive untouched, and plain text converts without asking. Recents/dropdown re-ranking and the class-declaration flow are designed.
 
 ## Presentation mode — the note is the deck
 

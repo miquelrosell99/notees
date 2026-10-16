@@ -4,15 +4,15 @@
  * against stub read/write surfaces — the link block lands in the block's
  * old slot (beforeId/afterId anchors), the block moves to the workspace
  * root keeping its identity and content, and the children either stay in
- * the original page (reparented onto the link block, order preserved —
- * default) or follow the extracted page (Shift/Ctrl/Cmd-click —
- * keepChildren, no child moves). Plus the menu wiring: the item shows for
- * inline blocks only (never pages, never parent-locked date-chain nodes)
- * and the modifier key rides the click event.
+ * the original page (reparented onto the link block, order preserved) or
+ * follow the extracted page (keepChildren — no child moves). Plus the menu
+ * wiring: the "Convert to page ›" submenu shows for inline blocks only
+ * (never pages, never parent-locked date-chain nodes) and each variant is
+ * a self-describing plain click.
  */
 
 import { describe, expect, it } from "vitest";
-import { fireEvent, render, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, waitFor } from "@testing-library/react";
 
 import { dayNodeId } from "@notees/domain";
 
@@ -162,7 +162,7 @@ describe("extractBlockToPage composition", () => {
   });
 });
 
-describe('NodeContextMenu "Convert to page"', () => {
+describe('NodeContextMenu "Convert to page" submenu', () => {
   function stubClient(entries: Map<string, ClientNode[]>) {
     const base = stubSurfaces(entries);
     const client = {
@@ -174,6 +174,10 @@ describe('NodeContextMenu "Convert to page"', () => {
       getEffectiveProperties: () => [],
       getNode: base.reads.getNode,
       getChildren: base.reads.getChildren,
+      listPropertySchemas: () => [],
+      effectiveClassColor: () => null,
+      effectiveClassIcons: () => new Map<string, string | null>(),
+      getDisplayName: () => null,
     };
     return { client, ...base };
   }
@@ -200,7 +204,7 @@ describe('NodeContextMenu "Convert to page"', () => {
       ["t1", [nodeOf({ id: "c1", parentId: "t1" })]],
     ]);
 
-  it("offers the item on an inline block only (not pages, not date-chain nodes)", () => {
+  it("offers the submenu on an inline block only (not pages, not date-chain nodes)", () => {
     // The menu portals to document.body, so each case renders alone and
     // unmounts before the next (default queries bind to the body).
     const shown = renderMenu(inlineTarget, stubClient(scenario()).client);
@@ -224,18 +228,23 @@ describe('NodeContextMenu "Convert to page"', () => {
     dayRender.unmount();
   });
 
-  it("names the modifier variant in the badge", () => {
+  it("the submenu names all three variants (parent name, both root extractions)", () => {
     const { getByText } = renderMenu(inlineTarget, stubClient(scenario()).client);
-    const row = getByText("Convert to page").closest("button")!;
-    expect(within(row).getByText("⇧ children follow")).not.toBeNull();
+    fireEvent.click(getByText("Convert to page"));
+    // The stub cannot resolve the parent node itself — the fallback reads
+    // "parent"; the production label carries the parent's display name.
+    expect(getByText('Keep under "parent"')).not.toBeNull();
+    expect(getByText("Extract to root — children stay here")).not.toBeNull();
+    expect(getByText("Extract to root — children follow")).not.toBeNull();
   });
 
-  it("a plain click keeps the children in the page (reparented to the link block)", async () => {
+  it("a plain click on 'children stay here' reparents the children to the link block", async () => {
     notificationStore.clearAll();
     const stub = stubClient(scenario());
     const { getByText } = renderMenu(inlineTarget, stub.client);
 
     fireEvent.click(getByText("Convert to page"));
+    fireEvent.click(getByText("Extract to root — children stay here"));
 
     await waitFor(() => expect(stub.moves.map((m) => m.id)).toEqual(["t1", "c1"]));
     expect(stub.creates).toEqual([
@@ -248,19 +257,17 @@ describe('NodeContextMenu "Convert to page"', () => {
     expect(notificationStore.notifications.at(-1)?.title).toBe("Converted to page");
   });
 
-  it("Shift-click (and Ctrl-click) carries the children over — no child moves", async () => {
-    for (const init of [{ shiftKey: true }, { ctrlKey: true }]) {
-      notificationStore.clearAll();
-      const stub = stubClient(scenario());
-      const { getByText, unmount } = renderMenu(inlineTarget, stub.client);
+  it("'children follow' moves nothing but the block itself", async () => {
+    notificationStore.clearAll();
+    const stub = stubClient(scenario());
+    const { getByText } = renderMenu(inlineTarget, stub.client);
 
-      fireEvent.click(getByText("Convert to page"), init);
+    fireEvent.click(getByText("Convert to page"));
+    fireEvent.click(getByText("Extract to root — children follow"));
 
-      await waitFor(() =>
-        expect(stub.moves).toEqual([{ id: "t1", parentId: null, afterId: undefined, beforeId: undefined }]),
-      );
-      expect(stub.creates).toHaveLength(1);
-      unmount();
-    }
+    await waitFor(() =>
+      expect(stub.moves).toEqual([{ id: "t1", parentId: null, afterId: undefined, beforeId: undefined }]),
+    );
+    expect(stub.creates).toHaveLength(1);
   });
 });
