@@ -28,7 +28,7 @@ import { downloadBlob } from "./modals/download.js";
 import { WorkspaceExportModal } from "./modals/WorkspaceExportModal.js";
 import { WorkspaceNameModal } from "./modals/WorkspaceNameModal.js";
 import { deleteWorkspace, exportWorkspace, renameWorkspace } from "./modals/workspaceApi.js";
-import { offlineWorkspaceList, rememberWorkspaceList } from "@/core/workspace-registry.js";
+import { localWorkspaceCopies, rememberedWorkspaceList, rememberWorkspaceList } from "@/core/workspace-registry.js";
 import "./WorkspacesView.css";
 
 export interface WorkspacesViewProps {
@@ -96,11 +96,11 @@ export function WorkspacesView({
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        // The server didn't answer: the local copies are the honest list —
-        // openable now, sync state visible in the shell behind the manager.
-        const local = offlineWorkspaceList();
-        if (local.length > 0) {
-          setWorkspaces(local);
+        // The server didn't answer: the remembered list stands in — cards
+        // without a local copy render muted and inert below.
+        const remembered = rememberedWorkspaceList();
+        if (remembered.length > 0) {
+          setWorkspaces(remembered);
           setOffline(true);
           return;
         }
@@ -119,9 +119,9 @@ export function WorkspacesView({
         setOffline(false);
       })
       .catch((err: unknown) => {
-        const local = offlineWorkspaceList();
-        if (local.length > 0) {
-          setWorkspaces(local);
+        const remembered = rememberedWorkspaceList();
+        if (remembered.length > 0) {
+          setWorkspaces(remembered);
           setOffline(true);
           return;
         }
@@ -195,6 +195,8 @@ export function WorkspacesView({
 
   const list = workspaces ?? [];
   const hasNoWorkspaces = workspaces !== null && list.length === 0;
+  /** Offline: which of the remembered cards actually hold a local copy. */
+  const localCopies = offline ? localWorkspaceCopies() : null;
   const fullName =
     user !== null
       ? [user.name, user.surnames].filter((p) => p !== null && p !== "").join(" ").trim()
@@ -268,7 +270,7 @@ export function WorkspacesView({
             <h2>{hasNoWorkspaces ? "Welcome! Create your first workspace" : "Your workspaces"}</h2>
             <p className="workspace-management__subtitle">
               {offline
-                ? "Offline — showing workspaces stored on this device. Server actions (create, rename, delete, export) wait for recovery."
+                ? "Offline — cloud-tagged workspaces have no copy on this device and can&apos;t open; server actions (create, rename, delete, export) wait for recovery."
                 : hasNoWorkspaces
                 ? "A workspace holds all your notes and pages — click the + card below to create one."
                 : "Select a workspace to open, or create a new one."}
@@ -286,17 +288,27 @@ export function WorkspacesView({
               <div className="workspace-management__grid">
                 {list.map((workspace) => {
                   const isActive = workspace.id === activeWorkspaceId;
+                  const unavailable = localCopies !== null && !localCopies.has(workspace.id);
                   const displayName = workspace.name ?? "Workspace";
                   return (
                     <Card
                       key={workspace.id}
-                      className={`workspace-management__card ${isActive ? "workspace-management__card--active" : ""}`}
+                      className={`workspace-management__card ${isActive ? "workspace-management__card--active" : ""} ${
+                        unavailable ? "workspace-management__card--unavailable" : ""
+                      }`}
                       elevation="low"
                       padding={false}
                     >
                       <div className="workspace-management__card-header">
                         <div className="workspace-management__card-title">
                           <span className="workspace-management__card-name">{displayName}</span>
+                          {unavailable && (
+                            <Icon
+                              path="mdi-cloud-off-outline"
+                              size={0.9}
+                              className="workspace-management__unavailable-icon"
+                            />
+                          )}
                           <div className="workspace-management__card-badges" />
                         </div>
                         <div className="workspace-management__card-actions">
@@ -305,9 +317,13 @@ export function WorkspacesView({
                             variant="ghost"
                             size="sm"
                             onClick={() => handleSelectWorkspace(workspace)}
-                            title="Open workspace"
+                            title={
+                              unavailable
+                                ? "Not available offline — open it once while online to keep a copy on this device"
+                                : "Open workspace"
+                            }
                             className="workspace-management__access-btn"
-                            disabled={switching}
+                            disabled={switching || unavailable}
                             icon="mdi mdi-arrow-right"
                           />
                           {!offline && (
@@ -332,10 +348,16 @@ export function WorkspacesView({
                       <div className="workspace-management__card-content">
                         <div className="workspace-management__card-footer">
                           <div className="workspace-management__card-meta">
-                            <span>
-                              Created {new Date(workspace.createdAt).toLocaleDateString()}
-                            </span>
-                            <span>{workspace.envelopeCount} operations</span>
+                            {unavailable ? (
+                              <span>Not on this device — open once while online to keep a copy here.</span>
+                            ) : (
+                              <>
+                                <span>
+                                  Created {new Date(workspace.createdAt).toLocaleDateString()}
+                                </span>
+                                <span>{workspace.envelopeCount} operations</span>
+                              </>
+                            )}
                           </div>
                           {isActive && (
                             <Pill text="Active" className="workspace-management__pill--active" />

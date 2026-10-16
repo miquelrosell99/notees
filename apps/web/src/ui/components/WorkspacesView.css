@@ -114,6 +114,18 @@
   background: var(--md-sys-color-primary-container);
 }
 
+/* Remembered but not on this device (offline fallback): visible, honest,
+ * inert. */
+.workspace-management__card--unavailable {
+  opacity: 0.55;
+}
+
+.workspace-management__unavailable-icon {
+  flex-shrink: 0;
+  color: var(--md-sys-color-on-surface-variant);
+  display: inline-flex;
+}
+
 .workspace-management__card--delete-confirm {
   border-color: var(--md-sys-color-error);
   background: var(--md-sys-color-error-container);
