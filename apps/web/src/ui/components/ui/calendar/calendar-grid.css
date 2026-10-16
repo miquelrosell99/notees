@@ -60,15 +60,14 @@
   pointer-events: auto;
 }
 
-.calendar-day.btn.has-note {
+/* The has-note fill is the genuine active identity (a day page exists): the
+   combined rule keeps primary-container while hovered — the hover ruling's
+   pattern; hover must not wash the active fill away. */
+.calendar-day.btn.has-note,
+.calendar-day.btn.has-note:hover {
   background: var(--md-sys-color-primary-container);
   color: var(--md-sys-color-on-primary-container);
-  font-weight: 500;
-}
-
-.calendar-day.btn.has-note:hover {
-  background: var(--md-sys-color-hover-overlay);
-  color: var(--md-sys-color-on-primary-container);
+  font-weight: 600;
 }
 
 .calendar-day.btn.today {

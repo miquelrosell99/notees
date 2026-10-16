@@ -198,6 +198,9 @@
   padding: 0;
   text-align: left;
   font: var(--font-body-medium);
+  /* The §7 list-row register (the feeds' precedent): primary 14px/600.
+     Truncation contract unchanged at the heavier weight. */
+  font-weight: 600;
   color: var(--md-sys-color-on-surface);
   cursor: pointer;
   border-radius: var(--shape-small);
@@ -208,7 +211,7 @@
 
 .calendar-view__row-day {
   flex-shrink: 0;
-  font: var(--font-label-small);
+  font-size: var(--font-size-sm);
   color: var(--md-sys-color-on-surface-variant);
 }
 

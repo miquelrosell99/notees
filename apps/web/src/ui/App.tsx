@@ -790,7 +790,10 @@ export function App() {
     // Default: open on desktop, closed on narrow screens. jsdom lacks
     // matchMedia — default open there.
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return true;
-    return window.matchMedia("(min-width: 801px)").matches;
+    // 801px is a deliberate non-register threshold (the register runs
+    // 480/768/1024/1440) — it gates the sidebar's open-by-default state, and
+    // behavior preservation beats breakpoint purity here.
+    return window.matchMedia("(width >= 801px)").matches;
   });
   /**
    * Tap-outside drawer dismissal — the

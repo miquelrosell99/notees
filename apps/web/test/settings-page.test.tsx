@@ -351,3 +351,14 @@ describe("SettingsPage", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("accent swatch group (skill §9)", () => {
+  it("the five swatches expose their selection via aria-pressed, exactly one pressed", () => {
+    renderPage({ section: "appearance" });
+    const swatches = screen.getAllByRole("button", { name: /^(Advance Green|Monochrome|Brown|Teal|Blue)$/ });
+    expect(swatches).toHaveLength(5);
+    const pressed = swatches.filter((swatch) => swatch.getAttribute("aria-pressed") === "true");
+    expect(pressed).toHaveLength(1);
+    expect(pressed[0]!.getAttribute("aria-label")).toBe("Advance Green");
+  });
+});
