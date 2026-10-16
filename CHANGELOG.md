@@ -9,6 +9,30 @@ predating this file.
 
 ## 2026-10-16
 
+- **feat(model): node links carry their own `isEmbedded` flag — manual,
+  default false (owner ruling 2026-10-16, same-day follow-up to the
+  Revision-12 slice).** The earlier link-based display transformation
+  inferred embedding from block shape (a link-only block transcluded);
+  the owner corrected it: embedding is a MANUAL PER-LINK choice, and an
+  unmarked link — including every pre-existing link — is an ordinary
+  inline link even when it is its block's whole content. Wire: the
+  `mention` content token gains optional `isEmbedded` (absent/false =
+  ordinary link); the derived `edge` table projects it as
+  `is_embedded INTEGER NOT NULL DEFAULT 0` (store schema v22, guarded
+  additive ALTER — every pre-existing edge backfills 0, the owner-facing
+  backfill of the Notas workspace verified live: 19,462 edges, zero
+  embedded). The flag is not part of the edge identity — toggling it
+  updates the row in place like the alias resolution. Web: the link-only
+  transclusion gate now requires the token's manual flag; the Edit-link
+  dialog gains an "Embed this link" toggle writing the flag through the
+  standard content path. Fixtures: gate 31→32 (`link-embedded.json`).
+  LOCKSTEP (same day): GTK (mention schema + fixture re-vendor, 804
+  tests) and Flutter (MentionToken + local schema v30, 642 tests)
+  converged; the additive slice deployed with a normal scoped redeploy —
+  no log migration — and `verify-min.mjs` returned VERIFY-PASS. Docs:
+  SCHEMA.md transformation paragraph + philosophy/ux wording.
+  **Verification:** `pnpm typecheck` + `pnpm test` green (protocol 410,
+  store 576, web 1715); live backfill count verified.
 - **fix(web): the fleet taste calls reverse to M3 — 48dp touch floors, M3
   elevation levels with cards at level 1, 4px menu radius (owner ruling
   2026-10-16: "I want M3's approach, not the fleet").** The design skill
