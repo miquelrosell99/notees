@@ -286,29 +286,27 @@ describe("Class View", () => {
     expect(authorsRow.textContent).toContain("agent");
   });
 
-  it("renders the class's child blocks as the editable body and main children under Child pages", async () => {
+  it("renders the class's children as the editable body — a class has no child pages", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "Container Class");
-    // Classes are containers (spec I4): an inline body child and a
-    // present-as-main child, both non-class.
+    // Classes are containers (spec I4) — and under the parent-page condition
+    // (owner ruling 2026-10-15) a class is not a page, so a present-as-main
+    // child of a class is unrepresentable: every non-class child renders
+    // inline in the class body.
     await client.createObject({
       parentId: classId,
       contentAst: [{ type: "text", text: "class body block" }],
     });
-    await client.createObject({ presentAsMain: true, parentId: classId, name: "Class Main Child" });
+    await client.createObject({ parentId: classId, name: "Second class child" });
 
     const { container } = render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
 
-    // The body is the page tree: the inline child renders directly, with no
-    // section to expand (the read-only Blocks section left with the redesign).
+    // The body is the page tree: both children render directly in the body
+    // (the block tree IS the class body), with no Child-pages section
+    // content — a class has no child pages under the parent-page condition.
     expect(screen.getByText("class body block")).not.toBeNull();
-
-    // Child pages moved into the system sections — expanded by default, like
-    // the page view: the main child renders there, not in the body.
-    expect(screen.getByText("Class Main Child")).not.toBeNull();
-    expect(container.querySelector(".nt-block-tree")?.textContent ?? "").not.toContain(
-      "Class Main Child",
-    );
+    expect(screen.getByText("Second class child")).not.toBeNull();
+    expect(container.querySelectorAll(".nt-block-tree").length).toBeGreaterThan(0);
   });
 });
 

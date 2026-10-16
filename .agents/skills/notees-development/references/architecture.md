@@ -35,11 +35,17 @@ sql.js backend uses `ftsModule: "fts4"` + `schemaSql("fts4")`.
 
 Nodes carry two booleans + one CHECK: `is_class`, `present_as_main`,
 `CHECK (is_class = 0 OR parent_id IS NULL)`. "Page"/"block" are render states,
-not node kinds. **Main node vs block node** (owner 2026-10-09): a main node
-renders with document chrome — `is_class = 1`, OR `parent_id IS NULL` (no
-parent), OR `present_as_main = 1` (the explicit flag); a block node is a
-parented non-class node with `present_as_main = 0` — inline in the parent's
-body, no title/chrome. `rendersWithDocumentChrome` / `rendersAsInlineBlock`
+not node kinds. **Main node vs block node** (owner 2026-10-09; the parent-page
+condition joins 2026-10-15): a main node renders with document chrome —
+`is_class = 1`, OR `parent_id IS NULL` (no parent), OR `present_as_main = 1`
+on a parented non-class node **whose parent also renders with document
+chrome**; a block node is any other parented non-class node — the bit unset,
+or set but inert under a class/block parent — inline in the parent's body, no
+title/chrome. The condition is write-time enforced (`MoveGuardError` on
+create/promotion/move under a non-page parent; demotion of a parented page
+with main children) and old logs are normalized by
+`scripts/migrate-main-parent-page.mts` (LOCKSTEP-PENDING for the GTK/Flutter
+ports). `rendersWithDocumentChrome` / `rendersAsInlineBlock`
 (`packages/domain/src/node.ts`) are the two branches every surface speaks
 ("child pages" = main-zone children, "child blocks" = the inline zone).
 **Title-is-content** (2026-10-01): no `name` on the wire — a

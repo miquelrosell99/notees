@@ -28,3 +28,20 @@ export function renderStateLabel(node: RenderStateLabelInput): string {
 export function untitledLabelOf(node: RenderStateLabelInput): string {
   return `Untitled ${renderStateLabel(node).toLowerCase()}`;
 }
+
+/** The minimal client shape the parent lookup needs (WorkspaceClient and
+ *  WorkerClient both satisfy it). */
+type ParentLookup = { getNode(id: string): RenderStateLabelInput | undefined };
+
+/** Parent render facts for the parent-page condition (owner ruling
+ *  2026-10-15): the parent's own render-state fields when the node is
+ *  parented and the row is at hand, else undefined — parentless, or the
+ *  parent row is not loaded. The store enforces the parent-page invariant
+ *  write-time, so a missing parent never changes the answer over stored
+ *  data; passing the facts keeps render honest on not-yet-migrated rows. */
+export function parentRenderFacts(
+  client: ParentLookup,
+  node: { parentId: string | null },
+): RenderStateLabelInput | undefined {
+  return node.parentId !== null ? client.getNode(node.parentId) : undefined;
+}

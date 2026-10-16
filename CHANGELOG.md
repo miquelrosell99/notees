@@ -240,6 +240,51 @@ predating this file.
   degraded banner; no remembered workspace keeps the credential on the
   server form); `pnpm typecheck` + `pnpm test` green. Web-only — no wire
   touch.
+- **feat(model): the parent-page condition — a parented node is a page only
+  when `present_as_main = 1` AND its parent is also a page (owner ruling
+  2026-10-15).** The Revision-11 render cascade gains its second conjunct: a
+  class or an inline-block parent makes the render bit inert — the node
+  renders inline in the parent's body. Per the impossible-states law the
+  invariant is write-time enforced and render assumes it: the applier fails
+  loud (`MoveGuardError`, the quarantine-compatible error class, so
+  historical violations never brick a fresh replay — the date-chain-locks
+  precedent) when `object.create` or a promotion claims the bit under a
+  non-page parent, when `object.move` carries a main node under a non-page
+  parent, and when a parented page with `present_as_main` children is
+  demoted (demote or move the children first). The domain predicates
+  `rendersWithDocumentChrome` / `rendersAsInlineBlock` take an optional
+  parent-facts argument (omitted = the stored invariant is trusted); every
+  web call site with the client at hand now passes the parent, the
+  ancestor-walk reads (query-result routing, class-member routing, backlink
+  breadcrumbs, containing-page labels) honor the condition mid-walk, and the
+  context menu hides "Move to Pages" where the store would reject it. SQL
+  read paths (search scopes, pages listings, the query compiler) need no
+  parent join: the invariant makes `present_as_main = 1` equivalent to
+  "renders with document chrome" over stored data. Old logs: the one-time
+  migration `scripts/migrate-main-parent-page.mts` (dry-run default) is
+  snapshot-anchored (the relay prunes compacted envelopes, so violations
+  born below the snapshot horizon live in the snapshot bytes): tail
+  envelopes claiming the bit under a non-page parent are rewritten in place
+  (`presentAsMain: true → false`), snapshot-baked rows are cleared by
+  derived-state surgery (the patched bytes replace the snapshot blob), and
+  historical move/demote-class breaches replay-quarantine rather than
+  rewriting.
+  Test workspace verified clean by a dry-run (zero rewrites). Fixture gate:
+  `present-as-main-parent-page.json` pins the throwing scenario (30-fixture
+  list), the store suite pins the guard matrix on both adapters, and
+  `apps/web/test/migrate-main-parent-page.test.ts` pins the migration's
+  walk/verify core (deep-as-of cascade included). **LOCKSTEP-PENDING: the
+  GTK/Flutter ports converge on the new fixture before the marker clears.**
+  Docs: SCHEMA.md "Node structure", `docs/developers/architecture.md`,
+  `AGENTS.md` + the notees-development skill reference, the fixture table in
+  `docs/developers/development.md` §3, the migrations catalog. Semantic
+  consequences worth knowing: a class has no child pages anymore (its
+  children are inline body children), and promoting a block whose parent is
+  a block now requires moving it under a page first.
+  **Verification:** `pnpm install && pnpm typecheck && pnpm test` green;
+  migration dry-run against the test workspace (`c491595f-…`) reports a
+  clean log. The owner's live workspace needs the same dry-run, then a
+  stopped-stack `--apply` (the script prints the exact steps).
 
 ## 2026-10-15
 

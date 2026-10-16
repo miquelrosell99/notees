@@ -159,6 +159,25 @@ function requireNode(db: StoreDatabase, nodeId: string, opType: string) {
   return row;
 }
 
+/** The render facts isPageRow needs off a node row. */
+type RenderRow = { is_class: unknown; parent_id: unknown; present_as_main: unknown };
+
+/** True when the row renders with document chrome under the recursive
+ *  parent-page rule (owner ruling 2026-10-15): a class never does
+ *  (ClassView), a parentless non-class row always does (the bit is unread),
+ *  and a parented row does exactly when present_as_main = 1 AND its parent
+ *  renders with document chrome. Walks the parent chain — cycles are
+ *  impossible (subtree moves are guarded); a missing parent row is a
+ *  defensive "not a page". */
+function isPageRow(db: StoreDatabase, row: RenderRow): boolean {
+  if (row.is_class === 1) return false;
+  if (row.parent_id === null || row.parent_id === undefined) return true;
+  if (row.present_as_main !== 1) return false;
+  const parent = getNodeRow(db, row.parent_id as string);
+  if (!parent) return false;
+  return isPageRow(db, parent as unknown as RenderRow);
+}
+
 /** The property schema's type, null when the schema row is unknown
  *  (property.set has no schema FK — arbitrary ids store unchecked). */
 function propertySchemaTypeOf(db: StoreDatabase, propertySchemaId: string): string | null {
@@ -447,6 +466,16 @@ const tagMemberUpsert = db.prepare(
     // Classes are containers (spec I4): a class parent is legal for
     // non-class children — which is all object.create can make (is_class
     // stays 0; class declaration remains the class.create op).
+    // Parent-page condition (owner ruling 2026-10-15): the render bit is
+    // only effective under a page parent — claiming it under a class or a
+    // block parent establishes an illegal parented state and fails loud.
+    if (presentAsMain === 1 && !isPageRow(db, parent as unknown as RenderRow)) {
+      throw new MoveGuardError(
+        `${opType}: present_as_main requires the parent to render with document chrome ` +
+          `(parent ${parentId} is a class or an inline block)`,
+        opType,
+      );
+    }
   }
   // Date-chain parenting lock (SCHEMA.md "Datetime", same rule as
   // object.move, with one birth-time exception): a date id may only be
@@ -598,6 +627,7 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
   const row = requireNode(db, p.objectId, opType) as unknown as Parameters<typeof rowWinner>[0] & {
     is_class: number;
     present_as_main: number;
+    parent_id: string | null;
     content: string;
   };
 
@@ -623,7 +653,34 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
   // demotion never un-flattens. On a class row the bit is inert (classes
   // render ClassView regardless); applying it harmlessly keeps the op
   // uniform.
+  // Parent-page condition (owner ruling 2026-10-15): the bit is only
+  // effective under a page parent. Promotion fails loud when the parent is
+  // a class or an inline block; demotion of a parented page fails loud
+  // while it still carries present_as_main = 1 children (they would dangle
+  // under a non-page parent — demote or move them first).
   if (p.presentAsMain !== undefined) {
+    if (p.presentAsMain && row.parent_id !== null) {
+      const parent = getNodeRow(db, row.parent_id);
+      if (!parent || !isPageRow(db, parent as unknown as RenderRow)) {
+        throw new MoveGuardError(
+          `${opType}: present_as_main requires the parent to render with document chrome ` +
+            `(parent ${row.parent_id} is a class or an inline block)`,
+          opType,
+        );
+      }
+    }
+    if (!p.presentAsMain && row.present_as_main === 1 && row.parent_id !== null) {
+      const mainChild = db
+        .prepare("SELECT 1 AS x FROM node WHERE parent_id = ? AND present_as_main = 1 LIMIT 1")
+        .get(p.objectId);
+      if (mainChild !== undefined) {
+        throw new MoveGuardError(
+          `${opType}: cannot demote node ${p.objectId} while it carries present_as_main children ` +
+            "(demote or move them first)",
+          opType,
+        );
+      }
+    }
     sets.push("present_as_main = ?");
     values.push(p.presentAsMain ? 1 : 0);
     if (p.presentAsMain && row.present_as_main === 0) {
@@ -973,7 +1030,9 @@ function applyObjectRestore(db: StoreDatabase, env: Envelope): ChangeSummary {
  * class-under-class / class-with-parent shape stays illegal; the DB CHECK
  * would fire anyway, so the guard surfaces it friendly), and a DATE-CHAIN
  * node may only move under its deterministic chain parent (SCHEMA.md
- * "Datetime" — the parenting lock). Moves never write
+ * "Datetime" — the parenting lock), and a PRESENT_AS_MAIN node may only
+ * move under a parent that renders with document chrome (the parent-page
+ * condition, owner ruling 2026-10-15). Moves never write
  * the render bit: a parentless non-class node renders with document chrome
  * by the second cascade branch regardless of present_as_main.
  */
@@ -998,6 +1057,21 @@ function applyObjectMove(db: StoreDatabase, env: Envelope): ChangeSummary {
   if (p.parentId !== null && (row as { is_class?: number }).is_class === 1) {
     throw new MoveGuardError(
       `${opType}: node ${p.objectId} is a class; classes are always roots and cannot have a parent`,
+      opType,
+    );
+  }
+  // Parent-page condition (owner ruling 2026-10-15): a present_as_main node
+  // renders with document chrome only under a page parent, so moving one
+  // under a class or an inline block establishes an illegal parented state
+  // and fails loud (moves never write the bit — the alternative, silently
+  // clearing it, would rewrite render state behind the user's back).
+  if (
+    p.parentId !== null &&
+    (row as { present_as_main?: number }).present_as_main === 1 &&
+    !isPageRow(db, getNodeRow(db, p.parentId) as unknown as RenderRow)
+  ) {
+    throw new MoveGuardError(
+      `${opType}: node ${p.objectId} presents as main; it can only move under a parent that renders with document chrome`,
       opType,
     );
   }

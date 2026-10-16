@@ -35,6 +35,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client.js";
 
 import { ClassedNodesSection } from "./classview/ClassedNodesSection.js";
+import { parentRenderFacts } from "../renderStateLabel.js";
 import { ExtendedBySection } from "./classview/ExtendedBySection.js";
 import { PropertyDefinitionsSection } from "./classview/PropertyDefinitionsSection.js";
 import { TemplatesSection } from "./classview/TemplatesSection.js";
@@ -212,7 +213,7 @@ export function pageVariantOf(client: AnyClient, nodeId: string): PageVariant {
       systemSections: CLASS_SYSTEM_SECTIONS,
     };
   }
-  if (node === undefined || !rendersWithDocumentChrome(node)) {
+  if (node === undefined || !rendersWithDocumentChrome(node, parentRenderFacts(client, node))) {
     return { variant: "plain", sections: NO_SECTIONS, systemSections: NO_SECTIONS };
   }
   const parsed = parseDateNodeId(nodeId);

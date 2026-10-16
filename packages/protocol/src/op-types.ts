@@ -27,7 +27,10 @@ export const objectCreatePayload = z
      * parentless nodes (those render with document chrome by the second
      * cascade branch). Optional in the payload — the applier defaults it
      * by context: true when parentless, false otherwise. Content is
-     * flattened to text-only when is_class or present_as_main. Class
+     * flattened to text-only when is_class or present_as_main. Parent-page
+     * condition (owner ruling 2026-10-15): the bit is only effective under
+     * a page parent — the applier rejects presentAsMain: true when the
+     * parent is a class or an inline block (MoveGuardError). Class
      * declaration remains the class.create op. Placement itself lives
      * only in the tree (parentId). Domain typing (whiteboard, meeting,
      * …) is classIds. The retired nodeType key (Revision 10 and earlier)
@@ -61,11 +64,14 @@ export const objectUpdatePayload = z
     objectId: uuid,
     /** Render-bit toggle (Revision 11): promotion/demotion flips are
      * presentAsMain true/false (identity preserved; promotion stringifies
-     * the content when the bit flips false → true). Class declaration
-     * remains the class.create op. The retired nodeType key (Revision 10
-     * and earlier) is rejected outright by this strict schema; old stored
-     * logs are rewritten to the new model by the one-time migration
-     * script (scripts/migrate-node-type.mts, planned). */
+     * the content when the bit flips false → true). Parent-page condition
+     * (owner ruling 2026-10-15): promotion fails loud when the parent is a
+     * class or an inline block, and demoting a parented page fails loud
+     * while it carries present_as_main children (MoveGuardError). Class
+     * declaration remains the class.create op. The retired nodeType key
+     * (Revision 10 and earlier) is rejected outright by this strict schema;
+     * old stored logs are rewritten to the new model by the one-time
+     * migration script (scripts/migrate-node-type.mts, planned). */
     presentAsMain: z.boolean().optional(),
     icon: z.string().max(64).optional(),
     /** Preset token (`sky`) or custom `#RRGGBB` hex (colors.ts grammar);
@@ -154,8 +160,11 @@ export const trashEmptyPayload = z.object({}).strict();
  * fractional ordering cannot express — midpoints never drop below the
  * current minimum). Omit both to append at the end. At most one anchor is
  * meaningful; when both are present `afterId` wins. An anchor that is not a
- * current sibling falls back to append (defensive, mirrors afterId). Parent
- * and position are LWW by envelope HLC, like the other node fields. Ordering
+ * current sibling falls back to append (defensive, mirrors afterId).
+ * Parent-page condition (owner ruling 2026-10-15): a present_as_main node
+ * may only move under a parent that renders with document chrome — the
+ * applier's guard rejects a class or inline-block target (MoveGuardError).
+ * Parent and position are LWW by envelope HLC, like the other node fields. Ordering
  * is a minimal deterministic fractional allocator (sibling midpoint /
  * midpoint-below-first / append) — TreeCrdt remains designed (docs/ux.md
  * "The outliner").

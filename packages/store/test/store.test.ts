@@ -50,8 +50,13 @@ function loadFixture(name: string): Record<string, unknown>[] {
 
 /** Fixtures whose application must THROW — never part of the all-fixtures
  * replay/determinism sets (class-extends-cycle.json closes cycles and fails
- * loud by design; it is applied deliberately in its own test). */
-const REPLAY_EXCLUDED_FIXTURES = new Set(["class-extends-cycle.json"]);
+ * loud by design; present-as-main-parent-page.json claims the render bit
+ * under a block parent and fails loud by design; both are applied
+ * deliberately in their own tests). */
+const REPLAY_EXCLUDED_FIXTURES = new Set([
+  "class-extends-cycle.json",
+  "present-as-main-parent-page.json",
+]);
 
 function allFixtureEnvelopes(): Record<string, unknown>[] {
   return FIXTURE_FILES.filter((f) => !REPLAY_EXCLUDED_FIXTURES.has(f)).flatMap(loadFixture);
@@ -600,6 +605,128 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(
         (store.database.prepare("SELECT COUNT(*) AS n FROM class_extends").get() as { n: number }).n,
       ).toBe(1);
+    });
+
+    it("present-as-main-parent-page fixture throws the parent-page guard on apply", () => {
+      const [pageP, blockB, violatingX] = loadFixture("present-as-main-parent-page.json");
+      const p = "0192a000-0000-7000-8000-0000000000f1";
+      const b = "0192a000-0000-7000-8000-0000000000f2";
+      const x = "0192a000-0000-7000-8000-0000000000f3";
+      const store = makeStore();
+      // The prefix applies cleanly: page P, then block B under P (bit 0).
+      store.applyMany([pageP!, blockB!]);
+      expect(store.getNode(b)).toMatchObject({ parent_id: p, present_as_main: 0 });
+
+      // Claiming the render bit under the BLOCK fails loud (parent-page
+      // condition, owner ruling 2026-10-15) and rolls back: no row for X.
+      expect(() => store.apply(violatingX!)).toThrow(MoveGuardError);
+      expect(store.getNode(x)).toBeUndefined();
+    });
+
+    describe("parent-page condition (owner ruling 2026-10-15)", () => {
+      const PAGE = "0192a000-0000-7000-8000-000000000501";
+      const CHILD_PAGE = "0192a000-0000-7000-8000-000000000502";
+      const BLOCK = "0192a000-0000-7000-8000-000000000503";
+      const NESTED_BLOCK = "0192a000-0000-7000-8000-000000000504";
+      const CLASS = "00000000-0000-7000-8000-000000000005";
+
+      /** PAGE > (CHILD_PAGE | BLOCK > NESTED_BLOCK). */
+      function treeStore(): Store {
+        const store = makeStore();
+        store.applyMany([
+          createPage(PAGE, 1727200005000),
+          env("object.create", { objectId: CHILD_PAGE, parentId: PAGE, presentAsMain: true }, 1727200005100),
+          env("object.create", { objectId: BLOCK, parentId: PAGE }, 1727200005200),
+          env("object.create", { objectId: NESTED_BLOCK, parentId: BLOCK }, 1727200005300),
+        ]);
+        return store;
+      }
+
+      it("nested page chain under a page applies; the bit under a block parent throws", () => {
+        const store = treeStore();
+        expect(store.getNode(CHILD_PAGE)).toMatchObject({ present_as_main: 1, parent_id: PAGE });
+        // A page's main child may itself carry main children.
+        store.apply(
+          env(
+            "object.create",
+            { objectId: "0192a000-0000-7000-8000-000000000505", parentId: CHILD_PAGE, presentAsMain: true },
+            1727200005400,
+          ),
+        );
+        // ...but a block's child may not claim the bit.
+        expect(() =>
+          store.apply(
+            env(
+              "object.create",
+              { objectId: "0192a000-0000-7000-8000-000000000506", parentId: BLOCK, presentAsMain: true },
+              1727200005500,
+            ),
+          ),
+        ).toThrow(MoveGuardError);
+      });
+
+      it("object.create with the bit under a class parent throws (a class is not a page)", () => {
+        const store = makeStore();
+        store.apply(env("class.create", { classId: CLASS, contentAst: [{ type: "text", text: "C" }] }, 1727200005000));
+        expect(() =>
+          store.apply(
+            env(
+              "object.create",
+              { objectId: "0192a000-0000-7000-8000-000000000507", parentId: CLASS, presentAsMain: true },
+              1727200005100,
+            ),
+          ),
+        ).toThrow(MoveGuardError);
+      });
+
+      it("promotion fails loud under a block/class parent and applies under a page", () => {
+        const store = treeStore();
+        // NESTED_BLOCK's parent is a block: promotion rejected.
+        expect(() =>
+          store.apply(env("object.update", { objectId: NESTED_BLOCK, presentAsMain: true }, 1727200005600)),
+        ).toThrow(MoveGuardError);
+        // BLOCK's parent is PAGE: promotion applies (and stringifies content).
+        store.apply(env("object.update", { objectId: BLOCK, presentAsMain: true }, 1727200005700));
+        expect(store.getNode(BLOCK)).toMatchObject({ present_as_main: 1 });
+        // A parentless row: the bit is unread, promotion stays harmless.
+        store.apply(env("object.update", { objectId: PAGE, presentAsMain: true }, 1727200005800));
+      });
+
+      it("demotion fails loud while main children remain; applies once they are demoted", () => {
+        const store = treeStore();
+        // GRANDCHILD is a main child of the parented page CHILD_PAGE:
+        // demoting CHILD_PAGE would dangle it. (A PARENTLESS page demotes
+        // freely — it keeps document chrome by the second cascade branch,
+        // so its main children stay valid.)
+        store.apply(
+          env(
+            "object.create",
+            { objectId: "0192a000-0000-7000-8000-000000000508", parentId: CHILD_PAGE, presentAsMain: true },
+            1727200005450,
+          ),
+        );
+        expect(() =>
+          store.apply(env("object.update", { objectId: CHILD_PAGE, presentAsMain: false }, 1727200005600)),
+        ).toThrow(MoveGuardError);
+        // Demote the main child first, then the demotion applies.
+        store.apply(
+          env("object.update", { objectId: "0192a000-0000-7000-8000-000000000508", presentAsMain: false }, 1727200005700),
+        );
+        store.apply(env("object.update", { objectId: CHILD_PAGE, presentAsMain: false }, 1727200005800));
+        expect(store.getNode(CHILD_PAGE)).toMatchObject({ present_as_main: 0 });
+      });
+
+      it("moving a main node under a block/class throws; under a page applies", () => {
+        const store = treeStore();
+        expect(() =>
+          store.apply(env("object.move", { objectId: CHILD_PAGE, parentId: BLOCK }, 1727200005600)),
+        ).toThrow(MoveGuardError);
+        store.apply(env("object.move", { objectId: CHILD_PAGE, parentId: PAGE, afterId: BLOCK }, 1727200005700));
+        expect(store.getNode(CHILD_PAGE)).toMatchObject({ parent_id: PAGE, present_as_main: 1 });
+        // Moving a BLOCK (bit 0) anywhere stays legal — moves never write the bit.
+        store.apply(env("object.move", { objectId: NESTED_BLOCK, parentId: PAGE }, 1727200005800));
+        expect(store.getNode(NESTED_BLOCK)).toMatchObject({ parent_id: PAGE, present_as_main: 0 });
+      });
     });
 
     it("class.setExtends replace semantics: a second array removes stale closure rows", () => {

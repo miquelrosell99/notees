@@ -50,6 +50,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { displayNameFromClient } from "../dateDisplay.js";
+import { parentRenderFacts } from "../renderStateLabel.js";
 import { NodeSelector } from "../components/pickers/NodeSelector.js";
 import { Button, Modal, SelectTrigger, SelectionButton } from "../components/ui/index.js";
 import { notificationStore } from "../components/ui/notificationStore.js";
@@ -414,7 +415,10 @@ export function LinkEditModal({
                       client={client}
                       anchorEl={targetTriggerRef.current}
                       searchMode={linkMode === "block" ? "all" : "pages"}
-                      canAdd={(node) => linkMode !== "block" || rendersAsInlineBlock(node)}
+                      canAdd={(node) =>
+                        linkMode !== "block" ||
+                        rendersAsInlineBlock(node, parentRenderFacts(client, node))
+                      }
                       excludeNodeId={excludeNodeId}
                       searchPlaceholder={
                         linkMode === "block" ? "Search blocks…" : "Search pages…"
@@ -635,7 +639,8 @@ export function LinkEditModalHost({
               ? "verb"
               : (() => {
                   const targetNode = client.getNode(target.initialNodeId);
-                  return targetNode !== undefined && rendersAsInlineBlock(targetNode)
+                  return targetNode !== undefined &&
+                    rendersAsInlineBlock(targetNode, parentRenderFacts(client, targetNode))
                     ? "block"
                     : "node";
                 })()

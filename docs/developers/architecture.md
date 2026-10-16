@@ -155,15 +155,23 @@ CHECK (is_class = 0 OR parent_id IS NULL)
   block chrome when 0; unread for parentless nodes and classes) × `class_ids` (domain
   typing — whiteboard, meeting, …). "Page" and "block" are the user-facing names of the
   render states, not stored kinds.
-- **Main node vs block node (the vocabulary, owner 2026-10-09):** a **main node**
-  renders with document chrome — `is_class = 1` (a class), OR `parent_id IS NULL`
-  (a workspace root — no parent), OR `present_as_main = 1` on a parented non-class
-  node (the explicit flag). A **block node** is a parented non-class node with
-  `present_as_main = 0`: it renders inline inside its parent's body with block chrome
-  and no title/document chrome. `rendersWithDocumentChrome` / `rendersAsInlineBlock`
-  (`packages/domain/src/node.ts`) encode exactly these two branches; exports, outlines,
-  section queries, and picker filters all speak it ("child pages" = main-zone
-  children, "child blocks" = the inline zone).
+- **Main node vs block node (the vocabulary, owner 2026-10-09; the parent-page condition
+  joins 2026-10-15):** a **main node** renders with document chrome — `is_class = 1` (a
+  class), OR `parent_id IS NULL` (a workspace root — no parent), OR `present_as_main = 1`
+  on a parented non-class node **whose parent also renders with document chrome**. A
+  **block node** is any other parented non-class node — `present_as_main = 0`, or the bit
+  set but inert under a non-page parent (a class or an inline block). The condition is
+  enforced write-time (fail-loud `MoveGuardError` on create/promotion/move under a
+  non-page parent, and on demoting a parented page that still carries main children);
+  render and every SQL read path assume it. `rendersWithDocumentChrome` /
+  `rendersAsInlineBlock` (`packages/domain/src/node.ts`) encode exactly these two
+  branches, with an optional parent-facts argument for callers that have the parent at
+  hand; exports, outlines, section queries, and picker filters all speak it ("child
+  pages" = main-zone children, "child blocks" = the inline zone). Old logs are
+  normalized by the one-time rewrite `scripts/migrate-main-parent-page.mts`
+  (`docs/developers/migrations.md`); until it runs on a workspace, pre-existing
+  violating rows read as blocks in the UI and stay frozen (new violating writes are
+  rejected).
 - **Applier defaults by context:** the payload's `presentAsMain` is optional; the applier
   defaults it to true when the node is parentless, false when parented.
 - **Class parenting:** classes may have non-class children (classes are containers); the
@@ -171,8 +179,9 @@ CHECK (is_class = 0 OR parent_id IS NULL)
   applier move-guard that fails loud (`MoveGuardError`) when an op tries to parent a
   class (`packages/store/src/appliers.ts:594`).
 - **Promotion/demotion** = `object.update` toggling `presentAsMain` in place, identity
-  preserved (promotion stringifies the content); **declaring a class** = `class.create`
-  (declaration-first).
+  preserved (promotion stringifies the content) — promotion gated on the parent being a
+  page, demotion of a parented page gated on its main children being gone; **declaring a
+  class** = `class.create` (declaration-first).
 - **View resolution = the render cascade:** `is_class` → Class View; parentless →
   document chrome (Page View; the bit is unread); otherwise `present_as_main` decides
   main-children zone vs inline body (SCHEMA.md). The web UI implements a

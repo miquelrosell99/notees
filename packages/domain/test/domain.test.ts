@@ -449,9 +449,27 @@ describe("render-state cascade predicates (Revision 11)", () => {
     // Parentless: document chrome regardless of the bit (second branch).
     expect(rendersWithDocumentChrome({ isClass: false, parentId: null })).toBe(true);
     expect(rendersWithDocumentChrome({ isClass: false, parentId: null, presentAsMain: false })).toBe(true);
-    // Parented: the bit decides (third branch).
+    // Parented: the bit decides (third branch) — parent omitted = trusted
+    // write-time invariant.
     expect(rendersWithDocumentChrome({ isClass: false, parentId: "p", presentAsMain: true })).toBe(true);
     expect(rendersWithDocumentChrome({ isClass: false, parentId: "p", presentAsMain: false })).toBe(false);
+  });
+
+  it("rendersWithDocumentChrome: the parent-page condition (owner ruling 2026-10-15)", () => {
+    const bitSet = { isClass: false, parentId: "p", presentAsMain: true } as const;
+    // Bit set but the parent is a block → inert, no document chrome.
+    expect(rendersWithDocumentChrome(bitSet, { isClass: false, parentId: "gp", presentAsMain: false })).toBe(
+      false,
+    );
+    // Bit set but the parent is a class → inert (a class is not a page).
+    expect(rendersWithDocumentChrome(bitSet, { isClass: true, parentId: null })).toBe(false);
+    // Bit set under a page parent (parentless or bit-set) → document chrome.
+    expect(rendersWithDocumentChrome(bitSet, { isClass: false, parentId: null })).toBe(true);
+    expect(
+      rendersWithDocumentChrome(bitSet, { isClass: false, parentId: "gp", presentAsMain: true }),
+    ).toBe(true);
+    // A null/omitted parent means "not at hand": the bit is trusted.
+    expect(rendersWithDocumentChrome(bitSet, null)).toBe(true);
   });
 
   it("rendersAsInlineBlock: only parented non-class nodes with the bit unset", () => {
@@ -462,6 +480,14 @@ describe("render-state cascade predicates (Revision 11)", () => {
     expect(rendersAsInlineBlock({ isClass: false, parentId: null })).toBe(false);
     // Classes render ClassView — never inline blocks.
     expect(rendersAsInlineBlock({ isClass: true, parentId: "p" })).toBe(false);
+  });
+
+  it("rendersAsInlineBlock: the bit set under a non-page parent renders inline", () => {
+    const bitSet = { isClass: false, parentId: "p", presentAsMain: true } as const;
+    const blockParent = { isClass: false, parentId: "gp", presentAsMain: false };
+    expect(rendersAsInlineBlock(bitSet, blockParent)).toBe(true);
+    expect(rendersAsInlineBlock(bitSet, { isClass: true, parentId: null })).toBe(true);
+    expect(rendersAsInlineBlock(bitSet, { isClass: false, parentId: null })).toBe(false);
   });
 });
 
