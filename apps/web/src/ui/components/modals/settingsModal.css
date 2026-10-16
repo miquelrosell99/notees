@@ -134,7 +134,8 @@
   color: var(--md-sys-color-on-primary-container);
   font: var(--font-label-small);
   font-weight: 600;
-  border-radius: var(--shape-full);
+  /* The §7 tag/badge recipe radius — the same tier as the kit Badge. */
+  border-radius: var(--shape-large);
   vertical-align: middle;
 }
 
@@ -157,8 +158,9 @@
   flex: 1;
 }
 
+/* Control widths ride the layout-size family, not the spacing scale. */
 .retention-days-input {
-  width: var(--spacing-16);
+  width: var(--layout-size-2xs);
   flex-shrink: 0;
 }
 
