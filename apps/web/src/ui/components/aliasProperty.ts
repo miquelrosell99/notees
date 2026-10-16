@@ -102,7 +102,10 @@ export function aliasedNodeTargetError(
   targetId: string,
 ): string | null {
   const target = client.getNode(targetId);
-  if (target === undefined || !rendersWithDocumentChrome(target)) {
+  if (
+    target === undefined ||
+    !rendersWithDocumentChrome(target, target.parentId !== null ? client.getNode(target.parentId) : undefined)
+  ) {
     return "Aliased node: the target must be a page.";
   }
   return null;

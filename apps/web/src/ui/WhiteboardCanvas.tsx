@@ -457,10 +457,11 @@ export function WhiteboardCanvas({
 
   /** Cards rendered on the canvas right now (inline-body children only). */
   const renderedCardIdsNow = useCallback((): string[] => {
-    if (client.getNode(hostId) === undefined) return [];
+    const hostNode = client.getNode(hostId);
+    if (hostNode === undefined) return [];
     return client
       .getChildren(hostId)
-      .filter((child) => rendersAsInlineBlock(child))
+      .filter((child) => rendersAsInlineBlock(child, hostNode))
       .map((child) => child.id);
   }, [client, hostId]);
 
@@ -1272,7 +1273,7 @@ export function WhiteboardCanvas({
   // Cards are the host's inline-body children (the Revision-11 render
   // cascade: main children render in their own section, not on the canvas).
   const cards = host
-    ? client.getChildren(hostId).filter((child) => rendersAsInlineBlock(child))
+    ? client.getChildren(hostId).filter((child) => rendersAsInlineBlock(child, host))
     : [];
   const renderedCardIds = cards.map((card) => card.id);
 

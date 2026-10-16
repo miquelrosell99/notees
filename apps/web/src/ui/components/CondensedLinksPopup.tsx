@@ -33,14 +33,18 @@ type AnyClient = WorkspaceClient | WorkerClient;
  */
 function containingPageLabel(client: AnyClient, targetId: string): string | null {
   let current = client.getNode(targetId);
+  let currentParent =
+    current !== undefined && current.parentId !== null ? client.getNode(current.parentId) : undefined;
   let guard = 0;
   while (
     current !== undefined &&
-    !rendersWithDocumentChrome(current) &&
-    current.parentId !== null &&
+    !rendersWithDocumentChrome(current, currentParent) &&
+    currentParent !== undefined &&
     guard < 64
   ) {
-    current = client.getNode(current.parentId);
+    current = currentParent;
+    currentParent =
+      current !== undefined && current.parentId !== null ? client.getNode(current.parentId) : undefined;
     guard += 1;
   }
   if (current === undefined || current.id === targetId) return null;
