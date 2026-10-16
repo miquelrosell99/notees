@@ -359,7 +359,7 @@ describe("extractBlockToPage against the real store (slot placement)", () => {
 
   it("the link inherits the slot — middle, first, and last child", async () => {
     const client = await seed();
-    const page = await client.createObject({ presentAsMain: true, name: "P" });
+    const page = await client.createObject({ isEmbedded: false, name: "P" });
     const a = await block(client, page, "A");
     const t1 = await block(client, page, "T1");
     const b = await block(client, page, "B");
@@ -379,7 +379,7 @@ describe("extractBlockToPage against the real store (slot placement)", () => {
 
   it("the link is the only child left when the block was the only child", async () => {
     const client = await seed();
-    const page = await client.createObject({ presentAsMain: true, name: "P" });
+    const page = await client.createObject({ isEmbedded: false, name: "P" });
     const t = await block(client, page, "T");
     const link = await extractBlockToPage(client, client, t, { keepChildren: false });
     expect(client.getChildren(page).map((c) => c.id)).toEqual([link]);
@@ -387,7 +387,7 @@ describe("extractBlockToPage against the real store (slot placement)", () => {
 
   it("children stay: they land under the link block in their order", async () => {
     const client = await seed();
-    const page = await client.createObject({ presentAsMain: true, name: "P" });
+    const page = await client.createObject({ isEmbedded: false, name: "P" });
     const target = await block(client, page, "TARGET");
     const c1 = await block(client, target, "c1");
     const c2 = await block(client, target, "c2");
