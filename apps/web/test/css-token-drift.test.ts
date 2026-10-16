@@ -18,6 +18,10 @@
  *      files — a fallback that always wins is a hardcoded color (fallbacks
  *      must only fire in tests; legitimate defaults are var() chains or
  *      unitless numbers like 0/1).
+ *   6. font-size rides the rem scale; em only at the allowlisted adaptive
+ *      sites (the sanctioned type-tracking pattern).
+ *   7. the --md-sys-color-* namespace stays Material-only (definitions) and
+ *      surface aliases are cited only on their own surface.
  *
  * House rule (AGENTS.md): the library's CSS is token-only.
  */
@@ -101,6 +105,62 @@ function inSpans(index: number, spans: Array<[number, number]>): boolean {
 }
 
 const COLOR_LITERAL = /#[0-9a-fA-F]{3,8}\b|\brgba?\(/g;
+
+/**
+ * 7. The `--md-sys-color-*` namespace is reserved for Material You roles.
+ *    variables.css may only DEFINE canonical roles plus the registered
+ *    fleet extensions below — a new custom token in the md-sys namespace
+ *    fails (name it outside the namespace, or register it here with a
+ *    reason). Separately, a SURFACE ALIAS — a token named for ONE surface —
+ *    may only be CITED on that surface's home files. This is the
+ *    "menu cites --md-sys-color-sidebar-card" failure (2026-10-16): an
+ *    alias leaks one surface's semantics into another; the citation
+ *    should be the Material role directly.
+ */
+const M3_COLOR_ROLES = new Set([
+  "background", "on-background", "surface", "on-surface", "surface-variant",
+  "on-surface-variant", "surface-dim", "surface-bright", "surface-container",
+  "surface-container-low", "surface-container-lowest", "surface-container-high",
+  "surface-container-highest", "surface-tint", "inverse-surface",
+  "inverse-on-surface", "inverse-primary", "primary", "on-primary",
+  "primary-container", "on-primary-container", "primary-fixed",
+  "primary-fixed-dim", "on-primary-fixed", "on-primary-fixed-variant",
+  "secondary", "on-secondary", "secondary-container", "on-secondary-container",
+  "secondary-fixed", "secondary-fixed-dim", "on-secondary-fixed",
+  "on-secondary-fixed-variant", "tertiary", "on-tertiary",
+  "tertiary-container", "on-tertiary-container", "tertiary-fixed",
+  "tertiary-fixed-dim", "on-tertiary-fixed", "on-tertiary-fixed-variant",
+  "error", "on-error", "error-container", "on-error-container",
+  "outline", "outline-variant", "shadow", "scrim",
+]);
+
+// Fleet extensions the palette already defines under --md-sys-color-*.
+// Each was grandfathered from variables.css when this gate landed; new
+// extensions need a reason here.
+const REGISTERED_MD_SYS_EXTENSIONS = new Set([
+  "black", "white", "disabled", "on-disabled",
+  "hover-overlay", "pressed-overlay", "focus-overlay",
+  "primary-hover", "primary-pressed", "secondary-hover", "secondary-pressed",
+  "tertiary-hover", "tertiary-pressed", "error-hover", "error-pressed",
+  "success", "on-success", "success-container", "on-success-container",
+  "warning", "on-warning", "warning-container", "on-warning-container",
+  "callout-danger", "callout-danger-bg", "callout-success", "callout-success-bg",
+  "callout-tip", "callout-tip-bg", "callout-warning", "callout-warning-bg",
+  "preset-red", "preset-orange", "preset-yellow", "preset-green",
+  "preset-teal", "preset-sky", "preset-blue", "preset-purple",
+  "preset-pink", "preset-gray", "swatch-monochrome", "node-default-rgb",
+  "query-accent", "surface-container-active",
+  "presentation-stage", "on-presentation-stage", "on-presentation-stage-muted",
+  // Surface alias (named for ONE surface) — its citations are governed by
+  // SURFACE_ALIAS_HOMES below, not free to roam.
+  "sidebar-card",
+]);
+
+// Surface aliases and the only files allowed to cite them (basename
+// regex). Homes are the surface's own stylesheets plus the token file.
+const SURFACE_ALIAS_HOMES = new Map<string, RegExp>([
+  ["--md-sys-color-sidebar-card", /^(variables|app)\.css$|^PageCard\.css$/],
+]);
 
 /**
  * font-size in em is reserved for the sanctioned adaptive pattern — sizes
@@ -244,6 +304,44 @@ describe("css token drift gate", () => {
         declared.has(`${file}::${sel}`),
         `EM_FONT_SIZE_ALLOWLIST entry ${sel} (${file}) no longer uses em — remove it (${reason})`,
       ).toBe(true);
+    }
+  });
+
+  it("7. the --md-sys-color-* namespace stays Material-only; surface aliases stay on their surface", () => {
+    const variablesFile = cssFiles.find((file) => path.basename(file) === "variables.css")!;
+    const defined = definedTokens(stripComments(fs.readFileSync(variablesFile, "utf8")));
+
+    // 7a. Nothing new may be DEFINED in the md-sys color namespace: every
+    // definition must be a canonical Material role or a registered
+    // extension. A new custom token here is namespace pollution — define
+    // it outside --md-sys-* (or register it above with a reason).
+    for (const token of defined) {
+      if (!token.startsWith("--md-sys-color-")) continue;
+      const role = token.slice("--md-sys-color-".length);
+      if (M3_COLOR_ROLES.has(role)) continue;
+      if (REGISTERED_MD_SYS_EXTENSIONS.has(role)) continue;
+      expect.fail(
+        `variables.css defines ${token} — the md-sys color namespace is reserved for Material You roles; ` +
+          "use a fleet token outside the namespace or add the extension to REGISTERED_MD_SYS_EXTENSIONS with a reason",
+      );
+    }
+
+    // 7b. A surface alias may only be CITED on its home files — citing
+    // --md-sys-color-sidebar-card from a menu stylesheet was the
+    // 2026-10-16 failure. Cite the Material role directly instead.
+    for (const file of cssFiles) {
+      const css = stripComments(fs.readFileSync(file, "utf8"));
+      for (const match of css.matchAll(/var\((--md-sys-color-[a-zA-Z0-9-]+)/g)) {
+        const token = match[1]!;
+        const homes = SURFACE_ALIAS_HOMES.get(token);
+        if (homes === undefined) continue;
+        const base = path.basename(file);
+        if (homes.test(base)) continue;
+        expect.fail(
+          `${path.relative(UI_DIR, file)} cites ${token} — a surface alias is named for ONE surface; ` +
+            "cite the Material role directly (e.g. --md-sys-color-surface-container-high) or extend the alias's homes deliberately",
+        );
+      }
     }
   });
 });
