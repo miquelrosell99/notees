@@ -92,35 +92,11 @@
   background: transparent;
 }
 
+/* The composed kit EmptyState (see JournalsView.tsx) anchors to the feed's
+   full height — the hand-rolled column's flex:1 role; the visual recipe is
+   EmptyState's own. */
 .journals-empty {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-3);
-  padding: var(--spacing-12) var(--spacing-4);
-  color: var(--md-sys-color-on-surface-variant);
-  text-align: center;
-}
-
-.journals-empty__action {
-  background: var(--md-sys-color-primary);
-  border: none;
-  border-radius: var(--shape-full);
-  color: var(--md-sys-color-on-primary);
-  font: var(--font-label-large);
-  padding: var(--spacing-2) var(--spacing-4);
-  cursor: pointer;
-}
-
-.journals-empty__action:hover {
-  background: var(--md-sys-color-primary-hover);
-}
-
-.journals-empty__action:active {
-  /* Filled primary button — the Button.css .btn--primary pressed register. */
-  background: var(--md-sys-color-primary-pressed);
 }
 
 /* The embedded page title is a navigation button, not an editor. */
@@ -137,8 +113,11 @@
   border-radius: var(--shape-small);
 }
 
+/* Hover rides the state-layer overlay (the hover register, foundations.md
+   §4) — the link keeps its on-surface ink; the accent is never a hover
+   signal. The base rule already carries the small radius. */
 .nt-page-title-link:hover {
-  color: var(--md-sys-color-primary);
+  background: var(--md-sys-color-hover-overlay);
 }
 
 @media (width <= 768px) {
