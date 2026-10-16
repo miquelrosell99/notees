@@ -392,6 +392,48 @@ describe("session resume", () => {
     );
     expect(localStorage.getItem("notees.sessionToken")).toBe("session-token");
   });
+
+  it("the switcher and manager fall back to the device-local copies when the server is down", async () => {
+    rememberSession();
+    // The device-local registry: both workspaces are remembered, but only
+    // ws1 has a synced copy on this device.
+    localStorage.setItem(
+      "notees.workspaces",
+      JSON.stringify([
+        { id: "ws1", name: "Garden", role: "owner", createdAt: 1, envelopeCount: 0, latestSeq: 0 },
+        { id: "ws2", name: "Orchard", role: "owner", createdAt: 2, envelopeCount: 0, latestSeq: 0 },
+      ]),
+    );
+    localStorage.setItem("notees.localWorkspaces", JSON.stringify(["ws1"]));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("Failed to fetch");
+      }),
+    );
+    render(<App />);
+    await waitFor(() => expect(screen.getByText(/running in-process/i)).toBeInTheDocument());
+
+    // The switcher opens on the local copy — the non-local workspace is not
+    // offered — under an explicit offline caption…
+    fireEvent.click(screen.getByRole("button", { name: /^garden/i }));
+    expect(await screen.findByText("Garden")).toBeInTheDocument();
+    expect(screen.queryByText("Orchard")).toBeNull();
+    expect(
+      screen.getByText(/offline — showing workspaces stored on this device/i),
+    ).toBeInTheDocument();
+    // …and server-only affordances stay hidden.
+    expect(screen.queryByRole("button", { name: /garden settings/i })).toBeNull();
+
+    // The manager falls back the same way: read-only, create hidden.
+    fireEvent.click(screen.getByRole("button", { name: /manage workspaces/i }));
+    expect(
+      await screen.findByText(/server actions \(create, rename, delete, export\) wait for recovery/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Garden")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /create workspace/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /actions for garden/i })).toBeNull();
+  });
 });
 
 describe("hub URL routes", () => {

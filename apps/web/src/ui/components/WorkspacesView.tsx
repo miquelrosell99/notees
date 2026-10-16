@@ -28,6 +28,7 @@ import { downloadBlob } from "./modals/download.js";
 import { WorkspaceExportModal } from "./modals/WorkspaceExportModal.js";
 import { WorkspaceNameModal } from "./modals/WorkspaceNameModal.js";
 import { deleteWorkspace, exportWorkspace, renameWorkspace } from "./modals/workspaceApi.js";
+import { offlineWorkspaceList, rememberWorkspaceList } from "@/core/workspace-registry.js";
 import "./WorkspacesView.css";
 
 export interface WorkspacesViewProps {
@@ -64,6 +65,9 @@ export function WorkspacesView({
 }: WorkspacesViewProps) {
   const [workspaces, setWorkspaces] = useState<WorkspaceEntry[] | null>(null);
   const [listError, setListError] = useState<Error | null>(null);
+  /** The list came from the device-local registry (the server didn't answer):
+   * read-only — create/rename/delete/export all wait for recovery. */
+  const [offline, setOffline] = useState(false);
   const [nameModal, setNameModal] = useState<NameModalState | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -85,10 +89,22 @@ export function WorkspacesView({
     setListError(null);
     listWorkspaces(serverUrl, credential)
       .then(({ workspaces: list }) => {
-        if (!cancelled) setWorkspaces(list);
+        if (cancelled) return;
+        rememberWorkspaceList(list);
+        setWorkspaces(list);
+        setOffline(false);
       })
       .catch((err: unknown) => {
-        if (!cancelled) setListError(err instanceof Error ? err : new Error(String(err)));
+        if (cancelled) return;
+        // The server didn't answer: the local copies are the honest list —
+        // openable now, sync state visible in the shell behind the manager.
+        const local = offlineWorkspaceList();
+        if (local.length > 0) {
+          setWorkspaces(local);
+          setOffline(true);
+          return;
+        }
+        setListError(err instanceof Error ? err : new Error(String(err)));
       });
     return () => {
       cancelled = true;
@@ -97,8 +113,20 @@ export function WorkspacesView({
 
   const refresh = (): void => {
     listWorkspaces(serverUrl, credential)
-      .then(({ workspaces: list }) => setWorkspaces(list))
-      .catch((err: unknown) => setListError(err instanceof Error ? err : new Error(String(err))));
+      .then(({ workspaces: list }) => {
+        rememberWorkspaceList(list);
+        setWorkspaces(list);
+        setOffline(false);
+      })
+      .catch((err: unknown) => {
+        const local = offlineWorkspaceList();
+        if (local.length > 0) {
+          setWorkspaces(local);
+          setOffline(true);
+          return;
+        }
+        setListError(err instanceof Error ? err : new Error(String(err)));
+      });
   };
 
   const handleSelectWorkspace = (workspace: WorkspaceEntry): void => {
@@ -239,7 +267,9 @@ export function WorkspacesView({
           <div className="workspace-management__welcome">
             <h2>{hasNoWorkspaces ? "Welcome! Create your first workspace" : "Your workspaces"}</h2>
             <p className="workspace-management__subtitle">
-              {hasNoWorkspaces
+              {offline
+                ? "Offline — showing workspaces stored on this device. Server actions (create, rename, delete, export) wait for recovery."
+                : hasNoWorkspaces
                 ? "A workspace holds all your notes and pages — click the + card below to create one."
                 : "Select a workspace to open, or create a new one."}
             </p>
@@ -280,21 +310,23 @@ export function WorkspacesView({
                             disabled={switching}
                             icon="mdi mdi-arrow-right"
                           />
-                          <Button
-                            aria-label={`Actions for ${displayName}`}
-                            variant="ghost"
-                            size="sm"
-                            onClick={(event) =>
-                              setCardMenu({
-                                workspace,
-                                x: event.clientX,
-                                y: event.clientY,
-                              })
-                            }
-                            title="Workspace actions"
-                            disabled={switching}
-                            icon="mdi mdi-dots-vertical"
-                          />
+                          {!offline && (
+                            <Button
+                              aria-label={`Actions for ${displayName}`}
+                              variant="ghost"
+                              size="sm"
+                              onClick={(event) =>
+                                setCardMenu({
+                                  workspace,
+                                  x: event.clientX,
+                                  y: event.clientY,
+                                })
+                              }
+                              title="Workspace actions"
+                              disabled={switching}
+                              icon="mdi mdi-dots-vertical"
+                            />
+                          )}
                         </div>
                       </div>
                       <div className="workspace-management__card-content">
@@ -313,18 +345,20 @@ export function WorkspacesView({
                     </Card>
                   );
                 })}
-                <button
-                  type="button"
-                  className="workspace-management__card workspace-management__card--create"
-                  aria-label="Create workspace"
-                  onClick={() => {
-                    setNameError(null);
-                    setNameModal({ mode: "create" });
-                  }}
-                >
-                  <Icon path="mdi-plus" size={1.4} />
-                  <span>New workspace</span>
-                </button>
+                {!offline && (
+                  <button
+                    type="button"
+                    className="workspace-management__card workspace-management__card--create"
+                    aria-label="Create workspace"
+                    onClick={() => {
+                      setNameError(null);
+                      setNameModal({ mode: "create" });
+                    }}
+                  >
+                    <Icon path="mdi-plus" size={1.4} />
+                    <span>New workspace</span>
+                  </button>
+                )}
               </div>
             ) : null}
           </DataStateView>
