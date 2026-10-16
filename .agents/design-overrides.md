@@ -14,14 +14,6 @@ rule they override changes, the review trigger fires, or the owner re-rules.
 - **Ruled**: owner 2026-10-16.
 - **Review trigger**: the owner re-rules any of the three, or a new design-system audit wants a baseline of the excepted surfaces.
 
-### Hover is the state-layer overlay everywhere; primary-container is selected/active only
-- **Rule**: audit-checklist §6/§5 — hover feedback per the state-layer idiom; the skill's accent usage table leaves hover unspecified; the pre-ruling codebase mixed three hover fills (`hover-overlay`, `surface-container-high`, `surface-container-high/est`) and used `primary-container` as a hover fill on some rows.
-- **Decision**: every hover background is `--md-sys-color-hover-overlay` (22 stylesheets, owner ruling 2026-10-15); `primary-container` appears only on selected/active chrome (the existing register entry) — never on hover. Controls that are ALREADY active keep their active fill while hovered (combined `--active, --active:hover` rules; the active identity is not washed away). Structural hover that is not a fill (e.g. the support-channel card's border raise) is unaffected.
-- **Rationale**: one hover register to learn; the filled hover read as heavy mid-prose and blurred the selected/active signal.
-- **Scope**: global (all `:hover` fills). Buttons' default/outline/base variants included (overlay over their transparent rest).
-- **Ruled**: owner 2026-10-15 (re-audit carried-forward Notes discussion).
-- **Review trigger**: an interaction finding that the overlay hover is too quiet on a specific surface.
-
 ### The sidebar is a transparent "chrome on canvas" navigator- **Rule**: rosellramos-design-system default 3 (solid sidebar on the ground, hairline separated; the card-on-backdrop exception still keeps the sidebar solid).
 - **Decision**: `.nt-sidebar` carries no surface fill (`background: transparent`) at any width — the app background hosts the chrome directly, separated from content by a hairline rule; the sidebar reveals/hides via the TopBar hamburger at every width (below 768px it becomes a fixed overlay drawer with a real surface + shadow). Related responsive ruling: the navigator is **state-driven at every width** — there is no rail morph at 1024 and no 1440-wide adaptation; sidebar adaptation is drawer-below-768 only.
 - **Rationale**: the workspace canvas is the hero of a knowledge environment; a filled sidebar panel would partition the ground and compete with the content cards it navigates. Hamburger-at-every-width keeps one navigator behavior to learn.

@@ -9,6 +9,37 @@ predating this file.
 
 ## 2026-10-16
 
+- **fix(web): the six remaining sweep notes close — token literals, badge
+  radius, control width family, journals hover register, empty states
+  compose EmptyState; the hover register retires to the skill.** The final
+  cleanup of the drift sweep (owner-mandated alignment, 2026-10-16): (1)
+  the palette row's magic `gap: 2px` cites `--spacing-micro`. (2) the
+  month/year picker grids keep their fixed `repeat(4,1fr)` / `repeat(3,1fr)`
+  arity — the column count derives from the content (12 months, a 3×4 year
+  window) in a fixed-width side panel, not the viewport — now cited as the
+  deliberate choice per §5's fixed-where-constant spirit. (3) the journals
+  embedded page-title link's hover leaves the accent ink for the state
+  layer (`--md-sys-color-hover-overlay` on the base rule's `--shape-small`
+  radius — the hover register of foundations.md §4, never accent ink/fill).
+  (4) the settings badge's full-pill radius retires to the §7 tag/badge
+  tier — `--shape-large`, the kit Badge's tier. (5) the retention-days
+  input's width moves off the spacing scale onto the layout-size family
+  (`--layout-size-2xs`; 64px → 80px — the family's smallest step, no exact
+  match existed). (6) the hand-rolled journals and trash empty states
+  compose the kit `EmptyState` (journals: sentence-as-title + the primary
+  CTA, the CalendarView precedent; trash: icon/title/description) — the
+  dead local CSS deletes, the journals stylesheet keeping only the `flex: 1`
+  feed anchor. The palette's one-line no-results hint stays hand-rolled: it
+  is a list-embedded hint inside the results scroller, not a centered empty
+  state, and the kit's padded hero recipe would change its shape. The
+  `.agents/design-overrides.md` hover entry retires — the rule it
+  registered became fleet-standard in the skill (foundations.md §4), so the
+  deviation no longer exists; the sidebar/top-bar/canvas exceptions stay.
+  Specs: the `hover-press-register.test.ts` pins ride on (new pins for the
+  six notes; the journals-CTA pressed pin moves to Button.css, the single
+  source of truth). The sidebar, top bar, and canvas surfaces stay
+  untouched. **Verification:** `pnpm typecheck` + `pnpm test` green;
+  web-only — no wire touch.
 - **feat(model): the Revision-12 embedding model — `isEmbedded` replaces
   `presentAsMain` (polarity inverted), the link-only block transclusion, and
   the export zone split (owner 2026-10-16).** The node model's three concerns

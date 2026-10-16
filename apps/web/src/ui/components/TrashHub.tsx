@@ -28,6 +28,7 @@ import { nodeIcon } from "../iconFor.js";
 import { relativeTime } from "./ActivityLogSection.js";
 import { Button } from "./ui/Button.js";
 import { ConfirmationModal } from "./ui/ConfirmationModal.js";
+import { EmptyState } from "./ui/EmptyState.js";
 import "./TrashHub.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -69,13 +70,11 @@ export function TrashHub({
       </header>
 
       {entries.length === 0 ? (
-        <div className="nt-trash-hub__empty">
-          <Icon path="mdi-delete-outline" size={2} />
-          <p>Trash is empty.</p>
-          <p className="nt-trash-hub__empty-note">
-            Deleted pages and their subtrees land here; restore brings them back.
-          </p>
-        </div>
+        <EmptyState
+          icon={<Icon path="mdi-delete-outline" size={2} />}
+          title="Trash is empty."
+          description="Deleted pages and their subtrees land here; restore brings them back."
+        />
       ) : (
         <ul className="nt-trash-hub__rows">
           {entries.map((entry) => {
