@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { createWorkspace, listWorkspaces, type WorkspaceEntry } from "@/core/auth-api.js";
-import { offlineWorkspaceList } from "@/core/workspace-registry.js";
+import { localWorkspaceCopies, rememberedWorkspaceList } from "@/core/workspace-registry.js";
 
 import type { AnyClient } from "./Sidebar.js";
 import { Icon } from "../Icon.js";
@@ -13,14 +13,15 @@ import "./WorkspaceSwitcher.css";
 /**
  * WorkspaceSwitcher — searchable dropdown for switching between workspaces,
  * mounted at the top of the sidebar. Offline-first: when the server can't
- * answer, the popup falls back to the device-local registry — the remembered
- * workspaces that hold a synced copy on this device — under an explicit
- * "offline" caption; server-only affordances (the per-row settings gear and
- * the create suggestion) wait for recovery instead of failing loudly.
- * Accountless offline mode has exactly one well-known local workspace, so
- * the switcher stays hidden there. Typing a query that matches nothing
- * offers to create a workspace with that name (online); the footer opens
- * the Manage Workspaces view.
+ * answer, the popup falls back to the device-local registry — every
+ * remembered workspace, the ones without a copy on this device muted with
+ * a cloud-off marker and inert, under an explicit "offline" caption;
+ * server-only affordances (the per-row settings gear and the create
+ * suggestion) wait for recovery instead of failing loudly. Accountless
+ * offline mode has exactly one well-known local workspace, so the switcher
+ * stays hidden there. Typing a query that matches nothing offers to create
+ * a workspace with that name (online); the footer opens the Manage
+ * Workspaces view.
  */
 export function WorkspaceSwitcher({
   serverUrl,
@@ -71,9 +72,9 @@ export function WorkspaceSwitcher({
       })
       .catch(() => {
         if (cancelled) return;
-        // The server didn't answer: offer the local copies instead of an
-        // error — switching between them is a local boot, fully offline.
-        setWorkspaces(offlineWorkspaceList());
+        // The server didn't answer: the remembered list stands in — rows
+        // without a local copy render muted and inert below.
+        setWorkspaces(rememberedWorkspaceList());
         setOffline(true);
         setError(null);
       });
@@ -97,6 +98,9 @@ export function WorkspaceSwitcher({
       : query.trim() === ""
         ? workspaces
         : workspaces.filter((ws) => (ws.name ?? "").toLowerCase().includes(query.trim().toLowerCase()));
+
+  /** Offline: which of the remembered rows actually hold a local copy. */
+  const localCopies = offline ? localWorkspaceCopies() : null;
 
   async function handleCreate(rawName: string): Promise<void> {
     const name = rawName.trim();
@@ -154,25 +158,40 @@ export function WorkspaceSwitcher({
             {offline && (
               <li className="workspace-switcher__row-item">
                 <span className="workspace-switcher__empty">
-                  Offline — showing workspaces stored on this device.
+                  Offline — workspaces without a copy on this device can&apos;t open.
                 </span>
               </li>
             )}
             {filtered.map((ws) => {
               const isActive = ws.id === activeWorkspaceId;
+              const unavailable = localCopies !== null && !localCopies.has(ws.id);
               return (
                 <li key={ws.id} className="workspace-switcher__row-item">
                   <button
                     type="button"
-                    className="workspace-switcher__item"
+                    className={
+                      unavailable
+                        ? "workspace-switcher__item workspace-switcher__item--unavailable"
+                        : "workspace-switcher__item"
+                    }
                     role="option"
                     aria-selected={isActive}
+                    disabled={unavailable}
+                    title={
+                      unavailable
+                        ? "Not available offline — open it once while online to keep a copy on this device"
+                        : undefined
+                    }
                     onClick={() => {
                       setOpen(false);
                       if (!isActive) onSwitch(ws.id, ws.name ?? "Workspace");
                     }}
                   >
-                    <Icon path="mdi-database-outline" size={0.8} className="workspace-switcher__item-icon" />
+                    <Icon
+                      path={unavailable ? "mdi-cloud-off-outline" : "mdi-database-outline"}
+                      size={0.8}
+                      className="workspace-switcher__item-icon"
+                    />
                     <span className="workspace-switcher__item-name">{ws.name ?? "Workspace"}</span>
                     {isActive && <span className="workspace-switcher__item-badge">Active</span>}
                   </button>
@@ -197,7 +216,7 @@ export function WorkspaceSwitcher({
               <li className="workspace-switcher__row-item">
                 {offline ? (
                   <span className="workspace-switcher__empty">
-                    {query.trim() === "" ? "No local workspaces." : "No local workspaces match."}
+                    {query.trim() === "" ? "No workspaces remembered on this device." : "No remembered workspaces match."}
                   </span>
                 ) : query.trim() === "" ? (
                   <span className="workspace-switcher__empty">No workspaces yet.</span>
