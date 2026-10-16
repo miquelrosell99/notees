@@ -25,7 +25,7 @@ import type { SqliteDB } from "./db.js";
 import { resolveEdgeTarget } from "./edges.js";
 import { dropSearchIndex, reindexAllSearch } from "./search.js";
 
-export const SCHEMA_VERSION = 19;
+export const SCHEMA_VERSION = 20;
 
 /**
  * The render-path list-reads index: composite for the
@@ -51,6 +51,25 @@ export type FtsModule = "fts5" | "fts4";
  */
 export const RESOLVED_TARGET_INDEX_DDL =
   "CREATE INDEX IF NOT EXISTS idx_edge_resolved_target ON edge (resolved_target_id);";
+
+/**
+ * The v20 bulk-replay read indexes (owner 2026-10-16 — profiled during the
+ * parent-page migration dry-run: replaying a 50k-op log tail ran 20× slower
+ * than live-paced application because two per-op lookups full-scanned their
+ * tables — every reresolveEdgeTargets alias-closure walk scans node by
+ * aliased_node_id, and the child-order-by-child cleanup scans
+ * node_child_order by child_id). Both are live-paced-invisible, bulk-replay-
+ * dominant. Kept OUT of the canonical schema DDL for the
+ * RESOLVED_TARGET_INDEX_DDL reason: pre-v16 node tables lack
+ * aliased_node_id, and migrate()'s canonical exec runs before the ladder
+ * (the column-guarded v16 ALTER lands earlier in the linear ladder, so a
+ * single `current < 20` step is safe). The snapshot-repair path re-asserts
+ * them explicitly, the LIST_READS_INDEX_DDL precedent.
+ */
+export const ALIAS_SOURCE_INDEX_DDL =
+  "CREATE INDEX IF NOT EXISTS idx_node_aliased_source ON node (aliased_node_id);";
+export const CHILD_ORDER_CHILD_INDEX_DDL =
+  "CREATE INDEX IF NOT EXISTS idx_node_child_order_child ON node_child_order (child_id);";
 
 const SEARCH_INDEX_DDL_FTS5 = `CREATE VIRTUAL TABLE IF NOT EXISTS search_index
     USING fts5(content, tokenize = 'unicode61');`;
@@ -843,5 +862,17 @@ export function migrate(
         // reindexNode folds at insert — nothing to do here.
       }
     }
+  }
+  // v19 -> v20: the bulk-replay read indexes (owner 2026-10-16 — profiled
+  // during the parent-page migration dry-run: a 50k-op tail replay ran 20×
+  // over live pace because the alias-closure walk and the child-order-by-
+  // child cleanup full-scanned their tables). Both targets exist by here —
+  // the node alias column lands at v16 and the child-order table is
+  // pre-v1, so the linear ladder guarantees the shapes. CREATE INDEX IF NOT
+  // EXISTS is idempotent for fresh creates (they arrive here at v20-shaped
+  // tables and take the same path).
+  if (current < 20) {
+    db.exec(ALIAS_SOURCE_INDEX_DDL);
+    db.exec(CHILD_ORDER_CHILD_INDEX_DDL);
   }
   db.pragma(`user_version = ${SCHEMA_VERSION}`);}

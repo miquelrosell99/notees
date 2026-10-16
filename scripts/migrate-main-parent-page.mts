@@ -165,20 +165,12 @@ export function countViolatingRows(store: MigrationStore): number {
   return violatingRowIds(store).length;
 }
 
-/**
- * Bulk-replay helper indexes on the SCRATCH store only. The migration
- * replays the whole log tail in one process; per-op costs that are
- * invisible one-delete-at-a-time on the live server (the alias-closure walk
- * full-scans node for every reresolveEdgeTargets call — no index on
- * aliased_node_id — and the child-order-by-child cleanup scans
- * node_child_order) become the dominant cost at bulk scale (measured: 20×
- * on a 75k-node workspace). The indexes change no semantics; they live only
- * in the migration's in-memory stores, never in the shipped schema.
- */
-export function addBulkReplayIndexes(store: MigrationStore): void {
-  store.database.exec("CREATE INDEX IF NOT EXISTS mig_alias ON node (aliased_node_id)");
-  store.database.exec("CREATE INDEX IF NOT EXISTS mig_child_order_child ON node_child_order (child_id)");
-}
+// NOTE the bulk-replay helper indexes this script created locally during its
+// first run (mig_alias / mig_child_order_child) SHIPPED into the real schema
+// as the v20 read indexes (idx_node_aliased_source /
+// idx_node_child_order_child, owner 2026-10-16 — the parent-page dry-run
+// profiled both full scans) — Store.open/restore migrates every scratch
+// store to v20, so the migration needs no local indexes anymore.
 
 // --- tail walk ------------------------------------------------------------------------
 
@@ -329,7 +321,6 @@ export function verifyMainParentPage(
       if (store.restore === undefined) throw new Error("the verify store cannot restore snapshot bytes");
       store.restore(patchedSnapshotBytes);
     }
-    addBulkReplayIndexes(store);
     const summaries = store.applyMany(rewritten, { quarantineMoveGuards: true });
     const quarantined = summaries.filter((s) => s.quarantined === true).length;
     return { quarantined, violatingRows: countViolatingRows(store) };
@@ -448,14 +439,13 @@ function main(): void {
         const t1 = Date.now();
         // The verify phase always restores the snapshot (patched when baked
         // violations were corrected, original otherwise) — a null here would
-        // verify against an EMPTY store, not the snapshot state.
+        // verify against an EMPTY store, not the snapshot state. The bytes
+        // carry the v20 bulk-replay indexes (migrate() runs inside restore),
+        // which is right: they are canonical schema, not migration-local.
         const snapshotBytes = snapshot !== null ? store.snapshot() : null;
         const bakedIds = violatingRowIds(store);
         if (bakedIds.length > 0) clearPresentAsMain(store, bakedIds);
-        // Patched bytes BEFORE the bulk-replay helper indexes — the snapshot
-        // blob must not carry migration-local indexes onto the server.
         const patchedBytes = bakedIds.length > 0 ? store.snapshot() : snapshotBytes;
-        addBulkReplayIndexes(store);
         const tail = tailEnvelopes(relay, workspaceId, afterSeq);
         const t2 = Date.now();
         const plan = walkMainParentPage(tail, store, (applied) => {
