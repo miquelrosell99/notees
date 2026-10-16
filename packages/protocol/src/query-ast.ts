@@ -116,6 +116,42 @@ export type Condition =
   /** backlinksWithRollup semantics: direct edge to nodeId, or containment roll-up. */
   | { type: "linkedTo"; nodeId: string }
   /**
+   * EXACT class-set equality (the Odoo "=" register): the node's class set is
+   * exactly {classId} — nothing else rides it. (The plain `class` condition
+   * is closure MEMBERSHIP: the class among others.) Negation (is-not) is the
+   * not-wrap.
+   */
+  | { type: "classExact"; classId: string }
+  /**
+   * ANY-of class membership (Odoo "one of"): at least one of the picked
+   * classes rides the node's class set — closure-aware per id, like `class`.
+   * The not-wrap reads "not one of".
+   */
+  | { type: "classAny"; classIds: string[] }
+  /** The class set is non-empty (Odoo "is defined"/"is set"); the not-wrap reads "is not set". */
+  | { type: "classSet" }
+  /**
+   * The CONTAINING PAGE (the nearest self-or-ancestor rendering with document
+   * chrome — a class, a parentless node, or an is_embedded=0 node under a
+   * page-role parent) is classed with classId, hierarchy-aware. The not-wrap
+   * reads "page is not classed …". The row itself counts when it is its own
+   * page (a classed node, a workspace-root node).
+   */
+  | { type: "pageClass"; classId: string }
+  /**
+   * The PARENT PATH carries a classed node (Odoo "parent of" over classes):
+   * some STRICT ancestor (parent, grandparent, …) is classed with classId,
+   * hierarchy-aware — self excluded. The not-wrap reads "no classed … up the
+   * parent path".
+   */
+  | { type: "ancestorClassed"; classId: string }
+  /**
+   * The ROOT ancestor (the workspace-root child at the top of the parent
+   * chain — the row itself when parentless) is classed with classId,
+   * hierarchy-aware. The not-wrap reads "root is not classed …".
+   */
+  | { type: "rootClass"; classId: string }
+  /**
    * Ancestor-chain membership: the node's parents tree (parent,
    * grandparent, …, the node itself EXCLUDED) contains nodeId — the row
    * sits anywhere inside the chosen node's tree. Compiled as subtree
@@ -173,6 +209,18 @@ export const conditionSchema = z.discriminatedUnion("type", [
     includeDefaults: z.boolean().optional(),
   }).strict(),
   z.object({ type: z.literal("linkedTo"), nodeId: uuid }).strict(),
+  /** EXACT class-set equality — the set is {classId}, nothing else (the Odoo "=" register). */
+  z.object({ type: z.literal("classExact"), classId: uuid }).strict(),
+  /** ANY-of class membership (Odoo "one of") — closure-aware per id, like `class`. */
+  z.object({ type: z.literal("classAny"), classIds: z.array(uuid).min(1) }).strict(),
+  /** The class set is non-empty (Odoo "is set"); the not-wrap reads "is not set". */
+  z.object({ type: z.literal("classSet") }).strict(),
+  /** The containing page (self-or-ancestor with document chrome) is classed, hierarchy-aware. */
+  z.object({ type: z.literal("pageClass"), classId: uuid }).strict(),
+  /** Some strict ancestor is classed (the class-based "parent of"); self excluded. */
+  z.object({ type: z.literal("ancestorClassed"), classId: uuid }).strict(),
+  /** The workspace-root ancestor (or the parentless row itself) is classed, hierarchy-aware. */
+  z.object({ type: z.literal("rootClass"), classId: uuid }).strict(),
   /**
    * Ancestor-chain membership (the "parent is X, anywhere up the tree"
    * condition): subtree membership minus the anchor itself.

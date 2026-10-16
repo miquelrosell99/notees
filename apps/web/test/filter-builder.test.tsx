@@ -278,6 +278,10 @@ describe("the block query builder", () => {
 
     const panel = openPanel(section);
     addCondition(panel, /^Class/);
+    // The default CLASS operator is the EXACT register (owner 2026-10-16):
+    // Gamma rides [project, client], so exact {client} would miss it — the
+    // membership reading ("contains") is the AND-of-one intent here.
+    pickOption(panel, "Operator", "contains", 0);
     pickOption(panel, "Class", "client");
     expect(tableRowCount()).toBe(1); // AND of one: only the double-classed Gamma.
 
@@ -319,7 +323,7 @@ describe("the block query builder", () => {
     expect(tableRowCount()).toBe(3);
 
     const panel = openPanel(section);
-    addCondition(panel, /^Parent /);
+    addCondition(panel, /^Parent Nodes/);
     pickNode(panel, "Hub");
 
     // The direct child AND the grandchild ride the parents tree; the
@@ -377,7 +381,8 @@ describe("the block query builder", () => {
     const dynamic = ast.root.children.find((child) => child.type === "linkedToQuery");
     expect(dynamic).toBeDefined();
     const nestedGroup = (dynamic as { root: { children: Array<{ type: string }> } }).root;
-    expect(nestedGroup.children.map((child) => child.type)).toEqual(["class", "property"]);
+    // The nested Class row rides the default EXACT register (classExact).
+    expect(nestedGroup.children.map((child) => child.type)).toEqual(["classExact", "property"]);
     const table = screen.getAllByRole("table")[0]!;
     expect(within(table).getByText("Linker")).not.toBeNull();
     expect(within(table).queryByText("Plain")).toBeNull();
@@ -412,5 +417,134 @@ describe("the block query builder", () => {
     expect(within(table).getByText("Linker")).not.toBeNull();
     expect(within(table).queryByText("Plain")).toBeNull();
     await act(async () => {});
+  });
+
+  describe("the Odoo operator set + the classed-container families (owner 2026-10-16)", () => {
+    /**
+     * The container world: InDay is an embedded project BLOCK under a
+     * journal-classed page (Dayish); InPlain an embedded project block under
+     * the unclassed Plain; Dual is a standalone page classed in BOTH project
+     * and client under Plain (the exact-vs-membership witness).
+     */
+    async function seedContainerWorld(client: WorkspaceClient) {
+      const projectId = await seedClass(client, "project");
+      const journalId = await seedClass(client, "journal");
+      const clientId = await seedClass(client, "client");
+      const dayish = await client.createObject({ isEmbedded: false, name: "Dayish", classIds: [journalId] });
+      const plain = await client.createObject({ isEmbedded: false, name: "Plain" });
+      await client.createObject({ name: "InDay", classIds: [projectId], parentId: dayish });
+      await client.createObject({ name: "InPlain", classIds: [projectId], parentId: plain });
+      await client.createObject({
+        isEmbedded: false,
+        name: "Dual",
+        classIds: [projectId, clientId],
+        parentId: plain,
+      });
+      return { projectId, journalId, clientId, dayish, plain };
+    }
+
+    it("Class is rides the EXACT register; contains reads membership", async () => {
+      const client = await seedClient();
+      const { projectId } = await seedContainerWorld(client);
+      render(<NodeView client={client} nodeId={projectId} onOpenNode={() => {}} />);
+      const section = classedNodesSection();
+      expect(tableRowCount()).toBe(3);
+
+      const panel = openPanel(section);
+      addCondition(panel, /^Class/);
+      // Default operator "is" = exact set equality: Dual rides [project,
+      // client], so exact {project} keeps only the two single-classed rows.
+      pickOption(panel, "Class", "project");
+      expect(tableRowCount()).toBe(2);
+      expect(within(section).queryByText("Dual")).toBeNull();
+
+      // "contains" is hierarchy-aware membership: the class among others.
+      pickOption(panel, "Operator", "contains");
+      expect(tableRowCount()).toBe(3);
+    });
+
+    it("one of matches ANY picked class (the multi pick); not one of negates", async () => {
+      const client = await seedClient();
+      const { projectId } = await seedContainerWorld(client);
+      render(<NodeView client={client} nodeId={projectId} onOpenNode={() => {}} />);
+      const section = classedNodesSection();
+
+      const panel = openPanel(section);
+      addCondition(panel, /^Class/);
+      pickOption(panel, "Operator", "one of");
+      // The multi pick stays open per toggle — pick both, then dismiss.
+      fireEvent.click(within(panel).getByLabelText("Classes"));
+      const menu = () => document.querySelector(".dropdown-menu--portal") as HTMLElement;
+      fireEvent.click(within(menu()).getByRole("button", { name: "project" }));
+      fireEvent.click(within(menu()).getByRole("button", { name: "client" }));
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(tableRowCount()).toBe(3);
+
+      pickOption(panel, "Operator", "not one of");
+      expect(within(section).getByText("No classed nodes.")).not.toBeNull();
+    });
+
+    it("is set / is not set test the class set's emptiness", async () => {
+      const client = await seedClient();
+      const { projectId } = await seedContainerWorld(client);
+      render(<NodeView client={client} nodeId={projectId} onOpenNode={() => {}} />);
+      const section = classedNodesSection();
+
+      const panel = openPanel(section);
+      addCondition(panel, /^Class/);
+      pickOption(panel, "Operator", "is set");
+      expect(tableRowCount()).toBe(3);
+      pickOption(panel, "Operator", "is not set");
+      expect(within(section).getByText("No classed nodes.")).not.toBeNull();
+    });
+
+    it("Page filters by the containing page's class — the day-group use case", async () => {
+      const client = await seedClient();
+      const { projectId } = await seedContainerWorld(client);
+      render(<NodeView client={client} nodeId={projectId} onOpenNode={() => {}} />);
+      const section = classedNodesSection();
+
+      const panel = openPanel(section);
+      addCondition(panel, /^Page\b/);
+      pickOption(panel, "Page class", "journal");
+      expect(tableRowCount()).toBe(1);
+      expect(within(section).getByText("InDay")).not.toBeNull();
+
+      pickOption(panel, "Operator", "is not");
+      expect(tableRowCount()).toBe(2);
+      expect(within(section).queryByText("InDay")).toBeNull();
+    });
+
+    it("Parent path matches a classed ancestor anywhere up the chain (self excluded)", async () => {
+      const client = await seedClient();
+      const { projectId } = await seedContainerWorld(client);
+      render(<NodeView client={client} nodeId={projectId} onOpenNode={() => {}} />);
+      const section = classedNodesSection();
+
+      const panel = openPanel(section);
+      addCondition(panel, /^Parent path/);
+      pickOption(panel, "Ancestor class", "journal");
+      expect(tableRowCount()).toBe(1);
+      expect(within(section).getByText("InDay")).not.toBeNull();
+
+      pickOption(panel, "Operator", "is not");
+      expect(tableRowCount()).toBe(2);
+    });
+
+    it("Root matches the workspace-root ancestor's class (a parentless row is its own root)", async () => {
+      const client = await seedClient();
+      const { projectId } = await seedContainerWorld(client);
+      render(<NodeView client={client} nodeId={projectId} onOpenNode={() => {}} />);
+      const section = classedNodesSection();
+
+      const panel = openPanel(section);
+      addCondition(panel, /^Root/);
+      pickOption(panel, "Root class", "journal");
+      expect(tableRowCount()).toBe(1);
+      expect(within(section).getByText("InDay")).not.toBeNull();
+
+      pickOption(panel, "Operator", "is not");
+      expect(tableRowCount()).toBe(2);
+    });
   });
 });

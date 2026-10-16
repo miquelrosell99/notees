@@ -102,7 +102,13 @@ function pruneChild(child: Child): Child | null {
     case "content":
       return child.value.trim() === "" ? null : child;
     case "class":
+    case "classExact":
+    case "pageClass":
+    case "ancestorClassed":
+    case "rootClass":
       return child.classId === "" ? null : child;
+    case "classAny":
+      return child.classIds.length === 0 ? null : child;
     case "property":
       return child.schemaId === "" ? null : child;
     case "createdAfter":
@@ -156,7 +162,11 @@ export function filterQueryToGroup(query: FilterQuery): Group | null {
  * operator column carries the is/is-not/contains/etc variation). "Links"
  * and "Parent" are the node-target families: static (a picked node) or
  * dynamic (a nested query defining the target set), the mode switch
- * toggling between them.
+ * toggling between them. "Page" / "Parent path" / "Root" (owner 2026-10-16,
+ * the Odoo operator-set slice) are the classed-CONTAINER families: they test
+ * the class of the row's containing page / some strict ancestor / the
+ * workspace-root ancestor — e.g. "blocks whose page is not classed as Day"
+ * drops the journal-day groups from a backlinks section.
  */
 export type ConditionKind =
   | "class"
@@ -166,6 +176,9 @@ export type ConditionKind =
   | "property"
   | "links"
   | "parent"
+  | "page"
+  | "parentPath"
+  | "root"
   | "cover"
   | "banner"
   | "alias"
@@ -195,6 +208,9 @@ export const FILTER_KIND_OPTIONS: readonly FilterKindOption[] = [
   { value: "property", label: "Property", icon: "mdi mdi-code-braces", description: "Filter by property value" },
   { value: "links", label: "Links", icon: "mdi mdi-link-variant", description: "Nodes that link to a node or a nested query" },
   { value: "parent", label: "Parent", icon: "mdi mdi-file-tree-outline", description: "Nodes inside a node's parents tree, or a nested query's" },
+  { value: "page", label: "Page", icon: "mdi mdi-page-layout-body", description: "The containing page is classed… (e.g. its page is Day)" },
+  { value: "parentPath", label: "Parent path", icon: "mdi mdi-source-branch", description: "An ancestor anywhere up the parent chain is classed…" },
+  { value: "root", label: "Root", icon: "mdi mdi-arrow-collapse-up", description: "The top-level parent (workspace-root child) is classed…" },
   { value: "cover", label: "Cover", icon: "mdi mdi-image-outline", description: "Cover is set or not" },
   { value: "banner", label: "Banner", icon: "mdi mdi-page-layout-header", description: "Banner is set or not" },
   { value: "alias", label: "Alias", icon: "mdi mdi-repeat-variant", description: "Alias of a main page, set or not" },
@@ -222,7 +238,10 @@ export function filterKindOptionsForConfig(config?: FilterBarConfig): readonly F
 export function createCondition(kind: ConditionKind): Condition {
   switch (kind) {
     case "class":
-      return { type: "class", classId: "" };
+      // The default CLASS row rides the exact register (owner 2026-10-16,
+      // the Odoo operator set): "Class is Day" means the class set is
+      // EXACTLY Day — membership ("contains") is a separate operator.
+      return { type: "classExact", classId: "" };
     case "type":
       return { type: "isClass", isClass: true };
     case "placement":
@@ -235,6 +254,12 @@ export function createCondition(kind: ConditionKind): Condition {
       return { type: "linkedTo", nodeId: "" };
     case "parent":
       return { type: "descendantOf", nodeId: "" };
+    case "page":
+      return { type: "pageClass", classId: "" };
+    case "parentPath":
+      return { type: "ancestorClassed", classId: "" };
+    case "root":
+      return { type: "rootClass", classId: "" };
     case "cover":
       return { type: "coverAsset", op: "exists" };
     case "banner":

@@ -1464,3 +1464,128 @@ describe("buildMatchExpression (FTS match compilation)", () => {
     expect(buildMatchExpression('""')).toBeNull();
   });
 });
+
+
+// --- the Odoo operator-set conditions (owner 2026-10-16) ---------------------
+// classExact / classAny / classSet (the expanded CLASS operator set) and the
+// classed-container family pageClass / ancestorClassed / rootClass — over the
+// France/Paris/Lone world: France is parentless (its own page/root, classed
+// Place), Paris a main child of France (classed City extends Place), the
+// blocks embedded under them, Lone an unclassed parentless page.
+
+describe.each(adapters)("$name: Odoo operator-set conditions", ({ makeStore }) => {
+  function worldStore(): Store {
+    const store = makeStore();
+    store.applyMany(worldEnvelopes());
+    return store;
+  }
+
+  it("classExact: the class set is exactly the picked class — closure does not apply", () => {
+    const store = worldStore();
+    expect(runQuery(store, ast(entire, [{ type: "classExact", classId: PLACE }])).ids).toEqual([
+      FRANCE,
+    ]);
+    // Paris rides City (extends Place): exact {Place} does NOT match it.
+    expect(runQuery(store, ast(entire, [{ type: "classExact", classId: CITY }])).ids).toEqual([
+      PARIS,
+    ]);
+  });
+
+  it("classAny: ANY-of membership, closure-aware per picked id", () => {
+    const store = worldStore();
+    // [Place] matches France directly and Paris through the City extends row.
+    expect(
+      runQuery(store, ast(entire, [{ type: "classAny", classIds: [PLACE] }])).ids.sort(),
+    ).toEqual([FRANCE, PARIS]);
+    expect(
+      runQuery(store, ast(entire, [{ type: "classAny", classIds: [PLACE, CITY] }])).ids.sort(),
+    ).toEqual([FRANCE, PARIS]);
+    // A bare classAny requires at least one id (the grammar's min(1)).
+    expect(() =>
+      parseQueryAst({
+        version: 1,
+        scope: entire,
+        root: { type: "group", logic: "and", children: [{ type: "classAny", classIds: [] }] },
+      }),
+    ).toThrow();
+  });
+
+  it("classSet: the class set is non-empty", () => {
+    const store = worldStore();
+    const { ids } = runQuery(store, ast(entire, [{ type: "classSet" }]));
+    expect(ids).toContain(FRANCE);
+    expect(ids).toContain(PARIS);
+    expect(ids).not.toContain(LONE);
+    expect(ids).not.toContain(FR_BLOCK);
+    // The not-wrap reads "is not set".
+    const negated = runQuery(store, ast(entire, [
+      { type: "not", child: { type: "classSet" } },
+    ]));
+    expect(negated.ids).not.toContain(FRANCE);
+    expect(negated.ids).not.toContain(PARIS);
+    expect(negated.ids).toContain(LONE);
+    expect(negated.ids).toContain(FR_BLOCK);
+  });
+
+  it("pageClass: the CONTAINING PAGE is classed — a block reads its page's class, a page its own", () => {
+    const store = worldStore();
+    // Closure-aware: Place ∋ {Place, City} — France, Paris and every block
+    // under them match; Lone's page (itself) carries no class.
+    expect(
+      runQuery(store, ast(entire, [{ type: "pageClass", classId: PLACE }])).ids.sort(),
+    ).toEqual([FRANCE, FR_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort());
+    // Exact container: only the Paris-subtree (its page is classed City).
+    expect(
+      runQuery(store, ast(entire, [{ type: "pageClass", classId: CITY }])).ids.sort(),
+    ).toEqual([PARIS, PARIS_BLOCK].sort());
+    // The not-wrap excludes the whole subtree.
+    const negated = runQuery(store, ast(entire, [
+      { type: "not", child: { type: "pageClass", classId: PLACE } },
+    ]));
+    expect(negated.ids).not.toContain(FRANCE);
+    expect(negated.ids).not.toContain(PARIS_BLOCK);
+    expect(negated.ids).toContain(LONE);
+    expect(negated.ids).toContain(LONE_BLOCK);
+  });
+
+  it("ancestorClassed: the parent PATH carries a classed node — self excluded", () => {
+    const store = worldStore();
+    // Only parisBlock has a City-classed ancestor (Paris). France's blocks
+    // see France (Place) up their path; Paris itself sees only France.
+    expect(
+      runQuery(store, ast(entire, [{ type: "ancestorClassed", classId: CITY }])).ids,
+    ).toEqual([PARIS_BLOCK]);
+    // Place is closure-wide: every France-subtree node except France itself.
+    expect(
+      runQuery(store, ast(entire, [{ type: "ancestorClassed", classId: PLACE }])).ids.sort(),
+    ).toEqual([FR_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort());
+    // The not-wrap: France and the Lone subtree carry no classed ancestor.
+    const negated = runQuery(store, ast(entire, [
+      { type: "not", child: { type: "ancestorClassed", classId: PLACE } },
+    ]));
+    expect(negated.ids).toContain(FRANCE);
+    expect(negated.ids).toContain(LONE);
+    expect(negated.ids).toContain(LONE_BLOCK);
+    expect(negated.ids).not.toContain(PARIS);
+  });
+
+  it("rootClass: the workspace-root ancestor is classed — a parentless row is its own root", () => {
+    const store = worldStore();
+    // The France-subtree's root is France (Place ∋ City through the closure);
+    // Lone's root is Lone itself (unclassed).
+    expect(
+      runQuery(store, ast(entire, [{ type: "rootClass", classId: PLACE }])).ids.sort(),
+    ).toEqual([FRANCE, FR_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort());
+    expect(
+      runQuery(store, ast(entire, [{ type: "rootClass", classId: CITY }])).ids,
+    ).toEqual([]);
+    // Lone matches a rootClass only against its own (empty) class set.
+    const negated = runQuery(store, ast(entire, [
+      { type: "not", child: { type: "rootClass", classId: PLACE } },
+    ]));
+    expect(negated.ids).toContain(LONE);
+    expect(negated.ids).toContain(LONE_BLOCK);
+    expect(negated.ids).not.toContain(FRANCE);
+    expect(negated.ids).not.toContain(PARIS_BLOCK);
+  });
+});
