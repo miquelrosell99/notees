@@ -12,13 +12,17 @@
  * rows are list rows — transparent with a hover fill.
  *
  * The registers are the v1 ones (owner 2026-10-09: the 1:1 block model) —
- * each block is a row of COLUMNS: a TYPE select (Class, Type, Structural role,
+ * each block is a row of COLUMNS: a TYPE dropdown (Class, Type, Structural role,
  * Content, Property, Links, Parent, Cover, Banner, Alias, Created, Edited),
- * an OPERATOR select whose options vary by family (is / is not / contains /
+ * an OPERATOR dropdown whose options vary by family (is / is not / contains /
  * is set / is not set / ordering / after / before / full-text — the
  * negatives are not-wrap sugar, the booleans flip their bit), then the VALUE
  * control (typed per family — the property-table register: numeric keyboard,
- * placeholder datalist, anchored node picker). The node-target families
+ * placeholder datalist, anchored node picker). The selection columns ride
+ * the kit Dropdown register and the text values the kit Input (the boxed
+ * field pairing with SelectTrigger — owner 2026-10-16: the raw native
+ * <select>s rendered the browser's chrome, unaligned with the token
+ * interface); the node-target families
  * (Links, Parent) carry the v1 MODE SWITCH: static (a picked node) or
  * dynamic (a nested query-block list defining the target set — "links to a
  * person node with age > 50"), the nested group rendering beneath the row
@@ -53,7 +57,9 @@ import { displayNameForSettings } from "../dateDisplay.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
 import { Button } from "./ui/Button.js";
 import { ButtonWithPanel } from "./ui/ButtonWithPanel.js";
+import { Dropdown, type DropdownOption } from "./ui/Dropdown.js";
 import { GridMenu } from "./ui/GridMenu.js";
+import { Input } from "./ui/Input.js";
 import { SelectionButton, type SelectionButtonOption } from "./ui/SelectionButton.js";
 import { useBuilderFacts, type BuilderFacts } from "./QueryBuilderFields.js";
 import {
@@ -592,6 +598,16 @@ const FAMILY_LABELS: Record<ConditionKind, string> = Object.fromEntries(
   FAMILY_OPTIONS.map((option) => [option.value, option.label]),
 ) as Record<ConditionKind, string>;
 
+/** The TYPE column's options — the add-menu register, icons carried over. */
+const FAMILY_DROPDOWN_OPTIONS: DropdownOption<string>[] = FILTER_KIND_OPTIONS.filter(
+  (option) => option.value !== "group-and" && option.value !== "group-or" && option.value !== "not",
+).map((option) => ({
+  value: option.value,
+  label: option.label,
+  icon: option.icon,
+  description: option.description,
+}));
+
 interface BlockRowProps extends BlockContext {
   child: Child;
   onChange: (child: Child) => void;
@@ -632,40 +648,39 @@ function BlockRow({
       <div className="nt-fb-block__row">
         {/* The TYPE column — morphing the block replaces the condition,
             keeping the negation where one was set. */}
-        <select
-          aria-label="Block type"
-          className="nt-fb-block__type"
-          value={family}
-          onChange={(event) => {
-            const next = createCondition(event.target.value as ConditionKind);
-            onChange(negated ? { type: "not", child: next } : next);
-          }}
-        >
-          {FAMILY_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="Operator"
-          className="nt-fb-block__operator"
-          value={operatorOf(condition, negated)}
-          onChange={(event) => onChange(applyOperator(condition, event.target.value))}
-        >
-          {operatorOptions(family).map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <BlockValue
-          condition={condition}
-          onChange={(next) => onChange(negated ? { type: "not", child: next } : next)}
-          client={client}
-          facts={facts}
-          datalistId={datalistId}
-        />
+        <div className="nt-fb-block__type">
+          <Dropdown
+            size="sm"
+            ariaLabel="Block type"
+            options={FAMILY_DROPDOWN_OPTIONS}
+            value={family}
+            onChange={(value) => {
+              if (value === null) return;
+              const next = createCondition(value as ConditionKind);
+              onChange(negated ? { type: "not", child: next } : next);
+            }}
+          />
+        </div>
+        <div className="nt-fb-block__operator">
+          <Dropdown
+            size="sm"
+            ariaLabel="Operator"
+            options={operatorOptions(family).map((option) => ({ value: option.value, label: option.label }))}
+            value={operatorOf(condition, negated)}
+            onChange={(value) => {
+              if (value !== null) onChange(applyOperator(condition, value));
+            }}
+          />
+        </div>
+        <div className="nt-fb-block__value">
+          <BlockValue
+            condition={condition}
+            onChange={(next) => onChange(negated ? { type: "not", child: next } : next)}
+            client={client}
+            facts={facts}
+            datalistId={datalistId}
+          />
+        </div>
         {(family === "links" || family === "parent") && (
           <SelectionButton
             size="sm"
@@ -688,7 +703,7 @@ function BlockRow({
             }}
           />
         )}
-        <span className="nt-fb-condition__spacer" />
+        <span className="nt-fb-block__spacer" />
         {showReorder && (
           <>
             <Button
@@ -767,46 +782,56 @@ function BlockValue({
   switch (condition.type) {
     case "class":
       return (
-        <select
-          aria-label="Class"
+        <Dropdown
+          size="sm"
+          ariaLabel="Class"
+          options={[
+            { value: "", label: "Pick a class" },
+            ...facts.classes.map((cls) => ({
+              value: cls.id,
+              label: facts.classNames.get(cls.id) ?? cls.id,
+            })),
+          ]}
           value={condition.classId}
-          onChange={(event) => onChange({ ...condition, classId: event.target.value })}
-        >
-          <option value="">Pick a class</option>
-          {facts.classes.map((cls) => (
-            <option key={cls.id} value={cls.id}>
-              {facts.classNames.get(cls.id) ?? cls.id}
-            </option>
-          ))}
-        </select>
+          onChange={(value) => {
+            if (value !== null) onChange({ ...condition, classId: value });
+          }}
+        />
       );
     case "isClass":
       return (
-        <select
-          aria-label="Type"
+        <Dropdown
+          size="sm"
+          ariaLabel="Type"
+          options={[
+            { value: "true", label: "A class" },
+            { value: "false", label: "Not a class" },
+          ]}
           value={String(condition.isClass)}
-          onChange={(event) => onChange({ ...condition, isClass: event.target.value === "true" })}
-        >
-          <option value="true">A class</option>
-          <option value="false">Not a class</option>
-        </select>
+          onChange={(value) => {
+            if (value !== null) onChange({ ...condition, isClass: value === "true" });
+          }}
+        />
       );
     case "isEmbedded":
       return (
-        <select
-          aria-label="Structural role"
+        <Dropdown
+          size="sm"
+          ariaLabel="Structural role"
+          options={[
+            { value: "true", label: "Block (embedded in body)" },
+            { value: "false", label: "Page (standalone)" },
+          ]}
           value={String(condition.isEmbedded)}
-          onChange={(event) =>
-            onChange({ ...condition, isEmbedded: event.target.value === "true" })
-          }
-        >
-          <option value="true">Block (embedded in body)</option>
-          <option value="false">Page (standalone)</option>
-        </select>
+          onChange={(value) => {
+            if (value !== null) onChange({ ...condition, isEmbedded: value === "true" });
+          }}
+        />
       );
     case "content":
       return (
-        <input
+        <Input
+          size="sm"
           aria-label="Content"
           value={condition.value}
           onChange={(event) => onChange({ ...condition, value: event.target.value })}
@@ -834,13 +859,14 @@ function BlockValue({
       );
     case "linkedToQuery":
     case "descendantOfQuery":
-      return <span className="nt-fb-condition__word">matching</span>;
+      return <span className="nt-fb-block__word">matching</span>;
     case "createdAfter":
     case "createdBefore":
     case "updatedAfter":
     case "updatedBefore":
       return (
-        <input
+        <Input
+          size="sm"
           aria-label={condition.type.startsWith("updated") ? "Edited" : "Created"}
           list={datalistId}
           placeholder="{today} or 2026-10-04"
@@ -871,20 +897,24 @@ function PropertyValue({
   const numeric = schema !== undefined && (schema.type === "number" || schema.type === "integer");
   return (
     <>
-      <select
-        aria-label="Property"
+      <Dropdown
+        size="sm"
+        ariaLabel="Property"
+        options={[
+          { value: "", label: "Pick a property" },
+          ...facts.boundProperties.map((property) => ({
+            value: property.id,
+            label: property.name,
+          })),
+        ]}
         value={condition.schemaId}
-        onChange={(event) => onChange({ ...condition, schemaId: event.target.value })}
-      >
-        <option value="">Pick a property</option>
-        {facts.boundProperties.map((property) => (
-          <option key={property.id} value={property.id}>
-            {property.name}
-          </option>
-        ))}
-      </select>
+        onChange={(value) => {
+          if (value !== null) onChange({ ...condition, schemaId: value });
+        }}
+      />
       {condition.op !== "exists" && (
-        <input
+        <Input
+          size="sm"
           aria-label="Value"
           type={numeric ? "number" : "text"}
           value={condition.value === undefined || condition.value === null ? "" : String(condition.value)}
@@ -918,9 +948,18 @@ function NodePickBody({
         ref={anchorRef}
         className="nt-fb-nodepick"
         aria-label="Pick target node"
+        aria-haspopup="dialog"
+        aria-expanded={open}
         onClick={() => setOpen(true)}
       >
-        {target !== undefined ? displayNameForSettings(target) || "Untitled" : placeholder}
+        <span className="nt-fb-nodepick__label">
+          {target !== undefined ? displayNameForSettings(target) || "Untitled" : placeholder}
+        </span>
+        <Icon
+          path="mdi mdi-chevron-down"
+          size={0.7}
+          className={`nt-fb-nodepick__chev${open ? " nt-fb-nodepick__chev--open" : ""}`}
+        />
       </button>
       {open && (
         <NodeSelector

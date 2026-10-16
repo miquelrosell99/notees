@@ -1936,24 +1936,10 @@ select:focus-visible {
 
 
 
-.nt-query-more,
 .nt-query-empty {
   color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-sm);
   padding: 2px 4px;
-}
-
-/* Load-more widens the render window past the 200-row cap. */
-.nt-query-more {
-  background: none;
-  border: none;
-  cursor: pointer;
-  text-align: left;
-}
-
-.nt-query-more:hover {
-  color: var(--md-sys-color-on-surface);
-  text-decoration: underline;
 }
 
 /* The read-only summary + warning shown when the AST uses
@@ -2064,16 +2050,6 @@ select:focus-visible {
   display: flex;
   gap: 6px;
   justify-content: flex-end;
-}
-
-.nt-query-builder-actions button {
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--shape-small);
-  background: var(--md-sys-color-surface);
-  color: var(--md-sys-color-on-surface-variant);
-  font-size: var(--font-size-sm);
-  padding: 2px 10px;
-  cursor: pointer;
 }
 
 /* View toggle: the active mode reads pressed (same chrome, darker border). */

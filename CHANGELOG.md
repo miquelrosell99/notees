@@ -9,6 +9,34 @@ predating this file.
 
 ## 2026-10-16
 
+- **fix(web): the query builder surfaces ride the kit dropdown/input
+  registers — the audit-and-align slice (owner 2026-10-16, design-system
+  audit).** The filter bar's structured panel rendered its condition
+  columns as **raw native `<select>`s with zero token styling** — the kit
+  CSS still styled the retired `nt-fb-condition*` classes while the TSX
+  rendered `nt-fb-block*`, which had no CSS at all: the browser's grey
+  dropdown chrome against the token interface, exactly the reported
+  misalignment. The same drift class lived in the query-block builder
+  popover and the Queries-hub "New query" modal (`QueryBuilderFields` —
+  one-off styled selects) and in `QueryBlockView`'s ad-hoc
+  hand-styled action buttons. Now: the FilterBlockBuilder's TYPE /
+  OPERATOR / VALUE selection columns ride the kit **Dropdown** (sm), its
+  text values the new kit **Input** primitive (the boxed text field — the
+  `SelectTrigger` register applied to a native `<input>`, barrel-exported
+  and catalogued in ui-primitives.md); the block rows lay out as a
+  hover-filled list row with fixed-basis type/operator columns so they
+  align across rows, the value column flexing. `QueryBuilderFields` (the
+  scope bar + every condition card) migrated to the same Dropdown/Input
+  registers; the dead `nt-fb-condition` CSS block and the one-off
+  `nt-vb__card-body` control CSS are gone. The node-pick trigger and the
+  load-more / Apply / Cancel / Edit-anyway buttons compose the kit
+  registers (SelectTrigger-matching field with a rotating chevron +
+  `aria-expanded`; kit `Button` variants), deleting the app.css ad-hoc
+  button block. No model/wire/store change — chrome only. **Verification:**
+  `pnpm build` + `pnpm typecheck` (8/8) + `pnpm test` green — the six
+  query-builder suites (filter-builder, filter-layer, section-views,
+  queries-hub, query-block, query-builder-guard) updated to drive the
+  Dropdowns and re-passed.**
 - **feat(web): horizontal rule blocks — a block whose content is exactly
   `---` renders as a divider, inserted via the slash menu (owner
   2026-10-16).** Zero wire/store/fixture changes: the node is an ordinary

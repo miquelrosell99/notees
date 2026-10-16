@@ -253,7 +253,10 @@ describe("the classed-nodes filter bar", () => {
     fireEvent.click(
       within(document.querySelector(".btn-panel") as HTMLElement).getByRole("menuitem", { name: /^Class/ }),
     );
-    fireEvent.change(within(panel).getByLabelText("Class"), { target: { value: clientId } });
+    fireEvent.click(within(panel).getByLabelText("Class"));
+    fireEvent.click(
+      within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("button", { name: "client" }),
+    );
 
     // Only the client-classed member survives; the bar names 1 of 3.
     expect(tableRowCount()).toBe(1);
@@ -285,8 +288,14 @@ describe("the classed-nodes filter bar", () => {
     fireEvent.click(
       within(document.querySelector(".btn-panel") as HTMLElement).getByRole("menuitem", { name: /^Property/ }),
     );
-    fireEvent.change(within(panel).getByLabelText("Property"), { target: { value: schemaId } });
-    fireEvent.change(within(panel).getByLabelText("Operator"), { target: { value: "gte" } });
+    fireEvent.click(within(panel).getByLabelText("Property"));
+    fireEvent.click(
+      within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("button", { name: "impact" }),
+    );
+    fireEvent.click(within(panel).getByLabelText("Operator"));
+    fireEvent.click(
+      within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("button", { name: "≥" }),
+    );
     fireEvent.change(within(panel).getByLabelText("Value"), { target: { value: "5" } });
 
     expect(tableRowCount()).toBe(1);
