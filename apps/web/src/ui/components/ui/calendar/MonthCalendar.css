@@ -80,9 +80,9 @@
   position: relative;
 }
 
-/* The invisible 44px hit-area floor (skill §9 — the calendar-grid
-   pattern): the visible pick rides the grid; the ::after overlay centered
-   on it reaches ≥44×44. */
+/* The invisible 48px hit-area floor (M3's 48dp minimum, owner ruling
+   2026-10-16 — the calendar-grid pattern): the visible pick rides the
+   grid; the ::after overlay centered on it reaches ≥48×48. */
 .month-calendar__pick.btn::after {
   content: '';
   position: absolute;

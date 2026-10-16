@@ -91,26 +91,26 @@
   box-shadow: none !important;
 }
 
-/* Elevation levels — the design system's elevation table (foundations →
-   Elevation): static surfaces NEVER shadow (zero visual noise); floating
-   transient layers carry soft ambient+key shadows. The values live in
-   variables.css (--shadow-floating / --shadow-modal) so themes own the
-   literals. Level semantics: medium = level 1 (popover, menu, panel);
-   high = level 2 (dialog, modal). */
+/* Elevation levels — M3's elevation table (owner ruling 2026-10-16:
+   m3.material.io/styles/elevation): static cards carry the level-1 shadow,
+   transient floating layers the level-2, dialogs and modals the level-3.
+   The values live in variables.css (--shadow-level1/2/3 — one
+   theme-independent set; dark surfaces keep tonal elevation through the
+   surface hierarchy). */
 .card--elevation-none {
   box-shadow: none;
 }
 
 .card--elevation-low {
-  box-shadow: none;
+  box-shadow: var(--shadow-level1);
 }
 
 .card--elevation-medium {
-  box-shadow: var(--shadow-floating);
+  box-shadow: var(--shadow-level2);
 }
 
 .card--elevation-high {
-  box-shadow: var(--shadow-modal);
+  box-shadow: var(--shadow-level3);
 }
 
 /* Padding options */

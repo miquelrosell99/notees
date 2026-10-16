@@ -603,7 +603,7 @@ select:focus-visible {
 /* The nodeview cell: auto height between the top bar and the card bottom;
    scrolls when the content outgrows it. Horizontal overflow clips, never
    scrolls (owner 2026-10-12): the kit icon buttons carry an invisible
-   44×44 hit-area overlay (::after) that inflates every ancestor's
+   48×48 hit-area overlay (::after) that inflates every ancestor's
    scrollWidth by a few px — the column must not turn that into a
    horizontal scrollbar (wide tables scroll inside .nt-table-wrap). */
 .nt-nodeview-body {
@@ -1104,7 +1104,8 @@ select:focus-visible {
 /* The invisible hit-area floor (skill §9 — the mark's overlay pattern,
    owner ruling 2026-10-16: the 22px row-chrome register retired, the
    glyph-neighborhood tradeoff accepted): the 14px glyph sits in the row's
-   left gutter; the ::after overlay centered on it reaches ≥44×44. The
+   left gutter; the ::after overlay centered on it reaches ≥48×48 (M3's
+   48dp floor). The
    overlay extends past the grip, where the gutter-hover reveal doesn't
    fire — so hovering the overlay reveals the chevron itself: the control
    is never an invisible click-eater. The bullet keeps its own hit
@@ -1582,7 +1583,7 @@ select:focus-visible {
    re-condenses. The "…" IS the toggle (owner ruling, fourth pass): the
    permanent muted stretchtext mark is the layer's ONE control in both
    directions — on the condensed row it pins the block (tap to stretch in
-   place, the 44px invisible hit-area overlay around the 22px visible
+   place, the 48px invisible hit-area overlay around the 22px visible
    mark); on a pinned row it
    returns at the END OF THE TEXT (inline after the last word, wherever the
    text wraps) to un-pin. The hidden-links badge (the BlockBacklink toggle's
@@ -1598,8 +1599,8 @@ select:focus-visible {
 
 /* The mark as the toggle: visually the same muted "…", now a real button —
    the row-chrome tap floor + the unified state-layer hover. Visible box
-   stays 22px; the ::after overlay centered on the mark reaches the skill's
-   44px hit-area floor (owner ruling 2026-10-16: the 22px register retired
+   stays 22px; the ::after overlay centered on the mark reaches M3's 48px
+   hit-area floor (owner ruling 2026-10-16: the 22px register retired
    with the alignment program — the selection-intercept tradeoff is
    accepted; read-mode content is unselectable, so the overlay never
    blocks a selection drag). */
@@ -1626,9 +1627,9 @@ select:focus-visible {
   position: relative;
 }
 
-/* The invisible hit-area floor (skill §9 — the calendar-grid / icon-only
-   button pattern): the interactive area reaches ≥44×44 while the visible
-   mark stays 22px. */
+/* The invisible hit-area floor (the calendar-grid / icon-only button
+   pattern): the interactive area reaches ≥48×48 (M3's 48dp floor) while
+   the visible mark stays 22px. */
 .nt-block-excerpt__ellipsis::after {
   content: '';
   position: absolute;
@@ -1727,9 +1728,9 @@ select:focus-visible {
   position: relative;
 }
 
-/* The invisible hit-area floor (skill §9 — the mark's overlay pattern):
-   the badge's interactive area reaches ≥44×44 while the visible box stays
-   22px. */
+/* The invisible hit-area floor (the mark's overlay pattern): the badge's
+   interactive area reaches ≥48×48 (M3's 48dp floor) while the visible box
+   stays 22px. */
 .nt-block-links-badge::after {
   content: '';
   position: absolute;
@@ -3595,7 +3596,9 @@ mark {
   }
 
   /* Touch targets: sidebar rows (28px desktop) and the shell icon buttons
-     (32px) grow to the 44px button token floor. */
+     (32px) grow to the button height token (--height-button-lg — a size,
+     not the 48dp touch floor; the sidebar is a documented exception
+     surface). */
   .nt-side-item {
     min-height: var(--height-button-lg);
   }

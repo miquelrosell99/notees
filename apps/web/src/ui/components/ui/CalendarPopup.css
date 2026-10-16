@@ -107,9 +107,10 @@
   position: relative;
 }
 
-/* The invisible 44px hit-area floor (skill §9 — the calendar-grid
-   pattern): the popup's and the datepicker's month/year picks keep their
-   grid geometry; the ::after overlay centered on each reaches ≥44×44. */
+/* The invisible 48px hit-area floor (M3's 48dp minimum, owner ruling
+   2026-10-16 — the calendar-grid pattern): the popup's and the datepicker's
+   month/year picks keep their grid geometry; the ::after overlay centered
+   on each reaches ≥48×48. */
 .calendar-month.btn::after,
 .calendar-year-pick.btn::after {
   content: '';

@@ -111,16 +111,6 @@
   --md-sys-color-shadow: rgb(0 0 0 / 8%);
   --md-sys-color-scrim: rgb(0 0 0 / 50%);
 
-  /* ==================== Elevation shadows ====================
-     The design system's elevation table (foundations → Elevation): static
-     surfaces never shadow; floating transient layers carry soft ambient+key
-     shadows. Component CSS references these — the values live HERE, per
-     theme, literal rgb and all.
-       --shadow-floating — level 1: popovers, menus, panels.
-       --shadow-modal    — level 2: dialogs, modals. */
-  --shadow-floating: 0 1px 2px rgb(0 0 0 / 5%), 0 1px 3px 1px rgb(0 0 0 / 7%);
-  --shadow-modal: 0 2px 6px 2px rgb(0 0 0 / 6%), 0 8px 24px 4px rgb(0 0 0 / 9%);
-
   /* ==================== Presentation stage ====================
      Fullscreen presentation host (PresentationOverlay): a dark stage in
      EVERY theme (a deck reads like a projector surface, not a page), with
@@ -201,15 +191,17 @@
   --height-button-md: 36px;
   --height-button-lg: 44px;
 
-  /* Icon-only button touch targets — the invisible ::after overlay still
-     guarantees a 44×44 px accessible hit area on every icon-only control. */
-  --button-icon-only-xs: 44px;
-  --button-icon-only-sm: 44px;
+  /* Icon-only button touch targets — M3's 48×48dp touch floor (owner ruling
+     2026-10-16: M3's approach, not the fleet); the invisible ::after overlay
+     still guarantees a 48×48 px accessible hit area on every icon-only
+     control. */
+  --button-icon-only-xs: 48px;
+  --button-icon-only-sm: 48px;
   --button-icon-only-md: 48px;
   --button-icon-only-lg: 48px;
 
   /* Icon-only button visible sizes. These are smaller than the touch target;
-     the overlay above preserves the 44×44 px hit area. */
+     the overlay above preserves the 48×48 px hit area. */
   --button-icon-only-visible-xs: var(--spacing-7);
   --button-icon-only-visible-sm: var(--spacing-8);
   --button-icon-only-visible-md: var(--spacing-9);
@@ -228,7 +220,10 @@
   --focus-outline-offset: 2px;
 
   /* ==================== Component Sizes ==================== */
-  --button-min-height: 44px;
+  /* M3's 48dp touch floor (owner ruling 2026-10-16): every interactive
+     control reaches at least 48×48 px, by its own box or the invisible
+     ::after overlay that rides this token. */
+  --button-min-height: 48px;
   --bullet-size-xs: 4px;
   --bullet-size-md: 6px;
   --bullet-ring-size: 16px;
@@ -312,29 +307,36 @@
 
   /* ==================== Elevation (Box Shadows) ==================== */
 
-  /* Design system: zero visual noise — elevation is always none */
+  /* M3 elevation levels (owner ruling 2026-10-16: "I want M3's approach, not
+     the fleet" — m3.material.io/styles/elevation). ONE theme-independent
+     set: dark theme keeps tonal elevation through the surface hierarchy
+     (surface-container-low → -highest), not through per-theme shadow
+     alphas. Each level is M3's ambient + key pair, values verbatim:
+       level 1 — static cards, rails.
+       level 2 — menus, popovers, dropdowns.
+       level 3 — dialogs, modals. */
+  --shadow-level1:
+    0 1px 2px 0 rgb(0 0 0 / 0.3),
+    0 1px 3px 1px rgb(0 0 0 / 0.15);
+  --shadow-level2:
+    0 1px 2px 0 rgb(0 0 0 / 0.3),
+    0 2px 6px 2px rgb(0 0 0 / 0.15);
+  --shadow-level3:
+    0 1px 3px 0 rgb(0 0 0 / 0.3),
+    0 4px 8px 3px rgb(0 0 0 / 0.15);
+
+  /* The app's elevation track — aliases of the M3 levels so the ~30
+     existing consumers carry the M3 values without a rename sweep. */
   --elevation-0: none;
-  --elevation-1: none;
-  --elevation-2: none;
-  --elevation-3: none;
+  --elevation-1: var(--shadow-level1);
+  --elevation-2: var(--shadow-level2);
+  --elevation-3: var(--shadow-level3);
   --elevation-4: none;
   --elevation-5: none;
 
-  /* Soft layered elevation. Every elevation
-     to `none`; the current shell lifts one floating content card above the
-     background canvas, which needs a real (soft, layered) shadow to read as
-     floating in both themes. Each level is two shadows: a tight ambient
-     layer + a broad key layer. Dark shadows run stronger (dark surfaces
-     absorb light, so the cast must be darker to register). */
-  --shadow-elevation-1:
-    0 1px 2px rgb(0 0 0 / 5%),
-    0 1px 3px 1px rgb(0 0 0 / 7%);
-  --shadow-elevation-2:
-    0 2px 6px 2px rgb(0 0 0 / 6%),
-    0 8px 24px 4px rgb(0 0 0 / 9%);
-  --shadow-elevation-3:
-    0 4px 10px 2px rgb(0 0 0 / 8%),
-    0 16px 44px 8px rgb(0 0 0 / 13%);
+  --shadow-elevation-1: var(--shadow-level1);
+  --shadow-elevation-2: var(--shadow-level2);
+  --shadow-elevation-3: var(--shadow-level3);
 
   /* ==================== Shape (Border Radius) - Minimal ==================== */
   --shape-none: 0;
@@ -349,7 +351,8 @@
   --shape-button-small: 12px;
   --shape-sheet: 28px;
   --shape-button-compact: 10px;
-  --shape-floating-panel: var(--shape-large);  /* 8px — small floating surfaces (menus, popovers) */
+  --shape-floating-panel: var(--shape-large);  /* 8px — small floating surfaces (popovers, previews) */
+  --radius-menu: var(--shape-small);  /* 4px — M3 menu/popover container shape (m3.material.io menus: menu container 4dp). Scoped to the kit menu/popover panels only; --shape-floating-panel's other consumers keep 8px. */
   --shape-full: 9999px;
   --shape-hairline: 1px;
   --shape-tiny: 3px;
@@ -750,27 +753,14 @@
   --md-sys-color-shadow: rgb(0 0 0 / 50%);
   --md-sys-color-scrim: rgb(0 0 0 / 70%);
 
-  /* Elevation shadows — the design system's dark-theme values
-     (foundations → Elevation; see the light block for the levels). */
-  --shadow-floating: 0 1px 2px rgb(0 0 0 / 28%), 0 1px 3px 1px rgb(0 0 0 / 36%);
-  --shadow-modal: 0 2px 6px 2px rgb(0 0 0 / 32%), 0 10px 28px 4px rgb(0 0 0 / 44%);
+  /* Elevation: NO dark-theme overrides — the M3 level values are one
+     theme-independent set (owner ruling 2026-10-16); dark surfaces keep
+     tonal elevation through the surface-container hierarchy above. */
 
   /* Presentation stage — dark in every theme (see the light block). */
   --md-sys-color-presentation-stage: #0a0a09;
   --md-sys-color-on-presentation-stage: #e8e6e1;
   --md-sys-color-on-presentation-stage-muted: #a8a29e;
-
-  /* Dark-theme elevation: stronger casts so lifted surfaces register
-     against near-black backgrounds. */
-  --shadow-elevation-1:
-    0 1px 2px rgb(0 0 0 / 28%),
-    0 1px 3px 1px rgb(0 0 0 / 36%);
-  --shadow-elevation-2:
-    0 2px 6px 2px rgb(0 0 0 / 32%),
-    0 10px 28px 4px rgb(0 0 0 / 44%);
-  --shadow-elevation-3:
-    0 4px 10px 2px rgb(0 0 0 / 36%),
-    0 18px 48px 8px rgb(0 0 0 / 52%);
 
   /* State */
   --md-sys-color-disabled: #404040;

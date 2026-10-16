@@ -2,12 +2,14 @@
  * Calendar hit-area floor (owner ruling 2026-10-16, the 100%-alignment
  * program): every calendar cell — the shared day grid (top-bar popup +
  * MonthCalendar panel), the WeekStrip, the month/year picks — keeps its
- * visible grid geometry EXACTLY as-is and reaches the skill's 44×44 touch
- * floor through the invisible ::after hit-area overlay (the pattern the
- * icon-only button established; skill web-patterns.md → "Invisible hit-area
- * overlay"). The dated dot moved from `.dated::after` to a real span so the
- * overlay owns the pseudo-element. jsdom applies no layout — the contract
- * is asserted at the CSS-source level (the css-token-drift pattern).
+ * visible grid geometry EXACTLY as-is and reaches M3's 48×48dp touch
+ * floor (the owner ruling 2026-10-16: "I want M3's approach, not the
+ * fleet") through the invisible ::after hit-area overlay (the pattern the
+ * icon-only button established; the floor value itself rides the
+ * --button-min-height token). The dated dot moved from `.dated::after` to
+ * a real span so the overlay owns the pseudo-element. jsdom applies no
+ * layout — the contract is asserted at the CSS-source level (the
+ * css-token-drift pattern).
  */
 
 import { describe, expect, it } from "vitest";
@@ -39,8 +41,8 @@ const stripCss = readCss("components", "ui", "calendar", "WeekStrip.css");
 const monthCss = readCss("components", "ui", "calendar", "MonthCalendar.css");
 const popupCss = readCss("components", "ui", "CalendarPopup.css");
 
-describe("calendar cells carry the 44px invisible hit-area overlay", () => {
-  it("the shared day grid: visible disc rides the grid, ::after reaches 44px", () => {
+describe("calendar cells carry the 48px invisible hit-area overlay", () => {
+  it("the shared day grid: visible disc rides the grid, ::after reaches the 48px floor", () => {
     // Visible geometry untouched — the cell still sizes from the grid.
     const cell = /\.calendar-day\.btn \{[^}]*\}/.exec(gridCss);
     expect(cell).not.toBeNull();

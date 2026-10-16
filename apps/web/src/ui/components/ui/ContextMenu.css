@@ -24,16 +24,18 @@
    carry their own radius. The .card qualification beats the radius
    class's overflow without !important.
 
-   The menu rides surface-container-high — the top of the design system's
-   card ladder ("cards/sheets/dialogs: surface-container-low → -high as
-   the surface gets more transient") — with its level-1 floating shadow
-   from the elevation table (Card elevation="medium"). Both are Material
-   roles cited directly; the md-sys namespace is for Material roles only,
-   never app aliases like --md-sys-color-sidebar-card (the css-token-drift
-   gate enforces this). */
+   The menu rides surface-container-low per the M3 menu spec (owner ruling
+   2026-10-16: menus sit at elevation level 2 on surfaceContainerLow —
+   m3.material.io menus) — with the level-2 shadow from the elevation table
+   (Card elevation="medium"). Both are Material roles cited directly; the
+   md-sys namespace is for Material roles only, never app aliases like
+   --md-sys-color-sidebar-card (the css-token-drift gate enforces this). The
+   4dp container shape rides --radius-menu (the M3 menu-corner ruling),
+   overriding the Card radius class below with the .card qualification. */
 .card.context-menu {
   overflow: visible;
-  background: var(--md-sys-color-surface-container-high);
+  background: var(--md-sys-color-surface-container-low);
+  border-radius: var(--radius-menu);
 }
 
 .context-menu-title {
@@ -156,12 +158,14 @@ button.context-menu-item:hover:not(.disabled) {
    edge, vertically clamped. Absolutely positioned inside the card, it
    never changes the menu's own box — so opening/closing it can never
    re-fit the menu the way the old inline expansion did. Rides the same
-   surface as the menu root (see .card.context-menu). */
-.context-menu-submenu-flyout {
+   surface and corner as the menu root (see .card.context-menu) — M3's
+   menu spec: surfaceContainerLow + the 4dp container shape. */
+.card.context-menu-submenu-flyout {
   position: absolute;
   min-width: 11.25rem;
   max-width: var(--layout-size-6xl);
-  background: var(--md-sys-color-surface-container-high);
+  background: var(--md-sys-color-surface-container-low);
+  border-radius: var(--radius-menu);
   padding: var(--spacing-1);
   z-index: 1;
   animation: panelFadeIn var(--motion-duration-long) var(--motion-easing-standard);

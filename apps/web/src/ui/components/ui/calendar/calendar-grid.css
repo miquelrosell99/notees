@@ -45,10 +45,11 @@
   position: relative;
 }
 
-/* The invisible 44px hit-area floor (skill §9 — the pattern the icon-only
-   button established): the visible disc rides the grid width untouched;
-   the ::after overlay centered on the cell reaches ≥44×44. The dated dot
-   moved to a real span (.calendar-day__dot) so the overlay owns ::after. */
+/* The invisible 48px hit-area floor (M3's 48dp minimum, owner ruling
+   2026-10-16 — the pattern the icon-only button established): the visible
+   disc rides the grid width untouched; the ::after overlay centered on the
+   cell reaches ≥48×48. The dated dot moved to a real span
+   (.calendar-day__dot) so the overlay owns ::after. */
 .calendar-day.btn::after {
   content: '';
   position: absolute;
