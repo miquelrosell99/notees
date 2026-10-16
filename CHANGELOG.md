@@ -9,6 +9,24 @@ predating this file.
 
 ## 2026-10-16
 
+- **fix(web): the submenu chevron and the breadcrumb separator read at full
+  strength, and submenus open on hover over their parent line (owner
+  feedback 2026-10-16).** Both chevrons rode `--md-sys-color-outline` — a
+  border token, nearly invisible as a glyph color on the dark card — and the
+  menu's was a thin `›` text glyph on top. Now: the menu chevron is the mdi
+  sprite's `chevron-right` (size 0.8, `aria-hidden` so the menuitem's
+  accessible name reads clean — "Copy", not "Copy ›") and the breadcrumb
+  trail separator bumps 0.7 → 0.75, both in `--md-sys-color-on-surface-variant`
+  (the Material icon role). Hover seam: entering a submenu's parent line
+  opens its inline panel on pointer-fine devices (`(hover: hover)` —
+  touch keeps the tap as the explicit toggle, since a synthesized
+  mouseenter would open the panel a moment before the click collapses it),
+  and entering a plain item closes the open panel; the panel itself carries
+  no handler so the pointer can travel into the subitems. Docs:
+  `ui-primitives.md` ContextMenu catalog sentence. **Verification:** `pnpm
+  typecheck` + `pnpm test` green (new `submenu-chevron.test.tsx`: hover-open,
+  hover-close, touch inertness, sprite chevron, CSS-source pins on both
+  rules); web-only — no wire touch.
 - **feat(web): the node context menu groups its two ambiguity-prone surfaces
   into submenus — Convert to page › (keep under parent vs extract to root,
   children staying or following) and Copy › (markdown / with children / node
