@@ -126,6 +126,9 @@ export interface UndoNodeSnapshot {
   isEmbedded: boolean;
   icon: string | null;
   color: string | null;
+  /** Per-block list style; null = bullet (a prior null is expressible on the
+   * wire — present-null clears — so unlike `icon` this always restores). */
+  listStyle: string | null;
   contentAst: ContentAst;
   classIds: string[];
   tagIds: string[];
@@ -246,6 +249,9 @@ function restoreUpdateSpec(
     restore.isEmbedded = snap.isEmbedded;
   }
   if (hasOwn(payload, "color")) restore.color = snap.color;
+  if (hasOwn(payload, "listStyle") && opType === "object.update") {
+    restore.listStyle = snap.listStyle;
+  }
   if (hasOwn(payload, "icon")) {
     // The payload grammar has no "clear icon" — a prior NULL is inexpressible.
     if (snap.icon === null) return null;
@@ -722,6 +728,7 @@ export function undoVerbFor(envelope: Envelope, capture: UndoCaptureSource): str
     if (touched.includes("contentAst") && touched.length === 1) return "edit text";
     if (touched.length === 1 && touched[0] === "icon") return "change icon";
     if (touched.length === 1 && touched[0] === "color") return "change color";
+    if (touched.length === 1 && touched[0] === "listStyle") return "change list style";
     if (touched.includes("isEmbedded")) return p.isEmbedded === false ? "promote" : "demote";
     return "update";
   }

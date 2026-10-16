@@ -91,6 +91,7 @@ function fakeNode(id: string, title: string, updatedAt: string | null = null): C
     color: null,
     coverAssetId: null,
     bannerAssetId: null,
+    listStyle: null,
     aliasedNodeId: null,
     description: null,
     isActive: true,
