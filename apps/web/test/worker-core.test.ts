@@ -66,7 +66,7 @@ describe("WorkerCore OPFS persistence", () => {
     const core = await createCore({ opfs, fileName: FILE, workspaceId: WS, transport: new MemoryTransport(relay) });
     expect(core.listPages()).toEqual([]);
 
-    const pageId = await core.createObject({ presentAsMain: true, name: "Persisted" });
+    const pageId = await core.createObject({ isEmbedded: false, name: "Persisted" });
     const blockId = await core.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "World", marks: ["bold"] }],
@@ -113,8 +113,8 @@ describe("WorkerCore OPFS persistence", () => {
       workspaceId: WS,
       transport: new MemoryTransport(new MemoryRelay()),
     });
-    const pageId = await core.createObject({ presentAsMain: true, name: "Top" });
-    await core.createObject({ parentId: pageId, presentAsMain: true, name: "Sub" });
+    const pageId = await core.createObject({ isEmbedded: false, name: "Top" });
+    await core.createObject({ parentId: pageId, isEmbedded: false, name: "Sub" });
     await core.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "inline" }] });
     expect(core.roots().map((n) => n.id)).toEqual([pageId]);
     expect(core.listPages()).toHaveLength(2);
@@ -144,9 +144,9 @@ describe("WorkerCore OPFS persistence", () => {
       // Boot pulls nothing and must not write.
       expect(saves).toBe(0);
 
-      await core.createObject({ presentAsMain: true, name: "A" });
-      await core.createObject({ presentAsMain: true, name: "B" });
-      await core.createObject({ presentAsMain: true, name: "C" });
+      await core.createObject({ isEmbedded: false, name: "A" });
+      await core.createObject({ isEmbedded: false, name: "B" });
+      await core.createObject({ isEmbedded: false, name: "C" });
       expect(saves).toBe(0); // debounced: nothing written yet
       // Settle the fire-and-forget push acknowledgements (microtasks only;
       // the 500 ms debounce timer must not fire).
@@ -160,7 +160,7 @@ describe("WorkerCore OPFS persistence", () => {
       await core.flush();
       expect(saves).toBe(1); // clean: no pending dirty state
 
-      await core.createObject({ presentAsMain: true, name: "D" });
+      await core.createObject({ isEmbedded: false, name: "D" });
       await vi.advanceTimersByTimeAsync(0);
       await core.flush();
       expect(saves).toBe(2); // a later mutation persists on demand
@@ -178,7 +178,7 @@ describe("WorkerCore OPFS persistence", () => {
     const coreA = await createCore({ opfs: a.opfs, fileName: FILE, workspaceId: WS, transport: new MemoryTransport(relay) });
     const coreB = await createCore({ opfs: b.opfs, fileName: FILE, workspaceId: WS, transport: new MemoryTransport(relay) });
 
-    const pageId = await coreA.createObject({ presentAsMain: true, name: "From A" });
+    const pageId = await coreA.createObject({ isEmbedded: false, name: "From A" });
     await coreA.syncOnce();
     await coreB.syncOnce();
     expect(deriveDisplayName(coreB.getPage(pageId)!)).toBe("From A");
@@ -229,10 +229,10 @@ describe("notification coalescing", () => {
       await vi.advanceTimersByTimeAsync(200);
       emitted.length = 0;
 
-      await core.createObject({ presentAsMain: true, name: "A" });
+      await core.createObject({ isEmbedded: false, name: "A" });
       expect(emitted).toHaveLength(1); // leading edge after the quiet period
-      await core.createObject({ presentAsMain: true, name: "B" });
-      await core.createObject({ presentAsMain: true, name: "C" });
+      await core.createObject({ isEmbedded: false, name: "B" });
+      await core.createObject({ isEmbedded: false, name: "C" });
       expect(emitted).toHaveLength(1); // burst merged into the trailing slot
       await vi.advanceTimersByTimeAsync(50);
       expect(emitted).toHaveLength(2);
@@ -259,7 +259,7 @@ describe("notification coalescing", () => {
         notifyDebounceMs: 50,
         onNotify: (change) => emitted.push(change),
       });
-      const pageId = await core.createObject({ presentAsMain: true, name: "P" });
+      const pageId = await core.createObject({ isEmbedded: false, name: "P" });
       const blockId = await core.createObject({
         parentId: pageId,
         contentAst: [{ type: "text", text: "b" }],
@@ -316,8 +316,8 @@ describe("notification coalescing", () => {
       await vi.advanceTimersByTimeAsync(200); // settle the bootstrap chain
       emitted.length = 0;
 
-      await core.createObject({ presentAsMain: true, name: "A" });
-      await core.createObject({ presentAsMain: true, name: "B" });
+      await core.createObject({ isEmbedded: false, name: "A" });
+      await core.createObject({ isEmbedded: false, name: "B" });
       await core.flush(); // before the window elapses
       expect(emitted).toHaveLength(2); // leading + flush-flushed trailing
       await vi.advanceTimersByTimeAsync(500);
@@ -337,7 +337,7 @@ describe("multiRead", () => {
       workspaceId: WS,
       transport: new MemoryTransport(new MemoryRelay()),
     });
-    const pageId = await core.createObject({ presentAsMain: true, name: "P" });
+    const pageId = await core.createObject({ isEmbedded: false, name: "P" });
     const results = (await core.invoke("multiRead", [
       [JSON.stringify(["getPage", [pageId]]), JSON.stringify(["roots", []])],
     ])) as unknown[];

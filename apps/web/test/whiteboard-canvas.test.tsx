@@ -80,7 +80,7 @@ function whiteboardAst(layout?: unknown): ContentAst {
 
 /** Seed a fullscreen whiteboard page (whiteboard token in the page's own AST). */
 async function seedWhiteboardPage(client: WorkspaceClient, layout?: unknown): Promise<string> {
-  return client.createObject({ presentAsMain: true, name: "Board", contentAst: whiteboardAst(layout) });
+  return client.createObject({ isEmbedded: false, name: "Board", contentAst: whiteboardAst(layout) });
 }
 
 /** The host's stored layout (what actually landed in the content token). */
@@ -158,7 +158,7 @@ describe("whiteboard canvas (fullscreen page)", () => {
       cards: { [cardId]: { x: 100, y: 50, w: 200, h: 100 } },
     });
     await client.createObject({ id: cardId, parentId: host, contentAst: text("hello card") });
-    const childPage = await client.createObject({ presentAsMain: true, name: "Not a card", parentId: host });
+    const childPage = await client.createObject({ isEmbedded: false, name: "Not a card", parentId: host });
 
     const { container } = render(<PageView client={client} pageId={host} />);
 
@@ -273,7 +273,7 @@ describe("whiteboard canvas (fullscreen page)", () => {
     expect(children.length).toBe(1);
     const cardId = children[0]!.id;
     expect(children[0]!.isClass).toBe(false);
-    expect(children[0]!.presentAsMain).toBe(false);
+    expect(children[0]!.isEmbedded).toBe(true);
     // …with geometry centered on the double-click point, and inline editing on.
     expect(storedLayout(client, host).cards[cardId]).toEqual({
       x: 180, y: 140, w: 240, h: 120,
@@ -506,7 +506,7 @@ describe("whiteboard canvas (fullscreen page)", () => {
 describe("whiteboard canvas (embedded block)", () => {
   it("renders the mini-canvas at the capped height inside the block row", async () => {
     const client = await seedClient();
-    const host = await client.createObject({ presentAsMain: true, name: "Doc" });
+    const host = await client.createObject({ isEmbedded: false, name: "Doc" });
     const boardBlock = await client.createObject({
       parentId: host,
       contentAst: whiteboardAst({ cards: {} }),
@@ -535,7 +535,7 @@ describe("whiteboard canvas (embedded block)", () => {
 
   it("embedded mode keeps interactions but gives the wheel to the page (no zoom/pan)", async () => {
     const client = await seedClient();
-    const host = await client.createObject({ presentAsMain: true, name: "Doc" });
+    const host = await client.createObject({ isEmbedded: false, name: "Doc" });
     await client.createObject({
       parentId: host,
       contentAst: whiteboardAst(),

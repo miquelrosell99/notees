@@ -16,7 +16,7 @@
  * Push-down (where each predicate evaluates):
  *
  *  - Base-column conditions evaluate directly on the materialized row (the
- *    ClientNode carries the node's own columns): `isClass`, `presentAsMain`,
+ *    ClientNode carries the node's own columns): `isClass`, `isEmbedded`,
  *    the created window (`createdAfter`/`createdBefore`, `{today}`-style
  *    placeholders resolved against the run clock), `class` membership (the
  *    row's direct class_ids against the class + its transitive extending
@@ -39,7 +39,7 @@
  *
  * Sort applies client-side with the compiler's semantics: `name` orders by
  * the flattened title text (empty falls last), `createdAt` lexicographic,
- * `isClass`/`presentAsMain` by bit; every sort ends in the `id ASC` tiebreak.
+ * `isClass`/`isEmbedded` by bit; every sort ends in the `id ASC` tiebreak.
  * Groups refine alongside items (a group's rows filter by the same
  * predicate; emptied groups drop), so grouped rendering (the backlinks
  * containing-page groups) stays consistent.
@@ -332,8 +332,8 @@ function conditionMatches(ctx: EvalContext, condition: QueryAst["root"]["childre
     }
     case "isClass":
       return node.isClass === condition.isClass;
-    case "presentAsMain":
-      return node.presentAsMain === condition.presentAsMain;
+    case "isEmbedded":
+      return node.isEmbedded === condition.isEmbedded;
     case "content":
       // contains only — fts rides the probe path (treeNeedsProbe).
       return asciiLower(titleTextOf(node)).includes(asciiLower(condition.value));
@@ -435,8 +435,8 @@ function sortValueOf(field: SortField, item: NodeCollectionItem): string | numbe
       return item.node.createdAt;
     case "isClass":
       return item.node.isClass ? 1 : 0;
-    case "presentAsMain":
-      return item.node.presentAsMain ? 1 : 0;
+    case "isEmbedded":
+      return item.node.isEmbedded ? 1 : 0;
   }
 }
 

@@ -13,7 +13,7 @@ import type { ClientNode } from "@/core/workspace-client.js";
  * maps class id → icon (build once per tree/render from listClasses()).
  */
 export function nodeIcon(
-  node: Pick<ClientNode, "icon" | "classIds" | "isClass" | "presentAsMain" | "parentId">,
+  node: Pick<ClientNode, "icon" | "classIds" | "isClass" | "isEmbedded" | "parentId">,
   classesById: ReadonlyMap<string, string | null>,
 ): string | null {
   if (node.icon !== null && node.icon !== "") return node.icon;

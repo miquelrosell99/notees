@@ -46,7 +46,7 @@ function fakeNode(partial: Partial<ClientNode> & { id: string }): ClientNode {
   return {
     workspaceId: WS,
     isClass: false,
-    presentAsMain: false,
+    isEmbedded: true,
     parentId: null,
     classIds: [],
     tagIds: [],
@@ -139,7 +139,7 @@ function fixture() {
       "tpl",
       fakeNode({
         id: "tpl",
-        presentAsMain: true,
+        isEmbedded: false,
         classIds: [SYSTEM_CLASS_UUIDS.template, MEETING],
         tagIds: [TAG_A],
         contentAst: TPL_ROOT_AST,
@@ -149,7 +149,7 @@ function fixture() {
       "c1",
       fakeNode({
         id: "c1",
-        presentAsMain: false,
+        isEmbedded: true,
         classIds: ["checklist"],
         tagIds: [TAG_B],
         contentAst: [
@@ -248,7 +248,7 @@ describe("composeSubtreeClone", () => {
     const root = create(ops, "fresh-1");
     expect(root.parentId).toBe("dest-parent");
     expect(root.afterId).toBeUndefined();
-    expect(root.presentAsMain).toBe(true);
+    expect(root.isEmbedded).toBe(false);
     expect(root.contentAst).toEqual(TPL_ROOT_AST);
     expect(root.classIds).toEqual([MEETING]); // template marker stripped
     expect(root.tagIds).toEqual([TAG_A]); // tag re-issued on the fresh id
@@ -260,7 +260,7 @@ describe("composeSubtreeClone", () => {
     expect(first.afterId).toBeUndefined();
     expect(first.classIds).toEqual(["checklist"]);
     expect(first.tagIds).toEqual([TAG_B]);
-    expect(first.presentAsMain).toBe(false);
+    expect(first.isEmbedded).toBe(true);
     const second = create(ops, "fresh-4");
     expect(second.parentId).toBe("fresh-1");
     expect(second.afterId).toBe("fresh-2");
@@ -359,13 +359,13 @@ describe("composeSubtreeClone", () => {
       rootId: "tpl",
       parentId: "dest-parent",
       beforeId: "existing-sibling",
-      rootPresentAsMain: false,
+      rootIsEmbedded: true,
       newId: idSequence(),
     });
     const root = create(ops, "fresh-1");
     expect(root.beforeId).toBe("existing-sibling");
     expect(root.afterId).toBeUndefined();
-    expect(root.presentAsMain).toBe(false);
+    expect(root.isEmbedded).toBe(true);
   });
 
   it("fails loud when the root is missing", () => {
@@ -379,7 +379,7 @@ describe("composeSubtreeClone", () => {
 describe("composeTemplateGraft", () => {
   it("grafts the root onto the object and clones children beneath it in order", () => {
     const reads = fixture();
-    reads.setNode(fakeNode({ id: "obj-1", classIds: [MEETING], presentAsMain: true }));
+    reads.setNode(fakeNode({ id: "obj-1", classIds: [MEETING], isEmbedded: false }));
 
     const { ops, rootId } = composeTemplateGraft(reads, {
       templateRootId: "tpl",
@@ -419,7 +419,7 @@ describe("composeTemplateGraft", () => {
 
   it("re-issues root classes the object does not already carry (minus the marker)", () => {
     const reads = fixture();
-    reads.setNode(fakeNode({ id: "obj-1", classIds: [], presentAsMain: true }));
+    reads.setNode(fakeNode({ id: "obj-1", classIds: [], isEmbedded: false }));
     const { ops } = composeTemplateGraft(reads, {
       templateRootId: "tpl",
       objectId: "obj-1",
@@ -496,7 +496,7 @@ describe("instantiateTemplate (real client)", () => {
   it("grafts the root and clones children: order, strip rule, A3 refs, D2 precedence", async () => {
     const client = await seedClient();
     const meetingId = await client.createClass("meeting");
-    const personId = await client.createObject({ presentAsMain: true, name: "Alice" });
+    const personId = await client.createObject({ isEmbedded: false, name: "Alice" });
 
     // Two bound schemas on the meeting class: Priority has a binding default
     // AND a template-authored value (template must win); Venue has only a
@@ -509,7 +509,7 @@ describe("instantiateTemplate (real client)", () => {
     // Template: meeting-classed root (plus the marker), two children, an
     // authored Priority value, a mention of the person.
     const tplId = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       name: "Weekly sync",
       classIds: [SYSTEM_CLASS_UUIDS.template, meetingId],
     });
@@ -528,7 +528,7 @@ describe("instantiateTemplate (real client)", () => {
     await client.assignTag(tplId, personId); // any page can be a tag
 
     // Create-with-template: fresh object of the picked class + graft.
-    const objId = await client.createObject({ presentAsMain: true, classIds: [meetingId] });
+    const objId = await client.createObject({ isEmbedded: false, classIds: [meetingId] });
     await instantiateTemplate(
       { reads: client, writes: client },
       { templateRootId: tplId, objectId: objId },
@@ -576,7 +576,7 @@ describe("instantiateTemplate (real client)", () => {
     const client = await seedClient();
     const meetingId = await client.createClass("meeting");
     const tplId = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       name: "T",
       classIds: [SYSTEM_CLASS_UUIDS.template, meetingId],
     });

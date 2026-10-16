@@ -111,7 +111,7 @@ describe("the block query builder", () => {
   async function seedMembers(client: WorkspaceClient): Promise<string> {
     const classId = await seedClass(client, "project");
     for (const name of ["Alpha", "Beta", "Gamma"]) {
-      const member = await client.createObject({ presentAsMain: true, name });
+      const member = await client.createObject({ isEmbedded: false, name });
       await client.assignClass(member, classId);
     }
     return classId;
@@ -289,20 +289,20 @@ describe("the block query builder", () => {
   it("a Parent-is condition keeps only rows anywhere inside the chosen node's parents tree", async () => {
     const client = await seedClient();
     const classId = await seedClass(client, "project");
-    const hub = await client.createObject({ presentAsMain: true, name: "Hub" });
+    const hub = await client.createObject({ isEmbedded: false, name: "Hub" });
     const inTree = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       name: "InTree",
       classIds: [classId],
       parentId: hub,
     });
     await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       name: "Deep",
       classIds: [classId],
       parentId: inTree,
     });
-    await client.createObject({ presentAsMain: true, name: "Outside", classIds: [classId] });
+    await client.createObject({ isEmbedded: false, name: "Outside", classIds: [classId] });
 
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     const section = classedNodesSection();
@@ -327,15 +327,15 @@ describe("the block query builder", () => {
     const personId = await seedClass(client, "person");
     const ageId = await client.createPropertySchema({ name: "age", type: "number" });
     await client.setClassProperty(personId, ageId, { sequence: 0 });
-    const elder = await client.createObject({ presentAsMain: true, name: "Elder", classIds: [personId] });
+    const elder = await client.createObject({ isEmbedded: false, name: "Elder", classIds: [personId] });
     await client.setProperty(elder, ageId, 60, 0);
     // The row side: Linker (classed, links to Elder) and Plain (classed, no link).
-    const linker = await client.createObject({ presentAsMain: true, name: "Linker", classIds: [classId] });
+    const linker = await client.createObject({ isEmbedded: false, name: "Linker", classIds: [classId] });
     await client.createObject({
       parentId: linker,
       contentAst: [{ type: "mention", targetNodeId: elder, text: "Elder" }],
     });
-    await client.createObject({ presentAsMain: true, name: "Plain", classIds: [classId] });
+    await client.createObject({ isEmbedded: false, name: "Plain", classIds: [classId] });
     const probe = vi.spyOn(client, "runQueryAst").mockResolvedValue({ ids: [linker], rows: [] });
 
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
@@ -377,13 +377,13 @@ describe("the block query builder", () => {
   it("a Links-to condition rides the runQueryAst probe and intersects with the base rows", async () => {
     const client = await seedClient();
     const classId = await seedClass(client, "project");
-    const target = await client.createObject({ presentAsMain: true, name: "Target" });
-    const linker = await client.createObject({ presentAsMain: true, name: "Linker", classIds: [classId] });
+    const target = await client.createObject({ isEmbedded: false, name: "Target" });
+    const linker = await client.createObject({ isEmbedded: false, name: "Linker", classIds: [classId] });
     await client.createObject({
       parentId: linker,
       contentAst: [{ type: "mention", targetNodeId: target, text: "Target" }],
     });
-    await client.createObject({ presentAsMain: true, name: "Plain", classIds: [classId] });
+    await client.createObject({ isEmbedded: false, name: "Plain", classIds: [classId] });
     // The probe channel is stubbed (the real SQL path is the query package's
     // contract); the hook's job is the intersect-with-base-rows wiring.
     const probe = vi.spyOn(client, "runQueryAst").mockResolvedValue({ ids: [linker], rows: [] });

@@ -106,7 +106,7 @@ function node(id: string, children: BlockTreeNode[] = []): BlockTreeNode {
       id,
       workspaceId: WS,
       isClass: false,
-      presentAsMain: false,
+      isEmbedded: true,
       parentId: null,
       classIds: [],
       tagIds: [],
@@ -178,7 +178,7 @@ describe("prose projection helpers", () => {
 describe("outliner editor", () => {
   it("typing saves the block via the 400 ms debounce flush", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Edit Me" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Edit Me" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello" }],
@@ -211,7 +211,7 @@ describe("outliner editor", () => {
 
   it("flushes a dirty draft on blur (no fake timers)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Blur Flush" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Blur Flush" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "draft" }],
@@ -228,7 +228,7 @@ describe("outliner editor", () => {
 
   it("shift+Enter newlines save as hard_break tokens", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Breaks" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Breaks" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "old" }],
@@ -254,7 +254,7 @@ describe("outliner editor", () => {
 
   it("Enter creates an empty sibling block and moves the caret to it", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Split" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Split" });
     const firstId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "first" }],
@@ -288,7 +288,7 @@ describe("outliner editor", () => {
 
   it("Enter's mid-text split keeps a class chip whole in the head or tail", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Split" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Split" });
     const classId = await client.createClass("task");
     const blockId = await client.createObject({
       parentId: pageId,
@@ -322,7 +322,7 @@ describe("outliner editor", () => {
 
   it("Enter lands the new sibling immediately AFTER the current block, not at the end", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Placement" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Placement" });
     const firstId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "first" }],
@@ -355,7 +355,7 @@ describe("outliner editor", () => {
 
   it("Backspace on an empty block deletes it and focuses the previous block", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Delete" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Delete" });
     const firstId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "first" }],
@@ -384,7 +384,7 @@ describe("outliner editor", () => {
 
   it("Tab indents under the previous sibling (object.move)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Indent" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Indent" });
     const firstId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "one" }],
@@ -410,7 +410,7 @@ describe("outliner editor", () => {
 
   it("Shift+Tab outdents to the grandparent, placed right after the parent", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Outdent" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Outdent" });
     const parentId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "parent" }],
@@ -436,7 +436,7 @@ describe("outliner editor", () => {
 
   it("typing on a marks block preserves the run's marks", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Marks" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Marks" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello", marks: ["bold"] }],
@@ -457,8 +457,8 @@ describe("outliner editor", () => {
 
   it("touching a mention-bearing block without changing its text does not flatten it", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Rich" });
-    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Rich" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [
@@ -480,7 +480,7 @@ describe("outliner editor", () => {
 
   it("editing the page title commits the content on Enter and on blur", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Old Name" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Old Name" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     const titleContent = container.querySelector<HTMLElement>(".nt-title-content");
@@ -511,7 +511,7 @@ describe("outliner editor", () => {
 
   it("an empty page offers the ghost add-block affordance that creates the first block", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Blank" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Blank" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
     expect(client.getBlockTree(pageId)).toHaveLength(0);
 
@@ -541,7 +541,7 @@ describe("ghost block rows (the add affordance)", () => {
     parentId: string;
     childId: string;
   }> {
-    const pageId = await client.createObject({ presentAsMain: true, name: "Nested" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Nested" });
     const parentId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "parent" }],

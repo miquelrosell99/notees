@@ -105,7 +105,7 @@ export function TemplateGalleryModal({
   const createTemplate = async () => {
     await ensureTemplateFamily(client);
     const id = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       name: "New template",
       classIds: [SYSTEM_CLASS_UUIDS.template],
     });

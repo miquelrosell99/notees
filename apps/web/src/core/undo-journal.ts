@@ -123,7 +123,7 @@ export interface UndoHistoryEntry {
 
 /** Facts about a node row needed to invert ops that touched it. */
 export interface UndoNodeSnapshot {
-  presentAsMain: boolean;
+  isEmbedded: boolean;
   icon: string | null;
   color: string | null;
   contentAst: ContentAst;
@@ -242,8 +242,8 @@ function restoreUpdateSpec(
 ): UndoOpSpec | null {
   const restore: Record<string, unknown> = { objectId };
   if (hasOwn(payload, "contentAst")) restore.contentAst = snap.contentAst;
-  if (hasOwn(payload, "presentAsMain") && opType === "object.update") {
-    restore.presentAsMain = snap.presentAsMain;
+  if (hasOwn(payload, "isEmbedded") && opType === "object.update") {
+    restore.isEmbedded = snap.isEmbedded;
   }
   if (hasOwn(payload, "color")) restore.color = snap.color;
   if (hasOwn(payload, "icon")) {
@@ -722,7 +722,7 @@ export function undoVerbFor(envelope: Envelope, capture: UndoCaptureSource): str
     if (touched.includes("contentAst") && touched.length === 1) return "edit text";
     if (touched.length === 1 && touched[0] === "icon") return "change icon";
     if (touched.length === 1 && touched[0] === "color") return "change color";
-    if (touched.includes("presentAsMain")) return p.presentAsMain === true ? "promote" : "demote";
+    if (touched.includes("isEmbedded")) return p.isEmbedded === false ? "promote" : "demote";
     return "update";
   }
   if (envelope.opType === "object.create") {

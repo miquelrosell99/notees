@@ -115,7 +115,7 @@ describe("the FilterQuery shape", () => {
   it("createCondition seeds a half-typed default per family", () => {
     expect(createCondition("class")).toEqual({ type: "class", classId: "" });
     expect(createCondition("type")).toEqual({ type: "isClass", isClass: true });
-    expect(createCondition("placement")).toEqual({ type: "presentAsMain", presentAsMain: true });
+    expect(createCondition("placement")).toEqual({ type: "isEmbedded", isEmbedded: false });
     expect(createCondition("content")).toEqual({ type: "content", op: "contains", value: "" });
     expect(createCondition("property")).toEqual({ type: "property", schemaId: "", op: "eq", value: "" });
     expect(createCondition("links")).toEqual({ type: "linkedTo", nodeId: "" });

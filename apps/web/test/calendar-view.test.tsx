@@ -181,7 +181,7 @@ describe("CalendarView", () => {
 
     const makeTask = async (name: string, iso: string, statusId: string) => {
       const id = await client.createObject({
-        presentAsMain: true,
+        isEmbedded: false,
         name,
         classIds: [SYSTEM_CLASS_UUIDS.task],
       });
@@ -238,7 +238,7 @@ describe("CalendarView", () => {
     // Ensure the chain exists (created-at writes) — its nodes must NOT list.
     const today = todayIsoLocal();
     await client.ensureDateChain(today);
-    await client.createObject({ presentAsMain: true, name: "Fresh object" });
+    await client.createObject({ isEmbedded: false, name: "Fresh object" });
 
     renderCalendar(client);
     const section = await screen.findByRole("region", { name: "Created" });

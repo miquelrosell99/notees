@@ -313,7 +313,7 @@ describe("ensureTaskFamily", () => {
     const doneId = status.options!.find((option) => option.label === "Done")!.id;
 
     const open = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       name: "Write the register entry",
       classIds: [SYSTEM_CLASS_UUIDS.task],
     });
@@ -321,7 +321,7 @@ describe("ensureTaskFamily", () => {
     await client.setProperty(open, SYSTEM_PROPERTY_UUIDS.taskStatus, status.options![0]!.id, 0);
 
     const closed = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       name: "Ship it",
       classIds: [SYSTEM_CLASS_UUIDS.task],
     });

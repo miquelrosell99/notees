@@ -570,7 +570,7 @@ function ObjectPropertyRow({
                   }
                 : (name) =>
                     client.createObject({
-                      presentAsMain: true,
+                      isEmbedded: false,
                       name,
                       ...(targetClassIds !== null ? { classIds: targetClassIds } : {}),
                     })
@@ -718,7 +718,7 @@ function ObjectPropertyRow({
                 }
               : (name) =>
                   client.createObject({
-                    presentAsMain: true,
+                    isEmbedded: false,
                     name,
                     ...(targetClassIds !== null ? { classIds: targetClassIds } : {}),
                   })

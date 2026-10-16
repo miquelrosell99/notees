@@ -81,9 +81,9 @@ interface Seed {
 /** Home page with one block mentioning the target page. */
 async function seedLinked(): Promise<Seed> {
   const client = await seedClient();
-  const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+  const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
   const targetId = await client.createObject({
-    presentAsMain: true,
+    isEmbedded: false,
     contentAst: [{ type: "text", text: TARGET_TEXT }],
   });
   const blockId = await client.createObject({
@@ -254,16 +254,18 @@ describe("node hover preview", () => {
 
   it("dwelling a different mention re-targets the open card", async () => {
     const { client, pageId } = await seedLinked();
-    const otherId = await client.createObject({ presentAsMain: true, name: "Elsewhere" });
+    const otherId = await client.createObject({ isEmbedded: false, name: "Elsewhere" });
     await client.createObject({
       parentId: pageId,
       contentAst: [
+        { type: "text", text: "also " },
         {
           type: "mention",
           targetNodeId: otherId,
           text: "Elsewhere",
           linkId: "0192a000-0000-7000-8000-0000000000bb",
         },
+        { type: "text", text: " today" },
       ],
     });
     const { container } = renderHosted(client, pageId);
@@ -329,8 +331,8 @@ describe("node hover preview", () => {
 
   it("the preview's body rows are read-only — clicking navigates instead of editing", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
-    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
     const childId = await client.createObject({
       parentId: targetId,
       contentAst: [{ type: "text", text: "child words" }],
@@ -366,11 +368,13 @@ describe("node hover preview", () => {
 
   it("a broken mention previews honestly and cannot be pinned", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     await client.createObject({
       parentId: pageId,
       contentAst: [
+        { type: "text", text: "see " },
         { type: "mention", targetNodeId: "0192a000-0000-7000-8000-0000000000ff", text: "Ghost" },
+        { type: "text", text: " here" },
       ],
     });
     const { container } = renderHosted(client, pageId);
@@ -517,8 +521,8 @@ describe("floating editor", () => {
 
   it("a block target previews the focused-block chrome read-only; pinning opens it editable", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
-    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
     const blockId = await client.createObject({
       parentId: targetId,
       contentAst: [{ type: "text", text: "the block body" }],

@@ -68,8 +68,8 @@ describe("bound-verb backlinks", () => {
   it("a bound-schema property value lists in the target's linked references with the verb", async () => {
     const client = await seedClient();
     const schemaId = await boundVerbSchema(client, "supports");
-    const target = await client.createObject({ presentAsMain: true, name: "Target" });
-    const source = await client.createObject({ presentAsMain: true, name: "Source" });
+    const target = await client.createObject({ isEmbedded: false, name: "Target" });
+    const source = await client.createObject({ isEmbedded: false, name: "Source" });
     await client.setProperty(source, schemaId, { nodeId: target }, 0);
     await flushSync();
 
@@ -80,7 +80,7 @@ describe("bound-verb backlinks", () => {
     // A plain mention row carries no verb. (The mention lives on a child
     // block — the entry's source is the block, its containing page the
     // mentioner.)
-    const mentionSource = await client.createObject({ presentAsMain: true, name: "Mentioner" });
+    const mentionSource = await client.createObject({ isEmbedded: false, name: "Mentioner" });
     await client.createObject({
       parentId: mentionSource,
       contentAst: [
@@ -97,8 +97,8 @@ describe("bound-verb backlinks", () => {
   it("the linked-references surface renders the schema NAME badge and opens the source on click", async () => {
     const client = await seedClient();
     const schemaId = await boundVerbSchema(client, "supports");
-    const target = await client.createObject({ presentAsMain: true, name: "Target" });
-    const source = await client.createObject({ presentAsMain: true, name: "Source" });
+    const target = await client.createObject({ isEmbedded: false, name: "Target" });
+    const source = await client.createObject({ isEmbedded: false, name: "Source" });
     await client.setProperty(source, schemaId, { nodeId: target }, 0);
     await flushSync();
 
@@ -124,12 +124,12 @@ describe("bound-verb backlinks", () => {
   it("the block-level backlink gutter renders the verb badge for a block target", async () => {
     const client = await seedClient();
     const schemaId = await boundVerbSchema(client, "cites");
-    const hostPage = await client.createObject({ presentAsMain: true, name: "Host" });
+    const hostPage = await client.createObject({ isEmbedded: false, name: "Host" });
     const targetBlock = await client.createObject({
       parentId: hostPage,
       contentAst: [{ type: "text", text: "The claim" }],
     });
-    const source = await client.createObject({ presentAsMain: true, name: "Paper" });
+    const source = await client.createObject({ isEmbedded: false, name: "Paper" });
     await client.setProperty(source, schemaId, { nodeId: targetBlock }, 0);
     await flushSync();
 
@@ -145,8 +145,8 @@ describe("bound-verb backlinks", () => {
 
   it("unlinked references never carry a verb badge", async () => {
     const client = await seedClient();
-    const target = await client.createObject({ presentAsMain: true, name: "Lonely Target" });
-    const source = await client.createObject({ presentAsMain: true, name: "Scribe" });
+    const target = await client.createObject({ isEmbedded: false, name: "Lonely Target" });
+    const source = await client.createObject({ isEmbedded: false, name: "Scribe" });
     await client.createObject({
       parentId: source,
       contentAst: [{ type: "text", text: "Lonely Target is mentioned in prose only" }],

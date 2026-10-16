@@ -110,7 +110,7 @@ function openEditLinkModal(container: HTMLElement): HTMLElement {
 describe("broken-link create page with UUID", () => {
   it("shows the heal row for a missing target; the click creates the page at that id and keeps the mention", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [
@@ -154,8 +154,8 @@ describe("broken-link create page with UUID", () => {
 
   it("hides the heal row when the target resolves", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
-    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
     await client.createObject({
       parentId: pageId,
       contentAst: [

@@ -73,7 +73,7 @@ async function childTexts(client: WorkspaceClient, pageId: string): Promise<stri
 describe("Alt+Shift+↑/↓ block move chords", () => {
   it("moves the edited block before/after its siblings", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "A" }] });
     await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "B" }] });
     await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "C" }] });
@@ -93,7 +93,7 @@ describe("Alt+Shift+↑/↓ block move chords", () => {
 
   it("is an honest no-op at the sibling edges", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "A" }] });
     await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "B" }] });
     const moveObject = vi.spyOn(client, "moveObject");
@@ -114,7 +114,7 @@ describe("Alt+Shift+↑/↓ block move chords", () => {
 
 describe("fold chords (Ctrl+. toggle, Ctrl+Alt+←/→)", () => {
   async function seedParentWithChild(client: WorkspaceClient) {
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const parentId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "parent" }],
@@ -190,7 +190,7 @@ describe("Cmd/Ctrl+Enter task cycle chord", () => {
 
   it("cycles not-a-task -> task+Pending -> Done -> cleared", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Tasks" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Tasks" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "Buy milk" }],
@@ -219,7 +219,7 @@ describe("Cmd/Ctrl+Enter task cycle chord", () => {
 
   it("Ctrl+Enter (without meta) cycles too", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Tasks" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Tasks" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "Buy milk" }],
@@ -235,7 +235,7 @@ describe("Cmd/Ctrl+Enter task cycle chord", () => {
 
   it("keeps plain Enter's block split intact after the chord", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Tasks" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Tasks" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "Buy milk" }],

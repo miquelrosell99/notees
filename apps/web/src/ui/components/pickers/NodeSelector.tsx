@@ -422,7 +422,7 @@ export function NodeSelector({
       }
     }
     return client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       name,
       ...(effectiveClassIds.length > 0 ? { classIds: effectiveClassIds } : {}),
     });

@@ -93,7 +93,7 @@ describe("page title row", () => {
   it("renders the content-derived title as the page heading", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       contentAst: [{ type: "text", text: "The Structure of Scientific Revolutions" }],
     });
     const { container } = render(<PageView client={client} pageId={pageId} />);
@@ -111,7 +111,7 @@ describe("page title row", () => {
 
   it("shows the Untitled placeholder while the page has no title text", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, contentAst: [] });
+    const pageId = await client.createObject({ isEmbedded: false, contentAst: [] });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     const content = container.querySelector<HTMLElement>(".nt-title-content")!;
@@ -124,7 +124,7 @@ describe("page title row", () => {
   it("does not persist anything when edit mode opens and closes untouched", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       contentAst: [{ type: "text", text: "Derived from prose" }],
     });
     const updateSpy = vi.spyOn(client, "updateObject");
@@ -143,7 +143,7 @@ describe("page title row", () => {
   it("commits a typed title as the page's text content (blur flush)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       contentAst: [{ type: "text", text: "Derived from prose" }],
     });
     const updateSpy = vi.spyOn(client, "updateObject");
@@ -163,7 +163,7 @@ describe("page title row", () => {
   it("Enter commits the title and leaves edit mode without creating a body block", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       contentAst: [{ type: "text", text: "Old Name" }],
     });
     const bodyId = await client.createObject({
@@ -189,7 +189,7 @@ describe("page title row", () => {
 
   it("Backspace on an empty title never deletes the page", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, contentAst: [] });
+    const pageId = await client.createObject({ isEmbedded: false, contentAst: [] });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     const editor = clickIntoTitle(container);
@@ -205,7 +205,7 @@ describe("page title row", () => {
   it("typing a URL through the slash Add URL flow authors the token directly (no modal)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       contentAst: [{ type: "text", text: "Reading list" }],
     });
     const { container } = render(<PageView client={client} pageId={pageId} />);
@@ -240,11 +240,11 @@ describe("page title row", () => {
   it("a title carrying a mention token renders the pill and opens the target", async () => {
     const client = await seedClient();
     const targetId = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       contentAst: [{ type: "text", text: "Target Page" }],
     });
     const pageId = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       contentAst: [{ type: "text", text: "see " }],
     });
     // Rich title content is authored through the content write (the page's
@@ -275,7 +275,7 @@ describe("page title row", () => {
   it("right-click on the title area opens the page's node context menu", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       contentAst: [{ type: "text", text: "Menu Page" }],
     });
     const { container } = render(<PageView client={client} pageId={pageId} />);
@@ -290,7 +290,7 @@ describe("page title row", () => {
   it("renders no editable title row for embedded entries (the static link button)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       contentAst: [{ type: "text", text: "Feed Entry" }],
     });
     const onOpenPage = vi.fn();
@@ -313,7 +313,7 @@ describe("date pages", () => {
     // A real day page: the deterministic date id is the identity.
     const pageId = await client.createObject({
       id: "00000000-0000-0000-00dd-202606270000",
-      presentAsMain: true,
+      isEmbedded: false,
       classIds: [SYSTEM_CLASS_UUIDS.day],
       contentAst: [{ type: "text", text: "20260627" }],
     });
@@ -336,7 +336,7 @@ describe("date pages", () => {
     localStorage.setItem("notees.settings.dateFormat", JSON.stringify("YYYY-MM-DD"));
     const client = await seedClient();
     const pageId = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       contentAst: [{ type: "text", text: "20261006" }],
     });
     const { container } = render(<PageView client={client} pageId={pageId} />);

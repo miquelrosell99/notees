@@ -115,7 +115,7 @@ export function useQueryRun(client: QueryRunClient, rawAst: unknown): {
 export const QUERY_TABLE_COLUMNS: TableColumn[] = [
   { id: "name", kind: "name", label: "Name", sortable: true },
   { id: "isClass", kind: "isClass", label: "Class", sortable: true },
-  { id: "presentAsMain", kind: "presentAsMain", label: "Main", sortable: true },
+  { id: "isEmbedded", kind: "isEmbedded", label: "Embedded", sortable: true },
   { id: "created", kind: "created", label: "Created", sortable: true },
 ];
 

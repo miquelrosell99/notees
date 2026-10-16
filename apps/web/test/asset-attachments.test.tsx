@@ -109,7 +109,7 @@ async function flushWrites(): Promise<void> {
 }
 
 async function createSource(client: WorkspaceClient, name: string): Promise<string> {
-  const id = await client.createObject({ presentAsMain: true, name });
+  const id = await client.createObject({ isEmbedded: false, name });
   await client.assignClass(id, SOURCE_CLASS);
   return id;
 }
@@ -188,8 +188,8 @@ describe("Asset attachments (the asset property row)", () => {
   it("Link opens the picker filtered to the asset class, with create disabled", async () => {
     const client = await seedClient();
     const sourceId = await createSource(client, "The Book");
-    await client.createObject({ presentAsMain: true, name: "scan.pdf", classIds: [ASSET_CLASS] });
-    await client.createObject({ presentAsMain: true, name: "Random notes" });
+    await client.createObject({ isEmbedded: false, name: "scan.pdf", classIds: [ASSET_CLASS] });
+    await client.createObject({ isEmbedded: false, name: "Random notes" });
 
     render(<PageView client={client} pageId={sourceId} />);
     fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Link" }));
@@ -207,8 +207,8 @@ describe("Asset attachments (the asset property row)", () => {
   it("picker search narrows candidates by name within the asset class", async () => {
     const client = await seedClient();
     const sourceId = await createSource(client, "The Book");
-    await client.createObject({ presentAsMain: true, name: "chapter-one.pdf", classIds: [ASSET_CLASS] });
-    await client.createObject({ presentAsMain: true, name: "cover.png", classIds: [ASSET_CLASS] });
+    await client.createObject({ isEmbedded: false, name: "chapter-one.pdf", classIds: [ASSET_CLASS] });
+    await client.createObject({ isEmbedded: false, name: "cover.png", classIds: [ASSET_CLASS] });
 
     render(<PageView client={client} pageId={sourceId} />);
     fireEvent.click(within(attachmentsRow()).getByRole("button", { name: "Link" }));
@@ -222,7 +222,7 @@ describe("Asset attachments (the asset property row)", () => {
     const client = await seedClient();
     const sourceId = await createSource(client, "The Book");
     // The picker searches node names — the asset node is named by its file.
-    const assetId = await client.createObject({ presentAsMain: true, name: "scan.pdf", classIds: [ASSET_CLASS] });
+    const assetId = await client.createObject({ isEmbedded: false, name: "scan.pdf", classIds: [ASSET_CLASS] });
     await attachFile(client, assetId, { assetId: ASSET_ID_A, hash: HASH_A, originalName: "scan.pdf" });
 
     render(<PageView client={client} pageId={sourceId} />);
@@ -353,8 +353,8 @@ describe("Asset attachments (the asset property row)", () => {
   it("item removal unlinks the slot (property.unset per idx)", async () => {
     const client = await seedClient();
     const sourceId = await createSource(client, "The Book");
-    const nodeA = await client.createObject({ presentAsMain: true, name: "Asset node A", classIds: [ASSET_CLASS] });
-    const nodeB = await client.createObject({ presentAsMain: true, name: "Asset node B", classIds: [ASSET_CLASS] });
+    const nodeA = await client.createObject({ isEmbedded: false, name: "Asset node A", classIds: [ASSET_CLASS] });
+    const nodeB = await client.createObject({ isEmbedded: false, name: "Asset node B", classIds: [ASSET_CLASS] });
     await attachFile(client, nodeA, { assetId: ASSET_ID_A, hash: HASH_A, originalName: "a.pdf" });
     await attachFile(client, nodeB, { assetId: ASSET_ID_B, hash: HASH_B, originalName: "b.pdf" });
     await client.setProperty(sourceId, ATTACHMENTS, { nodeId: nodeA }, 0);
@@ -378,7 +378,7 @@ describe("Asset attachments (the asset property row)", () => {
   it("attachment rows render the asset's original name from node_asset, not the node name", async () => {
     const client = await seedClient();
     const sourceId = await createSource(client, "The Book");
-    const assetNode = await client.createObject({ presentAsMain: true, name: "Asset node", classIds: [ASSET_CLASS] });
+    const assetNode = await client.createObject({ isEmbedded: false, name: "Asset node", classIds: [ASSET_CLASS] });
     await attachFile(client, assetNode, {
       assetId: ASSET_ID_A,
       hash: HASH_A,
@@ -396,7 +396,7 @@ describe("Asset attachments (the asset property row)", () => {
   it("clicking an attachment row downloads it via the server asset URL", async () => {
     const client = await seedClient({ rest: true });
     const sourceId = await createSource(client, "The Book");
-    const assetNode = await client.createObject({ presentAsMain: true, name: "Asset node", classIds: [ASSET_CLASS] });
+    const assetNode = await client.createObject({ isEmbedded: false, name: "Asset node", classIds: [ASSET_CLASS] });
     await attachFile(client, assetNode, { assetId: ASSET_ID_A, hash: HASH_A, originalName: "a.pdf" });
     await client.setProperty(sourceId, ATTACHMENTS, { nodeId: assetNode }, 0);
     const calls = stubFetch();
@@ -426,8 +426,8 @@ describe("Asset attachments (the asset property row)", () => {
   it("a source with attachments round-trips through effective properties", async () => {
     const client = await seedClient();
     const sourceId = await createSource(client, "The Book");
-    const nodeA = await client.createObject({ presentAsMain: true, name: "Asset node A", classIds: [ASSET_CLASS] });
-    const nodeB = await client.createObject({ presentAsMain: true, name: "Asset node B", classIds: [ASSET_CLASS] });
+    const nodeA = await client.createObject({ isEmbedded: false, name: "Asset node A", classIds: [ASSET_CLASS] });
+    const nodeB = await client.createObject({ isEmbedded: false, name: "Asset node B", classIds: [ASSET_CLASS] });
     await attachFile(client, nodeA, { assetId: ASSET_ID_A, hash: HASH_A, originalName: "front.pdf" });
     await attachFile(client, nodeB, { assetId: ASSET_ID_B, hash: HASH_B, originalName: "back.pdf" });
     await client.setProperty(sourceId, ATTACHMENTS, { nodeId: nodeA }, 0);
@@ -455,8 +455,8 @@ describe("Asset attachments (the asset property row)", () => {
     const client = await seedClient();
     vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,THUMBS");
     const sourceId = await createSource(client, "The Book");
-    const nodeA = await client.createObject({ presentAsMain: true, name: "Asset node A", classIds: [ASSET_CLASS] });
-    const nodeB = await client.createObject({ presentAsMain: true, name: "Asset node B", classIds: [ASSET_CLASS] });
+    const nodeA = await client.createObject({ isEmbedded: false, name: "Asset node A", classIds: [ASSET_CLASS] });
+    const nodeB = await client.createObject({ isEmbedded: false, name: "Asset node B", classIds: [ASSET_CLASS] });
     // A is an image asset (thumbnail), B a document (kind icon).
     await client.attachAsset(nodeA, { assetId: ASSET_ID_A, hash: HASH_A, mimeType: "image/png", size: 1, originalName: "front.png" });
     await attachFile(client, nodeB, { assetId: ASSET_ID_B, hash: HASH_B, originalName: "back.pdf" });
@@ -490,9 +490,9 @@ describe("Asset attachments (the asset property row)", () => {
     const schemaId = await client.createPropertySchema({ name: "hero", type: "asset", multi: false });
     const heroClass = await client.createClass("heroed");
     await client.setClassProperty(heroClass, schemaId, { sequence: 0 });
-    const pageId = await client.createObject({ presentAsMain: true, name: "Heroed page" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Heroed page" });
     await client.assignClass(pageId, heroClass);
-    const assetId = await client.createObject({ presentAsMain: true, name: "hero.png", classIds: [ASSET_CLASS] });
+    const assetId = await client.createObject({ isEmbedded: false, name: "hero.png", classIds: [ASSET_CLASS] });
     await client.setProperty(pageId, schemaId, { nodeId: assetId }, 0);
 
     render(<PageView client={client} pageId={pageId} />);
@@ -522,10 +522,10 @@ describe("Asset attachments (the asset property row)", () => {
     });
     const teamClass = await client.createClass("Team");
     await client.setClassProperty(teamClass, mentorSchema, { sequence: 0 });
-    const teamId = await client.createObject({ presentAsMain: true, name: "Crew" });
+    const teamId = await client.createObject({ isEmbedded: false, name: "Crew" });
     await client.assignClass(teamId, teamClass);
-    await client.createObject({ presentAsMain: true, name: "Ada Lovelace", classIds: [personClass] });
-    await client.createObject({ presentAsMain: true, name: "Grace Hopper" });
+    await client.createObject({ isEmbedded: false, name: "Ada Lovelace", classIds: [personClass] });
+    await client.createObject({ isEmbedded: false, name: "Grace Hopper" });
 
     render(<PageView client={client} pageId={teamId} />);
     expandProperties();

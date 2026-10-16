@@ -179,7 +179,7 @@ describe("tableGrid helpers", () => {
 
   it("addTableRow appends a full row; addTableColumn appends a cell to every row", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Grid" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Grid" });
     const { containerId } = await buildTable(client, pageId, 1, 3);
 
     await addTableRow(client, containerId, 3);
@@ -207,7 +207,7 @@ describe("/table slash scaffolding", () => {
     container: HTMLElement;
   }> {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
     const { container } = render(<PageView client={client} pageId={pageId} />);
     return { client, pageId, blockId, container };
@@ -268,7 +268,7 @@ describe("/table slash scaffolding", () => {
 describe("grid render", () => {
   it("renders rows as subgrid rows with the first row's column template", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Grid Page" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Grid Page" });
     const { cellIds } = await buildTable(client, pageId, 2, 3);
     await client.updateObject(cellIds[0]![0]!, { contentAst: text("r1c1") });
     await client.updateObject(cellIds[1]![2]!, { contentAst: text("r2c3") });
@@ -288,7 +288,7 @@ describe("grid render", () => {
 
   it("a ragged row renders its cells without breaking the row structure", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Ragged" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Ragged" });
     const { containerId, rowIds } = await buildTable(client, pageId, 1, 3);
     // Row 2 gets a fourth cell (more than the template) and row 3 gets two (fewer).
     const row2 = await client.createObject({ parentId: containerId });
@@ -310,13 +310,14 @@ describe("grid render", () => {
 describe("cell node identity (mention a cell)", () => {
   it("a mention of a cell id resolves the cell's CURRENT content at render", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Mention Host" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Mention Host" });
     const { cellIds } = await buildTable(client, pageId, 1, 2);
     const cellId = cellIds[0]![0]!;
     await client.updateObject(cellId, { contentAst: text("quarterly figure") });
     await client.createObject({
       parentId: pageId,
       contentAst: [
+        { type: "text", text: "see " },
         { type: "mention", targetNodeId: cellId, text: "quarterly figure", linkId: "l1" },
       ],
     });
@@ -340,7 +341,7 @@ describe("cell node identity (mention a cell)", () => {
 describe("toolbar gestures (+ Row / + Column)", () => {
   it("appends a full row and a cell per row through the container's toolbar", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Toolbar" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Toolbar" });
     const { containerId } = await buildTable(client, pageId, 1, 2);
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
@@ -369,7 +370,7 @@ describe("toolbar gestures (+ Row / + Column)", () => {
 
   it("− Row deletes the last row through the inline-confirm pattern (cells ride the subtree trash)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Delete Row" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Delete Row" });
     const { containerId, rowIds } = await buildTable(client, pageId, 2, 2);
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
@@ -395,7 +396,7 @@ describe("toolbar gestures (+ Row / + Column)", () => {
 
   it("− Column deletes the right-most cell of every row; Cancel leaves the table untouched", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Delete Col" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Delete Col" });
     const { containerId, cellIds } = await buildTable(client, pageId, 2, 3);
     render(<PageView client={client} pageId={pageId} />);
 
@@ -421,7 +422,7 @@ describe("toolbar gestures (+ Row / + Column)", () => {
 describe("cell editing", () => {
   it("typing in a cell saves through the ordinary block path", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Edit Cell" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Edit Cell" });
     const { cellIds } = await buildTable(client, pageId, 1, 2);
     const cellId = cellIds[0]![1]!;
     const { container } = render(<PageView client={client} pageId={pageId} />);
@@ -449,7 +450,7 @@ describe("cell editing", () => {
 describe("read-only projections", () => {
   it("an embed of a table renders the grid without the edit toolbar", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Embed Host" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Embed Host" });
     const holder = await client.createObject({ parentId: pageId, contentAst: text("holder") });
     const { cellIds } = await buildTable(client, holder, 2, 2);
     await client.updateObject(cellIds[0]![0]!, { contentAst: text("alpha") });

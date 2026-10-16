@@ -74,7 +74,7 @@ function stubObjectUrls(): void {
 describe("asset_ref renderer (BB1)", () => {
   it("renders a non-image asset inline as a filename + size chip that downloads on click", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Assets" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Assets" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "see " }, { type: "asset_ref", assetId: PDF_ASSET }],
@@ -107,7 +107,7 @@ describe("asset_ref renderer (BB1)", () => {
 
   it("renders a lone asset_ref full-bleed", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Lone Asset" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Lone Asset" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "asset_ref", assetId: LONE_PDF_ASSET }],
@@ -130,7 +130,7 @@ describe("asset_ref renderer (BB1)", () => {
 
   it("renders an image preview and opens the ImageModal lightbox on click", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Image Block" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Image Block" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "asset_ref", assetId: IMAGE_ASSET }],
@@ -172,7 +172,7 @@ describe("asset_ref renderer (BB1)", () => {
 
   it("keeps the placeholder box for an unknown asset id", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Missing" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Missing" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "asset_ref", assetId: MISSING_ASSET }],

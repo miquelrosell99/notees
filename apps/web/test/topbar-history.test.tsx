@@ -185,8 +185,8 @@ describe("journal history", () => {
     const client = await seedClient();
     expect(await client.undoHistory()).toEqual([]);
 
-    const a = await client.createObject({ presentAsMain: true, name: "Alpha" });
-    const b = await client.createObject({ presentAsMain: true, name: "Beta" });
+    const a = await client.createObject({ isEmbedded: false, name: "Alpha" });
+    const b = await client.createObject({ isEmbedded: false, name: "Beta" });
     await client.updateObject(a, { contentAst: [{ type: "text", text: "Alpha edited" }] });
     await client.updateObject(a, { contentAst: [{ type: "text", text: "Alpha edited twice" }] });
     await flushSync();
@@ -210,8 +210,8 @@ describe("journal history", () => {
 describe("HistoryMenuPopup — browsable history with jump-to", () => {
   it("lists entries newest-first with labels + times; clicking jumps to the affected node", async () => {
     const client = await seedClient();
-    const a = await client.createObject({ presentAsMain: true, name: "Alpha" });
-    const b = await client.createObject({ presentAsMain: true, name: "Beta" });
+    const a = await client.createObject({ isEmbedded: false, name: "Alpha" });
+    const b = await client.createObject({ isEmbedded: false, name: "Beta" });
     await client.updateObject(b, { contentAst: [{ type: "text", text: "Beta edited" }] });
     await flushSync();
 
@@ -262,7 +262,7 @@ describe("HistoryMenuPopup — browsable history with jump-to", () => {
     await screen.findByText(/Nothing to undo yet/);
 
     // Journal an entry, then delete its node: the row lists disabled.
-    const a = await client.createObject({ presentAsMain: true, name: "Gone soon" });
+    const a = await client.createObject({ isEmbedded: false, name: "Gone soon" });
     await flushSync();
     await client.deleteObject(a, { permanent: true });
     await flushSync();

@@ -136,7 +136,7 @@ describe("table windowing", () => {
     await client.updateObject(classId, { contentAst: [{ type: "text", text: "project" }] });
     for (let i = 0; i < BIG; i += 1) {
       const member = await client.createObject({
-        presentAsMain: true,
+        isEmbedded: false,
         name: `Member ${String(i).padStart(3, "0")}`,
       });
       await client.assignClass(member, classId);
@@ -211,7 +211,7 @@ describe("cards windowing", () => {
     const client = await seedClient();
     const items: NodeCollectionItem[] = [];
     for (let i = 0; i < BIG; i += 1) {
-      const id = await client.createObject({ presentAsMain: true, name: `Card ${i}` });
+      const id = await client.createObject({ isEmbedded: false, name: `Card ${i}` });
       items.push({ node: client.getNode(id)! });
     }
     render(
@@ -245,7 +245,7 @@ describe("board column windowing", () => {
     });
     const items: NodeCollectionItem[] = [];
     for (let i = 0; i < BIG; i += 1) {
-      const id = await client.createObject({ presentAsMain: true, name: `Task ${i}` });
+      const id = await client.createObject({ isEmbedded: false, name: `Task ${i}` });
       await client.setProperty(id, schemaId, "00000000-0000-0000-00c7-000000000001", 0);
       items.push({ node: client.getNode(id)! });
     }
@@ -279,7 +279,7 @@ describe("flat outline windowing", () => {
     const client = await seedClient();
     const items: NodeCollectionItem[] = [];
     for (let i = 0; i < BIG; i += 1) {
-      const id = await client.createObject({ presentAsMain: true, name: `Item ${i}` });
+      const id = await client.createObject({ isEmbedded: false, name: `Item ${i}` });
       items.push({ node: client.getNode(id)! });
     }
     render(
@@ -305,8 +305,8 @@ describe("flat outline windowing", () => {
 describe("grouped outline sections — the references grouping", () => {
   it("windows a huge group per group; the group count names the full set", async () => {
     const client = await seedClient();
-    const targetId = await client.createObject({ presentAsMain: true, name: "Zebra" });
-    const sourceId = await client.createObject({ presentAsMain: true, name: "Source One" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Zebra" });
+    const sourceId = await client.createObject({ isEmbedded: false, name: "Source One" });
     for (let i = 0; i < BIG; i += 1) {
       await client.createObject({
         parentId: sourceId,
@@ -331,11 +331,11 @@ describe("grouped outline sections — the references grouping", () => {
 describe("outline tree windowing", () => {
   it("windows a read-only child-page tree; Show more grows it", async () => {
     const client = await seedClient();
-    const parentId = await client.createObject({ presentAsMain: true, name: "Parent" });
+    const parentId = await client.createObject({ isEmbedded: false, name: "Parent" });
     for (let i = 0; i < BIG; i += 1) {
       await client.createObject({
         parentId,
-        presentAsMain: true,
+        isEmbedded: false,
         name: `Sub ${String(i).padStart(3, "0")}`,
       });
     }
@@ -359,7 +359,7 @@ describe("outline tree windowing", () => {
 
   it("the editable outliner tree stays whole — no window on the editing surface", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Big doc" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Big doc" });
     for (let i = 0; i < BIG; i += 1) {
       await client.createObject({
         parentId: pageId,
@@ -382,7 +382,7 @@ describe("outline tree windowing", () => {
     const client = await seedClient();
     const items: NodeCollectionItem[] = [];
     for (let i = 0; i < BIG; i += 1) {
-      const id = await client.createObject({ presentAsMain: true, name: `Ro ${i}` });
+      const id = await client.createObject({ isEmbedded: false, name: `Ro ${i}` });
       items.push({ node: client.getNode(id)! });
     }
     const { container } = render(

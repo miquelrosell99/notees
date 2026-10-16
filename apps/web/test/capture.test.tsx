@@ -132,8 +132,8 @@ function pickerRows(): HTMLElement[] {
 describe("capture: @ mention", () => {
   it("typing @ opens the picker; typing in its search box filters; Enter inserts a mention token", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
-    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "see " }],
@@ -167,8 +167,8 @@ describe("capture: @ mention", () => {
 
   it("Main/Blocks scope tabs filter the search (Main first, blocks behind a tab)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
-    await client.createObject({ presentAsMain: true, name: "Target" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    await client.createObject({ isEmbedded: false, name: "Target" });
     // The edited block must stay the FIRST child (clickIntoBlock edits the
     // first .nt-block-content in the page).
     const blockId = await client.createObject({
@@ -216,7 +216,7 @@ describe("capture: @ mention", () => {
 
   it("classes are mentionable from the Main tab", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const classId = await client.createClass("Genretab");
     await client.updateObject(classId, { contentAst: [{ type: "text", text: "Genretab" }] });
     const blockId = await client.createObject({
@@ -237,7 +237,7 @@ describe("capture: @ mention", () => {
 
   it("the typed-date row offers 'Link to daily page' for an existing day node, 'Create' otherwise", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "" }],
@@ -269,8 +269,8 @@ describe("capture: @ mention", () => {
 
   it("creates a backlinks edge to the target (mention edge, record-don't-resolve)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
-    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "" }],
@@ -288,8 +288,8 @@ describe("capture: @ mention", () => {
 
   it("ArrowDown/ArrowUp move the selection before Enter picks", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
-    const alphaId = await client.createObject({ presentAsMain: true, name: "Alpha" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const alphaId = await client.createObject({ isEmbedded: false, name: "Alpha" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "" }],
@@ -313,7 +313,7 @@ describe("capture: @ mention", () => {
 
   it("Esc closes the picker leaving the trigger char; Enter on the create row links a new page", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "" }],
@@ -350,7 +350,7 @@ describe("capture: @ mention", () => {
 describe("capture: # tag (auto-create + assign) and + class picker", () => {
   it("# auto-creates a missing tag page on Enter and assigns it to the node", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "" }],
@@ -380,8 +380,8 @@ describe("capture: # tag (auto-create + assign) and + class picker", () => {
 
   it("# on an existing page assigns the tag without duplicating", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
-    const tagId = await client.createObject({ presentAsMain: true, name: "Project" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const tagId = await client.createObject({ isEmbedded: false, name: "Project" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [],
@@ -410,7 +410,7 @@ describe("capture: # tag (auto-create + assign) and + class picker", () => {
 
   it("+ assigns an existing class; no-match Enter creates the class and assigns it", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const classId = await client.createClass("Project");
     const blockId = await client.createObject({
       parentId: pageId,
@@ -448,8 +448,8 @@ describe("capture: # tag (auto-create + assign) and + class picker", () => {
 describe("selection link chords (Ctrl/Cmd+L)", () => {
   it("Ctrl+L over a selection opens the picker prefilled, banners the replace mode, and the pick swaps the selection for the link", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
-    const targetId = await client.createObject({ presentAsMain: true, name: "World" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "World" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello world" }],
@@ -476,8 +476,8 @@ describe("selection link chords (Ctrl/Cmd+L)", () => {
 
   it("Ctrl+Shift+L searches with an empty query and labels the inserted link with the selection", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
-    const targetId = await client.createObject({ presentAsMain: true, name: "World" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "World" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello world" }],
@@ -509,7 +509,7 @@ describe("selection link chords (Ctrl/Cmd+L)", () => {
 
   it("mid-word selections keep the @ boundary rule for Ctrl+L; Ctrl+Shift+L still opens", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello world" }],
@@ -530,7 +530,7 @@ describe("selection link chords (Ctrl/Cmd+L)", () => {
 describe("capture: verb-on-selection typed link", () => {
   it("Cmd+K opens the popover; commit wraps the selection in a typed_link with verb + locator", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello world" }],
@@ -565,7 +565,7 @@ describe("capture: verb-on-selection typed link", () => {
 
   it("the floating toolbar verb button opens the same popover; Esc cancels without changes", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello world" }],
@@ -645,8 +645,8 @@ describe("candidateSpans (record-don't-resolve)", () => {
 describe("capture tokens survive editing", () => {
   it("a mention inserted via @ survives a subsequent text edit", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
-    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "see " }],
@@ -677,7 +677,7 @@ describe("capture tokens survive editing", () => {
 describe("capture: create-from-@ (async completion)", () => {
   it("the create row's completion splices the mention even when the trigger was dismissed before the node arrived", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
@@ -731,7 +731,7 @@ describe("capture: create-from-@ (async completion)", () => {
     await client.createClass("Source", { id: SYSTEM_CLASS_UUIDS.source });
     await client.createClass("Book", { id: SYSTEM_CLASS_UUIDS.book });
     await client.setClassExtends(SYSTEM_CLASS_UUIDS.book, [SYSTEM_CLASS_UUIDS.source]);
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
@@ -764,7 +764,7 @@ describe("capture: create-from-@ (async completion)", () => {
     await client.createClass("Source", { id: SYSTEM_CLASS_UUIDS.source });
     await client.createClass("Book", { id: SYSTEM_CLASS_UUIDS.book });
     await client.setClassExtends(SYSTEM_CLASS_UUIDS.book, [SYSTEM_CLASS_UUIDS.source]);
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 

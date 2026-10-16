@@ -75,10 +75,10 @@ function makeStore(): Store {
 function migrateWorld(): Store {
   const store = makeStore();
   store.applyMany([
-    env("object.create", { objectId: PAGE, presentAsMain: true }, 1000),
-    env("object.create", { objectId: PAGE2, presentAsMain: true }, 1001),
-    env("object.create", { objectId: ASSET, presentAsMain: true }, 1002),
-    env("object.create", { objectId: MAIN, presentAsMain: true }, 1003),
+    env("object.create", { objectId: PAGE, isEmbedded: false }, 1000),
+    env("object.create", { objectId: PAGE2, isEmbedded: false }, 1001),
+    env("object.create", { objectId: ASSET, isEmbedded: false }, 1002),
+    env("object.create", { objectId: MAIN, isEmbedded: false }, 1003),
     env("property.set", { objectId: PAGE, propertySchemaId: COVER, value: { nodeId: ASSET } }, 1004),
     env("property.set", { objectId: PAGE, propertySchemaId: ALIAS, value: { nodeId: MAIN } }, 1005),
     env(

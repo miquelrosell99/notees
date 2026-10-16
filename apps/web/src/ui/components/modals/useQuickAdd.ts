@@ -48,7 +48,7 @@ export interface UseQuickAddReturn {
 
 interface QuickAddWriter {
   createObject(partial: {
-    presentAsMain?: boolean;
+    isEmbedded?: boolean;
     parentId?: string | null;
     contentAst?: Array<{ type: "text"; text: string }>;
   }): Promise<string>;

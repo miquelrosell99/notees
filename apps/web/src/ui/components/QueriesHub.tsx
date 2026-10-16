@@ -206,7 +206,7 @@ export function QueriesHub({
 
   const ensureHost = async (): Promise<string | null> => {
     if (hostId !== null) return hostId;
-    const id = await client.createObject({ presentAsMain: true, name: "Queries" });
+    const id = await client.createObject({ isEmbedded: false, name: "Queries" });
     writeDeviceSetting(HOST_PAGE_SETTING, id);
     setStoredHostId(id);
     return id;

@@ -64,7 +64,7 @@ function authoredTextRows(client: WorkspaceClient, nodeId: string, schemaId: str
 describe("text properties as a blocks list", () => {
   it("multi values render as ONE row of editable carrier blocks", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const schemaId = await client.createPropertySchema({ name: "Notes", type: "text", multi: true });
     const carrierA = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "first line" }] });
     const carrierB = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "second line" }] });
@@ -90,7 +90,7 @@ describe("text properties as a blocks list", () => {
 
   it("multi: Enter on a value registers the new sibling as the next value", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const schemaId = await client.createPropertySchema({ name: "Notes", type: "text", multi: true });
     const carrierA = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "alpha" }] });
     await client.setProperty(pageId, schemaId, { nodeId: carrierA }, 0);
@@ -112,7 +112,7 @@ describe("text properties as a blocks list", () => {
 
   it("single: Enter nests a child block under the carrier (no new value)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
     const carrier = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "one value" }] });
     await client.setProperty(pageId, schemaId, { nodeId: carrier }, 0);
@@ -132,7 +132,7 @@ describe("text properties as a blocks list", () => {
 
   it("a dead carrier whose node is gone auto-unsets (the slot returns to empty)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
     await client.setProperty(pageId, schemaId, { nodeId: "0192a000-0000-7000-8000-000000000099" }, 0);
 
@@ -148,11 +148,11 @@ describe("text properties as a blocks list", () => {
 
   it("a dead ref to a node that still exists keeps the re-author cell", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
-    // A page (present_as_main) is a real node that no longer renders as an
+    // A page (is_embedded) is a real node that no longer renders as an
     // inline block — the recovery cell, not auto-unset.
-    const promoted = await client.createObject({ presentAsMain: true, name: "Promoted" });
+    const promoted = await client.createObject({ isEmbedded: false, name: "Promoted" });
     await client.setProperty(pageId, schemaId, { nodeId: promoted }, 0);
 
     const { container } = render(<PropertiesTable client={client} nodeId={pageId} />);
@@ -181,7 +181,7 @@ describe("text properties as a blocks list", () => {
 describe("auto-unset of contentless text values", () => {
   it("a carrier with no content and no children is unset when the row renders over it", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
     const carrier = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "" }] });
     await client.setProperty(pageId, schemaId, { nodeId: carrier }, 0);
@@ -197,7 +197,7 @@ describe("auto-unset of contentless text values", () => {
 
   it("a carrier with content keeps its value", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
     const carrier = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "kept" }] });
     await client.setProperty(pageId, schemaId, { nodeId: carrier }, 0);
@@ -210,7 +210,7 @@ describe("auto-unset of contentless text values", () => {
 
   it("a carrier with empty content but a child keeps its value", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
     const carrier = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "" }] });
     await client.createObject({ parentId: carrier, contentAst: [{ type: "text", text: "child line" }] });
@@ -224,7 +224,7 @@ describe("auto-unset of contentless text values", () => {
 
   it("a carrier emptied while its editor holds the caret is kept; leaving the row unsets it", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const schemaId = await client.createPropertySchema({ name: "Summary", type: "text" });
     const carrier = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "soon gone" }] });
     await client.setProperty(pageId, schemaId, { nodeId: carrier }, 0);
@@ -256,7 +256,7 @@ describe("auto-unset of contentless text values", () => {
 
   it("an empty scalar value auto-unsets", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const schemaId = await client.createPropertySchema({ name: "Citekey", type: "text" });
     await client.setProperty(pageId, schemaId, "", 0);
 
@@ -269,7 +269,7 @@ describe("auto-unset of contentless text values", () => {
 
   it("the Add pill's fresh empty carrier survives while the row holds focus", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const schemaId = await client.createPropertySchema({ name: "Notes", type: "text", multi: true });
     const carrierA = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "first" }] });
     await client.setProperty(pageId, schemaId, { nodeId: carrierA }, 0);

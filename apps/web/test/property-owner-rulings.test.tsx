@@ -76,8 +76,8 @@ describe("PB1: broken-target rendering (keep-value + render-broken)", () => {
   it("a deleted target renders the raw id in a pill--broken chip; the value survives", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "ref", type: "object" });
-    const owner = await client.createObject({ presentAsMain: true, name: "Owner" });
-    const target = await client.createObject({ presentAsMain: true, name: "Doomed" });
+    const owner = await client.createObject({ isEmbedded: false, name: "Owner" });
+    const target = await client.createObject({ isEmbedded: false, name: "Doomed" });
     await client.setProperty(owner, schemaId, { nodeId: target }, 0);
     await client.deleteObject(target, { permanent: true });
 
@@ -108,14 +108,14 @@ describe("PG10: aliases (seeded schema + name-equivalence)", () => {
   it("alias values are name-equivalents in resolve and unlinked references", async () => {
     const client = await seedClient();
     await ensureAliasProperty(client);
-    const page = await client.createObject({ presentAsMain: true, name: "The Republic" });
+    const page = await client.createObject({ isEmbedded: false, name: "The Republic" });
     await client.setProperty(page, SYSTEM_PROPERTY_UUIDS.alias, "Politeia", 0);
     // Name resolution: exact case-insensitive alias hit.
     expect(client.resolveNodeByName("politeia")).toBe(page);
     expect(client.resolveNodeByName("the republic")).toBe(page);
     // Unlinked references: literal alias text in another page surfaces the
     // mention candidate (minus the page itself).
-    const mentioner = await client.createObject({ presentAsMain: true, name: "Mentioner" });
+    const mentioner = await client.createObject({ isEmbedded: false, name: "Mentioner" });
     const block = await client.createObject({
       parentId: mentioner,
       contentAst: [{ type: "text", text: "I read Politeia yesterday" }],
@@ -137,7 +137,7 @@ describe("PG16: select option colors", () => {
         { id: "opt-2", label: "Shut" },
       ],
     });
-    const page = await client.createObject({ presentAsMain: true, name: "Ticket" });
+    const page = await client.createObject({ isEmbedded: false, name: "Ticket" });
     await client.setProperty(page, schemaId, "opt-1", 0);
 
     const { container } = render(<PageView client={client} pageId={page} />);
@@ -160,7 +160,7 @@ describe("PG16: select option colors", () => {
       type: "select",
       options: [{ id: "opt-1", label: "Open" }],
     });
-    const page = await client.createObject({ presentAsMain: true, name: "Ticket" });
+    const page = await client.createObject({ isEmbedded: false, name: "Ticket" });
     await client.setProperty(page, schemaId, "opt-1", 0);
 
     render(<PageView client={client} pageId={page} />);
@@ -195,9 +195,9 @@ describe("PG3: conversion via blessed delete+recreate", () => {
     const classId = await client.createClass("Graded");
     await client.updateObject(classId, { contentAst: [{ type: "text", text: "Graded" }] });
     await client.setClassProperty(classId, schemaId, { sequence: 2 });
-    const page = await client.createObject({ presentAsMain: true, name: "Exam", classIds: [classId] });
+    const page = await client.createObject({ isEmbedded: false, name: "Exam", classIds: [classId] });
     await client.setProperty(page, schemaId, 10, 0);
-    const other = await client.createObject({ presentAsMain: true, name: "Essay" });
+    const other = await client.createObject({ isEmbedded: false, name: "Essay" });
     await client.setProperty(other, schemaId, 7, 0);
 
     render(<PageView client={client} pageId={page} />);
@@ -241,8 +241,8 @@ describe("PG3: conversion via blessed delete+recreate", () => {
   it("unmappable values require the drop confirmation", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "Link", type: "object" });
-    const page = await client.createObject({ presentAsMain: true, name: "Holder" });
-    const target = await client.createObject({ presentAsMain: true, name: "Target" });
+    const page = await client.createObject({ isEmbedded: false, name: "Holder" });
+    const target = await client.createObject({ isEmbedded: false, name: "Target" });
     await client.setProperty(page, schemaId, { nodeId: target }, 0);
 
     render(<PageView client={client} pageId={page} />);
@@ -273,7 +273,7 @@ describe("PG13: value-history modal", () => {
   it("opens from the property context menu and degrades honestly without the feed", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "Note", type: "text" });
-    const page = await client.createObject({ presentAsMain: true, name: "Journal" });
+    const page = await client.createObject({ isEmbedded: false, name: "Journal" });
     await client.setProperty(page, schemaId, "first", 0);
 
     const { container } = render(<PageView client={client} pageId={page} />);

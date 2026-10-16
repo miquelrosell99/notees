@@ -108,7 +108,7 @@ async function fixture(): Promise<Fixture> {
   await client.createClass("fuente");
 
   async function memberOf(classId: string, name: string): Promise<string> {
-    return client.createObject({ presentAsMain: true, name, classIds: [classId] });
+    return client.createObject({ isEmbedded: false, name, classIds: [classId] });
   }
   const reunionMembers = [
     await memberOf(reunionId, "Weekly sync"),

@@ -78,8 +78,8 @@ async function seedAliasPair(
   mainName: string,
   aliasName: string,
 ): Promise<{ mainId: string; aliasId: string }> {
-  const mainId = await client.createObject({ presentAsMain: true, name: mainName });
-  const aliasId = await client.createObject({ presentAsMain: true, name: aliasName });
+  const mainId = await client.createObject({ isEmbedded: false, name: mainName });
+  const aliasId = await client.createObject({ isEmbedded: false, name: aliasName });
   await client.updateObject(aliasId, { aliasedNodeId: mainId });
   return { mainId, aliasId };
 }
@@ -91,7 +91,7 @@ async function seedMention(
   targetId: string,
   text: string,
 ): Promise<string> {
-  const pageId = await client.createObject({ presentAsMain: true, name });
+  const pageId = await client.createObject({ isEmbedded: false, name });
   await client.createObject({
     parentId: pageId,
     contentAst: [
@@ -129,7 +129,7 @@ describe("node aliases: linked-references roll-up", () => {
   it("a CHAIN alias rolls up to the chain terminal's backlinks", async () => {
     const client = await seedClient();
     const { mainId, aliasId } = await seedAliasPair(client, "Cat", "Cats");
-    const chainId = await client.createObject({ presentAsMain: true, name: "Felines" });
+    const chainId = await client.createObject({ isEmbedded: false, name: "Felines" });
     await client.updateObject(chainId, { aliasedNodeId: aliasId });
     const sourceChain = await seedMention(client, "Source C", chainId, "Felines");
 
@@ -171,7 +171,7 @@ describe("node aliases: linked-references roll-up", () => {
     const { mainId, aliasId } = await seedAliasPair(client, "Cat", "Cats");
     const linker = await seedMention(client, "Linker", aliasId, "Cats");
     // A literal-text mention of the alias title (no link) IS unlinked.
-    const literal = await client.createObject({ presentAsMain: true, name: "Literal" });
+    const literal = await client.createObject({ isEmbedded: false, name: "Literal" });
     await client.createObject({
       parentId: literal,
       contentAst: [{ type: "text", text: "Cats are great" }],
@@ -188,13 +188,13 @@ describe("node aliases: the redirect seam (resolveAliasOpen)", () => {
   it("resolves chains to the terminal; ordinary ids pass through unchanged", async () => {
     const client = await seedClient();
     const { mainId, aliasId } = await seedAliasPair(client, "Cat", "Cats");
-    const chainId = await client.createObject({ presentAsMain: true, name: "Felines" });
+    const chainId = await client.createObject({ isEmbedded: false, name: "Felines" });
     await client.updateObject(chainId, { aliasedNodeId: aliasId });
 
     expect(resolveAliasOpen(client, chainId)).toBe(mainId);
     expect(resolveAliasOpen(client, aliasId)).toBe(mainId);
     expect(resolveAliasOpen(client, mainId)).toBe(mainId);
-    const plain = await client.createObject({ presentAsMain: true, name: "Dog" });
+    const plain = await client.createObject({ isEmbedded: false, name: "Dog" });
     expect(resolveAliasOpen(client, plain)).toBe(plain);
   });
 });
@@ -229,7 +229,7 @@ describe("node aliases: name equivalence", () => {
   it("the alias title joins the main page's unlinked-reference names", async () => {
     const client = await seedClient();
     const { mainId } = await seedAliasPair(client, "Cat", "Felines");
-    const plain = await client.createObject({ presentAsMain: true, name: "Plain Source" });
+    const plain = await client.createObject({ isEmbedded: false, name: "Plain Source" });
     await client.createObject({
       parentId: plain,
       contentAst: [{ type: "text", text: "Felines" }],
@@ -308,7 +308,7 @@ describe("node aliases: navigation semantics", () => {
 describe("node aliases: page restriction (client-side enforcement)", () => {
   it("aliasedNodeTargetError rejects blocks and classes, accepts pages", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Cat" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Cat" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "a block" }],
@@ -359,7 +359,7 @@ describe("node aliases: the aliases UI (the metadata panel's Aliases row)", () =
   it("ADD picks a node and writes THE SELECTED node's aliasedNodeId (the backward write); already-aliased nodes filter out; the × clears the alias", async () => {
     const client = await seedClient();
     const { mainId, aliasId } = await seedAliasPair(client, "Cat", "Cats");
-    const dogId = await client.createObject({ presentAsMain: true, name: "Dog" });
+    const dogId = await client.createObject({ isEmbedded: false, name: "Dog" });
     await flushSync();
 
     const onOpenPage = vi.fn();
@@ -403,7 +403,7 @@ describe("node aliases: the alias-side pseudo-property row", () => {
   it("the alias view carries the 'Aliased node' row naming the main; Change re-points it; the pill clears it", async () => {
     const client = await seedClient();
     const { mainId, aliasId } = await seedAliasPair(client, "Cat", "Cats");
-    const otherId = await client.createObject({ presentAsMain: true, name: "Dog" });
+    const otherId = await client.createObject({ isEmbedded: false, name: "Dog" });
     await flushSync();
 
     render(<PropertiesTable client={client} nodeId={aliasId} />);
@@ -429,8 +429,8 @@ describe("node aliases: the alias-side pseudo-property row", () => {
   it("an ordinary page renders no 'Aliased node' row; neither does a block carrier", async () => {
     const client = await seedClient();
     const { mainId } = await seedAliasPair(client, "Cat", "Cats");
-    const pageId = await client.createObject({ presentAsMain: true, name: "Dog" });
-    const blockHost = await client.createObject({ presentAsMain: true, name: "Host" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Dog" });
+    const blockHost = await client.createObject({ isEmbedded: false, name: "Host" });
     const blockId = await client.createObject({
       parentId: blockHost,
       contentAst: [{ type: "text", text: "a block" }],

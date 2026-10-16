@@ -83,7 +83,7 @@ describe("WorkspaceClient over a shared MemoryRelay", () => {
     expect(clientB.listPages()).toEqual([]);
 
     // A creates a page, a plain block, and a block mentioning the page.
-    const pageId = await clientA.createObject({ presentAsMain: true, name: "Hello Page" });
+    const pageId = await clientA.createObject({ isEmbedded: false, name: "Hello Page" });
     const blockId = await clientA.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "World", marks: ["bold"] }],
@@ -125,7 +125,7 @@ describe("WorkspaceClient over a shared MemoryRelay", () => {
     await clientA.bootstrapWorkspace(WS);
     await clientB.bootstrapWorkspace(WS);
 
-    const pageId = await clientA.createObject({ presentAsMain: true, name: "Rename Me" });
+    const pageId = await clientA.createObject({ isEmbedded: false, name: "Rename Me" });
     await clientA.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "before" }],
@@ -165,7 +165,7 @@ describe("WorkspaceClient over a shared MemoryRelay", () => {
     await clientB.bootstrapWorkspace(WS);
 
     // B creates a page and delivers it to A.
-    const pageId = await clientB.createObject({ presentAsMain: true, name: "Conflict Page" });
+    const pageId = await clientB.createObject({ isEmbedded: false, name: "Conflict Page" });
     await clientB.push();
     await clientA.pull();
     expect(clientA.getPage(pageId)).toBeDefined();
@@ -203,7 +203,7 @@ describe("WorkspaceClient over a shared MemoryRelay", () => {
 
     // The FTS index covers content plaintext — page titles live in their
     // content, so a title search matches the page node's own text.
-    const pageId = await client.createObject({ presentAsMain: true, name: "Search Page" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Search Page" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "Findable needle" }],
@@ -274,7 +274,7 @@ describe("effective icons (display-time defaults)", () => {
     expect(map.get(ownId)).toBe("mdi-heart");
     // A node whose icon arrives through the class chain renders it in ROWS:
     // nodeIcon over the effective map agrees with effectiveNodeIcon.
-    const pageId = await client.createObject({ presentAsMain: true, name: "Daily" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Daily" });
     await client.assignClass(pageId, childId);
     const node = client.getNode(pageId)!;
     expect(nodeIcon(node, map)).toBe(client.effectiveNodeIcon(node));
@@ -287,7 +287,7 @@ describe("effective icons (display-time defaults)", () => {
     const client = await seedIconClient();
     const clsA = await client.createClass("A", { icon: "mdi-star" });
     const clsB = await client.createClass("B", { icon: "mdi-heart" });
-    const pageId = await client.createObject({ presentAsMain: true, name: "Icon Page" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Icon Page" });
     await client.assignClass(pageId, clsA);
     await client.assignClass(pageId, clsB);
     expect(client.effectiveNodeIcon(client.getNode(pageId)!)).toBe("mdi-star");
@@ -299,16 +299,16 @@ describe("effective icons (display-time defaults)", () => {
   it("effectiveNodeIcon: pages default to the page glyph — the class default never leaks into a node", async () => {
     const client = await seedIconClient();
     // Parentless: document chrome by the second cascade branch, bit unread.
-    const parentless = await client.createObject({ presentAsMain: false, name: "Parentless" });
+    const parentless = await client.createObject({ isEmbedded: true, name: "Parentless" });
     expect(client.effectiveNodeIcon(client.getNode(parentless)!)).toBe(DEFAULT_PAGE_ICON);
     // Parented with the render bit set: the third cascade branch.
-    const parentId = await client.createObject({ presentAsMain: true, name: "Parent" });
-    const mainChild = await client.createObject({ presentAsMain: true, parentId, name: "Main" });
+    const parentId = await client.createObject({ isEmbedded: false, name: "Parent" });
+    const mainChild = await client.createObject({ isEmbedded: false, parentId, name: "Main" });
     expect(client.effectiveNodeIcon(client.getNode(mainChild)!)).toBe(DEFAULT_PAGE_ICON);
 
     // An iconless class contributes no glyph to its member pages.
     const iconlessClass = await client.createClass("Iconless");
-    const classed = await client.createObject({ presentAsMain: true, name: "Classed" });
+    const classed = await client.createObject({ isEmbedded: false, name: "Classed" });
     await client.assignClass(classed, iconlessClass);
     expect(client.effectiveNodeIcon(client.getNode(classed)!)).toBe(DEFAULT_PAGE_ICON);
     // Display-time only: the node's stored icon stays empty.
@@ -317,7 +317,7 @@ describe("effective icons (display-time defaults)", () => {
 
   it("effectiveNodeIcon: inline blocks have no default — the bullet dot stays", async () => {
     const client = await seedIconClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "P" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "P" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "inline" }],
@@ -334,12 +334,12 @@ describe("effective icons (display-time defaults)", () => {
   it("nodeIcon helper (ui/iconFor): same fallback chain as the client resolver", async () => {
     const client = await seedIconClient();
     const cls = await client.createClass("Mapped", { icon: "mdi-tag" });
-    const pageId = await client.createObject({ presentAsMain: true, name: "P" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "P" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "b" }],
     });
-    const classedId = await client.createObject({ presentAsMain: true, name: "C" });
+    const classedId = await client.createObject({ isEmbedded: false, name: "C" });
     await client.assignClass(classedId, cls);
 
     const map = classIconMap(client.listClasses());
@@ -377,7 +377,7 @@ describe("WorkspaceClient render-path list reads — the revision cache", () => 
     const classesBefore = clientA.listClasses();
     const pagesBefore = clientA.listPages();
 
-    const pageId = await clientA.createObject({ presentAsMain: true, name: "Cached" });
+    const pageId = await clientA.createObject({ isEmbedded: false, name: "Cached" });
     const classId = await clientA.createClass("CachedClass");
 
     const pagesAfter = clientA.listPages();
@@ -402,8 +402,8 @@ describe("WorkspaceClient render-path list reads — the revision cache", () => 
     const ctx = makeContext();
     const client = await createClient(ctx);
     await client.bootstrapWorkspace(WS);
-    const pageA = await client.createObject({ presentAsMain: true, name: "A" });
-    const pageB = await client.createObject({ presentAsMain: true, name: "B" });
+    const pageA = await client.createObject({ isEmbedded: false, name: "A" });
+    const pageB = await client.createObject({ isEmbedded: false, name: "B" });
     const aBefore = client.listPages().find((p) => p.id === pageA)!;
     const aBeforeList = client.listPages();
     expect(client.getNode(pageA)).toBe(aBefore); // single read shares the cache
@@ -425,7 +425,7 @@ describe("WorkspaceClient render-path list reads — the revision cache", () => 
     const client = await createClient(ctx);
     await client.bootstrapWorkspace(WS);
     const cls = await client.createClass("Member");
-    const page = await client.createObject({ presentAsMain: true, name: "M" });
+    const page = await client.createObject({ isEmbedded: false, name: "M" });
     const before = client.listPages().find((p) => p.id === page)!;
 
     await client.assignClass(page, cls);
@@ -453,7 +453,7 @@ describe("WorkspaceClient render-path list reads — the revision cache", () => 
     const ctx = makeContext();
     const client = await createClient(ctx);
     await client.bootstrapWorkspace(WS);
-    const page = await client.createObject({ presentAsMain: true, name: "T" });
+    const page = await client.createObject({ isEmbedded: false, name: "T" });
     await client.createObject({ parentId: page, contentAst: [{ type: "text", text: "b" }] });
 
     const tree = client.getBlockTree(page);
@@ -473,7 +473,7 @@ describe("change notifications", () => {
     const changes: import("../src/core/workspace-client.js").ChangeNotification[] = [];
     client.subscribe((change) => changes.push(change));
 
-    const pageId = await client.createObject({ presentAsMain: true, name: "Notify Page" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Notify Page" });
     const last = changes.at(-1)!;
     expect(last.revision).toBeGreaterThan(0);
     expect(last.structural).toBe(true);
@@ -514,7 +514,7 @@ describe("change notifications", () => {
     expect(client.conflictHistory()).toEqual([]);
 
     const schemaId = await client.createPropertySchema({ name: "Status", type: "text" });
-    const nodeId = await client.createObject({ presentAsMain: true, name: "Conflict Page" });
+    const nodeId = await client.createObject({ isEmbedded: false, name: "Conflict Page" });
     await client.setProperty(nodeId, schemaId, "open", 0);
     await client.sync();
 

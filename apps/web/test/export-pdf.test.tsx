@@ -86,7 +86,7 @@ function fixtureDocument(): ExportDocument {
     title: "Trip",
     rendersDocumentChrome: true,
     isClass: false,
-    presentAsMain: true,
+    isEmbedded: false,
     parentId: null,
     blocks: [
       {
@@ -114,7 +114,7 @@ function fixtureDocument(): ExportDocument {
           title: "Inline",
           rendersDocumentChrome: false,
           isClass: false,
-          presentAsMain: false,
+          isEmbedded: true,
           parentId: "node-trip",
           blocks: [
             { kind: "paragraph", spans: [{ kind: "text", text: "inlined body", marks: [] }] },
@@ -139,7 +139,7 @@ function fixtureDocument(): ExportDocument {
       {
         id: "node-packing",
         title: "Packing",
-        presentAsMain: true,
+        isEmbedded: false,
         classIds: [],
         classNames: [],
         properties: [],
@@ -150,7 +150,7 @@ function fixtureDocument(): ExportDocument {
           {
             id: "node-sub",
             title: "Toiletries",
-            presentAsMain: true,
+            isEmbedded: false,
             classIds: [],
         classNames: [],
             properties: [],
@@ -295,7 +295,7 @@ describe("ExportPdfDocument component tree", () => {
       title: "Book",
       rendersDocumentChrome: true,
       isClass: false,
-      presentAsMain: true,
+      isEmbedded: false,
       parentId: null,
       blocks: [{ kind: "paragraph", spans: [{ kind: "text", text: "Book", marks: [] }] }],
       properties: [],
@@ -306,7 +306,7 @@ describe("ExportPdfDocument component tree", () => {
           // An inline body block: renders nested, NO title heading.
           id: "node-note",
           title: "Margin note",
-          presentAsMain: false,
+          isEmbedded: true,
           classIds: [],
         classNames: [],
           properties: [],
@@ -318,7 +318,7 @@ describe("ExportPdfDocument component tree", () => {
           // own blocks is stripped (the single-title rule for children).
           id: "node-chapter",
           title: "Chapter 1",
-          presentAsMain: true,
+          isEmbedded: false,
           classIds: [],
         classNames: [],
           properties: [],
@@ -348,7 +348,7 @@ describe("ExportPdfDocument component tree", () => {
     const block = (id: string, text: string, children: ExportDocument["children"] = []): ExportDocument["children"][number] => ({
       id,
       title: text,
-      presentAsMain: false,
+      isEmbedded: true,
       classIds: [],
         classNames: [],
       properties: [],
@@ -360,7 +360,7 @@ describe("ExportPdfDocument component tree", () => {
       title: "Book",
       rendersDocumentChrome: true,
       isClass: false,
-      presentAsMain: true,
+      isEmbedded: false,
       parentId: null,
       blocks: [{ kind: "paragraph", spans: [{ kind: "text", text: "Book", marks: [] }] }],
       properties: [],
@@ -375,7 +375,7 @@ describe("ExportPdfDocument component tree", () => {
             // body zone, hoisted into the end list instead.
             id: "node-nested-page",
             title: "Nested page",
-            presentAsMain: true,
+            isEmbedded: false,
             classIds: [],
         classNames: [],
             properties: [],
@@ -438,7 +438,7 @@ describe("ExportPdfDocument component tree", () => {
       title: "Book",
       rendersDocumentChrome: true,
       isClass: false,
-      presentAsMain: true,
+      isEmbedded: false,
       parentId: null,
       blocks: [{ kind: "paragraph", spans: [{ kind: "text", text: "Book", marks: [] }] }],
       properties: [],
@@ -449,7 +449,7 @@ describe("ExportPdfDocument component tree", () => {
         {
           id: "node-note",
           title: "Margin note",
-          presentAsMain: false,
+          isEmbedded: true,
           classIds: ["class-tag"],
           classNames: ["Tag"],
           classColors: ["#de4996"],
@@ -459,7 +459,7 @@ describe("ExportPdfDocument component tree", () => {
             {
               id: "node-deep",
               title: "Deep note",
-              presentAsMain: false,
+              isEmbedded: true,
               classIds: ["class-a", "class-b", "class-c"],
               classNames: ["A", "B", "C"],
               classColors: [null, "#4072e7", null],
@@ -472,7 +472,7 @@ describe("ExportPdfDocument component tree", () => {
         {
           id: "node-chapter",
           title: "Chapter 1",
-          presentAsMain: true,
+          isEmbedded: false,
           classIds: ["class-src"],
           classNames: ["Source"],
           classColors: ["#ed822b"],
@@ -547,7 +547,7 @@ describe("renderSubtreePdf", () => {
   it("resolves asset data URLs and produces an application/pdf blob named <slug>.pdf", async () => {
     const client = await makeClient();
     const assetId = "0192a000-0000-7000-8000-0000000000a1";
-    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Trip" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "asset_ref", assetId }],
@@ -579,7 +579,7 @@ describe("renderSubtreePdf", () => {
   it("keeps exporting when an asset data URL is unavailable", async () => {
     const client = await makeClient();
     const assetId = "0192a000-0000-7000-8000-0000000000a1";
-    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Trip" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "asset_ref", assetId }],
@@ -613,8 +613,8 @@ function readBlobBytes(blob: Blob): Promise<ArrayBuffer> {
 describe("renderSubtreePdfBatch", () => {
   it("zips one <slug>-<id8>.pdf per root, named after the first root", async () => {
     const client = await makeClient();
-    const tripId = await client.createObject({ presentAsMain: true, name: "Trip" });
-    const packingId = await client.createObject({ presentAsMain: true, name: "Packing" });
+    const tripId = await client.createObject({ isEmbedded: false, name: "Trip" });
+    const packingId = await client.createObject({ isEmbedded: false, name: "Packing" });
 
     const exported = await renderSubtreePdfBatch(client, [tripId, packingId], { layout: "academic" });
 

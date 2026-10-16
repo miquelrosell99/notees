@@ -19,9 +19,9 @@
  *   read as outliner up/down moves.
  *
  * Zones (Revision 11): the page renders two child zones — the inline body
- * (present_as_main = 0) and the main-children section (present_as_main = 1,
+ * (is_embedded = 1) and the main-children section (is_embedded = 0,
  * the Pages zone). A drop's zone follows its anchor row (dropZoneOf); the
- * executor flips the dragged node's present_as_main bit to match the zone
+ * executor flips the dragged node's is_embedded bit to match the zone
  * (promotion 0→1 stringifies content server-side; demotion never
  * un-flattens).
  *
@@ -386,11 +386,11 @@ export type MoveCommand =
  */
 export function dropZoneOf(
   line: DropLine,
-  getNode: (id: string) => { isClass: boolean; presentAsMain: boolean } | undefined,
+  getNode: (id: string) => { isClass: boolean; isEmbedded: boolean } | undefined,
 ): "main" | "body" {
   if (line.intent === "child") return "body";
   const target = getNode(line.targetId);
-  return target !== undefined && !target.isClass && target.presentAsMain ? "main" : "body";
+  return target !== undefined && !target.isClass && !target.isEmbedded ? "main" : "body";
 }
 
 export type MoveResolution =
@@ -558,9 +558,9 @@ export async function executeMoveFromClient(args: {
 export interface MoveExecutionClient extends ClientShape {
   getNode(
     id: string,
-  ): { id: string; parentId: string | null; isClass: boolean; presentAsMain: boolean } | undefined;
+  ): { id: string; parentId: string | null; isClass: boolean; isEmbedded: boolean } | undefined;
   moveObject: (id: string, parentId: string | null, afterId?: string) => Promise<void>;
-  updateObject: (id: string, patch: { presentAsMain: boolean }) => Promise<void>;
+  updateObject: (id: string, patch: { isEmbedded: boolean }) => Promise<void>;
 }
 
 /**
@@ -589,8 +589,8 @@ export async function executeZoneMove(args: {
   }
   const zone = dropZoneOf(line, (id) => client.getNode(id));
   const dragged = client.getNode(activeId);
-  if (dragged !== undefined && dragged.presentAsMain !== (zone === "main")) {
-    await client.updateObject(activeId, { presentAsMain: zone === "main" });
+  if (dragged !== undefined && dragged.isEmbedded !== (zone === "body")) {
+    await client.updateObject(activeId, { isEmbedded: zone === "body" });
   }
 }
 
@@ -849,8 +849,8 @@ export async function executeStackZoneMove(args: {
   const zone = dropZoneOf(line, (id) => client.getNode(id));
   for (const move of plan.moves) {
     const dragged = client.getNode(move.id);
-    if (dragged !== undefined && dragged.presentAsMain !== (zone === "main")) {
-      await client.updateObject(move.id, { presentAsMain: zone === "main" });
+    if (dragged !== undefined && dragged.isEmbedded !== (zone === "body")) {
+      await client.updateObject(move.id, { isEmbedded: zone === "body" });
     }
   }
 }

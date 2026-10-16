@@ -157,7 +157,7 @@ async function seedClient(): Promise<WorkspaceClient> {
 
 /** Page with three root blocks "one"/"two"/"three", in creation order. */
 async function seedThreeBlocks(client: WorkspaceClient): Promise<{ pageId: string; ids: [string, string, string] }> {
-  const pageId = await client.createObject({ presentAsMain: true, name: "DnD" });
+  const pageId = await client.createObject({ isEmbedded: false, name: "DnD" });
   const one = await client.createObject({
     parentId: pageId,
     contentAst: [{ type: "text", text: "one" }],
@@ -325,7 +325,7 @@ describe("block drag-and-drop", () => {
 
   it("refuses a drop into the block's own subtree: banner, no move issued", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Cycle" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Cycle" });
     const parent = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "parent" }],
@@ -505,7 +505,7 @@ describe("block drag-and-drop", () => {
 
   it("dragging the grip of a selected row drags the whole stack: roots only, order kept", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "DnD" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "DnD" });
     const texts = ["one", "two", "three", "four"];
     const ids: string[] = [];
     for (const text of texts) {
@@ -613,7 +613,7 @@ describe("block drag-and-drop", () => {
 
   it("edge auto-scroll scrolls a scrollable view at the pointer's edge; a scroll re-anchors the drop line", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Scroll" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Scroll" });
     const ids: string[] = [];
     for (let i = 0; i < 20; i += 1) {
       ids.push(await client.createObject({

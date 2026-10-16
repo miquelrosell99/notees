@@ -45,7 +45,7 @@ function doc(): ExportDocument {
     title: "Real Render",
     rendersDocumentChrome: true,
     isClass: false,
-    presentAsMain: true,
+    isEmbedded: false,
     parentId: null,
     blocks: [
       {
@@ -74,7 +74,7 @@ function doc(): ExportDocument {
       {
         id: "child-1",
         title: "Child",
-        presentAsMain: true,
+        isEmbedded: false,
         classIds: [],
         classNames: [],
         properties: [],

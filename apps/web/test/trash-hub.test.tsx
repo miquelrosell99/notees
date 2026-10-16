@@ -51,7 +51,7 @@ async function flushWrites(): Promise<void> {
 describe("TrashHub", () => {
   it("lists trashed subtrees with their deletion stamp; an empty trash says so", async () => {
     const client = await seedClient();
-    await client.createObject({ presentAsMain: true, name: "Kept page" });
+    await client.createObject({ isEmbedded: false, name: "Kept page" });
 
     const { container, unmount } = render(
       <TrashHub client={client} onOpenNode={() => {}} />,
@@ -59,8 +59,8 @@ describe("TrashHub", () => {
     expect(screen.getByText("Trash is empty.")).not.toBeNull();
     unmount();
 
-    await client.createObject({ presentAsMain: true, name: "Trashed page" });
-    const victim = await client.createObject({ presentAsMain: true, name: "Gone" });
+    await client.createObject({ isEmbedded: false, name: "Trashed page" });
+    const victim = await client.createObject({ isEmbedded: false, name: "Gone" });
     await client.deleteObject(victim);
     await flushWrites();
 
@@ -77,7 +77,7 @@ describe("TrashHub", () => {
 
   it("restore revives the subtree and opens the node", async () => {
     const client = await seedClient();
-    const victim = await client.createObject({ presentAsMain: true, name: "Revive me" });
+    const victim = await client.createObject({ isEmbedded: false, name: "Revive me" });
     await client.deleteObject(victim);
     await flushWrites();
     expect(client.getNode(victim)).toBeUndefined();
@@ -97,7 +97,7 @@ describe("TrashHub", () => {
 
   it("delete permanently is confirmed and erases the subtree for good", async () => {
     const client = await seedClient();
-    const victim = await client.createObject({ presentAsMain: true, name: "Burn it" });
+    const victim = await client.createObject({ isEmbedded: false, name: "Burn it" });
     await client.deleteObject(victim);
     await flushWrites();
 
@@ -116,7 +116,7 @@ describe("TrashHub", () => {
 
   it("the confirmation modal cancels without deleting", async () => {
     const client = await seedClient();
-    const victim = await client.createObject({ presentAsMain: true, name: "Spare me" });
+    const victim = await client.createObject({ isEmbedded: false, name: "Spare me" });
     await client.deleteObject(victim);
     await flushWrites();
 

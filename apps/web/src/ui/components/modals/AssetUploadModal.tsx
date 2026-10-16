@@ -193,7 +193,7 @@ export function AssetUploadModal({
       // by the uploaded file; node_asset ties it to the content-addressed
       // bytes (the property picker's exact pre-modal semantics).
       const assetNodeId = await client.createObject({
-        presentAsMain: true,
+        isEmbedded: false,
         name: uploaded.originalName,
         classIds: [assetClassId],
       });

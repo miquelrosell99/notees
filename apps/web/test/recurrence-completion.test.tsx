@@ -53,7 +53,7 @@ async function seedClient(): Promise<WorkspaceClient> {
 /** A weekly task anchored two weeks ago (today is an occurrence). */
 async function makeRecurringTask(client: WorkspaceClient, name: string): Promise<string> {
   const id = await client.createObject({
-    presentAsMain: true,
+    isEmbedded: false,
     name,
     classIds: [SYSTEM_CLASS_UUIDS.task],
   });
@@ -141,7 +141,7 @@ describe("per-occurrence completion", () => {
     const pendingId = status.options!.find((option) => option.label === "Pending")!.id;
     const doneId = status.options!.find((option) => option.label === "Done")!.id;
     const id = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       name: "Plain task",
       classIds: [SYSTEM_CLASS_UUIDS.task],
     });

@@ -154,7 +154,7 @@ export function LinkEditModal({
   const createBrokenTarget = () => {
     if (brokenTargetId === null) return;
     void client
-      .createObject({ id: brokenTargetId, presentAsMain: true })
+      .createObject({ id: brokenTargetId, isEmbedded: false })
       .catch((error: unknown) => {
         console.warn("[link-edit] create-with-uuid failed:", error);
         notificationStore.error("Couldn't create the page", "The id may already be taken.");

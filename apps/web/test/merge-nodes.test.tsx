@@ -68,10 +68,10 @@ async function seedSource(client: WorkspaceClient): Promise<{
   const cls = await client.createClass("Topic");
   const schema = await client.createPropertySchema({ name: "Note", type: "text" });
   await client.setClassProperty(cls, schema, { sequence: 0 });
-  const source = await client.createObject({ presentAsMain: true, name: "Source" });
+  const source = await client.createObject({ isEmbedded: false, name: "Source" });
   await client.assignClass(source, cls);
   await client.setProperty(source, schema, "authored note");
-  const child = await client.createObject({ presentAsMain: true, name: "Child", parentId: source });
+  const child = await client.createObject({ isEmbedded: false, name: "Child", parentId: source });
   return { source, child, cls, schema };
 }
 
@@ -79,11 +79,11 @@ describe("WorkspaceClient.mergeNodes", () => {
   it("applies the plan: children move, class/property remap, mentions rewrite, source trashes", async () => {
     const client = await seedClient();
     const { source, child, cls, schema } = await seedSource(client);
-    const target = await client.createObject({ presentAsMain: true, name: "Target" });
+    const target = await client.createObject({ isEmbedded: false, name: "Target" });
 
     // A referrer page mentions the source — the mention retargets to the
     // target. (object.update keeps rich tokens; create-as-main flattens.)
-    const referrer = await client.createObject({ presentAsMain: true, name: "Referrer" });
+    const referrer = await client.createObject({ isEmbedded: false, name: "Referrer" });
     await client.updateObject(referrer, {
       contentAst: [
         { type: "text", text: "see " },
@@ -122,7 +122,7 @@ describe("WorkspaceClient.mergeNodes", () => {
   it("the whole merge is ONE undo entry: one undo restores the source", async () => {
     const client = await seedClient();
     const { source, child, cls, schema } = await seedSource(client);
-    const target = await client.createObject({ presentAsMain: true, name: "Target" });
+    const target = await client.createObject({ isEmbedded: false, name: "Target" });
     await flushSync();
     const undoBefore = client.undoDepth().undo;
 
@@ -156,7 +156,7 @@ describe("MergeNodesModal", () => {
   it("explains the merge, gates Proceed on a picked target, and completes through the confirmation", async () => {
     const client = await seedClient();
     const { source } = await seedSource(client);
-    const target = await client.createObject({ presentAsMain: true, name: "Target" });
+    const target = await client.createObject({ isEmbedded: false, name: "Target" });
     await flushSync();
 
     const onMerged = vi.fn();
@@ -202,7 +202,7 @@ describe("MergeNodesModal", () => {
   it("a guard error surfaces as an error line and the modal stays open", async () => {
     const client = await seedClient();
     const { source } = await seedSource(client);
-    const target = await client.createObject({ presentAsMain: true, name: "Target" });
+    const target = await client.createObject({ isEmbedded: false, name: "Target" });
     await flushSync();
 
     vi.spyOn(client, "mergeNodes").mockRejectedValue(
@@ -263,7 +263,7 @@ describe("command palette merge action", () => {
 
   it("offers Merge current page into… for a mergeable current node", async () => {
     const client = await seedClient();
-    const page = await client.createObject({ presentAsMain: true, name: "Page" });
+    const page = await client.createObject({ isEmbedded: false, name: "Page" });
     await flushSync();
     const onOpenMerge = vi.fn();
     renderPalette(client, { currentNodeId: page, onOpenMerge });
@@ -274,7 +274,7 @@ describe("command palette merge action", () => {
 
   it("omits the action without a current node, and for non-mergeable nodes", async () => {
     const client = await seedClient();
-    const page = await client.createObject({ presentAsMain: true, name: "Page" });
+    const page = await client.createObject({ isEmbedded: false, name: "Page" });
     const cls = await client.createClass("Kind");
     // A parented block with the render bit unset — an inline block.
     const block = await client.createObject({ parentId: page, name: "Block" });

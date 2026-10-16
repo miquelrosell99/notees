@@ -115,7 +115,7 @@ describe("keymapChordHandler (Ctrl/Cmd+N , , \\)", () => {
     dispatch(event);
     h.release();
     expect(event.defaultPrevented).toBe(true);
-    expect(h.createObject).toHaveBeenCalledWith({ presentAsMain: true, name: "Untitled" });
+    expect(h.createObject).toHaveBeenCalledWith({ isEmbedded: false, name: "Untitled" });
     await vi.waitFor(() => expect(h.openPage).toHaveBeenCalledWith("0192a000-0000-7000-8000-000000000099"));
   });
 
