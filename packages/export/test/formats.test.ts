@@ -145,6 +145,7 @@ describe("format registry", () => {
       pageFormat: "a4",
       layout: "notes",
       includeAssets: false,
+      includeFrontmatter: true,
       maxDepth: null,
       whiteboardMode: "inline",
       filenamePolicy: "uuid",

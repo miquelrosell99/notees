@@ -449,7 +449,8 @@ function renderChildBulletLines(
 
 /**
  * Serialize a built {@link ExportDocument} to a standalone Markdown file:
- * YAML frontmatter, the `# <title>` heading for every node with document
+ * YAML frontmatter (unless `includeFrontmatter` is off — the clipboard copy),
+ * the `# <title>` heading for every node with document
  * chrome (inline blocks carry none), the rendered content — minus the
  * leading title span when it rides in the heading (the single-title rule,
  * {@link withoutLeadingTitle}) — and, unless includeOutline is off, the
@@ -459,7 +460,8 @@ export function renderExportDocumentToMarkdown(
   document: ExportDocument,
   options: ResolvedExportOptions,
 ): string {
-  const parts: string[] = [renderFrontmatter(document, options)];
+  const parts: string[] = [];
+  if (options.includeFrontmatter) parts.push(renderFrontmatter(document, options));
   if (document.rendersDocumentChrome) {
     const heading = document.title.length > 0 ? escapeMarkdownText(document.title) : document.nodeId;
     parts.push(`# ${heading}`);

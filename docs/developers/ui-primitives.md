@@ -73,8 +73,13 @@ escape → persistent banner), `InProcessStoreBanner` (the
 in-process-store warning bar).
 
 Structure & surfaces: `Card`, `Tabs`, `Modal`, `ImageModal`,
-`ConfirmationModal`, `ContextMenu`, `Separator`, `ErrorBoundary`,
-`ListSortable` (+ the `useListDragSort` hook), `FloatingButtonArray`,
+`ConfirmationModal`, `ContextMenu` (two submenu forms on one primitive —
+`submenu` for custom content (the whiteboard color row) and `submenuItems`
+for a native action list (the node menu's Copy › / Convert to page ›):
+subitems render indented with the item styling, fire their own onClick,
+then close the whole menu unless `keepOpen`, and stay out of the
+arrow-key walk), `Separator`, `ErrorBoundary`, `ListSortable` (+ the
+`useListDragSort` hook), `FloatingButtonArray`,
 `PresentationOverlay` (the fullscreen presentation host: dark
 stage, auto-hiding toolbar, edge zones, Esc/focus-trap, owned keymap).
 
