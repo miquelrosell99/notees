@@ -348,6 +348,50 @@ describe("session resume", () => {
     expect(screen.queryByText("Your workspaces")).toBeNull();
     window.history.pushState({}, "", "/");
   });
+
+  it("an unreachable server keeps the credential and opens the remembered workspace locally", async () => {
+    rememberSession();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/api/workspaces") || url.endsWith("/api/auth/me")) {
+          // Server down: network-level failure, no status.
+          throw new TypeError("Failed to fetch");
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      }),
+    );
+    render(<App />);
+    // The shell boots from the local store (in-process under jsdom)…
+    await waitFor(() => expect(screen.getByText(/running in-process/i)).toBeInTheDocument());
+    // …the credential and workspace survive the outage…
+    expect(localStorage.getItem("notees.sessionToken")).toBe("session-token");
+    expect(localStorage.getItem("notees.workspaceId")).toBe("ws1");
+    // …the server form never appears…
+    expect(screen.queryByRole("textbox", { name: /server url/i })).toBeNull();
+    // …and the degraded banner reports working locally until recovery (the
+    // status poll lands a tick after the shell).
+    await waitFor(() =>
+      expect(screen.getByText(/working locally until it recovers/i)).toBeInTheDocument(),
+    );
+  });
+
+  it("an unreachable server with no remembered workspace keeps the credential on the server form", async () => {
+    localStorage.setItem("notees.serverUrl", "https://notees.example.com");
+    localStorage.setItem("notees.sessionToken", "session-token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("Failed to fetch");
+      }),
+    );
+    render(<App />);
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: /server url/i })).toBeInTheDocument(),
+    );
+    expect(localStorage.getItem("notees.sessionToken")).toBe("session-token");
+  });
 });
 
 describe("hub URL routes", () => {

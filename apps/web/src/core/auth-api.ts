@@ -4,6 +4,21 @@
  * travels in the X-API-Key / Bearer slots the API key used to occupy).
  */
 
+/**
+ * An HTTP error response from the sync server's account API. Carries the
+ * status so callers can tell "the server rejected this credential" (401/403 —
+ * sign in again) apart from "the server did not answer at all" (a raw fetch
+ * TypeError, never an AuthRequestError — work offline instead).
+ */
+export class AuthRequestError extends Error {
+  readonly status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "AuthRequestError";
+    this.status = status;
+  }
+}
+
 export interface ServerInfo {
   name: string;
   version: string;
@@ -73,7 +88,7 @@ async function request<T>(
     } catch {
       // Keep the HTTP status message.
     }
-    throw new Error(message);
+    throw new AuthRequestError(response.status, message);
   }
   return (await response.json()) as T;
 }
