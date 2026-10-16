@@ -109,6 +109,9 @@ function leafNeedsProbe(condition: QueryAst["root"]["children"][number]): boolea
   // nested group's own leaves) — never locally.
   if (condition.type === "linkedToQuery") return true;
   if (condition.type === "descendantOfQuery") return true;
+  if (condition.type === "pageOfQuery") return true;
+  if (condition.type === "ancestorInQuery") return true;
+  if (condition.type === "rootInQuery") return true;
   if (condition.type === "content" && condition.op === "fts") return true;
   return false;
 }
@@ -156,14 +159,6 @@ function classedWith(ctx: EvalContext, node: ClientNode, classId: string): boole
     ctx.closures.set(classId, closure);
   }
   return node.classIds.some((id) => closure!.has(id));
-}
-
-/**
- * Closure-aware ANY-of membership test (the container ANY-of arms): memoized
- * per id, stopping at the first hit.
- */
-function classedWithAny(ctx: EvalContext, node: ClientNode, classIds: string[]): boolean {
-  return classIds.some((classId) => classedWith(ctx, node, classId));
 }
 
 /**
@@ -418,32 +413,37 @@ function conditionMatches(ctx: EvalContext, condition: QueryAst["root"]["childre
     case "classSet":
       // The class set is non-empty (Odoo "is set"); the not-wrap reads "is not set".
       return node.classIds.length > 0;
-    case "pageClass": {
-      // The containing page (nearest self-or-ancestor with document chrome —
-      // the Revision-12 page-role condition, flattened the same way the
-      // compiler's "pages" scope flattens it: standalone-under-a-non-page
-      // parent is write-time impossible) hits the class closure.
+    case "pageOf": {
+      // v1's Page block (static): the CONTAINING PAGE is one of the picked
+      // nodes. A row that is its own page matches only when picked itself.
       const page = containingPageOf(ctx, node);
-      if (page === undefined) return false;
-      return classedWith(ctx, page, condition.classId);
+      return page !== undefined && condition.nodeIds.includes(page.id);
     }
-    case "ancestorClassed": {
-      // The parent path carries a classed node: some STRICT ancestor (self
-      // excluded) hits the closure. Cycle-guarded like descendantOf.
+    case "pageSet":
+      // The Page "is set": the row lives inside a page (the containing page
+      // differs from the row itself — a page's own page is itself).
+      {
+        const page = containingPageOf(ctx, node);
+        return page !== undefined && page.id !== node.id;
+      }
+    case "ancestorIn": {
+      // v1's Parent path block (static): some STRICT ancestor (self excluded)
+      // is one of the picked nodes. Cycle-guarded like descendantOf.
+      const targets = new Set(condition.nodeIds);
       const seen = new Set<string>([node.id]);
       let current = node.parentId;
       while (current !== null && !seen.has(current)) {
-        const ancestor = ctx.client.getNode(current);
-        if (ancestor === undefined) return false;
-        if (classedWith(ctx, ancestor, condition.classId)) return true;
+        if (targets.has(current)) return true;
         seen.add(current);
-        current = ancestor.parentId;
+        const parent = ctx.client.getNode(current);
+        current = parent?.parentId ?? null;
       }
       return false;
     }
-    case "rootClass": {
-      // The workspace-root ancestor (a parentless row is its own root) hits
-      // the closure. Cycle-guarded like descendantOf.
+    case "rootIn": {
+      // The root walk (static): the workspace-root ancestor is one of the
+      // picked nodes (a parentless row is its own root).
+      const targets = new Set(condition.nodeIds);
       const seen = new Set<string>([node.id]);
       let current: ClientNode | undefined = node;
       while (current.parentId !== null && !seen.has(current.parentId)) {
@@ -452,61 +452,7 @@ function conditionMatches(ctx: EvalContext, condition: QueryAst["root"]["childre
         seen.add(parent.id);
         current = parent;
       }
-      return classedWith(ctx, current, condition.classId);
-    }
-    case "pageClassAny": {
-      const page = containingPageOf(ctx, node);
-      return page !== undefined && classedWithAny(ctx, page, condition.classIds);
-    }
-    case "ancestorClassedAny": {
-      const seen = new Set<string>([node.id]);
-      let current = node.parentId;
-      while (current !== null && !seen.has(current)) {
-        const ancestor = ctx.client.getNode(current);
-        if (ancestor === undefined) return false;
-        if (classedWithAny(ctx, ancestor, condition.classIds)) return true;
-        seen.add(current);
-        current = ancestor.parentId;
-      }
-      return false;
-    }
-    case "rootClassAny": {
-      const seen = new Set<string>([node.id]);
-      let current: ClientNode | undefined = node;
-      while (current.parentId !== null && !seen.has(current.parentId)) {
-        const parent = ctx.client.getNode(current.parentId);
-        if (parent === undefined) return false;
-        seen.add(parent.id);
-        current = parent;
-      }
-      return classedWithAny(ctx, current, condition.classIds);
-    }
-    case "pageClassSet": {
-      const page = containingPageOf(ctx, node);
-      return page !== undefined && page.classIds.length > 0;
-    }
-    case "ancestorClassedSet": {
-      const seen = new Set<string>([node.id]);
-      let current = node.parentId;
-      while (current !== null && !seen.has(current)) {
-        const ancestor = ctx.client.getNode(current);
-        if (ancestor === undefined) return false;
-        if (ancestor.classIds.length > 0) return true;
-        seen.add(current);
-        current = ancestor.parentId;
-      }
-      return false;
-    }
-    case "rootClassSet": {
-      const seen = new Set<string>([node.id]);
-      let current: ClientNode | undefined = node;
-      while (current.parentId !== null && !seen.has(current.parentId)) {
-        const parent = ctx.client.getNode(current.parentId);
-        if (parent === undefined) return false;
-        seen.add(parent.id);
-        current = parent;
-      }
-      return current.classIds.length > 0;
+      return targets.has(current.id);
     }
     case "contentSet":
       // The title/content plaintext is non-empty (the content "is set").

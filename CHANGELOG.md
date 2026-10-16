@@ -9,6 +9,50 @@ predating this file.
 
 ## 2026-10-16
 
+- **fix(query): the node-container blocks are NODE-target, not class-target
+  (owner correction 2026-10-16, the v1 semantics restored).** Round 1 shipped
+  the classed-container conditions (`pageClass` / `ancestorClassed` /
+  `rootClass` + their ANY-of/set shapes) — the owner corrected the concept:
+  "the idea is to be able to walk up a path. The Page query block should not
+  be 'page is classed as…' but 'Page is these nodes' in static mode, or 'Page
+  is one of these nodes, based on this subquery'. The same for almost all
+  node-type blocks — and the subquery dynamically informs the node list of
+  its parent block, as many levels deep as the user wants." That is exactly
+  v1's register (`v1-archive` `conditionConfigs.ts` / `query_ast.py`: Page /
+  Parent / Parent path / Child / Child path / Reference / Reference path all
+  node-target with the static/dynamic toggle and a nested `GroupNode`). The
+  class-container grammar types are REMOVED (they shipped two commits ago,
+  nothing persisted uses them — the transient layer only, and the no-compat
+  law applies) and replaced by the v1 node-container family: **`pageOf
+  {nodeIds}` / `pageOfQuery {root}`** (the containing page is one of the
+  picked nodes / the subquery's matches — a page row reads its own page, so
+  picked it matches itself), **`pageSet`** (the row lives inside a page),
+  **`ancestorIn {nodeIds}` / `ancestorInQuery {root}`** (v1's Parent path:
+  some strict ancestor is one of the picked nodes / matches the subquery —
+  the "classed ancestor" use case rides the DYNAMIC mode: `Parent path
+  includes [subquery: Class contains Day]`), **`rootIn {nodeIds}` /
+  `rootInQuery {root}`** (the workspace-root ancestor — a parentless row is
+  its own root). Links was already node-target (single / one-of / set /
+  dynamic since round 2) and stays. Compiler: the containing-page and root
+  ids ride correlated scalar subqueries (the Revision-12 page-role
+  flattening, depth-capped CTEs); the dynamic arms correlate the container
+  against the group's match set through a fresh `node n` scope — a real bug
+  was caught here (the first cut compared the ROW against the group instead
+  of the container). Evaluator: sync arms for the static/set shapes, the
+  dynamic shapes ride the probe path (their nested group may carry
+  joined-metadata leaves), nesting recurses through the same compiler/evaluator
+  unbounded. FilterBlockBuilder: Page / Parent path / Root get the v1
+  static/dynamic mode switch (chip-list node multi-pick ⇄ nested builder),
+  the v1 operator labels (is any of / is not any of / is set / is not set;
+  includes / does not include on the parent path), and the class-based
+  container UI is gone — "page is classed as Day" now reads `Page → dynamic →
+  [Class contains Day]`. **Verification:** packages/query 183 green over both
+  adapters (the container suite rewritten: pageOf/pageOfQuery/pageSet,
+  ancestorIn/ancestorInQuery, rootIn/rootInQuery with self-inclusion and
+  closure semantics); web filter suites green (filter-builder +5: Page static
+  multi-pick, Page dynamic through the nested builder, Page is-set, Parent
+  path includes + set, Root static — and the dynamic probe beat awaited with
+  waitFor); prune covers the new shapes.**
 - **feat(query): the FULL Odoo operator set across the query block families
   (owner 2026-10-16, round 2).** Round 1 shipped the class register + the
   classed-container conditions; this round applies the same operator set to

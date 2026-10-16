@@ -123,9 +123,9 @@ describe("the FilterQuery shape", () => {
     expect(createCondition("property")).toEqual({ type: "property", schemaId: "", op: "eq", value: "" });
     expect(createCondition("links")).toEqual({ type: "linkedTo", nodeId: "" });
     expect(createCondition("parent")).toEqual({ type: "descendantOf", nodeId: "" });
-    expect(createCondition("page")).toEqual({ type: "pageClass", classId: "" });
-    expect(createCondition("parentPath")).toEqual({ type: "ancestorClassed", classId: "" });
-    expect(createCondition("root")).toEqual({ type: "rootClass", classId: "" });
+    expect(createCondition("page")).toEqual({ type: "pageOf", nodeIds: [] });
+    expect(createCondition("parentPath")).toEqual({ type: "ancestorIn", nodeIds: [] });
+    expect(createCondition("root")).toEqual({ type: "rootIn", nodeIds: [] });
     expect(createCondition("cover")).toEqual({ type: "coverAsset", op: "exists" });
     expect(createCondition("banner")).toEqual({ type: "bannerAsset", op: "exists" });
     expect(createCondition("alias")).toEqual({ type: "aliasedNode", op: "exists" });
@@ -168,16 +168,21 @@ describe("filterQueryToGroup — the draft prune", () => {
     });
   });
 
-  it("drops the half-typed Odoo-set shapes (empty exact/classAny/container classId), keeps classSet", () => {
+  it("drops the half-typed Odoo-set shapes, keeps the set bits", () => {
     const draft: Group = {
       type: "group",
       logic: "and",
       children: [
         { type: "classExact", classId: "" },
         { type: "classAny", classIds: [] },
-        { type: "pageClass", classId: "" },
-        { type: "ancestorClassed", classId: "" },
-        { type: "rootClass", classId: "" },
+        { type: "pageOf", nodeIds: [] },
+        { type: "pageOfQuery", root: { type: "group", logic: "and", children: [] } },
+        { type: "pageOfQuery", root: { type: "group", logic: "and", children: [
+          { type: "classExact", classId: "" },
+        ] } },
+        { type: "ancestorIn", nodeIds: [] },
+        { type: "ancestorInQuery", root: { type: "group", logic: "and", children: [] } },
+        { type: "rootIn", nodeIds: [] },
         { type: "tag", tagId: "" },
         { type: "tagAny", tagIds: [] },
         { type: "linkedToAny", nodeIds: [] },
@@ -191,10 +196,13 @@ describe("filterQueryToGroup — the draft prune", () => {
         { type: "tagSet" },
         { type: "linkSet" },
         { type: "parentSet" },
-        { type: "pageClassSet" },
+        { type: "pageSet" },
         { type: "classExact", classId: "0192a000-0000-7000-8000-0000000000aa" },
         { type: "classAny", classIds: ["0192a000-0000-7000-8000-0000000000bb"] },
-        { type: "pageClass", classId: "0192a000-0000-7000-8000-0000000000cc" },
+        { type: "pageOf", nodeIds: ["0192a000-0000-7000-8000-0000000000cc"] },
+        { type: "pageOfQuery", root: { type: "group", logic: "and", children: [
+          { type: "classExact", classId: "0192a000-0000-7000-8000-0000000000aa" },
+        ] } },
         { type: "tag", tagId: "0192a000-0000-7000-8000-0000000000ee" },
         { type: "createdWithin", period: "today" },
       ],
@@ -208,10 +216,13 @@ describe("filterQueryToGroup — the draft prune", () => {
         { type: "tagSet" },
         { type: "linkSet" },
         { type: "parentSet" },
-        { type: "pageClassSet" },
+        { type: "pageSet" },
         { type: "classExact", classId: "0192a000-0000-7000-8000-0000000000aa" },
         { type: "classAny", classIds: ["0192a000-0000-7000-8000-0000000000bb"] },
-        { type: "pageClass", classId: "0192a000-0000-7000-8000-0000000000cc" },
+        { type: "pageOf", nodeIds: ["0192a000-0000-7000-8000-0000000000cc"] },
+        { type: "pageOfQuery", root: { type: "group", logic: "and", children: [
+          { type: "classExact", classId: "0192a000-0000-7000-8000-0000000000aa" },
+        ] } },
         { type: "tag", tagId: "0192a000-0000-7000-8000-0000000000ee" },
         { type: "createdWithin", period: "today" },
       ],

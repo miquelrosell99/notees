@@ -103,14 +103,8 @@ function pruneChild(child: Child): Child | null {
       return child.value.trim() === "" ? null : child;
     case "class":
     case "classExact":
-    case "pageClass":
-    case "ancestorClassed":
-    case "rootClass":
       return child.classId === "" ? null : child;
     case "classAny":
-    case "pageClassAny":
-    case "ancestorClassedAny":
-    case "rootClassAny":
       return child.classIds.length === 0 ? null : child;
     case "tag":
       return child.tagId === "" ? null : child;
@@ -118,6 +112,9 @@ function pruneChild(child: Child): Child | null {
       return child.tagIds.length === 0 ? null : child;
     case "linkedToAny":
     case "descendantOfAny":
+    case "pageOf":
+    case "ancestorIn":
+    case "rootIn":
       return child.nodeIds.length === 0 ? null : child;
     case "createdCmp":
     case "updatedCmp":
@@ -142,7 +139,10 @@ function pruneChild(child: Child): Child | null {
     case "descendantOf":
       return child.nodeId === "" ? null : child;
     case "linkedToQuery":
-    case "descendantOfQuery": {
+    case "descendantOfQuery":
+    case "pageOfQuery":
+    case "ancestorInQuery":
+    case "rootInQuery": {
       const nested = pruneChild(child.root);
       return nested === null || (nested.type === "group" && nested.children.length === 0)
         ? null
@@ -232,9 +232,9 @@ export const FILTER_KIND_OPTIONS: readonly FilterKindOption[] = [
   { value: "tags", label: "Tags", icon: "mdi mdi-tag-multiple-outline", description: "Filter by assigned tags (any page)" },
   { value: "links", label: "Links", icon: "mdi mdi-link-variant", description: "Nodes that link to a node or a nested query" },
   { value: "parent", label: "Parent", icon: "mdi mdi-file-tree-outline", description: "Nodes inside a node's parents tree, or a nested query's" },
-  { value: "page", label: "Page", icon: "mdi mdi-page-layout-body", description: "The containing page is classed… (e.g. its page is Day)" },
-  { value: "parentPath", label: "Parent path", icon: "mdi mdi-source-branch", description: "An ancestor anywhere up the parent chain is classed…" },
-  { value: "root", label: "Root", icon: "mdi mdi-arrow-collapse-up", description: "The top-level parent (workspace-root child) is classed…" },
+  { value: "page", label: "Page", icon: "mdi mdi-page-layout-body", description: "The containing page is any of these nodes (or matches a nested query)" },
+  { value: "parentPath", label: "Parent path", icon: "mdi mdi-source-branch", description: "An ancestor anywhere up the parent chain is any of these nodes (or matches a nested query)" },
+  { value: "root", label: "Root", icon: "mdi mdi-arrow-collapse-up", description: "The top-level parent (workspace-root child) is any of these nodes (or matches a nested query)" },
   { value: "cover", label: "Cover", icon: "mdi mdi-image-outline", description: "Cover is set or not" },
   { value: "banner", label: "Banner", icon: "mdi mdi-page-layout-header", description: "Banner is set or not" },
   { value: "alias", label: "Alias", icon: "mdi mdi-repeat-variant", description: "Alias of a main page, set or not" },
@@ -281,11 +281,11 @@ export function createCondition(kind: ConditionKind): Condition {
     case "parent":
       return { type: "descendantOf", nodeId: "" };
     case "page":
-      return { type: "pageClass", classId: "" };
+      return { type: "pageOf", nodeIds: [] };
     case "parentPath":
-      return { type: "ancestorClassed", classId: "" };
+      return { type: "ancestorIn", nodeIds: [] };
     case "root":
-      return { type: "rootClass", classId: "" };
+      return { type: "rootIn", nodeIds: [] };
     case "cover":
       return { type: "coverAsset", op: "exists" };
     case "banner":

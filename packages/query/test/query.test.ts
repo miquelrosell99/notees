@@ -1468,7 +1468,7 @@ describe("buildMatchExpression (FTS match compilation)", () => {
 
 // --- the Odoo operator-set conditions (owner 2026-10-16) ---------------------
 // classExact / classAny / classSet (the expanded CLASS operator set) and the
-// classed-container family pageClass / ancestorClassed / rootClass — over the
+// (retired: the class-based containers — the node-container family lives below) — over the
 // France/Paris/Lone world: France is parentless (its own page/root, classed
 // Place), Paris a main child of France (classed City extends Place), the
 // blocks embedded under them, Lone an unclassed parentless page.
@@ -1527,84 +1527,110 @@ describe.each(adapters)("$name: Odoo operator-set conditions", ({ makeStore }) =
     expect(negated.ids).toContain(FR_BLOCK);
   });
 
-  it("pageClass: the CONTAINING PAGE is classed — a block reads its page's class, a page its own", () => {
+  it("pageOf: the CONTAINING PAGE is one of the picked nodes — a page row matches only when picked itself", () => {
     const store = worldStore();
-    // Closure-aware: Place ∋ {Place, City} — France, Paris and every block
-    // under them match; Lone's page (itself) carries no class.
-    expect(
-      runQuery(store, ast(entire, [{ type: "pageClass", classId: PLACE }])).ids.sort(),
-    ).toEqual([FRANCE, FR_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort());
-    // Exact container: only the Paris-subtree (its page is classed City).
-    expect(
-      runQuery(store, ast(entire, [{ type: "pageClass", classId: CITY }])).ids.sort(),
-    ).toEqual([PARIS, PARIS_BLOCK].sort());
-    // The not-wrap excludes the whole subtree.
+    // France is its own page; Paris its own; the blocks read their parents.
+    expect(runQuery(store, ast(entire, [{ type: "pageOf", nodeIds: [FRANCE] }])).ids.sort()).toEqual(
+      [FRANCE, FR_BLOCK, OUT_BLOCK].sort(),
+    );
+    // Paris is its own page (a standalone row) — picked, it matches itself
+    // AND its blocks.
+    expect(runQuery(store, ast(entire, [{ type: "pageOf", nodeIds: [PARIS] }])).ids.sort()).toEqual(
+      [PARIS, PARIS_BLOCK].sort(),
+    );
+    expect(runQuery(store, ast(entire, [{ type: "pageOf", nodeIds: [LONE, PARIS] }])).ids.sort()).toEqual(
+      [LONE, LONE_BLOCK, PARIS, PARIS_BLOCK].sort(),
+    );
     const negated = runQuery(store, ast(entire, [
-      { type: "not", child: { type: "pageClass", classId: PLACE } },
+      { type: "not", child: { type: "pageOf", nodeIds: [FRANCE] } },
     ]));
     expect(negated.ids).not.toContain(FRANCE);
-    expect(negated.ids).not.toContain(PARIS_BLOCK);
+    expect(negated.ids).toContain(PARIS_BLOCK);
     expect(negated.ids).toContain(LONE);
-    expect(negated.ids).toContain(LONE_BLOCK);
   });
 
-  it("ancestorClassed: the parent PATH carries a classed node — self excluded", () => {
+  it("pageOfQuery: the subquery informs the page set (v1's dynamic mode)", () => {
     const store = worldStore();
-    // Only parisBlock has a City-classed ancestor (Paris). France's blocks
-    // see France (Place) up their path; Paris itself sees only France.
+    // Pages classed City (closure): Paris's page matches — Paris itself (its
+    // own page, classed City) AND its block. The dynamic subquery subsumes
+    // the retired class-based container.
     expect(
-      runQuery(store, ast(entire, [{ type: "ancestorClassed", classId: CITY }])).ids,
-    ).toEqual([PARIS_BLOCK]);
-    // Place is closure-wide: every France-subtree node except France itself.
+      runQuery(store, ast(entire, [{ type: "pageOfQuery", root: { type: "group", logic: "and", children: [
+        { type: "class", classId: CITY },
+      ] } }])).ids.sort(),
+    ).toEqual([PARIS, PARIS_BLOCK].sort());
+    // Place ∋ {Place, City} through the closure: every France-subtree page
+    // matches — the whole subtree.
     expect(
-      runQuery(store, ast(entire, [{ type: "ancestorClassed", classId: PLACE }])).ids.sort(),
+      runQuery(store, ast(entire, [{ type: "pageOfQuery", root: { type: "group", logic: "and", children: [
+        { type: "class", classId: PLACE },
+      ] } }])).ids.sort(),
+    ).toEqual([FRANCE, FR_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort());
+  });
+
+  it("pageSet: the row lives inside a page (the containing page differs from itself)", () => {
+    const store = worldStore();
+    expect(runQuery(store, ast(entire, [{ type: "pageSet" }])).ids.sort()).toEqual(
+      [FR_BLOCK, LONE_BLOCK, OUT_BLOCK, PARIS_BLOCK].sort(),
+    );
+  });
+
+  it("ancestorIn: the parent PATH includes one of the picked nodes — self excluded", () => {
+    const store = worldStore();
+    // Picked NODES (not classes): Paris is an ancestor of parisBlock.
+    expect(runQuery(store, ast(entire, [{ type: "ancestorIn", nodeIds: [PARIS] }])).ids).toEqual([PARIS_BLOCK]);
+    expect(runQuery(store, ast(entire, [{ type: "ancestorIn", nodeIds: [CITY] }])).ids).toEqual([]);
+    expect(
+      runQuery(store, ast(entire, [{ type: "ancestorIn", nodeIds: [FRANCE, PARIS] }])).ids.sort(),
     ).toEqual([FR_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort());
-    // The not-wrap: France and the Lone subtree carry no classed ancestor.
     const negated = runQuery(store, ast(entire, [
-      { type: "not", child: { type: "ancestorClassed", classId: PLACE } },
+      { type: "not", child: { type: "ancestorIn", nodeIds: [FRANCE] } },
     ]));
     expect(negated.ids).toContain(FRANCE);
     expect(negated.ids).toContain(LONE);
-    expect(negated.ids).toContain(LONE_BLOCK);
     expect(negated.ids).not.toContain(PARIS);
   });
 
-  it("rootClass: the workspace-root ancestor is classed — a parentless row is its own root", () => {
+  it("ancestorInQuery: a strict ancestor matches the nested group", () => {
     const store = worldStore();
-    // The France-subtree's root is France (Place ∋ City through the closure);
-    // Lone's root is Lone itself (unclassed).
     expect(
-      runQuery(store, ast(entire, [{ type: "rootClass", classId: PLACE }])).ids.sort(),
+      runQuery(store, ast(entire, [{ type: "ancestorInQuery", root: { type: "group", logic: "and", children: [
+        { type: "class", classId: PLACE },
+      ] } }])).ids.sort(),
+    ).toEqual([FR_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort());
+  });
+
+  it("rootIn: the workspace-root ancestor is one of the picked nodes", () => {
+    const store = worldStore();
+    expect(
+      runQuery(store, ast(entire, [{ type: "rootIn", nodeIds: [FRANCE] }])).ids.sort(),
     ).toEqual([FRANCE, FR_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort());
-    expect(
-      runQuery(store, ast(entire, [{ type: "rootClass", classId: CITY }])).ids,
-    ).toEqual([]);
-    // Lone matches a rootClass only against its own (empty) class set.
+    // The class nodes are workspace roots — picked, each matches itself.
+    expect(runQuery(store, ast(entire, [{ type: "rootIn", nodeIds: [CITY] }])).ids).toEqual([CITY]);
+    // Lone is its own root.
+    expect(runQuery(store, ast(entire, [{ type: "rootIn", nodeIds: [LONE] }])).ids.sort()).toEqual(
+      [LONE, LONE_BLOCK].sort(),
+    );
     const negated = runQuery(store, ast(entire, [
-      { type: "not", child: { type: "rootClass", classId: PLACE } },
+      { type: "not", child: { type: "rootIn", nodeIds: [FRANCE] } },
     ]));
     expect(negated.ids).toContain(LONE);
-    expect(negated.ids).toContain(LONE_BLOCK);
-    expect(negated.ids).not.toContain(FRANCE);
     expect(negated.ids).not.toContain(PARIS_BLOCK);
   });
-});
 
-
-// --- the full Odoo operator-set slice (owner 2026-10-16, round 2) ----------
-// Content text ops + contentSet, tags, the node-target ANY-of/set shapes
-// (links / parent), the date operators (cmp day-equality / between / within /
-// edited-set), propertyBetween, and the container ANY-of/set shapes — over
-// the France/Paris/Lone world (France is parentless, classed Place; Paris a
-// main child of France, classed City extends Place; blocks beneath; Lone an
-// unclassed parentless page; FR_BLOCK links to Paris, OUT_BLOCK links to Lone).
-
-describe.each(adapters)("$name: the full Odoo operator set", ({ makeStore }) => {
-  function worldStore(): Store {
-    const store = makeStore();
-    store.applyMany(worldEnvelopes());
-    return store;
-  }
+  it("rootInQuery: the root ancestor matches the nested group", () => {
+    const store = worldStore();
+    expect(
+      runQuery(store, ast(entire, [{ type: "rootInQuery", root: { type: "group", logic: "and", children: [
+        { type: "class", classId: PLACE },
+      ] } }])).ids.sort(),
+    ).toEqual([FRANCE, FR_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort());
+    expect(
+      runQuery(store, ast(entire, [{ type: "rootInQuery", root: { type: "group", logic: "and", children: [
+        { type: "class", classId: CITY },
+      ] } }])).ids,
+    ).toEqual([]);
+  });
 
   it("content text ops: eq/neq/starts/ends + the contentSet bit", () => {
     const store = worldStore();
@@ -1720,27 +1746,5 @@ describe.each(adapters)("$name: the full Odoo operator set", ({ makeStore }) => 
     ).toEqual([]);
   });
 
-  it("container ANY-of + set: page / parent path / root over picked classes", () => {
-    const store = worldStore();
-    expect(
-      runQuery(store, ast(entire, [{ type: "pageClassAny", classIds: [CITY] }])).ids.sort(),
-    ).toEqual([PARIS, PARIS_BLOCK].sort());
-    expect(
-      runQuery(store, ast(entire, [{ type: "ancestorClassedAny", classIds: [CITY] }])).ids,
-    ).toEqual([PARIS_BLOCK]);
-    expect(
-      runQuery(store, ast(entire, [{ type: "rootClassAny", classIds: [PLACE, CITY] }])).ids.sort(),
-    ).toEqual([FRANCE, FR_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort());
-    // The set bits: the France-subtree containers all carry classes; Lone's
-    // do not (and the class nodes' own sets are empty).
-    expect(runQuery(store, ast(entire, [{ type: "pageClassSet" }])).ids.sort()).toEqual(
-      [FRANCE, FR_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort(),
-    );
-    expect(
-      runQuery(store, ast(entire, [{ type: "ancestorClassedSet" }])).ids.sort(),
-    ).toEqual([FR_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort());
-    expect(runQuery(store, ast(entire, [{ type: "rootClassSet" }])).ids.sort()).toEqual(
-      [FRANCE, FR_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort(),
-    );
-  });
+
 });
