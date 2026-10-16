@@ -110,6 +110,48 @@ export function builderUnsupportedConstructs(ast: QueryAst | null): string[] {
           case "rootClass":
             found.add("root-class conditions");
             break;
+          case "contentSet":
+            found.add("content-set conditions");
+            break;
+          case "tag":
+          case "tagAny":
+          case "tagSet":
+            found.add("tag conditions");
+            break;
+          case "linkedToAny":
+          case "linkSet":
+            found.add("any-of link conditions");
+            break;
+          case "descendantOfAny":
+          case "parentSet":
+            found.add("any-of parent conditions");
+            break;
+          case "pageClassAny":
+          case "pageClassSet":
+            found.add("any-of page-class conditions");
+            break;
+          case "ancestorClassedAny":
+          case "ancestorClassedSet":
+            found.add("any-of parent-path conditions");
+            break;
+          case "rootClassAny":
+          case "rootClassSet":
+            found.add("any-of root-class conditions");
+            break;
+          case "createdCmp":
+          case "createdBetween":
+          case "createdWithin":
+            found.add("date-comparison conditions");
+            break;
+          case "updatedCmp":
+          case "updatedBetween":
+          case "updatedWithin":
+            found.add("date-comparison conditions");
+            break;
+          case "propertyBetween":
+          case "propertyWithin":
+            found.add("property range conditions");
+            break;
           default:
             break; // class / isClass / isEmbedded / createdAfter / createdBefore are representable
         }
