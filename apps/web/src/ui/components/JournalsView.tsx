@@ -21,6 +21,7 @@ import { rawDateKeywordOf } from "../dateDisplay.js";
 import type { AnyClient } from "./Sidebar.js";
 import { addDaysIso, isoOfDateParts, todayIsoLocal } from "./calendarViewUtils.js";
 import { Button } from "./ui/Button.js";
+import { EmptyState } from "./ui/EmptyState.js";
 import "./JournalsView.css";
 
 /** Entries mounted around today before the sentinels take over. */
@@ -208,12 +209,14 @@ export function JournalsView({
         </span>
       </header>
       {pages.length === 0 ? (
-        <div className="journals-empty">
-          <p>Daily journal pages are created when you open today's note.</p>
-          <button type="button" className="journals-empty__action" onClick={() => void openToday()}>
-            Open today&rsquo;s note
-          </button>
-        </div>
+        /* The sentence-as-title follows the CalendarView EmptyState
+           precedent; the CTA is the kit Button (the primary register). */
+        <EmptyState
+          className="journals-empty"
+          title="Daily journal pages are created when you open today's note."
+          actionLabel="Open today’s note"
+          onAction={() => void openToday()}
+        />
       ) : (
         <div className="journals-list" ref={listRef}>
           {rangeStart > 0 && <div ref={topSentinelRef} className="journals-sentinel" aria-hidden="true" />}
