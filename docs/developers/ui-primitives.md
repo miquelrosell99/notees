@@ -75,12 +75,16 @@ in-process-store warning bar).
 Structure & surfaces: `Card`, `Tabs`, `Modal`, `ImageModal`,
 `ConfirmationModal`, `ContextMenu` (two submenu forms on one primitive —
 `submenu` for custom content (the whiteboard color row) and `submenuItems`
-for a native action list (the node menu's Copy › / Convert to page ›):
-subitems render indented with the item styling, fire their own onClick,
-then close the whole menu unless `keepOpen`, and stay out of the
-arrow-key walk; the submenu opens on hover over its parent line on
-pointer-fine devices — the tap stays the explicit toggle on touch — and
-the chevron rides the icon-role token, never the outline border token), `Separator`, `ErrorBoundary`, `ListSortable` (+ the
+for a native action list (the node menu's Copy › / Convert to page ›): the
+submenu FLIES OUT to the side of the parent row as a second card — never
+expands inline, which used to grow the menu's box and re-fit it on open —
+overlapping the menu edge by a hair as a hover bridge, aligned to the
+parent row's top, flipping left at the viewport edge, clamped vertically;
+subitems fire their own onClick, then close the whole menu unless
+`keepOpen`, and stay out of the arrow-key walk; the panel opens on hover
+over the parent line on pointer-fine devices — the tap stays the explicit
+toggle on touch — and the chevron rides the icon-role token, never the
+outline border token), `Separator`, `ErrorBoundary`, `ListSortable` (+ the
 `useListDragSort` hook), `FloatingButtonArray`,
 `PresentationOverlay` (the fullscreen presentation host: dark
 stage, auto-hiding toolbar, edge zones, Esc/focus-trap, owned keymap).

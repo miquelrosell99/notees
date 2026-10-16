@@ -9,6 +9,28 @@ predating this file.
 
 ## 2026-10-16
 
+- **fix(web): submenus fly out to the side of the parent row (the Notion
+  pattern) instead of expanding inline — ending the grow-then-refit dance
+  at the viewport's bottom edge (owner feedback 2026-10-16).** The inline
+  expansion grew the menu's own box: near the bottom the taller menu no
+  longer fit, the whole menu flipped above the cursor, and the next cursor
+  move collapsed the submenu and flipped it back. Now the submenu renders
+  as a second card positioned absolutely INSIDE the menu card but outside
+  its flow — its box never affects the menu's, so the menu's fit is
+  stable no matter how the submenu opens or closes. The flyout rides to
+  the right of the parent row (overlapping the menu edge by a hair as a
+  hover bridge, aligned to the row's top), flips to the left side when the
+  right lacks room, and clamps vertically into the viewport — all written
+  imperatively in the same positioning pass as the menu itself (scroll,
+  resize, and element resize re-run it). Both submenu forms fly out: the
+  native `submenuItems` action list and custom `submenu` content (the
+  whiteboard color row). The inline-expansion CSS (panel borders, expand/
+  collapse keyframes, subitem indent, chevron rotate) retires; Escape and
+  outside-press semantics are unchanged (submenu first, then the menu).
+  Docs: `ui-primitives.md` ContextMenu catalog sentence. **Verification:**
+  `pnpm typecheck` + `pnpm test` green (`submenu-chevron.test.tsx` pins the
+  flyout's absolute positioning and asserts the panel is a second card
+  inside the menu card); web-only — no wire touch.
 - **fix(web): the submenu chevron and the breadcrumb separator read at full
   strength, and submenus open on hover over their parent line (owner
   feedback 2026-10-16).** Both chevrons rode `--md-sys-color-outline` — a

@@ -123,64 +123,31 @@ button.context-menu-item:hover:not(.disabled) {
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
-
-  /* Arrow chevron rotates when submenu is open */
-  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .context-menu-item.has-submenu {
   position: relative;
 }
 
-/* Inline submenu — expands inside the menu below the trigger item */
-.context-menu-submenu-inline {
-  border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
-  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
-  overflow: hidden;
-  animation: submenu-expand var(--motion-duration-long) var(--motion-easing-standard);
-}
-
-.context-menu-submenu-inline--closing {
-  animation: submenu-collapse var(--motion-duration-long) var(--motion-easing-standard) forwards;
-}
-
-.context-menu-arrow--open {
-  transform: rotate(90deg);
-}
-
-@keyframes submenu-expand {
-  from {
-    opacity: var(--opacity-0);
-    transform: translateY(calc(var(--spacing-1) * -1));
-  }
-
-  to {
-    opacity: var(--opacity-100);
-    transform: translateY(0);
-  }
-}
-
-@keyframes submenu-collapse {
-  from {
-    opacity: var(--opacity-100);
-    transform: translateY(0);
-  }
-
-  to {
-    opacity: var(--opacity-0);
-    transform: translateY(calc(var(--spacing-1) * -1));
-  }
+/* Flyout submenu — opens to the SIDE of the parent row (the Notion
+   pattern) as a second card, overlapping the menu edge by a hair to form
+   a hover bridge. Its position (left/right/top) is written imperatively
+   in the component: right side by default, flipped left at the viewport
+   edge, vertically clamped. Absolutely positioned inside the card, it
+   never changes the menu's own box — so opening/closing it can never
+   re-fit the menu the way the old inline expansion did. */
+.context-menu-submenu-flyout {
+  position: absolute;
+  min-width: 11.25rem;
+  max-width: var(--layout-size-6xl);
+  padding: var(--spacing-1);
+  z-index: 1;
+  animation: panelFadeIn var(--motion-duration-long) var(--motion-easing-standard);
 }
 
 /* Custom content row — renders arbitrary React content inline in the menu */
 .context-menu-content-row {
   padding: var(--spacing-1) var(--spacing-3);
-}
-
-/* Native submenu items — indented under their parent row so the action
-   list reads as one step deeper in the hierarchy. */
-.context-menu-submenu-inline .context-menu-item {
-  padding-left: calc(var(--spacing-3) + var(--icon-size-md) + var(--spacing-2));
 }
 
 /* Touch: long-press menus are the primary affordance — taller items */
