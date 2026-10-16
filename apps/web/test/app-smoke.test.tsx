@@ -393,7 +393,7 @@ describe("session resume", () => {
     expect(localStorage.getItem("notees.sessionToken")).toBe("session-token");
   });
 
-  it("the switcher and manager fall back to the device-local copies when the server is down", async () => {
+  it("the switcher and manager fall back to the device-local registry when the server is down", async () => {
     rememberSession();
     // The device-local registry: both workspaces are remembered, but only
     // ws1 has a synced copy on this device.
@@ -414,23 +414,31 @@ describe("session resume", () => {
     render(<App />);
     await waitFor(() => expect(screen.getByText(/running in-process/i)).toBeInTheDocument());
 
-    // The switcher opens on the local copy — the non-local workspace is not
-    // offered — under an explicit offline caption…
+    // The switcher opens on the local copy; the row without a local copy
+    // stays visible but muted and inert, under an explicit offline caption…
     fireEvent.click(screen.getByRole("button", { name: /^garden/i }));
     expect(await screen.findByText("Garden")).toBeInTheDocument();
-    expect(screen.queryByText("Orchard")).toBeNull();
     expect(
-      screen.getByText(/offline — showing workspaces stored on this device/i),
+      screen.getByText(/offline — workspaces without a copy on this device/i),
     ).toBeInTheDocument();
+    // (The item carries role="option" inside the listbox, so query that.)
+    const orchardRow = screen.getByRole("option", { name: "Orchard" });
+    expect(orchardRow).toBeDisabled();
+    expect(orchardRow).toHaveClass("workspace-switcher__item--unavailable");
+    expect(orchardRow.title).toMatch(/not available offline/i);
     // …and server-only affordances stay hidden.
     expect(screen.queryByRole("button", { name: /garden settings/i })).toBeNull();
 
-    // The manager falls back the same way: read-only, create hidden.
+    // The manager falls back the same way: read-only, create hidden, the
+    // non-local card muted with an honest "not on this device" line.
     fireEvent.click(screen.getByRole("button", { name: /manage workspaces/i }));
     expect(
-      await screen.findByText(/server actions \(create, rename, delete, export\) wait for recovery/i),
+      await screen.findByText(/cloud-tagged workspaces have no copy on this device/i),
     ).toBeInTheDocument();
     expect(screen.getByText("Garden")).toBeInTheDocument();
+    expect(screen.getByText("Orchard")).toBeInTheDocument();
+    expect(screen.getByText(/not on this device — open once while online/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /open orchard/i })).toBeDisabled();
     expect(screen.queryByRole("button", { name: /create workspace/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /actions for garden/i })).toBeNull();
   });

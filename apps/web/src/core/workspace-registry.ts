@@ -17,9 +17,12 @@
  *   superset proxy for "has a local OPFS copy" (the worker store is keyed by
  *   workspace id, so booting persists one).
  *
- * Honesty bounds: an entry can linger after a server-side delete until the
- * next successful list fetch, and a remembered workspace without a local
- * copy is not offered offline — there is nothing on this device to open.
+ * Offline, the surfaces list EVERY remembered workspace — the ones without
+ * a local copy stay visible but muted and inert, with an honest "not on
+ * this device" marker (hiding account content from its owner reads as data
+ * loss; opening a workspace once while online keeps a copy from then on).
+ * A stale entry can linger after a server-side delete until the next
+ * successful list fetch.
  */
 
 import type { WorkspaceEntry } from "./auth-api.js";
@@ -81,13 +84,4 @@ export function markLocalWorkspaceCopy(workspaceId: string): void {
 export function localWorkspaceCopies(): ReadonlySet<string> {
   const list = readJson<unknown>(LOCAL_COPIES_KEY, []);
   return new Set(Array.isArray(list) ? (list as string[]) : []);
-}
-
-/**
- * The honest offline answer: remembered workspaces that actually hold a
- * local copy on this device — the only ones that can be opened offline.
- */
-export function offlineWorkspaceList(): WorkspaceEntry[] {
-  const copies = localWorkspaceCopies();
-  return rememberedWorkspaceList().filter((ws) => copies.has(ws.id));
 }
