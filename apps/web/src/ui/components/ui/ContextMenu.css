@@ -150,8 +150,8 @@ button.context-menu-item:hover:not(.disabled) {
 }
 
 /* Flyout submenu — opens to the SIDE of the parent row (the Notion
-   pattern) as a second card, overlapping the menu edge by a hair to form
-   a hover bridge. Its position (left/right/top) is written imperatively
+   pattern) as a second card riding FLUSH against the menu edge (no
+   overlap). Its position (left/right/top) is written imperatively
    in the component: right side by default, flipped left at the viewport
    edge, vertically clamped. Absolutely positioned inside the card, it
    never changes the menu's own box — so opening/closing it can never
