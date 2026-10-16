@@ -77,7 +77,7 @@ interface NodeLinkMenuHostProps {
 function mentionTokenAt(
   client: NodeLinkMenuHostProps["client"],
   request: NodeLinkMenuRequest,
-): { targetNodeId: string; text: string; displayText?: string } | null {
+): { targetNodeId: string; text: string; displayText?: string; isEmbedded?: boolean } | null {
   const node = client.getNode(request.blockId);
   const token = node?.contentAst[request.tokenIndex];
   if (
@@ -92,6 +92,7 @@ function mentionTokenAt(
     targetNodeId: String(t.targetNodeId),
     text: String(t.text),
     ...(typeof t.displayText === "string" ? { displayText: t.displayText } : {}),
+    ...(t.isEmbedded === true ? { isEmbedded: true } : {}),
   };
 }
 
@@ -165,6 +166,7 @@ function NodeLinkMenuInner({ client, openNode, openInSidebar, children }: NodeLi
                     insertAt: null,
                     initialNodeId: token.targetNodeId,
                     initialLabel: token.displayText ?? "",
+                    initialEmbedded: token.isEmbedded === true,
                   });
                 }
           }
