@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { createWorkspace, listWorkspaces, type WorkspaceEntry } from "@/core/auth-api.js";
+import { offlineWorkspaceList } from "@/core/workspace-registry.js";
 
 import type { AnyClient } from "./Sidebar.js";
 import { Icon } from "../Icon.js";
@@ -11,12 +12,15 @@ import "./WorkspaceSwitcher.css";
 
 /**
  * WorkspaceSwitcher — searchable dropdown for switching between workspaces,
- * mounted at the top of the sidebar. Online only (offline mode has exactly
- * one well-known local workspace, so the switcher stays hidden there).
- * Each row carries a gear button (visible on hover/focus) that opens the
- * workspace settings modal for that workspace. Typing a query that matches
- * nothing offers to create a workspace with that name; the footer opens the
- * Manage Workspaces view.
+ * mounted at the top of the sidebar. Offline-first: when the server can't
+ * answer, the popup falls back to the device-local registry — the remembered
+ * workspaces that hold a synced copy on this device — under an explicit
+ * "offline" caption; server-only affordances (the per-row settings gear and
+ * the create suggestion) wait for recovery instead of failing loudly.
+ * Accountless offline mode has exactly one well-known local workspace, so
+ * the switcher stays hidden there. Typing a query that matches nothing
+ * offers to create a workspace with that name (online); the footer opens
+ * the Manage Workspaces view.
  */
 export function WorkspaceSwitcher({
   serverUrl,
@@ -49,6 +53,8 @@ export function WorkspaceSwitcher({
   const [query, setQuery] = useState("");
   const [workspaces, setWorkspaces] = useState<WorkspaceEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** The list came from the device-local registry (the server didn't answer). */
+  const [offline, setOffline] = useState(false);
   const [settingsWorkspace, setSettingsWorkspace] = useState<WorkspaceEntry | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
@@ -58,10 +64,18 @@ export function WorkspaceSwitcher({
     let cancelled = false;
     listWorkspaces(serverUrl, credential)
       .then(({ workspaces: list }) => {
-        if (!cancelled) setWorkspaces(list);
+        if (cancelled) return;
+        setWorkspaces(list);
+        setOffline(false);
+        setError(null);
       })
-      .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      .catch(() => {
+        if (cancelled) return;
+        // The server didn't answer: offer the local copies instead of an
+        // error — switching between them is a local boot, fully offline.
+        setWorkspaces(offlineWorkspaceList());
+        setOffline(true);
+        setError(null);
       });
     return () => {
       cancelled = true;
@@ -137,6 +151,13 @@ export function WorkspaceSwitcher({
             />
           </div>
           <ul className="workspace-switcher__list">
+            {offline && (
+              <li className="workspace-switcher__row-item">
+                <span className="workspace-switcher__empty">
+                  Offline — showing workspaces stored on this device.
+                </span>
+              </li>
+            )}
             {filtered.map((ws) => {
               const isActive = ws.id === activeWorkspaceId;
               return (
@@ -155,24 +176,30 @@ export function WorkspaceSwitcher({
                     <span className="workspace-switcher__item-name">{ws.name ?? "Workspace"}</span>
                     {isActive && <span className="workspace-switcher__item-badge">Active</span>}
                   </button>
-                  <button
-                    type="button"
-                    className="workspace-switcher__settings-btn"
-                    title={`${ws.name ?? "Workspace"} settings`}
-                    aria-label={`${ws.name ?? "Workspace"} settings`}
-                    onClick={() => {
-                      setOpen(false);
-                      setSettingsWorkspace(ws);
-                    }}
-                  >
-                    <Icon path="mdi-cog-outline" size={0.9} />
-                  </button>
+                  {!offline && (
+                    <button
+                      type="button"
+                      className="workspace-switcher__settings-btn"
+                      title={`${ws.name ?? "Workspace"} settings`}
+                      aria-label={`${ws.name ?? "Workspace"} settings`}
+                      onClick={() => {
+                        setOpen(false);
+                        setSettingsWorkspace(ws);
+                      }}
+                    >
+                      <Icon path="mdi-cog-outline" size={0.9} />
+                    </button>
+                  )}
                 </li>
               );
             })}
             {workspaces !== null && filtered.length === 0 && (
               <li className="workspace-switcher__row-item">
-                {query.trim() === "" ? (
+                {offline ? (
+                  <span className="workspace-switcher__empty">
+                    {query.trim() === "" ? "No local workspaces." : "No local workspaces match."}
+                  </span>
+                ) : query.trim() === "" ? (
                   <span className="workspace-switcher__empty">No workspaces yet.</span>
                 ) : (
                   <button

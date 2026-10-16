@@ -22,8 +22,12 @@
  * screen, but a server that does not answer keeps the credential and opens
  * the remembered workspace from its local copy — the boot is local-first,
  * the sync-status banner reports "working locally until it recovers", and
- * the realtime reconnect catches up when the server returns. Only sign-out,
- * "Disconnect & forget", or a rejected credential returns to screen 1.
+ * the realtime reconnect catches up when the server returns. The workspace
+ * switcher and manager fall back the same way: the device-local registry
+ * (workspace-registry.ts — the last server list + which workspaces hold a
+ * copy here) lists every locally-copied workspace while the server can't
+ * answer. Only sign-out, "Disconnect & forget", or a rejected credential
+ * returns to screen 1.
  *
  * The shell components live in ./components (TopBar, Sidebar, PageCard,
  * CommandPalette); App stays composition + boot phases.
@@ -41,6 +45,12 @@ import sqlWasmUrl from "sql.js/dist/sql-wasm.wasm?url";
 import { WorkspaceClient, type ClientNode, type SyncStatusSnapshot } from "@/core/workspace-client.js";
 import { WorkerClient } from "@/core/worker-client.js";
 import { EMPTY_UNDO_STATE, type UndoUiState } from "@/core/undo-journal.js";
+import {
+  markLocalWorkspaceCopy,
+  rememberWorkspaceList,
+  rememberWorkspaceName,
+  rememberedWorkspaceName,
+} from "@/core/workspace-registry.js";
 import {
   createWorkspace,
   fetchMe,
@@ -1400,6 +1410,10 @@ export function App() {
       setClient(nextClient);
       setOffline(options.isOffline);
       setStoreMode(mode);
+      // The boot reached local bytes: this device now holds a copy of the
+      // workspace, so the offline registry may offer it while the server
+      // can't answer.
+      markLocalWorkspaceCopy(workspaceId);
       setPhase({ name: "ready" });
       // Realtime acceleration is best-effort: sync already works without it.
       try {
@@ -1436,12 +1450,14 @@ export function App() {
             setToken(credential);
             setSessionSignedIn(credentialType === "session");
             setWorkspaces(list);
+            rememberWorkspaceList(list);
             setPhase({ name: "workspaces", user: me });
             return;
           }
           // Deep-link resolution: a /<node-uuid> URL names a node that may
           // live in another of the account's workspaces. Connect straight to
           // the holder instead of the remembered workspace.
+          rememberWorkspaceList(list);
           const nodeMatch =
             /^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(
               window.location.pathname,
@@ -1497,7 +1513,7 @@ export function App() {
             return connect(rememberedUrl, credential, rememberedWorkspace, {
               isOffline: false,
               credentialType,
-              label: "Workspace",
+              label: rememberedWorkspaceName(rememberedWorkspace) ?? "Workspace",
             });
           }
           // No workspace to open locally (the manager was the last surface):
@@ -1598,6 +1614,7 @@ export function App() {
     try {
       const { workspaces: list } = await listWorkspaces(url, sessionToken);
       setWorkspaces(list);
+      rememberWorkspaceList(list);
       pushNav("/workspaces", { view: "workspaces" });
       setPhase({ name: "workspaces", user: account });
     } catch (err) {
@@ -2066,7 +2083,10 @@ export function App() {
             openWorkspaceLanding(),
           );
         }}
-        onRenamed={(_id, name) => setWorkspaceName(name)}
+        onRenamed={(id, name) => {
+          rememberWorkspaceName(id, name);
+          setWorkspaceName(name);
+        }}
         onOpenUserSettings={
           sessionSignedIn && user !== null
             ? () => {
@@ -2169,6 +2189,7 @@ export function App() {
                 setManagerOpen(true);
               }}
               onRenamed={(id, name) => {
+                rememberWorkspaceName(id, name);
                 if (id === readStored(STORAGE_KEYS.workspaceId)) setWorkspaceName(name);
               }}
             />
