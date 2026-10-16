@@ -53,6 +53,8 @@ the pointer and the law.
 
 Inputs & buttons: `Button`, `Pill`/`AddPill`, `Chip` (the single-toggle
 pill — filter families, group toggles), `TextField`, `SearchField`,
+`Input` (the boxed text field — the SelectTrigger register applied to a
+native `<input>`; pairs with `Dropdown` in dense condition/toolbar rows),
 `Dropdown`, `SelectTrigger`, `Checkbox`, `Radio` (the checkbox variant's
 single-selection sibling — groups compose by sharing a `name`),
 `ToggleSwitch`, `BooleanToggle`,
