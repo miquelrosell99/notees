@@ -341,12 +341,12 @@ function supportsMatchMedia(): boolean {
  */
 export function useIsMobile(): boolean {
   const [isMobile, setIsMobile] = useState(
-    () => supportsMatchMedia() && window.matchMedia(`(max-width: ${getMobileBreakpoint()}px)`).matches,
+    () => supportsMatchMedia() && window.matchMedia(`(width <= ${getMobileBreakpoint()}px)`).matches,
   );
 
   useEffect(() => {
     if (!supportsMatchMedia()) return;
-    const mql = window.matchMedia(`(max-width: ${getMobileBreakpoint()}px)`);
+    const mql = window.matchMedia(`(width <= ${getMobileBreakpoint()}px)`);
     const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
     mql.addEventListener('change', handler);
     return () => mql.removeEventListener('change', handler);

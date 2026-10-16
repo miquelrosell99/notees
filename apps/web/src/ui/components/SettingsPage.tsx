@@ -129,6 +129,7 @@ export function AccentColorPicker() {
             applyAppearance();
           }}
           aria-label={option.label}
+          aria-pressed={accentColor === option.value}
           title={option.label}
         />
       ))}

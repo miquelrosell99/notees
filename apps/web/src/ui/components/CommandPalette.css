@@ -65,9 +65,20 @@
   cursor: pointer;
 }
 
-.nt-palette-item[data-active="true"] {
-  /* The registered active register (mouse hover drives activeIndex here,
-     so this fill is both hover and active). */
+.nt-palette-item:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-palette-item:active {
+  background: var(--md-sys-color-pressed-overlay);
+}
+
+/* The palette cursor is a genuine active state: ArrowUp/Down moves it and
+   mouse hover drives it (onMouseEnter sets activeIndex) — so the active row
+   keeps primary-container while hovered (the hover ruling's combined-rule
+   pattern; the plain :hover above serves the non-active transient). */
+.nt-palette-item[data-active="true"],
+.nt-palette-item[data-active="true"]:hover {
   background: var(--md-sys-color-primary-container);
   color: var(--md-sys-color-on-primary-container);
 }

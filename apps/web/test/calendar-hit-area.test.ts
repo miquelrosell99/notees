@@ -80,3 +80,25 @@ describe("calendar cells carry the 44px invisible hit-area overlay", () => {
     expect(overlay![0]).toContain("pointer-events: auto");
   });
 });
+
+describe("the has-note day is a genuine active state (the hover ruling's combined rule)", () => {
+  it("the shared day grid: 600 label weight, hover keeps primary-container", () => {
+    const rule = /\.calendar-day\.btn\.has-note,\s*\.calendar-day\.btn\.has-note:hover \{[^}]*\}/.exec(gridCss);
+    expect(rule).not.toBeNull();
+    expect(rule![0]).toContain("background: var(--md-sys-color-primary-container)");
+    expect(rule![0]).toContain("font-weight: 600");
+    // Hover must not replace the active fill with the hover overlay.
+    expect(gridCss).not.toMatch(/\.calendar-day\.btn\.has-note:hover \{[^}]*hover-overlay/);
+  });
+
+  it("the popup day grid rides the same convention", () => {
+    // The pickers popup skin (CalendarPopup + DatePickerPopup) — not the
+    // top-bar popup, which composes the shared calendar-grid.css day grid.
+    const pickerPopupCss = readCss("components", "pickers", "CalendarPopup.css");
+    const rule = /\.calendar-day\.btn\.has-note,\s*\.calendar-day\.btn\.has-note:hover \{[^}]*\}/.exec(pickerPopupCss);
+    expect(rule).not.toBeNull();
+    expect(rule![0]).toContain("background: var(--md-sys-color-primary-container)");
+    expect(rule![0]).toContain("font-weight: 600");
+    expect(pickerPopupCss).not.toMatch(/\.calendar-day\.btn\.has-note:hover \{[^}]*hover-overlay/);
+  });
+});

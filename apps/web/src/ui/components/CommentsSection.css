@@ -97,6 +97,7 @@
 }
 
 .nt-comments__action {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -110,7 +111,25 @@
   cursor: pointer;
 }
 
+/* The invisible 44px hit-area floor (skill §9 — the Slice-B pattern the
+   calendar day grid established): the visible control stays 24px, the ::after
+   overlay centered on it reaches ≥44×44. */
+.nt-comments__action::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+  pointer-events: auto;
+}
+
 .nt-comments__action:hover {
   background: var(--md-sys-color-hover-overlay);
   color: var(--md-sys-color-on-surface);
+}
+
+.nt-comments__action:active {
+  background: var(--md-sys-color-pressed-overlay);
 }

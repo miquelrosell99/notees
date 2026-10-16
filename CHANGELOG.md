@@ -89,6 +89,42 @@ predating this file.
   exact token). No visual density changes; sidebar, top bar, and canvas
   surfaces untouched. **Verification:** `pnpm typecheck` + `pnpm test`
   green; web-only — no wire touch.
+- **fix(web): the drift sweep's criticals and warnings — range-syntax media
+  queries, the hover register on palette/calendar rows, 44px floors and
+  pressed states, the §7 row register on hubs (design-system alignment
+  sweep 2026-10-16).** The two Criticals were §8 legacy media syntax in JS
+  matchMedia strings — the re-audit's normalization claim missed these two
+  sites: `useIsMobile` now builds `(width <= <bp>px)` from the token
+  breakpoint, and the sidebar's open-by-default gate keeps its deliberate
+  801px threshold (a non-register value — noted at the call site, behavior
+  preservation over breakpoint purity) in range syntax `(width >= 801px)`.
+  Warnings: the palette cursor is a genuine active state — mouse hover
+  drives `activeIndex` AND ArrowUp/Down moves it — so the row keeps
+  primary-container via the hover ruling's combined-rule pattern
+  (`--active, --active:hover`), with plain `:hover` on the overlay and a
+  pressed layer added; the calendar's has-note day (grid + popup — one
+  convention) joins the same combined rule at label weight 600, and the
+  popup's generic hover now sits alongside instead of washing the fill.
+  The comments Reply/Delete and trash restore/delete-permanently actions
+  (24–28px) gain the invisible 44px `::after` hit-area overlay (the
+  Slice-B calendar pattern) plus `:active` pressed layers; the journals
+  Today + empty-state CTA, the settings theme buttons, and the palette rows
+  gain pressed layers too (the filled primary CTA presses with
+  `primary-pressed`, the Button.css register). The settings accent swatch
+  drops the hover `scale(1.15)` (not in the tactile map — the
+  IconPickerPopup precedent) for the state-layer overlay (an inset
+  `::after`, since the accent fill is inline) and the five swatches expose
+  `aria-pressed` in their `role="group"`. The §7 list-row register converges
+  on the hub rows: task-bucket, calendar-view, and trash names at 14px/600
+  with the single-line ellipsis contract kept, secondaries at 12px muted;
+  the shortcuts group title cites `--letter-spacing-section`. Specs:
+  new `hover-press-register.test.ts` CSS-source pins (palette contract,
+  hit-area overlays, pressed layers, the §7 rows, the range-syntax
+  call sites), calendar pins in `calendar-hit-area.test.ts`, an
+  `aria-pressed` assertion in `settings-page.test.tsx`. The sidebar, top
+  bar, and canvas surfaces stay untouched per the override register.
+  **Verification:** `pnpm typecheck` + `pnpm test` green; web-only — no
+  wire touch.
 - **fix(web): the extract rows read "Extract without children" / "Extract
   with children", and the flyout rides flush against the menu — no overlap
   (owner feedback 2026-10-16).** The labels name what the extracted node

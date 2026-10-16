@@ -53,6 +53,10 @@
   border-color: var(--md-sys-color-outline);
 }
 
+.journals-view__today-btn:active {
+  background: var(--md-sys-color-pressed-overlay);
+}
+
 .journals-list {
   flex: 1;
   min-height: 0;
@@ -112,6 +116,11 @@
 
 .journals-empty__action:hover {
   background: var(--md-sys-color-primary-hover);
+}
+
+.journals-empty__action:active {
+  /* Filled primary button — the Button.css .btn--primary pressed register. */
+  background: var(--md-sys-color-primary-pressed);
 }
 
 /* The embedded page title is a navigation button, not an editor. */
