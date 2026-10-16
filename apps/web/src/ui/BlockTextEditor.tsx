@@ -416,6 +416,8 @@ interface MentionToken {
   text: string;
   displayText?: string;
   linkId?: string;
+  /** Manual per-link embedding flag (default false). */
+  isEmbedded?: boolean;
 }
 
 /** State of the node-link right-click menu (hit-tested to a mention token). */
@@ -1606,6 +1608,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       insertAt: null,
       initialNodeId: hit.token.targetNodeId,
       initialLabel: hit.token.displayText ?? "",
+      initialEmbedded: hit.token.isEmbedded === true,
     });
   };
 

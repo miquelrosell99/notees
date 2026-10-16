@@ -127,6 +127,11 @@ export interface DesiredEdge {
   type: "mention" | "typed_link" | "property";
   verb: string | null;
   metadata: string | null;
+  /** Mention edges only: the link's manual embedding flag (SCHEMA.md
+   * "Node structure" — link embedding rides the mention token, default
+   * false). Not part of the edge identity: toggling it updates the row in
+   * place, exactly like the alias resolution. */
+  isEmbedded?: boolean;
   /** Property edges only: the value row's causal wall clock (ms) — the
    *  derived edge's first-appearance stamp (converted to the envelope ISO
    *  shape at write time). Undefined for content-derived edges. */
@@ -167,6 +172,7 @@ export function deriveDesiredEdges(db: StoreDatabase, nodeId: string): DesiredEd
           type: "mention",
           verb: null,
           metadata: null,
+          isEmbedded: t.isEmbedded === true,
         });
       } else if (t.type === "typed_link") {
         const verb =
@@ -319,11 +325,12 @@ export function rebuildEdges(db: StoreDatabase, nodeId: string, at: string): Edg
   const desiredIds = new Set<string>();
   const occurrenceByKey = new Map<string, number>();
   const insertEdge = db.prepare(
-    `INSERT INTO edge (id, workspace_id, source_id, target_id, resolved_target_id, type, verb, metadata, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO edge (id, workspace_id, source_id, target_id, resolved_target_id, type, verb, metadata, is_embedded, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        created_at = COALESCE(MIN(edge.created_at, excluded.created_at), edge.created_at, excluded.created_at),
-       resolved_target_id = excluded.resolved_target_id`,
+       resolved_target_id = excluded.resolved_target_id,
+       is_embedded = excluded.is_embedded`,
   );
   // Resolution is a pure function of the target id — cache within the rebuild.
   const resolvedCache = new Map<string, string | null>();
@@ -363,6 +370,7 @@ export function rebuildEdges(db: StoreDatabase, nodeId: string, at: string): Edg
       edge.type,
       edge.verb,
       edge.metadata,
+      edge.isEmbedded === true ? 1 : 0,
       createdAt,
     );
   }
