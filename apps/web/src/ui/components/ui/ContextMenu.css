@@ -174,6 +174,12 @@ button.context-menu-item:hover:not(.disabled) {
   padding: var(--spacing-1) var(--spacing-3);
 }
 
+/* Native submenu items — indented under their parent row so the action
+   list reads as one step deeper in the hierarchy. */
+.context-menu-submenu-inline .context-menu-item {
+  padding-left: calc(var(--spacing-3) + var(--icon-size-md) + var(--spacing-2));
+}
+
 /* Touch: long-press menus are the primary affordance — taller items */
 @media (hover: none) {
   .context-menu-item {

@@ -42,6 +42,8 @@ import {
   bundleMarkdown,
   concatBundleMarkdown,
   exportFileName,
+  nodeToMarkdown,
+  renderContent,
   renderExportDocumentToDocx,
   renderExportDocumentToHtml,
   renderExportDocumentToLatex,
@@ -65,13 +67,33 @@ import { nodeIcon } from "../../iconFor.js";
 
 import { getExportFormat as getWebExportFormat } from "./registerExportFormats.js";
 
-import type { WorkspaceClient } from "@/core/workspace-client.js";
+import type {
+  ClientNode,
+  ClientPropertySchema,
+  EffectiveProperty,
+  WorkspaceClient,
+} from "@/core/workspace-client.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 
 export type ExportClient = WorkspaceClient | WorkerClient;
 
+/**
+ * The structural read surface the export engine composes from — both client
+ * classes satisfy it, and so does the node context menu's MenuClient (the
+ * Copy › markdown shapes ride it without dragging the whole client union).
+ */
+export interface ExportReadSurface {
+  getNode(id: string): ClientNode | undefined;
+  getChildren(id: string): ClientNode[];
+  getEffectiveProperties(id: string): EffectiveProperty[];
+  listPropertySchemas(): ClientPropertySchema[];
+  effectiveClassColor(classId: string): string | null;
+  effectiveClassIcons(): ReadonlyMap<string, string | null>;
+  getDisplayName(id: string): string | null;
+}
+
 /** Map a client node to the exporter's shape, with its effective properties. */
-export function toExportNode(client: ExportClient, id: string): ExportNode | undefined {
+export function toExportNode(client: ExportReadSurface, id: string): ExportNode | undefined {
   const node = client.getNode(id);
   if (node === undefined) return undefined;
   const schemas = new Map(client.listPropertySchemas().map((schema) => [schema.id, schema]));
@@ -115,7 +137,7 @@ const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
  * `propertyCarrierIdsOf`), and the exports must too or a text property's
  * carrier block reads twice. The carrier's whole subtree is pruned with it.
  */
-function propertyCarrierIdsOf(client: ExportClient, nodeId: string): Set<string> {
+function propertyCarrierIdsOf(client: ExportReadSurface, nodeId: string): Set<string> {
   const ids = new Set<string>();
   for (const row of client.getEffectiveProperties(nodeId)) {
     if (row.source !== "authored") continue;
@@ -135,7 +157,7 @@ function propertyCarrierIdsOf(client: ExportClient, nodeId: string): Set<string>
 
 /** Inline-body children only — the nested-bullet read (child pages are files).
  *  Carrier blocks excluded (they render in the property row, not the body). */
-function blockChildrenOf(client: ExportClient, id: string): ExportNode[] {
+function blockChildrenOf(client: ExportReadSurface, id: string): ExportNode[] {
   const carriers = propertyCarrierIdsOf(client, id);
   const nodes: ExportNode[] = [];
   for (const child of client.getChildren(id)) {
@@ -152,7 +174,7 @@ function blockChildrenOf(client: ExportClient, id: string): ExportNode[] {
  * (resolved to concrete hex for the PDF pills) and node icons (the raw
  * stored token — the PDF normalizes MDI names against its sprite paths).
  */
-function chromeHooks(client: ExportClient): Pick<ExportContext, "colorOf" | "iconOf"> {
+function chromeHooks(client: ExportReadSurface): Pick<ExportContext, "colorOf" | "iconOf"> {
   return {
     colorOf: (classId) => {
       const stored = client.effectiveClassColor(classId);
@@ -167,7 +189,7 @@ function chromeHooks(client: ExportClient): Pick<ExportContext, "colorOf" | "ico
 }
 
 function makeExportContext(
-  client: ExportClient,
+  client: ExportReadSurface,
   hooks?: { assetPath?: ((assetId: string) => string | undefined) | undefined },
 ): ExportContext {
   return {
@@ -224,6 +246,29 @@ function engineOptions(options: ExportSubtreeOptions): ExportOptions {
     hideEmptyProperties: options.hideEmptyProperties,
     showTypeLabels: options.showTypeLabels,
   };
+}
+
+/**
+ * Clipboard markdown — the node context menu's Copy › submenu composes its
+ * two shapes through here: the node's own content only (`renderContent` —
+ * no children), or the node with its inline block tree as nested bullets
+ * (`nodeToMarkdown` over the block-children context, frontmatter OFF —
+ * pasted text carries no YAML noise, and child pages stay files: only the
+ * inline body rides along, the export read's own convention).
+ */
+export function clipboardMarkdown(
+  client: ExportReadSurface,
+  rootId: string,
+  withChildren: boolean,
+): string {
+  const root = client.getNode(rootId);
+  if (root === undefined) throw new Error("clipboardMarkdown: node not found");
+  if (!withChildren) {
+    return renderContent(root.contentAst, makeExportContext(client));
+  }
+  const node = toExportNode(client, rootId);
+  if (node === undefined) throw new Error("clipboardMarkdown: node not found");
+  return nodeToMarkdown(node, makeExportContext(client), { includeFrontmatter: false });
 }
 
 /**
