@@ -108,8 +108,30 @@ function pruneChild(child: Child): Child | null {
     case "rootClass":
       return child.classId === "" ? null : child;
     case "classAny":
+    case "pageClassAny":
+    case "ancestorClassedAny":
+    case "rootClassAny":
       return child.classIds.length === 0 ? null : child;
+    case "tag":
+      return child.tagId === "" ? null : child;
+    case "tagAny":
+      return child.tagIds.length === 0 ? null : child;
+    case "linkedToAny":
+    case "descendantOfAny":
+      return child.nodeIds.length === 0 ? null : child;
+    case "createdCmp":
+    case "updatedCmp":
+      return child.timestamp.trim() === "" ? null : child;
+    case "createdBetween":
+    case "updatedBetween":
+      return child.from.trim() === "" || child.to.trim() === "" ? null : child;
     case "property":
+      return child.schemaId === "" ? null : child;
+    case "propertyBetween":
+      return child.schemaId === "" || child.from === undefined || child.to === undefined
+        ? null
+        : child;
+    case "propertyWithin":
       return child.schemaId === "" ? null : child;
     case "createdAfter":
     case "createdBefore":
@@ -174,6 +196,7 @@ export type ConditionKind =
   | "placement"
   | "content"
   | "property"
+  | "tags"
   | "links"
   | "parent"
   | "page"
@@ -206,6 +229,7 @@ export const FILTER_KIND_OPTIONS: readonly FilterKindOption[] = [
   { value: "placement", label: "Structural role", icon: "mdi mdi-format-align-left", description: "Page (standalone) or Block (embedded in body)" },
   { value: "content", label: "Content", icon: "mdi mdi-text-box-outline", description: "Filter by text content" },
   { value: "property", label: "Property", icon: "mdi mdi-code-braces", description: "Filter by property value" },
+  { value: "tags", label: "Tags", icon: "mdi mdi-tag-multiple-outline", description: "Filter by assigned tags (any page)" },
   { value: "links", label: "Links", icon: "mdi mdi-link-variant", description: "Nodes that link to a node or a nested query" },
   { value: "parent", label: "Parent", icon: "mdi mdi-file-tree-outline", description: "Nodes inside a node's parents tree, or a nested query's" },
   { value: "page", label: "Page", icon: "mdi mdi-page-layout-body", description: "The containing page is classed… (e.g. its page is Day)" },
@@ -250,6 +274,8 @@ export function createCondition(kind: ConditionKind): Condition {
       return { type: "content", op: "contains", value: "" };
     case "property":
       return { type: "property", schemaId: "", op: "eq", value: "" };
+    case "tags":
+      return { type: "tag", tagId: "" };
     case "links":
       return { type: "linkedTo", nodeId: "" };
     case "parent":

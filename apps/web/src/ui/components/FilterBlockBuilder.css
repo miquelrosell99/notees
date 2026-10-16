@@ -198,6 +198,63 @@
   transform: rotate(180deg);
 }
 
+/* The multi node pick (the "one of" value over node targets): picked nodes
+   ride as quiet chips with a remove ×, the + trigger opens the anchored
+   NodeSelector. Flexes with the value column like the other controls. */
+.nt-fb-multipick {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.nt-fb-multipick__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  max-width: 18ch;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 0 var(--spacing-1) 0 var(--spacing-2);
+  min-height: calc(var(--height-md) - var(--spacing-2));
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-extra-large);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font: var(--font-body-small);
+}
+
+.nt-fb-multipick__remove {
+  border: none;
+  background: transparent;
+  padding: 0 var(--spacing-1);
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+  font: inherit;
+}
+
+.nt-fb-multipick__remove:hover {
+  color: var(--md-sys-color-on-surface);
+}
+
+.nt-fb-multipick__add {
+  min-height: calc(var(--height-md) - var(--spacing-2));
+  padding: 0 var(--spacing-2);
+  border: var(--border-width-default) dashed var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-extra-large);
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--font-body-small);
+  cursor: pointer;
+}
+
+.nt-fb-multipick__add:hover {
+  border-color: var(--md-sys-color-outline);
+  color: var(--md-sys-color-on-surface);
+}
+
 /* The add-condition trigger rides the app's quiet button register
    (owner 2026-10-09): transparent ghost — a fill + border read too dark
    against the panel. The trailing chevron alone carries the dropdown

@@ -37,6 +37,8 @@ import type {
   AggregationDimension,
   AggregationMeasure,
   Condition,
+  DateOp,
+  DatePeriod,
   Group,
   Not,
   PropertyOp,
@@ -44,6 +46,10 @@ import type {
   SortSpec,
 } from "./ast.js";
 import {
+  placeholderEndDate,
+  placeholderStartDate,
+  resolveDayBounds,
+  resolvePeriodBounds,
   resolveTimestampPlaceholder,
   resolveValuePlaceholder,
   type PlaceholderContext,
@@ -512,6 +518,169 @@ class Compiler {
       case "classSet":
         // The class set is non-empty (Odoo "is set"); the not-wrap reads "is not set".
         return "(SELECT COUNT(*) FROM json_each(n.class_ids)) > 0";
+      case "pageClassAny":
+      case "ancestorClassedAny":
+      case "rootClassAny": {
+        // The container ANY-of shapes — the same walk as the single-id arms
+        // with the closure probe widened to an IN-list.
+        const ids = condition.classIds.map((id) => this.push(id)).join(", ");
+        const probe = `value IN (SELECT class_id FROM class_hierarchy WHERE ancestor_id IN (${ids}))`;
+        if (condition.type === "pageClassAny") {
+          return (
+            "EXISTS (\n  SELECT 1 FROM (\n" +
+            "    SELECT pg.class_ids AS class_ids FROM node pg JOIN (\n" +
+            "      WITH RECURSIVE up(id, depth) AS (\n" +
+            "        SELECT n.id, 0\n" +
+            "        UNION ALL\n" +
+            "        SELECT nd.parent_id, up.depth + 1 FROM node nd JOIN up ON nd.id = up.id\n" +
+            "        WHERE nd.parent_id IS NOT NULL AND up.depth < 64\n" +
+            "      ) SELECT id, depth FROM up\n" +
+            "    ) ch ON ch.id = pg.id\n" +
+            "    WHERE pg.is_class = 1 OR pg.parent_id IS NULL OR pg.is_embedded = 0\n" +
+            "    ORDER BY ch.depth LIMIT 1\n" +
+            "  ) page JOIN json_each(page.class_ids)\n" +
+            `  WHERE ${probe}\n)`
+          );
+        }
+        if (condition.type === "ancestorClassedAny") {
+          return (
+            "EXISTS (\n  WITH RECURSIVE anc(id, depth) AS (\n" +
+            "    SELECT nd.parent_id, 0 FROM node nd WHERE nd.id = n.id\n" +
+            "    UNION ALL\n" +
+            "    SELECT nd.parent_id, anc.depth + 1 FROM node nd JOIN anc ON nd.id = anc.id\n" +
+            "    WHERE anc.id IS NOT NULL AND anc.depth < 64\n" +
+            "  )\n" +
+            "  SELECT 1 FROM anc JOIN node a ON a.id = anc.id\n" +
+            "  JOIN json_each(a.class_ids)\n" +
+            `  WHERE ${probe}\n)`
+          );
+        }
+        return (
+          "EXISTS (\n  SELECT 1 FROM (\n" +
+          "    SELECT pg.class_ids AS class_ids FROM node pg WHERE pg.id = (\n" +
+          "      WITH RECURSIVE up(id) AS (\n" +
+          "        SELECT n.id\n" +
+          "        UNION ALL\n" +
+          "        SELECT nd.parent_id FROM node nd JOIN up ON nd.id = up.id\n" +
+          "        WHERE nd.parent_id IS NOT NULL\n" +
+          "      )\n" +
+          "      SELECT up.id FROM up JOIN node nd ON nd.id = up.id\n" +
+          "      WHERE nd.parent_id IS NULL LIMIT 1\n" +
+          "    )\n" +
+          "  ) root JOIN json_each(root.class_ids)\n" +
+          `  WHERE ${probe}\n)`
+        );
+      }
+      case "pageClassSet":
+      case "ancestorClassedSet":
+      case "rootClassSet": {
+        // The container "is set" shapes — the same walk, probing only that the
+        // container's class set is non-empty.
+        if (condition.type === "pageClassSet") {
+          return (
+            "EXISTS (\n  SELECT 1 FROM (\n" +
+            "    SELECT pg.class_ids AS class_ids FROM node pg JOIN (\n" +
+            "      WITH RECURSIVE up(id, depth) AS (\n" +
+            "        SELECT n.id, 0\n" +
+            "        UNION ALL\n" +
+            "        SELECT nd.parent_id, up.depth + 1 FROM node nd JOIN up ON nd.id = up.id\n" +
+            "        WHERE nd.parent_id IS NOT NULL AND up.depth < 64\n" +
+            "      ) SELECT id, depth FROM up\n" +
+            "    ) ch ON ch.id = pg.id\n" +
+            "    WHERE pg.is_class = 1 OR pg.parent_id IS NULL OR pg.is_embedded = 0\n" +
+            "    ORDER BY ch.depth LIMIT 1\n" +
+            "  ) page JOIN json_each(page.class_ids)\n)"
+          );
+        }
+        if (condition.type === "ancestorClassedSet") {
+          return (
+            "EXISTS (\n  WITH RECURSIVE anc(id, depth) AS (\n" +
+            "    SELECT nd.parent_id, 0 FROM node nd WHERE nd.id = n.id\n" +
+            "    UNION ALL\n" +
+            "    SELECT nd.parent_id, anc.depth + 1 FROM node nd JOIN anc ON nd.id = anc.id\n" +
+            "    WHERE anc.id IS NOT NULL AND anc.depth < 64\n" +
+            "  )\n" +
+            "  SELECT 1 FROM anc JOIN node a ON a.id = anc.id\n" +
+            "  JOIN json_each(a.class_ids)\n)"
+          );
+        }
+        return (
+          "EXISTS (\n  SELECT 1 FROM (\n" +
+          "    SELECT pg.class_ids AS class_ids FROM node pg WHERE pg.id = (\n" +
+          "      WITH RECURSIVE up(id) AS (\n" +
+          "        SELECT n.id\n" +
+          "        UNION ALL\n" +
+          "        SELECT nd.parent_id FROM node nd JOIN up ON nd.id = up.id\n" +
+          "        WHERE nd.parent_id IS NOT NULL\n" +
+          "      )\n" +
+          "      SELECT up.id FROM up JOIN node nd ON nd.id = up.id\n" +
+          "      WHERE nd.parent_id IS NULL LIMIT 1\n" +
+          "    )\n" +
+          "  ) root JOIN json_each(root.class_ids)\n)"
+        );
+      }
+      case "contentSet":
+        // The title/content plaintext is non-empty (the content "is set").
+        return (
+          "EXISTS (\n  SELECT 1 FROM search_index_docid d\n" +
+          "  JOIN search_index s ON s.rowid = d.docid\n" +
+          "  WHERE d.node_id = n.id AND length(s.content) > 0\n)"
+        );
+      case "tag":
+        // Tag membership over the OR-set tag_ids (a tag is any page — no
+        // hierarchy, so the probe is the literal id).
+        return `EXISTS (\n  SELECT 1 FROM json_each(n.tag_ids) WHERE value = ${this.push(condition.tagId)}\n)`;
+      case "tagAny": {
+        const ids = condition.tagIds.map((id) => this.push(id)).join(", ");
+        return `EXISTS (\n  SELECT 1 FROM json_each(n.tag_ids) WHERE value IN (${ids})\n)`;
+      }
+      case "tagSet":
+        return "(SELECT COUNT(*) FROM json_each(n.tag_ids)) > 0";
+      case "linkedToAny": {
+        // backlinksWithRollup membership of ANY picked node — the linkedToSet
+        // over an anchor set. Params: the anchor ids (the CTE carries none).
+        const anchorSet =
+          "SELECT id, 0 AS distance FROM node WHERE id IN (" +
+          condition.nodeIds.map((id) => this.push(id)).join(", ") +
+          ")";
+        return `n.id IN (SELECT id FROM (${this.linkedToSetSql(anchorSet)}))`;
+      }
+      case "linkSet":
+        // At least one inbound link — a direct edge targets the node.
+        return "EXISTS (SELECT 1 FROM edge WHERE target_id = n.id)";
+      case "descendantOfAny": {
+        // Subtree membership of ANY picked node, anchors excluded — the
+        // descendantOf shape over an anchor set. The anchor list reaches the
+        // NOT-IN through ONE json_each param: unindexed `?` placeholders
+        // number per occurrence, so a repeated list would re-bind wrong.
+        const anchorIds = condition.nodeIds.map((id) => this.push(id)).join(", ");
+        const anchorSet = `SELECT id, 0 AS distance FROM node WHERE id IN (${anchorIds})`;
+        const subtree = this.subtreeSetSql(anchorSet);
+        const exclude = this.push(JSON.stringify(condition.nodeIds));
+        return (
+          `n.id IN (SELECT id FROM (${subtree})) ` +
+          `AND n.id NOT IN (SELECT value FROM json_each(${exclude}))`
+        );
+      }
+      case "parentSet":
+        // The node has a parent at all.
+        return "n.parent_id IS NOT NULL";
+      case "createdCmp":
+        return this.dateCmpSql("created_at", condition.op, condition.timestamp);
+      case "updatedCmp":
+        return this.dateCmpSql("updated_at", condition.op, condition.timestamp);
+      case "createdBetween":
+        return this.dateBetweenSql("created_at", condition.from, condition.to);
+      case "updatedBetween":
+        return this.dateBetweenSql("updated_at", condition.from, condition.to);
+      case "createdWithin":
+        return this.dateWithinSql("created_at", condition.period);
+      case "updatedWithin":
+        return this.dateWithinSql("updated_at", condition.period);
+      case "propertyBetween":
+        return this.propertyRangeSql(condition);
+      case "propertyWithin":
+        return this.propertyWithinSql(condition);
       case "pageClass": {
         // The CONTAINING PAGE — the nearest self-or-ancestor row that renders
         // with document chrome (the Revision-12 page-role condition, the same
@@ -681,10 +850,26 @@ class Compiler {
     const param = this.push(condition.value);
     // LIKE is ASCII case-insensitive (SQLite default), matching the
     // case-insensitive contains; the pattern builds around the parameter.
+    // eq/neq test the plaintext for full equality; starts/ends anchor the
+    // LIKE at one edge — the Odoo text operator set.
+    if (condition.op === "eq" || condition.op === "neq") {
+      return (
+        "EXISTS (\n  SELECT 1 FROM search_index_docid d\n" +
+        "  JOIN search_index s ON s.rowid = d.docid\n" +
+        `  WHERE d.node_id = n.id AND s.content ${condition.op === "eq" ? "=" : "!="} ${param}\n` +
+        ")"
+      );
+    }
+    const anchor =
+      condition.op === "starts"
+        ? `${param} || '%'`
+        : condition.op === "ends"
+          ? `'%' || ${param}`
+          : `'%' || ${param} || '%'`;
     return (
       "EXISTS (\n  SELECT 1 FROM search_index_docid d\n" +
       "  JOIN search_index s ON s.rowid = d.docid\n" +
-      `  WHERE d.node_id = n.id AND s.content LIKE '%' || ${param} || '%'\n` +
+      `  WHERE d.node_id = n.id AND s.content LIKE ${anchor}\n` +
       ")"
     );
   }
@@ -735,43 +920,7 @@ class Compiler {
     }
     const includeDefaults = condition.includeDefaults ?? true;
 
-    const schemaId = this.push(condition.schemaId);
-    let ctes =
-      `WITH authored AS (\n` +
-      `  SELECT pv.node_id AS node_id, pv.value AS value\n` +
-      `  FROM property_value pv\n` +
-      `  WHERE pv.property_schema_id = ${schemaId}\n` +
-      `    AND ${Compiler.visibleValuePredicate("pv")}\n` +
-      `)`;
-
-    let unions = "SELECT node_id, value FROM authored";
-    if (includeDefaults) {
-      const bindingSchemaId = this.push(condition.schemaId);
-      const authoredSchemaId = this.push(condition.schemaId);
-      ctes +=
-        `,\nderived AS (\n` +
-        `  SELECT wb.node_id AS node_id, wb.default_value AS value\n` +
-        `  FROM (\n` +
-        `    SELECT cms.node_id, cp.default_value,\n` +
-        `           ROW_NUMBER() OVER (\n` +
-        `             PARTITION BY cms.node_id\n` +
-        `             ORDER BY cms.hlc_physical, cms.hlc_logical, cms.class_id\n` +
-        `           ) AS rn\n` +
-        `    FROM class_member_set cms\n` +
-        `    JOIN class_property cp ON cp.class_id = cms.class_id\n` +
-        `    WHERE cms.present = 1 AND cp.property_schema_id = ${bindingSchemaId} AND cp.active = 1\n` +
-        `      AND cp.default_value IS NOT NULL\n` +
-        `  ) wb\n` +
-        `  WHERE wb.rn = 1\n` +
-        `    AND NOT EXISTS (\n` +
-        `      SELECT 1 FROM property_value pv\n` +
-        `      WHERE pv.node_id = wb.node_id AND pv.property_schema_id = ${authoredSchemaId}\n` +
-        `        AND pv.idx = 0\n` +
-        `        AND ${Compiler.visibleValuePredicate("pv")}\n` +
-        `    )\n` +
-        `)`;
-      unions += "\nUNION ALL\nSELECT node_id, value FROM derived";
-    }
+    const { ctes, unions } = this.effectiveValueCtes(condition.schemaId, includeDefaults);
 
     let predicate = "";
     const boundIso =
@@ -808,6 +957,138 @@ class Compiler {
 
     const membership = `n.id IN (\n  ${ctes},\n  effective AS (\n  ${unions}\n  )\n  SELECT node_id FROM effective\n  ${predicate}\n)`;
     return membership;
+  }
+
+  /**
+   * The effective-values CTE pair shared by every property-shaped condition
+   * (property / propertyBetween / propertyWithin): tombstone-suppressed
+   * authored rows UNION bindings-derived defaults (the effective.ts
+   * semantics). Params push in CTE text order (schema, then the two derived
+   * arms) — callers build the predicate AFTER this, so bound params always
+   * follow the CTE params.
+   */
+  private effectiveValueCtes(
+    schemaId: string,
+    includeDefaults: boolean,
+  ): { ctes: string; unions: string } {
+    const schemaParam = this.push(schemaId);
+    let ctes =
+      `WITH authored AS (\n` +
+      `  SELECT pv.node_id AS node_id, pv.value AS value\n` +
+      `  FROM property_value pv\n` +
+      `  WHERE pv.property_schema_id = ${schemaParam}\n` +
+      `    AND ${Compiler.visibleValuePredicate("pv")}\n` +
+      `)`;
+    let unions = "SELECT node_id, value FROM authored";
+    if (includeDefaults) {
+      const bindingSchemaId = this.push(schemaId);
+      const authoredSchemaId = this.push(schemaId);
+      ctes +=
+        `,\nderived AS (\n` +
+        `  SELECT wb.node_id AS node_id, wb.default_value AS value\n` +
+        `  FROM (\n` +
+        `    SELECT cms.node_id, cp.default_value,\n` +
+        `           ROW_NUMBER() OVER (\n` +
+        `             PARTITION BY cms.node_id\n` +
+        `             ORDER BY cms.hlc_physical, cms.hlc_logical, cms.class_id\n` +
+        `           ) AS rn\n` +
+        `    FROM class_member_set cms\n` +
+        `    JOIN class_property cp ON cp.class_id = cms.class_id\n` +
+        `    WHERE cms.present = 1 AND cp.property_schema_id = ${bindingSchemaId} AND cp.active = 1\n` +
+        `      AND cp.default_value IS NOT NULL\n` +
+        `  ) wb\n` +
+        `  WHERE wb.rn = 1\n` +
+        `    AND NOT EXISTS (\n` +
+        `      SELECT 1 FROM property_value pv\n` +
+        `      WHERE pv.node_id = wb.node_id AND pv.property_schema_id = ${authoredSchemaId}\n` +
+        `        AND pv.idx = 0\n` +
+        `        AND ${Compiler.visibleValuePredicate("pv")}\n` +
+        `    )\n` +
+        `)`;
+      unions += "\nUNION ALL\nSELECT node_id, value FROM derived";
+    }
+    return { ctes, unions };
+  }
+
+  /**
+   * The Odoo date comparison (createdCmp/updatedCmp): eq/neq are DAY-granular
+   * (the whole resolved local day matches — the timestamp resolves through
+   * the same placeholder boundary machinery as After/Before); gt/gte/lt/lte
+   * compare against the resolved instant (gte = After, lte = Before).
+   */
+  private dateCmpSql(column: string, op: DateOp, timestamp: string): string {
+    if (op === "eq" || op === "neq") {
+      const day = resolveDayBounds(timestamp, this.options);
+      const start = this.push(day.from);
+      const end = this.push(day.to);
+      const match = `n.${column} >= ${start} AND n.${column} <= ${end}`;
+      return op === "eq" ? match : `NOT (${match})`;
+    }
+    const direction = op === "gt" || op === "gte" ? "after" : "before";
+    const sqlOp = { gt: ">", gte: ">=", lt: "<", lte: "<=" }[op as "gt" | "gte" | "lt" | "lte"];
+    const bound = this.push(resolveTimestampPlaceholder(timestamp, direction, this.options));
+    return `n.${column} ${sqlOp} ${bound}`;
+  }
+
+  /** The inclusive date range: from day-start to to day-end. */
+  private dateBetweenSql(column: string, from: string, to: string): string {
+    const fromBound = this.push(resolveTimestampPlaceholder(from, "after", this.options));
+    const toBound = this.push(resolveTimestampPlaceholder(to, "before", this.options));
+    return `n.${column} >= ${fromBound} AND n.${column} <= ${toBound}`;
+  }
+
+  /** The relative-period arm: the resolved period bounds against the column. */
+  private dateWithinSql(column: string, period: DatePeriod): string {
+    const bounds = resolvePeriodBounds(period, this.options);
+    const from = this.push(bounds.from);
+    const to = this.push(bounds.to);
+    return `n.${column} >= ${from} AND n.${column} <= ${to}`;
+  }
+
+  /** propertyBetween: the effective value inside the inclusive [from, to]. */
+  private propertyRangeSql(
+    condition: Extract<Condition, { type: "propertyBetween" }>,
+  ): string {
+    if (condition.from === undefined || condition.to === undefined) {
+      throw new Error("query compile: propertyBetween requires both bounds");
+    }
+    const { ctes, unions } = this.effectiveValueCtes(condition.schemaId, true);
+    const fromIso =
+      typeof condition.from === "string" && /^\d{4}-\d{2}-\d{2}$/.test(condition.from)
+        ? condition.from
+        : null;
+    const toIso =
+      typeof condition.to === "string" && /^\d{4}-\d{2}-\d{2}$/.test(condition.to)
+        ? condition.to
+        : null;
+    const fromParam = this.push(condition.from);
+    const toParam = this.push(condition.to);
+    let predicate = `WHERE json_extract(value, '$') >= ${fromParam} AND json_extract(value, '$') <= ${toParam}`;
+    if (fromIso !== null && toIso !== null) {
+      // ISO bounds also speak to date-node refs; the scalar arm gates
+      // non-object values (raw JSON text would sort wrong).
+      const scalar = `json_type(value, '$') != 'object' AND ${predicate.slice("WHERE ".length)}`;
+      predicate = `WHERE (${scalar}) OR (${this.dateRefSql(">=", fromIso)} AND ${this.dateRefSql("<=", toIso)})`;
+    }
+    return `n.id IN (\n  ${ctes},\n  effective AS (\n  ${unions}\n  )\n  SELECT node_id FROM effective\n  ${predicate}\n)`;
+  }
+
+  /** propertyWithin: the effective DATE-valued property inside the period. */
+  private propertyWithinSql(
+    condition: Extract<Condition, { type: "propertyWithin" }>,
+  ): string {
+    const { ctes, unions } = this.effectiveValueCtes(condition.schemaId, true);
+    const token = `{${condition.period}}`;
+    const fromIso = placeholderStartDate(token, this.options);
+    const toIso = placeholderEndDate(token, this.options);
+    if (fromIso === null || toIso === null) {
+      throw new Error(`query compile: unknown property period ${JSON.stringify(condition.period)}`);
+    }
+    const fromParam = this.push(fromIso);
+    const toParam = this.push(toIso);
+    const scalar = `json_type(value, '$') != 'object' AND json_extract(value, '$') >= ${fromParam} AND json_extract(value, '$') <= ${toParam}`;
+    const predicate = `WHERE (${scalar}) OR (${this.dateRefSql(">=", fromIso)} AND ${this.dateRefSql("<=", toIso)})`;
+    return `n.id IN (\n  ${ctes},\n  effective AS (\n  ${unions}\n  )\n  SELECT node_id FROM effective\n  ${predicate}\n)`;
   }
 
   /**

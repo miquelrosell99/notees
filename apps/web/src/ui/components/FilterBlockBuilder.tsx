@@ -48,7 +48,7 @@ import {
   QUERY_PLACEHOLDERS,
   type Child,
   type Condition,
-  type ContentOp,
+  type DatePeriod,
   type Group,
   type Not,
   type PropertyOp,
@@ -420,6 +420,7 @@ function blockView(child: Child): { negated: boolean; condition: Condition } | n
 function familyOf(condition: Condition): ConditionKind {
   switch (condition.type) {
     case "content":
+    case "contentSet":
       return "content";
     case "class":
     case "classExact":
@@ -431,18 +432,34 @@ function familyOf(condition: Condition): ConditionKind {
     case "isEmbedded":
       return "placement";
     case "property":
+    case "propertyBetween":
+    case "propertyWithin":
       return "property";
     case "linkedTo":
     case "linkedToQuery":
+    case "linkedToAny":
+    case "linkSet":
       return "links";
     case "descendantOf":
     case "descendantOfQuery":
+    case "descendantOfAny":
+    case "parentSet":
       return "parent";
+    case "tag":
+    case "tagAny":
+    case "tagSet":
+      return "tags";
     case "pageClass":
+    case "pageClassAny":
+    case "pageClassSet":
       return "page";
     case "ancestorClassed":
+    case "ancestorClassedAny":
+    case "ancestorClassedSet":
       return "parentPath";
     case "rootClass":
+    case "rootClassAny":
+    case "rootClassSet":
       return "root";
     case "coverAsset":
       return "cover";
@@ -452,9 +469,15 @@ function familyOf(condition: Condition): ConditionKind {
       return "alias";
     case "createdAfter":
     case "createdBefore":
+    case "createdCmp":
+    case "createdBetween":
+    case "createdWithin":
       return "created";
     case "updatedAfter":
     case "updatedBefore":
+    case "updatedCmp":
+    case "updatedBetween":
+    case "updatedWithin":
       return "edited";
     default:
       return "class";
@@ -466,12 +489,18 @@ interface OperatorOption {
   label: string;
 }
 
-/** The operator column's options per family (the v1 per-type operators). */
-function operatorOptions(family: ConditionKind): readonly OperatorOption[] {
+/** The operator column's options per family (the Odoo operator sets, owner
+ * 2026-10-16). The property family's list adapts to the SELECTED schema's
+ * type; the edited family carries the set/not-set pair (created_at is always
+ * set — the options would lie). */
+function operatorOptions(
+  family: ConditionKind,
+  condition: Condition | undefined,
+  facts: BuilderFacts,
+): readonly OperatorOption[] {
   switch (family) {
     case "class":
-      // The Odoo operator set (owner 2026-10-16): is/is not ride the EXACT
-      // register ("the set is {classId}, nothing else"), contains/does not
+      // The class set: is/is not ride the EXACT register, contains/does not
       // contain ride closure MEMBERSHIP, one of/not one of ride ANY-of
       // membership, is set/is not set test the set's emptiness.
       return [
@@ -479,6 +508,33 @@ function operatorOptions(family: ConditionKind): readonly OperatorOption[] {
         { value: "is-not", label: "is not" },
         { value: "contains", label: "contains" },
         { value: "not-contains", label: "does not contain" },
+        { value: "one-of", label: "one of" },
+        { value: "not-one-of", label: "not one of" },
+        { value: "set", label: "is set" },
+        { value: "not-set", label: "is not set" },
+      ];
+    case "content":
+      // The text operator set: exact/equality, substring, edge-anchored,
+      // full-text, and the emptiness bit.
+      return [
+        { value: "is", label: "is" },
+        { value: "is-not", label: "is not" },
+        { value: "contains", label: "contains" },
+        { value: "not-contains", label: "does not contain" },
+        { value: "starts", label: "starts with" },
+        { value: "ends", label: "ends with" },
+        { value: "fts", label: "full-text" },
+        { value: "set", label: "is set" },
+        { value: "not-set", label: "is not set" },
+      ];
+    case "tags":
+    case "links":
+    case "parent":
+      // The node-target families: is/is not (membership), one of/not one of
+      // (ANY-of over picked nodes), is set/is not set (the reference exists).
+      return [
+        { value: "is", label: "is" },
+        { value: "is-not", label: "is not" },
         { value: "one-of", label: "one of" },
         { value: "not-one-of", label: "not one of" },
         { value: "set", label: "is set" },
@@ -494,39 +550,21 @@ function operatorOptions(family: ConditionKind): readonly OperatorOption[] {
         { value: "is", label: "is" },
         { value: "is-not", label: "is not" },
       ];
-    case "content":
-      return [
-        { value: "contains", label: "contains" },
-        { value: "not-contains", label: "does not contain" },
-        { value: "fts", label: "full-text" },
-      ];
-    case "property":
-      return [
-        { value: "eq", label: "equals" },
-        { value: "neq", label: "not equals" },
-        { value: "contains", label: "contains" },
-        { value: "exists", label: "is set" },
-        { value: "not-exists", label: "is not set" },
-        { value: "gt", label: ">" },
-        { value: "gte", label: "≥" },
-        { value: "lt", label: "<" },
-        { value: "lte", label: "≤" },
-      ];
-    case "links":
-    case "parent":
-      return [
-        { value: "is", label: "is" },
-        { value: "is-not", label: "is not" },
-      ];
     case "page":
     case "parentPath":
     case "root":
-      // The classed-container families (page / parent path / root): the
-      // container is or isn't classed with the picked class.
+      // The classed-container families: the class operator set over the
+      // container (page / parent path / root).
       return [
         { value: "is", label: "is" },
         { value: "is-not", label: "is not" },
+        { value: "one-of", label: "one of" },
+        { value: "not-one-of", label: "not one of" },
+        { value: "set", label: "is set" },
+        { value: "not-set", label: "is not set" },
       ];
+    case "property":
+      return propertyOperatorOptions(condition, facts);
     case "cover":
     case "banner":
     case "alias":
@@ -535,10 +573,94 @@ function operatorOptions(family: ConditionKind): readonly OperatorOption[] {
         { value: "not-exists", label: "is not set" },
       ];
     case "created":
-    case "edited":
+    case "edited": {
+      // The date operator set (Odoo's date list): day-granular equality, the
+      // instant comparisons, the inclusive range, the relative period. The
+      // set bits are deliberately absent — created_at/updated_at are written
+      // at create time, so every row reads "set" (a lying control).
       return [
-        { value: "after", label: "after" },
-        { value: "before", label: "before" },
+        { value: "is", label: "is" },
+        { value: "is-not", label: "is not" },
+        { value: "gt", label: ">" },
+        { value: "gte", label: "≥" },
+        { value: "lt", label: "<" },
+        { value: "lte", label: "≤" },
+        { value: "between", label: "is between" },
+        { value: "within", label: "is within" },
+      ];
+    }
+  }
+}
+
+/** The property family's operator list, adapted to the selected schema's type. */
+function propertyOperatorOptions(
+  condition: Condition | undefined,
+  facts: BuilderFacts,
+): readonly OperatorOption[] {
+  const schemaId = condition?.type === "property" || condition?.type === "propertyBetween" || condition?.type === "propertyWithin"
+    ? condition.schemaId
+    : "";
+  const schema = facts.boundProperties.find((property) => property.id === schemaId);
+  const set = [
+    { value: "set", label: "is set" },
+    { value: "not-set", label: "is not set" },
+  ] as const;
+  switch (schema?.type) {
+    case "number":
+    case "integer":
+      // Odoo's numeric list: =/!=/>/>=/</<=, the range, the substring ops.
+      return [
+        { value: "eq", label: "=" },
+        { value: "neq", label: "≠" },
+        { value: "gt", label: ">" },
+        { value: "gte", label: "≥" },
+        { value: "lt", label: "<" },
+        { value: "lte", label: "≤" },
+        { value: "between", label: "is between" },
+        { value: "contains", label: "contains" },
+        { value: "not-contains", label: "does not contain" },
+        ...set,
+      ];
+    case "datetime":
+      // The date list: the comparisons, the range, the relative period.
+      return [
+        { value: "eq", label: "=" },
+        { value: "neq", label: "≠" },
+        { value: "gt", label: ">" },
+        { value: "gte", label: "≥" },
+        { value: "lt", label: "<" },
+        { value: "lte", label: "≤" },
+        { value: "between", label: "is between" },
+        { value: "within", label: "is within" },
+        ...set,
+      ];
+    case "select":
+      return [
+        { value: "eq", label: "is" },
+        { value: "neq", label: "is not" },
+        ...set,
+      ];
+    case "boolean":
+      return [
+        { value: "is-true", label: "is true" },
+        { value: "is-false", label: "is false" },
+        ...set,
+      ];
+    case "object":
+      // Node-typed: the value control is the anchored node picker.
+      return [
+        { value: "eq", label: "is" },
+        { value: "neq", label: "is not" },
+        ...set,
+      ];
+    default:
+      // Text and the rest: the text set.
+      return [
+        { value: "eq", label: "is" },
+        { value: "neq", label: "is not" },
+        { value: "contains", label: "contains" },
+        { value: "not-contains", label: "does not contain" },
+        ...set,
       ];
   }
 }
@@ -555,35 +677,95 @@ function operatorOf(condition: Condition, negated: boolean): string {
       return negated ? "not-one-of" : "one-of";
     case "classSet":
       return negated ? "not-set" : "set";
+    case "content":
+      if (condition.op === "fts") return "fts";
+      if (condition.op === "eq") return negated ? "is-not" : "is";
+      if (condition.op === "starts") return "starts";
+      if (condition.op === "ends") return "ends";
+      return negated ? "not-contains" : "contains";
+    case "contentSet":
+      return negated ? "not-set" : "set";
+    case "tag":
+      return negated ? "is-not" : "is";
+    case "tagAny":
+      return negated ? "not-one-of" : "one-of";
+    case "tagSet":
+      return negated ? "not-set" : "set";
+    case "linkedTo":
+    case "linkedToQuery":
+      return negated ? "is-not" : "is";
+    case "linkedToAny":
+      return negated ? "not-one-of" : "one-of";
+    case "linkSet":
+      return negated ? "not-set" : "set";
+    case "descendantOf":
+    case "descendantOfQuery":
+      return negated ? "is-not" : "is";
+    case "descendantOfAny":
+      return negated ? "not-one-of" : "one-of";
+    case "parentSet":
+      return negated ? "not-set" : "set";
+    case "pageClass":
+      return negated ? "is-not" : "is";
+    case "pageClassAny":
+      return negated ? "not-one-of" : "one-of";
+    case "pageClassSet":
+      return negated ? "not-set" : "set";
+    case "ancestorClassed":
+      return negated ? "is-not" : "is";
+    case "ancestorClassedAny":
+      return negated ? "not-one-of" : "one-of";
+    case "ancestorClassedSet":
+      return negated ? "not-set" : "set";
+    case "rootClass":
+      return negated ? "is-not" : "is";
+    case "rootClassAny":
+      return negated ? "not-one-of" : "one-of";
+    case "rootClassSet":
+      return negated ? "not-set" : "set";
     case "isClass":
       return condition.isClass ? "is" : "is-not";
     case "isEmbedded":
       return condition.isEmbedded ? "is" : "is-not";
-    case "content":
-      if (condition.op === "fts") return "fts";
-      return negated ? "not-contains" : "contains";
     case "property":
-      if (condition.op === "exists") return negated ? "not-exists" : "exists";
+      if (condition.op === "exists") return negated ? "not-set" : "set";
+      if (condition.op === "eq" && typeof condition.value === "boolean") {
+        const truth = negated ? !condition.value : condition.value;
+        return truth ? "is-true" : "is-false";
+      }
       return condition.op;
-    case "linkedTo":
-    case "linkedToQuery":
-    case "descendantOf":
-    case "descendantOfQuery":
-      return negated ? "is-not" : "is";
-    case "pageClass":
-    case "ancestorClassed":
-    case "rootClass":
-      return negated ? "is-not" : "is";
+    case "propertyBetween":
+      return "between";
+    case "propertyWithin":
+      return "within";
+    case "createdAfter":
+      return "after";
+    case "createdBefore":
+      return "before";
+    case "createdCmp":
+      if (condition.op === "eq") return negated ? "is-not" : "is";
+      if (condition.op === "neq") return negated ? "is" : "is-not";
+      return condition.op;
+    case "createdBetween":
+      return "between";
+    case "createdWithin":
+      return "within";
+    case "updatedAfter":
+      return "after";
+    case "updatedBefore":
+      return "before";
+    case "updatedCmp":
+      if (condition.op === "eq") return negated ? "is-not" : "is";
+      if (condition.op === "neq") return negated ? "is" : "is-not";
+      return condition.op;
+    case "updatedBetween":
+      return "between";
+    case "updatedWithin":
+      return "within";
     case "coverAsset":
     case "bannerAsset":
     case "aliasedNode":
       return negated ? "not-exists" : "exists";
-    case "createdAfter":
-    case "updatedAfter":
-      return "after";
-    case "createdBefore":
-    case "updatedBefore":
-      return "before";
   }
 }
 
@@ -624,12 +806,233 @@ function applyClassOperator(condition: Condition, op: string): Child {
   }
 }
 
+/** Carried ids for the node-target families (links / parent / tags morphs). */
+function carriedNodeIds(condition: Condition): string[] {
+  if (condition.type === "tagAny") return condition.tagIds;
+  if (condition.type === "linkedToAny" || condition.type === "descendantOfAny") {
+    return condition.nodeIds;
+  }
+  if (condition.type === "linkedTo" || condition.type === "descendantOf") {
+    return condition.nodeId !== "" ? [condition.nodeId] : [];
+  }
+  if (condition.type === "tag") {
+    return condition.tagId !== "" ? [condition.tagId] : [];
+  }
+  return [];
+}
+
+/** The node-target morph: is/is not (single), one of/not one of (multi), is set/is not set. */
+function applyNodeTargetOperator(
+  condition: Condition,
+  op: string,
+  single: (id: string) => Condition,
+  any: (ids: string[]) => Condition,
+  setType: Condition,
+): Child {
+  const carried = carriedNodeIds(condition);
+  const neg = (next: Condition): Child => ({ type: "not", child: next });
+  switch (op) {
+    case "is":
+      return single(carried[0] ?? "");
+    case "is-not":
+      return neg(single(carried[0] ?? ""));
+    case "one-of":
+      return any(carried);
+    case "not-one-of":
+      return neg(any(carried));
+    case "set":
+      return setType;
+    case "not-set":
+      return neg(setType);
+    default:
+      return condition;
+  }
+}
+
+/** The container morph (page / parent path / root): single class, ANY-of classes, set. */
+function applyContainerOperator(
+  condition: Condition,
+  op: string,
+  kind: "page" | "path" | "root",
+): Child {
+  const carried: string[] =
+    (condition.type === "pageClassAny" || condition.type === "ancestorClassedAny" || condition.type === "rootClassAny")
+      ? condition.classIds
+      : (condition.type === "pageClass" || condition.type === "ancestorClassed" || condition.type === "rootClass") &&
+          condition.classId !== ""
+        ? [condition.classId]
+        : [];
+  const single =
+    kind === "page"
+      ? (classId: string): Condition => ({ type: "pageClass", classId })
+      : kind === "path"
+        ? (classId: string): Condition => ({ type: "ancestorClassed", classId })
+        : (classId: string): Condition => ({ type: "rootClass", classId });
+  const any =
+    kind === "page"
+      ? (classIds: string[]): Condition => ({ type: "pageClassAny", classIds })
+      : kind === "path"
+        ? (classIds: string[]): Condition => ({ type: "ancestorClassedAny", classIds })
+        : (classIds: string[]): Condition => ({ type: "rootClassAny", classIds });
+  const setType: Condition =
+    kind === "page"
+      ? { type: "pageClassSet" }
+      : kind === "path"
+        ? { type: "ancestorClassedSet" }
+        : { type: "rootClassSet" };
+  const neg = (next: Condition): Child => ({ type: "not", child: next });
+  switch (op) {
+    case "is":
+      return single(carried[0] ?? "");
+    case "is-not":
+      return neg(single(carried[0] ?? ""));
+    case "one-of":
+      return any(carried);
+    case "not-one-of":
+      return neg(any(carried));
+    case "set":
+      return setType;
+    case "not-set":
+      return neg(setType);
+    default:
+      return condition;
+  }
+}
+
+/** The content morph: the text operator set + the emptiness bit. */
+function applyContentOperator(condition: Condition, op: string): Child {
+  const carried = condition.type === "content" ? condition.value : "";
+  const neg = (next: Condition): Child => ({ type: "not", child: next });
+  const text = (contentOp: "eq" | "contains" | "starts" | "ends" | "fts", value: string): Condition => ({
+    type: "content",
+    op: contentOp,
+    value,
+  });
+  switch (op) {
+    case "is":
+      return text("eq", carried);
+    case "is-not":
+      return neg(text("eq", carried));
+    case "contains":
+      return text("contains", carried);
+    case "not-contains":
+      return neg(text("contains", carried));
+    case "starts":
+      return text("starts", carried);
+    case "ends":
+      return text("ends", carried);
+    case "fts":
+      return text("fts", carried);
+    case "set":
+      return { type: "contentSet" };
+    case "not-set":
+      return neg({ type: "contentSet" });
+    default:
+      return condition;
+  }
+}
+
+/** The date morph (created / edited): comparisons carry the timestamp, the range carries it into `from`. */
+function applyDateOperator(condition: Condition, op: string, edited: boolean): Child {
+  const carried =
+    condition.type === "createdCmp" || condition.type === "updatedCmp"
+      ? condition.timestamp
+      : (condition.type === "createdAfter" || condition.type === "updatedAfter" || condition.type === "createdBefore" || condition.type === "updatedBefore" || condition.type === "createdBetween" || condition.type === "updatedBetween")
+        ? (condition as { timestamp?: string; from?: string }).timestamp ??
+          (condition as { from?: string }).from ??
+          ""
+        : "";
+  const cmp = (dateOp: "eq" | "neq" | "gt" | "gte" | "lt" | "lte", timestamp: string): Condition =>
+    edited
+      ? { type: "updatedCmp", op: dateOp, timestamp }
+      : { type: "createdCmp", op: dateOp, timestamp };
+  const between = (from: string, to: string): Condition =>
+    edited ? { type: "updatedBetween", from, to } : { type: "createdBetween", from, to };
+  const within = (period: "today" | "this_week" | "this_month" | "this_year"): Condition =>
+    edited ? { type: "updatedWithin", period } : { type: "createdWithin", period };
+  const neg = (next: Condition): Child => ({ type: "not", child: next });
+  switch (op) {
+    case "is":
+      return cmp("eq", carried);
+    case "is-not":
+      return neg(cmp("eq", carried));
+    case "gt":
+    case "gte":
+    case "lt":
+    case "lte":
+      return cmp(op, carried);
+    case "after":
+      return edited
+        ? { type: "updatedAfter", timestamp: carried }
+        : { type: "createdAfter", timestamp: carried };
+    case "before":
+      return edited
+        ? { type: "updatedBefore", timestamp: carried }
+        : { type: "createdBefore", timestamp: carried };
+    case "between":
+      return between(carried, carried);
+    case "within":
+      return within("today");
+    case "set":
+    case "not-set":
+      // The date set bits are vacuous: created_at/updated_at are written at
+      // create time, so every row reads "set" — no honest control to offer.
+      return condition;
+    default:
+      return condition;
+  }
+}
+
+/** The property morph: the op carries the value across; between/within keep the schema. */
+function applyPropertyOperator(condition: Condition, op: string): Child {
+  const schemaId =
+    condition.type === "property" || condition.type === "propertyBetween" || condition.type === "propertyWithin"
+      ? condition.schemaId
+      : "";
+  const carried = condition.type === "property" ? condition.value : undefined;
+  const neg = (next: Condition): Child => ({ type: "not", child: next });
+  const value = (propertyOp: "eq" | "neq" | "contains" | "gt" | "gte" | "lt" | "lte", v: unknown): Condition => ({
+    type: "property",
+    schemaId,
+    op: propertyOp,
+    ...(v !== undefined ? { value: v } : {}),
+  });
+  switch (op) {
+    case "eq":
+      return value("eq", carried);
+    case "neq":
+      return value("neq", carried);
+    case "contains":
+      return value("contains", carried);
+    case "not-contains":
+      return neg(value("contains", carried));
+    case "gt":
+    case "gte":
+    case "lt":
+    case "lte":
+      return value(op, carried);
+    case "is-true":
+      return value("eq", true);
+    case "is-false":
+      return value("eq", false);
+    case "between":
+      return { type: "propertyBetween", schemaId, from: carried, to: undefined };
+    case "within":
+      return { type: "propertyWithin", schemaId, period: "today" };
+    case "set":
+      return { type: "property", schemaId, op: "exists" };
+    case "not-set":
+      return neg({ type: "property", schemaId, op: "exists" });
+    default:
+      return condition;
+  }
+}
+
 /**
  * Apply an operator choice to a block's condition, returning the new child
- * (not-wrapped where the operator is negative). The boolean families flip
- * their bit instead of wrapping; the date families swap their condition
- * type between the after/before arms; the classed-container families
- * (page / parent path / root) wrap the negation, keeping the picked class.
+ * (not-wrapped where the operator is negative). The picked ids / values /
+ * timestamps carry across the operator morphs; the boolean families flip
+ * their bit instead of wrapping.
  */
 function applyOperator(condition: Condition, op: string): Child {
   const wrap = (next: Condition): Child => next;
@@ -640,40 +1043,81 @@ function applyOperator(condition: Condition, op: string): Child {
     case "classAny":
     case "classSet":
       return applyClassOperator(condition, op);
+    case "content":
+    case "contentSet":
+      return applyContentOperator(condition, op);
+    case "tag":
+    case "tagAny":
+    case "tagSet":
+      return applyNodeTargetOperator(
+        condition,
+        op,
+        (tagId) => ({ type: "tag", tagId }),
+        (tagIds) => ({ type: "tagAny", tagIds }),
+        { type: "tagSet" },
+      );
+    case "linkedTo":
+    case "linkedToAny":
+    case "linkSet":
+      return applyNodeTargetOperator(
+        condition,
+        op,
+        (nodeId) => ({ type: "linkedTo", nodeId }),
+        (nodeIds) => ({ type: "linkedToAny", nodeIds }),
+        { type: "linkSet" },
+      );
+    case "descendantOf":
+    case "descendantOfAny":
+    case "parentSet":
+      return applyNodeTargetOperator(
+        condition,
+        op,
+        (nodeId) => ({ type: "descendantOf", nodeId }),
+        (nodeIds) => ({ type: "descendantOfAny", nodeIds }),
+        { type: "parentSet" },
+      );
+    case "pageClass":
+    case "pageClassAny":
+    case "pageClassSet":
+      return applyContainerOperator(condition, op, "page");
+    case "ancestorClassed":
+    case "ancestorClassedAny":
+    case "ancestorClassedSet":
+      return applyContainerOperator(condition, op, "path");
+    case "rootClass":
+    case "rootClassAny":
+    case "rootClassSet":
+      return applyContainerOperator(condition, op, "root");
+    case "createdAfter":
+    case "createdBefore":
+    case "createdCmp":
+    case "createdBetween":
+    case "createdWithin":
+      return applyDateOperator(condition, op, false);
+    case "updatedAfter":
+    case "updatedBefore":
+    case "updatedCmp":
+    case "updatedBetween":
+    case "updatedWithin":
+      return applyDateOperator(condition, op, true);
+    case "property":
+    case "propertyBetween":
+    case "propertyWithin":
+      return applyPropertyOperator(condition, op);
     case "isClass":
       return { ...condition, isClass: op !== "is-not" };
     case "isEmbedded":
       return { ...condition, isEmbedded: op !== "is-not" };
-    case "content":
-      if (op === "fts") return { ...condition, op: "fts" };
-      return op === "not-contains" ? neg({ ...condition, op: "contains" }) : wrap({ ...condition, op: "contains" });
-    case "property":
-      if (op === "exists") return wrap({ ...condition, op: "exists", value: undefined });
-      if (op === "not-exists") return neg({ type: "property", schemaId: condition.schemaId, op: "exists" });
-      return wrap({ ...condition, op: op as PropertyOp, ...(condition.value === undefined ? { value: "" } : {}) });
-    case "linkedTo":
     case "linkedToQuery":
-    case "descendantOf":
-    case "descendantOfQuery":
       return op === "is-not" ? neg(condition) : wrap(condition);
-    case "pageClass":
-    case "ancestorClassed":
-    case "rootClass":
+    case "descendantOfQuery":
       return op === "is-not" ? neg(condition) : wrap(condition);
     case "coverAsset":
     case "bannerAsset":
     case "aliasedNode":
       return op === "not-exists" ? neg(condition) : wrap(condition);
-    case "createdAfter":
-    case "createdBefore":
-      return op === "before"
-        ? { type: "createdBefore", timestamp: condition.timestamp }
-        : { type: "createdAfter", timestamp: condition.timestamp };
-    case "updatedAfter":
-    case "updatedBefore":
-      return op === "before"
-        ? { type: "updatedBefore", timestamp: condition.timestamp }
-        : { type: "updatedAfter", timestamp: condition.timestamp };
+    default:
+      return condition;
   }
 }
 
@@ -753,7 +1197,7 @@ function BlockRow({
           <Dropdown
             size="sm"
             ariaLabel="Operator"
-            options={operatorOptions(family).map((option) => ({ value: option.value, label: option.label }))}
+            options={operatorOptions(family, condition, facts).map((option) => ({ value: option.value, label: option.label }))}
             value={operatorOf(condition, negated)}
             onChange={(value) => {
               if (value !== null) onChange(applyOperator(condition, value));
@@ -912,47 +1356,49 @@ function BlockValue({
     case "classAny":
       // "One of": ANY-of membership — a multi class pick.
       return (
-        <Dropdown
-          size="sm"
-          multiple
+        <ClassMultiPick
           ariaLabel="Classes"
-          placeholder="Pick classes"
-          options={facts.classes.map((cls) => ({
-            value: cls.id,
-            label: facts.classNames.get(cls.id) ?? cls.id,
-          }))}
           values={condition.classIds}
-          onChangeMultiple={(classIds) => onChange({ ...condition, classIds })}
+          facts={facts}
+          onChange={(classIds) => onChange({ ...condition, classIds })}
         />
       );
     case "classSet":
-      // "Is set" carries no value — the operator column IS the condition.
+    case "pageClassSet":
+    case "ancestorClassedSet":
+    case "rootClassSet":
+    case "tagSet":
+    case "linkSet":
+    case "parentSet":
+    case "contentSet":
+      // The set operators carry no value — the operator column IS the condition.
       return null;
     case "pageClass":
-      return (
-        <ClassPick
-          ariaLabel="Page class"
-          value={condition.classId}
-          facts={facts}
-          onChange={(classId) => onChange({ ...condition, classId })}
-        />
-      );
     case "ancestorClassed":
-      return (
-        <ClassPick
-          ariaLabel="Ancestor class"
-          value={condition.classId}
-          facts={facts}
-          onChange={(classId) => onChange({ ...condition, classId })}
-        />
-      );
     case "rootClass":
       return (
         <ClassPick
-          ariaLabel="Root class"
+          ariaLabel={
+            condition.type === "pageClass"
+              ? "Page class"
+              : condition.type === "ancestorClassed"
+                ? "Ancestor class"
+                : "Root class"
+          }
           value={condition.classId}
           facts={facts}
           onChange={(classId) => onChange({ ...condition, classId })}
+        />
+      );
+    case "pageClassAny":
+    case "ancestorClassedAny":
+    case "rootClassAny":
+      return (
+        <ClassMultiPick
+          ariaLabel="Classes"
+          values={condition.classIds}
+          facts={facts}
+          onChange={(classIds) => onChange({ ...condition, classIds })}
         />
       );
     case "isClass":
@@ -995,7 +1441,30 @@ function BlockValue({
         />
       );
     case "property":
-      return <PropertyValue condition={condition} onChange={onChange} facts={facts} />;
+      return <PropertyValue condition={condition} onChange={onChange} facts={facts} client={client} datalistId={datalistId} />;
+    case "propertyBetween":
+      return <PropertyValue condition={condition} onChange={onChange} facts={facts} client={client} datalistId={datalistId} />;
+    case "propertyWithin":
+      return <PropertyValue condition={condition} onChange={onChange} facts={facts} client={client} datalistId={datalistId} />;
+    case "tag":
+      return (
+        <NodePickBody
+          nodeId={condition.tagId}
+          placeholder="Pick a tag…"
+          client={client}
+          onPick={(tagId) => onChange({ ...condition, tagId })}
+        />
+      );
+    case "tagAny":
+      return (
+        <NodeMultiPick
+          ariaLabel="Tags"
+          nodeIds={condition.tagIds}
+          addLabel="Add tag"
+          client={client}
+          onChange={(tagIds) => onChange({ ...condition, tagIds })}
+        />
+      );
     case "linkedTo":
       return (
         <NodePickBody
@@ -1003,6 +1472,16 @@ function BlockValue({
           placeholder="Pick a node…"
           client={client}
           onPick={(nodeId) => onChange({ ...condition, nodeId })}
+        />
+      );
+    case "linkedToAny":
+      return (
+        <NodeMultiPick
+          ariaLabel="Nodes"
+          nodeIds={condition.nodeIds}
+          addLabel="Add node"
+          client={client}
+          onChange={(nodeIds) => onChange({ ...condition, nodeIds })}
         />
       );
     case "descendantOf":
@@ -1014,6 +1493,16 @@ function BlockValue({
           onPick={(nodeId) => onChange({ ...condition, nodeId })}
         />
       );
+    case "descendantOfAny":
+      return (
+        <NodeMultiPick
+          ariaLabel="Parents"
+          nodeIds={condition.nodeIds}
+          addLabel="Add parent"
+          client={client}
+          onChange={(nodeIds) => onChange({ ...condition, nodeIds })}
+        />
+      );
     case "linkedToQuery":
     case "descendantOfQuery":
       return <span className="nt-fb-block__word">matching</span>;
@@ -1021,6 +1510,8 @@ function BlockValue({
     case "createdBefore":
     case "updatedAfter":
     case "updatedBefore":
+    case "createdCmp":
+    case "updatedCmp":
       return (
         <Input
           size="sm"
@@ -1031,6 +1522,37 @@ function BlockValue({
           onChange={(event) => onChange({ ...condition, timestamp: event.target.value })}
         />
       );
+    case "createdBetween":
+    case "updatedBetween":
+      return (
+        <>
+          <Input
+            size="sm"
+            aria-label="From"
+            list={datalistId}
+            placeholder="from {today}"
+            value={condition.from}
+            onChange={(event) => onChange({ ...condition, from: event.target.value })}
+          />
+          <Input
+            size="sm"
+            aria-label="To"
+            list={datalistId}
+            placeholder="to {today}"
+            value={condition.to}
+            onChange={(event) => onChange({ ...condition, to: event.target.value })}
+          />
+        </>
+      );
+    case "createdWithin":
+    case "updatedWithin":
+      return (
+        <PeriodPick
+          ariaLabel="Period"
+          value={condition.period}
+          onChange={(period) => onChange({ ...condition, period })}
+        />
+      );
     case "coverAsset":
     case "bannerAsset":
     case "aliasedNode":
@@ -1038,20 +1560,89 @@ function BlockValue({
   }
 }
 
-/** The property family's value column: schema select + typed value input
- * (the property-table register — numeric keyboard for number/integer). The
- * OPERATOR rides the operator column. */
+/** The multi class pick shared by the ANY-of value columns. */
+function ClassMultiPick({
+  ariaLabel,
+  values,
+  facts,
+  onChange,
+}: {
+  ariaLabel: string;
+  values: string[];
+  facts: BuilderFacts;
+  onChange: (classIds: string[]) => void;
+}) {
+  return (
+    <Dropdown
+      size="sm"
+      multiple
+      ariaLabel={ariaLabel}
+      placeholder="Pick classes"
+      options={facts.classes.map((cls) => ({
+        value: cls.id,
+        label: facts.classNames.get(cls.id) ?? cls.id,
+      }))}
+      values={values}
+      onChangeMultiple={onChange}
+    />
+  );
+}
+
+/** The relative-period picker (is within today / this week / this month / this year). */
+const PERIOD_OPTIONS: Array<{ value: DatePeriod; label: string }> = [
+  { value: "today", label: "Today" },
+  { value: "this_week", label: "This week" },
+  { value: "this_month", label: "This month" },
+  { value: "this_year", label: "This year" },
+];
+
+function PeriodPick({
+  ariaLabel,
+  value,
+  onChange,
+}: {
+  ariaLabel: string;
+  value: DatePeriod;
+  onChange: (period: DatePeriod) => void;
+}) {
+  return (
+    <Dropdown
+      size="sm"
+      ariaLabel={ariaLabel}
+      options={PERIOD_OPTIONS}
+      value={value}
+      onChange={(next) => {
+        if (next !== null) onChange(next);
+      }}
+    />
+  );
+}
+
+/** The property family's value column: schema select + a value control that
+ * adapts to the SELECTED schema's type (the Odoo register, owner 2026-10-16):
+ * select → options dropdown, boolean → true/false, datetime → the date
+ * inputs (+ range/period), node-typed → the anchored node picker, number →
+ * the numeric keyboard, text → the plain input. The OPERATOR rides the
+ * operator column. */
 function PropertyValue({
   condition,
   onChange,
   facts,
+  client,
+  datalistId,
 }: {
-  condition: Extract<Condition, { type: "property" }>;
+  condition: Extract<Condition, { type: "property" | "propertyBetween" | "propertyWithin" }>;
   onChange: (condition: Condition) => void;
   facts: BuilderFacts;
+  client: AnyClient;
+  datalistId: string;
 }) {
   const schema = facts.boundProperties.find((property) => property.id === condition.schemaId);
   const numeric = schema !== undefined && (schema.type === "number" || schema.type === "integer");
+  const dateLike = schema?.type === "datetime";
+  const nodeTyped = schema !== undefined && (schema.type === "object" || (schema.targetClassFilter ?? []).length > 0);
+  const patch = (partial: Record<string, unknown>): void =>
+    onChange({ ...condition, ...partial } as Condition);
   return (
     <>
       <Dropdown
@@ -1066,18 +1657,88 @@ function PropertyValue({
         ]}
         value={condition.schemaId}
         onChange={(value) => {
-          if (value !== null) onChange({ ...condition, schemaId: value });
+          // A different schema resets the value — the old one was typed for
+          // the old type (boolean true is not a number bound).
+          if (value !== null) onChange({ type: "property", schemaId: value, op: "eq", value: "" });
         }}
       />
-      {condition.op !== "exists" && (
-        <Input
+      {condition.type === "property" && condition.op !== "exists" && !nodeTyped && schema?.type === "select" && (
+        <Dropdown
           size="sm"
-          aria-label="Value"
-          type={numeric ? "number" : "text"}
-          value={condition.value === undefined || condition.value === null ? "" : String(condition.value)}
-          onChange={(event) => onChange({ ...condition, value: event.target.value })}
+          ariaLabel="Value"
+          placeholder="Pick an option"
+          options={(schema.options ?? []).map((option) => ({
+            value: option.id,
+            label: option.label,
+          }))}
+          value={typeof condition.value === "string" ? condition.value : ""}
+          onChange={(value) => {
+            if (value !== null) patch({ value });
+          }}
         />
       )}
+      {condition.type === "property" && condition.op !== "exists" && schema?.type === "boolean" && (
+        <Dropdown
+          size="sm"
+          ariaLabel="Value"
+          options={[
+            { value: "true", label: "True" },
+            { value: "false", label: "False" },
+          ]}
+          value={typeof condition.value === "boolean" ? String(condition.value) : ""}
+          onChange={(value) => {
+            if (value !== null) patch({ value: value === "true" });
+          }}
+        />
+      )}
+      {condition.type === "property" && condition.op !== "exists" && nodeTyped && (
+        <NodePickBody
+          nodeId={typeof condition.value === "object" && condition.value !== null && "nodeId" in condition.value ? String((condition.value as { nodeId: unknown }).nodeId) : ""}
+          placeholder="Pick a node…"
+          client={client}
+          onPick={(nodeId) => patch({ value: { nodeId } })}
+        />
+      )}
+      {condition.type === "propertyBetween" && (
+        <>
+          <Input
+            size="sm"
+            aria-label="From"
+            type={numeric ? "number" : "text"}
+            list={dateLike ? datalistId : undefined}
+            placeholder={dateLike ? "from {today}" : "from"}
+            value={condition.from === undefined || condition.from === null ? "" : String(condition.from)}
+            onChange={(event) => patch({ from: numeric ? event.target.value : event.target.value })}
+          />
+          <Input
+            size="sm"
+            aria-label="To"
+            type={numeric ? "number" : "text"}
+            list={dateLike ? datalistId : undefined}
+            placeholder={dateLike ? "to {today}" : "to"}
+            value={condition.to === undefined || condition.to === null ? "" : String(condition.to)}
+            onChange={(event) => patch({ to: event.target.value })}
+          />
+        </>
+      )}
+      {condition.type === "propertyWithin" && (
+        <PeriodPick ariaLabel="Period" value={condition.period} onChange={(period) => patch({ period })} />
+      )}
+      {condition.type === "property" &&
+        condition.op !== "exists" &&
+        schema?.type !== "select" &&
+        schema?.type !== "boolean" &&
+        !nodeTyped && (
+          <Input
+            size="sm"
+            aria-label="Value"
+            type={numeric ? "number" : "text"}
+            list={dateLike ? datalistId : undefined}
+            placeholder={dateLike ? "{today} or 2026-10-04" : undefined}
+            value={condition.value === undefined || condition.value === null ? "" : String(condition.value)}
+            onChange={(event) => patch({ value: event.target.value })}
+          />
+        )}
     </>
   );
 }
@@ -1130,5 +1791,72 @@ function NodePickBody({
         />
       )}
     </>
+  );
+}
+
+/**
+ * The multi node pick (the "one of" value over node targets — links / parent /
+ * tags): picked nodes ride as removable chips, the anchored NodeSelector
+ * appends one at a time. Node targets are unbounded, so the multi pick is a
+ * chip list + search, never a dropdown.
+ */
+function NodeMultiPick({
+  ariaLabel,
+  nodeIds,
+  addLabel,
+  client,
+  onChange,
+}: {
+  ariaLabel: string;
+  nodeIds: string[];
+  addLabel: string;
+  client: AnyClient;
+  onChange: (nodeIds: string[]) => void;
+}) {
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  return (
+    <span className="nt-fb-multipick" aria-label={ariaLabel}>
+      {nodeIds.map((nodeId) => {
+        const node = client.getNode(nodeId);
+        const label = node !== undefined ? displayNameForSettings(node) || "Untitled" : nodeId;
+        return (
+          <span key={nodeId} className="nt-fb-multipick__chip">
+            {label}
+            <button
+              type="button"
+              className="nt-fb-multipick__remove"
+              aria-label={`Remove ${label}`}
+              title="Remove"
+              onClick={() => onChange(nodeIds.filter((id) => id !== nodeId))}
+            >
+              ×
+            </button>
+          </span>
+        );
+      })}
+      <button
+        type="button"
+        ref={anchorRef}
+        className="nt-fb-multipick__add"
+        aria-label={addLabel}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+      >
+        + {addLabel}
+      </button>
+      {open && (
+        <NodeSelector
+          client={client}
+          anchorEl={anchorRef.current}
+          onClose={() => setOpen(false)}
+          onAdd={(node) => {
+            setOpen(false);
+            if (!nodeIds.includes(node.id)) onChange([...nodeIds, node.id]);
+          }}
+        />
+      )}
+    </span>
   );
 }

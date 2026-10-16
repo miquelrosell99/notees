@@ -9,6 +9,60 @@ predating this file.
 
 ## 2026-10-16
 
+- **feat(query): the FULL Odoo operator set across the query block families
+  (owner 2026-10-16, round 2).** Round 1 shipped the class register + the
+  classed-container conditions; this round applies the same operator set to
+  every family, per the owner's screenshots (Odoo's date list `=, !=, >, >=,
+  <, <=, está entre, está dentro de, está definido, no está definido`; the
+  numeric list with `is between`/`contains`; "the same options for node type
+  like parent, parent path, root, page, link"). Grammar (additive query-AST
+  v1): **content** gains `eq`/`neq`/`starts`/`ends` (plaintext equality +
+  edge-anchored LIKE over the search plaintext) + **`contentSet`** (non-empty
+  text); **tags** are a new family — `tag` / `tagAny` / `tagSet` over the
+  OR-set `tag_ids` (a tag is any page, no hierarchy); **links** gain
+  **`linkedToAny`** (rollup membership of any picked node) + **`linkSet`**
+  (≥1 inbound edge — probe-path leaves like `linkedTo`); **parent** gains
+  **`descendantOfAny`** (subtree of any picked node, anchors excluded) +
+  **`parentSet`** (`parent_id IS NOT NULL`); the classed containers gain the
+  ANY-of + set shapes (`pageClassAny`/`ancestorClassedAny`/`rootClassAny`,
+  `pageClassSet`/`ancestorClassedSet`/`rootClassSet`); **created/edited** gain
+  the Odoo date operators — **`createdCmp`/`updatedCmp`** (eq/neq are
+  DAY-granular: tokens and plain `YYYY-MM-DD` dates resolve through one
+  shared `resolveDayBounds`, instants compare directly), **`createdBetween`/
+  `updatedBetween`** (inclusive day-start→day-end), **`createdWithin`/
+  `updatedWithin`** (relative periods via one shared `resolvePeriodBounds`
+  against the run clock). The set bits are deliberately ABSENT from the date
+  families — `created_at`/`updated_at` are written at create time, so every
+  row reads "set" (a lying control; `updatedSet` was prototyped, measured
+  vacuous, and removed). **property** gains **`propertyBetween`** (the
+  inclusive range over the effective value — numeric for JSON numbers,
+  lexicographic for ISO dates, date-node refs speak through the existing
+  dateRef arms) + **`propertyWithin`** (the date-valued property inside a
+  relative period). FilterBlockBuilder UI: every family's operator column
+  now carries its Odoo set (the picked ids/values/timestamps carry across
+  operator morphs); "one of" over NODE targets (links/parent/tags) rides a
+  new chip-list **`NodeMultiPick`** (anchored NodeSelector appends, × removes
+  — node targets are unbounded, never a dropdown); "one of" over classes
+  rides the kit Dropdown multi-select; the date "is between" renders two
+  bound inputs, "is within" a period picker; the PROPERTY value control is
+  now type-aware (the owner's "select a property and get the option dropdown
+  based on the property type"): select → options dropdown, boolean →
+  true/false, datetime → date inputs (+range/period), node-typed → the
+  anchored node picker, number → numeric keyboard, text → plain input — and
+  the property OPERATOR list adapts to the selected schema's type (the
+  BuilderFacts pickers now carry the schema row's options + target filter).
+  Cover/banner/alias stay at is-set/is-not-set (the owner punted on asset
+  file-type filters); the boolean structural bits keep their tri-state.
+  **Verification:** packages/query 229 green over BOTH adapters (24 new:
+  content ops + contentSet, tags, linkedToAny/linkSet, descendantOfAny/
+  parentSet, the date operators with the pinned run clock, propertyBetween,
+  the container ANY-of/set shapes); web filter suites green (filter-builder
+  +6 end-to-end through the panel — content is/starts-with/is-set, tags
+  one-of through the chip picker, created between/within, property between
+  on a number, page one-of + page is-set; prune coverage for every half-
+  typed shape). No op/wire/fixture change — the query AST is a content-token
+  payload. Known follow-ups (owner's call): node-based "parent of" (ancestor
+  of a picked node), asset file-type filters.**
 - **feat(query): the Odoo operator set + the classed-container conditions —
   `classExact` / `classAny` / `classSet` / `pageClass` / `ancestorClassed` /
   `rootClass` (owner 2026-10-16).** Two owner requests drove this slice:

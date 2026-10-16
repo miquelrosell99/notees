@@ -546,5 +546,139 @@ describe("the block query builder", () => {
       pickOption(panel, "Operator", "is not");
       expect(tableRowCount()).toBe(2);
     });
+
+    it("content: the text operators (is / starts with / is set)", async () => {
+      const client = await seedClient();
+      const classId = await seedMembers(client);
+      render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+      const section = classedNodesSection();
+
+      const panel = openPanel(section);
+      addCondition(panel, /^Content/);
+      pickOption(panel, "Operator", "is");
+      fireEvent.change(within(panel).getByLabelText("Content"), { target: { value: "Alpha" } });
+      expect(tableRowCount()).toBe(1);
+
+      fireEvent.change(within(panel).getByLabelText("Content"), { target: { value: "Alph" } });
+      expect(within(section).getByText("No classed nodes.")).not.toBeNull();
+
+      pickOption(panel, "Operator", "starts with");
+      fireEvent.change(within(panel).getByLabelText("Content"), { target: { value: "Alph" } });
+      expect(tableRowCount()).toBe(1);
+
+      // The emptiness bit: every member carries a title.
+      pickOption(panel, "Operator", "is set");
+      expect(tableRowCount()).toBe(3);
+    });
+
+    it("tags: is set / one of over the OR-set tag membership", async () => {
+      const client = await seedClient();
+      const classId = await seedMembers(client);
+      const tagUrgent = await client.createObject({ isEmbedded: false, name: "Urgent" });
+      const tagLater = await client.createObject({ isEmbedded: false, name: "Later" });
+      const [alpha, beta] = client.getClassMembers(classId).map((member) => member.id);
+      await client.assignTag(alpha!, tagUrgent);
+      await client.assignTag(beta!, tagUrgent);
+      await client.assignTag(beta!, tagLater);
+
+      render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+      const section = classedNodesSection();
+
+      const panel = openPanel(section);
+      addCondition(panel, /^Tags/);
+      pickOption(panel, "Operator", "is set");
+      expect(tableRowCount()).toBe(2);
+
+      // one of [Urgent, Later] — chips accumulate through the node picker.
+      pickOption(panel, "Operator", "one of");
+      fireEvent.click(within(panel).getByRole("button", { name: "Add tag" }));
+      fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "Urgent" } });
+      fireEvent.click(
+        document.querySelector(
+          ".node-result-item:not(.node-result-item--create):not(.node-result-item--date)",
+        )!,
+      );
+      fireEvent.click(within(panel).getByRole("button", { name: "Add tag" }));
+      fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "Later" } });
+      fireEvent.click(
+        document.querySelector(
+          ".node-result-item:not(.node-result-item--create):not(.node-result-item--date)",
+        )!,
+      );
+      expect(tableRowCount()).toBe(2);
+    });
+
+    it("dates: is between (two bounds) and is within (relative period)", async () => {
+      const client = await seedClient();
+      const classId = await seedMembers(client);
+      render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+      const section = classedNodesSection();
+
+      const panel = openPanel(section);
+      addCondition(panel, /^Created/);
+      pickOption(panel, "Operator", "is between");
+      fireEvent.change(within(panel).getByLabelText("From"), { target: { value: "{today}" } });
+      fireEvent.change(within(panel).getByLabelText("To"), { target: { value: "{today}" } });
+      expect(tableRowCount()).toBe(3);
+
+      // An impossible range (future floor) matches nothing.
+      fireEvent.change(within(panel).getByLabelText("From"), { target: { value: "2999-01-01" } });
+      expect(within(section).getByText("No classed nodes.")).not.toBeNull();
+
+      // The relative period rides the same run clock as the placeholders.
+      pickOption(panel, "Operator", "is within");
+      pickOption(panel, "Period", "Today");
+      expect(tableRowCount()).toBe(3);
+      pickOption(panel, "Period", "This year");
+      expect(tableRowCount()).toBe(3);
+    });
+
+    it("property: is between on a number property + the type-aware option pick", async () => {
+      const client = await seedClient();
+      const classId = await seedClass(client, "task");
+      const schemaId = await client.createPropertySchema({ name: "impact", type: "number" });
+      await client.setClassProperty(classId, schemaId, { sequence: 0 });
+      const low = await client.createObject({ isEmbedded: false, name: "Low impact" });
+      await client.assignClass(low, classId);
+      await client.setProperty(low, schemaId, 1, 0);
+      const high = await client.createObject({ isEmbedded: false, name: "High impact" });
+      await client.assignClass(high, classId);
+      await client.setProperty(high, schemaId, 9, 0);
+
+      render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
+      const section = classedNodesSection();
+
+      const panel = openPanel(section);
+      addCondition(panel, /^Property/);
+      pickOption(panel, "Property", "impact");
+      pickOption(panel, "Operator", "is between");
+      fireEvent.change(within(panel).getByLabelText("From"), { target: { value: "5" } });
+      fireEvent.change(within(panel).getByLabelText("To"), { target: { value: "10" } });
+      expect(tableRowCount()).toBe(1);
+      expect(within(section).getByText("High impact")).not.toBeNull();
+    });
+
+    it("page one-of (multi class pick) and page is set", async () => {
+      const client = await seedClient();
+      const { projectId } = await seedContainerWorld(client);
+      render(<NodeView client={client} nodeId={projectId} onOpenNode={() => {}} />);
+      const section = classedNodesSection();
+
+      const panel = openPanel(section);
+      addCondition(panel, /^Page\b/);
+      pickOption(panel, "Operator", "one of");
+      fireEvent.click(within(panel).getByLabelText("Classes"));
+      const menu = () => document.querySelector(".dropdown-menu--portal") as HTMLElement;
+      fireEvent.click(within(menu()).getByRole("button", { name: "journal" }));
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(tableRowCount()).toBe(1);
+      expect(within(section).getByText("InDay")).not.toBeNull();
+
+      // is set: the container carries at least one class (Plain does not —
+      // InPlain drops; Dual's own set counts — it stays).
+      pickOption(panel, "Operator", "is set");
+      expect(tableRowCount()).toBe(2);
+      expect(within(section).queryByText("InPlain")).toBeNull();
+    });
   });
 });

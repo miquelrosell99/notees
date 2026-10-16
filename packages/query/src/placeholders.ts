@@ -130,3 +130,58 @@ export function resolveTimestampPlaceholder(
 export function resolveValuePlaceholder(value: string, context: PlaceholderContext = {}): string {
   return placeholderStartDate(value, context) ?? value;
 }
+
+/** The token form of the relative periods (the `createdWithin` grammar values). */
+export const PERIOD_TOKENS: Record<string, string> = {
+  today: "{today}",
+  this_week: "{this_week}",
+  this_month: "{this_month}",
+  this_year: "{this_year}",
+};
+
+/**
+ * The UTC bounds of a relative period (the `createdWithin`/`updatedWithin`
+ * conditions): the period's local day-start and day-end, each as a UTC
+ * ISO-8601 string comparable lexicographically with the `created_at` wire
+ * format. The compiler AND the sync evaluator share this — one resolution.
+ */
+export function resolvePeriodBounds(
+  period: string,
+  context: PlaceholderContext = {},
+): { from: string; to: string } {
+  const token = PERIOD_TOKENS[period] ?? period;
+  const start = placeholderStartDate(token, context);
+  const end = placeholderEndDate(token, context);
+  if (start === null || end === null) {
+    throw new Error(`query: unknown date period ${JSON.stringify(period)}`);
+  }
+  return {
+    from: localDayBoundaryUtc(start, false),
+    to: localDayBoundaryUtc(end, true),
+  };
+}
+
+/**
+ * The DAY bounds behind the Odoo day-granular equality (`createdCmp`
+ * eq/neq): a `{today}`-style token resolves to that period's local day; a
+ * plain `YYYY-MM-DD` date to that local day; anything else (a full ISO
+ * instant) to the instant itself (equality collapses to instant equality).
+ * The compiler AND the sync evaluator share this — one resolution.
+ */
+export function resolveDayBounds(
+  value: string,
+  context: PlaceholderContext = {},
+): { from: string; to: string } {
+  const start = placeholderStartDate(value, context);
+  if (start !== null) {
+    const end = placeholderEndDate(value, context);
+    return {
+      from: localDayBoundaryUtc(start, false),
+      to: localDayBoundaryUtc(end!, true),
+    };
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return { from: localDayBoundaryUtc(value, false), to: localDayBoundaryUtc(value, true) };
+  }
+  return { from: value, to: value };
+}
