@@ -3,7 +3,7 @@
  *
  * Port of the `frontend/src/core/query/compileToSqlite.ts` CONCEPTS,
  * adapted to the current store (packages/store):
- *  - the Revision-11 booleans (`node.is_class`, `node.present_as_main`)
+ *  - the Revision-12 booleans (`node.is_class`, `node.is_embedded`)
  *    replace node_type; `is_active = 1` excludes deleted nodes on every
  *    query (the store's read helpers do the same);
  *  - the reference index is `edge` (never authored) — the linkedTo
@@ -120,7 +120,7 @@ const SORT_COLUMNS: Record<SortSpec["field"], { column: string; nullable: boolea
   },
   createdAt: { column: "n.created_at", nullable: true },
   isClass: { column: "n.is_class", nullable: false },
-  presentAsMain: { column: "n.present_as_main", nullable: false },
+  isEmbedded: { column: "n.is_embedded", nullable: false },
 };
 
 /**
@@ -200,7 +200,7 @@ class Compiler {
    * groups it by the dimensions and aggregates the measures. Zero dimensions
    * = one grand-total row (no GROUP BY). Column order is deterministic:
    * dimensions in declared order, then measures; labels are `isClass` /
-   * `presentAsMain` / `class:<id>` / `property:<id>` / `count` /
+   * `isEmbedded` / `class:<id>` / `property:<id>` / `count` /
    * `countDistinct` / `<fn>:<id>` (collisions suffixed `#2`, `#3`, …).
    * `sort` does not apply to aggregates — the grid is ordered by its
    * dimension expressions.
@@ -230,7 +230,7 @@ class Compiler {
     );
     let sql =
       "WITH filtered AS (\n" +
-      "SELECT n.id, n.is_class, n.present_as_main, n.class_ids\n" +
+      "SELECT n.id, n.is_class, n.is_embedded, n.class_ids\n" +
       `FROM ${from}\n` +
       `WHERE ${where.join(" AND ")}\n` +
       ")\n" +
@@ -248,8 +248,8 @@ class Compiler {
     switch (dimension.kind) {
       case "isClass":
         return "f.is_class";
-      case "presentAsMain":
-        return "f.present_as_main";
+      case "isEmbedded":
+        return "f.is_embedded";
       case "class": {
         // Same membership probe as the class condition: class_hierarchy
         // carries the extends closure (self-row included). The key is the
@@ -374,7 +374,7 @@ class Compiler {
       // Document-chrome predicate (Revision 11): non-class nodes that are
       // parentless (workspace documents) or present as main (a parent's
       // main-children zone). Inline blocks and classes are out.
-      where.push("n.is_class = 0 AND (n.parent_id IS NULL OR n.present_as_main = 1)");
+      where.push("n.is_class = 0 AND (n.parent_id IS NULL OR n.is_embedded = 0)");
     }
     const group = this.groupSql(ast.root);
     if (group !== undefined) {
@@ -492,8 +492,8 @@ class Compiler {
       }
       case "isClass":
         return `n.is_class = ${this.push(condition.isClass ? 1 : 0)}`;
-      case "presentAsMain":
-        return `n.present_as_main = ${this.push(condition.presentAsMain ? 1 : 0)}`;
+      case "isEmbedded":
+        return `n.is_embedded = ${this.push(condition.isEmbedded ? 1 : 0)}`;
       case "content":
         return this.contentSql(condition);
       case "property":

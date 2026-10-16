@@ -64,11 +64,11 @@ describe("parseQueryLanguage: fields", () => {
     expect(only(parse("class:book"))).toEqual({ type: "class", classId: CLASS_BOOK });
   });
 
-  it("isClass:true|false and presentAsMain:true|false emit boolean conditions (case-insensitive field)", () => {
+  it("isClass:true|false and isEmbedded:true|false emit boolean conditions (case-insensitive field)", () => {
     expect(only(parse("isClass:true"))).toEqual({ type: "isClass", isClass: true });
     expect(only(parse("isclass:false"))).toEqual({ type: "isClass", isClass: false });
-    expect(only(parse("presentAsMain:true"))).toEqual({ type: "presentAsMain", presentAsMain: true });
-    expect(only(parse("presentasmain:FALSE"))).toEqual({ type: "presentAsMain", presentAsMain: false });
+    expect(only(parse("isEmbedded:true"))).toEqual({ type: "isEmbedded", isEmbedded: true });
+    expect(only(parse("isembedded:FALSE"))).toEqual({ type: "isEmbedded", isEmbedded: false });
   });
 
   it("text:term and bare words emit content-contains conditions", () => {
@@ -289,9 +289,9 @@ describe("parseQueryLanguage: composition", () => {
       type: "not",
       child: { type: "isClass", isClass: true },
     });
-    expect(only(parse("presentAsMain!=false"))).toEqual({
+    expect(only(parse("isEmbedded!=false"))).toEqual({
       type: "not",
-      child: { type: "presentAsMain", presentAsMain: false },
+      child: { type: "isEmbedded", isEmbedded: false },
     });
     expect(only(parse("linked!=Paris"))).toEqual({
       type: "not",
@@ -356,7 +356,7 @@ describe("parseQueryLanguage: errors (fail loud)", () => {
     expect(() => parse("class:paper>3")).toThrow(/unexpected '>'/);
     expect(() => parse("text!=foo")).toThrow(/not supported for text/);
     expect(() => parse("isClass:galaxy")).toThrow(/unknown isClass value 'galaxy'.*expected true or false/);
-    expect(() => parse("presentAsMain:1")).toThrow(/unknown presentAsMain value '1'/);
+    expect(() => parse("isEmbedded:1")).toThrow(/unknown isEmbedded value '1'/);
   });
 
   it("rejects a comparison operator without a value", () => {

@@ -4,7 +4,7 @@
  * root page, while a fresh link block takes its exact slot in the original
  * page — the link block's whole content is one `mention` of the extracted
  * node (identity preserved; rich content survives untouched, unlike the
- * presentAsMain promotion, which stringifies). The extracted node's
+ * isEmbedded promotion, which stringifies). The extracted node's
  * children either STAY in the original page (reparented onto the link
  * block, relative order preserved — the submenu's "children stay here"
  * row) or FOLLOW the extracted page (the "children follow" row — which

@@ -4,7 +4,7 @@
  * view toggle + settings gear + Export), and the result in one of two shapes:
  *
  *  - list mode (default): the references-section idiom (display name +
- *    render-state chip — Page/Block/Class from the isClass/presentAsMain
+ *    render-state chip — Page/Block/Class from the isClass/isEmbedded
  *    booleans), windowed (RESULT_CAP rows + a load-more button past the cap);
  *  - table mode: a simple table (Name / Class / Main / Created) of the
  *    result set;
@@ -23,7 +23,7 @@
  * and a run whose (AST, version) pair is already the latest is skipped.
  *
  * Editing: the gear opens the builder popover (the shared subset from
- * queryBuilder.ts — flat AND of class/isClass/presentAsMain/text/created-
+ * queryBuilder.ts — flat AND of class/isClass/isEmbedded/text/created-
  * window conditions, one sort, one aggregation dimension+measure):
  * when the AST uses constructs outside that subset (or-roots, nested groups,
  * NOT, property/linkedTo conditions, fts, multi-sort, multi-dimension
@@ -153,7 +153,7 @@ function toExportNode(client: QueryExportClient, id: string): ExportNode | undef
   return {
     id: node.id,
     isClass: node.isClass ? 1 : 0,
-    presentAsMain: node.presentAsMain ? 1 : 0,
+    isEmbedded: node.isEmbedded ? 1 : 0,
     parentId: node.parentId,
     name: node.name,
     contentAst: node.contentAst,
@@ -210,7 +210,7 @@ export function downloadTextFile(fileName: string, text: string): void {
 
 /**
  * Aggregate column labels: the compiler's names are deterministic (`isClass`,
- * `presentAsMain`, `class:<id>`, `property:<id>`, `count`, `countDistinct`,
+ * `isEmbedded`, `class:<id>`, `property:<id>`, `count`, `countDistinct`,
  * `<fn>:<id>`) but bare ids are unreadable — resolve class/property names
  * from the client's class facts, falling back to a short id prefix. Unknown
  * shapes stay raw.
@@ -221,7 +221,7 @@ export function aggregateColumnLabel(
   propertyNames: ReadonlyMap<string, string>,
 ): string {
   if (column === "isClass") return "Class";
-  if (column === "presentAsMain") return "Present as main";
+  if (column === "isEmbedded") return "Present as main";
   if (column === "count") return "Count";
   if (column === "countDistinct") return "Count distinct";
   const match = /^(class|property|sum|avg|min|max):(.+)$/.exec(column);

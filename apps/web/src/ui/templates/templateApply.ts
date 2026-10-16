@@ -31,7 +31,7 @@ export async function instantiateTemplateToNewPage(
   templateId: string,
   variables?: Record<string, string>,
 ): Promise<string> {
-  const id = await client.createObject({ presentAsMain: true });
+  const id = await client.createObject({ isEmbedded: false });
   await instantiateTemplate(
     { reads: client, writes: client },
     {

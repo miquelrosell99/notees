@@ -1,7 +1,7 @@
 /**
  * Deck builder tests — the pure slide model over synthetic
- * trees: the title slide is always first; every present_as_main=1 top-level
- * child is one section slide; present_as_main=0 runs chunk into intro slides
+ * trees: the title slide is always first; every is_embedded=1 top-level
+ * child is one section slide; is_embedded=0 runs chunk into intro slides
  * by the density rule; trailing image blocks drive the split / image-full
  * layouts; embed_refs splice the target's children into the stream after the
  * referencing slide with a cycle guard; density tiers size the slide.
@@ -28,7 +28,8 @@ beforeEach(() => {
 });
 
 interface EntryOptions {
-  /** present_as_main render bit (default true — the store default). */
+  /** Structural role (default standalone — a section slide); false = an
+   * embedded body block (an intro). */
   main?: boolean;
   /** The block IS one asset_ref token with this asset id. */
   assetId?: string;
@@ -44,7 +45,7 @@ function entry(text: string, opts: EntryOptions = {}): DeckTreeEntry {
   else if (opts.embedId !== undefined) contentAst.push({ type: "embed_ref", nodeId: opts.embedId });
   else if (text !== "") contentAst.push({ type: "text", text });
   return {
-    node: { id: `n${seq}`, presentAsMain: opts.main ?? true, contentAst },
+    node: { id: `n${seq}`, isEmbedded: !(opts.main ?? true), contentAst },
     children: opts.children ?? [],
   };
 }
@@ -67,7 +68,7 @@ describe("buildDeck — slide partitioning", () => {
     expect(kinds(slides)).toEqual(["title"]);
   });
 
-  it("each present_as_main=1 top-level child is one section slide, in order", () => {
+  it("each is_embedded=1 top-level child is one section slide, in order", () => {
     const alpha = entry("Alpha");
     const beta = entry("Beta");
     const gamma = entry("Gamma");
@@ -77,7 +78,7 @@ describe("buildDeck — slide partitioning", () => {
     expect(sections.map((s) => s.nodeId)).toEqual([alpha.node.id, beta.node.id, gamma.node.id]);
   });
 
-  it("a run of present_as_main=0 children becomes one sparse intro slide", () => {
+  it("a run of is_embedded=0 children becomes one sparse intro slide", () => {
     const slides = deck("Deck", [
       entry("Intro one", { main: false }),
       entry("Intro two", { main: false }),
@@ -159,7 +160,7 @@ describe("buildDeck — layout heuristics (P4)", () => {
     const mixed: DeckTreeEntry = {
       node: {
         id: "mx",
-        presentAsMain: false,
+        isEmbedded: true,
         contentAst: [
           { type: "text", text: "caption " },
           { type: "asset_ref", assetId: "asset-4" },
@@ -234,13 +235,13 @@ describe("buildDeck — embed expansion (P5)", () => {
     const quoted: DeckTreeEntry = {
       node: {
         id: "q",
-        presentAsMain: false,
+        isEmbedded: true,
         contentAst: [
           { type: "quote", children: [{ type: "embed_ref", nodeId: "a" }, { type: "embed_ref", nodeId: "a" }] },
           { type: "embed_ref", nodeId: "b" },
         ],
       },
-      children: [{ node: { id: "c", presentAsMain: false, contentAst: [{ type: "embed_ref", nodeId: "c1" }] }, children: [] }],
+      children: [{ node: { id: "c", isEmbedded: true, contentAst: [{ type: "embed_ref", nodeId: "c1" }] }, children: [] }],
     };
     expect(collectEmbedTargets([quoted])).toEqual(["a", "b", "c1"]);
   });

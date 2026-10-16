@@ -290,7 +290,7 @@ interface SearchCandidateRow {
   updatedAt: string | null;
   isClass: number;
   parentId: string | null;
-  presentAsMain: number;
+  isEmbedded: number;
   aliasedNodeId: string | null;
   /** Serialized contentAst — the title source. */
   rawContent: string;
@@ -304,7 +304,7 @@ interface SearchCandidateRow {
  *  the module-specific score projection(s). */
 const CANDIDATE_SELECT = `
   SELECT d.node_id AS nodeId, n.updated_at AS updatedAt, n.is_class AS isClass,
-         n.parent_id AS parentId, n.present_as_main AS presentAsMain,
+         n.parent_id AS parentId, n.is_embedded AS isEmbedded,
          n.aliased_node_id AS aliasedNodeId, n.content AS rawContent,
          s.content AS indexedText__FTS_TAIL__
   FROM search_index s
@@ -313,7 +313,7 @@ const CANDIDATE_SELECT = `
 
 const TERMINAL_SELECT = `
   SELECT n.id AS nodeId, n.updated_at AS updatedAt, n.is_class AS isClass,
-         n.parent_id AS parentId, n.present_as_main AS presentAsMain,
+         n.parent_id AS parentId, n.is_embedded AS isEmbedded,
          n.aliased_node_id AS aliasedNodeId, n.content AS rawContent,
          s.content AS indexedText, 0 AS fts
   FROM node n
@@ -330,7 +330,7 @@ const TERMINAL_SELECT = `
  */
 const PARENT_CANDIDATE_SELECT = `
   SELECT child.id AS nodeId, child.updated_at AS updatedAt, child.is_class AS isClass,
-         child.parent_id AS parentId, child.present_as_main AS presentAsMain,
+         child.parent_id AS parentId, child.is_embedded AS isEmbedded,
          child.aliased_node_id AS aliasedNodeId, child.content AS rawContent,
          s.content AS indexedText__FTS_TAIL__
   FROM node child
@@ -439,7 +439,7 @@ function scoreCandidate(
   textTokens: string[],
 ): TierScore | null {
   const { normalized, terms, mode } = ctx.query;
-  const isMain = row.isClass === 1 || row.parentId === null || row.presentAsMain === 1;
+  const isMain = row.isClass === 1 || row.parentId === null || row.isEmbedded === 0;
   const textLower = row.indexedText === null ? "" : row.indexedText.toLowerCase();
 
   if (mode === "exact") {
@@ -625,7 +625,7 @@ export function searchNodesPage(
   // canonical page.
   for (const { row } of [...scored]) {
     if (row.aliasedNodeId === null) continue;
-    if (row.isClass !== 1 && row.parentId !== null && row.presentAsMain !== 1) continue;
+    if (row.isClass !== 1 && row.parentId !== null && row.isEmbedded !== 0) continue;
     let current = row;
     for (let depth = 0; depth < 16 && current.aliasedNodeId !== null; depth++) {
       const nextId = current.aliasedNodeId;
@@ -655,9 +655,9 @@ export function searchNodesPage(
       .prepare(
         `SELECT id AS nodeId, content AS rawContent, updated_at AS updatedAt,
                 is_class AS isClass, parent_id AS parentId,
-                present_as_main AS presentAsMain, aliased_node_id AS aliasedNodeId
+                is_embedded AS isEmbedded, aliased_node_id AS aliasedNodeId
          FROM node
-         WHERE is_active = 1 AND (is_class = 1 OR parent_id IS NULL OR present_as_main = 1)`,
+         WHERE is_active = 1 AND (is_class = 1 OR parent_id IS NULL OR is_embedded = 0)`,
       )
       .all() as Array<Record<string, unknown>>;
     for (const raw of rescueRows) {
@@ -674,7 +674,7 @@ export function searchNodesPage(
         updatedAt: (raw.updatedAt as string | null) ?? null,
         isClass: raw.isClass as number,
         parentId: (raw.parentId as string | null) ?? null,
-        presentAsMain: raw.presentAsMain as number,
+        isEmbedded: raw.isEmbedded as number,
         aliasedNodeId: (raw.aliasedNodeId as string | null) ?? null,
         rawContent: raw.rawContent as string,
         indexedText: null,

@@ -18,7 +18,7 @@ export function createNodesWithClasses(
   void (async () => {
     let first: string | null = null;
     for (const classId of classIds) {
-      const id = await client.createObject({ classIds: [classId], presentAsMain: true });
+      const id = await client.createObject({ classIds: [classId], isEmbedded: false });
       first ??= id;
     }
     if (first !== null) onOpenPage(first);

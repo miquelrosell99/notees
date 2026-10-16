@@ -104,7 +104,7 @@ async function setupPageWithBlock(): Promise<{
   container: HTMLElement;
 }> {
   const client = await seedClient();
-  const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+  const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
   const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
   const { container } = render(<PageView client={client} pageId={pageId} />);
   return { client, pageId, blockId, container };
@@ -189,7 +189,7 @@ describe("slash /template", () => {
   /** A template with one child block; the template class is seeded by the flow's self-heal. */
   async function setupTemplate(client: WorkspaceClient, content = "Sync template") {
     const templateId = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       name: content,
       classIds: [SYSTEM_CLASS_UUIDS.template],
     });
@@ -255,7 +255,7 @@ describe("slash /template", () => {
   it("{{variables}} open the apply-time dialog and substitute into the instance", async () => {
     const { client, blockId, container } = await setupPageWithBlock();
     const templateId = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       name: "Notes for {{topic}}",
       classIds: [SYSTEM_CLASS_UUIDS.template],
     });

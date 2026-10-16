@@ -68,12 +68,12 @@ export type SortMode = "dates-first" | "alphabetical" | "position" | "edit-date"
 /**
  * A table column. `kind` selects the renderer/comparator; property columns
  * carry the schema id and resolve values per row through `propertiesOf`.
- * The Revision-11 boolean columns (`isClass` / `presentAsMain`) replace the
+ * The Revision-11 boolean columns (`isClass` / `isEmbedded`) replace the
  * retired single type column — render states, not identities.
  */
 export interface TableColumn {
   id: string;
-  kind: "name" | "classes" | "created" | "edited" | "isClass" | "presentAsMain" | "property";
+  kind: "name" | "classes" | "created" | "edited" | "isClass" | "isEmbedded" | "property";
   label: string;
   /** Required when kind === "property". */
   propertySchemaId?: string;
