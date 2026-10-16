@@ -9,6 +9,29 @@ predating this file.
 
 ## 2026-10-16
 
+- **feat(web): a block's context menu converts it to a page — a mention link
+  block takes its slot, children stay by default, Shift/Ctrl/Cmd-click
+  carries them over (owner request 2026-10-16).** New **Convert to page**
+  item on inline blocks (pages and parent-locked date-chain nodes never
+  offer it): the block leaves its parent and becomes a root page — identity
+  and rich content preserved (unlike the `presentAsMain` promotion, an
+  extraction does not stringify) — while a fresh link block holding one
+  `mention` of it lands in the block's exact slot (m2 `afterId`/`beforeId`
+  anchors), so the page keeps reading where it did. By default the block's
+  children STAY in the original page, reparented onto the link block in
+  their order (`object.move` afterId chaining); **Shift/Ctrl/Cmd-click**
+  instead carries the children over to the extracted page (the badge
+  "⇧ children follow" names the variant — then only the link-block
+  replacement lands). The gesture is a client composition of existing
+  carriers — `object.create` + `object.move`s, no new op type, zero applier
+  changes (the Node merge precedent) — composed by the new
+  `extractBlockToPage` (`apps/web/src/core/extractToPage.ts`), with loud
+  client-side guards before anything reaches the log. Docs: `docs/usage.md`
+  web-app list item 17; `packages/protocol/SCHEMA.md` "Block → page
+  extraction". **Verification:** `pnpm typecheck` + `pnpm test` green
+  (new `apps/web/test/extract-to-page.test.tsx`: composition anchors +
+  child-order chaining + keepChildren + guards, menu presence/badge/
+  modifier-click wiring); web-only — no wire touch.
 - **fix(web): a server outage on load no longer signs the user out — the
   remembered workspace opens from its local copy and syncs on recovery
   (owner report 2026-10-16).** Fresh tab with the server down used to land

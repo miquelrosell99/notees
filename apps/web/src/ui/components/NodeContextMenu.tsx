@@ -1,7 +1,9 @@
 /**
  * NodeContextMenu — right-click menu for node surfaces (page headers, block
  * bullets/rows, class/tag pills). Actions: open, copy link, favorite,
- * move between the body and the Pages zone (parented nodes), export
+ * move between the body and the Pages zone (parented nodes), convert an
+ * inline block to a page (extraction — a mention link block takes its slot),
+ * export
  * (document-chrome nodes), the page banner upload (Add/Change banner),
  * remove pill (class/tag on an owner), delete.
  * Favorites toggle localStorage directly and broadcast so the sidebar
@@ -25,10 +27,11 @@
 
 import { useState } from "react";
 
-import { rendersAsInlineBlock } from "@notees/domain";
+import { parseDateNodeId, rendersAsInlineBlock } from "@notees/domain";
 import type { ContentAst } from "@notees/protocol";
 
 import { cloneSubtree, type CloneReadSurface, type CloneWriteSurface } from "@/core/clone.js";
+import { extractBlockToPage } from "@/core/extractToPage.js";
 import type { ClientNode } from "@/core/workspace-client.js";
 
 import { displayNameForSettings } from "../dateDisplay.js";
@@ -54,6 +57,13 @@ interface MenuClient extends CloneReadSurface, CloneWriteSurface {
   updateObject(id: string, fields: { presentAsMain?: boolean }): Promise<void>;
   /** Content rewrites — the heading conversion rides this (headingConvert). */
   updateObject(id: string, fields: { contentAst?: ContentAst }): Promise<void>;
+  /** Reparenting — the block→page extraction rides this (extractToPage). */
+  moveObject(
+    id: string,
+    parentId: string | null,
+    afterId?: string,
+    beforeId?: string,
+  ): Promise<void>;
 }
 
 export type NodeMenuState =
@@ -295,6 +305,30 @@ export function NodeContextMenu({
       label: "Convert to plain text",
       icon: "mdi-format-letter-case",
       onClick: () => void client.updateObject(node.id, { contentAst: plainTextAstOf(node) }),
+    });
+  }
+  // Block → page extraction (owner 2026-10-16): an inline block converts to
+  // a root page in place — a link block holding one mention of it takes its
+  // slot. Children stay in the page under the link block by default;
+  // Shift/Ctrl/Cmd-click carries them over to the extracted page instead
+  // (the badge names the modifier variant). Date-chain nodes are
+  // parent-locked and never offered.
+  if (rendersAsInlineBlock(node) && parseDateNodeId(node.id) === null) {
+    items.push({
+      id: "convert-to-page",
+      label: "Convert to page",
+      icon: "mdi-file-document-outline",
+      badge: "⇧ children follow",
+      onClick: (event) => {
+        const keepChildren =
+          event?.shiftKey === true || event?.ctrlKey === true || event?.metaKey === true;
+        void extractBlockToPage(client, client, node.id, { keepChildren })
+          .then(() => notificationStore.success("Converted to page", name))
+          .catch((error: unknown) => {
+            console.warn(`[context-menu] convert-to-page (${node.id}) failed:`, error);
+            notificationStore.error("Couldn't convert to page", name);
+          });
+      },
     });
   }
   // Duplicate: a real subtree clone through the shared
