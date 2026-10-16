@@ -394,7 +394,7 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
       style={{ visibility: 'hidden' }}
       {...(companion ? { "data-editor-companion": "true" } : {})}
       role="menu"
-      elevation="high"
+      elevation="medium"
       radius="floating"
       padding={false}
       onFocus={(e: FocusEvent) => e.stopPropagation()}
@@ -467,7 +467,7 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
               ref={flyoutRef}
               className="context-menu-submenu-flyout"
               role="menu"
-              elevation="high"
+              elevation="medium"
               radius="floating"
               padding={false}
             >

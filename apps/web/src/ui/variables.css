@@ -111,6 +111,16 @@
   --md-sys-color-shadow: rgb(0 0 0 / 8%);
   --md-sys-color-scrim: rgb(0 0 0 / 50%);
 
+  /* ==================== Elevation shadows ====================
+     The design system's elevation table (foundations → Elevation): static
+     surfaces never shadow; floating transient layers carry soft ambient+key
+     shadows. Component CSS references these — the values live HERE, per
+     theme, literal rgb and all.
+       --shadow-floating — level 1: popovers, menus, panels.
+       --shadow-modal    — level 2: dialogs, modals. */
+  --shadow-floating: 0 1px 2px rgb(0 0 0 / 5%), 0 1px 3px 1px rgb(0 0 0 / 7%);
+  --shadow-modal: 0 2px 6px 2px rgb(0 0 0 / 6%), 0 8px 24px 4px rgb(0 0 0 / 9%);
+
   /* ==================== Presentation stage ====================
      Fullscreen presentation host (PresentationOverlay): a dark stage in
      EVERY theme (a deck reads like a projector surface, not a page), with
@@ -739,6 +749,11 @@
   --md-sys-color-outline-variant: color-mix(in oklab, var(--md-sys-color-primary) 10%, #212120);
   --md-sys-color-shadow: rgb(0 0 0 / 50%);
   --md-sys-color-scrim: rgb(0 0 0 / 70%);
+
+  /* Elevation shadows — the design system's dark-theme values
+     (foundations → Elevation; see the light block for the levels). */
+  --shadow-floating: 0 1px 2px rgb(0 0 0 / 28%), 0 1px 3px 1px rgb(0 0 0 / 36%);
+  --shadow-modal: 0 2px 6px 2px rgb(0 0 0 / 32%), 0 10px 28px 4px rgb(0 0 0 / 44%);
 
   /* Presentation stage — dark in every theme (see the light block). */
   --md-sys-color-presentation-stage: #0a0a09;
