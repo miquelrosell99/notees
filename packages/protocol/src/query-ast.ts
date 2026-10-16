@@ -167,6 +167,34 @@ export type Condition =
   /** DYNAMIC Root: the workspace-root ancestor matches the nested group. */
   | { type: "rootInQuery"; root: Group }
   /**
+   * v1's PARENT block: the DIRECT parent (one hop up) IS ONE OF the picked
+   * nodes (static mode). The not-wrap reads "parent is not any of …"; the
+   * set bit rides `parentSet`.
+   */
+  | { type: "parentOf"; nodeIds: string[] }
+  /** DYNAMIC Parent: the direct parent is one of the nodes matching the nested group. */
+  | { type: "parentOfQuery"; root: Group }
+  /**
+   * v1's CHILD block: the node CONTAINS ANY OF the picked nodes as DIRECT
+   * children (static mode). The not-wrap reads "does not contain any of …";
+   * the set bit rides `childSet`.
+   */
+  | { type: "childOf"; nodeIds: string[] }
+  /** DYNAMIC Child: a direct child is one of the nodes matching the nested group. */
+  | { type: "childOfQuery"; root: Group }
+  /** The CHILD "is set": at least one direct child exists. */
+  | { type: "childSet" }
+  /** The CHILD PATH "is set": at least one descendant exists (any depth below). */
+  | { type: "descendantSet" }
+  /**
+   * v1's REFERENCE PATH block: the node OR any of its ancestors REFERENCES
+   * one of the picked nodes, OR the node sits INSIDE one of them (the target
+   * is an ancestor — v1 folded containment into the reference rollup).
+   */
+  | { type: "referencePathOf"; nodeIds: string[] }
+  /** DYNAMIC Reference path: the rollup targets are the subquery's matches. */
+  | { type: "referencePathOfQuery"; root: Group }
+  /**
    * Ancestor-chain membership: the node's parents tree (parent,
    * grandparent, …, the node itself EXCLUDED) contains nodeId — the row
    * sits anywhere inside the chosen node's tree. Compiled as subtree
@@ -286,6 +314,17 @@ export const conditionSchema = z.discriminatedUnion("type", [
   /** The root walk: the workspace-root ancestor is one of the picked nodes / matches the group. */
   z.object({ type: z.literal("rootIn"), nodeIds: z.array(uuid).min(1) }).strict(),
   z.object({ type: z.literal("rootInQuery"), root: groupSchema }).strict(),
+  /** v1's Parent block: the direct parent is one of the picked nodes / matches the group. */
+  z.object({ type: z.literal("parentOf"), nodeIds: z.array(uuid).min(1) }).strict(),
+  z.object({ type: z.literal("parentOfQuery"), root: groupSchema }).strict(),
+  /** v1's Child block: a direct child is one of the picked nodes / matches the group. */
+  z.object({ type: z.literal("childOf"), nodeIds: z.array(uuid).min(1) }).strict(),
+  z.object({ type: z.literal("childOfQuery"), root: groupSchema }).strict(),
+  z.object({ type: z.literal("childSet") }).strict(),
+  z.object({ type: z.literal("descendantSet") }).strict(),
+  /** v1's Reference path block: the self-or-ancestor link rollup over the picked nodes. */
+  z.object({ type: z.literal("referencePathOf"), nodeIds: z.array(uuid).min(1) }).strict(),
+  z.object({ type: z.literal("referencePathOfQuery"), root: groupSchema }).strict(),
   /** The content "is set" bit. */
   z.object({ type: z.literal("contentSet") }).strict(),
   /** Tag shapes (the OR-set tag_ids; a tag is any page). */
