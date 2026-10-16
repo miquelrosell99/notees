@@ -3,9 +3,14 @@
  *
  * A reusable context menu component that displays a list of actions
  * at the specified position. Uses the Card component for consistent styling.
+ * Submenus (custom `submenu` content or a native `submenuItems` action
+ * list) fly out to the SIDE of the parent row — the Notion pattern — as a
+ * second card overlapping the menu edge by a hair (a hover bridge), aligned
+ * to the parent row's top, flipping to the left side at the viewport edge
+ * and clamping vertically. Opening rides hover on pointer-fine devices and
+ * click/tap everywhere.
  */
 import {
-  Fragment,
   useRef,
   useEffect,
   useCallback,
@@ -39,11 +44,12 @@ export interface ContextMenuItem {
   /** If provided, shows a submenu with custom content when item is clicked */
   submenu?: ReactNode | undefined;
   /**
-   * If provided, shows an inline submenu of action items when the item is
-   * clicked (the native action-list form — the whiteboard's `submenu` is the
-   * custom-content form). Subitems fire their own onClick and then close
-   * the whole menu (unless keepOpen). They render with the item styling but
-   * are excluded from the top-level arrow-key navigation.
+   * If provided, shows a flyout submenu of action items to the side of the
+   * parent row when the item is clicked or hovered (the native action-list
+   * form — the whiteboard's `submenu` is the custom-content form). Subitems
+   * fire their own onClick and then close the whole menu (unless keepOpen).
+   * They render with the item styling but are excluded from the top-level
+   * arrow-key navigation.
    */
   submenuItems?: ContextMenuItem[] | undefined;
   /** If provided, renders custom content directly in the menu row instead of a button */
@@ -90,14 +96,14 @@ export interface ContextMenuProps {
 
 export function ContextMenu({ items, position, anchorEl, onClose, title, activeItem, containerRef, inline = false, alignRight = false, className = '', companion = false }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const flyoutRef = useRef<HTMLDivElement>(null);
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
-  const [closingSubmenu, setClosingSubmenu] = useState(false);
   const posX = position?.x;
   const posY = position?.y;
 
-  const closeSubmenuAnimated = useCallback(() => {
-    setClosingSubmenu(true);
+  const closeSubmenu = useCallback(() => {
+    setActiveSubmenu(null);
   }, []);
 
   // Hover opens submenus on pointer-fine devices only: on touch, the tap
@@ -111,23 +117,20 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
     [],
   );
 
-  // Hover seam: entering a submenu parent opens its panel; entering any
-  // other top-level item closes the open one. The inline panel itself
-  // carries no handler, so the pointer can travel into the subitems.
+  // Hover seam: entering a submenu parent opens its flyout; entering any
+  // other top-level item closes the open one. The flyout carries no item
+  // handlers, so the pointer can travel into its rows — the panel overlaps
+  // the menu edge by a hair, forming a hover bridge with no dead gap.
   const handleItemEnter = useCallback(
     (item: ContextMenuItem) => {
       if (!canHover || item.disabled || item.separator) return;
       if (item.submenu !== undefined || item.submenuItems !== undefined) {
-        if (activeSubmenu !== item.id) {
-          setActiveSubmenu(item.id);
-          setClosingSubmenu(false);
-        }
+        if (activeSubmenu !== item.id) setActiveSubmenu(item.id);
       } else if (activeSubmenu !== null) {
-        setActiveSubmenu(null);
-        setClosingSubmenu(false);
+        closeSubmenu();
       }
     },
-    [canHover, activeSubmenu],
+    [canHover, activeSubmenu, closeSubmenu],
   );
 
   // Register with the overlay stack so Escape closes this context menu
@@ -138,7 +141,7 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
     onClose,
     onEscape: () => {
       if (activeSubmenu) {
-        closeSubmenuAnimated();
+        closeSubmenu();
         return true;
       }
       return false;
@@ -154,12 +157,8 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
 
     // If item has submenu (custom content or a native action list), toggle it
     if (item.submenu !== undefined || item.submenuItems !== undefined) {
-      if (activeSubmenu === item.id) {
-        closeSubmenuAnimated();
-      } else {
-        setActiveSubmenu(item.id);
-        setClosingSubmenu(false);
-      }
+      if (activeSubmenu === item.id) closeSubmenu();
+      else setActiveSubmenu(item.id);
       return;
     }
 
@@ -167,12 +166,12 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
     if (!item.keepOpen) {
       onClose();
     }
-  }, [activeSubmenu, closeSubmenuAnimated, onClose]);
+  }, [activeSubmenu, closeSubmenu, onClose]);
 
   // A native submenu item: fires its own action, then closes the whole menu
-  // (unless keepOpen). Rendered inside the parent's inline panel — a real
-  // button (Tab-focusable) but excluded from the arrow-key walk, which is
-  // scoped to the top-level items.
+  // (unless keepOpen). Rendered inside the flyout panel — a real button
+  // (Tab-focusable) but excluded from the arrow-key walk, which is scoped
+  // to the top-level items.
   const renderSubitem = (sub: ContextMenuItem): ReactNode => {
     if (sub.separator) {
       return <Separator key={`sub-sep-${sub.id}`} orientation="horizontal" spacing="sm" />;
@@ -332,6 +331,40 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
       floating.style.right = 'auto';
       floating.style.bottom = 'auto';
       floating.style.visibility = 'visible';
+
+      // The flyout submenu rides to the SIDE of the parent row (never
+      // inside the menu's flow — growing the menu there made the whole
+      // menu re-fit and dance when the panel opened/closed). It overlaps
+      // the menu edge by a hair (a hover bridge), aligns its top with the
+      // parent row, flips left when the right side lacks room, and clamps
+      // vertically into the viewport. Absolutely positioned inside the
+      // card, it never changes the menu's own box, so the position above
+      // stays put.
+      const flyout = flyoutRef.current;
+      if (flyout !== null && activeSubmenu !== null) {
+        const escaped =
+          typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+            ? CSS.escape(activeSubmenu)
+            : activeSubmenu;
+        const trigger = floating.querySelector<HTMLElement>(`[data-item-id="${escaped}"]`);
+        if (trigger !== null) {
+          const menuRect = floating.getBoundingClientRect();
+          const triggerRect = trigger.getBoundingClientRect();
+          const flyoutW = flyout.offsetWidth;
+          const flyoutH = flyout.offsetHeight;
+          const overlap = 4;
+          const roomRight = viewportW - menuRect.right + overlap - VIEWPORT_PADDING;
+          const roomLeft = menuRect.left + overlap - VIEWPORT_PADDING;
+          const openRight = roomRight >= flyoutW - overlap || roomRight >= roomLeft;
+          flyout.style.left = openRight ? `${floating.offsetWidth - overlap}px` : 'auto';
+          flyout.style.right = openRight ? 'auto' : `${floating.offsetWidth - overlap}px`;
+          const minTop = VIEWPORT_PADDING - menuRect.top;
+          const maxTop = viewportH - flyoutH - VIEWPORT_PADDING - menuRect.top;
+          const top = triggerRect.top - menuRect.top;
+          flyout.style.top = `${Math.min(Math.max(top, minTop), Math.max(minTop, maxTop))}px`;
+          flyout.style.bottom = 'auto';
+        }
+      }
     };
 
     update();
@@ -347,7 +380,7 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
       unobserve();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reference rect is re-read on every update cycle
-  }, [anchorEl, posX, posY, alignRight, inline]);
+  }, [anchorEl, posX, posY, alignRight, inline, activeSubmenu]);
 
   // Track index in navigable items for focus
   let navigableIndex = -1;
@@ -390,52 +423,60 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
         const isActive = activeItem === item.id;
 
         return (
-          <Fragment key={item.id}>
-            <button
-              className={`context-menu-item ${item.danger ? 'danger' : ''} ${item.disabled ? 'disabled' : ''} ${isFocused ? 'focused' : ''} ${isActive || activeSubmenu === item.id ? 'active' : ''} ${item.submenu !== undefined || item.submenuItems !== undefined ? 'has-submenu' : ''}`}
-              onClick={(e) => handleItemClick(item, e)}
-              disabled={item.disabled}
-              role="menuitem"
-              tabIndex={isFocused ? 0 : -1}
-              onMouseEnter={() => handleItemEnter(item)}
-            >
-              <span className="context-menu-icon-wrapper">
-                {item.icon && (
-                  <Icon path={item.icon} size={0.7} className="context-menu-icon" />
-                )}
-              </span>
-              <span className="context-menu-label">{item.label}</span>
-              {item.badge && (
-                <span className="context-menu-badge">{item.badge}</span>
+          <button
+            key={item.id}
+            data-item-id={item.id}
+            className={`context-menu-item ${item.danger ? 'danger' : ''} ${item.disabled ? 'disabled' : ''} ${isFocused ? 'focused' : ''} ${isActive || activeSubmenu === item.id ? 'active' : ''} ${item.submenu !== undefined || item.submenuItems !== undefined ? 'has-submenu' : ''}`}
+            onClick={(e) => handleItemClick(item, e)}
+            disabled={item.disabled}
+            role="menuitem"
+            tabIndex={isFocused ? 0 : -1}
+            onMouseEnter={() => handleItemEnter(item)}
+          >
+            <span className="context-menu-icon-wrapper">
+              {item.icon && (
+                <Icon path={item.icon} size={0.7} className="context-menu-icon" />
               )}
-              {item.shortcut && (
-                <span className="context-menu-shortcut">{item.shortcut}</span>
-              )}
-              {(item.submenu !== undefined || item.submenuItems !== undefined) && (
-                <span
-                  className={`context-menu-arrow${activeSubmenu === item.id ? ' context-menu-arrow--open' : ''}`}
-                  aria-hidden="true"
-                >
-                  <Icon path="mdi-chevron-right" size={0.8} />
-                </span>
-              )}
-            </button>
-            {(item.submenu !== undefined || item.submenuItems !== undefined) && activeSubmenu === item.id && (
-              <div
-                className={`context-menu-submenu-inline${closingSubmenu ? ' context-menu-submenu-inline--closing' : ''}`}
-                onAnimationEnd={() => {
-                  if (closingSubmenu) {
-                    setActiveSubmenu(null);
-                    setClosingSubmenu(false);
-                  }
-                }}
-              >
-                {item.submenu !== undefined ? item.submenu : item.submenuItems!.map(renderSubitem)}
-              </div>
+            </span>
+            <span className="context-menu-label">{item.label}</span>
+            {item.badge && (
+              <span className="context-menu-badge">{item.badge}</span>
             )}
-          </Fragment>
+            {item.shortcut && (
+              <span className="context-menu-shortcut">{item.shortcut}</span>
+            )}
+            {(item.submenu !== undefined || item.submenuItems !== undefined) && (
+              <span className="context-menu-arrow" aria-hidden="true">
+                <Icon path="mdi-chevron-right" size={0.8} />
+              </span>
+            )}
+          </button>
         );
       })}
+      {activeSubmenu !== null &&
+        (() => {
+          const active = items.find((entry) => entry.id === activeSubmenu);
+          if (
+            active === undefined ||
+            (active.submenu === undefined && active.submenuItems === undefined)
+          ) {
+            return null;
+          }
+          return (
+            <Card
+              ref={flyoutRef}
+              className="context-menu-submenu-flyout"
+              role="menu"
+              elevation="high"
+              radius="floating"
+              padding={false}
+            >
+              {active.submenu !== undefined
+                ? active.submenu
+                : active.submenuItems!.map(renderSubitem)}
+            </Card>
+          );
+        })()}
     </Card>
   );
 
