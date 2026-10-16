@@ -2774,6 +2774,17 @@ select:focus-visible {
   width: 100%;
 }
 
+/* Block-level rule (display-time `---` derivation, owner 2026-10-16): a
+   block whose content is exactly --- renders this in place of bullet +
+   text. Rides the inline hr's hairline; the vertical margins track the
+   spacing scale (the row's own padding supplies the rest of the air). */
+.nt-block-rule {
+  border: none;
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  margin: var(--spacing-2) 0;
+  width: 100%;
+}
+
 /* --- embed_ref card views ------------------------------------------------------
    The intermediate reference views: a bounded identity card (icon + name;
    the wide variant adds the one-line excerpt). Never transcludes. */

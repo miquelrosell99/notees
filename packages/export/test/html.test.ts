@@ -483,3 +483,52 @@ describe("privacy: no external resources", () => {
     }
   });
 });
+
+describe("display-time rule (owner 2026-10-16)", () => {
+  it("maps a block whose content is exactly --- to <hr>", () => {
+    const html = toHtml(
+      page("cccccccc-0000-4000-8000-000000000001", "", [
+        { type: "text", text: "---" },
+      ]),
+      makeCtx(),
+    );
+    expect(html).toContain("<hr>");
+    // The dashes never ride a <p> — the rule replaces the paragraph.
+    expect(html).not.toContain("<p>---</p>");
+  });
+
+  it("maps rule blocks in the outline children to <hr> too", () => {
+    const rule = {
+      ...page("cccccccc-0000-4000-8000-000000000011", "", [
+        { type: "text", text: "---" },
+      ]),
+      isEmbedded: 1 as const,
+      parentId: "cccccccc-0000-4000-8000-000000000010",
+    };
+    const parent = page("cccccccc-0000-4000-8000-000000000010", "parent", [
+      { type: "text", text: "own body" },
+    ]);
+    const ctx = makeCtx({ childrenOf: (id) => (id === parent.id ? [rule] : []) });
+    const html = toHtml(parent, ctx);
+    expect(html).toContain("<hr>");
+  });
+
+  it("near misses stay paragraphs (the derivation has no whitespace tolerance)", () => {
+    const parent = page("cccccccc-0000-4000-8000-000000000020", "parent", [
+      { type: "text", text: "own body" },
+    ]);
+    const misses = ["----", "--- x", "x ---"].map((text, index) => ({
+      ...page(`cccccccc-0000-4000-8000-00000000002${index + 1}`, "", [
+        { type: "text" as const, text },
+      ]),
+      isEmbedded: 1 as const,
+      parentId: parent.id,
+    }));
+    const ctx = makeCtx({ childrenOf: (id) => (id === parent.id ? misses : []) });
+    const html = toHtml(parent, ctx);
+    for (const text of ["----", "--- x", "x ---"]) {
+      expect(html).toContain(`<p>${text}</p>`);
+    }
+    expect(html).not.toContain("<hr>");
+  });
+});

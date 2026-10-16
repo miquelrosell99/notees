@@ -9,6 +9,31 @@ predating this file.
 
 ## 2026-10-16
 
+- **feat(web): horizontal rule blocks — a block whose content is exactly
+  `---` renders as a divider, inserted via the slash menu (owner
+  2026-10-16).** Zero wire/store/fixture changes: the node is an ordinary
+  text block everywhere on the wire and in the store — the rule is purely a
+  display-time derivation (the new domain `isRuleContent` helper: exactly
+  one plain text run equal to `---`, no marks, no whitespace tolerance).
+  Web: the block row renders an `<hr>` in place of bullet + text, children
+  of a rule never render (a rule terminates a section), and clicking the
+  rule enters edit and shows the raw dashes — the block is never a trapped
+  surface, and typing anything else turns it back into prose by
+  construction. The slash menu's existing **Divider** entry (`/hr`) is the
+  insertion affordance: it now strips the trigger and inserts a sibling
+  block whose content is exactly `---` through the standard `object.create`
+  path (sync + undo ride along), then focuses the rule's editor (the
+  `/table` cursor precedent). The retired inline `hr` content token stays
+  parseable for old logs — only the menu's authoring path changed. Export:
+  the IR gains a `rule` block kind (the same domain derivation); HTML maps
+  it to `<hr>`, markdown/latex/docx keep the literal dashes — byte-identical
+  to the pre-derivation paragraph. Docs: SCHEMA.md (a display-time
+  derivation next to the link-based one), ux.md/usage.md.
+  **Verification:** `pnpm build` + `pnpm typecheck` (8/8) + `pnpm test`
+  green — domain 95, export 247 (html `<hr>` mapping + markdown
+  pass-through), web 1766 including the new hr-rule suites (rule render,
+  children suppressed, near misses, edit-shows-dashes, `/divider` insert +
+  focus, undo); no protocol/store/query/server deltas.**
 - **feat(model): per-block list styles — numbered / alpha / roman via the
   `listStyle` wire node field (owner 2026-10-16).** Block rows rendered a
   bullet dot and nothing else; a block can now carry a **list style** that

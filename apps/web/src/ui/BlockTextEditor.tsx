@@ -1051,9 +1051,26 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       return;
     }
     if (commandId === "hr") {
-      // The divider token rides the content
-      // stream like a hard_break — one token, no text.
-      applySplice(start, end, [{ type: "hr" }], start + 1);
+      // Display-time rule (owner 2026-10-16): the divider is an ORDINARY
+      // block whose content is exactly "---" — BlockRow derives the <hr> at
+      // render time (zero wire footprint; the retired inline `hr` token
+      // grammar stays parseable for old logs but the menu no longer authors
+      // it). The trigger text is stripped from this block, the rule lands
+      // as a sibling right after it, and the caret moves into the rule
+      // block's editor — the /table focus precedent: editing shows the raw
+      // dashes, and anything typed turns the block back into prose.
+      applySplice(start, end, [], start);
+      const parentId = nodeRef.current.parentId;
+      void client
+        .createObject({
+          parentId,
+          contentAst: [{ type: "text", text: "---" }],
+          afterId: nodeRef.current.id,
+        })
+        .then((ruleId) => requestFocus(ruleId, "end"))
+        .catch((error: unknown) => {
+          console.warn("[capture] /hr failed:", error);
+        });
       return;
     }
     if (commandId === "code") {

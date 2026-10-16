@@ -23,6 +23,7 @@ import {
   parseDateNodeId,
   dateNodeDisplayLabel,
   isRangeDatetimeValue,
+  isRuleContent,
   isValidTimeOfDay,
 } from "@notees/domain";
 
@@ -211,7 +212,15 @@ export type ExportBlock =
       link?: { name: string; path: string } | undefined;
     }
   | { kind: "query"; queryAst: unknown }
-  | { kind: "whiteboard"; layout: Record<string, unknown> };
+  | { kind: "whiteboard"; layout: Record<string, unknown> }
+  /**
+   * Display-time horizontal rule (owner 2026-10-16): the node's content is
+   * exactly `---` (the domain `isRuleContent` derivation — the node is an
+   * ordinary text block everywhere else). Only the HTML serializer maps it
+   * to a real `<hr>`; the other formats keep their pre-derivation shape by
+   * rendering the literal dashes.
+   */
+  | { kind: "rule" };
 
 /** One outline level; `cut` marks a visible truncation (never silent). */
 export interface ExportDocumentChild {
@@ -572,6 +581,9 @@ function buildBlocks(
   assetRefs: string[],
 ): ExportBlock[] {
   if (ast === null || ast === undefined) return [];
+  // Display-time rule: a node whose content is exactly "---" exports as one
+  // rule block (the domain derivation — no token-walking below).
+  if (isRuleContent(ast)) return [{ kind: "rule" }];
   const out: ExportBlock[] = [];
   let spans: ExportSpan[] = [];
   const flush = () => {

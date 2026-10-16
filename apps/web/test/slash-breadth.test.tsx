@@ -305,16 +305,22 @@ describe("slash /template", () => {
 });
 
 describe("slash /hr and /code (lockstep SHIPPED)", () => {
-  it("/hr inserts the divider token at the caret", async () => {
-    const { client, blockId, container } = await setupPageWithBlock();
+  it("/hr inserts a divider block whose content is exactly --- (display-time rule, owner 2026-10-16)", async () => {
+    const { client, pageId, container } = await setupPageWithBlock();
     const editor = clickIntoBlock(container);
     typeSlashCommand(editor, "hr");
     expect(slashPopup()).not.toBeNull();
 
     fireEvent.keyDown(editor, { key: "Enter" });
+    // The menu no longer authors the inline hr token: the divider is an
+    // ordinary sibling block with exactly "---" (the trigger is stripped
+    // from the current block). BlockRow derives the <hr> at render time.
     await waitFor(() => {
-      const ast = client.getNode(blockId)?.contentAst as ContentAst;
-      expect(ast).toEqual([{ type: "hr" }]);
+      const children = client.getChildren(pageId);
+      expect(children.map((child) => child.contentAst)).toEqual([
+        [],
+        [{ type: "text", text: "---" }],
+      ]);
     });
   });
 

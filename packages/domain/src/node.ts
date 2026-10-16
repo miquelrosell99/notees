@@ -187,6 +187,28 @@ export function isTextOnlyContent(ast: unknown): boolean {
   });
 }
 
+/**
+ * Display-time horizontal-rule derivation (owner 2026-10-16): true ONLY when
+ * the content AST is exactly one plain text run equal to "---" — no inline
+ * marks, no other tokens, no whitespace tolerance (an exact match). The rule
+ * is purely render state: the node is an ordinary text block on the wire and
+ * in the store (zero protocol footprint), and renderers (the web block row,
+ * the HTML export) derive the rule from the content. Typing anything else
+ * turns the block back into an ordinary block by construction.
+ */
+export function isRuleContent(ast: unknown): boolean {
+  if (!Array.isArray(ast) || ast.length !== 1) return false;
+  const token = ast[0];
+  if (typeof token !== "object" || token === null) return false;
+  const candidate = token as { type?: unknown; text?: unknown; marks?: unknown };
+  if (candidate.type !== "text" || candidate.text !== "---") return false;
+  // No inline marks: the key absent, or the wire grammar's empty "no marks".
+  return (
+    candidate.marks === undefined ||
+    (Array.isArray(candidate.marks) && candidate.marks.length === 0)
+  );
+}
+
 const DATE_CLASS_IDS = new Set(["00000000-0000-0000-0001-000000000003", "00000000-0000-0000-0001-000000000004", "00000000-0000-0000-0001-000000000005"]);
 
 /**

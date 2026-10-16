@@ -245,6 +245,12 @@ function renderBlock(block: ExportBlock, bullet?: number): Paragraph[] {
       return [new Paragraph(atLevel({ children: jsonRuns(block.queryAst) }))];
     case "whiteboard":
       return [new Paragraph(atLevel({ children: jsonRuns(block.layout) }))];
+    case "rule":
+      // Display-time rule (owner 2026-10-16): the literal dashes —
+      // byte-identical to the paragraph pass-through from before the
+      // derivation existed (only the HTML serializer maps the rule to a
+      // real <hr>).
+      return [new Paragraph(atLevel({ children: [new TextRun({ text: "---" })] }))];
   }
 }
 

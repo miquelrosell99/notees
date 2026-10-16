@@ -50,6 +50,8 @@
  *  | external_link  | <a href="escaped">escaped text</a>                          |
  *  | math           | <code class="math">$expression$</code>                      |
  *  | quote          | <blockquote> with inline children                           |
+ *  | rule           | <hr> — a block whose content is exactly "---" (the display- |
+ *  |                | time rule derivation, owner 2026-10-16)                     |
  *  | query          | <pre class="query"> with the pretty-printed QueryAST JSON   |
  *  | whiteboard     | <pre class="whiteboard"> with the pretty layout JSON        |
  *  | outline cut    | <li class="cut">![[uuid]]</li> — cycle or explicit maxDepth  |
@@ -251,6 +253,14 @@ pre.whiteboard {
   overflow-wrap: anywhere;
 }
 
+/* Display-time rule (owner 2026-10-16): a block whose content is exactly
+   "---" exports as a thematic break. */
+hr {
+  border: none;
+  border-top: 1px solid var(--nt-outline-variant);
+  margin: 1rem 0;
+}
+
 .outline h2 {
   margin: 2.5rem 0 0;
   padding-top: 1.5rem;
@@ -371,6 +381,10 @@ function renderBlock(block: ExportBlock): string {
       return `<pre class="query">${escapeHtml(JSON.stringify(block.queryAst, null, 2))}</pre>`;
     case "whiteboard":
       return `<pre class="whiteboard">${escapeHtml(JSON.stringify(block.layout, null, 2))}</pre>`;
+    case "rule":
+      // The display-time horizontal rule (owner 2026-10-16): a block whose
+      // content is exactly "---" exports as a thematic break.
+      return "<hr>";
   }
 }
 

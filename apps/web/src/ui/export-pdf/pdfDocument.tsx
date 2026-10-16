@@ -120,6 +120,13 @@ function buildStyles(theme: PdfTheme) {
     externalLink: { color: theme.colors.accent, textDecoration: "underline" },
     math: { fontFamily: theme.fonts.mono, fontSize: theme.type.bodySize - 1.5 },
     assetFigure: { marginBottom: 10 },
+    // Display-time rule (owner 2026-10-16): a block whose content is exactly
+    // "---" draws a divider (the html serializer's <hr>).
+    rule: {
+      borderTop: `1 solid ${theme.colors.rule}`,
+      marginTop: 6,
+      marginBottom: 10,
+    },
     assetImage: { maxWidth: "100%", maxHeight: 340, alignSelf: "center" },
     assetPlaceholder: {
       border: `1 solid ${theme.colors.rule}`,
@@ -360,6 +367,10 @@ function PdfBlock({
           <Text style={styles.verbatimText}>{JSON.stringify(block.layout, null, 2)}</Text>
         </View>
       );
+    case "rule":
+      // The display-time horizontal rule rides the html export's <hr>
+      // mapping — a block whose content is exactly "---".
+      return <View style={styles.rule} />;
   }
 }
 
