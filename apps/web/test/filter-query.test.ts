@@ -58,6 +58,7 @@ function stubClient(facts: {
     getNode: (id) => makeNode({ id }),
     getClassChildren: (classId) =>
       (facts.classChildren?.[classId] ?? []).map((id) => makeNode({ id })),
+    getChildren: () => [],
     getEffectiveProperties: (id) =>
       (facts.properties?.[id] ?? []).map(
         (row, idx) =>
@@ -122,7 +123,10 @@ describe("the FilterQuery shape", () => {
     expect(createCondition("content")).toEqual({ type: "content", op: "contains", value: "" });
     expect(createCondition("property")).toEqual({ type: "property", schemaId: "", op: "eq", value: "" });
     expect(createCondition("links")).toEqual({ type: "linkedTo", nodeId: "" });
-    expect(createCondition("parent")).toEqual({ type: "descendantOf", nodeId: "" });
+    expect(createCondition("referencePath")).toEqual({ type: "referencePathOf", nodeIds: [] });
+    expect(createCondition("parent")).toEqual({ type: "parentOf", nodeIds: [] });
+    expect(createCondition("child")).toEqual({ type: "childOf", nodeIds: [] });
+    expect(createCondition("childPath")).toEqual({ type: "descendantOfAny", nodeIds: [] });
     expect(createCondition("page")).toEqual({ type: "pageOf", nodeIds: [] });
     expect(createCondition("parentPath")).toEqual({ type: "ancestorIn", nodeIds: [] });
     expect(createCondition("root")).toEqual({ type: "rootIn", nodeIds: [] });
@@ -338,7 +342,10 @@ describe("the add-menu registry", () => {
       "property",
       "tags",
       "links",
+      "referencePath",
       "parent",
+      "child",
+      "childPath",
       "page",
       "parentPath",
       "root",

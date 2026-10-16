@@ -1748,3 +1748,111 @@ describe.each(adapters)("$name: Odoo operator-set conditions", ({ makeStore }) =
 
 
 });
+
+
+// --- the v1 hierarchy/reference blocks (owner 2026-10-16, round 3) -----------
+// v1's PARENT (direct parent), CHILD (direct children), CHILD PATH set bit,
+// and REFERENCE PATH (the self-or-ancestor link rollup with containment
+// folded in) — static + dynamic forms, over the France/Paris/Lone world
+// (FR_BLOCK links to Paris, OUT_BLOCK links to Lone; parisBlock sits inside
+// Paris; loneBlock inside Lone).
+
+describe.each(adapters)("$name: the v1 hierarchy/reference blocks", ({ makeStore }) => {
+  function worldStore(): Store {
+    const store = makeStore();
+    store.applyMany(worldEnvelopes());
+    return store;
+  }
+
+  it("parentOf: the DIRECT parent (one hop) is one of the picked nodes", () => {
+    const store = worldStore();
+    expect(
+      runQuery(store, ast(entire, [{ type: "parentOf", nodeIds: [FRANCE] }])).ids.sort(),
+    ).toEqual([FR_BLOCK, OUT_BLOCK, PARIS].sort());
+    expect(runQuery(store, ast(entire, [{ type: "parentOf", nodeIds: [PARIS] }])).ids).toEqual([
+      PARIS_BLOCK,
+    ]);
+    // A parentless row's NULL parent matches nothing; the not-wrap inverts.
+    expect(runQuery(store, ast(entire, [{ type: "parentOf", nodeIds: [LONE] }])).ids).toEqual([
+      LONE_BLOCK,
+    ]);
+    const negated = runQuery(store, ast(entire, [
+      { type: "not", child: { type: "parentOf", nodeIds: [FRANCE] } },
+    ]));
+    expect(negated.ids).toContain(FRANCE);
+    expect(negated.ids).not.toContain(PARIS);
+  });
+
+  it("parentOfQuery: the direct parent matches the nested group", () => {
+    const store = worldStore();
+    // Parents classed Place (closure ∋ City): France-classed and Paris-classed
+    // parents both match — every parented France-subtree row.
+    expect(
+      runQuery(store, ast(entire, [{ type: "parentOfQuery", root: { type: "group", logic: "and", children: [
+        { type: "class", classId: PLACE },
+      ] } }])).ids.sort(),
+    ).toEqual([FR_BLOCK, OUT_BLOCK, PARIS, PARIS_BLOCK].sort());
+  });
+
+  it("childOf: a DIRECT child is one of the picked nodes", () => {
+    const store = worldStore();
+    expect(
+      runQuery(store, ast(entire, [{ type: "childOf", nodeIds: [FR_BLOCK, PARIS_BLOCK] }])).ids.sort(),
+    ).toEqual([FRANCE, PARIS].sort());
+    expect(runQuery(store, ast(entire, [{ type: "childOf", nodeIds: [PARIS] }])).ids).toEqual([
+      FRANCE,
+    ]);
+  });
+
+  it("childOfQuery: a direct child matches the nested group", () => {
+    const store = worldStore();
+    expect(
+      runQuery(store, ast(entire, [{ type: "childOfQuery", root: { type: "group", logic: "and", children: [
+        { type: "content", op: "contains", value: "Capital" },
+      ] } }])).ids.sort(),
+    ).toEqual([FRANCE, PARIS].sort());
+  });
+
+  it("childSet / descendantSet: the direct-child and any-depth set bits", () => {
+    const store = worldStore();
+    // France (three children), Paris (one), Lone (one); the blocks and the
+    // class nodes have none.
+    expect(runQuery(store, ast(entire, [{ type: "childSet" }])).ids.sort()).toEqual(
+      [FRANCE, LONE, PARIS].sort(),
+    );
+    expect(runQuery(store, ast(entire, [{ type: "descendantSet" }])).ids.sort()).toEqual(
+      [FRANCE, LONE, PARIS].sort(),
+    );
+  });
+
+  it("referencePathOf: the self-or-ancestor link rollup (containment folded in)", () => {
+    const store = worldStore();
+    // FR_BLOCK links to Paris (edge); parisBlock sits inside Paris
+    // (containment arm). Paris itself does not match (T must be a STRICT
+    // ancestor, and Paris has no outbound link to itself).
+    expect(
+      runQuery(store, ast(entire, [{ type: "referencePathOf", nodeIds: [PARIS] }])).ids.sort(),
+    ).toEqual([FR_BLOCK, PARIS_BLOCK].sort());
+    // Lone: OUT_BLOCK links to it; loneBlock sits inside it.
+    expect(
+      runQuery(store, ast(entire, [{ type: "referencePathOf", nodeIds: [LONE] }])).ids.sort(),
+    ).toEqual([LONE_BLOCK, OUT_BLOCK].sort());
+    // The not-wrap inverts.
+    const negated = runQuery(store, ast(entire, [
+      { type: "not", child: { type: "referencePathOf", nodeIds: [PARIS] } },
+    ]));
+    expect(negated.ids).toContain(PARIS);
+    expect(negated.ids).not.toContain(FR_BLOCK);
+  });
+
+  it("referencePathOfQuery: the rollup targets are the subquery's matches", () => {
+    const store = worldStore();
+    // Targets = nodes classed City (closure): Paris — same matches as the
+    // static [PARIS] pick.
+    expect(
+      runQuery(store, ast(entire, [{ type: "referencePathOfQuery", root: { type: "group", logic: "and", children: [
+        { type: "class", classId: CITY },
+      ] } }])).ids.sort(),
+    ).toEqual([FR_BLOCK, PARIS_BLOCK].sort());
+  });
+});

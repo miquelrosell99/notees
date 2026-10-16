@@ -48,6 +48,10 @@ Conditions (the shipped subset, cleanly extensible by versioned addition):
 | `pageSet` | The Page "is set" — the row lives inside a page (the containing page differs from the row itself). |
 | `ancestorIn {nodeIds}` / `ancestorInQuery {root}` | v1's **Parent path** block: some **strict ancestor** (the parent path, self excluded) is one of the picked nodes / matches the subquery. |
 | `rootIn {nodeIds}` / `rootInQuery {root}` | The **root** walk: the workspace-root ancestor (a parentless row is its own root) is one of the picked nodes / matches the subquery. |
+| `parentOf {nodeIds}` / `parentOfQuery {root}` | v1's **PARENT** block: the DIRECT parent (one hop up) is one of the picked nodes / matches the subquery. (The parentless NULL reads two-valued — the empty-parent test rides `parentSet`.) |
+| `childOf {nodeIds}` / `childOfQuery {root}` / `childSet` | v1's **CHILD** block: a DIRECT child is one of the picked nodes / matches the subquery / at least one direct child exists. |
+| `descendantSet` | The CHILD PATH "is set" — at least one descendant exists at any depth below. |
+| `referencePathOf {nodeIds}` / `referencePathOfQuery {root}` | v1's **REFERENCE PATH** block: the row OR any of its ancestors links to one of the targets, OR a target is a STRICT ancestor of the row (v1 folded containment into the link rollup). |
 | `isClass {isClass}` | `node.is_class = 0/1` — the class identity bit (Revision 11). |
 | `isEmbedded {isEmbedded}` | `node.is_embedded = 0/1` — the embedding bit for parented non-class nodes (Revision 12: the Block role = embedded in the parent's body, the Page-role claim = standalone under a page-role parent). |
 | `content {op, value}` | `contains`: LIKE substring over the derived search plaintext (name + content tokens — the only derived plaintext; it lives in the FTS index). `fts`: prefix-AND `MATCH` over `search_index`. `eq`/`neq`: plaintext equality; `starts`/`ends`: edge-anchored LIKE — the Odoo text set. |
