@@ -81,7 +81,7 @@ itself is not shipped.
 
 `packages/store` is the single semantic-store implementation. Across the five storage
 categories, the derived schema
-(`packages/store/src/schema.ts`, `SCHEMA_VERSION = 17`, DDL mirrored as `SCHEMA_SQL`; additive `PRAGMA user_version` migrations — v2 class_property LWW columns, v3 date columns, v4 FTS4→FTS5, v5 tags `tag_member_set` + `node.tag_ids`, v6 → v7 `node.class_order`, v7 → v8 the render-state model: `is_class` + `present_as_main` replace `node_type`, node table rebuilt in place, v16 the wire node fields `cover_asset_id`/`banner_asset_id`/`aliased_node_id` on `node`, v17 the alias resolved-target materialization: `edge.resolved_target_id`, the applier-maintained alias-terminal of each edge's target — the backlinks roll-up's alias family and the graph read the column instead of walking alias chains per query) holds:
+(`packages/store/src/schema.ts`, `SCHEMA_VERSION = 21`, DDL mirrored as `SCHEMA_SQL`; additive `PRAGMA user_version` migrations — v2 class_property LWW columns, v3 date columns, v4 FTS4→FTS5, v5 tags `tag_member_set` + `node.tag_ids`, v6 → v7 `node.class_order`, v7 → v8 the Revision-11 render-state model (`is_class` + `present_as_main` replace `node_type`, node table rebuilt in place), v21 the Revision-12 embedding flag (`is_embedded` rename + polarity inversion, node table rebuilt), v16 the wire node fields `cover_asset_id`/`banner_asset_id`/`aliased_node_id` on `node`, v17 the alias resolved-target materialization: `edge.resolved_target_id`, the applier-maintained alias-terminal of each edge's target — the backlinks roll-up's alias family and the graph read the column instead of walking alias chains per query) holds:
 
 | Category | Tables | Notes |
 |---|---|---|
@@ -131,9 +131,10 @@ optimization, never authority: the log is untouched and remains the durability b
 
 ## 4. The axes and the bullet-proof schema
 
-*Implemented — this is the Revision 11 render-state model: `is_class` ×
-`present_as_main` replace Revision 10's `node_type` enumeration (and, before it, the
-soft-`kind` design).*
+*Implemented — this is the Revision 12 embedding model: `is_class` ×
+`is_embedded` replace Revision 10's `node_type` enumeration (and Revision 11's
+`present_as_main` render bit, retired and inverted — `is_embedded = 1 -
+present_as_main`).*
 
 Identity, tree placement, render state, and domain typing are **two booleans plus one
 placement CHECK**, so illegal states are unrepresentable rather than guarded
@@ -141,52 +142,59 @@ placement CHECK**, so illegal states are unrepresentable rather than guarded
 
 ```
 is_class INTEGER NOT NULL DEFAULT 0,
-present_as_main INTEGER NOT NULL DEFAULT 0,
+is_embedded INTEGER NOT NULL DEFAULT 1,
 ...
 -- Classes are always roots; every other node may sit anywhere in the
 -- tree, parentless nodes included (they render with document chrome).
 CHECK (is_class = 0 OR parent_id IS NULL)
 ```
 
-- **The axes:** `is_class` (identity — classes are always roots) × `parent_id`
-  (placement — placement lives *only* in the tree; a cross-page move updates nothing but
-  the parent edge plus order) × `present_as_main` (render bit for parented non-class
-  nodes: the parent's main-children zone + document chrome when 1, the inline body +
-  block chrome when 0; unread for parentless nodes and classes) × `class_ids` (domain
-  typing — whiteboard, meeting, …). "Page" and "block" are the user-facing names of the
-  render states, not stored kinds.
-- **Main node vs block node (the vocabulary, owner 2026-10-09; the parent-page condition
-  joins 2026-10-15):** a **main node** renders with document chrome — `is_class = 1` (a
-  class), OR `parent_id IS NULL` (a workspace root — no parent), OR `present_as_main = 1`
-  on a parented non-class node **whose parent also renders with document chrome**. A
-  **block node** is any other parented non-class node — `present_as_main = 0`, or the bit
-  set but inert under a non-page parent (a class or an inline block). The condition is
-  enforced write-time (fail-loud `MoveGuardError` on create/promotion/move under a
-  non-page parent, and on demoting a parented page that still carries main children);
-  render and every SQL read path assume it. `rendersWithDocumentChrome` /
-  `rendersAsInlineBlock` (`packages/domain/src/node.ts`) encode exactly these two
-  branches, with an optional parent-facts argument for callers that have the parent at
-  hand; exports, outlines, section queries, and picker filters all speak it ("child
-  pages" = main-zone children, "child blocks" = the inline zone). Old logs are
-  normalized by the one-time rewrite `scripts/migrate-main-parent-page.mts`
-  (`docs/developers/migrations.md`); until it runs on a workspace, pre-existing
+- **The axes:** `is_class` (classification — what the node represents; classes are
+  always roots) × `parent_id` (parent relationship — placement lives *only* in the tree;
+  a cross-page move updates nothing but the parent edge plus order) × `is_embedded`
+  (embedding — whether the node's content belongs to the parent's body: inline + block
+  chrome when 1, the DEFAULT for parented nodes; a standalone structural element, the
+  parent's main-children zone + document chrome when 0; unread for parentless nodes and
+  classes) × `class_ids` (domain typing — whiteboard, meeting, …). The three concerns
+  are independent: an entity (a classified meeting, quote, city) may be embedded or
+  standalone. "Page" and "block" are the user-facing names of the two structural roles
+  of one node kind, not stored kinds.
+- **Page role vs Block role (the vocabulary, owner 2026-10-09; the parent-page condition
+  joins 2026-10-15; the Revision-12 rename 2026-10-16):** a node in the **Page role**
+  renders with document chrome — `is_class = 1` (a class), OR `parent_id IS NULL` (a
+  workspace root — standalone by definition), OR `is_embedded = 0` on a parented
+  non-class node **whose parent also renders with document chrome**. A node in the
+  **Block role** is any other parented non-class node — `is_embedded = 1` (the default),
+  or the standalone claim inert under a non-page parent (a class or an embedded block).
+  The condition is enforced write-time (fail-loud `MoveGuardError` on create/promotion/
+  move of a standalone node under a non-page parent, and on demoting a parented page
+  that still carries standalone children); render and every SQL read path assume it.
+  `rendersWithDocumentChrome` / `rendersAsInlineBlock` (`packages/domain/src/node.ts`)
+  encode exactly these two branches, with an optional parent-facts argument for callers
+  that have the parent at hand; exports, outlines, section queries, and picker filters
+  all speak it ("child pages" = standalone-zone children, "child blocks" = the embedded
+  body zone). Old logs are normalized by the one-time rewrites
+  `scripts/migrate-main-parent-page.mts` and `scripts/migrate-is-embedded.mts`
+  (`docs/developers/migrations.md`); until they run on a workspace, pre-existing
   violating rows read as blocks in the UI and stay frozen (new violating writes are
   rejected).
-- **Applier defaults by context:** the payload's `presentAsMain` is optional; the applier
-  defaults it to true when the node is parentless, false when parented.
+- **Applier defaults by context:** the payload's `isEmbedded` is optional; the applier
+  defaults it to 0 (standalone) when the node is parentless, 1 (embedded — the default)
+  when parented.
 - **Class parenting:** classes may have non-class children (classes are containers); the
   one tree rule left — a class can never be a *child* — is the CHECK above, plus an
   applier move-guard that fails loud (`MoveGuardError`) when an op tries to parent a
   class (`packages/store/src/appliers.ts:594`).
-- **Promotion/demotion** = `object.update` toggling `presentAsMain` in place, identity
-  preserved (promotion stringifies the content) — promotion gated on the parent being a
-  page, demotion of a parented page gated on its main children being gone; **declaring a
-  class** = `class.create` (declaration-first).
+- **Promotion/demotion** = `object.update` toggling `isEmbedded` in place (promotion =
+  the false claim — the Page role; it stringifies the content), identity
+  preserved — promotion gated on the parent being a page, demotion of a parented page
+  gated on its standalone children being gone; **declaring a class** = `class.create`
+  (declaration-first).
 - **View resolution = the render cascade:** `is_class` → Class View; parentless →
-  document chrome (Page View; the bit is unread); otherwise `present_as_main` decides
-  main-children zone vs inline body (SCHEMA.md). The web UI implements a
-  read-oriented Page View only; Class View / Focused Block View chrome is designed,
-  not shipped.
+  document chrome (Page View; the flag is unread); otherwise `is_embedded` decides the
+  inline body (Block role) vs the standalone main-children zone (Page role)
+  (SCHEMA.md). The web UI implements a read-oriented Page View only; Class View /
+  Focused Block View chrome is designed, not shipped.
 - **Node fields vs properties (boundary rule, 2026-10-06):** platform-fixed,
   cardinality-1 node fundamentals that core chrome or navigation reads or
   writes are **wire node fields** (`object.update`, the icon/color precedent;
@@ -516,7 +524,7 @@ tokens on create-as-main and on block→page/class promotion — `object.update`
 content writes preserve the token stream they are sent. Display-name derivation
 flattens to text regardless, so labels/breadcrumbs/export titles never change. **Presentation mode (2026-10-03)** rides the same
 read seam: `ui/presentation/deck.ts` is a pure page-subtree → slide-list builder (title
-slide, one section slide per `present_as_main=1` child, density-chunked intro runs for
+slide, one section slide per standalone (`is_embedded = 0`) child, density-chunked intro runs for
 inline-body runs, trailing-image layouts, embed expansion with a visited-set cycle
 guard); `ui/presentation/DeckView.tsx` renders slides live (read-only, `InlineTokens` +
 `EmbedView` over a full `OutlinerContext`, top level read via `getChildren` + zone
