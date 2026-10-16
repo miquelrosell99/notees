@@ -172,15 +172,16 @@ The single most important process rule:
 **an op type is not done until its fixture validates.** Canonical fixtures live in
 `packages/protocol/fixtures/` as JSON files of envelopes (or `{"envelopes": [...]}`
 groups). The exact file set is the contract — the gate test below asserts it
-verbatim (30 files after the 2026-10-15 `present-as-main-parent-page` guard
-fixture); the core scenarios:
+verbatim (31 files after the 2026-10-16 Revision-12 `object-is-embedded` fixture);
+the core scenarios:
 
 | Fixture | Scenario it pins |
 |---|---|
 | `envelope-minimal.json` | smallest valid envelope |
 | `object-create.json` | node creation with content/classes |
 | `object-move.json` | reparent + sibling reorder (`afterId`), fractional positions |
-| `present-as-main-parent-page.json` | the parent-page condition: the render bit claimed under a block parent must throw on apply |
+| `is-embedded-parent-page.json` | the parent-page condition: the standalone claim (isEmbedded = 0) under a block parent must throw on apply |
+| `object-is-embedded.json` | the Revision-12 embedding flag: defaults (parentless 0 / parented 1), explicit claims, the promotion/demotion toggle |
 | `property-set-lww.json` | two ops racing one property slot; higher HLC wins |
 | `typed-link-mark.json` | verb mark with `locator` + `candidateSpans` (record-don't-resolve) |
 | `typed-link-mark-deleted.json` | deleting the word deletes the mark (honest lifecycle) |

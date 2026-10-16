@@ -9,6 +9,61 @@ predating this file.
 
 ## 2026-10-16
 
+- **feat(model): the Revision-12 embedding model — `isEmbedded` replaces
+  `presentAsMain` (polarity inverted), the link-only block transclusion, and
+  the export zone split (owner 2026-10-16).** The node model's three concerns
+  are now named separately: classification (`is_class` — what the node
+  represents), parent relationship (`parent_id`), and embedding (`is_embedded`
+  — whether the node's content belongs to the parent's body). The wire render
+  bit `presentAsMain` is retired outright and replaced by `isEmbedded` with
+  inverted polarity (`is_embedded = 1 - present_as_main`): `true` (the
+  DEFAULT for parented nodes) = embedded in the parent's body — the Block
+  role; `false` = a standalone structural element under that parent — the
+  Page role. Page/Block stay the user-facing words, re-documented as
+  structural roles of one node kind; an entity (a classified meeting, quote,
+  city) is independent of its role. Wire: `object.create`/`object.update`
+  carry optional `isEmbedded` (strict schemas reject `presentAsMain`); the
+  query AST condition/sort/aggregation rename with inverted values; the
+  parent-page condition (owner ruling 2026-10-15) is preserved — a
+  standalone claim under a non-page parent still fails loud (MoveGuardError),
+  now expressed as the `isEmbedded: false` claim. Store: derived schema v21
+  (column rename + inversion via a table rebuild; class rows converge to 0 so
+  the ladder and the appliers' canonical writes meet); applier defaults
+  parentless → 0, parented → 1; promotion = the false claim and still
+  stringifies. **Link-based display transformation (new behavior):** a block
+  whose ENTIRE content is a single mention/link presents the referenced node
+  in its place — the web editor renders the target's content inline in place
+  (transclusion-style, the EmbedView presentation + its cycle guard),
+  regardless of the target's structural role; a link mixed with other content
+  keeps the ordinary chip; presentation only (the contentAst stays a mention —
+  editing, sync, undo untouched). **Export zone split (new behavior):** a
+  parent's exported body carries the EMBEDDED children only; standalone
+  children render as a separate Pages section in the markdown/html
+  serializers (previously zone-blind nested bullets; the PDF and the zip
+  already split). The JSON archive bumps to version 2 (the renamed boolean).
+  Web: the query builders relabel the family as "Structural role" (Page
+  (standalone) / Block (embedded in body)); the drag-drop zone flip, the
+  context-menu gestures, and the undo-journal labels ride the toggle.
+  Server: the REST API renames the filter/payload/projection. Scripts:
+  `migrate-is-embedded.mts` (kind B — payload + embedded query-AST rewrite,
+  snapshots dropped, derived DBs rebuilt, restore_epoch bumped; NO mixed
+  window: old code rejects `isEmbedded`, new code rejects `presentAsMain` —
+  stack down → new images → migration → restart); the pending-window
+  migration scripts modernized; `migrate-main-parent-page`'s test retired
+  with its closed window (the script stays as the historical artifact, the
+  `migrate-node-type.mts` treatment). Fixtures: gate 30→31 —
+  `object-is-embedded.json` added, `present-as-main-parent-page.json` renamed
+  to `is-embedded-parent-page.json`. Docs: SCHEMA.md "Node structure"
+  Revision 12, AGENTS.md invariant, philosophy.md, ux.md, usage.md, the
+  developers/ runbooks, the project skill references. **Verification:**
+  `pnpm typecheck` + `pnpm test` green (protocol 404, store 575, domain 92,
+  query 203, export 243, server 232, web 1711); new store tests pin the
+  defaults/explicit-claim/toggle chain and the legal explicit-embedded claim
+  under any parent; new web tests pin the link-only transclusion (inline
+  render, mixed-content negative); new export tests pin the zone split in
+  markdown + html. **LOCKSTEP-PENDING:** the live migration run is gated on
+  the GTK/Flutter/CLI ports converging on the renamed fixture corpus — the
+  wire change is not live until then.
 - **fix(web): the extract rows read "Extract without children" / "Extract
   with children", and the flyout rides flush against the menu — no overlap
   (owner feedback 2026-10-16).** The labels name what the extracted node
