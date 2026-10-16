@@ -70,7 +70,7 @@ function WithOutliner({
 describe("block text right-click (owner 2026-10-15)", () => {
   it("right-clicking the block text opens the node context menu, same as the bullet", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "target prose" }],
@@ -97,8 +97,8 @@ describe("block text right-click (owner 2026-10-15)", () => {
 
   it("the mention pill keeps its own link menu — it is not overridden by the node menu", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
-    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
     await client.createObject({
       parentId: pageId,
       contentAst: [
@@ -131,7 +131,7 @@ describe("block text right-click (owner 2026-10-15)", () => {
 
   it("does not open the node menu while the block is being edited", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "editable prose" }],
@@ -151,7 +151,7 @@ describe("block text right-click (owner 2026-10-15)", () => {
 
   it("read-only projections suppress the native menu without opening anything", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Parent" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Parent" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "static prose" }],

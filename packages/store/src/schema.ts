@@ -3,9 +3,12 @@
  *
  * Port of `app/core/derived/schema.py` + `frontend/src/core/db/schema.ts`
  * (client schema v22), adapted to the current model (SCHEMA.md):
- *  - the Revision-11 render-state model: `node.is_class` (identity marker,
- *    classes are always roots) + `node.present_as_main` (render bit for
- *    parented non-class nodes) replace the retired node_type enumeration;
+ *  - the Revision-12 embedding model: `node.is_class` (identity marker,
+ *    classes are always roots) + `node.is_embedded` (embedding flag for
+ *    parented non-class nodes: 1 = the parent's body — the Block role,
+ *    0 = a standalone structural element — the Page role; Revision 12
+ *    renames and inverts the retired `present_as_main` render bit) replace
+ *    the retired node_type enumeration;
  *    the single placement CHECK (`is_class = 0 OR parent_id IS NULL`) keeps
  *    illegal states unrepresentable;
  *  - FTS5 replaces the old FTS4 (same node_id -> docid map pattern); the stock
@@ -25,7 +28,7 @@ import type { SqliteDB } from "./db.js";
 import { resolveEdgeTarget } from "./edges.js";
 import { dropSearchIndex, reindexAllSearch } from "./search.js";
 
-export const SCHEMA_VERSION = 20;
+export const SCHEMA_VERSION = 21;
 
 /**
  * The render-path list-reads index: composite for the
@@ -33,7 +36,7 @@ export const SCHEMA_VERSION = 20;
  * ORDER BY COALESCE(name, id), id — the profiled full-scan+sort per render
  * burst. Kept OUT of the canonical schema DDL on purpose: migrate()'s
  * canonical exec runs before the rebuild ladder, where pre-v8 node tables
- * don't have is_class/present_as_main yet. Version-gated ladder step +
+ * don't have is_class yet. Version-gated ladder step +
  * explicit re-assert on the snapshot-repair path instead (single source here).
  */
 export const LIST_READS_INDEX_DDL =
@@ -101,15 +104,18 @@ export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS node (
     id TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL,
-    -- Revision-11 render-state model (replaces the node_type enumeration):
+    -- Revision-12 embedding model (replaces the node_type enumeration and
+    -- Revision 11's present_as_main render bit, renamed + inverted):
     -- is_class is the ONLY identity marker — classes are always roots;
-    -- present_as_main is the render bit read by the third cascade branch
-    -- for parented non-class nodes: 1 = the parent's main-children zone +
-    -- document chrome when zoomed, 0 = inline body + block chrome. The bit
-    -- is unread for parentless nodes (document chrome by the second branch)
-    -- and for classes (ClassView by the first branch).
+    -- is_embedded is the embedding flag read by the third cascade branch
+    -- for parented non-class nodes: 1 (the DEFAULT) = the node's content
+    -- belongs to the parent's body — the Block role, inline + block
+    -- chrome; 0 = a standalone structural element under the parent — the
+    -- Page role, the main-children zone + document chrome when zoomed.
+    -- The flag is unread for parentless nodes (document chrome by the
+    -- second branch) and for classes (ClassView by the first branch).
     is_class INTEGER NOT NULL DEFAULT 0,
-    present_as_main INTEGER NOT NULL DEFAULT 0,
+    is_embedded INTEGER NOT NULL DEFAULT 1,
     parent_id TEXT REFERENCES node(id),
     class_ids TEXT NOT NULL DEFAULT '[]',
     -- User-defined class ORDER (class.reorder, LWW-by-arrival); the
@@ -874,5 +880,79 @@ export function migrate(
   if (current < 20) {
     db.exec(ALIAS_SOURCE_INDEX_DDL);
     db.exec(CHILD_ORDER_CHILD_INDEX_DDL);
+  }
+  // v20 -> v21: the Revision-12 embedding flag — `present_as_main` is
+  // renamed to `is_embedded` WITH POLARITY INVERSION (is_embedded =
+  // 1 - present_as_main: the old main-zone bit 1 becomes the standalone
+  // claim 0, the old inline-body 0 becomes the embedded default 1; the
+  // op-log rewrite, scripts/migrate-is-embedded.mts, moves the wire at the
+  // same bump — the derived store is a projection and converges by replay,
+  // this ladder step only heals pre-existing local bytes in place). Table
+  // rebuild (no DROP COLUMN on old SQLite builds); every other column
+  // rides through untouched. Guarded on the old column so the step is a
+  // no-op for databases that already carry is_embedded (idempotent).
+  if (current < 21) {
+    const nodeColsV21 = db.prepare("PRAGMA table_info(node)").all() as { name: string }[];
+    if (nodeColsV21.some((c) => c.name === "present_as_main")) {
+      db.exec(`
+        PRAGMA foreign_keys = OFF;
+        CREATE TABLE node_v21 (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            is_class INTEGER NOT NULL DEFAULT 0,
+            is_embedded INTEGER NOT NULL DEFAULT 1,
+            parent_id TEXT REFERENCES node_v21(id),
+            class_ids TEXT NOT NULL DEFAULT '[]',
+            class_order TEXT NOT NULL DEFAULT '[]',
+            tag_ids TEXT NOT NULL DEFAULT '[]',
+            name TEXT,
+            content TEXT NOT NULL DEFAULT '[]',
+            icon TEXT,
+            color TEXT,
+            cover_asset_id TEXT,
+            banner_asset_id TEXT,
+            aliased_node_id TEXT,
+            description TEXT,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT,
+            updated_at TEXT,
+            created_by TEXT,
+            updated_by TEXT,
+            hlc_physical INTEGER NOT NULL DEFAULT 0,
+            hlc_logical INTEGER NOT NULL DEFAULT 0,
+            actor_id TEXT,
+            CHECK (is_class = 0 OR parent_id IS NULL)
+        );
+        INSERT INTO node_v21 (
+            id, workspace_id, is_class, is_embedded, parent_id,
+            class_ids, class_order, tag_ids, name, content, icon, color,
+            cover_asset_id, banner_asset_id, aliased_node_id, description,
+            is_active, created_at, updated_at, created_by, updated_by,
+            hlc_physical, hlc_logical, actor_id
+        )
+        -- The polarity inversion (is_embedded = 1 - present_as_main):
+        -- the old main-zone bit 1 becomes the standalone claim 0, the old
+        -- inline-body 0 becomes the embedded default 1. Class rows
+        -- converge to 0 explicitly (their old bit was already the cleared
+        -- value; the appliers' canonical class writes store 0 — the two
+        -- paths must meet on the same stored shape).
+        SELECT id, workspace_id, is_class,
+            CASE WHEN is_class = 1 THEN 0
+                 WHEN present_as_main = 1 THEN 0
+                 ELSE 1 END,
+            parent_id, class_ids, class_order, tag_ids, name, content, icon, color,
+            cover_asset_id, banner_asset_id, aliased_node_id, description,
+            is_active, created_at, updated_at, created_by, updated_by,
+            hlc_physical, hlc_logical, actor_id
+        FROM node;
+        DROP TABLE node;
+        ALTER TABLE node_v21 RENAME TO node;
+        CREATE INDEX IF NOT EXISTS idx_node_workspace ON node (workspace_id);
+        CREATE INDEX IF NOT EXISTS idx_node_parent ON node (parent_id);
+        CREATE INDEX IF NOT EXISTS idx_node_list_reads ON node (workspace_id, is_class, is_active, name, id);
+        CREATE INDEX IF NOT EXISTS idx_node_aliased_source ON node (aliased_node_id);
+        PRAGMA foreign_keys = ON;
+      `);
+    }
   }
   db.pragma(`user_version = ${SCHEMA_VERSION}`);}

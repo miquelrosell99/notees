@@ -2,7 +2,7 @@
  * graph.ts — the graph-view topology projection.
  *
  * One derived, read-only projection over the store:
- *  - the node set is classes + present-as-main nodes ONLY (owner ruling:
+ *  - the node set is classes + standalone (is_embedded = 0) pages ONLY (owner ruling:
  *    blocks never render as graph nodes — they surface solely as edge
  *    evidence); node ALIASES are not vertices either — a node carrying
  *    `aliased_node_id` collapses into its terminal (an edge incident to an
@@ -129,7 +129,7 @@ export function graphTopology(store: Store, workspaceId: string, options?: Graph
     .prepare(
       `SELECT id, is_class, parent_id, class_ids, color, icon, created_at
        FROM node
-       WHERE workspace_id = ? AND is_active = 1 AND (is_class = 1 OR present_as_main = 1)
+       WHERE workspace_id = ? AND is_active = 1 AND (is_class = 1 OR is_embedded = 0)
          AND aliased_node_id IS NULL`,
     )
     .all(workspaceId) as unknown as NodeRow[];
@@ -141,13 +141,13 @@ export function graphTopology(store: Store, workspaceId: string, options?: Graph
   // continues through sub-pages, content size stops at nested main nodes.
   const childRows = db
     .prepare(
-      `SELECT id, parent_id, present_as_main, is_class FROM node
+      `SELECT id, parent_id, is_embedded, is_class FROM node
        WHERE workspace_id = ? AND is_active = 1 AND parent_id IS NOT NULL`,
     )
     .all(workspaceId) as unknown as Array<{
     id: string;
     parent_id: string;
-    present_as_main: number;
+    is_embedded: number;
     is_class: number;
   }>;
   const childrenOf = new Map<string, string[]>();
@@ -160,7 +160,7 @@ export function graphTopology(store: Store, workspaceId: string, options?: Graph
     list.push(row.id);
   }
   const isMainChild = new Map<string, boolean>(
-    childRows.map((row) => [row.id, row.present_as_main === 1 || row.is_class === 1]),
+    childRows.map((row) => [row.id, row.is_embedded === 0 || row.is_class === 1]),
   );
 
   // One memoized, cycle-safe recursion serves both metrics: mass = 1 + Σ

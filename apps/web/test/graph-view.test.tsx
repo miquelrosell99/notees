@@ -164,8 +164,8 @@ describe("GraphView component", () => {
     const client = await seedClient();
     // A live display (two connected nodes) mounts the stage — the renderer
     // init then fails honestly on jsdom's missing GL.
-    const pageA = await client.createObject({ presentAsMain: true, contentAst: [{ type: "text", text: "Alpha" }] });
-    const pageB = await client.createObject({ presentAsMain: true, contentAst: [{ type: "text", text: "Beta" }] });
+    const pageA = await client.createObject({ isEmbedded: false, contentAst: [{ type: "text", text: "Alpha" }] });
+    const pageB = await client.createObject({ isEmbedded: false, contentAst: [{ type: "text", text: "Beta" }] });
     await client.createObject({
       parentId: pageA,
       contentAst: [{ type: "mention", targetNodeId: pageB, text: "Beta" }],
@@ -200,7 +200,7 @@ describe("GraphView component", () => {
   it("the embedded local-graph card never touches the tab title", async () => {
     const client = await seedClient();
     const anchor = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       contentAst: [{ type: "text", text: "Anchor" }],
     });
     document.title = "Anchor - Notees";
@@ -224,7 +224,7 @@ describe("GraphView component", () => {
     );
     try {
       const client = await seedClient();
-      await client.createObject({ presentAsMain: true, contentAst: [{ type: "text", text: "Lonely" }] });
+      await client.createObject({ isEmbedded: false, contentAst: [{ type: "text", text: "Lonely" }] });
 
       render(<GraphView client={client} />);
 
@@ -255,7 +255,7 @@ describe("GraphView component", () => {
     );
     try {
       const client = await seedClient();
-      const anchor = await client.createObject({ presentAsMain: true, contentAst: [{ type: "text", text: "Anchor" }] });
+      const anchor = await client.createObject({ isEmbedded: false, contentAst: [{ type: "text", text: "Anchor" }] });
       render(
         <GraphView client={client} local={{ anchorId: anchor, depth: 2, onDepthChange: () => {} }} />,
       );
@@ -286,7 +286,7 @@ describe("GraphView component", () => {
     );
     try {
       const client = await seedClient();
-      await client.createObject({ presentAsMain: true, contentAst: [{ type: "text", text: "Lonely" }] });
+      await client.createObject({ isEmbedded: false, contentAst: [{ type: "text", text: "Lonely" }] });
       render(<GraphView client={client} />);
 
       await screen.findByText("All nodes hidden by filters");
@@ -347,7 +347,7 @@ describe("GraphView component", () => {
     );
     try {
       const client = await seedClient();
-      await client.createObject({ presentAsMain: true, contentAst: [{ type: "text", text: "Lonely" }] });
+      await client.createObject({ isEmbedded: false, contentAst: [{ type: "text", text: "Lonely" }] });
       render(<GraphView client={client} />);
       await screen.findByText("All nodes hidden by filters");
 
@@ -426,7 +426,7 @@ describe("GraphView component", () => {
     );
     try {
       const client = await seedClient();
-      await client.createObject({ presentAsMain: true, contentAst: [{ type: "text", text: "Lonely" }] });
+      await client.createObject({ isEmbedded: false, contentAst: [{ type: "text", text: "Lonely" }] });
       render(<GraphView client={client} />);
       await screen.findByText("All nodes hidden by filters");
 
@@ -466,7 +466,7 @@ describe("GraphView component", () => {
     try {
       const client = await seedClient();
       await client.createClass("books");
-      await client.createObject({ presentAsMain: true, contentAst: [{ type: "text", text: "Lonely" }] });
+      await client.createObject({ isEmbedded: false, contentAst: [{ type: "text", text: "Lonely" }] });
       render(<GraphView client={client} />);
       await screen.findByText("All nodes hidden by filters");
 
@@ -510,7 +510,7 @@ describe("GraphView component", () => {
       }),
     );
     try {
-      await client.createObject({ presentAsMain: true, contentAst: [{ type: "text", text: "Lonely" }] });
+      await client.createObject({ isEmbedded: false, contentAst: [{ type: "text", text: "Lonely" }] });
       render(<GraphView client={client} />);
       await screen.findByText("All nodes hidden by filters");
 
@@ -561,8 +561,8 @@ describe("GraphView component", () => {
   it("the opening camera is fitted once, on the first engine frame (owner 2026-10-13)", async () => {
     window.localStorage.clear();
     const client = await seedClient();
-    const pageA = await client.createObject({ presentAsMain: true, contentAst: [{ type: "text", text: "Alpha" }] });
-    const pageB = await client.createObject({ presentAsMain: true, contentAst: [{ type: "text", text: "Beta" }] });
+    const pageA = await client.createObject({ isEmbedded: false, contentAst: [{ type: "text", text: "Alpha" }] });
+    const pageB = await client.createObject({ isEmbedded: false, contentAst: [{ type: "text", text: "Beta" }] });
     await client.createObject({
       parentId: pageA,
       contentAst: [{ type: "mention", targetNodeId: pageB, text: "Beta" }],

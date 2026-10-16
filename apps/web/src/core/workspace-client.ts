@@ -163,7 +163,7 @@ export interface ClientNode {
   /** Render bit for parented non-class nodes: true = the parent's
    * main-children zone + document chrome when zoomed; false = the inline
    * body + block chrome. Unread for parentless nodes and classes. */
-  presentAsMain: boolean;
+  isEmbedded: boolean;
   parentId: string | null;
   classIds: string[];
   tagIds: string[];
@@ -195,7 +195,7 @@ export interface BlockTreeNode {
  *  parent row is not at hand (the store's write-time invariant covers
  *  that case). */
 type ParentRenderFacts =
-  | Pick<ClientNode, "isClass" | "parentId" | "presentAsMain">
+  | Pick<ClientNode, "isClass" | "parentId" | "isEmbedded">
   | undefined;
 
 /**
@@ -220,7 +220,7 @@ export interface QueryRunSummary {
   name: string | null;
   /** Revision-11 render-state booleans (the server's /query summary shape). */
   isClass: boolean;
-  presentAsMain: boolean;
+  isEmbedded: boolean;
   parentId: string | null;
   /** node.created_at (ISO-8601) — the table view's Created column. */
   createdAt: string | null;
@@ -554,7 +554,7 @@ export interface CreateObjectInput {
    * applier decides when the field is omitted). Classes are declared by
    * class.create, never by this bit.
    */
-  presentAsMain?: boolean;
+  isEmbedded?: boolean;
   /** Omit for a workspace-root page; null is accepted explicitly. */
   parentId?: string | null;
   /**
@@ -580,7 +580,7 @@ export interface UpdateObjectInput {
    * Render-bit toggle (Revision 11): promotion/demotion — flipping false →
    * true stringifies the content server-side (the bit never un-flattens).
    */
-  presentAsMain?: boolean;
+  isEmbedded?: boolean;
   contentAst?: ContentAst;
   icon?: string;
   /** Preset token or #RRGGBB hex; null clears the color. */
@@ -667,7 +667,7 @@ export async function createAnnotation(
   const page = input.page?.trim() ?? "";
   const note = input.note?.trim() ?? "";
   const id = await writes.createObject({
-    presentAsMain: true,
+    isEmbedded: false,
     name: quote.slice(0, ANNOTATION_NAME_MAX),
     classIds: [SYSTEM_CLASS_UUIDS.highlight],
   });
@@ -987,7 +987,7 @@ function mapNode(row: NodeRow): ClientNode {
     id: row.id,
     workspaceId: row.workspace_id,
     isClass: row.is_class === 1,
-    presentAsMain: row.present_as_main === 1,
+    isEmbedded: row.is_embedded === 1,
     parentId: row.parent_id,
     classIds,
     tagIds,
@@ -1032,7 +1032,7 @@ function nodeRowStamp(row: NodeRow): { h1: number; h2: number } {
   mix(row.id);
   mix(row.workspace_id);
   mix(row.is_class);
-  mix(row.present_as_main);
+  mix(row.is_embedded);
   mix(row.parent_id);
   mix(row.class_ids);
   mix(row.tag_ids);
@@ -1317,7 +1317,7 @@ export class WorkspaceClient {
       const rows = this.store.database
         .prepare(
           `SELECT * FROM node
-         WHERE workspace_id = ? AND is_class = 0 AND (parent_id IS NULL OR present_as_main = 1) AND is_active = 1
+         WHERE workspace_id = ? AND is_class = 0 AND (parent_id IS NULL OR is_embedded = 0) AND is_active = 1
          ORDER BY COALESCE(name, id), id`,
         )
         .all(this.workspaceId) as NodeRow[];
@@ -1794,7 +1794,7 @@ export class WorkspaceClient {
   /**
    * Children of a node in child-order, recursive to `depth` levels (the
    * inline body only: main children render in their own section — the Pages
-   * zone — so the tree is filtered to is_class = 0 AND present_as_main = 0,
+   * zone — so the tree is filtered to is_class = 0 AND is_embedded = 1,
    * the inline-block predicate; class children (spec I4) ride here as
    * ordinary body blocks).
    */
@@ -1828,7 +1828,7 @@ export class WorkspaceClient {
           .filter(
             (row) =>
               row.is_class === 0 &&
-              row.present_as_main === 0 &&
+              row.is_embedded === 1 &&
               row.is_active === 1 &&
               !propertyRefIds.has(row.id),
           )
@@ -1940,7 +1940,7 @@ export class WorkspaceClient {
    * "invalid query" placeholder) and execute it against the local store. The
    * Store satisfies the query package's structural QueryStore interface, so
    * no mapping layer is needed. Rows come back as node summaries (id, name,
-   * isClass/presentAsMain, parentId, createdAt) — enough for the result
+   * isClass/isEmbedded, parentId, createdAt) — enough for the result
    * list, the simple table, and the containing-node walk. ASTs carrying an
    * aggregation run through runAggregateAst instead.
    */
@@ -1976,7 +1976,7 @@ export class WorkspaceClient {
           // content (the retired name column is always null).
           name: node !== undefined ? deriveDisplayName(node) || null : null,
           isClass: row.is_class === 1,
-          presentAsMain: row.present_as_main === 1,
+          isEmbedded: row.is_embedded === 1,
           parentId: (row.parent_id as string | null) ?? null,
           createdAt: (row.created_at as string | null) ?? null,
         };
@@ -2075,7 +2075,7 @@ export class WorkspaceClient {
    * display default (class → class glyph, document chrome → page glyph,
    * inline block → null, whose chrome is the bullet dot). */
   effectiveNodeIcon(
-    node: Pick<ClientNode, "icon" | "classIds" | "isClass" | "presentAsMain" | "parentId">,
+    node: Pick<ClientNode, "icon" | "classIds" | "isClass" | "isEmbedded" | "parentId">,
   ): string | null {
     if (node.icon !== null && node.icon !== undefined && node.icon !== "") return node.icon;
     for (const classId of node.classIds) {
@@ -2315,14 +2315,14 @@ export class WorkspaceClient {
   }
 
   /**
-   * Direct main children (Revision 11: is_class = 0 AND present_as_main = 1
+   * Direct main children (Revision 11: is_class = 0 AND is_embedded = 0
    * — the parent's main-children zone, the Pages section's rows; inline
    * body blocks and classes never appear here).
    */
   getChildPages(id: string): ClientNode[] {
     return this.store
       .children(id)
-      .filter((row) => row.is_class === 0 && row.present_as_main === 1 && row.is_active === 1)
+      .filter((row) => row.is_class === 0 && row.is_embedded === 0 && row.is_active === 1)
       .map((row) => this.mapNodeCached(row));
   }
 
@@ -2372,7 +2372,7 @@ export class WorkspaceClient {
       .prepare(
         `SELECT COUNT(*) AS n FROM node_child_order o
          JOIN node n ON n.id = o.child_id
-         WHERE o.parent_id = ? AND n.is_class = 0 AND n.present_as_main = 1 AND n.is_active = 1`,
+         WHERE o.parent_id = ? AND n.is_class = 0 AND n.is_embedded = 0 AND n.is_active = 1`,
       )
       .get(id) as { n: number } | undefined;
     return row?.n ?? 0;
@@ -2471,7 +2471,7 @@ export class WorkspaceClient {
         const row = this.store.getNode(id);
         if (row === undefined) return null;
         return {
-          presentAsMain: row.present_as_main === 1,
+          isEmbedded: row.is_embedded === 1,
           icon: row.icon,
           color: row.color,
           contentAst: parseContentAst(row.content),
@@ -2724,7 +2724,7 @@ export class WorkspaceClient {
   async createObject(partial: CreateObjectInput): Promise<string> {
     const id = partial.id ?? uuidv7();
     const payload: Record<string, unknown> = { objectId: id };
-    if (partial.presentAsMain !== undefined) payload.presentAsMain = partial.presentAsMain;
+    if (partial.isEmbedded !== undefined) payload.isEmbedded = partial.isEmbedded;
     if (partial.classIds !== undefined) payload.classIds = partial.classIds;
     if (partial.tagIds !== undefined) payload.tagIds = partial.tagIds;
     // Title-is-content: the protocol has no object `name`. The `name`
@@ -2745,7 +2745,7 @@ export class WorkspaceClient {
   /** Update object fields (object.update; at least one field required). */
   async updateObject(id: string, fields: UpdateObjectInput): Promise<void> {
     const payload: Record<string, unknown> = { objectId: id };
-    if (fields.presentAsMain !== undefined) payload.presentAsMain = fields.presentAsMain;
+    if (fields.isEmbedded !== undefined) payload.isEmbedded = fields.isEmbedded;
     if (fields.contentAst !== undefined) payload.contentAst = fields.contentAst;
     if (fields.icon !== undefined) payload.icon = fields.icon;
     if (fields.color !== undefined) payload.color = fields.color;
@@ -3182,7 +3182,7 @@ export class WorkspaceClient {
     if (this.getNodeRaw(ids.year) === undefined) {
       await this.createObject({
         id: ids.year,
-        presentAsMain: true,
+        isEmbedded: false,
         parentId: null,
         name: dateNodeLabel(parts, "year"),
         classIds: [SYSTEM_CLASS_UUIDS.year],
@@ -3191,7 +3191,7 @@ export class WorkspaceClient {
     if (this.getNodeRaw(ids.month) === undefined) {
       await this.createObject({
         id: ids.month,
-        presentAsMain: true,
+        isEmbedded: false,
         parentId: ids.year,
         name: dateNodeLabel(parts, "month"),
         classIds: [SYSTEM_CLASS_UUIDS.month],
@@ -3200,7 +3200,7 @@ export class WorkspaceClient {
     if (this.getNodeRaw(ids.day) === undefined) {
       await this.createObject({
         id: ids.day,
-        presentAsMain: true,
+        isEmbedded: false,
         parentId: ids.month,
         name: dateNodeLabel(parts, "day"),
         classIds: [SYSTEM_CLASS_UUIDS.day],

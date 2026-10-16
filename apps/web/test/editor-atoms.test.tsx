@@ -95,8 +95,8 @@ function setProseCaret(editor: HTMLElement, proseOffset: number): void {
 /** Seed a block "see Target again" holding a mention of the Target page. */
 async function seeded() {
   const client = await seedClient();
-  const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
-  const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
+  const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+  const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
   const blockId = await client.createObject({
     parentId: pageId,
     contentAst: [
@@ -272,9 +272,9 @@ describe("editor atoms", () => {
 
   it("arrows walk through consecutive pills in both directions", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
-    const t1 = await client.createObject({ presentAsMain: true, name: "One" });
-    const t2 = await client.createObject({ presentAsMain: true, name: "Two" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const t1 = await client.createObject({ isEmbedded: false, name: "One" });
+    const t2 = await client.createObject({ isEmbedded: false, name: "Two" });
     await client.createObject({
       parentId: pageId,
       contentAst: [
@@ -312,7 +312,7 @@ describe("editor atoms", () => {
 /** Seed a block "this is <chip:task> work" (the chip references a live class). */
 async function seededChip() {
   const client = await seedClient();
-  const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+  const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
   const classId = await client.createClass("task");
   const blockId = await client.createObject({
     parentId: pageId,
@@ -423,7 +423,7 @@ describe("editor atoms — class chips", () => {
 
   it("an unresolvable chip (zero prose) survives an edit in the block", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const missing = "0192a000-0000-7000-8000-00000000beef";
     const blockId = await client.createObject({
       parentId: pageId,

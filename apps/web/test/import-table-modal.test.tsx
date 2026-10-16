@@ -62,7 +62,7 @@ async function seedTableWorkspace(client: WorkspaceClient): Promise<TableFixture
     ],
   });
   const taskClass = await client.createClass("Task");
-  const alpha = await client.createObject({ presentAsMain: true, name: "Alpha" });
+  const alpha = await client.createObject({ isEmbedded: false, name: "Alpha" });
   await client.setProperty(alpha, pages, 10, 0);
   return { pages, status, taskClass, alpha };
 }

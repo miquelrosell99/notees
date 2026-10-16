@@ -80,7 +80,7 @@ const slashPopup = () => screen.queryByRole("listbox", { name: "/ Commands" });
 describe("slash trigger popup", () => {
   it("typing / at the block start opens the command list; Text strips the trigger", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
@@ -111,7 +111,7 @@ describe("slash trigger popup", () => {
 
   it("filters by the typed query and ArrowDown moves the highlight", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
@@ -137,7 +137,7 @@ describe("slash trigger popup", () => {
 
   it("Quote wraps the block's inline tokens in a quote token", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello" }],
@@ -158,7 +158,7 @@ describe("slash trigger popup", () => {
 
   it("Task assigns the task system class (the grammar's checkbox) and strips the trigger", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
@@ -174,7 +174,7 @@ describe("slash trigger popup", () => {
 
   it("Line break inserts a hard_break token and consumes the blank after the query", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "ab" }],
@@ -195,7 +195,7 @@ describe("slash trigger popup", () => {
 
   it("Add URL strips the trigger and authors the external_link token directly (no modal)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
@@ -219,7 +219,7 @@ describe("slash trigger popup", () => {
 
   it("Add URL with a non-URL query falls back to plain prose (no token, no modal)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
@@ -237,7 +237,7 @@ describe("slash trigger popup", () => {
 describe("find & replace widget", () => {
   it("Ctrl+Shift+F opens the widget; searching highlights matching blocks; replace and replace-all write through the client", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Find" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Find" });
     const firstId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello world" }],
@@ -292,7 +292,7 @@ describe("find & replace widget", () => {
 
   it("match case narrows the search", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Case" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Case" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "Hello hello" }],
@@ -326,7 +326,7 @@ function openModalViaMention(container: HTMLElement): HTMLElement {
 describe("link edit modal (node links only)", () => {
   it("clicking an external-link hyperlink in read mode does NOT open the modal", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Links" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Links" });
     await client.createObject({
       parentId: pageId,
       contentAst: [
@@ -347,8 +347,8 @@ describe("link edit modal (node links only)", () => {
 
   it("Cancel closes without touching the mention; the mode toggle offers Page/Block only", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Links" });
-    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Links" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "mention", targetNodeId: targetId, text: "Target" }],
@@ -374,8 +374,8 @@ describe("link edit modal (node links only)", () => {
 
   it("renders the mode tab row and the field regions as distinct, ordered elements (no collapsed overlap)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Links" });
-    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Links" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "mention", targetNodeId: targetId, text: "Target" }],
@@ -429,13 +429,13 @@ describe("link edit modal (node links only)", () => {
 
   it("Page mode: ONE target control — clicking opens the anchored picker; picking replaces the selection", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Links" });
-    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Links" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "mention", targetNodeId: targetId, text: "Target" }],
     });
-    const otherId = await client.createObject({ presentAsMain: true, name: "Target Page" });
+    const otherId = await client.createObject({ isEmbedded: false, name: "Target Page" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     const dialog = openModalViaMention(container);

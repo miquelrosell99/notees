@@ -60,14 +60,14 @@ async function flushSync(): Promise<void> {
 describe("block-level backlink gutter", () => {
   it("shows the materialized count and runs the linked-references query lazily on first toggle", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Host Page" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Host Page" });
     const targetBlockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "Target block" }],
     });
     // Two blocks on other pages mention the target — the materialized count
     // is 2 before any section query runs.
-    const sourceA = await client.createObject({ presentAsMain: true, name: "Source A" });
+    const sourceA = await client.createObject({ isEmbedded: false, name: "Source A" });
     await client.createObject({
       parentId: sourceA,
       contentAst: [
@@ -75,7 +75,7 @@ describe("block-level backlink gutter", () => {
         { type: "mention", targetNodeId: targetBlockId, text: "Target block" },
       ],
     });
-    const sourceB = await client.createObject({ presentAsMain: true, name: "Source B" });
+    const sourceB = await client.createObject({ isEmbedded: false, name: "Source B" });
     await client.createObject({
       parentId: sourceB,
       contentAst: [
@@ -124,7 +124,7 @@ describe("block-level backlink gutter", () => {
 
   it("hides the gutter when the block has no backlinks", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Quiet" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Quiet" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "Unmentioned block" }],
@@ -142,12 +142,12 @@ describe("block-level backlink gutter", () => {
 
   it("re-runs the expanded query when an invalidating notification lands", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Live" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Live" });
     const targetBlockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "Live target" }],
     });
-    const sourceA = await client.createObject({ presentAsMain: true, name: "Source A" });
+    const sourceA = await client.createObject({ isEmbedded: false, name: "Source A" });
     await client.createObject({
       parentId: sourceA,
       contentAst: [{ type: "mention", targetNodeId: targetBlockId, text: "Live target" }],
@@ -165,7 +165,7 @@ describe("block-level backlink gutter", () => {
     // A new mention arrives from another page: the expanded panel re-queries
     // on the invalidating notification and the badge updates to the new
     // materialized count.
-    const sourceB = await client.createObject({ presentAsMain: true, name: "Source B" });
+    const sourceB = await client.createObject({ isEmbedded: false, name: "Source B" });
     await client.createObject({
       parentId: sourceB,
       contentAst: [{ type: "mention", targetNodeId: targetBlockId, text: "Live target" }],

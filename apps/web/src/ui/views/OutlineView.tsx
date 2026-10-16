@@ -78,7 +78,7 @@ const TREE_DEPTH_CAP = 64;
 function filterPages(items: NodeCollectionItem[], remaining = TREE_DEPTH_CAP): NodeCollectionItem[] {
   if (remaining <= 0) return [];
   return items
-    .filter((item) => !item.node.isClass && item.node.presentAsMain)
+    .filter((item) => !item.node.isClass && item.node.isEmbedded)
     .map((item) => ({ ...item, children: filterPages(item.children ?? [], remaining - 1) }));
 }
 

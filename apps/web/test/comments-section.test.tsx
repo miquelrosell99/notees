@@ -78,7 +78,7 @@ function commentChildrenOf(client: WorkspaceClient, nodeId: string) {
 describe("CommentsSection", () => {
   it("always renders — an empty thread starts expanded with the icon-only quick-add; the count follows", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Doc" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Doc" });
 
     render(<CommentsSection client={client} nodeId={pageId} onOpenNode={() => {}} />);
     // Zero comments: the section still renders, expanded, with the quick-add
@@ -97,7 +97,7 @@ describe("CommentsSection", () => {
 
   it("threads resolve lazily on the first expand; a notification re-derives while expanded", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Doc" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Doc" });
     await createComment(client, pageId, "Hello there");
 
     render(<CommentsSection client={client} nodeId={pageId} onOpenNode={() => {}} />);
@@ -116,7 +116,7 @@ describe("CommentsSection", () => {
 
   it("the quick-add composer creates a child block classed comment with the text as its content", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Doc" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Doc" });
     await createComment(client, pageId, "Earlier");
 
     render(<CommentsSection client={client} nodeId={pageId} onOpenNode={() => {}} />);
@@ -144,7 +144,7 @@ describe("CommentsSection", () => {
 
   it("a reply is a comment whose parent is the comment; children nest in the thread", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Doc" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Doc" });
     const parent = await createComment(client, pageId, "Parent comment");
     await createComment(client, parent, "Nested reply");
     // Any child block nests (the original recursion over comment.children) — even a
@@ -167,7 +167,7 @@ describe("CommentsSection", () => {
 
   it("the Reply composer parents the new comment under the row's comment", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Doc" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Doc" });
     const parent = await createComment(client, pageId, "Discussed");
 
     render(<CommentsSection client={client} nodeId={pageId} onOpenNode={() => {}} />);
@@ -187,7 +187,7 @@ describe("CommentsSection", () => {
 
   it("a row click opens the comment node; Delete trashes it (the original pair)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Doc" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Doc" });
     const commentId = await createComment(client, pageId, "Open me");
 
     const onOpenNode = vi.fn();

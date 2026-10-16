@@ -55,7 +55,7 @@ interface MenuClient extends CloneReadSurface, CloneWriteSurface {
   unassignClass(id: string, classId: string): Promise<void>;
   deleteObject(id: string, opts?: { permanent?: boolean }): Promise<void>;
   /** The render-bit toggle behind "Move to content" / keep-under-parent. */
-  updateObject(id: string, fields: { presentAsMain?: boolean }): Promise<void>;
+  updateObject(id: string, fields: { isEmbedded?: boolean }): Promise<void>;
   /** Content rewrites — the heading conversion rides this (headingConvert). */
   updateObject(id: string, fields: { contentAst?: ContentAst }): Promise<void>;
   /** Reparenting — the block→page extraction rides this (extractToPage). */
@@ -217,7 +217,7 @@ export function NodeContextMenu({
         variant="primary"
         onConfirm={async () => {
           if (pendingPromote === null) return;
-          await client.updateObject(pendingPromote.id, { presentAsMain: true });
+          await client.updateObject(pendingPromote.id, { isEmbedded: false });
           setPendingPromote(null);
           onClose();
         }}
@@ -311,17 +311,18 @@ export function NodeContextMenu({
       onClick: () => toggleFavorite(node.id),
     });
   }
-  // Zone flip (Revision 11), demote direction only: a parented main child
-  // returns to the inline body. The promote direction (inline → Pages zone)
+  // Zone flip (Revision 12), demote direction only: a parented standalone
+  // child (the Page role) returns to the inline body. The promote direction
+  // (inline → Pages zone)
   // lives in the "Convert to page" submenu below, grouped with the root
   // extraction so the two "make this a page" paths read as one deliberate
   // choice instead of two confusingly-named siblings.
-  if (node.parentId !== null && node.presentAsMain) {
+  if (node.parentId !== null && !node.isEmbedded) {
     items.push({
       id: "move-to-content",
       label: "Move to content",
       icon: "mdi-format-indent-decrease",
-      onClick: () => void client.updateObject(node.id, { presentAsMain: false }),
+      onClick: () => void client.updateObject(node.id, { isEmbedded: true }),
     });
   }
   // Heading conversion (owner 2026-10-12 — the v1 "Convert to heading"
@@ -349,7 +350,7 @@ export function NodeContextMenu({
   // Convert to page (owner 2026-10-16): ONE bucket for "make this block a
   // page", the variants self-describing plain clicks (no modifier keys, no
   // modal — the gesture is reversible, the choice is two clicks). KEEP UNDER
-  // the parent = the presentAsMain zone flip (the node stays in the family,
+  // the parent = the isEmbedded zone flip (the node stays in the family,
   // listed in the parent's Pages zone; its rich content flattens — hence
   // the BC4 confirm when it carries rich tokens). EXTRACT TO ROOT = the
   // block leaves the parent and becomes a root page, a mention link block
@@ -391,7 +392,7 @@ export function NodeContextMenu({
                   // run — ask first, naming what will flatten. Text-only content
                   // (or widgets that survive) converts immediately.
                   if (flattenTypes.length > 0) setPendingPromote(node);
-                  else void client.updateObject(node.id, { presentAsMain: true });
+                  else void client.updateObject(node.id, { isEmbedded: false });
                 },
               },
             ]

@@ -65,7 +65,7 @@ async function seedClient(): Promise<WorkspaceClient> {
 
 /** A page with `texts` as sibling blocks; returns the page id. */
 async function seedPage(client: WorkspaceClient, texts: string[]): Promise<string> {
-  const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+  const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
   for (const text of texts) {
     await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text }] });
   }
@@ -295,7 +295,7 @@ describe("block multi-selection gestures", () => {
 describe("selection card: whole-subtree closure + card outline", () => {
   /** Page with a parent block (two children) followed by a lone block. */
   async function seedNestedPage(client: WorkspaceClient): Promise<string> {
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const parentId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "parent" }],
@@ -397,7 +397,7 @@ describe("selection action bar group ops", () => {
   it("bulk unassign class removes the membership from every selected block", async () => {
     const client = await seedClient();
     const classId = await client.createClass("Project");
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const a = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "one" }], classIds: [classId] });
     const b = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "two" }], classIds: [classId] });
     const { container } = render(<PageView client={client} pageId={pageId} />);
@@ -418,7 +418,7 @@ describe("selection action bar group ops", () => {
     // The test relay starts empty (production seeds ride the server) —
     // declare the day class at its reserved seed id.
     await client.createClass("Day", { id: SYSTEM_CLASS_UUIDS.day });
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const a = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "one" }],
@@ -441,7 +441,7 @@ describe("selection action bar group ops", () => {
   it("bulk tag assigns the picked page as a tag on every selected block", async () => {
     const client = await seedClient();
     const pageId = await seedPage(client, ["one", "two"]);
-    await client.createObject({ presentAsMain: true, name: "Project" });
+    await client.createObject({ isEmbedded: false, name: "Project" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
     const rows = blockContents(container);
     const ids = rows.map((r) => r.closest("[data-block-id]")!.getAttribute("data-block-id")!);
@@ -460,7 +460,7 @@ describe("selection action bar group ops", () => {
   it("bulk move reparents every selected block under the picked page", async () => {
     const client = await seedClient();
     const pageId = await seedPage(client, ["one", "two", "three"]);
-    const targetId = await client.createObject({ presentAsMain: true, name: "Elsewhere" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Elsewhere" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
     const rows = blockContents(container);
     const ids = rows.map((r) => r.closest("[data-block-id]")!.getAttribute("data-block-id")!);
@@ -508,7 +508,7 @@ describe("selection action bar group ops", () => {
 describe("non-removable class rules (block-row column)", () => {
   it("the system/journal class pill shows a lock: the click refuses with a toast and no write", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "journaled" }],
@@ -530,7 +530,7 @@ describe("non-removable class rules (block-row column)", () => {
   it("a user class pill keeps its working × on the block-row column", async () => {
     const client = await seedClient();
     const classId = await client.createClass("Project");
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "classified" }],
@@ -574,7 +574,7 @@ describe("ghost trailing block", () => {
 
   it("shows even when the last child is already empty (owner refinement: the ghost is always the add affordance)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     await client.createObject({ parentId: pageId, contentAst: [] });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
@@ -593,7 +593,7 @@ describe("ghost trailing block", () => {
 describe("selection level cap (the stack caps at its shallowest level)", () => {
   /** parent(kid one, kid two), other — the kids sit one level deep. */
   async function seedNestedPage(client: WorkspaceClient): Promise<string> {
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const parentId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "parent" }],

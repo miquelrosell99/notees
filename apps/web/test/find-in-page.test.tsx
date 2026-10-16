@@ -90,7 +90,7 @@ interface FindWorld {
  */
 async function seedFindWorld(): Promise<FindWorld> {
   const client = await seedClient();
-  const pageId = await client.createObject({ presentAsMain: true, name: "Find Page" });
+  const pageId = await client.createObject({ isEmbedded: false, name: "Find Page" });
   const blockA = await client.createObject({
     parentId: pageId,
     contentAst: [{ type: "text", text: "The cat sat on the mat.", marks: ["bold"] }],

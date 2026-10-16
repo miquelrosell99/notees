@@ -56,18 +56,18 @@ const counter = () => document.body.querySelector(".presentation-overlay__counte
 
 /** Page + one intro block + two sections (the canonical deck shape). */
 async function seedDeckFixture(client: WorkspaceClient) {
-  const pageId = await client.createObject({ presentAsMain: true, name: "Quarterly Review" });
+  const pageId = await client.createObject({ isEmbedded: false, name: "Quarterly Review" });
   await client.createObject({
     parentId: pageId,
-    presentAsMain: false,
+    isEmbedded: true,
     contentAst: [{ type: "text", text: "An opening thought" }],
   });
-  const sectionA = await client.createObject({ parentId: pageId, presentAsMain: true, name: "Section A" });
+  const sectionA = await client.createObject({ parentId: pageId, isEmbedded: false, name: "Section A" });
   await client.createObject({
     parentId: sectionA,
     contentAst: [{ type: "text", text: "Body of section A" }],
   });
-  const sectionB = await client.createObject({ parentId: pageId, presentAsMain: true, name: "Section B" });
+  const sectionB = await client.createObject({ parentId: pageId, isEmbedded: false, name: "Section B" });
   await client.createObject({
     parentId: sectionB,
     contentAst: [{ type: "text", text: "Body of section B" }],
@@ -121,7 +121,7 @@ describe("DeckView", () => {
   it("link click-through exits the deck and navigates", async () => {
     const client = await seedClient();
     const { pageId, sectionA } = await seedDeckFixture(client);
-    const targetId = await client.createObject({ presentAsMain: true, name: "Linked Target" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Linked Target" });
     await client.createObject({
       parentId: sectionA,
       contentAst: [{ type: "mention", targetNodeId: targetId, text: "Linked Target" }],
@@ -142,16 +142,16 @@ describe("DeckView", () => {
 
   it("expands an embed_ref target's children into the slide stream after the referencing slide", async () => {
     const client = await seedClient();
-    const targetId = await client.createObject({ presentAsMain: true, name: "Embedded Deck" });
-    await client.createObject({ parentId: targetId, presentAsMain: true, name: "Embedded Section" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Embedded Deck" });
+    await client.createObject({ parentId: targetId, isEmbedded: false, name: "Embedded Section" });
     await client.createObject({
       parentId: targetId,
-      presentAsMain: false,
+      isEmbedded: true,
       contentAst: [{ type: "text", text: "Embedded intro" }],
     });
 
-    const pageId = await client.createObject({ presentAsMain: true, name: "Host Deck" });
-    const host = await client.createObject({ parentId: pageId, presentAsMain: true, name: "Host Section" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Host Deck" });
+    const host = await client.createObject({ parentId: pageId, isEmbedded: false, name: "Host Section" });
     await client.createObject({
       parentId: host,
       contentAst: [{ type: "embed_ref", nodeId: targetId }],
@@ -196,10 +196,10 @@ describe("DeckView", () => {
   it("routes a table-classed block through the BlockRow grid instead of flattening it", async () => {
     const client = await seedClient();
     // A body section holding a table container (rows × cells).
-    const pageId = await client.createObject({ presentAsMain: true, name: "Table Deck" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Table Deck" });
     const { ensureTableFamily } = await import("../src/ui/components/tableFamily.js");
     const tableClassId = await ensureTableFamily(client);
-    const holder = await client.createObject({ parentId: pageId, presentAsMain: false, contentAst: [] });
+    const holder = await client.createObject({ parentId: pageId, isEmbedded: true, contentAst: [] });
     const containerId = await client.createObject({ parentId: holder, classIds: [tableClassId] });
     const row1 = await client.createObject({ parentId: containerId });
     const c11 = await client.createObject({ parentId: row1, contentAst: [{ type: "text", text: "alpha" }] });
@@ -227,7 +227,7 @@ describe("DeckView", () => {
 describe("Present entry point", () => {
   it("the node menu button offers Present and requests a deck of the page", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Deckable" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Deckable" });
     const node = client.getNode(pageId);
     expect(node).toBeDefined();
 
@@ -240,7 +240,7 @@ describe("Present entry point", () => {
 
   it("the node menu hides Present when the host has no deck surface", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Deckable" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Deckable" });
     const node = client.getNode(pageId)!;
 
     render(<NodeMenuButton client={client} node={node} onOpenNode={() => {}} />);
@@ -250,7 +250,7 @@ describe("Present entry point", () => {
 
   it("a re-click on the anchor toggles the menu closed (owner 2026-10-12)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Toggleable" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Toggleable" });
     const node = client.getNode(pageId)!;
 
     render(<NodeMenuButton client={client} node={node} onOpenNode={() => {}} />);
@@ -265,7 +265,7 @@ describe("Present entry point", () => {
 describe("DeckView — assets, images, and covers in presentation mode", () => {
   it("an asset token inside a text block renders the live image (click → lightbox)", async () => {
     const client = await seedClient();
-    const asset = await client.createObject({ presentAsMain: true, name: "slide-art.png" });
+    const asset = await client.createObject({ isEmbedded: false, name: "slide-art.png" });
     await client.assignClass(asset, SYSTEM_CLASS_UUIDS.asset);
     vi.spyOn(client, "getAssetInfo").mockReturnValue({
       assetId: asset,
@@ -277,10 +277,10 @@ describe("DeckView — assets, images, and covers in presentation mode", () => {
     });
     vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,SLIDE");
 
-    const pageId = await client.createObject({ presentAsMain: true, name: "Asset Deck" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Asset Deck" });
     await client.createObject({
       parentId: pageId,
-      presentAsMain: false,
+      isEmbedded: true,
       contentAst: [
         { type: "text", text: "Look at this" },
         { type: "asset_ref", assetId: asset },
@@ -299,11 +299,11 @@ describe("DeckView — assets, images, and covers in presentation mode", () => {
 
   it("the presented page's cover renders as the title slide's hero", async () => {
     const client = await seedClient();
-    const coverAsset = await client.createObject({ presentAsMain: true, name: "hero.png" });
+    const coverAsset = await client.createObject({ isEmbedded: false, name: "hero.png" });
     await client.assignClass(coverAsset, SYSTEM_CLASS_UUIDS.asset);
     vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,HERO");
 
-    const pageId = await client.createObject({ presentAsMain: true, name: "Covered Deck" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Covered Deck" });
     await client.updateObject(pageId, { coverAssetId: coverAsset });
 
     render(<DeckView client={client} pageId={pageId} onOpenNode={() => {}} onClose={() => {}} />);
@@ -315,12 +315,12 @@ describe("DeckView — assets, images, and covers in presentation mode", () => {
 
   it("a section with a cover but no image block gets the cover in the right column, text intact", async () => {
     const client = await seedClient();
-    const coverAsset = await client.createObject({ presentAsMain: true, name: "section.png" });
+    const coverAsset = await client.createObject({ isEmbedded: false, name: "section.png" });
     await client.assignClass(coverAsset, SYSTEM_CLASS_UUIDS.asset);
     vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,SECTION");
 
-    const pageId = await client.createObject({ presentAsMain: true, name: "Section Cover Deck" });
-    const section = await client.createObject({ parentId: pageId, presentAsMain: true, name: "Covered Section" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Section Cover Deck" });
+    const section = await client.createObject({ parentId: pageId, isEmbedded: false, name: "Covered Section" });
     await client.updateObject(section, { coverAssetId: coverAsset });
     await client.createObject({
       parentId: section,

@@ -64,7 +64,7 @@ describe("WorkerClient read cache", () => {
   it("serves reads from the seed value, then converges on the worker result", async () => {
     const client = await makeClient((method) => {
       if (method === "init") return null;
-      if (method === "search") return [{ id: "page-1", presentAsMain: true, name: "Hit" }];
+      if (method === "search") return [{ id: "page-1", isEmbedded: false, name: "Hit" }];
       return null;
     });
     try {
@@ -81,7 +81,7 @@ describe("WorkerClient read cache", () => {
   it("serves roots() through the read cache", async () => {
     const client = await makeClient((method) => {
       if (method === "init") return null;
-      if (method === "roots") return [{ id: "root-1", presentAsMain: true, name: "R" }];
+      if (method === "roots") return [{ id: "root-1", isEmbedded: false, name: "R" }];
       return null;
     });
     try {
@@ -122,9 +122,9 @@ describe("WorkerClient read cache", () => {
       if (method === "listPages")
         // Slow read: stays pending while the next key is seeded below.
         return new Promise((resolve) =>
-          setTimeout(() => resolve([{ id: "page-1", presentAsMain: true, name: "P" }]), 25),
+          setTimeout(() => resolve([{ id: "page-1", isEmbedded: false, name: "P" }]), 25),
         );
-      if (method === "search") return [{ id: "hit-1", presentAsMain: true, name: "Hit" }];
+      if (method === "search") return [{ id: "hit-1", isEmbedded: false, name: "Hit" }];
       return null;
     });
     try {
@@ -143,7 +143,7 @@ describe("WorkerClient read cache", () => {
   it("serves getReferences / getReferenceCount through the read cache (the References tab mirror)", async () => {
     const client = await makeClient((method) => {
       if (method === "init") return null;
-      if (method === "getReferences") return [{ id: "page-9", presentAsMain: true, name: "R" }];
+      if (method === "getReferences") return [{ id: "page-9", isEmbedded: false, name: "R" }];
       if (method === "getReferenceCount") return 1;
       return null;
     });
@@ -233,9 +233,9 @@ describe("incremental cache invalidation", () => {
 
   const seedHandler = (method: string, args: unknown[]) => {
     if (method === "init") return null;
-    if (method === "search") return [{ id: "hit-1", presentAsMain: true, name: "Hit" }];
-    if (method === "roots") return [{ id: "root-1", presentAsMain: true, name: "R" }];
-    if (method === "getNode") return { id: (args as string[])[0], presentAsMain: false };
+    if (method === "search") return [{ id: "hit-1", isEmbedded: false, name: "Hit" }];
+    if (method === "roots") return [{ id: "root-1", isEmbedded: false, name: "R" }];
+    if (method === "getNode") return { id: (args as string[])[0], isEmbedded: true };
     if (method === "listClasses") return [];
     return null;
   };

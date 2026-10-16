@@ -70,7 +70,7 @@ describe("Class View", () => {
   it("resolves views by node type: class → Class View, page → Page View", async () => {
     const client = await seedClient();
     const classId = await client.createClass("source");
-    const pageId = await client.createObject({ presentAsMain: true, name: "A Page" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "A Page" });
 
     const classRender = render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     // Class chrome: the extends corner's class-only add affordance and the
@@ -164,7 +164,7 @@ describe("Class View", () => {
   it("lists classed nodes without expansion (the section defaults to expanded) and shows the count badge", async () => {
     const client = await seedClient();
     const classId = await client.createClass("agent");
-    const pageId = await client.createObject({ presentAsMain: true, name: "Ada Lovelace" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Ada Lovelace" });
     await client.assignClass(pageId, classId);
     const membersSpy = vi.spyOn(client, "getClassMembers");
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
@@ -179,7 +179,7 @@ describe("Class View", () => {
   it("lists a classed node and navigates to its page", async () => {
     const client = await seedClient();
     const classId = await client.createClass("agent");
-    const pageId = await client.createObject({ presentAsMain: true, name: "Ada Lovelace" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Ada Lovelace" });
     await client.assignClass(pageId, classId);
     const onOpenNode = vi.fn();
     render(<NodeView client={client} nodeId={classId} onOpenNode={onOpenNode} />);
@@ -194,7 +194,7 @@ describe("Class View", () => {
   it("removes a member via the row's × (class.unassign) in outline mode", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "agent");
-    const pageId = await client.createObject({ presentAsMain: true, name: "Ada Lovelace" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Ada Lovelace" });
     await client.assignClass(pageId, classId);
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
 
@@ -355,7 +355,7 @@ describe("the class page's panelled layout (owner 2026-10-12)", () => {
   it("Properties + Class properties + Templates ride the first column; Classed nodes rides the content column; context column included", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "project");
-    await client.createObject({ presentAsMain: true, name: "Alpha", classIds: [classId] });
+    await client.createObject({ isEmbedded: false, name: "Alpha", classIds: [classId] });
 
     render(<PageView client={client} pageId={classId} onOpenPage={() => {}} />);
     expect(document.querySelector(".nt-page--panelled")).not.toBeNull();

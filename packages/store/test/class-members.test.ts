@@ -82,7 +82,7 @@ describe("content-asserted membership — the no-divergence law (owner ruling 20
       env("object.create", {
         objectId: AGENT,
         parentId: null,
-        presentAsMain: false,
+        isEmbedded: true,
         classIds: [],
         contentAst: [{ type: "class_link", classId: PERSON }],
       }),
@@ -109,7 +109,7 @@ describe("content-asserted membership — the no-divergence law (owner ruling 20
     // Document-chrome content flattens to text-only: a rich-title update is
     // the assertion path for main nodes.
     apply(
-      env("object.create", { objectId: ALIEN, parentId: null, presentAsMain: true, classIds: [], contentAst: [{ type: "text", text: "Main" }] }),
+      env("object.create", { objectId: ALIEN, parentId: null, isEmbedded: false, classIds: [], contentAst: [{ type: "text", text: "Main" }] }),
     );
     apply(
       env("object.update", {
@@ -132,7 +132,7 @@ describe("content-asserted membership — the no-divergence law (owner ruling 20
       env("object.create", {
         objectId: AGENT,
         parentId: null,
-        presentAsMain: false,
+        isEmbedded: true,
         classIds: [],
         contentAst: [{ type: "class_link", classId: PERSON }],
       }),

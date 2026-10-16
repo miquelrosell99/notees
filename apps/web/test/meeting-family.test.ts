@@ -305,7 +305,7 @@ describe("ensureMeetingFamily (event root + meeting subclass)", () => {
     await ensureMeetingFamily(client);
 
     // CalendarView.createClassed: create classed → set the driving date.
-    const id = await client.createObject({ presentAsMain: true, classIds: [MEETING_CLASS_ID] });
+    const id = await client.createObject({ isEmbedded: false, classIds: [MEETING_CLASS_ID] });
     await client.setDatetimeProperty(id, SYSTEM_PROPERTY_UUIDS.meetingDate, { iso: "2026-10-06" });
 
     const classAndDate = client.runQueryAst({
@@ -430,7 +430,7 @@ describe("ensureBirthdayFamily (birthday extends event, for persons)", () => {
     const client = await seedClient();
     await ensureBirthdayFamily(client);
 
-    const id = await client.createObject({ presentAsMain: true, classIds: [BIRTHDAY_CLASS_ID] });
+    const id = await client.createObject({ isEmbedded: false, classIds: [BIRTHDAY_CLASS_ID] });
     await client.setDatetimeProperty(id, SYSTEM_PROPERTY_UUIDS.eventDate, { iso: "2026-10-06" });
 
     const asBirthday = client.runQueryAst({
@@ -459,17 +459,17 @@ describe("ensureBirthdayFamily (birthday extends event, for persons)", () => {
     const client = await seedClient();
     await ensureBirthdayFamily(client);
     const personId = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       name: "Ada Lovelace",
       classIds: [SYSTEM_CLASS_UUIDS.person],
     });
     const orgId = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       name: "Analytical Engines Inc",
       classIds: [SYSTEM_CLASS_UUIDS.organization],
     });
     const birthday = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       classIds: [BIRTHDAY_CLASS_ID],
     });
 
@@ -492,12 +492,12 @@ describe("ensureBirthdayFamily (birthday extends event, for persons)", () => {
     const client = await seedClient();
     await ensureBirthdayFamily(client);
     const personId = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       name: "Ada Lovelace",
       classIds: [SYSTEM_CLASS_UUIDS.person],
     });
     const birthday = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       name: "Ada's birthday",
       classIds: [BIRTHDAY_CLASS_ID],
     });

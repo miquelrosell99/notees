@@ -77,20 +77,20 @@ interface PaletteWorld {
 async function seedPaletteWorld(): Promise<PaletteWorld> {
   const client = await seedClient();
   const garden = await client.createObject({
-    presentAsMain: true,
+    isEmbedded: false,
     contentAst: [{ type: "text", text: "Garden" }],
   });
   // Title match for "tulip": belongs to Pages, deduped out of Content.
   const catalog = await client.createObject({
-    presentAsMain: true,
+    isEmbedded: false,
     contentAst: [{ type: "text", text: "Tulip Catalog" }],
   });
   const notes = await client.createObject({
-    presentAsMain: true,
+    isEmbedded: false,
     contentAst: [{ type: "text", text: "Notes" }],
   });
   await client.createObject({
-    presentAsMain: false,
+    isEmbedded: true,
     parentId: notes,
     contentAst: [{ type: "text", text: "tulip bulbs go in the border" }],
   });
@@ -230,7 +230,7 @@ describe("CommandPalette Random section (#8)", () => {
     const client = await seedClient();
     for (let i = 0; i < count; i += 1) {
       await client.createObject({
-        presentAsMain: true,
+        isEmbedded: false,
         contentAst: [{ type: "text", text: `Page ${i + 1}` }],
       });
     }
@@ -410,8 +410,8 @@ describe("NodeSelector class refine", () => {
   it("a class: prefix narrows candidates to the class's members", async () => {
     const client = await seedClient();
     const fictionId = await createTitledClass(client, "Fiction");
-    await client.createObject({ presentAsMain: true, name: "Dune", classIds: [fictionId] });
-    await client.createObject({ presentAsMain: true, name: "Gardening Annual" });
+    await client.createObject({ isEmbedded: false, name: "Dune", classIds: [fictionId] });
+    await client.createObject({ isEmbedded: false, name: "Gardening Annual" });
     render(<NodeSelector client={client} trigger="inline" searchMode="all" onAdd={() => {}} />);
 
     fireEvent.change(screen.getByLabelText("Search..."), { target: { value: "class:Fiction " } });
@@ -424,7 +424,7 @@ describe("NodeSelector class refine", () => {
   it("spaced class names resolve greedily; the create row carries the refined class", async () => {
     const client = await seedClient();
     const myClassId = await createTitledClass(client, "My Class");
-    await client.createObject({ presentAsMain: true, name: "Ada Lovelace", classIds: [myClassId] });
+    await client.createObject({ isEmbedded: false, name: "Ada Lovelace", classIds: [myClassId] });
     render(<NodeSelector client={client} trigger="inline" searchMode="all" onAdd={() => {}} />);
 
     // The greedy name parse takes "My Class" (not "My"), leaving "lovelace".
@@ -446,13 +446,13 @@ describe("NodeSelector class refine", () => {
 describe("NodeSelector block mode", () => {
   it("blocks mode lists only inline blocks, labeled by their containing page", async () => {
     const client = await seedClient();
-    const notes = await client.createObject({ presentAsMain: true, name: "Notes" });
+    const notes = await client.createObject({ isEmbedded: false, name: "Notes" });
     await client.createObject({
-      presentAsMain: false,
+      isEmbedded: true,
       parentId: notes,
       contentAst: [{ type: "text", text: "quixotic block text" }],
     });
-    await client.createObject({ presentAsMain: true, name: "Quixotic Page" });
+    await client.createObject({ isEmbedded: false, name: "Quixotic Page" });
     const { container } = render(
       <NodeSelector client={client} trigger="inline" searchMode="blocks" onAdd={() => {}} />,
     );

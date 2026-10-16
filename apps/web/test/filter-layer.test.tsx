@@ -114,7 +114,7 @@ describe("the classed-nodes filter bar", () => {
     const classId = await seedClass(client, "project");
     for (let i = 0; i < BIG; i += 1) {
       const member = await client.createObject({
-        presentAsMain: true,
+        isEmbedded: false,
         name: `Row ${String(i).padStart(3, "0")}`,
       });
       await client.assignClass(member, classId);
@@ -160,10 +160,10 @@ describe("the classed-nodes filter bar", () => {
   it("a multi-word quick search ranks the exact title first, ordered terms next, one-word partials last", async () => {
     const client = await seedClient();
     const classId = await seedClass(client, "project");
-    await client.createObject({ presentAsMain: true, name: "Alpha Beta", classIds: [classId] });
-    await client.createObject({ presentAsMain: true, name: "Alphabet soup beta edition", classIds: [classId] });
-    await client.createObject({ presentAsMain: true, name: "Alpha", classIds: [classId] });
-    await client.createObject({ presentAsMain: true, name: "Beta", classIds: [classId] });
+    await client.createObject({ isEmbedded: false, name: "Alpha Beta", classIds: [classId] });
+    await client.createObject({ isEmbedded: false, name: "Alphabet soup beta edition", classIds: [classId] });
+    await client.createObject({ isEmbedded: false, name: "Alpha", classIds: [classId] });
+    await client.createObject({ isEmbedded: false, name: "Beta", classIds: [classId] });
 
     render(<NodeView client={client} onOpenNode={() => {}} nodeId={classId} />);
     const section = classedNodesSection();
@@ -188,8 +188,8 @@ describe("the classed-nodes filter bar", () => {
   it("the real-world regression shape: 'gmi dental' lists GMI Dental Implantology FIRST", async () => {
     const client = await seedClient();
     const classId = await seedClass(client, "project");
-    await client.createObject({ presentAsMain: true, name: "GMI Ecuador", classIds: [classId] });
-    await client.createObject({ presentAsMain: true, name: "GMI Dental Implantology", classIds: [classId] });
+    await client.createObject({ isEmbedded: false, name: "GMI Ecuador", classIds: [classId] });
+    await client.createObject({ isEmbedded: false, name: "GMI Dental Implantology", classIds: [classId] });
 
     render(<NodeView client={client} onOpenNode={() => {}} nodeId={classId} />);
     const section = classedNodesSection();
@@ -237,9 +237,9 @@ describe("the classed-nodes filter bar", () => {
     const projectId = await seedClass(client, "project");
     const clientId = await seedClass(client, "client");
     await client.setClassExtends(clientId, [projectId]);
-    await client.createObject({ presentAsMain: true, name: "Alpha", classIds: [projectId] });
-    await client.createObject({ presentAsMain: true, name: "Beta", classIds: [projectId] });
-    await client.createObject({ presentAsMain: true, name: "Gamma", classIds: [clientId] });
+    await client.createObject({ isEmbedded: false, name: "Alpha", classIds: [projectId] });
+    await client.createObject({ isEmbedded: false, name: "Beta", classIds: [projectId] });
+    await client.createObject({ isEmbedded: false, name: "Gamma", classIds: [clientId] });
 
     render(<NodeView client={client} nodeId={projectId} onOpenNode={() => {}} />);
     const section = classedNodesSection();
@@ -268,10 +268,10 @@ describe("the classed-nodes filter bar", () => {
     const classId = await seedClass(client, "task");
     const schemaId = await client.createPropertySchema({ name: "impact", type: "number" });
     await client.setClassProperty(classId, schemaId, { sequence: 0 });
-    const low = await client.createObject({ presentAsMain: true, name: "Low impact" });
+    const low = await client.createObject({ isEmbedded: false, name: "Low impact" });
     await client.assignClass(low, classId);
     await client.setProperty(low, schemaId, 1, 0);
-    const high = await client.createObject({ presentAsMain: true, name: "High impact" });
+    const high = await client.createObject({ isEmbedded: false, name: "High impact" });
     await client.assignClass(high, classId);
     await client.setProperty(high, schemaId, 9, 0);
 
@@ -303,7 +303,7 @@ describe("the classed-nodes filter bar", () => {
   it("the + rides the tablist's end and the view chrome stays put when the panel opens", async () => {
     const client = await seedClient();
     const classId = await seedClass(client, "project");
-    await client.createObject({ presentAsMain: true, name: "Alpha", classIds: [classId] });
+    await client.createObject({ isEmbedded: false, name: "Alpha", classIds: [classId] });
 
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     const section = classedNodesSection();
@@ -353,8 +353,8 @@ describe("the narrow-viewport search fold (owner 2026-10-12)", () => {
     stubNarrowViewport();
     const client = await seedClient();
     const classId = await seedClass(client, "project");
-    await client.createObject({ presentAsMain: true, name: "Alpha", classIds: [classId] });
-    await client.createObject({ presentAsMain: true, name: "Beta", classIds: [classId] });
+    await client.createObject({ isEmbedded: false, name: "Alpha", classIds: [classId] });
+    await client.createObject({ isEmbedded: false, name: "Beta", classIds: [classId] });
 
     render(<NodeView client={client} nodeId={classId} onOpenNode={() => {}} />);
     const section = classedNodesSection();
@@ -380,13 +380,13 @@ describe("the reference sections' filter bars", () => {
   async function seedReferencedPage(
     client: WorkspaceClient,
   ): Promise<{ pageId: string; plainSourceId: string }> {
-    const pageId = await client.createObject({ presentAsMain: true, name: "Zebra" });
-    const linkedSource = await client.createObject({ presentAsMain: true, name: "Linked Source" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Zebra" });
+    const linkedSource = await client.createObject({ isEmbedded: false, name: "Linked Source" });
     await client.createObject({
       parentId: linkedSource,
       contentAst: [{ type: "mention", targetNodeId: pageId, text: "Zebra" }],
     });
-    const plainSourceId = await client.createObject({ presentAsMain: true, name: "Plain Source" });
+    const plainSourceId = await client.createObject({ isEmbedded: false, name: "Plain Source" });
     await client.createObject({
       parentId: plainSourceId,
       contentAst: [{ type: "text", text: "Zebra" }],
@@ -397,7 +397,7 @@ describe("the reference sections' filter bars", () => {
   it("each reference section renders the shared filter chrome on the hosted tab bar; a non-filterable section renders none", async () => {
     const client = await seedClient();
     const { pageId } = await seedReferencedPage(client);
-    await client.createObject({ presentAsMain: true, name: "Kid", parentId: pageId });
+    await client.createObject({ isEmbedded: false, name: "Kid", parentId: pageId });
 
     render(<PageView client={client} pageId={pageId} />);
     // Backlinks is expanded by default: its chrome (the permanent quick

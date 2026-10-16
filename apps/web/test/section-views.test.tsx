@@ -3,7 +3,7 @@
  *
  *  - resolution (sectionViewResolve): the stored AST refines the section's
  *    base row set — base-column predicates evaluate on the materialized rows
- *    (class hierarchy-aware, isClass/presentAsMain, the created window,
+ *    (class hierarchy-aware, isClass/isEmbedded, the created window,
  *    content-contains over the flattened title, the wire-field predicates,
  *    property conditions over the effective-values read model — the
  *    one-evaluation ruling, owner 2026-10-08), only fts/linkedTo fall back
@@ -69,7 +69,7 @@ function node(partial: Partial<ClientNode> & { id?: string }): ClientNode {
     id: partial.id ?? `0192c000-0000-7000-8000-${String(idCounter).padStart(12, "0")}`,
     workspaceId: WS,
     isClass: false,
-    presentAsMain: true,
+    isEmbedded: false,
     parentId: null,
     classIds: [],
     tagIds: [],
@@ -123,11 +123,11 @@ describe("section view resolution (sync path)", () => {
     expect(applySectionView(resolveClient(), { items: base, groups: undefined }, plan).items).toBe(base);
   });
 
-  it("filters by isClass / presentAsMain on the row's own columns", () => {
+  it("filters by isClass / isEmbedded on the row's own columns", () => {
     const rows = [
-      item(node({ isClass: false, presentAsMain: true })),
-      item(node({ isClass: true, presentAsMain: false })),
-      item(node({ isClass: false, presentAsMain: false })),
+      item(node({ isClass: false, isEmbedded: false })),
+      item(node({ isClass: true, isEmbedded: true })),
+      item(node({ isClass: false, isEmbedded: true })),
     ];
     const plan = planSectionView(astOf({ type: "isClass", isClass: false }));
     const result = applySectionView(resolveClient(), { items: rows, groups: undefined }, plan);
@@ -208,8 +208,8 @@ describe("section view resolution (sync path)", () => {
 
   it("group/not/or compose over the base rows", () => {
     const classed = node({ classIds: [CLASS_A] });
-    const plainMain = node({ presentAsMain: true });
-    const plainInline = node({ presentAsMain: false });
+    const plainMain = node({ isEmbedded: false });
+    const plainInline = node({ isEmbedded: true });
     const orAst = {
       version: 1,
       scope: { type: "entire_workspace" },
@@ -218,7 +218,7 @@ describe("section view resolution (sync path)", () => {
         logic: "or",
         children: [
           { type: "class", classId: CLASS_A },
-          { type: "presentAsMain", presentAsMain: true },
+          { type: "isEmbedded", isEmbedded: false },
         ],
       },
     };
@@ -274,13 +274,13 @@ describe("section view resolution (sync path)", () => {
   });
 
   it("groups refine alongside items; emptied groups drop", () => {
-    const match = node({ presentAsMain: true });
-    const miss = node({ presentAsMain: false });
+    const match = node({ isEmbedded: false });
+    const miss = node({ isEmbedded: true });
     const groups = [
       { id: "g1", label: "Kept", items: [item(match), item(miss)] },
       { id: "g2", label: "Dropped", items: [item(miss)] },
     ];
-    const plan = planSectionView(astOf({ type: "presentAsMain", presentAsMain: true }));
+    const plan = planSectionView(astOf({ type: "isEmbedded", isEmbedded: false }));
     const result = applySectionView(resolveClient(), { items: [item(match), item(miss)], groups }, plan);
     expect(result.groups?.map((group) => group.id)).toEqual(["g1"]);
     expect(result.groups?.[0]?.items.map((entry) => entry.node.id)).toEqual([match.id]);
@@ -558,10 +558,10 @@ async function seedClient(): Promise<WorkspaceClient> {
 
 async function seedClassWorld(client: WorkspaceClient): Promise<{ cityId: string; members: string[]; plain: string[] }> {
   const cityId = await client.createClass("City");
-  const m1 = await client.createObject({ presentAsMain: true, name: "Paris", classIds: [cityId] });
-  const m2 = await client.createObject({ presentAsMain: true, name: "London", classIds: [cityId] });
-  const p1 = await client.createObject({ presentAsMain: true, name: "Rome notes" });
-  const p2 = await client.createObject({ presentAsMain: true, name: "Berlin diary" });
+  const m1 = await client.createObject({ isEmbedded: false, name: "Paris", classIds: [cityId] });
+  const m2 = await client.createObject({ isEmbedded: false, name: "London", classIds: [cityId] });
+  const p1 = await client.createObject({ isEmbedded: false, name: "Rome notes" });
+  const p2 = await client.createObject({ isEmbedded: false, name: "Berlin diary" });
   return { cityId, members: [m1, m2], plain: [p1, p2] };
 }
 

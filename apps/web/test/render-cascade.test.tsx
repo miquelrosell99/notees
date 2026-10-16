@@ -1,10 +1,10 @@
 /**
  * Render-cascade tests (Revision 11): NodeView routes by the isClass /
- * presentAsMain booleans — a class node renders the Class View, a parented
+ * isEmbedded booleans — a class node renders the Class View, a parented
  * node with the render bit unset renders the focused block view (inline
  * body + block chrome), and everything else (parentless or present-as-main)
  * renders the Page View with document chrome. Plus the context-menu zone
- * gestures: "Move to Pages" / "Move to content" issue the presentAsMain
+ * gestures: "Move to Pages" / "Move to content" issue the isEmbedded
  * toggle through updateObject (one undoable object.update). jsdom
  * environment over the in-process WorkspaceClient + MemoryRelay.
  */
@@ -51,7 +51,7 @@ async function seedClient(): Promise<WorkspaceClient> {
 describe("NodeView render cascade (Revision 11)", () => {
   it("parentless node → PageView (document chrome by the second cascade branch)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Root Document" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Root Document" });
 
     const { container } = render(<NodeView client={client} nodeId={pageId} onOpenNode={() => {}} />);
 
@@ -63,9 +63,9 @@ describe("NodeView render cascade (Revision 11)", () => {
 
   it("parented present-as-main node → PageView (the parent's main-children zone)", async () => {
     const client = await seedClient();
-    const parentId = await client.createObject({ presentAsMain: true, name: "Parent" });
+    const parentId = await client.createObject({ isEmbedded: false, name: "Parent" });
     const childId = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       parentId,
       name: "Main Child",
     });
@@ -79,7 +79,7 @@ describe("NodeView render cascade (Revision 11)", () => {
 
   it("parented inline node → FocusedBlockView (block chrome, no page header)", async () => {
     const client = await seedClient();
-    const parentId = await client.createObject({ presentAsMain: true, name: "Parent" });
+    const parentId = await client.createObject({ isEmbedded: false, name: "Parent" });
     const blockId = await client.createObject({
       parentId,
       contentAst: [{ type: "text", text: "inline body block" }],
@@ -118,7 +118,7 @@ describe("NodeContextMenu zone gestures (Convert to page / Move to content)", ()
     return {
       workspaceId: WS,
       isClass: false,
-      presentAsMain: false,
+      isEmbedded: true,
       parentId: null,
       classIds: [],
       tagIds: [],
@@ -176,29 +176,29 @@ describe("NodeContextMenu zone gestures (Convert to page / Move to content)", ()
 
   it("a parented inline node offers 'Convert to page'; keeping it under the parent toggles the bit on", () => {
     const { client, calls } = stubClient();
-    const node = menuNode({ id: "n1", parentId: "p1", presentAsMain: false });
+    const node = menuNode({ id: "n1", parentId: "p1", isEmbedded: true });
     const { queryByText, getByText } = renderMenu(node, client);
 
     expect(queryByText("Move to content")).toBeNull();
     fireEvent.click(getByText("Convert to page"));
     // The stub cannot resolve the parent name — the fallback reads "parent".
     fireEvent.click(getByText('Keep under "parent"'));
-    expect(calls).toEqual([{ id: "n1", fields: { presentAsMain: true } }]);
+    expect(calls).toEqual([{ id: "n1", fields: { isEmbedded: false } }]);
   });
 
   it("a parented main child offers 'Move to content' and toggles the bit off", () => {
     const { client, calls } = stubClient();
-    const node = menuNode({ id: "n2", parentId: "p1", presentAsMain: true });
+    const node = menuNode({ id: "n2", parentId: "p1", isEmbedded: false });
     const { queryByText, getByText } = renderMenu(node, client);
 
     expect(queryByText("Convert to page")).toBeNull();
     fireEvent.click(getByText("Move to content"));
-    expect(calls).toEqual([{ id: "n2", fields: { presentAsMain: false } }]);
+    expect(calls).toEqual([{ id: "n2", fields: { isEmbedded: true } }]);
   });
 
   it("a parentless node gets neither gesture (it already has document chrome)", () => {
     const { client, calls } = stubClient();
-    const node = menuNode({ id: "n3", parentId: null, presentAsMain: true });
+    const node = menuNode({ id: "n3", parentId: null, isEmbedded: false });
     const { queryByText } = renderMenu(node, client);
 
     expect(queryByText("Convert to page")).toBeNull();
@@ -211,7 +211,7 @@ describe("NodeContextMenu zone gestures (Convert to page / Move to content)", ()
     const node = menuNode({
       id: "n4",
       parentId: "p1",
-      presentAsMain: false,
+      isEmbedded: true,
       contentAst: [
         { type: "text", text: "check " },
         { type: "mention", targetNodeId: "t1", text: "Target" },
@@ -241,12 +241,12 @@ describe("NodeContextMenu zone gestures (Convert to page / Move to content)", ()
     // item that spawned the gesture.
     fireEvent.click(getByText('Keep under "parent"'));
     fireEvent.click(within(getByRole("dialog")).getByText("Convert to page"));
-    expect(calls).toEqual([{ id: "n4", fields: { presentAsMain: true } }]);
+    expect(calls).toEqual([{ id: "n4", fields: { isEmbedded: false } }]);
   });
 
   it("Duplicate clones the subtree through the clone engine, provenance-free, after the source", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Source" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Source" });
     await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "body" }] });
     const node = client.getNode(pageId)!;
     const onDuplicated = vi.fn();
@@ -266,7 +266,7 @@ describe("NodeContextMenu zone gestures (Convert to page / Move to content)", ()
     const fresh = client.getNode(freshId)!;
     expect(freshId).not.toBe(pageId);
     expect(fresh.parentId).toBeNull();
-    expect(fresh.presentAsMain).toBe(true);
+    expect(fresh.isEmbedded).toBe(false);
     expect(fresh.contentAst).toEqual([{ type: "text", text: "Source" }]);
     expect(client.getChildren(freshId)).toHaveLength(1);
     expect(client.getChildren(freshId)[0]!.contentAst).toEqual([{ type: "text", text: "body" }]);
@@ -299,7 +299,7 @@ describe("NodeContextMenu zone gestures (Convert to page / Move to content)", ()
     const richNode = menuNode({
       id: "n6",
       parentId: "p1",
-      presentAsMain: false,
+      isEmbedded: true,
       contentAst: [
         { type: "text", text: "see " },
         { type: "mention", targetNodeId: "t1", text: "Target" },
@@ -314,7 +314,7 @@ describe("NodeContextMenu zone gestures (Convert to page / Move to content)", ()
     expect(dialog.getByText(/flattens its rich content/)).not.toBeNull();
     fireEvent.click(dialog.getByText("Convert to page"));
     await waitFor(() => expect(queryByRole("dialog")).toBeNull());
-    expect(calls).toEqual([{ id: "n6", fields: { presentAsMain: true } }]);
+    expect(calls).toEqual([{ id: "n6", fields: { isEmbedded: false } }]);
   });
 
   it("the delete confirmation rides the same latch (menu closes, modal survives)", async () => {
@@ -333,7 +333,7 @@ describe("NodeContextMenu zone gestures (Convert to page / Move to content)", ()
         </>
       );
     }
-    const pageNode = menuNode({ id: "n7", parentId: null, presentAsMain: true });
+    const pageNode = menuNode({ id: "n7", parentId: null, isEmbedded: false });
     const { getByText, getByRole, queryByRole } = render(<Host node={pageNode} />);
 
     fireEvent.click(getByText("Delete"));
@@ -350,7 +350,7 @@ describe("NodeContextMenu zone gestures (Convert to page / Move to content)", ()
     const node = menuNode({
       id: "n5",
       parentId: "p1",
-      presentAsMain: false,
+      isEmbedded: true,
       contentAst: [
         { type: "text", text: "board" },
         { type: "whiteboard", layout: {} },
@@ -362,6 +362,6 @@ describe("NodeContextMenu zone gestures (Convert to page / Move to content)", ()
     fireEvent.click(getByText("Convert to page"));
     fireEvent.click(getByText('Keep under "parent"'));
     expect(queryByText(/flattens its rich content/)).toBeNull();
-    expect(calls).toEqual([{ id: "n5", fields: { presentAsMain: true } }]);
+    expect(calls).toEqual([{ id: "n5", fields: { isEmbedded: false } }]);
   });
 });

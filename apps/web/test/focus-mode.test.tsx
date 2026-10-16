@@ -81,17 +81,17 @@ async function seedChromeWorld(): Promise<{ client: WorkspaceClient; pageId: str
   const client = await seedClient();
   const classId = await client.createClass("Fiction");
   const pageId = await client.createObject({
-    presentAsMain: true,
+    isEmbedded: false,
     name: "Novel Draft",
     classIds: [classId],
   });
-  const tagId = await client.createObject({ presentAsMain: true, name: "tag: writing" });
+  const tagId = await client.createObject({ isEmbedded: false, name: "tag: writing" });
   await client.assignTag(pageId, tagId);
   const blockId = await client.createObject({
     parentId: pageId,
     contentAst: [{ type: "text", text: "Chapter one" }],
   });
-  const source = await client.createObject({ presentAsMain: true, name: "Sources" });
+  const source = await client.createObject({ isEmbedded: false, name: "Sources" });
   await client.createObject({
     parentId: source,
     contentAst: [
@@ -99,7 +99,7 @@ async function seedChromeWorld(): Promise<{ client: WorkspaceClient; pageId: str
       { type: "mention", targetNodeId: blockId, text: "Chapter one" },
     ],
   });
-  const childId = await client.createObject({ presentAsMain: true, name: "Child Page" });
+  const childId = await client.createObject({ isEmbedded: false, name: "Child Page" });
   await client.moveObject(childId, pageId);
   expect(client.getBacklinkCount(blockId)).toBe(1);
   await flushSync();
@@ -201,7 +201,7 @@ describe("focus mode block chrome (#12)", () => {
   it("the task status icon button and the collapsed properties hide", async () => {
     const client = await seedClient();
     await ensureTaskFamily(client);
-    const pageId = await client.createObject({ presentAsMain: true, name: "Tasks" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Tasks" });
     await client.createObject({
       parentId: pageId,
       classIds: [SYSTEM_CLASS_UUIDS.task],
