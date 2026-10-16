@@ -44,11 +44,10 @@ Conditions (the shipped subset, cleanly extensible by versioned addition):
 | `classExact {classId}` | EXACT class-set equality (the Odoo "=" register): the set is exactly `{classId}`, nothing else — the closure does not apply. |
 | `classAny {classIds}` | ANY-of membership (Odoo "one of"): at least one picked class rides the set — closure-aware per id, like `class`. |
 | `classSet` | The class set is non-empty (Odoo "is set"). |
-| `pageClass {classId}` | The **containing page** (nearest self-or-ancestor rendering with document chrome — a class, a parentless node, or an `is_embedded = 0` node; the parent-page condition is write-time impossible to violate) is classed, closure-aware. A page row reads its own class. |
-| `ancestorClassed {classId}` | Some **strict ancestor** (the parent path, self excluded) is classed, closure-aware (the class-based Odoo "parent of"). |
-| `rootClass {classId}` | The **workspace-root ancestor** (the top of the parent chain; a parentless row is its own root) is classed, closure-aware. |
-| `pageClassAny / ancestorClassedAny / rootClassAny {classIds}` | The ANY-of container shapes (Odoo "one of" over the container classes). |
-| `pageClassSet / ancestorClassedSet / rootClassSet` | The container "is set" — the containing page / some strict ancestor / the root carries at least one class. |
+| `pageOf {nodeIds}` / `pageOfQuery {root}` | v1's **Page** block: the **containing page** (nearest self-or-ancestor rendering with document chrome — a class, a parentless node, or an `is_embedded = 0` node; the parent-page condition is write-time impossible to violate) IS ONE OF the picked nodes / the subquery's matches. A page row reads its own page (picked, it matches itself). |
+| `pageSet` | The Page "is set" — the row lives inside a page (the containing page differs from the row itself). |
+| `ancestorIn {nodeIds}` / `ancestorInQuery {root}` | v1's **Parent path** block: some **strict ancestor** (the parent path, self excluded) is one of the picked nodes / matches the subquery. |
+| `rootIn {nodeIds}` / `rootInQuery {root}` | The **root** walk: the workspace-root ancestor (a parentless row is its own root) is one of the picked nodes / matches the subquery. |
 | `isClass {isClass}` | `node.is_class = 0/1` — the class identity bit (Revision 11). |
 | `isEmbedded {isEmbedded}` | `node.is_embedded = 0/1` — the embedding bit for parented non-class nodes (Revision 12: the Block role = embedded in the parent's body, the Page-role claim = standalone under a page-role parent). |
 | `content {op, value}` | `contains`: LIKE substring over the derived search plaintext (name + content tokens — the only derived plaintext; it lives in the FTS index). `fts`: prefix-AND `MATCH` over `search_index`. `eq`/`neq`: plaintext equality; `starts`/`ends`: edge-anchored LIKE — the Odoo text set. |

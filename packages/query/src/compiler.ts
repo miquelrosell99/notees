@@ -518,105 +518,80 @@ class Compiler {
       case "classSet":
         // The class set is non-empty (Odoo "is set"); the not-wrap reads "is not set".
         return "(SELECT COUNT(*) FROM json_each(n.class_ids)) > 0";
-      case "pageClassAny":
-      case "ancestorClassedAny":
-      case "rootClassAny": {
-        // The container ANY-of shapes — the same walk as the single-id arms
-        // with the closure probe widened to an IN-list.
-        const ids = condition.classIds.map((id) => this.push(id)).join(", ");
-        const probe = `value IN (SELECT class_id FROM class_hierarchy WHERE ancestor_id IN (${ids}))`;
-        if (condition.type === "pageClassAny") {
-          return (
-            "EXISTS (\n  SELECT 1 FROM (\n" +
-            "    SELECT pg.class_ids AS class_ids FROM node pg JOIN (\n" +
-            "      WITH RECURSIVE up(id, depth) AS (\n" +
-            "        SELECT n.id, 0\n" +
-            "        UNION ALL\n" +
-            "        SELECT nd.parent_id, up.depth + 1 FROM node nd JOIN up ON nd.id = up.id\n" +
-            "        WHERE nd.parent_id IS NOT NULL AND up.depth < 64\n" +
-            "      ) SELECT id, depth FROM up\n" +
-            "    ) ch ON ch.id = pg.id\n" +
-            "    WHERE pg.is_class = 1 OR pg.parent_id IS NULL OR pg.is_embedded = 0\n" +
-            "    ORDER BY ch.depth LIMIT 1\n" +
-            "  ) page JOIN json_each(page.class_ids)\n" +
-            `  WHERE ${probe}\n)`
-          );
-        }
-        if (condition.type === "ancestorClassedAny") {
-          return (
-            "EXISTS (\n  WITH RECURSIVE anc(id, depth) AS (\n" +
-            "    SELECT nd.parent_id, 0 FROM node nd WHERE nd.id = n.id\n" +
-            "    UNION ALL\n" +
-            "    SELECT nd.parent_id, anc.depth + 1 FROM node nd JOIN anc ON nd.id = anc.id\n" +
-            "    WHERE anc.id IS NOT NULL AND anc.depth < 64\n" +
-            "  )\n" +
-            "  SELECT 1 FROM anc JOIN node a ON a.id = anc.id\n" +
-            "  JOIN json_each(a.class_ids)\n" +
-            `  WHERE ${probe}\n)`
-          );
-        }
+      case "pageOf": {
+        // v1's Page block (static): the CONTAINING PAGE is one of the picked
+        // nodes. The page id rides the correlated scalar subquery; the pick
+        // reaches it through ONE json_each param.
+        const ids = this.push(JSON.stringify(condition.nodeIds));
+        return `EXISTS (\n  SELECT 1 FROM json_each(${ids})\n  WHERE value = ${this.containingPageIdSql()}\n)`;
+      }
+      case "pageOfQuery": {
+        // DYNAMIC Page: the containing page is one of the group's matches.
+        // The group rides a fresh `node n` scope (its conditions bind the
+        // inner alias); the page id correlates to the outer row.
+        const group = this.groupSql(condition.root);
+        const inner =
+          group !== undefined
+            ? ` AND page.id IN (SELECT n.id FROM node n WHERE n.is_active = 1 AND (${group}))`
+            : "";
         return (
-          "EXISTS (\n  SELECT 1 FROM (\n" +
-          "    SELECT pg.class_ids AS class_ids FROM node pg WHERE pg.id = (\n" +
-          "      WITH RECURSIVE up(id) AS (\n" +
-          "        SELECT n.id\n" +
-          "        UNION ALL\n" +
-          "        SELECT nd.parent_id FROM node nd JOIN up ON nd.id = up.id\n" +
-          "        WHERE nd.parent_id IS NOT NULL\n" +
-          "      )\n" +
-          "      SELECT up.id FROM up JOIN node nd ON nd.id = up.id\n" +
-          "      WHERE nd.parent_id IS NULL LIMIT 1\n" +
-          "    )\n" +
-          "  ) root JOIN json_each(root.class_ids)\n" +
-          `  WHERE ${probe}\n)`
+          "EXISTS (\n  SELECT 1 FROM node page\n" +
+          `  WHERE page.id = ${this.containingPageIdSql()} AND page.is_active = 1${inner}\n)`
         );
       }
-      case "pageClassSet":
-      case "ancestorClassedSet":
-      case "rootClassSet": {
-        // The container "is set" shapes — the same walk, probing only that the
-        // container's class set is non-empty.
-        if (condition.type === "pageClassSet") {
-          return (
-            "EXISTS (\n  SELECT 1 FROM (\n" +
-            "    SELECT pg.class_ids AS class_ids FROM node pg JOIN (\n" +
-            "      WITH RECURSIVE up(id, depth) AS (\n" +
-            "        SELECT n.id, 0\n" +
-            "        UNION ALL\n" +
-            "        SELECT nd.parent_id, up.depth + 1 FROM node nd JOIN up ON nd.id = up.id\n" +
-            "        WHERE nd.parent_id IS NOT NULL AND up.depth < 64\n" +
-            "      ) SELECT id, depth FROM up\n" +
-            "    ) ch ON ch.id = pg.id\n" +
-            "    WHERE pg.is_class = 1 OR pg.parent_id IS NULL OR pg.is_embedded = 0\n" +
-            "    ORDER BY ch.depth LIMIT 1\n" +
-            "  ) page JOIN json_each(page.class_ids)\n)"
-          );
-        }
-        if (condition.type === "ancestorClassedSet") {
-          return (
-            "EXISTS (\n  WITH RECURSIVE anc(id, depth) AS (\n" +
-            "    SELECT nd.parent_id, 0 FROM node nd WHERE nd.id = n.id\n" +
-            "    UNION ALL\n" +
-            "    SELECT nd.parent_id, anc.depth + 1 FROM node nd JOIN anc ON nd.id = anc.id\n" +
-            "    WHERE anc.id IS NOT NULL AND anc.depth < 64\n" +
-            "  )\n" +
-            "  SELECT 1 FROM anc JOIN node a ON a.id = anc.id\n" +
-            "  JOIN json_each(a.class_ids)\n)"
-          );
-        }
+      case "pageSet":
+        // The Page "is set": the row lives inside a page — the containing
+        // page differs from the row itself (a page's own page is itself).
+        return `${this.containingPageIdSql()} != n.id`;
+      case "ancestorIn": {
+        // v1's Parent path block (static): some STRICT ancestor is one of the
+        // picked nodes (the ids ride one json_each param).
+        const ids = this.push(JSON.stringify(condition.nodeIds));
         return (
-          "EXISTS (\n  SELECT 1 FROM (\n" +
-          "    SELECT pg.class_ids AS class_ids FROM node pg WHERE pg.id = (\n" +
-          "      WITH RECURSIVE up(id) AS (\n" +
-          "        SELECT n.id\n" +
-          "        UNION ALL\n" +
-          "        SELECT nd.parent_id FROM node nd JOIN up ON nd.id = up.id\n" +
-          "        WHERE nd.parent_id IS NOT NULL\n" +
-          "      )\n" +
-          "      SELECT up.id FROM up JOIN node nd ON nd.id = up.id\n" +
-          "      WHERE nd.parent_id IS NULL LIMIT 1\n" +
-          "    )\n" +
-          "  ) root JOIN json_each(root.class_ids)\n)"
+          "EXISTS (\n  WITH RECURSIVE anc(id, depth) AS (\n" +
+          "    SELECT nd.parent_id, 0 FROM node nd WHERE nd.id = n.id\n" +
+          "    UNION ALL\n" +
+          "    SELECT nd.parent_id, anc.depth + 1 FROM node nd JOIN anc ON nd.id = anc.id\n" +
+          "    WHERE anc.id IS NOT NULL AND anc.depth < 64\n" +
+          "  )\n" +
+          `  SELECT 1 FROM anc JOIN json_each(${ids}) ON value = anc.id\n)`
+        );
+      }
+      case "ancestorInQuery": {
+        // DYNAMIC Parent path: some strict ancestor matches the group (the
+        // group rides a fresh `node n` scope, like pageOfQuery).
+        const group = this.groupSql(condition.root);
+        const inner =
+          group !== undefined
+            ? ` AND a.id IN (SELECT n.id FROM node n WHERE n.is_active = 1 AND (${group}))`
+            : "";
+        return (
+          "EXISTS (\n  WITH RECURSIVE anc(id, depth) AS (\n" +
+          "    SELECT nd.parent_id, 0 FROM node nd WHERE nd.id = n.id\n" +
+          "    UNION ALL\n" +
+          "    SELECT nd.parent_id, anc.depth + 1 FROM node nd JOIN anc ON nd.id = anc.id\n" +
+          "    WHERE anc.id IS NOT NULL AND anc.depth < 64\n" +
+          "  )\n" +
+          "  SELECT 1 FROM anc JOIN node a ON a.id = anc.id\n" +
+          `  WHERE a.is_active = 1${inner}\n)`
+        );
+      }
+      case "rootIn": {
+        // The root walk (static): the workspace-root ancestor is one of the
+        // picked nodes (one json_each param).
+        const ids = this.push(JSON.stringify(condition.nodeIds));
+        return `EXISTS (\n  SELECT 1 FROM json_each(${ids})\n  WHERE value = ${this.rootIdSql()}\n)`;
+      }
+      case "rootInQuery": {
+        // DYNAMIC Root: the workspace-root ancestor matches the group.
+        const group = this.groupSql(condition.root);
+        const inner =
+          group !== undefined
+            ? ` AND root.id IN (SELECT n.id FROM node n WHERE n.is_active = 1 AND (${group}))`
+            : "";
+        return (
+          "EXISTS (\n  SELECT 1 FROM node root\n" +
+          `  WHERE root.id = ${this.rootIdSql()} AND root.is_active = 1${inner}\n)`
         );
       }
       case "contentSet":
@@ -681,70 +656,6 @@ class Compiler {
         return this.propertyRangeSql(condition);
       case "propertyWithin":
         return this.propertyWithinSql(condition);
-      case "pageClass": {
-        // The CONTAINING PAGE — the nearest self-or-ancestor row that renders
-        // with document chrome (the Revision-12 page-role condition, the same
-        // flattening the "pages" scope uses: a class, a parentless node, or an
-        // is_embedded=0 node — standalone-under-a-page-parent is write-time
-        // impossible, so the flat test is exact). The row's own class_ids are
-        // probed on THAT row, hierarchy-aware.
-        const classId = this.push(condition.classId);
-        return (
-          "EXISTS (\n  SELECT 1 FROM (\n" +
-          "    SELECT pg.class_ids AS class_ids FROM node pg JOIN (\n" +
-          "      WITH RECURSIVE up(id, depth) AS (\n" +
-          "        SELECT n.id, 0\n" +
-          "        UNION ALL\n" +
-          "        SELECT nd.parent_id, up.depth + 1 FROM node nd JOIN up ON nd.id = up.id\n" +
-          "        WHERE nd.parent_id IS NOT NULL AND up.depth < 64\n" +
-          "      ) SELECT id, depth FROM up\n" +
-          "    ) ch ON ch.id = pg.id\n" +
-          "    WHERE pg.is_class = 1 OR pg.parent_id IS NULL OR pg.is_embedded = 0\n" +
-          "    ORDER BY ch.depth LIMIT 1\n" +
-          "  ) page JOIN json_each(page.class_ids)\n" +
-          `  WHERE value IN (SELECT class_id FROM class_hierarchy WHERE ancestor_id = ${classId})\n` +
-          ")"
-        );
-      }
-      case "ancestorClassed": {
-        // The PARENT PATH carries a classed node: some STRICT ancestor (self
-        // excluded — the anchor seeds at n's parent) hits the class closure.
-        // Depth-capped like every ancestor walk (a cycle fails quiet, never hangs).
-        const classId = this.push(condition.classId);
-        return (
-          "EXISTS (\n  WITH RECURSIVE anc(id, depth) AS (\n" +
-          "    SELECT nd.parent_id, 0 FROM node nd WHERE nd.id = n.id\n" +
-          "    UNION ALL\n" +
-          "    SELECT nd.parent_id, anc.depth + 1 FROM node nd JOIN anc ON nd.id = anc.id\n" +
-          "    WHERE anc.id IS NOT NULL AND anc.depth < 64\n" +
-          "  )\n" +
-          "  SELECT 1 FROM anc JOIN node a ON a.id = anc.id\n" +
-          "  WHERE EXISTS (\n    SELECT 1 FROM json_each(a.class_ids)\n" +
-          `    WHERE value IN (SELECT class_id FROM class_hierarchy WHERE ancestor_id = ${classId})\n  )\n)`
-        );
-      }
-      case "rootClass": {
-        // The ROOT ancestor — the workspace-root child at the top of the
-        // parent chain (a parentless row is its own root) — hits the class
-        // closure, hierarchy-aware.
-        const classId = this.push(condition.classId);
-        return (
-          "EXISTS (\n  SELECT 1 FROM (\n" +
-          "    SELECT pg.class_ids AS class_ids FROM node pg WHERE pg.id = (\n" +
-          "      WITH RECURSIVE up(id) AS (\n" +
-          "        SELECT n.id\n" +
-          "        UNION ALL\n" +
-          "        SELECT nd.parent_id FROM node nd JOIN up ON nd.id = up.id\n" +
-          "        WHERE nd.parent_id IS NOT NULL\n" +
-          "      )\n" +
-          "      SELECT up.id FROM up JOIN node nd ON nd.id = up.id\n" +
-          "      WHERE nd.parent_id IS NULL LIMIT 1\n" +
-          "    )\n" +
-          "  ) root JOIN json_each(root.class_ids)\n" +
-          `  WHERE value IN (SELECT class_id FROM class_hierarchy WHERE ancestor_id = ${classId})\n` +
-          ")"
-        );
-      }
       case "isClass":
         return `n.is_class = ${this.push(condition.isClass ? 1 : 0)}`;
       case "isEmbedded":
@@ -1008,6 +919,44 @@ class Compiler {
       unions += "\nUNION ALL\nSELECT node_id, value FROM derived";
     }
     return { ctes, unions };
+  }
+
+  /**
+   * The CONTAINING PAGE id as a correlated scalar subquery (references the
+   * outer row `n`): the nearest self-or-ancestor that renders with document
+   * chrome — the Revision-12 page-role condition, flattened the same way the
+   * "pages" scope flattens it (standalone-under-a-non-page parent is
+   * write-time impossible, so the flat test is exact). No params.
+   */
+  private containingPageIdSql(): string {
+    return (
+      "(SELECT pg.id FROM node pg JOIN (\n" +
+      "  WITH RECURSIVE up(id, depth) AS (\n" +
+      "    SELECT n.id, 0\n" +
+      "    UNION ALL\n" +
+      "    SELECT nd.parent_id, up.depth + 1 FROM node nd JOIN up ON nd.id = up.id\n" +
+      "    WHERE nd.parent_id IS NOT NULL AND up.depth < 64\n" +
+      "  ) SELECT id, depth FROM up\n" +
+      ") ch ON ch.id = pg.id\n" +
+      "WHERE pg.is_class = 1 OR pg.parent_id IS NULL OR pg.is_embedded = 0\n" +
+      "ORDER BY ch.depth LIMIT 1)"
+    );
+  }
+
+  /** The ROOT ancestor id (the workspace-root child) as a correlated scalar subquery. No params. */
+  private rootIdSql(): string {
+    return (
+      "(SELECT pg.id FROM node pg WHERE pg.id = (\n" +
+      "  WITH RECURSIVE up(id) AS (\n" +
+      "    SELECT n.id\n" +
+      "    UNION ALL\n" +
+      "    SELECT nd.parent_id FROM node nd JOIN up ON nd.id = up.id\n" +
+      "    WHERE nd.parent_id IS NOT NULL\n" +
+      "  )\n" +
+      "  SELECT up.id FROM up JOIN node nd ON nd.id = up.id\n" +
+      "  WHERE nd.parent_id IS NULL LIMIT 1\n" +
+      "))"
+    );
   }
 
   /**

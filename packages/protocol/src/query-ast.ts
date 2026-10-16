@@ -142,24 +142,30 @@ export type Condition =
   /**
    * The CONTAINING PAGE (the nearest self-or-ancestor rendering with document
    * chrome — a class, a parentless node, or an is_embedded=0 node under a
-   * page-role parent) is classed with classId, hierarchy-aware. The not-wrap
-   * reads "page is not classed …". The row itself counts when it is its own
-   * page (a classed node, a workspace-root node).
+   * page-role parent) IS ONE OF the picked nodes (v1's Page block, static
+   * mode). The not-wrap reads "page is not any of …".
    */
-  | { type: "pageClass"; classId: string }
+  | { type: "pageOf"; nodeIds: string[] }
+  /** DYNAMIC Page: the containing page is one of the nodes matching the nested group. */
+  | { type: "pageOfQuery"; root: Group }
+  /** The row lives inside a page at all (the Page "is set" — a page's own page is itself). */
+  | { type: "pageSet" }
   /**
-   * The PARENT PATH carries a classed node (Odoo "parent of" over classes):
-   * some STRICT ancestor (parent, grandparent, …) is classed with classId,
-   * hierarchy-aware — self excluded. The not-wrap reads "no classed … up the
-   * parent path".
+   * The PARENT PATH carries one of the picked nodes (v1's Parent path block,
+   * static mode): some STRICT ancestor (parent, grandparent, …) is in the set
+   * — self excluded. The not-wrap reads "parent path includes none of …".
    */
-  | { type: "ancestorClassed"; classId: string }
+  | { type: "ancestorIn"; nodeIds: string[] }
+  /** DYNAMIC Parent path: some strict ancestor matches the nested group. */
+  | { type: "ancestorInQuery"; root: Group }
   /**
    * The ROOT ancestor (the workspace-root child at the top of the parent
-   * chain — the row itself when parentless) is classed with classId,
-   * hierarchy-aware. The not-wrap reads "root is not classed …".
+   * chain — the row itself when parentless) IS ONE OF the picked nodes (v1's
+   * root walk, static mode). The not-wrap reads "root is not any of …".
    */
-  | { type: "rootClass"; classId: string }
+  | { type: "rootIn"; nodeIds: string[] }
+  /** DYNAMIC Root: the workspace-root ancestor matches the nested group. */
+  | { type: "rootInQuery"; root: Group }
   /**
    * Ancestor-chain membership: the node's parents tree (parent,
    * grandparent, …, the node itself EXCLUDED) contains nodeId — the row
@@ -184,18 +190,6 @@ export type Condition =
   | { type: "updatedAfter"; timestamp: string }
   /** node.updated_at <= timestamp. */
   | { type: "updatedBefore"; timestamp: string }
-  /** ANY-of over the container classes: the containing page is classed with at least one. */
-  | { type: "pageClassAny"; classIds: string[] }
-  /** ANY-of: some strict ancestor is classed with at least one picked class. */
-  | { type: "ancestorClassedAny"; classIds: string[] }
-  /** ANY-of: the workspace-root ancestor is classed with at least one picked class. */
-  | { type: "rootClassAny"; classIds: string[] }
-  /** The containing page carries at least one class (the container "is set"). */
-  | { type: "pageClassSet" }
-  /** Some strict ancestor carries at least one class. */
-  | { type: "ancestorClassedSet" }
-  /** The workspace-root ancestor carries at least one class. */
-  | { type: "rootClassSet" }
   /** The title/content plaintext is non-empty (the content "is set"). */
   | { type: "contentSet" }
   /** Tag membership: the OR-set tag_ids carries tagId (a tag is any page). */
@@ -269,12 +263,6 @@ export const conditionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("classAny"), classIds: z.array(uuid).min(1) }).strict(),
   /** The class set is non-empty (Odoo "is set"); the not-wrap reads "is not set". */
   z.object({ type: z.literal("classSet") }).strict(),
-  /** The containing page (self-or-ancestor with document chrome) is classed, hierarchy-aware. */
-  z.object({ type: z.literal("pageClass"), classId: uuid }).strict(),
-  /** Some strict ancestor is classed (the class-based "parent of"); self excluded. */
-  z.object({ type: z.literal("ancestorClassed"), classId: uuid }).strict(),
-  /** The workspace-root ancestor (or the parentless row itself) is classed, hierarchy-aware. */
-  z.object({ type: z.literal("rootClass"), classId: uuid }).strict(),
   /**
    * Ancestor-chain membership (the "parent is X, anywhere up the tree"
    * condition): subtree membership minus the anchor itself.
@@ -288,13 +276,16 @@ export const conditionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("createdBefore"), timestamp: z.string().min(1) }).strict(),
   z.object({ type: z.literal("updatedAfter"), timestamp: z.string().min(1) }).strict(),
   z.object({ type: z.literal("updatedBefore"), timestamp: z.string().min(1) }).strict(),
-  /** The container ANY-of + set shapes (the class operator set over page/parent-path/root). */
-  z.object({ type: z.literal("pageClassAny"), classIds: z.array(uuid).min(1) }).strict(),
-  z.object({ type: z.literal("ancestorClassedAny"), classIds: z.array(uuid).min(1) }).strict(),
-  z.object({ type: z.literal("rootClassAny"), classIds: z.array(uuid).min(1) }).strict(),
-  z.object({ type: z.literal("pageClassSet") }).strict(),
-  z.object({ type: z.literal("ancestorClassedSet") }).strict(),
-  z.object({ type: z.literal("rootClassSet") }).strict(),
+  /** The v1 Page block: the containing page is one of the picked nodes / matches the group. */
+  z.object({ type: z.literal("pageOf"), nodeIds: z.array(uuid).min(1) }).strict(),
+  z.object({ type: z.literal("pageOfQuery"), root: groupSchema }).strict(),
+  z.object({ type: z.literal("pageSet") }).strict(),
+  /** The v1 Parent path block: a strict ancestor is one of the picked nodes / matches the group. */
+  z.object({ type: z.literal("ancestorIn"), nodeIds: z.array(uuid).min(1) }).strict(),
+  z.object({ type: z.literal("ancestorInQuery"), root: groupSchema }).strict(),
+  /** The root walk: the workspace-root ancestor is one of the picked nodes / matches the group. */
+  z.object({ type: z.literal("rootIn"), nodeIds: z.array(uuid).min(1) }).strict(),
+  z.object({ type: z.literal("rootInQuery"), root: groupSchema }).strict(),
   /** The content "is set" bit. */
   z.object({ type: z.literal("contentSet") }).strict(),
   /** Tag shapes (the OR-set tag_ids; a tag is any page). */
