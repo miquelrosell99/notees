@@ -9,6 +9,27 @@ predating this file.
 
 ## 2026-10-16
 
+- **fix(web): the "Database closed" unhandled rejection — a test-teardown
+  race in PageView's alias self-heal (owner 2026-10-16).** The full gate
+  intermittently reported a stack-less `Unknown Error: Database closed`
+  unhandled rejection attributed to template-create-flow.test.tsx. Two
+  layers, both fixed: (1) the rejection's *shape* — sql.js throws the frozen
+  STRING "Database closed" after close, and the sqljs adapter's
+  `tagSqliteError` let strings fall through to a bare re-throw (its own doc
+  comment promised wrapping), so the failure carried no stack and failed
+  every `instanceof Error` check; it now wraps ANY non-Error throw in a real
+  Error (translation path unchanged — strings can take no `code`). (2) the
+  rejection's *source* — with the stack visible, the caller was PageView's
+  alias-property self-heal effect firing `void ensureAliasProperty(client)`
+  with no rejection handler: a passive effect can flush after a test's
+  teardown closes the client (CalendarView's embedded day PageView mounts
+  the moment a quick-create ensures the date chain), and the deploy then hit
+  the closed store. PageView now rides the CalendarView family-ensure
+  ruling: fire-and-forget with `.catch(() => {})` — the ensure is
+  idempotent and the next mount re-runs it. No model/wire/store semantics
+  change. **Verification:** packages/store 583 green; the full web suite
+  (162 files / 1769 tests) run repeatedly — the rejection no longer
+  surfaces; `pnpm typecheck` + `pnpm test` green.**
 - **fix(web): the query builder surfaces ride the kit dropdown/input
   registers — the audit-and-align slice (owner 2026-10-16, design-system
   audit).** The filter bar's structured panel rendered its condition

@@ -408,7 +408,12 @@ export function PageView({
    * field — no schema to ensure.
    */
   useEffect(() => {
-    void ensureAliasProperty(client);
+    // Fire-and-forget with the CalendarView family-ensure ruling: a
+    // rejection (the store closing mid-deploy — a test teardown can race
+    // this passive effect past client.close()) must not surface as an
+    // unhandled rejection; the ensure is idempotent and the next mount
+    // re-runs it.
+    void ensureAliasProperty(client).catch(() => {});
   }, [client]);
 
   /**
