@@ -235,7 +235,10 @@ describe("NodeContextMenu zone gestures (Convert to page / Move to content)", ()
     expect(calls).toEqual([]);
     expect(queryByText(/flattens its rich content/)).toBeNull();
 
-    fireEvent.click(getByText("Convert to page"));
+    // The flyout is still open (the test's onClose is a no-op, so the
+    // submenu state lingers) — click straight back into the keep-under
+    // row; the confirm button now reads "Convert to page" like the menu
+    // item that spawned the gesture.
     fireEvent.click(getByText('Keep under "parent"'));
     fireEvent.click(within(getByRole("dialog")).getByText("Convert to page"));
     expect(calls).toEqual([{ id: "n4", fields: { presentAsMain: true } }]);
