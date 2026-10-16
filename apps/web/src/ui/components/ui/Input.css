@@ -1,0 +1,45 @@
+/**
+ * Input Component Styles
+ *
+ * The boxed field register — mirrors SelectTrigger.css so an Input and a
+ * Dropdown read as one control family in a shared row.
+ */
+
+.input {
+  width: 100%;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-extra-large);
+  transition:
+    border-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.input::placeholder {
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: var(--opacity-70);
+}
+
+.input:hover:not(:disabled) {
+  border-color: var(--md-sys-color-outline);
+}
+
+.input:disabled {
+  opacity: var(--opacity-50);
+  cursor: not-allowed;
+}
+
+.input--error {
+  border-color: var(--md-sys-color-error);
+}
+
+/* Size variants — the same heights SelectTrigger rides (--height-md/-lg). */
+.input--sm {
+  min-height: var(--height-md);
+  padding: 0 var(--spacing-3);
+}
+
+.input--md {
+  min-height: var(--height-lg);
+  padding: 0 var(--spacing-4);
+}

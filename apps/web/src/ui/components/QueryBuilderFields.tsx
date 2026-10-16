@@ -15,7 +15,11 @@
  * when no filter is set at all, the original empty note names the consequence
  * ("No filters — all nodes will be shown"). The operator pickers present
  * in the original style: the fixed operators ride as prose words (contains / after /
- * before), the bit conditions keep their tri-state picker. Every control
+ * before), the bit conditions keep their tri-state picker. The selection
+ * controls ride the kit Dropdown register and the text values the kit Input
+ * (the boxed field pairing with SelectTrigger — owner 2026-10-16: the raw
+ * native selects rendered the browser's chrome, unaligned with the token
+ * interface). Every control
  * keeps its label and value semantics, so the QueryBlockView/QueriesHub
  * integrations are unchanged.
  */
@@ -28,6 +32,8 @@ import type { ClassBinding, ClientNode } from "@/core/workspace-client.js";
 
 import { Icon } from "../Icon.js";
 import { Button } from "./ui/Button.js";
+import { Dropdown } from "./ui/Dropdown.js";
+import { Input } from "./ui/Input.js";
 import { displayNameForSettings } from "../dateDisplay.js";
 import type { QueryBuilderState } from "../queryBuilder.js";
 import "./QueryBuilderFields.css";
@@ -141,17 +147,19 @@ export function QueryBuilderFields({ state, onChange, facts, rootIsPage }: Query
           <Icon path="mdi-filter-variant" size={0.8} />
           Scope
         </span>
-        <select
-          aria-label="Scope"
+        <Dropdown
+          size="sm"
+          ariaLabel="Scope"
+          options={[
+            { value: "workspace", label: "Entire workspace" },
+            ...(rootIsPage ? [{ value: "page", label: "This page" }] : []),
+            { value: "pages", label: "Pages only" },
+          ]}
           value={state.scope}
-          onChange={(event) =>
-            onChange({ scope: event.target.value as QueryBuilderState["scope"] })
-          }
-        >
-          <option value="workspace">Entire workspace</option>
-          {rootIsPage && <option value="page">This page</option>}
-          <option value="pages">Pages only</option>
-        </select>
+          onChange={(value) => {
+            if (value !== null) onChange({ scope: value as QueryBuilderState["scope"] });
+          }}
+        />
       </div>
 
       {/* The filters section: one card per condition. */}
@@ -160,18 +168,21 @@ export function QueryBuilderFields({ state, onChange, facts, rootIsPage }: Query
           <p className="nt-vb__empty-note">No filters — all nodes will be shown</p>
         )}
         <ConditionCard label="Class" active={classActive} onRemove={() => onChange({ classId: null })}>
-          <select
-            aria-label="Class"
+          <Dropdown
+            size="sm"
+            ariaLabel="Class"
+            options={[
+              { value: "", label: "Any class" },
+              ...classes.map((cls) => ({
+                value: cls.id,
+                label: displayNameForSettings(cls) || cls.id,
+              })),
+            ]}
             value={state.classId ?? ""}
-            onChange={(event) => onChange({ classId: event.target.value || null })}
-          >
-            <option value="">Any class</option>
-            {classes.map((cls) => (
-              <option key={cls.id} value={cls.id}>
-                {displayNameForSettings(cls) || cls.id}
-              </option>
-            ))}
-          </select>
+            onChange={(value) => {
+              if (value !== null) onChange({ classId: value || null });
+            }}
+          />
         </ConditionCard>
         <ConditionCard
           label="Class bit"
@@ -179,17 +190,19 @@ export function QueryBuilderFields({ state, onChange, facts, rootIsPage }: Query
           onRemove={() => onChange({ isClass: "" })}
         >
           <span className="nt-vb__word">is</span>
-          <select
-            aria-label="Class bit"
+          <Dropdown
+            size="sm"
+            ariaLabel="Class bit"
+            options={[
+              { value: "", label: "Any" },
+              { value: "true", label: "A class" },
+              { value: "false", label: "Not a class" },
+            ]}
             value={state.isClass}
-            onChange={(event) =>
-              onChange({ isClass: event.target.value as QueryBuilderState["isClass"] })
-            }
-          >
-            <option value="">Any</option>
-            <option value="true">A class</option>
-            <option value="false">Not a class</option>
-          </select>
+            onChange={(value) => {
+              if (value !== null) onChange({ isClass: value as QueryBuilderState["isClass"] });
+            }}
+          />
         </ConditionCard>
         <ConditionCard
           label="Structural role"
@@ -197,17 +210,19 @@ export function QueryBuilderFields({ state, onChange, facts, rootIsPage }: Query
           onRemove={() => onChange({ isEmbedded: "" })}
         >
           <span className="nt-vb__word">is</span>
-          <select
-            aria-label="Structural role"
+          <Dropdown
+            size="sm"
+            ariaLabel="Structural role"
+            options={[
+              { value: "", label: "Any" },
+              { value: "true", label: "Block (embedded in body)" },
+              { value: "false", label: "Page (standalone)" },
+            ]}
             value={state.isEmbedded}
-            onChange={(event) =>
-              onChange({ isEmbedded: event.target.value as QueryBuilderState["isEmbedded"] })
-            }
-          >
-            <option value="">Any</option>
-            <option value="true">Block (embedded in body)</option>
-            <option value="false">Page (standalone)</option>
-          </select>
+            onChange={(value) => {
+              if (value !== null) onChange({ isEmbedded: value as QueryBuilderState["isEmbedded"] });
+            }}
+          />
         </ConditionCard>
         <ConditionCard
           label="Text contains"
@@ -215,7 +230,8 @@ export function QueryBuilderFields({ state, onChange, facts, rootIsPage }: Query
           onRemove={() => onChange({ contains: "" })}
         >
           <span className="nt-vb__word">contains</span>
-          <input
+          <Input
+            size="sm"
             aria-label="Text contains"
             value={state.contains}
             onChange={(event) => onChange({ contains: event.target.value })}
@@ -227,7 +243,8 @@ export function QueryBuilderFields({ state, onChange, facts, rootIsPage }: Query
           onRemove={() => onChange({ createdAfter: "" })}
         >
           <span className="nt-vb__word">after</span>
-          <input
+          <Input
+            size="sm"
             aria-label="Created after"
             list="nt-query-date-placeholders"
             placeholder="{today} or 2026-10-04"
@@ -241,7 +258,8 @@ export function QueryBuilderFields({ state, onChange, facts, rootIsPage }: Query
           onRemove={() => onChange({ createdBefore: "" })}
         >
           <span className="nt-vb__word">before</span>
-          <input
+          <Input
+            size="sm"
             aria-label="Created before"
             list="nt-query-date-placeholders"
             placeholder="{today} or 2026-10-04"
@@ -259,30 +277,34 @@ export function QueryBuilderFields({ state, onChange, facts, rootIsPage }: Query
           active={sortActive}
           onRemove={() => onChange({ sortField: "" })}
         >
-          <select
-            aria-label="Sort by"
+          <Dropdown
+            size="sm"
+            ariaLabel="Sort by"
+            options={[
+              { value: "", label: "None" },
+              { value: "name", label: "Name" },
+              { value: "createdAt", label: "Created" },
+              { value: "isClass", label: "Class bit" },
+              { value: "isEmbedded", label: "Structural role" },
+            ]}
             value={state.sortField}
-            onChange={(event) =>
-              onChange({ sortField: event.target.value as QueryBuilderState["sortField"] })
-            }
-          >
-            <option value="">None</option>
-            <option value="name">Name</option>
-            <option value="createdAt">Created</option>
-            <option value="isClass">Class bit</option>
-            <option value="isEmbedded">Structural role</option>
-          </select>
+            onChange={(value) => {
+              if (value !== null) onChange({ sortField: value as QueryBuilderState["sortField"] });
+            }}
+          />
           {state.sortField !== "" && (
-            <select
-              aria-label="Sort direction"
+            <Dropdown
+              size="sm"
+              ariaLabel="Sort direction"
+              options={[
+                { value: "asc", label: "Ascending" },
+                { value: "desc", label: "Descending" },
+              ]}
               value={state.sortDir}
-              onChange={(event) =>
-                onChange({ sortDir: event.target.value as QueryBuilderState["sortDir"] })
-              }
-            >
-              <option value="asc">Ascending</option>
-              <option value="desc">Descending</option>
-            </select>
+              onChange={(value) => {
+                if (value !== null) onChange({ sortDir: value as QueryBuilderState["sortDir"] });
+              }}
+            />
           )}
         </ConditionCard>
         <ConditionCard
@@ -290,43 +312,47 @@ export function QueryBuilderFields({ state, onChange, facts, rootIsPage }: Query
           active={groupActive}
           onRemove={() => onChange({ groupBy: "", measure: "count" })}
         >
-          <select
-            aria-label="Group by"
+          <Dropdown
+            size="sm"
+            ariaLabel="Group by"
+            options={[
+              { value: "", label: "None" },
+              { value: "isClass", label: "Class bit" },
+              { value: "isEmbedded", label: "Structural role" },
+              ...classes.map((cls) => ({
+                value: `class:${cls.id}`,
+                label: `Class: ${displayNameForSettings(cls) || cls.id}`,
+              })),
+              ...boundProperties.map((property) => ({
+                value: `property:${property.id}`,
+                label: `Property: ${property.name}`,
+              })),
+            ]}
             value={state.groupBy ?? ""}
-            onChange={(event) => onChange({ groupBy: event.target.value })}
-          >
-            <option value="">None</option>
-            <option value="isClass">Class bit</option>
-            <option value="isEmbedded">Structural role</option>
-            {classes.map((cls) => (
-              <option key={cls.id} value={`class:${cls.id}`}>
-                Class: {displayNameForSettings(cls) || cls.id}
-              </option>
-            ))}
-            {boundProperties.map((property) => (
-              <option key={property.id} value={`property:${property.id}`}>
-                Property: {property.name}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Measure"
+            onChange={(value) => {
+              if (value !== null) onChange({ groupBy: value });
+            }}
+          />
+          <Dropdown
+            size="sm"
+            ariaLabel="Measure"
+            options={[
+              { value: "count", label: "Count" },
+              { value: "countDistinct", label: "Count distinct" },
+              ...numericProperties.map((property) => ({
+                value: `sum:${property.id}`,
+                label: `Sum of ${property.name}`,
+              })),
+              ...numericProperties.map((property) => ({
+                value: `avg:${property.id}`,
+                label: `Average of ${property.name}`,
+              })),
+            ]}
             value={state.measure ?? "count"}
-            onChange={(event) => onChange({ measure: event.target.value })}
-          >
-            <option value="count">Count</option>
-            <option value="countDistinct">Count distinct</option>
-            {numericProperties.map((property) => (
-              <option key={property.id} value={`sum:${property.id}`}>
-                Sum of {property.name}
-              </option>
-            ))}
-            {numericProperties.map((property) => (
-              <option key={property.id} value={`avg:${property.id}`}>
-                Average of {property.name}
-              </option>
-            ))}
-          </select>
+            onChange={(value) => {
+              if (value !== null) onChange({ measure: value });
+            }}
+          />
         </ConditionCard>
       </div>
     </div>

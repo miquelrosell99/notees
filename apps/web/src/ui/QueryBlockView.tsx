@@ -68,6 +68,7 @@ import {
   type QueryRunState,
 } from "./queryRun.js";
 import { QueryBuilderFields, useBuilderFacts } from "./components/QueryBuilderFields.js";
+import { Button } from "./components/ui/Button.js";
 
 import type {
   ClientNode,
@@ -453,13 +454,14 @@ export function QueryBlockView({
             }}
           />
           {result.kind === "query" && viewMode !== "table" && result.ids.length > limit && (
-            <button
+            <Button
               type="button"
-              className="nt-query-more"
+              variant="ghost"
+              size="sm"
               onClick={() => setLimit((value) => value + QUERY_RESULT_CAP)}
             >
               {result.ids.length - limit} more — load more
-            </button>
+            </Button>
           )}
         </>
       )}
@@ -481,12 +483,12 @@ export function QueryBlockView({
                 ))}
               </ul>
               <div className="nt-query-builder-actions">
-                <button type="button" onClick={() => setBuilderOverride(true)}>
+                <Button type="button" variant="outline" size="sm" onClick={() => setBuilderOverride(true)}>
                   Edit anyway
-                </button>
-                <button type="button" onClick={() => setBuilderOpen(false)}>
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => setBuilderOpen(false)}>
                   Cancel
-                </button>
+                </Button>
               </div>
             </>
           ) : (
@@ -503,12 +505,12 @@ export function QueryBlockView({
                 rootIsPage={rootIsPage}
               />
               <div className="nt-query-builder-actions">
-                <button type="button" onClick={() => void applyBuilder()}>
+                <Button type="button" variant="primary" size="sm" onClick={() => void applyBuilder()}>
                   Apply
-                </button>
-                <button type="button" onClick={() => setBuilderOpen(false)}>
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => setBuilderOpen(false)}>
                   Cancel
-                </button>
+                </Button>
               </div>
             </>
           )}
