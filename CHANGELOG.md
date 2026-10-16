@@ -9,6 +9,16 @@ predating this file.
 
 ## 2026-10-16
 
+- **fix(web): node-link underlines rest on the visible link token, not
+  outline (owner report 2026-10-16: dark-mode underlines are gray and
+  almost invisible when the node has no color).** `.nt-link` (read mode)
+  and `.nt-atom` (edit mode) drew their dashed underline from
+  `--md-sys-color-outline`, which the dark graphite theme mixes to a near-
+  invisible dark gray. Both now ride `--md-sys-color-on-surface-variant` —
+  the token the class-link family already uses for its wavy underline, so
+  the whole link family reads consistently; the hover lift to primary is
+  unchanged. Web-only, CSS-only — no wire touch. **Verification:**
+  `pnpm test` green (css-token-drift + the style-asserting suites).
 - **feat(model): node links carry their own `isEmbedded` flag — manual,
   default false (owner ruling 2026-10-16, same-day follow-up to the
   Revision-12 slice).** The earlier link-based display transformation
