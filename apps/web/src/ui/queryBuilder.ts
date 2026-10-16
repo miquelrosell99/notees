@@ -92,6 +92,24 @@ export function builderUnsupportedConstructs(ast: QueryAst | null): string[] {
           case "content":
             if (child.op === "fts") found.add("full-text search conditions");
             break;
+          case "classExact":
+            found.add("exact class conditions");
+            break;
+          case "classAny":
+            found.add("any-of class conditions");
+            break;
+          case "classSet":
+            found.add("class-set conditions");
+            break;
+          case "pageClass":
+            found.add("page-class conditions");
+            break;
+          case "ancestorClassed":
+            found.add("parent-path conditions");
+            break;
+          case "rootClass":
+            found.add("root-class conditions");
+            break;
           default:
             break; // class / isClass / isEmbedded / createdAfter / createdBefore are representable
         }
