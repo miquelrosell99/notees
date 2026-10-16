@@ -56,6 +56,7 @@ function fakeNode(partial: Partial<ClientNode> & { id: string }): ClientNode {
     color: null,
     coverAssetId: null,
     bannerAssetId: null,
+    listStyle: null,
     aliasedNodeId: null,
     description: null,
     isActive: true,
