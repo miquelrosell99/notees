@@ -29,6 +29,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, SearchSnippetData, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { displayNameForSettings } from "./dateDisplay.js";
+import { parentRenderFacts } from "./renderStateLabel.js";
 import { NodeResultItem } from "./components/pickers/NodeResultItem.js";
 import { Button } from "./components/ui/Button.js";
 import { Dropdown } from "./components/ui/Dropdown.js";
@@ -139,8 +140,10 @@ export function SearchPage({
   const visible = useMemo(
     () =>
       hits.filter((node) => {
-        if (scope === "main" && !(node.isClass || rendersWithDocumentChrome(node))) return false;
-        if (scope === "blocks" && !rendersAsInlineBlock(node)) return false;
+        if (scope === "main" && !(node.isClass || rendersWithDocumentChrome(node, parentRenderFacts(client, node))))
+          return false;
+        if (scope === "blocks" && !rendersAsInlineBlock(node, parentRenderFacts(client, node)))
+          return false;
         if (classFilter !== null && !node.classIds.includes(classFilter)) return false;
         return true;
       }),
@@ -279,7 +282,7 @@ export function SearchPage({
                         <NodeResultItem
                           node={node}
                           parentPath={
-                            rendersWithDocumentChrome(node)
+                            rendersWithDocumentChrome(node, parentRenderFacts(client, node))
                               ? buildParentPath(node)
                               : buildContainingPagePath(node)
                           }

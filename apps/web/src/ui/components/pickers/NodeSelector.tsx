@@ -30,6 +30,7 @@ import { chainNodeIds, parseDateNodeId, rendersAsInlineBlock, rendersWithDocumen
 
 import type { ClientNode } from "@/core/workspace-client.js";
 import { displayNameForSettings } from "../../dateDisplay.js";
+import { parentRenderFacts } from "../../renderStateLabel.js";
 import { Icon } from "../../Icon.js";
 import { parseDate, isPlainYearQuery } from "./dateParser.js";
 import { NodePill } from "./NodePill.js";
@@ -360,7 +361,8 @@ export function NodeSelector({
   const matchesInlineFilters = (node: ClientNode): boolean => {
     const { daily, page, cls } = inlineFilters.filters;
     if (daily !== null && (parseDateNodeId(node.id)?.precision === "day") !== daily) return false;
-    if (page !== null && rendersWithDocumentChrome(node) !== page) return false;
+    if (page !== null && rendersWithDocumentChrome(node, parentRenderFacts(client, node)) !== page)
+      return false;
     if (cls !== null && node.isClass !== cls) return false;
     return true;
   };
@@ -546,8 +548,8 @@ export function NodeSelector({
   const matchesScopeTab = (node: ClientNode): boolean => {
     if (!scopeTabs || searchMode === "classes") return true;
     return scope === "main"
-      ? node.isClass || rendersWithDocumentChrome(node)
-      : rendersAsInlineBlock(node);
+      ? node.isClass || rendersWithDocumentChrome(node, parentRenderFacts(client, node))
+      : rendersAsInlineBlock(node, parentRenderFacts(client, node));
   };
 
   // Search results through the client. Classes are matched by name over the
@@ -570,8 +572,10 @@ export function NodeSelector({
     }
     const hits = q === "" ? [] : client.search(classRefine.query.trim());
     const filtered = hits.filter((node) => {
-      if (searchMode === "pages" && !rendersWithDocumentChrome(node)) return false;
-      if (searchMode === "blocks" && !rendersAsInlineBlock(node)) return false;
+      if (searchMode === "pages" && !rendersWithDocumentChrome(node, parentRenderFacts(client, node)))
+        return false;
+      if (searchMode === "blocks" && !rendersAsInlineBlock(node, parentRenderFacts(client, node)))
+        return false;
       if (!matchesInlineFilters(node)) return false;
       if (!matchesScopeTab(node)) return false;
       if (effectiveClassIds.length > 0) {
@@ -604,7 +608,7 @@ export function NodeSelector({
         })
         .filter(matchesInlineFilters)
         .filter(matchesScopeTab)
-        .filter((node) => searchMode !== "blocks" || rendersAsInlineBlock(node));
+        .filter((node) => searchMode !== "blocks" || rendersAsInlineBlock(node, parentRenderFacts(client, node)));
     }
     return [];
     // eslint-disable-next-line react-hooks/exhaustive-deps -- matchesInlineFilters derives from inlineFilters (searchQuery); matchesScopeTab derives from scope/scopeTabs/searchMode.
@@ -815,7 +819,9 @@ export function NodeSelector({
             key={node.id}
             node={node}
             parentPath={
-              rendersWithDocumentChrome(node) ? buildParentPath(node) : buildContainingPagePath(node)
+              rendersWithDocumentChrome(node, parentRenderFacts(client, node))
+                ? buildParentPath(node)
+                : buildContainingPagePath(node)
             }
             displayClasses={getDisplayClasses(node)}
             isHighlighted={globalIndex === selectedIndex}

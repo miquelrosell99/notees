@@ -54,6 +54,7 @@ import type { UndoUiState } from "@/core/undo-journal.js";
 
 import { displayNameForSettings, isDatePageNode, rawDateKeywordOf } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
+import { parentRenderFacts } from "../renderStateLabel.js";
 import { flipTheme, toggleFocusMode } from "./modals/deviceSettings.js";
 import { parseDate, isPlainYearQuery } from "./pickers/dateParser.js";
 import { Button } from "./ui/Button.js";
@@ -509,7 +510,7 @@ export function CommandPalette({
             const mergeable =
               current !== undefined &&
               !current.isClass &&
-              rendersWithDocumentChrome(current);
+              rendersWithDocumentChrome(current, parentRenderFacts(client, current));
             return mergeable
               ? [
                   {
@@ -641,11 +642,13 @@ export function CommandPalette({
                 key: `content:${node.id}`,
                 group: "Content" as const,
                 label: displayNameForSettings(node) || "Untitled",
-                icon: rendersWithDocumentChrome(node)
+                icon: rendersWithDocumentChrome(node, parentRenderFacts(client, node))
                   ? (node.icon ?? "mdi-file-document-outline")
                   : "mdi-format-text",
                 keywords: "",
-                meta: rendersAsInlineBlock(node) ? (containingPageLabel(client, node) ?? undefined) : undefined,
+                meta: rendersAsInlineBlock(node, parentRenderFacts(client, node))
+                  ? (containingPageLabel(client, node) ?? undefined)
+                  : undefined,
                 snippet: client.getSearchSnippet(node.id, text),
                 run: () => onOpenNode(node.id),
               })),
