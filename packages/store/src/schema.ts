@@ -28,7 +28,7 @@ import type { SqliteDB } from "./db.js";
 import { resolveEdgeTarget } from "./edges.js";
 import { dropSearchIndex, reindexAllSearch } from "./search.js";
 
-export const SCHEMA_VERSION = 21;
+export const SCHEMA_VERSION = 22;
 
 /**
  * The render-path list-reads index: composite for the
@@ -371,6 +371,12 @@ CREATE TABLE IF NOT EXISTS edge (
     type TEXT NOT NULL,
     verb TEXT,
     metadata TEXT,
+    -- Link embedding (owner 2026-10-16): the mention token's manual
+    -- embedding flag (true = the link presents the target's content in
+    -- place when it is its block's sole content). Default FALSE — an
+    -- ordinary inline link; every pre-existing edge reads 0. Mined from
+    -- the token at edge-write time; NOT part of the edge identity.
+    is_embedded INTEGER NOT NULL DEFAULT 0,
     created_at TEXT
 );
 
@@ -880,6 +886,19 @@ export function migrate(
   if (current < 20) {
     db.exec(ALIAS_SOURCE_INDEX_DDL);
     db.exec(CHILD_ORDER_CHILD_INDEX_DDL);
+  }
+  // v21 -> v22: the link-embedding flag (owner 2026-10-16) — `edge`
+  // gains `is_embedded INTEGER NOT NULL DEFAULT 0`, the derived projection
+  // of the mention token's manual embedding flag. Purely additive: existing
+  // edges converge to 0 (every pre-existing link is an ordinary inline
+  // link — the owner ruling's backfill), fresh creates carry the column,
+  // and the applier re-mines the flag on every content write. Guarded
+  // ALTER (the v16 precedent); no table rebuild.
+  if (current < 22) {
+    const edgeColsV22 = db.prepare("PRAGMA table_info(edge)").all() as { name: string }[];
+    if (!edgeColsV22.some((c) => c.name === "is_embedded")) {
+      db.exec("ALTER TABLE edge ADD COLUMN is_embedded INTEGER NOT NULL DEFAULT 0");
+    }
   }
   // v20 -> v21: the Revision-12 embedding flag — `present_as_main` is
   // renamed to `is_embedded` WITH POLARITY INVERSION (is_embedded =

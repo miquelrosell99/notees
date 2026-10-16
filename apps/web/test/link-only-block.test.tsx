@@ -1,12 +1,15 @@
 /**
- * Link-only block transclusion (Revision 12, SCHEMA.md "Node structure" —
- * the link-based display transformation): a block whose ENTIRE content is a
- * single mention/link to another node presents that node in its place — the
- * web editor renders the referenced node's content inline in place
- * (transclusion-style), regardless of the referenced node's structural role.
- * A block that mixes a link with other content keeps the ordinary mention
- * chip; a block without a link renders normally. Presentation only: the
- * contentAst stays a mention (editing, sync, undo unchanged).
+ * Embedded-link transclusion (Revision 12 link-based display transformation,
+ * SCHEMA.md "Node structure", refined by the owner ruling 2026-10-16): a
+ * block whose ENTIRE content is a single mention/link MARKED EMBEDDED
+ * (`isEmbedded: true` on the token — a manual per-link choice) presents
+ * that node in its place: the web editor renders the referenced node's
+ * content inline in place (transclusion-style), regardless of the
+ * referenced node's structural role. An UNMARKED link — the default, and
+ * every pre-existing link — stays an ordinary inline chip even when it is
+ * the block's whole content. A block that mixes a link with other content
+ * renders normally. Presentation only: the contentAst stays a mention
+ * (editing, sync, undo unchanged).
  */
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -48,18 +51,51 @@ async function seedClient(): Promise<WorkspaceClient> {
 describe("linkOnlyMentionTarget (the strict single-mention trigger)", () => {
   const mention = { type: "mention", targetNodeId: "t1", text: "Target" } as const;
 
-  it("matches exactly one mention token and nothing else", () => {
-    expect(linkOnlyMentionTarget([{ ...mention }])).toBe("t1");
+  it("matches exactly one EMBEDDED mention token and nothing else", () => {
+    const embedded = { ...mention, isEmbedded: true } as const;
+    expect(linkOnlyMentionTarget([embedded])).toBe("t1");
+    // The default link is NOT embedded — an unmarked link-only block stays
+    // an ordinary inline link (owner ruling 2026-10-16).
+    expect(linkOnlyMentionTarget([{ ...mention }])).toBeNull();
+    expect(
+      linkOnlyMentionTarget([{ ...embedded, isEmbedded: false }]),
+    ).toBeNull();
     expect(linkOnlyMentionTarget([])).toBeNull();
     expect(
-      linkOnlyMentionTarget([{ ...mention }, { type: "text", text: " and more" }]),
+      linkOnlyMentionTarget([embedded, { type: "text", text: " and more" }]),
     ).toBeNull();
     expect(linkOnlyMentionTarget([{ type: "text", text: "plain" }])).toBeNull();
   });
 });
 
 describe("link-only block display transformation", () => {
-  it("a block whose whole content is one mention renders the target's content inline in place", async () => {
+  it("a block whose whole content is one EMBEDDED mention renders the target's content inline in place", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Host" });
+    const targetId = await client.createObject({
+      isEmbedded: false,
+      name: "Target page",
+      contentAst: [{ type: "text", text: "the target's own body" }],
+    });
+    await client.createObject({
+      parentId: pageId,
+      name: "",
+      contentAst: [
+        { type: "mention", targetNodeId: targetId, text: "Target page", isEmbedded: true },
+      ],
+    });
+
+    const { container } = render(<NodeView client={client} nodeId={pageId} onOpenNode={() => {}} />);
+
+    // The referenced node's content renders inside the block row (the
+    // transclusion), not merely a mention chip: the embed header names the
+    // target and its body follows (title-is-content: the target's title IS
+    // its content text).
+    expect(container.querySelector(".nt-embed")).not.toBeNull();
+    expect(screen.getAllByText("the target's own body").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("a link-only block whose mention is NOT marked embedded keeps the ordinary chip (the default)", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Host" });
     const targetId = await client.createObject({
@@ -75,12 +111,11 @@ describe("link-only block display transformation", () => {
 
     const { container } = render(<NodeView client={client} nodeId={pageId} onOpenNode={() => {}} />);
 
-    // The referenced node's content renders inside the block row (the
-    // transclusion), not merely a mention chip: the embed header names the
-    // target and its body follows (title-is-content: the target's title IS
-    // its content text).
-    expect(container.querySelector(".nt-embed")).not.toBeNull();
-    expect(screen.getAllByText("the target's own body").length).toBeGreaterThanOrEqual(2);
+    // No transclusion: the ordinary chip renders the target's resolved
+    // name (title-is-content: the target's title IS its body text) — the
+    // distinguishing cue is the chip element, not the text.
+    expect(container.querySelector(".nt-embed")).toBeNull();
+    expect(container.querySelector("button.nt-link")).not.toBeNull();
   });
 
   it("a block mixing a mention with other content keeps the ordinary chip (no transclusion)", async () => {

@@ -365,6 +365,62 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(mention?.target_id).toBe(NODE_BOOK);
     });
 
+    it("mines the mention token's manual isEmbedded into the edge column (default false, toggle in place)", () => {
+      const store = makeStore();
+      const target = "0192a000-0000-7000-8000-0000000000e9";
+      const source = "0192a000-0000-7000-8000-0000000000e8";
+      store.applyMany([
+        createPage(target, 1727200006000),
+        env(
+          "object.create",
+          {
+            objectId: source,
+            parentId: target,
+            contentAst: [{ type: "mention", targetNodeId: target, text: "T" }],
+          },
+          1727200006100,
+        ),
+      ]);
+      const edgeOf = () =>
+        store.database
+          .prepare("SELECT * FROM edge WHERE source_id = ? AND type = 'mention'")
+          .get(source) as { id: string; is_embedded: number } | undefined;
+      // Absent flag = an ordinary inline link (the owner ruling's default:
+      // every pre-existing link reads 0).
+      const before = edgeOf()!;
+      expect(before.is_embedded).toBe(0);
+      // The user manually embeds the link: the flag flips IN PLACE (the
+      // edge identity is unchanged — no duplicate edge).
+      store.apply(
+        env(
+          "object.update",
+          {
+            objectId: source,
+            contentAst: [{ type: "mention", targetNodeId: target, text: "T", isEmbedded: true }],
+          },
+          1727200006200,
+        ),
+      );
+      const embedded = edgeOf()!;
+      expect(embedded.is_embedded).toBe(1);
+      expect(embedded.id).toBe(before.id);
+      expect(
+        (store.database.prepare("SELECT COUNT(*) AS n FROM edge WHERE source_id = ?").get(source) as { n: number }).n,
+      ).toBe(1);
+      // Un-embedding flips back.
+      store.apply(
+        env(
+          "object.update",
+          {
+            objectId: source,
+            contentAst: [{ type: "mention", targetNodeId: target, text: "T" }],
+          },
+          1727200006300,
+        ),
+      );
+      expect(edgeOf()!.is_embedded).toBe(0);
+    });
+
     it("drops the typed_link edge when the marked word is deleted", () => {
       const store = baseStoreWithBlock();
       store.applyMany(loadFixture("typed-link-mark.json"));

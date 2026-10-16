@@ -58,6 +58,17 @@ export const mentionTokenSchema = z
     /** Stable per-link instance id (node_link assertion key: origin, target,
      * created, click/access times — owner-requested link analytics). */
     linkId: uuid.optional(),
+    /**
+     * Link embedding (owner ruling 2026-10-16): true = this link is an
+     * EMBEDDED link — where the link is the sole content of its block, the
+     * block presents the target's content inline in place (transclusion).
+     * Absent/false = an ordinary inline link (the block renders the chip
+     * even when the link is its whole content). Embedding is a MANUAL
+     * per-link choice — the default is FALSE, and every pre-existing link
+     * reads as false. The flag is independent of the node's own
+     * `is_embedded` structural role.
+     */
+    isEmbedded: z.boolean().optional(),
   })
   .strict();
 

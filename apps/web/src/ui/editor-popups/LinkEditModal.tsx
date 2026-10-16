@@ -52,7 +52,7 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 import { displayNameFromClient } from "../dateDisplay.js";
 import { parentRenderFacts } from "../renderStateLabel.js";
 import { NodeSelector } from "../components/pickers/NodeSelector.js";
-import { Button, Modal, SelectTrigger, SelectionButton } from "../components/ui/index.js";
+import { Button, Checkbox, Modal, SelectTrigger, SelectionButton } from "../components/ui/index.js";
 import { notificationStore } from "../components/ui/notificationStore.js";
 import "./LinkEditModal.css";
 
@@ -75,6 +75,12 @@ export interface LinkEditResult {
   locator?: string | undefined;
   /** Custom label (null to clear). */
   label: string | null;
+  /**
+   * Node/block modes: the link's manual embedding flag (owner ruling
+   * 2026-10-16) — true writes `isEmbedded` on the mention token, false/omitted
+   * leaves an ordinary inline link.
+   */
+  embedded?: boolean | undefined;
 }
 
 const LINK_MODE_OPTIONS = [
@@ -99,6 +105,8 @@ interface LinkEditModalProps {
   excludeNodeId?: string | undefined;
   /** Current custom label (from the AST token's text). */
   currentLabel?: string | null;
+  /** Node/block modes: the link's current embedding flag (default false). */
+  currentEmbedded?: boolean | undefined;
   /** Verb mode (PG1): the mark's current verb (schema name for bound verbs). */
   currentVerb?: string | undefined;
   /** Verb mode (PG1): the mark's current locator. */
@@ -123,10 +131,14 @@ export function LinkEditModal({
   currentLocator,
   title = "Edit Link",
   initialMode = "node",
+  currentEmbedded = false,
   onSave,
   onClose,
 }: LinkEditModalProps) {
   const [linkMode, setLinkMode] = useState<LinkMode>(initialMode);
+  /** Node/block modes: the link's manual embedding flag (default false —
+   * an ordinary inline link; embedding is the user's per-link choice). */
+  const [embedded, setEmbedded] = useState(currentEmbedded);
   const [label, setLabel] = useState(currentLabel ?? "");
   /** Verb mode (PG1): the mark's verb + optional locator. */
   const [verb, setVerb] = useState("");
@@ -234,7 +246,12 @@ export function LinkEditModal({
       return;
     }
     const trimmedLabel = label.trim();
-    onSave({ mode: linkMode, nodeId: pickedNode?.id ?? null, label: trimmedLabel || null });
+    onSave({
+      mode: linkMode,
+      nodeId: pickedNode?.id ?? null,
+      label: trimmedLabel || null,
+      embedded,
+    });
   }, [linkMode, label, pickedNode, verbTrimmed, verbLocator, verbMatch, onSave, onClose]);
 
   // Escape + backdrop dismissal ride the kit Modal (the overlay stack).
@@ -433,6 +450,22 @@ export function LinkEditModal({
                 </>
             </div>
 
+            {/* Embed toggle — the manual per-link embedding choice (owner
+                ruling 2026-10-16): an embedded link whose block carries only
+                the link presents the target's content in place; the default
+                link stays an ordinary inline chip. */}
+            <div className="link-edit-modal__section">
+              <Checkbox
+                checked={embedded}
+                onChange={(event) => setEmbedded(event.target.checked)}
+                label="Embed this link"
+              />
+              <span className="link-edit-modal__hint">
+                An embedded link whose block carries only the link shows the
+                target's content in place; otherwise it stays an ordinary link.
+              </span>
+            </div>
+
             {/* Custom label section */}
             <div className="link-edit-modal__section">
               <label className="link-edit-modal__label" htmlFor="link-label-input">
@@ -481,6 +514,8 @@ export type LinkEditTarget =
       /** Current target — pre-fills the destination line. */
       initialNodeId: string;
       initialLabel: string;
+      /** Current embedding flag (default false). */
+      initialEmbedded: boolean;
     }
   | {
       kind: "verb";
@@ -515,6 +550,7 @@ function writeNodeLink(
   target: LinkEditTarget & { kind: "node" },
   nodeId: string | null,
   label: string | null,
+  embedded: boolean,
 ): void {
   const node = client.getNode(target.blockId);
   if (node === undefined) return;
@@ -531,6 +567,7 @@ function writeNodeLink(
     text: string;
     displayText?: string;
     linkId?: string;
+    isEmbedded?: boolean;
   };
   const targetNodeId = nodeId ?? current.targetNodeId;
   const text =
@@ -539,12 +576,16 @@ function writeNodeLink(
       : (displayNameFromClient(client, targetNodeId) ?? current.text);
   const token: Record<string, unknown> = { type: "mention", targetNodeId, text };
   if (label !== null && label !== "") token.displayText = label;
+  // The manual embedding flag (default false — the key rides only when set).
+  if (embedded) token.isEmbedded = true;
   if (nodeId === null) {
     if (current.linkId !== undefined) token.linkId = current.linkId;
   } else {
     token.linkId = uuidv7();
   }
-  if (JSON.stringify(token) !== JSON.stringify({ ...current, displayText: current.displayText })) {
+  const normalizedCurrent = { ...current };
+  if (normalizedCurrent.isEmbedded !== true) delete normalizedCurrent.isEmbedded;
+  if (JSON.stringify(token) !== JSON.stringify(normalizedCurrent)) {
     const next = withCandidateSpans(
       node.contentAst.map((t, i) => (i === target.tokenIndex ? token : t)),
     ) as typeof node.contentAst;
@@ -614,7 +655,7 @@ export function LinkEditModalHost({
           writeVerbLink(client, target, result.verb, result.locator ?? "");
         }
       } else {
-        writeNodeLink(client, target, result.nodeId ?? null, result.label);
+        writeNodeLink(client, target, result.nodeId ?? null, result.label, result.embedded === true);
       }
       setTarget(null);
     },
@@ -633,6 +674,7 @@ export function LinkEditModalHost({
           currentLocator={target.kind === "verb" ? target.initialLocator : undefined}
           excludeNodeId={target.blockId}
           currentLabel={target.kind === "node" ? target.initialLabel : null}
+          currentEmbedded={target.kind === "node" ? target.initialEmbedded : false}
           title={target.kind === "verb" ? "Edit Link Verb" : "Edit Link"}
           initialMode={
             target.kind === "verb"
