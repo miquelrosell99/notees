@@ -66,6 +66,15 @@ function makeAst(scope: Scope, children: Child[] = []): QueryAst {
   return { version: 1, scope, root: { type: "group", logic: "and", children } };
 }
 
+/** Drive a kit Dropdown inside the builder popover: open the trigger by
+ * aria-label, pick the ported menu item by name. */
+function pickDropdownOption(dialog: HTMLElement, label: string, option: string): void {
+  fireEvent.click(within(dialog).getByLabelText(label));
+  fireEvent.click(
+    within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("button", { name: option }),
+  );
+}
+
 const WORKSPACE = (): Scope => ({ type: "entire_workspace" });
 
 const countByRenderState: Aggregation = {
@@ -252,7 +261,7 @@ describe("query block (live query token)", () => {
     // Open the builder, switch the class filter off + text-contains on, apply.
     fireEvent.click(screen.getByLabelText("Query settings"));
     const dialog = screen.getByRole("dialog", { name: "Query builder" });
-    fireEvent.change(within(dialog).getByLabelText("Class"), { target: { value: "" } });
+    pickDropdownOption(dialog, "Class", "Any class");
     fireEvent.change(within(dialog).getByLabelText("Text contains"), {
       target: { value: "capital" },
     });
@@ -289,7 +298,7 @@ describe("query block (live query token)", () => {
 
     fireEvent.click(screen.getByLabelText("Query settings"));
     const dialog = screen.getByRole("dialog", { name: "Query builder" });
-    fireEvent.change(within(dialog).getByLabelText("Scope"), { target: { value: "page" } });
+    pickDropdownOption(dialog, "Scope", "This page");
     await act(async () => {
       fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
     });
@@ -409,7 +418,7 @@ describe("query block (live query token)", () => {
 
     fireEvent.click(screen.getByLabelText("Query settings"));
     const dialog = screen.getByRole("dialog", { name: "Query builder" });
-    fireEvent.change(within(dialog).getByLabelText("Group by"), { target: { value: "isClass" } });
+    pickDropdownOption(dialog, "Group by", "Class bit");
     await act(async () => {
       fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
     });
@@ -444,12 +453,8 @@ describe("query block (live query token)", () => {
 
     fireEvent.click(screen.getByLabelText("Query settings"));
     const dialog = screen.getByRole("dialog", { name: "Query builder" });
-    fireEvent.change(within(dialog).getByLabelText("Group by"), {
-      target: { value: `property:${rating}` },
-    });
-    fireEvent.change(within(dialog).getByLabelText("Measure"), {
-      target: { value: `sum:${rating}` },
-    });
+    pickDropdownOption(dialog, "Group by", "Property: rating");
+    pickDropdownOption(dialog, "Measure", "Sum of rating");
     await act(async () => {
       fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
     });

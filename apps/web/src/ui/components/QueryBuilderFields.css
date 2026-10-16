@@ -26,7 +26,7 @@
   padding: var(--spacing-3);
   background: var(--md-sys-color-surface-variant);
   border-radius: var(--radius-md);
-  border: 1px solid var(--md-sys-color-outline-variant);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 }
 
 .nt-vb__scope-label {
@@ -101,22 +101,23 @@
   flex-shrink: 0;
 }
 
-.nt-vb__card-body select,
-.nt-vb__card-body input {
+/* The controls ride the kit registers — Dropdown triggers and the boxed
+   Input (the SelectTrigger field family) — flexed to share the card body.
+   Narrow surfaces: the prose row wraps, the control takes a full row. */
+.nt-vb__card-body .dropdown-container,
+.nt-vb__card-body .input {
   flex: 1;
   min-width: 10ch;
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--radius-sm);
-  padding: var(--spacing-1) var(--spacing-2);
-  font-size: var(--font-size-sm);
-  background: var(--md-sys-color-surface);
-  color: var(--md-sys-color-on-surface);
 }
 
-/* Narrow surfaces: the prose row wraps, the control takes a full row. */
+.nt-vb__scope .dropdown-container {
+  flex: 1;
+  min-width: 16ch;
+}
+
 @media (width <= 768px) {
-  .nt-vb__card-body select,
-  .nt-vb__card-body input {
+  .nt-vb__card-body .dropdown-container,
+  .nt-vb__card-body .input {
     flex-basis: 100%;
   }
 }

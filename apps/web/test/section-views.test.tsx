@@ -557,6 +557,15 @@ async function seedClient(): Promise<WorkspaceClient> {
   return client;
 }
 
+/** Drive a kit Dropdown inside a dialog: open the trigger by aria-label,
+ * pick the ported menu item by name. */
+function pickDropdownOption(dialog: HTMLElement, label: string, option: string): void {
+  fireEvent.click(within(dialog).getByLabelText(label));
+  fireEvent.click(
+    within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("button", { name: option }),
+  );
+}
+
 async function seedClassWorld(client: WorkspaceClient): Promise<{ cityId: string; members: string[]; plain: string[] }> {
   const cityId = await client.createClass("City");
   const m1 = await client.createObject({ isEmbedded: false, name: "Paris", classIds: [cityId] });
@@ -621,7 +630,7 @@ describe("the hosted-views chrome", () => {
     stubViewsFetch();
     const client = await seedClient();
     const { cityId, members } = await seedClassWorld(client);
-    const ghostId = await client.createClass("Ghost"); // no members — the refinement empties the tab
+    await client.createClass("Ghost"); // no members — the refinement empties the tab
     render(
       <NodeCollection
         viewMode="table"
@@ -635,7 +644,7 @@ describe("the hosted-views chrome", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Add custom view" }));
     const dialog = await screen.findByRole("dialog", { name: "Query builder" });
-    fireEvent.change(within(dialog).getByLabelText("Class"), { target: { value: ghostId } });
+    pickDropdownOption(dialog, "Class", "Ghost");
     fireEvent.change(within(dialog).getByLabelText("View name"), { target: { value: "Ghosts" } });
     await act(async () => {
       fireEvent.click(within(dialog).getByRole("button", { name: "Save as view" }));
@@ -666,7 +675,7 @@ describe("the hosted-views chrome", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Add custom view" }));
     const dialog = await screen.findByRole("dialog", { name: "Query builder" });
-    fireEvent.change(within(dialog).getByLabelText("Class"), { target: { value: cityId } });
+    pickDropdownOption(dialog, "Class", "City");
     fireEvent.change(within(dialog).getByLabelText("View name"), { target: { value: "Cities" } });
     await act(async () => {
       fireEvent.click(within(dialog).getByRole("button", { name: "Save as view" }));
@@ -712,7 +721,7 @@ describe("the hosted-views chrome", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Add custom view" }));
     const dialog = await screen.findByRole("dialog", { name: "Query builder" });
-    fireEvent.change(within(dialog).getByLabelText("Class"), { target: { value: cityId } });
+    pickDropdownOption(dialog, "Class", "City");
     fireEvent.change(within(dialog).getByLabelText("View name"), { target: { value: "Cities" } });
     await act(async () => {
       fireEvent.click(within(dialog).getByRole("button", { name: "Save as view" }));

@@ -107,6 +107,16 @@ function pickNode(scope: HTMLElement, query: string): void {
   );
 }
 
+/** Drive a kit Dropdown (the condition rows' selection columns): open the
+ * trigger by aria-label, pick the menu item by name. `index` disambiguates
+ * same-labelled triggers inside the scope (several rows). The menu portals
+ * to document.body. */
+function pickOption(scope: HTMLElement, label: string, option: string | RegExp, index = 0): void {
+  fireEvent.click(within(scope).getAllByLabelText(label)[index]!);
+  const menu = document.querySelector(".dropdown-menu--portal") as HTMLElement;
+  fireEvent.click(within(menu).getByRole("button", { name: option }));
+}
+
 describe("the block query builder", () => {
   async function seedMembers(client: WorkspaceClient): Promise<string> {
     const classId = await seedClass(client, "project");
@@ -268,7 +278,7 @@ describe("the block query builder", () => {
 
     const panel = openPanel(section);
     addCondition(panel, /^Class/);
-    fireEvent.change(within(panel).getByLabelText("Class"), { target: { value: otherId } });
+    pickOption(panel, "Class", "client");
     expect(tableRowCount()).toBe(1); // AND of one: only the double-classed Gamma.
 
     addCondition(panel, /^Content/);
@@ -350,12 +360,12 @@ describe("the block query builder", () => {
     expect(nested).not.toBeNull();
     // The nested group: person class + age > 50 (the owner's example shape).
     addCondition(nested, /^Class /);
-    fireEvent.change(within(nested).getByLabelText("Class"), { target: { value: personId } });
+    pickOption(nested, "Class", "person");
     addCondition(nested, /^Property/);
-    fireEvent.change(within(nested).getByLabelText("Property"), { target: { value: ageId } });
-    // Two blocks ride in the nested group — the Class row's operator select
+    pickOption(nested, "Property", "age");
+    // Two blocks ride in the nested group — the Class row's operator dropdown
     // matches the same label; the Property row's is the second.
-    fireEvent.change(within(nested).getAllByLabelText("Operator")[1]!, { target: { value: "gt" } });
+    pickOption(nested, "Operator", ">", 1);
     fireEvent.change(within(nested).getByLabelText("Value"), { target: { value: "50" } });
 
     await act(async () => {});

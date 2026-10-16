@@ -207,8 +207,8 @@ describe("query builder read-back guard", () => {
     // No guard: directly editable, values read back.
     expect(within(dialog).queryByRole("alert")).toBeNull();
     expect(within(dialog).getByLabelText("Created after")).toHaveProperty("value", "{today}");
-    expect(within(dialog).getByLabelText("Sort by")).toHaveProperty("value", "name");
-    expect(within(dialog).getByLabelText("Sort direction")).toHaveProperty("value", "desc");
+    expect(within(dialog).getByLabelText("Sort by")).toHaveTextContent("Name");
+    expect(within(dialog).getByLabelText("Sort direction")).toHaveTextContent("Descending");
 
     // Tweak + Apply: the created window and sort survive the round-trip.
     fireEvent.change(within(dialog).getByLabelText("Text contains"), {
@@ -274,7 +274,7 @@ describe("query builder read-back guard", () => {
     fireEvent.click(screen.getAllByLabelText("Query settings")[1]!);
     dialog = screen.getByRole("dialog", { name: "Query builder" });
     expect(within(dialog).queryByRole("alert")).toBeNull();
-    expect(within(dialog).getByLabelText("Group by")).toHaveProperty("value", "isClass");
+    expect(within(dialog).getByLabelText("Group by")).toHaveTextContent("Class bit");
 
     void rich;
     void plain;

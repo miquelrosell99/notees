@@ -68,6 +68,15 @@ function hostPageOf(client: WorkspaceClient): { id: string; contentAst: ContentA
   return client.getNode(id) as { id: string; contentAst: ContentAst } | undefined;
 }
 
+/** Drive a kit Dropdown inside the query-builder modal: open the trigger by
+ * aria-label, pick the ported menu item by name. */
+function pickDropdownOption(dialog: HTMLElement, label: string, option: string): void {
+  fireEvent.click(within(dialog).getByLabelText(label));
+  fireEvent.click(
+    within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("button", { name: option }),
+  );
+}
+
 async function saveViewViaModal(name: string, configure?: (dialog: HTMLElement) => void) {
   fireEvent.click(screen.getByRole("button", { name: "New query" }));
   const dialog = await screen.findByRole("dialog", { name: "Query builder" });
@@ -87,7 +96,7 @@ describe("Queries hub", () => {
     expect(screen.getByText("No saved views yet")).not.toBeNull();
 
     await saveViewViaModal("Cities", (dialog) => {
-      fireEvent.change(within(dialog).getByLabelText("Class"), { target: { value: city } });
+      pickDropdownOption(dialog, "Class", "City");
     });
 
     // The host page was created lazily and carries the token (V3 record).
@@ -114,7 +123,7 @@ describe("Queries hub", () => {
 
     render(<QueriesHub client={client} onOpenNode={() => {}} />);
     await saveViewViaModal("Today's cities", (dialog) => {
-      fireEvent.change(within(dialog).getByLabelText("Class"), { target: { value: city } });
+      pickDropdownOption(dialog, "Class", "City");
       fireEvent.change(within(dialog).getByLabelText("Created after"), { target: { value: "{today}" } });
     });
 
@@ -148,7 +157,7 @@ describe("Queries hub", () => {
     render(<QueriesHub client={client} onOpenNode={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: "New query" }));
     const dialog = await screen.findByRole("dialog", { name: "Query builder" });
-    fireEvent.change(within(dialog).getByLabelText("Class"), { target: { value: city } });
+    pickDropdownOption(dialog, "Class", "City");
     await act(async () => {
       fireEvent.click(within(dialog).getByRole("button", { name: "Run" }));
     });
@@ -165,7 +174,7 @@ describe("Queries hub", () => {
 
     const { unmount } = render(<QueriesHub client={client} onOpenNode={() => {}} />);
     await saveViewViaModal("One", (dialog) => {
-      fireEvent.change(within(dialog).getByLabelText("Class"), { target: { value: city } });
+      pickDropdownOption(dialog, "Class", "City");
     });
     await saveViewViaModal("Two");
 
@@ -220,7 +229,7 @@ describe("Queries hub", () => {
 
     render(<QueriesHub client={client} onOpenNode={() => {}} />);
     await saveViewViaModal("Cities", (dialog) => {
-      fireEvent.change(within(dialog).getByLabelText("Class"), { target: { value: city } });
+      pickDropdownOption(dialog, "Class", "City");
     });
     await screen.findByText("Paris");
 

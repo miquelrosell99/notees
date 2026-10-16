@@ -97,66 +97,105 @@
 
 /* --- the condition row (the list-row register) ---------------------------- */
 
-.nt-fb-condition {
+/* The block row: a transparent list row with a hover fill, the columns
+   riding one control family — the kit Dropdown triggers and the boxed
+   Input, all --height-md. The columns take fixed comfortable bases so the
+   TYPE/OPERATOR columns align across rows; the VALUE column flexes. */
+.nt-fb-block__row {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  padding: var(--spacing-1-5) var(--spacing-2);
+  flex-wrap: wrap;
+  padding: var(--spacing-1) var(--spacing-2);
+  margin-inline: calc(-1 * var(--spacing-2));
   border-radius: var(--radius-sm);
-  transition: background-color 0.15s ease-out;
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-.nt-fb-condition:hover {
+.nt-fb-block__row:hover {
   background: var(--md-sys-color-hover-overlay);
 }
 
-.nt-fb-condition__icon {
-  flex-shrink: 0;
-  opacity: 0.7;
+.nt-fb-block__type {
+  flex: 0 1 14ch;
+  min-width: 0;
 }
 
-.nt-fb-condition__label {
-  flex-shrink: 0;
-  font-weight: 500;
-  color: var(--md-sys-color-on-surface-variant);
+.nt-fb-block__operator {
+  flex: 0 1 15ch;
+  min-width: 0;
 }
 
-.nt-fb-condition__word {
-  flex-shrink: 0;
-  color: var(--md-sys-color-on-surface-variant);
-}
-
-.nt-fb-condition__spacer {
-  flex: 1;
-}
-
-.nt-fb-condition input,
-.nt-fb-condition select {
-  flex: 1;
-  min-width: 8ch;
-  font: var(--font-body-small);
-}
-
-/* The node-target trigger (Links to / Parent is rows) — a quiet text
-   button naming the chosen node. */
-.nt-fb-nodepick {
-  flex: 1;
+/* The VALUE column: the typed control(s) — a Dropdown, an Input, the node
+   pick, or the prose "matching" word. Sibling controls split the width. */
+.nt-fb-block__value {
+  flex: 1 1 18ch;
   min-width: 10ch;
-  padding: var(--spacing-1) var(--spacing-2);
-  border: var(--spacing-hairline) solid var(--md-sys-color-outline-variant);
-  border-radius: var(--radius-sm);
-  background: var(--md-sys-color-surface-container-lowest);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.nt-fb-block__value > * {
+  flex: 1;
+  min-width: 6ch;
+}
+
+.nt-fb-block__word {
+  flex: 0 0 auto;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* The dynamic mode's nested query rides its own wrapped line beneath the
+   row (the v1 DynamicQuerySection register). */
+.nt-fb-block__nested {
+  flex-basis: 100%;
+  min-width: 0;
+}
+
+.nt-fb-block__spacer {
+  flex: 1;
+}
+
+/* The node-target trigger (Links to / Parent is rows) — the SelectTrigger
+   register: a quiet bordered field naming the chosen node, the trailing
+   chevron rotating while the picker is open. */
+.nt-fb-nodepick {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  min-height: var(--height-md);
+  padding: 0 var(--spacing-3);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-extra-large);
+  background: var(--md-sys-color-surface);
   color: var(--md-sys-color-on-surface);
   font: var(--font-body-small);
   text-align: left;
   cursor: pointer;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .nt-fb-nodepick:hover {
   border-color: var(--md-sys-color-outline);
+}
+
+.nt-fb-nodepick__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-fb-nodepick__chev {
+  flex-shrink: 0;
+  color: var(--md-sys-color-on-surface-variant);
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.nt-fb-nodepick__chev--open {
+  transform: rotate(180deg);
 }
 
 /* The add-condition trigger rides the app's quiet button register
