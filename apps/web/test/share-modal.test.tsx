@@ -195,6 +195,7 @@ describe("NodeContextMenu Share… item", () => {
     updateObject: async () => {},
     getNode: () => undefined,
     getChildren: () => [],
+        getChildrenFresh: async () => [],
     getEffectiveProperties: () => [],
     createObject: async () => "unused",
     setProperty: async () => {},

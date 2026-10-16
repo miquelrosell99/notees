@@ -9,6 +9,25 @@ predating this file.
 
 ## 2026-10-16
 
+- **fix(web): "children stay here" actually keeps the children — the
+  extraction plans its reparenting from a FRESH children read, not the
+  render cache (owner report 2026-10-16: the children stayed with the
+  extracted page).** Same stale-cache family as the slot bug: the
+  WorkerClient's `getChildren` is a `cachedRead` that answers a cold key
+  with the empty default before the refresh round-trip — the composition
+  planned zero child moves and the children silently rode along with the
+  extracted node. The write-composition surface now requires
+  `getChildrenFresh`: on the worker it is one raw RPC straight to the
+  store (cache bypassed); in-process it aliases the already-fresh read.
+  The regression spec stubs a cold cache (cached read always `[]`) and
+  pins that the child moves still fire in order. Same pass, the owner's
+  wording ruling: the "children follow" description no longer says "the
+  new page" — the page is NOT new, it is the same node with its
+  parent_id removed: "…the children stay with the block — the same node,
+  now a root page." Docs: `extractToPage.ts` surface contract.
+  **Verification:** `pnpm typecheck` + `pnpm test` green (new stale-cache
+  regression spec; description-line specs updated); web-only — no wire
+  touch.
 - **fix(web): the Convert to page link block inherits the block's exact
   sort slot, and the extract rows say a link block is left in place
   (owner feedback 2026-10-16: "the new created block is moved to be the

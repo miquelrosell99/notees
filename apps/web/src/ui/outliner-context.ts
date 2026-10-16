@@ -56,6 +56,13 @@ export interface OutlinerClient {
    */
   moveObject(id: string, parentId: string | null, afterId?: string, beforeId?: string): Promise<void>;
   /**
+   * Uncached children read (raw RPC on the worker; fresh alias in-process).
+   * Write-compositions that plan reparents from the child list
+   * (extractBlockToPage) ride this — a cached read can answer a cold key
+   * with the empty default and silently drop the planned moves.
+   */
+  getChildrenFresh(id: string): Promise<ClientNode[]> | ClientNode[];
+  /**
    * OR-set class membership add — the `#` / `+` "set" gesture. No-op when
    * the class is already assigned; otherwise appends to the node's class_ids
    * (read-modify-write over the node's current class_ids).

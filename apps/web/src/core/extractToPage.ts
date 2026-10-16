@@ -32,8 +32,15 @@ import type { ClientNode, CreateObjectInput } from "./workspace-client.js";
 /** Read surface the gesture composes from (both client classes satisfy it). */
 export interface ExtractReadSurface {
   getNode(id: string): ClientNode | undefined;
-  /** Position-ordered, active-only children (the store's child order). */
-  getChildren(id: string): ClientNode[];
+  /**
+   * Children in position order through a FRESH read — never a render
+   * cache. The composition plans child reparenting from this list; a stale
+   * or cold cache (the WorkerClient's cachedRead can return an empty
+   * default before the first refresh round-trip) would silently drop the
+   * child moves and leave the children with the extracted page — the
+   * reported "children stay here left them behind" bug.
+   */
+  getChildrenFresh(id: string): Promise<ClientNode[]> | ClientNode[];
 }
 
 /** Write surface the gesture submits through (the existing client op path). */
@@ -81,8 +88,10 @@ export async function extractBlockToPage(
   // rendersAsInlineBlock guarantees a parent. ALL reads happen before ANY
   // write: the write surface applies asynchronously and the child order
   // must be the pre-gesture state the reparent plan is computed from.
+  // The children list comes through the FRESH read — a cached read here
+  // silently drops child moves (see ExtractReadSurface).
   const parentId = node.parentId as string;
-  const children = reads.getChildren(nodeId);
+  const children = await reads.getChildrenFresh(nodeId);
 
   const linkBlockId = await writes.createObject({
     parentId,
