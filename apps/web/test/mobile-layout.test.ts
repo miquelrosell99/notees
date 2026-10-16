@@ -43,7 +43,8 @@ describe("mobile layout (app.css responsive pass)", () => {
     expect(block).toContain(".nt-sidebar-open .nt-sidebar");
     expect(block).toContain("--md-sys-color-surface-container-low");
     // Touch targets: sidebar rows, the favorite star, and the shell icon
-    // buttons all reach the 44px button token floor.
+    // buttons all grow to the button height token (the sidebar is an
+    // exception surface — the 48dp touch floor does not apply there).
     expect(block).toContain("--height-button-lg");
     expect(block).toMatch(/\.nt-side-item\s*\{[^}]*min-height/s);
     expect(block).toMatch(/\.nt-icon-btn\s*\{[^}]*height/s);

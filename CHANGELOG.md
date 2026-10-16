@@ -9,6 +9,50 @@ predating this file.
 
 ## 2026-10-16
 
+- **fix(web): the fleet taste calls reverse to M3 — 48dp touch floors, M3
+  elevation levels with cards at level 1, 4px menu radius (owner ruling
+  2026-10-16: "I want M3's approach, not the fleet").** The design skill
+  moved to pure M3 and the app follows; three fleet deviations reverse in
+  one slice. (1) **Touch floor 44 → 48px** (M3's 48×48dp minimum target):
+  the change centralizes in `--button-min-height` and the
+  `--button-icon-only-*` tokens — every invisible `::after` hit-area overlay
+  (calendar day grid / WeekStrip / MonthCalendar / CalendarPopup picks,
+  editor row chrome, comments/trash actions, sync dot, property icon
+  buttons, NodeSelector rows, NotificationToast dismiss, …) rides that
+  token, so the whole register moves at once; the floor prose in every CSS
+  comment updates with it. Deliberately untouched: button heights
+  (`--height-button-lg: 44px` is a size, not a floor), `--topbar-height`,
+  the toggle track width, the whiteboard zoom label, and the sidebar's
+  mobile row height (documented exception surface). The underline TextField
+  (46px via `--height-xl`) is flagged below with the shape scale. (2)
+  **Elevation per M3** (m3.material.io/styles/elevation): new
+  `--shadow-level1/2/3` with the M3 ambient+key values verbatim — ONE
+  theme-independent set; the dark block's per-theme shadow overrides delete
+  entirely (dark keeps tonal elevation through the surface-container
+  hierarchy, which the palette already carries). `--shadow-elevation-1/2/3`
+  and `--elevation-0..5` become aliases of the levels so the ~30 existing
+  consumers carry M3 values without a rename sweep; `--shadow-floating` /
+  `--shadow-modal` retire outright (Card.css was their only consumer). The
+  kit Card's elevation map is the point: `card--elevation-low` → level 1 —
+  static content cards regain their M3 level-1 shadow; medium → level 2
+  (menus, popovers), high → level 3 (dialogs, modals). (3) **Menu surface +
+  radius per the M3 menu spec** (m3.material.io menus): the ContextMenu root
+  and its submenu flyout move from `surface-container-high` to
+  `surface-container-low` (menus ride surfaceContainerLow at elevation
+  level 2), and the kit menu/popover panels — ContextMenu (root + flyout)
+  and the Dropdown menu — take the M3 4dp container shape via a new
+  `--radius-menu: var(--shape-small)` token. `--shape-floating-panel`
+  itself is untouched (its ~25 other consumers — popups, previews, toasts —
+  keep 8px); the `--shape-*` scale (2/4/6/8/12/20) is flagged as a separate
+  decision, NOT changed here. Specs: `submenu-chevron.test.tsx` re-pins the
+  menu surface (`-low`), the 4dp corner, and the Card.css level mapping;
+  the 44px-floor prose in `calendar-hit-area.test.ts`,
+  `hover-press-register.test.ts`, `condensed.test.tsx`, and
+  `mobile-layout.test.ts` rides the new floor; `docs/ux.md`'s narrow-screen
+  paragraph follows. `.agents/design-overrides.md` gains no entries — the
+  app is coming INTO alignment, not deviating; its existing entries never
+  cited the 44px floor or the no-shadow rule. **Verification:** `pnpm
+  typecheck` + `pnpm test` green; web-only — no wire touch.
 - **fix(web): the six remaining sweep notes close — token literals, badge
   radius, control width family, journals hover register, empty states
   compose EmptyState; the hover register retires to the skill.** The final

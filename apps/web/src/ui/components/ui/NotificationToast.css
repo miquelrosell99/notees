@@ -33,7 +33,9 @@
   background: var(--md-sys-color-surface);
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
 
-  /* Design system: zero visual noise — no elevation shadows */
+  /* No elevation shadow by local choice (flagged for the follow-up
+     elevation audit — the M3 ruling, owner 2026-10-16, gives transient
+     popovers level 2 elsewhere). */
   pointer-events: auto;
   animation: slideInRight var(--motion-duration-medium) var(--motion-easing-decelerate);
 }

@@ -173,7 +173,8 @@
 
 /* Sync dot — the indicator is a button once the client is live:
    plain button chrome, same disc states. The visible box stays a 21px
-   square; the ::after overlay gives the control the 44px hit-area floor. */
+   square; the ::after overlay gives the control the 48px hit-area floor
+   (M3's 48dp minimum, owner ruling 2026-10-16). */
 .nt-sync-dot {
   position: relative;
   display: inline-flex;

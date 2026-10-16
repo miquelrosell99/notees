@@ -22,10 +22,10 @@
   position: relative;
 }
 
-/* The invisible 44px hit-area floor (skill §9 — the calendar-grid pattern):
-   the visible cell rides the strip height; the ::after overlay centered on
-   it reaches ≥44×44. The dated dot is a real span so the overlay owns
-   ::after. */
+/* The invisible 48px hit-area floor (M3's 48dp minimum, owner ruling
+   2026-10-16 — the calendar-grid pattern): the visible cell rides the
+   strip height; the ::after overlay centered on it reaches ≥48×48. The
+   dated dot is a real span so the overlay owns ::after. */
 .week-strip__day.btn::after {
   content: '';
   position: absolute;

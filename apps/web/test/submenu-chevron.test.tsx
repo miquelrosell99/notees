@@ -124,27 +124,32 @@ describe("chevron visibility (owner 2026-10-16 feedback)", () => {
     expect(menuCss).not.toContain("context-menu-submenu-inline");
     const menuRootBlock = menuCss.split(".card.context-menu {")[1]!.split("}")[0]!;
     expect(menuRootBlock).toContain("overflow: visible");
-    // The menu and its flyout ride surface-container-high — the top of the
-    // design system's card ladder — and cite the Material role directly
-    // (the md-sys namespace is Material-only; the css-token-drift gate's
-    // check 7 rejects surface aliases like --md-sys-color-sidebar-card
+    // The menu and its flyout ride surface-container-low per the M3 menu
+    // spec (owner ruling 2026-10-16: menus sit at elevation level 2 on
+    // surfaceContainerLow — m3.material.io menus) and cite the Material role
+    // directly (the md-sys namespace is Material-only; the css-token-drift
+    // gate's check 7 rejects surface aliases like --md-sys-color-sidebar-card
     // outside their own surface).
-    expect(menuRootBlock).toContain("var(--md-sys-color-surface-container-high)");
+    expect(menuRootBlock).toContain("var(--md-sys-color-surface-container-low)");
     expect(menuRootBlock).not.toContain("sidebar-card");
+    // …with the M3 menu-spec 4dp container shape (the --radius-menu token,
+    // overriding the Card radius class).
+    expect(menuRootBlock).toContain("border-radius: var(--radius-menu)");
     const flyoutSurface = menuCss.split(".context-menu-submenu-flyout {")[1]!.split("}")[0]!;
-    expect(flyoutSurface).toContain("var(--md-sys-color-surface-container-high)");
+    expect(flyoutSurface).toContain("var(--md-sys-color-surface-container-low)");
+    expect(flyoutSurface).toContain("border-radius: var(--radius-menu)");
 
-    // The elevation table is back: Card's levels map to the design
-    // system's floating-layer shadows (static stays shadow-free).
+    // Card's levels map to the M3 elevation table (owner ruling 2026-10-16:
+    // static cards carry level 1, menus/popovers level 2, dialogs level 3).
     const cardCss = readCss(["src", "ui", "components", "ui", "Card.css"]);
     expect(cardCss.split(".card--elevation-medium {")[1]!.split("}")[0]!).toContain(
-      "var(--shadow-floating)",
+      "var(--shadow-level2)",
     );
     expect(cardCss.split(".card--elevation-high {")[1]!.split("}")[0]!).toContain(
-      "var(--shadow-modal)",
+      "var(--shadow-level3)",
     );
     expect(cardCss.split(".card--elevation-low {")[1]!.split("}")[0]!).toContain(
-      "box-shadow: none",
+      "var(--shadow-level1)",
     );
 
     const crumbsCss = readCss(["src", "ui", "components", "Breadcrumbs.css"]);
