@@ -149,8 +149,8 @@ function menuItem(label: string): HTMLElement {
 describe("capture: @ over a selection", () => {
   it("opens the picker prefilled with the selected text; the draft is untouched", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
-    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "see Tar now" }],
@@ -172,8 +172,8 @@ describe("capture: @ over a selection", () => {
 
   it("Enter replaces the selected text with the mention (target name resolved)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
-    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "see Tar now" }],
@@ -197,8 +197,8 @@ describe("capture: @ over a selection", () => {
 
   it("Ctrl+Enter inserts the link with the selected text as a custom label", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
-    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "see Tar now" }],
@@ -222,8 +222,8 @@ describe("capture: @ over a selection", () => {
 
   it("Cmd+Enter is treated the same", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
-    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "see Tar now" }],
@@ -241,7 +241,7 @@ describe("capture: @ over a selection", () => {
 
   it("Escape closes the picker and restores the selection", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "see Tar now" }],
@@ -263,7 +263,7 @@ describe("capture: @ over a selection", () => {
 
   it("the create row replaces the selection with a link to the new page", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "see zzz now" }],
@@ -292,7 +292,7 @@ describe("capture: @ over a selection", () => {
 
   it("without a word boundary the default runs (no picker)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "alpha beta" }],
@@ -310,9 +310,9 @@ describe("capture: @ over a selection", () => {
 describe("node-link context menu", () => {
   async function seedLinkedBlock(displayText?: string) {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
-    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
-    const otherId = await client.createObject({ presentAsMain: true, name: "Elsewhere" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
+    const otherId = await client.createObject({ isEmbedded: false, name: "Elsewhere" });
     const mention: Record<string, unknown> = {
       type: "mention",
       targetNodeId: targetId,
@@ -483,8 +483,8 @@ describe("node-link context menu", () => {
 describe("node-link context menu (read mode)", () => {
   async function seededReadonly() {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
-    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [
@@ -543,7 +543,7 @@ describe("node-link context menu (read mode)", () => {
 
   it("the menu opened on an external_link token offers no Edit link… (node links only)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [
@@ -572,13 +572,15 @@ describe("node-link context menu (read mode)", () => {
 
   it("Edit link… opens the modal from read mode and retargets", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
-    const targetId = await client.createObject({ presentAsMain: true, name: "Target" });
-    const otherId = await client.createObject({ presentAsMain: true, name: "Elsewhere" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target" });
+    const otherId = await client.createObject({ isEmbedded: false, name: "Elsewhere" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [
+        { type: "text", text: "see " },
         { type: "mention", targetNodeId: targetId, text: "Target", linkId: "0192a000-0000-7000-8000-0000000000aa" },
+        { type: "text", text: " now" },
       ],
     });
     const { container } = renderHosted(client, pageId);
@@ -600,6 +602,6 @@ describe("node-link context menu (read mode)", () => {
     fireEvent.click(save);
 
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
-    expect(ast[0]).toMatchObject({ type: "mention", targetNodeId: otherId, text: "Elsewhere" });
+    expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: otherId, text: "Elsewhere" });
   });
 });

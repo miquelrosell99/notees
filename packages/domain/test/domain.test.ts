@@ -290,7 +290,7 @@ describe("system seeds (ported)", () => {
 
 describe("deriveDisplayName", () => {
   // A parentless non-class node: document chrome, title-is-content.
-  const page = { id: "p1", isClass: false, presentAsMain: true, parentId: null };
+  const page = { id: "p1", isClass: false, isEmbedded: false, parentId: null };
 
   it("content title is trimmed and truncated to the display budget", () => {
     expect(
@@ -340,7 +340,7 @@ describe("deriveDisplayName", () => {
       { type: "mention", targetNodeId: "0192a000-0000-7000-8000-000000000011", text: "Structure" },
     ];
     expect(
-      deriveDisplayName({ id: "b1", isClass: false, presentAsMain: false, parentId: "p1", contentAst: ast }),
+      deriveDisplayName({ id: "b1", isClass: false, isEmbedded: true, parentId: "p1", contentAst: ast }),
     ).toBe("Kuhn argues that paradigms cites Structure");
   });
 
@@ -356,7 +356,7 @@ describe("deriveDisplayName", () => {
 
   it("returns empty string when there is nothing to derive (caller falls back to id)", () => {
     expect(
-      deriveDisplayName({ id: "b2", isClass: false, presentAsMain: false, parentId: "p1", contentAst: [] }),
+      deriveDisplayName({ id: "b2", isClass: false, isEmbedded: true, parentId: "p1", contentAst: [] }),
     ).toBe("");
     expect(deriveDisplayName({ ...page })).toBe("");
   });
@@ -375,7 +375,7 @@ describe("deriveDisplayName", () => {
       deriveDisplayName({
         id: "b3",
         isClass: false,
-        presentAsMain: false,
+        isEmbedded: true,
         parentId: "p1",
         contentAst: [{ type: "class_link", classId: "0192a000-0000-7000-8000-0000000000c1" }],
       }),
@@ -400,7 +400,7 @@ describe("deriveDisplayName", () => {
         {
           id: "b4",
           isClass: false,
-          presentAsMain: false,
+          isEmbedded: true,
           parentId: "p1",
           contentAst: [{ type: "class_link", classId: "0192a000-0000-7000-8000-0000000000c1" }],
         },
@@ -448,17 +448,17 @@ describe("render-state cascade predicates (Revision 11)", () => {
     expect(rendersWithDocumentChrome({ isClass: true, parentId: "p" })).toBe(false);
     // Parentless: document chrome regardless of the bit (second branch).
     expect(rendersWithDocumentChrome({ isClass: false, parentId: null })).toBe(true);
-    expect(rendersWithDocumentChrome({ isClass: false, parentId: null, presentAsMain: false })).toBe(true);
+    expect(rendersWithDocumentChrome({ isClass: false, parentId: null, isEmbedded: true })).toBe(true);
     // Parented: the bit decides (third branch) — parent omitted = trusted
     // write-time invariant.
-    expect(rendersWithDocumentChrome({ isClass: false, parentId: "p", presentAsMain: true })).toBe(true);
-    expect(rendersWithDocumentChrome({ isClass: false, parentId: "p", presentAsMain: false })).toBe(false);
+    expect(rendersWithDocumentChrome({ isClass: false, parentId: "p", isEmbedded: false })).toBe(true);
+    expect(rendersWithDocumentChrome({ isClass: false, parentId: "p", isEmbedded: true })).toBe(false);
   });
 
   it("rendersWithDocumentChrome: the parent-page condition (owner ruling 2026-10-15)", () => {
-    const bitSet = { isClass: false, parentId: "p", presentAsMain: true } as const;
+    const bitSet = { isClass: false, parentId: "p", isEmbedded: false } as const;
     // Bit set but the parent is a block → inert, no document chrome.
-    expect(rendersWithDocumentChrome(bitSet, { isClass: false, parentId: "gp", presentAsMain: false })).toBe(
+    expect(rendersWithDocumentChrome(bitSet, { isClass: false, parentId: "gp", isEmbedded: true })).toBe(
       false,
     );
     // Bit set but the parent is a class → inert (a class is not a page).
@@ -466,16 +466,16 @@ describe("render-state cascade predicates (Revision 11)", () => {
     // Bit set under a page parent (parentless or bit-set) → document chrome.
     expect(rendersWithDocumentChrome(bitSet, { isClass: false, parentId: null })).toBe(true);
     expect(
-      rendersWithDocumentChrome(bitSet, { isClass: false, parentId: "gp", presentAsMain: true }),
+      rendersWithDocumentChrome(bitSet, { isClass: false, parentId: "gp", isEmbedded: false }),
     ).toBe(true);
     // A null/omitted parent means "not at hand": the bit is trusted.
     expect(rendersWithDocumentChrome(bitSet, null)).toBe(true);
   });
 
   it("rendersAsInlineBlock: only parented non-class nodes with the bit unset", () => {
-    expect(rendersAsInlineBlock({ isClass: false, parentId: "p", presentAsMain: false })).toBe(true);
+    expect(rendersAsInlineBlock({ isClass: false, parentId: "p", isEmbedded: true })).toBe(true);
     expect(rendersAsInlineBlock({ isClass: false, parentId: "p" })).toBe(true);
-    expect(rendersAsInlineBlock({ isClass: false, parentId: "p", presentAsMain: true })).toBe(false);
+    expect(rendersAsInlineBlock({ isClass: false, parentId: "p", isEmbedded: false })).toBe(false);
     // Parentless nodes are documents, never inline blocks.
     expect(rendersAsInlineBlock({ isClass: false, parentId: null })).toBe(false);
     // Classes render ClassView — never inline blocks.
@@ -483,8 +483,8 @@ describe("render-state cascade predicates (Revision 11)", () => {
   });
 
   it("rendersAsInlineBlock: the bit set under a non-page parent renders inline", () => {
-    const bitSet = { isClass: false, parentId: "p", presentAsMain: true } as const;
-    const blockParent = { isClass: false, parentId: "gp", presentAsMain: false };
+    const bitSet = { isClass: false, parentId: "p", isEmbedded: false } as const;
+    const blockParent = { isClass: false, parentId: "gp", isEmbedded: true };
     expect(rendersAsInlineBlock(bitSet, blockParent)).toBe(true);
     expect(rendersAsInlineBlock(bitSet, { isClass: true, parentId: null })).toBe(true);
     expect(rendersAsInlineBlock(bitSet, { isClass: false, parentId: null })).toBe(false);
@@ -493,25 +493,25 @@ describe("render-state cascade predicates (Revision 11)", () => {
 
 describe("defaultIconFor (display-time icon defaults)", () => {
   it("class nodes get the class glyph", () => {
-    expect(defaultIconFor({ isClass: true, parentId: null, presentAsMain: false })).toBe(
+    expect(defaultIconFor({ isClass: true, parentId: null, isEmbedded: true })).toBe(
       DEFAULT_CLASS_ICON,
     );
   });
 
   it("parentless nodes get the page glyph (second cascade branch)", () => {
-    expect(defaultIconFor({ isClass: false, parentId: null, presentAsMain: false })).toBe(
+    expect(defaultIconFor({ isClass: false, parentId: null, isEmbedded: true })).toBe(
       DEFAULT_PAGE_ICON,
     );
   });
 
   it("parented main-presenting nodes get the page glyph (third cascade branch)", () => {
-    expect(defaultIconFor({ isClass: false, parentId: "p", presentAsMain: true })).toBe(
+    expect(defaultIconFor({ isClass: false, parentId: "p", isEmbedded: false })).toBe(
       DEFAULT_PAGE_ICON,
     );
   });
 
   it("inline blocks get none — their chrome is the bullet dot", () => {
-    expect(defaultIconFor({ isClass: false, parentId: "p", presentAsMain: false })).toBeNull();
+    expect(defaultIconFor({ isClass: false, parentId: "p", isEmbedded: true })).toBeNull();
   });
 
   it("defaults are MDI kebab names (the web Icon resolver form)", () => {
@@ -526,7 +526,7 @@ describe("date node display names", () => {
   const DAY = "00000000-0000-0000-0001-000000000005";
 
   it("formats raw date content labels per the slash-separated setting shape", () => {
-    const base = { id: "n", isClass: false, presentAsMain: true, parentId: null };
+    const base = { id: "n", isClass: false, isEmbedded: false, parentId: null };
     const text = (t: string) => ({ type: "text" as const, text: t });
     expect(deriveDisplayName({ ...base, contentAst: [text("20290000")], classIds: [YEAR] })).toBe("2029");
     expect(deriveDisplayName({ ...base, contentAst: [text("20290600")], classIds: [MONTH] })).toBe("2029/06");
@@ -534,7 +534,7 @@ describe("date node display names", () => {
   });
 
   it("treats a uuid-stored name as unnamed (legacy untitled pages)", () => {
-    const base = { id: "n", isClass: false, presentAsMain: true, parentId: null };
+    const base = { id: "n", isClass: false, isEmbedded: false, parentId: null };
     expect(
       deriveDisplayName({
         ...base,
@@ -545,7 +545,7 @@ describe("date node display names", () => {
   });
 
   it("leaves non-date content untouched", () => {
-    const base = { id: "n", isClass: false, presentAsMain: true, parentId: null };
+    const base = { id: "n", isClass: false, isEmbedded: false, parentId: null };
     const text = (t: string) => ({ type: "text" as const, text: t });
     expect(deriveDisplayName({ ...base, contentAst: [text("Not a date")], classIds: [DAY] })).toBe(
       "Not a date",
@@ -553,7 +553,7 @@ describe("date node display names", () => {
   });
 
   it("an 8-digit title without a date class stays literal (owner ruling 2026-10-08)", () => {
-    const base = { id: "n", isClass: false, presentAsMain: true, parentId: null };
+    const base = { id: "n", isClass: false, isEmbedded: false, parentId: null };
     const text = (t: string) => ({ type: "text" as const, text: t });
     expect(deriveDisplayName({ ...base, contentAst: [text("20290627")] })).toBe("20290627");
     expect(fullTitleOf({ ...base, contentAst: [text("20290627")] })).toBe("20290627");

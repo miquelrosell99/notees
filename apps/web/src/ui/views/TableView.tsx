@@ -128,7 +128,7 @@ function csvCellText(client: AnyClient, row: TableRow, column: TableColumn): str
   if (column.kind === "created") return formatCreated(node.createdAt);
   if (column.kind === "edited") return formatCreated(node.updatedAt);
   if (column.kind === "isClass") return node.isClass ? "Yes" : "—";
-  if (column.kind === "presentAsMain") return node.presentAsMain ? "Yes" : "—";
+  if (column.kind === "isEmbedded") return node.isEmbedded ? "Yes" : "—";
   const prop = row.properties.find((p) => p.propertySchemaId === column.propertySchemaId);
   return propertyDisplayText(client, prop);
 }
@@ -156,8 +156,8 @@ function columnSortValue(
   if (column.kind === "isClass") {
     return row.item.node.isClass ? 1 : 0;
   }
-  if (column.kind === "presentAsMain") {
-    return row.item.node.presentAsMain ? 1 : 0;
+  if (column.kind === "isEmbedded") {
+    return row.item.node.isEmbedded ? 1 : 0;
   }
   if (column.kind === "classes") {
     return null; // not sortable
@@ -983,10 +983,10 @@ export function TableView(props: NodeCollectionProps) {
         </td>
       );
     }
-    if (column.kind === "presentAsMain") {
+    if (column.kind === "isEmbedded") {
       return (
         <td key={column.id} className="nt-table-node-type">
-          {node.presentAsMain ? "Yes" : "—"}
+          {node.isEmbedded ? "Yes" : "—"}
         </td>
       );
     }
@@ -1035,7 +1035,7 @@ export function TableView(props: NodeCollectionProps) {
             <div className="nt-table-panel">
               <div className="nt-table-panel__title">Columns</div>
               {columns
-                .filter((c) => c.kind === "classes" || c.kind === "created" || c.kind === "edited" || c.kind === "isClass" || c.kind === "presentAsMain")
+                .filter((c) => c.kind === "classes" || c.kind === "created" || c.kind === "edited" || c.kind === "isClass" || c.kind === "isEmbedded")
                 .map((column) => (
                   <label className="nt-table-panel__check" key={column.id}>
                     <Checkbox size="sm" checked={!hiddenColumns.has(column.id)} onChange={() => toggleHidden(column.id)} />

@@ -88,7 +88,7 @@ describe("createdTodayBounds", () => {
       logic: "or",
       children: [
         { type: "isClass", isClass: true },
-        { type: "presentAsMain", presentAsMain: true },
+        { type: "isEmbedded", isEmbedded: false },
       ],
     });
   });

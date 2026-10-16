@@ -48,7 +48,7 @@ function page(
   return {
     id,
     isClass: 0,
-    presentAsMain: 1,
+    isEmbedded: 0,
     parentId: null,
     name: null,
     contentAst: contentAst.length > 0 ? contentAst : [{ type: "text", text }],
@@ -117,7 +117,7 @@ describe("document chrome", () => {
     const inline: ExportNode = {
       id: "aaaaaaaa-0000-4000-8000-000000000004",
       isClass: 0,
-      presentAsMain: 0,
+      isEmbedded: 1,
       parentId: "bbbbbbbb-0000-4000-8000-000000000000",
       name: null,
       contentAst: [{ type: "text", text: "inline body" }],

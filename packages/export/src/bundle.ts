@@ -41,9 +41,9 @@ export interface ExportManifestEntry {
   /** The exported node's kind — "page" (non-class) or "class". The workspace
    *  zip (E5) exports pages only, so every entry there is "page". */
   type: "page" | "class";
-  /** Revision-11 render-state booleans (class identity + render bit). */
+  /** Revision-12 booleans (class identity + embedding flag). */
   isClass: boolean;
-  presentAsMain: boolean;
+  isEmbedded: boolean;
 }
 
 /**
@@ -116,7 +116,7 @@ export function bundleMarkdown(
       name: document.title.length > 0 ? document.title : node.id,
       type: document.isClass ? "class" : "page",
       isClass: document.isClass,
-      presentAsMain: document.presentAsMain,
+      isEmbedded: document.isEmbedded,
     });
     if (resolved.whiteboardMode === "sidecar") {
       // Per-owner occurrence counting mirrors the serializer's per-stream

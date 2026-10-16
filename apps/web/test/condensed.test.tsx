@@ -145,7 +145,7 @@ describe("hiddenLinksOf", () => {
 describe("condensed layer over PageView", () => {
   it("renders the excerpt with a permanent … mark and the chrome in the row; click enters edit, blur re-condenses", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Condensed" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Condensed" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: LONG }],
@@ -188,7 +188,7 @@ describe("condensed layer over PageView", () => {
 
   it("the … pins in place and un-pins at the text's end; the pin survives edit cycles", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Pinned" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Pinned" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: LONG }],
@@ -239,7 +239,7 @@ describe("condensed layer over PageView", () => {
 
   it("one-line blocks render the ordinary row — no toggle", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Short" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Short" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "fits one line" }],
@@ -254,8 +254,8 @@ describe("condensed layer over PageView", () => {
 
   it("the links badge counts hidden mentions and its popup opens the node", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Links" });
-    const targetId = await client.createObject({ presentAsMain: true, name: "Target Page" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Links" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Target Page" });
     const ast: ContentAst = [
       { type: "text", text: "see " },
       { type: "mention", targetNodeId: targetId, text: "Target Page" },
@@ -298,8 +298,8 @@ describe("condensed layer over PageView", () => {
 
   it("Esc dismisses the popup (the one dismissal convention)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Esc" });
-    const targetId = await client.createObject({ presentAsMain: true, name: "Esc Target" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Esc" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Esc Target" });
     await client.createObject({
       parentId: pageId,
       contentAst: [
@@ -319,7 +319,7 @@ describe("condensed layer over PageView", () => {
 
   it("off by default: the body renders full content without the pref", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Off" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Off" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: LONG }],
@@ -334,7 +334,7 @@ describe("condensed layer over PageView", () => {
 describe("prose mode honors collapse (companion ruling)", () => {
   it("a folded subtree hides in prose and the chevron persists as the indicator", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Prose Fold" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Prose Fold" });
     const parent = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "foldable parent" }],

@@ -50,12 +50,12 @@ function loadFixture(name: string): Record<string, unknown>[] {
 
 /** Fixtures whose application must THROW — never part of the all-fixtures
  * replay/determinism sets (class-extends-cycle.json closes cycles and fails
- * loud by design; present-as-main-parent-page.json claims the render bit
+ * loud by design; is-embedded-parent-page.json claims the render bit
  * under a block parent and fails loud by design; both are applied
  * deliberately in their own tests). */
 const REPLAY_EXCLUDED_FIXTURES = new Set([
   "class-extends-cycle.json",
-  "present-as-main-parent-page.json",
+  "is-embedded-parent-page.json",
 ]);
 
 function allFixtureEnvelopes(): Record<string, unknown>[] {
@@ -89,7 +89,7 @@ function env(
   });
 }
 
-/** Parentless create: defaults to present_as_main = 1 (document chrome). */
+/** Parentless create: defaults to is_embedded = 0 (document chrome). */
 function createPage(id: string, physical: number): Envelope {
   return env("object.create", { objectId: id }, physical);
 }
@@ -191,12 +191,12 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       // pins classes to roots.
       expect(() =>
         store.database
-          .prepare("INSERT INTO node (id, workspace_id, present_as_main) VALUES ('a', 'ws', 1)")
+          .prepare("INSERT INTO node (id, workspace_id, is_embedded) VALUES ('a', 'ws', 1)")
           .run(),
       ).not.toThrow();
       expect(() =>
         store.database
-          .prepare("INSERT INTO node (id, workspace_id, present_as_main) VALUES ('a2', 'ws', 0)")
+          .prepare("INSERT INTO node (id, workspace_id, is_embedded) VALUES ('a2', 'ws', 0)")
           .run(),
       ).not.toThrow();
     });
@@ -204,7 +204,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
     it("rejects a class row with a parent", () => {
       const store = makeStore();
       store.database
-        .prepare("INSERT INTO node (id, workspace_id, present_as_main) VALUES ('p', 'ws', 1)")
+        .prepare("INSERT INTO node (id, workspace_id, is_embedded) VALUES ('p', 'ws', 1)")
         .run();
       expect(() =>
         store.database
@@ -265,7 +265,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(child?.parent_id).toBe("c0000000-0000-7000-8000-0000000000c1");
       expect(child?.is_class).toBe(0);
       // A plain parented create starts inline (block chrome).
-      expect(child?.present_as_main).toBe(0);
+      expect(child?.is_embedded).toBe(1);
       expect(store.children("c0000000-0000-7000-8000-0000000000c1").map((n) => n.id)).toEqual([
         "b0000000-0000-7000-8000-0000000000b1",
       ]);
@@ -278,8 +278,8 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       store.applyMany(allFixtureEnvelopes());
       const page = store.getNode(NODE_PAGE);
       const book = store.getNode(NODE_BOOK);
-      expect(page).toMatchObject({ is_class: 0, present_as_main: 1 });
-      expect(book).toMatchObject({ is_class: 0, present_as_main: 1 });
+      expect(page).toMatchObject({ is_class: 0, is_embedded: 0 });
+      expect(book).toMatchObject({ is_class: 0, is_embedded: 0 });
       expect(
         JSON.parse(book?.content ?? "[]").find((t: { type?: string }) => t.type === "text")?.text,
       ).toBe("The Structure of Scientific Revolutions");
@@ -292,8 +292,8 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       store.applyMany(allFixtureEnvelopes());
       const pageId = "0192a000-0000-7000-8000-0000000000e2";
       const childId = "0192a000-0000-7000-8000-0000000000e3";
-      expect(store.getNode(pageId)).toMatchObject({ is_active: 1, present_as_main: 1 });
-      expect(store.getNode(childId)).toMatchObject({ is_active: 1, present_as_main: 0 });
+      expect(store.getNode(pageId)).toMatchObject({ is_active: 1, is_embedded: 0 });
+      expect(store.getNode(childId)).toMatchObject({ is_active: 1, is_embedded: 1 });
       expect(store.children(pageId).map((n) => n.id)).toEqual([childId]);
       expect(
         store.database.prepare("SELECT 1 FROM trash WHERE node_id = ?").get(pageId),
@@ -314,7 +314,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
         expect(store.getNode(id), id).toBeUndefined();
       }
       // The page restored before the empty survived it.
-      expect(store.getNode(c)).toMatchObject({ is_active: 1, present_as_main: 1 });
+      expect(store.getNode(c)).toMatchObject({ is_active: 1, is_embedded: 0 });
       // Retention rows: exactly the two emptied roots, permanent.
       const rows = store.database
         .prepare("SELECT node_id, is_permanent FROM trash ORDER BY node_id")
@@ -607,20 +607,66 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ).toBe(1);
     });
 
-    it("present-as-main-parent-page fixture throws the parent-page guard on apply", () => {
-      const [pageP, blockB, violatingX] = loadFixture("present-as-main-parent-page.json");
+    it("is-embedded-parent-page fixture throws the parent-page guard on apply", () => {
+      const [pageP, blockB, violatingX] = loadFixture("is-embedded-parent-page.json");
       const p = "0192a000-0000-7000-8000-0000000000f1";
       const b = "0192a000-0000-7000-8000-0000000000f2";
       const x = "0192a000-0000-7000-8000-0000000000f3";
       const store = makeStore();
-      // The prefix applies cleanly: page P, then block B under P (bit 0).
+      // The prefix applies cleanly: page P, then embedded block B under P.
       store.applyMany([pageP!, blockB!]);
-      expect(store.getNode(b)).toMatchObject({ parent_id: p, present_as_main: 0 });
+      expect(store.getNode(b)).toMatchObject({ parent_id: p, is_embedded: 1 });
 
-      // Claiming the render bit under the BLOCK fails loud (parent-page
+      // Claiming the standalone role under the BLOCK fails loud (parent-page
       // condition, owner ruling 2026-10-15) and rolls back: no row for X.
       expect(() => store.apply(violatingX!)).toThrow(MoveGuardError);
       expect(store.getNode(x)).toBeUndefined();
+    });
+
+    it("object-is-embedded fixture: defaults, explicit claims, and the promotion/demotion toggle", () => {
+      const [pageP, blockB, standaloneS, promoteB, demoteS, demoteB] = loadFixture(
+        "object-is-embedded.json",
+      );
+      const p = "0192a000-0000-7000-8000-000000000af1";
+      const b = "0192a000-0000-7000-8000-000000000af2";
+      const s = "0192a000-0000-7000-8000-000000000af3";
+      const store = makeStore();
+      // Defaults: parentless P stores 0 (standalone by definition), parented
+      // B stores 1 (embedded is the default); S's explicit standalone claim
+      // stores 0.
+      store.applyMany([pageP!, blockB!, standaloneS!]);
+      expect(store.getNode(p)).toMatchObject({ parent_id: null, is_embedded: 0 });
+      expect(store.getNode(b)).toMatchObject({ parent_id: p, is_embedded: 1 });
+      expect(store.getNode(s)).toMatchObject({ parent_id: p, is_embedded: 0 });
+
+      // The toggle: B promotes (1 -> 0), S demotes (0 -> 1), B demotes back.
+      store.applyMany([promoteB!, demoteS!, demoteB!]);
+      expect(store.getNode(b)?.is_embedded).toBe(1);
+      expect(store.getNode(s)?.is_embedded).toBe(1);
+    });
+
+    it("an explicit isEmbedded: true claim is legal under any parent (only standalone claims are guarded)", () => {
+      const store = makeStore();
+      const PAGE = "0192a000-0000-7000-8000-0000000005e1";
+      const BLOCK = "0192a000-0000-7000-8000-0000000005e2";
+      const UNDER_PAGE = "0192a000-0000-7000-8000-0000000005e3";
+      const UNDER_BLOCK = "0192a000-0000-7000-8000-0000000005e4";
+      store.applyMany([
+        createPage(PAGE, 1727200006000),
+        env("object.create", { objectId: BLOCK, parentId: PAGE }, 1727200006100),
+        env(
+          "object.create",
+          { objectId: UNDER_PAGE, parentId: PAGE, isEmbedded: true },
+          1727200006200,
+        ),
+        env(
+          "object.create",
+          { objectId: UNDER_BLOCK, parentId: BLOCK, isEmbedded: true },
+          1727200006300,
+        ),
+      ]);
+      expect(store.getNode(UNDER_PAGE)?.is_embedded).toBe(1);
+      expect(store.getNode(UNDER_BLOCK)?.is_embedded).toBe(1);
     });
 
     describe("parent-page condition (owner ruling 2026-10-15)", () => {
@@ -635,7 +681,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
         const store = makeStore();
         store.applyMany([
           createPage(PAGE, 1727200005000),
-          env("object.create", { objectId: CHILD_PAGE, parentId: PAGE, presentAsMain: true }, 1727200005100),
+          env("object.create", { objectId: CHILD_PAGE, parentId: PAGE, isEmbedded: false }, 1727200005100),
           env("object.create", { objectId: BLOCK, parentId: PAGE }, 1727200005200),
           env("object.create", { objectId: NESTED_BLOCK, parentId: BLOCK }, 1727200005300),
         ]);
@@ -644,12 +690,12 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
 
       it("nested page chain under a page applies; the bit under a block parent throws", () => {
         const store = treeStore();
-        expect(store.getNode(CHILD_PAGE)).toMatchObject({ present_as_main: 1, parent_id: PAGE });
-        // A page's main child may itself carry main children.
+        expect(store.getNode(CHILD_PAGE)).toMatchObject({ is_embedded: 0, parent_id: PAGE });
+        // A page's standalone child may itself carry standalone children.
         store.apply(
           env(
             "object.create",
-            { objectId: "0192a000-0000-7000-8000-000000000505", parentId: CHILD_PAGE, presentAsMain: true },
+            { objectId: "0192a000-0000-7000-8000-000000000505", parentId: CHILD_PAGE, isEmbedded: false },
             1727200005400,
           ),
         );
@@ -658,7 +704,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
           store.apply(
             env(
               "object.create",
-              { objectId: "0192a000-0000-7000-8000-000000000506", parentId: BLOCK, presentAsMain: true },
+              { objectId: "0192a000-0000-7000-8000-000000000506", parentId: BLOCK, isEmbedded: false },
               1727200005500,
             ),
           ),
@@ -672,7 +718,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
           store.apply(
             env(
               "object.create",
-              { objectId: "0192a000-0000-7000-8000-000000000507", parentId: CLASS, presentAsMain: true },
+              { objectId: "0192a000-0000-7000-8000-000000000507", parentId: CLASS, isEmbedded: false },
               1727200005100,
             ),
           ),
@@ -683,37 +729,37 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
         const store = treeStore();
         // NESTED_BLOCK's parent is a block: promotion rejected.
         expect(() =>
-          store.apply(env("object.update", { objectId: NESTED_BLOCK, presentAsMain: true }, 1727200005600)),
+          store.apply(env("object.update", { objectId: NESTED_BLOCK, isEmbedded: false }, 1727200005600)),
         ).toThrow(MoveGuardError);
         // BLOCK's parent is PAGE: promotion applies (and stringifies content).
-        store.apply(env("object.update", { objectId: BLOCK, presentAsMain: true }, 1727200005700));
-        expect(store.getNode(BLOCK)).toMatchObject({ present_as_main: 1 });
+        store.apply(env("object.update", { objectId: BLOCK, isEmbedded: false }, 1727200005700));
+        expect(store.getNode(BLOCK)).toMatchObject({ is_embedded: 0 });
         // A parentless row: the bit is unread, promotion stays harmless.
-        store.apply(env("object.update", { objectId: PAGE, presentAsMain: true }, 1727200005800));
+        store.apply(env("object.update", { objectId: PAGE, isEmbedded: false }, 1727200005800));
       });
 
-      it("demotion fails loud while main children remain; applies once they are demoted", () => {
+      it("demotion fails loud while standalone children remain; applies once they are demoted", () => {
         const store = treeStore();
         // GRANDCHILD is a main child of the parented page CHILD_PAGE:
         // demoting CHILD_PAGE would dangle it. (A PARENTLESS page demotes
         // freely — it keeps document chrome by the second cascade branch,
-        // so its main children stay valid.)
+        // so its standalone children stay valid.)
         store.apply(
           env(
             "object.create",
-            { objectId: "0192a000-0000-7000-8000-000000000508", parentId: CHILD_PAGE, presentAsMain: true },
+            { objectId: "0192a000-0000-7000-8000-000000000508", parentId: CHILD_PAGE, isEmbedded: false },
             1727200005450,
           ),
         );
         expect(() =>
-          store.apply(env("object.update", { objectId: CHILD_PAGE, presentAsMain: false }, 1727200005600)),
+          store.apply(env("object.update", { objectId: CHILD_PAGE, isEmbedded: true }, 1727200005600)),
         ).toThrow(MoveGuardError);
         // Demote the main child first, then the demotion applies.
         store.apply(
-          env("object.update", { objectId: "0192a000-0000-7000-8000-000000000508", presentAsMain: false }, 1727200005700),
+          env("object.update", { objectId: "0192a000-0000-7000-8000-000000000508", isEmbedded: true }, 1727200005700),
         );
-        store.apply(env("object.update", { objectId: CHILD_PAGE, presentAsMain: false }, 1727200005800));
-        expect(store.getNode(CHILD_PAGE)).toMatchObject({ present_as_main: 0 });
+        store.apply(env("object.update", { objectId: CHILD_PAGE, isEmbedded: true }, 1727200005800));
+        expect(store.getNode(CHILD_PAGE)).toMatchObject({ is_embedded: 1 });
       });
 
       it("moving a main node under a block/class throws; under a page applies", () => {
@@ -722,10 +768,10 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
           store.apply(env("object.move", { objectId: CHILD_PAGE, parentId: BLOCK }, 1727200005600)),
         ).toThrow(MoveGuardError);
         store.apply(env("object.move", { objectId: CHILD_PAGE, parentId: PAGE, afterId: BLOCK }, 1727200005700));
-        expect(store.getNode(CHILD_PAGE)).toMatchObject({ parent_id: PAGE, present_as_main: 1 });
-        // Moving a BLOCK (bit 0) anywhere stays legal — moves never write the bit.
+        expect(store.getNode(CHILD_PAGE)).toMatchObject({ parent_id: PAGE, is_embedded: 0 });
+        // Moving an embedded BLOCK anywhere stays legal — moves never write the flag.
         store.apply(env("object.move", { objectId: NESTED_BLOCK, parentId: PAGE }, 1727200005800));
-        expect(store.getNode(NESTED_BLOCK)).toMatchObject({ parent_id: PAGE, present_as_main: 0 });
+        expect(store.getNode(NESTED_BLOCK)).toMatchObject({ parent_id: PAGE, is_embedded: 1 });
       });
     });
 
@@ -1143,7 +1189,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ).toBe(0);
       // The store is usable again after a reset.
       store.applyMany(loadFixture("envelope-minimal.json"));
-      expect(store.getNode(NODE_PAGE)).toMatchObject({ is_class: 0, present_as_main: 1 });
+      expect(store.getNode(NODE_PAGE)).toMatchObject({ is_class: 0, is_embedded: 0 });
     });
 
     it("wipe + replay from stored envelopes reproduces an identical database", () => {
@@ -1276,7 +1322,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       expect(store.getNode(block)?.parent_id).toBeNull();
       // Moves never write the render bit: still 0 — and unread anyway,
       // because parentless nodes render with document chrome.
-      expect(store.getNode(block)?.present_as_main).toBe(0);
+      expect(store.getNode(block)?.is_embedded).toBe(1);
       expect(
         (
           store.database
@@ -1290,11 +1336,11 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       const store = baseStore();
       const sub = "0192a000-0000-7000-8000-0000000000e1";
       store.apply(
-        env("object.create", { objectId: sub, parentId: NODE_PAGE, presentAsMain: true }, 1727200002000),
+        env("object.create", { objectId: sub, parentId: NODE_PAGE, isEmbedded: false }, 1727200002000),
       );
       store.apply(env("object.move", { objectId: sub, parentId: null }, 1727200002100));
       expect(store.getNode(sub)?.parent_id).toBeNull();
-      expect(store.getNode(sub)?.present_as_main).toBe(1);
+      expect(store.getNode(sub)?.is_embedded).toBe(0);
       expect(
         (
           store.database
@@ -1385,7 +1431,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       // Parented nodes stay out regardless of the render bit: a main child...
       const sub = "0192a000-0000-7000-8000-0000000000d1";
       store.apply(
-        env("object.create", { objectId: sub, parentId: NODE_PAGE, presentAsMain: true, contentAst: [{ type: "text", text: "Sub" }] }, 1727200004000),
+        env("object.create", { objectId: sub, parentId: NODE_PAGE, isEmbedded: false, contentAst: [{ type: "text", text: "Sub" }] }, 1727200004000),
       );
       // ...and an inline block.
       store.apply(
@@ -1649,12 +1695,12 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       ).toBe(1);
     });
 
-    it("promotes an inline child to the main-children zone and demotes it back (the presentAsMain toggle)", () => {
+    it("promotes an inline child to the main-children zone and demotes it back (the isEmbedded toggle)", () => {
       const store = makeStore();
       const parent = "0192a000-0000-7000-8000-0000000000f0";
       store.apply(createPage(parent, 1727200000000));
       const child = "0192a000-0000-7000-8000-0000000000f1";
-      // No payload presentAsMain: a parented create defaults to the inline
+      // No payload isEmbedded: a parented create defaults to the inline
       // body (bit 0) and keeps rich content.
       store.apply(
         env(
@@ -1670,26 +1716,26 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
           1727200001000,
         ),
       );
-      expect(store.getNode(child)).toMatchObject({ is_class: 0, present_as_main: 0 });
+      expect(store.getNode(child)).toMatchObject({ is_class: 0, is_embedded: 1 });
       expect(JSON.parse(store.getNode(child)?.content ?? "[]")).toHaveLength(2);
 
       // Promotion (0 → 1) flattens the rich token stream in the same op.
-      store.apply(env("object.update", { objectId: child, presentAsMain: true }, 1727200002000));
-      expect(store.getNode(child)?.present_as_main).toBe(1);
+      store.apply(env("object.update", { objectId: child, isEmbedded: false }, 1727200002000));
+      expect(store.getNode(child)?.is_embedded).toBe(0);
       expect(JSON.parse(store.getNode(child)?.content ?? "[]")).toEqual([
         { type: "text", text: "rich book" },
       ]);
 
       // Demotion (1 → 0) is legal because the node has a parent — and does
       // NOT un-flatten the content.
-      store.apply(env("object.update", { objectId: child, presentAsMain: false }, 1727200003000));
-      expect(store.getNode(child)?.present_as_main).toBe(0);
+      store.apply(env("object.update", { objectId: child, isEmbedded: true }, 1727200003000));
+      expect(store.getNode(child)?.is_embedded).toBe(1);
       expect(JSON.parse(store.getNode(child)?.content ?? "[]")).toEqual([
         { type: "text", text: "rich book" },
       ]);
     });
 
-    it("a main child created with presentAsMain:true starts flattened", () => {
+    it("a main child created with isEmbedded:true starts flattened", () => {
       const store = makeStore();
       const parent = "0192a000-0000-7000-8000-0000000000f0";
       store.apply(createPage(parent, 1727200000000));
@@ -1700,7 +1746,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
           {
             objectId: child,
             parentId: parent,
-            presentAsMain: true,
+            isEmbedded: false,
             contentAst: [
               { type: "text", text: "title " },
               { type: "mention", targetNodeId: NODE_BOOK, text: "book" },
@@ -1709,7 +1755,7 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
           1727200001000,
         ),
       );
-      expect(store.getNode(child)?.present_as_main).toBe(1);
+      expect(store.getNode(child)?.is_embedded).toBe(0);
       expect(JSON.parse(store.getNode(child)?.content ?? "[]")).toEqual([
         { type: "text", text: "title book" },
       ]);
@@ -1717,12 +1763,12 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
 
     it("demoting a parentless node clears the bit without un-flattening (bit unread there)", () => {
       const store = baseStore();
-      // NODE_PAGE is parentless with present_as_main = 1 and flattened text
+      // NODE_PAGE is parentless with is_embedded = 0 and flattened text
       // content; flipping the bit off is legal — the placement CHECK only
       // pins classes to roots — and the parentless row still renders with
       // document chrome by the second cascade branch.
-      store.apply(env("object.update", { objectId: NODE_PAGE, presentAsMain: false }, 1727200002000));
-      expect(store.getNode(NODE_PAGE)?.present_as_main).toBe(0);
+      store.apply(env("object.update", { objectId: NODE_PAGE, isEmbedded: true }, 1727200002000));
+      expect(store.getNode(NODE_PAGE)?.is_embedded).toBe(1);
       expect(store.getNode(NODE_PAGE)?.parent_id).toBeNull();
     });
 
@@ -2132,9 +2178,9 @@ describe.each(adapters)("$name", ({ makeBackend }) => {
       // France's own child pages: KID (direct child, renders with document
       // chrome) and GK (KID's child — nested under another page, not France).
       const kid = "0192a000-0000-7000-8000-0000000000e8";
-      store.apply(env("object.create", { objectId: kid, parentId: FRANCE, presentAsMain: true, contentAst: [{ type: "text", text: "Kid" }] }, 1727200001500));
+      store.apply(env("object.create", { objectId: kid, parentId: FRANCE, isEmbedded: false, contentAst: [{ type: "text", text: "Kid" }] }, 1727200001500));
       const gk = "0192a000-0000-7000-8000-0000000000e9";
-      store.apply(env("object.create", { objectId: gk, parentId: kid, presentAsMain: true, contentAst: [{ type: "text", text: "Grandkid" }] }, 1727200001600));
+      store.apply(env("object.create", { objectId: gk, parentId: kid, isEmbedded: false, contentAst: [{ type: "text", text: "Grandkid" }] }, 1727200001600));
       // An inline block under France — never document chrome.
       const inline = "0192a000-0000-7000-8000-0000000000fa";
       store.apply(env("object.create", { objectId: inline, parentId: FRANCE, contentAst: [{ type: "text", text: "inline" }] }, 1727200001700));
@@ -2203,7 +2249,7 @@ describe("sql.js snapshot round-trip", () => {
     expect(dumpDb(restored, { withAppliedLog: true })).toEqual(
       dumpDb(source, { withAppliedLog: true }),
     );
-    expect(restored.getNode(NODE_PAGE)).toMatchObject({ is_class: 0, present_as_main: 1 });
+    expect(restored.getNode(NODE_PAGE)).toMatchObject({ is_class: 0, is_embedded: 0 });
 
     restored.close();
     source.close();
@@ -2276,7 +2322,7 @@ describe("cross-backend snapshot restore", () => {
       documents: (
         store.database
           .prepare(
-            "SELECT COUNT(*) AS n FROM node WHERE is_class = 0 AND (parent_id IS NULL OR present_as_main = 1) AND is_active=1",
+            "SELECT COUNT(*) AS n FROM node WHERE is_class = 0 AND (parent_id IS NULL OR is_embedded = 0) AND is_active=1",
           )
           .get() as { n: number }
       ).n,
@@ -2311,7 +2357,7 @@ describe("cross-backend snapshot restore", () => {
     );
     expect(client.search("clasificaciones").map((h) => h.nodeId)).toContain(MIGRATED_PAGE);
     // Node data itself is untouched by the rebuild.
-    expect(client.getNode(MIGRATED_PAGE)).toMatchObject({ is_class: 0, present_as_main: 1 });
+    expect(client.getNode(MIGRATED_PAGE)).toMatchObject({ is_class: 0, is_embedded: 0 });
     // The docid index must exist: without it, common-prefix MATCH queries
     // degrade to a full docid-map scan per matched row (query-of-death).
     const indexes = client.database
@@ -2761,7 +2807,7 @@ describe.each(adapters)("$name: v19 -> v20 migration (the bulk-replay read index
 });
 
 
-// --- v7 -> v8 migration: node_type -> (is_class, present_as_main) -------------
+// --- v7 -> v8 migration: node_type -> (is_class, is_embedded) -------------
 
 /**
  * The v7 node DDL (SCHEMA_VERSION 7): the retired node_type enumeration with
@@ -2797,7 +2843,7 @@ CREATE INDEX idx_node_workspace ON node (workspace_id);
 CREATE INDEX idx_node_parent ON node (parent_id);
 `;
 
-describe.each(adapters)("$name: v7 -> v8 migration (node_type -> is_class/present_as_main)", ({ makeBackend }) => {
+describe.each(adapters)("$name: v7 -> v8 migration (node_type -> is_class/is_embedded)", ({ makeBackend }) => {
   it("rebuilds the node table mapping page/block/class, recreates indexes and stamps v8", () => {
     const store = Store.open(makeBackend());
     const db = store.database;
@@ -2818,14 +2864,16 @@ describe.each(adapters)("$name: v7 -> v8 migration (node_type -> is_class/presen
     const columns = (db.prepare("PRAGMA table_info(node)").all() as { name: string }[]).map((c) => c.name);
     expect(columns).not.toContain("node_type");
     expect(columns).toContain("is_class");
-    expect(columns).toContain("present_as_main");
-    // The boolean mapping: page -> (0, 1), block -> (0, 0), class -> (1, 0).
-    const rows = db.prepare("SELECT id, is_class, present_as_main, parent_id FROM node ORDER BY id").all() as
-      Array<{ id: string; is_class: number; present_as_main: number; parent_id: string | null }>;
+    expect(columns).toContain("is_embedded");
+    // The boolean mapping through v8 + v21: page -> (0, 0), block -> (0, 1),
+    // class -> (1, 0) — the v21 inversion maps the old present_as_main to
+    // is_embedded and converges class rows to the appliers' canonical 0.
+    const rows = db.prepare("SELECT id, is_class, is_embedded, parent_id FROM node ORDER BY id").all() as
+      Array<{ id: string; is_class: number; is_embedded: number; parent_id: string | null }>;
     expect(rows).toEqual([
-      { id: "bl", is_class: 0, present_as_main: 0, parent_id: "pg" },
-      { id: "cl", is_class: 1, present_as_main: 0, parent_id: null },
-      { id: "pg", is_class: 0, present_as_main: 1, parent_id: null },
+      { id: "bl", is_class: 0, is_embedded: 1, parent_id: "pg" },
+      { id: "cl", is_class: 1, is_embedded: 0, parent_id: null },
+      { id: "pg", is_class: 0, is_embedded: 0, parent_id: null },
     ]);
     // Non-enum columns ride through the rebuild untouched.
     const page = db.prepare("SELECT class_ids, tag_ids, content FROM node WHERE id = 'pg'").get() as
@@ -2854,7 +2902,7 @@ describe.each(adapters)("$name: v7 -> v8 migration (node_type -> is_class/presen
     store.apply(createPage(NODE_PAGE, 1727200000000));
     migrate(store.database, "fts5");
     expect(store.database.pragma("user_version", { simple: true })).toBe(SCHEMA_VERSION);
-    expect(store.getNode(NODE_PAGE)).toMatchObject({ is_class: 0, present_as_main: 1 });
+    expect(store.getNode(NODE_PAGE)).toMatchObject({ is_class: 0, is_embedded: 0 });
     store.close();
   });
 });
@@ -3026,7 +3074,7 @@ describe.each(adapters)("$name: edge.resolved_target_id (v17)", ({ makeBackend }
       createPage(CHAIN, 1727200000200),
       createPage(OTHER, 1727200000300),
       createPage(SOURCE, 1727200000400),
-      env("object.create", { objectId: BLOCK, parentId: SOURCE, presentAsMain: false }, 1727200000500),
+      env("object.create", { objectId: BLOCK, parentId: SOURCE, isEmbedded: true }, 1727200000500),
       // One content write carrying all three mentions (a contentAst write
       // replaces the stream — three separate updates would leave only the
       // last token standing).
@@ -3170,7 +3218,7 @@ describe.each(adapters)("$name: edge created_at — first-appearance stamps", ({
       createPage(SRC, 1727200000000),
       createPage(TGT, 1727200000100),
       createPage(OTHER, 1727200000200),
-      env("object.create", { objectId: BLOCK, parentId: SRC, presentAsMain: false }, 1727200000300),
+      env("object.create", { objectId: BLOCK, parentId: SRC, isEmbedded: true }, 1727200000300),
     ]);
   }
 
@@ -3286,7 +3334,7 @@ describe.each(adapters)("$name: edge created_at — first-appearance stamps", ({
       createPage(SRC, 1727200000000),
       createPage(TGT, 1727200000100),
       createPage(OTHER, 1727200000200),
-      env("object.create", { objectId: BLOCK, parentId: SRC, presentAsMain: false }, 1727200000300),
+      env("object.create", { objectId: BLOCK, parentId: SRC, isEmbedded: true }, 1727200000300),
       env(
         "propertySchema.create",
         { propertySchemaId: REF_SCHEMA, name: "ref", type: "object" },
@@ -3334,7 +3382,7 @@ describe.each(adapters)("$name: v16 -> v17 migration (resolved_target_id backfil
     createPage(MAIN, 1727200000000),
     createPage(ALIAS, 1727200000100),
     createPage(SOURCE, 1727200000200),
-    env("object.create", { objectId: BLOCK, parentId: SOURCE, presentAsMain: false }, 1727200000300),
+    env("object.create", { objectId: BLOCK, parentId: SOURCE, isEmbedded: true }, 1727200000300),
     env(
       "object.update",
       {
@@ -3460,7 +3508,7 @@ describe.each(adapters)("$name: backlinksWithRollup — the alias family rides r
   const SELF_BLOCK = "0192a000-0000-7000-8000-0000000005cb";
 
   const mentionOn = (blockId: string, parentId: string, target: string, physical: number): Envelope[] => [
-    env("object.create", { objectId: blockId, parentId, presentAsMain: false }, physical),
+    env("object.create", { objectId: blockId, parentId, isEmbedded: true }, physical),
     env(
       "object.update",
       {
@@ -3480,7 +3528,7 @@ describe.each(adapters)("$name: backlinksWithRollup — the alias family rides r
       createPage(SRC_MAIN, 1727200000500),
       createPage(SRC_ALIAS, 1727200000600),
       createPage(SRC_BLOCK, 1727200000700),
-      env("object.create", { objectId: BLOCK_CARRIER, parentId: SRC_BLOCK, presentAsMain: false }, 1727200000800),
+      env("object.create", { objectId: BLOCK_CARRIER, parentId: SRC_BLOCK, isEmbedded: true }, 1727200000800),
       env("object.update", { objectId: ALIAS, aliasedNodeId: MAIN }, 1727200000900),
       // A block carrier: the field rides a non-page node — it must NOT act
       // as an alias (the page restriction, mirrored into the read).
@@ -3568,7 +3616,7 @@ describe.each(adapters)("$name: class.create conversion (M47)", ({ makeBackend }
     const row = store.getNode(PAGE);
     expect(row).toMatchObject({
       is_class: 1,
-      present_as_main: 0,
+      is_embedded: 0,
       parent_id: null,
     });
     // Title-is-content: the node's existing text content is the class title
@@ -3773,7 +3821,7 @@ describe.each(adapters)("$name: asset property type (M38)", ({ makeBackend }) =>
     store.apply(
       env(
         "object.create",
-        { objectId: ASSET_NODE, presentAsMain: true, classIds: [ASSET_CLASS] },
+        { objectId: ASSET_NODE, isEmbedded: false, classIds: [ASSET_CLASS] },
         1727200000100,
       ),
     );

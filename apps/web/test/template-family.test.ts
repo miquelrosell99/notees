@@ -163,20 +163,20 @@ describe("listClassTemplates", () => {
     const client = await seedClient();
     const classId = await client.createClass("meeting");
     const tplA = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       name: "Sync template",
       classIds: [SYSTEM_CLASS_UUIDS.template],
     });
     const tplB = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       name: "Retro template",
       classIds: [SYSTEM_CLASS_UUIDS.template],
     });
     // Not a template — must be filtered out even if referenced.
-    const plain = await client.createObject({ presentAsMain: true, name: "Plain page" });
+    const plain = await client.createObject({ isEmbedded: false, name: "Plain page" });
     // Trashed template — resolved via active-only getNode, so dropped.
     const trashed = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       name: "Old template",
       classIds: [SYSTEM_CLASS_UUIDS.template],
     });

@@ -53,10 +53,12 @@ export interface NodeRow {
   workspace_id: string;
   /** Class identity bit (Revision 11): 1 = class node (always a root). */
   is_class: number;
-  /** Render bit for parented non-class nodes: 1 = the parent's
-   * main-children zone + document chrome when zoomed; 0 = inline body +
-   * block chrome. Unread for parentless nodes and classes. */
-  present_as_main: number;
+  /** Embedding flag (Revision 12) for parented non-class nodes: 1 (the
+   * default) = the node's content belongs to the parent's body — the Block
+   * role, inline + block chrome; 0 = a standalone structural element — the
+   * Page role, the main-children zone + document chrome when zoomed. Unread
+   * for parentless nodes and classes. */
+  is_embedded: number;
   parent_id: string | null;
   class_ids: string;
   tag_ids: string;
@@ -493,7 +495,7 @@ export class Store {
            WHERE e.target_id = ?
               OR (e.resolved_target_id = ?
                   AND rt.is_active = 1 AND rt.is_class = 0
-                  AND (rt.parent_id IS NULL OR rt.present_as_main = 1))
+                  AND (rt.parent_id IS NULL OR rt.is_embedded = 0))
               OR (s.distance > 0
                   AND e.resolved_target_id NOT IN (SELECT id FROM subtree))
          )
@@ -574,7 +576,7 @@ export class Store {
    *     the source-side roll-up backlinksWithRollup does on the target side.
    *
    * Target filter: the target must RENDER WITH DOCUMENT CHROME — never a
-   * class, and parentless or a present-as-main child page OF S. References
+   * class, and parentless or a standalone (is_embedded = 0) child page OF S. References
    * to pages nested under other pages, to inline blocks, or to trashed
    * nodes stay out (t.is_active = 1 — the same liveness getNode applies).
    *
@@ -617,7 +619,7 @@ export class Store {
              AND e.target_id IS NOT NULL
              AND t.is_active = 1
              AND t.is_class = 0
-             AND (t.parent_id IS NULL OR (t.parent_id = ? AND t.present_as_main = 1))
+             AND (t.parent_id IS NULL OR (t.parent_id = ? AND t.is_embedded = 0))
          )
          SELECT id, workspace_id, source_id, target_id, type, verb, metadata,
                 created_at, kind, distance

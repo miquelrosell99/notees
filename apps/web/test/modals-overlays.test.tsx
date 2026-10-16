@@ -127,12 +127,12 @@ function stubDownload() {
 describe("ExportPageModal", () => {
   it("previews the subtree markdown from the local export engine", async () => {
     const client = await makeClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Trip" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "Book flights" }],
     });
-    const childId = await client.createObject({ presentAsMain: true, name: "Packing", parentId: pageId });
+    const childId = await client.createObject({ isEmbedded: false, name: "Packing", parentId: pageId });
     await client.createObject({
       parentId: childId,
       contentAst: [{ type: "text", text: "Sunscreen" }],
@@ -160,7 +160,7 @@ describe("ExportPageModal", () => {
 
   it("lists the registry formats as cards, disabling unavailable ones with their reason", async () => {
     const client = await makeClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Trip" });
 
     render(<ExportPageModal isOpen={true} onClose={() => {}} client={client} nodeUuid={pageId} />);
 
@@ -192,8 +192,8 @@ describe("ExportPageModal", () => {
 
   it("renders the format's registry options and honors Include child pages", async () => {
     const client = await makeClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
-    const childId = await client.createObject({ presentAsMain: true, name: "Packing", parentId: pageId });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Trip" });
+    const childId = await client.createObject({ isEmbedded: false, name: "Packing", parentId: pageId });
     await client.createObject({
       parentId: childId,
       contentAst: [{ type: "text", text: "Sunscreen" }],
@@ -226,7 +226,7 @@ describe("ExportPageModal", () => {
     // class node's content — seed the title via object.update (same
     // workaround as the DuplicatePageModal spec above).
     await client.updateObject(classId, { contentAst: [{ type: "text", text: "Company" }] });
-    const pageId = await client.createObject({ presentAsMain: true, name: "Trip", classIds: [classId] });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Trip", classIds: [classId] });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "Book flights" }],
@@ -264,7 +264,7 @@ describe("ExportPageModal", () => {
 
   it("re-runs the preview when the client's cached reads land (child blocks never stuck hidden)", async () => {
     const client = await makeClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Trip" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "Book flights" }],
@@ -306,7 +306,7 @@ describe("ExportPageModal", () => {
 
   it("excludes text-property carrier blocks from the exported body", async () => {
     const client = await makeClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Props" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Props" });
     // A carrier block: the text property's value references it — it renders
     // in the property row, never as a body bullet (the page view's rule).
     const carrierId = await client.createObject({
@@ -337,7 +337,7 @@ describe("ExportPageModal", () => {
 
   it("downloads one markdown file for a single node", async () => {
     const client = await makeClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Trip" });
 
     let capturedBlob: Blob | null = null;
     const createObjectUrl = vi.fn((blob: Blob) => {
@@ -372,7 +372,7 @@ describe("ExportPageModal", () => {
 
   it("shows a static note instead of the live preview for non-markdown formats", async () => {
     const client = await makeClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Trip" });
 
     render(<ExportPageModal isOpen={true} onClose={() => {}} client={client} nodeUuid={pageId} />);
     await screen.findByLabelText("markdown preview", undefined, { timeout: 2000 });
@@ -387,7 +387,7 @@ describe("ExportPageModal", () => {
 
   it("downloads an HTML document when the HTML card is selected", async () => {
     const client = await makeClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Trip" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "Book flights" }],
@@ -420,7 +420,7 @@ describe("ExportPageModal", () => {
 
   it("downloads a LaTeX document when the LaTeX card is selected", async () => {
     const client = await makeClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Trip" });
 
     const download = stubDownload();
     render(
@@ -444,7 +444,7 @@ describe("ExportPageModal", () => {
 
   it("downloads a Word docx package when the Word card is selected", async () => {
     const client = await makeClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Trip" });
 
     const download = stubDownload();
     render(
@@ -470,7 +470,7 @@ describe("ExportPageModal", () => {
 
   it("downloads a PDF through the lazily imported engine when the PDF card is selected", async () => {
     const client = await makeClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Trip" });
 
     pdfEngineMocks.renderSubtreePdfMock.mockResolvedValue({
       blob: new Blob(["%PDF-1.4 stub"], { type: "application/pdf" }),
@@ -519,7 +519,7 @@ describe("ExportPageModal", () => {
 
   it("renders the PDF preview into an iframe while the PDF card is selected", async () => {
     const client = await makeClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Trip" });
 
     pdfEngineMocks.renderSubtreePdfMock.mockResolvedValue({
       blob: new Blob(["%PDF-1.4 stub"], { type: "application/pdf" }),
@@ -540,8 +540,8 @@ describe("ExportPageModal", () => {
 
   it("zips one PDF per root when a batch exports as PDF", async () => {
     const client = await makeClient();
-    const tripId = await client.createObject({ presentAsMain: true, name: "Trip" });
-    const packingId = await client.createObject({ presentAsMain: true, name: "Packing" });
+    const tripId = await client.createObject({ isEmbedded: false, name: "Trip" });
+    const packingId = await client.createObject({ isEmbedded: false, name: "Packing" });
 
     pdfEngineMocks.renderSubtreePdfBatchMock.mockResolvedValue({
       blob: new Blob(["zip-bytes"], { type: "application/zip" }),
@@ -573,8 +573,8 @@ describe("ExportPageModal", () => {
 
   it("zips one rendered HTML file per root when a batch exports as HTML", async () => {
     const client = await makeClient();
-    const tripId = await client.createObject({ presentAsMain: true, name: "Trip" });
-    const packingId = await client.createObject({ presentAsMain: true, name: "Packing" });
+    const tripId = await client.createObject({ isEmbedded: false, name: "Trip" });
+    const packingId = await client.createObject({ isEmbedded: false, name: "Packing" });
 
     const download = stubDownload();
     render(
@@ -619,13 +619,13 @@ describe("ExportPageModal", () => {
 
   it("downloads one JSON archive document for a single node (verbatim payloads, children metadata, edges)", async () => {
     const client = await makeClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Trip" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "Book flights" }],
     });
-    const childId = await client.createObject({ presentAsMain: true, name: "Packing", parentId: pageId });
-    const mentionedId = await client.createObject({ presentAsMain: true, name: "Athens" });
+    const childId = await client.createObject({ isEmbedded: false, name: "Packing", parentId: pageId });
+    const mentionedId = await client.createObject({ isEmbedded: false, name: "Athens" });
     await client.createObject({
       parentId: childId,
       contentAst: [{ type: "mention", targetNodeId: mentionedId, text: "Athens" }],
@@ -657,7 +657,7 @@ describe("ExportPageModal", () => {
       }>;
     };
     expect(archive.format).toBe("notees-json-archive");
-    expect(archive.version).toBe(1);
+    expect(archive.version).toBe(2); // Revision 12: presentAsMain → isEmbedded
     // The slice: the root, its inline block (verbatim — blocks are NOT
     // folded into a parent file the way markdown folds them), and the
     // child page's subtree. (Athens is a mention TARGET — recorded as an
@@ -677,8 +677,8 @@ describe("ExportPageModal", () => {
 
   it("delivers ONE archive for a batch — no per-root zip", async () => {
     const client = await makeClient();
-    const tripId = await client.createObject({ presentAsMain: true, name: "Trip" });
-    const packingId = await client.createObject({ presentAsMain: true, name: "Packing" });
+    const tripId = await client.createObject({ isEmbedded: false, name: "Trip" });
+    const packingId = await client.createObject({ isEmbedded: false, name: "Packing" });
 
     const download = stubDownload();
     render(
@@ -709,8 +709,8 @@ describe("ExportPageModal", () => {
 
   it("zips every selected node's subtree plus the manifest for a batch", async () => {
     const client = await makeClient();
-    const tripId = await client.createObject({ presentAsMain: true, name: "Trip" });
-    const packingId = await client.createObject({ presentAsMain: true, name: "Packing" });
+    const tripId = await client.createObject({ isEmbedded: false, name: "Trip" });
+    const packingId = await client.createObject({ isEmbedded: false, name: "Packing" });
 
     let capturedBlob: Blob | null = null;
     const createObjectUrl = vi.fn((blob: Blob) => {
@@ -778,7 +778,7 @@ describe("ExportPageModal", () => {
   it("zips asset bytes under assets/ and rewrites the markdown ref when Include asset files is on", async () => {
     const client = await makeClient({ serverUrl: "https://notees.example.com", apiKey: "test-key" });
     const assetId = "0192a000-0000-7000-8000-0000000000a1";
-    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Trip" });
     // asset_ref lives on an inline block (document-chrome content is
     // text-only; block-scale rich tokens survive on inline blocks).
     await client.createObject({
@@ -843,7 +843,7 @@ describe("ExportPageModal", () => {
   it("keeps the raw uuid ref and adds no asset file when the bytes are unfetchable", async () => {
     const client = await makeClient({ serverUrl: "https://notees.example.com", apiKey: "test-key" });
     const assetId = "0192a000-0000-7000-8000-0000000000a2";
-    const pageId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Trip" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "asset_ref", assetId }],
@@ -885,7 +885,7 @@ describe("ExportPageModal", () => {
     const client = await makeClient({ serverUrl: "https://notees.example.com", apiKey: "test-key" });
     const assetA = "0192a000-0000-7000-8000-0000000000a1";
     const assetB = "0192a000-0000-7000-8000-0000000000b2";
-    const tripId = await client.createObject({ presentAsMain: true, name: "Trip" });
+    const tripId = await client.createObject({ isEmbedded: false, name: "Trip" });
     await client.createObject({
       parentId: tripId,
       contentAst: [{ type: "asset_ref", assetId: assetA }],
@@ -897,7 +897,7 @@ describe("ExportPageModal", () => {
       size: 4,
       originalName: "Boarding Pass.PNG",
     });
-    const packingId = await client.createObject({ presentAsMain: true, name: "Packing" });
+    const packingId = await client.createObject({ isEmbedded: false, name: "Packing" });
     await client.createObject({
       parentId: packingId,
       contentAst: [{ type: "asset_ref", assetId: assetB }],
@@ -1018,7 +1018,7 @@ describe("CreatePageWithUuidModal", () => {
   it("refuses a UUID that already exists", async () => {
     const client = await makeClient();
     const fixed = "550e8400-e29b-41d4-a716-446655440000";
-    await client.createObject({ id: fixed, presentAsMain: true, name: "Taken" });
+    await client.createObject({ id: fixed, isEmbedded: false, name: "Taken" });
 
     render(<CreatePageWithUuidModal isOpen={true} onClose={() => {}} client={client} onSuccess={() => {}} />);
 
@@ -1035,7 +1035,7 @@ describe("CreatePageWithUuidModal", () => {
 describe("QuickAddModal", () => {
   it("captures blocks into the Inbox page", async () => {
     const client = await makeClient();
-    const inboxId = await client.createObject({ presentAsMain: true, name: "Inbox" });
+    const inboxId = await client.createObject({ isEmbedded: false, name: "Inbox" });
 
     render(<QuickAddModal isOpen={true} onClose={() => {}} client={client} />);
 

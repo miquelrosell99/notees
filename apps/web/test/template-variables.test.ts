@@ -28,7 +28,7 @@ function fakeNode(partial: Partial<ClientNode> & { id: string }): ClientNode {
   return {
     workspaceId: WS,
     isClass: false,
-    presentAsMain: false,
+    isEmbedded: true,
     parentId: null,
     classIds: [],
     tagIds: [],

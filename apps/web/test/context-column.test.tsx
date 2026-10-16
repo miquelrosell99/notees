@@ -62,7 +62,7 @@ async function flushWrites(): Promise<void> {
 describe("the context column (three-column panelled layout)", () => {
   it("the panelled main layout renders three columns; the context column hosts graph, Table of content, Activity, Comments", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Doc" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Doc" });
     // The Table of content lists heading blocks only (owner 2026-10-12) —
     // seed one so the section renders.
     await client.createObject({
@@ -101,7 +101,7 @@ describe("the context column (three-column panelled layout)", () => {
 
   it("the Table of content hides when the page has no heading blocks", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Doc" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Doc" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "A plain one-liner — prose, not structure." }],
@@ -117,7 +117,7 @@ describe("the context column (three-column panelled layout)", () => {
 
   it("the nodeview top bar toggles each panel column independently, device-locally", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Doc" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Doc" });
 
     const { container, unmount } = render(<PageView client={client} pageId={pageId} />);
     expect(container.querySelector(".nt-page-context")).not.toBeNull();
@@ -141,7 +141,7 @@ describe("the context column (three-column panelled layout)", () => {
 
   it("compact and embedded surfaces render no context column; the class page renders it (owner 2026-10-12, every nodeview)", async () => {
     const client = await seedClient();
-    const plainId = await client.createObject({ presentAsMain: true, name: "Plain" });
+    const plainId = await client.createObject({ isEmbedded: false, name: "Plain" });
     const compact = render(<PageView client={client} pageId={plainId} layout="compact" />);
     expect(compact.container.querySelector(".nt-page-context")).toBeNull();
     expect(compact.container.querySelector(".nt-node-topbar")).toBeNull();
@@ -159,11 +159,11 @@ describe("the context column (three-column panelled layout)", () => {
 
   it("Activity relocated: one Activity section, living in the context column; the stack below the body is Child pages + backlinks", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Doc" });
-    await client.createObject({ presentAsMain: true, parentId: pageId, name: "Kid" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Doc" });
+    await client.createObject({ isEmbedded: false, parentId: pageId, name: "Kid" });
     // A reference so the backlinks strip renders under the hide-when-empty
     // gate.
-    const sourceId = await client.createObject({ presentAsMain: true, name: "Ref Source" });
+    const sourceId = await client.createObject({ isEmbedded: false, name: "Ref Source" });
     await client.createObject({
       parentId: sourceId,
       contentAst: [{ type: "mention", targetNodeId: pageId, text: "Doc" }],
@@ -184,8 +184,8 @@ describe("the context column (three-column panelled layout)", () => {
 
   it("the references dedupe verdict: the context column renders no references list; the Backlinks section owns the getLinkedReferences data", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Zebra" });
-    const sourceId = await client.createObject({ presentAsMain: true, name: "Source" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Zebra" });
+    const sourceId = await client.createObject({ isEmbedded: false, name: "Source" });
     await client.createObject({
       parentId: sourceId,
       contentAst: [{ type: "mention", targetNodeId: pageId, text: "Zebra" }],
@@ -253,7 +253,7 @@ describe("context-column feed type rides the §7 list-row register (CSS source)"
 describe("NodeView preview surface", () => {
   it("preview renders compact chrome: no corner menu, no top bar, a read-only first-level body, no sections", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Peeked" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Peeked" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "top level" }],
@@ -295,7 +295,7 @@ describe("NodeView preview surface", () => {
 describe("NodeCardFrame (the cards-only rail)", () => {
   it("the generic frame renders NodeView in its body with the breadcrumbs header; collapse is session-local", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Carded" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Carded" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "body block" }],
@@ -319,7 +319,7 @@ describe("NodeCardFrame (the cards-only rail)", () => {
 
   it("open-in-main navigates and closes; close dismisses; a missing node renders the honest not-found", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Carded" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Carded" });
     const onOpenNode = vi.fn();
     const onClose = vi.fn();
 

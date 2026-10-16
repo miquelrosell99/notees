@@ -61,7 +61,7 @@ function stubClipboard() {
 describe("NodeContextMenu Copy › submenu", () => {
   it("copies the block's own content as markdown (no children)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "Question?" }],
@@ -93,7 +93,7 @@ describe("NodeContextMenu Copy › submenu", () => {
 
   it("copies the block with its children as nested bullets, no frontmatter", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "Question?" }],
@@ -126,7 +126,7 @@ describe("NodeContextMenu Copy › submenu", () => {
 
   it("copies the raw node id and the app link", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "Block" }],

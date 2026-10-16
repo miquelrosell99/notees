@@ -1,17 +1,18 @@
 /**
- * Node model helpers — the Revision-11 render-state model (is_class /
- * present_as_main), name derivation, plaintext excerpts. Domain-pure: no
+ * Node model helpers — the Revision-12 embedding model (is_class /
+ * is_embedded), name derivation, plaintext excerpts. Domain-pure: no
  * IO, no storage.
  *
  * Render cascade (SCHEMA.md): is_class → ClassView; parentless → document
- * chrome (the bit unread); otherwise the bit decides — present_as_main = the
- * parent's main-children zone + document chrome when zoomed, unset = the
- * inline body + block chrome. The bit is only EFFECTIVE under a page parent
- * (owner ruling 2026-10-15): a parented node renders with document chrome
- * ONLY when present_as_main is set AND its parent also renders with document
- * chrome — classes are not pages (ClassView), so present_as_main under a
- * class or a block parent is inert. The store enforces the invariant
- * write-time; render assumes it.
+ * chrome (the flag unread); otherwise the flag decides — is_embedded = 0
+ * (the standalone claim) puts the node in the parent's main-children zone
+ * + document chrome when zoomed, is_embedded = 1 (the default) keeps it in
+ * the inline body + block chrome. The flag is only EFFECTIVE under a page
+ * parent (owner ruling 2026-10-15): a parented node renders with document
+ * chrome ONLY when is_embedded = 0 AND its parent also renders with
+ * document chrome — classes are not pages (ClassView), so a standalone
+ * claim under a class or an embedded block parent is inert. The store
+ * enforces the invariant write-time; render assumes it.
  */
 
 import type { ContentAst, ContentToken } from "@notees/protocol";
@@ -23,10 +24,11 @@ export interface NodeLike {
   /** Class identity bit — the ONLY identity marker (classes are always
    * roots). Accepts the store row shape (0/1) too. */
   isClass?: boolean | number;
-  /** Render bit for parented non-class nodes: true = the parent's
-   * main-children zone; false/absent = the inline body. Unread for
-   * parentless nodes and classes. */
-  presentAsMain?: boolean | number;
+  /** Embedding flag for parented non-class nodes (Revision 12): false/absent
+   * = a standalone structural element — the parent's main-children zone
+   * (the Page role); true = embedded in the parent's body (the Block role,
+   * the default). Unread for parentless nodes and classes. */
+  isEmbedded?: boolean | number;
   /** Tree placement; null/absent = workspace root. */
   parentId?: string | null;
   /** @deprecated The node `name` column is being retired (title-is-content):
@@ -214,37 +216,39 @@ export function isClassNode(node: Pick<NodeLike, "isClass">): boolean {
 }
 
 /**
- * Document-chrome predicate: ClassView rows excluded (first cascade branch),
- * parentless non-class rows render as documents regardless of the bit
- * (second branch), and a parented row renders with document chrome exactly
- * when present_as_main is set AND its parent also renders with document
- * chrome (owner ruling 2026-10-15 — the parent-page condition; a class or
- * block parent makes the bit inert).
+ * Document-chrome predicate (the Page role): ClassView rows excluded (first
+ * cascade branch), parentless non-class rows render as documents regardless
+ * of the flag (second branch), and a parented row renders with document
+ * chrome exactly when is_embedded = 0 (the standalone claim) AND its parent
+ * also renders with document chrome (owner ruling 2026-10-15 — the
+ * parent-page condition; a class or embedded-block parent makes the claim
+ * inert).
  *
  * `parent` is the parent row's render facts, when the caller has them. The
- * store enforces the invariant write-time (a bit under a non-page parent is
- * never stored), so an omitted/absent parent means "not at hand" and the bit
- * is trusted — deeper ancestry than one level rides the same invariant.
+ * store enforces the invariant write-time (a standalone claim under a
+ * non-page parent is never stored), so an omitted/absent parent means "not
+ * at hand" and the flag is trusted — deeper ancestry than one level rides
+ * the same invariant.
  */
 export function rendersWithDocumentChrome(
-  node: Pick<NodeLike, "isClass" | "parentId" | "presentAsMain">,
-  parent?: Pick<NodeLike, "isClass" | "parentId" | "presentAsMain"> | null,
+  node: Pick<NodeLike, "isClass" | "parentId" | "isEmbedded">,
+  parent?: Pick<NodeLike, "isClass" | "parentId" | "isEmbedded"> | null,
 ): boolean {
   if (node.isClass) return false;
   if (node.parentId == null) return true;
-  if (!node.presentAsMain) return false;
+  if (node.isEmbedded !== false && node.isEmbedded !== 0) return false;
   if (parent == null) return true;
   return rendersWithDocumentChrome(parent);
 }
 
 /**
- * Inline-block predicate: a parented non-class node that does NOT render
- * with document chrome — the bit unset, or set but inert under a non-page
- * parent (the parent-page condition).
+ * Inline-block predicate (the Block role): a parented non-class node that
+ * does NOT render with document chrome — embedded in the parent's body, or
+ * a standalone claim inert under a non-page parent.
  */
 export function rendersAsInlineBlock(
-  node: Pick<NodeLike, "isClass" | "parentId" | "presentAsMain">,
-  parent?: Pick<NodeLike, "isClass" | "parentId" | "presentAsMain"> | null,
+  node: Pick<NodeLike, "isClass" | "parentId" | "isEmbedded">,
+  parent?: Pick<NodeLike, "isClass" | "parentId" | "isEmbedded"> | null,
 ): boolean {
   return !node.isClass && node.parentId != null && !rendersWithDocumentChrome(node, parent);
 }

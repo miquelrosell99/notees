@@ -1,5 +1,5 @@
 {
-  "comment": "Parent-page condition (owner ruling 2026-10-15): present_as_main is only EFFECTIVE under a page parent. Envelopes 1-2 build page P > block B and apply cleanly; envelope 3 claims the render bit for a child of the BLOCK and must throw MoveGuardError on apply — the fixture is in REPLAY_EXCLUDED_FIXTURES and is applied deliberately in its own store test. LOCKSTEP-PENDING: the GTK/Flutter ports converge on the same expectation before the marker clears (docs/developers/development.md §3).",
+  "comment": "Parent-page condition (owner ruling 2026-10-15, carried into Revision 12): the isEmbedded flag is only EFFECTIVE under a page parent. Envelopes 1-2 build page P > embedded block B and apply cleanly; envelope 3 claims the standalone role (isEmbedded: false) for a child of the BLOCK and must throw MoveGuardError on apply — the fixture is in REPLAY_EXCLUDED_FIXTURES and is applied deliberately in its own store test. LOCKSTEP-PENDING: the GTK/Flutter ports converge on the same expectation before the marker clears (docs/developers/development.md §3).",
   "envelopes": [
     {
       "id": "0192a000-0000-7000-8000-000000000101",
@@ -14,7 +14,7 @@
       "timestamp": "2026-09-24T12:00:02.000Z",
       "payload": {
         "objectId": "0192a000-0000-7000-8000-0000000000f1",
-        "presentAsMain": true,
+        "isEmbedded": false,
         "classIds": [],
         "contentAst": [{ "type": "text", "text": "P" }],
         "parentId": null
@@ -51,7 +51,7 @@
       "timestamp": "2026-09-24T12:00:02.002Z",
       "payload": {
         "objectId": "0192a000-0000-7000-8000-0000000000f3",
-        "presentAsMain": true,
+        "isEmbedded": false,
         "classIds": [],
         "contentAst": [{ "type": "text", "text": "X" }],
         "parentId": "0192a000-0000-7000-8000-0000000000f2"

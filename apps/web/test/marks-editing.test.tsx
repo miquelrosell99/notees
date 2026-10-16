@@ -209,7 +209,7 @@ describe("mark range operations", () => {
 describe("marks editing in the editor", () => {
   it("Ctrl+B bolds the selection; read mode renders <strong> over exactly that text", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Marks" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Marks" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello world" }],
@@ -234,7 +234,7 @@ describe("marks editing in the editor", () => {
 
   it("a selection spanning two runs splits them correctly; Ctrl+B again merges back", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Split" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Split" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [
@@ -271,7 +271,7 @@ describe("marks editing in the editor", () => {
 
   it("Ctrl+I and Ctrl+Shift+X apply italic and strike via shortcuts", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Keys" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Keys" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello" }],
@@ -297,7 +297,7 @@ describe("marks editing in the editor", () => {
 
   it("the floating toolbar toggles marks and reflects active state", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Toolbar" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Toolbar" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello world" }],
@@ -331,7 +331,7 @@ describe("marks editing in the editor", () => {
 
   it("typing ** over a selection toggles bold without storing asterisks", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Stars" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Stars" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello world" }],

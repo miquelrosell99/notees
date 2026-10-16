@@ -45,11 +45,11 @@ describe("PageView rendering", () => {
   it("renders text marks, mention, typed link, quote, and hard break", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       name: "Render Me",
     });
     const targetPageId = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       name: "Mention Target",
     });
     await client.createObject({
@@ -120,7 +120,7 @@ describe("PageView rendering", () => {
 
   it("renders placeholder boxes for block-scale tokens", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Placeholders" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Placeholders" });
     await client.createObject({
       parentId: pageId,
       contentAst: [
@@ -161,7 +161,7 @@ describe("PageView rendering", () => {
 
   it("a class_link whose class was DELETED renders pending; clicking re-assigns", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Divergence" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Divergence" });
     const classId = await client.createClass("correo");
     const blockId = await client.createObject({
       parentId: pageId,
@@ -190,7 +190,7 @@ describe("PageView rendering", () => {
 
   it("an inline class link whose class IS assigned renders live (solid)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Converged" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Converged" });
     const classId = await client.createClass("correo");
     const blockId = await client.createObject({
       parentId: pageId,

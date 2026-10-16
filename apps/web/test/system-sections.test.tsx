@@ -88,15 +88,15 @@ function expandUnlinkedMentions(): HTMLElement {
 describe("PageView system sections", () => {
   it("renders the two reference sections: eager counts ride the badges, Backlinks expanded (query on mount), Unlinked mentions collapsed (no query yet)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Zebra" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Zebra" });
     // One mention backlink (Backlinks count 1) and one literal mention
     // (Unlinked mentions count 1).
-    const linkedSource = await client.createObject({ presentAsMain: true, name: "Linked Source" });
+    const linkedSource = await client.createObject({ isEmbedded: false, name: "Linked Source" });
     await client.createObject({
       parentId: linkedSource,
       contentAst: [{ type: "mention", targetNodeId: pageId, text: "Zebra" }],
     });
-    const plainSource = await client.createObject({ presentAsMain: true, name: "Plain Source" });
+    const plainSource = await client.createObject({ isEmbedded: false, name: "Plain Source" });
     await client.createObject({
       parentId: plainSource,
       contentAst: [{ type: "text", text: "Zebra" }],
@@ -129,8 +129,8 @@ describe("PageView system sections", () => {
 
   it("zero backlinks: no Backlinks section at all — hide-when-empty is per-section; the Unlinked mentions section renders collapsed with its count", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Quiet Page" });
-    const plainSource = await client.createObject({ presentAsMain: true, name: "Plain Source" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Quiet Page" });
+    const plainSource = await client.createObject({ isEmbedded: false, name: "Plain Source" });
     await client.createObject({
       parentId: plainSource,
       contentAst: [{ type: "text", text: "Quiet Page" }],
@@ -153,7 +153,7 @@ describe("PageView system sections", () => {
 
   it("the reference sections AND Child pages hide on a page nobody references — hide-when-empty covers every system section (owner 2026-10-12)", async () => {
     const client = await seedClient();
-    const lonelyId = await client.createObject({ presentAsMain: true, name: "Xylophone QV" });
+    const lonelyId = await client.createObject({ isEmbedded: false, name: "Xylophone QV" });
 
     render(<PageView client={client} pageId={lonelyId} />);
     expect(screen.queryByRole("button", { name: /Backlinks/ })).toBeNull();
@@ -167,8 +167,8 @@ describe("PageView system sections", () => {
 
   it("a page's first backlink reveals the Backlinks section: the count gate re-reads on the write notification", async () => {
     const client = await seedClient();
-    const targetId = await client.createObject({ presentAsMain: true, name: "Stripped Target" });
-    const sourceId = await client.createObject({ presentAsMain: true, name: "Stripped Source" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Stripped Target" });
+    const sourceId = await client.createObject({ isEmbedded: false, name: "Stripped Source" });
     render(<PageView client={client} pageId={targetId} />);
     expect(screen.queryByRole("button", { name: /Backlinks/ })).toBeNull();
 
@@ -189,13 +189,13 @@ describe("PageView system sections", () => {
 
   it("Backlinks loads on mount; Unlinked mentions loads on its first expand and caches across a collapse/expand; mentions link, literal text does not", async () => {
     const client = await seedClient();
-    const targetId = await client.createObject({ presentAsMain: true, name: "Zebra" });
-    const linkedPageId = await client.createObject({ presentAsMain: true, name: "Linked Source" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Zebra" });
+    const linkedPageId = await client.createObject({ isEmbedded: false, name: "Linked Source" });
     await client.createObject({
       parentId: linkedPageId,
       contentAst: [{ type: "mention", targetNodeId: targetId, text: "Zebra" }],
     });
-    const plainPageId = await client.createObject({ presentAsMain: true, name: "Plain Source" });
+    const plainPageId = await client.createObject({ isEmbedded: false, name: "Plain Source" });
     await client.createObject({
       parentId: plainPageId,
       contentAst: [{ type: "text", text: "Zebra" }],
@@ -237,13 +237,13 @@ describe("PageView system sections", () => {
 
   it("promoting the only unlinked source retires the section (hide-when-empty) and grows Backlinks, which then lists the promoted source", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Zebra" });
-    const linkedSource = await client.createObject({ presentAsMain: true, name: "Linked Source" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Zebra" });
+    const linkedSource = await client.createObject({ isEmbedded: false, name: "Linked Source" });
     await client.createObject({
       parentId: linkedSource,
       contentAst: [{ type: "mention", targetNodeId: pageId, text: "Zebra" }],
     });
-    const plainSource = await client.createObject({ presentAsMain: true, name: "Plain Source" });
+    const plainSource = await client.createObject({ isEmbedded: false, name: "Plain Source" });
     const literalBlock = await client.createObject({
       parentId: plainSource,
       contentAst: [{ type: "text", text: "Zebra" }],
@@ -278,7 +278,7 @@ describe("PageView system sections", () => {
 
   it("blocks unlinked references for blocks (pages only)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Zebra" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Zebra" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "Zebra" }],
@@ -293,13 +293,13 @@ describe("PageView system sections", () => {
 
   it("renders child pages in their own section, never in the body block list", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Parent Page" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Parent Page" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "body block" }],
     });
     const childId = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       name: "Child Page",
       parentId: pageId,
     });
@@ -328,7 +328,7 @@ describe("PageView system sections", () => {
 
   it("a childless MAIN-surface page hides the Child pages section — the ruling covers the main surface too (owner 2026-10-12)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Lonely Parent" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Lonely Parent" });
 
     render(<PageView client={client} pageId={pageId} onOpenPage={() => {}} />);
 
@@ -338,7 +338,7 @@ describe("PageView system sections", () => {
 
     // Creating a child (the "…" menu / New button path) reveals the section:
     // the write notification re-runs the eager count.
-    await client.createObject({ presentAsMain: true, parentId: pageId, name: "First Kid" });
+    await client.createObject({ isEmbedded: false, parentId: pageId, name: "First Kid" });
     expect(await screen.findByRole("button", { name: /Child pages/ })).not.toBeNull();
     // (The row and the context column's Contents both name the kid.)
     expect((await screen.findAllByText("First Kid")).length).toBeGreaterThan(0);
@@ -346,7 +346,7 @@ describe("PageView system sections", () => {
 
   it("a childless EMBEDDED feed entry still hides the Child pages section — no create affordance on secondary surfaces", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Feed Entry" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Feed Entry" });
     const childSpy = vi.spyOn(client, "getChildPages");
 
     render(<PageView client={client} pageId={pageId} embedded />);
@@ -358,14 +358,14 @@ describe("PageView system sections", () => {
 
   it("creating a child page lists it immediately: the write notification re-runs the eager count and the expanded section's query", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Soon Parent" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Soon Parent" });
     // Seed one child so the section renders (childless hides it now).
-    await client.createObject({ presentAsMain: true, parentId: pageId, name: "Seed Kid" });
+    await client.createObject({ isEmbedded: false, parentId: pageId, name: "Seed Kid" });
     render(<PageView client={client} pageId={pageId} onOpenPage={() => {}} />);
 
     expect(screen.getByRole("button", { name: /Child pages/ })).not.toBeNull();
 
-    await client.createObject({ presentAsMain: true, parentId: pageId, name: "First Kid" });
+    await client.createObject({ isEmbedded: false, parentId: pageId, name: "First Kid" });
 
     // The count read re-runs on the write notification: the row appears.
     expect(await screen.findByText("First Kid")).not.toBeNull();
@@ -376,7 +376,7 @@ describe("PageView system sections", () => {
 
   it("a childless page without onOpenPage hides the section like any childless page — the ruling does not depend on a navigation target", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Quiet Parent" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Quiet Parent" });
     const childSpy = vi.spyOn(client, "getChildPages");
 
     render(<PageView client={client} pageId={pageId} />);
@@ -390,22 +390,22 @@ describe("PageView system sections", () => {
 
   it("the main-children zone lists present-as-main children of any node type (Revision 11)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Zone Parent" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Zone Parent" });
     // Two main children: one named like a classic page, one bare node
     // (no name/content at all) — the zone is render-state, not node kind.
     const namedChild = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       parentId: pageId,
       name: "Named Main Child",
     });
-    await client.createObject({ presentAsMain: true, parentId: pageId });
+    await client.createObject({ isEmbedded: false, parentId: pageId });
     // An inline body child and a grandchild main node: the former never
     // appears in the section, the latter only under its own parent.
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "inline body child" }],
     });
-    await client.createObject({ presentAsMain: true, parentId: namedChild, name: "Grandchild" });
+    await client.createObject({ isEmbedded: false, parentId: namedChild, name: "Grandchild" });
 
     const { container } = render(<PageView client={client} pageId={pageId} onOpenPage={() => {}} />);
 
@@ -426,8 +426,8 @@ describe("PageView system sections", () => {
 
   it("badges come from materialized counts", async () => {
     const client = await seedClient();
-    const targetId = await client.createObject({ presentAsMain: true, name: "Zebra" });
-    const sourcePageId = await client.createObject({ presentAsMain: true, name: "Source" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Zebra" });
+    const sourcePageId = await client.createObject({ isEmbedded: false, name: "Source" });
     await client.createObject({
       parentId: sourcePageId,
       contentAst: [{ type: "mention", targetNodeId: targetId, text: "Zebra" }],
@@ -453,9 +453,9 @@ describe("PageView system sections", () => {
 
   it("child-pages badge counts the page-typed children", async () => {
     const client = await seedClient();
-    const parentId = await client.createObject({ presentAsMain: true, name: "Parent" });
-    await client.createObject({ presentAsMain: true, name: "Kid One", parentId });
-    await client.createObject({ presentAsMain: true, name: "Kid Two", parentId });
+    const parentId = await client.createObject({ isEmbedded: false, name: "Parent" });
+    await client.createObject({ isEmbedded: false, name: "Kid One", parentId });
+    await client.createObject({ isEmbedded: false, name: "Kid Two", parentId });
 
     // Sanity: the stat the badge reads.
     expect(client.getChildPageCount(parentId)).toBe(2);
@@ -467,13 +467,13 @@ describe("PageView system sections", () => {
 
   it("own-subtree links are hidden from a page's linked references; other pages still see them (direct)", async () => {
     const client = await seedClient();
-    const franceId = await client.createObject({ presentAsMain: true, name: "France" });
-    const parisId = await client.createObject({ presentAsMain: true, name: "Paris" });
+    const franceId = await client.createObject({ isEmbedded: false, name: "France" });
+    const parisId = await client.createObject({ isEmbedded: false, name: "Paris" });
     // A block INSIDE France links Paris: an outward link — France lists it
     // by containment; Paris lists it as a direct backlink.
     const blockId = await client.createObject({
       parentId: franceId,
-      contentAst: [{ type: "mention", targetNodeId: parisId, text: "Paris" }],
+      contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: parisId, text: "Paris" }],
     });
 
     render(<PageView client={client} pageId={franceId} />);
@@ -487,12 +487,12 @@ describe("PageView system sections", () => {
     expect(client.getLinkedReferences(parisId).map((r) => r.containingPageName)).toEqual(["France"]);
 
     // A DIRECT mention of France makes the count appear (badge 1)…
-    const notesId = await client.createObject({ presentAsMain: true, name: "Notes" });
+    const notesId = await client.createObject({ isEmbedded: false, name: "Notes" });
     let notesBlockId = "";
     await act(async () => {
       notesBlockId = await client.createObject({
         parentId: notesId,
-        contentAst: [{ type: "mention", targetNodeId: franceId, text: "France" }],
+        contentAst: [{ type: "text", text: "see " }, { type: "mention", targetNodeId: franceId, text: "France" }],
       });
     });
 
@@ -521,8 +521,8 @@ describe("PageView system sections", () => {
     const clientA = await seedClient(relay);
     const clientB = await seedClient(relay);
 
-    const pageId = await clientA.createObject({ presentAsMain: true, name: "Zebra" });
-    const localSourceId = await clientA.createObject({ presentAsMain: true, name: "Local Source" });
+    const pageId = await clientA.createObject({ isEmbedded: false, name: "Zebra" });
+    const localSourceId = await clientA.createObject({ isEmbedded: false, name: "Local Source" });
     await clientA.createObject({
       parentId: localSourceId,
       contentAst: [{ type: "mention", targetNodeId: pageId, text: "Zebra" }],
@@ -541,7 +541,7 @@ describe("PageView system sections", () => {
 
     // A second client adds a backlink; the relay frame notifies client A
     // and the expanded section's query re-runs.
-    const remotePageId = await clientB.createObject({ presentAsMain: true, name: "Remote Source" });
+    const remotePageId = await clientB.createObject({ isEmbedded: false, name: "Remote Source" });
     await clientB.createObject({
       parentId: remotePageId,
       contentAst: [{ type: "mention", targetNodeId: pageId, text: "Zebra" }],
@@ -564,7 +564,7 @@ describe("crumb labels over class chips (issue #2)", () => {
     // resolved class display name — never "Untitled page".
     // Blocks carry rich content (pages flatten titles to text-only): the
     // parent block's content IS a bare class chip.
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const parentId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "class_link", classId }],
@@ -584,7 +584,7 @@ describe("crumb labels over class chips (issue #2)", () => {
   it("a chip carrying one-off displayText crumbs under that wording", async () => {
     const client = await seedClient();
     const classId = await client.createClass("source");
-    const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
     const parentId = await client.createObject({
       parentId: pageId,
       contentAst: [
@@ -607,7 +607,7 @@ describe("date pages: no Unlinked mentions", () => {
   /** A plain source page whose block literally names the day (an unlinked
    *  match — the day title appears as plain text, never a mention). */
   async function seedLiteralDateMention(client: WorkspaceClient, dayName: string): Promise<void> {
-    const plainSource = await client.createObject({ presentAsMain: true, name: "Plain Source" });
+    const plainSource = await client.createObject({ isEmbedded: false, name: "Plain Source" });
     await client.createObject({
       parentId: plainSource,
       contentAst: [{ type: "text", text: `busy on ${dayName}` }],
@@ -642,7 +642,7 @@ describe("date pages: no Unlinked mentions", () => {
     const { day } = await client.ensureDateChain("2026-06-15");
     const dayName = dayNameOf(client, day);
     await seedLiteralDateMention(client, dayName);
-    const linkedSource = await client.createObject({ presentAsMain: true, name: "Linked Source" });
+    const linkedSource = await client.createObject({ isEmbedded: false, name: "Linked Source" });
     await client.createObject({
       parentId: linkedSource,
       contentAst: [{ type: "mention", targetNodeId: day, text: dayName }],
@@ -659,8 +659,8 @@ describe("date pages: no Unlinked mentions", () => {
 
   it("an ordinary page keeps the Unlinked mentions section (the ruling is date-family only)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Zebra" });
-    const plainSource = await client.createObject({ presentAsMain: true, name: "Plain Source" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Zebra" });
+    const plainSource = await client.createObject({ isEmbedded: false, name: "Plain Source" });
     await client.createObject({
       parentId: plainSource,
       contentAst: [{ type: "text", text: "Zebra" }],

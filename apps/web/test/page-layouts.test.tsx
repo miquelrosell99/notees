@@ -100,7 +100,7 @@ describe("L1 view-mode persistence (deviceSettings)", () => {
 
   it("the page's blocks triad persists device-locally; a fresh page starts at outline", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Persisted Modes" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Persisted Modes" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "body" }],
@@ -119,7 +119,7 @@ describe("L1 view-mode persistence (deviceSettings)", () => {
     expect(document.querySelector(".nt-block-tree")!.classList.contains("nt-prose")).toBe(true);
 
     // …and a different page is unaffected (per-page keys).
-    const otherId = await client.createObject({ presentAsMain: true, name: "Other Page" });
+    const otherId = await client.createObject({ isEmbedded: false, name: "Other Page" });
     await client.createObject({ parentId: otherId, contentAst: [{ type: "text", text: "x" }] });
     cleanup();
     const second = render(<PageView client={client} pageId={otherId} />);
@@ -130,7 +130,7 @@ describe("L1 view-mode persistence (deviceSettings)", () => {
   it("hub modes persist per hub and fall back when the offered modes shrink", async () => {
     const client = await seedClient();
     await ensureTaskFamily(client);
-    const host = await client.createObject({ presentAsMain: true, name: "Host" });
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
     const asset = await client.createObject({
       parentId: host,
       contentAst: [{ type: "text", text: "file.pdf" }],
@@ -148,7 +148,7 @@ describe("L1 view-mode persistence (deviceSettings)", () => {
 
     // The tasks hub has its own key — table default intact (one member so
     // the hub renders its table rather than the empty state).
-    const task = await client.createObject({ presentAsMain: true, name: "Solo Task" });
+    const task = await client.createObject({ isEmbedded: false, name: "Solo Task" });
     await client.assignClass(task, SYSTEM_CLASS_UUIDS.task);
     const third = render(<HubView client={client} nav="tasks" onOpenNode={() => {}} />);
     expect(screen.getByRole("table")).not.toBeNull();
@@ -157,7 +157,7 @@ describe("L1 view-mode persistence (deviceSettings)", () => {
 
   it("the card cover layout persists per device across views", async () => {
     const client = await seedClient();
-    const host = await client.createObject({ presentAsMain: true, name: "Host" });
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
     const asset = await client.createObject({
       parentId: host,
       contentAst: [{ type: "text", text: "photo.png" }],
@@ -191,13 +191,13 @@ describe("L2 page banner", () => {
     if (client.getNode(SYSTEM_CLASS_UUIDS.asset) === undefined) {
       await client.createClass("asset", { id: SYSTEM_CLASS_UUIDS.asset, icon: "mdiPaperclip" });
     }
-    const host = await client.createObject({ presentAsMain: true, name: "Assets" });
+    const host = await client.createObject({ isEmbedded: false, name: "Assets" });
     const asset = await client.createObject({
       parentId: host,
       contentAst: [{ type: "text", text: "cover.png" }],
     });
     await client.assignClass(asset, SYSTEM_CLASS_UUIDS.asset);
-    const pageId = await client.createObject({ presentAsMain: true, name: "Covered" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Covered" });
     await client.assignClass(pageId, SYSTEM_CLASS_UUIDS.source);
     await client.updateObject(pageId, { coverAssetId: asset });
     return pageId;
@@ -207,7 +207,7 @@ describe("L2 page banner", () => {
     const client = await seedClient();
     vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,BBBB");
     const coveredId = await seedCoveredPage(client);
-    const plainId = await client.createObject({ presentAsMain: true, name: "Plain Page" });
+    const plainId = await client.createObject({ isEmbedded: false, name: "Plain Page" });
 
     const { container, unmount } = render(<PageView client={client} pageId={coveredId} />);
     // A set cover auto-expands the card; the image rides inside.
@@ -308,7 +308,7 @@ describe("L3 TOC derivation (sidebarToc — heading tokens only, owner 2026-10-1
 
   it("entries list heading blocks in child order, nested one level under heading ancestry; plain blocks pass their level through", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Doc" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Doc" });
     // A plain sentence block is NOT an entry (the old heuristic is retired).
     await client.createObject({
       parentId: pageId,
@@ -332,7 +332,7 @@ describe("L3 TOC derivation (sidebarToc — heading tokens only, owner 2026-10-1
       contentAst: [{ type: "heading", children: [{ type: "text", text: "Early work" }] }],
     });
     // A sub-page is NOT an entry either — headings alone.
-    await client.createObject({ parentId: pageId, presentAsMain: true, name: "Sub Page" });
+    await client.createObject({ parentId: pageId, isEmbedded: false, name: "Sub Page" });
     await client.createObject({
       parentId: pageId,
       contentAst: [
@@ -350,7 +350,7 @@ describe("L3 TOC derivation (sidebarToc — heading tokens only, owner 2026-10-1
 
   it("TocSection hides with no heading blocks; standard section chrome; clicking an entry jumps to the block", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Doc" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Doc" });
 
     const empty = render(
       <TocSection client={client} pageId={pageId} onJumpToBlock={() => {}} />,
@@ -382,7 +382,7 @@ describe("L3 TOC derivation (sidebarToc — heading tokens only, owner 2026-10-1
 describe("L4 page footer", () => {
   it("counts words over the title + block tree and links Created/Updated to day pages", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Footer Doc" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Footer Doc" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "one two three" }],
@@ -417,7 +417,7 @@ describe("L4 page footer", () => {
 
   it("skips the footer in embedded feed entries", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Feed Entry" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Feed Entry" });
     await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "body words" }],
@@ -432,8 +432,8 @@ describe("L4 page footer", () => {
 describe("L4 breadcrumb edit gestures", () => {
   it("a parentless page offers '+ Add parent'; the pick writes object.move", async () => {
     const client = await seedClient();
-    const parent = await client.createObject({ presentAsMain: true, name: "Parent Page" });
-    const child = await client.createObject({ presentAsMain: true, name: "Child Page" });
+    const parent = await client.createObject({ isEmbedded: false, name: "Parent Page" });
+    const child = await client.createObject({ isEmbedded: false, name: "Child Page" });
 
     render(
       <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} editable />,
@@ -453,10 +453,10 @@ describe("L4 breadcrumb edit gestures", () => {
 
   it("the parent crumb's menu removes it (the child detaches to the root)", async () => {
     const client = await seedClient();
-    const parent = await client.createObject({ presentAsMain: true, name: "Parent Page" });
+    const parent = await client.createObject({ isEmbedded: false, name: "Parent Page" });
     const child = await client.createObject({
       parentId: parent,
-      presentAsMain: true,
+      isEmbedded: false,
       name: "Child Page",
     });
 
@@ -474,10 +474,10 @@ describe("L4 breadcrumb edit gestures", () => {
   it("crumbs keep the capped display name for a >80-char title (dense chrome budget)", async () => {
     const client = await seedClient();
     const longTitle = "Crumb ".repeat(20).trimEnd(); // 119 chars — beyond the display-name budget
-    const parent = await client.createObject({ presentAsMain: true, name: longTitle });
+    const parent = await client.createObject({ isEmbedded: false, name: longTitle });
     const child = await client.createObject({
       parentId: parent,
-      presentAsMain: true,
+      isEmbedded: false,
       name: "Child Page",
     });
 
@@ -495,11 +495,11 @@ describe("L4 breadcrumb edit gestures", () => {
 
   it("reassign parent (from the parent crumb) moves the child under the picked page", async () => {
     const client = await seedClient();
-    const firstParent = await client.createObject({ presentAsMain: true, name: "First" });
-    const secondParent = await client.createObject({ presentAsMain: true, name: "Second" });
+    const firstParent = await client.createObject({ isEmbedded: false, name: "First" });
+    const secondParent = await client.createObject({ isEmbedded: false, name: "Second" });
     const child = await client.createObject({
       parentId: firstParent,
-      presentAsMain: true,
+      isEmbedded: false,
       name: "Child Page",
     });
 
@@ -522,10 +522,10 @@ describe("L4 breadcrumb edit gestures", () => {
 
   it("owner rule: the trail is ancestors only — no self crumb; the parent crumb carries the edit", async () => {
     const client = await seedClient();
-    const parent = await client.createObject({ presentAsMain: true, name: "Parent Page" });
+    const parent = await client.createObject({ isEmbedded: false, name: "Parent Page" });
     const child = await client.createObject({
       parentId: parent,
-      presentAsMain: true,
+      isEmbedded: false,
       name: "Child Page",
     });
 
@@ -547,10 +547,10 @@ describe("L4 breadcrumb edit gestures", () => {
 
   it("nav-only by default: no edit affordances without the editable prop", async () => {
     const client = await seedClient();
-    const parent = await client.createObject({ presentAsMain: true, name: "Parent Page" });
+    const parent = await client.createObject({ isEmbedded: false, name: "Parent Page" });
     const child = await client.createObject({
       parentId: parent,
-      presentAsMain: true,
+      isEmbedded: false,
       name: "Child Page",
     });
     render(<Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} />);
@@ -562,7 +562,7 @@ describe("L4 breadcrumb edit gestures", () => {
 
   it("owner rule: a parentless page hides its own crumb — only '+ Add parent' renders", async () => {
     const client = await seedClient();
-    const page = await client.createObject({ presentAsMain: true, name: "Lonely Page" });
+    const page = await client.createObject({ isEmbedded: false, name: "Lonely Page" });
 
     const { container } = render(
       <Breadcrumbs client={client} nodeId={page} onOpenNode={() => {}} editable />,
@@ -607,8 +607,8 @@ describe("L4 breadcrumb edit gestures", () => {
     expect(screen.queryByRole("button", { name: "Add parent" })).toBeNull();
     // Sanity: an ordinary page under an ordinary page still shows the
     // affordance in the same render session (the lock keys on the date id).
-    const parent = await client.createObject({ presentAsMain: true, name: "Ordinary Parent" });
-    const child = await client.createObject({ parentId: parent, presentAsMain: true, name: "Ordinary Child" });
+    const parent = await client.createObject({ isEmbedded: false, name: "Ordinary Parent" });
+    const child = await client.createObject({ parentId: parent, isEmbedded: false, name: "Ordinary Child" });
     const second = render(
       <Breadcrumbs client={client} nodeId={child} onOpenNode={() => {}} editable />,
     );
@@ -623,8 +623,8 @@ describe("L4 breadcrumb edit gestures", () => {
 describe("L4 unlinked mentions promote/ignore", () => {
   it("promote rewrites the literal match into a mention (the source becomes linked)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Zebra" });
-    const sourceId = await client.createObject({ presentAsMain: true, name: "Plain Source" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Zebra" });
+    const sourceId = await client.createObject({ isEmbedded: false, name: "Plain Source" });
     const blockId = await client.createObject({
       parentId: sourceId,
       contentAst: [{ type: "text", text: "the Zebra runs" }],
@@ -651,8 +651,8 @@ describe("L4 unlinked mentions promote/ignore", () => {
 
   it("ignore dismisses the source device-locally; the dismissed list persists", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Zebra" });
-    const sourceId = await client.createObject({ presentAsMain: true, name: "Plain Source" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Zebra" });
+    const sourceId = await client.createObject({ isEmbedded: false, name: "Plain Source" });
     // The unlinked row's source is the matching BLOCK itself.
     const blockId = await client.createObject({
       parentId: sourceId,
