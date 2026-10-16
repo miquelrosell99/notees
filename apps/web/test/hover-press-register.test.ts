@@ -1,10 +1,13 @@
 /**
- * The drift-sweep alignment slice (2026-10-16) — CSS-source pins for the
- * hover/press/hit-area register, the §7 list-row register, and the §8
+ * The drift-sweep alignment slices (2026-10-16) — CSS-source pins for the
+ * hover/press/hit-area register, the §7 list-row register, the §8
  * range-syntax media queries across the palette, the hub rows, the settings
- * accents, and the two JS matchMedia call sites. jsdom applies no layout —
- * the contracts are asserted at the source level (the css-token-drift
- * pattern). The hover ruling (design-overrides.md): hover is the
+ * accents, and the two JS matchMedia call sites, plus the final six-note
+ * closure (token literals, the badge radius, the control-width family, the
+ * journals hover register, the calendar grid arity, the empty states
+ * composing the kit EmptyState). jsdom applies no layout — the contracts
+ * are asserted at the source level (the css-token-drift pattern). The hover
+ * register is FLEET-STANDARD (foundations.md §4): hover is the
  * hover-overlay everywhere; primary-container is selected/active only, and
  * already-active controls keep their active fill while hovered (combined
  * `--active, --active:hover` rules).
@@ -129,8 +132,13 @@ describe("custom buttons carry the pressed layer (skill §6 tactile press)", () 
     expect(pressed![0]).toContain("background: var(--md-sys-color-pressed-overlay)");
   });
 
-  it("the journals empty-state CTA presses with the primary-pressed register (a filled primary button)", () => {
-    const pressed = /\.journals-empty__action:active \{[^}]*\}/.exec(journalsCss);
+  it("the journals empty state composes the kit EmptyState — the CTA register lives in Button.css", () => {
+    // The hand-rolled .journals-empty__action retired with the composition;
+    // the CTA is the kit primary Button, whose pressed register is pinned
+    // here as the single source of truth.
+    expect(journalsCss).not.toMatch(/\.journals-empty__action/);
+    const buttonCss = readCss("components", "ui", "Button.css");
+    const pressed = /\.btn--primary:active:not\(:disabled\) \{[^}]*\}/.exec(buttonCss);
     expect(pressed).not.toBeNull();
     expect(pressed![0]).toContain("background: var(--md-sys-color-primary-pressed)");
   });
@@ -198,5 +206,64 @@ describe("token citations", () => {
     expect(title).not.toBeNull();
     expect(title![0]).toContain("letter-spacing: var(--letter-spacing-section)");
     expect(title![0]).not.toContain("letter-spacing: 0.08em");
+  });
+});
+
+describe("the final sweep notes close (2026-10-16)", () => {
+  const monthCalendarCss = readCss("components", "ui", "calendar", "MonthCalendar.css");
+  const journalsSrc = readCss("components", "JournalsView.tsx");
+  const trashSrc = readCss("components", "TrashHub.tsx");
+
+  it("the palette row gap cites the micro spacing token (no magic literal)", () => {
+    const item = /\.nt-palette-item \{[^}]*\}/.exec(paletteCss);
+    expect(item).not.toBeNull();
+    expect(item![0]).toContain("gap: var(--spacing-micro)");
+  });
+
+  it("the month/year picker grids keep their deliberate fixed arity", () => {
+    const months = /\.month-calendar__grid--months \{[^}]*\}/.exec(monthCalendarCss);
+    const years = /\.month-calendar__grid--years \{[^}]*\}/.exec(monthCalendarCss);
+    expect(months).not.toBeNull();
+    expect(months![0]).toContain("repeat(4, 1fr)");
+    expect(years).not.toBeNull();
+    expect(years![0]).toContain("repeat(3, 1fr)");
+  });
+
+  it("the journals page-title link hovers with the overlay, never accent ink", () => {
+    const hover = /\.nt-page-title-link:hover \{[^}]*\}/.exec(journalsCss);
+    expect(hover).not.toBeNull();
+    expect(hover![0]).toContain("background: var(--md-sys-color-hover-overlay)");
+    expect(hover![0]).not.toContain("color:");
+    // The overlay sits on the base rule's small radius.
+    const base = /\.nt-page-title-link \{[^}]*\}/.exec(journalsCss);
+    expect(base).not.toBeNull();
+    expect(base![0]).toContain("border-radius: var(--shape-small)");
+  });
+
+  it("the settings badge rides the §7 tag/badge radius tier (the kit Badge's --shape-large)", () => {
+    const badge = /\.settings-badge \{[^}]*\}/.exec(settingsModalCss);
+    expect(badge).not.toBeNull();
+    expect(badge![0]).toContain("border-radius: var(--shape-large)");
+    expect(badge![0]).not.toContain("--shape-full");
+  });
+
+  it("the retention-days input width rides the layout-size family, not the spacing scale", () => {
+    const input = /\.retention-days-input \{[^}]*\}/.exec(settingsModalCss);
+    expect(input).not.toBeNull();
+    expect(input![0]).toContain("width: var(--layout-size-2xs)");
+    expect(input![0]).not.toContain("--spacing-16");
+  });
+
+  it("journals and trash compose the kit EmptyState — the local empty CSS is dead", () => {
+    // Journals: the EmptyState carries the sentence-as-title + the CTA;
+    // the local stylesheet keeps only the flex-1 feed anchor.
+    expect(journalsSrc).toContain('from "./ui/EmptyState.js"');
+    expect(journalsSrc).toContain("Open today");
+    expect(/\.journals-empty \{\s*flex: 1;\s*\}/.test(journalsCss)).toBe(true);
+    // Trash: the icon/title/description map onto the kit; the hand-rolled
+    // empty block and its styles are gone.
+    expect(trashSrc).toContain('from "./ui/EmptyState.js"');
+    expect(trashSrc).toContain("Trash is empty.");
+    expect(trashCss).not.toMatch(/nt-trash-hub__empty/);
   });
 });

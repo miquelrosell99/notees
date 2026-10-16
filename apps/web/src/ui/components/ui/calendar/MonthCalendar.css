@@ -59,6 +59,11 @@
   gap: var(--spacing-micro);
 }
 
+/* The 12-cell grids keep a FIXED arity: the panel is a fixed-width side
+   column and 4×3 / 3×4 is the reading of the year picker — the column
+   count derives from the content (12 months, a 3×4 year window), not the
+   viewport, so the adaptive-columns idiom does not apply here (skill §5:
+   fixed values only where genuinely constant). */
 .month-calendar__grid--months {
   grid-template-columns: repeat(4, 1fr);
 }
