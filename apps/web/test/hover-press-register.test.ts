@@ -69,7 +69,7 @@ describe("command palette rows: the cursor is a genuine active state", () => {
   });
 });
 
-describe("compact hub actions reach the 44px floor and press", () => {
+describe("compact hub actions reach the 48px floor and press", () => {
   it("the comments Reply/Delete actions: invisible overlay + pressed layer", () => {
     expectHitAreaOverlay(commentsCss, ".nt-comments__action");
     const pressed = /\.nt-comments__action:active \{[^}]*\}/.exec(commentsCss);
