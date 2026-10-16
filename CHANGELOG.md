@@ -9,6 +9,29 @@ predating this file.
 
 ## 2026-10-16
 
+- **fix(web): the Convert to page link block inherits the block's exact
+  sort slot, and the extract rows say a link block is left in place
+  (owner feedback 2026-10-16: "the new created block is moved to be the
+  last sibling… no info tooltip that a node link will be placed").** The
+  extraction anchored the link block via a SIBLING lookup (afterId the
+  previous sibling) — a stale cached children read could miss the block or
+  mis-order siblings, and the no-anchor fallback appended the link as the
+  last sibling. Now the create carries `beforeId` THE BLOCK ITSELF: the
+  applier's beforeId midpoint lands the link immediately ahead of the
+  source on every position (first, middle, last, only child), and the
+  source's departure completes the hand-off — the anchor node is always
+  present in the store, so the stale-read failure mode is gone. The sibling
+  read and its anchor branches retire; the composition reads only the
+  block's children now. Menu clarity: ContextMenu items grow an optional
+  `description` (a muted second line under the label), and both extract
+  rows carry one — "A link block takes its place; the children stay nested
+  under the link." / "…the children move with the new page." — the
+  link-block placement is stated in the menu, not just the docs. Docs:
+  `packages/protocol/SCHEMA.md` extraction leg 1. **Verification:** `pnpm
+  typecheck` + `pnpm test` green (composition asserts pin `beforeId` the
+  source; NEW real-store integration specs assert the slot for middle,
+  first, last, and only-child extractions plus the children-stay reparent
+  order; menu specs pin both description lines); web-only — no wire touch.
 - **perf(store): the v20 bulk-replay read indexes — `node(aliased_node_id)`
   and `node_child_order(child_id)` (owner follow-up 2026-10-16: "index
   whatever is needed so these problems don't happen in the future").**

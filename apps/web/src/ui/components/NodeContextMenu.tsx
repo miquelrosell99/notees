@@ -399,12 +399,14 @@ export function NodeContextMenu({
         {
           id: "extract-children-stay",
           label: "Extract to root — children stay here",
+          description: "A link block takes its place; the children stay nested under the link.",
           icon: "mdi-file-document-outline",
           onClick: () => extract(false),
         },
         {
           id: "extract-children-follow",
           label: "Extract to root — children follow",
+          description: "A link block takes its place; the children move with the new page.",
           icon: "mdi-file-document-multiple-outline",
           onClick: () => extract(true),
         },
