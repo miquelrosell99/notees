@@ -154,6 +154,7 @@ describe("NodeContextMenu zone gestures (Move to Pages / Move to content)", () =
         getEffectiveProperties: () => [],
         createObject: async () => "unused",
         setProperty: async () => {},
+        moveObject: async () => {},
       },
     };
   }

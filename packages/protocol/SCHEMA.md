@@ -180,6 +180,16 @@ The normative semantics (the TS reference planner is `packages/store` `planMerge
 
 **Guards fail loud BEFORE anything reaches the log** (`MergeGuardError` / 422 `validation_failed`): either node missing or trashed, either node a class, source === target, the target inside the source's subtree (trashing the source would trash the target), or the source a non-empty collection (membership remap into an arbitrary node is out of scope). A merge is a deliberate, previewable gesture: the plan's numeric summary (children moved, bindings/properties/links/aliases/collections remapped, properties skipped) is the `--dry-run` / dialog contract.
 
+## Block → page extraction (NORMATIVE, owner 2026-10-16)
+
+**Extraction converts an inline block into a root page in place — a client-composed gesture of EXISTING op types, deliberately no new op** (the Node merge precedent). One `object.create` (a link block whose whole content is a single `mention` of the extracted node) + `object.move` of the node to the workspace root (identity and content preserved — unlike the `presentAsMain` promotion, an extraction does NOT stringify; the mention's captured `text` is the node's display name at gesture time, non-authoritative) + one `object.move` per reparented child.
+
+1. **The link block takes the block's exact slot** — created under the old parent with the m2 carriers: `afterId` the previous sibling when there is one, else `beforeId` the next sibling, else a bare append (the block was the only child).
+2. **The block moves to the workspace root** (`parentId: null`) — a parentless non-class node renders with document chrome per the render-state model.
+3. **Children** — by default they STAY in the original page: each active child moves onto the link block in the store's child order (sequential `object.move` with `afterId` chaining, the merge children leg). The **Shift/Ctrl/Cmd-click variant carries the children over to the extracted page instead** — then legs 1–2 alone land (the link block simply replaces the block; the children never move).
+
+Guards fail loud client-side before anything reaches the log: the node must be an inline block (`rendersAsInlineBlock` — a page or class converts nothing) and not a date-chain node (parent-locked, "Datetime" — a root move would fail at the applier's `MoveGuardError` anyway). The web gesture is `extractBlockToPage` (`apps/web/src/core/extractToPage.ts`); the wire stays untouched, so every client converges by replay with zero applier changes.
+
 ## Select options: colors + icons (NORMATIVE, PG16 colors owner 2026-10-04; icons 2026-10-05)
 
 A select/multi_select option record is `{ id, label }` plus an **optional `color`** — a preset token or a custom `#RRGGBB` hex; absent/null = no color (additive JSON inside the existing options array — no op-shape change). Clients render the color on the selection pill (themed background, contrast-appropriate foreground — the class-pill convention) and expose a per-option color control in the schema settings; the settings/settings-freeze contract is unchanged (options replace wholesale on `propertySchema.update`, colors included).

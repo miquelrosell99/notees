@@ -198,6 +198,7 @@ describe("NodeContextMenu Share… item", () => {
     getEffectiveProperties: () => [],
     createObject: async () => "unused",
     setProperty: async () => {},
+    moveObject: async () => {},
   };
 
   it("offers Share… for a page when a share target is wired, and fires onShare", () => {
