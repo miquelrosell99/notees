@@ -78,7 +78,8 @@ Structure & surfaces: `Card`, `Tabs`, `Modal`, `ImageModal`,
 for a native action list (the node menu's Copy › / Convert to page ›): the
 submenu FLIES OUT to the side of the parent row as a second card — never
 expands inline, which used to grow the menu's box and re-fit it on open —
-overlapping the menu edge by a hair as a hover bridge, aligned to the
+riding flush against the menu edge (no overlap — enter-only hover needs
+  no bridge), aligned to the
 parent row's top, flipping left at the viewport edge, clamped vertically;
 subitems fire their own onClick, then close the whole menu unless
 `keepOpen`, and stay out of the arrow-key walk; the panel opens on hover
