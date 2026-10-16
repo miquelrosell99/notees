@@ -9,6 +9,29 @@ predating this file.
 
 ## 2026-10-16
 
+- **perf(store): the v20 bulk-replay read indexes — `node(aliased_node_id)`
+  and `node_child_order(child_id)` (owner follow-up 2026-10-16: "index
+  whatever is needed so these problems don't happen in the future").**
+  The parent-page migration dry-run profiled two full-table scans that made
+  a 50k-op log-tail replay ~20× slower than live-paced application: every
+  `reresolveEdgeTargets` alias-closure walk scanned `node` for want of an
+  `aliased_node_id` index, and the child-order-by-child cleanup scanned
+  `node_child_order`. Both are invisible one-op-at-a-time on the live server
+  (a few milliseconds per user gesture) and dominant at bulk-replay scale —
+  exactly the shape the v15 list-reads index fixed for render bursts. The
+  indexes ship as schema v20 (the LIST_READS/RESOLVED_TARGET precedent:
+  constants outside the canonical DDL — pre-v16 tables lack the alias
+  column — plus a version-gated ladder step and an explicit re-assert on the
+  snapshot-repair path), so every existing derived DB self-heals at next
+  open, restored snapshots migrate inside `Store.restore`, and the browser
+  worker's OPFS DBs gain them on next boot. `scripts/migrate-main-parent-page.mts`
+  drops its migration-local helper indexes (its scratch stores are v20
+  now). Semantics are untouched — pure derived-state acceleration, so no
+  fixture gate (no op/wire change); the GTK/Flutter ports may add the same
+  indexes in their own derived stores whenever convenient. **Verification:**
+  `pnpm typecheck` + `pnpm test` green (new pinning tests: fresh stores
+  carry both indexes at v20; a v19-stamped store migrates and gains them —
+  both adapters).
 - **docs(design): the 100%-alignment program opens — sidebar, top bar, and
   canvas chrome are the documented exceptions; everything else is in scope
   (owner ruling 2026-10-16).** The owner directed the app to 100% alignment
