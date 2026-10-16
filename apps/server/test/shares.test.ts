@@ -36,7 +36,7 @@ async function createNode(
 
 function pageBody(title: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    presentAsMain: true,
+    isEmbedded: false,
     contentAst: [{ type: "text", text: title }],
     ...extra,
   };
@@ -227,7 +227,7 @@ describe("the public share view", () => {
     const page = await createNode(pageBody("Quarterly <plan>"));
     await createNode({
       parentId: page.id,
-      presentAsMain: false,
+      isEmbedded: true,
       contentAst: [
         { type: "text", text: "Ship the " },
         { type: "text", text: "shares", marks: ["bold"] },
@@ -236,7 +236,7 @@ describe("the public share view", () => {
     });
     await createNode({
       parentId: page.id,
-      presentAsMain: false,
+      isEmbedded: true,
       contentAst: [{ type: "text", text: "Nested child" }],
     });
 

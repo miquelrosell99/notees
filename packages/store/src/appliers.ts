@@ -2,8 +2,8 @@
  * Envelope appliers: derive semantic state from the op registry
  * (`@notees/protocol` op-types.ts). Semantics ported from
  * `app/core/derived/{node,edge,property,class,class_hierarchy,child_order,asset}.py`,
- * adapted to the current model: the Revision-11 render-state model (is_class /
- * present_as_main) instead of kind/node_type, no relation.* ops (associations
+ * adapted to the current model: the Revision-12 embedding model (is_class /
+ * is_embedded) instead of kind/node_type, no relation.* ops (associations
  * are typed-link marks and node-typed property values projecting into the
  * edge index), OR-Set class membership, m2m class extends (replace
  * semantics).
@@ -160,19 +160,19 @@ function requireNode(db: StoreDatabase, nodeId: string, opType: string) {
 }
 
 /** The render facts isPageRow needs off a node row. */
-type RenderRow = { is_class: unknown; parent_id: unknown; present_as_main: unknown };
+type RenderRow = { is_class: unknown; parent_id: unknown; is_embedded: unknown };
 
 /** True when the row renders with document chrome under the recursive
  *  parent-page rule (owner ruling 2026-10-15): a class never does
- *  (ClassView), a parentless non-class row always does (the bit is unread),
- *  and a parented row does exactly when present_as_main = 1 AND its parent
- *  renders with document chrome. Walks the parent chain — cycles are
- *  impossible (subtree moves are guarded); a missing parent row is a
- *  defensive "not a page". */
+ *  (ClassView), a parentless non-class row always does (the flag is unread),
+ *  and a parented row does exactly when is_embedded = 0 (the standalone
+ *  claim) AND its parent renders with document chrome. Walks the parent
+ *  chain — cycles are impossible (subtree moves are guarded); a missing
+ *  parent row is a defensive "not a page". */
 function isPageRow(db: StoreDatabase, row: RenderRow): boolean {
   if (row.is_class === 1) return false;
   if (row.parent_id === null || row.parent_id === undefined) return true;
-  if (row.present_as_main !== 1) return false;
+  if (row.is_embedded !== 0) return false;
   const parent = getNodeRow(db, row.parent_id as string);
   if (!parent) return false;
   return isPageRow(db, parent as unknown as RenderRow);
@@ -372,16 +372,18 @@ function applyObjectCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "object.create";
   const p = env.payload as OpPayload<"object.create">;
   const parentId = p.parentId ?? null;
-  // Render bit (Revision 11): the payload may carry presentAsMain; the
-  // applier defaults it by context — a parentless node presents as main
-  // (document chrome by the second cascade branch), a parented one starts
-  // inline (block chrome; the "hide from body" gloss is the 0→1 toggle).
-  const presentAsMain = p.presentAsMain === undefined ? (parentId === null ? 1 : 0) : p.presentAsMain ? 1 : 0;
+  // Embedding flag (Revision 12): the payload may carry isEmbedded; the
+  // applier defaults it by context — embedded is the default for a parented
+  // node (its content belongs to the parent's body, block chrome), a
+  // parentless one is standalone (document chrome by the second cascade
+  // branch; the flag is stored but unread). Demotion/promotion is the
+  // 1→0 / 0→1 toggle.
+  const isEmbedded = p.isEmbedded === undefined ? (parentId === null ? 0 : 1) : p.isEmbedded ? 1 : 0;
   // Content-asserted membership (the no-divergence law, owner ruling
-  // 2026-10-15): an inline block keeps the rich stream, so its class_link
+  // 2026-10-15): an embedded block keeps the rich stream, so its class_link
   // tokens class the node; a document-chrome node's content flattens to
   // text-only below (by construction — nothing to assert there).
-  const linkClassIds = presentAsMain === 1 ? [] : contentClassLinkIds(p.contentAst);
+  const linkClassIds = isEmbedded === 0 ? [] : contentClassLinkIds(p.contentAst);
   // Date-chain class lock (SCHEMA.md "Datetime"): a date node's class set is
   // FIXED to its precision's system class. The re-issued object.create is
   // the OR-Set add carrier (class.assign rides it, also on an existing id),
@@ -400,10 +402,10 @@ function applyObjectCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
   }
   const ts = env.timestamp;
   // Content flatten invariant (SCHEMA.md): document-chrome nodes (is_class
-  // or present_as_main) carry text-only content; an inline block keeps the
+  // or is_embedded = 0) carry text-only content; an embedded block keeps the
   // full rich token stream.
   const content = JSON.stringify(
-    presentAsMain === 1 ? stringifyContentAst(p.contentAst as never) : (p.contentAst ?? []),
+    isEmbedded === 0 ? stringifyContentAst(p.contentAst as never) : (p.contentAst ?? []),
   );
 
   // Seed OR-Set membership from the payload's classIds (add-wins per pair,
@@ -466,13 +468,15 @@ const tagMemberUpsert = db.prepare(
     // Classes are containers (spec I4): a class parent is legal for
     // non-class children — which is all object.create can make (is_class
     // stays 0; class declaration remains the class.create op).
-    // Parent-page condition (owner ruling 2026-10-15): the render bit is
-    // only effective under a page parent — claiming it under a class or a
-    // block parent establishes an illegal parented state and fails loud.
-    if (presentAsMain === 1 && !isPageRow(db, parent as unknown as RenderRow)) {
+    // Parent-page condition (owner ruling 2026-10-15): the standalone role
+    // is only effective under a page parent — claiming it under a class or
+    // a block parent establishes an illegal parented state and fails loud.
+    // (A parented default is embedded = 1, so isEmbedded === 0 here is
+    // always an explicit claim.)
+    if (isEmbedded === 0 && !isPageRow(db, parent as unknown as RenderRow)) {
       throw new MoveGuardError(
-        `${opType}: present_as_main requires the parent to render with document chrome ` +
-          `(parent ${parentId} is a class or an inline block)`,
+        `${opType}: is_embedded = 0 (standalone) requires the parent to render with document chrome ` +
+          `(parent ${parentId} is a class or an embedded block)`,
         opType,
       );
     }
@@ -497,14 +501,14 @@ const tagMemberUpsert = db.prepare(
   try {
     db.prepare(
       `INSERT INTO node (
-         id, workspace_id, is_class, present_as_main, parent_id, class_ids, name, content, icon, color,
+         id, workspace_id, is_class, is_embedded, parent_id, class_ids, name, content, icon, color,
          is_active, created_at, updated_at, created_by, updated_by,
          hlc_physical, hlc_logical, actor_id
        ) VALUES (?, ?, 0, ?, ?, '[]', NULL, ?, NULL, NULL, 1, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       p.objectId,
       env.workspaceId,
-      presentAsMain,
+      isEmbedded,
       parentId,
       content,
       ts,
@@ -626,7 +630,7 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
   const p = env.payload as OpPayload<"object.update">;
   const row = requireNode(db, p.objectId, opType) as unknown as Parameters<typeof rowWinner>[0] & {
     is_class: number;
-    present_as_main: number;
+    is_embedded: number;
     parent_id: string | null;
     content: string;
   };
@@ -646,44 +650,45 @@ function applyObjectUpdate(db: StoreDatabase, env: Envelope): ChangeSummary {
 
   const sets: string[] = [];
   const values: unknown[] = [];
-  // Promotion/demotion (Revision 11) is the presentAsMain toggle: the bit
-  // joins the row-level LWW set; a 0 -> 1 flip (promotion) stringifies the
-  // rich token stream to text-only in the same op (the lossy boundary the
-  // UI warns about), while a 1 -> 0 demotion leaves the content untouched —
-  // demotion never un-flattens. On a class row the bit is inert (classes
-  // render ClassView regardless); applying it harmlessly keeps the op
-  // uniform.
-  // Parent-page condition (owner ruling 2026-10-15): the bit is only
-  // effective under a page parent. Promotion fails loud when the parent is
-  // a class or an inline block; demotion of a parented page fails loud
-  // while it still carries present_as_main = 1 children (they would dangle
-  // under a non-page parent — demote or move them first).
-  if (p.presentAsMain !== undefined) {
-    if (p.presentAsMain && row.parent_id !== null) {
+  // Promotion/demotion (Revision 12) is the isEmbedded toggle: the flag
+  // joins the row-level LWW set; a 1 -> 0 flip (promotion to standalone /
+  // the Page role) stringifies the rich token stream to text-only in the
+  // same op (the lossy boundary the UI warns about), while a 0 -> 1
+  // demotion leaves the content untouched — demotion never un-flattens.
+  // On a class row the flag is inert (classes render ClassView regardless);
+  // applying it harmlessly keeps the op uniform.
+  // Parent-page condition (owner ruling 2026-10-15): the standalone role is
+  // only effective under a page parent. Promotion (isEmbedded: false) fails
+  // loud when the parent is a class or an embedded block; demotion of a
+  // parented page fails loud while it still carries is_embedded = 0
+  // children (they would dangle under a non-page parent — demote or move
+  // them first).
+  if (p.isEmbedded !== undefined) {
+    if (p.isEmbedded === false && row.parent_id !== null) {
       const parent = getNodeRow(db, row.parent_id);
       if (!parent || !isPageRow(db, parent as unknown as RenderRow)) {
         throw new MoveGuardError(
-          `${opType}: present_as_main requires the parent to render with document chrome ` +
-            `(parent ${row.parent_id} is a class or an inline block)`,
+          `${opType}: is_embedded = 0 (standalone) requires the parent to render with document chrome ` +
+            `(parent ${row.parent_id} is a class or an embedded block)`,
           opType,
         );
       }
     }
-    if (!p.presentAsMain && row.present_as_main === 1 && row.parent_id !== null) {
-      const mainChild = db
-        .prepare("SELECT 1 AS x FROM node WHERE parent_id = ? AND present_as_main = 1 LIMIT 1")
+    if (p.isEmbedded === true && row.is_embedded === 0 && row.parent_id !== null) {
+      const standaloneChild = db
+        .prepare("SELECT 1 AS x FROM node WHERE parent_id = ? AND is_embedded = 0 LIMIT 1")
         .get(p.objectId);
-      if (mainChild !== undefined) {
+      if (standaloneChild !== undefined) {
         throw new MoveGuardError(
-          `${opType}: cannot demote node ${p.objectId} while it carries present_as_main children ` +
+          `${opType}: cannot demote node ${p.objectId} while it carries standalone (is_embedded = 0) children ` +
             "(demote or move them first)",
           opType,
         );
       }
     }
-    sets.push("present_as_main = ?");
-    values.push(p.presentAsMain ? 1 : 0);
-    if (p.presentAsMain && row.present_as_main === 0) {
+    sets.push("is_embedded = ?");
+    values.push(p.isEmbedded ? 1 : 0);
+    if (p.isEmbedded === false && row.is_embedded === 1) {
       const rowAst = JSON.parse(row.content) as unknown;
       sets.push("content = ?");
       values.push(JSON.stringify(stringifyContentAst(rowAst as never)));
@@ -1030,11 +1035,11 @@ function applyObjectRestore(db: StoreDatabase, env: Envelope): ChangeSummary {
  * class-under-class / class-with-parent shape stays illegal; the DB CHECK
  * would fire anyway, so the guard surfaces it friendly), and a DATE-CHAIN
  * node may only move under its deterministic chain parent (SCHEMA.md
- * "Datetime" — the parenting lock), and a PRESENT_AS_MAIN node may only
- * move under a parent that renders with document chrome (the parent-page
- * condition, owner ruling 2026-10-15). Moves never write
- * the render bit: a parentless non-class node renders with document chrome
- * by the second cascade branch regardless of present_as_main.
+ * "Datetime" — the parenting lock), and a STANDALONE (is_embedded = 0) node
+ * may only move under a parent that renders with document chrome (the
+ * parent-page condition, owner ruling 2026-10-15). Moves never write
+ * the embedding flag: a parentless non-class node renders with document
+ * chrome by the second cascade branch regardless of is_embedded.
  */
 function applyObjectMove(db: StoreDatabase, env: Envelope): ChangeSummary {
   const opType = "object.move";
@@ -1060,18 +1065,19 @@ function applyObjectMove(db: StoreDatabase, env: Envelope): ChangeSummary {
       opType,
     );
   }
-  // Parent-page condition (owner ruling 2026-10-15): a present_as_main node
-  // renders with document chrome only under a page parent, so moving one
-  // under a class or an inline block establishes an illegal parented state
-  // and fails loud (moves never write the bit — the alternative, silently
-  // clearing it, would rewrite render state behind the user's back).
+  // Parent-page condition (owner ruling 2026-10-15): a standalone node
+  // (is_embedded = 0) renders with document chrome only under a page parent,
+  // so moving one under a class or an embedded block establishes an illegal
+  // parented state and fails loud (moves never write the flag — the
+  // alternative, silently clearing it, would rewrite render state behind
+  // the user's back).
   if (
     p.parentId !== null &&
-    (row as { present_as_main?: number }).present_as_main === 1 &&
+    (row as { is_embedded?: number }).is_embedded === 0 &&
     !isPageRow(db, getNodeRow(db, p.parentId) as unknown as RenderRow)
   ) {
     throw new MoveGuardError(
-      `${opType}: node ${p.objectId} presents as main; it can only move under a parent that renders with document chrome`,
+      `${opType}: node ${p.objectId} is standalone (is_embedded = 0); it can only move under a parent that renders with document chrome`,
       opType,
     );
   }
@@ -1150,7 +1156,7 @@ function upsertClassNode(
   // and every effective-icon read (which reads node rows) misses it.
   db.prepare(
     `INSERT OR IGNORE INTO node (
-       id, workspace_id, is_class, present_as_main, parent_id, class_ids, name, content,
+       id, workspace_id, is_class, is_embedded, parent_id, class_ids, name, content,
        icon, color,
        is_active, created_at, updated_at, created_by, updated_by,
        hlc_physical, hlc_logical, actor_id
@@ -1258,14 +1264,14 @@ function applyClassCreate(db: StoreDatabase, env: Envelope): ChangeSummary {
   // class.create on an EXISTING node DECLARES that node a class — the node
   // row was INSERT OR IGNOREed above, which never flips the identity bit.
   // The flip is the whole capability: is_class = 1, classes-are-roots (the
-  // parent edge + its child-order row drop), the render bit cleared. The
+  // parent edge + its child-order row drop), the embedding flag cleared. The
   // node's title/icon/color stay LWW-gated above (an absent payload field
   // preserves them — conversion carries no content unless sent). Membership
   // and the node's own children are untouched (classes are containers).
   // Applied unconditionally: declaration is structural, not a row-field race
   // (the extends-DAG precedent, object.delete's bit flips).
   const converted = db
-    .prepare("UPDATE node SET is_class = 1, present_as_main = 0, parent_id = NULL WHERE id = ? AND is_class = 0")
+    .prepare("UPDATE node SET is_class = 1, is_embedded = 0, parent_id = NULL WHERE id = ? AND is_class = 0")
     .run(p.classId);
   if (converted.changes > 0) {
     db.prepare("DELETE FROM node_child_order WHERE child_id = ?").run(p.classId);
@@ -2285,7 +2291,7 @@ function ensureTaskFamilyRows(db: StoreDatabase, env: Envelope): void {
   const title = JSON.stringify([{ type: "text", text: "Task" }]);
   db.prepare(
     `INSERT OR IGNORE INTO node (
-       id, workspace_id, is_class, present_as_main, parent_id, class_ids, name, content,
+       id, workspace_id, is_class, is_embedded, parent_id, class_ids, name, content,
        icon, color, is_active, created_at, updated_at, created_by, updated_by,
        hlc_physical, hlc_logical, actor_id
      ) VALUES (?, ?, 1, 0, NULL, '[]', NULL, ?, ?, NULL, 1, ?, ?, ?, ?, ?, ?, ?)`,

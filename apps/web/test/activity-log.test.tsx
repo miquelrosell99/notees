@@ -77,7 +77,7 @@ describe("relativeTime", () => {
 describe("ActivityLogSection", () => {
   it("renders collapsed, never executes a query, and lists the node's own events on expand", async () => {
     const client = await seedClient();
-    const host = await client.createObject({ presentAsMain: true, name: "Host" });
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
     const spy = vi.spyOn(client, "runQueryAst");
     render(<PageView client={client} pageId={host} />);
 
@@ -101,8 +101,8 @@ describe("ActivityLogSection", () => {
 
   it("an edit after creation adds an Edited row; other nodes' activity never appears", async () => {
     const client = await seedClient();
-    const host = await client.createObject({ presentAsMain: true, name: "Host" });
-    const other = await client.createObject({ presentAsMain: true, name: "Other page" });
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
+    const other = await client.createObject({ isEmbedded: false, name: "Other page" });
     await client.updateObject(other, { contentAst: [{ type: "text", text: "Other page v2" }] });
 
     render(<PageView client={client} pageId={host} />);

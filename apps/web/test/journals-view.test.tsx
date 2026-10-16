@@ -60,7 +60,7 @@ async function createDayPage(client: WorkspaceClient, iso: string): Promise<stri
   const id = dayNodeId(iso);
   await client.createObject({
     id,
-    presentAsMain: true,
+    isEmbedded: false,
     parentId: null,
     name: dateNodeLabel(parseIsoDate(iso), "day"),
     classIds: [SYSTEM_CLASS_UUIDS.day],

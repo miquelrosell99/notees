@@ -516,7 +516,7 @@ export function keymapChordHandler(opts: {
       if (live === null) return;
       event.preventDefault();
       void live
-        .createObject({ presentAsMain: true, name: "Untitled" })
+        .createObject({ isEmbedded: false, name: "Untitled" })
         .then((id) => opts.openPage(id));
       return;
     }
@@ -1796,7 +1796,7 @@ export function App() {
 
   async function handleNewPage(title?: string) {
     if (client === null) return;
-    const id = await client.createObject({ presentAsMain: true, name: title ?? "Untitled" });
+    const id = await client.createObject({ isEmbedded: false, name: title ?? "Untitled" });
     setSelectedPageId(id);
   }
 
@@ -2703,7 +2703,7 @@ export function HubView({
         icon="mdiNotePlusOutline"
         onClick={() => {
           void client
-            .createObject({ presentAsMain: true, name: "Untitled" })
+            .createObject({ isEmbedded: false, name: "Untitled" })
             .then((id) => onOpenNode(id))
             .catch((error: unknown) => {
               console.warn("[new-node] creation failed:", error);

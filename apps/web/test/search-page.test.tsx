@@ -81,15 +81,15 @@ interface SearchWorld {
 async function seedSearchWorld(): Promise<SearchWorld> {
   const client = await seedClient();
   const alpha = await client.createObject({
-    presentAsMain: true,
+    isEmbedded: false,
     contentAst: [{ type: "text", text: "Alpha" }],
   });
   const notes = await client.createObject({
-    presentAsMain: true,
+    isEmbedded: false,
     contentAst: [{ type: "text", text: "Notes" }],
   });
   const block = await client.createObject({
-    presentAsMain: false,
+    isEmbedded: true,
     parentId: notes,
     contentAst: [{ type: "text", text: "alpha bravo charlie" }],
   });
@@ -157,8 +157,8 @@ describe("SearchPage results", () => {
 
   it("the exact and prefix modes answer through the same stream", async () => {
     const client = await seedClient();
-    await client.createObject({ presentAsMain: true, name: "Alphabet Soup" });
-    await client.createObject({ presentAsMain: true, name: "Beta Alpha" });
+    await client.createObject({ isEmbedded: false, name: "Alphabet Soup" });
+    await client.createObject({ isEmbedded: false, name: "Beta Alpha" });
     renderSearchPage(client);
 
     // ^ prefix: only the title that STARTS with the rest.
@@ -205,13 +205,13 @@ describe("SearchPage class filter", () => {
     const client = await seedClient();
     const fictionId = await createTitledClass(client, "Fiction");
     await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       name: "Dune",
       classIds: [fictionId],
       contentAst: [{ type: "text", text: "Dune" }],
     });
     await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       name: "Gardening Annual",
       contentAst: [{ type: "text", text: "Gardening Annual" }],
     });
@@ -234,10 +234,10 @@ describe("SearchPage pagination", () => {
     const client = await seedClient();
     // The host title stays free of the query term: a matching parent would
     // join the hit list through the parent-name tier.
-    const host = await client.createObject({ presentAsMain: true, name: "Host Page" });
+    const host = await client.createObject({ isEmbedded: false, name: "Host Page" });
     for (let i = 0; i < 30; i += 1) {
       await client.createObject({
-        presentAsMain: false,
+        isEmbedded: true,
         parentId: host,
         contentAst: [{ type: "text", text: `needle block ${i + 1}` }],
       });

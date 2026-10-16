@@ -380,7 +380,7 @@ export class WorkerClient {
     icon: string | null;
     classIds: string[];
     isClass: boolean;
-    presentAsMain: boolean;
+    isEmbedded: boolean;
     parentId: string | null;
   }): string | null {
     return this.cachedRead(
@@ -390,7 +390,7 @@ export class WorkerClient {
           icon: node.icon,
           classIds: node.classIds,
           isClass: node.isClass,
-          presentAsMain: node.presentAsMain,
+          isEmbedded: node.isEmbedded,
           parentId: node.parentId,
         },
       ],

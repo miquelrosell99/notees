@@ -111,7 +111,7 @@ describe("worker message protocol (handleMessage)", () => {
     ]);
     expect(initResponse).toEqual({ id: 1, result: null });
 
-    const created = await send(ctx, "createObject", [{ presentAsMain: true, name: "Via Protocol" }], 2);
+    const created = await send(ctx, "createObject", [{ isEmbedded: false, name: "Via Protocol" }], 2);
     expect(created.error).toBeUndefined();
     const pageId = created.result as string;
     expect(pageId).toBeTruthy();
@@ -127,7 +127,7 @@ describe("worker message protocol (handleMessage)", () => {
 
     const page = await send(ctx, "getPage", [pageId], 4);
     expect(page.error).toBeUndefined();
-    expect(page.result).toMatchObject({ id: pageId, isClass: false, presentAsMain: true });
+    expect(page.result).toMatchObject({ id: pageId, isClass: false, isEmbedded: false });
 
     const flushed = await send(ctx, "flush", [], 5);
     expect(flushed.error).toBeUndefined();
@@ -153,12 +153,12 @@ describe("worker message protocol (handleMessage)", () => {
     await send(ctx, "init", [
       { sqlWasmUrl: "/x.wasm", workspaceId: WS, serverUrl: "https://x.example.com", apiKey: "k" },
     ]);
-    const root = await send(ctx, "createObject", [{ presentAsMain: true, name: "Root Page" }], 2);
+    const root = await send(ctx, "createObject", [{ isEmbedded: false, name: "Root Page" }], 2);
     const rootId = root.result as string;
     const sub = await send(
       ctx,
       "createObject",
-      [{ parentId: rootId, presentAsMain: true, name: "Subpage" }],
+      [{ parentId: rootId, isEmbedded: false, name: "Subpage" }],
       3,
     );
     expect(sub.error).toBeUndefined();
@@ -181,7 +181,7 @@ describe("worker message protocol (handleMessage)", () => {
     await send(ctx, "init", [
       { sqlWasmUrl: "/x.wasm", workspaceId: WS, serverUrl: "https://x.example.com", apiKey: "k" },
     ]);
-    const page = await send(ctx, "createObject", [{ presentAsMain: true, name: "P" }], 2);
+    const page = await send(ctx, "createObject", [{ isEmbedded: false, name: "P" }], 2);
     const pageId = page.result as string;
     const block = await send(
       ctx,
@@ -196,9 +196,9 @@ describe("worker message protocol (handleMessage)", () => {
     // empty (regression: every page rendered with zero block rows).
     const tree = await send(ctx, "getBlockTree", [pageId, null], 4);
     expect(tree.error).toBeUndefined();
-    const rows = tree.result as Array<{ node: { isClass: boolean; presentAsMain: boolean } }>;
+    const rows = tree.result as Array<{ node: { isClass: boolean; isEmbedded: boolean } }>;
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ node: { isClass: false, presentAsMain: false } });
+    expect(rows[0]).toMatchObject({ node: { isClass: false, isEmbedded: true } });
   });
 
   it("getPrefs/patchPrefs round-trip through the worker (memory fallback, no REST config)", async () => {

@@ -19,8 +19,11 @@
  *   Fields (word followed by an operator):
  *     class:Name        class membership (resolved by NAME, hierarchy-aware
  *                       at compile time);      "!=" negates
- *     isClass:true|false     class identity bit (Revision 11); "!=" negates
- *     presentAsMain:true|false render bit for parented nodes; "!=" negates
+ *     isClass:true|false     class identity bit; "!=" negates
+ *     isEmbedded:true|false  embedding flag for parented nodes (Revision 12:
+ *                            true = embedded in the parent's body — the
+ *                            Block role; false = standalone — the Page
+ *                            role); "!=" negates
  *     text:term         content contains (value required)
  *     linked:Name       backlinksWithRollup to the named node; "!=" negates
  *     coverAsset:<ref>  the cover wire node field (uuid or node NAME via the
@@ -45,7 +48,7 @@
  * unresolvable names are hard errors, never silent text search.
  *
  * The parser emits only the supported AST — property conditions (all eight
- * ops), class, isClass, presentAsMain, content contains, linkedTo and the
+ * ops), class, isClass, isEmbedded, content contains, linkedTo and the
  * wire node-field predicates (coverAsset/bannerAsset/aliasedNode, eq/neq/
  * exists) — no new condition kinds.
  */
@@ -388,10 +391,10 @@ class Parser {
         }));
       case "isclass":
         return this.negatable(op, () => ({ type: "isClass", isClass: this.readBoolean("isClass") }));
-      case "presentasmain":
+      case "isembedded":
         return this.negatable(op, () => ({
-          type: "presentAsMain",
-          presentAsMain: this.readBoolean("presentAsMain"),
+          type: "isEmbedded",
+          isEmbedded: this.readBoolean("isEmbedded"),
         }));
       case "text":
         this.requireContainsOp(op, "text");
@@ -421,7 +424,7 @@ class Parser {
     }
   }
 
-  /** class/isClass/presentAsMain/linked support ":" and "=" (positive) and "!=" (wrapped in NOT). */
+  /** class/isClass/isEmbedded/linked support ":" and "=" (positive) and "!=" (wrapped in NOT). */
   private negatable(op: Op, build: () => Condition): Child {
     if (op === ":" || op === "=") return build();
     if (op === "!=") return { type: "not", child: build() };

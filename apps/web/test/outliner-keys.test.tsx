@@ -114,7 +114,7 @@ const childIds = (client: WorkspaceClient, parentId: string) =>
 describe("outliner keys", () => {
   it("Enter mid-text splits the block; the tail lands in a new sibling right after", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Split" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Split" });
     const blockId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "hello world" }],
@@ -133,7 +133,7 @@ describe("outliner keys", () => {
 
   it("Enter at the start creates a new empty block BEFORE this one", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Before" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Before" });
     const aId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "A" }],
@@ -158,7 +158,7 @@ describe("outliner keys", () => {
 
   it("Enter before the FIRST child uses the before-first placement", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "First" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "First" });
     const aId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "A" }],
@@ -177,7 +177,7 @@ describe("outliner keys", () => {
 
   it("Enter at the end of a block with children creates a new FIRST CHILD", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Child" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Child" });
     const parentBlock = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "parent" }],
@@ -200,7 +200,7 @@ describe("outliner keys", () => {
 
   it("Backspace at the start of text merges into the previous sibling (guard passes)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Merge" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Merge" });
     const aId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "first" }],
@@ -221,7 +221,7 @@ describe("outliner keys", () => {
 
   it("Backspace at the start is a no-op when the guard fails (previous has children)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Guard" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Guard" });
     const aId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "A" }],
@@ -243,7 +243,7 @@ describe("outliner keys", () => {
 
   it("Backspace on an empty block with children promotes them, then deletes", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Promote" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Promote" });
     const holder = await client.createObject({
       parentId: pageId,
       contentAst: [],
@@ -261,7 +261,7 @@ describe("outliner keys", () => {
 
   it("Delete at the end merges a childless next sibling into this block", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "DelMerge" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "DelMerge" });
     const aId = await client.createObject({
       parentId: pageId,
       contentAst: [{ type: "text", text: "one" }],
@@ -282,7 +282,7 @@ describe("outliner keys", () => {
 
   it("Shift+Tab (logical, default) outdents and drags subsequent siblings under the block", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Logical" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Logical" });
     const cat = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "cat" }] });
     const a = await client.createObject({ parentId: cat, contentAst: [{ type: "text", text: "a" }] });
     const b = await client.createObject({ parentId: cat, contentAst: [{ type: "text", text: "b" }] });
@@ -301,7 +301,7 @@ describe("outliner keys", () => {
   it("Shift+Tab (direct) moves only the block", async () => {
     const client = await seedClient();
     writeDeviceSetting("treeEditMode", "direct");
-    const pageId = await client.createObject({ presentAsMain: true, name: "Direct" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Direct" });
     const cat = await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "cat" }] });
     const a = await client.createObject({ parentId: cat, contentAst: [{ type: "text", text: "a" }] });
     const b = await client.createObject({ parentId: cat, contentAst: [{ type: "text", text: "b" }] });

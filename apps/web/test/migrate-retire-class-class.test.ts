@@ -94,7 +94,7 @@ function retirementWorld(): Store {
       "object.create",
       {
         objectId: PARENT,
-        presentAsMain: true,
+        isEmbedded: false,
         contentAst: [{ type: "text", text: "Container" }],
       },
       1003,
@@ -103,7 +103,7 @@ function retirementWorld(): Store {
       "object.create",
       {
         objectId: MEMBER_ROOT,
-        presentAsMain: true,
+        isEmbedded: false,
         classIds: [CLASS_CLASS_ID],
         contentAst: [{ type: "text", text: "Genre" }],
       },

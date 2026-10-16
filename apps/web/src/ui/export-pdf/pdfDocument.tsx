@@ -535,7 +535,7 @@ function childPagesOf(children: readonly ExportDocumentChild[]): ExportDocumentC
   const out: ExportDocumentChild[] = [];
   const walk = (rows: readonly ExportDocumentChild[]): void => {
     for (const row of rows) {
-      if (row.presentAsMain) out.push(row);
+      if (!row.isEmbedded) out.push(row);
       else walk(row.children);
     }
   };
@@ -544,7 +544,7 @@ function childPagesOf(children: readonly ExportDocumentChild[]): ExportDocumentC
 }
 
 /**
- * The inline-block children of one node (presentAsMain false — block nodes),
+ * The inline-block children of one node (isEmbedded true — the Block role),
  * nested in the parent's body the way the outliner renders them: body-only,
  * NO title heading (the Revision-11 rule: a block node carries no document
  * chrome), each with its own inline children recursed. Main nodes are
@@ -566,7 +566,7 @@ function PdfInlineChildren({
   assetDataUrls: ReadonlyMap<string, string>;
   chrome: PdfChrome;
 }): ReactElement | null {
-  const inline = children.filter((child) => !child.presentAsMain);
+  const inline = children.filter((child) => child.isEmbedded);
   if (inline.length === 0) return null;
   return (
     <View style={styles.nestedBlocks}>

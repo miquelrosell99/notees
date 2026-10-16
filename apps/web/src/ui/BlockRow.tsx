@@ -96,6 +96,7 @@ import { NodeContextMenu } from "./components/NodeContextMenu.js";
 import { openNodeLinkMenu } from "./components/NodeLinkContextMenu.js";
 import { nodeIcon } from "./iconFor.js";
 import { EmbedView } from "./EmbedView.js";
+import { linkOnlyMentionTarget } from "./linkOnlyBlock.js";
 import { EmbedCardView } from "./EmbedCardView.js";
 import { QueryBlockView } from "./QueryBlockView.js";
 import { WhiteboardCanvas } from "./WhiteboardCanvas.js";
@@ -514,7 +515,20 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
   const suppressWidget = isTitle ? () => null : undefined;
   /** The live widget renderer, or the placeholder fallback in flat lists. */
   const widget = <R,>(renderer: R): R | undefined => (suppressWidgets ? undefined : renderer);
-  const tokens = (
+  // The Revision-12 link-based display transformation (SCHEMA.md "Node
+  // structure"): a block whose ENTIRE content is a single mention presents
+  // the referenced node's content inline in place (transclusion-style,
+  // regardless of the target's structural role). Gated off the title row
+  // (the page header never transcludes), table cells, and the flat
+  // collection-list projection (its rows stay one-line flat; the EmbedView
+  // cycle guard rides the page's EmbedBoundary). Editing is untouched —
+  // the click still swaps in the block editor; only the display projection
+  // transforms.
+  const linkOnlyTarget =
+    isTitle || tableRow || suppressWidgets ? null : linkOnlyMentionTarget(node.contentAst);
+  const tokens = linkOnlyTarget !== null ? (
+    <EmbedView nodeId={linkOnlyTarget} />
+  ) : (
     <InlineTokens
       tokens={node.contentAst}
       resolveName={resolveName}

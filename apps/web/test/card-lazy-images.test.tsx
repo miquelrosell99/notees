@@ -89,7 +89,7 @@ describe("card cover lazy loading", () => {
     const client = await seedClient();
     const assets: string[] = [];
     for (const name of ["a.png", "b.png"]) {
-      const id = await client.createObject({ presentAsMain: true, name });
+      const id = await client.createObject({ isEmbedded: false, name });
       await client.assignClass(id, SYSTEM_CLASS_UUIDS.asset);
       assets.push(id);
     }
@@ -129,7 +129,7 @@ describe("card cover lazy loading", () => {
     });
 
     const client = await seedClient();
-    const asset = await client.createObject({ presentAsMain: true, name: "art.png" });
+    const asset = await client.createObject({ isEmbedded: false, name: "art.png" });
     await client.assignClass(asset, SYSTEM_CLASS_UUIDS.asset);
     vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,ZOOM");
     const { container } = render(
@@ -156,7 +156,7 @@ describe("card cover lazy loading", () => {
   it("without IntersectionObserver (the jsdom default) the eager fallback loads immediately", async () => {
     writeCardLayoutPref("cover-top");
     const client = await seedClient();
-    const asset = await client.createObject({ presentAsMain: true, name: "eager.png" });
+    const asset = await client.createObject({ isEmbedded: false, name: "eager.png" });
     await client.assignClass(asset, SYSTEM_CLASS_UUIDS.asset);
     vi.spyOn(client, "getAssetDataUrl").mockResolvedValue("data:image/png;base64,EAGER");
     render(
@@ -175,7 +175,7 @@ describe("card cover lazy loading", () => {
     MockIntersectionObserver.instances = [];
 
     const client = await seedClient();
-    const asset = await client.createObject({ presentAsMain: true, name: "hidden.png" });
+    const asset = await client.createObject({ isEmbedded: false, name: "hidden.png" });
     await client.assignClass(asset, SYSTEM_CLASS_UUIDS.asset);
     const fetchUrl = vi
       .spyOn(client, "getAssetDataUrl")

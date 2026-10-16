@@ -113,7 +113,7 @@ export function toExportNode(client: ExportReadSurface, id: string): ExportNode 
   return {
     id: node.id,
     isClass: node.isClass ? 1 : 0,
-    presentAsMain: node.presentAsMain ? 1 : 0,
+    isEmbedded: node.isEmbedded ? 1 : 0,
     parentId: node.parentId,
     // Export DTO name = the node's resolved display name (title-is-content:
     // derived from its content, rename-free).
@@ -215,7 +215,7 @@ function collectSubtree(client: ExportClient, rootId: string, includeChildPages:
     // Child pages = the main-children zone (present-as-main children of any
     // node type); inline body blocks stay inside their node's file.
     for (const child of client.getChildren(id)) {
-      if (!child.isClass && child.presentAsMain) collect(child.id);
+      if (!child.isClass && !child.isEmbedded) collect(child.id);
     }
   };
   collect(rootId);
@@ -328,7 +328,7 @@ function collectSubtreeArchiveNodes(
     ordered.push(node);
     for (const child of client.getChildren(id)) {
       if (child.isClass) continue;
-      if (child.presentAsMain) {
+      if (!child.isEmbedded) {
         if (includeChildPages) collect(child.id);
       } else {
         collect(child.id);
@@ -515,7 +515,7 @@ function subtreeChildrenOf(client: ExportClient, id: string, includeChildPages: 
   const nodes: ExportNode[] = [];
   for (const child of client.getChildren(id)) {
     if (child.isClass) continue;
-    if (!includeChildPages && child.presentAsMain) continue;
+    if (!includeChildPages && !child.isEmbedded) continue;
     if (carriers.has(child.id)) continue;
     const mapped = toExportNode(client, child.id);
     if (mapped !== undefined) nodes.push(mapped);
@@ -715,7 +715,7 @@ export function collectSubtreeAssetRefIds(
       if (child.isClass) continue;
       // Inline blocks belong to this node's file (always scanned); child
       // pages ride along only when the subtree option includes them.
-      if (child.presentAsMain) {
+      if (!child.isEmbedded) {
         if (includeChildPages) visit(child.id, visited);
       } else if (!carriers.has(child.id)) {
         visit(child.id, visited);

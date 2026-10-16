@@ -46,7 +46,7 @@ export function historyEntrySnapshot(entry: OperationFeedEntry): ContentAst | nu
 
 /** object.update field keys → human labels (the summary's "Updated …"). */
 const UPDATE_FIELD_LABELS: Record<string, string> = {
-  presentAsMain: "present as main",
+  isEmbedded: "present as main",
   icon: "icon",
   color: "color",
   coverAssetId: "cover",

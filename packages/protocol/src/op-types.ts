@@ -21,23 +21,27 @@ export const objectCreatePayload = z
   .object({
     objectId: uuid,
     /**
-     * Render bit (Revision 11): read only when the node has a parent —
-     * true = render in the parent's main-children zone with document
-     * chrome; false = inline body with block chrome. Unread/unused for
+     * Embedding flag (Revision 12): whether the node's content belongs to
+     * its parent's body. true = embedded in the parent's body (the Block
+     * role — inline, block chrome); false = a standalone structural
+     * element under that parent (the Page role — the parent's
+     * main-children zone, document chrome when zoomed). Unread for
      * parentless nodes (those render with document chrome by the second
-     * cascade branch). Optional in the payload — the applier defaults it
-     * by context: true when parentless, false otherwise. Content is
-     * flattened to text-only when is_class or present_as_main. Parent-page
-     * condition (owner ruling 2026-10-15): the bit is only effective under
-     * a page parent — the applier rejects presentAsMain: true when the
-     * parent is a class or an inline block (MoveGuardError). Class
-     * declaration remains the class.create op. Placement itself lives
-     * only in the tree (parentId). Domain typing (whiteboard, meeting,
-     * …) is classIds. The retired nodeType key (Revision 10 and earlier)
-     * is rejected outright by this strict schema; old stored logs are
-     * rewritten to the new model by the one-time migration script
-     * (scripts/migrate-node-type.mts, planned). */
-    presentAsMain: z.boolean().optional(),
+     * cascade branch — standalone by definition) and for classes
+     * (ClassView). Defaults to true: the applier defaults it by context —
+     * 0 when parentless, 1 otherwise. Content is flattened to text-only
+     * when is_class or NOT isEmbedded (the promotion boundary). The
+     * parent-page condition (owner ruling 2026-10-15) is preserved: a
+     * standalone claim is only effective under a page parent — the
+     * applier rejects isEmbedded: false when the parent is a class or an
+     * inline block (MoveGuardError). Class declaration remains the
+     * class.create op. Placement itself lives only in the tree
+     * (parentId). Domain typing (whiteboard, meeting, …) is classIds.
+     * The retired nodeType (Revision 10) and presentAsMain (Revision 11)
+     * keys are rejected outright by this strict schema; old stored logs
+     * are rewritten to the new model by the one-time migration scripts
+     * (scripts/migrate-node-type.mts, migrate-is-embedded.mts). */
+    isEmbedded: z.boolean().optional(),
     classIds: z.array(uuid).default([]),
     tagIds: z.array(uuid).default([]),
     /**
@@ -62,17 +66,18 @@ export const objectCreatePayload = z
 export const objectUpdatePayload = z
   .object({
     objectId: uuid,
-    /** Render-bit toggle (Revision 11): promotion/demotion flips are
-     * presentAsMain true/false (identity preserved; promotion stringifies
-     * the content when the bit flips false → true). Parent-page condition
-     * (owner ruling 2026-10-15): promotion fails loud when the parent is a
-     * class or an inline block, and demoting a parented page fails loud
-     * while it carries present_as_main children (MoveGuardError). Class
-     * declaration remains the class.create op. The retired nodeType key
-     * (Revision 10 and earlier) is rejected outright by this strict schema;
-     * old stored logs are rewritten to the new model by the one-time
-     * migration script (scripts/migrate-node-type.mts, planned). */
-    presentAsMain: z.boolean().optional(),
+    /** Embedding-flag toggle (Revision 12): promotion/demotion flips are
+     * isEmbedded false/true (identity preserved; promotion stringifies
+     * the content when the bit flips true → false). Parent-page condition
+     * (owner ruling 2026-10-15): promotion (isEmbedded: false) fails loud
+     * when the parent is a class or an inline block, and demoting a
+     * parented page fails loud while it carries standalone (is_embedded =
+     * 0) children (MoveGuardError). Class declaration remains the
+     * class.create op. The retired nodeType (Revision 10) and
+     * presentAsMain (Revision 11) keys are rejected outright by this
+     * strict schema; old stored logs are rewritten to the new model by
+     * the one-time migration script (scripts/migrate-is-embedded.mts). */
+    isEmbedded: z.boolean().optional(),
     icon: z.string().max(64).optional(),
     /** Preset token (`sky`) or custom `#RRGGBB` hex (colors.ts grammar);
      * null CLEARS the node's color. */
@@ -161,9 +166,10 @@ export const trashEmptyPayload = z.object({}).strict();
  * current minimum). Omit both to append at the end. At most one anchor is
  * meaningful; when both are present `afterId` wins. An anchor that is not a
  * current sibling falls back to append (defensive, mirrors afterId).
- * Parent-page condition (owner ruling 2026-10-15): a present_as_main node
- * may only move under a parent that renders with document chrome — the
- * applier's guard rejects a class or inline-block target (MoveGuardError).
+ * Parent-page condition (owner ruling 2026-10-15): a standalone
+ * (is_embedded = 0) node may only move under a parent that renders with
+ * document chrome — the applier's guard rejects a class or inline-block
+ * target (MoveGuardError).
  * Parent and position are LWW by envelope HLC, like the other node fields. Ordering
  * is a minimal deterministic fractional allocator (sibling midpoint /
  * midpoint-below-first / append) — TreeCrdt remains designed (docs/ux.md

@@ -64,12 +64,12 @@ async function seedInspector(client: WorkspaceClient): Promise<{
   await client.setClassProperty(classId, schemaId, { sequence: 0 });
   const carriers: string[] = [];
   for (const name of ["Alpha", "Beta"]) {
-    const id = await client.createObject({ presentAsMain: true, name });
+    const id = await client.createObject({ isEmbedded: false, name });
     await client.assignClass(id, classId);
     await client.setProperty(id, schemaId, `value-${name}`, 0);
     carriers.push(id);
   }
-  const unvalued = await client.createObject({ presentAsMain: true, name: "Gamma" });
+  const unvalued = await client.createObject({ isEmbedded: false, name: "Gamma" });
   await client.assignClass(unvalued, classId);
   return { schemaId, classId, carriers, unvalued };
 }
@@ -116,7 +116,7 @@ describe("PropertyView", () => {
   it("opens from the property settings modal (the property-label entry point)", async () => {
     const client = await seedClient();
     const { schemaId, classId } = await seedInspector(client);
-    const hostId = await client.createObject({ presentAsMain: true, name: "Host" });
+    const hostId = await client.createObject({ isEmbedded: false, name: "Host" });
     await client.assignClass(hostId, classId);
     await client.setProperty(hostId, schemaId, "mine", 0);
 

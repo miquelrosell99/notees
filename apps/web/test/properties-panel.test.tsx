@@ -80,7 +80,7 @@ describe("Properties panel (effective values)", () => {
   it("shows a derived default dimmed with the class badge", async () => {
     const client = await seedClient();
     const { schemaId, taskId } = await seedPriorityClasses(client);
-    const pageId = await client.createObject({ presentAsMain: true, name: "Ship it" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Ship it" });
     await client.assignClass(pageId, taskId);
     const { container } = render(<PageView client={client} pageId={pageId} />);
     expandProperties();
@@ -100,7 +100,7 @@ describe("Properties panel (effective values)", () => {
 
   it("still renders the properties chrome when the node has no effective properties (always-visible metadata)", async () => {
     const client = await seedClient();
-    const pageId = await client.createObject({ presentAsMain: true, name: "Plain" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Plain" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
     // The panelled main layout rides the left side panel (PropertiesSidebar,
     // name row + value row per property) — always rendered, even with zero
@@ -126,7 +126,7 @@ describe("Properties panel (effective values)", () => {
   it("editing a default writes an authored value that shadows it", async () => {
     const client = await seedClient();
     const { schemaId, taskId } = await seedPriorityClasses(client);
-    const pageId = await client.createObject({ presentAsMain: true, name: "Ship it" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Ship it" });
     await client.assignClass(pageId, taskId);
     const { container } = render(<PageView client={client} pageId={pageId} />);
     expandProperties();
@@ -156,7 +156,7 @@ describe("Properties panel (effective values)", () => {
   it("multi-class conflict shows the first-applied class's value", async () => {
     const client = await seedClient();
     const { schemaId, taskId, projectId } = await seedPriorityClasses(client);
-    const pageId = await client.createObject({ presentAsMain: true, name: "Ship it" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Ship it" });
     // Task is assigned first: its 'medium' beats Project's 'high'.
     await client.assignClass(pageId, taskId);
     await client.assignClass(pageId, projectId);
@@ -171,7 +171,7 @@ describe("Properties panel (effective values)", () => {
     expect(sidebar.querySelector(`[data-property-schema-id="${schemaId}"]`)!.textContent).toContain("C");
 
     // On a page where Project was applied first, Project's default wins.
-    const otherId = await client.createObject({ presentAsMain: true, name: "Other" });
+    const otherId = await client.createObject({ isEmbedded: false, name: "Other" });
     await client.assignClass(otherId, projectId);
     await client.assignClass(otherId, taskId);
     expect(client.getEffectiveProperties(otherId)).toEqual([
@@ -187,7 +187,7 @@ describe("Properties panel (effective values)", () => {
     const effortSchemaId = await client.createPropertySchema({ name: "effort", type: "text" });
     await client.setClassProperty(taskId, effortSchemaId, { sequence: 1, defaultValue: "xs" });
 
-    const pageId = await client.createObject({ presentAsMain: true, name: "Ship it" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Ship it" });
     await client.assignClass(pageId, taskId);
     await client.assignClass(pageId, projectId);
     await client.setProperty(pageId, effortSchemaId, "authored", 0);
@@ -228,7 +228,7 @@ describe("carrier blocks vs the child block list", () => {
   it("getBlockTree excludes blocks referenced as property values (no duplicate)", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "notes", type: "object" });
-    const owner = await client.createObject({ presentAsMain: true, name: "Owner" });
+    const owner = await client.createObject({ isEmbedded: false, name: "Owner" });
     const carrier = await client.createObject({
       parentId: owner,
       contentAst: [{ type: "text", text: "Carrier text" }],
@@ -243,7 +243,7 @@ describe("carrier blocks vs the child block list", () => {
   it("text properties whose scalar value IS a carrier block uuid are excluded too", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "notas", type: "text" });
-    const owner = await client.createObject({ presentAsMain: true, name: "Owner" });
+    const owner = await client.createObject({ isEmbedded: false, name: "Owner" });
     const carrier = await client.createObject({
       parentId: owner,
       contentAst: [{ type: "text", text: "Scalar carrier" }],
@@ -257,7 +257,7 @@ describe("PB3: per-subtree carrier exclusion", () => {
   it("a nested block's own carrier is excluded from the NESTED body", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "notes", type: "text" });
-    const owner = await client.createObject({ presentAsMain: true, name: "Owner" });
+    const owner = await client.createObject({ isEmbedded: false, name: "Owner" });
     const outer = await client.createObject({
       parentId: owner,
       contentAst: [{ type: "text", text: "outer block" }],
@@ -279,7 +279,7 @@ describe("PB3: per-subtree carrier exclusion", () => {
   it("an excluded carrier's subtree is pruned with it", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "notes", type: "text" });
-    const owner = await client.createObject({ presentAsMain: true, name: "Owner" });
+    const owner = await client.createObject({ isEmbedded: false, name: "Owner" });
     const carrier = await client.createObject({
       parentId: owner,
       contentAst: [{ type: "text", text: "carrier" }],
@@ -298,8 +298,8 @@ describe("PB3: per-subtree carrier exclusion", () => {
   it("carriers of different owners only exclude under their own subtree", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "notes", type: "text" });
-    const ownerA = await client.createObject({ presentAsMain: true, name: "A" });
-    const ownerB = await client.createObject({ presentAsMain: true, name: "B" });
+    const ownerA = await client.createObject({ isEmbedded: false, name: "A" });
+    const ownerB = await client.createObject({ isEmbedded: false, name: "B" });
     const carrierA = await client.createObject({ parentId: ownerA, contentAst: [{ type: "text", text: "carrier A" }] });
     const carrierB = await client.createObject({ parentId: ownerB, contentAst: [{ type: "text", text: "carrier B" }] });
     await client.setProperty(ownerA, schemaId, { nodeId: carrierA }, 0);
@@ -313,7 +313,7 @@ describe("PB2: carrier lifecycle at the client level", () => {
   it("unsetting a node-backed text property trashes the carrier", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "notes", type: "text" });
-    const owner = await client.createObject({ presentAsMain: true, name: "Owner" });
+    const owner = await client.createObject({ isEmbedded: false, name: "Owner" });
     const carrier = await client.createObject({
       parentId: owner,
       contentAst: [{ type: "text", text: "carrier prose" }],
@@ -329,7 +329,7 @@ describe("PB2: carrier lifecycle at the client level", () => {
   it("promotePropertyCarrier detaches the value and surfaces the carrier in the body", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "notes", type: "text" });
-    const owner = await client.createObject({ presentAsMain: true, name: "Owner" });
+    const owner = await client.createObject({ isEmbedded: false, name: "Owner" });
     const carrier = await client.createObject({
       parentId: owner,
       contentAst: [{ type: "text", text: "promote me" }],
@@ -346,7 +346,7 @@ describe("PB2: carrier lifecycle at the client level", () => {
   it("promotePropertyCarrier fails loud on scalar values and empty slots", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "citekey", type: "text" });
-    const owner = await client.createObject({ presentAsMain: true, name: "Owner" });
+    const owner = await client.createObject({ isEmbedded: false, name: "Owner" });
     await client.setProperty(owner, schemaId, "kuhn1962", 0);
     await expect(client.promotePropertyCarrier(owner, schemaId, 0)).rejects.toThrow(
       /not a node-backed carrier reference/,
@@ -364,7 +364,7 @@ describe("PB2: carrier lifecycle at the client level", () => {
     const client = await seedClient();
     // PG6 cardinality: a second slot needs a multi schema.
     const schemaId = await client.createPropertySchema({ name: "notes", type: "text", multi: true });
-    const owner = await client.createObject({ presentAsMain: true, name: "Owner" });
+    const owner = await client.createObject({ isEmbedded: false, name: "Owner" });
     const carrier = await client.createObject({
       parentId: owner,
       contentAst: [{ type: "text", text: "shared carrier" }],
@@ -384,7 +384,7 @@ describe("dead carrier in the value cell (owner bug 2026-10-04; auto-unset owner
   it("a text property whose carrier was deleted auto-unsets — the slot returns to empty, never the raw uuid", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "Description", type: "text" });
-    const owner = await client.createObject({ presentAsMain: true, name: "Inmunocal" });
+    const owner = await client.createObject({ isEmbedded: false, name: "Inmunocal" });
     const carrier = await client.createObject({
       parentId: owner,
       contentAst: [{ type: "text", text: "described" }],
@@ -409,7 +409,7 @@ describe("dead carrier in the value cell (owner bug 2026-10-04; auto-unset owner
   it("a dead value whose trashed carrier still held content also auto-unsets (the old dead cell never surfaced the content anyway)", async () => {
     const client = await seedClient();
     const schemaId = await client.createPropertySchema({ name: "Description", type: "text" });
-    const owner = await client.createObject({ presentAsMain: true, name: "Owner" });
+    const owner = await client.createObject({ isEmbedded: false, name: "Owner" });
     const carrier = await client.createObject({
       parentId: owner,
       contentAst: [{ type: "text", text: "gone" }],
@@ -431,7 +431,7 @@ describe("dead carrier in the value cell (owner bug 2026-10-04; auto-unset owner
     const schemaId = await client.createPropertySchema({ name: "Blurb", type: "text" });
     const classId = await client.createClass("Thing");
     await client.setClassProperty(classId, schemaId, { sequence: 0 });
-    const pageId = await client.createObject({ presentAsMain: true, name: "Note" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Note" });
     await client.assignClass(pageId, classId);
 
     render(<PageView client={client} pageId={pageId} />);
@@ -469,11 +469,11 @@ describe("default-mirror sweep on class removal (owner rule)", () => {
     });
 
     // Node A: authored value == the default (materialized legacy data).
-    const nodeA = await client.createObject({ presentAsMain: true, name: "A" });
+    const nodeA = await client.createObject({ isEmbedded: false, name: "A" });
     await client.assignClass(nodeA, taskClass);
     await client.setProperty(nodeA, statusSchema, "opt-pending", 0);
     // Node B: the user actually chose Done.
-    const nodeB = await client.createObject({ presentAsMain: true, name: "B" });
+    const nodeB = await client.createObject({ isEmbedded: false, name: "B" });
     await client.assignClass(nodeB, taskClass);
     await client.setProperty(nodeB, statusSchema, "opt-done", 0);
 
@@ -501,7 +501,7 @@ describe("default-mirror sweep on class removal (owner rule)", () => {
     const notes = await client.createPropertySchema({ name: "notes", type: "text" });
     const klass = await client.createClass("plainish");
     await client.setClassProperty(klass, notes, { sequence: 0 });
-    const node = await client.createObject({ presentAsMain: true, name: "N" });
+    const node = await client.createObject({ isEmbedded: false, name: "N" });
     await client.assignClass(node, klass);
     await client.setProperty(node, notes, "user wrote this", 0);
 
@@ -532,11 +532,11 @@ describe("the provenance flag (owner directive)", () => {
     });
 
     // Node U: the user EXPLICITLY chose the default — provenance "user" pins it.
-    const nodeU = await client.createObject({ presentAsMain: true, name: "U" });
+    const nodeU = await client.createObject({ isEmbedded: false, name: "U" });
     await client.assignClass(nodeU, klass);
     await client.setProperty(nodeU, statusSchema, "opt-pending", 0, { provenance: "user" });
     // Node S: a system-materialized value that DIFFERS from the default.
-    const nodeS = await client.createObject({ presentAsMain: true, name: "S" });
+    const nodeS = await client.createObject({ isEmbedded: false, name: "S" });
     await client.assignClass(nodeS, klass);
     await client.setProperty(nodeS, statusSchema, "opt-done", 0, { provenance: "system" });
 
@@ -591,7 +591,7 @@ describe("weblink extends source — inherited bindings + own-first resolution",
     // (binding resolution is own-first: distance 0 beats distance 1).
     await client.setClassProperty(sourceId, SYSTEM_PROPERTY_UUIDS.url, { sequence: 9 });
 
-    const pageId = await client.createObject({ presentAsMain: true, name: "A bookmark" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "A bookmark" });
     await client.assignClass(pageId, weblinkId);
     await flushWrites();
 

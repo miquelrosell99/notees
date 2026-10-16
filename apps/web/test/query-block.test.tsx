@@ -76,8 +76,8 @@ const countByRenderState: Aggregation = {
 /** France-shaped fixture: a class, two member pages, a body block. */
 async function seedWorld(client: WorkspaceClient) {
   const city = await client.createClass("City");
-  const paris = await client.createObject({ presentAsMain: true, name: "Paris", classIds: [city] });
-  const london = await client.createObject({ presentAsMain: true, name: "London", classIds: [city] });
+  const paris = await client.createObject({ isEmbedded: false, name: "Paris", classIds: [city] });
+  const london = await client.createObject({ isEmbedded: false, name: "London", classIds: [city] });
   await client.createObject({
     parentId: paris,
     contentAst: text("The capital city"),
@@ -93,7 +93,7 @@ describe("query block (live query token)", () => {
   it("renders the result rows with names and render-state chips", async () => {
     const client = await seedClient();
     const { city } = await seedWorld(client);
-    const host = await client.createObject({ presentAsMain: true, name: "Host" });
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
     await client.createObject({
       parentId: host,
       contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
@@ -115,7 +115,7 @@ describe("query block (live query token)", () => {
   it("re-renders live: a matching node appears after a client-side create (notify)", async () => {
     const client = await seedClient();
     const { city } = await seedWorld(client);
-    const host = await client.createObject({ presentAsMain: true, name: "Host" });
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
     await client.createObject({
       parentId: host,
       contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
@@ -126,13 +126,13 @@ describe("query block (live query token)", () => {
     expect(screen.queryByText("Lyon")).toBeNull();
 
     await act(async () => {
-      await client.createObject({ presentAsMain: true, name: "Lyon", classIds: [city] });
+      await client.createObject({ isEmbedded: false, name: "Lyon", classIds: [city] });
     });
 
     expect(await screen.findByText("Lyon")).not.toBeNull();
     // A non-matching page does not appear.
     await act(async () => {
-      await client.createObject({ presentAsMain: true, name: "Notes" });
+      await client.createObject({ isEmbedded: false, name: "Notes" });
     });
     expect(screen.queryByText("Notes")).toBeNull();
     expect(screen.getByText("Paris")).not.toBeNull();
@@ -141,7 +141,7 @@ describe("query block (live query token)", () => {
   it("count badge reflects the result count and updates on change", async () => {
     const client = await seedClient();
     const { city } = await seedWorld(client);
-    const host = await client.createObject({ presentAsMain: true, name: "Host" });
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
     await client.createObject({
       parentId: host,
       contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
@@ -152,7 +152,7 @@ describe("query block (live query token)", () => {
     expect(badge(container)).toBe("2");
 
     const lyon = await act(async () =>
-      client.createObject({ presentAsMain: true, name: "Lyon", classIds: [city] }),
+      client.createObject({ isEmbedded: false, name: "Lyon", classIds: [city] }),
     );
     expect(badge(container)).toBe("3");
 
@@ -165,7 +165,7 @@ describe("query block (live query token)", () => {
   it("scope = this page limits the results to the page subtree", async () => {
     const client = await seedClient();
     await seedWorld(client);
-    const host = await client.createObject({ presentAsMain: true, name: "Host" });
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
     const body = await client.createObject({
       parentId: host,
       contentAst: text("host body"),
@@ -202,10 +202,10 @@ describe("query block (live query token)", () => {
     });
   });
 
-  it("content-contains and presentAsMain conditions filter the results", async () => {
+  it("content-contains and isEmbedded conditions filter the results", async () => {
     const client = await seedClient();
     await seedWorld(client);
-    const host = await client.createObject({ presentAsMain: true, name: "Host" });
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
     const queryBlock = await client.createObject({
       parentId: host,
       contentAst: queryToken(
@@ -220,14 +220,14 @@ describe("query block (live query token)", () => {
     expect(items.length).toBe(1);
     expect(items[0]?.textContent).toContain("The capital city");
 
-    // Add a presentAsMain condition via the content update path: the block
+    // Add a isEmbedded condition via the content update path: the block
     // drops out and the list goes empty.
     await act(async () => {
       await client.updateObject(queryBlock, {
         contentAst: queryToken(
           makeAst(WORKSPACE(), [
             { type: "content", op: "contains", value: "capital" },
-            { type: "presentAsMain", presentAsMain: true },
+            { type: "isEmbedded", isEmbedded: false },
           ]),
         ),
       });
@@ -240,7 +240,7 @@ describe("query block (live query token)", () => {
   it("builder edits persist the AST through the content update path", async () => {
     const client = await seedClient();
     const { city } = await seedWorld(client);
-    const host = await client.createObject({ presentAsMain: true, name: "Host" });
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
     const block = await client.createObject({
       parentId: host,
       contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
@@ -278,7 +278,7 @@ describe("query block (live query token)", () => {
   it("builder scope select writes the this-page subtree scope", async () => {
     const client = await seedClient();
     await seedWorld(client);
-    const host = await client.createObject({ presentAsMain: true, name: "Host" });
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
     const block = await client.createObject({
       parentId: host,
       contentAst: queryToken(makeAst(WORKSPACE())),
@@ -302,7 +302,7 @@ describe("query block (live query token)", () => {
           scope: "page",
           classId: null,
           isClass: "",
-          presentAsMain: "",
+          isEmbedded: "",
           contains: "",
           createdAfter: "",
           createdBefore: "",
@@ -323,7 +323,7 @@ describe("query block (live query token)", () => {
   it("aggregated AST renders the aggregate grid (count by isClass matches the seeded data)", async () => {
     const client = await seedClient();
     await seedWorld(client);
-    const host = await client.createObject({ presentAsMain: true, name: "Host" });
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
     await client.createObject({
       parentId: host,
       contentAst: queryToken({ ...makeAst(WORKSPACE()), aggregation: countByRenderState }),
@@ -354,7 +354,7 @@ describe("query block (live query token)", () => {
   it("table mode renders a Name/Type/Created table and the toggle persists in the token view", async () => {
     const client = await seedClient();
     const { city } = await seedWorld(client);
-    const host = await client.createObject({ presentAsMain: true, name: "Host" });
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
     const block = await client.createObject({
       parentId: host,
       contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
@@ -370,7 +370,7 @@ describe("query block (live query token)", () => {
 
     const headers = await screen.findAllByRole("columnheader");
     // Leading selection checkbox column, then Name / Class / Main / Created.
-    expect(headers.map((th) => th.textContent)).toEqual(["", "Name", "Class", "Main", "Created"]);
+    expect(headers.map((th) => th.textContent)).toEqual(["", "Name", "Class", "Embedded", "Created"]);
     const rows = container.querySelectorAll(".nt-table tbody tr");
     expect(rows.length).toBe(2);
     const names = Array.from(rows).map((row) => row.querySelector(".nt-table-name-label")?.textContent);
@@ -398,7 +398,7 @@ describe("query block (live query token)", () => {
   it("builder group-by + measure writes the aggregation and the grid updates", async () => {
     const client = await seedClient();
     const { city } = await seedWorld(client);
-    const host = await client.createObject({ presentAsMain: true, name: "Host" });
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
     const block = await client.createObject({
       parentId: host,
       contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
@@ -433,7 +433,7 @@ describe("query block (live query token)", () => {
     await client.setClassProperty(city, rating, { defaultValue: 1 });
     await client.setProperty(london, rating, 5);
 
-    const host = await client.createObject({ presentAsMain: true, name: "Host" });
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
     const block = await client.createObject({
       parentId: host,
       contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
@@ -472,7 +472,7 @@ describe("query block (live query token)", () => {
   it("invalid AST renders the placeholder without crashing", async () => {
     const client = await seedClient();
     await seedWorld(client);
-    const host = await client.createObject({ presentAsMain: true, name: "Host" });
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
     await client.createObject({
       parentId: host,
       contentAst: queryToken({
@@ -494,14 +494,14 @@ describe("query block (live query token)", () => {
   it("result list windows at 200 rows; load-more widens past the cap", async () => {
     const client = await seedClient();
     const city = await client.createClass("City");
-    const host = await client.createObject({ presentAsMain: true, name: "Host" });
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
     await client.createObject({
       parentId: host,
       contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
     });
     const total = QUERY_RESULT_CAP + 5;
     for (let i = 0; i < total; i += 1) {
-      await client.createObject({ presentAsMain: true, name: `City ${i}`, classIds: [city] });
+      await client.createObject({ isEmbedded: false, name: `City ${i}`, classIds: [city] });
     }
 
     const { container } = render(<PageView client={client} pageId={host} />);
@@ -518,7 +518,7 @@ describe("query block (live query token)", () => {
   it("result clicks navigate per the render cascade (inline block → containing main node)", async () => {
     const client = await seedClient();
     const { city, paris } = await seedWorld(client);
-    const host = await client.createObject({ presentAsMain: true, name: "Host" });
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
     const queryBlock = await client.createObject({
       parentId: host,
       contentAst: queryToken(
@@ -580,7 +580,7 @@ describe("query block (live query token)", () => {
   it("export button downloads the concatenated markdown via an anchor", async () => {
     const client = await seedClient();
     const { city, paris } = await seedWorld(client);
-    const host = await client.createObject({ presentAsMain: true, name: "Host" });
+    const host = await client.createObject({ isEmbedded: false, name: "Host" });
     await client.createObject({
       parentId: host,
       contentAst: queryToken(makeAst(WORKSPACE(), [{ type: "class", classId: city }])),
@@ -662,7 +662,7 @@ describe("query block (live query token)", () => {
     try {
       const city = (await core.invoke("createClass", ["City"])) as string;
       const paris = (await core.invoke("createObject", [
-        { presentAsMain: true, name: "Paris", classIds: [city] },
+        { isEmbedded: false, name: "Paris", classIds: [city] },
       ])) as string;
       await core.invoke("createObject", [
         { parentId: paris, contentAst: text("block one") },
@@ -679,14 +679,14 @@ describe("query block (live query token)", () => {
           id: string;
           name: string | null;
           isClass: boolean;
-          presentAsMain: boolean;
+          isEmbedded: boolean;
           parentId: string | null;
         }>;
       };
       expect(result.ids).toEqual([paris]);
       // Title-is-content: the query summary's `name` column is retired (always
       // null); the title lives in the node's own content.
-      expect(result.rows[0]).toMatchObject({ id: paris, presentAsMain: true, parentId: null });
+      expect(result.rows[0]).toMatchObject({ id: paris, isEmbedded: false, parentId: null });
       expect(result.rows[0]!.name).toBe("Paris");
       const parisNode = (await core.invoke("getPage", [paris])) as { contentAst: unknown };
       expect(parisNode.contentAst).toEqual(text("Paris"));

@@ -97,7 +97,7 @@ function pageTreeOf(client: AnyClient, node: ClientNode, remaining = PAGE_TREE_D
         ? []
         : client
             .getChildren(node.id)
-            .filter((child) => !child.isClass && child.presentAsMain)
+            .filter((child) => !child.isClass && !child.isEmbedded)
             .map((child) => pageTreeOf(client, child, remaining - 1)),
   };
 }
@@ -426,7 +426,7 @@ export function SystemSections({
                   icon: "mdi-plus",
                   label: "Add child page",
                   onClick: () =>
-                    void client.createObject({ parentId: pageId, presentAsMain: true }),
+                    void client.createObject({ parentId: pageId, isEmbedded: false }),
                 }
           }
           load={loadChildPages}

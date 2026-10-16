@@ -168,7 +168,7 @@ const createObjectBody: JsonSchema = {
   additionalProperties: false,
   properties: {
     isClass: { type: "boolean", description: "true declares a class node (always a root)" },
-    presentAsMain: { type: "boolean", description: "render bit for parented non-class nodes" },
+    isEmbedded: { type: "boolean", description: "embedding flag for parented non-class nodes (Revision 12)" },
     name: { type: "string", description: "initial text content (title-is-content)" },
     contentAst: { type: "array", items: { type: "object", additionalProperties: true }, description: "SCHEMA.md content tokens" },
     classIds: { type: "array", items: objectIdField },
@@ -181,7 +181,7 @@ const updateObjectBody: JsonSchema = {
   type: "object",
   additionalProperties: false,
   properties: {
-    presentAsMain: { type: "boolean", description: "render-bit toggle (promotion/demotion)" },
+    isEmbedded: { type: "boolean", description: "embedding-flag toggle (promotion/demotion, Revision 12)" },
     icon: { type: "string" },
     color: { description: "preset token or #RRGGBB; null clears (SCHEMA.md color grammar)" },
     contentAst: { type: "array", items: { type: "object", additionalProperties: true } },
@@ -527,12 +527,12 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
   ["get", "/api/objects", {
     summary: "List objects (paginated, filterable)",
     description:
-      "`presentAsMain` selects the document-chrome rows (pages), its negation the inline body; `trashed=true` scans the trash. Cursor pagination by id (nextCursor).",
+      "`isEmbedded=true` selects the embedded body rows (blocks), `isEmbedded=false` the standalone rows (pages); `trashed=true` scans the trash. Cursor pagination by id (nextCursor).",
     tags: ["Objects"],
     requiredScope: "objects.read",
     query: {
       isClass: { description: "class identity bit filter (true/false)", type: "string" },
-      presentAsMain: { description: "render-bit filter (true/false)", type: "string" },
+      isEmbedded: { description: "embedding-flag filter (true/false)", type: "string" },
       class: { description: "class uuid — members of that class", type: "string" },
       parent: { description: "direct-children filter (parent_id)", type: "string" },
       trashed: { description: "true lists inactive (trashed) rows", type: "string" },
@@ -563,7 +563,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     errors: ["not_found"],
   }],
   ["patch", "/api/objects/:id", {
-    summary: "Update an object (render bit, icon, color, contentAst, wire node fields)",
+    summary: "Update an object (embedding flag, icon, color, contentAst, wire node fields)",
     description:
       "The only mutation with a natural per-node revision — the node's `hlc`, bumped by object.update/object.move — so it is the only route honoring the optional `baseRevision` guard (409 conflict on stale). Property slots carry their own per-slot revision and are LWW by the op log; a base check there would be misleading and is deliberately not offered.",
     tags: ["Objects"],
@@ -667,7 +667,7 @@ const ROUTES: Array<[HttpMethod, string, InternalOperationSpec]> = [
     query: {
       q: { description: "search term", type: "string", required: true },
       isClass: { description: "class identity bit filter", type: "string" },
-      presentAsMain: { description: "render-bit filter", type: "string" },
+      isEmbedded: { description: "embedding-flag filter", type: "string" },
       limit: { description: "max results (default 50, max 500)", type: "integer" },
       cursor: { description: "opaque pagination cursor from a previous response's nextCursor", type: "string" },
     },

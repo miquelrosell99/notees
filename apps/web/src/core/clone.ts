@@ -71,7 +71,7 @@ export interface CloneCreatePayload {
   parentId?: string | null;
   afterId?: string;
   beforeId?: string;
-  presentAsMain?: boolean;
+  isEmbedded?: boolean;
   contentAst?: ContentAst;
   classIds?: string[];
   tagIds?: string[];
@@ -122,8 +122,9 @@ export interface SubtreeCloneOptions {
    * none).
    */
   stripClassIds?: readonly string[];
-  /** Overrides the cloned root's render bit; default = copy the source bit. */
-  rootPresentAsMain?: boolean;
+  /** Overrides the cloned root's structural role; default = copy the source
+   * flag (true = embedded in the destination parent — the Block role). */
+  rootIsEmbedded?: boolean;
   /** Fresh-id generator (tests pin ids; production = uuidv7). */
   newId?: () => string;
   /**
@@ -338,9 +339,9 @@ export function composeSubtreeClone(
       opType: "object.create",
       payload: {
         objectId: idMap.get(source.id)!,
-        ...(entry.isRoot && opts.rootPresentAsMain !== undefined
-          ? { presentAsMain: opts.rootPresentAsMain }
-          : { presentAsMain: source.presentAsMain }),
+        ...(entry.isRoot && opts.rootIsEmbedded !== undefined
+          ? { isEmbedded: opts.rootIsEmbedded }
+          : { isEmbedded: source.isEmbedded }),
         contentAst: withVariables(remapWhiteboardCards(source.contentAst, idMap), opts.variables),
         ...(classIds.length > 0 ? { classIds } : {}),
         ...(source.tagIds.length > 0 ? { tagIds: [...source.tagIds] } : {}),
@@ -460,7 +461,7 @@ export async function submitCloneOps(
       const p = op.payload;
       await writes.createObject({
         id: p.objectId,
-        ...(p.presentAsMain !== undefined ? { presentAsMain: p.presentAsMain } : {}),
+        ...(p.isEmbedded !== undefined ? { isEmbedded: p.isEmbedded } : {}),
         ...(p.contentAst !== undefined ? { contentAst: p.contentAst } : {}),
         ...(p.classIds !== undefined ? { classIds: p.classIds } : {}),
         ...(p.tagIds !== undefined ? { tagIds: p.tagIds } : {}),

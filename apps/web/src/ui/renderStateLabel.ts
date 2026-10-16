@@ -14,7 +14,7 @@ import { isClassNode, rendersWithDocumentChrome } from "@notees/domain";
 /** The minimal node facts the label needs (ClientNode satisfies it). */
 export type RenderStateLabelInput = {
   isClass: boolean;
-  presentAsMain: boolean;
+  isEmbedded: boolean;
   parentId: string | null;
 };
 

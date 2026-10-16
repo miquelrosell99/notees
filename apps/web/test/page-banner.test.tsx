@@ -63,8 +63,8 @@ async function flushWrites(): Promise<void> {
 
 /** A plain page plus an asset-classed node with image bytes; returns both. */
 async function seedPageAndAsset(client: WorkspaceClient): Promise<[string, string]> {
-  const pageId = await client.createObject({ presentAsMain: true, name: "Bannered" });
-  const assetId = await client.createObject({ presentAsMain: true, name: "wide.png" });
+  const pageId = await client.createObject({ isEmbedded: false, name: "Bannered" });
+  const assetId = await client.createObject({ isEmbedded: false, name: "wide.png" });
   await client.assignClass(assetId, SYSTEM_CLASS_UUIDS.asset);
   return [pageId, assetId];
 }
@@ -145,7 +145,7 @@ describe("the page banner (the bannerAssetId wire field)", () => {
       size: 10,
       originalName: "uploaded.png",
     });
-    const pageId = await client.createObject({ presentAsMain: true, name: "Unbannered" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Unbannered" });
 
     const { container } = render(<PageView client={client} pageId={pageId} />);
     fireEvent.click(screen.getByRole("button", { name: "Expand banner" }));
@@ -210,7 +210,7 @@ describe("the page banner (the bannerAssetId wire field)", () => {
   it("whiteboard pages render no banner", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       name: "Board",
       contentAst: [{ type: "whiteboard", layout: { cards: {}, shapes: [], strokes: [] } }],
     });

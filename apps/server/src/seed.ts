@@ -136,10 +136,10 @@ export function buildSeedEnvelopes(factory: EnvelopeFactory, workspaceId: string
         workspaceId,
         opType: "object.create",
         // Title-is-content: the system page's name is its text content; the
-        // render bit defaults are reproduced by the new appliers, so only an
-        // explicit presentAsMain would be needed to deviate (parentless
-        // pages default to the main zone by construction).
-        payload: { objectId: pageId, presentAsMain: true, contentAst: [{ type: "text", text: name }] },
+        // embedding-flag defaults are reproduced by the new appliers, so only
+        // an explicit isEmbedded would be needed to deviate (parentless
+        // pages are standalone by construction).
+        payload: { objectId: pageId, isEmbedded: false, contentAst: [{ type: "text", text: name }] },
         affectedNodeIds: [pageId],
         client: "seed",
       }),

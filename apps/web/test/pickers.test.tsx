@@ -85,7 +85,7 @@ describe("metadata pickers (ported popups)", () => {
     const client = await seedClient();
     const fictionId = await createTitledClass(client, "Fiction");
     const poetryId = await createTitledClass(client, "Poetry");
-    const pageId = await client.createObject({ presentAsMain: true, name: "Book" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Book" });
     await client.assignClass(pageId, poetryId);
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
@@ -134,7 +134,7 @@ describe("metadata pickers (ported popups)", () => {
   it("an already-assigned class resurfaces on an exact query; Ctrl+Enter closes idempotently (no create-class modal)", async () => {
     const client = await seedClient();
     const poetryId = await createTitledClass(client, "Poetry");
-    const pageId = await client.createObject({ presentAsMain: true, name: "Book" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Book" });
     await client.assignClass(pageId, poetryId);
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
@@ -164,7 +164,7 @@ describe("metadata pickers (ported popups)", () => {
   it("right-clicking a class pill opens the node menu; Change color leads to the swatches", async () => {
     const client = await seedClient();
     const classId = await createTitledClass(client, "Genre");
-    const pageId = await client.createObject({ presentAsMain: true, name: "Book" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Book" });
     await client.assignClass(pageId, classId);
     render(<PageView client={client} pageId={pageId} />);
 
@@ -192,7 +192,7 @@ describe("metadata pickers (ported popups)", () => {
     });
     const classId = await client.createClass("Task");
     await client.setClassProperty(classId, schemaId, { sequence: 0 });
-    const pageId = await client.createObject({ presentAsMain: true, name: "Ship it" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Ship it" });
     await client.assignClass(pageId, classId);
     render(<PageView client={client} pageId={pageId} />);
     expandProperties();
@@ -228,7 +228,7 @@ describe("metadata pickers (ported popups)", () => {
     });
     const classId = await createTitledClass(client, "Shelf");
     await client.setClassProperty(classId, schemaId, { sequence: 0 });
-    const pageId = await client.createObject({ presentAsMain: true, name: "Novel" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Novel" });
     await client.assignClass(pageId, classId);
     render(<PageView client={client} pageId={pageId} />);
     expandProperties();
@@ -266,7 +266,7 @@ describe("metadata pickers (ported popups)", () => {
     const client = await seedClient();
     const urlSchema = await client.createPropertySchema({ name: "homepage", type: "url" });
     const emailSchema = await client.createPropertySchema({ name: "contact", type: "email" });
-    const pageId = await client.createObject({ presentAsMain: true, name: "Linked" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Linked" });
     await client.setProperty(pageId, urlSchema, "https://example.org", 0);
     await client.setProperty(pageId, emailSchema, "hi@example.org", 0);
     render(<PageView client={client} pageId={pageId} />);
@@ -284,7 +284,7 @@ describe("metadata pickers (ported popups)", () => {
     const schemaId = await client.createPropertySchema({ name: "archived", type: "boolean" });
     const classId = await client.createClass("Record");
     await client.setClassProperty(classId, schemaId, { sequence: 0 });
-    const pageId = await client.createObject({ presentAsMain: true, name: "File" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "File" });
     await client.assignClass(pageId, classId);
 
     // Unvalued: the unchecked toggle writes true. (Each assertion renders
@@ -324,7 +324,7 @@ describe("metadata pickers (ported popups)", () => {
     });
     const teamClass = await client.createClass("Team");
     await client.setClassProperty(teamClass, mentorSchema, { sequence: 0 });
-    const teamId = await client.createObject({ presentAsMain: true, name: "Crew" });
+    const teamId = await client.createObject({ isEmbedded: false, name: "Crew" });
     await client.assignClass(teamId, teamClass);
     render(<PageView client={client} pageId={teamId} />);
     expandProperties();
@@ -375,13 +375,13 @@ describe("metadata pickers (ported popups)", () => {
     });
     const filmClass = await client.createClass("Film");
     await client.setClassProperty(filmClass, castSchema, { sequence: 0 });
-    const filmId = await client.createObject({ presentAsMain: true, name: "Arrival" });
+    const filmId = await client.createObject({ isEmbedded: false, name: "Arrival" });
     await client.assignClass(filmId, filmClass);
     // Amy carries her OWN color; Bob is person-classed (the write-time filter)
     // but uncolored — the neutral pill.
-    const amyId = await client.createObject({ presentAsMain: true, name: "Amy", classIds: [personClass] });
+    const amyId = await client.createObject({ isEmbedded: false, name: "Amy", classIds: [personClass] });
     await client.updateObject(amyId, { color: "red" });
-    const bobId = await client.createObject({ presentAsMain: true, name: "Bob", classIds: [personClass] });
+    const bobId = await client.createObject({ isEmbedded: false, name: "Bob", classIds: [personClass] });
     await client.setProperty(filmId, castSchema, { nodeId: amyId }, 0);
     await client.setProperty(filmId, castSchema, { nodeId: bobId }, 1);
 
@@ -453,7 +453,7 @@ describe("icon picker color section", () => {
 describe("NodeSelector noCreate", () => {
   it("search-without-match shows the honest empty state instead of a create row", async () => {
     const client = await seedClient();
-    await client.createObject({ presentAsMain: true, name: "Existing" });
+    await client.createObject({ isEmbedded: false, name: "Existing" });
     render(
       <NodeSelector
         client={client}
@@ -470,7 +470,7 @@ describe("NodeSelector noCreate", () => {
 
   it("the default keeps the create-from-query affordance", async () => {
     const client = await seedClient();
-    await client.createObject({ presentAsMain: true, name: "Existing" });
+    await client.createObject({ isEmbedded: false, name: "Existing" });
     render(
       <NodeSelector
         client={client}
@@ -520,7 +520,7 @@ describe("date-chain class lock (SCHEMA.md 'Datetime')", () => {
     unmount();
 
     // An ordinary page still offers Add class (the lock keys on the date id).
-    const pageId = await client.createObject({ presentAsMain: true, name: "Ordinary" });
+    const pageId = await client.createObject({ isEmbedded: false, name: "Ordinary" });
     render(<PageView client={client} pageId={pageId} />);
     expect(screen.getByRole("button", { name: "Add class" })).not.toBeNull();
   });

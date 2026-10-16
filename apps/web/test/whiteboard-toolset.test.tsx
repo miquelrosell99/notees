@@ -80,7 +80,7 @@ function whiteboardAst(layout?: unknown): ContentAst {
 }
 
 async function seedWhiteboardPage(client: WorkspaceClient, layout?: unknown): Promise<string> {
-  return client.createObject({ presentAsMain: true, name: "Board", contentAst: whiteboardAst(layout) });
+  return client.createObject({ isEmbedded: false, name: "Board", contentAst: whiteboardAst(layout) });
 }
 
 function storedLayout(client: WorkspaceClient, hostId: string): WhiteboardLayout {
@@ -681,7 +681,7 @@ describe("whiteboard minimap + zoom controls", () => {
 
   it("embedded mode ships no minimap or zoom cluster (contract unchanged)", async () => {
     const client = await seedClient();
-    const host = await client.createObject({ presentAsMain: true, name: "Doc" });
+    const host = await client.createObject({ isEmbedded: false, name: "Doc" });
     await client.createObject({ parentId: host, contentAst: whiteboardAst({ cards: {} }) });
 
     const { container } = render(<PageView client={client} pageId={host} />);

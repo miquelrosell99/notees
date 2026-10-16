@@ -85,8 +85,8 @@ function attachmentsWorld(): Store {
       { classId: SOURCE_CLASS, propertySchemaId: ATTACHMENTS_SCHEMA_ID, sequence: 0 },
       1002,
     ),
-    env("object.create", { objectId: PAGE, presentAsMain: true }, 1003),
-    env("object.create", { objectId: ASSET_NODE, presentAsMain: true, classIds: [ASSET_CLASS] }, 1004),
+    env("object.create", { objectId: PAGE, isEmbedded: false }, 1003),
+    env("object.create", { objectId: ASSET_NODE, isEmbedded: false, classIds: [ASSET_CLASS] }, 1004),
     env(
       "property.set",
       { objectId: PAGE, propertySchemaId: ATTACHMENTS_SCHEMA_ID, value: { nodeId: ASSET_NODE } },
