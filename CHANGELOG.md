@@ -9,6 +9,43 @@ predating this file.
 
 ## 2026-10-16
 
+- **feat(web): the node context menu groups its two ambiguity-prone surfaces
+  into submenus — Convert to page › (keep under parent vs extract to root,
+  children staying or following) and Copy › (markdown / with children / node
+  id / link) — retiring the Shift-click badge and the standalone Move to
+  Pages item (owner decision 2026-10-16, second pass).** Yesterday's
+  extraction shipped as a flat "Convert to page" with a cryptic "⇧ children
+  follow" badge next to the pre-existing "Move to Pages" — two siblings that
+  read as synonyms, plus an undiscoverable modifier. Now one self-describing
+  bucket per intent, each variant a plain click: **Convert to page ›**
+  (inline blocks only; date-chain nodes still never offered) offers *Keep
+  under "\<parent\>"* (the `presentAsMain` zone flip — content still
+  flattens, so the BC4 confirm names what will flatten, now titled
+  "Convert to page?"), *Extract to root — children stay here* (the link
+  block takes the slot; children reparent onto it, order preserved), and
+  *Extract to root — children follow* (the link block simply replaces the
+  block). Root sits in both extract labels on purpose — the node leaves its
+  parent entirely, the distinction the owner asked for. **Copy ›** replaces
+  the lone "Copy link" item: *Markdown* (the node's own content via
+  `renderContent`), *Markdown with children* (the inline block tree as
+  nested bullets via `nodeToMarkdown`, frontmatter OFF — the export package
+  gains the `includeFrontmatter` option, default ON for every download
+  path), *Node id* (the raw UUID for CLI/API use), and *Link*. The
+  ContextMenu primitive grows the native `submenuItems` action-list form
+  (custom `submenu` content still rides alongside — the whiteboard color
+  row): subitems render indented with the item styling, fire their own
+  onClick, close the whole menu unless `keepOpen`, and stay out of the
+  arrow-key walk. `extractBlockToPage` is unchanged (`keepChildren` is the
+  seam); the menu's client surface and the export composition now share the
+  structural `ExportReadSurface` instead of the concrete client union.
+  Docs: `docs/usage.md` web-app items 17–18, `docs/ux.md` flip clause,
+  `packages/protocol/SCHEMA.md` extraction leg 3, `ui-primitives.md`
+  ContextMenu catalog line. **Verification:** `pnpm typecheck` + `pnpm
+  test` green (new `copy-submenu.test.tsx` against the real client with a
+  stubbed clipboard; `render-cascade` zone specs rewritten for the submenu
+  flow; export package's `includeFrontmatter` spec incl. the defaults-bag
+  pin); web + export packages touched — no wire change.
+
 - **fix(web): offline, every remembered workspace stays listed — the ones
   without a local copy render muted with a cloud-off marker instead of
   hiding (owner ruling 2026-10-16).** The registry slice offered only the

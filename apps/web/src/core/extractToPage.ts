@@ -1,14 +1,14 @@
 /**
- * Block → page extraction — the "Convert to page" context-menu gesture
+ * Block → page extraction — the "Convert to page ›" context-menu gesture
  * (owner 2026-10-16): an inline block leaves its parent and becomes a
  * root page, while a fresh link block takes its exact slot in the original
  * page — the link block's whole content is one `mention` of the extracted
  * node (identity preserved; rich content survives untouched, unlike the
  * presentAsMain promotion, which stringifies). The extracted node's
  * children either STAY in the original page (reparented onto the link
- * block, relative order preserved — the default) or FOLLOW the extracted
- * page (`keepChildren` — the Shift/Ctrl/Cmd-click variant, which then is
- * just the link-block replacement, children untouched).
+ * block, relative order preserved — the submenu's "children stay here"
+ * row) or FOLLOW the extracted page (the "children follow" row — which
+ * then is just the link-block replacement, children untouched).
  *
  * The gesture COMPOSES existing carriers — deliberately NO new op type:
  * one `object.create` (the link block, anchored at the source slot with
