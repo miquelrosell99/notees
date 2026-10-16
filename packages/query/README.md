@@ -47,11 +47,22 @@ Conditions (the shipped subset, cleanly extensible by versioned addition):
 | `pageClass {classId}` | The **containing page** (nearest self-or-ancestor rendering with document chrome — a class, a parentless node, or an `is_embedded = 0` node; the parent-page condition is write-time impossible to violate) is classed, closure-aware. A page row reads its own class. |
 | `ancestorClassed {classId}` | Some **strict ancestor** (the parent path, self excluded) is classed, closure-aware (the class-based Odoo "parent of"). |
 | `rootClass {classId}` | The **workspace-root ancestor** (the top of the parent chain; a parentless row is its own root) is classed, closure-aware. |
+| `pageClassAny / ancestorClassedAny / rootClassAny {classIds}` | The ANY-of container shapes (Odoo "one of" over the container classes). |
+| `pageClassSet / ancestorClassedSet / rootClassSet` | The container "is set" — the containing page / some strict ancestor / the root carries at least one class. |
 | `isClass {isClass}` | `node.is_class = 0/1` — the class identity bit (Revision 11). |
 | `isEmbedded {isEmbedded}` | `node.is_embedded = 0/1` — the embedding bit for parented non-class nodes (Revision 12: the Block role = embedded in the parent's body, the Page-role claim = standalone under a page-role parent). |
-| `content {op, value}` | `contains`: LIKE substring over the derived search plaintext (name + content tokens — the only derived plaintext; it lives in the FTS index). `fts`: prefix-AND `MATCH` over `search_index`. |
+| `content {op, value}` | `contains`: LIKE substring over the derived search plaintext (name + content tokens — the only derived plaintext; it lives in the FTS index). `fts`: prefix-AND `MATCH` over `search_index`. `eq`/`neq`: plaintext equality; `starts`/`ends`: edge-anchored LIKE — the Odoo text set. |
+| `contentSet` | The title/content plaintext is non-empty (the content "is set"). |
+| `tag {tagId}` / `tagAny {tagIds}` / `tagSet` | Tag membership over the OR-set `tag_ids` (a tag is any page — no hierarchy): single, ANY-of, non-empty. |
 | `property {schemaId, op, value?, includeDefaults?}` | See below. `eq`, `neq`, `contains`, `exists`, `gt`, `gte`, `lt`, `lte`. |
 | `linkedTo {nodeId}` | `backlinksWithRollup` membership: a direct edge to the node, **or** an edge sourced strictly inside its subtree and targeting outside it (containment roll-up). |
+| `linkedToAny {nodeIds}` / `linkSet` | Rollup membership of ANY picked node (Odoo "one of") / at least one inbound link (the links "is set"). |
+| `descendantOfAny {nodeIds}` / `parentSet` | Subtree membership of ANY picked node, anchors excluded / the node has a parent at all (`parent_id IS NOT NULL`). |
+| `createdCmp / updatedCmp {op, timestamp}` | Odoo's date comparisons: `eq`/`neq` are DAY-granular (the whole resolved local day matches — tokens and plain dates resolve through the same boundary machinery); `gt`/`gte`/`lt`/`lte` compare the instant. |
+| `createdBetween / updatedBetween {from, to}` | The inclusive range: from day-start to to day-end. |
+| `createdWithin / updatedWithin {period}` | The relative period (`today` / `this_week` / `this_month` / `this_year`), resolved against the run clock. |
+| `propertyBetween {schemaId, from, to}` | The effective property value inside the inclusive range (numeric for JSON numbers, lexicographic for ISO dates — date-node refs speak too). |
+| `propertyWithin {schemaId, period}` | The effective DATE-valued property inside the relative period. |
 | `createdAfter / createdBefore {timestamp}` | Inclusive bounds on `node.created_at` (ISO-8601, lexicographic). |
 
 ## Property conditions and the effective read model (DECISION)
