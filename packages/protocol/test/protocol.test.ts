@@ -42,7 +42,7 @@ function loadFixtures(): FixtureFile[] {
 describe("canonical fixtures (SCHEMA.md gate)", () => {
   const fixtures = loadFixtures();
 
-  it("has exactly the twenty-nine required fixtures", () => {
+  it("has exactly the thirty required fixtures", () => {
     const names = fixtures.map((f) => f.name).sort();
     expect(names).toEqual([
       "class-convert.json",
@@ -65,6 +65,7 @@ describe("canonical fixtures (SCHEMA.md gate)", () => {
       "object-move.json",
       "object-restore.json",
       "object-wire-fields.json",
+      "present-as-main-parent-page.json",
       "property-asset-type.json",
       "property-date-qualifier.json",
       "property-datetime.json",

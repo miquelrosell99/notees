@@ -39,6 +39,7 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
 import { PageView, BLOCKS_VIEW_MODES } from "./PageView.js";
 import { ReferenceSubtree } from "./components/ReferenceSubtree.js";
 import { NodeMenuButton, type ShareTarget } from "./components/NodeMenuButton.js";
+import { parentRenderFacts } from "./renderStateLabel.js";
 import { ViewToolbar } from "./views/ViewToolbar.js";
 import { useViewModePreference } from "./viewPrefs.js";
 
@@ -131,8 +132,9 @@ export function NodeView({
   if (node === undefined) {
     return <div className="nt-page-missing">Page not found.</div>;
   }
-  const pageView = !node.isClass && !rendersAsInlineBlock(node);
-  const inlineBlock = rendersAsInlineBlock(node);
+  const parentFacts = parentRenderFacts(client, node);
+  const pageView = !node.isClass && !rendersAsInlineBlock(node, parentFacts);
+  const inlineBlock = rendersAsInlineBlock(node, parentFacts);
   /**
    * The card's top-right chrome: pages get the blocks view switcher + the
    * "…" node menu as two pieces (rendered by PageView — in the nodeview top
@@ -172,7 +174,7 @@ export function NodeView({
         {chromeMenu}
       </>
     ) : undefined;
-  const view = rendersAsInlineBlock(node) ? (
+  const view = rendersAsInlineBlock(node, parentFacts) ? (
     /* Block mode: the body is the plain collection — the node itself as
        the root row with its children under it (ReferenceSubtree builds the
        minimal outliner + SortableContext and renders the real editable
