@@ -1,7 +1,7 @@
 /**
  * QueryAST v1 — the canonical, serializable query model for Notees
  * (port of `app/domain/entities/query_ast.py` concepts, adapted to the
- * derived schema: the Revision-11 booleans (`is_class`, `present_as_main`)
+ * derived schema: the Revision-12 booleans (`is_class`, `is_embedded`)
  * replace node_type/kind, edge replaces node_link as the
  * reference index, class_hierarchy carries the transitive extends closure).
  *
@@ -98,7 +98,7 @@ export type NodeFieldOp = "eq" | "neq" | "exists";
 export type Condition =
   | { type: "class"; classId: string }
   | { type: "isClass"; isClass: boolean }
-  | { type: "presentAsMain"; presentAsMain: boolean }
+  | { type: "isEmbedded"; isEmbedded: boolean }
   | { type: "content"; op: ContentOp; value: string }
   | {
       type: "property";
@@ -151,9 +151,10 @@ export const conditionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("class"), classId: uuid }).strict(),
   /** Class identity bit: match class nodes (true) or non-class nodes (false). */
   z.object({ type: z.literal("isClass"), isClass: z.boolean() }).strict(),
-  /** Render bit (parented nodes): match the parent's main-children zone
-   * (true) or the inline body (false). */
-  z.object({ type: z.literal("presentAsMain"), presentAsMain: z.boolean() }).strict(),
+  /** Embedding flag (parented nodes): match the parent's inline body
+   * (true = embedded, the Block role) or the main-children zone (false =
+   * standalone, the Page role). */
+  z.object({ type: z.literal("isEmbedded"), isEmbedded: z.boolean() }).strict(),
   /**
    * contains: LIKE substring over the derived search plaintext (the same text
    * the FTS index holds: name + content tokens, case-insensitive for ASCII).
@@ -205,13 +206,13 @@ export const conditionSchema = z.discriminatedUnion("type", [
 
 // --- sort ---------------------------------------------------------------------------
 
-export type SortField = "name" | "createdAt" | "isClass" | "presentAsMain";
+export type SortField = "name" | "createdAt" | "isClass" | "isEmbedded";
 export type SortDir = "asc" | "desc";
 export type SortSpec = { field: SortField; dir: SortDir };
 
 export const sortSpecSchema = z
   .object({
-    field: z.enum(["name", "createdAt", "isClass", "presentAsMain"]),
+    field: z.enum(["name", "createdAt", "isClass", "isEmbedded"]),
     dir: z.enum(["asc", "desc"]),
   })
   .strict();
@@ -222,7 +223,7 @@ export type AggregationDimension =
   | { kind: "class"; id: string }
   | { kind: "property"; id: string }
   | { kind: "isClass" }
-  | { kind: "presentAsMain" };
+  | { kind: "isEmbedded" };
 
 export const aggregationDimensionSchema = z.discriminatedUnion("kind", [
   /** Group by membership in the class (hierarchy-aware, like the class condition). */
@@ -231,8 +232,8 @@ export const aggregationDimensionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("property"), id: uuid }).strict(),
   /** Group by node.is_class (label: "Is class"). */
   z.object({ kind: z.literal("isClass") }).strict(),
-  /** Group by node.present_as_main (label: "Presents as main"). */
-  z.object({ kind: z.literal("presentAsMain") }).strict(),
+  /** Group by node.is_embedded (label: "Embedded"). */
+  z.object({ kind: z.literal("isEmbedded") }).strict(),
 ]);
 
 export type AggregationMeasure =

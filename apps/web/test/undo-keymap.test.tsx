@@ -143,7 +143,7 @@ describe("CommandPalette Undo/Redo rows", () => {
       sqlJs: sqlModule,
     });
     await client.bootstrapWorkspace(WS);
-    await client.createObject({ presentAsMain: true, name: "Solo" });
+    await client.createObject({ isEmbedded: false, name: "Solo" });
     clients.push(client);
     return client;
   }

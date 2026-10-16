@@ -122,7 +122,7 @@ describe("ingest validation (WIRE error shapes)", () => {
     server = await makeTestServer();
     const env = testEnvelope({
       opType: "object.create",
-      payload: { objectId: crypto.randomUUID(), presentAsMain: "planet" },
+      payload: { objectId: crypto.randomUUID(), isEmbedded: "planet" },
     });
     const res = await ingest(server, [env]);
     expect(res.statusCode).toBe(422);

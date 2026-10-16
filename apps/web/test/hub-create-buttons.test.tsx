@@ -63,7 +63,7 @@ describe("hub header creation buttons", () => {
     const page = client.getNode(opened[0]!);
     expect(page).not.toBeUndefined();
     expect(page!.isClass).toBe(false);
-    expect(page!.presentAsMain).toBe(true);
+    expect(page!.isEmbedded).toBe(false);
     expect(page!.parentId).toBeNull();
     await flushSync();
   });
@@ -78,7 +78,7 @@ describe("hub header creation buttons", () => {
     await waitFor(() => expect(opened).toHaveLength(1));
     const page = client.getNode(opened[0]!);
     expect(page).not.toBeUndefined();
-    expect(page!.presentAsMain).toBe(true);
+    expect(page!.isEmbedded).toBe(false);
     expect(page!.classIds).toContain(SYSTEM_CLASS_UUIDS.whiteboard);
     // The new whiteboard is a hub member.
     expect(

@@ -21,12 +21,12 @@ export const OP_CATALOG: OpCatalogEntry[] = [
     opType: "object.create",
     description:
       "Create a node — or, re-issued on an EXISTING id, seed class/tag OR-Set membership without touching the tree (the add-wins carrier).",
-    example: { objectId: "<uuid>", presentAsMain: true, classIds: ["<class-uuid>"], contentAst: [{ type: "text", text: "Title" }] },
+    example: { objectId: "<uuid>", isEmbedded: false, classIds: ["<class-uuid>"], contentAst: [{ type: "text", text: "Title" }] },
     affected: "objectId",
   },
   {
     opType: "object.update",
-    description: "LWW field writes: render bit (promote/demote), icon, color, the wire node fields (coverAssetId, bannerAssetId, aliasedNodeId, description — description is the page subtitle, max 512 chars), content (contentAst readable carrier or contentDeltaB64 wire carrier — exactly one per update). color: preset token or #RRGGBB hex (colors.ts grammar), null clears.",
+    description: "LWW field writes: embedding flag (promote/demote), icon, color, the wire node fields (coverAssetId, bannerAssetId, aliasedNodeId, description — description is the page subtitle, max 512 chars), content (contentAst readable carrier or contentDeltaB64 wire carrier — exactly one per update). color: preset token or #RRGGBB hex (colors.ts grammar), null clears.",
     example: { objectId: "<uuid>", color: "sky" },
     affected: "objectId",
   },

@@ -80,7 +80,7 @@ function fakeCapture(overrides: {
   feature?: boolean;
 }): UndoCaptureSource {
   const defaultNode: UndoNodeSnapshot = {
-    presentAsMain: false,
+    isEmbedded: true,
     icon: null,
     color: null,
     contentAst: [{ type: "text", text: "before" }],
@@ -122,7 +122,7 @@ function fakeCapture(overrides: {
 
 describe("invertEnvelope — the inversion matrix", () => {
   const snapOf = (overrides: Partial<UndoNodeSnapshot> = {}): UndoNodeSnapshot => ({
-    presentAsMain: false,
+    isEmbedded: true,
     icon: null,
     color: null,
     contentAst: [{ type: "text", text: "before" }],
@@ -607,7 +607,7 @@ describe("UndoJournal — mechanics (fake clock)", () => {
     expect(journal.undoDepth()).toBe(3);
   });
 
-  it("icon/color/presentAsMain updates do not coalesce with text edits", () => {
+  it("icon/color/isEmbedded updates do not coalesce with text edits", () => {
     const journal = makeJournal({ now: () => clock });
     journal.commit(journal.prepare(textEdit(NODE, "a")), "normal");
     clock += 100;
@@ -669,7 +669,7 @@ describe("UndoJournal — mechanics (fake clock)", () => {
     const journal = makeJournal({ now: () => clock });
     journal.commit(journal.prepare(textEdit(NODE, "a")), "normal");
     expect(journal.undoLabel()).toBe("Undo edit text");
-    journal.commit(journal.prepare(env("object.update", { objectId: NODE, presentAsMain: true })), "normal");
+    journal.commit(journal.prepare(env("object.update", { objectId: NODE, isEmbedded: false })), "normal");
     expect(journal.undoLabel()).toBe("Undo promote");
     journal.commit(journal.prepare(env("object.update", { objectId: NODE, color: "sky" })), "normal");
     expect(journal.undoLabel()).toBe("Undo change color");
@@ -716,7 +716,7 @@ async function createClient(relay: MemoryRelay): Promise<WorkspaceClient> {
 describe("WorkspaceClient undo/redo — integration over the outbox path", () => {
   it("create → undo trashes the node, redo revives it", async () => {
     const client = await createClient(new MemoryRelay());
-    const id = await client.createObject({ presentAsMain: true, name: "Hello" });
+    const id = await client.createObject({ isEmbedded: false, name: "Hello" });
     expect(client.getNode(id)).not.toBeUndefined();
     expect(client.undoDepth()).toEqual({ undo: 1, redo: 0 });
 
@@ -738,7 +738,7 @@ describe("WorkspaceClient undo/redo — integration over the outbox path", () =>
 
   it("two contiguous text edits coalesce: one undo restores the pre-typing text", async () => {
     const client = await createClient(new MemoryRelay());
-    const id = await client.createObject({ presentAsMain: true, name: "Start" });
+    const id = await client.createObject({ isEmbedded: false, name: "Start" });
     await client.updateObject(id, { contentAst: [{ type: "text", text: "Start typing" }] });
     await client.updateObject(id, { contentAst: [{ type: "text", text: "Start typing more" }] });
     // create + ONE coalesced text entry (both edits landed inside the window).
@@ -753,7 +753,7 @@ describe("WorkspaceClient undo/redo — integration over the outbox path", () =>
   it("rename (text update) → undo restores the prior content; redo reapplies", async () => {
     const client = await createClient(new MemoryRelay());
     const id = await client.createObject({
-      presentAsMain: true,
+      isEmbedded: false,
       contentAst: [{ type: "text", text: "Original" }],
     });
     await client.updateObject(id, { contentAst: [{ type: "text", text: "Renamed" }] });
@@ -769,7 +769,7 @@ describe("WorkspaceClient undo/redo — integration over the outbox path", () =>
 
   it("color update → undo restores the prior color", async () => {
     const client = await createClient(new MemoryRelay());
-    const id = await client.createObject({ presentAsMain: true, name: "Page" });
+    const id = await client.createObject({ isEmbedded: false, name: "Page" });
     await client.updateObject(id, { color: "sky" });
     expect(client.getNode(id)?.color).toBe("sky");
     await client.undo();
@@ -778,7 +778,7 @@ describe("WorkspaceClient undo/redo — integration over the outbox path", () =>
 
   it("delete → undo restores the subtree; a permanent delete is not journaled", async () => {
     const client = await createClient(new MemoryRelay());
-    const page = await client.createObject({ presentAsMain: true, name: "P" });
+    const page = await client.createObject({ isEmbedded: false, name: "P" });
     const child = await client.createObject({ parentId: page, name: "child" });
     await client.deleteObject(page);
     expect(client.getNode(page)).toBeUndefined();
@@ -787,7 +787,7 @@ describe("WorkspaceClient undo/redo — integration over the outbox path", () =>
     expect(client.getNode(child)).not.toBeUndefined();
 
     // Permanent delete: honest data loss, no journal entry.
-    const doomed = await client.createObject({ presentAsMain: true, name: "Doomed" });
+    const doomed = await client.createObject({ isEmbedded: false, name: "Doomed" });
     const depthBefore = client.undoDepth().undo;
     await client.deleteObject(doomed, { permanent: true });
     expect(client.getNodeRaw(doomed)).toBeUndefined();
@@ -797,7 +797,7 @@ describe("WorkspaceClient undo/redo — integration over the outbox path", () =>
 
   it("move → undo restores the prior parent AND the prior sibling position", async () => {
     const client = await createClient(new MemoryRelay());
-    const page = await client.createObject({ presentAsMain: true, name: "P" });
+    const page = await client.createObject({ isEmbedded: false, name: "P" });
     const a = await client.createObject({ parentId: page, name: "A" });
     const b = await client.createObject({ parentId: page, name: "B" });
     const c = await client.createObject({ parentId: page, name: "C" });
@@ -820,7 +820,7 @@ describe("WorkspaceClient undo/redo — integration over the outbox path", () =>
 
   it("property.set → undo restores the prior value; property.unset → undo restores it", async () => {
     const client = await createClient(new MemoryRelay());
-    const node = await client.createObject({ presentAsMain: true, name: "N" });
+    const node = await client.createObject({ isEmbedded: false, name: "N" });
     const schema = await client.createPropertySchema({ name: "Note", type: "text" });
 
     // First write: slot was empty → undo unsets.
@@ -847,7 +847,7 @@ describe("WorkspaceClient undo/redo — integration over the outbox path", () =>
 
   it("assignClass → undo removes the class; unassignClass → undo re-adds it", async () => {
     const client = await createClient(new MemoryRelay());
-    const node = await client.createObject({ presentAsMain: true, name: "N" });
+    const node = await client.createObject({ isEmbedded: false, name: "N" });
     const cls = await client.createClass("Kind");
     await client.assignClass(node, cls);
     expect(client.getNode(node)?.classIds).toEqual([cls]);
@@ -864,8 +864,8 @@ describe("WorkspaceClient undo/redo — integration over the outbox path", () =>
 
   it("assignTag → undo removes the tag", async () => {
     const client = await createClient(new MemoryRelay());
-    const tag = await client.createObject({ presentAsMain: true, name: "TagPage" });
-    const node = await client.createObject({ presentAsMain: true, name: "N" });
+    const tag = await client.createObject({ isEmbedded: false, name: "TagPage" });
+    const node = await client.createObject({ isEmbedded: false, name: "N" });
     await client.assignTag(node, tag);
     expect(client.getNode(node)?.tagIds).toEqual([tag]);
     expect((await client.undoState()).undoLabel).toBe("Undo assign tag");
@@ -918,7 +918,7 @@ describe("WorkspaceClient undo/redo — integration over the outbox path", () =>
     const relay = new MemoryRelay();
     const clientA = await createClient(relay);
     const clientB = await createClient(relay);
-    await clientA.createObject({ presentAsMain: true, name: "From A" });
+    await clientA.createObject({ isEmbedded: false, name: "From A" });
     expect(clientA.undoDepth().undo).toBe(1);
     // B syncs A's op through the log — remote ops never enter B's journal.
     await clientB.sync();
@@ -931,7 +931,7 @@ describe("WorkspaceClient undo/redo — integration over the outbox path", () =>
     const relay = new MemoryRelay();
     const clientA = await createClient(relay);
     const clientB = await createClient(relay);
-    const id = await clientA.createObject({ presentAsMain: true, name: "Sync me" });
+    const id = await clientA.createObject({ isEmbedded: false, name: "Sync me" });
     await clientA.updateObject(id, { contentAst: [{ type: "text", text: "edited" }] });
     await clientA.undo();
     await clientA.push();

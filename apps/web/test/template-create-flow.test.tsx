@@ -101,7 +101,7 @@ async function setupMeetingWithTemplate(client: WorkspaceClient) {
   await client.setClassProperty(meetingId, prioId, { defaultValue: "low" });
 
   const templateId = await client.createObject({
-    presentAsMain: true,
+    isEmbedded: false,
     name: "Sync template",
     classIds: [SYSTEM_CLASS_UUIDS.template],
   });

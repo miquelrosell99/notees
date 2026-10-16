@@ -61,7 +61,7 @@ async function seedClient(): Promise<WorkspaceClient> {
 /** A template page with one child block, classed `template`. */
 async function createTemplate(client: WorkspaceClient, name: string, childText = "Recurring agenda") {
   const templateId = await client.createObject({
-    presentAsMain: true,
+    isEmbedded: false,
     name,
     classIds: [SYSTEM_CLASS_UUIDS.template],
   });
@@ -139,7 +139,7 @@ describe("TemplatesSection apply-to-existing (the amendment)", () => {
 
   it("the card's apply affordance grafts the template onto a picked node and writes generatedFrom", async () => {
     const { client, classId, templateId } = await setupClassWithTemplate();
-    const targetId = await client.createObject({ presentAsMain: true, name: "Existing notes" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Existing notes" });
     const onOpenPage = vi.fn();
     const { container } = render(
       <TemplatesSection client={client} classId={classId} onOpenPage={onOpenPage} />,
@@ -171,7 +171,7 @@ describe("TemplatesSection apply-to-existing (the amendment)", () => {
 
   it("a node already generated from the template is skipped (the A4 merge marker)", async () => {
     const { client, classId, templateId } = await setupClassWithTemplate();
-    const targetId = await client.createObject({ presentAsMain: true, name: "Existing notes" });
+    const targetId = await client.createObject({ isEmbedded: false, name: "Existing notes" });
     render(<TemplatesSection client={client} classId={classId} onOpenPage={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /Templates/ }));
 

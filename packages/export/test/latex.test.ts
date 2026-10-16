@@ -56,7 +56,7 @@ function page(
   return {
     id,
     isClass: 0,
-    presentAsMain: 1,
+    isEmbedded: 0,
     parentId: null,
     name: null,
     contentAst: contentAst.length > 0 ? contentAst : [{ type: "text", text }],
@@ -160,7 +160,7 @@ describe("document shape", () => {
     const inline: ExportNode = {
       id: "aaaaaaaa-0000-4000-8000-000000000004",
       isClass: 0,
-      presentAsMain: 0,
+      isEmbedded: 1,
       parentId: "bbbbbbbb-0000-4000-8000-000000000000",
       name: null,
       contentAst: [{ type: "text", text: "inline body" }],
@@ -178,7 +178,7 @@ describe("spans and marks", () => {
     const inline: ExportNode = {
       id: "aaaaaaaa-0000-4000-8000-000000000010",
       isClass: 0,
-      presentAsMain: 0,
+      isEmbedded: 1,
       parentId: "bbbbbbbb-0000-4000-8000-000000000000",
       name: null,
       contentAst: [
@@ -210,7 +210,7 @@ describe("spans and marks", () => {
     const inline: ExportNode = {
       id: "aaaaaaaa-0000-4000-8000-000000000011",
       isClass: 0,
-      presentAsMain: 0,
+      isEmbedded: 1,
       parentId: "bbbbbbbb-0000-4000-8000-000000000000",
       name: null,
       contentAst: [
@@ -244,7 +244,7 @@ describe("spans and marks", () => {
     const inline: ExportNode = {
       id: "aaaaaaaa-0000-4000-8000-000000000012",
       isClass: 0,
-      presentAsMain: 0,
+      isEmbedded: 1,
       parentId: "bbbbbbbb-0000-4000-8000-000000000000",
       name: null,
       contentAst: [{ type: "math", expression: "x_1 \\oplus %raw&" }],

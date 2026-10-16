@@ -115,7 +115,7 @@ function rowByText(text: string): HTMLElement {
 
 /** Seed a page with one empty block; returns ids. */
 async function seedBlock(client: WorkspaceClient): Promise<{ pageId: string; blockId: string }> {
-  const pageId = await client.createObject({ presentAsMain: true, name: "Home" });
+  const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
   const blockId = await client.createObject({ parentId: pageId, contentAst: [] });
   return { pageId, blockId };
 }
@@ -124,8 +124,8 @@ describe("suggestion popup single-pick (# tags, + classes)", () => {
   it("a row click assigns exactly that node and closes the popup", async () => {
     const client = await seedClient();
     const { pageId, blockId } = await seedBlock(client);
-    const alpha = await client.createObject({ presentAsMain: true, name: "TagA" });
-    await client.createObject({ presentAsMain: true, name: "TagB" });
+    const alpha = await client.createObject({ isEmbedded: false, name: "TagA" });
+    await client.createObject({ isEmbedded: false, name: "TagB" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     const editor = clickIntoBlock(container);
@@ -162,8 +162,8 @@ describe("suggestion popup single-pick (# tags, + classes)", () => {
   it("a plain Enter assigns the highlighted row and closes", async () => {
     const client = await seedClient();
     const { pageId, blockId } = await seedBlock(client);
-    const alpha = await client.createObject({ presentAsMain: true, name: "TagA" });
-    const axe = await client.createObject({ presentAsMain: true, name: "TagAxe" });
+    const alpha = await client.createObject({ isEmbedded: false, name: "TagA" });
+    const axe = await client.createObject({ isEmbedded: false, name: "TagAxe" });
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
     const editor = clickIntoBlock(container);
@@ -402,7 +402,7 @@ describe("suggestion popup filter prefixes", () => {
   it("`daily:` alone lists only day-precision pages", async () => {
     const client = await seedClient();
     const { pageId } = await seedBlock(client);
-    await client.createObject({ presentAsMain: true, name: "Daily habits" });
+    await client.createObject({ isEmbedded: false, name: "Daily habits" });
     await client.ensureDateChain("2026-02-14");
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
@@ -439,7 +439,7 @@ describe("suggestion popup filter prefixes", () => {
   it("`is_page:` / `is_class:` refine the candidate set", async () => {
     const client = await seedClient();
     const { pageId } = await seedBlock(client);
-    await client.createObject({ presentAsMain: true, name: "Some page" });
+    await client.createObject({ isEmbedded: false, name: "Some page" });
     await client.createClass("Some class");
     const { container } = render(<PageView client={client} pageId={pageId} />);
 
