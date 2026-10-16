@@ -62,8 +62,9 @@
   z-index: var(--z-1);
 }
 
-/* Invisible minimum hit-area overlay so the target stays ≥ 44×44 even when the
-   visible option size is shrunk by a size-specific rule. */
+/* Invisible minimum hit-area overlay so the target stays ≥ 48×48 (M3's 48dp
+   floor) even when the visible option size is shrunk by a size-specific
+   rule. */
 .selection-button__option::after {
   content: '';
   position: absolute;
