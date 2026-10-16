@@ -490,6 +490,22 @@ describe("children as nested bullets", () => {
   });
 });
 
+describe("display-time rule (owner 2026-10-16)", () => {
+  it("a rule block passes the literal dashes through markdown — byte-identical to the pre-derivation paragraph", () => {
+    const rule = block("bbbbbbbb-0000-4000-8000-000000000031", [
+      { type: "text", text: "---" },
+    ]);
+    const parent = page("bbbbbbbb-0000-4000-8000-000000000030", "parent", [
+      { type: "text", text: "own body" },
+    ]);
+    const ctx = makeCtx({ childrenOf: (id) => (id === parent.id ? [rule] : []) });
+    const md = nodeToMarkdown(parent, ctx);
+    expect(md).toContain("- ---");
+    // The HTML serializer owns the <hr> mapping; markdown stays plain text.
+    expect(md).not.toContain("<hr>");
+  });
+});
+
 describe("bundle", () => {
   it("emits <uuid>.md files and a UUID↔name↔type manifest", () => {
     // Title-is-content: each page's display name is its own text content.

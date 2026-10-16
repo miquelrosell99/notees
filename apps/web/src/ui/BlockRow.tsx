@@ -76,7 +76,7 @@ import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, u
 
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
-import { excerptOf } from "@notees/domain";
+import { excerptOf, isRuleContent } from "@notees/domain";
 
 import type { BlockTreeNode, EffectiveProperty, WorkspaceClient } from "@/core/workspace-client.js";
 import type { WorkerClient } from "@/core/worker-client.js";
@@ -369,6 +369,15 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
     node.listStyle !== null && node.parentId !== null
       ? deriveListMarker(node, client.getChildren(node.parentId))
       : null;
+  // Display-time horizontal rule (owner 2026-10-16): a block whose content
+  // is EXACTLY "---" renders an <hr> in place of bullet + text — the node is
+  // an ordinary text block on the wire and in the store (zero protocol
+  // footprint), the rule is purely render state. Edit mode shows the raw
+  // dashes (the editor is the source of truth — the row is never a trapped
+  // surface), and typing anything else turns the block back into an
+  // ordinary block by construction. Children are not rendered: a rule
+  // terminates a section.
+  const ruleDisplay = !editing && isRuleContent(node.contentAst);
 
   const dropClass =
     dropLine !== null && dropLine.targetId === node.id ? ` nt-drop-${dropLine.intent}` : "";
@@ -698,7 +707,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
             setGripMenu({ x: event.clientX, y: event.clientY });
           }}
         >
-          {children.length > 0 && (
+          {children.length > 0 && !ruleDisplay && (
             <button
               type="button"
               className="nt-block-chevron"
@@ -731,8 +740,10 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
               }
             }}
           >
-            {children.length > 0 && <span className="nt-bullet-ring" aria-hidden="true" />}
-            {!focusMode && gripIcon !== null ? (
+            {!ruleDisplay && children.length > 0 && (
+              <span className="nt-bullet-ring" aria-hidden="true" />
+            )}
+            {ruleDisplay ? null : !focusMode && gripIcon !== null ? (
               <span className="nt-bullet-icon">
                 <Icon path={gripIcon} size={0.8} />
               </span>
@@ -816,7 +827,12 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
             setGripMenu({ x: event.clientX, y: event.clientY });
           }}
         >
-          {editing ? (
+          {ruleDisplay ? (
+            // The rule replaces bullet + text at display time; clicking the
+            // row still enters edit (the standard click-to-edit — the editor
+            // shows the raw dashes, so the block is never invisible/trapped).
+            <hr className="nt-block-rule" />
+          ) : editing ? (
             <BlockTextEditor node={node} caret={caret} onExitEdit={() => setEditing(false)} />
           ) : excerpted && excerpt !== null ? (
             <>
@@ -981,8 +997,10 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
           column template comes from the FIRST row's cell count; ragged rows
           show blanks (fewer cells) or spill into implicit tracks (more).
           The + Row / + Column hover affordance rides the container (hidden
-          in read-only projections). */}
-      {isTableContainer ? (
+          in read-only projections). A display-time rule suppresses the
+          whole subtree zone: a rule terminates a section, so neither the
+          table grid nor the children container renders. */}
+      {!ruleDisplay && (isTableContainer ? (
         <>
           {!readOnly && (
             <div className="nt-blocktable-toolbar" role="toolbar" aria-label="Table">
@@ -1108,7 +1126,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
           </SortableContext>
         )}
       </>
-      )}
+      ))}
     </div>
   );
 }

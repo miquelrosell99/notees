@@ -47,7 +47,10 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { id: "template", label: "Template", description: "Create from a template at the caret" },
   { id: "table", label: "Table", description: "Insert a table — cells are blocks (e.g. /table 5)" },
   // Lockstep SHIPPED (GTK/Flutter v3.0.0): the `code_block` / `hr` token
-  // parsers are released — authoring is live.
+  // parsers are released — old logs replay everywhere. The menu's Divider
+  // no longer authors the `hr` token, though: since 2026-10-16 it inserts
+  // an ordinary block whose content is exactly "---" (the display-time rule
+  // derivation — zero wire footprint).
   { id: "code", label: "Code", description: "Convert block to a code block (e.g. /code python)" },
   { id: "hr", label: "Divider", description: "Insert a horizontal rule" },
 ];
