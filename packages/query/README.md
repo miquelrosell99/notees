@@ -40,9 +40,15 @@ Conditions (the shipped subset, cleanly extensible by versioned addition):
 
 | Condition | Semantics |
 |---|---|
-| `class {classId}` | Members of the class **or any class extending it** (`class_hierarchy`, which includes the self-row). |
+| `class {classId}` | Members of the class **or any class extending it** (`class_hierarchy`, which includes the self-row) — closure MEMBERSHIP (the class among others). |
+| `classExact {classId}` | EXACT class-set equality (the Odoo "=" register): the set is exactly `{classId}`, nothing else — the closure does not apply. |
+| `classAny {classIds}` | ANY-of membership (Odoo "one of"): at least one picked class rides the set — closure-aware per id, like `class`. |
+| `classSet` | The class set is non-empty (Odoo "is set"). |
+| `pageClass {classId}` | The **containing page** (nearest self-or-ancestor rendering with document chrome — a class, a parentless node, or an `is_embedded = 0` node; the parent-page condition is write-time impossible to violate) is classed, closure-aware. A page row reads its own class. |
+| `ancestorClassed {classId}` | Some **strict ancestor** (the parent path, self excluded) is classed, closure-aware (the class-based Odoo "parent of"). |
+| `rootClass {classId}` | The **workspace-root ancestor** (the top of the parent chain; a parentless row is its own root) is classed, closure-aware. |
 | `isClass {isClass}` | `node.is_class = 0/1` — the class identity bit (Revision 11). |
-| `presentAsMain {presentAsMain}` | `node.present_as_main = 0/1` — the render bit for parented non-class nodes (main-children zone vs inline body). Class rows carry the bit as 0 (inert — ClassView by cascade); compose with `isClass:false` for "inline blocks" exactly. |
+| `isEmbedded {isEmbedded}` | `node.is_embedded = 0/1` — the embedding bit for parented non-class nodes (Revision 12: the Block role = embedded in the parent's body, the Page-role claim = standalone under a page-role parent). |
 | `content {op, value}` | `contains`: LIKE substring over the derived search plaintext (name + content tokens — the only derived plaintext; it lives in the FTS index). `fts`: prefix-AND `MATCH` over `search_index`. |
 | `property {schemaId, op, value?, includeDefaults?}` | See below. `eq`, `neq`, `contains`, `exists`, `gt`, `gte`, `lt`, `lte`. |
 | `linkedTo {nodeId}` | `backlinksWithRollup` membership: a direct edge to the node, **or** an edge sourced strictly inside its subtree and targeting outside it (containment roll-up). |

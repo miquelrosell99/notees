@@ -113,13 +113,19 @@ describe("the FilterQuery shape", () => {
   });
 
   it("createCondition seeds a half-typed default per family", () => {
-    expect(createCondition("class")).toEqual({ type: "class", classId: "" });
+    // The class family's default row rides the EXACT register (owner
+    // 2026-10-16, the Odoo operator set): "Class is Day" = the set is exactly
+    // Day — membership ("contains") is a separate operator choice.
+    expect(createCondition("class")).toEqual({ type: "classExact", classId: "" });
     expect(createCondition("type")).toEqual({ type: "isClass", isClass: true });
     expect(createCondition("placement")).toEqual({ type: "isEmbedded", isEmbedded: false });
     expect(createCondition("content")).toEqual({ type: "content", op: "contains", value: "" });
     expect(createCondition("property")).toEqual({ type: "property", schemaId: "", op: "eq", value: "" });
     expect(createCondition("links")).toEqual({ type: "linkedTo", nodeId: "" });
     expect(createCondition("parent")).toEqual({ type: "descendantOf", nodeId: "" });
+    expect(createCondition("page")).toEqual({ type: "pageClass", classId: "" });
+    expect(createCondition("parentPath")).toEqual({ type: "ancestorClassed", classId: "" });
+    expect(createCondition("root")).toEqual({ type: "rootClass", classId: "" });
     expect(createCondition("cover")).toEqual({ type: "coverAsset", op: "exists" });
     expect(createCondition("banner")).toEqual({ type: "bannerAsset", op: "exists" });
     expect(createCondition("alias")).toEqual({ type: "aliasedNode", op: "exists" });
@@ -159,6 +165,34 @@ describe("filterQueryToGroup — the draft prune", () => {
       type: "group",
       logic: "and",
       children: [{ type: "isClass", isClass: true }],
+    });
+  });
+
+  it("drops the half-typed Odoo-set shapes (empty exact/classAny/container classId), keeps classSet", () => {
+    const draft: Group = {
+      type: "group",
+      logic: "and",
+      children: [
+        { type: "classExact", classId: "" },
+        { type: "classAny", classIds: [] },
+        { type: "pageClass", classId: "" },
+        { type: "ancestorClassed", classId: "" },
+        { type: "rootClass", classId: "" },
+        { type: "classSet" },
+        { type: "classExact", classId: "0192a000-0000-7000-8000-0000000000aa" },
+        { type: "classAny", classIds: ["0192a000-0000-7000-8000-0000000000bb"] },
+        { type: "pageClass", classId: "0192a000-0000-7000-8000-0000000000cc" },
+      ],
+    };
+    expect(filterQueryToGroup({ text: "", group: draft })).toEqual({
+      type: "group",
+      logic: "and",
+      children: [
+        { type: "classSet" },
+        { type: "classExact", classId: "0192a000-0000-7000-8000-0000000000aa" },
+        { type: "classAny", classIds: ["0192a000-0000-7000-8000-0000000000bb"] },
+        { type: "pageClass", classId: "0192a000-0000-7000-8000-0000000000cc" },
+      ],
     });
   });
 
@@ -262,7 +296,7 @@ describe("filterQueryToGroup — the draft prune", () => {
 });
 
 describe("the add-menu registry", () => {
-  it("offers the v1 block families plus the group constructors, v1 order", () => {
+  it("offers the block families plus the group constructors, v1 order + the container families", () => {
     expect(filterKindOptionsForConfig().map((option) => option.value)).toEqual([
       "class",
       "type",
@@ -271,6 +305,9 @@ describe("the add-menu registry", () => {
       "property",
       "links",
       "parent",
+      "page",
+      "parentPath",
+      "root",
       "cover",
       "banner",
       "alias",

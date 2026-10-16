@@ -142,6 +142,38 @@ function classClosureOf(client: SectionViewResolveClient, classId: string): Set<
   return closure;
 }
 
+/**
+ * Closure-aware class-membership test for one node (the `class` condition's
+ * semantics, shared by the classed-ancestor/page/root arms) — memoized per
+ * classId on the eval context, like the `class` arm.
+ */
+function classedWith(ctx: EvalContext, node: ClientNode, classId: string): boolean {
+  let closure = ctx.closures.get(classId);
+  if (closure === undefined) {
+    closure = classClosureOf(ctx.client, classId);
+    ctx.closures.set(classId, closure);
+  }
+  return node.classIds.some((id) => closure!.has(id));
+}
+
+/**
+ * The containing page walk (Revision-12 page role, flattened the same way the
+ * compiler's "pages" scope flattens it): the nearest self-or-ancestor that is
+ * a class, parentless, or is_embedded=0 — standalone-under-a-non-page parent
+ * is write-time impossible, so the flat test is exact. Cycle-guarded.
+ */
+function containingPageOf(ctx: EvalContext, node: ClientNode): ClientNode | undefined {
+  const seen = new Set<string>();
+  let current: ClientNode | undefined = node;
+  while (current !== undefined) {
+    if (current.isClass || current.parentId === null || !current.isEmbedded) return current;
+    if (seen.has(current.id)) return undefined;
+    seen.add(current.id);
+    current = ctx.client.getNode(current.parentId);
+  }
+  return undefined;
+}
+
 function wireFieldMatches(
   node: ClientNode,
   kind: "coverAsset" | "bannerAsset" | "aliasedNode",
@@ -329,6 +361,60 @@ function conditionMatches(ctx: EvalContext, condition: QueryAst["root"]["childre
         ctx.closures.set(condition.classId, closure);
       }
       return node.classIds.some((id) => closure!.has(id));
+    }
+    case "classExact":
+      // EXACT set equality (the Odoo "=" register): exactly one class rides
+      // the row and it is the picked one — no closure ("exactly Day, nothing else").
+      return node.classIds.length === 1 && node.classIds[0] === condition.classId;
+    case "classAny": {
+      // ANY-of membership (Odoo "one of") — closure-aware per picked id.
+      return condition.classIds.some((classId) => {
+        let closure = ctx.closures.get(classId);
+        if (closure === undefined) {
+          closure = classClosureOf(ctx.client, classId);
+          ctx.closures.set(classId, closure);
+        }
+        return node.classIds.some((id) => closure!.has(id));
+      });
+    }
+    case "classSet":
+      // The class set is non-empty (Odoo "is set"); the not-wrap reads "is not set".
+      return node.classIds.length > 0;
+    case "pageClass": {
+      // The containing page (nearest self-or-ancestor with document chrome —
+      // the Revision-12 page-role condition, flattened the same way the
+      // compiler's "pages" scope flattens it: standalone-under-a-non-page
+      // parent is write-time impossible) hits the class closure.
+      const page = containingPageOf(ctx, node);
+      if (page === undefined) return false;
+      return classedWith(ctx, page, condition.classId);
+    }
+    case "ancestorClassed": {
+      // The parent path carries a classed node: some STRICT ancestor (self
+      // excluded) hits the closure. Cycle-guarded like descendantOf.
+      const seen = new Set<string>([node.id]);
+      let current = node.parentId;
+      while (current !== null && !seen.has(current)) {
+        const ancestor = ctx.client.getNode(current);
+        if (ancestor === undefined) return false;
+        if (classedWith(ctx, ancestor, condition.classId)) return true;
+        seen.add(current);
+        current = ancestor.parentId;
+      }
+      return false;
+    }
+    case "rootClass": {
+      // The workspace-root ancestor (a parentless row is its own root) hits
+      // the closure. Cycle-guarded like descendantOf.
+      const seen = new Set<string>([node.id]);
+      let current: ClientNode | undefined = node;
+      while (current.parentId !== null && !seen.has(current.parentId)) {
+        const parent = ctx.client.getNode(current.parentId);
+        if (parent === undefined) return false;
+        seen.add(parent.id);
+        current = parent;
+      }
+      return classedWith(ctx, current, condition.classId);
     }
     case "isClass":
       return node.isClass === condition.isClass;

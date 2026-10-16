@@ -9,6 +9,51 @@ predating this file.
 
 ## 2026-10-16
 
+- **feat(query): the Odoo operator set + the classed-container conditions —
+  `classExact` / `classAny` / `classSet` / `pageClass` / `ancestorClassed` /
+  `rootClass` (owner 2026-10-16).** Two owner requests drove this slice:
+  "Class is not Day still shows day pages" (the Backlinks section groups rows
+  by their containing page — journal day pages are GROUP CHROME, not filtered
+  rows; what was missing is a condition over the container) and "the same
+  operator options as Odoo: is / is not / contains / does not contain / one
+  of / not one of / is set / is not set, plus child-of/parent-of-style
+  filters". Grammar (packages/protocol `query-ast.ts`, additive within v1):
+  **`classExact`** — the class set is EXACTLY `{classId}`, nothing else (the
+  Odoo "=" register; the plain `class` condition stays closure MEMBERSHIP);
+  **`classAny`** — ANY-of membership over a picked set (Odoo "one of",
+  `classIds` min 1); **`classSet`** — the class set is non-empty (Odoo "is
+  set"); **`pageClass`** — the CONTAINING PAGE (nearest self-or-ancestor with
+  document chrome — a class, a parentless node, or an `is_embedded = 0`
+  node, the same flattening the "pages" scope uses; the parent-page condition
+  is write-time impossible to violate) is classed, closure-aware — "blocks
+  whose page is classed as Day"; **`ancestorClassed`** — some STRICT ancestor
+  (the parent path, self excluded) is classed — "blocks that have a Day-
+  classed block up their parent path"; **`rootClass`** — the workspace-root
+  ancestor (a parentless row is its own root) is classed. All negations ride
+  the existing not-wrap. Compiler (packages/query): six SQL arms — the exact
+  arms count `json_each(class_ids)`; the container arms are depth-capped
+  correlated recursive CTEs over `parent_id` probing `class_hierarchy`
+  (verified on BOTH adapters, sql.js FTS4 and better-sqlite3 FTS5). Sync
+  evaluator (`sectionViewResolve`): the same six arms over the client reads,
+  memoized closures, cycle-guarded walks (the one-evaluator ruling holds —
+  no probe path involved). FilterBlockBuilder: the class family's operator
+  column is now the full Odoo set (the picked ids carry across operator
+  morphs; "one of" rides the kit Dropdown's multi-select), the add menu
+  gains Page / Parent path / Root, and the class row's DEFAULT operator is
+  "is" = exact (a semantics change of the transient filter layer only —
+  nothing persisted; the Queries-hub modal composer is untouched).
+  `filterQuery` prunes the half-typed shapes (empty exact/container classId,
+  empty `classAny`); the modal builder's guard now NAMES the new conditions
+  as unsupported instead of silently dropping them. Query README condition
+  table updated (including retiring a stale `presentAsMain` row for
+  `isEmbedded`). **Verification:** packages/query 163 green over both
+  adapters (12 new: exact/any/set × closure + not-wrap, page/ancestor/root ×
+  the France/Paris/Lone world + negation); web filter suites green
+  (filter-builder +6 end-to-end through the panel — exact-vs-contains witness,
+  one-of multi-pick, is-set, page/parent-path/root on an embedded-block
+  container world; filter-layer's closure test now drives "contains";
+  filter-query createCondition/registry/prune updated). No op/wire/fixture
+  change — the query AST is a content-token payload, not an op.**
 - **fix(web): the "Database closed" unhandled rejection — a test-teardown
   race in PageView's alias self-heal (owner 2026-10-16).** The full gate
   intermittently reported a stack-less `Unknown Error: Database closed`

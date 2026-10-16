@@ -14,9 +14,13 @@
  * The registers are the v1 ones (owner 2026-10-09: the 1:1 block model) —
  * each block is a row of COLUMNS: a TYPE dropdown (Class, Type, Structural role,
  * Content, Property, Links, Parent, Cover, Banner, Alias, Created, Edited),
- * an OPERATOR dropdown whose options vary by family (is / is not / contains /
- * is set / is not set / ordering / after / before / full-text — the
- * negatives are not-wrap sugar, the booleans flip their bit), then the VALUE
+ * an OPERATOR dropdown whose options vary by family — the class family
+ * carries the Odoo set (owner 2026-10-16): is / is not (EXACT set
+ * equality), contains / does not contain (closure membership), one of /
+ * not one of (ANY-of membership), is set / is not set (emptiness); the
+ * content/property/date families carry their own variation (full-text /
+ * ordering / after / before — the negatives are not-wrap sugar, the
+ * booleans flip their bit), then the VALUE
  * control (typed per family — the property-table register: numeric keyboard,
  * placeholder datalist, anchored node picker). The selection columns ride
  * the kit Dropdown register and the text values the kit Input (the boxed
@@ -418,6 +422,9 @@ function familyOf(condition: Condition): ConditionKind {
     case "content":
       return "content";
     case "class":
+    case "classExact":
+    case "classAny":
+    case "classSet":
       return "class";
     case "isClass":
       return "type";
@@ -431,6 +438,12 @@ function familyOf(condition: Condition): ConditionKind {
     case "descendantOf":
     case "descendantOfQuery":
       return "parent";
+    case "pageClass":
+      return "page";
+    case "ancestorClassed":
+      return "parentPath";
+    case "rootClass":
+      return "root";
     case "coverAsset":
       return "cover";
     case "bannerAsset":
@@ -457,9 +470,19 @@ interface OperatorOption {
 function operatorOptions(family: ConditionKind): readonly OperatorOption[] {
   switch (family) {
     case "class":
+      // The Odoo operator set (owner 2026-10-16): is/is not ride the EXACT
+      // register ("the set is {classId}, nothing else"), contains/does not
+      // contain ride closure MEMBERSHIP, one of/not one of ride ANY-of
+      // membership, is set/is not set test the set's emptiness.
       return [
         { value: "is", label: "is" },
         { value: "is-not", label: "is not" },
+        { value: "contains", label: "contains" },
+        { value: "not-contains", label: "does not contain" },
+        { value: "one-of", label: "one of" },
+        { value: "not-one-of", label: "not one of" },
+        { value: "set", label: "is set" },
+        { value: "not-set", label: "is not set" },
       ];
     case "type":
       return [
@@ -495,6 +518,15 @@ function operatorOptions(family: ConditionKind): readonly OperatorOption[] {
         { value: "is", label: "is" },
         { value: "is-not", label: "is not" },
       ];
+    case "page":
+    case "parentPath":
+    case "root":
+      // The classed-container families (page / parent path / root): the
+      // container is or isn't classed with the picked class.
+      return [
+        { value: "is", label: "is" },
+        { value: "is-not", label: "is not" },
+      ];
     case "cover":
     case "banner":
     case "alias":
@@ -515,7 +547,14 @@ function operatorOptions(family: ConditionKind): readonly OperatorOption[] {
 function operatorOf(condition: Condition, negated: boolean): string {
   switch (condition.type) {
     case "class":
+      // Closure membership (the plain `class` condition rides contains).
+      return negated ? "not-contains" : "contains";
+    case "classExact":
       return negated ? "is-not" : "is";
+    case "classAny":
+      return negated ? "not-one-of" : "one-of";
+    case "classSet":
+      return negated ? "not-set" : "set";
     case "isClass":
       return condition.isClass ? "is" : "is-not";
     case "isEmbedded":
@@ -531,6 +570,10 @@ function operatorOf(condition: Condition, negated: boolean): string {
     case "descendantOf":
     case "descendantOfQuery":
       return negated ? "is-not" : "is";
+    case "pageClass":
+    case "ancestorClassed":
+    case "rootClass":
+      return negated ? "is-not" : "is";
     case "coverAsset":
     case "bannerAsset":
     case "aliasedNode":
@@ -545,17 +588,58 @@ function operatorOf(condition: Condition, negated: boolean): string {
 }
 
 /**
+ * The class family's operator application (owner 2026-10-16, the Odoo set):
+ * is / is not → EXACT set equality, contains / does not contain → closure
+ * membership, one of / not one of → ANY-of membership, is set / is not set →
+ * emptiness. The picked ids carry across the morphs so switching operators
+ * keeps the selection.
+ */
+function applyClassOperator(condition: Condition, op: string): Child {
+  const carried: string[] =
+    condition.type === "classAny"
+      ? condition.classIds
+      : (condition.type === "class" || condition.type === "classExact") && condition.classId !== ""
+        ? [condition.classId]
+        : [];
+  const neg = (next: Condition): Child => ({ type: "not", child: next });
+  switch (op) {
+    case "is":
+      return { type: "classExact", classId: carried[0] ?? "" };
+    case "is-not":
+      return neg({ type: "classExact", classId: carried[0] ?? "" });
+    case "contains":
+      return { type: "class", classId: carried[0] ?? "" };
+    case "not-contains":
+      return neg({ type: "class", classId: carried[0] ?? "" });
+    case "one-of":
+      return { type: "classAny", classIds: carried };
+    case "not-one-of":
+      return neg({ type: "classAny", classIds: carried });
+    case "set":
+      return { type: "classSet" };
+    case "not-set":
+      return neg({ type: "classSet" });
+    default:
+      return condition;
+  }
+}
+
+/**
  * Apply an operator choice to a block's condition, returning the new child
  * (not-wrapped where the operator is negative). The boolean families flip
  * their bit instead of wrapping; the date families swap their condition
- * type between the after/before arms.
+ * type between the after/before arms; the classed-container families
+ * (page / parent path / root) wrap the negation, keeping the picked class.
  */
 function applyOperator(condition: Condition, op: string): Child {
   const wrap = (next: Condition): Child => next;
   const neg = (next: Condition): Child => ({ type: "not", child: next });
   switch (condition.type) {
     case "class":
-      return op === "is-not" ? neg(condition) : wrap(condition);
+    case "classExact":
+    case "classAny":
+    case "classSet":
+      return applyClassOperator(condition, op);
     case "isClass":
       return { ...condition, isClass: op !== "is-not" };
     case "isEmbedded":
@@ -571,6 +655,10 @@ function applyOperator(condition: Condition, op: string): Child {
     case "linkedToQuery":
     case "descendantOf":
     case "descendantOfQuery":
+      return op === "is-not" ? neg(condition) : wrap(condition);
+    case "pageClass":
+    case "ancestorClassed":
+    case "rootClass":
       return op === "is-not" ? neg(condition) : wrap(condition);
     case "coverAsset":
     case "bannerAsset":
@@ -763,6 +851,37 @@ function BlockRow({
   );
 }
 
+/** The single class pick shared by the class / page / parent-path / root value columns. */
+function ClassPick({
+  ariaLabel,
+  value,
+  facts,
+  onChange,
+}: {
+  ariaLabel: string;
+  value: string;
+  facts: BuilderFacts;
+  onChange: (classId: string) => void;
+}) {
+  return (
+    <Dropdown
+      size="sm"
+      ariaLabel={ariaLabel}
+      options={[
+        { value: "", label: "Pick a class" },
+        ...facts.classes.map((cls) => ({
+          value: cls.id,
+          label: facts.classNames.get(cls.id) ?? cls.id,
+        })),
+      ]}
+      value={value}
+      onChange={(next) => {
+        if (next !== null) onChange(next);
+      }}
+    />
+  );
+}
+
 /** The value column — typed per family, reusing the property-table inputs'
  * shapes (numeric keyboard for number/integer, the placeholder datalist for
  * dates, the anchored node picker for node targets). */
@@ -781,21 +900,59 @@ function BlockValue({
 }) {
   switch (condition.type) {
     case "class":
+    case "classExact":
+      return (
+        <ClassPick
+          ariaLabel="Class"
+          value={condition.classId}
+          facts={facts}
+          onChange={(classId) => onChange({ ...condition, classId })}
+        />
+      );
+    case "classAny":
+      // "One of": ANY-of membership — a multi class pick.
       return (
         <Dropdown
           size="sm"
-          ariaLabel="Class"
-          options={[
-            { value: "", label: "Pick a class" },
-            ...facts.classes.map((cls) => ({
-              value: cls.id,
-              label: facts.classNames.get(cls.id) ?? cls.id,
-            })),
-          ]}
+          multiple
+          ariaLabel="Classes"
+          placeholder="Pick classes"
+          options={facts.classes.map((cls) => ({
+            value: cls.id,
+            label: facts.classNames.get(cls.id) ?? cls.id,
+          }))}
+          values={condition.classIds}
+          onChangeMultiple={(classIds) => onChange({ ...condition, classIds })}
+        />
+      );
+    case "classSet":
+      // "Is set" carries no value — the operator column IS the condition.
+      return null;
+    case "pageClass":
+      return (
+        <ClassPick
+          ariaLabel="Page class"
           value={condition.classId}
-          onChange={(value) => {
-            if (value !== null) onChange({ ...condition, classId: value });
-          }}
+          facts={facts}
+          onChange={(classId) => onChange({ ...condition, classId })}
+        />
+      );
+    case "ancestorClassed":
+      return (
+        <ClassPick
+          ariaLabel="Ancestor class"
+          value={condition.classId}
+          facts={facts}
+          onChange={(classId) => onChange({ ...condition, classId })}
+        />
+      );
+    case "rootClass":
+      return (
+        <ClassPick
+          ariaLabel="Root class"
+          value={condition.classId}
+          facts={facts}
+          onChange={(classId) => onChange({ ...condition, classId })}
         />
       );
     case "isClass":
