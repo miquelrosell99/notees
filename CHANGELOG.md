@@ -9,6 +9,38 @@ predating this file.
 
 ## 2026-10-16
 
+- **feat(query): the rest of v1's node-family register — Parent (direct),
+  Child, Child path, Reference path (owner 2026-10-16, round 4).** Completes
+  the v1 port the owner asked for ("parent, child, child path, reference
+  paths — all v1", per `v1-archive` `conditionConfigs.ts` / `query_ast.py`).
+  **Parent is now v1's DIRECT parent** (one hop up) — `parentOf {nodeIds}` /
+  `parentOfQuery {root}`, operators is-any-of / is-not-any-of / is-set /
+  is-not-set (the set bit rides the existing `parentSet`); the parentless
+  NULL reads two-valued via `COALESCE` so a parentless row matches the
+  negation exactly like the sync evaluator (the empty-parent test owns the
+  NULL case). The old subtree "Parent" family moves to its v1 name, **Child
+  path** (`descendantOf` / `descendantOfAny` / `descendantOfQuery` +
+  **`descendantSet`**, operators contains / does not contain / is set / is
+  not set). **Child** is new — `childOf {nodeIds}` / `childOfQuery {root}` /
+  **`childSet`** (a DIRECT child is one of the picks / matches the subquery /
+  at least one direct child exists; v1's contains-any-of wording). **Reference
+  path** is new — `referencePathOf {nodeIds}` / `referencePathOfQuery {root}`:
+  v1's rollup where the row OR any of its ancestors links to a target, OR a
+  target is a STRICT ancestor of the row (v1 folded containment into the
+  reference rollup); both forms ride the probe path (edge metadata). All four
+  get the static/dynamic mode switch (chip-list node multi-pick ⇄ nested
+  builder) and recurse unbounded through the same compiler/evaluator. The
+  evaluator's client surface gains `getChildren` (the child/child-path sync
+  arms; the descendant set is a cycle-guarded DFS). **Verification:**
+  packages/query 197 green over both adapters (+14: parentOf incl. the
+  two-valued NULL arm, parentOfQuery, childOf/childOfQuery, childSet,
+  descendantSet, referencePathOf both arms + the not-wrap, the dynamic
+  form); web filter suites green (+3 end-to-end: Parent direct with the set
+  bit, Child with the set bit, Reference path through the probe — plus the
+  Child-path rename of the old subtree test); prune/registry/createCondition
+  updated. A test-seeding lesson re-confirmed along the way: create-as-page
+  stringifies rich content, so a mention edge must ride a BLOCK's content —
+  a page cannot be an edge source.**
 - **fix(query): the node-container blocks are NODE-target, not class-target
   (owner correction 2026-10-16, the v1 semantics restored).** Round 1 shipped
   the classed-container conditions (`pageClass` / `ancestorClassed` /

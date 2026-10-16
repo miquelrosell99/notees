@@ -440,13 +440,25 @@ function familyOf(condition: Condition): ConditionKind {
     case "linkedToAny":
     case "linkSet":
       return "links";
+    case "referencePathOf":
+    case "referencePathOfQuery":
+      return "referencePath";
+    case "parentOf":
+    case "parentOfQuery":
+      return "parent";
+    case "childOf":
+    case "childOfQuery":
+    case "childSet":
+      return "child";
     case "descendantOf":
     case "descendantOfQuery":
     case "descendantOfAny":
-    case "parentSet":
-      return "parent";
+    case "descendantSet":
+      return "childPath";
     case "tag":
     case "tagAny":
+    case "parentSet":
+      return "parent";
     case "tagSet":
       return "tags";
     case "pageOf":
@@ -527,14 +539,46 @@ function operatorOptions(
       ];
     case "tags":
     case "links":
-    case "parent":
-      // The node-target families: is/is not (membership), one of/not one of
+      // The link/tag families: is/is not (membership), one of/not one of
       // (ANY-of over picked nodes), is set/is not set (the reference exists).
       return [
         { value: "is", label: "is" },
         { value: "is-not", label: "is not" },
         { value: "one-of", label: "one of" },
         { value: "not-one-of", label: "not one of" },
+        { value: "set", label: "is set" },
+        { value: "not-set", label: "is not set" },
+      ];
+    case "referencePath":
+      // v1's REFERENCE PATH: the self-or-ancestor link rollup (containment
+      // folded in) over the picked nodes / the subquery's matches.
+      return [
+        { value: "is-any-of", label: "is any of" },
+        { value: "is-not-any-of", label: "is not any of" },
+      ];
+    case "parent":
+      // v1's PARENT: the direct parent is any of the picked nodes (or the
+      // subquery's matches) — plus the has-a-parent set bit.
+      return [
+        { value: "is-any-of", label: "is any of" },
+        { value: "is-not-any-of", label: "is not any of" },
+        { value: "set", label: "is set" },
+        { value: "not-set", label: "is not set" },
+      ];
+    case "child":
+      // v1's CHILD: contains any of the picked nodes as DIRECT children.
+      return [
+        { value: "contains-any-of", label: "contains any of" },
+        { value: "not-contains-any-of", label: "does not contain any of" },
+        { value: "set", label: "is set" },
+        { value: "not-set", label: "is not set" },
+      ];
+    case "childPath":
+      // v1's CHILD PATH: contains any of the picked nodes anywhere down
+      // their tree (the v1 "contains" wording).
+      return [
+        { value: "contains", label: "contains" },
+        { value: "not-contains", label: "does not contain" },
         { value: "set", label: "is set" },
         { value: "not-set", label: "is not set" },
       ];
@@ -713,9 +757,22 @@ function operatorOf(condition: Condition, negated: boolean): string {
     case "descendantOfQuery":
       return negated ? "is-not" : "is";
     case "descendantOfAny":
-      return negated ? "not-one-of" : "one-of";
+      return negated ? "not-contains" : "contains";
+    case "descendantSet":
+      return negated ? "not-set" : "set";
+    case "parentOf":
+    case "parentOfQuery":
+      return negated ? "is-not-any-of" : "is-any-of";
     case "parentSet":
       return negated ? "not-set" : "set";
+    case "childOf":
+    case "childOfQuery":
+      return negated ? "not-contains-any-of" : "contains-any-of";
+    case "childSet":
+      return negated ? "not-set" : "set";
+    case "referencePathOf":
+    case "referencePathOfQuery":
+      return negated ? "is-not-any-of" : "is-any-of";
     case "pageOf":
     case "pageOfQuery":
       return negated ? "is-not-any-of" : "is-any-of";
@@ -818,7 +875,10 @@ function carriedNodeIds(condition: Condition): string[] {
     condition.type === "descendantOfAny" ||
     condition.type === "pageOf" ||
     condition.type === "ancestorIn" ||
-    condition.type === "rootIn"
+    condition.type === "rootIn" ||
+    condition.type === "parentOf" ||
+    condition.type === "childOf" ||
+    condition.type === "referencePathOf"
   ) {
     return condition.nodeIds;
   }
@@ -900,6 +960,30 @@ function applyContainerNodeOperator(
     default:
       return condition;
   }
+}
+
+/**
+ * The generic node-target morph for the v1 pick-set families (Parent direct /
+ * Child / Child path / Reference path): a positive/negative operator pair
+ * over the picked-id set, plus an optional set bit. The picked ids carry
+ * across the morphs; the dynamic (*Query) shapes re-enter through the same
+ * operators (the value column is the subquery then).
+ */
+function applyPickSetOperator(
+  condition: Condition,
+  op: string,
+  positiveOp: string,
+  negativeOp: string,
+  single: (nodeIds: string[]) => Condition,
+  setType: Condition | null,
+): Child {
+  const carried = carriedNodeIds(condition);
+  const neg = (next: Condition): Child => ({ type: "not", child: next });
+  if (op === positiveOp) return single(carried);
+  if (op === negativeOp) return neg(single(carried));
+  if (setType !== null && op === "set") return setType;
+  if (setType !== null && op === "not-set") return neg(setType);
+  return condition;
 }
 
 /** The content morph: the text operator set + the emptiness bit. */
@@ -1069,16 +1153,53 @@ function applyOperator(condition: Condition, op: string): Child {
         (nodeIds) => ({ type: "linkedToAny", nodeIds }),
         { type: "linkSet" },
       );
-    case "descendantOf":
-    case "descendantOfAny":
-    case "parentSet":
-      return applyNodeTargetOperator(
+    case "parentOf":
+    case "parentOfQuery":
+      return applyPickSetOperator(
         condition,
         op,
-        (nodeId) => ({ type: "descendantOf", nodeId }),
-        (nodeIds) => ({ type: "descendantOfAny", nodeIds }),
+        "is-any-of",
+        "is-not-any-of",
+        (nodeIds) => ({ type: "parentOf", nodeIds }),
         { type: "parentSet" },
       );
+    case "childOf":
+    case "childOfQuery":
+    case "childSet":
+      return applyPickSetOperator(
+        condition,
+        op,
+        "contains-any-of",
+        "not-contains-any-of",
+        (nodeIds) => ({ type: "childOf", nodeIds }),
+        { type: "childSet" },
+      );
+    case "descendantOf":
+    case "descendantOfAny":
+    case "descendantOfQuery":
+    case "descendantSet":
+      return applyPickSetOperator(
+        condition,
+        op,
+        "contains",
+        "not-contains",
+        (nodeIds) => ({ type: "descendantOfAny", nodeIds }),
+        { type: "descendantSet" },
+      );
+    case "referencePathOf":
+    case "referencePathOfQuery":
+      return applyPickSetOperator(
+        condition,
+        op,
+        "is-any-of",
+        "is-not-any-of",
+        (nodeIds) => ({ type: "referencePathOf", nodeIds }),
+        null,
+      );
+    case "parentSet":
+      // The Parent family's set bit — every operator choice on it keeps it
+      // (its operator list is only set / not-set, its own states).
+      return condition;
     case "pageOf":
     case "pageOfQuery":
     case "pageSet":
@@ -1181,7 +1302,10 @@ function BlockRow({
     condition.type === "descendantOfQuery" ||
     condition.type === "pageOfQuery" ||
     condition.type === "ancestorInQuery" ||
-    condition.type === "rootInQuery";
+    condition.type === "rootInQuery" ||
+    condition.type === "parentOfQuery" ||
+    condition.type === "childOfQuery" ||
+    condition.type === "referencePathOfQuery";
   return (
     <div className="nt-fb-block">
       <div className="nt-fb-block__row">
@@ -1221,7 +1345,10 @@ function BlockRow({
           />
         </div>
         {(family === "links" ||
+          family === "referencePath" ||
           family === "parent" ||
+          family === "child" ||
+          family === "childPath" ||
           family === "page" ||
           family === "parentPath" ||
           family === "root") && (
@@ -1235,30 +1362,44 @@ function BlockRow({
             value={dynamic ? "dynamic" : "static"}
             onChange={(mode) => {
               const empty = { type: "group", logic: "and", children: [] } as Group;
-              let next: Condition;
-              if (mode === "dynamic") {
-                next =
-                  family === "links"
-                    ? { type: "linkedToQuery", root: empty }
+              const dynamicFor = (type: string): Condition => ({ type, root: empty } as Condition);
+              const staticFor = (type: string): Condition =>
+                type === "linkedTo" || type === "descendantOf"
+                  ? ({ type, nodeId: "" } as Condition)
+                  : ({ type, nodeIds: [] } as Condition);
+              const dynamicType =
+                family === "links"
+                  ? "linkedToQuery"
+                  : family === "referencePath"
+                    ? "referencePathOfQuery"
                     : family === "parent"
-                      ? { type: "descendantOfQuery", root: empty }
-                      : family === "page"
-                        ? { type: "pageOfQuery", root: empty }
-                        : family === "parentPath"
-                          ? { type: "ancestorInQuery", root: empty }
-                          : { type: "rootInQuery", root: empty };
-              } else {
-                next =
-                  family === "links"
-                    ? { type: "linkedTo", nodeId: "" }
+                      ? "parentOfQuery"
+                      : family === "child"
+                        ? "childOfQuery"
+                        : family === "childPath"
+                          ? "descendantOfQuery"
+                          : family === "page"
+                            ? "pageOfQuery"
+                            : family === "parentPath"
+                              ? "ancestorInQuery"
+                              : "rootInQuery";
+              const staticType =
+                family === "links"
+                  ? "linkedTo"
+                  : family === "referencePath"
+                    ? "referencePathOf"
                     : family === "parent"
-                      ? { type: "descendantOf", nodeId: "" }
-                      : family === "page"
-                        ? { type: "pageOf", nodeIds: [] }
-                        : family === "parentPath"
-                          ? { type: "ancestorIn", nodeIds: [] }
-                          : { type: "rootIn", nodeIds: [] };
-              }
+                      ? "parentOf"
+                      : family === "child"
+                        ? "childOf"
+                        : family === "childPath"
+                          ? "descendantOfAny"
+                          : family === "page"
+                            ? "pageOf"
+                            : family === "parentPath"
+                              ? "ancestorIn"
+                              : "rootIn";
+              const next = mode === "dynamic" ? dynamicFor(dynamicType) : staticFor(staticType);
               onChange(negated ? { type: "not", child: next } : next);
             }}
           />
@@ -1393,6 +1534,8 @@ function BlockValue({
       );
     case "classSet":
     case "pageSet":
+    case "childSet":
+    case "descendantSet":
     case "tagSet":
     case "linkSet":
     case "parentSet":
@@ -1484,6 +1627,58 @@ function BlockValue({
       return <PropertyValue condition={condition} onChange={onChange} facts={facts} client={client} datalistId={datalistId} />;
     case "propertyWithin":
       return <PropertyValue condition={condition} onChange={onChange} facts={facts} client={client} datalistId={datalistId} />;
+    case "parentOf":
+      // v1's PARENT block (static): the direct parent is any of the picked nodes.
+      return (
+        <NodeMultiPick
+          ariaLabel="Parents"
+          nodeIds={condition.nodeIds}
+          addLabel="Add parent"
+          client={client}
+          onChange={(nodeIds) => onChange({ ...condition, nodeIds })}
+        />
+      );
+    case "parentOfQuery":
+      return <span className="nt-fb-block__word">matching</span>;
+    case "childOf":
+      // v1's CHILD block (static): a direct child is any of the picked nodes.
+      return (
+        <NodeMultiPick
+          ariaLabel="Children"
+          nodeIds={condition.nodeIds}
+          addLabel="Add child"
+          client={client}
+          onChange={(nodeIds) => onChange({ ...condition, nodeIds })}
+        />
+      );
+    case "childOfQuery":
+      return <span className="nt-fb-block__word">matching</span>;
+    case "descendantOfAny":
+      // v1's CHILD PATH block (static): the subtree contains any of the picks.
+      return (
+        <NodeMultiPick
+          ariaLabel="Targets"
+          nodeIds={condition.nodeIds}
+          addLabel="Add node"
+          client={client}
+          onChange={(nodeIds) => onChange({ ...condition, nodeIds })}
+        />
+      );
+    case "descendantOfQuery":
+      return <span className="nt-fb-block__word">matching</span>;
+    case "referencePathOf":
+      // v1's REFERENCE PATH block (static): the self-or-ancestor link rollup.
+      return (
+        <NodeMultiPick
+          ariaLabel="Targets"
+          nodeIds={condition.nodeIds}
+          addLabel="Add target"
+          client={client}
+          onChange={(nodeIds) => onChange({ ...condition, nodeIds })}
+        />
+      );
+    case "referencePathOfQuery":
+      return <span className="nt-fb-block__word">matching</span>;
     case "tag":
       return (
         <NodePickBody

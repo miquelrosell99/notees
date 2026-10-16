@@ -594,6 +594,71 @@ class Compiler {
           `  WHERE root.id = ${this.rootIdSql()} AND root.is_active = 1${inner}\n)`
         );
       }
+      case "parentOf": {
+        // v1's PARENT block (static): the DIRECT parent is one of the picked
+        // nodes (one json_each param). The COALESCE maps the parentless
+        // NULL to '' so the empty parent reads two-valued — matching the
+        // sync evaluator (a parentless row matches the negation; the
+        // dedicated is-set/is-not-set operators own the empty test).
+        const ids = this.push(JSON.stringify(condition.nodeIds));
+        return `COALESCE(n.parent_id, '') IN (SELECT value FROM json_each(${ids}))`;
+      }
+      case "parentOfQuery": {
+        // DYNAMIC Parent: the direct parent is one of the group's matches.
+        const group = this.groupSql(condition.root);
+        const inner =
+          group !== undefined
+            ? ` AND p.id IN (SELECT n.id FROM node n WHERE n.is_active = 1 AND (${group}))`
+            : "";
+        return (
+          "EXISTS (\n  SELECT 1 FROM node p\n" +
+          `  WHERE p.id = n.parent_id AND p.is_active = 1${inner}\n)`
+        );
+      }
+      case "childOf": {
+        // v1's CHILD block (static): a DIRECT child is one of the picked
+        // nodes (one json_each param).
+        const ids = this.push(JSON.stringify(condition.nodeIds));
+        return (
+          "EXISTS (\n  SELECT 1 FROM node c\n" +
+          `  WHERE c.parent_id = n.id AND c.is_active = 1 AND c.id IN (SELECT value FROM json_each(${ids}))\n)`
+        );
+      }
+      case "childOfQuery": {
+        // DYNAMIC Child: a direct child is one of the group's matches.
+        const group = this.groupSql(condition.root);
+        const inner =
+          group !== undefined
+            ? ` AND c.id IN (SELECT n.id FROM node n WHERE n.is_active = 1 AND (${group}))`
+            : "";
+        return (
+          "EXISTS (\n  SELECT 1 FROM node c\n" +
+          `  WHERE c.parent_id = n.id AND c.is_active = 1${inner}\n)`
+        );
+      }
+      case "childSet":
+        // The CHILD "is set": at least one direct child.
+        return "EXISTS (SELECT 1 FROM node c WHERE c.parent_id = n.id AND c.is_active = 1)";
+      case "descendantSet": {
+        // The CHILD PATH "is set": at least one descendant (any depth below).
+        // The subtree CTE anchors at the outer row (correlated anchor); any
+        // member other than the row itself is a descendant.
+        const subtree = this.subtreeSetSql("SELECT n.id, 0 AS distance");
+        return `EXISTS (SELECT 1 FROM (${subtree}) WHERE id != n.id LIMIT 1)`;
+      }
+      case "referencePathOf":
+        return this.referencePathSql(
+          `SELECT value AS id FROM json_each(${this.push(JSON.stringify(condition.nodeIds))})`,
+        );
+      case "referencePathOfQuery": {
+        // DYNAMIC Reference path: the rollup targets are the group's matches.
+        const group = this.groupSql(condition.root);
+        const targets =
+          group !== undefined
+            ? `SELECT n.id FROM node n WHERE n.is_active = 1 AND (${group})`
+            : "SELECT n.id FROM node n WHERE n.is_active = 0";
+        return this.referencePathSql(targets);
+      }
       case "contentSet":
         // The title/content plaintext is non-empty (the content "is set").
         return (
@@ -956,6 +1021,30 @@ class Compiler {
       "  SELECT up.id FROM up JOIN node nd ON nd.id = up.id\n" +
       "  WHERE nd.parent_id IS NULL LIMIT 1\n" +
       "))"
+    );
+  }
+
+  /**
+   * v1's REFERENCE PATH rollup over a target set (the targets query yields
+   * one `id` column — a json_each wrapper for the static pick, a fresh
+   * `node n` group scope for the dynamic form). A row matches when the row OR
+   * any of its ancestors links to a target, or a target is a STRICT ancestor
+   * of the row (v1 folded containment into the reference rollup). The
+   * ancestor chain CTE is seeded at the row itself so the edge arm includes
+   * the row's own outbound links. Params: the targets query's own.
+   */
+  private referencePathSql(targetsSql: string): string {
+    return (
+      "EXISTS (\n  WITH RECURSIVE anc(id, depth) AS (\n" +
+      "    SELECT n.id, 0\n" +
+      "    UNION ALL\n" +
+      "    SELECT nd.parent_id, anc.depth + 1 FROM node nd JOIN anc ON nd.id = anc.id\n" +
+      "    WHERE anc.id IS NOT NULL AND anc.depth < 64\n" +
+      "  )\n" +
+      "  SELECT 1 FROM (" + targetsSql + ") tv\n" +
+      "  WHERE tv.id IN (SELECT id FROM anc WHERE id != n.id)\n" +
+      "     OR EXISTS (\n       SELECT 1 FROM edge e\n" +
+      "       WHERE e.target_id = tv.id AND e.source_id IN (SELECT id FROM anc)\n     )\n)"
     );
   }
 

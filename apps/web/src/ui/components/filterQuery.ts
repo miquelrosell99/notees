@@ -115,6 +115,9 @@ function pruneChild(child: Child): Child | null {
     case "pageOf":
     case "ancestorIn":
     case "rootIn":
+    case "parentOf":
+    case "childOf":
+    case "referencePathOf":
       return child.nodeIds.length === 0 ? null : child;
     case "createdCmp":
     case "updatedCmp":
@@ -142,7 +145,10 @@ function pruneChild(child: Child): Child | null {
     case "descendantOfQuery":
     case "pageOfQuery":
     case "ancestorInQuery":
-    case "rootInQuery": {
+    case "rootInQuery":
+    case "parentOfQuery":
+    case "childOfQuery":
+    case "referencePathOfQuery": {
       const nested = pruneChild(child.root);
       return nested === null || (nested.type === "group" && nested.children.length === 0)
         ? null
@@ -198,7 +204,10 @@ export type ConditionKind =
   | "property"
   | "tags"
   | "links"
+  | "referencePath"
   | "parent"
+  | "child"
+  | "childPath"
   | "page"
   | "parentPath"
   | "root"
@@ -231,7 +240,10 @@ export const FILTER_KIND_OPTIONS: readonly FilterKindOption[] = [
   { value: "property", label: "Property", icon: "mdi mdi-code-braces", description: "Filter by property value" },
   { value: "tags", label: "Tags", icon: "mdi mdi-tag-multiple-outline", description: "Filter by assigned tags (any page)" },
   { value: "links", label: "Links", icon: "mdi mdi-link-variant", description: "Nodes that link to a node or a nested query" },
-  { value: "parent", label: "Parent", icon: "mdi mdi-file-tree-outline", description: "Nodes inside a node's parents tree, or a nested query's" },
+  { value: "referencePath", label: "Reference path", icon: "mdi mdi-link-plus", description: "The node or its ancestors reference these nodes — or the node sits inside them" },
+  { value: "parent", label: "Parent", icon: "mdi mdi-file-tree-outline", description: "The direct parent is any of these nodes (or matches a nested query)" },
+  { value: "child", label: "Child", icon: "mdi mdi-file-tree", description: "Contains any of these nodes as direct children (or matching a nested query)" },
+  { value: "childPath", label: "Child path", icon: "mdi mdi-arrow-decision-outline", description: "Contains any of these nodes anywhere down their tree (or matching a nested query)" },
   { value: "page", label: "Page", icon: "mdi mdi-page-layout-body", description: "The containing page is any of these nodes (or matches a nested query)" },
   { value: "parentPath", label: "Parent path", icon: "mdi mdi-source-branch", description: "An ancestor anywhere up the parent chain is any of these nodes (or matches a nested query)" },
   { value: "root", label: "Root", icon: "mdi mdi-arrow-collapse-up", description: "The top-level parent (workspace-root child) is any of these nodes (or matches a nested query)" },
@@ -278,8 +290,14 @@ export function createCondition(kind: ConditionKind): Condition {
       return { type: "tag", tagId: "" };
     case "links":
       return { type: "linkedTo", nodeId: "" };
+    case "referencePath":
+      return { type: "referencePathOf", nodeIds: [] };
     case "parent":
-      return { type: "descendantOf", nodeId: "" };
+      return { type: "parentOf", nodeIds: [] };
+    case "child":
+      return { type: "childOf", nodeIds: [] };
+    case "childPath":
+      return { type: "descendantOfAny", nodeIds: [] };
     case "page":
       return { type: "pageOf", nodeIds: [] };
     case "parentPath":
