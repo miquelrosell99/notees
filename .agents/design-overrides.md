@@ -6,6 +6,14 @@ the skill's defaults/foundations is recorded here; an undocumented deviation
 is drift, a documented one is a decision. Newest first. Entries bind until the
 rule they override changes, the review trigger fires, or the owner re-rules.
 
+### Sidebar, top bar, and canvas chrome are excepted from the alignment program
+- **Rule**: audit-checklist §0–§10 wholesale — every area × surface sweep of the skill.
+- **Decision**: the owner's 100%-alignment program (2026-10-16) sweeps and fixes every surface against the skill EXCEPT three, which stay as-is and are not walked: the **sidebar** (`.nt-sidebar` — transparent over the app background, hairline-separated, drawer-below-768), the **top bar** (the app-shell TopBar, including its ≤768px crowding), and **on-canvas chrome** (whiteboard, graph, and presentation-stage surfaces and their floating controls — canvas geometry follows `references/web-patterns.md` → "Canvas paint resolves tokens at runtime", not component rules).
+- **Rationale**: owner ruling (2026-10-16): "I want the app to be 100% aligned with the skill (except the sidebar and top bar on canvas stuff)". These three are deliberate app identity / canvas-specific surfaces; alignment work on them is out of scope until the owner re-rules.
+- **Scope**: the three named surfaces and their children only — everything else in the app is IN scope for alignment (deviations outside them are drift, documented or not).
+- **Ruled**: owner 2026-10-16.
+- **Review trigger**: the owner re-rules any of the three, or a new design-system audit wants a baseline of the excepted surfaces.
+
 ### Calendar and date-grid cells ride the panel width, not the 44px floor
 - **Rule**: audit-checklist §9 — touch targets ≥44×44px on every interactive control.
 - **Decision**: calendar day cells, week-strip cells, and month/year picks size from the grid that contains them (`aspect-ratio: 1` / the strip height), computing ≈36–40px in the fixed 320px side panel — no invisible overlay. The grid is the control: forcing 44px cells would overflow the panel or drop columns.
