@@ -22,6 +22,21 @@
   position: relative;
 }
 
+/* The invisible 44px hit-area floor (skill §9 — the calendar-grid pattern):
+   the visible cell rides the strip height; the ::after overlay centered on
+   it reaches ≥44×44. The dated dot is a real span so the overlay owns
+   ::after. */
+.week-strip__day.btn::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+  pointer-events: auto;
+}
+
 .week-strip__weekday {
   font: var(--font-label-small);
   font-weight: 600;
@@ -55,9 +70,9 @@
   box-shadow: var(--shadow-focus-ring-primary);
 }
 
-/* Same mark convention as the month grid (calendar-grid.css). */
-.week-strip__day.dated::after {
-  content: "";
+/* Same mark convention as the month grid (calendar-grid.css) — the dated
+   dot is a real span; ::after carries the hit-area overlay. */
+.week-strip__dot {
   position: absolute;
   bottom: 6%;
   left: 50%;
@@ -68,7 +83,7 @@
   background: var(--md-sys-color-primary);
 }
 
-.week-strip__day.today.dated::after {
+.week-strip__day.today .week-strip__dot {
   background: var(--md-sys-color-on-primary);
 }
 
