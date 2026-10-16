@@ -6,6 +6,14 @@ the skill's defaults/foundations is recorded here; an undocumented deviation
 is drift, a documented one is a decision. Newest first. Entries bind until the
 rule they override changes, the review trigger fires, or the owner re-rules.
 
+### Floating context menus ride the raised chrome surface, not base surface
+- **Rule**: foundations — cards/sheets/dialogs ride `surface-container-low` → `-high` as the surface gets more transient; the elevation table gives popovers/menus a level-1 shadow; this app's Card zeroes every elevation level ("zero visual noise"), so floating layers carry no shadow.
+- **Decision**: the context menu (and its flyout submenu) rides `--md-sys-color-sidebar-card` — the same raised chrome step the nodeview sidebars use (`surface-container-highest` in the dark theme) — instead of the base-card `surface`. The most transient surface in the app takes the top of the container ladder.
+- **Rationale**: with elevation shadows banned app-wide, a floating menu over the page card had nothing to separate it — base `surface` (≈8% primary tint) over the page surface read as one wash ("menus get lost over the background color", owner 2026-10-16). With no shadow to do the work, the surface step must carry the whole separation; the owner directed the sidebar color explicitly.
+- **Scope**: the context menu root and its flyout submenu only (the sole `radius="floating"` consumers). Modals ride their own scrim-backed register; pickers were not part of the ruling.
+- **Ruled**: owner 2026-10-16.
+- **Review trigger**: the shadow ban lifting (elevation levels regain shadows), or a contrast finding that the raised step still blends on some backdrop.
+
 ### Calendar and date-grid cells ride the panel width, not the 44px floor
 - **Rule**: audit-checklist §9 — touch targets ≥44×44px on every interactive control.
 - **Decision**: calendar day cells, week-strip cells, and month/year picks size from the grid that contains them (`aspect-ratio: 1` / the strip height), computing ≈36–40px in the fixed 320px side panel — no invisible overlay. The grid is the control: forcing 44px cells would overflow the panel or drop columns.
