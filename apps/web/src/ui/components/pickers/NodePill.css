@@ -15,11 +15,11 @@
   text-align: left;
   position: relative;
 
-  /* Reserve a 44px minimum width so short pills stay tappable in inline flow.
-     The 44px minimum *height* must not be reserved in layout: inside flex rows
-     (table cells, metadata rows) it would stretch the whole row. An invisible
-     overlay on the pill button below keeps the hit area ≥ 44×44 without
-     affecting layout. */
+  /* Reserve a 48px minimum width (M3's 48dp floor) so short pills stay
+     tappable in inline flow. The 48px minimum *height* must not be reserved
+     in layout: inside flex rows (table cells, metadata rows) it would
+     stretch the whole row. An invisible overlay on the pill button below
+     keeps the hit area ≥ 48×48 without affecting layout. */
   min-width: var(--button-min-height);
   vertical-align: middle;
 }

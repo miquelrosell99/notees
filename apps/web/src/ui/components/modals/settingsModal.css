@@ -279,7 +279,7 @@
   border-radius: var(--shape-full);
   font: var(--font-title-large);
 
-  /* Design system: zero visual noise — no shadows */
+  /* No shadow on this chrome (local choice, not a design-system rule). */
 }
 
 .settings-user-details {

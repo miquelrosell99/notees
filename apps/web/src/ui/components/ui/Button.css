@@ -97,8 +97,9 @@
   position: relative;
 }
 
-/* Invisible minimum hit-area overlay so the target stays ≥ 44×44 even if a
-   size-specific rule or override shrinks the visible button. */
+/* Invisible minimum hit-area overlay so the target stays ≥ 48×48 (M3's 48dp
+   floor) even if a size-specific rule or override shrinks the visible
+   button. */
 .btn--icon-only::after {
   content: '';
   position: absolute;
