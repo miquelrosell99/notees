@@ -106,11 +106,25 @@
  *                  sibling (or the parent).
  * - Delete at end → merge a childless next sibling into this block.
  * - Tab          → indent under the previous sibling (object.move, appended as
- *                  its last child).
+ *                  its last child). The caret hands back to the same block at
+ *                  the same offset — the reparent remounts the row, so the
+ *                  edit session is re-requested explicitly; indenting never
+ *                  leaves edit mode.
  * - Shift+Tab    → outdent to the grandparent, placed right after the current
  *                  parent. The `treeEditMode` device setting (Settings →
  *                  Editor, default "logical") additionally drags subsequent
  *                  siblings under the outdented block; "direct" moves only it.
+ *                  The caret hands back the same way Tab's does.
+ * - ↑ / ↓        → move within the text by line (the browser default); on the
+ *                  FIRST/LAST visual line the edit session hands to the
+ *                  block above/below in VISIBLE document order (folded
+ *                  subtrees contribute no rows). ↑ on the first top-level
+ *                  block hands the caret to the page title; ↓ on the title
+ *                  enters the first block.
+ * - → at the end / ← at the start → the edit session hands to the next /
+ *                  previous visible block (caret at the start / end). On the
+ *                  title, → at the end enters the first block; ← at its
+ *                  start is a no-op.
  * - Node links render as ATOMIC PILLS (contenteditable=false spans, the
  *   read-mode dashed-underline look): arrows select the pill the caret
  *   reaches; Backspace/Delete with the pill selected — or with the caret
@@ -165,9 +179,11 @@ import { uuidv7 } from "uuidv7";
 
 import { focusAtPoint, focusWithCaret, type CaretPlacement } from "@/editor/caret.js";
 import {
+  caretClientRect,
   caretOffset,
   placeCaret,
   proseOffsetFromPoint,
+  proseOffsetRect,
   selectRange,
   selectionOffsets,
 } from "@/editor/selection.js";
@@ -494,6 +510,9 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     rootId,
     positions,
     requestFocus,
+    nextBlockId,
+    previousBlockId,
+    firstBlockId,
     capture: captureApi,
     openNode,
     openInSidebar,
@@ -1812,6 +1831,69 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
         }
       }
     }
+    // Arrow navigation across blocks — the edit session hands to the
+    // adjacent VISIBLE block (folded subtrees contribute no rows). Up/Down
+    // keep the browser's within-text line movement and only intercept on
+    // the first/last VISUAL line (rect-probed; unmeasurable platforms read
+    // as a boundary, jsdom included). Shift (text selection) and Alt
+    // (history) stay on the browser default; the pill branches above keep
+    // their priority (an arrow onto an adjacent pill selects it, it does
+    // not jump blocks). The title row is the page's top: ↓ (and → at its
+    // end) enter the first block, ↑ on the first top-level block hands the
+    // caret UP to the title.
+    if (
+      capture === null &&
+      !mod &&
+      !event.altKey &&
+      !event.shiftKey &&
+      !event.nativeEvent.isComposing &&
+      (event.key === "ArrowUp" || event.key === "ArrowDown" || event.key === "ArrowLeft" || event.key === "ArrowRight")
+    ) {
+      const el = spanRef.current;
+      const caret = el === null ? null : caretOffset(el);
+      if (el !== null && caret !== null) {
+        const draft = draftRef.current;
+        const id = nodeRef.current.id;
+        // Caret on the first/last rendered line of the editor (zero-height
+        // or unmeasurable rects count as a boundary — single-line blocks
+        // are always both).
+        const onFirstLine = () => {
+          const caretRect = caretClientRect(el);
+          const firstRect = proseOffsetRect(el, 0);
+          return firstRect === null || caretRect === null || caretRect.top <= firstRect.top + 1;
+        };
+        const onLastLine = () => {
+          const caretRect = caretClientRect(el);
+          const lastRect = proseOffsetRect(el, el.textContent?.length ?? 0);
+          return lastRect === null || caretRect === null || caretRect.bottom >= lastRect.bottom - 1;
+        };
+        const handUp = (caretAt: CaretPlacement) => {
+          event.preventDefault();
+          if (variant === "title") return; // the title is the top of the page
+          const prev = previousBlockId(id);
+          if (prev !== null) {
+            requestFocus(prev, caretAt);
+          } else if (positions.get(id)?.parentId === rootId) {
+            // The first top-level block: ↑ hands the caret to the header.
+            requestFocus(rootId, "end");
+          }
+        };
+        const handDown = (caretAt: CaretPlacement) => {
+          event.preventDefault();
+          if (variant === "title") {
+            const first = firstBlockId();
+            if (first !== null) requestFocus(first, caretAt);
+            return;
+          }
+          const next = nextBlockId(id);
+          if (next !== null) requestFocus(next, caretAt);
+        };
+        if (event.key === "ArrowUp" && onFirstLine()) handUp("start");
+        else if (event.key === "ArrowDown" && onLastLine()) handDown("start");
+        else if (event.key === "ArrowLeft" && caret === 0) handUp("end");
+        else if (event.key === "ArrowRight" && caret === draft.length) handDown("start");
+      }
+    }
     if (mod && !event.altKey) {
       const key = event.key.toLowerCase();
       // Cmd/Ctrl+Enter: the task-state cycle (not a
@@ -2059,13 +2141,24 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       event.preventDefault();
       const id = nodeRef.current.id;
       const position = positions.get(id);
+      // The reparent remounts this row under a different parent — React
+      // drops the component instance and its edit state with it — so the
+      // caret offset is captured NOW and the edit session is re-requested
+      // on the moved block once the move lands. Indenting never leaves
+      // edit mode.
+      const el = spanRef.current;
+      const caretAt = el === null ? null : caretOffset(el);
+      const refocus = () => requestFocus(id, caretAt ?? "end");
       if (!event.shiftKey) {
         // Indent: under the previous sibling (append as its last child).
         const target = position?.previousSiblingId;
         if (target === undefined || target === null) return; // page-level edge
-        void client.moveObject(id, target).catch((error: unknown) => {
-          console.warn(`[outliner] indent (${id} → ${target}) failed:`, error);
-        });
+        void client
+          .moveObject(id, target)
+          .then(refocus)
+          .catch((error: unknown) => {
+            console.warn(`[outliner] indent (${id} → ${target}) failed:`, error);
+          });
         return;
       }
       // Outdent: to the grandparent, placed right after the current parent.
@@ -2078,9 +2171,12 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
       if (grandParentId === undefined || grandParentId === null) return;
       const mode = readDeviceSetting<"direct" | "logical">("treeEditMode", "logical");
       if (mode === "direct") {
-        void client.moveObject(id, grandParentId, parentId).catch((error: unknown) => {
-          console.warn(`[outliner] outdent (${id} → ${grandParentId}) failed:`, error);
-        });
+        void client
+          .moveObject(id, grandParentId, parentId)
+          .then(refocus)
+          .catch((error: unknown) => {
+            console.warn(`[outliner] outdent (${id} → ${grandParentId}) failed:`, error);
+          });
         return;
       }
       const siblings = client.getChildren(parentId);
@@ -2094,6 +2190,7 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
             void client.moveObject(follower.id, id, after);
             after = follower.id;
           });
+          refocus();
         })
         .catch((error: unknown) => {
           console.warn(`[outliner] logical outdent (${id} → ${grandParentId}) failed:`, error);
