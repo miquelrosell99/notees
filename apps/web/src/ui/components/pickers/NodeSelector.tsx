@@ -61,6 +61,40 @@ export interface NodeSelectorClient extends QuickCreateClient {
   createClass(name: string, opts?: { icon?: string; color?: string }): Promise<string>;
 }
 
+/**
+ * Read `id` from the projection, waiting — bounded — for the async notify
+ * that applies a just-created node. A write's RPC resolution can outrun the
+ * sync push that materializes the node in the local store, so the immediate
+ * read after `await ensureDateChain` answers undefined; the subscription
+ * catches the landing notify. Both real clients (in-process WorkspaceClient,
+ * WorkerClient proxy) expose `subscribe`; a host without it degrades to the
+ * immediate read (the pre-fix behavior).
+ */
+async function waitForNode(
+  client: NodeSelectorClient & { subscribe?: (listener: () => void) => () => void },
+  id: string,
+  timeoutMs = 2000,
+): Promise<ClientNode | undefined> {
+  const existing = client.getNode(id);
+  if (existing !== undefined) return existing;
+  if (client.subscribe === undefined) return undefined;
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (node: ClientNode | undefined) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      unsubscribe();
+      resolve(node);
+    };
+    const unsubscribe = client.subscribe!(() => {
+      const node = client.getNode(id);
+      if (node !== undefined) finish(node);
+    });
+    const timer = setTimeout(() => finish(client.getNode(id)), timeoutMs);
+  });
+}
+
 type AnyClient = NodeSelectorClient;
 
 export type NodeSearchMode = "pages" | "classes" | "all" | "blocks";
@@ -534,8 +568,14 @@ export function NodeSelector({
       onSelect: () => {
         void (async () => {
           await client.ensureDateChain(dateTarget.iso);
-          const node = client.getNode(dateTarget.refId);
-          if (node) handleAdd(node);
+          // The chain lands through the projection's async notify — reading
+          // the node synchronously after the RPC resolves can answer with
+          // undefined (the worker's sync push has not arrived), which dropped
+          // the pick and left the row flipped to "Link to" (create-and-link
+          // is ONE gesture: the mention inserts on this same click). Wait
+          // for the node to appear, then hand it to the pick.
+          const node = await waitForNode(client, dateTarget.refId);
+          if (node !== undefined) handleAdd(node);
         })();
       },
     };
