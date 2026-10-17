@@ -383,7 +383,7 @@ describe("outliner editor", () => {
     expect(document.activeElement).toBe(editors[0]!);
   });
 
-  it("Tab indents under the previous sibling (object.move)", async () => {
+  it("Tab indents under the previous sibling (object.move) and KEEPS edit mode", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Indent" });
     const firstId = await client.createObject({
@@ -407,6 +407,14 @@ describe("outliner editor", () => {
     expect(tree.map((t) => t.node.id)).toEqual([firstId]);
     expect(tree[0]!.children.map((t) => t.node.id)).toEqual([secondId]);
     expect(client.getNode(secondId)?.parentId).toBe(firstId);
+    // The reparent remounts the row — the edit session must survive: the
+    // moved block is still in edit mode and holds the DOM focus (owner:
+    // indenting never leaves edit mode).
+    const moved = container.querySelector<HTMLElement>(`[data-block-id="${secondId}"]`);
+    expect(moved?.classList.contains("nt-block--editing")).toBe(true);
+    const movedEditor = moved?.querySelector<HTMLElement>(".nt-block-text");
+    expect(movedEditor).not.toBeNull();
+    expect(document.activeElement).toBe(movedEditor);
   });
 
   it("Shift+Tab outdents to the grandparent, placed right after the parent", async () => {
@@ -433,6 +441,10 @@ describe("outliner editor", () => {
     const tree = client.getBlockTree(pageId);
     expect(tree.map((t) => t.node.id)).toEqual([parentId, childId]);
     expect(tree[1]!.node.parentId).toBe(pageId);
+    // Edit mode survives the outdent too (the same refocus contract as Tab).
+    const moved = container.querySelector<HTMLElement>(`[data-block-id="${childId}"]`);
+    expect(moved?.classList.contains("nt-block--editing")).toBe(true);
+    expect(document.activeElement).toBe(moved?.querySelector<HTMLElement>(".nt-block-text"));
   });
 
   it("typing on a marks block preserves the run's marks", async () => {
@@ -454,6 +466,125 @@ describe("outliner editor", () => {
     expect(
       within(container.querySelector(".nt-block-tree")!).getByText("hello world").tagName,
     ).toBe("STRONG");
+  });
+
+  it("ArrowDown / ArrowUp hand the edit session to the block below / above", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Nav" });
+    await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "one" }] });
+    await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "two" }] });
+    await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "three" }] });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const activeText = () => {
+      const active = document.activeElement;
+      if (active === null || !active.classList.contains("nt-block-text")) {
+        throw new Error(`expected a block editor to hold the focus, got ${active?.tagName}`);
+      }
+      return active.textContent;
+    };
+
+    // Down from the middle block (the click lands the caret at the end —
+    // a single-line block is on its last line by definition).
+    let editor = clickIntoBlock(container, 1);
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "ArrowDown" });
+    });
+    expect(activeText()).toBe("three");
+    // And back up, twice to the first block.
+    await act(async () => {
+      fireEvent.keyDown(document.activeElement!, { key: "ArrowUp" });
+    });
+    expect(activeText()).toBe("two");
+    await act(async () => {
+      fireEvent.keyDown(document.activeElement!, { key: "ArrowUp" });
+    });
+    expect(activeText()).toBe("one");
+  });
+
+  it("↑ on the first block hands the caret to the page title (header focus)", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Header Target" });
+    await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "only" }] });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container, 0);
+    setProseCaret(editor, 0); // first line, first column
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "ArrowUp" });
+    });
+
+    const active = document.activeElement;
+    expect(active).not.toBeNull();
+    expect(active!.classList.contains("nt-block-text")).toBe(true);
+    // The title row's editor lives inside .nt-title-content (never a body row).
+    expect(active!.closest(".nt-title-content")).not.toBeNull();
+    expect(active!.textContent).toBe("Header Target");
+  });
+
+  it("→ at the end / ← at the start hand the edit session to the next / previous block", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "LR" });
+    await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "one" }] });
+    await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "two" }] });
+    await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "three" }] });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const activeText = () => {
+      const active = document.activeElement;
+      if (active === null || !active.classList.contains("nt-block-text")) {
+        throw new Error(`expected a block editor to hold the focus, got ${active?.tagName}`);
+      }
+      return active.textContent;
+    };
+
+    // → at the end of the middle block → the next block.
+    let editor = clickIntoBlock(container, 1); // caret lands at the end
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "ArrowRight" });
+    });
+    expect(activeText()).toBe("three");
+    // ← at the start of that block → back to the previous block.
+    setProseCaret(document.activeElement as HTMLElement, 0);
+    await act(async () => {
+      fireEvent.keyDown(document.activeElement!, { key: "ArrowLeft" });
+    });
+    expect(activeText()).toBe("two");
+  });
+
+  it("↓ / → on the page title enter the first block", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Title Nav" });
+    await client.createObject({ parentId: pageId, contentAst: [{ type: "text", text: "first" }] });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const titleContent = container.querySelector<HTMLElement>(".nt-title-content")!;
+    fireEvent.click(titleContent);
+    const titleEditor = titleContent.querySelector<HTMLElement>(".nt-block-text")!;
+
+    const activeText = () => {
+      const active = document.activeElement;
+      if (active === null || !active.classList.contains("nt-block-text")) {
+        throw new Error(`expected a block editor to hold the focus, got ${active?.tagName}`);
+      }
+      return active.textContent;
+    };
+
+    await act(async () => {
+      fireEvent.keyDown(titleEditor, { key: "ArrowDown" });
+    });
+    expect(activeText()).toBe("first");
+
+    // Back to the title, then → at the end enters the first block too.
+    setProseCaret(document.activeElement as HTMLElement, 0);
+    await act(async () => {
+      fireEvent.keyDown(document.activeElement!, { key: "ArrowUp" });
+    });
+    expect(activeText()).toBe("Title Nav");
+    await act(async () => {
+      fireEvent.keyDown(document.activeElement!, { key: "ArrowRight" });
+    });
+    expect(activeText()).toBe("first");
   });
 
   it("touching a mention-bearing block without changing its text does not flatten it", async () => {
