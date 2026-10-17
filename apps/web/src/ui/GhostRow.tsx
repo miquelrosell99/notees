@@ -1,7 +1,9 @@
 /**
  * GhostRow — the ghost add row: the page root
  * trails exactly ONE muted "+ Add block" row as the last sibling of the main
- * level; the click realizes it into a real empty block after the last child
+ * level; the focused block view trails ONE as the last CHILD of the focused
+ * block (the child indent level, via BlockRow's `trailingGhost` slot). The
+ * click realizes it into a real empty block after the last child
  * and focuses it. Blocks no longer trail their own ghosts at every depth
  * (owner 2026-10-06: one ghost per page, not one per level). The owner
  * ruling stands in spirit: the ghost is the SOLE add affordance and shows

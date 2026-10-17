@@ -64,15 +64,17 @@
  *
  * Edit mode is also entered in response to a focus request from the
  * outliner gestures (Enter creates a sibling, Backspace-delete hands the
- * caret to the previous block). Data comes from the WorkspaceClient read
- * API; the client itself arrives through OutlinerContext.
+ * caret to the previous block, Tab/Shift+Tab reparent and hand the caret
+ * back, the arrow keys hand it to the adjacent block). Data comes from the
+ * WorkspaceClient read API; the client itself arrives through
+ * OutlinerContext.
  *
  * variant="title" is the page-header projection: the page node itself as a
  * bullet-less, chrome-less row (see the prop doc below) — the shared token
  * rendering and the full block editor, minus the outline chrome.
  */
 
-import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
@@ -192,9 +194,18 @@ interface BlockRowProps {
    * it.
    */
   hideBacklinks?: boolean | undefined;
+  /**
+   * A trailing affordance rendered as the LAST CHILD of this row's children
+   * container (the child indent level — never a sibling of the row): the
+   * focused block view's "+ Add block" ghost (GhostRow over this node).
+   * The children container mounts even with zero real children while this
+   * is set (unless the row is collapsed) so the affordance shows on an
+   * empty body too. Not sortable — the row carries no drag wiring.
+   */
+  trailingGhost?: ReactNode | undefined;
 }
 
-export function BlockRow({ tree, client, resolveName, readOnly = false, readOnlyInert = false, suppressWidgets = false, proseMode = false, tableRow = false, variant = "block", hideBacklinks = false, condensed = false }: BlockRowProps) {
+export function BlockRow({ tree, client, resolveName, readOnly = false, readOnlyInert = false, suppressWidgets = false, proseMode = false, tableRow = false, variant = "block", hideBacklinks = false, condensed = false, trailingGhost = undefined }: BlockRowProps) {
   const [gripMenu, setGripMenu] = useState<{ x: number; y: number } | null>(null);
   const { node, children } = tree;
   const isTitle = variant === "title";
@@ -1086,7 +1097,7 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
         </>
       ) : (
       <>
-        {children.length > 0 && !isCollapsed && (
+        {(children.length > 0 || trailingGhost !== undefined) && !isCollapsed && (
           <SortableContext items={children.map((child) => child.node.id)} strategy={verticalListSortingStrategy}>
             <div className="nt-block-children" ref={childrenRef}>
               {/* The vertical indent line is itself the fold control (owner
@@ -1122,6 +1133,11 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
                   hideBacklinks={hideBacklinks}
                 />
               ))}
+              {/* The trailing ghost (the focused block view's "+ Add block"
+                  affordance) rides the children container at the CHILD
+                  indent level — never a sibling of this row — after the
+                  last real child. */}
+              {trailingGhost}
             </div>
           </SortableContext>
         )}

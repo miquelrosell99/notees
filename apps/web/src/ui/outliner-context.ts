@@ -199,6 +199,18 @@ export interface OutlinerContextValue {
   requestFocus: (blockId: string, caret?: CaretPlacement) => void;
   acknowledgeFocus: () => void;
   /**
+   * Keyboard navigation in VISIBLE document order (the arrow-handoff
+   * contract): the next/previous rendered block around `blockId` — folded
+   * subtrees contribute no rows, so an answer is always a visible row.
+   * `firstBlockId` is the first visible row of the tree (the title row's
+   * Down/Right-at-end target). The view's own root (a page's title row, the
+   * focused block view's root block) is never in the order — hosts handle
+   * those edges themselves. Null when no such row exists.
+   */
+  nextBlockId: (blockId: string) => string | null;
+  previousBlockId: (blockId: string) => string | null;
+  firstBlockId: () => string | null;
+  /**
    * Display collapse — DEVICE-PERSISTED per page (owner 2026-10-14: the
    * folds must survive reloads; device state stays out of the op log, so it
    * rides localStorage keyed by the page id, never the store): ids of
@@ -539,6 +551,17 @@ export function useOutlinerValue(
     }
   };
   flattenIds(tree);
+  // The VISIBLE document order (the arrow-handoff reads): a collapsed block
+  // contributes its own row and nothing under it — the next/previous answer
+  // is always a rendered row. Rebuilt every render alongside the tree.
+  const visibleOrder: string[] = [];
+  const flattenVisible = (nodes: readonly BlockTreeNode[]): void => {
+    for (const entry of nodes) {
+      visibleOrder.push(entry.node.id);
+      if (!collapsedIds.has(entry.node.id)) flattenVisible(entry.children);
+    }
+  };
+  flattenVisible(tree);
   const rangeBetween = (a: string, b: string): string[] => {
     const ia = orderedIds.indexOf(a);
     const ib = orderedIds.indexOf(b);
@@ -569,6 +592,15 @@ export function useOutlinerValue(
     requestFocus: (blockId: string, caret: CaretPlacement = "end") =>
       setFocusRequest({ id: blockId, caret }),
     acknowledgeFocus: () => setFocusRequest(null),
+    nextBlockId: (blockId) => {
+      const index = visibleOrder.indexOf(blockId);
+      return index >= 0 && index < visibleOrder.length - 1 ? visibleOrder[index + 1]! : null;
+    },
+    previousBlockId: (blockId) => {
+      const index = visibleOrder.indexOf(blockId);
+      return index > 0 ? visibleOrder[index - 1]! : null;
+    },
+    firstBlockId: () => visibleOrder[0] ?? null,
     collapsed: collapsedIds,
     toggleCollapse,
     stretched: stretchedIds,
