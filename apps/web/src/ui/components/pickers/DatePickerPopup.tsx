@@ -491,6 +491,10 @@ export function DatePickerPopup({
       ref={popupRef}
       role="dialog"
       aria-label="Date picker"
+      // The portaled editor surfaces (the slash /date flow) keep the block's
+      // edit session alive while focus is inside the popup (the editor blur
+      // check's companion marker).
+      data-editor-companion
       onKeyDown={(e) => {
         if (e.key === "Escape") {
           e.stopPropagation();

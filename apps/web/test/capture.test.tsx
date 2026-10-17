@@ -18,7 +18,7 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
-import { deriveDisplayName, SYSTEM_CLASS_UUIDS } from "@notees/domain";
+import { chainNodeIds, deriveDisplayName, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import type { ContentAst } from "@notees/protocol";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
@@ -265,6 +265,41 @@ describe("capture: @ mention", () => {
     const chain = await client.ensureDateChain(iso);
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
     expect(ast[0]).toMatchObject({ type: "mention", targetNodeId: chain.day });
+  });
+
+  it("clicking 'Create daily page' creates the chain AND inserts the mention in one gesture", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Home" });
+    const blockId = await client.createObject({
+      parentId: pageId,
+      contentAst: [{ type: "text", text: "see " }],
+    });
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+
+    const editor = clickIntoBlock(container);
+    typeWithCaret(editor, "see @");
+    // Lowercase natural input — the same query that "did not work" for the
+    // owner: the create path used to drop the pick (the projection's async
+    // notify had not landed), leaving the row flipped to "Link to" with no
+    // mention inserted.
+    typeInPicker("tomorrow");
+    const row = within(picker()!).getByText(/Create daily page: /);
+    await act(async () => {
+      fireEvent.click(row);
+    });
+    await act(async () => {});
+
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const dayId = chainNodeIds(iso).day;
+    // The chain exists…
+    expect(client.getNode(dayId)).toBeDefined();
+    // …and the mention landed in the SAME gesture (the picker closed on the
+    // pick — no second "Link to" click needed).
+    const ast = client.getNode(blockId)?.contentAst as ContentAst;
+    expect(ast[1]).toMatchObject({ type: "mention", targetNodeId: dayId });
+    expect(picker()).toBeNull();
   });
 
   it("creates a backlinks edge to the target (mention edge, record-don't-resolve)", async () => {

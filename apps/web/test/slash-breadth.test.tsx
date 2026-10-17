@@ -7,8 +7,10 @@
  * - /query inserts a query content token at the caret and opens the builder
  *   popover when the block re-renders in read mode.
  * - /date parses the typed query (NL, same parser as the @-picker), ensures
- *   the journal chain, and links the day/month/year page; a bare /date is
- *   today; an unparseable query falls back like a no-match.
+ *   the journal chain, and links the day/month/year page; a bare /date (or
+ *   an unparseable remainder) opens the calendar popup at the caret (the
+ *   v1 behavior — the Date entry shows the calendar) and the picked day
+ *   links on commit.
  * - /template opens the flat unfiltered template list (the amendment), and
  *   the pick instantiates a fresh page through the clone engine (provenance
  *   written), linking it at the caret; {{variables}} open the variable
@@ -155,12 +157,19 @@ describe("slash /date", () => {
     expect(client.getNode(dayId)).toBeDefined();
   });
 
-  it("a bare /date links today", async () => {
+  it("a bare /date opens the calendar popup; the Today suggestion links today", async () => {
     const { client, blockId, container } = await setupPageWithBlock();
     const editor = clickIntoBlock(container);
     typeSlashCommand(editor, "date");
     fireEvent.keyDown(editor, { key: "Enter" });
 
+    // The calendar popup opens at the caret (the v1 behavior) and the
+    // trigger text is consumed.
+    const pickerDialog = await screen.findByRole("dialog", { name: "Date picker" });
+    expect(within(pickerDialog).getByRole("button", { name: "Today" })).not.toBeNull();
+    expect(editor.textContent).toBe("");
+
+    fireEvent.click(within(pickerDialog).getByRole("button", { name: "Today" }));
     const d = new Date();
     const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     const dayId = chainNodeIds(iso).day;
@@ -168,20 +177,27 @@ describe("slash /date", () => {
       const ast = client.getNode(blockId)?.contentAst as ContentAst;
       expect(ast[0]).toMatchObject({ type: "mention", targetNodeId: dayId });
     });
+    // The calendar closed after the pick.
+    expect(screen.queryByRole("dialog", { name: "Date picker" })).toBeNull();
   });
 
-  it("an unparseable query falls back like a no-match (typed text stays)", async () => {
+  it("an unparseable remainder opens the calendar popup too; Escape hands focus back to the block", async () => {
     const { client, blockId, container } = await setupPageWithBlock();
     const editor = clickIntoBlock(container);
     typeSlashCommand(editor, "date", "blahblah");
     fireEvent.keyDown(editor, { key: "Enter" });
 
-    // The trigger word is consumed; the query text survives as plain prose.
+    // The trigger text is stripped and the calendar offers the pick…
+    const pickerDialog = await screen.findByRole("dialog", { name: "Date picker" });
+    expect(editor.textContent).toBe("");
+    // …and Escape closes it and refocuses the block (no link written).
+    fireEvent.keyDown(within(pickerDialog).getByRole("textbox"), { key: "Escape" });
     await waitFor(() => {
-      expect(editor.textContent).toBe("date blahblah");
+      expect(screen.queryByRole("dialog", { name: "Date picker" })).toBeNull();
     });
+    expect(document.activeElement).toBe(editor);
     const ast = client.getNode(blockId)?.contentAst as ContentAst;
-    expect(ast).toEqual([{ type: "text", text: "date blahblah" }]);
+    expect(ast).toEqual([]);
   });
 });
 

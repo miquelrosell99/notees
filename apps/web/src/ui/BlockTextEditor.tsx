@@ -69,7 +69,9 @@
  *   [label](url) / raw-URL pasting remain the label-carrying paths),
  *   Query (insert a query token at the caret and open its builder
  *   popover on exit), Date (typed date → mention of the daily
- *   page, chain ensured on demand), Template (flat unfiltered
+ *   page, chain ensured on demand; a bare /date or an unparseable
+ *   remainder opens the calendar popup at the caret and the picked
+ *   day links on commit), Template (flat unfiltered
  *   template list — the pick instantiates a fresh page through the clone
  *   engine and links it at the caret). No match + Enter falls back to plain
  *   prose (the query text stays).
@@ -213,6 +215,7 @@ import { FloatingToolbar } from "./editor-popups/FloatingToolbar.js";
 import { TriggerPopup, SLASH_COMMANDS, bumpSlashCommandUsage, readSlashCommandUsage } from "./editor-popups/TriggerPopup.js";
 import { NodeSelector, type NodePickContext } from "./components/pickers/NodeSelector.js";
 import { parseDate } from "./components/pickers/dateParser.js";
+import { DatePickerPopup } from "./components/pickers/DatePickerPopup.js";
 import { NodeLinkContextMenu } from "./components/NodeLinkContextMenu.js";
 import { useLinkEditModalOpener } from "./editor-popups/LinkEditModal.js";
 import { CodeTextarea } from "./components/ui/CodeTextarea.js";
@@ -573,6 +576,16 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
   const [verb, setVerb] = useState<{ start: number; end: number; top: number; left: number } | null>(
     null,
   );
+  /**
+   * The slash /date calendar pick (null = closed): the draft offset where
+   * the trigger text sat (the mention inserts there) + the caret's viewport
+   * anchor for the popup. Opens for a BARE /date or an unparseable
+   * remainder — a parseable typed date links directly without the popup.
+   */
+  const [datePick, setDatePick] = useState<{ insertAt: number; anchor: { top: number; left: number } } | null>(null);
+  const dateAnchorRef = useRef<HTMLElement | null>(null);
+  /** Set when the popup committed a pick — Escape/outside close refocuses the block instead of clobbering the landed caret. */
+  const datePickCommittedRef = useRef(false);
   /** Right-click menu over a mention token (null = closed). */
   const [linkMenu, setLinkMenu] = useState<LinkMenuState | null>(null);
   /**
@@ -1022,15 +1035,17 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
     }
     if (commandId === "date") {
       // Typed date → link to the daily page (created on demand).
-      // Mirrors the @-picker's date row: ensure the chain, then insert a
-      // mention at the caret. A bare `/date` means today; an unparseable
-      // query falls back like a no-match (only the sigil is stripped — the
-      // typed text stays). The command word itself is not part of the date.
+      // A PARSEABLE remainder links directly ("/date feb 14"); a BARE /date
+      // or an unparseable remainder opens the calendar popup at the caret —
+      // the v1 behavior: the Date entry SHOWS the calendar, and the picked
+      // day links on commit.
       const trimmed = query.trim();
       const remainder = /^date(\s+|$)/i.test(trimmed) ? trimmed.replace(/^date(\s+|$)/i, "").trim() : trimmed;
-      const parsed = parseDate(remainder) ?? (remainder === "" ? parseDate("today") : null);
+      const parsed = remainder === "" ? null : parseDate(remainder);
       if (parsed === null) {
-        plainFallback(start);
+        applySplice(start, end, [], start);
+        datePickCommittedRef.current = false;
+        setDatePick({ insertAt: start, anchor: caretLineAnchor() });
         return;
       }
       const iso =
@@ -2336,6 +2351,67 @@ export function BlockTextEditor({ node, caret, onExitEdit, variant = "block" }: 
         />
       )}
       {templateInstantiator.dialog}
+      {datePick !== null && (
+        <>
+          {/* Zero-size fixed anchor at the caret line (viewport coords) —
+              the popup flips/clamps from there via its viewport positioner. */}
+          <span
+            ref={(el) => {
+              dateAnchorRef.current = el;
+            }}
+            aria-hidden="true"
+            style={{
+              position: "fixed",
+              top: datePick.anchor.top,
+              left: datePick.anchor.left,
+              width: 0,
+              height: 0,
+              pointerEvents: "none",
+            }}
+          />
+          <DatePickerPopup
+            value={{ isRange: false, start: null, end: null }}
+            onCommit={(value) => {
+              // Day precision only (range/time chrome off): a point commit.
+              if (!("iso" in value)) return;
+              const iso = value.iso;
+              const ids = chainNodeIds(iso);
+              const insertAt = datePick.insertAt;
+              datePickCommittedRef.current = true;
+              return client.ensureDateChain(iso).then(() => {
+                // The display label rides the same parser the typed path
+                // uses ("October 18, 2026").
+                const label = parseDate(iso)?.label ?? iso;
+                applySplice(
+                  insertAt,
+                  insertAt,
+                  [{ type: "mention", targetNodeId: ids.day, text: label, linkId: uuidv7() }],
+                  insertAt + label.length,
+                );
+              });
+            }}
+            onClose={() => {
+              const pick = datePick;
+              const committed = datePickCommittedRef.current;
+              setDatePick(null);
+              // The popup held the focus while open: Escape / outside close
+              // hands it back to the block (after a commit the splice already
+              // landed the caret — no refocus clobber).
+              if (committed) return;
+              const el = spanRef.current;
+              if (el !== null) {
+                el.focus();
+                placeCaret(el, pick.insertAt);
+              }
+            }}
+            anchorRef={dateAnchorRef}
+            firstDayOfWeek={1}
+            precision="day"
+            allowRange={false}
+            allowTime={false}
+          />
+        </>
+      )}
       {linkMenu !== null && (
         <NodeLinkContextMenu
           state={linkMenu}
