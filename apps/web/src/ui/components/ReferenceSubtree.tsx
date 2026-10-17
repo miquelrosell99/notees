@@ -8,7 +8,9 @@
  *
  * `readOnly` (the hover preview's preview surface) renders the same rows
  * inert: clicks navigate instead of editing, the context menu stays shut,
- * and the rows wear the readonly class (excluded from drag measuring).
+ * and the rows wear the readonly class (excluded from drag measuring). The
+ * read-only projection also mounts no ghost (the add affordance is editing
+ * chrome).
  *
  * BlockRow consumes OutlinerContext and useSortable, so each subtree hosts
  * its own OutlinerContext (via useOutlinerValue, same as PageView)
@@ -26,6 +28,7 @@ import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspac
 
 import { BlockRow } from "../BlockRow.js";
 import { displayNameFromClient } from "../dateDisplay.js";
+import { GhostRow, realizeGhost } from "../GhostRow.js";
 import { OutlinerContext, useOutlinerValue } from "../outliner-context.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
@@ -75,6 +78,24 @@ export function ReferenceSubtree({
             client={client}
             resolveName={(id) => displayNameFromClient(client, id)}
             readOnly={readOnly}
+            /* The focused block view's "+ Add block" affordance: the root
+               block trails ONE ghost as the last CHILD (the child indent
+               level — never a sibling of the focused block). The click
+               realizes it into a real empty child and focuses it. The
+               read-only projection (the hover preview) mounts none, same as
+               every other read-only surface. */
+            trailingGhost={
+              readOnly ? undefined : (
+                <GhostRow
+                  parentId={rootId}
+                  onRealize={() => {
+                    void realizeGhost(client, outliner, rootId).catch((error: unknown) => {
+                      console.warn(`[outliner] ghost realize (${rootId}) failed:`, error);
+                    });
+                  }}
+                />
+              )
+            }
           />
         </div>
       </SortableContext>

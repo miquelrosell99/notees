@@ -94,6 +94,49 @@ describe("NodeView render cascade (Revision 11)", () => {
     expect(screen.queryByRole("heading")).toBeNull();
   });
 
+  it("the focused block view trails ONE ghost at the CHILD level (never a sibling of the focused block)", async () => {
+    const client = await seedClient();
+    const parentId = await client.createObject({ isEmbedded: false, name: "Parent" });
+    const blockId = await client.createObject({
+      parentId,
+      contentAst: [{ type: "text", text: "focused" }],
+    });
+    const childId = await client.createObject({
+      parentId: blockId,
+      contentAst: [{ type: "text", text: "existing child" }],
+    });
+
+    const { container } = render(<NodeView client={client} nodeId={blockId} onOpenNode={() => {}} />);
+
+    // Exactly one ghost, mounted INSIDE the focused block's children
+    // container (the child indent level) — not beside the focused block.
+    const ghosts = container.querySelectorAll<HTMLElement>("[data-ghost]");
+    expect(ghosts).toHaveLength(1);
+    expect(ghosts[0]!.dataset.ghost).toBe(`__ghost-${blockId}`);
+    const rootChildren = container.querySelector<HTMLElement>(
+      `[data-block-id="${blockId}"] > .nt-block-children`,
+    );
+    expect(rootChildren).not.toBeNull();
+    expect(rootChildren!.querySelector("[data-ghost]")).toBe(ghosts[0]!);
+    // The ghost rides AFTER the last real child, inside the children list.
+    expect(rootChildren!.textContent).toContain("existing child");
+
+    // The click realizes the ghost into a real empty child and focuses it.
+    await waitFor(async () => {
+      fireEvent.click(within(ghosts[0]!).getByRole("button", { name: "Add block" }));
+    });
+    const children = client.getChildren(blockId);
+    expect(children).toHaveLength(2);
+    expect(children[0]!.id).toBe(childId);
+    const created = children[1]!;
+    expect(created.contentAst).toEqual([]);
+    const createdRow = container.querySelector<HTMLElement>(`[data-block-id="${created.id}"]`);
+    expect(createdRow?.classList.contains("nt-block--editing")).toBe(true);
+    expect(document.activeElement).toBe(createdRow?.querySelector(".nt-block-text"));
+    // The ghost itself survives the realize — the affordance is always-on.
+    expect(container.querySelectorAll("[data-ghost]")).toHaveLength(1);
+  });
+
   it("class node → the class page variant regardless of placement facts", async () => {
     const client = await seedClient();
     const classId = await client.createClass("Cascade Class");

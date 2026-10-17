@@ -7,6 +7,39 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-10-17
+
+- **fix(web): outliner keyboard round — the focused block view's ghost, the
+  Tab edit-mode drop, cross-block arrow navigation (owner 2026-10-17).** Four
+  owner-reported editor fixes, one slice. **(1)** The focused block view (the
+  bullet-zoom view, ReferenceSubtree) trailed no ghost at all — it now trails
+  exactly ONE "+ Add block" ghost as the LAST CHILD of the focused block
+  (BlockRow's new `trailingGhost` slot renders inside the children container,
+  at the child indent level — never a sibling of the focused block; the
+  children container mounts for the ghost alone, so an empty focused block
+  can grow a child; the read-only hover preview mounts none). **(2)** Tab /
+  Shift+Tab reparents remount the moved row under a different parent, and
+  React dropped the component instance — edit mode died with it; the caret
+  offset is now captured before the `object.move` and the edit session is
+  re-requested on the moved block when the move lands (indenting never
+  leaves edit mode). **(3/4)** The arrow keys now carry the edit session
+  across blocks in VISIBLE document order (folded subtrees contribute no
+  rows — new `nextBlockId`/`previousBlockId`/`firstBlockId` accessors over a
+  collapse-aware order in the outliner context): `↑`/`↓` keep the browser's
+  within-text line movement and hand off only on the first/last VISUAL line
+  (rect-probed via the new `caretClientRect`/`proseOffsetRect` selection
+  helpers); `→` at the end / `←` at the start hand to the next/previous
+  block (caret at start/end); `↑` on the first top-level block hands the
+  caret to the page title, and `↓`/`→`-at-end on the title enter the first
+  block. The atomic-pill arrow gestures and the slash-popup capture keep
+  their priority; Shift/Alt-modified arrows stay on the browser default.
+  **Verification:** web gate green (49 tests across outliner-editor /
+  outliner-keys / render-cascade, +8 new: the child-level focused-view ghost
+  incl. realize-and-focus, Tab/Shift+Tab edit-mode retention, ↑/↓/←/→
+  cross-block hand-offs both directions, the first-block→title hand-off, the
+  title→first-block entries); `docs/ux.md` keyboard table + ghost paragraph
+  updated.
+
 ## 2026-10-16
 
 - **feat(query): the rest of v1's node-family register — Parent (direct),

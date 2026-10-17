@@ -154,6 +154,45 @@ export function selectRange(el: HTMLElement, start: number, end: number): void {
 }
 
 /**
+ * Client rect of the current collapsed caret inside the editor — the
+ * first rect of the selection range. Null when there is no in-editor caret
+ * or the platform cannot measure (jsdom).
+ */
+export function caretClientRect(el: HTMLElement): DOMRect | null {
+  try {
+    const selection = window.getSelection();
+    if (selection === null || selection.rangeCount === 0) return null;
+    const range = selection.getRangeAt(0);
+    if (!range.collapsed || !el.contains(range.startContainer)) return null;
+    const rects = range.getClientRects();
+    return rects.length > 0 ? rects[0]! : range.getBoundingClientRect();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Client rect of a prose offset WITHOUT touching the selection (a scratch
+ * range, collapsed at the offset) — the line-boundary probe behind the
+ * Up/Down cross-block navigation. Null in jsdom (zero rects are reported as
+ * a rect, which reads as the origin — callers treat unmeasurability as
+ * "boundary reached").
+ */
+export function proseOffsetRect(el: HTMLElement, offset: number): DOMRect | null {
+  try {
+    const target = proseToDom(el, offset);
+    if (target === null) return null;
+    const range = document.createRange();
+    range.setStart(target.node, target.offset);
+    range.collapse(true);
+    const rects = range.getClientRects();
+    return rects.length > 0 ? rects[0]! : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Prose offset at a viewport point inside the editor — the right-click hit
  * test for the node-link context menu (the selection API cannot answer "what
  * sits under this point").
