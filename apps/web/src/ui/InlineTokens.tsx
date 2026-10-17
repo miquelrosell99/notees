@@ -10,7 +10,9 @@
  * target; external links render as plain hyperlinks (underline + link
  * color, never a pill); mentions also notify the app-level hover coordinator
  * (NodeHoverPreview — dwell raises a bounded preview card; the card's pin
- * promotes to a floating editor window); quote and heading recurse (heading
+ * promotes to a floating editor window); a mention whose target carries an
+ * icon renders it ahead of the label (the resolveIcon resolver — defined
+ * icons only, no display-default glyph); quote and heading recurse (heading
  * carries the large/bold typography); embed_ref renders
  * the live subtree via the
  * optional renderEmbed callback (placeholder box when absent); query renders
@@ -31,6 +33,7 @@ import { Fragment, type ReactNode } from "react";
 
 import { cssColorFor } from "./components/ui/colorPresets.js";
 import { notifyNodeHover } from "./components/NodeHoverPreview.js";
+import { Icon } from "./Icon.js";
 
 export interface InlineTokensProps {
   tokens: readonly unknown[];
@@ -100,6 +103,14 @@ export interface InlineTokensProps {
   onOpenNode?: ((nodeId: string) => void) | undefined;
   /** Effective-color resolver: tints mention underlines with the target's color. */
   resolveColor?: ((nodeId: string) => string | null) | undefined;
+  /**
+   * Effective-icon resolver for node links (owner 2026-10-17): a mention
+   * whose target carries an icon — its own or its first class's (the
+   * definedNodeIcon semantics, NO display-default fallback, so iconless
+   * links stay text-only) — renders that icon ahead of the label. Absent =
+   * links render text-only (unwired projections).
+   */
+  resolveIcon?: ((nodeId: string) => string | null) | undefined;
   /**
    * Class effective-color resolver: tints class-link wavy underlines with
    * the class's color (the extends-chain walk). When absent, chips render
@@ -186,6 +197,7 @@ function renderToken(
   assetAlone: boolean,
   onOpenNode: InlineTokensProps["onOpenNode"],
   resolveColor: InlineTokensProps["resolveColor"],
+  resolveIcon: InlineTokensProps["resolveIcon"],
   resolveClassColor: InlineTokensProps["resolveClassColor"],
   resolveClassAssigned: InlineTokensProps["resolveClassAssigned"],
   onAssignClass: InlineTokensProps["onAssignClass"],
@@ -229,6 +241,10 @@ function renderToken(
         (typeof t.text === "string" ? t.text : undefined) ??
         targetNodeId;
       if (!name) return null;
+      // The target's effective icon rides ahead of the label when it has one
+      // (the resolver returns null for iconless targets — no default glyph).
+      const icon = targetNodeId !== "" ? (resolveIcon?.(targetNodeId) ?? null) : null;
+      const iconNode = icon !== null ? <Icon path={icon} size={0.75} className="nt-link__icon" /> : null;
       const mentionMenuProps =
         onMentionMenu === undefined
           ? undefined
@@ -261,6 +277,7 @@ function renderToken(
             onMouseLeave={(event) => notifyNodeHover(targetNodeId, "leave", event.currentTarget)}
             {...mentionMenuProps}
           >
+            {iconNode}
             {name}
           </button>
         );
@@ -274,6 +291,7 @@ function renderToken(
           onMouseLeave={(event) => notifyNodeHover(targetNodeId, "leave", event.currentTarget)}
           {...mentionMenuProps}
         >
+          {iconNode}
           {name}
         </span>
       );
@@ -327,7 +345,7 @@ function renderToken(
       const children = Array.isArray(t.children) ? t.children : [];
       return (
         <span key={key} className="nt-quote">
-          <InlineTokens tokens={children} resolveName={resolveName} resolveFullTitle={resolveFullTitle} resolveVerb={resolveVerb} renderEmbed={renderEmbed} onOpenNode={onOpenNode} resolveColor={resolveColor} resolveClassColor={resolveClassColor} resolveClassAssigned={resolveClassAssigned} onAssignClass={onAssignClass} />
+          <InlineTokens tokens={children} resolveName={resolveName} resolveFullTitle={resolveFullTitle} resolveVerb={resolveVerb} renderEmbed={renderEmbed} onOpenNode={onOpenNode} resolveColor={resolveColor} resolveIcon={resolveIcon} resolveClassColor={resolveClassColor} resolveClassAssigned={resolveClassAssigned} onAssignClass={onAssignClass} />
         </span>
       );
     }
@@ -337,7 +355,7 @@ function renderToken(
       const children = Array.isArray(t.children) ? t.children : [];
       return (
         <span key={key} className="nt-heading">
-          <InlineTokens tokens={children} resolveName={resolveName} resolveFullTitle={resolveFullTitle} resolveVerb={resolveVerb} renderEmbed={renderEmbed} onOpenNode={onOpenNode} resolveColor={resolveColor} resolveClassColor={resolveClassColor} resolveClassAssigned={resolveClassAssigned} onAssignClass={onAssignClass} />
+          <InlineTokens tokens={children} resolveName={resolveName} resolveFullTitle={resolveFullTitle} resolveVerb={resolveVerb} renderEmbed={renderEmbed} onOpenNode={onOpenNode} resolveColor={resolveColor} resolveIcon={resolveIcon} resolveClassColor={resolveClassColor} resolveClassAssigned={resolveClassAssigned} onAssignClass={onAssignClass} />
         </span>
       );
     }
@@ -413,7 +431,7 @@ function renderToken(
   }
 }
 
-export function InlineTokens({ tokens, resolveName, resolveFullTitle, resolveVerb, renderEmbed, renderEmbedCard, renderQuery, renderWhiteboard, renderAsset, onOpenNode, resolveColor, resolveClassColor, resolveClassAssigned, onAssignClass, onMentionMenu }: InlineTokensProps) {
+export function InlineTokens({ tokens, resolveName, resolveFullTitle, resolveVerb, renderEmbed, renderEmbedCard, renderQuery, renderWhiteboard, renderAsset, onOpenNode, resolveColor, resolveIcon, resolveClassColor, resolveClassAssigned, onAssignClass, onMentionMenu }: InlineTokensProps) {
   // SCHEMA.md:61 — an asset_ref alone in its stream renders full-bleed; the
   // flag reaches only the (single) asset token in that stream.
   const assetAlone =
@@ -424,7 +442,7 @@ export function InlineTokens({ tokens, resolveName, resolveFullTitle, resolveVer
     (tokens[0] as { type?: unknown }).type === "asset_ref";
   return (
     <>
-      {tokens.map((token, index) => renderToken(token, index, resolveName, resolveFullTitle, resolveVerb, renderEmbed, renderEmbedCard, renderQuery, renderWhiteboard, renderAsset, assetAlone, onOpenNode, resolveColor, resolveClassColor, resolveClassAssigned, onAssignClass, onMentionMenu))}
+      {tokens.map((token, index) => renderToken(token, index, resolveName, resolveFullTitle, resolveVerb, renderEmbed, renderEmbedCard, renderQuery, renderWhiteboard, renderAsset, assetAlone, onOpenNode, resolveColor, resolveIcon, resolveClassColor, resolveClassAssigned, onAssignClass, onMentionMenu))}
     </>
   );
 }

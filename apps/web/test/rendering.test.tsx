@@ -118,6 +118,49 @@ describe("PageView rendering", () => {
     expect(within(tree).getByText("parent")).not.toBeNull();
   });
 
+  it("mentions render the linked node's defined effective icon ahead of the label", async () => {
+    const client = await seedClient();
+    const pageId = await client.createObject({ isEmbedded: false, name: "Icons" });
+    // The target carries its own icon (the header "Add icon" flow writes
+    // object.update — object.create does not carry icon).
+    const iconTargetId = await client.createObject({
+      isEmbedded: false,
+      name: "Iconed Target",
+    });
+    await client.updateObject(iconTargetId, { icon: "mdi-account" });
+    // The class-icon path: no own icon, but a class with one.
+    const classId = await client.createClass("Iconed Class", { icon: "mdi-briefcase" });
+    await client.updateObject(classId, { contentAst: [{ type: "text", text: "Iconed Class" }] });
+    const classTargetId = await client.createObject({
+      isEmbedded: false,
+      name: "Class Iconed Target",
+      classIds: [classId],
+    });
+    // An iconless target stays text-only.
+    const plainTargetId = await client.createObject({ isEmbedded: false, name: "Plain Target" });
+    await client.createObject({
+      parentId: pageId,
+      contentAst: [
+        { type: "mention", targetNodeId: iconTargetId, text: "Iconed Target" },
+        { type: "text", text: " " },
+        { type: "mention", targetNodeId: classTargetId, text: "Class Iconed Target" },
+        { type: "text", text: " " },
+        { type: "mention", targetNodeId: plainTargetId, text: "Plain Target" },
+      ],
+    });
+
+    const { container } = render(<PageView client={client} pageId={pageId} />);
+    const tree = container.querySelector(".nt-block-tree") as HTMLElement;
+
+    // Exactly the two icon-bearing targets wear the icon (owner 2026-10-17:
+    // the defined effective icon only — no display-default glyph).
+    const icons = tree.querySelectorAll(".nt-link__icon");
+    expect(icons).toHaveLength(2);
+    expect(within(tree).getByText("Iconed Target").querySelector(".nt-link__icon")).not.toBeNull();
+    expect(within(tree).getByText("Class Iconed Target").querySelector(".nt-link__icon")).not.toBeNull();
+    expect(within(tree).getByText("Plain Target").querySelector(".nt-link__icon")).toBeNull();
+  });
+
   it("renders placeholder boxes for block-scale tokens", async () => {
     const client = await seedClient();
     const pageId = await client.createObject({ isEmbedded: false, name: "Placeholders" });
