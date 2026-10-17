@@ -9,6 +9,36 @@ predating this file.
 
 ## 2026-10-17
 
+- **fix(web): the slash Date entry shows the calendar again; the picker's
+  date row links on create; node links wear the target's icon (owner
+  2026-10-17, second round).** **(1)** The slash menu's Date entry lost its
+  calendar on the v2 port (a bare `/date` silently linked today and an
+  unparseable remainder fell back to plain prose — v1 opened the
+  DatePickerPopup at the caret). Restored: a parseable typed remainder
+  (`/date feb 14`) still links directly; a BARE `/date` or an unparseable
+  remainder now opens the calendar popup anchored at the caret, and the
+  picked day ensures the journal chain and inserts the mention on commit
+  (Escape/outside close strips the trigger and refocuses the block at the
+  caret). The popup's portaled root carries `data-editor-companion` so the
+  edit session survives the focus hand-off. **(2)** The node picker's
+  typed-date row dropped the pick on the CREATE path: `ensureDateChain`'s
+  RPC resolution outran the projection's sync notify, the immediate
+  `getNode` read answered undefined, and the row flipped to "Link to daily
+  page" with nothing inserted — so every not-yet-existing date ("tomorrow"
+  lowercase among them) dead-ended on first click while an existing date
+  page ("Tomorrow", after the failed create had authored it) appeared to
+  work. The row now waits (bounded, subscription-driven) for the node to
+  land and links in the same gesture. **(3)** Node links (mention tokens)
+  render the linked node's DEFINED effective icon — its own icon else its
+  first class's (`definedNodeIcon`, no display-default glyph) — ahead of
+  the label, wired through InlineTokens' new `resolveIcon` resolver by the
+  block row. **Verification:** web suites green (slash-breadth /
+  capture / rendering / editor-popups / pickers / dates, +5 new or
+  rewritten: bare-/date opens the calendar + Today links, unparseable
+  remainder opens the popup + Escape refocuses, the create-date row links
+  in one gesture, mention icons for own- and class-icon targets with an
+  iconless negative); `docs/ux.md` + `docs/usage.md` updated.
+
 - **fix(web): outliner keyboard round — the focused block view's ghost, the
   Tab edit-mode drop, cross-block arrow navigation (owner 2026-10-17).** Four
   owner-reported editor fixes, one slice. **(1)** The focused block view (the

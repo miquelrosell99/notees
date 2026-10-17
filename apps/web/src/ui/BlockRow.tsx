@@ -96,7 +96,7 @@ import type { SelectionOption } from "./components/pickers/SelectionPropertyCont
 import { NodePills } from "./components/NodePills.js";
 import { NodeContextMenu } from "./components/NodeContextMenu.js";
 import { openNodeLinkMenu } from "./components/NodeLinkContextMenu.js";
-import { nodeIcon } from "./iconFor.js";
+import { nodeIcon, definedNodeIcon } from "./iconFor.js";
 import { EmbedView } from "./EmbedView.js";
 import { linkOnlyMentionTarget } from "./linkOnlyBlock.js";
 import { EmbedCardView } from "./EmbedCardView.js";
@@ -576,6 +576,12 @@ export function BlockRow({ tree, client, resolveName, readOnly = false, readOnly
       resolveColor={(id) => {
         const target = outlinerClient.getNode(id);
         return target === undefined ? null : outlinerClient.effectiveNodeColor(target);
+      }}
+      // The linked node's DEFINED effective icon (own icon else first class
+      // icon — no display default, so iconless links stay text-only).
+      resolveIcon={(id) => {
+        const target = outlinerClient.getNode(id);
+        return target === undefined ? null : definedNodeIcon(target, classIcons);
       }}
       resolveClassColor={(id) => outlinerClient.effectiveClassColor(id)}
       resolveClassAssigned={(id) => node.classIds.includes(id)}

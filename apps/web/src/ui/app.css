@@ -3376,6 +3376,18 @@ mark {
   border-bottom-color: var(--md-sys-color-primary);
 }
 
+/* The linked node's effective icon rides ahead of the label (owner
+   2026-10-17) — inline, optically centered on the lowercase x-height, a
+   hair of trailing breath. The class overrides the svg's presentation
+   width/height attributes (CSS wins), so the glyph tracks the font size
+   (the adaptive-values law). */
+.nt-link__icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.15em;
+  margin-right: 0.3ch;
+}
+
 /* Inline class references (owner 2026-10-13): the node-link look with a
    WAVY underline instead of the dashed one mentions wear, tinted by the
    class's effective color through the inline text-decoration-color — no
