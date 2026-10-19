@@ -9,6 +9,20 @@ predating this file.
 
 ## 2026-10-19
 
+- **refactor(web): extract the condition model out of FilterBlockBuilder —
+  `components/filterBlockModel.ts` (Stage D, extraction 1 of 2).** The
+  v1/Odoo register ([type][operator][value][mode]) as pure functions
+  over the draft query AST moves verbatim to its own React-free module:
+  `blockView`, `familyOf`, the operator-column options per family
+  (adapting to the selected property schema), `operatorOf` (+ its
+  negation), the operator-application morphs with carried ids/values/
+  timestamps (`applyClassOperator` … `applyOperator`), and the family
+  option/label tables. FilterBlockBuilder keeps the builder composition
+  (the root, GroupBlock, NotBlock, BlockRow) and imports the model back
+  (2,099 → 1,255 lines). No behavior change.
+  **Verification:** `npx tsc --noEmit` clean; the filter/query suites
+  (78 tests) green.
+
 - **refactor(web): drop the dead duplicate switch cases in
   FilterBlockBuilder.** Three `case` labels could never evaluate — each
   duplicated an earlier label in the same switch, so the earlier branch
