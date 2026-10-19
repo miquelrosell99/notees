@@ -71,6 +71,36 @@ predating this file.
 
 ## 2026-10-16
 
+## 2026-10-19
+
+- **feat(web): the query block's identity is READONLY — the field → operator
+  → value register.** The block's TYPE column was a
+  dropdown that could morph the whole row into another family, and the
+  PROPERTY family showed an operator list computed for an UNSELECTED
+  property, with the property picker buried in the value column ("the
+  properties query block is weird — the mode selector before a property is
+  even selected"). The owner proposed the Notion/Odoo register, and the
+  reference check agreed: Odoo's Add Custom Filter reads `[Field] [Operator]
+  [Value]` with no rule morphing (delete + re-add), Notion reads `[Property]
+  [Condition ▾] [Value]` with the condition list scoped to the property
+  type, and Airtable/Metabase/Retool/Jira's structured builder carry the
+  same field-first triplet. Now: the TYPE slot renders a static label naming
+  the family (the SelectTrigger box register, muted, no chevron — identity,
+  not a control); the row kind changes only by delete + re-add through the
+  add menu (the morph machinery and the FAMILY dropdown register are gone).
+  The PROPERTY family is the carved-out exception: the property (schema)
+  dropdown rides the type slot — the row reads `[Property ▾] [Operator ▾]
+  [Value]`, the operator list already adapted to the selected schema's type,
+  and nothing operator-shaped renders before a property is picked.
+  PropertyValue lost its schema dropdown (value controls only).
+  **Verification:** `pnpm typecheck` + the filter suites green
+  (filter-builder/filter-query/filter-layer 55 — the property tests drive
+  the picker by its aria label, unchanged); no behavior change to the
+  grammar/evaluators (presentational reorder + readonly identity). Docs:
+  the module docstring + this entry.**
+
+## 2026-10-16
+
 - **feat(query): the rest of v1's node-family register — Parent (direct),
   Child, Child path, Reference path.** Completes
   the v1 port the owner asked for ("parent, child, child path, reference
