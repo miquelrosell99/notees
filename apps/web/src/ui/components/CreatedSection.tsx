@@ -23,10 +23,10 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.
 import { buildCreatedInPeriodAst } from "./calendarViewUtils.js";
 import { Icon } from "../Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
-import { NodeCollection, ViewToolbar } from "../views/index.js";
-import type { ViewMode } from "../views/index.js";
+import { NodeCollection, ViewToolbar } from "../../features/collection/index.js";
+import type { ViewMode } from "../../features/collection/index.js";
 import { useViewModePreference } from "../viewPrefs.js";
-import { useSectionData } from "./useSectionData.js";
+import { useSectionData } from "../../features/collection/useSectionData.js";
 import "./CreatedSection.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

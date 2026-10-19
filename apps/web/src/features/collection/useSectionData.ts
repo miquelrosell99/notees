@@ -48,13 +48,13 @@ import type { Group } from "@notees/query";
 
 import type { ClientNode } from "@/core/workspace-client/index.js";
 
-import type { AnyClient, NodeCollectionItem, NodeCollectionProps, ViewMode } from "../views/index.js";
+import type { AnyClient, NodeCollectionItem, NodeCollectionProps, ViewMode } from "./index.js";
 import {
   createSectionViewMatcher,
   planSectionView,
   resolveSectionViewProbed,
   type SectionViewPlan,
-} from "../views/sectionViewResolve.js";
+} from "./sectionViewResolve.js";
 import type { FilterBarConfig } from "./filterQuery.js";
 
 /** The resolution context handed to every strategy. */

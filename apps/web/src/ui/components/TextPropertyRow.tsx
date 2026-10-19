@@ -39,8 +39,8 @@ import { plainTextExcerpt, rendersAsInlineBlock } from "@notees/domain";
 
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
-import { NodeCollection, type NodeCollectionItem } from "../views/index.js";
-import type { AnyClient } from "../views/types.js";
+import { NodeCollection, type NodeCollectionItem } from "../../features/collection/index.js";
+import type { AnyClient } from "../../features/collection/types.js";
 import { parentRenderFacts } from "../renderStateLabel.js";
 import { AddPill } from "./ui/AddPill.js";
 import { OutlinerContext, useOutlinerValue } from "../outliner-context.js";

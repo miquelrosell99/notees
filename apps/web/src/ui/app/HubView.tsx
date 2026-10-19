@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import type { ClientNode } from "@/core/workspace-client/index.js";
-import { CollectionHub } from "../components/CollectionHub.js";
+import { CollectionHub } from "../../features/collection/CollectionHub.js";
 import { ensureTaskFamily } from "../components/taskFamily.js";
 import { TaskBuckets } from "../components/TaskBuckets.js";
 import { createNodesWithClasses } from "../components/createNodesWithClasses.js";
@@ -17,7 +17,7 @@ import { ClassCreateModal } from "../components/modals/ClassCreateModal.js";
 import { AssetUploadModal } from "../components/modals/AssetUploadModal.js";
 import { Button } from "../components/ui/Button.js";
 import { NAV_ENTRIES, type NavKey } from "../components/Sidebar.js";
-import type { TableColumn, ViewMode } from "../views/index.js";
+import type { TableColumn, ViewMode } from "../../features/collection/index.js";
 import type { AnyClient } from "./clients.js";
 
 /** Task property columns, in display order (schemas may not exist yet —

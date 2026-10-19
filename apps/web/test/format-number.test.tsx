@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatNumberValue } from "../src/ui/views/propertyDisplay.js";
+import { formatNumberValue } from "../src/features/collection/propertyDisplay.js";
 
 describe("formatNumberValue (SCHEMA.md Number formats)", () => {
   it("passes through without a schema or formats", () => {

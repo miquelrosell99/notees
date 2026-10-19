@@ -19,7 +19,7 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { BlockTreeNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import type { NodeCollectionItem } from "../views/index.js";
+import type { NodeCollectionItem } from "./index.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 

@@ -37,16 +37,16 @@ import type { QueryAst } from "@notees/query";
 
 import type { HostedSectionKey, SectionView } from "@/core/workspace-client/index.js";
 
-import { FilterBuilderModal } from "../components/FilterBuilderModal.js";
+import { FilterBuilderModal } from "./FilterBuilderModal.js";
 import {
   createSectionView,
   deleteSectionView,
   renameSectionView,
   reorderSectionViews,
   useSectionViews,
-} from "../components/sectionViews.js";
-import { Button, ConfirmationModal, Modal, Tabs, TextField } from "../components/ui/index.js";
-import { Icon } from "../Icon.js";
+} from "./sectionViews.js";
+import { Button, ConfirmationModal, Modal, Tabs, TextField } from "../../ui/components/ui/index.js";
+import { Icon } from "../../ui/Icon.js";
 import type { AnyClient } from "./types.js";
 import "./SectionViewTabs.css";
 

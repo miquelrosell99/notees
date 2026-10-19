@@ -60,15 +60,15 @@ import {
   type Not,
 } from "@notees/query";
 
-import type { AnyClient } from "../views/index.js";
+import type { AnyClient } from "./index.js";
 
-import { Icon } from "../Icon.js";
-import { Button } from "./ui/Button.js";
-import { ButtonWithPanel } from "./ui/ButtonWithPanel.js";
-import { Dropdown, type DropdownOption } from "./ui/Dropdown.js";
-import { GridMenu } from "./ui/GridMenu.js";
-import { Input } from "./ui/Input.js";
-import { SelectionButton, type SelectionButtonOption } from "./ui/SelectionButton.js";
+import { Icon } from "../../ui/Icon.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { ButtonWithPanel } from "../../ui/components/ui/ButtonWithPanel.js";
+import { Dropdown, type DropdownOption } from "../../ui/components/ui/Dropdown.js";
+import { GridMenu } from "../../ui/components/ui/GridMenu.js";
+import { Input } from "../../ui/components/ui/Input.js";
+import { SelectionButton, type SelectionButtonOption } from "../../ui/components/ui/SelectionButton.js";
 import { useBuilderFacts, type BuilderFacts } from "./QueryBuilderFields.js";
 import {
   createCondition,

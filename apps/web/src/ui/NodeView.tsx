@@ -40,7 +40,7 @@ import { PageView, BLOCKS_VIEW_MODES } from "./PageView.js";
 import { ReferenceSubtree } from "./components/ReferenceSubtree.js";
 import { NodeMenuButton, type ShareTarget } from "./components/NodeMenuButton.js";
 import { parentRenderFacts } from "./renderStateLabel.js";
-import { ViewToolbar } from "./views/ViewToolbar.js";
+import { ViewToolbar } from "../features/collection/ViewToolbar.js";
 import { useViewModePreference } from "./viewPrefs.js";
 
 export function NodeView({

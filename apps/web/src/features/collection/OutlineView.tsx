@@ -47,11 +47,11 @@ import { useContext, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
-import { BlockRow } from "../BlockRow.js";
-import { displayNameFromClient } from "../dateDisplay.js";
-import { Icon } from "../Icon.js";
-import { OutlinerContext, useOutlinerValue } from "../outliner-context.js";
-import { SortMenuButton, type SortMenuOption } from "../components/ui/index.js";
+import { BlockRow } from "../../ui/BlockRow.js";
+import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { Icon } from "../../ui/Icon.js";
+import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
+import { SortMenuButton, type SortMenuOption } from "../../ui/components/ui/index.js";
 import { registerView } from "./registry.js";
 import { useWindowed } from "./useWindowed.js";
 import { ShowMoreButton } from "./ShowMoreButton.js";

@@ -32,7 +32,7 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.
 import { Icon } from "../Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
 import { displayNameFromClient } from "../dateDisplay.js";
-import { useSectionData } from "./useSectionData.js";
+import { useSectionData } from "../../features/collection/useSectionData.js";
 import "./CommentsSection.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

@@ -19,8 +19,8 @@
 
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
-import { displayNameFromClient } from "../dateDisplay.js";
-import { BlockRow } from "../BlockRow.js";
+import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { BlockRow } from "../../ui/BlockRow.js";
 import { registerView } from "./registry.js";
 import type { NodeCollectionItem, NodeCollectionProps } from "./types.js";
 

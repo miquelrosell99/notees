@@ -22,15 +22,15 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import type { GraphEdge, GraphTopology } from "@notees/store";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
-import { GraphView } from "../src/ui/views/graph/GraphView.js";
+import { GraphView } from "../src/features/collection/graph/GraphView.js";
 import {
   DEFAULT_GRAPH_SETTINGS,
   applyGraphSettings,
   edgeMaskForZoom,
   sparsifySemantic,
-} from "../src/ui/views/graph/filter.js";
-import { LINK_TYPE_IDS } from "../src/ui/views/graph/filter.js";
-import { getViewDefinition } from "../src/ui/views/index.js";
+} from "../src/features/collection/graph/filter.js";
+import { LINK_TYPE_IDS } from "../src/features/collection/graph/filter.js";
+import { getViewDefinition } from "../src/features/collection/index.js";
 
 let sqlModule: SqlJsStatic;
 
@@ -622,7 +622,7 @@ describe("GraphView component", () => {
       },
     }));
     try {
-      const { GraphView: GraphViewWithStub } = await import("../src/ui/views/graph/GraphView.js");
+      const { GraphView: GraphViewWithStub } = await import("../src/features/collection/graph/GraphView.js");
       render(<GraphViewWithStub client={client} />);
       await vi.waitFor(() => {
         const instance = glStub.instances.at(-1)!;

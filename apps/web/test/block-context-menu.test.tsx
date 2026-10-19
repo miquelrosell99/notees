@@ -15,8 +15,8 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
-import { NodeCollection } from "../src/ui/views/index.js";
-import type { NodeCollectionItem } from "../src/ui/views/index.js";
+import { NodeCollection } from "../src/features/collection/index.js";
+import type { NodeCollectionItem } from "../src/features/collection/index.js";
 import { OutlinerContext, useOutlinerValue } from "../src/ui/outliner-context.js";
 import { NodeLinkMenuHost } from "../src/ui/components/NodeLinkContextMenu.js";
 

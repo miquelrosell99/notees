@@ -51,20 +51,20 @@ import { useMemo, useRef, useState, type ReactNode } from "react";
 import { isRangeDatetimeValue, isValidTimeOfDay, parseDateNodeId } from "@notees/domain";
 import { renderCsv, renderXlsx, type XlsxCell } from "@notees/export";
 
-import { BooleanToggle, Button, ButtonWithPanel, Checkbox, ContextMenu } from "../components/ui/index.js";
-import { Icon } from "../Icon.js";
-import { NodeSelector } from "../components/pickers/NodeSelector.js";
+import { BooleanToggle, Button, ButtonWithPanel, Checkbox, ContextMenu } from "../../ui/components/ui/index.js";
+import { Icon } from "../../ui/Icon.js";
+import { NodeSelector } from "../../ui/components/pickers/NodeSelector.js";
 import {
   DatePickerPopup,
   type DatetimePickerSlot,
-} from "../components/pickers/DatePickerPopup.js";
-import { collectMarkedDates } from "../components/pickers/DateSlotControl.js";
-import { ExportPageModal } from "../components/modals/ExportPageModal.js";
-import { ImportTableModal } from "../components/modals/ImportTableModal.js";
-import { downloadBlob } from "../components/modals/download.js";
-import { exportTimestamp } from "../components/modals/exportSubtree.js";
-import { nodeIcon } from "../iconFor.js";
-import { displayNameForSettings, displayNameFromClient, datetimeValueText, formatIsoDate } from "../dateDisplay.js";
+} from "../../ui/components/pickers/DatePickerPopup.js";
+import { collectMarkedDates } from "../../ui/components/pickers/DateSlotControl.js";
+import { ExportPageModal } from "../../ui/components/modals/ExportPageModal.js";
+import { ImportTableModal } from "../../ui/components/modals/ImportTableModal.js";
+import { downloadBlob } from "../../ui/components/modals/download.js";
+import { exportTimestamp } from "../../ui/components/modals/exportSubtree.js";
+import { nodeIcon } from "../../ui/iconFor.js";
+import { displayNameForSettings, displayNameFromClient, datetimeValueText, formatIsoDate } from "../../ui/dateDisplay.js";
 import { registerView } from "./registry.js";
 import { useWindowed } from "./useWindowed.js";
 import { ShowMoreButton } from "./ShowMoreButton.js";

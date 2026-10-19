@@ -205,7 +205,9 @@ describe("css token drift gate", () => {
       }
     }
     // The allowlist must not rot: every entry's owner file must still set it.
-    const uiFiles = walkFiles(UI_DIR);
+    // Owner files may live in the shell (src/ui) or a feature folder
+    // (the tree realignment moved component owners into src/features).
+    const uiFiles = [...walkFiles(UI_DIR), ...walkFiles(FEATURES_DIR)];
     for (const [token, owner] of JS_SCOPED) {
       const src = uiFiles
         .filter((file) => path.basename(file) === owner)

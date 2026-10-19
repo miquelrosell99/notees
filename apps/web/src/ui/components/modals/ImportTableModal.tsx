@@ -28,7 +28,7 @@ import { Modal } from "../ui/Modal.js";
 import { Button } from "../ui/Button.js";
 import { FileDropZone } from "../ui/FileDropZone.js";
 import { displayNameFromClient } from "../../dateDisplay.js";
-import type { AnyClient } from "../../views/types.js";
+import type { AnyClient } from "../../../features/collection/types.js";
 import type { ClientPropertySchema } from "@/core/workspace-client/index.js";
 import "./ImportTableModal.css";
 
