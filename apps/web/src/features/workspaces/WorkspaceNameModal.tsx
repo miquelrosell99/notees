@@ -5,11 +5,11 @@
  * existing workspace (and, with different copy, for naming new ones).
  */
 import { useState, useEffect, useRef } from "react";
-import { Icon } from "../../Icon.js";
+import { Icon } from "../../ui/Icon.js";
 
-import { Modal } from "../ui/Modal.js";
-import { Button } from "../ui/Button.js";
-import { TextField } from "../ui/TextField.js";
+import { Modal } from "../../ui/components/ui/Modal.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { TextField } from "../../ui/components/ui/TextField.js";
 import "./WorkspaceNameModal.css";
 
 interface WorkspaceNameModalProps {

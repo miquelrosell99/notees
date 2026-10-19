@@ -14,7 +14,7 @@ import type { AnyClient } from "./clients.js";
 import type { StoreMode } from "./storeMode.js";
 import { InProcessStoreBanner } from "../components/ui/InProcessStoreBanner.js";
 import { SyncDetailsModal } from "../components/modals/SyncDetailsModal.js";
-import { WorkspaceSettingsModal } from "../components/modals/WorkspaceSettingsModal.js";
+import { WorkspaceSettingsModal } from "../../features/workspaces/WorkspaceSettingsModal.js";
 import { BackendUnavailableOverlay } from "../components/ui/BackendUnavailableOverlay.js";
 import { NotificationToaster } from "../components/ui/NotificationToaster.js";
 
