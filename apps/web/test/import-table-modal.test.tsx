@@ -15,7 +15,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { renderXlsx } from "@notees/export";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
-import { ImportTableModal } from "../src/ui/components/modals/ImportTableModal.js";
+import { ImportTableModal } from "../src/features/modals/ImportTableModal.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";

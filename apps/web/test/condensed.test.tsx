@@ -25,7 +25,7 @@ import { PageView } from "../src/ui/PageView.js";
 import { TopBar } from "../src/ui/components/TopBar.js";
 import { CommandPalette } from "../src/features/command-palette/CommandPalette.js";
 import { writeViewModePref } from "../src/ui/viewPrefs.js";
-import { writeDeviceSetting } from "../src/ui/components/modals/deviceSettings.js";
+import { writeDeviceSetting } from "../src/features/settings/deviceSettings.js";
 import type { ContentAst } from "@notees/protocol";
 
 const WS = "0192a000-0000-7000-8000-000000000001";

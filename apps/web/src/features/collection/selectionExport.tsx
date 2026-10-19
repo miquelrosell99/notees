@@ -18,7 +18,7 @@
 import { useState, type ReactNode } from "react";
 
 import { Button } from "../../ui/components/ui/index.js";
-import { ExportPageModal } from "../../ui/components/modals/ExportPageModal.js";
+import { ExportPageModal } from "../export/ExportPageModal.js";
 import type { AnyClient } from "./types.js";
 
 export interface ViewSelection {

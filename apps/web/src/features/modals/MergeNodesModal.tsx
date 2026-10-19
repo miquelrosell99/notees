@@ -9,13 +9,13 @@
  * already applied + synced by the client; the host navigates to the target.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Modal } from "../ui/Modal.js";
-import { Button } from "../ui/Button.js";
-import { ConfirmationModal } from "../ui/ConfirmationModal.js";
-import { NodeIcon } from "./NodeIcon";
-import { NodeSelector } from "../../../features/pickers/NodeSelector.js";
+import { Modal } from "../../ui/components/ui/Modal.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { ConfirmationModal } from "../../ui/components/ui/ConfirmationModal.js";
+import { NodeIcon } from "./NodeIcon.js";
+import { NodeSelector } from "../pickers/NodeSelector.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
-import { displayNameForSettings } from "../../dateDisplay.js";
+import { displayNameForSettings } from "../../ui/dateDisplay.js";
 import "./MergeNodesModal.css";
 
 export interface MergeNodesModalProps {

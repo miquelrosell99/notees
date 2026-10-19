@@ -14,12 +14,12 @@ import type {
   ConflictHistoryEntry,
   SyncStatusSnapshot,
 } from "@/core/workspace-client/index.js";
-import { Badge } from "../ui/Badge.js";
-import { Button } from "../ui/Button.js";
-import { EmptyState } from "../ui/EmptyState.js";
-import { Modal } from "../ui/Modal.js";
-import { displayNameFromClient } from "../../dateDisplay.js";
-import type { AnyClient } from "../Sidebar.js";
+import { Badge } from "../../ui/components/ui/Badge.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { EmptyState } from "../../ui/components/ui/EmptyState.js";
+import { Modal } from "../../ui/components/ui/Modal.js";
+import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import type { AnyClient } from "../../ui/components/Sidebar.js";
 
 import "./SyncDetailsModal.css";
 

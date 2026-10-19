@@ -32,7 +32,7 @@ import {
   collectSubtreeBlocks,
   findMatchesInBlocks,
   planReplace,
-} from "../src/ui/components/findInPage.js";
+} from "../src/features/find-in-page/findInPage.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";

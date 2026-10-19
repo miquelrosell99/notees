@@ -18,7 +18,7 @@ import {
   type NodeLike,
 } from "@notees/domain";
 
-import { readDeviceSetting } from "./components/modals/deviceSettings.js";
+import { readDeviceSetting } from "../features/settings/deviceSettings.js";
 
 export type DateFormat =
   | "YYYY/MM/DD"

@@ -25,7 +25,7 @@ import {
   todayIsoLocal,
   weekdayLabel,
   type OpenTaskRow,
-} from "../src/ui/components/calendarViewUtils.js";
+} from "../src/features/calendar/calendarViewUtils.js";
 
 describe("local-day helpers", () => {
   it("todayIsoLocal is a zero-padded local YYYY-MM-DD", () => {

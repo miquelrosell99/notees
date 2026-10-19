@@ -11,7 +11,7 @@
 import { gatingFeaturesForClass, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import type { SystemClassName } from "@notees/domain";
 
-import type { AnyClient } from "./Sidebar.js";
+import type { AnyClient } from "../../ui/components/Sidebar.js";
 
 /** Reverse-lookup a seeded system class id; null for user classes/unknown ids. */
 export function systemClassNameForId(classId: string): SystemClassName | null {

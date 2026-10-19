@@ -8,7 +8,7 @@
  * Flipping from "system" picks the opposite of the currently resolved theme.
  */
 
-import { applyAppearance, resolveTheme, useDeviceSetting, writeDeviceSetting, type ThemePreference } from "./components/modals/deviceSettings.js";
+import { applyAppearance, resolveTheme, useDeviceSetting, writeDeviceSetting, type ThemePreference } from "../features/settings/deviceSettings.js";
 
 import { Icon } from "./Icon.js";
 

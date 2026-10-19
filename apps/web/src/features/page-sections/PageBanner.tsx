@@ -44,7 +44,7 @@ import { useBannerCollapsed } from "../../ui/viewPrefs.js";
 import { assetImageUrl } from "../collection/assetThumbs.js";
 import { Icon } from "../../ui/Icon.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
-import { AssetUploadModal } from "../../ui/components/modals/AssetUploadModal.js";
+import { AssetUploadModal } from "../modals/AssetUploadModal.js";
 import { Button, ImageModal } from "../../ui/components/ui/index.js";
 import { clearNodeCover, setNodeCover, uploadCoverAsset } from "../metadata/coverProperty.js";
 import "./PageBanner.css";

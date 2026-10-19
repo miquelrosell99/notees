@@ -32,16 +32,16 @@ import { TextField } from "../../ui/components/ui/TextField.js";
 import { ToggleSwitch } from "../../ui/components/ui/ToggleSwitch.js";
 import { cssColorFor } from "../../ui/components/ui/colorPresets.js";
 import { renameWorkspace } from "./workspaceApi.js";
-import { PluginsSettingsTab } from "../../ui/components/modals/PluginsSettingsTab.js";
-import { useDeviceSetting } from "../../ui/components/modals/deviceSettings.js";
-import { isClassFamilyEnabled } from "../../ui/components/featureGates.js";
-import { dateChipCandidates } from "../../ui/components/calendarViewUtils.js";
+import { PluginsSettingsTab } from "../settings/PluginsSettingsTab.js";
+import { useDeviceSetting } from "../settings/deviceSettings.js";
+import { isClassFamilyEnabled } from "../settings/featureGates.js";
+import { dateChipCandidates } from "../calendar/calendarViewUtils.js";
 import {
   resolveQuickCreateChipClasses,
   useQuickCreateClassesSetting,
 } from "../calendar/calendarQuickCreateSettings.js";
 
-import "../../ui/components/modals/settingsModal.css";
+import "../settings/settingsModal.css";
 
 /**
  * The feature toggles read + write through the shipped `workspace.feature.set`

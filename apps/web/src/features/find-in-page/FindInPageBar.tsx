@@ -27,7 +27,7 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { Icon } from "../Icon.js";
+import { Icon } from "../../ui/Icon.js";
 import {
   applyReplace,
   collectSubtreeBlocks,

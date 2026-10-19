@@ -14,7 +14,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { resolveAppearanceAttributes } from "../../appearance.js";
+import { resolveAppearanceAttributes } from "../../ui/appearance.js";
 
 export const DEVICE_SETTINGS_PREFIX = "notees.settings.";
 

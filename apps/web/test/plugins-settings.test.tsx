@@ -11,7 +11,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { WorkspaceSettingsModal } from "../src/features/workspaces/WorkspaceSettingsModal.js";
-import type { PluginListEntry } from "../src/ui/components/modals/pluginsApi.js";
+import type { PluginListEntry } from "../src/features/settings/pluginsApi.js";
 
 beforeAll(() => {
   // jsdom lacks ResizeObserver; Tabs.List uses it for the active indicator.
