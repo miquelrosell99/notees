@@ -305,8 +305,8 @@ describe("metadata pickers (ported popups)", () => {
     render(<PageView client={client} pageId={pageId} />);
     expandProperties();
     const row = screen.getByText("archived").closest(".nt-props-sidebar__prop, .nt-property-boolean") as HTMLElement;
-    const toggle = within(row).getByLabelText("Property archived") as HTMLInputElement;
-    expect(toggle.checked).toBe(true);
+    const toggle = within(row).getByRole("checkbox", { name: "Property archived" });
+    expect(toggle).toHaveAttribute("aria-checked", "true");
     fireEvent.click(toggle);
     await flushWrites();
     expect(client.getEffectiveProperties(pageId)).toEqual([
