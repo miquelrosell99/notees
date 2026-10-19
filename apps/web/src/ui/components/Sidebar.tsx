@@ -10,10 +10,14 @@
  * open from the account popup now (the v1 account-menu shape) — their
  * NAV_ENTRIES rows survive with `menuOnly` (labels, paths, tab titles).
  *
- * The bottom row is the user profile circle: avatar + a sync-state badge
- * in its corner (the sync dot relocated off the top bar, owner
- * 2026-10-19). Click opens the account popup — user header, sync details
- * entry, Shares / Trash, Settings, admin-only workspace settings, Sign out.
+ * The bottom row is the user profile: avatar + name + email (the identity
+ * line, owner restore 2026-10-19) with a sync-state badge on the avatar's
+ * corner (the sync dot relocated off the top bar). Click opens the account
+ * popup — user header, sync details entry, Shares / Trash, Settings,
+ * admin-only workspace settings, Sign out. A settings gear rides beside
+ * the profile for one-click access (owner 2026-10-19: the shortcut-only
+ * door was rejected — the button is the quick path, the popup entry and
+ * the Ctrl/Cmd+, chord are the alternates).
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -601,16 +605,34 @@ export function Sidebar({
             ) : (
               <Icon path="mdi-account-outline" size={1} />
             )}
+            {syncState !== null && (
+              <span
+                className={`nt-profile-sync nt-profile-sync--${syncState}`}
+                title={`Sync: ${syncStateLabel}`}
+                aria-hidden="true"
+              />
+            )}
           </span>
-          {syncState !== null && (
-            <span
-              className={`nt-profile-sync nt-profile-sync--${syncState}`}
-              title={`Sync: ${syncStateLabel}`}
-              aria-hidden="true"
-            />
-          )}
+          <span className="nt-profile-text">
+            <span className="nt-profile-name">{displayLine}</span>
+            <span className="nt-profile-email">{user?.email ?? "Offline workspace"}</span>
+          </span>
           {syncState !== null && <span className="sr-only">{`Sync: ${syncStateLabel}`}</span>}
         </button>
+        {showSettings && (
+          /* The quick-access gear (owner 2026-10-19 — restored after one
+             popup-only day: the owner doesn't want a shortcut as the
+             settings door). Same target as the popup's Settings entry. */
+          <button
+            type="button"
+            className="nt-icon-btn"
+            title="Settings"
+            aria-label="Settings"
+            onClick={onOpenSettings}
+          >
+            <Icon path="mdi-cog-outline" size={1} />
+          </button>
+        )}
         {accountMenu && (
           <div
             className="nt-account-menu"
