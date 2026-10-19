@@ -9,6 +9,35 @@ predating this file.
 
 ## 2026-10-19
 
+- **refactor(core): the workspace-client's inheritance chain becomes
+  composition — pure structural conversion, no behavior change.** The
+  folder-module split's intermediate checkpoint (a
+  `WorkspaceClientBase → … → WorkspaceClientDates` class chain with
+  `protected` members shared across domains) is dissolved into the
+  composition end state in two slices: (1) the chain's infrastructure
+  (store/options, envelope + outbox seam, engine lifecycle, notify funnel,
+  read caches, undo journal) moves into a shared `ClientContext`
+  (`client-context.ts`), constructed first and owned by the base behind
+  thin delegating accessors; (2) every `client-*.ts` domain becomes a
+  standalone class taking the context (plus its sibling domains) with no
+  `extends`, the `protected` members landing either in the context or as
+  private domain helpers, and `WorkspaceClient` owning the context + nine
+  domain instances and delegating its entire public surface to them
+  (109 one-line delegations grouped by domain — class name, method
+  surface, factories, and the public `store` field unchanged, so the
+  ~110 importers and the `AppModals` `instanceof` check are untouched).
+  The shared alias helpers (`aliasPageIdsOf`/`nameEquivalentsOf`) stay on
+  the reads-props domain as public methods the references domain calls
+  through its sibling reference; the undo capture source becomes a
+  standalone factory the context constructor takes, preserving the exact
+  journal wiring order.
+  **Verification:** `npx tsc --noEmit` clean after each commit; the
+  affected suites (workspace-client, realtime, worker-core, undo-journal,
+  sync-status-guard, sync-details-modal, clone-engine,
+  system-class-deploy-bindings, dates, block-backlinks) all green after
+  each (127 tests); the public method surface mechanically diffed against
+  the chain (109 names identical).
+
 - **refactor(web): `MetadataSection.tsx` (3,156 lines) becomes the
   `components/metadata/` folder module — pure moves, no behavior change.**
   The metadata/properties panel is user-visible chrome, so the slice is
