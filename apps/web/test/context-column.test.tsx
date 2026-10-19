@@ -212,11 +212,11 @@ describe("context-column feed type rides the §7 list-row register (CSS source)"
   const fs = process_.getBuiltinModule("node:fs");
   const path = process_.getBuiltinModule("node:path") as unknown as typeof import("node:path");
   const readCss = (...segments: string[]) =>
-    fs.readFileSync(path.join(process.cwd(), "src", "ui", ...segments), "utf8");
+    fs.readFileSync(path.join(process.cwd(), "src", ...segments), "utf8");
 
-  const activityCss = readCss("components", "ActivityLogSection.css");
-  const versionCss = readCss("components", "VersionHistorySection.css");
-  const commentsCss = readCss("components", "CommentsSection.css");
+  const activityCss = readCss("features", "page-sections", "ActivityLogSection.css");
+  const versionCss = readCss("features", "page-sections", "VersionHistorySection.css");
+  const commentsCss = readCss("features", "page-sections", "CommentsSection.css");
 
   it("the Activity log rows: 14px/600 primary, 12px muted stamps", () => {
     const event = /\.activity-log__event \{[^}]*\}/.exec(activityCss);

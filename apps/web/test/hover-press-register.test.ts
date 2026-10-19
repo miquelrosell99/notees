@@ -22,7 +22,7 @@ const fs = process_.getBuiltinModule("node:fs");
 const path = process_.getBuiltinModule("node:path") as unknown as typeof import("node:path");
 
 function readCss(...segments: string[]): string {
-  return fs.readFileSync(path.join(process.cwd(), "src", "ui", ...segments), "utf8");
+  return fs.readFileSync(path.join(process.cwd(), "src", ...segments), "utf8");
 }
 
 const OVERLAY_WIDTH = "width: max(100%, var(--button-min-height))";
@@ -39,14 +39,14 @@ function expectHitAreaOverlay(css: string, selector: string): void {
   expect(overlay![0]).toContain("pointer-events: auto");
 }
 
-const paletteCss = readCss("components", "CommandPalette.css");
-const commentsCss = readCss("components", "CommentsSection.css");
-const trashCss = readCss("components", "TrashHub.css");
-const taskBucketsCss = readCss("components", "TaskBuckets.css");
-const calendarViewCss = readCss("components", "CalendarView.css");
-const settingsPageCss = readCss("components", "SettingsPage.css");
-const settingsModalCss = readCss("components", "modals", "settingsModal.css");
-const journalsCss = readCss("components", "JournalsView.css");
+const paletteCss = readCss("features", "command-palette", "CommandPalette.css");
+const commentsCss = readCss("features", "page-sections", "CommentsSection.css");
+const trashCss = readCss("features", "trash", "TrashHub.css");
+const taskBucketsCss = readCss("features", "classview", "TaskBuckets.css");
+const calendarViewCss = readCss("features", "calendar", "CalendarView.css");
+const settingsPageCss = readCss("features", "settings", "SettingsPage.css");
+const settingsModalCss = readCss("features", "settings", "settingsModal.css");
+const journalsCss = readCss("features", "calendar", "JournalsView.css");
 
 describe("command palette rows: the cursor is a genuine active state", () => {
   it("plain hover rides the hover overlay; the combined active rule keeps primary-container", () => {
@@ -140,7 +140,7 @@ describe("custom buttons carry the pressed layer (skill §6 tactile press)", () 
     // (Button.css retired 2026-10-19).
     expect(journalsCss).not.toMatch(/\.journals-empty__action/);
     const buttonSrc = fs.readFileSync(
-      path.join(process.cwd(), "src", "ui", "components", "ui", "Button.tsx"),
+      path.join(process.cwd(), "src", "components", "ui", "fleet", "Button.tsx"),
       "utf8",
     );
     expect(buttonSrc).toContain("active:bg-primary-pressed");
@@ -191,8 +191,8 @@ describe("settings accents: state layers, not hover-scale", () => {
 });
 
 describe("media queries ride the range syntax (skill §8 — no legacy min/max-width)", () => {
-  const overlayHooksSrc = readCss("components", "ui", "overlay-hooks.ts");
-  const appSrc = readCss("App.tsx");
+  const overlayHooksSrc = readCss("components", "ui", "fleet", "overlay-hooks.ts");
+  const appSrc = readCss("ui", "App.tsx");
 
   it("useIsMobile builds range-syntax queries from the token breakpoint", () => {
     expect(overlayHooksSrc).toContain("window.matchMedia(`(width <= ${getMobileBreakpoint()}px)`)");
@@ -218,9 +218,9 @@ describe("token citations", () => {
 });
 
 describe("the final sweep notes close (2026-10-16)", () => {
-  const monthCalendarCss = readCss("components", "ui", "calendar", "MonthCalendar.css");
-  const journalsSrc = readCss("components", "JournalsView.tsx");
-  const trashSrc = readCss("components", "TrashHub.tsx");
+  const monthCalendarCss = readCss("features", "calendar", "MonthCalendar.css");
+  const journalsSrc = readCss("features", "calendar", "JournalsView.tsx");
+  const trashSrc = readCss("features", "trash", "TrashHub.tsx");
 
   it("the palette row gap cites the micro spacing token (no magic literal)", () => {
     const item = /\.nt-palette-item \{[^}]*\}/.exec(paletteCss);
@@ -265,12 +265,12 @@ describe("the final sweep notes close (2026-10-16)", () => {
   it("journals and trash compose the kit EmptyState — the local empty CSS is dead", () => {
     // Journals: the EmptyState carries the sentence-as-title + the CTA;
     // the local stylesheet keeps only the flex-1 feed anchor.
-    expect(journalsSrc).toContain('from "./ui/EmptyState.js"');
+    expect(journalsSrc).toContain('from "../../components/ui/fleet/EmptyState.js"');
     expect(journalsSrc).toContain("Open today");
     expect(/\.journals-empty \{\s*flex: 1;\s*\}/.test(journalsCss)).toBe(true);
     // Trash: the icon/title/description map onto the kit; the hand-rolled
     // empty block and its styles are gone.
-    expect(trashSrc).toContain('from "./ui/EmptyState.js"');
+    expect(trashSrc).toContain('from "../../components/ui/fleet/EmptyState.js"');
     expect(trashSrc).toContain("Trash is empty.");
     expect(trashCss).not.toMatch(/nt-trash-hub__empty/);
   });
