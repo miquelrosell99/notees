@@ -9,6 +9,25 @@ predating this file.
 
 ## 2026-10-19
 
+- **refactor(web): the boot-flow hook monolith dissolves — `useBootFlow`
+  composes `useServerProbe` + `useAuthFlow`.** The App.tsx split's own
+  assessment flagged the 438-line `useBootFlow` (a ~25-member state bag) as
+  a relocation, not a dissolution. Pure moves, no behavior change: the
+  probe path (server URL, signup flag, hint + same-host suggestion,
+  `connectTo`/`handleServerSubmit`/`handleServerSuggestion`) moves to
+  `useServerProbe.ts`; the credential path (account form fields, auth tab,
+  user/token identity, setup/login/signup/API-key submits with session
+  persistence) moves to `useAuthFlow.ts`; `useBootFlow.ts` (~200 lines)
+  keeps the composition: the workspace list, the remembered-session resume
+  effect (deep links, offline fallback), and "Work offline". Each unit has
+  one reason to change. `BootForm` and `App` consume the same flat
+  `BootFlow` shape as before (no call-site churn). The "App.tsx stays at
+  ~750 lines" decision is recorded in `.agents/design-overrides.md` under
+  the coding-standards monolith rule's over-target escape.
+  **Verification:** `npx tsc --noEmit` clean; the boot/app-mount suites
+  (app-smoke, banner, settings, tab-title, focus-mode + the `ui/app/`
+  consumers) all green.
+
 - **refactor(web): App.tsx becomes the composition root — the monolithic
   shell splits into `ui/app/` modules.** App.tsx shrinks from 2,834 lines
   (~207 functions) to 767: the device-local storage seam (`storage.ts`),
