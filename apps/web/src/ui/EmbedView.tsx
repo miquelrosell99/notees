@@ -25,7 +25,7 @@ import { BlockRow } from "./BlockRow.js";
 import { displayNameFromClient, fullTitleFromClient } from "./dateDisplay.js";
 import { InlineTokens } from "./InlineTokens.js";
 import { openNodeLinkMenu } from "./components/NodeLinkContextMenu.js";
-import { tableClassIdOf } from "./components/tableFamily.js";
+import { tableClassIdOf } from "../features/classview/tableFamily.js";
 import { useOutliner } from "./outliner-context.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;

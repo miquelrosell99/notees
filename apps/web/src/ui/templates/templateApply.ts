@@ -14,7 +14,7 @@
 
 import { instantiateTemplate, type CloneReadSurface, type CloneWriteSurface } from "@/core/clone.js";
 
-import { generatedFromOf } from "../components/templateFamily.js";
+import { generatedFromOf } from "../../features/templates/templateFamily.js";
 
 /** Everything the apply helpers read + write (the outliner seam satisfies it). */
 export type TemplateApplyClient = CloneReadSurface & CloneWriteSurface;

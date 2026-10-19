@@ -40,7 +40,7 @@ import {
   EVENT_CLASS_ID,
   eventFamilyPresent,
   MEETING_CLASS_ID,
-} from "../src/ui/components/meetingFamily.js";
+} from "../src/features/classview/meetingFamily.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000d1";
 const ACTOR = "0192a000-0000-7000-8000-0000000000d2";
@@ -133,7 +133,7 @@ describe("deploySystemClass binding self-heal (registry-only existence checks)",
     expect(authoredBefore?.value).toBe("Roadmap");
     expect(authoredBefore?.boundBy).toBeNull();
 
-    const { deploySystemClass } = await import("../src/ui/components/systemClassDeploy.js");
+    const { deploySystemClass } = await import("../src/features/classview/systemClassDeploy.js");
     await deploySystemClass(client, "meeting");
     await flushSync();
 
@@ -178,7 +178,7 @@ describe("deploySystemClass binding self-heal (registry-only existence checks)",
     const client = await seedClient();
     // The event parent already carries its registry rows — the shape after
     // a partial seed or an earlier event deploy.
-    const { deploySystemClass } = await import("../src/ui/components/systemClassDeploy.js");
+    const { deploySystemClass } = await import("../src/features/classview/systemClassDeploy.js");
     await deploySystemClass(client, "event");
     await flushSync();
     expect(client.getRegistryBindings(EVENT_CLASS_ID)).toHaveLength(1);
@@ -224,7 +224,7 @@ describe("deploySystemClass binding self-heal (registry-only existence checks)",
       client.getClassBindings(EVENT_CLASS_ID).map((binding) => binding.propertySchemaId),
     ).toEqual([SYSTEM_PROPERTY_UUIDS.eventDate]);
 
-    const { ensureMeetingFamily } = await import("../src/ui/components/meetingFamily.js");
+    const { ensureMeetingFamily } = await import("../src/features/classview/meetingFamily.js");
     await ensureMeetingFamily(client);
     await flushSync();
     // Still no registry rows on the event root — the family rides the
@@ -238,7 +238,7 @@ describe("deploySystemClass binding self-heal (registry-only existence checks)",
     // A workspace where the birthday family was ensured (fallback-only
     // shape: the birthdayPerson binding read-synthesized, the class-local
     // eventDate row authored because the fallback does NOT cover it).
-    const { ensureMeetingFamily } = await import("../src/ui/components/meetingFamily.js");
+    const { ensureMeetingFamily } = await import("../src/features/classview/meetingFamily.js");
     await ensureMeetingFamily(client);
     await client.createClass("Birthday", { id: BIRTHDAY_CLASS_ID });
     await client.setClassExtends(BIRTHDAY_CLASS_ID, [EVENT_CLASS_ID]);
@@ -254,7 +254,7 @@ describe("deploySystemClass binding self-heal (registry-only existence checks)",
 
     // Deploying the class afterwards converges the registry to the full
     // seeded shape (birthdayPerson row added; the existing row untouched).
-    const { deploySystemClass } = await import("../src/ui/components/systemClassDeploy.js");
+    const { deploySystemClass } = await import("../src/features/classview/systemClassDeploy.js");
     await deploySystemClass(client, "birthday");
     await flushSync();
     const registryAfter = client.getRegistryBindings(BIRTHDAY_CLASS_ID);

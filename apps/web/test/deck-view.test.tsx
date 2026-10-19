@@ -197,7 +197,7 @@ describe("DeckView", () => {
     const client = await seedClient();
     // A body section holding a table container (rows × cells).
     const pageId = await client.createObject({ isEmbedded: false, name: "Table Deck" });
-    const { ensureTableFamily } = await import("../src/ui/components/tableFamily.js");
+    const { ensureTableFamily } = await import("../src/features/classview/tableFamily.js");
     const tableClassId = await ensureTableFamily(client);
     const holder = await client.createObject({ parentId: pageId, isEmbedded: true, contentAst: [] });
     const containerId = await client.createObject({ parentId: holder, classIds: [tableClassId] });

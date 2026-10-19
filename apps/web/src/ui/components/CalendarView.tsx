@@ -42,9 +42,9 @@ import { displayNameFromClient, formatDateName } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import { PageView } from "../PageView.js";
 import { useDeviceSetting } from "./modals/deviceSettings.js";
-import { TemplatePickerModal } from "./modals/TemplatePickerModal.js";
-import { ensureTaskFamily } from "./taskFamily.js";
-import { ensureTemplateProperty, listClassTemplates } from "./templateFamily.js";
+import { TemplatePickerModal } from "../../features/templates/TemplatePickerModal.js";
+import { ensureTaskFamily } from "../../features/classview/taskFamily.js";
+import { ensureTemplateProperty, listClassTemplates } from "../../features/templates/templateFamily.js";
 import { isClassFamilyEnabled } from "./featureGates.js";
 import {
   addDaysIso,
