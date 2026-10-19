@@ -20,7 +20,7 @@ import type { AnyClient } from "./Sidebar.js";
 import { displayNameFromClient } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import { partitionTasksIntoBuckets, todayIsoLocal, type TaskBuckets as Buckets } from "./calendarViewUtils.js";
-import { setTaskDone, taskRowsOf, taskStatusLabel } from "./calendarRows.js";
+import { setTaskDone, taskRowsOf, taskStatusLabel } from "../../features/calendar/calendarRows.js";
 import { ensureTaskFamily } from "../../features/classview/taskFamily.js";
 import { useDeviceSetting } from "./modals/deviceSettings.js";
 import { Checkbox } from "./ui/Checkbox.js";

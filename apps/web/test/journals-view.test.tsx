@@ -20,7 +20,7 @@ import {
 } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
-import { JournalsView } from "../src/ui/components/JournalsView.js";
+import { JournalsView } from "../src/features/calendar/JournalsView.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";

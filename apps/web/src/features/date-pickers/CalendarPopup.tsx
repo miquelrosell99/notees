@@ -8,8 +8,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { useViewportPosition } from "./useViewportPosition.js";
-import { usePopupDismissal } from "../ui/usePopupDismissal.js";
+import { useViewportPosition } from "../../ui/components/pickers/useViewportPosition.js";
+import { usePopupDismissal } from "../../ui/components/ui/usePopupDismissal.js";
 import { useCalendarMode, type CalendarMode } from "./calendar/useCalendarMode.js";
 import { CalendarHeader, DaysGrid, MonthsGrid, YearsGrid } from "./calendar/CalendarGrids.js";
 import "./CalendarPopup.css";

@@ -140,11 +140,11 @@ export type { InputProps, InputSize } from './Input.js';
 export { FloatingButtonArray, ToolbarDivider } from './FloatingButtonArray.js';
 export type { FloatingButtonArrayProps, ToolbarDividerProps } from './FloatingButtonArray.js';
 
-export { MonthCalendar } from './calendar/MonthCalendar.js';
-export type { MonthCalendarProps } from './calendar/MonthCalendar.js';
+export { MonthCalendar } from '../../../features/calendar/MonthCalendar.js';
+export type { MonthCalendarProps } from '../../../features/calendar/MonthCalendar.js';
 
-export { WeekStrip } from './calendar/WeekStrip.js';
-export type { WeekStripProps } from './calendar/WeekStrip.js';
+export { WeekStrip } from '../../../features/calendar/WeekStrip.js';
+export type { WeekStripProps } from '../../../features/calendar/WeekStrip.js';
 
 export { PresentationOverlay, PRESENTATION_CHROME_HIDE_MS } from './PresentationOverlay.js';
 export type { PresentationOverlayProps } from './PresentationOverlay.js';
