@@ -22,12 +22,12 @@ import { useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { ConfirmationModal } from "./ui/ConfirmationModal.js";
-import { NodeSelector } from "../../features/pickers/NodeSelector.js";
-import { notificationStore } from "./ui/notificationStore.js";
-import { classRemovalRefusal, removeClassDissolvingLinks } from "../../features/metadata/classRemoval.js";
-import { useOutliner } from "../outliner-context.js";
-import { Icon } from "../Icon.js";
+import { ConfirmationModal } from "../../ui/components/ui/ConfirmationModal.js";
+import { NodeSelector } from "../pickers/NodeSelector.js";
+import { notificationStore } from "../../ui/components/ui/notificationStore.js";
+import { classRemovalRefusal, removeClassDissolvingLinks } from "../metadata/classRemoval.js";
+import { useOutliner } from "../../ui/outliner-context.js";
+import { Icon } from "../../ui/Icon.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 

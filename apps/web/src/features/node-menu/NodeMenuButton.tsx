@@ -16,10 +16,10 @@ import { rendersWithDocumentChrome } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { Icon } from "../Icon.js";
-import { parentRenderFacts } from "../renderStateLabel.js";
-import { ExportPageModal } from "./modals/ExportPageModal.js";
-import { SharePageModal } from "./modals/SharePageModal.js";
+import { Icon } from "../../ui/Icon.js";
+import { parentRenderFacts } from "../../ui/renderStateLabel.js";
+import { ExportPageModal } from "../../ui/components/modals/ExportPageModal.js";
+import { SharePageModal } from "../../ui/components/modals/SharePageModal.js";
 import { NodeContextMenu, type NodeMenuState } from "./NodeContextMenu.js";
 import "./NodeMenuButton.css";
 

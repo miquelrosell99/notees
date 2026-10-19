@@ -39,7 +39,7 @@ import { useContext, useState } from "react";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { Breadcrumbs } from "../../ui/components/Breadcrumbs.js";
+import { Breadcrumbs } from "../node-menu/Breadcrumbs.js";
 import { Icon } from "../../ui/Icon.js";
 import { NodeView } from "../../ui/NodeView.js";
 import {

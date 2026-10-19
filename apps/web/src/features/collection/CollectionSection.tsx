@@ -36,7 +36,7 @@ import {
   type FilterBarConfig,
   type FilterQuery,
 } from "./filterQuery.js";
-import { NodeViewSection } from "../../ui/components/NodeViewSection.js";
+import { NodeViewSection } from "../page-sections/NodeViewSection.js";
 import { useSectionData, type SectionCtx, type SectionRowFilter } from "./useSectionData.js";
 import "./CollectionSection.css";
 

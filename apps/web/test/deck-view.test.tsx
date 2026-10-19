@@ -16,7 +16,7 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { DeckView } from "../src/ui/presentation/DeckView.js";
 import { clearAllResumeIndexes } from "../src/ui/presentation/presentationSession.js";
-import { NodeMenuButton } from "../src/ui/components/NodeMenuButton.js";
+import { NodeMenuButton } from "../src/features/node-menu/NodeMenuButton.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";

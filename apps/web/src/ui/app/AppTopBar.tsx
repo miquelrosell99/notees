@@ -15,10 +15,10 @@ import { STORAGE_KEYS, readStored } from "./storage.js";
 import type { AnyClient } from "./clients.js";
 import type { WorkspaceConnection } from "./useWorkspaceConnection.js";
 import { TopBar } from "../components/TopBar.js";
-import { Breadcrumbs } from "../components/Breadcrumbs.js";
+import { Breadcrumbs } from "../../features/node-menu/Breadcrumbs.js";
 import { WorkspaceSwitcher } from "../components/WorkspaceSwitcher.js";
 import { createNodesWithClasses } from "../../features/templates/createNodesWithClasses.js";
-import { HistoryMenuPopup } from "../components/HistoryMenuPopup.js";
+import { HistoryMenuPopup } from "../../features/page-sections/HistoryMenuPopup.js";
 import { CalendarPopup } from "../../features/calendar/TopBarCalendarPopup.js";
 import { NodeSelector } from "../../features/pickers/NodeSelector.js";
 

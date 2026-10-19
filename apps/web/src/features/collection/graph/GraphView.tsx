@@ -61,7 +61,7 @@ import {
 } from "../../../ui/components/ui/index.js";
 import { resolveCssColor } from "../../../ui/components/ui/colorPresets.js";
 import { NodeSelector } from "../../pickers/NodeSelector.js";
-import { NodeViewSection } from "../../../ui/components/NodeViewSection.js";
+import { NodeViewSection } from "../../page-sections/NodeViewSection.js";
 import { FilterBlockBuilder } from "../FilterBlockBuilder.js";
 import { readDeviceSetting, writeDeviceSetting } from "../../../ui/components/modals/deviceSettings.js";
 import type { Group } from "@notees/query";

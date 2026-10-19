@@ -25,7 +25,7 @@ import type { TrashedEntry, WorkspaceClient } from "@/core/workspace-client/inde
 
 import { Icon } from "../Icon.js";
 import { nodeIcon } from "../iconFor.js";
-import { relativeTime } from "./ActivityLogSection.js";
+import { relativeTime } from "../../features/page-sections/ActivityLogSection.js";
 import { Button } from "./ui/Button.js";
 import { ConfirmationModal } from "./ui/ConfirmationModal.js";
 import { EmptyState } from "./ui/EmptyState.js";

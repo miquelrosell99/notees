@@ -24,7 +24,7 @@ import type { ContentAst } from "@notees/protocol";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
-import { NodeLinkMenuHost, openNodeLinkMenu } from "../src/ui/components/NodeLinkContextMenu.js";
+import { NodeLinkMenuHost, openNodeLinkMenu } from "../src/features/node-menu/NodeLinkContextMenu.js";
 import { selectionOffsets } from "../src/editor/selection.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";

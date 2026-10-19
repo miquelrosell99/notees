@@ -15,7 +15,7 @@ import {
   VersionHistorySection,
   describeHistoryEntry,
   historyEntrySnapshot,
-} from "../src/ui/components/VersionHistorySection.js";
+} from "../src/features/page-sections/VersionHistorySection.js";
 
 function entry(partial: Partial<OperationFeedEntry> & { seq: number }): OperationFeedEntry {
   return {

@@ -23,7 +23,7 @@ import {
   bannerAssetIdOf,
   clearNodeBanner,
   setNodeBanner,
-} from "../src/ui/components/PageBanner.js";
+} from "../src/features/page-sections/PageBanner.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
