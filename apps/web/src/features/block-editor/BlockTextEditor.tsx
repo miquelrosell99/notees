@@ -199,6 +199,20 @@ import {
 } from "@/editor/editable-dom.js";
 import { proseFromAst, proseSpans } from "@/editor/prose.js";
 import { codeTokenOf, CodeBlockEditor } from "./codeBlock.js";
+import {
+  MENTION_LABEL_MAX,
+  QUOTE_CHILD_TYPES,
+  STARTER_QUERY_AST,
+  toIsoDate,
+  TRIGGER_CHAR,
+  truncatePickerHint,
+  type CaptureKind,
+  type CaptureState,
+  type LinkMenuState,
+  type MentionToken,
+  type SlashCandidate,
+  type TemplateStageState,
+} from "./captureModel.js";
 import { applyTextEdit, spliceTokens } from "@/editor/edit-apply.js";
 import { applyMarkToRange, marksOnRange, removeMarkFromRange } from "@/editor/marks.js";
 import { withCandidateSpans } from "@/editor/capture.js";
@@ -232,113 +246,6 @@ export const SAVE_DEBOUNCE_MS = 400;
 export type EditorCaret = CaretPlacement | { x: number; y: number };
 
 
-/** Which capture trigger opened the popup. */
-type CaptureKind = "mention" | "tag" | "class" | "slash";
-
-/** One selectable row of the slash popup (the TriggerPopup's contract). */
-interface SlashCandidate {
-  id: string;
-  label: string;
-}
-
-const TRIGGER_CHAR: Record<CaptureKind, string> = { mention: "@", tag: "#", class: "+", slash: "/" };
-
-/** displayText schema bound (content-mark.ts mentionTokenSchema). */
-const MENTION_LABEL_MAX = 512;
-
-/** One-line picker banner text: long labels truncate so the banner stays a line. */
-function truncatePickerHint(text: string): string {
-  return text.length > 42 ? `${text.slice(0, 42)}…` : text;
-}
-
-/**
- * The `/query` slash starter AST — exactly what the query builder composes
- * from its default state, so the token the builder opens on matches one
- * clean Apply cycle.
- */
-const STARTER_QUERY_AST: Record<string, unknown> = {
-  version: 1,
-  scope: { type: "entire_workspace" },
-  root: { type: "group", logic: "and", children: [] },
-};
-
-/** Strict local YYYY-MM-DD for the date chain (mirrors the picker idiom). */
-function toIsoDate(year: number, month: number, day: number): string {
-  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
-
-/** Second-stage state of the `/template` slash flow (the trigger is already consumed). */
-interface TemplateStageState {
-  /** Draft-prose offset where the instantiated page's mention lands. */
-  start: number;
-  /** The remainder typed after "template" — the picker's initial filter. */
-  filter: string;
-}
-
-interface CaptureState {
-  kind: CaptureKind;
-  /** Prose offset of the trigger character. */
-  start: number;
-  /**
-   * Draft text between the trigger and the caret (slash inline mode) — or,
-   * for a mention popup opened over a selection, the selected text, which
-   * pre-fills the picker's search field and becomes the custom label on a
-   * Ctrl/Cmd+Enter pick.
-   */
-  query: string;
-  /** Selected candidate row (slash inline mode only). */
-  index: number;
-  /**
-   * Mention popup opened by typing `@` over a selection: no trigger char
-   * exists in the draft; the pick (or cancel) operates on the prose range
-   * [start, replaceEnd) instead.
-   */
-  replaceEnd?: number;
-  /**
-   * Ctrl/Cmd+Shift+L over a selection: the picker searches with an EMPTY
-   * query and this text — the selection itself — becomes the inserted
-   * link's custom label (displayText) on any pick.
-   */
-  fixedLabel?: string;
-  /** Faint one-line mode banner the picker renders above its search field. */
-  hint?: string;
-  /** Viewport anchor captured when a node-picker popup opened (caret line). */
-  anchor?: { top: number; left: number };
-}
-
-/** A mention token as stored in the content stream (content-mark.ts). */
-interface MentionToken {
-  type: "mention";
-  targetNodeId: string;
-  text: string;
-  displayText?: string;
-  linkId?: string;
-  /** Manual per-link embedding flag (default false). */
-  isEmbedded?: boolean;
-}
-
-/** State of the node-link right-click menu (hit-tested to a mention token). */
-interface LinkMenuState {
-  x: number;
-  y: number;
-  /** Index of the mention token inside contentAst (validated again on action). */
-  tokenIndex: number;
-  /** Prose range the token covers in the current draft. */
-  start: number;
-  end: number;
-  targetNodeId: string;
-}
-
-/** Inline token types the quote token admits as children (SCHEMA.md grammar). */
-const QUOTE_CHILD_TYPES = new Set([
-  "text",
-  "typed_link",
-  "mention",
-  "class_link",
-  "external_link",
-  "math",
-  "hard_break",
-]);
 
 interface BlockTextEditorProps {
   node: ClientNode;
