@@ -9,6 +9,20 @@ predating this file.
 
 ## 2026-10-19
 
+- **refactor(web): extract the capture model out of BlockTextEditor —
+  `features/block-editor/captureModel.ts` (Stage D, extraction 2 of 3).**
+  The trigger-gesture state machine moves verbatim to its own module:
+  the capture kinds and trigger chars, the slash popup's candidate
+  contract, the `CaptureState` machine (trigger offset, query,
+  selection-replacement range, fixed label, hint, viewport anchor), the
+  mention token shape, the node-link context-menu state, the quote
+  grammar's admitted child types, and the helpers (picker-hint
+  truncation, the /query starter AST, strict local YYYY-MM-DD). Pure
+  data and functions — the module carries no React. BlockTextEditor
+  imports the names back (2,328 → 2,223 lines). No behavior change.
+  **Verification:** `npx tsc --noEmit` clean; the four editor suites
+  (58 tests) green.
+
 - **refactor(web): extract the code-block surface out of BlockTextEditor —
   `features/block-editor/codeBlock.tsx` (Stage D, extraction 1 of 3).**
   `codeTokenOf` (the single-code_block-token probe) and `CodeBlockEditor`
