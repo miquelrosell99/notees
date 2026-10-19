@@ -11,11 +11,14 @@
  * quiet line), nested groups indent under a left hairline, and condition
  * rows are list rows — transparent with a hover fill.
  *
- * The registers are the v1 ones (owner 2026-10-09: the 1:1 block model) —
- * each block is a row of COLUMNS: a TYPE dropdown (Class, Type, Structural role,
- * Content, Property, Links, Parent, Cover, Banner, Alias, Created, Edited),
- * an OPERATOR dropdown whose options vary by family — the class family
- * carries the Odoo set (owner 2026-10-16): is / is not (EXACT set
+ * The registers are the v1 ones (owner 2026-10-09: the 1:1 block model;
+ * the row IDENTITY is READONLY once added — owner 2026-10-19, the Notion/
+ * Odoo field → operator → value register: no row morphing, a kind change is
+ * delete + re-add) — each block is a row of COLUMNS: a TYPE slot (a static
+ * label naming the family — except the PROPERTY family, where the schema
+ * dropdown rides the slot so the row reads [Property ▾] [Operator ▾]
+ * [Value]), an OPERATOR dropdown whose options vary by family — the class
+ * family carries the Odoo set (owner 2026-10-16): is / is not (EXACT set
  * equality), contains / does not contain (closure membership), one of /
  * not one of (ANY-of membership), is set / is not set (emptiness); the
  * content/property/date families carry their own variation (full-text /
@@ -1252,16 +1255,6 @@ const FAMILY_LABELS: Record<ConditionKind, string> = Object.fromEntries(
   FAMILY_OPTIONS.map((option) => [option.value, option.label]),
 ) as Record<ConditionKind, string>;
 
-/** The TYPE column's options — the add-menu register, icons carried over. */
-const FAMILY_DROPDOWN_OPTIONS: DropdownOption<string>[] = FILTER_KIND_OPTIONS.filter(
-  (option) => option.value !== "group-and" && option.value !== "group-or" && option.value !== "not",
-).map((option) => ({
-  value: option.value,
-  label: option.label,
-  icon: option.icon,
-  description: option.description,
-}));
-
 interface BlockRowProps extends BlockContext {
   child: Child;
   onChange: (child: Child) => void;
@@ -1309,20 +1302,20 @@ function BlockRow({
   return (
     <div className="nt-fb-block">
       <div className="nt-fb-block__row">
-        {/* The TYPE column — morphing the block replaces the condition,
-            keeping the negation where one was set. */}
+        {/* The TYPE column — the row's IDENTITY, readonly once added (owner
+            2026-10-19: the Notion/Odoo register — no row morphing; changing
+            a row's kind is delete + re-add through the add menu). The
+            PROPERTY family is the exception the owner carved out: the
+            property pick IS the row's identity, so the schema dropdown rides
+            this slot — reading [Property ▾] [Operator ▾] [Value]. */}
         <div className="nt-fb-block__type">
-          <Dropdown
-            size="sm"
-            ariaLabel="Block type"
-            options={FAMILY_DROPDOWN_OPTIONS}
-            value={family}
-            onChange={(value) => {
-              if (value === null) return;
-              const next = createCondition(value as ConditionKind);
-              onChange(negated ? { type: "not", child: next } : next);
-            }}
-          />
+          {family === "property" ? (
+            <PropertySchemaPick condition={condition} facts={facts} onChange={onChange} />
+          ) : (
+            <span className="nt-fb-block__typelabel" title={FAMILY_LABELS[family]}>
+              {FAMILY_LABELS[family]}
+            </span>
+          )}
         </div>
         <div className="nt-fb-block__operator">
           <Dropdown
@@ -1851,6 +1844,45 @@ function PeriodPick({
   );
 }
 
+/**
+ * The property family's row-identity slot (owner 2026-10-19): the schema
+ * dropdown rides the TYPE column so the row reads [Property ▾] [Operator ▾]
+ * [Value] — the field → operator → value register (Notion/Odoo). Picking a
+ * different property resets the value (it was typed for the old type) and
+ * normalizes the condition back to the plain property shape.
+ */
+function PropertySchemaPick({
+  condition,
+  facts,
+  onChange,
+}: {
+  condition: Condition;
+  facts: BuilderFacts;
+  onChange: (condition: Condition) => void;
+}) {
+  const schemaId =
+    condition.type === "property" || condition.type === "propertyBetween" || condition.type === "propertyWithin"
+      ? condition.schemaId
+      : "";
+  return (
+    <Dropdown
+      size="sm"
+      ariaLabel="Property"
+      options={[
+        { value: "", label: "Pick a property" },
+        ...facts.boundProperties.map((property) => ({
+          value: property.id,
+          label: property.name,
+        })),
+      ]}
+      value={schemaId}
+      onChange={(value) => {
+        if (value !== null) onChange({ type: "property", schemaId: value, op: "eq", value: "" });
+      }}
+    />
+  );
+}
+
 /** The property family's value column: schema select + a value control that
  * adapts to the SELECTED schema's type (the Odoo register, owner 2026-10-16):
  * select → options dropdown, boolean → true/false, datetime → the date
@@ -1876,25 +1908,10 @@ function PropertyValue({
   const nodeTyped = schema !== undefined && (schema.type === "object" || (schema.targetClassFilter ?? []).length > 0);
   const patch = (partial: Record<string, unknown>): void =>
     onChange({ ...condition, ...partial } as Condition);
+  // The schema picker rides the ROW's type slot (PropertySchemaPick in the
+  // BlockRow) — this column is the value control(s) only.
   return (
     <>
-      <Dropdown
-        size="sm"
-        ariaLabel="Property"
-        options={[
-          { value: "", label: "Pick a property" },
-          ...facts.boundProperties.map((property) => ({
-            value: property.id,
-            label: property.name,
-          })),
-        ]}
-        value={condition.schemaId}
-        onChange={(value) => {
-          // A different schema resets the value — the old one was typed for
-          // the old type (boolean true is not a number bound).
-          if (value !== null) onChange({ type: "property", schemaId: value, op: "eq", value: "" });
-        }}
-      />
       {condition.type === "property" && condition.op !== "exists" && !nodeTyped && schema?.type === "select" && (
         <Dropdown
           size="sm"
