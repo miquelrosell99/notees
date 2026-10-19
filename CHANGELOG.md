@@ -9,6 +9,37 @@ predating this file.
 
 ## 2026-10-19
 
+- **refactor(web): `MetadataSection.tsx` (3,156 lines) becomes the
+  `components/metadata/` folder module — pure moves, no behavior change.**
+  The metadata/properties panel is user-visible chrome, so the slice is
+  deliberately move-only: no visual or behavior change, no token drift
+  (the panel's CSS is untouched and still loads through the shim). One
+  extraction per commit, `tsc --noEmit` clean for the slice after each:
+  (1) the shared helpers (`AnyClient`, the minimal-editor text
+  round-trip, node-ref/asset/class resolution, the contrast pick) →
+  `shared.ts`, the datetime slot decomposition + ISO readers →
+  `datetimeValue.ts`; (2) the node-typed and asset rows →
+  `PropertySelectCell`, `ObjectPropertyRow` (its per-value pill split
+  into `ObjectPropertyPill` — the only sub-400-line seam), `QualifierRange`,
+  `AssetPropertyRow` + `AssetItemRow`; (3) the typed rows →
+  `DatetimePropertyRow`, `SelectPropertyRow`, `BooleanPropertyRow`;
+  (4) the identity/add rows → `ClassesRow`, `TagsRow`, `AliasesRow`,
+  `AddPropertyRow`; (5) the rows model (`propertyGroupsOf`,
+  `propertiesCountOf`, `metadataRowCount`) → `propertyGroups.ts`, the
+  per-type row switch → `GroupedPropertyRow`, the scalar/carrier value
+  cell → `ScalarPropertyValue`; (6) `PropertiesTable` +
+  `PropertySettingsModal`; (7) `PropertiesSection` + `PropertiesSidebar`,
+  and `MetadataSection.tsx` becomes the compatibility barrel — the
+  historical import surface (`components/MetadataSection`) keeps working
+  through the shim (same pattern as `core/workspace-client`), the public
+  exports (`ClassesRow`, `TagsRow`, `AliasesRow`, `metadataRowCount`,
+  `PropertiesTable`, `PropertiesSection`, `PropertiesSidebar`) unchanged.
+  Verified: `tsc --noEmit` clean; the metadata-adjacent suites green
+  (properties panel, aliases, recurrence, text-property blocks, asset
+  attachments, block metadata — 60+ tests across the per-commit runs);
+  the full 1,813-test suite green at the final gate; the captured
+  metadata panel renders identically at 1440 and 390 (sections, badges,
+  register styling).
 - **refactor(core): `workspace-client.ts` (3,836 lines) becomes the
   `workspace-client/` folder module — pure moves, no behavior change.**
   The in-process client was the strongest remaining modularization
