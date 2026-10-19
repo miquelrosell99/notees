@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import { aliasedNodeTargetError } from "./aliasProperty.js";
-import { NodeSelector } from "../../ui/components/pickers/NodeSelector.js";
+import { NodeSelector } from "../pickers/NodeSelector.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 
