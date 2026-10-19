@@ -32,6 +32,7 @@ const fs = process_.getBuiltinModule("node:fs");
 const path = process_.getBuiltinModule("node:path") as unknown as typeof import("node:path");
 
 const UI_DIR = path.join(process.cwd(), "src", "ui");
+const FEATURES_DIR = path.join(process.cwd(), "src", "features");
 const DEFINING_FILES = new Set(["variables.css", "fonts.css"]);
 // Custom properties set from JS (style.setProperty) rather than CSS — each
 // entry names the file that owns it.
@@ -178,7 +179,9 @@ const EM_FONT_SIZE_ALLOWLIST: Array<[string, string, string]> = [
 ];
 
 describe("css token drift gate", () => {
-  const cssFiles = walkCssFiles(UI_DIR);
+  // Feature-folder CSS is co-located with its components (the tree
+  // realignment moves stylesheets out of src/ui) — the CSS half covers it.
+  const cssFiles = [...walkCssFiles(UI_DIR), ...walkCssFiles(FEATURES_DIR)];
 
   it("1. every var(--token) names a defined token (or an allowlisted JS-scoped one)", () => {
     // Tokens may be defined in variables.css OR scoped locally in a component
@@ -195,7 +198,7 @@ describe("css token drift gate", () => {
         const token = match[1]!;
         if (defined.has(token)) continue;
         if (JS_SCOPED.has(token)) continue;
-        expect.fail(`${path.relative(UI_DIR, file)} references undefined token var(${token})`);
+        expect.fail(`${path.relative(path.join(process.cwd(), "src"), file)} references undefined token var(${token})`);
       }
     }
     // The allowlist must not rot: every entry's owner file must still set it.
@@ -222,7 +225,7 @@ describe("css token drift gate", () => {
       const spans = parenSpans(css);
       for (const match of css.matchAll(COLOR_LITERAL)) {
         if (inSpans(match.index!, spans)) continue; // a var(...) fallback
-        expect.fail(`${path.relative(UI_DIR, file)} has a bare color literal at offset ${match.index!}: ${match[0]}`);
+        expect.fail(`${path.relative(path.join(process.cwd(), "src"), file)} has a bare color literal at offset ${match.index!}: ${match[0]}`);
       }
     }
   });
@@ -233,7 +236,7 @@ describe("css token drift gate", () => {
       const css = fs.readFileSync(file, "utf8");
       for (const match of css.matchAll(/font-size\s*:\s*([0-9.]+)px/g)) {
         expect.fail(
-          `${path.relative(UI_DIR, file)} sets a ${match[1]}px font-size at offset ${match.index!} — use the --font-size-* scale`,
+          `${path.relative(path.join(process.cwd(), "src"), file)} sets a ${match[1]}px font-size at offset ${match.index!} — use the --font-size-* scale`,
         );
       }
     }
@@ -245,7 +248,7 @@ describe("css token drift gate", () => {
       const css = fs.readFileSync(file, "utf8");
       for (const match of css.matchAll(/border-radius\s*:\s*([0-9.]+)px/g)) {
         expect.fail(
-          `${path.relative(UI_DIR, file)} sets a ${match[1]}px border-radius at offset ${match.index!} — use the --shape-* scale`,
+          `${path.relative(path.join(process.cwd(), "src"), file)} sets a ${match[1]}px border-radius at offset ${match.index!} — use the --shape-* scale`,
         );
       }
     }
@@ -265,7 +268,7 @@ describe("css token drift gate", () => {
         const line = css.slice(lineStart, css.indexOf("\n", match.index!));
         if (/var\([^)]*var\(/.test(line) || /var\([^)]*,\s*-?[01]\s*\)/.test(line)) continue;
         expect.fail(
-          `${path.relative(UI_DIR, file)} has a color literal inside a var() fallback: ${line.trim()}`,
+          `${path.relative(path.join(process.cwd(), "src"), file)} has a color literal inside a var() fallback: ${line.trim()}`,
         );
       }
     }
@@ -339,7 +342,7 @@ describe("css token drift gate", () => {
         const base = path.basename(file);
         if (homes.test(base)) continue;
         expect.fail(
-          `${path.relative(UI_DIR, file)} cites ${token} — a surface alias is named for ONE surface; ` +
+          `${path.relative(path.join(process.cwd(), "src"), file)} cites ${token} — a surface alias is named for ONE surface; ` +
             "cite the Material role directly (e.g. --md-sys-color-surface-container-high) or extend the alias's homes deliberately",
         );
       }
