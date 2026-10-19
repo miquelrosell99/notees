@@ -4,9 +4,22 @@
  * A monospace multiline textarea for pasting structured or code-like content
  * (EDN, JSON, YAML, etc.). Provides error and valid visual states.
  * Supports forwarded refs for external focus management.
+ *
+ * Thin fleet wrapper over the normalized catalog textarea
+ * (src/components/ui/textarea.tsx): the code register (mono family, the
+ * xs pitch on the 1.6 line, the boxed surface, pre whitespace, the
+ * error/valid borders) is re-expressed on top; the catalog's ring gives
+ * way to the fleet register (the global app.css focus ring + the error
+ * ring thin shadow).
+ *
+ * Legacy hook classes: `code-textarea` (+ `code-textarea--error` /
+ * `code-textarea--valid`) and `code-textarea-label` stay — feature CSS
+ * compounds on them.
  */
 import { useRef, useEffect, forwardRef, type KeyboardEvent, type RefObject } from 'react';
-import './CodeTextarea.css';
+
+import { Textarea as CatalogTextarea } from '@/components/ui/textarea';
+import { cn } from './cn';
 
 interface CodeTextareaProps {
   value: string;
@@ -63,26 +76,26 @@ export const CodeTextarea = forwardRef<HTMLTextAreaElement, CodeTextareaProps>(
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const cls = [
-      'code-textarea',
-      error ? 'code-textarea--error' : '',
-      valid ? 'code-textarea--valid' : '',
-      className,
-    ]
-      .filter(Boolean)
-      .join(' ');
-
     return (
       <>
         {label && (
-          <label htmlFor={id} className="code-textarea-label">
+          <label htmlFor={id} className="code-textarea-label mb-2 block text-sm font-medium text-on-surface-variant">
             {label}
           </label>
         )}
-        <textarea
+        <CatalogTextarea
           ref={ref}
           id={id}
-          className={cls}
+          className={cn(
+            'code-textarea min-h-button-lg w-full resize-y whitespace-pre border-outline-variant bg-surface p-3 font-mono text-xs leading-code text-on-surface tab-2',
+            'transition-colors duration-shorter ease-standard placeholder:text-on-surface-variant/50',
+            'focus-visible:ring-0',
+            error && 'code-textarea--error border-error focus-visible:shadow-error-ring-thin',
+            !error && valid && 'code-textarea--valid border-primary',
+            disabled && 'cursor-not-allowed resize-none opacity-50',
+            className,
+          )}
+          style={minHeight != null ? { minHeight } : undefined}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onBlur={onBlur}
@@ -90,7 +103,6 @@ export const CodeTextarea = forwardRef<HTMLTextAreaElement, CodeTextareaProps>(
           placeholder={placeholder}
           disabled={disabled}
           spellCheck={spellCheck}
-          style={minHeight != null ? { minHeight } : undefined}
           aria-label={label ? undefined : 'Code input'}
         />
       </>

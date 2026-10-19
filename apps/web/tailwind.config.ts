@@ -152,6 +152,8 @@ export default {
         /* The switch track's inset rings (BooleanToggle). */
         "inset-outline-ring": "var(--shadow-inset-outline-ring)",
         "inset-primary-ring": "var(--shadow-inset-primary-ring)",
+        /* The code field's error ring (CodeTextarea). */
+        "error-ring-thin": "var(--shadow-error-ring-thin)",
         /* The underline field register (TextField). */
         "field-focus": "var(--shadow-field-focus)",
         "field-error": "var(--shadow-field-error)",
@@ -347,6 +349,13 @@ export default {
       transitionProperty: {
         card: "background-color, border-color, transform",
         colors: "background-color, border-color, color",
+      },
+      lineHeight: {
+        /* The code field's line pitch (CodeTextarea). */
+        code: "1.6",
+      },
+      tabSize: {
+        2: "2",
       },
       scale: {
         press: "var(--tactile-press-scale)",
