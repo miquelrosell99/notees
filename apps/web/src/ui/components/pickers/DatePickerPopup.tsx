@@ -659,7 +659,7 @@ export function DatePickerPopup({
                 label="All-day"
                 labelPosition="left"
                 checked={allDay}
-                onChange={(e) => toggleAllDay(e.target.checked)}
+                onChange={(checked) => toggleAllDay(checked)}
               />
             </div>
           )}
@@ -678,7 +678,7 @@ export function DatePickerPopup({
                 label="Range"
                 labelPosition="left"
                 checked={draft.isRange}
-                onChange={(e) => toggleRange(e.target.checked)}
+                onChange={(checked) => toggleRange(checked)}
               />
             </div>
           )}

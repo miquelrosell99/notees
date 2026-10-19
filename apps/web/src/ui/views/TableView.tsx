@@ -550,8 +550,8 @@ function PropertyCell({ row, column, props }: { row: TableRow; column: TableColu
       <BooleanToggle
         size="sm"
         checked={prop?.value === true}
-        onChange={(event) => {
-          void client.setProperty(row.item.node.id, schemaId, event.target.checked, prop?.idx ?? 0);
+        onChange={(checked) => {
+          void client.setProperty(row.item.node.id, schemaId, checked, prop?.idx ?? 0);
         }}
         aria-label={schema.name}
       />
