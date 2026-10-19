@@ -601,6 +601,12 @@
   --radius-item: var(--shape-large);
   --radius-popover: var(--radius-menu);
   --radius-badge: 9px;
+  /* The underline field register: the second 1px line that makes the
+     active underline read as 2px without layout shift (TextField). */
+  --shadow-field-focus: 0 1px 0 0 var(--md-sys-color-primary);
+  --shadow-field-error: 0 1px 0 0 var(--md-sys-color-error);
+  /* TE tactile press on cards — subtler than the button press. */
+  --scale-card-press: 0.99;
   --shape-corner-xs: var(--shape-extra-small);
   --font-mono: var(--font-family-mono);
   --font-size: var(--font-size-base);
