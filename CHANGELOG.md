@@ -9,6 +9,42 @@ predating this file.
 
 ## 2026-10-19
 
+- **refactor(web): the full-alignment leaf sweep — 12 catalog-covered
+  leaves become thin wrappers; Dropdown/ContextMenu documented as the
+  scheduled remainder.** The owner ruling (2026-10-19: full alignment,
+  no compat shims) continues: Badge, Separator, Spinner (a normalized
+  registry spinner added via `npx shadcn add`), LoadingSkeleton,
+  Checkbox, Radio, Input, SearchField, BooleanToggle, Slider (added via
+  the CLI), CodeTextarea, and SelectTrigger all move onto the
+  normalized catalog — fleet registers re-expressed as cva/utilities on
+  token-mapped Tailwind keys (the config grew: icon/sep/skeleton/
+  shimmer/spinner-arc/slider/inset-ring/error-ring keys + the
+  shape-xs/shape-sm radii, registered in the drift gate's strip list),
+  full prop APIs and marker classes preserved, ~1,900 lines of leaf CSS
+  retired (Spinner/SearchField keep only the reduced-motion cue, the
+  clear-button hit floor, and the wrapper focus ring — the bits
+  utilities can't express). Documented interaction deltas per the
+  bridge contract: Checkbox/Radio/BooleanToggle onChange now receives
+  the boolean state (the change-event shape retired with the native
+  inputs; TableView's tri-state header checkbox moves from an
+  imperative ref hack to the `indeterminate` prop; the export-layout
+  radio group recomposes as one RadioGroup). **Dropdown and ContextMenu
+  stay custom into the tree-realignment stage** — composite widgets
+  (multi-select+search dropdown; the two-form submenu context menu)
+  that the catalog's Radix select cannot express drop-in; documented in
+  `.agents/design-overrides.md` as a scheduled migration, not drift.
+  Also: the compat shims are gone — `core/workspace-client.ts` (268
+  importing files repointed at the folder barrel) and the
+  `MetadataSection.tsx` barrel (whose orphaned side-effect import had
+  left the panel stylesheet unloaded since the feature-folder
+  relocation; the CSS now lives in `features/metadata/`, the drift
+  gate's CSS half covers `src/features`).
+  **Verification:** `npx tsc --noEmit` clean after every commit; the
+  drift gate 12/12 throughout; the per-group affected suites green
+  (Badge/Separator/Spinner/Skeleton 59; Checkbox/Radio 132;
+  Input/SearchField 87; BooleanToggle 76; Slider 29; CodeTextarea 16;
+  SelectTrigger 43); the shim removals 1,413 + 28.
+
 - **refactor(web): delete the `MetadataSection.tsx` compat barrel — the
   metadata feature folder is the only surface.** The shim's seven importers
   were already re-pointed when the panel moved to `features/metadata/`
