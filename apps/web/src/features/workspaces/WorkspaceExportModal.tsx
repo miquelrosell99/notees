@@ -7,9 +7,9 @@
 
 import { useEffect, useState } from "react";
 
-import { Modal } from "../ui/Modal.js";
-import { Button } from "../ui/Button.js";
-import { Checkbox } from "../ui/Checkbox.js";
+import { Modal } from "../../ui/components/ui/Modal.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { Checkbox } from "../../ui/components/ui/Checkbox.js";
 import "./WorkspaceExportModal.css";
 
 interface WorkspaceExportModalProps {

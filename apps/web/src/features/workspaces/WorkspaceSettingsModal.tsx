@@ -19,29 +19,29 @@ import {
   WORKSPACE_FEATURE_MAP,
 } from "@notees/domain";
 
-import type { AnyClient } from "../Sidebar.js";
-import { displayNameFromClient } from "../../dateDisplay.js";
-import { Modal } from "../ui/Modal.js";
-import { BooleanToggle } from "../ui/BooleanToggle.js";
-import { Button } from "../ui/Button.js";
-import { ConfirmationModal } from "../ui/ConfirmationModal.js";
-import { Dropdown } from "../ui/Dropdown.js";
-import { Icon } from "../../Icon.js";
-import { Tabs } from "../ui/Tabs.js";
-import { TextField } from "../ui/TextField.js";
-import { ToggleSwitch } from "../ui/ToggleSwitch.js";
-import { cssColorFor } from "../ui/colorPresets.js";
+import type { AnyClient } from "../../ui/components/Sidebar.js";
+import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { Modal } from "../../ui/components/ui/Modal.js";
+import { BooleanToggle } from "../../ui/components/ui/BooleanToggle.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { ConfirmationModal } from "../../ui/components/ui/ConfirmationModal.js";
+import { Dropdown } from "../../ui/components/ui/Dropdown.js";
+import { Icon } from "../../ui/Icon.js";
+import { Tabs } from "../../ui/components/ui/Tabs.js";
+import { TextField } from "../../ui/components/ui/TextField.js";
+import { ToggleSwitch } from "../../ui/components/ui/ToggleSwitch.js";
+import { cssColorFor } from "../../ui/components/ui/colorPresets.js";
 import { renameWorkspace } from "./workspaceApi.js";
-import { PluginsSettingsTab } from "./PluginsSettingsTab.js";
-import { useDeviceSetting } from "./deviceSettings.js";
-import { isClassFamilyEnabled } from "../featureGates.js";
-import { dateChipCandidates } from "../calendarViewUtils.js";
+import { PluginsSettingsTab } from "../../ui/components/modals/PluginsSettingsTab.js";
+import { useDeviceSetting } from "../../ui/components/modals/deviceSettings.js";
+import { isClassFamilyEnabled } from "../../ui/components/featureGates.js";
+import { dateChipCandidates } from "../../ui/components/calendarViewUtils.js";
 import {
   resolveQuickCreateChipClasses,
   useQuickCreateClassesSetting,
-} from "../../../features/calendar/calendarQuickCreateSettings.js";
+} from "../calendar/calendarQuickCreateSettings.js";
 
-import "./settingsModal.css";
+import "../../ui/components/modals/settingsModal.css";
 
 /**
  * The feature toggles read + write through the shipped `workspace.feature.set`

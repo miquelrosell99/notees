@@ -16,7 +16,7 @@ import type { AnyClient } from "./clients.js";
 import type { WorkspaceConnection } from "./useWorkspaceConnection.js";
 import { TopBar } from "../components/TopBar.js";
 import { Breadcrumbs } from "../../features/node-menu/Breadcrumbs.js";
-import { WorkspaceSwitcher } from "../components/WorkspaceSwitcher.js";
+import { WorkspaceSwitcher } from "../../features/workspaces/WorkspaceSwitcher.js";
 import { createNodesWithClasses } from "../../features/templates/createNodesWithClasses.js";
 import { HistoryMenuPopup } from "../../features/page-sections/HistoryMenuPopup.js";
 import { CalendarPopup } from "../../features/calendar/TopBarCalendarPopup.js";

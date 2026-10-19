@@ -16,7 +16,7 @@ import { newEnvelope, type Envelope } from "@notees/protocol";
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
-import { WorkspaceSettingsModal } from "../src/ui/components/modals/WorkspaceSettingsModal.js";
+import { WorkspaceSettingsModal } from "../src/features/workspaces/WorkspaceSettingsModal.js";
 import { ensureTaskFamily } from "../src/features/classview/taskFamily.js";
 import {
   QUICK_CREATE_CLASSES_PREFIX,

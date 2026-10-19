@@ -10,7 +10,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import { WorkspaceSettingsModal } from "../src/ui/components/modals/WorkspaceSettingsModal.js";
+import { WorkspaceSettingsModal } from "../src/features/workspaces/WorkspaceSettingsModal.js";
 import type { PluginListEntry } from "../src/ui/components/modals/pluginsApi.js";
 
 beforeAll(() => {
