@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 
-import { displayNameFromClient } from "../../dateDisplay.js";
-import { assetImageUrl } from "../../views/assetThumbs.js";
-import { Icon } from "../../Icon.js";
+import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { assetImageUrl } from "../../ui/views/assetThumbs.js";
+import { Icon } from "../../ui/Icon.js";
 import type { AnyClient } from "./shared.js";
 
 /**

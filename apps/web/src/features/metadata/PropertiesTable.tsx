@@ -4,10 +4,10 @@ import { type DatePrecision } from "@notees/domain";
 
 import type { EffectiveProperty } from "@/core/workspace-client.js";
 
-import { ContextMenu } from "../ui/ContextMenu.js";
-import { AliasedNodeRow } from "../AliasedNodeRow.js";
-import { PropertyView } from "../PropertyView.js";
-import { PropertyHistoryModal } from "../PropertyHistoryModal.js";
+import { ContextMenu } from "../../ui/components/ui/ContextMenu.js";
+import { AliasedNodeRow } from "../../ui/components/AliasedNodeRow.js";
+import { PropertyView } from "../../ui/components/PropertyView.js";
+import { PropertyHistoryModal } from "../../ui/components/PropertyHistoryModal.js";
 import type { AnyClient } from "./shared.js";
 import { AddPropertyRow } from "./AddPropertyRow.js";
 import { propertyGroupsOf } from "./propertyGroups.js";

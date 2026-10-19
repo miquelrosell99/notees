@@ -36,7 +36,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
-import { PropertiesTable } from "../src/ui/components/MetadataSection.js";
+import { PropertiesTable } from "../src/features/metadata/index.js";
 import { aliasedNodeTargetError, resolveAliasOpen } from "../src/ui/components/aliasProperty.js";
 import { PageView } from "../src/ui/PageView.js";
 

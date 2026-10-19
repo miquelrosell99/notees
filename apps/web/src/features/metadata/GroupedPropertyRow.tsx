@@ -2,7 +2,7 @@ import type { DatePrecision } from "@notees/domain";
 
 import type { EffectiveProperty } from "@/core/workspace-client.js";
 
-import { TextPropertyRow } from "../TextPropertyRow.js";
+import { TextPropertyRow } from "../../ui/components/TextPropertyRow.js";
 import { ObjectPropertyRow } from "./ObjectPropertyRow.js";
 import { AssetPropertyRow } from "./AssetPropertyRow.js";
 import { DatetimePropertyRow } from "./DatetimePropertyRow.js";

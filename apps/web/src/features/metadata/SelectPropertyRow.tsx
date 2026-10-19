@@ -1,7 +1,7 @@
 import type { EffectiveProperty } from "@/core/workspace-client.js";
 
-import { cssColorFor } from "../ui/colorPresets.js";
-import { SelectionPropertyControl, type SelectionOption } from "../pickers/SelectionPropertyControl.js";
+import { cssColorFor } from "../../ui/components/ui/colorPresets.js";
+import { SelectionPropertyControl, type SelectionOption } from "../../ui/components/pickers/SelectionPropertyControl.js";
 import type { AnyClient } from "./shared.js";
 
 /**

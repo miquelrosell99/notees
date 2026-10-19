@@ -113,7 +113,7 @@ import { definedNodeIcon } from "./iconFor.js";
 
 import { WorkspaceDragScopeContext } from "./block-dnd.js";
 import { useWorkspaceDndZone } from "./useWorkspaceDnd.js";
-import { PropertiesSection, PropertiesSidebar, ClassesRow, metadataRowCount } from "./components/MetadataSection.js";
+import { PropertiesSection, PropertiesSidebar, ClassesRow, metadataRowCount } from "../features/metadata/index.js";
 import { bannerAssetIdOf, setNodeBanner } from "./components/PageBanner.js";
 import { AssetUploadModal } from "./components/modals/AssetUploadModal.js";
 import { SelectionBar } from "./components/SelectionBar.js";
