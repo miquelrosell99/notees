@@ -38,7 +38,7 @@
  * and the topbar polls the worker's sync status.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { WorkspaceClient, type ClientNode, type SyncStatusSnapshot } from "@/core/workspace-client.js";
 import { EMPTY_UNDO_STATE } from "@/core/undo-journal.js";
@@ -48,20 +48,14 @@ import {
 } from "@/core/workspace-registry.js";
 import { logout } from "@/core/auth-api.js";
 
-import { NodeView } from "./NodeView.js";
-import { SearchPage } from "./SearchPage.js";
 import { displayNameForSettings } from "./dateDisplay.js";
-import { CommandPalette } from "./components/CommandPalette.js";
-import { PageCard } from "./components/PageCard.js";
 import type { ShareTarget } from "./components/NodeMenuButton.js";
-import { rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
-import { Sidebar, recordRecent, type NavKey } from "./components/Sidebar.js";
+import { rendersAsInlineBlock } from "@notees/domain";
+import { recordRecent, type NavKey } from "./components/Sidebar.js";
 import { resolveAliasOpen } from "./components/aliasProperty.js";
-import { PropertyView } from "./components/PropertyView.js";
 import { WorkspacesView } from "./components/WorkspacesView.js";
 import {
   SettingsPage,
-  SETTINGS_SECTIONS,
   pathForSettingsSection,
   settingsSectionFromPath,
   type SettingsSection,
@@ -74,7 +68,6 @@ import {
   initialServerUrl,
   readStored,
 } from "./app/storage.js";
-import { Button } from "./components/ui/Button.js";
 import "./app.css";
 import { HubView } from "./app/HubView.js";
 import { AppTopBar } from "./app/AppTopBar.js";
@@ -91,7 +84,6 @@ import { useUndoChrome } from "./app/useUndoChrome.js";
 import {
   currentNavUrl,
   initialNav,
-  navFromPath,
   popStateNavHandler,
   pushSettingsSection,
   recordNavPop,
