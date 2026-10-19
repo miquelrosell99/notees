@@ -41,7 +41,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { WorkspaceClient, type ClientNode, type SyncStatusSnapshot } from "@/core/workspace-client.js";
-import { EMPTY_UNDO_STATE, type UndoUiState } from "@/core/undo-journal.js";
+import { EMPTY_UNDO_STATE } from "@/core/undo-journal.js";
 import {
   rememberWorkspaceName,
   rememberedWorkspaceList,
@@ -76,7 +76,6 @@ import {
 } from "./app/storage.js";
 import { Button } from "./components/ui/Button.js";
 import "./app.css";
-import { moveRailCardOrder, persistRailCardOrder, readRailCardOrder } from "./app/railCardOrder.js";
 import { HubView } from "./app/HubView.js";
 import { AppTopBar } from "./app/AppTopBar.js";
 import { AppBody } from "./app/AppBody.js";
@@ -87,6 +86,8 @@ import { useBootFlow } from "./app/useBootFlow.js";
 import { useWorkspaceConnection } from "./app/useWorkspaceConnection.js";
 import type { CredentialType } from "./app/store-connection.js";
 import { useGlobalGestures } from "./app/useGlobalGestures.js";
+import { useRailCards } from "./app/useRailCards.js";
+import { useUndoChrome } from "./app/useUndoChrome.js";
 import {
   currentNavUrl,
   initialNav,
@@ -177,48 +178,8 @@ export function App() {
    * flips it and the icon names the current mode.
    */
   const [sectionsLayout, setSectionsLayout] = useState(false);
-  /**
-   * Right-sidebar peek cards (shift+click a block bullet): most recent first.
-   * Re-clicking an open card brings it to the top; opening a card opens the
-   * panel. Closing the last card closes the panel with it. The stack ORDER
-   * is device-local (the recents-order precedent — `readRailCardOrder`): a
-   * grip drag reorders it (the workspace drag session reports the gesture,
-   * see useWorkspaceDnd), every change persists, and ids that no longer
-   * exist in the current workspace are filtered out on connect.
-   */
-  const [sidebarCards, setSidebarCards] = useState<string[]>(() => readRailCardOrder());
-  const openInSidebar = useCallback(
-    (nodeId: string) => {
-      // The redirect seam: a peek card opened on an alias shows the
-      // terminal's card (the same resolution openPage applies).
-      const live = clientRef.current;
-      const resolved = live !== null ? resolveAliasOpen(live, nodeId) : nodeId;
-      setSidebarCards((prev) => [resolved, ...prev.filter((id) => id !== resolved)]);
-      setRightPanelOpen(true);
-    },
-    [],
-  );
-  function closeSidebarCard(nodeId: string): void {
-    const next = sidebarCards.filter((id) => id !== nodeId);
-    setSidebarCards(next);
-    if (next.length === 0) setRightPanelOpen(false);
-  }
-  /**
-   * The rail reorder report (the workspace drag session's callback): a pure
-   * stack move — no-ops return the same reference and never reach the
-   * persistence effect.
-   */
-  const reorderSidebarCard = useCallback(
-    (activeId: string, targetId: string, position: "before" | "after") => {
-      setSidebarCards((prev) => moveRailCardOrder(prev, activeId, targetId, position));
-    },
-    [],
-  );
-  // The card order persists device-locally on every change (open, close,
-  // reorder, stale-id filtering) — one write seam, the recents precedent.
-  useEffect(() => {
-    persistRailCardOrder(sidebarCards);
-  }, [sidebarCards]);
+  const rail = useRailCards({ client, clientRef, setRightPanelOpen });
+  const { sidebarCards, setSidebarCards, openInSidebar, closeSidebarCard, reorderSidebarCard } = rail;
   /**
    * Post-delete navigation: a deleted page/class lands on its parent page
    * when one exists, otherwise on the workspace default view (today's page /
@@ -240,46 +201,8 @@ export function App() {
   /** The palette's "Merge current page into…" command (in-process store only —
    *  the planner reads the local SQLite database directly). */
   const [mergeOpen, setMergeOpen] = useState(false);
-  /**
-   * The session undo journal's chrome state (availability + labels).
-   * Refreshed on a macrotask coalescer off every client notification (the
-   * worker round-trip is cheap; the journal lives worker-side, per tab).
-   */
-  const [undoUi, setUndoUi] = useState<UndoUiState>(EMPTY_UNDO_STATE);
-  /** The sync snapshot the keymap chord reads synchronously (may lag the
-   *  worker by a macrotask — an undo on an empty journal no-ops honestly). */
-  const undoUiRef = useRef<UndoUiState>(EMPTY_UNDO_STATE);
-  const undoRefreshTimer = useRef<number | null>(null);
-  const scheduleUndoRefresh = useCallback(() => {
-    if (undoRefreshTimer.current !== null) return;
-    undoRefreshTimer.current = window.setTimeout(() => {
-      undoRefreshTimer.current = null;
-      const live = clientRef.current;
-      void Promise.resolve(live === null ? EMPTY_UNDO_STATE : live.undoState()).then(
-        (resolved) => {
-          undoUiRef.current = resolved;
-          setUndoUi(resolved);
-        },
-      );
-    }, 0);
-  }, []);
-  /** The shared undo/redo runners (top bar, palette, key chords). */
-  const runUndo = useCallback(() => {
-    const live = clientRef.current;
-    if (live === null) return;
-    void live.undo().catch((error: unknown) => {
-      console.error("undo failed:", error);
-    });
-    scheduleUndoRefresh();
-  }, [clientRef, scheduleUndoRefresh]);
-  const runRedo = useCallback(() => {
-    const live = clientRef.current;
-    if (live === null) return;
-    void live.redo().catch((error: unknown) => {
-      console.error("redo failed:", error);
-    });
-    scheduleUndoRefresh();
-  }, [clientRef, scheduleUndoRefresh]);
+  const { undoUi, setUndoUi, undoUiRef, scheduleUndoRefresh, runUndo, runRedo } =
+    useUndoChrome(clientRef);
   /** Top-bar calendar popup (the popup needs the client, so it renders here). */
   const [calendarOpen, setCalendarOpen] = useState(false);
   const calendarButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -398,16 +321,6 @@ export function App() {
           : "",
     });
   }, [client, selectedPageId, pagesVersion, settingsSection, searchOpen, activeNav]);
-  // The persisted rail order may carry ids from another workspace (the key
-  // is device-global, the recents precedent): drop the ones this client
-  // doesn't know — the persistence effect writes the filtered list through.
-  useEffect(() => {
-    if (client === null) return;
-    setSidebarCards((prev) => {
-      const next = prev.filter((id) => client.getNode(id) !== undefined);
-      return next.length === prev.length ? prev : next;
-    });
-  }, [client]);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
 
   useGlobalGestures({
