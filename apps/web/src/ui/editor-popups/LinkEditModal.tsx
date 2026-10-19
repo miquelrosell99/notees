@@ -51,7 +51,7 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.
 
 import { displayNameFromClient } from "../dateDisplay.js";
 import { parentRenderFacts } from "../renderStateLabel.js";
-import { NodeSelector } from "../components/pickers/NodeSelector.js";
+import { NodeSelector } from "../../features/pickers/NodeSelector.js";
 import { Button, Checkbox, Modal, SelectTrigger, SelectionButton } from "../components/ui/index.js";
 import { notificationStore } from "../components/ui/notificationStore.js";
 import "./LinkEditModal.css";

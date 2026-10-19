@@ -8,7 +8,7 @@ import { AnnotationsSection } from "../../ui/AnnotationsSection.js";
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
 import { AddPill } from "../../ui/components/ui/AddPill.js";
 import { NodePill } from "./NodePills.js";
-import { NodeSelector } from "../../ui/components/pickers/NodeSelector.js";
+import { NodeSelector } from "../pickers/NodeSelector.js";
 import { AssetUploadModal } from "../../ui/components/modals/AssetUploadModal.js";
 import { ObjectPropertyPill } from "./ObjectPropertyPill.js";
 import { PropertySelectCell } from "./PropertySelectCell.js";

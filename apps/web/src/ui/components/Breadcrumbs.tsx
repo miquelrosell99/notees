@@ -36,7 +36,7 @@ import { Icon } from "../Icon.js";
 import { AddPill } from "./ui/AddPill.js";
 import { ContextMenu, type ContextMenuItem } from "./ui/ContextMenu.js";
 import { HoverRevealButton } from "./ui/HoverRevealButton.js";
-import { NodeSelector } from "./pickers/NodeSelector.js";
+import { NodeSelector } from "../../features/pickers/NodeSelector.js";
 import "./Breadcrumbs.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

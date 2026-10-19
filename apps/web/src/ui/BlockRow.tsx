@@ -92,7 +92,7 @@ import { BlockBacklinkPanel, BlockBacklinkToggle } from "./BlockBacklinks.js";
 import { BlockTextEditor, type EditorCaret } from "../features/block-editor/index.js";
 import { PropertiesSection, TagsRow } from "../features/metadata/index.js";
 import { PropertyIconButton } from "../features/metadata/PropertyIconButton.js";
-import type { SelectionOption } from "./components/pickers/SelectionPropertyControl.js";
+import type { SelectionOption } from "../features/pickers/SelectionPropertyControl.js";
 import { NodePills } from "../features/metadata/NodePills.js";
 import { NodeContextMenu } from "./components/NodeContextMenu.js";
 import { openNodeLinkMenu } from "./components/NodeLinkContextMenu.js";

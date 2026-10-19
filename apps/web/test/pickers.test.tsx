@@ -28,8 +28,8 @@ import { deriveDisplayName } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
-import { IconPickerPopup } from "../src/ui/components/IconPickerPopup.js";
-import { NodeSelector } from "../src/ui/components/pickers/NodeSelector.js";
+import { IconPickerPopup } from "../src/features/icon-picker/IconPickerPopup.js";
+import { NodeSelector } from "../src/features/pickers/NodeSelector.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";

@@ -30,7 +30,7 @@ import type { ClientNode, SearchSnippetData, WorkspaceClient } from "@/core/work
 
 import { displayNameForSettings } from "./dateDisplay.js";
 import { parentRenderFacts } from "./renderStateLabel.js";
-import { NodeResultItem } from "./components/pickers/NodeResultItem.js";
+import { NodeResultItem } from "../features/pickers/NodeResultItem.js";
 import { Button } from "./components/ui/Button.js";
 import { Dropdown } from "./components/ui/Dropdown.js";
 import { SearchField } from "./components/ui/SearchField.js";

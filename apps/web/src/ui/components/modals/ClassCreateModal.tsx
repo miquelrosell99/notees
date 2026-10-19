@@ -29,7 +29,7 @@ import { TextField } from "../ui/TextField.js";
 import { SearchField } from "../ui/SearchField.js";
 import { ColorButton } from "../ui/ColorButton.js";
 import { Tabs } from "../ui/Tabs.js";
-import { IconPickerPopup } from "../IconPickerPopup.js";
+import { IconPickerPopup } from "../../../features/icon-picker/IconPickerPopup.js";
 import { deployableSystemClasses, deploySystemClass } from "../../../features/classview/systemClassDeploy.js";
 
 import "./ClassCreateModal.css";

@@ -13,9 +13,9 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { Icon } from "../../Icon.js";
-import { coloredPillStyle, cssColorFor } from "../ui/colorPresets.js";
-import { usePopupDismissal } from "../ui/usePopupDismissal.js";
+import { Icon } from "../../ui/Icon.js";
+import { coloredPillStyle, cssColorFor } from "../../ui/components/ui/colorPresets.js";
+import { usePopupDismissal } from "../../ui/components/ui/usePopupDismissal.js";
 import { useViewportPosition } from "./useViewportPosition.js";
 import "./PropertyCell.css";
 

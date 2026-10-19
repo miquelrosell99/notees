@@ -22,7 +22,7 @@ import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { displayNameForSettings } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
-import { NodeSelector } from "../../ui/components/pickers/NodeSelector.js";
+import { NodeSelector } from "../pickers/NodeSelector.js";
 import { AddPill } from "../../ui/components/ui/AddPill.js";
 import { NodeViewSection } from "../../ui/components/NodeViewSection.js";
 import { notificationStore } from "../../ui/components/ui/notificationStore.js";
