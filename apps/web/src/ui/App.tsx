@@ -51,18 +51,13 @@ import { logout } from "@/core/auth-api.js";
 import { NodeView } from "./NodeView.js";
 import { SearchPage } from "./SearchPage.js";
 import { displayNameForSettings } from "./dateDisplay.js";
-import { DeckView } from "./presentation/DeckView.js";
 import { CommandPalette } from "./components/CommandPalette.js";
 import { PageCard } from "./components/PageCard.js";
 import type { ShareTarget } from "./components/NodeMenuButton.js";
 import { rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
 import { Sidebar, recordRecent, type NavKey } from "./components/Sidebar.js";
 import { resolveAliasOpen } from "./components/aliasProperty.js";
-import { QuickAddModal } from "./components/modals/QuickAddModal.js";
-import { ClassCreateModal } from "./components/modals/ClassCreateModal.js";
-import { MergeNodesModal } from "./components/modals/MergeNodesModal.js";
 import { PropertyView } from "./components/PropertyView.js";
-import { QuickCreateFab } from "./components/QuickCreateFab.js";
 import { WorkspacesView } from "./components/WorkspacesView.js";
 import {
   SettingsPage,
@@ -71,8 +66,6 @@ import {
   settingsSectionFromPath,
   type SettingsSection,
 } from "./components/SettingsPage.js";
-import { SyncDetailsModal } from "./components/modals/SyncDetailsModal.js";
-import { WorkspaceSettingsModal } from "./components/modals/WorkspaceSettingsModal.js";
 import { applyAppearance, readDeviceSetting, toggleFocusMode, useDeviceSetting } from "./components/modals/deviceSettings.js";
 import { useCondensedPreference } from "./viewPrefs.js";
 import {
@@ -81,15 +74,14 @@ import {
   initialServerUrl,
   readStored,
 } from "./app/storage.js";
-import { BackendUnavailableOverlay } from "./components/ui/BackendUnavailableOverlay.js";
-import { InProcessStoreBanner } from "./components/ui/InProcessStoreBanner.js";
 import { Button } from "./components/ui/Button.js";
-import { NotificationToaster } from "./components/ui/NotificationToaster.js";
 import "./app.css";
 import { moveRailCardOrder, persistRailCardOrder, readRailCardOrder } from "./app/railCardOrder.js";
 import { HubView } from "./app/HubView.js";
 import { AppTopBar } from "./app/AppTopBar.js";
 import { AppBody } from "./app/AppBody.js";
+import { AppModals } from "./app/AppModals.js";
+import { AppOverlays } from "./app/AppOverlays.js";
 import { BootForm } from "./app/BootForm.js";
 import { useBootFlow } from "./app/useBootFlow.js";
 import { useWorkspaceConnection } from "./app/useWorkspaceConnection.js";
@@ -824,117 +816,47 @@ export function App() {
         setSidebarCards={setSidebarCards}
         closeSidebarCard={closeSidebarCard}
       />
-      <CommandPalette
+      <AppModals
         client={client}
-        open={paletteOpen}
-        onRequestOpen={() => setPaletteOpen(true)}
-        onClose={() => setPaletteOpen(false)}
-        onOpenNode={openPage}
-        onNewPage={(title) => void handleNewPage(title)}
-        onOpenClassCreate={() => setClassCreateOpen(true)}
-        onOpenProperty={(schemaId) => setPropertyViewFor(schemaId)}
-        currentNodeId={selectedPageId ?? undefined}
-        onOpenMerge={storeMode === "in-process" ? () => setMergeOpen(true) : undefined}
+        paletteOpen={paletteOpen}
+        setPaletteOpen={setPaletteOpen}
+        openPage={openPage}
+        handleNewPage={handleNewPage}
+        classCreateOpen={classCreateOpen}
+        setClassCreateOpen={setClassCreateOpen}
+        propertyViewFor={propertyViewFor}
+        setPropertyViewFor={setPropertyViewFor}
+        selectedPageId={selectedPageId}
+        storeMode={storeMode}
+        mergeOpen={mergeOpen}
+        setMergeOpen={setMergeOpen}
         condensedActive={condensedActive}
-        onToggleCondensed={
-          selectedPageId !== null ? () => setCondensedPref(!condensedActive) : undefined
-        }
-        onOpenSearch={(query) => openSearchPage(query)}
-        onSignOut={() => void handleSignOut()}
-        undoState={undoUi}
-        onUndo={() => {
-          void client.undo().catch((error: unknown) => {
-            console.error("undo failed:", error);
-          });
-          scheduleUndoRefresh();
-        }}
-        onRedo={() => {
-          void client.redo().catch((error: unknown) => {
-            console.error("redo failed:", error);
-          });
-          scheduleUndoRefresh();
-        }}
-        cacheVersion={pagesVersion}
+        setCondensedPref={setCondensedPref}
+        openSearchPage={openSearchPage}
+        handleSignOut={handleSignOut}
+        undoUi={undoUi}
+        runUndo={runUndo}
+        runRedo={runRedo}
+        pagesVersion={pagesVersion}
+        quickAddOpen={quickAddOpen}
+        setQuickAddOpen={setQuickAddOpen}
+        presentingId={presentingId}
+        setPresentingId={setPresentingId}
       />
-      {quickAddOpen && (
-        <QuickAddModal isOpen={quickAddOpen} onClose={() => setQuickAddOpen(false)} client={client} />
-      )}
-      {classCreateOpen && (
-        <ClassCreateModal
-          isOpen
-          client={client}
-          onClose={() => setClassCreateOpen(false)}
-          onCreated={(id) => openPage(id)}
-        />
-      )}
-      {mergeOpen && selectedPageId !== null && client instanceof WorkspaceClient && (
-        <MergeNodesModal
-          isOpen
-          client={client}
-          sourceId={selectedPageId}
-          onClose={() => setMergeOpen(false)}
-          onMerged={(targetId) => {
-            setMergeOpen(false);
-            openPage(targetId);
-          }}
-        />
-      )}
-      {propertyViewFor !== null && (
-        <PropertyView
-          client={client}
-          propertySchemaId={propertyViewFor}
-          onClose={() => setPropertyViewFor(null)}
-          onOpenPage={(id) => {
-            setPropertyViewFor(null);
-            openPage(id);
-          }}
-        />
-      )}
-      {/* The mobile quick-create FAB: hosts its own
-          QuickAddModal; CSS surfaces the button only at narrow widths. */}
-      <QuickCreateFab client={client} />
-      {presentingId !== null && (
-        <DeckView
-          client={client}
-          pageId={presentingId}
-          onOpenNode={openPage}
-          onClose={() => setPresentingId(null)}
-        />
-      )}
-      {storeMode === "in-process" && <InProcessStoreBanner reason={storeReason} />}
-      {client !== null && (
-        <SyncDetailsModal
-          client={client}
-          snapshot={syncStatus}
-          isOpen={syncDetailsOpen}
-          onClose={() => setSyncDetailsOpen(false)}
-        />
-      )}
-      {client !== null && adminSettingsOpen && (
-        /* The account popup's admin entry (admin users only): the active
-           workspace's settings, opened on the plugins tab — the
-           admin-gated surface (the server enforces admin on the routes). */
-        <WorkspaceSettingsModal
-          isOpen
-          onClose={() => setAdminSettingsOpen(false)}
-          serverUrl={serverUrl}
-          credential={token}
-          workspaceId={readStored(STORAGE_KEYS.workspaceId)}
-          workspaceName={workspaceName}
-          workspaceRole={
-            rememberedWorkspaceList().find((ws) => ws.id === readStored(STORAGE_KEYS.workspaceId))?.role ?? "owner"
-          }
-          initialTab="plugins"
-          client={client}
-          onRenamed={(name) => {
-            const id = readStored(STORAGE_KEYS.workspaceId);
-            rememberWorkspaceName(id, name);
-            setWorkspaceName(name);
-          }}
-        />
-      )}
-      <BackendUnavailableOverlay syncStatus={syncStatus} />
-      <NotificationToaster />
+      <AppOverlays
+        client={client}
+        storeMode={storeMode}
+        storeReason={storeReason}
+        syncStatus={syncStatus}
+        syncDetailsOpen={syncDetailsOpen}
+        setSyncDetailsOpen={setSyncDetailsOpen}
+        adminSettingsOpen={adminSettingsOpen}
+        setAdminSettingsOpen={setAdminSettingsOpen}
+        serverUrl={serverUrl}
+        token={token}
+        workspaceName={workspaceName}
+        setWorkspaceName={setWorkspaceName}
+      />
     </div>
   );
 }
