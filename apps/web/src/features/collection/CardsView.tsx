@@ -81,13 +81,13 @@ import { useViewChromeTarget } from "./viewChrome.js";import { useLazyInView } f
 import { ShowMoreButton } from "./ShowMoreButton.js";
 import { compareItemsByEditDate, compareItemsByMode } from "./collectionSort.js";
 import { assetImageUrl, cardImageAssetId } from "./assetThumbs.js";
-import { isCoverAsset, setNodeCover } from "../../ui/components/coverProperty.js";
+import { isCoverAsset, setNodeCover } from "../metadata/coverProperty.js";
 import { AssetUploadModal } from "../../ui/components/modals/AssetUploadModal.js";
 import { notificationStore } from "../../ui/components/ui/notificationStore.js";
 import { Badge } from "../../ui/components/ui/Badge.js";
 import { Breadcrumbs } from "../../ui/components/Breadcrumbs.js";
 import { NodeMenuButton } from "../../ui/components/NodeMenuButton.js";
-import { NodePills } from "../../ui/components/NodePills.js";
+import { NodePills } from "../metadata/NodePills.js";
 import { NodeContextMenu } from "../../ui/components/NodeContextMenu.js";
 import { PropertiesTable, TagsRow } from "../metadata/index.js";
 import { childQuery } from "./childQuery.js";

@@ -36,10 +36,10 @@ import type {
   WorkspaceClient,
 } from "@/core/workspace-client/index.js";
 
-import { displayNameFromClient } from "../dateDisplay.js";
-import { Modal } from "./ui/Modal.js";
-import { Button } from "./ui/Button.js";
-import { Checkbox } from "./ui/Checkbox.js";
+import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { Modal } from "../../ui/components/ui/Modal.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { Checkbox } from "../../ui/components/ui/Checkbox.js";
 import "./PropertyConvertModal.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

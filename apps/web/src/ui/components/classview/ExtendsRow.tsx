@@ -14,7 +14,7 @@
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { ClassPillsList } from "../ClassPillsList.js";
+import { ClassPillsList } from "../../../features/metadata/ClassPillsList.js";
 import { extendsCornerPills } from "../pageVariant.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;

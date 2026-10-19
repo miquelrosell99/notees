@@ -15,9 +15,9 @@ import { useEffect, useState } from "react";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { OperationFeedEntry, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { Modal } from "./ui/Modal.js";
-import { Button } from "./ui/Button.js";
-import { Spinner } from "./ui/Spinner.js";
+import { Modal } from "../../ui/components/ui/Modal.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { Spinner } from "../../ui/components/ui/Spinner.js";
 import "./PropertyHistoryModal.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

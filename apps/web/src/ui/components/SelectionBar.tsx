@@ -25,7 +25,7 @@ import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import { ConfirmationModal } from "./ui/ConfirmationModal.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
 import { notificationStore } from "./ui/notificationStore.js";
-import { classRemovalRefusal, removeClassDissolvingLinks } from "./classRemoval.js";
+import { classRemovalRefusal, removeClassDissolvingLinks } from "../../features/metadata/classRemoval.js";
 import { useOutliner } from "../outliner-context.js";
 import { Icon } from "../Icon.js";
 

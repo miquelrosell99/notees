@@ -39,12 +39,12 @@ import { plainTextExcerpt, rendersAsInlineBlock } from "@notees/domain";
 
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
-import { NodeCollection, type NodeCollectionItem } from "../../features/collection/index.js";
-import type { AnyClient } from "../../features/collection/types.js";
-import { parentRenderFacts } from "../renderStateLabel.js";
-import { AddPill } from "./ui/AddPill.js";
-import { OutlinerContext, useOutlinerValue } from "../outliner-context.js";
-import { CarrierEnterContext, type CarrierInfo } from "../textCarrier.js";
+import { NodeCollection, type NodeCollectionItem } from "../collection/index.js";
+import type { AnyClient } from "../collection/types.js";
+import { parentRenderFacts } from "../../ui/renderStateLabel.js";
+import { AddPill } from "../../ui/components/ui/AddPill.js";
+import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
+import { CarrierEnterContext, type CarrierInfo } from "../../ui/textCarrier.js";
 
 /** Cycle-protection depth cap, mirroring the client's getBlockTree default. */
 const CARRIER_TREE_DEPTH_CAP = 64;

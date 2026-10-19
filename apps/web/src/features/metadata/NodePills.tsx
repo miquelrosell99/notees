@@ -42,16 +42,16 @@ import { CSS } from "@dnd-kit/utilities";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { displayNameFromClient } from "../dateDisplay.js";
-import { Icon } from "../Icon.js";
-import { AddPill } from "./ui/AddPill.js";
-import { ColorPickerRow } from "./pickers/ColorPickerRow.js";
-import { NodeSelector } from "./pickers/NodeSelector.js";
-import { NodeContextMenu } from "./NodeContextMenu.js";
+import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { Icon } from "../../ui/Icon.js";
+import { AddPill } from "../../ui/components/ui/AddPill.js";
+import { ColorPickerRow } from "../../ui/components/pickers/ColorPickerRow.js";
+import { NodeSelector } from "../../ui/components/pickers/NodeSelector.js";
+import { NodeContextMenu } from "../../ui/components/NodeContextMenu.js";
 import { removeClassDissolvingLinks } from "./classRemoval.js";
-import { ClassCreateModal } from "./modals/ClassCreateModal.js";
-import { usePopupDismissal } from "./ui/usePopupDismissal.js";
-import { cssColorFor, resolveCssColor } from "./ui/colorPresets.js";
+import { ClassCreateModal } from "../../ui/components/modals/ClassCreateModal.js";
+import { usePopupDismissal } from "../../ui/components/ui/usePopupDismissal.js";
+import { cssColorFor, resolveCssColor } from "../../ui/components/ui/colorPresets.js";
 import { classRemovalRefusal, isClassNonRemovable, refuseClassRemoval } from "./classRemoval.js";
 import "./NodePills.css";
 

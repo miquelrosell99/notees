@@ -30,8 +30,8 @@ import { SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
-import { aliasValuesOf, ensureAliasProperty } from "../src/ui/components/aliasProperty.js";
-import { convertValueForType } from "../src/ui/components/PropertyConvertModal.js";
+import { aliasValuesOf, ensureAliasProperty } from "../src/features/metadata/aliasProperty.js";
+import { convertValueForType } from "../src/features/metadata/PropertyConvertModal.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";

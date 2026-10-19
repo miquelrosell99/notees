@@ -5,8 +5,8 @@ import { rendersWithDocumentChrome } from "@notees/domain";
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
 import { parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { AddPill } from "../../ui/components/ui/AddPill.js";
-import { NodePill } from "../../ui/components/NodePills.js";
-import { AliasNodePicker } from "../../ui/components/AliasNodePicker.js";
+import { NodePill } from "./NodePills.js";
+import { AliasNodePicker } from "./AliasNodePicker.js";
 import type { AnyClient } from "./shared.js";
 
 /**
