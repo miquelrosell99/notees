@@ -9,6 +9,20 @@ predating this file.
 
 ## 2026-10-19
 
+- **refactor(web): delete the `MetadataSection.tsx` compat barrel — the
+  metadata feature folder is the only surface.** The shim's seven importers
+  were already re-pointed when the panel moved to `features/metadata/`
+  (218f7ec0); what the shim still carried was the panel's stylesheet as a
+  side-effect import — and with zero importers left, `MetadataSection.css`
+  (742 lines) had not been loading at all since the relocation. The
+  stylesheet moves to `features/metadata/MetadataSection.css` (co-located,
+  fleet-canonical) and loads through the feature barrel's side-effect
+  import; the shim and the old `ui/components/` copy are deleted. The
+  drift gate's CSS half now walks `src/features` alongside `src/ui` so
+  feature-folder stylesheets stay gated (all 12 checks green).
+  **Verification:** `npx tsc --noEmit` clean; the drift gate 12/12; the
+  properties-panel + recurrence suites (28 tests) green.
+
 - **refactor(core): the `workspace-client.ts` compat shim is removed — the
   folder module is the only import surface.** The thin file
   `src/core/workspace-client.ts` (re-exporting `workspace-client/index.ts`)

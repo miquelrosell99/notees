@@ -145,7 +145,8 @@ export function NodePill({
       ) : (
         // No navigation of its own (e.g. the label rides inside a larger
         // control such as the single-value selection cell) — a plain span,
-        // the same pattern MetadataSection.css styles for span.pill__text.
+        // the same pattern features/metadata/MetadataSection.css styles for
+        // span.pill__text.
         <span className="pill__text">{label}</span>
       )}
       {onRemove !== undefined && (
