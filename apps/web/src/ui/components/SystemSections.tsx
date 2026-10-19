@@ -68,19 +68,19 @@ import { Section } from "../Section.js";
 import { displayNameForSettings } from "../dateDisplay.js";
 import { untitledLabelOf } from "../renderStateLabel.js";
 import { useIgnoredUnlinkedRefs, writeIgnoredUnlinkedRef } from "../viewPrefs.js";
-import { promoteMentionInAst } from "./unlinkedRefs.js";
-import { FilterBar } from "./FilterBar.js";
+import { promoteMentionInAst } from "../../features/collection/unlinkedRefs.js";
+import { FilterBar } from "../../features/collection/FilterBar.js";
 import {
   EMPTY_FILTER_QUERY,
   filterQueryToGroup,
   isFilterInactive,
   quickTextOf,
   type FilterQuery,
-} from "./filterQuery.js";
-import { NodeCollection, groupByContainingPage } from "../views/index.js";
-import type { HostedViewsConfig, NodeCollectionItem, SortMode } from "../views/index.js";
+} from "../../features/collection/filterQuery.js";
+import { NodeCollection, groupByContainingPage } from "../../features/collection/index.js";
+import type { HostedViewsConfig, NodeCollectionItem, SortMode } from "../../features/collection/index.js";
 import { NodeViewSection } from "./NodeViewSection.js";
-import { useSectionData, type SectionRowFilter } from "./useSectionData.js";
+import { useSectionData, type SectionRowFilter } from "../../features/collection/useSectionData.js";
 import "./SystemSections.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

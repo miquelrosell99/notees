@@ -15,10 +15,10 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { ConfirmationModal, ContextMenu, Tabs, TextField } from "./ui/index.js";
-import type { ContextMenuItem } from "./ui/index.js";
+import { ConfirmationModal, ContextMenu, Tabs, TextField } from "../../ui/components/ui/index.js";
+import type { ContextMenuItem } from "../../ui/components/ui/index.js";
 
-import { parseQueryViewRecord, queryViewTitle } from "../queryViewRecord.js";
+import { parseQueryViewRecord, queryViewTitle } from "../../ui/queryViewRecord.js";
 import {
   duplicateQueryToken,
   listQueryTokens,
@@ -27,7 +27,7 @@ import {
   removeQueryToken,
   setDefaultQueryToken,
   type TokenWriteClient,
-} from "../queryTokens.js";
+} from "../../ui/queryTokens.js";
 
 export interface ViewTabsProps {
   /** Reads + writes (the content update path) + the notify subscription. */

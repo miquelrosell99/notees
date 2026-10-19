@@ -28,7 +28,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
-import { NodeCardFrame } from "../src/ui/components/NodeCardFrame.js";
+import { NodeCardFrame } from "../src/features/collection/NodeCardFrame.js";
 import { WorkspaceDndHost } from "../src/ui/useWorkspaceDnd.js";
 import { mergeZoneCandidates } from "../src/ui/block-dnd.js";
 

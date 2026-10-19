@@ -12,8 +12,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   EngineController,
   type EngineFrame,
-} from "../src/ui/views/graph/engineController.js";
-import type { GraphEnginePhysicsConfig } from "../src/ui/views/graph/engine/index.js";
+} from "../src/features/collection/graph/engineController.js";
+import type { GraphEnginePhysicsConfig } from "../src/features/collection/graph/engine/index.js";
 
 class FakeWorker {
   static instances: FakeWorker[] = [];

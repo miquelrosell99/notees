@@ -58,8 +58,8 @@ import { parseQueryAst, type QueryAst } from "@notees/query";
 
 import { displayNameFromClient } from "./dateDisplay.js";
 import { parentRenderFacts } from "./renderStateLabel.js";
-import { NodeCollection, ViewSwitcher } from "./views/index.js";
-import type { NodeCollectionItem } from "./views/index.js";
+import { NodeCollection, ViewSwitcher } from "../features/collection/index.js";
+import type { NodeCollectionItem } from "../features/collection/index.js";
 import {
   QUERY_TABLE_COLUMNS,
   openQueryResult,
@@ -67,7 +67,7 @@ import {
   useQueryRun,
   type QueryRunState,
 } from "./queryRun.js";
-import { QueryBuilderFields, useBuilderFacts } from "./components/QueryBuilderFields.js";
+import { QueryBuilderFields, useBuilderFacts } from "../features/collection/QueryBuilderFields.js";
 import { Button } from "./components/ui/Button.js";
 
 import type {
@@ -440,7 +440,7 @@ export function QueryBlockView({
             viewMode={viewMode === "table" ? "table" : "outline"}
             // The seam type is structural; the runtime object is the full
             // client (both classes satisfy it).
-            client={client as unknown as import("./views/index.js").AnyClient}
+            client={client as unknown as import("../features/collection/index.js").AnyClient}
             // The query result owns ITS pagination — the 200-row
             // render window (QUERY_RESULT_CAP) widened by the "N more — load
             // more" button below — so the collection view must not window

@@ -25,11 +25,11 @@ import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { HubView } from "../src/ui/app/HubView.js";
 import { PageView } from "../src/ui/PageView.js";
 import { NodeView } from "../src/ui/App.js";
-import { CollectionHub } from "../src/ui/components/CollectionHub.js";
-import { childQuery } from "../src/ui/components/childQuery.js";
+import { CollectionHub } from "../src/features/collection/CollectionHub.js";
+import { childQuery } from "../src/features/collection/childQuery.js";
 import { ensureTaskFamily } from "../src/ui/components/taskFamily.js";
-import { getViewDefinition, getViewModeOptions, NodeCollection } from "../src/ui/views/index.js";
-import { applyCardGroupDrop } from "../src/ui/views/CardsBoard.js";
+import { getViewDefinition, getViewModeOptions, NodeCollection } from "../src/features/collection/index.js";
+import { applyCardGroupDrop } from "../src/features/collection/CardsBoard.js";
 import { writeViewModePref } from "../src/ui/viewPrefs.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";

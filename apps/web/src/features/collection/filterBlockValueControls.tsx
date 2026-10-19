@@ -13,12 +13,12 @@ import { useRef, useState } from "react";
 
 import type { Condition, DatePeriod, PropertyOp } from "@notees/query";
 
-import type { AnyClient } from "../views/index.js";
-import { Icon } from "../Icon.js";
-import { displayNameForSettings } from "../dateDisplay.js";
-import { NodeSelector } from "./pickers/NodeSelector.js";
-import { Dropdown } from "./ui/Dropdown.js";
-import { Input } from "./ui/Input.js";
+import type { AnyClient } from "./index.js";
+import { Icon } from "../../ui/Icon.js";
+import { displayNameForSettings } from "../../ui/dateDisplay.js";
+import { NodeSelector } from "../../ui/components/pickers/NodeSelector.js";
+import { Dropdown } from "../../ui/components/ui/Dropdown.js";
+import { Input } from "../../ui/components/ui/Input.js";
 import { type BuilderFacts } from "./QueryBuilderFields.js";
 
 const PROPERTY_OP_LABELS: ReadonlyArray<{ op: PropertyOp; label: string }> = [

@@ -40,7 +40,7 @@ import { ExtendedBySection } from "./classview/ExtendedBySection.js";
 import { PropertyDefinitionsSection } from "./classview/PropertyDefinitionsSection.js";
 import { TemplatesSection } from "./classview/TemplatesSection.js";
 import { createdPeriodBounds, isoOfDateParts } from "./calendarViewUtils.js";
-import type { SectionSpec } from "./useSectionData.js";
+import type { SectionSpec } from "../../features/collection/useSectionData.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 

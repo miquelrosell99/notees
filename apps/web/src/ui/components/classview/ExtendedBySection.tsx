@@ -15,8 +15,8 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.
 
 import { Icon } from "../../Icon.js";
 import { Section } from "../../Section.js";
-import { NodeCollection } from "../../views/index.js";
-import type { NodeCollectionItem } from "../../views/index.js";
+import { NodeCollection } from "../../../features/collection/index.js";
+import type { NodeCollectionItem } from "../../../features/collection/index.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 

@@ -8,11 +8,11 @@ import { describe, expect, it } from "vitest";
 
 import type { GraphTopology } from "@notees/store";
 
-import { computeFixedLayout } from "../src/ui/views/graph/layouts.js";
-import { GraphMinimap } from "../src/ui/views/graph/minimap.js";
-import { evaluateColorGroups, isLegacyColorGroup, migrateColorGroup } from "../src/ui/views/graph/colorGroups.js";
+import { computeFixedLayout } from "../src/features/collection/graph/layouts.js";
+import { GraphMinimap } from "../src/features/collection/graph/minimap.js";
+import { evaluateColorGroups, isLegacyColorGroup, migrateColorGroup } from "../src/features/collection/graph/colorGroups.js";
 import type { Group } from "@notees/query";
-import { DEFAULT_GRAPH_SETTINGS, applyGraphSettings, sparsifySemantic } from "../src/ui/views/graph/filter.js";
+import { DEFAULT_GRAPH_SETTINGS, applyGraphSettings, sparsifySemantic } from "../src/features/collection/graph/filter.js";
 import {
   GRAPH_ZOOM_FACTOR,
   GRAPH_ZOOM_MAX,
@@ -24,8 +24,8 @@ import {
   wheelZoomFactor,
   zoomAtCenter,
   zoomAtWorldPoint,
-} from "../src/ui/views/graph/cameraMath.js";
-import type { AnyClient } from "../src/ui/views/types.js";
+} from "../src/features/collection/graph/cameraMath.js";
+import type { AnyClient } from "../src/features/collection/types.js";
 
 function topo(ids: string[], parentOf: Record<string, string> = {}, edges: GraphTopology["edges"] = []): GraphTopology {
   return {

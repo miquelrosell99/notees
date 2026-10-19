@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
-import { childQuery } from "../src/ui/components/childQuery.js";
+import { childQuery } from "../src/features/collection/childQuery.js";
 
 interface FakeNode {
   id: string;

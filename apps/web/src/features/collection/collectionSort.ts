@@ -19,7 +19,7 @@ import { parseDateNodeId } from "@notees/domain";
 
 import type { ClientNode } from "@/core/workspace-client/index.js";
 
-import { displayNameForSettings } from "../dateDisplay.js";
+import { displayNameForSettings } from "../../ui/dateDisplay.js";
 import type { CollectionGroup, NodeCollectionItem, SortMode } from "./types.js";
 
 type NameResolver = (classId: string) => string | null;

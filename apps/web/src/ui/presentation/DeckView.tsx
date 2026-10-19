@@ -33,7 +33,7 @@ import { AssetView } from "../AssetView.js";
 import { displayNameFromClient, fullTitleFromClient } from "../dateDisplay.js";
 import { nodeIcon } from "../iconFor.js";
 import { OutlinerContext, useOutliner, useOutlinerValue } from "../outliner-context.js";
-import { assetImageUrl } from "../views/assetThumbs.js";
+import { assetImageUrl } from "../../features/collection/assetThumbs.js";
 import { coverAssetIdOf } from "../components/coverProperty.js";
 import { tableClassIdOf } from "../components/tableFamily.js";
 import { BlockRow } from "../BlockRow.js";

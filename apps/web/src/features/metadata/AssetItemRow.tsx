@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
-import { assetImageUrl } from "../../ui/views/assetThumbs.js";
+import { assetImageUrl } from "../collection/assetThumbs.js";
 import { Icon } from "../../ui/Icon.js";
 import type { AnyClient } from "./shared.js";
 

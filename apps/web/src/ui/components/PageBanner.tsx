@@ -41,7 +41,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { useBannerCollapsed } from "../viewPrefs.js";
-import { assetImageUrl } from "../views/assetThumbs.js";
+import { assetImageUrl } from "../../features/collection/assetThumbs.js";
 import { Icon } from "../Icon.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
 import { AssetUploadModal } from "./modals/AssetUploadModal.js";

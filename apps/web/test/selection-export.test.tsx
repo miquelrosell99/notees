@@ -15,8 +15,8 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient, type ClientNode } from "../src/core/workspace-client/index.js";
 // The barrel import registers every built-in view (registration side effects).
-import { NodeCollection } from "../src/ui/views/index.js";
-import type { NodeCollectionItem } from "../src/ui/views/types.js";
+import { NodeCollection } from "../src/features/collection/index.js";
+import type { NodeCollectionItem } from "../src/features/collection/types.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000b1";
 const ACTOR = "0192a000-0000-7000-8000-0000000000b2";

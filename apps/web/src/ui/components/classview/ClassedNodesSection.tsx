@@ -42,17 +42,17 @@ import { Icon } from "../../Icon.js";
 import { NodeViewSection } from "../NodeViewSection.js";
 import { useViewModePreference } from "../../viewPrefs.js";
 import { refuseClassRemoval, removeClassDissolvingLinks } from "../classRemoval.js";
-import { FilterBar } from "../FilterBar.js";
+import { FilterBar } from "../../../features/collection/FilterBar.js";
 import {
   EMPTY_FILTER_QUERY,
   filterQueryToGroup,
   isFilterInactive,
   quickTextOf,
   type FilterQuery,
-} from "../filterQuery.js";
-import { useSectionData, type SectionRowFilter } from "../useSectionData.js";
-import { NodeCollection, ViewSwitcher } from "../../views/index.js";
-import type { NodeCollectionItem, TableColumn, ViewMode } from "../../views/index.js";
+} from "../../../features/collection/filterQuery.js";
+import { useSectionData, type SectionRowFilter } from "../../../features/collection/useSectionData.js";
+import { NodeCollection, ViewSwitcher } from "../../../features/collection/index.js";
+import type { NodeCollectionItem, TableColumn, ViewMode } from "../../../features/collection/index.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 

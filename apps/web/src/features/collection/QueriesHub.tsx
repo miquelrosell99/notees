@@ -24,34 +24,34 @@ import type { QueryAst } from "@notees/query";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 
-import { Icon } from "../Icon.js";
-import { displayNameForSettings } from "../dateDisplay.js";
-import { useDeviceSetting, writeDeviceSetting } from "./modals/deviceSettings.js";
-import { Button, EmptyState } from "./ui/index.js";
+import { Icon } from "../../ui/Icon.js";
+import { displayNameForSettings } from "../../ui/dateDisplay.js";
+import { useDeviceSetting, writeDeviceSetting } from "../../ui/components/modals/deviceSettings.js";
+import { Button, EmptyState } from "../../ui/components/ui/index.js";
 import { FilterBuilderModal } from "./FilterBuilderModal.js";
 import { ViewTabs } from "./ViewTabs.js";
-import { NodeCollection, ViewSwitcher } from "../views/index.js";
-import type { ViewMode } from "../views/index.js";
+import { NodeCollection, ViewSwitcher } from "./index.js";
+import type { ViewMode } from "./index.js";
 import {
   QUERY_RESULT_CAP,
   aggregateColumnLabel,
   formatAggregateCell,
-} from "../QueryBlockView.js";
+} from "../../ui/QueryBlockView.js";
 import {
   QUERY_TABLE_COLUMNS,
   openQueryResult,
   queryResultItems,
   useQueryRun,
   type QueryRunClient,
-} from "../queryRun.js";
-import { parseQueryViewRecord } from "../queryViewRecord.js";
+} from "../../ui/queryRun.js";
+import { parseQueryViewRecord } from "../../ui/queryViewRecord.js";
 import {
   appendQueryToken,
   listQueryTokens,
   patchTokenView,
   updateQueryTokenAst,
   type TokenWriteClient,
-} from "../queryTokens.js";
+} from "../../ui/queryTokens.js";
 
 const HOST_PAGE_SETTING = "queriesHostPageId";
 
@@ -137,7 +137,7 @@ function QueryResults({
     <>
       <NodeCollection
         viewMode={viewMode === "table" ? "table" : "outline"}
-        client={client as unknown as import("../views/index.js").AnyClient}
+        client={client as unknown as import("./index.js").AnyClient}
         // The query result owns ITS pagination — the 200-row window
         // (QUERY_RESULT_CAP) + the load-more below — so the collection view
         // must not window again (double-windowing would cut the cap to 100).

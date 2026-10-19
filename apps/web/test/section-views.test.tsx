@@ -33,15 +33,15 @@ import {
   resolveSectionViewProbed,
   useSectionViewResolution,
   type SectionViewResolveClient,
-} from "../src/ui/views/sectionViewResolve.js";
-import type { NodeCollectionItem } from "../src/ui/views/index.js";
-import { NodeCollection } from "../src/ui/views/index.js";
+} from "../src/features/collection/sectionViewResolve.js";
+import type { NodeCollectionItem } from "../src/features/collection/index.js";
+import { NodeCollection } from "../src/features/collection/index.js";
 import {
   ensureSectionViewsLoaded,
   resetSectionViewsForTests,
   useSectionViews,
   type SectionViewsClient,
-} from "../src/ui/components/sectionViews.js";
+} from "../src/features/collection/sectionViews.js";
 import type { SectionView } from "../src/core/workspace-client/index.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";

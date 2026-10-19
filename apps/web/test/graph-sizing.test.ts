@@ -15,16 +15,16 @@ import {
   nodeRadius,
   type LinkDirection,
   type NodeSizeMode,
-} from "../src/ui/views/graph/nodeRadius.js";
+} from "../src/features/collection/graph/nodeRadius.js";
 import {
   buildNodeVisuals,
   resolveNodeColorRgb,
-} from "../src/ui/views/graph/nodeVisuals.js";
+} from "../src/features/collection/graph/nodeVisuals.js";
 import {
   GraphEngine,
   buildGraphEngineConfig,
   type GraphEngineNode,
-} from "../src/ui/views/graph/engine/index.js";
+} from "../src/features/collection/graph/engine/index.js";
 
 const node = (id: string, extra: Partial<{ contentSize: number; mass: number; classIds: string[]; color: string | null }> = {}) => ({
   id,

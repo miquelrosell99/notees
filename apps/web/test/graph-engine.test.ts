@@ -14,7 +14,7 @@ import {
   buildGraphEngineConfig,
   type GraphEngineEdge,
   type GraphEngineNode,
-} from "../src/ui/views/graph/engine/index.js";
+} from "../src/features/collection/graph/engine/index.js";
 
 function physics(overrides: Partial<Parameters<typeof buildGraphEngineConfig>[0]> = {}) {
   return buildGraphEngineConfig({ preset: "balanced", centralGravity: 30, linkCountAttraction: false, clustering: true, ...overrides });

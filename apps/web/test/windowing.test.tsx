@@ -17,11 +17,11 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { NodeView } from "../src/ui/App.js";
-import { CollectionHub } from "../src/ui/components/CollectionHub.js";
+import { CollectionHub } from "../src/features/collection/CollectionHub.js";
 import { PageView } from "../src/ui/PageView.js";
-import { NodeCollection } from "../src/ui/views/index.js";
-import { useWindowed } from "../src/ui/views/useWindowed.js";
-import type { NodeCollectionItem } from "../src/ui/views/index.js";
+import { NodeCollection } from "../src/features/collection/index.js";
+import { useWindowed } from "../src/features/collection/useWindowed.js";
+import type { NodeCollectionItem } from "../src/features/collection/index.js";
 
 /** The Backlinks section (expanded by default — its rows load on mount). */
 function backlinksSection(): HTMLElement {

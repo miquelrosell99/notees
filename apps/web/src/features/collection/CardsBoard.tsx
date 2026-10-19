@@ -40,11 +40,11 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-import { EmptyState } from "../components/ui/index.js";
-import { Icon } from "../Icon.js";
-import { displayNameForSettings } from "../dateDisplay.js";
-import { OutlinerContext, useOutlinerValue } from "../outliner-context.js";
-import { useCardLayoutPreference } from "../viewPrefs.js";
+import { EmptyState } from "../../ui/components/ui/index.js";
+import { Icon } from "../../ui/Icon.js";
+import { displayNameForSettings } from "../../ui/dateDisplay.js";
+import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";
+import { useCardLayoutPreference } from "../../ui/viewPrefs.js";
 import { NodeCard, CoverLayoutToggle } from "./CardsView.js";
 import { useViewSelection, SelectionExportControls } from "./selectionExport.js";
 import { useWindowed } from "./useWindowed.js";
