@@ -57,8 +57,8 @@ import { NodeSelector } from "../../ui/components/pickers/NodeSelector.js";
 import {
   DatePickerPopup,
   type DatetimePickerSlot,
-} from "../../ui/components/pickers/DatePickerPopup.js";
-import { collectMarkedDates } from "../../ui/components/pickers/DateSlotControl.js";
+} from "../date-pickers/DatePickerPopup.js";
+import { collectMarkedDates } from "../date-pickers/DateSlotControl.js";
 import { ExportPageModal } from "../../ui/components/modals/ExportPageModal.js";
 import { ImportTableModal } from "../../ui/components/modals/ImportTableModal.js";
 import { downloadBlob } from "../../ui/components/modals/download.js";

@@ -33,7 +33,7 @@ import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
 import { HubView } from "../src/ui/app/HubView.js";
 import { openTodayKeyHandler } from "../src/ui/app/keymap.js";
-import { CalendarView } from "../src/ui/components/CalendarView.js";
+import { CalendarView } from "../src/features/calendar/CalendarView.js";
 import {
   addDaysIso,
   hasDatedRefs,

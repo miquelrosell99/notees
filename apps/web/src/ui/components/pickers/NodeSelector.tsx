@@ -38,7 +38,7 @@ import { displayNameForSettings } from "../../dateDisplay.js";
 import { parentRenderFacts } from "../../renderStateLabel.js";
 import { readRecentIds } from "../Sidebar.js";
 import { Icon } from "../../Icon.js";
-import { parseDate, isPlainYearQuery } from "./dateParser.js";
+import { parseDate, isPlainYearQuery } from "../../../features/date-pickers/dateParser.js";
 import { NodePill } from "../../../features/metadata/NodePill.js";
 import { NodeResultItem } from "./NodeResultItem.js";
 import { useKeyboardListNav } from "./useKeyboardListNav.js";

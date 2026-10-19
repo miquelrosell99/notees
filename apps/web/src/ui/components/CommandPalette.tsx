@@ -56,7 +56,7 @@ import { displayNameForSettings, isDatePageNode, rawDateKeywordOf } from "../dat
 import { Icon } from "../Icon.js";
 import { parentRenderFacts } from "../renderStateLabel.js";
 import { flipTheme, toggleFocusMode } from "./modals/deviceSettings.js";
-import { parseDate, isPlainYearQuery } from "./pickers/dateParser.js";
+import { parseDate, isPlainYearQuery } from "../../features/date-pickers/dateParser.js";
 import { Button } from "./ui/Button.js";
 import { SearchField } from "./ui/SearchField.js";
 import "./Modal.css";
