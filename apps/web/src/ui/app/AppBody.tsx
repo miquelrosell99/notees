@@ -1,0 +1,282 @@
+/**
+ * AppBody — the shell's body region: the ONE workspace drag session host
+ * stack (NodeLinkMenuHost → NodeHoverPreviewHost → WorkspaceDndHost →
+ * FloatingEditorHost) wrapping the Sidebar, the PageCard content routing
+ * (node view / search / settings / hubs), and the right rail's peeked-page
+ * cards. Pure composition: every behavior arrives via props from App.
+ */
+
+import type { Dispatch, RefObject, SetStateAction } from "react";
+
+import type { ClientNode, SyncStatusSnapshot } from "@/core/workspace-client.js";
+import type { AccountUser } from "@/core/auth-api.js";
+import type { AnyClient } from "./clients.js";
+import type { ShareTarget } from "../components/NodeMenuButton.js";
+import type { NavKey } from "../components/Sidebar.js";
+import { pathForNav } from "./routing.js";
+import { Sidebar } from "../components/Sidebar.js";
+import { NodeLinkMenuHost } from "../components/NodeLinkContextMenu.js";
+import { FloatingEditorHost } from "../components/FloatingEditor.js";
+import { NodeHoverPreviewHost } from "../components/NodeHoverPreview.js";
+import { WorkspaceDndHost } from "../useWorkspaceDnd.js";
+import { PageCard } from "../components/PageCard.js";
+import { NodeView } from "../NodeView.js";
+import { SearchPage } from "../SearchPage.js";
+import { SettingsPage, type SettingsSection } from "../components/SettingsPage.js";
+import { JournalsView } from "../components/JournalsView.js";
+import { CalendarView } from "../components/CalendarView.js";
+import { QueriesHub } from "../components/QueriesHub.js";
+import { GraphView } from "../views/graph/GraphView.js";
+import { TrashHub } from "../components/TrashHub.js";
+import { SharesHub } from "../components/SharesHub.js";
+import { NodeCardFrame } from "../components/NodeCardFrame.js";
+import { todayIsoLocal } from "../components/calendarViewUtils.js";
+import { Button } from "../components/ui/Button.js";
+import { HubView } from "./HubView.js";
+
+export interface AppBodyProps {
+  client: AnyClient;
+  clientRef: RefObject<AnyClient | null>;
+  user: AccountUser | null;
+  offline: boolean;
+  sessionSignedIn: boolean;
+  syncStatus: SyncStatusSnapshot;
+  setSyncDetailsOpen: Dispatch<SetStateAction<boolean>>;
+  setAdminSettingsOpen: Dispatch<SetStateAction<boolean>>;
+  selectedPageId: string | null;
+  activeNav: NavKey;
+  setActiveNav: Dispatch<SetStateAction<NavKey>>;
+  setSettingsSection: Dispatch<SetStateAction<SettingsSection | null>>;
+  setSearchOpen: Dispatch<SetStateAction<boolean>>;
+  setSelectedPageId: Dispatch<SetStateAction<string | null>>;
+  pushNav: (url: string, state: Record<string, unknown>) => void;
+  openPage: (nodeId: string) => void;
+  openPageAt: (nodeId: string) => void;
+  openInSidebar: (nodeId: string) => void;
+  openSettingsSection: (section: SettingsSection) => void;
+  handleNodeDeleted: (node: ClientNode) => void;
+  handleSignOut: () => Promise<void>;
+  handleForgetServer: () => void;
+  handleConnectServer: (url: string) => void;
+  searchOpen: boolean;
+  settingsSection: SettingsSection | null;
+  serverUrl: string;
+  token: string;
+  shareTarget: ShareTarget | undefined;
+  sectionsLayout: boolean;
+  setPresentingId: Dispatch<SetStateAction<string | null>>;
+  reorderSidebarCard: (activeId: string, targetId: string, position: "before" | "after") => void;
+  rightPanelOpen: boolean;
+  setRightPanelOpen: Dispatch<SetStateAction<boolean>>;
+  sidebarCards: string[];
+  setSidebarCards: Dispatch<SetStateAction<string[]>>;
+  closeSidebarCard: (nodeId: string) => void;
+}
+
+export function AppBody(props: AppBodyProps) {
+  const {
+    client,
+    clientRef,
+    user,
+    offline,
+    sessionSignedIn,
+    syncStatus,
+    setSyncDetailsOpen,
+    setAdminSettingsOpen,
+    selectedPageId,
+    activeNav,
+    setActiveNav,
+    setSettingsSection,
+    setSearchOpen,
+    setSelectedPageId,
+    pushNav,
+    openPage,
+    openPageAt,
+    openInSidebar,
+    openSettingsSection,
+    handleNodeDeleted,
+    handleSignOut,
+    handleForgetServer,
+    handleConnectServer,
+    searchOpen,
+    settingsSection,
+    serverUrl,
+    token,
+    shareTarget,
+    sectionsLayout,
+    setPresentingId,
+    reorderSidebarCard,
+    rightPanelOpen,
+    setRightPanelOpen,
+    sidebarCards,
+    setSidebarCards,
+    closeSidebarCard,
+  } = props;
+  return (
+    <div className="nt-body">
+      <NodeLinkMenuHost
+        client={client}
+        openNode={openPage}
+        openInSidebar={openInSidebar}
+      >
+      <NodeHoverPreviewHost client={client} openNode={openPage}>
+      {/* The ONE workspace drag session: the host wraps the FloatingEditorHost
+          (which wraps the regions), so the main content card, the right
+          rail's workspace cards, and the floating editor windows (portals
+          keep the React context) all join the same drag — useWorkspaceDnd.ts.
+          The rail's card reorder rides the same session: the host reports
+          the gesture, the App owns the stack + its device-local order. */}
+      <WorkspaceDndHost onRailCardReorder={reorderSidebarCard}>
+      <FloatingEditorHost client={client} openNode={openPage}>
+      <Sidebar
+        client={client}
+        user={user}
+        offline={offline}
+        showSettings={sessionSignedIn && user !== null && !offline}
+        onOpenSettings={() => openSettingsSection("appearance")}
+        syncStatus={syncStatus}
+        onOpenSyncDetails={() => setSyncDetailsOpen(true)}
+        onOpenAdminSettings={
+          sessionSignedIn && user !== null && !offline && user.isAdmin
+            ? () => setAdminSettingsOpen(true)
+            : undefined
+        }
+        selectedPageId={selectedPageId}
+        activeNav={activeNav}
+        onSelectNav={(key) => {
+          // Today is a page, not a hub: ensure the chain and open the day page.
+          if (key === "today") {
+            const live = clientRef.current;
+            if (live !== null) {
+              void live.ensureDateChain(todayIsoLocal()).then(({ day }) => openPage(day));
+            }
+            return;
+          }
+          setSettingsSection(null);
+          setSearchOpen(false);
+          setActiveNav(key);
+          setSelectedPageId(null);
+          pushNav(pathForNav(key), { node: null, nav: key });
+        }}
+        onOpenPage={openPage}
+        onSignOut={() => void handleSignOut()}
+        onOpenInSidebar={openInSidebar}
+      />
+      <PageCard
+        accent={
+          selectedPageId !== null
+            ? (() => {
+                const current = client.getNode(selectedPageId);
+                return current === undefined ? null : client.effectiveNodeColor(current);
+              })()
+            : null
+        }
+      >
+        {selectedPageId !== null ? (
+          <NodeView
+            client={client}
+            nodeId={selectedPageId}
+            onOpenNode={openPage}
+            onOpenNodeRaw={openPageAt}
+            onOpenInSidebar={openInSidebar}
+            onDeleted={handleNodeDeleted}
+            onPresent={(id) => setPresentingId(id)}
+            cornerMenu
+            shareTarget={shareTarget}
+            sectionsLayout={sectionsLayout}
+          />
+        ) : searchOpen ? (
+          <SearchPage
+            client={client}
+            onOpenNode={openPage}
+            initialQuery={new URLSearchParams(window.location.search).get("q") ?? ""}
+          />
+        ) : settingsSection !== null && user !== null ? (
+          <SettingsPage
+            section={settingsSection}
+            onNavigate={openSettingsSection}
+            serverUrl={serverUrl}
+            token={token}
+            user={user}
+            onSignOut={() => void handleSignOut()}
+            syncConnected={syncStatus.status !== "error"}
+            onForgetServer={() => handleForgetServer()}
+            onConnectServer={(url) => handleConnectServer(url)}
+          />
+        ) : activeNav === "journal" ? (
+          <JournalsView client={client} onOpenPage={openPage} />
+        ) : activeNav === "calendar" ? (
+          <CalendarView client={client} onOpenPage={openPage} />
+        ) : activeNav === "queries" ? (
+          <QueriesHub client={client} onOpenNode={openPage} onOpenInSidebar={openInSidebar} />
+        ) : activeNav === "graph" ? (
+          /* The graph hub renders edge-to-edge in the main content card —
+             the canvas is the card's sole content (the whiteboard-surface
+             treatment; the card frame itself stays). */
+          <div className="nt-graph-surface">
+            <GraphView client={client} onNodeClick={openPage} />
+          </div>
+        ) : activeNav === "trash" ? (
+          /* The Trash hub: browse / restore / permanently delete trashed
+             subtrees (the data path always existed — this is the v1
+             sidebar surface restored for the web). Reached from the
+             account popup since 2026-10-19. */
+          <TrashHub client={client} onOpenNode={openPage} />
+        ) : activeNav === "shares" ? (
+          /* The Shares hub: the v1 SharesUnifiedView's
+             Shared-Out tab over the v2 public-link share register —
+             reached from the account popup. */
+          <SharesHub
+            client={client}
+            serverUrl={serverUrl}
+            credential={token}
+            onOpenNode={openPage}
+          />
+        ) : (
+          <HubView client={client} nav={activeNav} onOpenNode={openPage} onOpenInSidebar={openInSidebar} />
+        )}
+      </PageCard>
+      {rightPanelOpen && (
+        <aside className="nt-right-card" aria-label="Right sidebar">
+          {/* The cards-only rail: the node-relevant widgets
+              (graph/TOC/Activity/Comments) relocated into the page chrome's
+              context column; this rail hosts workspace cards exclusively —
+              the generic frame around NodeView. Fixed-height surfaced panel
+: it stretches the body height regardless
+              of the card count and scrolls internally when the stack
+              outgrows it. */}
+          {sidebarCards.length > 0 && (
+            <div className="nt-right-card__bar">
+              <span className="nt-right-card__bar-label">Peeked pages</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSidebarCards([]);
+                  setRightPanelOpen(false);
+                }}
+              >
+                Clear all
+              </Button>
+            </div>
+          )}
+          {sidebarCards.map((cardId) => (
+            <NodeCardFrame
+              key={cardId}
+              client={client}
+              nodeId={cardId}
+              onOpenNode={openPage}
+              onOpenNodeRaw={openPageAt}
+              onClose={() => closeSidebarCard(cardId)}
+            />
+          ))}
+        </aside>
+      )}
+      </FloatingEditorHost>
+      </WorkspaceDndHost>
+      </NodeHoverPreviewHost>
+      </NodeLinkMenuHost>
+    </div>
+  );
+}
