@@ -21,7 +21,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { EMPTY_UNDO_STATE } from "../src/core/undo-journal.js";
-import { historyKeyHandler } from "../src/ui/App.js";
+import { historyKeyHandler } from "../src/ui/app/keymap.js";
 import { TopBar } from "../src/ui/components/TopBar.js";
 import { HistoryMenuPopup } from "../src/ui/components/HistoryMenuPopup.js";
 
