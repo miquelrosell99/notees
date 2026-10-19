@@ -1,7 +1,7 @@
 import { type KeyboardEvent, type ReactNode } from "react";
 
 import type { AnyClient } from "./shared.js";
-import { Icon } from "../../Icon.js";
+import { Icon } from "../../ui/Icon.js";
 
 /**
  * PropertySelectCell — the single-value selection control:
