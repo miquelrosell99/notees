@@ -9,6 +9,25 @@ predating this file.
 
 ## 2026-10-19
 
+- **refactor(web): App.tsx becomes the composition root — the monolithic
+  shell splits into `ui/app/` modules.** App.tsx shrinks from 2,834 lines
+  (~207 functions) to 767: the device-local storage seam (`storage.ts`),
+  rail-card order (`railCardOrder.ts`), the store-mode probe
+  (`storeMode.ts`), the URL/routing seam (`routing.ts`), the key-chord
+  factories (`keymap.ts`), the nav hubs (`HubView.tsx`), the
+  framework-free connection core (`store-connection.ts`) with its React
+  half (`useWorkspaceConnection.ts`), the boot/auth flow (`useBootFlow.ts`
+  + `BootForm.tsx`), the global gesture wiring (`useGlobalGestures.ts`),
+  the rail/undo chrome hooks (`useRailCards.ts`, `useUndoChrome.ts`), and
+  the four shell regions (`AppTopBar.tsx`, `AppBody.tsx`,
+  `AppModals.tsx`, `AppOverlays.tsx`) each own their slice; App keeps the
+  view/presenting state, the navigation orchestration, and the phase
+  gates, composing everything by props. Pure moves only — no behavior
+  change; exported helpers keep their tests (imports re-pointed).
+  **Verification:** `npx tsc --noEmit` clean; the full web suite (1,813
+  tests) green; dev-server smoke captured at 390/1440 (boot wall +
+  offline-in-process shell render).
+
 - **docs(register): the custom-primitive-layer exception retires — the
   catalog migration is the record.** `.agents/design-overrides.md` (the
   per-project deviation register) replaces the "catalog adoption at touch
