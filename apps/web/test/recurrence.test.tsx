@@ -17,10 +17,10 @@ import { newEnvelope, type Envelope } from "@notees/protocol";
 import { parseDateNodeId, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
-import { CalendarView } from "../src/ui/components/CalendarView.js";
+import { CalendarView } from "../src/features/calendar/CalendarView.js";
 import { PropertiesSection } from "../src/features/metadata/index.js";
 import { addDaysIso, todayIsoLocal } from "../src/ui/components/calendarViewUtils.js";
-import { recurringRowsOf } from "../src/ui/components/calendarRows.js";
+import { recurringRowsOf } from "../src/features/calendar/calendarRows.js";
 import { ensureTaskFamily } from "../src/features/classview/taskFamily.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000d1";

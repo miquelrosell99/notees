@@ -14,9 +14,9 @@
 
 import { parseRecurrenceRule, formatRecurrenceRule } from "@notees/domain";
 
-import { Icon } from "../../Icon.js";
-import { Dropdown, type DropdownOption } from "../ui/Dropdown.js";
-import { repeatLabelOf } from "../calendarViewUtils.js";
+import { Icon } from "../../ui/Icon.js";
+import { Dropdown, type DropdownOption } from "../../ui/components/ui/Dropdown.js";
+import { repeatLabelOf } from "../../ui/components/calendarViewUtils.js";
 import "./RepeatPicker.css";
 
 const OPTIONS: DropdownOption<string>[] = [

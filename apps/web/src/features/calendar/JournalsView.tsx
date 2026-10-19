@@ -15,13 +15,13 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { SYSTEM_CLASS_UUIDS, parseDateNodeId } from "@notees/domain";
 
-import { PageView } from "../PageView.js";
-import { Icon } from "../Icon.js";
-import { rawDateKeywordOf } from "../dateDisplay.js";
-import type { AnyClient } from "./Sidebar.js";
-import { addDaysIso, isoOfDateParts, todayIsoLocal } from "./calendarViewUtils.js";
-import { Button } from "./ui/Button.js";
-import { EmptyState } from "./ui/EmptyState.js";
+import { PageView } from "../../ui/PageView.js";
+import { Icon } from "../../ui/Icon.js";
+import { rawDateKeywordOf } from "../../ui/dateDisplay.js";
+import type { AnyClient } from "../../ui/components/Sidebar.js";
+import { addDaysIso, isoOfDateParts, todayIsoLocal } from "../../ui/components/calendarViewUtils.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { EmptyState } from "../../ui/components/ui/EmptyState.js";
 import "./JournalsView.css";
 
 /** Entries mounted around today before the sentinels take over. */
