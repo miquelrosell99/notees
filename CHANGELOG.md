@@ -9,6 +9,21 @@ predating this file.
 
 ## 2026-10-19
 
+- **refactor(web): the block editor relocates to `src/features/block-editor/`
+  — Stage D monolith split, move slice.** `ui/BlockTextEditor.tsx` (2,449
+  lines, the last Stage D monolith) moves verbatim to the second
+  `src/features/` folder; a barrel carries `BlockTextEditor`,
+  `SAVE_DEBOUNCE_MS`, and the `EditorCaret` type, and the two src
+  importers (BlockRow, WhiteboardCanvas) plus three test suites
+  re-point through it. The component is a feature surface (React
+  composition over popups, pickers, the toolbar, and the outliner
+  contract), not pure editor logic, so it does not join the React-free
+  `src/editor/` primitives (caret/selection/prose/marks/capture/
+  edit-apply) it builds on. No behavior change.
+  **Verification:** `npx tsc --noEmit` clean; the editor suites
+  (outliner-editor, table-nodes, code-block-editing, title-editor —
+  58 tests) green.
+
 - **refactor(web): the metadata panel relocates to `src/features/metadata/`
   — the tree realignment's first feature folder.** The
   `ui/components/metadata/` folder module (the ui/components stage of the
