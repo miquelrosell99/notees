@@ -40,13 +40,9 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
-import sqlWasmUrl from "sql.js/dist/sql-wasm.wasm?url";
-
 import { WorkspaceClient, type ClientNode, type SyncStatusSnapshot } from "@/core/workspace-client.js";
-import { WorkerClient } from "@/core/worker-client.js";
 import { EMPTY_UNDO_STATE, type UndoUiState } from "@/core/undo-journal.js";
 import {
-  markLocalWorkspaceCopy,
   rememberWorkspaceList,
   rememberWorkspaceName,
   rememberedWorkspaceList,
@@ -129,9 +125,9 @@ import { Button } from "./components/ui/Button.js";
 import { NotificationToaster } from "./components/ui/NotificationToaster.js";
 import "./app.css";
 import { moveRailCardOrder, persistRailCardOrder, readRailCardOrder } from "./app/railCardOrder.js";
-import { detectStoreMode, inProcessReason, type StoreMode } from "./app/storeMode.js";
-import type { AnyClient } from "./app/clients.js";
 import { HubView } from "./app/HubView.js";
+import { useWorkspaceConnection } from "./app/useWorkspaceConnection.js";
+import type { CredentialType } from "./app/store-connection.js";
 import {
   drawerDismissHandler,
   focusModeExitHandler,
@@ -155,8 +151,6 @@ import {
   tabTitle,
   type NavStack,
 } from "./app/routing.js";
-
-type CredentialType = "session" | "apikey";
 
 /** Footer status before the first status() snapshot arrives. */
 const INITIAL_SYNC_STATUS: SyncStatusSnapshot = {
@@ -191,15 +185,6 @@ export function syncStatusEqual(a: SyncStatusSnapshot, b: SyncStatusSnapshot): b
   );
 }
 
-type Phase =
-  | { name: "server" }
-  | { name: "setup" }
-  | { name: "login" }
-  | { name: "signup" }
-  | { name: "workspaces"; user: AccountUser }
-  | { name: "connecting"; label: string }
-  | { name: "ready" };
-
 export { NodeView } from "./NodeView.js";
 
 export function App() {
@@ -208,8 +193,23 @@ export function App() {
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [phase, setPhase] = useState<Phase>({ name: "server" });
-  const [error, setError] = useState<string | null>(null);
+  const {
+    client,
+    clientRef,
+    offline,
+    storeMode,
+    storeReason,
+    sessionSignedIn,
+    setSessionSignedIn,
+    workspaceName,
+    setWorkspaceName,
+    phase,
+    setPhase,
+    error,
+    setError,
+    connect,
+    closeClient,
+  } = useWorkspaceConnection();
   const [hint, setHint] = useState<string | null>(null);
   /**
    * Same-host guess offered under the boot form after a failed probe
@@ -233,10 +233,7 @@ export function App() {
   const [adminSettingsOpen, setAdminSettingsOpen] = useState(false);
   /** Manage Workspaces view, opened from the workspace switcher popup. */
   const [managerOpen, setManagerOpen] = useState(false);
-  /** True when the live credential is a session (API-key management needs one). */
-  const [sessionSignedIn, setSessionSignedIn] = useState(false);
   const [workspaces, setWorkspaces] = useState<WorkspaceEntry[]>([]);
-  const [workspaceName, setWorkspaceName] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     // Default: open on desktop, closed on narrow screens. jsdom lacks
     // matchMedia — default open there.
@@ -365,8 +362,6 @@ export function App() {
   /** Focus mode (#12) — device-local; the data attribute drives the shell dim. */
   const [focusMode, setFocusMode] = useDeviceSetting("focusMode", false);
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
-  const [client, setClient] = useState<AnyClient | null>(null);
-  const [offline, setOffline] = useState(false);
   /**
    * Shares: the coordinates the Share… surface needs. Absent in
    * offline mode (there is no server to mint against) — the menu item and
@@ -376,8 +371,6 @@ export function App() {
     !offline && serverUrl.trim() !== "" && token !== ""
       ? { serverUrl, credential: token }
       : undefined;
-  const [storeMode, setStoreMode] = useState<StoreMode>("in-process");
-  const [storeReason, setStoreReason] = useState<string | undefined>(undefined);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(() => {
     // Deep link: /<uuid> in the address bar opens that node once synced.
     const match = /^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(
@@ -726,12 +719,6 @@ export function App() {
     return () => document.removeEventListener("keydown", handler);
   }, [focusMode, setFocusMode]);
 
-  /**
-   * The single owner of the live client for teardown. State (`client`) drives
-   * rendering; the ref lets the unmount-only effect below close exactly the
-   * client that is live at unmount time.
-   */
-  const clientRef = useRef<AnyClient | null>(null);
   const serverUrlRef = useRef(serverUrl);
   serverUrlRef.current = serverUrl;
   /**
@@ -778,111 +765,6 @@ export function App() {
       unsubscribe();
     };
   }, [client]);
-
-  // StrictMode-safe teardown: empty-deps cleanup runs on real unmount only,
-  // and the identity check guarantees a dev double-invoked cleanup (or a
-  // connect-swap below) never closes a client something else still owns.
-  useEffect(() => {
-    return () => {
-      const live = clientRef.current;
-      clientRef.current = null;
-      live?.close();
-    };
-  }, []);
-
-  /**
-   * Boot a client for `workspaceId`. `credential` is the session token (or
-   * operator API key); `isOffline` builds an OfflineTransport instead. The
-   * worker store is keyed by workspace id, so adopting "this device's"
-   * offline workspace later reuses the same OPFS file and its unpushed
-   * backlog drains through the normal outbox push.
-   */
-  async function connect(
-    url: string,
-    credential: string,
-    workspaceId: string,
-    options: { isOffline: boolean; credentialType: CredentialType; label?: string },
-  ): Promise<void> {
-    setPhase({ name: "connecting", label: options.isOffline ? "Opening local workspace…" : "Connecting…" });
-    setError(null);
-    const previous = clientRef.current;
-    clientRef.current = null;
-    previous?.close();
-    setClient(null);
-    try {
-      writeStored(STORAGE_KEYS.serverUrl, url);
-      writeStored(STORAGE_KEYS.workspaceId, workspaceId);
-      const mode = detectStoreMode();
-      let nextClient: AnyClient;
-      if (mode === "worker") {
-        nextClient = await WorkerClient.create(
-          options.isOffline
-            ? { serverUrl: "", apiKey: "", workspaceId, sqlWasmUrl, offline: true }
-            : { serverUrl: url, apiKey: credential, workspaceId, sqlWasmUrl },
-        );
-      } else {
-        nextClient = options.isOffline
-          ? await WorkspaceClient.createOffline({ workspaceId, sqlJsConfig: { locateFile: () => sqlWasmUrl } })
-          : await WorkspaceClient.createHttp({
-              serverUrl: url,
-              apiKey: credential,
-              workspaceId,
-              sqlJsConfig: { locateFile: () => sqlWasmUrl },
-            });
-        // The worker path bootstraps during init; the in-process path syncs
-        // here. Local-first on both: an unreachable relay must not block boot
-        // from local bytes (WorkerCore.create already swallows the same
-        // failure) — the sync error surfaces through the status callbacks and
-        // the realtime reconnect catches up on recovery.
-        try {
-          await nextClient.bootstrapWorkspace(workspaceId);
-        } catch {
-          // Working locally until the server recovers.
-        }
-      }
-      if (options.credentialType === "session") {
-        writeStored(STORAGE_KEYS.sessionToken, credential);
-        clearStored(STORAGE_KEYS.apiKey);
-        setSessionSignedIn(true);
-      } else if (options.credentialType === "apikey") {
-        writeStored(STORAGE_KEYS.apiKey, credential);
-        clearStored(STORAGE_KEYS.sessionToken);
-        setSessionSignedIn(false);
-      }
-      setWorkspaceName(options.label ?? "Workspace");
-      // Keep meaningful URLs across connect: a hub route (/journal, /inbox, …),
-      // a node deep link, the full-page search, or a settings section
-      // (/settings/<section>) survives workspace (re)connects; anything else
-      // (e.g. /workspaces after entering) resolves to the app root. replaceState
-      // (no new entry): the manager's landing navigation owns the history slot.
-      const bootPath = window.location.pathname;
-      const keepPath =
-        navFromPath(bootPath) !== null ||
-        bootPath === "/search" ||
-        settingsSectionFromPath(bootPath) !== null ||
-        /^\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(bootPath);
-      window.history.replaceState({ view: "app" }, "", keepPath ? bootPath : "/");
-      clientRef.current = nextClient;
-      setClient(nextClient);
-      setOffline(options.isOffline);
-      setStoreMode(mode);
-      setStoreReason(mode === "in-process" ? inProcessReason() : undefined);
-      // The boot reached local bytes: this device now holds a copy of the
-      // workspace, so the offline registry may offer it while the server
-      // can't answer.
-      markLocalWorkspaceCopy(workspaceId);
-      setPhase({ name: "ready" });
-      // Realtime acceleration is best-effort: sync already works without it.
-      try {
-        await nextClient.startRealtime();
-      } catch {
-        // No WS available/reachable — HTTP catch-up keeps working.
-      }
-    } catch (err) {
-      setPhase({ name: "server" });
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }
 
   /** Resume a remembered session or API key, or the offline workspace. */
   useEffect(() => {
@@ -1220,10 +1102,7 @@ export function App() {
     clearStored(STORAGE_KEYS.apiKey);
     setToken("");
     setUser(null);
-    const live = clientRef.current;
-    clientRef.current = null;
-    live?.close();
-    setClient(null);
+    closeClient();
     pushNav("/login", { view: "login" });
     setPhase({ name: "server" });
   }
@@ -1240,10 +1119,7 @@ export function App() {
     setToken("");
     setUser(null);
     setSessionSignedIn(false);
-    const live = clientRef.current;
-    clientRef.current = null;
-    live?.close();
-    setClient(null);
+    closeClient();
     setServerUrl(initialServerUrl());
     setError(null);
     setHint(null);
@@ -1258,10 +1134,7 @@ export function App() {
    * error/suggestion state on failure).
    */
   function handleConnectServer(url: string) {
-    const live = clientRef.current;
-    clientRef.current = null;
-    live?.close();
-    setClient(null);
+    closeClient();
     setServerUrl(url);
     setPhase({ name: "server" });
     void connectTo(url);
