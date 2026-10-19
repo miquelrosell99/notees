@@ -62,10 +62,13 @@
 }
 
 /* Menu — the M3 menu ruling (owner 2026-10-16) gives the panel the 4dp
-   container shape via --radius-menu (was the 8px --shape-floating-panel). */
+   container shape via --radius-menu (was the 8px --shape-floating-panel).
+   The popover portal owns positioning now (the --portal class is a marker
+   hook for tests/feature CSS); the trigger width rides the popper's CSS
+   var (JS-set by Radix, allowlisted in the drift gate). */
 .dropdown-menu {
   z-index: var(--z-modal);
-  min-width: var(--layout-size-2xl);
+  min-width: max(var(--layout-size-2xl), var(--radix-popover-trigger-width, 0px));
   width: max-content;
   max-width: var(--layout-size-9xl);
   max-height: var(--layout-size-7xl);
@@ -76,16 +79,16 @@
   background: var(--md-sys-color-surface);
   border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   border-radius: var(--radius-menu);
+  box-shadow: var(--elevation-2);
 }
 
-/* Portal version (rendered at body level) */
-.dropdown-menu--portal {
-  position: absolute;
-}
-
-/* Override Card styles when used in dropdown */
-.dropdown-menu.card {
+/* The catalog command root rides inside the fleet menu surface — reset
+   its popover chrome (background/radius/foreground) back to the menu
+   register; the unlayered feature CSS wins over the utility layer. */
+.dropdown-command {
   background: var(--md-sys-color-surface);
+  border-radius: 0;
+  color: var(--md-sys-color-on-surface);
 }
 
 @keyframes dropdownFadeIn {
@@ -103,7 +106,6 @@
 /* Search */
 .dropdown-search {
   padding: var(--spacing-2);
-  border-bottom: var(--border-width-default) solid var(--md-sys-color-outline-variant);
   display: flex;
   align-items: center;
   gap: var(--spacing-1);
@@ -147,8 +149,9 @@
   font-size: var(--font-size-sm);
 }
 
-/* Group */
-.dropdown-group-label {
+/* Group — the catalog group heading slot restores the fleet register
+   (uppercase overline label). */
+.dropdown-group [cmdk-group-heading] {
   padding: var(--spacing-2) var(--spacing-3) var(--spacing-1);
   font-size: var(--font-size-xs);
   font-weight: 600;
