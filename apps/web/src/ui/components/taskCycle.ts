@@ -33,7 +33,7 @@ import {
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { ensureTaskFamily, type TaskFamilyClient } from "./taskFamily.js";
-import { removeClassDissolvingLinks } from "./classRemoval.js";
+import { removeClassDissolvingLinks } from "../../features/metadata/classRemoval.js";
 
 /** The cycle's composed client surface: the family ensure plus the direct
  *  reads/writes. Structural pick — satisfied by WorkspaceClient,
