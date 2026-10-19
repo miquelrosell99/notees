@@ -9,6 +9,25 @@ predating this file.
 
 ## 2026-10-19
 
+- **refactor(web): drop the dead duplicate switch cases in
+  FilterBlockBuilder.** Three `case` labels could never evaluate — each
+  duplicated an earlier label in the same switch, so the earlier branch
+  already won at runtime and the removal changes no behavior: (1)
+  `applyOperator`'s `case "descendantOfQuery"` (the live morph is the
+  earlier `descendantOf/…/descendantOfQuery/descendantSet` branch's
+  `applyPickSetOperator` — the dead twin would have kept the query type
+  behind a not-wrap); (2) the value column's `case "descendantOfAny"`
+  (the live render is the earlier CHILD PATH branch's "Targets"
+  multi-pick — the dead twin relabeled it "Parents"); (3) the value
+  column's `case "descendantOfQuery"` (the live render is the earlier
+  "matching" word — identical body). The `linkedToQuery` clauses in
+  both switches are their first occurrence and stay. Clears the three
+  pre-existing esbuild duplicate-case warnings.
+  **Verification:** esbuild transform warnings 3 → 0; `npx tsc
+  --noEmit` clean; the filter/query suites (filter-builder,
+  filter-layer, filter-query, query-block, query-builder-guard — 78
+  tests) green.
+
 - **refactor(web): extract the viewport anchors out of BlockTextEditor —
   `features/block-editor/anchors.ts` (Stage D, extraction 3 of 3).**
   `selectionAnchor` (selection-end center, the verb popover) and
