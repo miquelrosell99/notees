@@ -26,7 +26,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ClientNode, SearchSnippetData, WorkspaceClient } from "@/core/workspace-client.js";
+import type { ClientNode, SearchSnippetData, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { displayNameForSettings } from "./dateDisplay.js";
 import { parentRenderFacts } from "./renderStateLabel.js";

@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { type DatePrecision } from "@notees/domain";
 
-import type { EffectiveProperty } from "@/core/workspace-client.js";
+import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { ContextMenu } from "../../ui/components/ui/ContextMenu.js";
 import { AliasedNodeRow } from "../../ui/components/AliasedNodeRow.js";

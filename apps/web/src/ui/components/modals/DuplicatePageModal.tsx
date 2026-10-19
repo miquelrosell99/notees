@@ -8,7 +8,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { Modal } from "../ui/Modal.js";
 import { Button } from "../ui/Button.js";
 import { NodeIcon } from "./NodeIcon";
-import type { ClientNode } from "@/core/workspace-client.js";
+import type { ClientNode } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 import { displayNameForSettings } from "../../dateDisplay.js";
 import "./DuplicatePageModal.css";
@@ -33,7 +33,7 @@ export interface DuplicatePageModalProps {
 }
 
 type WorkspaceClientLike = Pick<
-  import("@/core/workspace-client.js").WorkspaceClient | WorkerClient,
+  import("@/core/workspace-client/index.js").WorkspaceClient | WorkerClient,
   "listClasses" | "createObject" | "createClass" | "getNode"
 >;
 

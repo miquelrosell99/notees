@@ -19,7 +19,7 @@ import { useCallback, useEffect, useState } from "react";
 import { deriveDisplayName } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { WorkspaceClient } from "@/core/workspace-client.js";
+import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Icon } from "../Icon.js";
 import { nodeIcon } from "../iconFor.js";

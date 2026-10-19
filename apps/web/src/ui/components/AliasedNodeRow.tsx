@@ -22,7 +22,7 @@
 import { useRef, useState } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { WorkspaceClient } from "@/core/workspace-client.js";
+import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { rendersWithDocumentChrome } from "@notees/domain";
 

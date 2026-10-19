@@ -7,7 +7,7 @@
 
 import type { Dispatch, SetStateAction } from "react";
 
-import type { SyncStatusSnapshot } from "@/core/workspace-client.js";
+import type { SyncStatusSnapshot } from "@/core/workspace-client/index.js";
 import { rememberWorkspaceName, rememberedWorkspaceList } from "@/core/workspace-registry.js";
 import { STORAGE_KEYS, readStored } from "./storage.js";
 import type { AnyClient } from "./clients.js";

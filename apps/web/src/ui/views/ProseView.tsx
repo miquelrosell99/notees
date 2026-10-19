@@ -23,7 +23,7 @@ import { BlockRow } from "../BlockRow.js";
 import { registerView } from "./registry.js";
 import type { NodeCollectionItem, NodeCollectionProps } from "./types.js";
 
-function toBlockTree(item: NodeCollectionItem): import("@/core/workspace-client.js").BlockTreeNode {
+function toBlockTree(item: NodeCollectionItem): import("@/core/workspace-client/index.js").BlockTreeNode {
   return { node: item.node, children: (item.children ?? []).map(toBlockTree) };
 }
 

@@ -26,7 +26,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { chainNodeIds, deriveDisplayName } from "@notees/domain";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { EMPTY_UNDO_STATE, type UndoUiState } from "../src/core/undo-journal.js";
 import { CommandPalette } from "../src/ui/components/CommandPalette.js";
 import { NodeSelector } from "../src/ui/components/pickers/NodeSelector.js";

@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { type DatePrecision } from "@notees/domain";
 
-import type { PropertyDisplay } from "@/core/workspace-client.js";
+import type { PropertyDisplay } from "@/core/workspace-client/index.js";
 
 import { Icon } from "../../ui/Icon.js";
 import { IconPickerPopup } from "../../ui/components/IconPickerPopup.js";

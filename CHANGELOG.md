@@ -9,6 +9,18 @@ predating this file.
 
 ## 2026-10-19
 
+- **refactor(core): the `workspace-client.ts` compat shim is removed — the
+  folder module is the only import surface.** The thin file
+  `src/core/workspace-client.ts` (re-exporting `workspace-client/index.ts`)
+  is deleted; all 268 importing files (278 specifiers — 149 `@/…`, 128 test
+  `../src/…`, 1 relative — plus 3 `core/` siblings importing
+  `./workspace-client.js`) now import the folder barrel directly
+  (`…/workspace-client/index.js` — TypeScript bundler resolution does not
+  map `dir.js` → `dir/index.ts`, so the explicit index segment is
+  load-bearing). No behavior change.
+  **Verification:** `npx tsc --noEmit` clean; the 120 suites touching the
+  module (1,413 tests) green.
+
 - **refactor(web): extract the value-column controls out of
   FilterBlockBuilder — `components/filterBlockValueControls.tsx` (Stage D,
   extraction 2 of 2).** The typed per-family pickers move verbatim to

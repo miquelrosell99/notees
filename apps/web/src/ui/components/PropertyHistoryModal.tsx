@@ -13,7 +13,7 @@
 import { useEffect, useState } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { OperationFeedEntry, WorkspaceClient } from "@/core/workspace-client.js";
+import type { OperationFeedEntry, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Modal } from "./ui/Modal.js";
 import { Button } from "./ui/Button.js";

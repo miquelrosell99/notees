@@ -19,7 +19,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import type { ContentAst } from "@notees/protocol";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { TemplatesSection } from "../src/ui/components/classview/TemplatesSection.js";
 import { TemplateGalleryModal } from "../src/ui/templates/TemplateGalleryModal.js";
 import { ensureTemplateProperty } from "../src/ui/components/templateFamily.js";

@@ -16,7 +16,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { EMPTY_UNDO_STATE, type UndoUiState } from "../src/core/undo-journal.js";
 import { undoRedoKeyHandler } from "../src/ui/app/keymap.js";
 import { CommandPalette } from "../src/ui/components/CommandPalette.js";

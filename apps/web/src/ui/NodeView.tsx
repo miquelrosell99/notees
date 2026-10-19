@@ -34,7 +34,7 @@
 import { rendersAsInlineBlock } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
+import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { PageView, BLOCKS_VIEW_MODES } from "./PageView.js";
 import { ReferenceSubtree } from "./components/ReferenceSubtree.js";

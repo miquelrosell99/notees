@@ -27,7 +27,7 @@ import type {
   CreateObjectInput,
   CreatePropertySchemaInput,
   SetClassPropertyInput,
-} from "@/core/workspace-client.js";
+} from "@/core/workspace-client/index.js";
 
 /**
  * The structural client surface the quick-create resolution + creators

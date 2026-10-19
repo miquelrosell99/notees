@@ -8,7 +8,7 @@
 import { useEffect, useState } from "react";
 
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
-import type { ClientNode } from "@/core/workspace-client.js";
+import type { ClientNode } from "@/core/workspace-client/index.js";
 import { CollectionHub } from "../components/CollectionHub.js";
 import { ensureTaskFamily } from "../components/taskFamily.js";
 import { TaskBuckets } from "../components/TaskBuckets.js";

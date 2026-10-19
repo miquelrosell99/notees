@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
+import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { PresentationOverlay } from "../components/ui/PresentationOverlay.js";
 import { cssColorFor } from "../components/ui/colorPresets.js";

@@ -20,7 +20,7 @@
 import { useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { WorkspaceClient } from "@/core/workspace-client.js";
+import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { ConfirmationModal } from "./ui/ConfirmationModal.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";

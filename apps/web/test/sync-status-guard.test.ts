@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import type { SyncStatusSnapshot } from "../src/core/workspace-client.js";
+import type { SyncStatusSnapshot } from "../src/core/workspace-client/index.js";
 import { syncStatusEqual } from "../src/ui/App.js";
 
 const BASE: SyncStatusSnapshot = {

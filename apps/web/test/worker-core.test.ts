@@ -216,7 +216,7 @@ describe("notification coalescing", () => {
   it("emits leading + one trailing merged notification per burst window", async () => {
     vi.useFakeTimers();
     try {
-      const emitted: import("../src/core/workspace-client.js").ChangeNotification[] = [];
+      const emitted: import("../src/core/workspace-client/index.js").ChangeNotification[] = [];
       const core = await createCore({
         opfs: createMemoryOpfs().opfs,
         fileName: FILE,
@@ -250,7 +250,7 @@ describe("notification coalescing", () => {
   it("never loses a structural flag when merging a burst (content + move)", async () => {
     vi.useFakeTimers();
     try {
-      const emitted: import("../src/core/workspace-client.js").ChangeNotification[] = [];
+      const emitted: import("../src/core/workspace-client/index.js").ChangeNotification[] = [];
       const core = await createCore({
         opfs: createMemoryOpfs().opfs,
         fileName: FILE,
@@ -304,7 +304,7 @@ describe("notification coalescing", () => {
   it("flush() emits a pending trailing notification", async () => {
     vi.useFakeTimers();
     try {
-      const emitted: import("../src/core/workspace-client.js").ChangeNotification[] = [];
+      const emitted: import("../src/core/workspace-client/index.js").ChangeNotification[] = [];
       const core = await createCore({
         opfs: createMemoryOpfs().opfs,
         fileName: FILE,

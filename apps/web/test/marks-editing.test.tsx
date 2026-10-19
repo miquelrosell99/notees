@@ -14,7 +14,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import type { ContentAst } from "@notees/protocol";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
 import { proseFromAst } from "../src/editor/prose.js";
 import { applyTextEdit } from "../src/editor/edit-apply.js";

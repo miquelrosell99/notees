@@ -46,7 +46,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { Group } from "@notees/query";
 
-import type { ClientNode } from "@/core/workspace-client.js";
+import type { ClientNode } from "@/core/workspace-client/index.js";
 
 import type { AnyClient, NodeCollectionItem, NodeCollectionProps, ViewMode } from "../views/index.js";
 import {

@@ -22,7 +22,7 @@ import {
   WorkspaceClient,
   mergeFavoriteToggle,
   mergeRecentOpen,
-} from "../src/core/workspace-client.js";
+} from "../src/core/workspace-client/index.js";
 import {
   ensureNodePrefsLoaded,
   resetNodePrefsForTests,

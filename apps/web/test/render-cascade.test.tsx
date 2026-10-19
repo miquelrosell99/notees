@@ -17,7 +17,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
-import { WorkspaceClient, type ClientNode } from "../src/core/workspace-client.js";
+import { WorkspaceClient, type ClientNode } from "../src/core/workspace-client/index.js";
 import { NodeView } from "../src/ui/App.js";
 import { NodeContextMenu } from "../src/ui/components/NodeContextMenu.js";
 

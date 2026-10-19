@@ -14,7 +14,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { WorkspaceClient } from "@/core/workspace-client.js";
+import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { UndoHistoryEntry } from "@/core/undo-journal.js";
 
 import { Icon } from "../Icon.js";

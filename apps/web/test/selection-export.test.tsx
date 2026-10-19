@@ -13,7 +13,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
-import { WorkspaceClient, type ClientNode } from "../src/core/workspace-client.js";
+import { WorkspaceClient, type ClientNode } from "../src/core/workspace-client/index.js";
 // The barrel import registers every built-in view (registration side effects).
 import { NodeCollection } from "../src/ui/views/index.js";
 import type { NodeCollectionItem } from "../src/ui/views/types.js";

@@ -47,7 +47,7 @@ import { rendersAsInlineBlock } from "@notees/domain";
 
 import { withCandidateSpans } from "@/editor/capture.js";
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
+import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { displayNameFromClient } from "../dateDisplay.js";
 import { parentRenderFacts } from "../renderStateLabel.js";

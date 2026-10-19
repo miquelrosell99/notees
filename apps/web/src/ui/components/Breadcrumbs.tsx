@@ -28,7 +28,7 @@ import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { parseDateNodeId } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
+import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { displayNameForSettings } from "../dateDisplay.js";
 import { untitledLabelOf } from "../renderStateLabel.js";

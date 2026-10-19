@@ -13,7 +13,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ReferenceEntry, WorkspaceClient } from "@/core/workspace-client.js";
+import type { ReferenceEntry, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Icon } from "./Icon.js";
 import { Badge } from "./components/ui/Badge.js";

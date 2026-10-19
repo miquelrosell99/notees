@@ -23,7 +23,7 @@ import type {
   QueryAggregateResult,
   QueryRunResult,
   QueryRunSummary,
-} from "@/core/workspace-client.js";
+} from "@/core/workspace-client/index.js";
 
 /** The result of a live run: a plain query's id set, or an aggregation's grid. */
 export type QueryRunState =

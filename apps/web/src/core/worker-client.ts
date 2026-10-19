@@ -44,7 +44,7 @@ import type {
   TrashedEntry,
   UpdateObjectInput,
   UpdatePropertySchemaInput,
-} from "./workspace-client.js";
+} from "./workspace-client/index.js";
 import {
   createAnnotation,
   fetchAssetBlob,
@@ -54,7 +54,7 @@ import {
   type SectionView,
   type UserPrefs,
   type UserPrefsSource,
-} from "./workspace-client.js";
+} from "./workspace-client/index.js";
 import type { UndoHistoryEntry, UndoUiState } from "./undo-journal.js";
 import type {
   WorkerInitMessage,
@@ -441,11 +441,11 @@ export class WorkerClient {
     return this.cachedRead<string[]>("getClassParents", [classId], []);
   }
 
-  getClassChildren(classId: string): import("@/core/workspace-client.js").ClientNode[] {
+  getClassChildren(classId: string): import("@/core/workspace-client/index.js").ClientNode[] {
     return this.cachedRead("getClassChildren", [classId], []);
   }
 
-  getDirectClassChildren(classId: string): import("@/core/workspace-client.js").ClientNode[] {
+  getDirectClassChildren(classId: string): import("@/core/workspace-client/index.js").ClientNode[] {
     return this.cachedRead("getDirectClassChildren", [classId], []);
   }
 
@@ -592,7 +592,7 @@ export class WorkerClient {
   }
 
   /** Every live alias page of the node (the title-row aliases listing). */
-  aliasNodesOf(id: string): import("@/core/workspace-client.js").ClientNode[] {
+  aliasNodesOf(id: string): import("@/core/workspace-client/index.js").ClientNode[] {
     return this.cachedRead("aliasNodesOf", [id], []);
   }
 

@@ -25,7 +25,7 @@ import type { ReactElement } from "react";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { resolveExportOptions, type ExportDocument } from "@notees/export";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { ExportPdfDocument, pdfPageSize } from "../src/ui/export-pdf/pdfDocument.js";
 import { renderSubtreePdf, renderSubtreePdfBatch } from "../src/ui/export-pdf/renderPdf.js";
 import { PDF_THEMES } from "../src/ui/export-pdf/theme.js";

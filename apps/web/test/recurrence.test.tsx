@@ -16,7 +16,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { newEnvelope, type Envelope } from "@notees/protocol";
 import { parseDateNodeId, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { CalendarView } from "../src/ui/components/CalendarView.js";
 import { PropertiesSection } from "../src/features/metadata/index.js";
 import { addDaysIso, todayIsoLocal } from "../src/ui/components/calendarViewUtils.js";

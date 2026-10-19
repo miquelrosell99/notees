@@ -16,7 +16,7 @@ import { describe, expect, it } from "vitest";
 import { dayNodeId, monthNodeId, yearNodeId } from "@notees/domain";
 import type { Group } from "@notees/query";
 
-import type { ClientNode, EffectiveProperty } from "../src/core/workspace-client.js";
+import type { ClientNode, EffectiveProperty } from "../src/core/workspace-client/index.js";
 import {
   createCondition,
   EMPTY_FILTER_QUERY,

@@ -9,7 +9,7 @@
 
 import { deriveDisplayName } from "@notees/domain";
 
-import type { ClientNode } from "@/core/workspace-client.js";
+import type { ClientNode } from "@/core/workspace-client/index.js";
 
 import { Button } from "../ui/Button.js";
 import { Modal } from "../ui/Modal.js";

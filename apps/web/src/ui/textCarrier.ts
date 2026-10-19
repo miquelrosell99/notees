@@ -16,7 +16,7 @@
 
 import { createContext } from "react";
 
-import type { EffectiveProperty } from "@/core/workspace-client.js";
+import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 /** The minimal write surface the carrier registration needs — satisfied by
  *  the outliner client, WorkspaceClient, and WorkerClient alike. */

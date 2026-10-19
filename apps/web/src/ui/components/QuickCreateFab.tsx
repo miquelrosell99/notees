@@ -11,7 +11,7 @@
 
 import { useState } from "react";
 
-import type { WorkspaceClient } from "@/core/workspace-client.js";
+import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 
 import { Icon } from "../Icon.js";

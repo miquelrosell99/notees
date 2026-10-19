@@ -8,14 +8,14 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { Modal } from "../ui/Modal.js";
 import { Button } from "../ui/Button.js";
 import { ToggleSwitch } from "../ui/ToggleSwitch.js";
-import type { ClientNode } from "@/core/workspace-client.js";
+import type { ClientNode } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 import { displayNameForSettings } from "../../dateDisplay.js";
 import { uuidv7 } from "uuidv7";
 import "./CreatePageWithUuidModal.css";
 
 type WorkspaceClientLike = Pick<
-  import("@/core/workspace-client.js").WorkspaceClient | WorkerClient,
+  import("@/core/workspace-client/index.js").WorkspaceClient | WorkerClient,
   "listPages" | "createObject" | "getNodeRaw" | "getNode"
 >;
 

@@ -13,7 +13,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { DeckView } from "../src/ui/presentation/DeckView.js";
 import { clearAllResumeIndexes } from "../src/ui/presentation/presentationSession.js";
 import { NodeMenuButton } from "../src/ui/components/NodeMenuButton.js";

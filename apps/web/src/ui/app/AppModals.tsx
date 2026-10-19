@@ -8,7 +8,7 @@
 
 import type { Dispatch, SetStateAction } from "react";
 
-import { WorkspaceClient } from "@/core/workspace-client.js";
+import { WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { UndoUiState } from "@/core/undo-journal.js";
 import type { AnyClient } from "./clients.js";
 import type { StoreMode } from "./storeMode.js";

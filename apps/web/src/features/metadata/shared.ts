@@ -9,7 +9,7 @@
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { WorkspaceClient } from "@/core/workspace-client.js";
+import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { resolveCssColor } from "../../ui/components/ui/colorPresets.js";
 

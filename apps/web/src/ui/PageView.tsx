@@ -96,7 +96,7 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { rendersWithDocumentChrome, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
+import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { ExportPageModal } from "./components/modals/ExportPageModal.js";
 import { parentRenderFacts } from "./renderStateLabel.js";

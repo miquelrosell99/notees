@@ -21,7 +21,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { HubView } from "../src/ui/app/HubView.js";
 import { PageView } from "../src/ui/PageView.js";
 import { NodeView } from "../src/ui/App.js";

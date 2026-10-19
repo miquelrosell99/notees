@@ -1,6 +1,6 @@
 import { defaultIconFor } from "@notees/domain";
 
-import type { ClientNode } from "@/core/workspace-client.js";
+import type { ClientNode } from "@/core/workspace-client/index.js";
 
 /**
  * nodeIcon — the effective icon for a node: its own icon wins; otherwise the

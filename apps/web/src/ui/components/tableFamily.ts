@@ -23,7 +23,7 @@ import {
   SYSTEM_CLASS_UUIDS,
 } from "@notees/domain";
 
-import type { ClientNode } from "@/core/workspace-client.js";
+import type { ClientNode } from "@/core/workspace-client/index.js";
 
 /** Reserved system class id (the domain seed's fixed vocabulary). */
 export const TABLE_CLASS_ID = SYSTEM_CLASS_UUIDS.table;

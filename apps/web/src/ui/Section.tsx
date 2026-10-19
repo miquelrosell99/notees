@@ -18,7 +18,7 @@
 import { useState, type ReactNode } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { WorkspaceClient } from "@/core/workspace-client.js";
+import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { NodeViewSection, type NodeViewSectionAction } from "./components/NodeViewSection.js";
 import { useSectionData } from "./components/useSectionData.js";

@@ -59,7 +59,7 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { parseDateNodeId } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ClientNode, ReferenceEntry, WorkspaceClient } from "@/core/workspace-client.js";
+import type { ClientNode, ReferenceEntry, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Icon } from "../Icon.js";
 import { Breadcrumbs } from "./Breadcrumbs.js";

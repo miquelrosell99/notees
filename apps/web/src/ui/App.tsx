@@ -40,7 +40,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { WorkspaceClient, type ClientNode, type SyncStatusSnapshot } from "@/core/workspace-client.js";
+import { WorkspaceClient, type ClientNode, type SyncStatusSnapshot } from "@/core/workspace-client/index.js";
 import { EMPTY_UNDO_STATE } from "@/core/undo-journal.js";
 import {
   rememberWorkspaceName,

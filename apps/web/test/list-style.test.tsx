@@ -12,7 +12,7 @@ import { fireEvent, render, waitFor } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
 import { deriveListMarker, formatListMarker } from "../src/ui/listStyle.js";
 import { NodeContextMenu } from "../src/ui/components/NodeContextMenu.js";

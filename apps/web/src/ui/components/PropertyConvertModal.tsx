@@ -34,7 +34,7 @@ import type {
   ClientPropertySchema,
   EffectiveProperty,
   WorkspaceClient,
-} from "@/core/workspace-client.js";
+} from "@/core/workspace-client/index.js";
 
 import { displayNameFromClient } from "../dateDisplay.js";
 import { Modal } from "./ui/Modal.js";

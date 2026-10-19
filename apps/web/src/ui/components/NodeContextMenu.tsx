@@ -32,7 +32,7 @@ import type { ContentAst, ListStyle } from "@notees/protocol";
 
 import { cloneSubtree, type CloneReadSurface, type CloneWriteSurface } from "@/core/clone.js";
 import { extractBlockToPage } from "@/core/extractToPage.js";
-import type { ClientNode, ClientPropertySchema } from "@/core/workspace-client.js";
+import type { ClientNode, ClientPropertySchema } from "@/core/workspace-client/index.js";
 
 import { displayNameForSettings } from "../dateDisplay.js";
 import { nodeLinkUrl } from "../nodeLink.js";

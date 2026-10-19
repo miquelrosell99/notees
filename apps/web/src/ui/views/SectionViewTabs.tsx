@@ -35,7 +35,7 @@ import { useState, type ReactNode } from "react";
 
 import type { QueryAst } from "@notees/query";
 
-import type { HostedSectionKey, SectionView } from "@/core/workspace-client.js";
+import type { HostedSectionKey, SectionView } from "@/core/workspace-client/index.js";
 
 import { FilterBuilderModal } from "../components/FilterBuilderModal.js";
 import {

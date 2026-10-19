@@ -15,7 +15,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { MoveGuardError } from "@notees/store";
 
 import type { OutlinePositionMap } from "../src/editor/outline.js";
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import {
   CHILD_DROP_OFFSET_PX,
   DROP_SNAP_MAX_DY_PX,

@@ -8,7 +8,7 @@
 
 import { Icon } from "../../Icon.js";
 import { displayNameForSettings } from "../../dateDisplay.js";
-import type { ClientNode } from "@/core/workspace-client.js";
+import type { ClientNode } from "@/core/workspace-client/index.js";
 import "./NodeResultItem.css";
 
 export interface NodeResultItemProps {

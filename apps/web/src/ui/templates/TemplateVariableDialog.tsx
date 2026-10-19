@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 
 import { deriveDisplayName } from "@notees/domain";
 
-import type { ClientNode } from "@/core/workspace-client.js";
+import type { ClientNode } from "@/core/workspace-client/index.js";
 
 import { Button } from "../components/ui/Button.js";
 import { Modal } from "../components/ui/Modal.js";

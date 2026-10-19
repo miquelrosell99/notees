@@ -6,7 +6,7 @@
  * the house confirmation modal). Composes the ContextMenu primitive.
  */
 
-import type { ClientNode } from "@/core/workspace-client.js";
+import type { ClientNode } from "@/core/workspace-client/index.js";
 
 import { ContextMenu } from "./ui/ContextMenu.js";
 import { notificationStore } from "./ui/notificationStore.js";

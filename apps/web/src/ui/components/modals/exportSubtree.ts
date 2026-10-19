@@ -72,7 +72,7 @@ import type {
   ClientPropertySchema,
   EffectiveProperty,
   WorkspaceClient,
-} from "@/core/workspace-client.js";
+} from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 
 export type ExportClient = WorkspaceClient | WorkerClient;

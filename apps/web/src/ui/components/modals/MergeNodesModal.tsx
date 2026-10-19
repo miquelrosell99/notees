@@ -14,7 +14,7 @@ import { Button } from "../ui/Button.js";
 import { ConfirmationModal } from "../ui/ConfirmationModal.js";
 import { NodeIcon } from "./NodeIcon";
 import { NodeSelector } from "../pickers/NodeSelector.js";
-import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
+import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 import { displayNameForSettings } from "../../dateDisplay.js";
 import "./MergeNodesModal.css";
 

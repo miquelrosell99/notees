@@ -63,7 +63,7 @@ import {
   type TrashedEntry,
   type UpdateObjectInput,
   type UpdatePropertySchemaInput,
-} from "../core/workspace-client.js";
+} from "../core/workspace-client/index.js";
 
 import type { OpfsStore } from "./opfs.js";
 

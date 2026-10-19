@@ -23,7 +23,7 @@ import {
 } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ClientNode, ClientPropertySchema, WorkspaceClient } from "@/core/workspace-client.js";
+import type { ClientNode, ClientPropertySchema, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { displayNameFromClient } from "../dateDisplay.js";
 import { occursOnDay, scheduledIsoOf, type TaskBucketRow } from "./calendarViewUtils.js";

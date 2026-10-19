@@ -16,8 +16,8 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
-import type { ClientNode } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
+import type { ClientNode } from "../src/core/workspace-client/index.js";
 import { Sidebar, recordRecent } from "../src/ui/components/Sidebar.js";
 import type { AnyClient } from "../src/ui/components/Sidebar.js";
 import { resetNodePrefsForTests } from "../src/ui/components/nodePrefs.js";

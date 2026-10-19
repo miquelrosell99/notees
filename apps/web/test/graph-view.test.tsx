@@ -21,7 +21,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import type { GraphEdge, GraphTopology } from "@notees/store";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { GraphView } from "../src/ui/views/graph/GraphView.js";
 import {
   DEFAULT_GRAPH_SETTINGS,

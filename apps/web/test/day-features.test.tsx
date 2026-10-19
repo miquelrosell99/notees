@@ -29,7 +29,7 @@ import {
   parseDateNodeId,
 } from "@notees/domain";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
 import { HubView } from "../src/ui/app/HubView.js";
 import { openTodayKeyHandler } from "../src/ui/app/keymap.js";

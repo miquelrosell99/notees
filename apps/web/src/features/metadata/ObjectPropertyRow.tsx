@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
-import type { EffectiveProperty } from "@/core/workspace-client.js";
+import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { AnnotationsSection } from "../../ui/AnnotationsSection.js";
 import { displayNameFromClient } from "../../ui/dateDisplay.js";

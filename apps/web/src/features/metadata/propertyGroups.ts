@@ -3,7 +3,7 @@ import { SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import type {
   ClassBinding,
   PropertyDisplay,
-} from "@/core/workspace-client.js";
+} from "@/core/workspace-client/index.js";
 import type { AnyClient } from "./shared.js";
 
 /**

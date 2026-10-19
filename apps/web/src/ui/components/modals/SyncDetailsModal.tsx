@@ -13,7 +13,7 @@ import { useCallback, useEffect, useState } from "react";
 import type {
   ConflictHistoryEntry,
   SyncStatusSnapshot,
-} from "@/core/workspace-client.js";
+} from "@/core/workspace-client/index.js";
 import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
 import { EmptyState } from "../ui/EmptyState.js";

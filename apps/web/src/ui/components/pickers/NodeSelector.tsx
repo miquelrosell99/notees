@@ -33,7 +33,7 @@ import { createPortal } from "react-dom";
 
 import { chainNodeIds, parseDateNodeId, rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
 
-import type { ClientNode } from "@/core/workspace-client.js";
+import type { ClientNode } from "@/core/workspace-client/index.js";
 import { displayNameForSettings } from "../../dateDisplay.js";
 import { parentRenderFacts } from "../../renderStateLabel.js";
 import { readRecentIds } from "../Sidebar.js";

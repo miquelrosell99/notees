@@ -74,7 +74,7 @@ import type {
   ClientNode,
   EffectiveProperty,
   QueryRunSummary,
-} from "@/core/workspace-client.js";
+} from "@/core/workspace-client/index.js";
 
 import type { OutlinerClient, OutlinerReader } from "./outliner-context.js";
 import {

@@ -27,7 +27,7 @@ import {
   SYSTEM_PROPERTY_UUIDS,
 } from "@notees/domain";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { displayNameFromClient } from "../src/ui/dateDisplay.js";
 import { dateChipCandidates } from "../src/ui/components/calendarViewUtils.js";
 import {

@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
-import type { EffectiveProperty } from "@/core/workspace-client.js";
+import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { Button } from "../../ui/components/ui/Button.js";
 import { NodeSelector } from "../../ui/components/pickers/NodeSelector.js";

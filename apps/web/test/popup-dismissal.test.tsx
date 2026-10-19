@@ -26,7 +26,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
 import { ColorButton } from "../src/ui/components/ui/ColorButton.js";
 import { ContextMenu, type ContextMenuItem } from "../src/ui/components/ui/ContextMenu.js";
@@ -38,7 +38,7 @@ import { NodePill } from "../src/ui/components/pickers/NodePill.js";
 import { NodePills } from "../src/ui/components/NodePills.js";
 import { TemplateListPopup } from "../src/ui/templates/TemplateListPopup.js";
 import { VerbPopover } from "../src/ui/VerbPopover.js";
-import type { ClientNode } from "../src/core/workspace-client.js";
+import type { ClientNode } from "../src/core/workspace-client/index.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";

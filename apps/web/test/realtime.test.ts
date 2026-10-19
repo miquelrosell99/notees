@@ -15,7 +15,7 @@ import { deriveDisplayName } from "@notees/domain";
 import { newEnvelope, type ContentAst, type Envelope } from "@notees/protocol";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import type { OpfsStore } from "../src/worker/opfs.js";
 import {
   WorkerCore,

@@ -35,7 +35,7 @@ import {
   WorkspaceClient,
   type ClientNode,
   type EffectiveProperty,
-} from "../src/core/workspace-client.js";
+} from "../src/core/workspace-client/index.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000e1";
 const ACTOR = "0192a000-0000-7000-8000-0000000000e2";

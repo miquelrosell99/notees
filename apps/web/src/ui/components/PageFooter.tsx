@@ -9,7 +9,7 @@
 import { useState } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
+import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { proseFromAst } from "@/editor/prose.js";
 

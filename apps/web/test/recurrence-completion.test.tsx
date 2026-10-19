@@ -15,7 +15,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { CalendarView } from "../src/ui/components/CalendarView.js";
 import { addDaysIso, todayIsoLocal } from "../src/ui/components/calendarViewUtils.js";
 import { partitionOpenTasks } from "../src/ui/components/calendarViewUtils.js";

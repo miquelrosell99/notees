@@ -83,7 +83,7 @@ import type {
   CreateObjectInput,
   DeleteObjectOptions,
   UpdateObjectInput,
-} from "@/core/workspace-client.js";
+} from "@/core/workspace-client/index.js";
 
 import { displayNameFromClient, fullTitleFromClient } from "./dateDisplay.js";
 import { InlineTokens } from "./InlineTokens.js";

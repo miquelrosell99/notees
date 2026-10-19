@@ -40,7 +40,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
+import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { displayNameFromClient } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";

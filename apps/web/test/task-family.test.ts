@@ -19,7 +19,7 @@ import {
   TASK_STATUS_OPTION_UUIDS,
 } from "@notees/domain";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { ensureTaskFamily, taskFamilyPresent } from "../src/ui/components/taskFamily.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000c1";

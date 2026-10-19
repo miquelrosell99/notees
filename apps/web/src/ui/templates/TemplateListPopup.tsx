@@ -21,7 +21,7 @@ import { Icon } from "../Icon.js";
 import { displayNameForSettings } from "../dateDisplay.js";
 import { SearchField } from "../components/ui/SearchField.js";
 import { usePopupDismissal } from "../components/ui/usePopupDismissal.js";
-import type { ClientNode } from "@/core/workspace-client.js";
+import type { ClientNode } from "@/core/workspace-client/index.js";
 
 import "./TemplateListPopup.css";
 
