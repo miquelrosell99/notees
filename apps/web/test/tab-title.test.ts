@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { tabTitle } from "../src/ui/App.js";
+import { tabTitle } from "../src/ui/app/routing.js";
 
 const base = {
   clientPresent: true,

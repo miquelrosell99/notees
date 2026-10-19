@@ -17,7 +17,7 @@ import {
   recordNavPop,
   recordNavPush,
   type NavStack,
-} from "../src/ui/App.js";
+} from "../src/ui/app/routing.js";
 import { TopBar } from "../src/ui/components/TopBar.js";
 
 describe("the navigation stack tracker", () => {
