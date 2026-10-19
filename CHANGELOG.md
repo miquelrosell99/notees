@@ -9,6 +9,7 @@ predating this file.
 
 ## 2026-10-19
 
+- **refactor(web): the full tree realignment — the layer-first tree becomes the fleet's feature-first canonical tree, one cohesion cluster at a time.** The owner ruling (full alignment, no shortcuts) supersedes the register's incremental move-on-touch entry: `src/ui/components/` (~135 entries) and `src/ui/views/` are retired in eleven commits — **collection** (views + graph engine/renderer + query/filter builder + hubs → `features/collection/`), **metadata** (property rows/modals, class pills, alias surfaces, node pills), **classview + templates** (class detail, system-class families, the template family), **calendar** (view/journals/day pages/grids/top-bar popup) **+ date-pickers**, **shared pickers + icon-picker**, **node-menu + page-sections + block-editor** (context/link/sidebar-item menus, hover preview, breadcrumbs; the activity/comments/created/version/system/node-view sections + page banner/card/footer; the floating editor, selection bar, quick-create), **workspaces**, **sharing/trash/command-palette**, **settings/export/modals/find-in-page**, **the primitive layer** (`src/components/ui/fleet/` joins the normalized catalog — a subdir because the kebab catalog files and the PascalCase fleet wrappers collide by case in one flat dir; the drift gate's registered-mapping catalog check skips the wrapper layer, and its JS-scoped owner walk covers shell + features + fleet), and **the shell** (Sidebar/TopBar join `ui/app/`). `src/ui/` is the shell + composition root only; every feature carries an `index.ts` barrel. Imports repointed across src/test/e2e (including `vi.mock` paths and the source-level contract tests' CSS paths); the repo-root remap script's import follows. Register: the tree entry is superseded as DONE with the clustering map.
 - **refactor(web): the two scheduled composite migrations — ContextMenu
   rebuilds on the Radix context-menu/sub composition; Dropdown on the
   catalog combobox (popover + cmdk command).** The register's scheduled
@@ -37,7 +38,12 @@ predating this file.
   list gains `--radix-popover-trigger-width`, Radix's trigger-width
   var). Test suites updated where they drove the old mechanics (role
   queries, pointer-down dismissal, macrotask wait for Radix's document
-  listener, jsdom `scrollIntoView` stub in the shared setup).
+  listener, jsdom `scrollIntoView` stub in the shared setup). The
+  capture pass caught one real-browser bug the jsdom suites can't see:
+  the menu stylesheet's `position: fixed`/`absolute` rules broke
+  floating-ui's align math (alignRight menus anchored start, clipped at
+  the viewport edge) — positioning now rides the Radix popper wrapper
+  exclusively, and the source-level flyout assertion moved with it.
 - **refactor(web): the full-alignment leaf sweep — 12 catalog-covered
   leaves become thin wrappers; Dropdown/ContextMenu documented as the
   scheduled remainder.** The owner ruling (2026-10-19: full alignment,
