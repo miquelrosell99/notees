@@ -13,13 +13,32 @@
  *   showValue
  *   formatValue={(v) => `${Math.round(v * 100)}%`}
  * />
+ *
+ * Thin fleet wrapper over the normalized catalog slider
+ * (src/components/ui/slider.tsx — Radix underneath): the header row
+ * (label + tabular value), the wheel-to-change contract, and the
+ * disabled register are the app's and live here.
+ *
+ * INTERACTION CONTRACT (bridge checklist #9 — documented override): the
+ * pre-catalog primitive was a NATIVE <input type=range>; the catalog root
+ * is a Radix Slider (the thumb owns role=slider). The public surface
+ * preserves value/min/max/step/onChange(number); the documented deltas:
+ * the ref targets the Root (a div, not the input) and the wheel handler
+ * rides the Root's onWheel (same non-passive contract as the old JSX
+ * handler).
+ *
+ * Legacy hook classes: `slider` / `slider--${size}` / `slider--disabled`
+ * and the header hooks stay — feature CSS compounds on them.
  */
-import { useCallback, useId, type InputHTMLAttributes, type ChangeEvent, type WheelEvent, type CSSProperties } from 'react';
-import './Slider.css';
+import { useCallback, useId, type InputHTMLAttributes, type WheelEvent, type CSSProperties } from 'react';
+
+import { Slider as CatalogSlider } from '@/components/ui/slider';
+import { cn } from './cn';
 
 export type SliderSize = 'sm' | 'md';
 
-export interface SliderProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'size' | 'type'> {
+export interface SliderProps
+  extends Omit<InputHTMLAttributes<HTMLDivElement>, 'onChange' | 'size' | 'type' | 'value' | 'defaultValue' | 'min' | 'max' | 'step'> {
   /** Current value */
   value: number;
   /** Minimum value */
@@ -60,16 +79,10 @@ export function Slider({
   scrollToChange = false,
   className = '',
   style,
+  'aria-label': ariaLabel,
   ...rest
 }: SliderProps) {
   const id = useId();
-
-  const handleChange = useCallback(
-    (e: ChangeEvent<HTMLInputElement>) => {
-      onChange(parseFloat(e.target.value));
-    },
-    [onChange],
-  );
 
   const handleWheel = useCallback(
     (e: WheelEvent) => {
@@ -79,55 +92,50 @@ export function Slider({
       const newValue = Math.max(min, Math.min(max, parseFloat((value + delta).toFixed(10))));
       onChange(newValue);
     },
-    [scrollToChange, disabled, step, value, min, max, onChange]
+    [scrollToChange, disabled, step, value, min, max, onChange],
   );
-
-  /** Fraction of the current value within the [min, max] range (0–1) */
-  const fraction = max === min ? 0 : Math.max(0, Math.min(1, (value - min) / (max - min)));
-  const filledPct = `${fraction * 100}%`;
 
   const displayValue = formatValue ? formatValue(value) : String(value);
 
-  const rootClass = [
-    'slider',
-    `slider--${size}`,
-    disabled && 'slider--disabled',
-    className,
-  ]
-    .filter(Boolean)
-    .join(' ');
-
   return (
-    <div className={rootClass} style={style} onWheel={handleWheel}>
+    <div
+      className={cn(
+        'slider flex w-full flex-col gap-1',
+        `slider--${size}`,
+        disabled && 'slider--disabled',
+        className,
+      )}
+      style={style}
+      onWheel={handleWheel}
+      {...rest}
+    >
       {(label || showValue) && (
-        <div className="slider__header">
+        <div className="slider__header flex items-center justify-between gap-2">
           {label && (
-            <label className="slider__label" htmlFor={id}>
+            <span className="slider__label text-sm text-on-surface-variant" id={`${id}-label`}>
               {label}
-            </label>
+            </span>
           )}
-          {showValue && <span className="slider__value">{displayValue}</span>}
+          {showValue && (
+            <span className="slider__value min-w-slider-value text-right text-sm tabular-nums text-on-surface-variant">
+              {displayValue}
+            </span>
+          )}
         </div>
       )}
 
-      <div className="slider__track-wrapper">
-        {/* Background track */}
-        <div className="slider__bg" />
-        {/* Filled portion */}
-        <div className="slider__filled" style={{ width: filledPct }} />
-        {/* Native range input (on top for interaction) */}
-        <input
-          {...rest}
-          id={id}
-          type="range"
-          className="slider__input"
+      <div className="slider__track-wrapper relative flex w-full items-center">
+        <CatalogSlider
+          size={size}
           min={min}
           max={max}
           step={step}
-          value={value}
+          value={[value]}
           disabled={disabled}
-          onChange={handleChange}
-          aria-label={label}
+          onValueChange={([next]) => {
+            if (next !== undefined) onChange(next);
+          }}
+          aria-label={ariaLabel ?? label}
         />
       </div>
     </div>
