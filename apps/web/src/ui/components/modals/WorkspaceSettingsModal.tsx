@@ -39,7 +39,7 @@ import { dateChipCandidates } from "../calendarViewUtils.js";
 import {
   resolveQuickCreateChipClasses,
   useQuickCreateClassesSetting,
-} from "../calendarQuickCreateSettings.js";
+} from "../../../features/calendar/calendarQuickCreateSettings.js";
 
 import "./settingsModal.css";
 

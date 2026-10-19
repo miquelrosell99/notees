@@ -13,7 +13,7 @@ import {
   readQuickCreateClassesSetting,
   resolveQuickCreateChipClasses,
   writeQuickCreateClassesSetting,
-} from "../src/ui/components/calendarQuickCreateSettings.js";
+} from "../src/features/calendar/calendarQuickCreateSettings.js";
 
 const WS_A = "ws-a";
 const WS_B = "ws-b";

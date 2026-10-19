@@ -1,4 +1,4 @@
-import { DateSlotControl } from "../../ui/components/pickers/DateSlotControl.js";
+import { DateSlotControl } from "../date-pickers/DateSlotControl.js";
 import type { AnyClient } from "./shared.js";
 
 /**

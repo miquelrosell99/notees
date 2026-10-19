@@ -103,7 +103,7 @@ import { parentRenderFacts } from "./renderStateLabel.js";
 import { SharePageModal } from "./components/modals/SharePageModal.js";
 import type { ShareTarget } from "./components/NodeMenuButton.js";
 import { NodeContextMenu } from "./components/NodeContextMenu.js";
-import { DayPageSections } from "./components/DayPageSections.js";
+import { DayPageSections } from "../features/calendar/DayPageSections.js";
 import { CreatedSection } from "./components/CreatedSection.js";
 import { ActivityLogSection } from "./components/ActivityLogSection.js";
 import { VersionHistorySection } from "./components/VersionHistorySection.js";

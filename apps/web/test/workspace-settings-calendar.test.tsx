@@ -21,7 +21,7 @@ import { ensureTaskFamily } from "../src/features/classview/taskFamily.js";
 import {
   QUICK_CREATE_CLASSES_PREFIX,
   readQuickCreateClassesSetting,
-} from "../src/ui/components/calendarQuickCreateSettings.js";
+} from "../src/features/calendar/calendarQuickCreateSettings.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000e1";
 const ACTOR = "0192a000-0000-7000-8000-0000000000e2";

@@ -8,7 +8,7 @@
  * calendar popup, the Today sidebar entry, and Ctrl/Cmd+Shift+T).
  */
 
-import { isoWeekNumber, todayIsoLocal, weekdayLabel } from "./calendarViewUtils.js";
+import { isoWeekNumber, todayIsoLocal, weekdayLabel } from "../../ui/components/calendarViewUtils.js";
 import "./DayPageHeader.css";
 
 export function DayPageHeader({ iso, title }: { iso: string; title: string }) {

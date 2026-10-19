@@ -12,7 +12,7 @@ import { useRef } from "react";
 
 import { dayNodeId } from "@notees/domain";
 
-import { CalendarPopup } from "../src/ui/components/ui/CalendarPopup.js";
+import { CalendarPopup } from "../src/features/calendar/TopBarCalendarPopup.js";
 
 const noop = () => {};
 

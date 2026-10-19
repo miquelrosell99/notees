@@ -16,9 +16,9 @@ import {
   type DatetimeCommitValue,
   type DatetimePickerSlot,
   type DatetimePickerValue,
-} from "../../ui/components/pickers/DatePickerPopup.js";
-import { collectMarkedDates } from "../../ui/components/pickers/DateSlotControl.js";
-import { RepeatPicker } from "../../ui/components/pickers/RepeatPicker.js";
+} from "../date-pickers/DatePickerPopup.js";
+import { collectMarkedDates } from "../date-pickers/DateSlotControl.js";
+import { RepeatPicker } from "../date-pickers/RepeatPicker.js";
 import { PropertySelectCell } from "./PropertySelectCell.js";
 import type { AnyClient } from "./shared.js";
 import { toEditableText } from "./shared.js";

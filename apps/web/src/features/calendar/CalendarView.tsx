@@ -38,14 +38,14 @@ import {
 import type { ClientNode, QueryRunResult } from "@/core/workspace-client/index.js";
 
 import { instantiateTemplate } from "@/core/clone.js";
-import { displayNameFromClient, formatDateName } from "../dateDisplay.js";
-import { Icon } from "../Icon.js";
-import { PageView } from "../PageView.js";
-import { useDeviceSetting } from "./modals/deviceSettings.js";
-import { TemplatePickerModal } from "../../features/templates/TemplatePickerModal.js";
-import { ensureTaskFamily } from "../../features/classview/taskFamily.js";
-import { ensureTemplateProperty, listClassTemplates } from "../../features/templates/templateFamily.js";
-import { isClassFamilyEnabled } from "./featureGates.js";
+import { displayNameFromClient, formatDateName } from "../../ui/dateDisplay.js";
+import { Icon } from "../../ui/Icon.js";
+import { PageView } from "../../ui/PageView.js";
+import { useDeviceSetting } from "../../ui/components/modals/deviceSettings.js";
+import { TemplatePickerModal } from "../templates/TemplatePickerModal.js";
+import { ensureTaskFamily } from "../classview/taskFamily.js";
+import { ensureTemplateProperty, listClassTemplates } from "../templates/templateFamily.js";
+import { isClassFamilyEnabled } from "../../ui/components/featureGates.js";
 import {
   addDaysIso,
   buildCreatedTodayAst,
@@ -62,7 +62,7 @@ import {
   weekDaysOfIso,
   weekdayLabel,
   type OpenTaskRow,
-} from "./calendarViewUtils.js";
+} from "../../ui/components/calendarViewUtils.js";
 import {
   datedRowsForDay,
   recurringRowsOf,
@@ -75,15 +75,15 @@ import {
   resolveQuickCreateChipClasses,
   useQuickCreateClassesSetting,
 } from "./calendarQuickCreateSettings.js";
-import { RepeatPicker } from "./pickers/RepeatPicker.js";
-import { Button } from "./ui/Button.js";
-import { Checkbox } from "./ui/Checkbox.js";
-import { EmptyState } from "./ui/EmptyState.js";
-import { Pill } from "./ui/Pill.js";
-import { Tabs } from "./ui/Tabs.js";
-import { MonthCalendar } from "./ui/calendar/MonthCalendar.js";
-import { WeekStrip } from "./ui/calendar/WeekStrip.js";
-import type { AnyClient } from "./Sidebar.js";
+import { RepeatPicker } from "../date-pickers/RepeatPicker.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { Checkbox } from "../../ui/components/ui/Checkbox.js";
+import { EmptyState } from "../../ui/components/ui/EmptyState.js";
+import { Pill } from "../../ui/components/ui/Pill.js";
+import { Tabs } from "../../ui/components/ui/Tabs.js";
+import { MonthCalendar } from "./MonthCalendar.js";
+import { WeekStrip } from "./WeekStrip.js";
+import type { AnyClient } from "../../ui/components/Sidebar.js";
 import "./CalendarView.css";
 
 type DayFilter = "all" | "daily" | "tasks" | "dated" | "created";

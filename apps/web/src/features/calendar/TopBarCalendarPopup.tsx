@@ -16,16 +16,16 @@
 
 import { useRef, type CSSProperties, type RefObject } from "react";
 
-import { Button } from "./Button.js";
-import { SelectionButton } from "./SelectionButton.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { SelectionButton } from "../../ui/components/ui/SelectionButton.js";
 import {
   useClickOutside,
   useOverlaySurface,
   useViewportFlip,
-} from "./overlay-hooks.js";
-import { CalendarDayGrid, MONTHS_SHORT } from "./calendar/dayGrid.js";
-import { useCalendarMode } from "./calendar/useCalendarMode.js";
-import "./CalendarPopup.css";
+} from "../../ui/components/ui/overlay-hooks.js";
+import { CalendarDayGrid, MONTHS_SHORT } from "./dayGrid.js";
+import { useCalendarMode } from "./useCalendarMode.js";
+import "./TopBarCalendarPopup.css";
 
 export interface CalendarPopupProps {
   isOpen: boolean;

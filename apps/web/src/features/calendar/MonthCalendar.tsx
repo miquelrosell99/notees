@@ -15,8 +15,8 @@
 
 import { useEffect } from "react";
 
-import { Button } from "../Button.js";
-import { SelectionButton } from "../SelectionButton.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { SelectionButton } from "../../ui/components/ui/SelectionButton.js";
 import { CalendarDayGrid, MONTHS_SHORT, isoLocal, type CalendarDayExtraMarks } from "./dayGrid.js";
 import { useCalendarMode } from "./useCalendarMode.js";
 import "./MonthCalendar.css";

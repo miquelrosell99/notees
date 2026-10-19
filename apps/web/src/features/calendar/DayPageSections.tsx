@@ -23,25 +23,25 @@ import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { Section } from "../Section.js";
-import { displayNameFromClient } from "../dateDisplay.js";
-import { Icon } from "../Icon.js";
+import { Section } from "../../ui/Section.js";
+import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { Icon } from "../../ui/Icon.js";
 import {
   createdTodayBounds,
   partitionOpenTasks,
   type OpenTaskRow,
   type PartitionedTasks,
-} from "./calendarViewUtils.js";
+} from "../../ui/components/calendarViewUtils.js";
 import {
   datedRowNodes,
   setTaskDone,
   taskRowsOf,
   taskStatusLabel,
 } from "./calendarRows.js";
-import { ensureTaskFamily } from "../../features/classview/taskFamily.js";
-import { Checkbox } from "./ui/Checkbox.js";
-import { CreatedSection } from "./CreatedSection.js";
-import { Pill } from "./ui/Pill.js";
+import { ensureTaskFamily } from "../classview/taskFamily.js";
+import { Checkbox } from "../../ui/components/ui/Checkbox.js";
+import { CreatedSection } from "../../ui/components/CreatedSection.js";
+import { Pill } from "../../ui/components/ui/Pill.js";
 import "./DayPageSections.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

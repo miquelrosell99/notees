@@ -21,7 +21,7 @@ import {
   readDeviceSetting,
   useDeviceSetting,
   writeDeviceSetting,
-} from "./modals/deviceSettings.js";
+} from "../../ui/components/modals/deviceSettings.js";
 
 /** The exact storage key prefix; the full key is `${PREFIX}.${workspaceId}`. */
 export const QUICK_CREATE_CLASSES_PREFIX = "calendarQuickCreateClasses";
