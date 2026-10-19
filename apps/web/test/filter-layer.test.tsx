@@ -254,13 +254,13 @@ describe("the classed-nodes filter bar", () => {
     );
     fireEvent.click(within(panel).getByLabelText("Class"));
     fireEvent.click(
-      within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("button", { name: "client" }),
+      within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("option", { name: "client" }),
     );
     // The membership operator carries the extends closure (owner default:
     // "is" is the exact register, "contains" is hierarchy-aware membership).
     fireEvent.click(within(panel).getByLabelText("Operator"));
     fireEvent.click(
-      within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("button", { name: "contains" }),
+      within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("option", { name: "contains" }),
     );
 
     // Only the client-classed member survives; the bar names 1 of 3.
@@ -295,11 +295,11 @@ describe("the classed-nodes filter bar", () => {
     );
     fireEvent.click(within(panel).getByLabelText("Property"));
     fireEvent.click(
-      within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("button", { name: "impact" }),
+      within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("option", { name: "impact" }),
     );
     fireEvent.click(within(panel).getByLabelText("Operator"));
     fireEvent.click(
-      within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("button", { name: "≥" }),
+      within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("option", { name: "≥" }),
     );
     fireEvent.change(within(panel).getByLabelText("Value"), { target: { value: "5" } });
 

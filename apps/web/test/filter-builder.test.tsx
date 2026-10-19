@@ -114,7 +114,7 @@ function pickNode(scope: HTMLElement, query: string): void {
 function pickOption(scope: HTMLElement, label: string, option: string | RegExp, index = 0): void {
   fireEvent.click(within(scope).getAllByLabelText(label)[index]!);
   const menu = document.querySelector(".dropdown-menu--portal") as HTMLElement;
-  fireEvent.click(within(menu).getByRole("button", { name: option }));
+  fireEvent.click(within(menu).getByRole("option", { name: option }));
 }
 
 describe("the block query builder", () => {
@@ -481,8 +481,8 @@ describe("the block query builder", () => {
       // The multi pick stays open per toggle — pick both, then dismiss.
       fireEvent.click(within(panel).getByLabelText("Classes"));
       const menu = () => document.querySelector(".dropdown-menu--portal") as HTMLElement;
-      fireEvent.click(within(menu()).getByRole("button", { name: "project" }));
-      fireEvent.click(within(menu()).getByRole("button", { name: "client" }));
+      fireEvent.click(within(menu()).getByRole("option", { name: "project" }));
+      fireEvent.click(within(menu()).getByRole("option", { name: "client" }));
       fireEvent.keyDown(document, { key: "Escape" });
       expect(tableRowCount()).toBe(3);
 
