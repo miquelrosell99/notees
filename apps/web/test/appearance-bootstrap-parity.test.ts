@@ -3,7 +3,7 @@
  *
  * The appearance data-* attributes have TWO writers:
  *
- *   1. `applyAppearance()` in src/ui/components/modals/deviceSettings.ts
+ *   1. `applyAppearance()` in src/features/settings/deviceSettings.ts
  *      (runtime — boot + every settings change), which resolves through
  *      src/ui/appearance.ts's resolveAppearanceAttributes;
  *   2. the inline bootstrap script in index.html (pre-paint — it cannot

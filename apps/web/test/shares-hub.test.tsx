@@ -15,12 +15,12 @@ import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { SharesHub } from "../src/features/sharing/SharesHub.js";
 import { listShares, revokeShare, type ShareEntry } from "../src/features/sharing/shareApi.js";
 
-vi.mock("../src/ui/components/modals/shareApi.js", () => ({
+vi.mock("../src/features/sharing/shareApi.js", () => ({
   listShares: vi.fn(),
   revokeShare: vi.fn(),
 }));
 
-vi.mock("../src/ui/components/modals/clipboard.js", () => ({
+vi.mock("../src/features/modals/clipboard.js", () => ({
   copyToClipboard: vi.fn(() => Promise.resolve()),
 }));
 

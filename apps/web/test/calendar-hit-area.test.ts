@@ -21,7 +21,7 @@ const fs = process_.getBuiltinModule("node:fs");
 const path = process_.getBuiltinModule("node:path") as unknown as typeof import("node:path");
 
 function readCss(...segments: string[]): string {
-  return fs.readFileSync(path.join(process.cwd(), "src", "ui", ...segments), "utf8");
+  return fs.readFileSync(path.join(process.cwd(), "src", ...segments), "utf8");
 }
 
 const OVERLAY_WIDTH = "width: max(100%, var(--button-min-height))";
@@ -36,10 +36,10 @@ function expectOverlay(css: string, selector: string): void {
   expect(rule![0]).toContain("pointer-events: auto");
 }
 
-const gridCss = readCss("components", "ui", "calendar", "calendar-grid.css");
-const stripCss = readCss("components", "ui", "calendar", "WeekStrip.css");
-const monthCss = readCss("components", "ui", "calendar", "MonthCalendar.css");
-const popupCss = readCss("components", "ui", "CalendarPopup.css");
+const gridCss = readCss("features", "calendar", "calendar-grid.css");
+const stripCss = readCss("features", "calendar", "WeekStrip.css");
+const monthCss = readCss("features", "calendar", "MonthCalendar.css");
+const popupCss = readCss("features", "calendar", "TopBarCalendarPopup.css");
 
 describe("calendar cells carry the 48px invisible hit-area overlay", () => {
   it("the shared day grid: visible disc rides the grid, ::after reaches the 48px floor", () => {
@@ -96,7 +96,7 @@ describe("the has-note day is a genuine active state (the hover ruling's combine
   it("the popup day grid rides the same convention", () => {
     // The pickers popup skin (CalendarPopup + DatePickerPopup) — not the
     // top-bar popup, which composes the shared calendar-grid.css day grid.
-    const pickerPopupCss = readCss("components", "pickers", "CalendarPopup.css");
+    const pickerPopupCss = readCss("features", "date-pickers", "CalendarPopup.css");
     const rule = /\.calendar-day\.btn\.has-note,\s*\.calendar-day\.btn\.has-note:hover \{[^}]*\}/.exec(pickerPopupCss);
     expect(rule).not.toBeNull();
     expect(rule![0]).toContain("background: var(--md-sys-color-primary-container)");
