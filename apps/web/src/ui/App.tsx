@@ -49,6 +49,7 @@ import {
   markLocalWorkspaceCopy,
   rememberWorkspaceList,
   rememberWorkspaceName,
+  rememberedWorkspaceList,
   rememberedWorkspaceName,
 } from "@/core/workspace-registry.js";
 import {
@@ -95,6 +96,7 @@ import { CalendarPopup } from "./components/ui/CalendarPopup.js";
 import { HistoryMenuPopup } from "./components/HistoryMenuPopup.js";
 import { QueriesHub } from "./components/QueriesHub.js";
 import { TrashHub } from "./components/TrashHub.js";
+import { SharesHub } from "./components/SharesHub.js";
 import { GraphView } from "./views/graph/GraphView.js";
 import { TopBar } from "./components/TopBar.js";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher.js";
@@ -115,6 +117,7 @@ import {
   type SettingsSection,
 } from "./components/SettingsPage.js";
 import { SyncDetailsModal } from "./components/modals/SyncDetailsModal.js";
+import { WorkspaceSettingsModal } from "./components/modals/WorkspaceSettingsModal.js";
 import { applyAppearance, readDeviceSetting, toggleFocusMode, useDeviceSetting } from "./components/modals/deviceSettings.js";
 import { useCondensedPreference } from "./viewPrefs.js";
 import { BackendUnavailableOverlay } from "./components/ui/BackendUnavailableOverlay.js";
@@ -325,6 +328,7 @@ const NAV_PATHS: Record<string, NavKey> = {
   queries: "queries",
   graph: "graph",
   trash: "trash",
+  shares: "shares",
 };
 
 export function navFromPath(pathname: string): NavKey | null {
@@ -780,6 +784,8 @@ export function App() {
   const [apiKeyInput, setApiKeyInput] = useState("");
   /** The sync indicator's details modal (resync + conflicts). */
   const [syncDetailsOpen, setSyncDetailsOpen] = useState(false);
+  /** The account popup's admin entry: the active workspace's settings (plugins tab). */
+  const [adminSettingsOpen, setAdminSettingsOpen] = useState(false);
   /** Manage Workspaces view, opened from the workspace switcher popup. */
   const [managerOpen, setManagerOpen] = useState(false);
   /** True when the live credential is a session (API-key management needs one). */
@@ -2128,8 +2134,6 @@ export function App() {
         Skip to content
       </a>
       <TopBar
-        syncStatus={syncStatus}
-        onOpenSyncDetails={() => setSyncDetailsOpen(true)}
         breadcrumbs={
           selectedPageId !== null ? (
             <Breadcrumbs client={client} nodeId={selectedPageId} onOpenNode={openPage} editable />
@@ -2268,6 +2272,13 @@ export function App() {
           offline={offline}
           showSettings={sessionSignedIn && user !== null && !offline}
           onOpenSettings={() => openSettingsSection("appearance")}
+          syncStatus={syncStatus}
+          onOpenSyncDetails={() => setSyncDetailsOpen(true)}
+          onOpenAdminSettings={
+            sessionSignedIn && user !== null && !offline && user.isAdmin
+              ? () => setAdminSettingsOpen(true)
+              : undefined
+          }
           selectedPageId={selectedPageId}
           activeNav={activeNav}
           onSelectNav={(key) => {
@@ -2347,8 +2358,19 @@ export function App() {
           ) : activeNav === "trash" ? (
             /* The Trash hub: browse / restore / permanently delete trashed
                subtrees (the data path always existed — this is the v1
-               sidebar surface restored for the web). */
+               sidebar surface restored for the web). Reached from the
+               account popup since 2026-10-19. */
             <TrashHub client={client} onOpenNode={openPage} />
+          ) : activeNav === "shares" ? (
+            /* The Shares hub (owner 2026-10-19): the v1 SharesUnifiedView's
+               Shared-Out tab over the v2 public-link share register —
+               reached from the account popup. */
+            <SharesHub
+              client={client}
+              serverUrl={serverUrl}
+              credential={token}
+              onOpenNode={openPage}
+            />
           ) : (
             <HubView client={client} nav={activeNav} onOpenNode={openPage} onOpenInSidebar={openInSidebar} />
           )}
@@ -2479,6 +2501,29 @@ export function App() {
           snapshot={syncStatus}
           isOpen={syncDetailsOpen}
           onClose={() => setSyncDetailsOpen(false)}
+        />
+      )}
+      {client !== null && adminSettingsOpen && (
+        /* The account popup's admin entry (admin users only): the active
+           workspace's settings, opened on the plugins tab — the
+           admin-gated surface (the server enforces admin on the routes). */
+        <WorkspaceSettingsModal
+          isOpen
+          onClose={() => setAdminSettingsOpen(false)}
+          serverUrl={serverUrl}
+          credential={token}
+          workspaceId={readStored(STORAGE_KEYS.workspaceId)}
+          workspaceName={workspaceName}
+          workspaceRole={
+            rememberedWorkspaceList().find((ws) => ws.id === readStored(STORAGE_KEYS.workspaceId))?.role ?? "owner"
+          }
+          initialTab="plugins"
+          client={client}
+          onRenamed={(name) => {
+            const id = readStored(STORAGE_KEYS.workspaceId);
+            rememberWorkspaceName(id, name);
+            setWorkspaceName(name);
+          }}
         />
       )}
       <BackendUnavailableOverlay syncStatus={syncStatus} />

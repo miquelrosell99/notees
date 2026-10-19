@@ -7,6 +7,49 @@ recent related work. Anything before 2026-10-06 lives in git history: the
 retired implementation plan and design stack are recoverable from commits
 predating this file.
 
+## 2026-10-19
+
+- **feat(web): picker recents, node-link icon alignment, the account popup
+  (sync badge, Shares hub, Trash relocation) (owner 2026-10-19).** Four
+  owner-reported UI slices in one pass. **(1) Node pickers open to your
+  recents:** every unscoped `NodeSelector` (the `@`/`#`/`+` popups, property
+  pickers) lists the device's Recently Used nodes (MRU order, "Recently
+  used" caption) on the empty query instead of an empty list — the first
+  keystroke replaces the list with ranked search hits; class-scoped pickers
+  keep their member listing, blocks-mode keeps the inline-block filter, the
+  classes picker is untouched. The recents read rides the new exported
+  `readRecentIds` (the sidebar's storage shape, shared with the palette).
+  **(2) Node-link icons actually align:** the `Icon` component forced an
+  INLINE `vertical-align: middle`, which silently beat the designed
+  `.nt-link__icon { vertical-align: -0.15em }` — mentions rendered a hair
+  LOW. The default moved to a base `nt-icon` class (app.css), so the
+  designed offset (glyph center on the cap height) now applies. **(3) The
+  sync indicator relocated:** the top-bar SyncDot is gone; a sync-state
+  badge (idle/syncing/backlog/error, the pulse + reduced-motion rules
+  preserved) rides the user profile circle's corner in the sidebar foot,
+  and the sync details modal opens from the account popup's Sync entry
+  (its caption names the live state — "up to date" / "N waiting" /
+  "error"). **(4) The account popup is now a proper user menu** (the v1
+  `AccountMenu` shape, adapted): identity header (avatar, name, email),
+  Sync, Shares, Trash, Settings, Admin settings (admin accounts, opens the
+  active workspace's settings on the admin-gated plugins tab), and a danger
+  Sign out. The sidebar nav lost its Trash row and the foot lost the
+  settings gear — both live in the popup now; Trash and Shares are
+  `menuOnly` NAV_ENTRIES (routes `/trash` / `/shares`, tab titles, and the
+  render switch intact). New **Shares hub**: the v1 `SharesUnifiedView`'s
+  "Shared Out" tab ported over the v2 public-link register (`GET/DELETE
+  /api/shares`) — node icon + name resolved through the local projection,
+  link with the shared copy pattern, created/expiry stamps, Open, and the
+  inline-confirmed Revoke; v2 has no user-share inbox endpoint, so the v1
+  Inbox tab has no data to port (stated as a reduced subset, not a silent
+  default). **Verification:** full gate green (`pnpm typecheck && pnpm
+  test`, 1802+ web tests incl. +14 new or rewritten: picker recents MRU /
+  scope filters / classes-picker immunity, the account popup's entries +
+  gating + badge states + Trash-out-of-nav, the Shares hub's list / revoke /
+  open / empty / retry, tab-title Shares case, topbar/sync prop fallout);
+  `docs/ux.md` (sync-dot section, node-picker paragraph) + `docs/usage.md`
+  (account popup, Shares hub, picker recents, settings entry) updated.
+
 ## 2026-10-17
 
 - **fix(web): the slash Date entry shows the calendar again; the picker's

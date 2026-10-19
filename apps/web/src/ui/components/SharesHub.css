@@ -1,0 +1,93 @@
+/**
+ * SharesHub styles — the Shares hub's row list: icon + node name + link
+ * meta + the copy / open / revoke actions, the loading and error states.
+ * Token-only (the hub chrome classes — nt-hub / nt-hub-header /
+ * nt-hub-title / nt-hub-count — are CollectionHub's, reused unchanged).
+ */
+
+.nt-shares-hub__loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-6);
+}
+
+.nt-shares-hub__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.nt-shares-hub__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: var(--height-lg);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--shape-small);
+}
+
+.nt-shares-hub__row:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-shares-hub__icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-shares-hub__name {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* The §7 list-row register (the feeds' precedent): primary 14px/600 —
+     truncation contract unchanged at the heavier weight. */
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface);
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nt-shares-hub__name:hover {
+  color: var(--md-sys-color-primary);
+}
+
+/* The link block: monospace URL over the created/expiry stamp. */
+.nt-shares-hub__meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.nt-shares-hub__url {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-sm);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.nt-shares-hub__stamp {
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: 0.8;
+}
+
+.nt-shares-hub__actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}

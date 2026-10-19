@@ -277,7 +277,7 @@ describe("entry points", () => {
     subscribe: () => () => {},
   } as unknown as AnyClient;
 
-  it("account menu gains a Settings item opening the app settings", () => {
+  it("account popup's Settings entry opens the app settings", () => {
     const onOpenSettings = vi.fn();
     render(
       <Sidebar
@@ -293,7 +293,10 @@ describe("entry points", () => {
         onSignOut={() => {}}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /^settings$/i }));
+    // The gear left the sidebar foot with the account-popup redesign
+    // (owner 2026-10-19): Settings lives inside the popup now.
+    fireEvent.click(screen.getByRole("button", { name: "Account" }));
+    fireEvent.click(within(screen.getByRole("menu")).getByText("Settings"));
     expect(onOpenSettings).toHaveBeenCalled();
   });
 

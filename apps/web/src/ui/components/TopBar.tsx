@@ -3,7 +3,8 @@
  *  LEFT   dock-left (sidebar show/hide at every width), the workspace
  *         selector (the wordmark's permanent replacement — owner
  *         2026-10-06), and icon-only New + search buttons to its right;
- *         sync status rides the section's end
+ *         the sync indicator left the top bar 2026-10-19 — it rides the
+ *         sidebar profile circle's corner now
  *  CENTER the current node's breadcrumbs, left-aligned within the section
  *  RIGHT  the in-app Back/Forward arrows (owner 2026-10-14: relocated
  *         from the center, beside the breadcrumbs — they now open the
@@ -15,7 +16,6 @@
 
 import type { ReactNode, RefObject } from "react";
 
-import type { SyncStatusSnapshot } from "@/core/workspace-client.js";
 import type { UndoUiState } from "@/core/undo-journal.js";
 
 import { Icon } from "../Icon.js";
@@ -23,45 +23,7 @@ import { Button } from "../components/ui/Button.js";
 import { HoverRevealButton } from "../components/ui/HoverRevealButton.js";
 import "./TopBar.css";
 
-/**
- * SyncDot — the overall sync indicator: a colored dot only. Click opens the
- * sync details modal in the App layer (it needs the client); when no handler
- * is wired (boot screens) the dot renders as a plain status span.
- */
-function SyncDot({
-  snapshot,
-  onOpen,
-}: {
-  snapshot: SyncStatusSnapshot;
-  onOpen?: (() => void) | undefined;
-}) {
-  const backlog = snapshot.pending + snapshot.failed;
-  const state =
-    snapshot.status === "error" ? "error" : snapshot.status === "syncing" ? "syncing" : backlog > 0 ? "backlog" : "idle";
-  if (onOpen === undefined) {
-    return (
-      <span className={`nt-sync-dot nt-sync-dot-${state}`} role="status">
-        <span className="nt-sync-dot-disc" aria-hidden="true" />
-        <span className="sr-only">{`Sync: ${state}`}</span>
-      </span>
-    );
-  }
-  return (
-    <button
-      type="button"
-      className={`nt-sync-dot nt-sync-dot-${state}`}
-      aria-label={`Sync: ${state}. Open sync details`}
-      title={`Sync: ${state} — open details`}
-      onClick={onOpen}
-    >
-      <span className="nt-sync-dot-disc" aria-hidden="true" />
-    </button>
-  );
-}
-
 export function TopBar({
-  syncStatus,
-  onOpenSyncDetails,
   breadcrumbs,
   sidebarOpen,
   rightPanelOpen,
@@ -128,9 +90,6 @@ export function TopBar({
   condensedActive = false,
   onToggleCondensed,
 }: {
-  syncStatus: SyncStatusSnapshot;
-  /** Opens the sync details modal; undefined on boot screens. */
-  onOpenSyncDetails?: (() => void) | undefined;
   /** The current node's breadcrumb trail (center section). */
   breadcrumbs?: ReactNode;
   sidebarOpen: boolean;
@@ -221,8 +180,6 @@ export function TopBar({
             <Icon path="mdi-magnify" size={1} />
           </button>
         )}
-
-        <SyncDot snapshot={syncStatus} onOpen={onOpenSyncDetails} />
       </div>
       <div className="nt-topbar-center">
         {breadcrumbs}

@@ -264,11 +264,11 @@
   }
 }
 
-/* Pinned bottom row: settings + account. Horizontal padding is zero (owner
-   2026-10-13): the row rides the sidebar's own padding like the nav list
-   does, so the avatar lines up with the nav icons and the gear with the
-   rows' right edge — a row-level padding stacked on the sidebar's and pushed
-   the whole section in. */
+/* Pinned bottom row: the user profile circle (owner 2026-10-19 — the
+   wide name/email bar + settings gear are gone; the popup carries the
+   identity, the gear's Settings entry lives there too). Horizontal padding
+   is zero (owner 2026-10-13): the row rides the sidebar's own padding like
+   the nav list does. */
 .nt-sidebar-bottom {
   display: flex;
   align-items: center;
@@ -278,65 +278,29 @@
   position: relative;
 }
 
-.nt-account-menu {
-  position: absolute;
-  bottom: calc(100% + 4px);
-  left: var(--spacing-2);
-  z-index: 60;
-  min-width: 180px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: var(--spacing-2);
-  background: var(--md-sys-color-surface-container-high);
-  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
-  border-radius: var(--shape-floating-panel);
-  box-shadow: var(--shadow-elevation-2);
-}
-
-.nt-account-email {
-  padding: 4px var(--spacing-2);
-  font-size: var(--font-size-sm);
-  color: var(--md-sys-color-on-surface-variant);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.nt-account-menu button {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  width: 100%;
-  padding: 6px var(--spacing-2);
-  border: none;
-  border-radius: var(--shape-small);
-  background: transparent;
-  color: var(--md-sys-color-on-surface);
-  font-size: var(--font-size-button);
-  text-align: left;
-}
-
-.nt-account-menu button:hover {
-  background: var(--md-sys-color-hover-overlay);
-}
-
-/* Profile block: avatar + name/email + settings gear. */
+/* Profile trigger: avatar-only circle, the tap-target floor wide. The
+   sync-state badge rides its bottom-right corner (the relocated top-bar
+   sync dot — visual indicator; details open from the popup's Sync entry). */
 .nt-profile {
-  flex: 1;
-  min-width: 0;
-  display: flex;
+  position: relative;
+  display: inline-flex;
   align-items: center;
-  gap: var(--spacing-2);
-  padding: 4px var(--spacing-2);
+  justify-content: center;
+  width: var(--button-min-height);
+  height: var(--button-min-height);
+  padding: 0;
   border: none;
-  border-radius: var(--shape-medium);
+  border-radius: var(--shape-full);
   background: transparent;
-  text-align: left;
 }
 
 .nt-profile:hover {
   background: var(--md-sys-color-hover-overlay);
+}
+
+.nt-profile:focus-visible {
+  outline: var(--border-width-thick) solid var(--md-sys-color-primary);
+  outline-offset: var(--focus-outline-offset);
 }
 
 .nt-profile-avatar {
@@ -361,7 +325,74 @@
   object-fit: cover;
 }
 
-.nt-profile-text {
+/* Sync badge — the corner dot. A 10px disc ringed by the sidebar's surface
+   so it reads attached to the avatar, not floating; the state colors ride
+   the same tokens as the old top-bar dot. */
+.nt-profile-sync {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--shape-full);
+  background: var(--md-sys-color-success);
+  box-shadow: 0 0 0 2px var(--md-sys-color-background);
+}
+
+.nt-profile-sync--syncing {
+  background: var(--md-sys-color-primary);
+  animation: nt-sync-pulse 1.2s var(--motion-easing-standard) infinite;
+}
+
+.nt-profile-sync--backlog {
+  background: var(--md-sys-color-warning);
+}
+
+.nt-profile-sync--error {
+  background: var(--md-sys-color-error);
+}
+
+@keyframes nt-sync-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* Reduced motion: the sync pulse freezes on its solid state — the status is
+   color-coded, the pulse is decoration. */
+@media (prefers-reduced-motion: reduce) {
+  .nt-profile-sync--syncing {
+    animation: none;
+  }
+}
+
+/* The account popup — the typical user-menu shape (owner 2026-10-19):
+   identity header, entries with leading icons + trailing captions, danger
+   sign-out. Anchored above the profile circle. */
+.nt-account-menu {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  z-index: 60;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--spacing-2);
+  background: var(--md-sys-color-surface-container-high);
+  border: var(--border-width-default) solid var(--md-sys-color-outline-variant);
+  border-radius: var(--shape-floating-panel);
+  box-shadow: var(--shadow-elevation-2);
+}
+
+.nt-account-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1) var(--spacing-2) var(--spacing-2);
+  min-width: 0;
+}
+
+.nt-account-identity {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -369,6 +400,40 @@
   line-height: 1.25;
 }
 
+.nt-account-menu button {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: 6px var(--spacing-2);
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--font-size-button);
+  text-align: left;
+}
+
+.nt-account-menu button:hover {
+  background: var(--md-sys-color-hover-overlay);
+}
+
+/* Trailing state caption (the Sync entry's "up to date" / "3 waiting"). */
+.nt-account-item-caption {
+  margin-left: auto;
+  padding-left: var(--spacing-3);
+  font-size: var(--font-size-xs);
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+.nt-account-item--danger,
+.nt-account-item--danger:hover {
+  color: var(--md-sys-color-error);
+}
+
+/* Identity text (header + reused by the popup). */
 .nt-profile-name {
   font-size: var(--font-size-button);
   font-weight: 600;

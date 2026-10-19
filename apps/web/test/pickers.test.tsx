@@ -450,6 +450,87 @@ describe("icon picker color section", () => {
   });
 });
 
+describe("NodeSelector empty-query recents (owner 2026-10-19)", () => {
+  it("opens to the recently used nodes (MRU order + caption); typing replaces them with search hits", async () => {
+    const client = await seedClient();
+    const alpha = await client.createObject({ isEmbedded: false, name: "Alpha" });
+    const beta = await client.createObject({ isEmbedded: false, name: "Beta" });
+    const gamma = await client.createObject({ isEmbedded: false, name: "Gamma" });
+    // MRU order: Gamma most recent, then Beta (Alpha never opened).
+    localStorage.setItem("notees.recents", JSON.stringify([gamma, beta]));
+    render(
+      <NodeSelector client={client} trigger="inline" searchPlaceholder="Search pages" onAdd={() => {}} />,
+    );
+
+    expect(screen.getByText("Recently used")).not.toBeNull();
+    const dialogRows = document.querySelector(".node-selector__options")!;
+    const names = [...dialogRows.querySelectorAll(".node-result-item")].map((el) => el.textContent);
+    expect(names[0]).toContain("Gamma");
+    expect(names[1]).toContain("Beta");
+    expect(names.join(" ")).not.toContain("Alpha");
+
+    // The first keystroke replaces the recents with search hits.
+    fireEvent.change(screen.getByLabelText("Search pages"), { target: { value: "alp" } });
+    expect(screen.queryByText("Recently used")).toBeNull();
+    expect(screen.getByText("Alpha")).not.toBeNull();
+    expect(screen.queryByText("Gamma")).toBeNull();
+  });
+
+  it("no recents keeps the honest empty state; class-scoped pickers keep their member listing", async () => {
+    const client = await seedClient();
+    const cls = await createTitledClass(client, "Fiction");
+    const member = await client.createObject({ isEmbedded: false, name: "Novel" });
+    await client.assignClass(member, cls);
+    render(
+      <NodeSelector client={client} trigger="inline" searchPlaceholder="Search pages" onAdd={() => {}} />,
+    );
+    expect(screen.getByText("Start typing to search")).not.toBeNull();
+    expect(screen.queryByText("Recently used")).toBeNull();
+
+    // A class-scoped picker lists members on the empty query (unchanged).
+    render(
+      <NodeSelector
+        client={client}
+        trigger="inline"
+        searchMode="pages"
+        classFilters={[cls]}
+        searchPlaceholder="Search members"
+        onAdd={() => {}}
+      />,
+    );
+    expect(screen.getByText("Novel")).not.toBeNull();
+    expect(screen.queryByText("Recently used")).toBeNull();
+  });
+
+  it("blocks-mode recents only list inline blocks, never pages", async () => {
+    const client = await seedClient();
+    const page = await client.createObject({ isEmbedded: false, name: "Host page" });
+    const block = await client.createObject({ isEmbedded: true, name: "Inline bit", parentId: page });
+    localStorage.setItem("notees.recents", JSON.stringify([page, block]));
+    render(
+      <NodeSelector client={client} trigger="inline" searchMode="blocks" searchPlaceholder="Search blocks" onAdd={() => {}} />,
+    );
+    // The embedded block qualifies (its containing page rides as the row
+    // crumb); the page recent itself is filtered out — one row only.
+    expect(screen.getByText("Recently used")).not.toBeNull();
+    const rows = document.querySelectorAll(".node-result-item");
+    expect(rows.length).toBe(1);
+    expect(within(rows[0] as HTMLElement).getByText("Inline bit")).not.toBeNull();
+  });
+
+  it("the classes picker is unaffected (lists classes, no recents caption)", async () => {
+    const client = await seedClient();
+    await createTitledClass(client, "Fiction");
+    const page = await client.createObject({ isEmbedded: false, name: "Alpha" });
+    localStorage.setItem("notees.recents", JSON.stringify([page]));
+    render(
+      <NodeSelector client={client} trigger="inline" searchMode="classes" searchPlaceholder="Search classes" onAdd={() => {}} />,
+    );
+    expect(screen.getByText("Fiction")).not.toBeNull();
+    expect(screen.queryByText("Recently used")).toBeNull();
+  });
+});
+
 describe("NodeSelector noCreate", () => {
   it("search-without-match shows the honest empty state instead of a create row", async () => {
     const client = await seedClient();
