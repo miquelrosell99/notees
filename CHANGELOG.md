@@ -9,6 +9,38 @@ predating this file.
 
 ## 2026-10-19
 
+- **refactor(core): `workspace-client.ts` (3,836 lines) becomes the
+  `workspace-client/` folder module — pure moves, no behavior change.**
+  The in-process client was the strongest remaining modularization
+  candidate (pure logic, no visual risk, two+ reasons to change).
+  One extraction per commit, `tsc --noEmit` clean after each: (1) the file
+  relocates behind a compat barrel — the historical import surface
+  `@/core/workspace-client.js` keeps working through the thin shim
+  `core/workspace-client.ts`, which re-exports the folder's `index.ts`
+  (TypeScript's bundler resolution does NOT map `dir.js` → `dir/index.ts`,
+  so the shim file is load-bearing); (2) the public contract (~640 lines
+  of wire-facing types + `createAnnotation`) → `types.ts`; (3) the
+  store-row mappers (`mapNode`, `nodeRowStamp`, column parsers) →
+  `mappers.ts`; (4) the asset REST helpers → `asset-transport.ts`; (5) the
+  per-user prefs device cache → `prefs.ts`; (6) the hosted section-view
+  wire types → `section-views.ts`; (7)–(15) the class splits by operation
+  domain along the file's own section seams, chained as
+  `WorkspaceClientBase` (fields, bootstrap, envelope/outbox, notify) →
+  `Reads` (nodes/listings/class bindings) → `ReadsProps` (properties,
+  tree, search, query bridge) → `ReadsRefs` (icons/colors, backlinks/
+  references, aliases, features) → `Sync` (push/pull, realtime, status) →
+  `Server` (assets/prefs/section-views/history feeds) → `Undo` → `Writes`
+  → `Dates`; (16) `client.ts` is now just the concrete class + the four
+  construction factories (84 lines). `private` becomes `protected` on
+  cross-domain members; the barrel re-exports exactly the old public names
+  (internal helpers stay unexported), so every one of the ~110 importers
+  (worker path, clone, tests, UI) is unchanged.
+  **Verification:** `npx tsc --noEmit` clean after each commit; the
+  client's own + affected suites (workspace-client, realtime, worker-core,
+  undo-journal, sync-status-guard, sync-details-modal, clone-engine,
+  system-class-deploy-bindings) green; full `npx vitest run` green
+  (1,813 tests incl. the untracked zz-dbg scratch files).
+
 - **refactor(web): `ui/app/` gains its public-surface barrel.**
   `src/ui/app/index.ts` re-exports the family's public surface — the 16
   modules App.tsx, BootForm, and the tests consume (storage, routing,
