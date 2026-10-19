@@ -23,6 +23,12 @@ if (typeof HTMLCanvasElement !== "undefined") {
     null) as unknown as typeof HTMLCanvasElement.prototype.getContext;
 }
 
+// jsdom lacks scrollIntoView; cmdk (the catalog command under the Dropdown
+// combobox) scrolls the highlighted option into view unguarded.
+if (typeof Element !== "undefined" && typeof Element.prototype.scrollIntoView !== "function") {
+  Element.prototype.scrollIntoView = () => {};
+}
+
 afterEach(() => {
   cleanup();
   if (typeof localStorage !== "undefined") localStorage.clear();

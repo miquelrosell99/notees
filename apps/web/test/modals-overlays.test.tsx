@@ -486,7 +486,7 @@ describe("ExportPageModal", () => {
     // The Options layout radios + page-size dropdown feed the engine options.
     fireEvent.click(screen.getByRole("radio", { name: /^essay$/i }));
     fireEvent.click(screen.getByRole("button", { name: /page size/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^letter$/i }));
+    fireEvent.click(screen.getByRole("option", { name: /^letter$/i }));
 
     fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
 

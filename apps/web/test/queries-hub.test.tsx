@@ -73,7 +73,7 @@ function hostPageOf(client: WorkspaceClient): { id: string; contentAst: ContentA
 function pickDropdownOption(dialog: HTMLElement, label: string, option: string): void {
   fireEvent.click(within(dialog).getByLabelText(label));
   fireEvent.click(
-    within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("button", { name: option }),
+    within(document.querySelector(".dropdown-menu--portal") as HTMLElement).getByRole("option", { name: option }),
   );
 }
 
