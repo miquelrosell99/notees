@@ -247,7 +247,6 @@ export function App() {
     signupEnabled,
     apiKeyInput,
     workspaces,
-    newWorkspaceName,
     hint,
     setHint,
     serverSuggestion,
@@ -452,8 +451,6 @@ export function App() {
   }, []);
 
 
-  const serverUrlRef = useRef(serverUrl);
-  serverUrlRef.current = serverUrl;
   /**
    * The top bar's "New" class picker (the sidebar hosts
    * its own picker beside its New button; both ride the same create flow).
@@ -556,12 +553,6 @@ export function App() {
     const id = await client.createObject({ isEmbedded: false, name: title ?? "Untitled" });
     setSelectedPageId(id);
   }
-
-  const localWorkspaceId = readStored(STORAGE_KEYS.localWorkspaceId);
-  const showDeviceWorkspace =
-    phase.name === "workspaces" &&
-    localWorkspaceId !== "" &&
-    !workspaces.some((ws) => ws.id === localWorkspaceId);
 
   if (
     phase.name === "server" ||

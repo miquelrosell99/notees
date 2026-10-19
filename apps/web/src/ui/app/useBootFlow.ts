@@ -15,7 +15,6 @@ import { useEffect, useState, type Dispatch, type FormEvent, type SetStateAction
 
 import {
   AuthRequestError,
-  createWorkspace,
   fetchMe,
   fetchNodeLocation,
   fetchServerInfo,
@@ -57,8 +56,6 @@ export interface BootFlow {
   token: string;
   setToken: Dispatch<SetStateAction<string>>;
   workspaces: WorkspaceEntry[];
-  newWorkspaceName: string;
-  setNewWorkspaceName: Dispatch<SetStateAction<string>>;
   hint: string | null;
   setHint: Dispatch<SetStateAction<string | null>>;
   /**
@@ -76,7 +73,6 @@ export interface BootFlow {
   handleLogin: (event: FormEvent) => Promise<void>;
   handleSignup: (event: FormEvent) => Promise<void>;
   handleApiKeySubmit: (event: FormEvent) => Promise<void>;
-  handleCreateWorkspace: (event: FormEvent) => Promise<void>;
   handleWorkOffline: () => Promise<void>;
 }
 
@@ -96,7 +92,6 @@ export function useBootFlow(
   const [signupEnabled, setSignupEnabled] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [workspaces, setWorkspaces] = useState<WorkspaceEntry[]>([]);
-  const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const [hint, setHint] = useState<string | null>(null);
   const [serverSuggestion, setServerSuggestion] = useState<string | null>(null);
 
@@ -375,22 +370,6 @@ export function useBootFlow(
     }
   }
 
-  async function handleCreateWorkspace(event: FormEvent) {
-    event.preventDefault();
-    setError(null);
-    try {
-      const { id } = await createWorkspace(serverUrl, token, newWorkspaceName.trim() || undefined);
-      setNewWorkspaceName("");
-      await connect(serverUrl, token, id, {
-        isOffline: false,
-        credentialType: authTab === "apikey" ? "apikey" : "session",
-        label: newWorkspaceName.trim() || "Workspace",
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
   /** "Work offline": a device-local workspace, no account required. */
   async function handleWorkOffline() {
     let localId = readStored(STORAGE_KEYS.localWorkspaceId);
@@ -443,8 +422,6 @@ export function useBootFlow(
     token,
     setToken,
     workspaces,
-    newWorkspaceName,
-    setNewWorkspaceName,
     hint,
     setHint,
     serverSuggestion,
@@ -456,7 +433,6 @@ export function useBootFlow(
     handleLogin,
     handleSignup,
     handleApiKeySubmit,
-    handleCreateWorkspace,
     handleWorkOffline,
   };
 }
