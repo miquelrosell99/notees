@@ -4,7 +4,15 @@
  * re-exports this). Internal family helpers (row mappers, constants) stay
  * unexported here on purpose.
  */
+// The type-only names ride `export type` — a value-syntax re-export of an
+// interface/type dies at the browser's ESM link step in dev (esbuild erases
+// the type; the linker then finds no such export), even though tsc and the
+// test runner tolerate it. Values stay in the value export.
 export {
+  InvalidQueryAstError,
+  createAnnotation,
+} from "./types.js";
+export type {
   AssetInfo,
   AssetUploadResult,
   BlockTreeNode,
@@ -22,7 +30,6 @@ export {
   DatetimePointInput,
   DatetimeValueInput,
   EffectiveProperty,
-  InvalidQueryAstError,
   OperationFeedEntry,
   PropertyDisplay,
   QueryAggregateResult,
@@ -37,7 +44,6 @@ export {
   UpdateObjectInput,
   UpdatePropertySchemaInput,
   WorkspaceClientOptions,
-  createAnnotation,
 } from "./types.js";
 export { fetchAssetBlob, postAssetUpload, readBlobAsDataUrl } from "./asset-transport.js";
 export {
