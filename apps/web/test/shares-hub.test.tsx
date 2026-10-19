@@ -12,8 +12,8 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
-import { SharesHub } from "../src/ui/components/SharesHub.js";
-import { listShares, revokeShare, type ShareEntry } from "../src/ui/components/modals/shareApi.js";
+import { SharesHub } from "../src/features/sharing/SharesHub.js";
+import { listShares, revokeShare, type ShareEntry } from "../src/features/sharing/shareApi.js";
 
 vi.mock("../src/ui/components/modals/shareApi.js", () => ({
   listShares: vi.fn(),

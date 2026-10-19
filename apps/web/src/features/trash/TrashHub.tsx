@@ -22,12 +22,12 @@ import { deriveDisplayName } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { TrashedEntry, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { Icon } from "../Icon.js";
-import { nodeIcon } from "../iconFor.js";
-import { relativeTime } from "../../features/page-sections/ActivityLogSection.js";
-import { Button } from "./ui/Button.js";
-import { ConfirmationModal } from "./ui/ConfirmationModal.js";
-import { EmptyState } from "./ui/EmptyState.js";
+import { Icon } from "../../ui/Icon.js";
+import { nodeIcon } from "../../ui/iconFor.js";
+import { relativeTime } from "../page-sections/ActivityLogSection.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { ConfirmationModal } from "../../ui/components/ui/ConfirmationModal.js";
+import { EmptyState } from "../../ui/components/ui/EmptyState.js";
 import "./TrashHub.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
