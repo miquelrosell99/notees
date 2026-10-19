@@ -6,6 +6,14 @@ the skill's defaults/foundations is recorded here; an undocumented deviation
 is drift, a documented one is a decision. Newest first. Entries bind until the
 rule they override changes, the review trigger fires, or the owner re-rules.
 
+### Custom primitive layer predates the shadcn catalog (catalog adoption at touch points)
+- **Rule**: `components/sourcing.md` — the normalized shadcn catalog is the canonical component source for every fleet app; custom implementations of catalog-covered components are non-alignment unless documented (apps are aligned).
+- **Decision**: the app's own primitive layer (`apps/web/src/ui/components/ui/`, ~98 files, token-only CSS) is KEPT for now. New composites the app needs (combobox, date picker, data table, …) arrive via `npx shadcn add` + the bridge normalization checklist; existing catalog-covered components (Button, Modal, Tabs, ToggleSwitch, …) migrate when next touched or when the owner schedules a migration pass.
+- **Rationale**: the layer predates the catalog adoption, is fully token-driven (drift gate 7/7), and wholesale replacement burns weeks to save nothing — migration at touch points converges to the catalog without destabilizing the daily-use instance.
+- **Scope**: global (component layer).
+- **Ruled**: (catalog-alignment ruling; this entry exercises the documented-exception path).
+- **Review trigger**: any new composite need (adopt via catalog then), a fleet ruling revisiting the exception, or the owner scheduling the migration pass.
+
 ### Export token family (`--nt-*`) is a registered, self-contained namespace
 - **Rule**: `law/spec.md` §1 namespace hygiene — extensions register with a reason; a token family outside the canonical roles must be documented.
 - **Decision**: `packages/export/src/html.ts` emits self-contained HTML exports carrying their own `--nt-*` token family (defined inline in the export document) — exports render identically outside the app and never read the app's runtime tokens.
