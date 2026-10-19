@@ -457,7 +457,7 @@ export function LinkEditModal({
             <div className="link-edit-modal__section">
               <Checkbox
                 checked={embedded}
-                onChange={(event) => setEmbedded(event.target.checked)}
+                onChange={(checked) => setEmbedded(checked)}
                 label="Embed this link"
               />
               <span className="link-edit-modal__hint">

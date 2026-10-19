@@ -131,8 +131,8 @@ export function TaskBuckets({
                       checked={row.closed}
                       disabled={statusSchema === undefined}
                       aria-label={row.closed ? "Reopen task" : "Mark task done"}
-                      onChange={(event) =>
-                        void setTaskDone(client, statusSchema, row.id, event.target.checked)
+                      onChange={(checked) =>
+                        void setTaskDone(client, statusSchema, row.id, checked)
                       }
                     />
                     <button

@@ -50,8 +50,8 @@ export function BooleanPropertyRow({
             checked={row.value === true}
             disabled={readOnly || row.readonly === true}
             aria-label={`Property ${label}`}
-            onChange={(event) => {
-              void client.setProperty(nodeId, propertySchemaId, event.target.checked, row.idx);
+            onChange={(checked) => {
+              void client.setProperty(nodeId, propertySchemaId, checked, row.idx);
             }}
           />
         </li>
@@ -66,8 +66,8 @@ export function BooleanPropertyRow({
             checked={false}
             disabled={readOnly}
             aria-label={`Property ${label}`}
-            onChange={(event) => {
-              void client.setProperty(nodeId, propertySchemaId, event.target.checked, 0);
+            onChange={(checked) => {
+              void client.setProperty(nodeId, propertySchemaId, checked, 0);
             }}
           />
         </li>

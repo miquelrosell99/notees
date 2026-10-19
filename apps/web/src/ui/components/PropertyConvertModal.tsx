@@ -363,7 +363,7 @@ export function PropertyConvertModal({
               <label className="nt-property-settings__check">
                 <Checkbox
                   checked={carryOptions}
-                  onChange={(event) => setCarryOptions(event.target.checked)}
+                  onChange={(checked) => setCarryOptions(checked)}
                   aria-label="Carry options over"
                 />
                 <span>Carry the {plan.carriedOptions?.length ?? 0} options over (ids and colors preserved)</span>
@@ -393,7 +393,7 @@ export function PropertyConvertModal({
                     <label className="nt-property-settings__check">
                       <Checkbox
                         checked={confirmDrop}
-                        onChange={(event) => setConfirmDrop(event.target.checked)}
+                        onChange={(checked) => setConfirmDrop(checked)}
                         aria-label="Confirm dropping unmappable values"
                       />
                       <span>I understand these values will be dropped</span>

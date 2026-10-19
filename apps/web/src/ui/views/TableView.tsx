@@ -858,11 +858,6 @@ export function TableView(props: NodeCollectionProps) {
     });
   const allVisibleSelected = visible.length > 0 && visible.every((row) => selected.has(row.item.node.id));
   const someVisibleSelected = visible.some((row) => selected.has(row.item.node.id));
-  const headerCheckboxRef = useRef<HTMLInputElement | null>(null);
-  const setHeaderCheckbox = (el: HTMLInputElement | null) => {
-    if (el !== null) el.indeterminate = !allVisibleSelected && someVisibleSelected;
-    headerCheckboxRef.current = el;
-  };
 
   /**
    * "Export CSV" — the current view: visible columns × the FULL sorted
@@ -1124,7 +1119,7 @@ export function TableView(props: NodeCollectionProps) {
               <th className="nt-table-select-col">
                 <Checkbox
                   size="sm"
-                  ref={setHeaderCheckbox}
+                  indeterminate={!allVisibleSelected && someVisibleSelected}
                   checked={allVisibleSelected}
                   onChange={() => {
                     setSelected(

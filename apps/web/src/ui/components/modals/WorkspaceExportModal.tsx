@@ -74,7 +74,7 @@ export function WorkspaceExportModal({
           label="Include asset files"
           checked={includeAssets}
           disabled={isLoading}
-          onChange={(event) => setIncludeAssets(event.target.checked)}
+          onChange={(checked) => setIncludeAssets(checked)}
         />
         {error !== null && (
           <div className="workspace-export-modal__error" role="alert">

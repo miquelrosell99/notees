@@ -161,8 +161,8 @@ export function DayPageSections({
         checked={checked}
         disabled={statusSchema === undefined}
         aria-label={checked ? "Reopen task" : "Mark task done"}
-        onChange={(event) =>
-          void setTaskDone(client, statusSchema, row.id, event.target.checked, iso)
+        onChange={(checked) =>
+          void setTaskDone(client, statusSchema, row.id, checked, iso)
         }
       />
       <button type="button" className="day-page-sections__row-name" onClick={() => onOpenPage?.(row.id)}>
