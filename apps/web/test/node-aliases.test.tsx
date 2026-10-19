@@ -37,7 +37,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PropertiesTable } from "../src/features/metadata/index.js";
-import { aliasedNodeTargetError, resolveAliasOpen } from "../src/ui/components/aliasProperty.js";
+import { aliasedNodeTargetError, resolveAliasOpen } from "../src/features/metadata/aliasProperty.js";
 import { PageView } from "../src/ui/PageView.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
