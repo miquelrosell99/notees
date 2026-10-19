@@ -45,13 +45,13 @@ import { CSS } from "@dnd-kit/utilities";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClassBinding, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { displayNameFromClient } from "../../dateDisplay.js";
-import { Icon } from "../../Icon.js";
-import { AddPill } from "../ui/AddPill.js";
-import { Checkbox } from "../ui/Checkbox.js";
-import { ToggleSwitch } from "../ui/ToggleSwitch.js";
-import { NodeViewSection } from "../NodeViewSection.js";
-import "./PropertyDefinitionsSection.css";
+import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { Icon } from "../../ui/Icon.js";
+import { AddPill } from "../../ui/components/ui/AddPill.js";
+import { Checkbox } from "../../ui/components/ui/Checkbox.js";
+import { ToggleSwitch } from "../../ui/components/ui/ToggleSwitch.js";
+import { NodeViewSection } from "../../ui/components/NodeViewSection.js";
+import "./ropertyDefinitionsSection.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 

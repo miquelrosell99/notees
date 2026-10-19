@@ -20,7 +20,7 @@ import {
 } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
-import { ensureTaskFamily, taskFamilyPresent } from "../src/ui/components/taskFamily.js";
+import { ensureTaskFamily, taskFamilyPresent } from "../src/features/classview/taskFamily.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000c1";
 const ACTOR = "0192a000-0000-7000-8000-0000000000c2";

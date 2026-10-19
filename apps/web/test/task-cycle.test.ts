@@ -15,8 +15,8 @@ import { newEnvelope, type Envelope } from "@notees/protocol";
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
-import { cycleTaskState } from "../src/ui/components/taskCycle.js";
-import { ensureTaskFamily } from "../src/ui/components/taskFamily.js";
+import { cycleTaskState } from "../src/features/classview/taskCycle.js";
+import { ensureTaskFamily } from "../src/features/classview/taskFamily.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000d1";
 const ACTOR = "0192a000-0000-7000-8000-0000000000d2";

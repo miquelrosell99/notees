@@ -18,7 +18,7 @@ import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { CalendarView } from "../src/ui/components/CalendarView.js";
 import { addDaysIso, todayIsoLocal } from "../src/ui/components/calendarViewUtils.js";
-import { ensureTaskFamily } from "../src/ui/components/taskFamily.js";
+import { ensureTaskFamily } from "../src/features/classview/taskFamily.js";
 import { writeQuickCreateClassesSetting } from "../src/ui/components/calendarQuickCreateSettings.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000d1";

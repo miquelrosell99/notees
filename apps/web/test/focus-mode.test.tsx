@@ -26,7 +26,7 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { EMPTY_UNDO_STATE } from "../src/core/undo-journal.js";
 import { CommandPalette } from "../src/ui/components/CommandPalette.js";
-import { ensureTaskFamily } from "../src/ui/components/taskFamily.js";
+import { ensureTaskFamily } from "../src/features/classview/taskFamily.js";
 import { applyAppearance, flipTheme } from "../src/ui/components/modals/deviceSettings.js";
 import { focusModeExitHandler, focusModeKeyHandler } from "../src/ui/app/keymap.js";
 import { PageView } from "../src/ui/PageView.js";
