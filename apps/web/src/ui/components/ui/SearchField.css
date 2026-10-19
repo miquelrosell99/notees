@@ -1,38 +1,13 @@
-/**
- * SearchField Component Styles
- *
- * Borderless filled search bar (the modern register: the tinted fill
- * carries the shape, no outline; the accent ring appears on focus).
- * Two placements:
- *   - default: filled — toolbars, filter bars, list headers (rides on any
- *     surface via its own container fill);
- *   - `search-field--borderless`: chromeless — on existing filled surfaces
- *     (command palette, sheet headers) where even the fill would stack.
- * Shared: left icon, placeholder, clear affordance with the invisible
- * hit-area floor, wrapper-carried focus ring.
- */
-
-.search-field-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-}
-
-.search-field__label {
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  color: var(--md-sys-color-on-surface-variant);
-}
+/* SearchField — the bits the utility layer can't express: the wrapper-
+   carried focus ring (it hugs the whole pill, not the input box inside
+   the padding — relocated from the inner input, not suppressed), the
+   clear button's invisible hit-area floor (::after), the webkit cancel
+   glyph suppression, and the borderless marker-class variant (the
+   command palette and sheet headers pass `search-field--borderless` as
+   a class hook). The fills/hover/focus-within registers ride utilities. */
 
 .search-field {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-3);
   background: var(--md-sys-color-surface-container);
-  border-radius: var(--shape-large);
-  transition: background var(--motion-duration-short) var(--motion-easing-standard),
-              box-shadow var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 /* Hover: the state-layer wash over the fill (the hover ruling). */
@@ -45,9 +20,7 @@
   background: var(--md-sys-color-surface);
 }
 
-/* Focus ring: carried by the wrapper so it hugs the whole pill, not the
-   input box inside the padding (the global input ring moves here —
-   relocated, not suppressed). */
+/* Focus ring: carried by the wrapper so it hugs the whole pill. */
 .search-field:has(.search-field__input:focus-visible) {
   box-shadow: var(--shadow-focus-ring);
 }
@@ -56,49 +29,13 @@
   box-shadow: none;
 }
 
-.search-field__icon {
-  display: flex;
-  align-items: center;
-  color: var(--md-sys-color-on-surface-variant);
-  flex-shrink: 0;
-}
-
-.search-field__input {
-  flex: 1;
-  border: none;
-  background: transparent;
-  font: var(--font-body-medium);
-  color: var(--md-sys-color-on-surface);
-  outline: none;
-  min-width: 0;
-}
-
-.search-field__input::placeholder {
-  color: var(--md-sys-color-on-surface-variant);
-}
-
 .search-field__input::-webkit-search-cancel-button {
   -webkit-appearance: none;
   appearance: none;
 }
 
-/* The clear affordance — a quiet icon button inside the right edge, shown
-   only while a value rides the field. */
-.search-field__clear {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--md-sys-color-on-surface-variant);
-  cursor: pointer;
-  border-radius: var(--shape-full);
-}
-
-/* The invisible hit-area floor — the visible glyph stays 18px. */
+/* The clear affordance's invisible hit-area floor — the visible glyph
+   stays 18px. */
 .search-field__clear::after {
   content: '';
   position: absolute;
@@ -107,11 +44,6 @@
   transform: translate(-50%, -50%);
   width: max(100%, var(--button-min-height));
   height: max(100%, var(--button-min-height));
-}
-
-.search-field__clear:hover {
-  color: var(--md-sys-color-on-surface);
-  background: var(--md-sys-color-hover-overlay);
 }
 
 /* Borderless variant — on existing filled surfaces (the command palette,
