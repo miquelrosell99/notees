@@ -27,14 +27,14 @@ import {
   ensureTableFamily,
   tableClassIdOf,
   TABLE_CLASS_ID,
-} from "../src/ui/components/tableFamily.js";
+} from "../src/features/classview/tableFamily.js";
 import {
   addTableColumn,
   addTableRow,
   DEFAULT_TABLE_COLUMNS,
   parseTableColumnCount,
   tableColumnCount,
-} from "../src/ui/components/tableGrid.js";
+} from "../src/features/classview/tableGrid.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000d1";
 const ACTOR = "0192a000-0000-7000-8000-0000000000d2";

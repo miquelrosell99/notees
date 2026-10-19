@@ -13,10 +13,10 @@
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { Icon } from "../../Icon.js";
-import { Section } from "../../Section.js";
-import { NodeCollection } from "../../../features/collection/index.js";
-import type { NodeCollectionItem } from "../../../features/collection/index.js";
+import { Icon } from "../../ui/Icon.js";
+import { Section } from "../../ui/Section.js";
+import { NodeCollection } from "../collection/index.js";
+import type { NodeCollectionItem } from "../collection/index.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 

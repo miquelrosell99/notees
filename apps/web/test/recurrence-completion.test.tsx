@@ -19,7 +19,7 @@ import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { CalendarView } from "../src/ui/components/CalendarView.js";
 import { addDaysIso, todayIsoLocal } from "../src/ui/components/calendarViewUtils.js";
 import { partitionOpenTasks } from "../src/ui/components/calendarViewUtils.js";
-import { ensureTaskFamily } from "../src/ui/components/taskFamily.js";
+import { ensureTaskFamily } from "../src/features/classview/taskFamily.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000d1";
 const ACTOR = "0192a000-0000-7000-8000-0000000000d2";

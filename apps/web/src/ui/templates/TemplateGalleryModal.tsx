@@ -24,7 +24,7 @@ import { Icon } from "../Icon.js";
 import { Button } from "../components/ui/Button.js";
 import { Modal } from "../components/ui/Modal.js";
 import { SearchField } from "../components/ui/SearchField.js";
-import { ensureTemplateFamily } from "../components/templateFamily.js";
+import { ensureTemplateFamily } from "../../features/templates/templateFamily.js";
 import { useTemplateInstantiator } from "./useTemplateInstantiator.js";
 import "./TemplateGalleryModal.css";
 

@@ -41,7 +41,7 @@ import {
   MEETING_CLASS_ID,
   MEETING_FAMILY,
   meetingFamilyPresent,
-} from "../src/ui/components/meetingFamily.js";
+} from "../src/features/classview/meetingFamily.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000c1";
 const ACTOR = "0192a000-0000-7000-8000-0000000000c2";

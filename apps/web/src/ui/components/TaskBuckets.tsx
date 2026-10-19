@@ -21,7 +21,7 @@ import { displayNameFromClient } from "../dateDisplay.js";
 import { Icon } from "../Icon.js";
 import { partitionTasksIntoBuckets, todayIsoLocal, type TaskBuckets as Buckets } from "./calendarViewUtils.js";
 import { setTaskDone, taskRowsOf, taskStatusLabel } from "./calendarRows.js";
-import { ensureTaskFamily } from "./taskFamily.js";
+import { ensureTaskFamily } from "../../features/classview/taskFamily.js";
 import { useDeviceSetting } from "./modals/deviceSettings.js";
 import { Checkbox } from "./ui/Checkbox.js";
 import { Pill } from "./ui/Pill.js";

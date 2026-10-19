@@ -237,9 +237,9 @@ import { useLinkEditModalOpener } from "../../ui/editor-popups/LinkEditModal.js"
 import { requestQueryBuilderOpen } from "../../ui/QueryBlockView.js";
 import { TemplateListPopup } from "../../ui/templates/TemplateListPopup.js";
 import { useTemplateInstantiator } from "../../ui/templates/useTemplateInstantiator.js";
-import { ensureTableFamily } from "../../ui/components/tableFamily.js";
-import { cycleTaskState } from "../../ui/components/taskCycle.js";
-import { createTable, DEFAULT_TABLE_COLUMNS, parseTableColumnCount } from "../../ui/components/tableGrid.js";
+import { ensureTableFamily } from "../classview/tableFamily.js";
+import { cycleTaskState } from "../classview/taskCycle.js";
+import { createTable, DEFAULT_TABLE_COLUMNS, parseTableColumnCount } from "../classview/tableGrid.js";
 
 export const SAVE_DEBOUNCE_MS = 400;
 

@@ -108,8 +108,8 @@ import { Button } from "./components/ui/index.js";
 import { Badge } from "./components/ui/Badge.js";
 import { CondensedLinksPopup } from "./components/CondensedLinksPopup.js";
 import { InlineConfirmButton } from "./components/ui/InlineConfirmButton.js";
-import { tableClassIdOf } from "./components/tableFamily.js";
-import { addTableColumn, addTableRow, deleteTableColumn, deleteTableRow, tableColumnCount } from "./components/tableGrid.js";
+import { tableClassIdOf } from "../features/classview/tableFamily.js";
+import { addTableColumn, addTableRow, deleteTableColumn, deleteTableRow, tableColumnCount } from "../features/classview/tableGrid.js";
 import { deriveListMarker } from "./listStyle.js";
 
 /** Display positions (schema-level) a block row surfaces itself; the
