@@ -47,7 +47,7 @@ import { SYSTEM_CLASS_UUIDS } from "../packages/domain/src/index";
 import {
   ensureMeetingFamily,
   type MeetingFamilySurface,
-} from "../apps/web/src/ui/components/meetingFamily";
+} from "../apps/web/src/features/classview/meetingFamily";
 import type { ClientPropertySchema } from "../apps/web/src/core/workspace-client";
 
 /**
