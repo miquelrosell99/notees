@@ -19,7 +19,7 @@ import { Button } from "../../components/ui/fleet/Button.js";
 import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
 import { Modal } from "../../components/ui/fleet/Modal.js";
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
-import type { AnyClient } from "../../ui/components/Sidebar.js";
+import type { AnyClient } from "../../ui/app/Sidebar.js";
 
 import "./SyncDetailsModal.css";
 
