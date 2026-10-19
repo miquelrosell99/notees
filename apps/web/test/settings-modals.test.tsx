@@ -527,9 +527,14 @@ describe("ManageWorkspacesModal", () => {
       />,
     );
     fireEvent.click(await screen.findByRole("button", { name: "Actions for Backyard" }));
-    expect(screen.getByRole("menuitem", { name: /rename/i })).toBeDisabled();
-    expect(screen.getByRole("menuitem", { name: /delete/i })).toBeDisabled();
-    expect(screen.getByRole("menuitem", { name: /export/i })).toBeEnabled();
+    // Radix menuitems carry the disabled state via aria-disabled (the
+    // correct ARIA for menu rows — they are not native form controls).
+    expect(screen.getByRole("menuitem", { name: /rename/i })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("menuitem", { name: /delete/i })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("menuitem", { name: /export/i })).not.toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 
   it("deletes a workspace after confirmation and refreshes the list", async () => {

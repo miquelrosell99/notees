@@ -61,10 +61,13 @@ describe("ContextMenu submenu hover (owner 2026-10-16)", () => {
     expect(queryByText("Markdown")).not.toBeNull();
     expect(queryByText("Link")).not.toBeNull();
     // The submenu flies out to the SIDE of the parent row — a second card
-    // inside the menu card, never a row inside the list.
+    // outside the menu's item flow, never a row inside the list. Radix
+    // wraps the flyout in its popper wrapper (position:fixed, so opening
+    // it can never re-fit the menu's box the way the old inline expansion
+    // did) — the contract asserted here is the flyout surface itself.
     const flyout = document.querySelector(".context-menu-submenu-flyout");
     expect(flyout).not.toBeNull();
-    expect(flyout!.parentElement!.classList.contains("context-menu")).toBe(true);
+    expect(flyout!.classList.contains("context-menu-submenu-flyout")).toBe(true);
   });
 
   it("hovering a plain item closes the open flyout", () => {
@@ -93,7 +96,8 @@ describe("chevron visibility (owner 2026-10-16 feedback)", () => {
   it("the submenu chevron renders the mdi sprite chevron-right", () => {
     stubHover(false);
     const { getByText } = renderMenu();
-    const use = getByText("Copy").closest("button")!.querySelector(".context-menu-arrow use");
+    // Radix renders the sub trigger as a menuitem row (div), not a button.
+    const use = getByText("Copy").closest("[role='menuitem']")!.querySelector(".context-menu-arrow use");
     expect(use?.getAttribute("href")).toContain("mdi-chevron-right");
   });
 
