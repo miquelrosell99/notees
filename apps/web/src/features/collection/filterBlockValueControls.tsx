@@ -17,8 +17,8 @@ import type { AnyClient } from "./index.js";
 import { Icon } from "../../ui/Icon.js";
 import { displayNameForSettings } from "../../ui/dateDisplay.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
-import { Dropdown } from "../../ui/components/ui/Dropdown.js";
-import { Input } from "../../ui/components/ui/Input.js";
+import { Dropdown } from "../../components/ui/fleet/Dropdown.js";
+import { Input } from "../../components/ui/fleet/Input.js";
 import { type BuilderFacts } from "./QueryBuilderFields.js";
 
 const PROPERTY_OP_LABELS: ReadonlyArray<{ op: PropertyOp; label: string }> = [

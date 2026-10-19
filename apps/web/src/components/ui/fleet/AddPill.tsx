@@ -6,7 +6,7 @@
  */
 
 import { forwardRef, type ReactNode, type MouseEvent } from 'react';
-import { Icon } from '../../Icon.js';
+import { Icon } from '../../../ui/Icon.js';
 import { cn } from './cn.js';
 import './Pill.css';
 

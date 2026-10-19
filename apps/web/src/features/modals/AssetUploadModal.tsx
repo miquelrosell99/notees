@@ -24,9 +24,9 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { AssetUploadResult, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Icon } from "../../ui/Icon.js";
-import { Modal } from "../../ui/components/ui/Modal.js";
-import { Button } from "../../ui/components/ui/Button.js";
-import { FileDropZone } from "../../ui/components/ui/FileDropZone.js";
+import { Modal } from "../../components/ui/fleet/Modal.js";
+import { Button } from "../../components/ui/fleet/Button.js";
+import { FileDropZone } from "../../components/ui/fleet/FileDropZone.js";
 import "./AssetUploadModal.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

@@ -27,7 +27,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import { Icon } from "../../ui/Icon.js";
 import { displayNameForSettings } from "../../ui/dateDisplay.js";
 import { useDeviceSetting, writeDeviceSetting } from "../settings/deviceSettings.js";
-import { Button, EmptyState } from "../../ui/components/ui/index.js";
+import { Button, EmptyState } from "../../components/ui/fleet/index.js";
 import { FilterBuilderModal } from "./FilterBuilderModal.js";
 import { ViewTabs } from "./ViewTabs.js";
 import { NodeCollection, ViewSwitcher } from "./index.js";

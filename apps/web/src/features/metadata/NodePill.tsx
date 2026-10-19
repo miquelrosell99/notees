@@ -13,7 +13,7 @@ import { Icon } from "../../ui/Icon.js";
 import type { ClientNode } from "@/core/workspace-client/index.js";
 import { displayNameForSettings } from "../../ui/dateDisplay.js";
 import { ColorPickerRow } from "../pickers/ColorPickerRow.js";
-import { usePopupDismissal } from "../../ui/components/ui/usePopupDismissal.js";
+import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
 import "./NodePill.css";
 
 export interface NodePillProps {

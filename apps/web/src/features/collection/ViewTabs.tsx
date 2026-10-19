@@ -15,8 +15,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { ConfirmationModal, ContextMenu, Tabs, TextField } from "../../ui/components/ui/index.js";
-import type { ContextMenuItem } from "../../ui/components/ui/index.js";
+import { ConfirmationModal, ContextMenu, Tabs, TextField } from "../../components/ui/fleet/index.js";
+import type { ContextMenuItem } from "../../components/ui/fleet/index.js";
 
 import { parseQueryViewRecord, queryViewTitle } from "../../ui/queryViewRecord.js";
 import {

@@ -8,7 +8,7 @@
  */
 
 import { forwardRef, type MouseEvent, type ReactNode } from 'react';
-import { Icon } from '../../Icon.js';
+import { Icon } from '../../../ui/Icon.js';
 import './Chip.css';
 
 export interface ChipProps {

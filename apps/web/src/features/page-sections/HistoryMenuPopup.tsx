@@ -18,8 +18,8 @@ import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { UndoHistoryEntry } from "@/core/undo-journal.js";
 
 import { Icon } from "../../ui/Icon.js";
-import { useViewportFlip } from "../../ui/components/ui/overlay-hooks.js";
-import { usePopupDismissal } from "../../ui/components/ui/usePopupDismissal.js";
+import { useViewportFlip } from "../../components/ui/fleet/overlay-hooks.js";
+import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
 import "./HistoryMenuPopup.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

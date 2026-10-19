@@ -20,7 +20,7 @@ import {
 } from "react";
 
 import "./SelectionButton.css";
-import { Icon } from "../../Icon.js";
+import { Icon } from "../../../ui/Icon.js";
 
 export type SelectionButtonSize = "sm" | "md" | "lg";
 export type SelectionButtonOrientation = "horizontal" | "vertical";

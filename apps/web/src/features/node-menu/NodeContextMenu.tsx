@@ -37,12 +37,12 @@ import type { ClientNode, ClientPropertySchema } from "@/core/workspace-client/i
 import { displayNameForSettings } from "../../ui/dateDisplay.js";
 import { nodeLinkUrl } from "../../ui/nodeLink.js";
 import { parentRenderFacts, untitledLabelOf } from "../../ui/renderStateLabel.js";
-import { copyToClipboard } from "../modals/clipboard.js";import { notificationStore } from "../../ui/components/ui/notificationStore.js";
+import { copyToClipboard } from "../modals/clipboard.js";import { notificationStore } from "../../components/ui/fleet/notificationStore.js";
 import { clipboardMarkdown } from "../export/exportSubtree.js";
 import { refuseClassRemoval, removeClassDissolvingLinks } from "../metadata/classRemoval.js";
 import { headingAstOf, headingConversionOf, plainTextAstOf } from "../block-editor/headingConvert.js";
-import { ConfirmationModal } from "../../ui/components/ui/ConfirmationModal.js";
-import { ContextMenu, type ContextMenuItem } from "../../ui/components/ui/ContextMenu.js";
+import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
+import { ContextMenu, type ContextMenuItem } from "../../components/ui/fleet/ContextMenu.js";
 
 /**
  * The minimal client surface the menu needs (both client classes and the

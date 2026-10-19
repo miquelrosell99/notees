@@ -32,8 +32,8 @@
  */
 import { useCallback, useId, type InputHTMLAttributes, type WheelEvent, type CSSProperties } from 'react';
 
-import { Slider as CatalogSlider } from '@/components/ui/slider';
-import { cn } from './cn';
+import { Slider as CatalogSlider } from '@/components/ui/slider.js';
+import { cn } from './cn.js';
 
 export type SliderSize = 'sm' | 'md';
 

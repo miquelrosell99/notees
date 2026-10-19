@@ -8,7 +8,7 @@
  */
 
 import type { ReactNode } from "react";
-import { cssColorFor } from "../../ui/components/ui/colorPresets.js";
+import { cssColorFor } from "../../components/ui/fleet/colorPresets.js";
 import "./PageCard.css";
 
 /** The ONE floating content card; `accent` paints the node-color left border. */

@@ -18,8 +18,8 @@
 import type { ReactNode } from 'react';
 import { cva } from 'class-variance-authority';
 
-import { Badge as CatalogBadge } from '@/components/ui/badge';
-import { cn } from './cn';
+import { Badge as CatalogBadge } from '@/components/ui/badge.js';
+import { cn } from './cn.js';
 
 const badgeVariants = cva(
   'badge inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-badge border border-transparent font-semibold transition-colors duration-short ease-standard',

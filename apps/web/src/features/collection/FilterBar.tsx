@@ -28,9 +28,9 @@ import { useState } from "react";
 import type { AnyClient } from "./index.js";
 
 import { useMediaQuery } from "../../ui/useMediaQuery.js";
-import { Button } from "../../ui/components/ui/Button.js";
-import { ButtonWithPanel } from "../../ui/components/ui/ButtonWithPanel.js";
-import { SearchField } from "../../ui/components/ui/SearchField.js";
+import { Button } from "../../components/ui/fleet/Button.js";
+import { ButtonWithPanel } from "../../components/ui/fleet/ButtonWithPanel.js";
+import { SearchField } from "../../components/ui/fleet/SearchField.js";
 import { FilterBlockBuilder } from "./FilterBlockBuilder.js";
 import {
   EMPTY_FILTER_QUERY,

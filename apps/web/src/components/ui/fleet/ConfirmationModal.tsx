@@ -6,7 +6,7 @@
  */
 import { useEffect, useCallback, useState } from 'react';
 import { Modal } from './Modal.js';
-import { Icon } from '../../Icon.js';
+import { Icon } from '../../../ui/Icon.js';
 import { Button } from './Button.js';
 import './ConfirmationModal.css';
 

@@ -20,10 +20,10 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import { createPortal } from "react-dom";
 
 import { Icon } from "../../ui/Icon.js";
-import { Button } from "../../ui/components/ui/Button.js";
-import { ColorButton } from "../../ui/components/ui/ColorButton.js";
-import { Tabs } from "../../ui/components/ui/Tabs.js";
-import { usePopupDismissal } from "../../ui/components/ui/usePopupDismissal.js";
+import { Button } from "../../components/ui/fleet/Button.js";
+import { ColorButton } from "../../components/ui/fleet/ColorButton.js";
+import { Tabs } from "../../components/ui/fleet/Tabs.js";
+import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
 import { clampOverlayLeft, flipOverlayTop } from "../../ui/editor-popups/overlay-position.js";
 import { EMOJI_CATEGORIES } from "./emojiData.js";
 import { MDI_CATEGORIES } from "./mdiCategories.js";

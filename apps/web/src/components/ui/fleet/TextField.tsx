@@ -13,7 +13,7 @@
  */
 import { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from "react";
 
-import { cn } from "./cn";
+import { cn } from "./cn.js";
 
 export type TextFieldSize = "sm" | "md" | "lg";
 

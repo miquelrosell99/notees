@@ -20,9 +20,9 @@
  */
 import { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from 'react';
 
-import { Input as CatalogInput } from '@/components/ui/input';
-import { Icon } from '../../Icon.js';
-import { cn } from './cn';
+import { Input as CatalogInput } from '@/components/ui/input.js';
+import { Icon } from '../../../ui/Icon.js';
+import { cn } from './cn.js';
 import './SearchField.css';
 
 export interface SearchFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {

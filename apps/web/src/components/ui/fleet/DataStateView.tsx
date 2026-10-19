@@ -23,7 +23,7 @@ import type { ReactNode } from 'react';
 import { LoadingSkeleton } from './LoadingSkeleton.js';
 import { EmptyState } from './EmptyState.js';
 import { Button } from './Button.js';
-import { Icon } from '../../Icon.js';
+import { Icon } from '../../../ui/Icon.js';
 import { useDelayedVisible } from './useDelayedVisible.js';
 import './DataStateView.css';
 

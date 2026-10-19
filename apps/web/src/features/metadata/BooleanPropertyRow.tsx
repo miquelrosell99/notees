@@ -1,6 +1,6 @@
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
-import { Checkbox } from "../../ui/components/ui/Checkbox.js";
+import { Checkbox } from "../../components/ui/fleet/Checkbox.js";
 import type { AnyClient } from "./shared.js";
 
 /**

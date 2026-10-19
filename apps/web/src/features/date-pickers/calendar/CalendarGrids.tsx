@@ -9,7 +9,7 @@
  */
 
 import { Icon } from "../../../ui/Icon.js";
-import { SelectionButton } from "../../../ui/components/ui/SelectionButton.js";
+import { SelectionButton } from "../../../components/ui/fleet/SelectionButton.js";
 import type { CalendarMode } from "./useCalendarMode.js";
 
 const MONTHS = [

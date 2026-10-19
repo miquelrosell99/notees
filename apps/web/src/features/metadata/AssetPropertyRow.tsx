@@ -4,7 +4,7 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
-import { Button } from "../../ui/components/ui/Button.js";
+import { Button } from "../../components/ui/fleet/Button.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import { AssetUploadModal } from "../modals/AssetUploadModal.js";
 import { AssetItemRow } from "./AssetItemRow.js";
