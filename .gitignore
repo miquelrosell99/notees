@@ -10,3 +10,7 @@ config/
 apps/server/data/
 scripts/migrated-verify/
 .worktrees/
+
+# Playwright
+apps/web/test-results/
+apps/web/playwright-report/
