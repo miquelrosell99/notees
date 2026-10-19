@@ -293,10 +293,31 @@ describe("entry points", () => {
       />,
     );
     // The gear left the sidebar foot with the account-popup redesign
-    //: Settings lives inside the popup now.
+    // — and came back a day later: the owner doesn't
+    // want a shortcut as the settings door.
     fireEvent.click(screen.getByRole("button", { name: "Account" }));
     fireEvent.click(within(screen.getByRole("menu")).getByText("Settings"));
-    expect(onOpenSettings).toHaveBeenCalled();
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it("the settings gear rides the sidebar foot again — one click, no popup", () => {
+    const onOpenSettings = vi.fn();
+    render(
+      <Sidebar
+        client={client}
+        user={USER}
+        offline={false}
+        showSettings
+        onOpenSettings={onOpenSettings}
+        selectedPageId={null}
+        activeNav="pages"
+        onSelectNav={() => {}}
+        onOpenPage={() => {}}
+        onSignOut={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
   });
 
   it("sidebar honors the device-local journal/inbox visibility toggles", () => {

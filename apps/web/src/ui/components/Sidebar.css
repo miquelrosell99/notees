@@ -278,20 +278,22 @@
   position: relative;
 }
 
-/* Profile trigger: avatar-only circle, the tap-target floor wide. The
-   sync-state badge rides its bottom-right corner (the relocated top-bar
-   sync dot — visual indicator; details open from the popup's Sync entry). */
+/* Profile trigger: avatar + name/email identity row (the identity line is back after one avatar-only day — the ambient
+   "which account" read stays at rest; the popup carries the same header).
+   The sync-state badge rides the AVATAR's bottom-right corner (positioned
+   against the avatar span, not the row). */
 .nt-profile {
   position: relative;
-  display: inline-flex;
+  flex: 1;
+  min-width: 0;
+  display: flex;
   align-items: center;
-  justify-content: center;
-  width: var(--button-min-height);
-  height: var(--button-min-height);
-  padding: 0;
+  gap: var(--spacing-2);
+  padding: 4px var(--spacing-2);
   border: none;
-  border-radius: var(--shape-full);
+  border-radius: var(--shape-medium);
   background: transparent;
+  text-align: left;
 }
 
 .nt-profile:hover {
@@ -304,6 +306,7 @@
 }
 
 .nt-profile-avatar {
+  position: relative;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -316,7 +319,7 @@
   color: var(--md-sys-color-on-surface-variant);
   font-size: var(--font-size-sm);
   font-weight: 600;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .nt-profile-avatar img {
