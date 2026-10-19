@@ -101,11 +101,12 @@ implementation.
 
 The 2026-10-19 shadcn-alignment slice ("full shadcn
 alignment and implementation") added the catalog layer and the class half
-of the gate. **The catalog** (`src/components/ui/`, 20 normalized
+of the gate. **The catalog** (`src/components/ui/`, 22 normalized
 components — button, input, textarea, label, card, dialog, alert-dialog,
 tabs, switch, checkbox, radio-group, badge, select, dropdown-menu,
-popover, tooltip, separator, skeleton, scroll-area, command): shadcn
-new-york sources normalized to the tokens per the fleet bridge checklist —
+popover, tooltip, separator, skeleton, scroll-area, command, spinner,
+slider): shadcn new-york sources normalized to the tokens per the fleet
+bridge checklist —
 theme-key utilities only, fleet radii (buttons corner-full at every size
 per the 2026-10-19 ruling), hover = state-layer overlay through the
 `--accent` alias, focus ring from `--ring`, chrome icons on the fleet
@@ -116,8 +117,20 @@ fact the utilities need). The six fleet primitives (Button, TextField,
 Card, Tabs, ToggleSwitch, Modal) are thin wrappers composing the catalog —
 full prop APIs preserved, their CSS retired (Tabs.css keeps the
 sliding-indicator register, Modal.css the sheet/overlay chrome; legacy
-`btn`/`card` marker classes stay where feature CSS compounds on them). New
-catalog-covered work composes `src/components/ui/`; the drift gate's class
+`btn`/`card` marker classes stay where feature CSS compounds on them).
+The leaf sweep (same day, full-alignment stage) migrated the remaining
+catalog-covered leaves to the same thin-wrapper architecture — Badge,
+Separator, Spinner, LoadingSkeleton, Checkbox, Radio, Input, SearchField,
+BooleanToggle, Slider, CodeTextarea, SelectTrigger — with their
+stylesheets retired (Spinner/SearchField keep only the reduced-motion,
+hit-area-floor, and wrapper-focus-ring CSS the utility layer can't
+express; the tailwind config grew the registered keys they ride:
+min-w/icon/sep/skeleton/shimmer/spinner-arc/slider/inset-ring/error-ring/
+shape radii). **Dropdown and ContextMenu are the two composites still
+custom** — documented in `.agents/design-overrides.md` with a scheduled
+migration (combobox / context-menu-sub compositions), not silent drift.
+New catalog-covered work composes `src/components/ui/`; the drift gate's
+class
 half (checks 8–11) enforces the same token discipline on class strings:
 no default-palette utilities, no raw radii outside the registered family,
 no arbitrary values/default shadows/default durations, and a
