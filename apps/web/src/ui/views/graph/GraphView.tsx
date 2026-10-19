@@ -1429,7 +1429,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
             label="Paint groups"
             labelPosition="right"
             checked={prefs.colorGroupsOn}
-            onChange={(event) => patch({ colorGroupsOn: event.target.checked })}
+            onChange={(checked) => patch({ colorGroupsOn: checked })}
           />
         </div>
         <p className="nt-graph__rail-hint">
@@ -1609,7 +1609,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
             description="Run or pause the physics"
             labelPosition="left"
             checked={!prefs.paused}
-            onChange={(event) => patch({ paused: !event.target.checked })}
+            onChange={(checked) => patch({ paused: !checked })}
           />
           <BooleanToggle
             size="sm"
@@ -1617,7 +1617,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
             description="More connected nodes attract more strongly"
             labelPosition="left"
             checked={prefs.linkCountAttraction}
-            onChange={(event) => patch({ linkCountAttraction: event.target.checked })}
+            onChange={(checked) => patch({ linkCountAttraction: checked })}
           />
           <BooleanToggle
             size="sm"
@@ -1625,7 +1625,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
             description="Pull components toward the middle"
             labelPosition="left"
             checked={prefs.centralGravityOn}
-            onChange={(event) => patch({ centralGravityOn: event.target.checked })}
+            onChange={(checked) => patch({ centralGravityOn: checked })}
           />
           <BooleanToggle
             size="sm"
@@ -1633,7 +1633,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
             description="Parents resist movement by descendant weight"
             labelPosition="left"
             checked={prefs.massAccumulation}
-            onChange={(event) => patch({ massAccumulation: event.target.checked })}
+            onChange={(checked) => patch({ massAccumulation: checked })}
           />
           <BooleanToggle
             size="sm"
@@ -1641,7 +1641,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
             description="Communities hold together and separate from each other"
             labelPosition="left"
             checked={prefs.clustering}
-            onChange={(event) => patch({ clustering: event.target.checked })}
+            onChange={(checked) => patch({ clustering: checked })}
           />
           {prefs.clustering && (
             <label className="nt-graph__settings-slider">
@@ -1731,7 +1731,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
         description="Show classes as nodes"
         labelPosition="left"
         checked={prefs.showClasses}
-        onChange={(event) => patch({ showClasses: event.target.checked })}
+        onChange={(checked) => patch({ showClasses: checked })}
       />
       <BooleanToggle
         size="sm"
@@ -1739,7 +1739,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
         description="Nodes with no visible links"
         labelPosition="left"
         checked={prefs.showOrphans}
-        onChange={(event) => patch({ showOrphans: event.target.checked })}
+        onChange={(checked) => patch({ showOrphans: checked })}
       />
       {(prefs.families.semantic === true || prefs.families.temporal === true) && (
         <>
@@ -1776,7 +1776,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
           description="Daily journal pages"
           labelPosition="left"
           checked={prefs.journalDay}
-          onChange={(event) => patch({ journalDay: event.target.checked })}
+          onChange={(checked) => patch({ journalDay: checked })}
         />
         <BooleanToggle
           size="sm"
@@ -1784,7 +1784,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
           description="Monthly journal pages"
           labelPosition="left"
           checked={prefs.journalMonth}
-          onChange={(event) => patch({ journalMonth: event.target.checked })}
+          onChange={(checked) => patch({ journalMonth: checked })}
         />
         <BooleanToggle
           size="sm"
@@ -1792,7 +1792,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
           description="Yearly journal pages"
           labelPosition="left"
           checked={prefs.journalYear}
-          onChange={(event) => patch({ journalYear: event.target.checked })}
+          onChange={(checked) => patch({ journalYear: checked })}
         />
         <BooleanToggle
           size="sm"
@@ -1800,7 +1800,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
           description="The Inbox and legacy scaffolding"
           labelPosition="left"
           checked={prefs.showSystemPages}
-          onChange={(event) => patch({ showSystemPages: event.target.checked })}
+          onChange={(checked) => patch({ showSystemPages: checked })}
         />
       </div>
     </div>
@@ -1873,7 +1873,7 @@ export function GraphView({ client, items, onNodeClick, local }: NodeCollectionP
         label="Edges"
         labelPosition="right"
         checked={timeLapseEdges}
-        onChange={(event) => setTimeLapseEdges(event.target.checked)}
+        onChange={(checked) => setTimeLapseEdges(checked)}
       />
       <Button
         variant="ghost"

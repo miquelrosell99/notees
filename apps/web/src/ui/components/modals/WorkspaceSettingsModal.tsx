@@ -453,7 +453,7 @@ export function WorkspaceSettingsModal({
                   label="Journals"
                   description="Show the Journals button in the sidebar"
                   checked={showJournals}
-                  onChange={(e) => setShowJournals(e.target.checked)}
+                  onChange={(checked) => setShowJournals(checked)}
                   labelPosition="left"
                 />
               </div>
@@ -463,7 +463,7 @@ export function WorkspaceSettingsModal({
                   label="Inbox"
                   description="Show the Inbox button in the sidebar"
                   checked={showInbox}
-                  onChange={(e) => setShowInbox(e.target.checked)}
+                  onChange={(checked) => setShowInbox(checked)}
                   labelPosition="left"
                 />
               </div>
@@ -473,7 +473,7 @@ export function WorkspaceSettingsModal({
                   label="Calendar"
                   description="Show the Calendar button in the sidebar"
                   checked={showCalendar}
-                  onChange={(e) => setShowCalendar(e.target.checked)}
+                  onChange={(checked) => setShowCalendar(checked)}
                   labelPosition="left"
                 />
               </div>
@@ -501,7 +501,7 @@ export function WorkspaceSettingsModal({
                           label={chip.label}
                           {...(chip.propertyName !== null ? { description: chip.propertyName } : {})}
                           checked={effectiveChipIds.includes(chip.classId)}
-                          onChange={(e) => toggleChip(chip.classId, e.target.checked)}
+                          onChange={(checked) => toggleChip(chip.classId, checked)}
                           labelPosition="left"
                         />
                       </div>
