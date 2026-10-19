@@ -23,4 +23,11 @@ describe("InProcessStoreBanner", () => {
     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
     expect(screen.queryByRole("status")).toBeNull();
   });
+
+  it("renders the diagnosed cause when provided", () => {
+    render(
+      <InProcessStoreBanner reason="plain http on a non-localhost address is not a secure context" />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("not a secure context");
+  });
 });

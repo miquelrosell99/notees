@@ -489,6 +489,34 @@ select:focus-visible {
   min-height: 0;
 }
 
+/* Compact adaptation (audit 2026-10-19 — the 390px Critical): below the
+   medium breakpoint the two panel cards' minima (13rem + 15rem = 28rem)
+   outrun the content card and the document column, squeezed to zero,
+   vanishes while the context panel clips. The page stacks instead:
+   document first, then the side panel, then the context column — each a
+   full-width block the body scrolls past. */
+@media (width <= 768px) {
+  .nt-page--panelled .nt-page-body {
+    flex-direction: column;
+    gap: var(--spacing-3);
+    overflow-y: auto;
+  }
+
+  .nt-page--panelled .nt-page-content {
+    order: -1; /* the document leads on compact; panels follow */
+    align-self: auto;
+    flex: none;
+  }
+
+  .nt-page--panelled .nt-page-side-panel,
+  .nt-page--panelled .nt-page-context {
+    flex: none;
+    width: 100%;
+    align-self: auto;
+    max-height: none;
+  }
+}
+
 /* The fullscreen whiteboard surface: the canvas is the card's sole
    content. The page chrome (the panelled columns, the nodeview top bar,
    the header, the footer) steps aside; the page padding goes and the
@@ -3636,7 +3664,10 @@ mark {
     color: var(--md-sys-color-on-surface);
     box-shadow: var(--shadow-elevation-2);
     cursor: pointer;
-    z-index: 40;
+    /* The z-index scale owns stacking (audit 2026-10-19: was a hardcoded
+       40 — under every floating layer). FAB rides the fixed layer: above
+       card content, below popovers/menus, toasts, and modals. */
+    z-index: var(--z-fixed);
   }
 
   /* Touch targets: sidebar rows (28px desktop) and the shell icon buttons
@@ -3678,30 +3709,6 @@ mark {
 
   .nt-page-card {
     margin: var(--spacing-2) var(--spacing-2) var(--spacing-2) 0;
-  }
-}
-
-@media (width <= 480px) {
-  /* The peek card / right rail is hidden below 1100px (PageCard.css); at
-     phone widths an open panel becomes a full-width bottom sheet (the
-     row's "References bottom sheet") instead of unreachable chrome. */
-  .nt-body .nt-right-card {
-    display: flex;
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    top: auto;
-    width: 100%;
-    max-height: 75vh;
-    margin: 0;
-    padding: var(--spacing-2);
-    padding-bottom: calc(var(--spacing-2) + env(safe-area-inset-bottom, 0px));
-    background: var(--md-sys-color-surface-container-low);
-    border-top: var(--border-width-default) solid var(--md-sys-color-outline-variant);
-    border-radius: var(--shape-large) var(--shape-large) 0 0;
-    box-shadow: var(--shadow-elevation-2);
-    z-index: 40;
   }
 }
 
