@@ -24,7 +24,7 @@ import { ConfirmationModal } from "../../ui/components/ui/ConfirmationModal.js";
 import { ContextMenu } from "../../ui/components/ui/ContextMenu.js";
 import { DataStateView } from "../../ui/components/ui/DataStateView.js";
 import { Pill } from "../../ui/components/ui/Pill.js";
-import { downloadBlob } from "../../ui/components/modals/download.js";
+import { downloadBlob } from "../modals/download.js";
 import { WorkspaceExportModal } from "./WorkspaceExportModal.js";
 import { WorkspaceNameModal } from "./WorkspaceNameModal.js";
 import { deleteWorkspace, exportWorkspace, renameWorkspace } from "./workspaceApi.js";

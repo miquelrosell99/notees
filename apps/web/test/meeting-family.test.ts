@@ -29,7 +29,7 @@ import {
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { displayNameFromClient } from "../src/ui/dateDisplay.js";
-import { dateChipCandidates } from "../src/ui/components/calendarViewUtils.js";
+import { dateChipCandidates } from "../src/features/calendar/calendarViewUtils.js";
 import {
   BIRTHDAY_CLASS_ID,
   BIRTHDAY_FAMILY,

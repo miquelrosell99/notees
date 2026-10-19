@@ -27,10 +27,10 @@ import {
   splitPersonName,
   systemClassLabel,
 } from "./quickCreate.js";
-import { Modal } from "../ui/Modal.js";
-import { Button } from "../ui/Button.js";
-import { TextField } from "../ui/TextField.js";
-import { SelectionButton } from "../ui/SelectionButton.js";
+import { Modal } from "../../ui/components/ui/Modal.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { TextField } from "../../ui/components/ui/TextField.js";
+import { SelectionButton } from "../../ui/components/ui/SelectionButton.js";
 import "./QuickCreateModal.css";
 
 export type AgentType = "person" | "organization";

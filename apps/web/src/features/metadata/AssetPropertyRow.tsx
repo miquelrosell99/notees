@@ -6,7 +6,7 @@ import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { Button } from "../../ui/components/ui/Button.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
-import { AssetUploadModal } from "../../ui/components/modals/AssetUploadModal.js";
+import { AssetUploadModal } from "../modals/AssetUploadModal.js";
 import { AssetItemRow } from "./AssetItemRow.js";
 import type { AnyClient } from "./shared.js";
 import { nodeRefOf } from "./shared.js";

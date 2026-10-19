@@ -5,12 +5,12 @@
  * Example: "Apple" already exists as a Fruit → create "Apple" as a Company.
  */
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Modal } from "../ui/Modal.js";
-import { Button } from "../ui/Button.js";
-import { NodeIcon } from "./NodeIcon";
+import { Modal } from "../../ui/components/ui/Modal.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { NodeIcon } from "./NodeIcon.js";
 import type { ClientNode } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
-import { displayNameForSettings } from "../../dateDisplay.js";
+import { displayNameForSettings } from "../../ui/dateDisplay.js";
 import "./DuplicatePageModal.css";
 
 export interface DuplicatePageModalProps {

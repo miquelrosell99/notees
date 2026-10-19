@@ -29,7 +29,7 @@ import {
   reorderNodeFavorites,
   toggleNodeFavorite,
   useNodePrefs,
-} from "../src/ui/components/nodePrefs.js";
+} from "../src/features/settings/nodePrefs.js";
 import { Sidebar, recordRecent, removeRecent } from "../src/ui/components/Sidebar.js";
 import type { AnyClient } from "../src/ui/components/Sidebar.js";
 
@@ -168,7 +168,7 @@ type FakePrefs = { favorites: string[]; recents: string[]; source: "server" | "l
 function fakeClient(overrides: {
   getPrefs?: () => Promise<FakePrefs>;
   patchPrefs?: (patch: unknown) => Promise<FakePrefs>;
-} = {}): import("../src/ui/components/nodePrefs.js").PrefsClient {
+} = {}): import("../src/features/settings/nodePrefs.js").PrefsClient {
   return {
     getPrefs: overrides.getPrefs ?? (async () => ({ favorites: [], recents: [], source: "local" as const })),
     patchPrefs:
