@@ -19,7 +19,7 @@ import { PageView } from "../../ui/PageView.js";
 import { Icon } from "../../ui/Icon.js";
 import { rawDateKeywordOf } from "../../ui/dateDisplay.js";
 import type { AnyClient } from "../../ui/components/Sidebar.js";
-import { addDaysIso, isoOfDateParts, todayIsoLocal } from "../../ui/components/calendarViewUtils.js";
+import { addDaysIso, isoOfDateParts, todayIsoLocal } from "./calendarViewUtils.js";
 import { Button } from "../../ui/components/ui/Button.js";
 import { EmptyState } from "../../ui/components/ui/EmptyState.js";
 import "./JournalsView.css";

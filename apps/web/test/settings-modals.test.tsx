@@ -16,9 +16,9 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { WorkspaceSettingsModal } from "../src/features/workspaces/WorkspaceSettingsModal.js";
-import { SystemSettingsModal } from "../src/ui/components/modals/SystemSettingsModal.js";
-import { toggleFocusMode } from "../src/ui/components/modals/deviceSettings.js";
-import { AccentColorPicker, ThemeModeControl } from "../src/ui/components/SettingsPage.js";
+import { SystemSettingsModal } from "../src/features/settings/SystemSettingsModal.js";
+import { toggleFocusMode } from "../src/features/settings/deviceSettings.js";
+import { AccentColorPicker, ThemeModeControl } from "../src/features/settings/SettingsPage.js";
 import { WorkspacesView } from "../src/features/workspaces/WorkspacesView.js";
 import { Sidebar, type AnyClient } from "../src/ui/components/Sidebar.js";
 import { WorkspaceSwitcher } from "../src/features/workspaces/WorkspaceSwitcher.js";

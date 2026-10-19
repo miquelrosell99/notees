@@ -16,10 +16,10 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { deriveDisplayName } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
-import { ExportPageModal } from "../src/ui/components/modals/ExportPageModal.js";
-import { DuplicatePageModal } from "../src/ui/components/modals/DuplicatePageModal.js";
-import { CreatePageWithUuidModal } from "../src/ui/components/modals/CreatePageWithUuidModal.js";
-import { QuickAddModal } from "../src/ui/components/modals/QuickAddModal.js";
+import { ExportPageModal } from "../src/features/export/ExportPageModal.js";
+import { DuplicatePageModal } from "../src/features/modals/DuplicatePageModal.js";
+import { CreatePageWithUuidModal } from "../src/features/modals/CreatePageWithUuidModal.js";
+import { QuickAddModal } from "../src/features/modals/QuickAddModal.js";
 import { WorkspaceNameModal } from "../src/features/workspaces/WorkspaceNameModal.js";
 import { BackendUnavailableOverlay } from "../src/ui/components/ui/BackendUnavailableOverlay.js";
 import { LoadingSkeleton, Skeleton } from "../src/ui/components/ui/LoadingSkeleton.js";

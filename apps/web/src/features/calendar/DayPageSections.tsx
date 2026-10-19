@@ -31,7 +31,7 @@ import {
   partitionOpenTasks,
   type OpenTaskRow,
   type PartitionedTasks,
-} from "../../ui/components/calendarViewUtils.js";
+} from "./calendarViewUtils.js";
 import {
   datedRowNodes,
   setTaskDone,

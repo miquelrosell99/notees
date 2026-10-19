@@ -10,7 +10,7 @@ import type { ClientNode } from "@/core/workspace-client/index.js";
 
 import { ContextMenu } from "../../ui/components/ui/ContextMenu.js";
 import { notificationStore } from "../../ui/components/ui/notificationStore.js";
-import { copyToClipboard } from "../../ui/components/modals/clipboard.js";
+import { copyToClipboard } from "../modals/clipboard.js";
 import { nodeLinkUrl } from "../../ui/nodeLink.js";
 import { renderStateLabel } from "../../ui/renderStateLabel.js";
 

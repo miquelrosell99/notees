@@ -329,7 +329,7 @@ describe("ensureTaskFamily", () => {
     await client.setProperty(closed, SYSTEM_PROPERTY_UUIDS.taskStatus, doneId, 0);
 
     const { buildOpenTasksAst, closedStatusOptionIds } = await import(
-      "../src/ui/components/calendarViewUtils.js"
+      "../src/features/calendar/calendarViewUtils.js"
     );
     const result = client.runQueryAst(buildOpenTasksAst(closedStatusOptionIds(status)));
     expect(result.ids).toContain(open);

@@ -12,7 +12,7 @@ import type {
   ConflictHistoryEntry,
   SyncStatusSnapshot,
 } from "../src/core/workspace-client/index.js";
-import { SyncDetailsModal } from "../src/ui/components/modals/SyncDetailsModal.js";
+import { SyncDetailsModal } from "../src/features/modals/SyncDetailsModal.js";
 import type { AnyClient } from "../src/ui/components/Sidebar.js";
 
 const SNAPSHOT: SyncStatusSnapshot = {

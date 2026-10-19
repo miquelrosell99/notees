@@ -59,8 +59,8 @@ import {
   pathForSettingsSection,
   settingsSectionFromPath,
   type SettingsSection,
-} from "./components/SettingsPage.js";
-import { applyAppearance, readDeviceSetting, toggleFocusMode, useDeviceSetting } from "./components/modals/deviceSettings.js";
+} from "../features/settings/SettingsPage.js";
+import { applyAppearance, readDeviceSetting, toggleFocusMode, useDeviceSetting } from "../features/settings/deviceSettings.js";
 import { useCondensedPreference } from "./viewPrefs.js";
 import {
   AppBody,

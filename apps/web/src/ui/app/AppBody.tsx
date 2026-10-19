@@ -22,7 +22,7 @@ import { WorkspaceDndHost } from "../useWorkspaceDnd.js";
 import { PageCard } from "../../features/page-sections/PageCard.js";
 import { NodeView } from "../NodeView.js";
 import { SearchPage } from "../SearchPage.js";
-import { SettingsPage, type SettingsSection } from "../components/SettingsPage.js";
+import { SettingsPage, type SettingsSection } from "../../features/settings/SettingsPage.js";
 import { JournalsView } from "../../features/calendar/JournalsView.js";
 import { CalendarView } from "../../features/calendar/CalendarView.js";
 import { QueriesHub } from "../../features/collection/QueriesHub.js";
@@ -30,7 +30,7 @@ import { GraphView } from "../../features/collection/graph/GraphView.js";
 import { TrashHub } from "../../features/trash/TrashHub.js";
 import { SharesHub } from "../../features/sharing/SharesHub.js";
 import { NodeCardFrame } from "../../features/collection/NodeCardFrame.js";
-import { todayIsoLocal } from "../components/calendarViewUtils.js";
+import { todayIsoLocal } from "../../features/calendar/calendarViewUtils.js";
 import { Button } from "../components/ui/Button.js";
 import { HubView } from "./HubView.js";
 

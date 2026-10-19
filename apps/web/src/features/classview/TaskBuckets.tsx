@@ -15,16 +15,16 @@ import { useEffect, useMemo, useState } from "react";
 
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
-import type { AnyClient } from "./Sidebar.js";
+import type { AnyClient } from "../../ui/components/Sidebar.js";
 
-import { displayNameFromClient } from "../dateDisplay.js";
-import { Icon } from "../Icon.js";
-import { partitionTasksIntoBuckets, todayIsoLocal, type TaskBuckets as Buckets } from "./calendarViewUtils.js";
-import { setTaskDone, taskRowsOf, taskStatusLabel } from "../../features/calendar/calendarRows.js";
-import { ensureTaskFamily } from "../../features/classview/taskFamily.js";
-import { useDeviceSetting } from "./modals/deviceSettings.js";
-import { Checkbox } from "./ui/Checkbox.js";
-import { Pill } from "./ui/Pill.js";
+import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { Icon } from "../../ui/Icon.js";
+import { partitionTasksIntoBuckets, todayIsoLocal, type TaskBuckets as Buckets } from "../calendar/calendarViewUtils.js";
+import { setTaskDone, taskRowsOf, taskStatusLabel } from "../calendar/calendarRows.js";
+import { ensureTaskFamily } from "./taskFamily.js";
+import { useDeviceSetting } from "../settings/deviceSettings.js";
+import { Checkbox } from "../../ui/components/ui/Checkbox.js";
+import { Pill } from "../../ui/components/ui/Pill.js";
 import "./TaskBuckets.css";
 
 const BUCKET_ORDER: Array<{

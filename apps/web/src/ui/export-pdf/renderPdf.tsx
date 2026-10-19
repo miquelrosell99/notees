@@ -32,7 +32,7 @@ import {
   toExportNode,
   type ExportClient,
   type ExportSubtreeOptions,
-} from "../components/modals/exportSubtree.js";
+} from "../../features/export/exportSubtree.js";
 
 import { ExportPdfDocument, pdfPageSize } from "./pdfDocument.js";
 import type { PdfLayout } from "./theme.js";

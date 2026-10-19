@@ -50,17 +50,17 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import type { ExportOptions } from "@notees/export";
 
-import { useCopiedState } from "./useCopiedState";
-import { Modal } from "../ui/Modal.js";
-import { copyToClipboard } from "./clipboard";
-import { Button } from "../ui/Button.js";
-import { Card } from "../ui/Card.js";
-import { Checkbox } from "../ui/Checkbox.js";
-import { Radio, RadioGroup } from "../ui/Radio.js";
-import { Dropdown } from "../ui/Dropdown.js";
-import { Spinner } from "../ui/Spinner.js";
-import { Icon } from "../../Icon";
-import { downloadBlob } from "./download";
+import { useCopiedState } from "../modals/useCopiedState.js";
+import { Modal } from "../../ui/components/ui/Modal.js";
+import { copyToClipboard } from "../modals/clipboard.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { Card } from "../../ui/components/ui/Card.js";
+import { Checkbox } from "../../ui/components/ui/Checkbox.js";
+import { Radio, RadioGroup } from "../../ui/components/ui/Radio.js";
+import { Dropdown } from "../../ui/components/ui/Dropdown.js";
+import { Spinner } from "../../ui/components/ui/Spinner.js";
+import { Icon } from "../../ui/Icon.js";
+import { downloadBlob } from "../modals/download.js";
 import {
   exportSubtreeMarkdown,
   exportSubtreeBundle,
@@ -72,7 +72,7 @@ import {
   collectSubtreeAssetRefIds,
   fetchSubtreeAssets,
   type ExportClient,
-} from "./exportSubtree";
+} from "./exportSubtree.js";
 import {
   availableExportFormats,
   defaultOptionValues,
@@ -82,7 +82,7 @@ import {
   webSelectOption,
   type WebExportFormatDefinition,
   type WebExportFormatId,
-} from "./registerExportFormats";
+} from "./registerExportFormats.js";
 import "./ExportPageModal.css";
 
 type PdfLayout = NonNullable<ExportOptions["layout"]>;

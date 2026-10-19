@@ -25,7 +25,7 @@ import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
 import { NodeView } from "../src/ui/NodeView.js";
 import { NodeCardFrame } from "../src/features/collection/NodeCardFrame.js";
-import { DEVICE_SETTINGS_PREFIX } from "../src/ui/components/modals/deviceSettings.js";
+import { DEVICE_SETTINGS_PREFIX } from "../src/features/settings/deviceSettings.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";

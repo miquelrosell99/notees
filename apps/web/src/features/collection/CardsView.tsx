@@ -81,7 +81,7 @@ import { ShowMoreButton } from "./ShowMoreButton.js";
 import { compareItemsByEditDate, compareItemsByMode } from "./collectionSort.js";
 import { assetImageUrl, cardImageAssetId } from "./assetThumbs.js";
 import { isCoverAsset, setNodeCover } from "../metadata/coverProperty.js";
-import { AssetUploadModal } from "../../ui/components/modals/AssetUploadModal.js";
+import { AssetUploadModal } from "../modals/AssetUploadModal.js";
 import { notificationStore } from "../../ui/components/ui/notificationStore.js";
 import { Badge } from "../../ui/components/ui/Badge.js";
 import { Breadcrumbs } from "../node-menu/Breadcrumbs.js";

@@ -7,8 +7,8 @@
  * - Falls back to type-based defaults (page → document, block → bullet)
  */
 
-import { Icon } from "../../Icon.js";
-import { cssColorFor } from "../ui/colorPresets.js";
+import { Icon } from "../../ui/Icon.js";
+import { cssColorFor } from "../../ui/components/ui/colorPresets.js";
 
 export type NodeIconSize = "xs" | "sm" | "md" | "lg" | "xl" | number;
 

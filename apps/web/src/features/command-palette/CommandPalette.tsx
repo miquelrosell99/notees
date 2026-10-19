@@ -55,11 +55,11 @@ import type { UndoUiState } from "@/core/undo-journal.js";
 import { displayNameForSettings, isDatePageNode, rawDateKeywordOf } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { parentRenderFacts } from "../../ui/renderStateLabel.js";
-import { flipTheme, toggleFocusMode } from "../../ui/components/modals/deviceSettings.js";
+import { flipTheme, toggleFocusMode } from "../settings/deviceSettings.js";
 import { parseDate, isPlainYearQuery } from "../date-pickers/dateParser.js";
 import { Button } from "../../ui/components/ui/Button.js";
 import { SearchField } from "../../ui/components/ui/SearchField.js";
-import "../../ui/components/Modal.css";
+import "./Modal.css";
 import "./CommandPalette.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

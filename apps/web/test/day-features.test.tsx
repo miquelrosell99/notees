@@ -44,7 +44,7 @@ import {
   weekDaysOfIso,
   weekdayLabel,
   type TaskBucketRow,
-} from "../src/ui/components/calendarViewUtils.js";
+} from "../src/features/calendar/calendarViewUtils.js";
 import { ensureTaskFamily } from "../src/features/classview/taskFamily.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000d1";

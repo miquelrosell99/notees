@@ -22,7 +22,7 @@ import {
   readDeviceSetting,
   useDeviceSetting,
   writeDeviceSetting,
-} from "./components/modals/deviceSettings.js";
+} from "../features/settings/deviceSettings.js";
 import type { CardLayout, ViewMode } from "../features/collection/types.js";
 
 const VIEW_MODES: readonly ViewMode[] = ["outline", "prose", "cards", "table"];

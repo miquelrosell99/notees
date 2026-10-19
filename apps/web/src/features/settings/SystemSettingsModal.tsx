@@ -10,8 +10,8 @@
  */
 import { useState } from "react";
 
-import { Modal } from "../ui/Modal.js";
-import { Separator } from "../ui/Separator.js";
+import { Modal } from "../../ui/components/ui/Modal.js";
+import { Separator } from "../../ui/components/ui/Separator.js";
 
 import "./settingsModal.css";
 import "./SystemSettingsModal.css";

@@ -8,7 +8,7 @@
  */
 
 import type { UndoUiState } from "@/core/undo-journal.js";
-import { todayIsoLocal } from "../components/calendarViewUtils.js";
+import { todayIsoLocal } from "../../features/calendar/calendarViewUtils.js";
 import type { AnyClient } from "./clients.js";
 
 /**

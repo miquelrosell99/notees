@@ -59,10 +59,10 @@ import {
   type DatetimePickerSlot,
 } from "../date-pickers/DatePickerPopup.js";
 import { collectMarkedDates } from "../date-pickers/DateSlotControl.js";
-import { ExportPageModal } from "../../ui/components/modals/ExportPageModal.js";
-import { ImportTableModal } from "../../ui/components/modals/ImportTableModal.js";
-import { downloadBlob } from "../../ui/components/modals/download.js";
-import { exportTimestamp } from "../../ui/components/modals/exportSubtree.js";
+import { ExportPageModal } from "../export/ExportPageModal.js";
+import { ImportTableModal } from "../modals/ImportTableModal.js";
+import { downloadBlob } from "../modals/download.js";
+import { exportTimestamp } from "../export/exportSubtree.js";
 import { nodeIcon } from "../../ui/iconFor.js";
 import { displayNameForSettings, displayNameFromClient, datetimeValueText, formatIsoDate } from "../../ui/dateDisplay.js";
 import { registerView } from "./registry.js";

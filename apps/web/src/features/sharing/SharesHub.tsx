@@ -28,7 +28,7 @@ import { Button } from "../../ui/components/ui/Button.js";
 import { EmptyState } from "../../ui/components/ui/EmptyState.js";
 import { InlineConfirmButton } from "../../ui/components/ui/InlineConfirmButton.js";
 import { Spinner } from "../../ui/components/ui/Spinner.js";
-import { copyToClipboard } from "../../ui/components/modals/clipboard.js";
+import { copyToClipboard } from "../modals/clipboard.js";
 import { listShares, revokeShare, type ShareEntry } from "./shareApi.js";
 import "./SharesHub.css";
 

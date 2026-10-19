@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 
-import { todayIsoLocal } from "../../ui/components/calendarViewUtils.js";
+import { todayIsoLocal } from "../calendar/calendarViewUtils.js";
 import { AddPill } from "../../ui/components/ui/AddPill.js";
 import type { AnyClient } from "./shared.js";
 

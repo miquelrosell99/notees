@@ -15,14 +15,14 @@ import { useState } from "react";
 
 import type { AccountUser } from "@/core/auth-api.js";
 
-import { Button } from "./ui/Button.js";
-import { Card } from "./ui/Card.js";
-import { BooleanToggle } from "./ui/BooleanToggle.js";
-import { SelectionButton } from "./ui/SelectionButton.js";
-import { TextField } from "./ui/TextField.js";
-import { ConfirmationModal } from "./ui/ConfirmationModal.js";
-import { Icon } from "../Icon.js";
-import { ApiKeysSection } from "../SettingsPanel.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { Card } from "../../ui/components/ui/Card.js";
+import { BooleanToggle } from "../../ui/components/ui/BooleanToggle.js";
+import { SelectionButton } from "../../ui/components/ui/SelectionButton.js";
+import { TextField } from "../../ui/components/ui/TextField.js";
+import { ConfirmationModal } from "../../ui/components/ui/ConfirmationModal.js";
+import { Icon } from "../../ui/Icon.js";
+import { ApiKeysSection } from "../../ui/SettingsPanel.js";
 import {
   ACCENT_COLOR_OPTIONS,
   applyAppearance,
@@ -30,9 +30,9 @@ import {
   type AccentColor,
   type ThemePreference,
   type UiFontPreference,
-} from "./modals/deviceSettings.js";
+} from "./deviceSettings.js";
 
-import "./modals/settingsModal.css";
+import "./settingsModal.css";
 import "./SettingsPage.css";
 
 export type SettingsSection =

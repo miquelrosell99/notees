@@ -49,7 +49,7 @@ import { ColorPickerRow } from "../pickers/ColorPickerRow.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import { NodeContextMenu } from "../node-menu/NodeContextMenu.js";
 import { removeClassDissolvingLinks } from "./classRemoval.js";
-import { ClassCreateModal } from "../../ui/components/modals/ClassCreateModal.js";
+import { ClassCreateModal } from "../modals/ClassCreateModal.js";
 import { usePopupDismissal } from "../../ui/components/ui/usePopupDismissal.js";
 import { cssColorFor, resolveCssColor } from "../../ui/components/ui/colorPresets.js";
 import { classRemovalRefusal, isClassNonRemovable, refuseClassRemoval } from "./classRemoval.js";

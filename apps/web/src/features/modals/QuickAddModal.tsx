@@ -6,13 +6,13 @@
  * and the Inbox page.
  */
 import { useEffect, useRef, useCallback, useState } from "react";
-import { Modal } from "../ui/Modal.js";
-import { Button } from "../ui/Button.js";
-import { useQuickAdd } from "./useQuickAdd";
+import { Modal } from "../../ui/components/ui/Modal.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { useQuickAdd } from "./useQuickAdd.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 import "./QuickAddModal.css";
-import { displayNameForSettings } from "../../dateDisplay.js";
+import { displayNameForSettings } from "../../ui/dateDisplay.js";
 
 export type QuickAddDestination = "today" | "inbox";
 

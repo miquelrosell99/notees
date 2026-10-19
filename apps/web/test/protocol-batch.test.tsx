@@ -321,7 +321,7 @@ describe("Workspace Settings Features tab (lockstep SHIPPED)", () => {
 
 describe("feature chrome gates", () => {
   it("isClassFamilyEnabled: own feature + managed ancestors (event-off hides the meeting chip too)", async () => {
-    const { isClassFamilyEnabled } = await import("../src/ui/components/featureGates.js");
+    const { isClassFamilyEnabled } = await import("../src/features/settings/featureGates.js");
     const { SYSTEM_CLASS_UUIDS } = await import("@notees/domain");
     const client = (disabled: string[]) =>
       ({

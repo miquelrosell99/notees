@@ -14,7 +14,7 @@ import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspac
 import { proseFromAst } from "@/editor/prose.js";
 
 import { displayNameForSettings, formatIsoDate } from "../../ui/dateDisplay.js";
-import { todayIsoLocal } from "../../ui/components/calendarViewUtils.js";
+import { todayIsoLocal } from "../calendar/calendarViewUtils.js";
 import "./PageFooter.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

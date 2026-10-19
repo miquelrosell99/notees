@@ -61,9 +61,9 @@ import {
 } from "@notees/export";
 import { rendersAsInlineBlock } from "@notees/domain";
 
-import { displayNameForSettings, displayNameFromClient } from "../../dateDisplay.js";
-import { resolveCssColor } from "../ui/colorPresets.js";
-import { nodeIcon } from "../../iconFor.js";
+import { displayNameForSettings, displayNameFromClient } from "../../ui/dateDisplay.js";
+import { resolveCssColor } from "../../ui/components/ui/colorPresets.js";
+import { nodeIcon } from "../../ui/iconFor.js";
 
 import { getExportFormat as getWebExportFormat } from "./registerExportFormats.js";
 

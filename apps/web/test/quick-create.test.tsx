@@ -25,7 +25,7 @@ import {
   resolveQuickCreate,
   sourceSubclassOptions,
   splitPersonName,
-} from "../src/ui/components/modals/quickCreate.js";
+} from "../src/features/modals/quickCreate.js";
 import { deriveDisplayName } from "@notees/domain";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
