@@ -12,7 +12,7 @@ import { createPortal } from "react-dom";
 import { Icon } from "../../ui/Icon.js";
 import type { ClientNode } from "@/core/workspace-client/index.js";
 import { displayNameForSettings } from "../../ui/dateDisplay.js";
-import { ColorPickerRow } from "../../ui/components/pickers/ColorPickerRow.js";
+import { ColorPickerRow } from "../pickers/ColorPickerRow.js";
 import { usePopupDismissal } from "../../ui/components/ui/usePopupDismissal.js";
 import "./NodePill.css";
 

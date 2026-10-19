@@ -20,7 +20,7 @@ import { WorkspaceSwitcher } from "../components/WorkspaceSwitcher.js";
 import { createNodesWithClasses } from "../../features/templates/createNodesWithClasses.js";
 import { HistoryMenuPopup } from "../components/HistoryMenuPopup.js";
 import { CalendarPopup } from "../../features/calendar/TopBarCalendarPopup.js";
-import { NodeSelector } from "../components/pickers/NodeSelector.js";
+import { NodeSelector } from "../../features/pickers/NodeSelector.js";
 
 export interface AppTopBarProps {
   client: AnyClient;

@@ -34,21 +34,21 @@ import { createPortal } from "react-dom";
 import { chainNodeIds, parseDateNodeId, rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
 
 import type { ClientNode } from "@/core/workspace-client/index.js";
-import { displayNameForSettings } from "../../dateDisplay.js";
-import { parentRenderFacts } from "../../renderStateLabel.js";
-import { readRecentIds } from "../Sidebar.js";
-import { Icon } from "../../Icon.js";
-import { parseDate, isPlainYearQuery } from "../../../features/date-pickers/dateParser.js";
-import { NodePill } from "../../../features/metadata/NodePill.js";
+import { displayNameForSettings } from "../../ui/dateDisplay.js";
+import { parentRenderFacts } from "../../ui/renderStateLabel.js";
+import { readRecentIds } from "../../ui/components/Sidebar.js";
+import { Icon } from "../../ui/Icon.js";
+import { parseDate, isPlainYearQuery } from "../date-pickers/dateParser.js";
+import { NodePill } from "../metadata/NodePill.js";
 import { NodeResultItem } from "./NodeResultItem.js";
 import { useKeyboardListNav } from "./useKeyboardListNav.js";
 import { useViewportPosition } from "./useViewportPosition.js";
-import { QuickCreateModal } from "../modals/QuickCreateModal.js";
-import type { QuickCreateClient, QuickCreatePlan } from "../modals/quickCreate.js";
-import { resolveQuickCreate } from "../modals/quickCreate.js";
-import { Tabs } from "../ui/Tabs.js";
-import { SearchField } from "../ui/SearchField.js";
-import { usePopupDismissal } from "../ui/usePopupDismissal.js";
+import { QuickCreateModal } from "../../ui/components/modals/QuickCreateModal.js";
+import type { QuickCreateClient, QuickCreatePlan } from "../../ui/components/modals/quickCreate.js";
+import { resolveQuickCreate } from "../../ui/components/modals/quickCreate.js";
+import { Tabs } from "../../ui/components/ui/Tabs.js";
+import { SearchField } from "../../ui/components/ui/SearchField.js";
+import { usePopupDismissal } from "../../ui/components/ui/usePopupDismissal.js";
 import "./NodeSelector.css";
 
 /**

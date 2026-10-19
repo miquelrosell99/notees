@@ -45,8 +45,8 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { AddPill } from "../../ui/components/ui/AddPill.js";
-import { ColorPickerRow } from "../../ui/components/pickers/ColorPickerRow.js";
-import { NodeSelector } from "../../ui/components/pickers/NodeSelector.js";
+import { ColorPickerRow } from "../pickers/ColorPickerRow.js";
+import { NodeSelector } from "../pickers/NodeSelector.js";
 import { NodeContextMenu } from "../../ui/components/NodeContextMenu.js";
 import { removeClassDissolvingLinks } from "./classRemoval.js";
 import { ClassCreateModal } from "../../ui/components/modals/ClassCreateModal.js";

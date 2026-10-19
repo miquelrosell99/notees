@@ -29,7 +29,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { EMPTY_UNDO_STATE, type UndoUiState } from "../src/core/undo-journal.js";
 import { CommandPalette } from "../src/ui/components/CommandPalette.js";
-import { NodeSelector } from "../src/ui/components/pickers/NodeSelector.js";
+import { NodeSelector } from "../src/features/pickers/NodeSelector.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";

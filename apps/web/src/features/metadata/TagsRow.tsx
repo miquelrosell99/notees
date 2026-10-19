@@ -5,7 +5,7 @@ import type { ClientNode } from "@/core/workspace-client/index.js";
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { AddPill } from "../../ui/components/ui/AddPill.js";
-import { NodeSelector } from "../../ui/components/pickers/NodeSelector.js";
+import { NodeSelector } from "../pickers/NodeSelector.js";
 import { NodeContextMenu } from "../../ui/components/NodeContextMenu.js";
 import type { AnyClient } from "./shared.js";
 import { contrastFor } from "./shared.js";

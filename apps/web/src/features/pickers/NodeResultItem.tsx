@@ -6,8 +6,8 @@
  * that presents a searchable list of nodes).
  */
 
-import { Icon } from "../../Icon.js";
-import { displayNameForSettings } from "../../dateDisplay.js";
+import { Icon } from "../../ui/Icon.js";
+import { displayNameForSettings } from "../../ui/dateDisplay.js";
 import type { ClientNode } from "@/core/workspace-client/index.js";
 import "./NodeResultItem.css";
 

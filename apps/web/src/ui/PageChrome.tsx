@@ -32,7 +32,7 @@ import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspac
 import { DayPageHeader } from "../features/calendar/DayPageHeader.js";
 import { ClassesRow, TagsRow } from "../features/metadata/index.js";
 import { AliasNodePicker } from "../features/metadata/AliasNodePicker.js";
-import { IconPickerPopup } from "./components/IconPickerPopup.js";
+import { IconPickerPopup } from "../features/icon-picker/IconPickerPopup.js";
 import { BannerCard, CoverCard } from "./components/PageBanner.js";
 import { PageFooter } from "./components/PageFooter.js";
 import { BlockRow } from "./BlockRow.js";

@@ -43,7 +43,7 @@ import { isValidTimeOfDay, type DatePrecision } from "@notees/domain";
 
 import { Icon } from "../../ui/Icon.js";
 import { parseDate } from "./dateParser.js";
-import { useViewportPosition } from "../../ui/components/pickers/useViewportPosition.js";
+import { useViewportPosition } from "../pickers/useViewportPosition.js";
 import { usePopupDismissal } from "../../ui/components/ui/usePopupDismissal.js";
 import { BooleanToggle } from "../../ui/components/ui/BooleanToggle.js";
 import { useCalendarMode } from "./calendar/useCalendarMode.js";

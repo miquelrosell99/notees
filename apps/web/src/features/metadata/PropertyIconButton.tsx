@@ -28,8 +28,8 @@ import type { EffectiveProperty, WorkspaceClient } from "@/core/workspace-client
 import { Icon } from "../../ui/Icon.js";
 import { cssColorFor } from "../../ui/components/ui/colorPresets.js";
 import { usePopupDismissal } from "../../ui/components/ui/usePopupDismissal.js";
-import { useViewportPosition } from "../../ui/components/pickers/useViewportPosition.js";
-import type { SelectionOption } from "../../ui/components/pickers/SelectionPropertyControl.js";
+import { useViewportPosition } from "../pickers/useViewportPosition.js";
+import type { SelectionOption } from "../pickers/SelectionPropertyControl.js";
 import "./PropertyIconButton.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

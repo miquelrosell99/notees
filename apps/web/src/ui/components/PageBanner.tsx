@@ -43,7 +43,7 @@ import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import { useBannerCollapsed } from "../viewPrefs.js";
 import { assetImageUrl } from "../../features/collection/assetThumbs.js";
 import { Icon } from "../Icon.js";
-import { NodeSelector } from "./pickers/NodeSelector.js";
+import { NodeSelector } from "../../features/pickers/NodeSelector.js";
 import { AssetUploadModal } from "./modals/AssetUploadModal.js";
 import { Button, ImageModal } from "./ui/index.js";
 import { clearNodeCover, setNodeCover, uploadCoverAsset } from "../../features/metadata/coverProperty.js";

@@ -19,12 +19,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-import { Icon } from "../Icon.js";
-import { Button } from "./ui/Button.js";
-import { ColorButton } from "./ui/ColorButton.js";
-import { Tabs } from "./ui/Tabs.js";
-import { usePopupDismissal } from "./ui/usePopupDismissal.js";
-import { clampOverlayLeft, flipOverlayTop } from "../editor-popups/overlay-position.js";
+import { Icon } from "../../ui/Icon.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { ColorButton } from "../../ui/components/ui/ColorButton.js";
+import { Tabs } from "../../ui/components/ui/Tabs.js";
+import { usePopupDismissal } from "../../ui/components/ui/usePopupDismissal.js";
+import { clampOverlayLeft, flipOverlayTop } from "../../ui/editor-popups/overlay-position.js";
 import { EMOJI_CATEGORIES } from "./emojiData.js";
 import { MDI_CATEGORIES } from "./mdiCategories.js";
 import { MDI_ICON_LIST } from "./mdiIconList.js";
