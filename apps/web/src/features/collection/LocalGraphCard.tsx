@@ -13,10 +13,10 @@
 
 import { useState } from "react";
 
-import type { AnyClient } from "../views/types.js";
-import { GraphView } from "../views/graph/GraphView.js";
-import { Icon } from "../Icon.js";
-import { NodeViewSection } from "./NodeViewSection.js";
+import type { AnyClient } from "./types.js";
+import { GraphView } from "./graph/GraphView.js";
+import { Icon } from "../../ui/Icon.js";
+import { NodeViewSection } from "../../ui/components/NodeViewSection.js";
 import "./LocalGraphCard.css";
 
 export function LocalGraphCard({

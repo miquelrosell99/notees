@@ -5,7 +5,7 @@
  */
 
 import type { AnyClient, CollectionGroup, NodeCollectionItem } from "./types.js";
-import { displayNameFromClient } from "../dateDisplay.js";
+import { displayNameFromClient } from "../../ui/dateDisplay.js";
 
 /**
  * The references grouping: items group by

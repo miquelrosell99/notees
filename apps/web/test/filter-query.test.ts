@@ -25,12 +25,12 @@ import {
   isFilterInactive,
   quickTextOf,
   type FilterQuery,
-} from "../src/ui/components/filterQuery.js";
+} from "../src/features/collection/filterQuery.js";
 import {
   createSectionViewMatcher,
   planSectionView,
   type SectionViewResolveClient,
-} from "../src/ui/views/sectionViewResolve.js";
+} from "../src/features/collection/sectionViewResolve.js";
 
 const CLASS_A = "0192a000-0000-7000-8000-0000000000a1";
 const CLASS_B = "0192a000-0000-7000-8000-0000000000a2";

@@ -21,7 +21,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { NodeViewSection, type NodeViewSectionAction } from "./components/NodeViewSection.js";
-import { useSectionData } from "./components/useSectionData.js";
+import { useSectionData } from "../features/collection/useSectionData.js";
 
 export interface SectionProps<T> {
   client: WorkspaceClient | WorkerClient;

@@ -28,8 +28,8 @@ import { chainNodeIds } from "@notees/domain";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient, type ClientNode } from "../src/core/workspace-client/index.js";
-import { NodeCollection, groupByContainingPage } from "../src/ui/views/index.js";
-import type { CollectionGroup, NodeCollectionItem } from "../src/ui/views/index.js";
+import { NodeCollection, groupByContainingPage } from "../src/features/collection/index.js";
+import type { CollectionGroup, NodeCollectionItem } from "../src/features/collection/index.js";
 import { OutlinerContext, useOutlinerValue } from "../src/ui/outliner-context.js";
 import {
   compareGroupsByMode,
@@ -37,7 +37,7 @@ import {
   compareItemsByMode,
   dateSortKeyOf,
   sortTreeByMode,
-} from "../src/ui/views/collectionSort.js";
+} from "../src/features/collection/collectionSort.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";

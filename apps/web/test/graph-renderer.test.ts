@@ -15,10 +15,10 @@ import {
   truncateLabel,
   type LabelDrawSignature,
   type LabelFrame,
-} from "../src/ui/views/graph/renderer/labelCanvas.js";
-import { planEdgeRender, type RendererEdge } from "../src/ui/views/graph/renderer/edgePlan.js";
-import { GraphPixiRenderer } from "../src/ui/views/graph/renderer/pixiRenderer.js";
-import { lodLevelForZoom } from "../src/ui/views/graph/renderer/graphRenderer.js";
+} from "../src/features/collection/graph/renderer/labelCanvas.js";
+import { planEdgeRender, type RendererEdge } from "../src/features/collection/graph/renderer/edgePlan.js";
+import { GraphPixiRenderer } from "../src/features/collection/graph/renderer/pixiRenderer.js";
+import { lodLevelForZoom } from "../src/features/collection/graph/renderer/graphRenderer.js";
 
 describe("GraphRenderer adapter contract", () => {
   it("lodLevelForZoom drives the adapter's level-of-detail (contract hook)", () => {

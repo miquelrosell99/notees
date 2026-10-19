@@ -12,11 +12,11 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 
-import { Icon } from "../Icon.js";
-import { useViewModePreference } from "../viewPrefs.js";
-import { NodeCollection, ViewToolbar } from "../views/index.js";
-import type { NodeCollectionItem, SortSpec, TableColumn, ViewMode } from "../views/index.js";
-import type { AnyClient, CardLayout } from "../views/types.js";
+import { Icon } from "../../ui/Icon.js";
+import { useViewModePreference } from "../../ui/viewPrefs.js";
+import { NodeCollection, ViewToolbar } from "./index.js";
+import type { NodeCollectionItem, SortSpec, TableColumn, ViewMode } from "./index.js";
+import type { AnyClient, CardLayout } from "./types.js";
 
 export interface CollectionHubProps {
   client: AnyClient;

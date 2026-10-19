@@ -23,7 +23,7 @@ import type { ContentAst } from "@notees/protocol";
 import type { QueryAst } from "@notees/query";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
-import { QueriesHub } from "../src/ui/components/QueriesHub.js";
+import { QueriesHub } from "../src/features/collection/QueriesHub.js";
 import { parseQueryViewRecord } from "../src/ui/queryViewRecord.js";
 import { listQueryTokens } from "../src/ui/queryTokens.js";
 

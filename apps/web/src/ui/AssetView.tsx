@@ -25,7 +25,7 @@ import type { AssetInfo } from "@/core/workspace-client/index.js";
 import { Icon } from "./Icon.js";
 import { ImageModal } from "./components/ui/ImageModal.js";
 import { notificationStore } from "./components/ui/notificationStore.js";
-import { assetImageUrl } from "./views/assetThumbs.js";
+import { assetImageUrl } from "../features/collection/assetThumbs.js";
 
 /** The minimal client surface AssetView needs (both client classes satisfy it). */
 export interface AssetViewClient {

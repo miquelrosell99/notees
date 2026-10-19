@@ -17,7 +17,7 @@ import { parseQueryAst, type QueryAst } from "@notees/query";
 
 import { rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
 
-import type { NodeCollectionItem, TableColumn } from "./views/index.js";
+import type { NodeCollectionItem, TableColumn } from "../features/collection/index.js";
 import type {
   ClientNode,
   QueryAggregateResult,

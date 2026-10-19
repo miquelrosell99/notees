@@ -100,7 +100,7 @@ import {
   syncIndicesForView,
   timeLapseVisible,
   viewCullRect,
-} from "../src/ui/views/graph/renderer/pixiRenderer.js";
+} from "../src/features/collection/graph/renderer/pixiRenderer.js";
 
 const ACCENT: readonly [number, number, number] = [0.1, 0.2, 0.3];
 

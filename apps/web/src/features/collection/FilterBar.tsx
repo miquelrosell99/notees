@@ -25,12 +25,12 @@
 
 import { useState } from "react";
 
-import type { AnyClient } from "../views/index.js";
+import type { AnyClient } from "./index.js";
 
-import { useMediaQuery } from "../useMediaQuery.js";
-import { Button } from "./ui/Button.js";
-import { ButtonWithPanel } from "./ui/ButtonWithPanel.js";
-import { SearchField } from "./ui/SearchField.js";
+import { useMediaQuery } from "../../ui/useMediaQuery.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { ButtonWithPanel } from "../../ui/components/ui/ButtonWithPanel.js";
+import { SearchField } from "../../ui/components/ui/SearchField.js";
 import { FilterBlockBuilder } from "./FilterBlockBuilder.js";
 import {
   EMPTY_FILTER_QUERY,

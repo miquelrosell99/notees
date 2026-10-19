@@ -58,12 +58,12 @@ import {
   SelectionButton,
   Slider,
   TextField,
-} from "../../components/ui/index.js";
-import { resolveCssColor } from "../../components/ui/colorPresets.js";
-import { NodeSelector } from "../../components/pickers/NodeSelector.js";
-import { NodeViewSection } from "../../components/NodeViewSection.js";
-import { FilterBlockBuilder } from "../../components/FilterBlockBuilder.js";
-import { readDeviceSetting, writeDeviceSetting } from "../../components/modals/deviceSettings.js";
+} from "../../../ui/components/ui/index.js";
+import { resolveCssColor } from "../../../ui/components/ui/colorPresets.js";
+import { NodeSelector } from "../../../ui/components/pickers/NodeSelector.js";
+import { NodeViewSection } from "../../../ui/components/NodeViewSection.js";
+import { FilterBlockBuilder } from "../FilterBlockBuilder.js";
+import { readDeviceSetting, writeDeviceSetting } from "../../../ui/components/modals/deviceSettings.js";
 import type { Group } from "@notees/query";
 
 import {
