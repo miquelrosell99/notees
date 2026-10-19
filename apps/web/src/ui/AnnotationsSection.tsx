@@ -22,7 +22,7 @@ import { useState } from "react";
 import { SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { WorkspaceClient } from "@/core/workspace-client.js";
+import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Section } from "./Section.js";
 import { displayNameForSettings } from "./dateDisplay.js";

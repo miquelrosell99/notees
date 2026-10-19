@@ -18,7 +18,7 @@ import initSqlJs, { type SqlJsStatic } from "sql.js";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { deriveDisplayName, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import {
   ensureMeetingFamily,
   EVENT_CLASS_ID,

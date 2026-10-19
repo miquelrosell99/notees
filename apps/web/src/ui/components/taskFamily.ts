@@ -36,7 +36,7 @@ import {
   TASK_STATUS_OPTION_UUIDS,
 } from "@notees/domain";
 
-import type { ClientPropertySchema, WorkspaceClient } from "@/core/workspace-client.js";
+import type { ClientPropertySchema, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 /** The composed write/read surface both full clients (and the outliner
  *  context's `OutlinerClient & OutlinerReader`, which the full client

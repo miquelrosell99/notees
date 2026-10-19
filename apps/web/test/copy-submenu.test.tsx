@@ -13,7 +13,7 @@ import { fireEvent, render, waitFor } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { NodeContextMenu } from "../src/ui/components/NodeContextMenu.js";
 import { nodeLinkUrl } from "../src/ui/nodeLink.js";
 

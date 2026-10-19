@@ -43,7 +43,7 @@ import type {
   ClientPropertySchema,
   EffectiveProperty,
   WorkspaceClient,
-} from "@/core/workspace-client.js";
+} from "@/core/workspace-client/index.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 

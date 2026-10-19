@@ -11,7 +11,7 @@
 
 import type { ListStyle } from "@notees/protocol";
 
-import type { ClientNode } from "@/core/workspace-client.js";
+import type { ClientNode } from "@/core/workspace-client/index.js";
 
 /** Lowercase alpha label, spreadsheet-column style: 1 → a, 26 → z, 27 → aa. */
 function alphaLabel(position: number): string {

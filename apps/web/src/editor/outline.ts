@@ -13,7 +13,7 @@
  * block has no grandparent to outdent to.
  */
 
-import type { BlockTreeNode } from "@/core/workspace-client.js";
+import type { BlockTreeNode } from "@/core/workspace-client/index.js";
 
 export interface OutlinePosition {
   parentId: string | null;

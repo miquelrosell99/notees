@@ -27,7 +27,7 @@
 
 import { deriveDisplayName, parseDateNodeId, rendersAsInlineBlock } from "@notees/domain";
 
-import type { ClientNode, CreateObjectInput } from "./workspace-client.js";
+import type { ClientNode, CreateObjectInput } from "./workspace-client/index.js";
 
 /** Read surface the gesture composes from (both client classes satisfy it). */
 export interface ExtractReadSurface {

@@ -7,7 +7,7 @@ import {
   type DatetimeSlot,
 } from "@notees/domain";
 
-import type { EffectiveProperty } from "@/core/workspace-client.js";
+import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { displayNameFromClient, datetimeValueText } from "../../ui/dateDisplay.js";
 import { AddPill } from "../../ui/components/ui/AddPill.js";

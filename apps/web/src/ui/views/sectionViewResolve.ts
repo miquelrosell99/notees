@@ -50,7 +50,7 @@ import { useEffect, useMemo, useState } from "react";
 import { plainTextExcerpt, parseDateNodeId } from "@notees/domain";
 import { parseQueryAst, placeholderEndDate, placeholderStartDate, resolveDayBounds, resolvePeriodBounds, resolveTimestampPlaceholder, type DateOp, type PropertyOp, type QueryAst } from "@notees/query";
 
-import type { ClientNode, EffectiveProperty } from "@/core/workspace-client.js";
+import type { ClientNode, EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import type { CollectionGroup, NodeCollectionItem } from "./types.js";
 

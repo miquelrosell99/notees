@@ -8,7 +8,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import type { ClientNode } from "../src/core/workspace-client.js";
+import type { ClientNode } from "../src/core/workspace-client/index.js";
 import { NodeContextMenu } from "../src/ui/components/NodeContextMenu.js";
 import { SharePageModal } from "../src/ui/components/modals/SharePageModal.js";
 import type { ShareEntry } from "../src/ui/components/modals/shareApi.js";

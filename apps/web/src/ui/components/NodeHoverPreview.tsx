@@ -40,7 +40,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { WorkspaceClient } from "@/core/workspace-client.js";
+import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { openFloatingEditor } from "./FloatingEditor.js";
 import { NodeView } from "../NodeView.js";

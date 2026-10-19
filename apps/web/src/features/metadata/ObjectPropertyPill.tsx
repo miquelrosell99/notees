@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import type { EffectiveProperty } from "@/core/workspace-client.js";
+import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { NodePill } from "../../ui/components/NodePills.js";
 import type { AnyClient } from "./shared.js";

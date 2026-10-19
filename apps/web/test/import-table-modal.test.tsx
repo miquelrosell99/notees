@@ -14,7 +14,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { renderXlsx } from "@notees/export";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { ImportTableModal } from "../src/ui/components/modals/ImportTableModal.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";

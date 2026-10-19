@@ -17,7 +17,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import type { ContentAst } from "@notees/protocol";
 import type { Aggregation, Child, QueryAst, Scope } from "@notees/query";
 
-import { InvalidQueryAstError, WorkspaceClient } from "../src/core/workspace-client.js";
+import { InvalidQueryAstError, WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
 import {
   QUERY_RESULT_CAP,

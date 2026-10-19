@@ -23,7 +23,7 @@ import { useMemo, useRef, useState } from "react";
 import { parseDateNodeId, SYSTEM_CLASS_UUIDS, type DatePrecision } from "@notees/domain";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { WorkspaceClient } from "@/core/workspace-client.js";
+import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { DatePickerPopup } from "./DatePickerPopup.js";
 import { RepeatPicker } from "./RepeatPicker.js";

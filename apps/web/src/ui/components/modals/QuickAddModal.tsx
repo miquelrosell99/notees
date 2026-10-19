@@ -9,7 +9,7 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { Modal } from "../ui/Modal.js";
 import { Button } from "../ui/Button.js";
 import { useQuickAdd } from "./useQuickAdd";
-import type { WorkspaceClient } from "@/core/workspace-client.js";
+import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 import "./QuickAddModal.css";
 import { displayNameForSettings } from "../../dateDisplay.js";

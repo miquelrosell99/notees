@@ -56,7 +56,7 @@ import { useWindowed } from "./useWindowed.js";
 import { ShowMoreButton } from "./ShowMoreButton.js";
 import { useViewChromeTarget } from "./viewChrome.js";
 import { compareGroupsByMode, compareItemsByMode, sortTreeByMode } from "./collectionSort.js";
-import type { BlockTreeNode } from "@/core/workspace-client.js";
+import type { BlockTreeNode } from "@/core/workspace-client/index.js";
 import type { CollectionGroup, NodeCollectionItem, NodeCollectionProps, SortMode } from "./types.js";
 import "./OutlineView.css";
 

@@ -12,7 +12,7 @@ import { deriveDisplayName, DEFAULT_CLASS_ICON, DEFAULT_PAGE_ICON } from "@notee
 import { newEnvelope } from "@notees/protocol";
 import { MemoryRelay, MemoryTransport, type SyncConflict } from "@notees/sync";
 
-import { WorkspaceClient } from "../src/core/workspace-client.js";
+import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { classIconMap, nodeIcon } from "../src/ui/iconFor.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
@@ -470,7 +470,7 @@ describe("change notifications", () => {
     const ctx = makeContext();
     const client = await createClient(ctx);
     await client.bootstrapWorkspace(WS);
-    const changes: import("../src/core/workspace-client.js").ChangeNotification[] = [];
+    const changes: import("../src/core/workspace-client/index.js").ChangeNotification[] = [];
     client.subscribe((change) => changes.push(change));
 
     const pageId = await client.createObject({ isEmbedded: false, name: "Notify Page" });

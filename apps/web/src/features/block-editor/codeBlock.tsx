@@ -15,7 +15,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ContentAst } from "@notees/protocol";
 
 import { SAVE_DEBOUNCE_MS } from "./BlockTextEditor.js";
-import type { ClientNode } from "@/core/workspace-client.js";
+import type { ClientNode } from "@/core/workspace-client/index.js";
 import { CodeTextarea } from "../../ui/components/ui/CodeTextarea.js";
 
 /**

@@ -20,7 +20,7 @@
 
 import { useEffect, useState } from "react";
 
-import type { AssetInfo } from "@/core/workspace-client.js";
+import type { AssetInfo } from "@/core/workspace-client/index.js";
 
 import { Icon } from "./Icon.js";
 import { ImageModal } from "./components/ui/ImageModal.js";

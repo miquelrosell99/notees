@@ -17,7 +17,7 @@
 import type { ReactNode, ComponentType } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ClientNode, EffectiveProperty, HostedSectionKey, WorkspaceClient } from "@/core/workspace-client.js";
+import type { ClientNode, EffectiveProperty, HostedSectionKey, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 export type AnyClient = WorkspaceClient | WorkerClient;
 

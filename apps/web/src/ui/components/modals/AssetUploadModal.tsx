@@ -21,7 +21,7 @@
 import { useEffect, useState } from "react";
 
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { AssetUploadResult, WorkspaceClient } from "@/core/workspace-client.js";
+import type { AssetUploadResult, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Icon } from "../../Icon.js";
 import { Modal } from "../ui/Modal.js";

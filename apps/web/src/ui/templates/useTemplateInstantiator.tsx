@@ -12,7 +12,7 @@
 import { useCallback, useState, type ReactNode } from "react";
 
 import { extractTemplateVariables } from "@/core/clone.js";
-import type { ClientNode } from "@/core/workspace-client.js";
+import type { ClientNode } from "@/core/workspace-client/index.js";
 
 import { TemplateVariableDialog } from "./TemplateVariableDialog.js";
 import { instantiateTemplateToNewPage, type TemplateApplyClient } from "./templateApply.js";

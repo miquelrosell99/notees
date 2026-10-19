@@ -26,7 +26,7 @@ import { renderHook } from "@testing-library/react";
 
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
-import { WorkspaceClient, type ClientNode } from "../src/core/workspace-client.js";
+import { WorkspaceClient, type ClientNode } from "../src/core/workspace-client/index.js";
 import {
   applySectionView,
   planSectionView,
@@ -42,7 +42,7 @@ import {
   useSectionViews,
   type SectionViewsClient,
 } from "../src/ui/components/sectionViews.js";
-import type { SectionView } from "../src/core/workspace-client.js";
+import type { SectionView } from "../src/core/workspace-client/index.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";

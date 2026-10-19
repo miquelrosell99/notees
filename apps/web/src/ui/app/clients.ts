@@ -6,7 +6,7 @@
  * WorkspaceClient (sql.js on the UI thread).
  */
 
-import type { WorkspaceClient } from "@/core/workspace-client.js";
+import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 
 export type AnyClient = WorkspaceClient | WorkerClient;

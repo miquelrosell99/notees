@@ -30,7 +30,7 @@ import {
   TASK_DEFAULT_STATUS,
 } from "@notees/domain";
 
-import type { WorkspaceClient } from "@/core/workspace-client.js";
+import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { ensureTaskFamily, type TaskFamilyClient } from "./taskFamily.js";
 import { removeClassDissolvingLinks } from "./classRemoval.js";
