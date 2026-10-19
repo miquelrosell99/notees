@@ -4,12 +4,12 @@ import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
 import type { EffectiveProperty } from "@/core/workspace-client.js";
 
-import { AnnotationsSection } from "../../AnnotationsSection.js";
-import { displayNameFromClient } from "../../dateDisplay.js";
-import { AddPill } from "../ui/AddPill.js";
-import { NodePill } from "../NodePills.js";
-import { NodeSelector } from "../pickers/NodeSelector.js";
-import { AssetUploadModal } from "../modals/AssetUploadModal.js";
+import { AnnotationsSection } from "../../ui/AnnotationsSection.js";
+import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { AddPill } from "../../ui/components/ui/AddPill.js";
+import { NodePill } from "../../ui/components/NodePills.js";
+import { NodeSelector } from "../../ui/components/pickers/NodeSelector.js";
+import { AssetUploadModal } from "../../ui/components/modals/AssetUploadModal.js";
 import { ObjectPropertyPill } from "./ObjectPropertyPill.js";
 import { PropertySelectCell } from "./PropertySelectCell.js";
 import { QualifierRange } from "./QualifierRange.js";

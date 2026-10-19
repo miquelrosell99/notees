@@ -2,12 +2,12 @@
  * MetadataSection — the page's effective-properties panel (renamed
  * "Metadata", owner 2026-10-09).
  *
- * Compatibility barrel: the implementation lives in the `metadata/`
- * folder module beside this file (the ui/components stage of the
- * modularization pipeline, 2026-10-19 — pure moves from this file's
- * 3,156-line monolith, one extraction per commit). This shim keeps the
- * historical import surface (`components/MetadataSection`) working —
- * TypeScript's bundler resolution does NOT map `dir.js` →
+ * Compatibility barrel: the implementation moved to the metadata
+ * feature folder (`src/features/metadata/`, the first folder under
+ * `src/features/` — tree realignment, 2026-10-19; the folder itself
+ * holds the ui/components-stage modularization history). This shim
+ * keeps the historical import surface (`components/MetadataSection`)
+ * working — TypeScript's bundler resolution does NOT map `dir.js` →
  * `dir/index.ts`, so the shim file is load-bearing. The panel's own
  * stylesheet keeps loading through this file's side-effect import.
  *
@@ -33,10 +33,12 @@
 
 import "./MetadataSection.css";
 
-export { ClassesRow } from "./metadata/ClassesRow.js";
-export { TagsRow } from "./metadata/TagsRow.js";
-export { AliasesRow } from "./metadata/AliasesRow.js";
-export { metadataRowCount } from "./metadata/propertyGroups.js";
-export { PropertiesTable } from "./metadata/PropertiesTable.js";
-export { PropertiesSection } from "./metadata/PropertiesSection.js";
-export { PropertiesSidebar } from "./metadata/PropertiesSidebar.js";
+export {
+  AliasesRow,
+  ClassesRow,
+  metadataRowCount,
+  PropertiesSection,
+  PropertiesSidebar,
+  PropertiesTable,
+  TagsRow,
+} from "../../features/metadata/index.js";

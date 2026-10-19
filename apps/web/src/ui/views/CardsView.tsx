@@ -89,7 +89,7 @@ import { Breadcrumbs } from "../components/Breadcrumbs.js";
 import { NodeMenuButton } from "../components/NodeMenuButton.js";
 import { NodePills } from "../components/NodePills.js";
 import { NodeContextMenu } from "../components/NodeContextMenu.js";
-import { PropertiesTable, TagsRow } from "../components/MetadataSection.js";
+import { PropertiesTable, TagsRow } from "../../features/metadata/index.js";
 import { childQuery } from "../components/childQuery.js";
 import { useCardLayoutPreference } from "../viewPrefs.js";
 import { CardsBoard } from "./CardsBoard.js";

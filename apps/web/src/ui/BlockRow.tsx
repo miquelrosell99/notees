@@ -90,7 +90,7 @@ import { fullTitleFromClient } from "./dateDisplay.js";
 import { AssetView } from "./AssetView.js";
 import { BlockBacklinkPanel, BlockBacklinkToggle } from "./BlockBacklinks.js";
 import { BlockTextEditor, type EditorCaret } from "./BlockTextEditor.js";
-import { PropertiesSection, TagsRow } from "./components/MetadataSection.js";
+import { PropertiesSection, TagsRow } from "../features/metadata/index.js";
 import { PropertyIconButton } from "./components/PropertyIconButton.js";
 import type { SelectionOption } from "./components/pickers/SelectionPropertyControl.js";
 import { NodePills } from "./components/NodePills.js";
