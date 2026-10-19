@@ -3,7 +3,9 @@
  * icon/color walks over the extends chain, backlinks and the linked/
  * unlinked references rolls (alias-aware), alias resolution, child-page
  * listings/counts, and the workspace feature toggles (reads plus the one
- * feature write). All graph reads hit the LOCAL store only.
+ * feature write). All graph reads hit the LOCAL store only. Standalone
+ * domain — takes the shared ClientContext plus the reads and reads-props
+ * domains, no inheritance.
  */
 
 import {
@@ -15,9 +17,17 @@ import {
 import type { WorkspaceFeature } from "@notees/protocol";
 
 import type { ClientEdge, ClientNode, ReferenceEntry } from "./types.js";
+import type { ClientContext } from "./client-context.js";
+import { WorkspaceClientReads } from "./client-reads.js";
 import { WorkspaceClientReadsProps } from "./client-reads-props.js";
 
-export abstract class WorkspaceClientReadsRefs extends WorkspaceClientReadsProps {
+export class WorkspaceClientReadsRefs {
+  constructor(
+    private readonly ctx: ClientContext,
+    private readonly reads: WorkspaceClientReads,
+    private readonly props: WorkspaceClientReadsProps,
+  ) {}
+
   /**
    * Class effectiveColor: the class's own color, else the nearest ancestor
    * in the extends chain with a color (walked via class_extends edges).
@@ -29,11 +39,11 @@ export abstract class WorkspaceClientReadsRefs extends WorkspaceClientReadsProps
       const current = queue.shift()!;
       if (seen.has(current)) continue;
       seen.add(current);
-      const node = this.getNode(current) ?? this.getNodeRaw(current);
+      const node = this.reads.getNode(current) ?? this.reads.getNodeRaw(current);
       if (node !== undefined && node.color !== null && node.color !== "") {
         return node.color;
       }
-      const parents = this.store.database
+      const parents = this.ctx.store.database
         .prepare("SELECT parent_class_id FROM class_extends WHERE class_id = ? ORDER BY parent_class_id")
         .all(current) as Array<{ parent_class_id: string }>;
       for (const parent of parents) queue.push(parent.parent_class_id);
@@ -52,11 +62,11 @@ export abstract class WorkspaceClientReadsRefs extends WorkspaceClientReadsProps
       const current = queue.shift()!;
       if (seen.has(current)) continue;
       seen.add(current);
-      const node = this.getNode(current) ?? this.getNodeRaw(current);
+      const node = this.reads.getNode(current) ?? this.reads.getNodeRaw(current);
       if (node !== undefined && node.icon !== null && node.icon !== "") {
         return node.icon;
       }
-      const parents = this.store.database
+      const parents = this.ctx.store.database
         .prepare("SELECT parent_class_id FROM class_extends WHERE class_id = ? ORDER BY parent_class_id")
         .all(current) as Array<{ parent_class_id: string }>;
       for (const parent of parents) queue.push(parent.parent_class_id);
@@ -104,7 +114,7 @@ export abstract class WorkspaceClientReadsRefs extends WorkspaceClientReadsProps
 
   /** Edges pointing at the node (mentions, typed links, property refs). */
   getBacklinks(id: string): ClientEdge[] {
-    const rows = this.store.backlinks(id) as Array<Record<string, unknown>>;
+    const rows = this.ctx.store.backlinks(id) as Array<Record<string, unknown>>;
     return rows.map((row) => ({
       id: String(row.id),
       sourceId: String(row.source_id),
@@ -133,11 +143,11 @@ export abstract class WorkspaceClientReadsRefs extends WorkspaceClientReadsProps
   getLinkedReferences(id: string): ReferenceEntry[] {
     const seen = new Set<string>();
     const entries: ReferenceEntry[] = [];
-    for (const row of this.store.backlinksWithRollup(id) as Array<Record<string, unknown>>) {
+    for (const row of this.ctx.store.backlinksWithRollup(id) as Array<Record<string, unknown>>) {
       const sourceId = String(row.source_id);
       if (seen.has(sourceId)) continue;
       // Live sources only — a trashed node no longer claims a reference.
-      const source = this.getNode(sourceId);
+      const source = this.reads.getNode(sourceId);
       if (!source) continue;
       const entry = this.referenceEntry(source);
       if (entry === null) continue;
@@ -180,8 +190,8 @@ export abstract class WorkspaceClientReadsRefs extends WorkspaceClientReadsProps
    */
   getReferences(id: string): ClientNode[] {
     const targets: ClientNode[] = [];
-    for (const row of this.store.referencesWithRollup(id) as Array<Record<string, unknown>>) {
-      const target = this.getNode(String(row.target_id));
+    for (const row of this.ctx.store.referencesWithRollup(id) as Array<Record<string, unknown>>) {
+      const target = this.reads.getNode(String(row.target_id));
       if (!target) continue;
       targets.push(target);
     }
@@ -197,7 +207,7 @@ export abstract class WorkspaceClientReadsRefs extends WorkspaceClientReadsProps
    * the accepted price (the unlinked-reference count pays a full FTS pass).
    */
   getReferenceCount(id: string): number {
-    return (this.store.referencesWithRollup(id) as Array<Record<string, unknown>>).length;
+    return (this.ctx.store.referencesWithRollup(id) as Array<Record<string, unknown>>).length;
   }
 
   /**
@@ -209,7 +219,7 @@ export abstract class WorkspaceClientReadsRefs extends WorkspaceClientReadsProps
   getUnlinkedReferences(id: string): ReferenceEntry[] {
     const entries: ReferenceEntry[] = [];
     for (const nodeId of this.unlinkedReferenceIds(id)) {
-      const source = this.getNode(nodeId);
+      const source = this.reads.getNode(nodeId);
       if (!source) continue;
       entries.push(this.referenceEntry(source));
     }
@@ -228,19 +238,19 @@ export abstract class WorkspaceClientReadsRefs extends WorkspaceClientReadsProps
 
   /** Source ids matching the node's name, minus itself and linked sources. */
   private unlinkedReferenceIds(id: string): string[] {
-    const node = this.getNode(id);
-    if (!node || !rendersWithDocumentChrome(node, this.parentFactsOf(node))) return [];
+    const node = this.reads.getNode(id);
+    if (!node || !rendersWithDocumentChrome(node, this.reads.parentFactsOf(node))) return [];
     // A source linking the node OR any of its alias pages is already linked
     // (the linked-references set rolls alias-targeted edges in — see
     // getLinkedReferences), so the unlinked list excludes both families.
     const linkedSources = new Set(this.getBacklinks(id).map((edge) => edge.sourceId));
-    for (const aliasId of this.aliasPageIdsOf(id)) {
+    for (const aliasId of this.props.aliasPageIdsOf(id)) {
       for (const edge of this.getBacklinks(aliasId)) linkedSources.add(edge.sourceId);
     }
     // Name-equivalents: the display name AND every text alias value AND
     // every alias-page title each get a literal-text FTS pass (aliases are
     // names for search).
-    const names = [deriveDisplayName(node), ...this.nameEquivalentsOf(id)].filter(
+    const names = [deriveDisplayName(node), ...this.props.nameEquivalentsOf(id)].filter(
       (name): name is string => typeof name === "string" && name.length > 0,
     );
     const ids: string[] = [];
@@ -249,7 +259,7 @@ export abstract class WorkspaceClientReadsRefs extends WorkspaceClientReadsProps
       // Literal mode (`"name"`): a hit must CONTAIN the name text — the
       // default OR pass would count every row carrying any single name
       // word as a mention (priority ranking, owner 2026-10-13).
-      for (const hit of this.store.search(`"${name}"`)) {
+      for (const hit of this.ctx.store.search(`"${name}"`)) {
         if (hit.nodeId === id || linkedSources.has(hit.nodeId) || seen.has(hit.nodeId)) continue;
         seen.add(hit.nodeId);
         ids.push(hit.nodeId);
@@ -265,9 +275,9 @@ export abstract class WorkspaceClientReadsRefs extends WorkspaceClientReadsProps
    */
   aliasNodesOf(id: string): ClientNode[] {
     const nodes: ClientNode[] = [];
-    for (const aliasId of this.store.aliasNodesOf(id)) {
-      const alias = this.getNode(aliasId);
-      if (alias === undefined || !rendersWithDocumentChrome(alias, this.parentFactsOf(alias))) continue;
+    for (const aliasId of this.ctx.store.aliasNodesOf(id)) {
+      const alias = this.reads.getNode(aliasId);
+      if (alias === undefined || !rendersWithDocumentChrome(alias, this.reads.parentFactsOf(alias))) continue;
       nodes.push(alias);
     }
     return nodes;
@@ -281,7 +291,7 @@ export abstract class WorkspaceClientReadsRefs extends WorkspaceClientReadsProps
    * breadcrumbs and graph clicks all land on the terminal.
    */
   resolveAlias(id: string): string {
-    return this.store.resolveAlias(id);
+    return this.ctx.store.resolveAlias(id);
   }
 
   /**
@@ -290,10 +300,10 @@ export abstract class WorkspaceClientReadsRefs extends WorkspaceClientReadsProps
    * body blocks and classes never appear here).
    */
   getChildPages(id: string): ClientNode[] {
-    return this.store
+    return this.ctx.store
       .children(id)
       .filter((row) => row.is_class === 0 && row.is_embedded === 0 && row.is_active === 1)
-      .map((row) => this.mapNodeCached(row));
+      .map((row) => this.ctx.mapNodeCached(row));
   }
 
   /**
@@ -304,7 +314,7 @@ export abstract class WorkspaceClientReadsRefs extends WorkspaceClientReadsProps
    * the containment roll-up documented (see getLinkedReferences).
    */
   getBacklinkCount(id: string): number {
-    const row = this.store.database
+    const row = this.ctx.store.database
       .prepare("SELECT backlink_count AS n FROM node_stats WHERE node_id = ?")
       .get(id) as { n: number } | undefined;
     return row?.n ?? 0;
@@ -312,23 +322,23 @@ export abstract class WorkspaceClientReadsRefs extends WorkspaceClientReadsProps
 
   /** Feature-toggle read — absent row means enabled (default on). */
   isFeatureEnabled(feature: WorkspaceFeature): boolean {
-    return this.store.isFeatureEnabled(this.workspaceId, feature);
+    return this.ctx.store.isFeatureEnabled(this.ctx.workspaceId, feature);
   }
 
   /** Toggled feature rows only (untoggled features are absent, not listed). */
   listFeatureRows(): Array<{ feature: string; enabled: boolean }> {
-    return this.store.listFeatureRows(this.workspaceId);
+    return this.ctx.store.listFeatureRows(this.ctx.workspaceId);
   }
 
   /** Active instance count across the feature's managed classes (the F3 disable confirmation). */
   getFeatureInstanceCount(feature: WorkspaceFeature): number {
-    return this.store.featureInstanceCount(this.workspaceId, feature);
+    return this.ctx.store.featureInstanceCount(this.ctx.workspaceId, feature);
   }
 
   /** Write a feature toggle (workspace.feature.set, LWW by HLC). */
   async setFeatureEnabled(feature: WorkspaceFeature, enabled: boolean): Promise<void> {
-    this.enqueueLocal(
-      this.buildEnvelope(
+    this.ctx.enqueueLocal(
+      this.ctx.buildEnvelope(
         "workspace.feature.set",
         { feature, enabled },
         [],
@@ -338,7 +348,7 @@ export abstract class WorkspaceClientReadsRefs extends WorkspaceClientReadsProps
 
   /** Direct main-child count (cheap child-order read) — the child-pages badge. */
   getChildPageCount(id: string): number {
-    const row = this.store.database
+    const row = this.ctx.store.database
       .prepare(
         `SELECT COUNT(*) AS n FROM node_child_order o
          JOIN node n ON n.id = o.child_id
@@ -358,7 +368,7 @@ export abstract class WorkspaceClientReadsRefs extends WorkspaceClientReadsProps
     let current = source;
     for (let guard = 0; guard < 64; guard += 1) {
       if (current.parentId === null) break;
-      const parent = this.getNode(current.parentId);
+      const parent = this.reads.getNode(current.parentId);
       // The parent-page condition rides along (owner ruling 2026-10-15): a
       // bit under a non-page parent is inert, so the walk continues past
       // it to the real containing page.
@@ -375,5 +385,4 @@ export abstract class WorkspaceClientReadsRefs extends WorkspaceClientReadsProps
       verb: null,
     };
   }
-
 }
