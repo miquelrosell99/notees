@@ -99,6 +99,34 @@ implementation.
 
 ## Drift checks
 
+The 2026-10-19 shadcn-alignment slice (owner ruling: "full shadcn
+alignment and implementation") added the catalog layer and the class half
+of the gate. **The catalog** (`src/components/ui/`, 20 normalized
+components — button, input, textarea, label, card, dialog, alert-dialog,
+tabs, switch, checkbox, radio-group, badge, select, dropdown-menu,
+popover, tooltip, separator, skeleton, scroll-area, command): shadcn
+new-york sources normalized to the tokens per the fleet bridge checklist —
+theme-key utilities only, fleet radii (buttons corner-full at every size
+per the 2026-10-19 ruling), hover = state-layer overlay through the
+`--accent` alias, focus ring from `--ring`, chrome icons on the fleet
+`Icon` primitive. Tailwind is the implementation layer
+(`tailwind.config.ts` maps every cited utility to a token; preflight stays
+OFF, a base-layer `border-style: solid` stands in for the one preflight
+fact the utilities need). The six fleet primitives (Button, TextField,
+Card, Tabs, ToggleSwitch, Modal) are thin wrappers composing the catalog —
+full prop APIs preserved, their CSS retired (Tabs.css keeps the
+sliding-indicator register, Modal.css the sheet/overlay chrome; legacy
+`btn`/`card` marker classes stay where feature CSS compounds on them). New
+catalog-covered work composes `src/components/ui/`; the drift gate's class
+half (checks 8–11) enforces the same token discipline on class strings:
+no default-palette utilities, no raw radii outside the registered family,
+no arbitrary values/default shadows/default durations, and a
+registered-mapping check proving every catalog utility resolves to a
+config key. The bridge fixture (`/__design-bridge-fixture` +
+`e2e/bridge-fixture.spec.ts`, Playwright) proves computed behavior across
+themes and accent switches — token resolution, contrast, the hover
+register, the focus ring, disabled dimming, `aria-busy`, dialog elevation.
+
 The 2026-10-05 UI audit (Impeccable method) verified the library rule holds
 across ~230 components — no ad-hoc clones found — and flagged the drift
 classes to watch: undefined-token fallbacks (`var(--shadow-medium, rgba…)`
