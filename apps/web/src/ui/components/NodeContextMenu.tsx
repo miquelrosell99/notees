@@ -39,7 +39,7 @@ import { nodeLinkUrl } from "../nodeLink.js";
 import { parentRenderFacts, untitledLabelOf } from "../renderStateLabel.js";
 import { copyToClipboard } from "./modals/clipboard.js";import { notificationStore } from "./ui/notificationStore.js";
 import { clipboardMarkdown } from "./modals/exportSubtree.js";
-import { refuseClassRemoval, removeClassDissolvingLinks } from "./classRemoval.js";
+import { refuseClassRemoval, removeClassDissolvingLinks } from "../../features/metadata/classRemoval.js";
 import { headingAstOf, headingConversionOf, plainTextAstOf } from "./headingConvert.js";
 import { ConfirmationModal } from "./ui/ConfirmationModal.js";
 import { ContextMenu, type ContextMenuItem } from "./ui/ContextMenu.js";

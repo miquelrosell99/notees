@@ -17,13 +17,13 @@ import { useState } from "react";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { Icon } from "../Icon.js";
-import { Modal } from "./ui/Modal.js";
-import { Button } from "./ui/Button.js";
-import { NodeViewSection } from "./NodeViewSection.js";
-import { NodeCollection } from "../../features/collection/index.js";
-import type { TableColumn } from "../../features/collection/index.js";
-import { displayNameFromClient } from "../dateDisplay.js";
+import { Icon } from "../../ui/Icon.js";
+import { Modal } from "../../ui/components/ui/Modal.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { NodeViewSection } from "../../ui/components/NodeViewSection.js";
+import { NodeCollection } from "../collection/index.js";
+import type { TableColumn } from "../collection/index.js";
+import { displayNameFromClient } from "../../ui/dateDisplay.js";
 import { PropertyConvertModal } from "./PropertyConvertModal.js";
 import "./PropertyView.css";
 

@@ -52,7 +52,7 @@ import { displayNameForSettings } from "./dateDisplay.js";
 import type { ShareTarget } from "./components/NodeMenuButton.js";
 import { rendersAsInlineBlock } from "@notees/domain";
 import { recordRecent, type NavKey } from "./components/Sidebar.js";
-import { resolveAliasOpen } from "./components/aliasProperty.js";
+import { resolveAliasOpen } from "../features/metadata/aliasProperty.js";
 import { WorkspacesView } from "./components/WorkspacesView.js";
 import {
   SettingsPage,

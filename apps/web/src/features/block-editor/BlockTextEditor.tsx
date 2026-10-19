@@ -217,7 +217,7 @@ import {
 import { applyTextEdit, spliceTokens } from "@/editor/edit-apply.js";
 import { applyMarkToRange, marksOnRange, removeMarkFromRange } from "@/editor/marks.js";
 import { withCandidateSpans } from "@/editor/capture.js";
-import { dissolveClassLinksInAst } from "../../ui/components/classRemoval.js";
+import { dissolveClassLinksInAst } from "../metadata/classRemoval.js";
 import type { ClientNode } from "@/core/workspace-client/index.js";
 
 import { VerbPopover } from "../../ui/VerbPopover.js";

@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 
-import { resolveAliasOpen } from "../components/aliasProperty.js";
+import { resolveAliasOpen } from "../../features/metadata/aliasProperty.js";
 import { moveRailCardOrder, persistRailCardOrder, readRailCardOrder } from "./railCardOrder.js";
 import type { AnyClient } from "./clients.js";
 

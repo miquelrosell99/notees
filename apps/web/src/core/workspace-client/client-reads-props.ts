@@ -17,7 +17,7 @@ import {
 import { parseQueryAst, runAggregate, runQuery, type QueryAst } from "@notees/query";
 import { visiblePropertyValueRows, type NodeRow } from "@notees/store";
 
-import { aliasValuesOf } from "../../ui/components/aliasProperty.js";
+import { aliasValuesOf } from "../../features/metadata/aliasProperty.js";
 import { fetchAssetBlob, readBlobAsDataUrl } from "./asset-transport.js";
 import { mapNode } from "./mappers.js";
 import {

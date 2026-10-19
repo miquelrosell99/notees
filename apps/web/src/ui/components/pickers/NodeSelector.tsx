@@ -39,7 +39,7 @@ import { parentRenderFacts } from "../../renderStateLabel.js";
 import { readRecentIds } from "../Sidebar.js";
 import { Icon } from "../../Icon.js";
 import { parseDate, isPlainYearQuery } from "./dateParser.js";
-import { NodePill } from "./NodePill.js";
+import { NodePill } from "../../../features/metadata/NodePill.js";
 import { NodeResultItem } from "./NodeResultItem.js";
 import { useKeyboardListNav } from "./useKeyboardListNav.js";
 import { useViewportPosition } from "./useViewportPosition.js";

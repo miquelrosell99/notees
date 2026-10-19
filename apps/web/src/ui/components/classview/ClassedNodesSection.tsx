@@ -41,7 +41,7 @@ import { displayNameForSettings } from "../../dateDisplay.js";
 import { Icon } from "../../Icon.js";
 import { NodeViewSection } from "../NodeViewSection.js";
 import { useViewModePreference } from "../../viewPrefs.js";
-import { refuseClassRemoval, removeClassDissolvingLinks } from "../classRemoval.js";
+import { refuseClassRemoval, removeClassDissolvingLinks } from "../../../features/metadata/classRemoval.js";
 import { FilterBar } from "../../../features/collection/FilterBar.js";
 import {
   EMPTY_FILTER_QUERY,

@@ -34,7 +34,7 @@ import { displayNameFromClient, fullTitleFromClient } from "../dateDisplay.js";
 import { nodeIcon } from "../iconFor.js";
 import { OutlinerContext, useOutliner, useOutlinerValue } from "../outliner-context.js";
 import { assetImageUrl } from "../../features/collection/assetThumbs.js";
-import { coverAssetIdOf } from "../components/coverProperty.js";
+import { coverAssetIdOf } from "../../features/metadata/coverProperty.js";
 import { tableClassIdOf } from "../components/tableFamily.js";
 import { BlockRow } from "../BlockRow.js";
 import { buildDeck, type DeckSlide, type DeckSlideLayout, type DeckTreeEntry } from "./deck.js";

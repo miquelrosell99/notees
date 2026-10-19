@@ -30,7 +30,7 @@ import {
   coverAssetIdOf,
   isCoverAsset,
   setNodeCover,
-} from "../src/ui/components/coverProperty.js";
+} from "../src/features/metadata/coverProperty.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";

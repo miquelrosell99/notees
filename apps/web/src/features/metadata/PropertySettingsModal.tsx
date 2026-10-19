@@ -12,7 +12,7 @@ import { SelectionButton } from "../../ui/components/ui/SelectionButton.js";
 import { ToggleSwitch } from "../../ui/components/ui/ToggleSwitch.js";
 import { ColorButton } from "../../ui/components/ui/ColorButton.js";
 import { cssColorFor } from "../../ui/components/ui/colorPresets.js";
-import { PropertyConvertModal } from "../../ui/components/PropertyConvertModal.js";
+import { PropertyConvertModal } from "./PropertyConvertModal.js";
 import type { AnyClient } from "./shared.js";
 
 /**

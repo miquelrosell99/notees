@@ -46,7 +46,7 @@ import { Icon } from "../Icon.js";
 import { NodeSelector } from "./pickers/NodeSelector.js";
 import { AssetUploadModal } from "./modals/AssetUploadModal.js";
 import { Button, ImageModal } from "./ui/index.js";
-import { clearNodeCover, setNodeCover, uploadCoverAsset } from "./coverProperty.js";
+import { clearNodeCover, setNodeCover, uploadCoverAsset } from "../../features/metadata/coverProperty.js";
 import "./PageBanner.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
