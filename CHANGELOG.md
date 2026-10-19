@@ -9,6 +9,21 @@ predating this file.
 
 ## 2026-10-19
 
+- **refactor(web): extract the viewport anchors out of BlockTextEditor —
+  `features/block-editor/anchors.ts` (Stage D, extraction 3 of 3).**
+  `selectionAnchor` (selection-end center, the verb popover) and
+  `caretLineAnchor` (below the caret line with the caret top for
+  flip/clamp, the slash and template popups) move verbatim to their own
+  module — the DOM rect reads the popups anchor from at open time
+  (BlockTextEditor 2,223 → 2,205 lines). The ~1,950-line component body
+  itself stays one file: its ~25 states and ~40 handlers share the
+  draft ref and the span refs in one closure — splitting it into hooks
+  would be a rewrite (behavior risk), not a modularization, so Stage D
+  takes the module-level concerns out and leaves the component intact.
+  No behavior change.
+  **Verification:** `npx tsc --noEmit` clean; the four editor suites
+  (58 tests) green.
+
 - **refactor(web): extract the capture model out of BlockTextEditor —
   `features/block-editor/captureModel.ts` (Stage D, extraction 2 of 3).**
   The trigger-gesture state machine moves verbatim to its own module:
