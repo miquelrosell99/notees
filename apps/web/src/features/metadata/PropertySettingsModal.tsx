@@ -5,7 +5,7 @@ import { type DatePrecision } from "@notees/domain";
 import type { PropertyDisplay } from "@/core/workspace-client/index.js";
 
 import { Icon } from "../../ui/Icon.js";
-import { IconPickerPopup } from "../../ui/components/IconPickerPopup.js";
+import { IconPickerPopup } from "../icon-picker/IconPickerPopup.js";
 import { Modal } from "../../ui/components/ui/Modal.js";
 import { Button } from "../../ui/components/ui/Button.js";
 import { SelectionButton } from "../../ui/components/ui/SelectionButton.js";

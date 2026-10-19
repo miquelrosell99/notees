@@ -53,7 +53,7 @@ import { renderCsv, renderXlsx, type XlsxCell } from "@notees/export";
 
 import { BooleanToggle, Button, ButtonWithPanel, Checkbox, ContextMenu } from "../../ui/components/ui/index.js";
 import { Icon } from "../../ui/Icon.js";
-import { NodeSelector } from "../../ui/components/pickers/NodeSelector.js";
+import { NodeSelector } from "../pickers/NodeSelector.js";
 import {
   DatePickerPopup,
   type DatetimePickerSlot,

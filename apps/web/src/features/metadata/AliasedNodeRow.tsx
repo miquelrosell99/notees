@@ -29,7 +29,7 @@ import { rendersWithDocumentChrome } from "@notees/domain";
 import { Icon } from "../../ui/Icon.js";
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
 import { parentRenderFacts } from "../../ui/renderStateLabel.js";
-import { NodeSelector } from "../../ui/components/pickers/NodeSelector.js";
+import { NodeSelector } from "../pickers/NodeSelector.js";
 import { aliasedNodeTargetError } from "./aliasProperty.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
