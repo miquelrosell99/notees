@@ -28,7 +28,7 @@ import { EMPTY_UNDO_STATE } from "../src/core/undo-journal.js";
 import { CommandPalette } from "../src/ui/components/CommandPalette.js";
 import { ensureTaskFamily } from "../src/ui/components/taskFamily.js";
 import { applyAppearance, flipTheme } from "../src/ui/components/modals/deviceSettings.js";
-import { focusModeExitHandler, focusModeKeyHandler } from "../src/ui/App.js";
+import { focusModeExitHandler, focusModeKeyHandler } from "../src/ui/app/keymap.js";
 import { PageView } from "../src/ui/PageView.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";

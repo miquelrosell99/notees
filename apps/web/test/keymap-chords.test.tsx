@@ -12,7 +12,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { historyNavKeyHandler, keymapChordHandler } from "../src/ui/App.js";
+import { historyNavKeyHandler, keymapChordHandler } from "../src/ui/app/keymap.js";
 
 function key(init: KeyboardEventInit): KeyboardEvent {
   return new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init });

@@ -30,7 +30,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { EMPTY_UNDO_STATE } from "../src/core/undo-journal.js";
-import { searchKeyHandler } from "../src/ui/App.js";
+import { searchKeyHandler } from "../src/ui/app/keymap.js";
 import { popStateNavHandler } from "../src/ui/app/routing.js";
 import { SearchPage } from "../src/ui/SearchPage.js";
 import { CommandPalette } from "../src/ui/components/CommandPalette.js";
