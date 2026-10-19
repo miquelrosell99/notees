@@ -18,7 +18,7 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.
 
 import { Icon } from "../../ui/Icon.js";
 import { parentRenderFacts } from "../../ui/renderStateLabel.js";
-import { ExportPageModal } from "../../ui/components/modals/ExportPageModal.js";
+import { ExportPageModal } from "../export/ExportPageModal.js";
 import { SharePageModal } from "../sharing/SharePageModal.js";
 import { NodeContextMenu, type NodeMenuState } from "./NodeContextMenu.js";
 import "./NodeMenuButton.css";

@@ -19,7 +19,7 @@ import { parseDateNodeId, SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@not
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { CalendarView } from "../src/features/calendar/CalendarView.js";
 import { PropertiesSection } from "../src/features/metadata/index.js";
-import { addDaysIso, todayIsoLocal } from "../src/ui/components/calendarViewUtils.js";
+import { addDaysIso, todayIsoLocal } from "../src/features/calendar/calendarViewUtils.js";
 import { recurringRowsOf } from "../src/features/calendar/calendarRows.js";
 import { ensureTaskFamily } from "../src/features/classview/taskFamily.js";
 

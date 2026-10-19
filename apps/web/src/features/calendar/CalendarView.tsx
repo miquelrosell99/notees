@@ -41,11 +41,11 @@ import { instantiateTemplate } from "@/core/clone.js";
 import { displayNameFromClient, formatDateName } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { PageView } from "../../ui/PageView.js";
-import { useDeviceSetting } from "../../ui/components/modals/deviceSettings.js";
+import { useDeviceSetting } from "../settings/deviceSettings.js";
 import { TemplatePickerModal } from "../templates/TemplatePickerModal.js";
 import { ensureTaskFamily } from "../classview/taskFamily.js";
 import { ensureTemplateProperty, listClassTemplates } from "../templates/templateFamily.js";
-import { isClassFamilyEnabled } from "../../ui/components/featureGates.js";
+import { isClassFamilyEnabled } from "../settings/featureGates.js";
 import {
   addDaysIso,
   buildCreatedTodayAst,
@@ -62,7 +62,7 @@ import {
   weekDaysOfIso,
   weekdayLabel,
   type OpenTaskRow,
-} from "../../ui/components/calendarViewUtils.js";
+} from "./calendarViewUtils.js";
 import {
   datedRowsForDay,
   recurringRowsOf,

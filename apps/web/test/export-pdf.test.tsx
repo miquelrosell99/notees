@@ -29,7 +29,7 @@ import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { ExportPdfDocument, pdfPageSize } from "../src/ui/export-pdf/pdfDocument.js";
 import { renderSubtreePdf, renderSubtreePdfBatch } from "../src/ui/export-pdf/renderPdf.js";
 import { PDF_THEMES } from "../src/ui/export-pdf/theme.js";
-import { getExportFormat as getWebExportFormat } from "../src/ui/components/modals/registerExportFormats.js";
+import { getExportFormat as getWebExportFormat } from "../src/features/export/registerExportFormats.js";
 import { getExportFormat as getPackageExportFormat } from "@notees/export";
 
 const pdfMock = vi.hoisted(() => ({ calls: [] as unknown[] }));

@@ -37,8 +37,8 @@ import type { ClientNode, ClientPropertySchema } from "@/core/workspace-client/i
 import { displayNameForSettings } from "../../ui/dateDisplay.js";
 import { nodeLinkUrl } from "../../ui/nodeLink.js";
 import { parentRenderFacts, untitledLabelOf } from "../../ui/renderStateLabel.js";
-import { copyToClipboard } from "../../ui/components/modals/clipboard.js";import { notificationStore } from "../../ui/components/ui/notificationStore.js";
-import { clipboardMarkdown } from "../../ui/components/modals/exportSubtree.js";
+import { copyToClipboard } from "../modals/clipboard.js";import { notificationStore } from "../../ui/components/ui/notificationStore.js";
+import { clipboardMarkdown } from "../export/exportSubtree.js";
 import { refuseClassRemoval, removeClassDissolvingLinks } from "../metadata/classRemoval.js";
 import { headingAstOf, headingConversionOf, plainTextAstOf } from "../block-editor/headingConvert.js";
 import { ConfirmationModal } from "../../ui/components/ui/ConfirmationModal.js";

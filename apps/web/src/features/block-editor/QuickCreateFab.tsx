@@ -15,7 +15,7 @@ import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 
 import { Icon } from "../../ui/Icon.js";
-import { QuickAddModal } from "../../ui/components/modals/QuickAddModal.js";
+import { QuickAddModal } from "../modals/QuickAddModal.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;
 

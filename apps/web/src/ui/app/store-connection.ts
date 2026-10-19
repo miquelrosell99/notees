@@ -14,7 +14,7 @@ import sqlWasmUrl from "sql.js/dist/sql-wasm.wasm?url";
 import { WorkspaceClient } from "@/core/workspace-client/index.js";
 import { WorkerClient } from "@/core/worker-client.js";
 import { markLocalWorkspaceCopy } from "@/core/workspace-registry.js";
-import { settingsSectionFromPath } from "../components/SettingsPage.js";
+import { settingsSectionFromPath } from "../../features/settings/SettingsPage.js";
 import { navFromPath } from "./routing.js";
 import { STORAGE_KEYS, clearStored, writeStored } from "./storage.js";
 import { detectStoreMode, type StoreMode } from "./storeMode.js";

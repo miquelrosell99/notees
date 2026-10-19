@@ -20,7 +20,7 @@ import { parseDateNodeId } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { buildCreatedInPeriodAst } from "../../ui/components/calendarViewUtils.js";
+import { buildCreatedInPeriodAst } from "../calendar/calendarViewUtils.js";
 import { Icon } from "../../ui/Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
 import { NodeCollection, ViewToolbar } from "../collection/index.js";

@@ -22,7 +22,7 @@ import { MergeGuardError } from "@notees/store";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { EMPTY_UNDO_STATE } from "../src/core/undo-journal.js";
-import { MergeNodesModal } from "../src/ui/components/modals/MergeNodesModal.js";
+import { MergeNodesModal } from "../src/features/modals/MergeNodesModal.js";
 import { CommandPalette } from "../src/features/command-palette/CommandPalette.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";

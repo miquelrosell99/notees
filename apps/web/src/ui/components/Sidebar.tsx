@@ -41,11 +41,11 @@ import { InlineTokens } from "../InlineTokens.js";
 import { nodeIcon } from "../iconFor.js";
 import { untitledLabelOf } from "../renderStateLabel.js";
 import { openNodeLinkMenu } from "../../features/node-menu/NodeLinkContextMenu.js";
-import { useNodePrefs, toggleNodeFavorite, reorderNodeFavorites, removeSyncedRecent } from "./nodePrefs.js";
+import { useNodePrefs, toggleNodeFavorite, reorderNodeFavorites, removeSyncedRecent } from "../../features/settings/nodePrefs.js";
 import { SidebarItemMenu, type SidebarItemMenuState } from "../../features/node-menu/SidebarItemMenu.js";
 import { ConfirmationModal } from "./ui/ConfirmationModal.js";
 import { Separator } from "./ui/Separator.js";
-import { useDeviceSetting } from "./modals/deviceSettings.js";
+import { useDeviceSetting } from "../../features/settings/deviceSettings.js";
 import { usePopupDismissal } from "./ui/usePopupDismissal.js";
 import "./Sidebar.css";
 

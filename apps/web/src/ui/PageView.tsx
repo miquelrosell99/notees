@@ -98,7 +98,7 @@ import { rendersWithDocumentChrome, SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { ExportPageModal } from "./components/modals/ExportPageModal.js";
+import { ExportPageModal } from "../features/export/ExportPageModal.js";
 import { parentRenderFacts } from "./renderStateLabel.js";
 import { SharePageModal } from "../features/sharing/SharePageModal.js";
 import type { ShareTarget } from "../features/node-menu/NodeMenuButton.js";
@@ -108,14 +108,14 @@ import { CreatedSection } from "../features/page-sections/CreatedSection.js";
 import { ActivityLogSection } from "../features/page-sections/ActivityLogSection.js";
 import { VersionHistorySection } from "../features/page-sections/VersionHistorySection.js";
 import { ClassPillsList } from "../features/metadata/ClassPillsList.js";
-import { pageVariantOf } from "./components/pageVariant.js";
+import { pageVariantOf } from "../features/page-sections/pageVariant.js";
 import { definedNodeIcon } from "./iconFor.js";
 
 import { WorkspaceDragScopeContext } from "./block-dnd.js";
 import { useWorkspaceDndZone } from "./useWorkspaceDnd.js";
 import { PropertiesSection, PropertiesSidebar, ClassesRow, metadataRowCount } from "../features/metadata/index.js";
 import { bannerAssetIdOf, setNodeBanner } from "../features/page-sections/PageBanner.js";
-import { AssetUploadModal } from "./components/modals/AssetUploadModal.js";
+import { AssetUploadModal } from "../features/modals/AssetUploadModal.js";
 import { SelectionBar } from "../features/block-editor/SelectionBar.js";
 import { SelectionOutline } from "./SelectionOutline.js";
 import { SystemSections } from "../features/page-sections/SystemSections.js";
@@ -123,7 +123,7 @@ import { childQuery } from "../features/collection/childQuery.js";
 import { coverAssetIdOf } from "../features/metadata/coverProperty.js";
 import { ensureAliasProperty } from "../features/metadata/aliasProperty.js";
 import { AliasOfBanner } from "../features/metadata/AliasOfBanner.js";
-import { useDeviceSetting } from "./components/modals/deviceSettings.js";
+import { useDeviceSetting } from "../features/settings/deviceSettings.js";
 import { LocalGraphCard } from "../features/collection/LocalGraphCard.js";
 import { TocSection } from "./components/sidebarSections.js";
 import { CommentsSection } from "../features/page-sections/CommentsSection.js";
@@ -137,7 +137,7 @@ import type { ViewMode } from "../features/collection/index.js";
 import { useViewModePreference, useCondensedPreference } from "./viewPrefs.js";
 import { Button } from "./components/ui/Button.js";
 import { FindReplaceWidget } from "./editor-popups/FindReplaceWidget.js";
-import { FindInPageBar } from "./components/FindInPageBar.js";
+import { FindInPageBar } from "../features/find-in-page/FindInPageBar.js";
 import {
   LinkEditModalHost,
 } from "./editor-popups/LinkEditModal.js";

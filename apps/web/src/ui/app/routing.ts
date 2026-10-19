@@ -14,8 +14,8 @@ import {
   pathForSettingsSection,
   settingsSectionFromPath,
   type SettingsSection,
-} from "../components/SettingsPage.js";
-import { readDeviceSetting } from "../components/modals/deviceSettings.js";
+} from "../../features/settings/SettingsPage.js";
+import { readDeviceSetting } from "../../features/settings/deviceSettings.js";
 
 /**
  * Hub routes: each NAVIGATION entry has a URL (`/journal`, `/inbox`, …) so a

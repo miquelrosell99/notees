@@ -10,7 +10,7 @@
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
 
 import type { UndoUiState } from "@/core/undo-journal.js";
-import { toggleFocusMode } from "../components/modals/deviceSettings.js";
+import { toggleFocusMode } from "../../features/settings/deviceSettings.js";
 import { rendersWithDocumentChrome } from "@notees/domain";
 import {
   drawerDismissHandler,
@@ -24,7 +24,7 @@ import {
   undoRedoKeyHandler,
 } from "./keymap.js";
 import type { AnyClient } from "./clients.js";
-import type { SettingsSection } from "../components/SettingsPage.js";
+import type { SettingsSection } from "../../features/settings/SettingsPage.js";
 
 export interface GlobalGestureDeps {
   sidebarOpen: boolean;
