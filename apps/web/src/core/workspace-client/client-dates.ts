@@ -1,0 +1,171 @@
+/**
+ * The datetime domain (SCHEMA.md "Datetime" — a date is a node, not a
+ * string): the year/month/day chain ensure + heal, the schema-precision ref
+ * resolution, the unified point/range datetime write, and the annotation
+ * write (composed from the primitive ops in types.ts's createAnnotation).
+ */
+
+import {
+  chainNodeIds,
+  dateNodeId,
+  dateNodeLabel,
+  parseIsoDate,
+  SYSTEM_CLASS_UUIDS,
+  type DatePrecision,
+  type DatetimeSlot,
+} from "@notees/domain";
+
+import {
+  createAnnotation,
+  type CreateAnnotationInput,
+  type DatetimePointInput,
+  type DatetimeValueInput,
+} from "./types.js";
+import { WorkspaceClientWrites } from "./client-writes.js";
+
+export abstract class WorkspaceClientDates extends WorkspaceClientWrites {
+  // --- dates (SCHEMA.md "Datetime" — a date is a node, not a string) ----------
+
+  /** The schema's date precision (default day when the row predates the field). */
+  private datePrecisionOf(propertySchemaId: string): DatePrecision {
+    const schema = this.listPropertySchemas().find((s) => s.id === propertySchemaId);
+    return schema?.datePrecision ?? "day";
+  }
+
+  /**
+   * Ensure the year/month/day node chain for an ISO date exists (journal
+   * layout: year as a workspace-root page, month under year, day under month,
+   * named by the compact labels) and return the three deterministic ids.
+   * Ids are content-addressed from the date (@notees/domain dates.ts), so a
+   * re-run creates nothing — the client-level existence check is op-log
+   * hygiene, not correctness; even a raced create is an applier no-op.
+   */
+  async ensureDateChain(
+    isoDate: string,
+  ): Promise<{ year: string; month: string; day: string }> {
+    const parts = parseIsoDate(isoDate);
+    const ids = chainNodeIds(isoDate);
+    if (this.getNodeRaw(ids.year) === undefined) {
+      await this.createObject({
+        id: ids.year,
+        isEmbedded: false,
+        parentId: null,
+        name: dateNodeLabel(parts, "year"),
+        classIds: [SYSTEM_CLASS_UUIDS.year],
+      });
+    }
+    if (this.getNodeRaw(ids.month) === undefined) {
+      await this.createObject({
+        id: ids.month,
+        isEmbedded: false,
+        parentId: ids.year,
+        name: dateNodeLabel(parts, "month"),
+        classIds: [SYSTEM_CLASS_UUIDS.month],
+      });
+    }
+    if (this.getNodeRaw(ids.day) === undefined) {
+      await this.createObject({
+        id: ids.day,
+        isEmbedded: false,
+        parentId: ids.month,
+        name: dateNodeLabel(parts, "day"),
+        classIds: [SYSTEM_CLASS_UUIDS.day],
+      });
+    }
+    // Heal the chain parentage AND labels: older writers created chain nodes
+    // parentless and with ISO-dashed content ("2026-10-05"); the stored label
+    // must be the compact form ("20261005" — the lookup/sort contract), so
+    // an existing-but-wrong level is rewritten, idempotently — one op per
+    // stray, only while it actually differs.
+    const healLevel = async (
+      id: string,
+      parentId: string | null,
+      precision: "year" | "month" | "day",
+    ): Promise<void> => {
+      const node = this.getNodeRaw(id);
+      if (node === undefined) return;
+      if ((node.parentId ?? null) !== parentId) {
+        await this.moveObject(id, parentId);
+      }
+      const label = dateNodeLabel(parts, precision);
+      const first = node.contentAst[0];
+      const text =
+        first !== undefined && (first as { type?: unknown }).type === "text"
+          ? String((first as { text?: unknown }).text ?? "")
+          : "";
+      if (text !== label) {
+        await this.updateObject(id, { contentAst: [{ type: "text", text: label }] });
+      }
+    };
+    await healLevel(ids.year, null, "year");
+    await healLevel(ids.month, ids.year, "month");
+    await healLevel(ids.day, ids.month, "day");
+    return ids;
+  }
+
+  /** Create/refresh the chain and return the node id at the schema's precision. */
+  private async dateRefFor(isoDate: string, precision: DatePrecision): Promise<string> {
+    const ids = await this.ensureDateChain(isoDate);
+    return precision === "year" ? ids.year : precision === "month" ? ids.month : ids.day;
+  }
+
+  /**
+   * Set a datetime property value (SCHEMA.md "Datetime" — the unified date
+   * type): ensure the chain(s), then write the value union — a point
+   * `{ "nodeId": …, "time"?: "HH:MM" }` or a range `{ "start", "end" }` of
+   * slots, either side open. Refs land at the schema's precision (the edge
+   * index projects them, so the year node backlinks everything dated that
+   * year); a `time` rides ONLY a day-precision anchor (schema ceiling AND
+   * day ref) — passing one at year/month precision fails loud. One chain is
+   * ensured per distinct day. Editing overwrites the same slot's ref;
+   * `metadata` passes through (recurrence rides it).
+   */
+  async setDatetimeProperty(
+    objectId: string,
+    propertySchemaId: string,
+    value: DatetimeValueInput,
+    idx = 0,
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
+    const precision = this.datePrecisionOf(propertySchemaId);
+    const slotOf = async (input: DatetimePointInput): Promise<DatetimeSlot> => {
+      if (input.time !== undefined && precision !== "day") {
+        throw new Error(
+          `datetime time requires day precision (schema ${propertySchemaId} is ${precision})`,
+        );
+      }
+      const nodeId = await this.dateRefFor(input.iso, precision);
+      return input.time !== undefined ? { nodeId, time: input.time } : { nodeId };
+    };
+    if ("start" in value || "end" in value) {
+      const rangeInput = value as {
+        start?: DatetimePointInput | null;
+        end?: DatetimePointInput | null;
+      };
+      const range: { start: DatetimeSlot | null; end: DatetimeSlot | null } = {
+        start: null,
+        end: null,
+      };
+      if (rangeInput.start !== null && rangeInput.start !== undefined) {
+        range.start = await slotOf(rangeInput.start);
+      }
+      if (rangeInput.end !== null && rangeInput.end !== undefined) {
+        range.end = await slotOf(rangeInput.end);
+      }
+      await this.setProperty(objectId, propertySchemaId, range, idx, metadata);
+      return;
+    }
+    const slot = await slotOf(value);
+    await this.setProperty(objectId, propertySchemaId, slot, idx, metadata);
+  }
+
+  /**
+   * Create an annotation on an asset (the composed write behind the chips'
+   * annotations form): the highlight-classed object named by the quote
+   * excerpt, the highlight_asset link, the provenance text, and the optional
+   * note child block. Applied locally, push kicked off.
+   */
+  createAnnotation(input: CreateAnnotationInput): Promise<string> {
+    return createAnnotation(this, input);
+  }
+}
