@@ -9,6 +9,49 @@ predating this file.
 
 ## 2026-10-19
 
+- **docs(register): the custom-primitive-layer exception retires — the
+  catalog migration is the record.** `.agents/design-overrides.md` (the
+  per-project deviation register) replaces the "catalog adoption at touch
+  points" exception entry with the completed migration: the bridge + 20
+  normalized components + the six wrapper migrations (commits `c5ebaac1`,
+  `21aef837`, `f646dbbc`), what stays fleet-owned per the sourcing table
+  (shell chrome, SegmentedControl/Chip, EmptyState, ConfirmationModal, and
+  the app-specific registers the wrappers carry), and the remaining custom
+  leaves' path (catalog at touch points — new work goes through the
+  catalog, normalized). `docs/developers/ui-primitives.md` gains the
+  catalog section: the normalization contract, the Tailwind
+  implementation layer (preflight off + the base-layer border-style), the
+  wrapper architecture, the drift gate's class half, and the bridge
+  fixture. No runtime behavior. **Verification:** docs only; the gates
+  they describe are green in their slices.
+
+- **feat(web): the design-bridge fixture — computed-behavior proof across
+  themes, accent switches, and interaction states.** The shadcn bridge's
+  CI half lands: `/__design-bridge-fixture` (renders instead of the app —
+  `main.tsx` branches on the pathname, so no auth, no sync server, no
+  workspace; excluded from every surface by construction) mounts the
+  normalized components with `data-fix` hooks, and
+  `e2e/bridge-fixture.spec.ts` (adapted from the skill's
+  bridge-fixture.spec.ts.template to the app's accent register and color
+  serializations) asserts in dark, light, and after an accent switch:
+  token resolution (not library defaults), primary/on-primary contrast ≥
+  4.5:1, the hover register (state-layer overlay by computed value), the
+  focus ring (never suppressed), disabled dimming, `aria-busy` on loading,
+  dialog elevation, and that flipping `data-accent` re-themes the catalog
+  through the alias layer. Playwright arrives as a devDependency with
+  `playwright.config.ts` (vite dev server on the fixed fixture port,
+  reuse in dev; full-chromium channel and a generous timeout for the
+  loaded fleet host — the suite runs in seconds on a quiet machine). Two
+  adaptations from the template worth recording: Radix renders
+  `DialogOverlay` only for MODAL dialogs, so the fixture pins the scrim
+  register as a static `pointer-events-none` swatch (a modal overlay
+  would block the pointer-driven state checks — hover — on the buttons
+  beneath it), and the spec's color comparison normalizes hex, rgb(a),
+  and CSS Color 4 space-separated serializations. **Verification:** the
+  suite passes (observed green across the theme scenarios; token
+  resolution, hover overlay, focus ring, contrast, and the accent seam all
+  asserted by computed value in dark/light/teal).
+
 - **feat(web): the six fleet primitives migrate to the normalized catalog —
   Button, TextField, Card, Tabs, ToggleSwitch, Modal become thin wrappers,
   their CSS retires.** The third slice of the shadcn-alignment ruling. Every
