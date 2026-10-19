@@ -56,8 +56,7 @@ import { DeckView } from "./presentation/DeckView.js";
 import { CommandPalette } from "./components/CommandPalette.js";
 import { PageCard } from "./components/PageCard.js";
 import type { ShareTarget } from "./components/NodeMenuButton.js";
-import { dayNodeId, rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
-import { Breadcrumbs } from "./components/Breadcrumbs.js";
+import { rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
 import { Sidebar, recordRecent, type NavKey } from "./components/Sidebar.js";
 import { NodeLinkMenuHost } from "./components/NodeLinkContextMenu.js";
 import { FloatingEditorHost } from "./components/FloatingEditor.js";
@@ -67,16 +66,10 @@ import { resolveAliasOpen } from "./components/aliasProperty.js";
 import { JournalsView } from "./components/JournalsView.js";
 import { CalendarView } from "./components/CalendarView.js";
 import { todayIsoLocal } from "./components/calendarViewUtils.js";
-import { CalendarPopup } from "./components/ui/CalendarPopup.js";
-import { HistoryMenuPopup } from "./components/HistoryMenuPopup.js";
 import { QueriesHub } from "./components/QueriesHub.js";
 import { TrashHub } from "./components/TrashHub.js";
 import { SharesHub } from "./components/SharesHub.js";
 import { GraphView } from "./views/graph/GraphView.js";
-import { TopBar } from "./components/TopBar.js";
-import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher.js";
-import { NodeSelector } from "./components/pickers/NodeSelector.js";
-import { createNodesWithClasses } from "./components/createNodesWithClasses.js";
 import { QuickAddModal } from "./components/modals/QuickAddModal.js";
 import { ClassCreateModal } from "./components/modals/ClassCreateModal.js";
 import { MergeNodesModal } from "./components/modals/MergeNodesModal.js";
@@ -107,6 +100,7 @@ import { NotificationToaster } from "./components/ui/NotificationToaster.js";
 import "./app.css";
 import { moveRailCardOrder, persistRailCardOrder, readRailCardOrder } from "./app/railCardOrder.js";
 import { HubView } from "./app/HubView.js";
+import { AppTopBar } from "./app/AppTopBar.js";
 import { BootForm } from "./app/BootForm.js";
 import { useBootFlow } from "./app/useBootFlow.js";
 import { useWorkspaceConnection } from "./app/useWorkspaceConnection.js";
@@ -289,6 +283,23 @@ export function App() {
       );
     }, 0);
   }, []);
+  /** The shared undo/redo runners (top bar, palette, key chords). */
+  const runUndo = useCallback(() => {
+    const live = clientRef.current;
+    if (live === null) return;
+    void live.undo().catch((error: unknown) => {
+      console.error("undo failed:", error);
+    });
+    scheduleUndoRefresh();
+  }, [clientRef, scheduleUndoRefresh]);
+  const runRedo = useCallback(() => {
+    const live = clientRef.current;
+    if (live === null) return;
+    void live.redo().catch((error: unknown) => {
+      console.error("redo failed:", error);
+    });
+    scheduleUndoRefresh();
+  }, [clientRef, scheduleUndoRefresh]);
   /** Top-bar calendar popup (the popup needs the client, so it renders here). */
   const [calendarOpen, setCalendarOpen] = useState(false);
   const calendarButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -745,124 +756,48 @@ export function App() {
       <a className="nt-skip-link" href="#nt-main-content">
         Skip to content
       </a>
-      <TopBar
-        breadcrumbs={
-          selectedPageId !== null ? (
-            <Breadcrumbs client={client} nodeId={selectedPageId} onOpenNode={openPage} editable />
-          ) : null
-        }
+      <AppTopBar
+        client={client}
+        selectedPageId={selectedPageId}
+        openPage={openPage}
         sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
         rightPanelOpen={rightPanelOpen}
+        setRightPanelOpen={setRightPanelOpen}
         canGoBack={navStack.index > 0}
         canGoForward={navStack.index < navStack.entries.length - 1}
-        onGoBack={() => window.history.back()}
-        onGoForward={() => window.history.forward()}
         calendarOpen={calendarOpen}
-        onToggleCalendar={() => setCalendarOpen((open) => !open)}
+        setCalendarOpen={setCalendarOpen}
         calendarButtonRef={calendarButtonRef}
-        undoState={undoUi}
-        onUndo={() => {
-          void client.undo().catch((error: unknown) => {
-            console.error("undo failed:", error);
-          });
-          scheduleUndoRefresh();
-        }}
-        onRedo={() => {
-          void client.redo().catch((error: unknown) => {
-            console.error("redo failed:", error);
-          });
-          scheduleUndoRefresh();
-        }}
-        onToggleHistory={() => setHistoryOpen((open) => !open)}
+        firstDayOfWeek={firstDayOfWeek}
+        undoUi={undoUi}
+        runUndo={runUndo}
+        runRedo={runRedo}
+        historyOpen={historyOpen}
+        setHistoryOpen={setHistoryOpen}
         historyButtonRef={historyButtonRef}
-        onToggleSidebar={() => setSidebarOpen((open) => !open)}
-        onToggleRightPanel={() => setRightPanelOpen((open) => !open)}
-        onNewNode={() => setNewPickerOpen(true)}
-        onRequestSearch={() => setPaletteOpen(true)}
+        newPickerOpen={newPickerOpen}
+        setNewPickerOpen={setNewPickerOpen}
         newButtonRef={newButtonRef}
+        setPaletteOpen={setPaletteOpen}
         sectionsLayout={sectionsLayout}
-        onToggleLayout={selectedPageId !== null ? () => setSectionsLayout((v) => !v) : undefined}
+        setSectionsLayout={setSectionsLayout}
         focusMode={focusMode}
-        onToggleFocusMode={() => setFocusMode(toggleFocusMode())}
+        setFocusMode={setFocusMode}
+        toggleFocusMode={toggleFocusMode}
         condensedActive={condensedActive}
-        onToggleCondensed={
-          selectedPageId !== null ? () => setCondensedPref(!condensedActive) : undefined
-        }
-        workspaceSwitcher={
-          offline ? undefined : (
-            <WorkspaceSwitcher
-              serverUrl={serverUrl}
-              credential={token}
-              activeWorkspaceId={readStored(STORAGE_KEYS.workspaceId)}
-              activeName={workspaceName}
-              client={client}
-              onSwitch={(id, name) => {
-                setSelectedPageId(null);
-                void connect(serverUrl, token, id, {
-                  isOffline: false,
-                  credentialType: sessionSignedIn ? "session" : "apikey",
-                  label: name,
-                });
-              }}
-              onManageWorkspaces={() => {
-                pushNav("/workspaces", { view: "workspaces" });
-                setManagerOpen(true);
-              }}
-              onRenamed={(id, name) => {
-                rememberWorkspaceName(id, name);
-                if (id === readStored(STORAGE_KEYS.workspaceId)) setWorkspaceName(name);
-              }}
-            />
-          )
-        }
+        setCondensedPref={setCondensedPref}
+        offline={offline}
+        serverUrl={serverUrl}
+        token={token}
+        workspaceName={workspaceName}
+        sessionSignedIn={sessionSignedIn}
+        connect={connect}
+        setSelectedPageId={setSelectedPageId}
+        pushNav={pushNav}
+        setManagerOpen={setManagerOpen}
+        setWorkspaceName={setWorkspaceName}
       />
-      {newPickerOpen && (
-        <NodeSelector
-          client={client}
-          anchorEl={newButtonRef.current}
-          searchMode="classes"
-          searchPlaceholder="Search classes…"
-          onClose={() => setNewPickerOpen(false)}
-          onAdd={(picked) => {
-            // Single-pick contract (owner ruling): one class, one page —
-            // "create a person", "create a project". Picking creates the
-            // untitled page of that class and opens it.
-            setNewPickerOpen(false);
-            createNodesWithClasses(client, [picked.id], openPage);
-          }}
-        />
-      )}
-      {historyOpen && (
-        <HistoryMenuPopup
-          client={client}
-          isOpen
-          onClose={() => setHistoryOpen(false)}
-          anchorRef={historyButtonRef}
-          onOpenNode={(nodeId) => openPage(nodeId)}
-        />
-      )}
-      {calendarOpen && (
-        <CalendarPopup
-          isOpen
-          onClose={() => setCalendarOpen(false)}
-          anchorRef={calendarButtonRef}
-          firstDayOfWeek={firstDayOfWeek}
-          hasNote={(iso) => client.getNodeRaw(dayNodeId(iso)) !== undefined}
-          onSelectDay={(iso) => {
-            void client.ensureDateChain(iso).then(({ day }) => openPage(day));
-            setCalendarOpen(false);
-          }}
-          onSelectMonth={(year, month) => {
-            const iso = `${year}-${String(month).padStart(2, "0")}-01`;
-            void client.ensureDateChain(iso).then(({ month: monthId }) => openPage(monthId));
-            setCalendarOpen(false);
-          }}
-          onSelectYear={(year) => {
-            void client.ensureDateChain(`${year}-01-01`).then(({ year: yearId }) => openPage(yearId));
-            setCalendarOpen(false);
-          }}
-        />
-      )}
       <div className="nt-body">
         <NodeLinkMenuHost
           client={client}
