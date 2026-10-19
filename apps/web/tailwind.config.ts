@@ -149,6 +149,9 @@ export default {
         level1: "var(--elevation-1)",
         level2: "var(--elevation-2)",
         level3: "var(--elevation-3)",
+        /* The switch track's inset rings (BooleanToggle). */
+        "inset-outline-ring": "var(--shadow-inset-outline-ring)",
+        "inset-primary-ring": "var(--shadow-inset-primary-ring)",
         /* The underline field register (TextField). */
         "field-focus": "var(--shadow-field-focus)",
         "field-error": "var(--shadow-field-error)",

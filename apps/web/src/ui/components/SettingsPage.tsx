@@ -331,7 +331,7 @@ function EditorSection() {
           <BooleanToggle
             id="user-bullet-thread"
             checked={showBulletThread}
-            onChange={(e) => setShowBulletThread(e.target.checked)}
+            onChange={(checked) => setShowBulletThread(checked)}
             size="sm"
           />
         </div>
@@ -453,7 +453,7 @@ function GeneralSection() {
           <BooleanToggle
             id="user-dev-options"
             checked={showDevOptions}
-            onChange={(e) => setShowDevOptions(e.target.checked)}
+            onChange={(checked) => setShowDevOptions(checked)}
             size="sm"
           />
         </div>
@@ -688,8 +688,8 @@ function SupportSection() {
             <BooleanToggle
               id="support-badge-toggle"
               checked={supportBadgeVisible}
-              onChange={(e) => {
-                const show = e.target.checked;
+              onChange={(checked) => {
+                const show = checked;
                 setSupportBadgeHidden(!show);
                 if (show) {
                   setSupportBadgeHiddenUntil(null);
