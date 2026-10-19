@@ -68,7 +68,7 @@ import {
   type QueryRunState,
 } from "./queryRun.js";
 import { QueryBuilderFields, useBuilderFacts } from "../features/collection/QueryBuilderFields.js";
-import { Button } from "./components/ui/Button.js";
+import { Button } from "../components/ui/fleet/Button.js";
 
 import type {
   ClientNode,

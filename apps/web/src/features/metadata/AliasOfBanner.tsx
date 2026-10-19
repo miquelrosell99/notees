@@ -15,7 +15,7 @@ import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
-import { Pill } from "../../ui/components/ui/Pill.js";
+import { Pill } from "../../components/ui/fleet/Pill.js";
 import "./AliasOfBanner.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

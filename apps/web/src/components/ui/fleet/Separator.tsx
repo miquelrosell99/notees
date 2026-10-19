@@ -15,8 +15,8 @@
  * variants stay on the root so feature CSS that compounds on them keeps
  * matching.
  */
-import { Separator as CatalogSeparator } from '@/components/ui/separator';
-import { cn } from './cn';
+import { Separator as CatalogSeparator } from '@/components/ui/separator.js';
+import { cn } from './cn.js';
 
 export type SeparatorOrientation = 'horizontal' | 'vertical';
 export type SeparatorSize = 'sm' | 'md' | 'lg';

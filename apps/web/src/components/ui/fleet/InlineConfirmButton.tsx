@@ -7,7 +7,7 @@
  */
 import { useState, useCallback, useEffect } from 'react';
 import { Button } from './Button.js';
-import { Icon } from '../../Icon.js';
+import { Icon } from '../../../ui/Icon.js';
 import './InlineConfirmButton.css';
 
 interface InlineConfirmButtonProps {

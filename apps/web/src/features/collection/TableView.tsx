@@ -51,7 +51,7 @@ import { useMemo, useRef, useState, type ReactNode } from "react";
 import { isRangeDatetimeValue, isValidTimeOfDay, parseDateNodeId } from "@notees/domain";
 import { renderCsv, renderXlsx, type XlsxCell } from "@notees/export";
 
-import { BooleanToggle, Button, ButtonWithPanel, Checkbox, ContextMenu } from "../../ui/components/ui/index.js";
+import { BooleanToggle, Button, ButtonWithPanel, Checkbox, ContextMenu } from "../../components/ui/fleet/index.js";
 import { Icon } from "../../ui/Icon.js";
 import { NodeSelector } from "../pickers/NodeSelector.js";
 import {

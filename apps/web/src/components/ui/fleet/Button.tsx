@@ -40,11 +40,11 @@ import {
 } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 
-import { Icon } from '../../Icon.js';
+import { Icon } from '../../../ui/Icon.js';
 import { Spinner } from './Spinner.js';
 import { useReducedMotion } from './overlay-hooks.js';
 import { useDelayedVisible } from './useDelayedVisible.js';
-import { cn } from './cn';
+import { cn } from './cn.js';
 
 export type ButtonVariant = 'default' | 'primary' | 'outline' | 'ghost' | 'danger' | 'danger-solid';
 export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';

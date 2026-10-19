@@ -10,7 +10,7 @@ import {
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { displayNameFromClient, datetimeValueText } from "../../ui/dateDisplay.js";
-import { AddPill } from "../../ui/components/ui/AddPill.js";
+import { AddPill } from "../../components/ui/fleet/AddPill.js";
 import {
   DatePickerPopup,
   type DatetimeCommitValue,

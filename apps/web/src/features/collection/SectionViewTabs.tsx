@@ -45,7 +45,7 @@ import {
   reorderSectionViews,
   useSectionViews,
 } from "./sectionViews.js";
-import { Button, ConfirmationModal, Modal, Tabs, TextField } from "../../ui/components/ui/index.js";
+import { Button, ConfirmationModal, Modal, Tabs, TextField } from "../../components/ui/fleet/index.js";
 import { Icon } from "../../ui/Icon.js";
 import type { AnyClient } from "./types.js";
 import "./SectionViewTabs.css";

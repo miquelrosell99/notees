@@ -62,7 +62,7 @@ import {
 import { rendersAsInlineBlock } from "@notees/domain";
 
 import { displayNameForSettings, displayNameFromClient } from "../../ui/dateDisplay.js";
-import { resolveCssColor } from "../../ui/components/ui/colorPresets.js";
+import { resolveCssColor } from "../../components/ui/fleet/colorPresets.js";
 import { nodeIcon } from "../../ui/iconFor.js";
 
 import { getExportFormat as getWebExportFormat } from "./registerExportFormats.js";

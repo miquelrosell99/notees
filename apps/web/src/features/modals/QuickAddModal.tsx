@@ -6,8 +6,8 @@
  * and the Inbox page.
  */
 import { useEffect, useRef, useCallback, useState } from "react";
-import { Modal } from "../../ui/components/ui/Modal.js";
-import { Button } from "../../ui/components/ui/Button.js";
+import { Modal } from "../../components/ui/fleet/Modal.js";
+import { Button } from "../../components/ui/fleet/Button.js";
 import { useQuickAdd } from "./useQuickAdd.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";

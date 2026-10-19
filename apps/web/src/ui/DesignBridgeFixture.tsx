@@ -15,10 +15,10 @@
 import { useState } from "react";
 
 import "./app.css";
-import { Button } from "./components/ui/Button.js";
-import { ToggleSwitch } from "./components/ui/ToggleSwitch.js";
-import { TextField } from "./components/ui/TextField.js";
-import { Tabs } from "./components/ui/Tabs.js";
+import { Button } from "../components/ui/fleet/Button.js";
+import { ToggleSwitch } from "../components/ui/fleet/ToggleSwitch.js";
+import { TextField } from "../components/ui/fleet/TextField.js";
+import { Tabs } from "../components/ui/fleet/Tabs.js";
 import {
   Dialog,
   DialogContent,
