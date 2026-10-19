@@ -52,14 +52,14 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, SearchSnippetData, WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { UndoUiState } from "@/core/undo-journal.js";
 
-import { displayNameForSettings, isDatePageNode, rawDateKeywordOf } from "../dateDisplay.js";
-import { Icon } from "../Icon.js";
-import { parentRenderFacts } from "../renderStateLabel.js";
-import { flipTheme, toggleFocusMode } from "./modals/deviceSettings.js";
-import { parseDate, isPlainYearQuery } from "../../features/date-pickers/dateParser.js";
-import { Button } from "./ui/Button.js";
-import { SearchField } from "./ui/SearchField.js";
-import "./Modal.css";
+import { displayNameForSettings, isDatePageNode, rawDateKeywordOf } from "../../ui/dateDisplay.js";
+import { Icon } from "../../ui/Icon.js";
+import { parentRenderFacts } from "../../ui/renderStateLabel.js";
+import { flipTheme, toggleFocusMode } from "../../ui/components/modals/deviceSettings.js";
+import { parseDate, isPlainYearQuery } from "../date-pickers/dateParser.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { SearchField } from "../../ui/components/ui/SearchField.js";
+import "../../ui/components/Modal.css";
 import "./CommandPalette.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

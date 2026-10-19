@@ -12,7 +12,7 @@ import { WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { UndoUiState } from "@/core/undo-journal.js";
 import type { AnyClient } from "./clients.js";
 import type { StoreMode } from "./storeMode.js";
-import { CommandPalette } from "../components/CommandPalette.js";
+import { CommandPalette } from "../../features/command-palette/CommandPalette.js";
 import { QuickAddModal } from "../components/modals/QuickAddModal.js";
 import { ClassCreateModal } from "../components/modals/ClassCreateModal.js";
 import { MergeNodesModal } from "../components/modals/MergeNodesModal.js";

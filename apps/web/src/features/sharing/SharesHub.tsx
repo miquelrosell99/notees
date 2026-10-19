@@ -21,15 +21,15 @@ import { deriveDisplayName } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { Icon } from "../Icon.js";
-import { nodeIcon } from "../iconFor.js";
-import { relativeTime } from "../../features/page-sections/ActivityLogSection.js";
-import { Button } from "./ui/Button.js";
-import { EmptyState } from "./ui/EmptyState.js";
-import { InlineConfirmButton } from "./ui/InlineConfirmButton.js";
-import { Spinner } from "./ui/Spinner.js";
-import { copyToClipboard } from "./modals/clipboard.js";
-import { listShares, revokeShare, type ShareEntry } from "./modals/shareApi.js";
+import { Icon } from "../../ui/Icon.js";
+import { nodeIcon } from "../../ui/iconFor.js";
+import { relativeTime } from "../page-sections/ActivityLogSection.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { EmptyState } from "../../ui/components/ui/EmptyState.js";
+import { InlineConfirmButton } from "../../ui/components/ui/InlineConfirmButton.js";
+import { Spinner } from "../../ui/components/ui/Spinner.js";
+import { copyToClipboard } from "../../ui/components/modals/clipboard.js";
+import { listShares, revokeShare, type ShareEntry } from "./shareApi.js";
 import "./SharesHub.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

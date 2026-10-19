@@ -100,7 +100,7 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.
 
 import { ExportPageModal } from "./components/modals/ExportPageModal.js";
 import { parentRenderFacts } from "./renderStateLabel.js";
-import { SharePageModal } from "./components/modals/SharePageModal.js";
+import { SharePageModal } from "../features/sharing/SharePageModal.js";
 import type { ShareTarget } from "../features/node-menu/NodeMenuButton.js";
 import { NodeContextMenu } from "../features/node-menu/NodeContextMenu.js";
 import { DayPageSections } from "../features/calendar/DayPageSections.js";

@@ -19,7 +19,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { EMPTY_UNDO_STATE, type UndoUiState } from "../src/core/undo-journal.js";
 import { undoRedoKeyHandler } from "../src/ui/app/keymap.js";
-import { CommandPalette } from "../src/ui/components/CommandPalette.js";
+import { CommandPalette } from "../src/features/command-palette/CommandPalette.js";
 
 function key(init: KeyboardEventInit): KeyboardEvent {
   return new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init });

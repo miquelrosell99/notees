@@ -23,7 +23,7 @@ import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { EMPTY_UNDO_STATE } from "../src/core/undo-journal.js";
 import { ClassCreateModal } from "../src/ui/components/modals/ClassCreateModal.js";
-import { CommandPalette } from "../src/ui/components/CommandPalette.js";
+import { CommandPalette } from "../src/features/command-palette/CommandPalette.js";
 import { HubView } from "../src/ui/app/HubView.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";

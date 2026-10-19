@@ -23,7 +23,7 @@ import { EMPTY_UNDO_STATE } from "../src/core/undo-journal.js";
 import { hiddenLinksOf } from "../src/editor/condensed.js";
 import { PageView } from "../src/ui/PageView.js";
 import { TopBar } from "../src/ui/components/TopBar.js";
-import { CommandPalette } from "../src/ui/components/CommandPalette.js";
+import { CommandPalette } from "../src/features/command-palette/CommandPalette.js";
 import { writeViewModePref } from "../src/ui/viewPrefs.js";
 import { writeDeviceSetting } from "../src/ui/components/modals/deviceSettings.js";
 import type { ContentAst } from "@notees/protocol";

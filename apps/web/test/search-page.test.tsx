@@ -33,7 +33,7 @@ import { EMPTY_UNDO_STATE } from "../src/core/undo-journal.js";
 import { searchKeyHandler } from "../src/ui/app/keymap.js";
 import { popStateNavHandler } from "../src/ui/app/routing.js";
 import { SearchPage } from "../src/ui/SearchPage.js";
-import { CommandPalette } from "../src/ui/components/CommandPalette.js";
+import { CommandPalette } from "../src/features/command-palette/CommandPalette.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";

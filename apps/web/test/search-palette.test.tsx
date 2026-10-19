@@ -28,7 +28,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { EMPTY_UNDO_STATE, type UndoUiState } from "../src/core/undo-journal.js";
-import { CommandPalette } from "../src/ui/components/CommandPalette.js";
+import { CommandPalette } from "../src/features/command-palette/CommandPalette.js";
 import { NodeSelector } from "../src/features/pickers/NodeSelector.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
