@@ -41,6 +41,9 @@ const JS_SCOPED = new Map<string, string>([
   ["--sheet-scrim-opacity", "Modal.tsx"],
   ["--nt-float-raise", "FloatingEditor.tsx"],
   ["--nt-fb-depth", "FilterBlockBuilder.tsx"],
+  // Radix popper sets this on the popover content (JS) — the Dropdown
+  // menu's min-width rides it (trigger-width anchoring).
+  ["--radix-popover-trigger-width", "Dropdown.tsx"],
 ]);
 
 function walkFiles(dir: string, out: string[] = []): string[] {

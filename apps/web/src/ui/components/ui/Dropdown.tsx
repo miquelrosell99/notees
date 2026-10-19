@@ -2,15 +2,55 @@
  * Dropdown Component
  *
  * A dropdown selection component with search and multi-select support.
+ *
+ * Rebuilt on the catalog combobox composition (the register's scheduled
+ * migration, 2026-10-19): the Radix popover owns portal + popper
+ * positioning (viewport flip/shift/clamp replace the old imperative
+ * useViewportFlip fit) and the catalog cmdk command owns the list
+ * semantics — the listbox/option ARIA, the label-only filter (each item's
+ * `value` is its label, so custom renderers can't pollute the match),
+ * the arrow-key walk, and the empty state. The fleet register stays
+ * fleet-owned per the sourcing table: the boxed SelectTrigger, the menu
+ * surface/item/search CSS hooks (Dropdown.css), the MDI option chrome,
+ * the multi-select/search/groups/custom-renderer contracts, and the
+ * Escape LIFO ordering through the app overlay stack (useOverlaySurface —
+ * Radix's own Escape and outside-pointer dismissal stay enabled, the
+ * Modal-wrapper precedent: onEscapeKeyDown is only prevented so the
+ * STACK stays the authority, never two Escape handlers).
+ *
+ * INTERACTION CONTRACTS PRESERVED (bridge checklist #9 — documented):
+ * - single select fires onChange + closes; multi toggles and stays open
+ * - filter matches option LABELS only (substring semantics; cmdk's
+ *   subsequence matcher is a superset — every old match still matches)
+ * - groups sort alphabetically; the empty state shows when the filter
+ *   (or the option list itself) is empty
+ * - the trigger keeps the full SelectTrigger register (sizes, clear,
+ *   error, custom renderer)
+ * - options render as cmdk items (role="option" in the listbox) — the
+ *   a11y upgrade from the old <button> rows; the marker classes
+ *   (dropdown-option, --selected, --disabled, dropdown-option-label, …)
+ *   are unchanged for feature CSS
+ *
+ * Popper-owned CSS vars (set by Radix on the content, cited in
+ * Dropdown.css, allowlisted in the drift gate):
+ * "--radix-popover-trigger-width": the menu's min-width anchor.
  */
 import { useState, useRef, useEffect, useCallback, useId, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import * as PopoverPrimitive from '@radix-ui/react-popover';
 
-import { Card } from './Card.js';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
 import { SelectTrigger } from './SelectTrigger.js';
-import { useClickOutside, useViewportFlip, useOverlaySurface } from './overlay-hooks.js';
+import { useOverlaySurface } from './overlay-hooks.js';
 import './Dropdown.css';
 import { Icon } from '../../Icon.js';
+import { cn } from './cn.js';
 
 export type DropdownSize = 'sm' | 'md' | 'lg';
 
@@ -106,15 +146,7 @@ export function Dropdown<T = string>({
   const [searchQuery, setSearchQuery] = useState('');
   const errorId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-
-  // Position menu with viewport flip
-  const menuPosition = useViewportFlip(containerRef, isOpen, {
-    maxHeight: 300,
-    includeWidth: true,
-    popupRef: menuRef,
-  });
 
   // Close dropdown handler
   const handleClose = useCallback(() => {
@@ -123,17 +155,16 @@ export function Dropdown<T = string>({
   }, []);
 
   // Register with the overlay stack so Escape closes the dropdown
-  // regardless of where DOM focus is.
+  // regardless of where DOM focus is. Radix's own Escape is disabled on
+  // the content — the stack stays the single Escape authority.
   useOverlaySurface({
     type: 'popup',
     enabled: isOpen,
     onClose: handleClose,
   });
 
-  // Close on click outside
-  useClickOutside([containerRef, menuRef], handleClose, isOpen);
-
-  // Focus search input when opened (delayed for portal rendering)
+  // Focus search input when opened (the popover is non-modal, so Radix
+  // moves no focus itself).
   useEffect(() => {
     if (isOpen && searchable) {
       const timer = setTimeout(() => {
@@ -143,13 +174,8 @@ export function Dropdown<T = string>({
     }
   }, [isOpen, searchable]);
 
-  // Filter options by search query
-  const filteredOptions = options.filter(opt =>
-    opt.label.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   // Group options if any have groups
-  const groupedOptions = filteredOptions.reduce<Record<string, DropdownOption<T>[]>>((acc, opt) => {
+  const groupedOptions = options.reduce<Record<string, DropdownOption<T>[]>>((acc, opt) => {
     const group = opt.group || '';
     if (!acc[group]) acc[group] = [];
     acc[group].push(opt);
@@ -213,135 +239,160 @@ export function Dropdown<T = string>({
     .filter(Boolean)
     .join(' ');
 
+  const renderOptionContent = (option: DropdownOption<T>, selected: boolean): ReactNode => {
+    if (renderOption) {
+      return renderOption(option, selected);
+    }
+    return (
+      <>
+        {option.iconNode ? (
+          <span className="dropdown-option-icon">{option.iconNode}</span>
+        ) : option.icon ? (
+          <Icon path={option.icon} size={0.7} className="dropdown-option-icon" />
+        ) : null}
+        <div className="dropdown-option-content">
+          <span className="dropdown-option-label">{option.label}</span>
+          {option.description && (
+            <span className="dropdown-option-description">{option.description}</span>
+          )}
+        </div>
+        {selected && (
+          <Icon path={"mdi mdi-check"} size={0.6} className="dropdown-option-check" />
+        )}
+      </>
+    );
+  };
+
   return (
     <div id={id} className="dropdown-container">
-      <div className={containerClasses} ref={containerRef}>
-        {/* Trigger */}
-        {renderTrigger ? (
-          <button type="button" className="dropdown-custom-trigger" onClick={handleToggle}>
-            {renderTrigger({ isOpen, selectedLabel })}
-          </button>
-        ) : (
-          <SelectTrigger
-            isOpen={isOpen}
-            disabled={disabled}
-            error={error}
-            size={size}
-            clearable={clearable}
-            hasValue={hasValue}
-            ariaLabel={ariaLabel}
-            aria-invalid={error || undefined}
-            aria-describedby={error && errorMessage ? errorId : undefined}
-            onClear={handleClear}
-            onClick={handleToggle}
-          >
-            <span className={`dropdown-value ${!hasValue ? 'dropdown-value--placeholder' : ''}`}>
-              {selectedLabel}
-            </span>
-          </SelectTrigger>
-        )}
-
-        {/* Dropdown menu - rendered in portal */}
-        {isOpen && createPortal(
-          <Card
-            ref={menuRef}
-            className="dropdown-menu dropdown-menu--portal"
-            elevation="medium"
-            padding={false}
-            style={
-              menuPosition
-                ? {
-                    position: 'absolute',
-                    top: `${menuPosition.top}px`,
-                    left: `${menuPosition.left}px`,
-                    minWidth: `${menuPosition.width}px`,
-                    maxHeight: `${menuPosition.maxHeight}px`,
-                  }
-                : { position: 'absolute', top: 0, left: 0, visibility: 'hidden' }
-            }
-          >
-            {searchable && (
-              <div className="dropdown-search">
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search..."
-                  aria-label="Search options"
-                  className="dropdown-search-input"
-                />
-                {searchExtra}
-              </div>
+      <PopoverPrimitive.Root
+        open={isOpen}
+        onOpenChange={(open) => {
+          if (!open) handleClose();
+        }}
+        modal={false}
+      >
+        <PopoverPrimitive.Anchor asChild>
+          <div className={containerClasses} ref={containerRef}>
+            {/* Trigger */}
+            {renderTrigger ? (
+              <button type="button" className="dropdown-custom-trigger" onClick={handleToggle}>
+                {renderTrigger({ isOpen, selectedLabel })}
+              </button>
+            ) : (
+              <SelectTrigger
+                isOpen={isOpen}
+                disabled={disabled}
+                error={error}
+                size={size}
+                clearable={clearable}
+                hasValue={hasValue}
+                ariaLabel={ariaLabel}
+                aria-invalid={error || undefined}
+                aria-describedby={error && errorMessage ? errorId : undefined}
+                onClear={handleClear}
+                onClick={handleToggle}
+              >
+                <span className={`dropdown-value ${!hasValue ? 'dropdown-value--placeholder' : ''}`}>
+                  {selectedLabel}
+                </span>
+              </SelectTrigger>
             )}
+          </div>
+        </PopoverPrimitive.Anchor>
 
-            <div className="dropdown-options">
-              {filteredOptions.length === 0 ? (
-                <div className="dropdown-empty">{emptyContent}</div>
-              ) : (
-                groups.map(group => (
-                  <div key={group || 'default'} className="dropdown-group">
-                    {group && <div className="dropdown-group-label">{group}</div>}
-                    {(groupedOptions[group] ?? []).map(option => {
-                      const selected = isSelected(option);
-
-                      if (renderOption) {
-                        return (
-                          <button
-                            type="button"
-                            key={String(option.value)}
-                            onClick={() => handleSelect(option)}
-                            className={`dropdown-option ${selected ? 'dropdown-option--selected' : ''} ${option.disabled ? 'dropdown-option--disabled' : ''}`}
-                            disabled={option.disabled}
-                          >
-                            {renderOption(option, selected)}
-                          </button>
-                        );
-                      }
-
-                      return (
-                        <button
-                          key={String(option.value)}
-                          type="button"
-                          className={`dropdown-option ${selected ? 'dropdown-option--selected' : ''} ${option.disabled ? 'dropdown-option--disabled' : ''}`}
-                          onClick={() => handleSelect(option)}
-                          disabled={option.disabled}
-                        >
-                          {option.iconNode ? (
-                            <span className="dropdown-option-icon">{option.iconNode}</span>
-                          ) : option.icon ? (
-                            <Icon path={option.icon} size={0.7} className="dropdown-option-icon" />
-                          ) : null}
-                          <div className="dropdown-option-content">
-                            <span className="dropdown-option-label">{option.label}</span>
-                            {option.description && (
-                              <span className="dropdown-option-description">{option.description}</span>
-                            )}
-                          </div>
-                          {selected && (
-                            <Icon path={"mdi mdi-check"} size={0.6} className="dropdown-option-check" />
-                          )}
-                        </button>
-                      );
-                    })}
+        {/* Dropdown menu - the popover portal owns positioning; the inner
+            card carries the fleet menu register (and the animation — the
+            popper transform lives on the outer element, so the keyframes
+            never fight it). */}
+        <PopoverPrimitive.Portal>
+          <PopoverPrimitive.Content
+            side="bottom"
+            align="start"
+            sideOffset={4}
+            collisionPadding={16}
+            // The popup is a combobox surface: the cmdk listbox/search own
+            // the ARIA — the popover wrapper stays presentational (Radix
+            // defaults it to role="dialog").
+            role="presentation"
+            onEscapeKeyDown={(event) => event.preventDefault()}
+            onPointerDownOutside={(event) => {
+              // The trigger owns the toggle: a press on it must not
+              // dismiss here (the trigger's own click toggles it closed).
+              const target = event.target as HTMLElement | null;
+              if (target !== null && containerRef.current?.contains(target)) {
+                event.preventDefault();
+              }
+            }}
+          >
+            <div className="dropdown-menu dropdown-menu--portal card">
+              <Command
+                className="dropdown-command"
+                shouldFilter={searchable}
+                // cmdk wires the input's accessible name from this label
+                // (aria-labelledby always wins over the input's own
+                // aria-label).
+                {...(searchable ? { label: 'Search options' } : {})}
+              >
+                {searchable && (
+                  <div className="dropdown-search">
+                    <CommandInput
+                      ref={searchInputRef}
+                      value={searchQuery}
+                      onValueChange={setSearchQuery}
+                      placeholder="Search..."
+                      className="dropdown-search-input"
+                    />
+                    {searchExtra}
                   </div>
-                ))
+                )}
+                <CommandList className="dropdown-options">
+                  <CommandEmpty className="dropdown-empty">{emptyContent}</CommandEmpty>
+                  {groups.map(group => (
+                    <CommandGroup
+                      key={group || 'default'}
+                      heading={group || undefined}
+                      className="dropdown-group"
+                    >
+                      {(groupedOptions[group] ?? []).map(option => {
+                        const selected = isSelected(option);
+                        return (
+                          <CommandItem
+                            key={String(option.value)}
+                            // The filter matches labels only — custom
+                            // renderers can't pollute the match string.
+                            value={option.label}
+                            disabled={option.disabled === true}
+                            onSelect={() => handleSelect(option)}
+                            className={cn(
+                              'dropdown-option',
+                              selected && 'dropdown-option--selected',
+                              option.disabled && 'dropdown-option--disabled',
+                            )}
+                          >
+                            {renderOptionContent(option, selected)}
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  ))}
+                </CommandList>
+              </Command>
+
+              {footer && (
+                <div className="dropdown-footer">
+                  {footer}
+                </div>
               )}
             </div>
-            {footer && (
-              <div className="dropdown-footer">
-                {footer}
-              </div>
-            )}
-          </Card>,
-          document.body
-        )}
+          </PopoverPrimitive.Content>
+        </PopoverPrimitive.Portal>
+      </PopoverPrimitive.Root>
 
       {/* Error message */}
       {error && errorMessage && (
         <span id={errorId} className="dropdown-error-message" role="alert">{errorMessage}</span>
       )}
-      </div>
     </div>
   );
 }

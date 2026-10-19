@@ -111,7 +111,9 @@ describe("Dropdown", () => {
     expect(menu).not.toBeNull();
     expect(menu).toHaveClass("card", "dropdown-menu");
 
-    fireEvent.click(screen.getByRole("button", { name: /beta/i }));
+    // The combobox composition renders options as listbox options (the
+    // a11y upgrade from the old <button> rows).
+    fireEvent.click(screen.getByRole("option", { name: /beta/i }));
     expect(onChange).toHaveBeenCalledWith("b");
     expect(document.body.querySelector(".dropdown-menu--portal")).toBeNull();
   });
@@ -119,7 +121,9 @@ describe("Dropdown", () => {
   it("shows the empty state when no options match the search", () => {
     render(<Dropdown options={[{ value: "a", label: "Alpha" }]} searchable emptyContent="Nothing found" />);
     fireEvent.click(screen.getByRole("button", { name: /select/i }));
-    fireEvent.change(screen.getByRole("textbox", { name: /search options/i }), {
+    // cmdk renders the search field as the combobox input (named from the
+    // command's hidden label).
+    fireEvent.change(screen.getByRole("combobox", { name: /search options/i }), {
       target: { value: "zzz" },
     });
     expect(screen.getByText("Nothing found")).toHaveClass("dropdown-empty");
