@@ -6,7 +6,10 @@
  * (legacy rows), and anything else renders as text (emoji passthrough).
  * LEGACY_ALIASES maps names that were stored but never existed in MDI
  * ("mdiFormatHighlight" — a bad system-class seed) to their real icons.
- */
+ *
+ * Every render carries the base `nt-icon` class (the default
+ * vertical-align: middle lives in app.css, NOT an inline style — instance
+ * classes such as `.nt-link__icon` must be able to override it). */
 import React from 'react';
 import { resolveIconSize } from './iconSizes.js';
 
@@ -96,7 +99,7 @@ export const Icon: React.FC<IconProps> = ({
 }) => {
   const resolved = resolveIcon(path);
 
-  const style: React.CSSProperties = { verticalAlign: 'middle' };
+  const style: React.CSSProperties = {};
 
   const resolvedSize = resolveIconSize(size ?? 1);
   const width = typeof resolvedSize === 'number' ? `${resolvedSize * 24}px` : resolvedSize;
@@ -120,7 +123,7 @@ export const Icon: React.FC<IconProps> = ({
   if (resolved.kind === "text") {
     return (
       <span
-        className={className}
+        className={className ? `nt-icon ${className}` : "nt-icon"}
         style={{ ...style, fontSize: width, lineHeight: 1 }}
         aria-hidden={!title}
         role={title ? 'img' : undefined}
@@ -137,7 +140,7 @@ export const Icon: React.FC<IconProps> = ({
       width={width}
       height={height}
       fill="currentColor"
-      className={className}
+      className={className ? `nt-icon ${className}` : "nt-icon"}
       style={style}
       aria-hidden={!title}
       role={title ? 'img' : undefined}

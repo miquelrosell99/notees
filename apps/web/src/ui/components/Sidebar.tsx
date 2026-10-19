@@ -1,16 +1,18 @@
 /**
  * Sidebar — the 260px workspace navigator on the background canvas.
  *
- * Original information architecture: the workspace switcher + New + search
- * icons on top (the full-text SearchBox below the switcher was removed —
- * search lives in the top-bar button / Ctrl+K palette); NAVIGATION rows
- * switch the main view (Today / Journal / Inbox / Pages /
- * Whiteboards / Tasks hubs — never an inline page dump — and the Trash
- * hub: browse + restore + permanently delete trashed subtrees); FAVORITES and
- * RECENTS are cross-device UI state — the server per-user prefs
- * store is the authority, device-local cache offline; see nodePrefs.ts);
- * MORE reveals the class list. Favorites/recents live here (moved out of
- * App).
+ * Information architecture: the workspace switcher +
+ * New + search icons live in the top bar; NAVIGATION rows switch the main
+ * view (Today / Journal / Inbox / Pages / Whiteboards / Tasks hubs — never
+ * an inline page dump); FAVORITES and RECENTS are cross-device UI state —
+ * the server per-user prefs store is the authority, device-local cache
+ * offline; see nodePrefs.ts). Trash and Shares LEFT the nav list: they
+ * open from the account popup now (the v1 account-menu shape) — their
+ * NAV_ENTRIES rows survive with `menuOnly` (labels, paths, tab titles).
+ *
+ * The bottom row is the user profile circle: avatar + a sync-state badge
+ * in its corner (the sync dot relocated off the top bar). Click opens the account popup — user header, sync details
+ * entry, Shares / Trash, Settings, admin-only workspace settings, Sign out.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -20,7 +22,7 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import { MAX_SYNCED_RECENTS } from "@/core/workspace-client.js";
 import type { AccountUser } from "@/core/auth-api.js";
 import type { WorkerClient } from "@/core/worker-client.js";
-import type { ClientNode, WorkspaceClient } from "@/core/workspace-client.js";
+import type { ClientNode, SyncStatusSnapshot, WorkspaceClient } from "@/core/workspace-client.js";
 
 import { parseDateNodeId } from "@notees/domain";
 
@@ -37,15 +39,22 @@ import { openNodeLinkMenu } from "./NodeLinkContextMenu.js";
 import { useNodePrefs, toggleNodeFavorite, reorderNodeFavorites, removeSyncedRecent } from "./nodePrefs.js";
 import { SidebarItemMenu, type SidebarItemMenuState } from "./SidebarItemMenu.js";
 import { ConfirmationModal } from "./ui/ConfirmationModal.js";
+import { Separator } from "./ui/Separator.js";
 import { useDeviceSetting } from "./modals/deviceSettings.js";
 import { usePopupDismissal } from "./ui/usePopupDismissal.js";
 import "./Sidebar.css";
 
 export type AnyClient = WorkspaceClient | WorkerClient;
 
-export type NavKey = "today" | "journal" | "calendar" | "inbox" | "pages" | "classes" | "whiteboards" | "tasks" | "assets" | "queries" | "graph" | "trash";
+export type NavKey = "today" | "journal" | "calendar" | "inbox" | "pages" | "classes" | "whiteboards" | "tasks" | "assets" | "queries" | "graph" | "trash" | "shares";
 
-export const NAV_ENTRIES: Array<{ key: NavKey; label: string; icon: string }> = [
+/**
+ * The nav register: labels, icons, and `/`-paths for every hub — the tab
+ * title and the URL table read it. `menuOnly` marks hubs that don't render
+ * a sidebar row: they open from the account popup (Trash, Shares), but they keep their entry so the routing/title machinery
+ * names them.
+ */
+export const NAV_ENTRIES: Array<{ key: NavKey; label: string; icon: string; menuOnly?: boolean }> = [
   { key: "today", label: "Today", icon: "mdi-calendar-today-outline" },
   { key: "journal", label: "Journal", icon: "mdi-calendar-clock" },
   { key: "calendar", label: "Calendar", icon: "mdi-calendar-today" },
@@ -57,7 +66,8 @@ export const NAV_ENTRIES: Array<{ key: NavKey; label: string; icon: string }> = 
   { key: "assets", label: "Assets", icon: "mdi-folder-multiple-image" },
   { key: "queries", label: "Queries", icon: "mdi-database-search-outline" },
   { key: "graph", label: "Graph", icon: "mdi-graph-outline" },
-  { key: "trash", label: "Trash", icon: "mdi-delete-outline" },
+  { key: "trash", label: "Trash", icon: "mdi-delete-outline", menuOnly: true },
+  { key: "shares", label: "Shares", icon: "mdi-share-variant", menuOnly: true },
 ];
 
 const STORAGE_KEYS = {
@@ -94,6 +104,15 @@ export function recordRecent(id: string): void {
     // Storage unavailable; the list just won't persist.
   }
   window.dispatchEvent(new Event("notees:recents"));
+}
+
+/**
+ * Read the device-local Recents list (ids, most-recently-used first). The
+ * node picker's empty state and the command palette both read through here
+ * so the recents surfaces agree on the storage shape.
+ */
+export function readRecentIds(): string[] {
+  return readStoredJson(STORAGE_KEYS.recents);
 }
 
 /**
@@ -161,6 +180,12 @@ export function Sidebar({
   onOpenPage,
   onSignOut,
   onOpenInSidebar,
+  /** The live sync snapshot — drives the profile-circle badge. */
+  syncStatus,
+  /** Opens the sync details modal (the popup's Sync entry); undefined hides it. */
+  onOpenSyncDetails,
+  /** Opens the workspace admin settings (admin users only); undefined hides the entry. */
+  onOpenAdminSettings,
 }: {
   client: AnyClient;
   user: AccountUser | null;
@@ -174,6 +199,9 @@ export function Sidebar({
   onSignOut: () => void;
   /** Peek the node as a right-sidebar card (the row context menu). */
   onOpenInSidebar?: ((nodeId: string) => void) | undefined;
+  syncStatus?: SyncStatusSnapshot | undefined;
+  onOpenSyncDetails?: (() => void) | undefined;
+  onOpenAdminSettings?: (() => void) | undefined;
 }) {
   /**
    * Favorites + recents: the shared nodePrefs store — server-side
@@ -224,6 +252,28 @@ export function Sidebar({
           .map((part) => part[0]!.toUpperCase())
           .join("")
       : null;
+  /**
+   * The sync badge state (the top bar's old SyncDot logic, relocated):
+   * error > syncing > backlog (pending + failed ops) > idle. Undefined
+   * snapshot (boot screens never reach here, tests) renders no badge.
+   */
+  const syncBacklog = syncStatus === undefined ? 0 : syncStatus.pending + syncStatus.failed;
+  const syncState =
+    syncStatus === undefined
+      ? null
+      : syncStatus.status === "error"
+        ? "error"
+        : syncStatus.status === "syncing"
+          ? "syncing"
+          : syncBacklog > 0
+            ? "backlog"
+            : "idle";
+  const syncStateLabel =
+    syncState === "backlog"
+      ? `${syncBacklog} waiting`
+      : syncState === "idle"
+        ? "up to date"
+        : (syncState ?? "");
   // Workspace-settings sidebar visibility toggles (device-local).
   const [showJournals] = useDeviceSetting("sidebarShowJournals", true);
   const [showInbox] = useDeviceSetting("sidebarShowInbox", true);
@@ -467,6 +517,7 @@ export function Sidebar({
           [
             ...NAV_ENTRIES.filter(
               (entry) =>
+                !entry.menuOnly &&
                 (entry.key !== "journal" || showJournals) &&
                 (entry.key !== "inbox" || showInbox) &&
                 (entry.key !== "calendar" || showCalendar) &&
@@ -548,22 +599,15 @@ export function Sidebar({
               <Icon path="mdi-account-outline" size={1} />
             )}
           </span>
-          <span className="nt-profile-text">
-            <span className="nt-profile-name">{displayLine}</span>
-            <span className="nt-profile-email">{user?.email ?? "Offline workspace"}</span>
-          </span>
+          {syncState !== null && (
+            <span
+              className={`nt-profile-sync nt-profile-sync--${syncState}`}
+              title={`Sync: ${syncStateLabel}`}
+              aria-hidden="true"
+            />
+          )}
+          {syncState !== null && <span className="sr-only">{`Sync: ${syncStateLabel}`}</span>}
         </button>
-        {showSettings && (
-          <button
-            type="button"
-            className="nt-icon-btn"
-            title="Settings"
-            aria-label="Settings"
-            onClick={onOpenSettings}
-          >
-            <Icon path="mdi-cog-outline" size={1} />
-          </button>
-        )}
         {accountMenu && (
           <div
             className="nt-account-menu"
@@ -577,10 +621,92 @@ export function Sidebar({
               setAccountMenu(false);
             }}
           >
-            <span className="nt-account-email">{user?.email ?? "Offline workspace"}</span>
+            <div className="nt-account-header">
+              <span className="nt-profile-avatar" aria-hidden="true">
+                {user?.avatarUrl ? (
+                  <img src={user.avatarUrl} alt="" />
+                ) : initials !== null ? (
+                  initials
+                ) : (
+                  <Icon path="mdi-account-outline" size={1} />
+                )}
+              </span>
+              <span className="nt-account-identity">
+                <span className="nt-profile-name">{displayLine}</span>
+                <span className="nt-profile-email">{user?.email ?? "Offline workspace"}</span>
+              </span>
+            </div>
+            <Separator />
+            {syncState !== null && onOpenSyncDetails !== undefined && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setAccountMenu(false);
+                  onOpenSyncDetails();
+                }}
+              >
+                <Icon path="mdi-sync" size={0.9} />
+                <span>Sync</span>
+                <span className="nt-account-item-caption">{syncStateLabel}</span>
+              </button>
+            )}
+            {!offline && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setAccountMenu(false);
+                  onSelectNav("shares");
+                }}
+              >
+                <Icon path="mdi-share-variant" size={0.9} />
+                <span>Shares</span>
+              </button>
+            )}
             <button
               type="button"
               role="menuitem"
+              onClick={() => {
+                setAccountMenu(false);
+                onSelectNav("trash");
+              }}
+            >
+              <Icon path="mdi-delete-outline" size={0.9} />
+              <span>Trash</span>
+            </button>
+            <Separator />
+            {showSettings && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setAccountMenu(false);
+                  onOpenSettings();
+                }}
+              >
+                <Icon path="mdi-cog-outline" size={0.9} />
+                <span>Settings</span>
+              </button>
+            )}
+            {onOpenAdminSettings !== undefined && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setAccountMenu(false);
+                  onOpenAdminSettings();
+                }}
+              >
+                <Icon path="mdi-account-cog" size={0.9} />
+                <span>Admin settings</span>
+              </button>
+            )}
+            <Separator />
+            <button
+              type="button"
+              role="menuitem"
+              className="nt-account-item--danger"
               onClick={() => {
                 setAccountMenu(false);
                 onSignOut();

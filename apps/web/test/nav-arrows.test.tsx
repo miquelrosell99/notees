@@ -19,18 +19,6 @@ import {
   type NavStack,
 } from "../src/ui/App.js";
 import { TopBar } from "../src/ui/components/TopBar.js";
-import type { SyncStatusSnapshot } from "../src/core/workspace-client.js";
-
-const SYNC: SyncStatusSnapshot = {
-  status: "idle",
-  error: null,
-  pending: 0,
-  failed: 0,
-  quarantined: 0,
-  parked: 0,
-  realtime: false,
-  cursorSeq: 0,
-};
 
 describe("the navigation stack tracker", () => {
   it("recordNavPush appends and truncates any forward tail", () => {
@@ -98,7 +86,6 @@ describe("the top bar Back/Forward arrows", () => {
     const onGoForward = vi.fn();
     render(
       <TopBar
-        syncStatus={SYNC}
         sidebarOpen
         rightPanelOpen={false}
         onGoBack={onGoBack}
@@ -115,7 +102,6 @@ describe("the top bar Back/Forward arrows", () => {
   it("hidden without handlers (boot screens), rendered beside the breadcrumbs otherwise", () => {
     const { unmount } = render(
       <TopBar
-        syncStatus={SYNC}
         sidebarOpen
         rightPanelOpen={false}
         onToggleSidebar={() => {}}
@@ -150,7 +136,6 @@ describe("the top bar focus-mode button", () => {
     const onToggleFocusMode = vi.fn();
     render(
       <TopBar
-        syncStatus={SYNC}
         sidebarOpen
         rightPanelOpen={false}
         onToggleSidebar={() => {}}
@@ -165,7 +150,6 @@ describe("the top bar focus-mode button", () => {
   it("hidden without a handler (boot screens), rendered with pressed state otherwise", () => {
     const { unmount } = render(
       <TopBar
-        syncStatus={SYNC}
         sidebarOpen
         rightPanelOpen={false}
         onToggleSidebar={() => {}}

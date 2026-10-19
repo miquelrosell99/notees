@@ -19,7 +19,6 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { DISPLAY_NAME_MAX, excerptOf } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
-import type { SyncStatusSnapshot } from "../src/core/workspace-client.js";
 import { EMPTY_UNDO_STATE } from "../src/core/undo-journal.js";
 import { hiddenLinksOf } from "../src/editor/condensed.js";
 import { PageView } from "../src/ui/PageView.js";
@@ -28,17 +27,6 @@ import { CommandPalette } from "../src/ui/components/CommandPalette.js";
 import { writeViewModePref } from "../src/ui/viewPrefs.js";
 import { writeDeviceSetting } from "../src/ui/components/modals/deviceSettings.js";
 import type { ContentAst } from "@notees/protocol";
-
-const SYNC: SyncStatusSnapshot = {
-  status: "idle",
-  error: null,
-  pending: 0,
-  failed: 0,
-  quarantined: 0,
-  parked: 0,
-  realtime: false,
-  cursorSeq: 0,
-};
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
@@ -372,7 +360,6 @@ describe("condensed layer switch surfaces", () => {
   it("TopBar: hidden without a handler (no eligible page), pressed chrome otherwise", () => {
     const { unmount } = render(
       <TopBar
-        syncStatus={SYNC}
         sidebarOpen
         rightPanelOpen={false}
         onToggleSidebar={() => {}}
@@ -387,7 +374,6 @@ describe("condensed layer switch surfaces", () => {
     const onToggleCondensed = vi.fn();
     render(
       <TopBar
-        syncStatus={SYNC}
         sidebarOpen
         rightPanelOpen={false}
         onToggleSidebar={() => {}}
@@ -405,7 +391,6 @@ describe("condensed layer switch surfaces", () => {
 
     render(
       <TopBar
-        syncStatus={SYNC}
         sidebarOpen
         rightPanelOpen={false}
         onToggleSidebar={() => {}}
