@@ -45,11 +45,11 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from '@/components/ui/command';
+} from '@/components/ui/command.js';
 import { SelectTrigger } from './SelectTrigger.js';
 import { useOverlaySurface } from './overlay-hooks.js';
 import './Dropdown.css';
-import { Icon } from '../../Icon.js';
+import { Icon } from '../../../ui/Icon.js';
 import { cn } from './cn.js';
 
 export type DropdownSize = 'sm' | 'md' | 'lg';

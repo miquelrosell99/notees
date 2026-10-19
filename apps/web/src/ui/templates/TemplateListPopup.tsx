@@ -19,8 +19,8 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import { clampOverlayLeft, flipOverlayTop } from "../editor-popups/overlay-position.js";
 import { Icon } from "../Icon.js";
 import { displayNameForSettings } from "../dateDisplay.js";
-import { SearchField } from "../components/ui/SearchField.js";
-import { usePopupDismissal } from "../components/ui/usePopupDismissal.js";
+import { SearchField } from "../../components/ui/fleet/SearchField.js";
+import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
 import type { ClientNode } from "@/core/workspace-client/index.js";
 
 import "./TemplateListPopup.css";

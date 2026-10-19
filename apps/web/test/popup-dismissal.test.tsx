@@ -28,8 +28,8 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { PageView } from "../src/ui/PageView.js";
-import { ColorButton } from "../src/ui/components/ui/ColorButton.js";
-import { ContextMenu, type ContextMenuItem } from "../src/ui/components/ui/ContextMenu.js";
+import { ColorButton } from "../src/components/ui/fleet/ColorButton.js";
+import { ContextMenu, type ContextMenuItem } from "../src/components/ui/fleet/ContextMenu.js";
 import { IconPickerPopup } from "../src/features/icon-picker/IconPickerPopup.js";
 import { CalendarPopup } from "../src/features/date-pickers/CalendarPopup.js";
 import { DatePickerPopup } from "../src/features/date-pickers/DatePickerPopup.js";

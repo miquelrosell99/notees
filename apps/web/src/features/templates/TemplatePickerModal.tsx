@@ -11,8 +11,8 @@ import { deriveDisplayName } from "@notees/domain";
 
 import type { ClientNode } from "@/core/workspace-client/index.js";
 
-import { Button } from "../../ui/components/ui/Button.js";
-import { Modal } from "../../ui/components/ui/Modal.js";
+import { Button } from "../../components/ui/fleet/Button.js";
+import { Modal } from "../../components/ui/fleet/Modal.js";
 import "./TemplatePickerModal.css";
 
 export interface TemplatePickerModalProps {

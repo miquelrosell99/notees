@@ -55,7 +55,7 @@ import * as ContextMenuPrimitive from '@radix-ui/react-context-menu';
 import { Separator } from './Separator.js';
 import { useOverlaySurface } from './overlay-hooks.js';
 import './ContextMenu.css';
-import { Icon } from '../../Icon.js';
+import { Icon } from '../../../ui/Icon.js';
 import { cn } from './cn.js';
 
 export interface ContextMenuItem {

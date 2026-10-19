@@ -76,11 +76,11 @@ import {
   useQuickCreateClassesSetting,
 } from "./calendarQuickCreateSettings.js";
 import { RepeatPicker } from "../date-pickers/RepeatPicker.js";
-import { Button } from "../../ui/components/ui/Button.js";
-import { Checkbox } from "../../ui/components/ui/Checkbox.js";
-import { EmptyState } from "../../ui/components/ui/EmptyState.js";
-import { Pill } from "../../ui/components/ui/Pill.js";
-import { Tabs } from "../../ui/components/ui/Tabs.js";
+import { Button } from "../../components/ui/fleet/Button.js";
+import { Checkbox } from "../../components/ui/fleet/Checkbox.js";
+import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
+import { Pill } from "../../components/ui/fleet/Pill.js";
+import { Tabs } from "../../components/ui/fleet/Tabs.js";
 import { MonthCalendar } from "./MonthCalendar.js";
 import { WeekStrip } from "./WeekStrip.js";
 import type { AnyClient } from "../../ui/components/Sidebar.js";

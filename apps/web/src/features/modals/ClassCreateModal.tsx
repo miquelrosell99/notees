@@ -23,12 +23,12 @@ import { SYSTEM_CLASS_DISPLAY_NAMES, SYSTEM_CLASS_ICONS, type SystemClassName } 
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { Modal } from "../../ui/components/ui/Modal.js";
-import { Button } from "../../ui/components/ui/Button.js";
-import { TextField } from "../../ui/components/ui/TextField.js";
-import { SearchField } from "../../ui/components/ui/SearchField.js";
-import { ColorButton } from "../../ui/components/ui/ColorButton.js";
-import { Tabs } from "../../ui/components/ui/Tabs.js";
+import { Modal } from "../../components/ui/fleet/Modal.js";
+import { Button } from "../../components/ui/fleet/Button.js";
+import { TextField } from "../../components/ui/fleet/TextField.js";
+import { SearchField } from "../../components/ui/fleet/SearchField.js";
+import { ColorButton } from "../../components/ui/fleet/ColorButton.js";
+import { Tabs } from "../../components/ui/fleet/Tabs.js";
 import { IconPickerPopup } from "../icon-picker/IconPickerPopup.js";
 import { deployableSystemClasses, deploySystemClass } from "../classview/systemClassDeploy.js";
 

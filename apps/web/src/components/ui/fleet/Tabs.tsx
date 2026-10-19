@@ -39,7 +39,7 @@ import {
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 
 import { Button } from './Button.js';
-import { Icon } from '../../Icon.js';
+import { Icon } from '../../../ui/Icon.js';
 import { cn } from './cn.js';
 import './Tabs.css';
 

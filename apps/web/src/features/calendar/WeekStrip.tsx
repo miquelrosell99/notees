@@ -7,7 +7,7 @@
  * day selects it — the host owns what selection means.
  */
 
-import { Button } from "../../ui/components/ui/Button.js";
+import { Button } from "../../components/ui/fleet/Button.js";
 import type { CalendarDayExtraMarks } from "./dayGrid.js";
 import "./WeekStrip.css";
 

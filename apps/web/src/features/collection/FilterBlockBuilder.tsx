@@ -63,12 +63,12 @@ import {
 import type { AnyClient } from "./index.js";
 
 import { Icon } from "../../ui/Icon.js";
-import { Button } from "../../ui/components/ui/Button.js";
-import { ButtonWithPanel } from "../../ui/components/ui/ButtonWithPanel.js";
-import { Dropdown, type DropdownOption } from "../../ui/components/ui/Dropdown.js";
-import { GridMenu } from "../../ui/components/ui/GridMenu.js";
-import { Input } from "../../ui/components/ui/Input.js";
-import { SelectionButton, type SelectionButtonOption } from "../../ui/components/ui/SelectionButton.js";
+import { Button } from "../../components/ui/fleet/Button.js";
+import { ButtonWithPanel } from "../../components/ui/fleet/ButtonWithPanel.js";
+import { Dropdown, type DropdownOption } from "../../components/ui/fleet/Dropdown.js";
+import { GridMenu } from "../../components/ui/fleet/GridMenu.js";
+import { Input } from "../../components/ui/fleet/Input.js";
+import { SelectionButton, type SelectionButtonOption } from "../../components/ui/fleet/SelectionButton.js";
 import { useBuilderFacts, type BuilderFacts } from "./QueryBuilderFields.js";
 import {
   createCondition,

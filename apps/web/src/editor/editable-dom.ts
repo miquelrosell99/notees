@@ -24,7 +24,7 @@
  */
 
 import { proseFromAst, proseSpans, type ClassNameResolver } from "@/editor/prose.js";
-import { cssColorFor } from "@/ui/components/ui/colorPresets.js";
+import { cssColorFor } from "@/components/ui/fleet/colorPresets.js";
 
 /** CSS class of the atomic pill element (also the click/hit-test hook). */
 export const ATOM_CLASS = "nt-atom";

@@ -22,7 +22,7 @@ import { useEffect, useState } from "react";
 
 import { parseQueryAst, type QueryAst } from "@notees/query";
 
-import { Button, Modal, TextField } from "../../ui/components/ui/index.js";
+import { Button, Modal, TextField } from "../../components/ui/fleet/index.js";
 
 import {
   DEFAULT_BUILDER_STATE,

@@ -25,8 +25,8 @@
 
 import { forwardRef, useId, type ComponentPropsWithoutRef } from 'react';
 
-import { Checkbox as CatalogCheckbox } from '@/components/ui/checkbox';
-import { cn } from './cn';
+import { Checkbox as CatalogCheckbox } from '@/components/ui/checkbox.js';
+import { cn } from './cn.js';
 
 export type CheckboxSize = 'sm' | 'md' | 'lg';
 

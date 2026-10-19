@@ -19,7 +19,7 @@
 import { describe, expect, it } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
-import { BackendUnavailableOverlay } from "../src/ui/components/ui/BackendUnavailableOverlay.js";
+import { BackendUnavailableOverlay } from "../src/components/ui/fleet/BackendUnavailableOverlay.js";
 import type { SyncStatusSnapshot } from "../src/core/workspace-client/index.js";
 
 const DOWN: SyncStatusSnapshot = {

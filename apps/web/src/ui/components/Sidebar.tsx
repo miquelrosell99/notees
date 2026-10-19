@@ -43,10 +43,10 @@ import { untitledLabelOf } from "../renderStateLabel.js";
 import { openNodeLinkMenu } from "../../features/node-menu/NodeLinkContextMenu.js";
 import { useNodePrefs, toggleNodeFavorite, reorderNodeFavorites, removeSyncedRecent } from "../../features/settings/nodePrefs.js";
 import { SidebarItemMenu, type SidebarItemMenuState } from "../../features/node-menu/SidebarItemMenu.js";
-import { ConfirmationModal } from "./ui/ConfirmationModal.js";
-import { Separator } from "./ui/Separator.js";
+import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
+import { Separator } from "../../components/ui/fleet/Separator.js";
 import { useDeviceSetting } from "../../features/settings/deviceSettings.js";
-import { usePopupDismissal } from "./ui/usePopupDismissal.js";
+import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
 import "./Sidebar.css";
 
 export type AnyClient = WorkspaceClient | WorkerClient;

@@ -21,16 +21,16 @@ import {
 
 import type { AnyClient } from "../../ui/components/Sidebar.js";
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
-import { Modal } from "../../ui/components/ui/Modal.js";
-import { BooleanToggle } from "../../ui/components/ui/BooleanToggle.js";
-import { Button } from "../../ui/components/ui/Button.js";
-import { ConfirmationModal } from "../../ui/components/ui/ConfirmationModal.js";
-import { Dropdown } from "../../ui/components/ui/Dropdown.js";
+import { Modal } from "../../components/ui/fleet/Modal.js";
+import { BooleanToggle } from "../../components/ui/fleet/BooleanToggle.js";
+import { Button } from "../../components/ui/fleet/Button.js";
+import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
+import { Dropdown } from "../../components/ui/fleet/Dropdown.js";
 import { Icon } from "../../ui/Icon.js";
-import { Tabs } from "../../ui/components/ui/Tabs.js";
-import { TextField } from "../../ui/components/ui/TextField.js";
-import { ToggleSwitch } from "../../ui/components/ui/ToggleSwitch.js";
-import { cssColorFor } from "../../ui/components/ui/colorPresets.js";
+import { Tabs } from "../../components/ui/fleet/Tabs.js";
+import { TextField } from "../../components/ui/fleet/TextField.js";
+import { ToggleSwitch } from "../../components/ui/fleet/ToggleSwitch.js";
+import { cssColorFor } from "../../components/ui/fleet/colorPresets.js";
 import { renameWorkspace } from "./workspaceApi.js";
 import { PluginsSettingsTab } from "../settings/PluginsSettingsTab.js";
 import { useDeviceSetting } from "../settings/deviceSettings.js";

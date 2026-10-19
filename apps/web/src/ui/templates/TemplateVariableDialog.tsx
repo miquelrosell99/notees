@@ -12,9 +12,9 @@ import { deriveDisplayName } from "@notees/domain";
 
 import type { ClientNode } from "@/core/workspace-client/index.js";
 
-import { Button } from "../components/ui/Button.js";
-import { Modal } from "../components/ui/Modal.js";
-import { TextField } from "../components/ui/TextField.js";
+import { Button } from "../../components/ui/fleet/Button.js";
+import { Modal } from "../../components/ui/fleet/Modal.js";
+import { TextField } from "../../components/ui/fleet/TextField.js";
 import "./TemplateVariableDialog.css";
 
 export interface TemplateVariableDialogProps {

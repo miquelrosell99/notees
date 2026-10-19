@@ -27,8 +27,8 @@ import { forwardRef, useId, type ReactNode } from 'react';
 import {
   RadioGroup as CatalogRadioGroup,
   RadioGroupItem,
-} from '@/components/ui/radio-group';
-import { cn } from './cn';
+} from '@/components/ui/radio-group.js';
+import { cn } from './cn.js';
 
 export type RadioSize = 'sm' | 'md' | 'lg';
 

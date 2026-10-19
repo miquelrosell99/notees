@@ -31,7 +31,7 @@ import { TrashHub } from "../../features/trash/TrashHub.js";
 import { SharesHub } from "../../features/sharing/SharesHub.js";
 import { NodeCardFrame } from "../../features/collection/NodeCardFrame.js";
 import { todayIsoLocal } from "../../features/calendar/calendarViewUtils.js";
-import { Button } from "../components/ui/Button.js";
+import { Button } from "../../components/ui/fleet/Button.js";
 import { HubView } from "./HubView.js";
 
 export interface AppBodyProps {

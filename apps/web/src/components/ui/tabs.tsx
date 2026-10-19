@@ -1,6 +1,6 @@
 /**
  * tabs.tsx — catalog Tabs (Radix), normalized (checklist contract in
- * button.tsx). The fleet wrapper (src/ui/components/ui/Tabs.tsx) composes
+ * button.tsx). The fleet wrapper (src/components/ui/fleet/Tabs.tsx) composes
  * these primitives with the app's sliding-indicator register.
  */
 import * as React from "react";

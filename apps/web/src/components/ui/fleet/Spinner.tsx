@@ -17,8 +17,8 @@
  * centered variants) stay on their elements so feature CSS and the
  * reduced-motion block keep matching.
  */
-import { Spinner as CatalogSpinner } from '@/components/ui/spinner';
-import { cn } from './cn';
+import { Spinner as CatalogSpinner } from '@/components/ui/spinner.js';
+import { cn } from './cn.js';
 import './Spinner.css';
 
 export interface SpinnerProps {

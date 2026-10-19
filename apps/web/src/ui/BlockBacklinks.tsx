@@ -16,7 +16,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ReferenceEntry, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Icon } from "./Icon.js";
-import { Badge } from "./components/ui/Badge.js";
+import { Badge } from "../components/ui/fleet/Badge.js";
 import { ReferenceList } from "../features/page-sections/SystemSections.js";
 import { useOutliner } from "./outliner-context.js";
 

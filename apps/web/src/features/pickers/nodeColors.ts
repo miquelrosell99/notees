@@ -9,7 +9,7 @@
  * tokens (or custom hex) — see colorPresets.ts for the wire grammar.
  */
 
-import { PRESET_COLOR_ENTRIES } from "../../ui/components/ui/colorPresets.js";
+import { PRESET_COLOR_ENTRIES } from "../../components/ui/fleet/colorPresets.js";
 
 export const NODE_PICKER_PALETTE: (string | null)[] = [
   null,

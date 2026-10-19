@@ -1,6 +1,6 @@
 /**
  * switch.tsx — catalog Switch (Radix), normalized (checklist contract in
- * button.tsx). The fleet wrapper (src/ui/components/ui/ToggleSwitch.tsx)
+ * button.tsx). The fleet wrapper (src/components/ui/fleet/ToggleSwitch.tsx)
  * composes this with the dual-label A/B register.
  */
 import * as React from "react";

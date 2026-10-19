@@ -46,9 +46,9 @@ import { useViewportPosition } from "./useViewportPosition.js";
 import { QuickCreateModal } from "../modals/QuickCreateModal.js";
 import type { QuickCreateClient, QuickCreatePlan } from "../modals/quickCreate.js";
 import { resolveQuickCreate } from "../modals/quickCreate.js";
-import { Tabs } from "../../ui/components/ui/Tabs.js";
-import { SearchField } from "../../ui/components/ui/SearchField.js";
-import { usePopupDismissal } from "../../ui/components/ui/usePopupDismissal.js";
+import { Tabs } from "../../components/ui/fleet/Tabs.js";
+import { SearchField } from "../../components/ui/fleet/SearchField.js";
+import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
 import "./NodeSelector.css";
 
 /**

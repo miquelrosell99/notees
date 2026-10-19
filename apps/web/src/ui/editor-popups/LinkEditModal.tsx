@@ -52,8 +52,8 @@ import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.
 import { displayNameFromClient } from "../dateDisplay.js";
 import { parentRenderFacts } from "../renderStateLabel.js";
 import { NodeSelector } from "../../features/pickers/NodeSelector.js";
-import { Button, Checkbox, Modal, SelectTrigger, SelectionButton } from "../components/ui/index.js";
-import { notificationStore } from "../components/ui/notificationStore.js";
+import { Button, Checkbox, Modal, SelectTrigger, SelectionButton } from "../../components/ui/fleet/index.js";
+import { notificationStore } from "../../components/ui/fleet/notificationStore.js";
 import "./LinkEditModal.css";
 
 export type LinkMode = "node" | "block" | "verb";

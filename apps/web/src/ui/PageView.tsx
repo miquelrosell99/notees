@@ -135,7 +135,7 @@ import { OutlinerContext } from "./outliner-context.js";
 import { NodeCollection } from "../features/collection/index.js";
 import type { ViewMode } from "../features/collection/index.js";
 import { useViewModePreference, useCondensedPreference } from "./viewPrefs.js";
-import { Button } from "./components/ui/Button.js";
+import { Button } from "../components/ui/fleet/Button.js";
 import { FindReplaceWidget } from "./editor-popups/FindReplaceWidget.js";
 import { FindInPageBar } from "../features/find-in-page/FindInPageBar.js";
 import {

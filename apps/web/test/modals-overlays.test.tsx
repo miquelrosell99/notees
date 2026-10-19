@@ -21,10 +21,10 @@ import { DuplicatePageModal } from "../src/features/modals/DuplicatePageModal.js
 import { CreatePageWithUuidModal } from "../src/features/modals/CreatePageWithUuidModal.js";
 import { QuickAddModal } from "../src/features/modals/QuickAddModal.js";
 import { WorkspaceNameModal } from "../src/features/workspaces/WorkspaceNameModal.js";
-import { BackendUnavailableOverlay } from "../src/ui/components/ui/BackendUnavailableOverlay.js";
-import { LoadingSkeleton, Skeleton } from "../src/ui/components/ui/LoadingSkeleton.js";
-import { NotificationToaster } from "../src/ui/components/ui/NotificationToaster.js";
-import { notificationStore } from "../src/ui/components/ui/notificationStore.js";
+import { BackendUnavailableOverlay } from "../src/components/ui/fleet/BackendUnavailableOverlay.js";
+import { LoadingSkeleton, Skeleton } from "../src/components/ui/fleet/LoadingSkeleton.js";
+import { NotificationToaster } from "../src/components/ui/fleet/NotificationToaster.js";
+import { notificationStore } from "../src/components/ui/fleet/notificationStore.js";
 import type { SyncStatusSnapshot } from "../src/core/workspace-client/index.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";

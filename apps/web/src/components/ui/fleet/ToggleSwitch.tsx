@@ -16,7 +16,7 @@
 import { forwardRef, type CSSProperties, type HTMLAttributes } from "react";
 import * as SwitchPrimitive from "@radix-ui/react-switch";
 
-import { cn } from "./cn";
+import { cn } from "./cn.js";
 
 export type ToggleSwitchSize = "sm" | "md" | "lg";
 

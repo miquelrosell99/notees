@@ -19,8 +19,8 @@
 
 import { forwardRef, type InputHTMLAttributes } from 'react';
 
-import { Input as CatalogInput } from '@/components/ui/input';
-import { cn } from './cn';
+import { Input as CatalogInput } from '@/components/ui/input.js';
+import { cn } from './cn.js';
 
 export type InputSize = 'sm' | 'md';
 

@@ -9,7 +9,7 @@
 
 import { useMemo } from "react";
 
-import { PRESET_COLOR_ENTRIES, canonicalColor, cssColorFor } from "../../ui/components/ui/colorPresets.js";
+import { PRESET_COLOR_ENTRIES, canonicalColor, cssColorFor } from "../../components/ui/fleet/colorPresets.js";
 import "./ColorPickerRow.css";
 
 interface ColorPickerRowProps {

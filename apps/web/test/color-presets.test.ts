@@ -17,7 +17,7 @@ import {
   coloredPillStyle,
   cssColorFor,
   resolveCssColor,
-} from "../src/ui/components/ui/colorPresets.js";
+} from "../src/components/ui/fleet/colorPresets.js";
 
 // The web vitest config aliases node:fs to a browser shim, and jsdom makes
 // import.meta.url non-file — so the parity read escapes through Node 22's

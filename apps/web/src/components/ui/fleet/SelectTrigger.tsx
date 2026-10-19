@@ -33,10 +33,10 @@
  */
 import { type ReactNode, type MouseEvent } from 'react';
 
-import { Button as CatalogButton } from '@/components/ui/button';
+import { Button as CatalogButton } from '@/components/ui/button.js';
 import { Button } from './Button.js';
-import { Icon } from '../../Icon.js';
-import { cn } from './cn';
+import { Icon } from '../../../ui/Icon.js';
+import { cn } from './cn.js';
 
 export type SelectTriggerSize = 'sm' | 'md' | 'lg';
 

@@ -18,8 +18,8 @@
  */
 import { useRef, useEffect, forwardRef, type KeyboardEvent, type RefObject } from 'react';
 
-import { Textarea as CatalogTextarea } from '@/components/ui/textarea';
-import { cn } from './cn';
+import { Textarea as CatalogTextarea } from '@/components/ui/textarea.js';
+import { cn } from './cn.js';
 
 interface CodeTextareaProps {
   value: string;

@@ -5,7 +5,7 @@
  * the --accent alias, focus ring from --ring (never suppressed), chrome
  * icons on the fleet Icon primitive (no lucide).
  *
- * The app's own Button (src/ui/components/ui/Button.tsx) is the thin fleet
+ * The app's own Button (src/components/ui/fleet/Button.tsx) is the thin fleet
  * wrapper composing this — the fleet variants (default/primary/outline/
  * ghost/danger/danger-solid), sizes, MDI icons, badges, haptics, and the
  * loading register live there. This module is the catalog layer: new code

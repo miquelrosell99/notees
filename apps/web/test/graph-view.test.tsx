@@ -574,7 +574,7 @@ describe("GraphView component", () => {
     // frame (the force path never fitted the opening camera — the "blank
     // while loading" fix).
     vi.resetModules();
-    vi.doMock("../src/ui/views/graph/renderer/pixiRenderer.js", () => ({
+    vi.doMock("../src/features/collection/graph/renderer/pixiRenderer.js", () => ({
       GraphPixiRenderer: class StubRenderer {
         cameras: Array<{ x: number; y: number; zoom: number }> = [];
         constructor() {

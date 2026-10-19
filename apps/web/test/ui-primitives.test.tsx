@@ -9,14 +9,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 
-import { Badge } from "../src/ui/components/ui/Badge.js";
-import { Button } from "../src/ui/components/ui/Button.js";
-import { ConfirmationModal } from "../src/ui/components/ui/ConfirmationModal.js";
-import { ContextMenu } from "../src/ui/components/ui/ContextMenu.js";
-import { Dropdown } from "../src/ui/components/ui/Dropdown.js";
-import { EmptyState } from "../src/ui/components/ui/EmptyState.js";
-import { Modal } from "../src/ui/components/ui/Modal.js";
-import { NotificationToast } from "../src/ui/components/ui/NotificationToast.js";
+import { Badge } from "../src/components/ui/fleet/Badge.js";
+import { Button } from "../src/components/ui/fleet/Button.js";
+import { ConfirmationModal } from "../src/components/ui/fleet/ConfirmationModal.js";
+import { ContextMenu } from "../src/components/ui/fleet/ContextMenu.js";
+import { Dropdown } from "../src/components/ui/fleet/Dropdown.js";
+import { EmptyState } from "../src/components/ui/fleet/EmptyState.js";
+import { Modal } from "../src/components/ui/fleet/Modal.js";
+import { NotificationToast } from "../src/components/ui/fleet/NotificationToast.js";
 
 describe("Button", () => {
   it("renders text with variant and size classes", () => {

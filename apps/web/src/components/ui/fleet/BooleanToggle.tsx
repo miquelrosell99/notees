@@ -27,7 +27,7 @@ import { forwardRef, useId, type CSSProperties, type HTMLAttributes, type ReactN
 import * as SwitchPrimitive from '@radix-ui/react-switch';
 
 import { useReducedMotion } from './overlay-hooks.js';
-import { cn } from './cn';
+import { cn } from './cn.js';
 
 export type BooleanToggleSize = 'sm' | 'md' | 'lg';
 

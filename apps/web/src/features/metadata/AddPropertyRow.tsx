@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 
 import { todayIsoLocal } from "../calendar/calendarViewUtils.js";
-import { AddPill } from "../../ui/components/ui/AddPill.js";
+import { AddPill } from "../../components/ui/fleet/AddPill.js";
 import type { AnyClient } from "./shared.js";
 
 /** "+ Add property": pick an existing schema (or create one) and realize an

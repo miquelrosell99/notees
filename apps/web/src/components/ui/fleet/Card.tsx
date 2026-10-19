@@ -14,7 +14,7 @@
  * overrides behave exactly as before.
  */
 import { forwardRef, type ReactNode, type HTMLAttributes } from "react";
-import { cn } from "./cn";
+import { cn } from "./cn.js";
 
 export type CardElevation = "none" | "low" | "medium" | "high";
 export type CardVariant = 'default' | 'outlined' | 'filled' | 'transparent' | 'dashed';

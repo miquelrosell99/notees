@@ -6,7 +6,7 @@
  * button); renders nothing at zero remaining.
  */
 
-import { Button } from "../../ui/components/ui/index.js";
+import { Button } from "../../components/ui/fleet/index.js";
 import "./ShowMoreButton.css";
 
 export function ShowMoreButton({

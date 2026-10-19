@@ -45,8 +45,8 @@ import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 import { openFloatingEditor } from "../block-editor/FloatingEditor.js";
 import { NodeView } from "../../ui/NodeView.js";
 import { renderStateLabel } from "../../ui/renderStateLabel.js";
-import { Button } from "../../ui/components/ui/Button.js";
-import { usePopupDismissal } from "../../ui/components/ui/usePopupDismissal.js";
+import { Button } from "../../components/ui/fleet/Button.js";
+import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
 import "./NodeHoverPreview.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

@@ -11,7 +11,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
 
-import { ContextMenu, type ContextMenuItem } from "../src/ui/components/ui/ContextMenu.js";
+import { ContextMenu, type ContextMenuItem } from "../src/components/ui/fleet/ContextMenu.js";
 
 /** hover-capability stub: "(hover: hover)" matches when `hover` is true. */
 function stubHover(hover: boolean) {
@@ -112,7 +112,7 @@ describe("chevron visibility", () => {
     const readCss = (segments: string[]) =>
       fs.readFileSync(path.join(process.cwd(), ...segments), "utf8");
 
-    const menuCss = readCss(["src", "ui", "components", "ui", "ContextMenu.css"]);
+    const menuCss = readCss(["src", "components", "ui", "fleet", "ContextMenu.css"]);
     const arrowBlock = menuCss.split(".context-menu-arrow {")[1]!.split("}")[0]!;
     expect(arrowBlock).toContain("var(--md-sys-color-on-surface-variant)");
     expect(arrowBlock).not.toContain("--md-sys-color-outline");
@@ -147,7 +147,7 @@ describe("chevron visibility", () => {
     // The mapping rides the Tailwind config + Card wrapper classes since
     // the shadcn-catalog migration (Card.css retired 2026-10-19).
     const cardSrc = fs.readFileSync(
-      path.join(process.cwd(), "src", "ui", "components", "ui", "Card.tsx"),
+      path.join(process.cwd(), "src", "components", "ui", "fleet", "Card.tsx"),
       "utf8",
     );
     expect(cardSrc).toContain('medium: "shadow-level2"');
@@ -161,7 +161,7 @@ describe("chevron visibility", () => {
     expect(tailwindConfig).toContain('level3: "var(--elevation-3)"');
     expect(tailwindConfig).toContain('level1: "var(--elevation-1)"');
 
-    const crumbsCss = readCss(["src", "ui", "components", "Breadcrumbs.css"]);
+    const crumbsCss = readCss(["src", "features", "node-menu", "Breadcrumbs.css"]);
     const separatorBlock = crumbsCss.split(".node-breadcrumb-separator {")[1]!.split("}")[0]!;
     expect(separatorBlock).toContain("var(--md-sys-color-on-surface-variant)");
     expect(separatorBlock).not.toContain("--md-sys-color-outline");

@@ -21,8 +21,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { BlockTreeNode, ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { PresentationOverlay } from "../components/ui/PresentationOverlay.js";
-import { cssColorFor } from "../components/ui/colorPresets.js";
+import { PresentationOverlay } from "../../components/ui/fleet/PresentationOverlay.js";
+import { cssColorFor } from "../../components/ui/fleet/colorPresets.js";
 import { openNodeLinkMenu } from "../../features/node-menu/NodeLinkContextMenu.js";
 import { EmbedBoundary, EmbedView } from "../EmbedView.js";
 import { Icon } from "../Icon.js";

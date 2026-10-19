@@ -57,8 +57,8 @@ import { Icon } from "../../ui/Icon.js";
 import { parentRenderFacts } from "../../ui/renderStateLabel.js";
 import { flipTheme, toggleFocusMode } from "../settings/deviceSettings.js";
 import { parseDate, isPlainYearQuery } from "../date-pickers/dateParser.js";
-import { Button } from "../../ui/components/ui/Button.js";
-import { SearchField } from "../../ui/components/ui/SearchField.js";
+import { Button } from "../../components/ui/fleet/Button.js";
+import { SearchField } from "../../components/ui/fleet/SearchField.js";
 import "./Modal.css";
 import "./CommandPalette.css";
 

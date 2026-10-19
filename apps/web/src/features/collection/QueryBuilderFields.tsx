@@ -31,9 +31,9 @@ import { QUERY_PLACEHOLDERS } from "@notees/query";
 import type { ClassBinding, ClientNode, ClientPropertySchema } from "@/core/workspace-client/index.js";
 
 import { Icon } from "../../ui/Icon.js";
-import { Button } from "../../ui/components/ui/Button.js";
-import { Dropdown } from "../../ui/components/ui/Dropdown.js";
-import { Input } from "../../ui/components/ui/Input.js";
+import { Button } from "../../components/ui/fleet/Button.js";
+import { Dropdown } from "../../components/ui/fleet/Dropdown.js";
+import { Input } from "../../components/ui/fleet/Input.js";
 import { displayNameForSettings } from "../../ui/dateDisplay.js";
 import type { QueryBuilderState } from "../../ui/queryBuilder.js";
 import "./QueryBuilderFields.css";

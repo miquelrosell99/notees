@@ -18,8 +18,8 @@ import type { WorkerClient } from "@/core/worker-client.js";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 
 import { Icon } from "../../ui/Icon.js";
-import { Modal } from "../../ui/components/ui/Modal.js";
-import { Button } from "../../ui/components/ui/Button.js";
+import { Modal } from "../../components/ui/fleet/Modal.js";
+import { Button } from "../../components/ui/fleet/Button.js";
 import { NodeViewSection } from "../page-sections/NodeViewSection.js";
 import { NodeCollection } from "../collection/index.js";
 import type { TableColumn } from "../collection/index.js";

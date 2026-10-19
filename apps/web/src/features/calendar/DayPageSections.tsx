@@ -39,9 +39,9 @@ import {
   taskStatusLabel,
 } from "./calendarRows.js";
 import { ensureTaskFamily } from "../classview/taskFamily.js";
-import { Checkbox } from "../../ui/components/ui/Checkbox.js";
+import { Checkbox } from "../../components/ui/fleet/Checkbox.js";
 import { CreatedSection } from "../page-sections/CreatedSection.js";
-import { Pill } from "../../ui/components/ui/Pill.js";
+import { Pill } from "../../components/ui/fleet/Pill.js";
 import "./DayPageSections.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

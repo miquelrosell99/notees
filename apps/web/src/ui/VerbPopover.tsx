@@ -19,7 +19,7 @@
 
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 
-import { usePopupDismissal } from "./components/ui/usePopupDismissal.js";
+import { usePopupDismissal } from "../components/ui/fleet/usePopupDismissal.js";
 
 /** Minimal schema shape the capture row matches against. */
 export interface VerbSchemaOption {

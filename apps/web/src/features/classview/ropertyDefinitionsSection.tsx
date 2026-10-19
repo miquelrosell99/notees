@@ -47,9 +47,9 @@ import type { ClassBinding, WorkspaceClient } from "@/core/workspace-client/inde
 
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";
-import { AddPill } from "../../ui/components/ui/AddPill.js";
-import { Checkbox } from "../../ui/components/ui/Checkbox.js";
-import { ToggleSwitch } from "../../ui/components/ui/ToggleSwitch.js";
+import { AddPill } from "../../components/ui/fleet/AddPill.js";
+import { Checkbox } from "../../components/ui/fleet/Checkbox.js";
+import { ToggleSwitch } from "../../components/ui/fleet/ToggleSwitch.js";
 import { NodeViewSection } from "../page-sections/NodeViewSection.js";
 import "./ropertyDefinitionsSection.css";
 

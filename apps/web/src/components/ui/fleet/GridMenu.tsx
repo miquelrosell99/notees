@@ -14,7 +14,7 @@
  * role="menuitem" for standalone menus.
  */
 
-import { Icon } from "../../Icon.js";
+import { Icon } from "../../../ui/Icon.js";
 import { cn } from "./cn.js";
 import "./GridMenu.css";
 

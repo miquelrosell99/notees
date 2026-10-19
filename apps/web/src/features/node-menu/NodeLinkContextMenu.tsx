@@ -26,7 +26,7 @@ import type { ContentAst } from "@notees/protocol";
 import type { ClientNode, WorkspaceClient } from "@/core/workspace-client/index.js";
 import type { WorkerClient } from "@/core/worker-client.js";
 
-import { ContextMenu } from "../../ui/components/ui/ContextMenu.js";
+import { ContextMenu } from "../../components/ui/fleet/ContextMenu.js";
 import { LinkEditModalHost, useLinkEditModalOpener } from "../../ui/editor-popups/LinkEditModal.js";
 import { renderStateLabel } from "../../ui/renderStateLabel.js";
 
