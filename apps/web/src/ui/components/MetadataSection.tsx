@@ -37,47 +37,29 @@
  * .nt-property-*, .nt-classes-row, …) are unchanged.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 import {
-  parseDateNodeId,
   rendersAsInlineBlock,
-  rendersWithDocumentChrome,
   SYSTEM_PROPERTY_UUIDS,
   type DatePrecision,
 } from "@notees/domain";
 
 import type {
   ClassBinding,
-  ClientNode,
   EffectiveProperty,
   PropertyDisplay,
 } from "@/core/workspace-client.js";
 
-import { AnnotationsSection } from "../AnnotationsSection.js";
-import { todayIsoLocal } from "./calendarViewUtils.js";
-import { displayNameFromClient } from "../dateDisplay.js";
-
 import { parentRenderFacts } from "../renderStateLabel.js";
-import { assetImageUrl } from "../views/assetThumbs.js";
 import { Icon } from "../Icon.js";
 import { NodeViewSection } from "./NodeViewSection.js";
 import { IconPickerPopup } from "./IconPickerPopup.js";
-import { Checkbox } from "./ui/Checkbox.js";
-import { AddPill } from "./ui/AddPill.js";
 import { SelectionButton } from "./ui/SelectionButton.js";
 import { ToggleSwitch } from "./ui/ToggleSwitch.js";
-import { ColorPickerRow } from "./pickers/ColorPickerRow.js";
-import { NodeContextMenu } from "./NodeContextMenu.js";
 import { ReferenceSubtree } from "./ReferenceSubtree.js";
-import { NodeSelector } from "./pickers/NodeSelector.js";
-import { SelectionPropertyControl, type SelectionOption } from "./pickers/SelectionPropertyControl.js";
-import { AssetUploadModal } from "./modals/AssetUploadModal.js";
 import { propertyLinkHref } from "../views/propertyDisplay.js";
 import { cssColorFor } from "./ui/colorPresets.js";
-import { ClassPillsList } from "./ClassPillsList.js";
-import { NodePill } from "./NodePills.js";
-import { removeClassDissolvingLinks } from "./classRemoval.js";
 import { ContextMenu } from "./ui/ContextMenu.js";
 import { Modal } from "./ui/Modal.js";
 import { Button } from "./ui/Button.js";
@@ -87,10 +69,8 @@ import { PropertyConvertModal } from "./PropertyConvertModal.js";
 import { PropertyHistoryModal } from "./PropertyHistoryModal.js";
 import { TextPropertyRow } from "./TextPropertyRow.js";
 import { AliasedNodeRow } from "./AliasedNodeRow.js";
-import { AliasNodePicker } from "./AliasNodePicker.js";
 import {
   type AnyClient,
-  contrastFor,
   fromEditableText,
   toEditableText,
 } from "./metadata/shared.js";
@@ -99,391 +79,15 @@ import { AssetPropertyRow } from "./metadata/AssetPropertyRow.js";
 import { DatetimePropertyRow } from "./metadata/DatetimePropertyRow.js";
 import { SelectPropertyRow } from "./metadata/SelectPropertyRow.js";
 import { BooleanPropertyRow } from "./metadata/BooleanPropertyRow.js";
+import { AliasesRow } from "./metadata/AliasesRow.js";
+import { AddPropertyRow } from "./metadata/AddPropertyRow.js";
 import "./MetadataSection.css";
 
-/**
- * The node's own classes: pills with an × that unassigns (class.unassign),
- * a right-click color-swatch menu (object.update color), and a "+ Add class"
- * ghost pill opening the node-selector popup (assignClass): the pills
- * ride ClassPillsList — the instance-of relation's mutations passed as
- * arguments, the row chrome (the label) stays here.
- *
- * Date-chain class lock (SCHEMA.md "Datetime"): a date node's class set is
- * fixed to its precision's system class — the row renders read-only (no
- * Add-class pill, no ×, no drag-sort) on date nodes.
- */
-export function ClassesRow({
-  client,
-  nodeId,
-  classIds,
-  onOpenPage,
-}: {
-  client: AnyClient;
-  nodeId: string;
-  classIds: string[];
-  onOpenPage?: ((pageId: string) => void) | undefined;
-}) {
-  const locked = parseDateNodeId(nodeId) !== null;
-  return (
-    <div className="node-metadata-row nt-classes-row">
-      <div className="section-label">Classes:</div>
-      <ClassPillsList
-        client={client}
-        nodeId={nodeId}
-        query={classIds}
-        add={(classId) => void client.assignClass(nodeId, classId)}
-        remove={(classId) => void removeClassDissolvingLinks(client, nodeId, classId)}
-        reorder={(ordered) => void client.reorderClasses(nodeId, ordered)}
-        onOpenPage={onOpenPage}
-        readOnly={locked}
-      />
-    </div>
-  );
-}
+// The identity rows are hosted by PageChrome/BlockRow/CardsView through this
+// historical import surface — re-exported, not composed here.
+export { ClassesRow } from "./metadata/ClassesRow.js";
+export { TagsRow } from "./metadata/TagsRow.js";
 
-/**
- * TagsRow — the "Tags:" metadata row (pages and blocks): any page can be
- * assigned as a tag. Pills mirror the classes row; right-click opens the
- * node menu (remove goes through unassignTag).
- */
-export function TagsRow({
-  client,
-  nodeId,
-  tagIds,
-  onOpenPage,
-  /** Read-only projection: static pills — open on click, no add/remove. */
-  readOnly = false,
-}: {
-  client: AnyClient;
-  nodeId: string;
-  tagIds: string[];
-  onOpenPage?: ((pageId: string) => void) | undefined;
-  readOnly?: boolean | undefined;
-}) {
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [nodeMenu, setNodeMenu] = useState<{ node: ClientNode; x: number; y: number } | null>(null);
-  const addButtonRef = useRef<HTMLButtonElement | null>(null);
-
-  // Tags render alphabetically everywhere: order by display name.
-  const assignedTags = [...tagIds]
-    .sort((a, b) =>
-      (displayNameFromClient(client, a) ?? a).localeCompare(
-        displayNameFromClient(client, b) ?? b,
-      ),
-    )
-    .map((tagId) => client.getNode(tagId))
-    .filter((node): node is ClientNode => node !== undefined);
-
-  return (
-    <div className="node-metadata-row nt-tags-row">
-      <div className="section-label">Tags:</div>
-      <div className="nt-property-chips node-metadata-pills">
-        {assignedTags.map((tag) => {
-          const label = displayNameFromClient(client, tag.id) ?? tag.id;
-          // Pill chrome like classes: grey surface by default, the tag's
-          // effectiveColor (own, else its classes') as the background when set.
-          const colored = client.effectiveNodeColor(tag);
-          return (
-            <span
-              key={tag.id}
-              className="pill pill--hover-reveal-right"
-              style={
-                colored !== null
-                  ? { background: cssColorFor(colored), color: contrastFor(colored) }
-                  : undefined
-              }
-              onContextMenu={
-                readOnly
-                  ? undefined
-                  : (event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      setNodeMenu({ node: tag, x: event.clientX, y: event.clientY });
-                    }
-              }
-            >
-              {tag.icon !== null && (
-                <span className="pill__left-icon">
-                  <Icon path={tag.icon} size={0.7} />
-                </span>
-              )}
-              <button
-                type="button"
-                className="pill__text"
-                onClick={() => onOpenPage?.(tag.id)}
-              >
-                {label}
-              </button>
-              {!readOnly && (
-                <button
-                  type="button"
-                  className="pill__right-button"
-                  aria-label={`Remove tag ${label}`}
-                  onClick={() => void client.unassignTag(nodeId, tag.id)}
-                >
-                  ×
-                </button>
-              )}
-            </span>
-          );
-        })}
-        {!readOnly && (
-          <span className="nt-class-add-anchor">
-            <AddPill
-              ref={addButtonRef}
-              className={tagIds.length > 0 ? "pill--icon-only" : ""}
-              label="Add tag"
-              aria-expanded={pickerOpen}
-              onClick={(element) => {
-                addButtonRef.current = element;
-                setPickerOpen(true);
-              }}
-            />
-          </span>
-        )}
-      </div>
-      {pickerOpen && (
-        <NodeSelector
-          client={client}
-          anchorEl={addButtonRef.current}
-          searchMode="pages"
-          nodes={assignedTags}
-          excludeNodeId={nodeId}
-          alwaysShowCreate
-          searchPlaceholder="Search pages…"
-          onClose={() => setPickerOpen(false)}
-          onAdd={(node) => {
-            setPickerOpen(false);
-            void client.assignTag(nodeId, node.id);
-          }}
-        />
-      )}
-      <NodeContextMenu
-        state={nodeMenu === null ? null : { ...nodeMenu, ownerId: nodeId, isPage: true }}
-        client={client}
-        onClose={() => setNodeMenu(null)}
-        onOpenNode={(id) => onOpenPage?.(id)}
-        onRemoveFromOwner={() => {
-          if (nodeMenu !== null) void client.unassignTag(nodeId, nodeMenu.node.id);
-        }}
-      />
-    </div>
-  );
-}
-
-/**
- * AliasesRow — the "Aliases:" row at the TOP of the metadata panel: every live page
- * whose alias-terminal is this node (chains included, via the client's
- * aliasNodesOf read over the `aliased_node_id` column), as a node list —
- * one pill per alias, a "+ Add alias" ghost pill, an × per entry that clears
- * THE ALIAS's own field (the relation's mutations, like ClassesRow).
- *
- * The pills ride the shared NodePill element + AddPill + NodeSelector (the
- * TagsRow composition — NodePills itself stays class-scoped: its picker,
- * color-chain resolution, and removal locks are class semantics). ADD writes
- * THE SELECTED node's `aliasedNodeId` to the ACTIVE node — the backward
- * write, never the active node's own field (the main page holds nothing) —
- * with the page-restriction guard validating the pick (the picker filters
- * out already-aliased nodes and the active node itself). Opening a pill
- * rides the RAW bypass (the retired popup's NAVIGATE contract): the alias's
- * OWN view, from where the "Alias of …" banner jumps back — the resolving
- * open would land on the page already on screen.
- *
- * Pages only: the write guard makes a non-page target unwritable, so a block
- * (BlockRow hosts the same section) renders no row.
- */
-export function AliasesRow({
-  client,
-  nodeId,
-  onOpenPage,
-  onOpenPageRaw = undefined,
-  /** Read-only projection: alias pills render without add/remove. */
-  readOnly = false,
-}: {
-  client: AnyClient;
-  nodeId: string;
-  onOpenPage?: ((pageId: string) => void) | undefined;
-  /** The RAW open — bypasses the alias redirect so the alias's OWN view renders. */
-  onOpenPageRaw?: ((pageId: string) => void) | undefined;
-  readOnly?: boolean | undefined;
-}) {
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const addButtonRef = useRef<HTMLButtonElement | null>(null);
-
-  // Freshness: the cached aliasNodesOf read converges via the client's
-  // change notification — bump a version so the row follows writes (the
-  // panel hosts no subscription of its own).
-  const [, setVersion] = useState(0);
-  useEffect(() => client.subscribe(() => setVersion((v) => v + 1)), [client]);
-
-  const node = client.getNode(nodeId);
-  if (node === undefined || !rendersWithDocumentChrome(node, parentRenderFacts(client, node)))
-    return null;
-
-  const aliases = client.aliasNodesOf(nodeId);
-
-  return (
-    <div className="node-metadata-row nt-aliases-row">
-      <div className="section-label">Aliases:</div>
-      <span className="nt-property-chips node-metadata-pills">
-        {aliases.map((alias) => {
-          const label = displayNameFromClient(client, alias.id) ?? alias.id;
-          return (
-            <NodePill
-              key={alias.id}
-              color={client.effectiveNodeColor(alias)}
-              icon={alias.icon}
-              label={label}
-              onOpen={() => (onOpenPageRaw ?? onOpenPage)?.(alias.id)}
-              onRemove={readOnly ? undefined : () => void client.updateObject(alias.id, { aliasedNodeId: null })}
-              removeLabel={`Remove alias ${label}`}
-            />
-          );
-        })}
-        {!readOnly && (
-          <span className="nt-class-add-anchor">
-            <AddPill
-              ref={addButtonRef}
-              className={aliases.length > 0 ? "pill--icon-only" : ""}
-              label="Add alias"
-              aria-expanded={pickerOpen}
-              onClick={(element) => {
-                addButtonRef.current = element;
-                setPickerOpen(true);
-              }}
-            />
-          </span>
-        )}
-      </span>
-      {pickerOpen && (
-        <AliasNodePicker
-          client={client}
-          nodeId={nodeId}
-          anchorEl={addButtonRef.current}
-          onClose={() => setPickerOpen(false)}
-        />
-      )}
-    </div>
-  );
-}
-
-
-/** "+ Add property": pick an existing schema (or create one) and realize an
- *  initial value on the node so the row appears. */
-function AddPropertyRow({
-  client,
-  nodeId,
-}: {
-  client: AnyClient;
-  nodeId: string;
-}) {
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
-
-  const schemas = client.listPropertySchemas();
-
-  async function initializeValue(schemaId: string, type: string): Promise<void> {
-    switch (type) {
-      case "boolean":
-        await client.setProperty(nodeId, schemaId, true, 0);
-        return;
-      case "number":
-        await client.setProperty(nodeId, schemaId, 0, 0);
-        return;
-      case "text": {
-        // Node-backed: a fresh carrier block child holds the text.
-        const carrier = await client.createObject({
-          parentId: nodeId,
-          contentAst: [{ type: "text", text: "" }],
-        });
-        await client.setProperty(nodeId, schemaId, { nodeId: carrier }, 0);
-        return;
-      }
-      case "datetime": {
-        // Local midnight, not UTC — the "today" default must match the
-        // user's calendar day. Full-day: the point carries no time.
-        const dayId = await client.ensureDateChain(todayIsoLocal());
-        await client.setProperty(nodeId, schemaId, { nodeId: dayId }, 0);
-        return;
-      }
-      default:
-        // url/email/select/multi_select/object/image: no sensible empty
-        // value — the row's own editor will prompt on first edit.
-        return;
-    }
-  }
-
-  async function pickSchema(schemaId: string, type: string): Promise<void> {
-    setError(null);
-    try {
-      await initializeValue(schemaId, type);
-      setPickerOpen(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  async function createSchema(): Promise<void> {
-    const name = newName.trim();
-    if (name === "") return;
-    setError(null);
-    try {
-      const schemaId = await client.createPropertySchema({ name, type: "text" });
-      await initializeValue(schemaId, "text");
-      setCreating(false);
-      setNewName("");
-      setPickerOpen(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  return (
-    <div className="nt-add-property">
-      <AddPill
-        ref={buttonRef}
-        label="Add property"
-        aria-expanded={pickerOpen}
-        onClick={(element) => {
-          buttonRef.current = element;
-          setPickerOpen((open) => !open);
-          setCreating(false);
-        }}
-      />
-      {pickerOpen && (
-        <div className="nt-add-property-popup" role="dialog" aria-label="Add property">
-          <input
-            autoFocus
-            placeholder="Search or create property…"
-            value={newName}
-            onChange={(event) => setNewName(event.target.value)}
-          />
-          <ul>
-            {schemas
-              .filter((schema) => newName.trim() === "" || schema.name.toLowerCase().includes(newName.trim().toLowerCase()))
-              .map((schema) => (
-                <li key={schema.id}>
-                  <button type="button" onClick={() => void pickSchema(schema.id, schema.type)}>
-                    <span className="nt-add-property-name">{schema.name}</span>
-                    <span className="nt-add-property-type">{schema.type}</span>
-                  </button>
-                </li>
-              ))}
-          </ul>
-          {newName.trim() !== "" && !schemas.some((s) => s.name.toLowerCase() === newName.trim().toLowerCase()) && (
-            <button type="button" className="nt-add-property-create" onClick={() => void createSchema()}>
-              Create property "{newName.trim()}"
-            </button>
-          )}
-          {error !== null && <p className="nt-error">{error}</p>}
-        </div>
-      )}
-    </div>
-  );
-}
 
 /**
  * The property-rows model shared by the Metadata section (blocks) and the
