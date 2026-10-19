@@ -198,6 +198,10 @@ export default {
         "icon-lg": "var(--icon-size-lg)",
         "icon-xl": "var(--icon-size-xl)",
         "icon-2xl": "var(--icon-size-2xl)",
+        /* The slider register (track thickness + the sm thumb). */
+        tiny: "var(--spacing-tiny)",
+        "shape-sm": "var(--shape-small)",
+        "slider-thumb-sm": "var(--slider-thumb-size-sm)",
         /* Skeleton row heights (adaptive — they ride the element's font
            metrics via em, as the pre-catalog register did). */
         "skeleton-text": "var(--skeleton-text-height)",
@@ -234,6 +238,7 @@ export default {
         half: "50%",
         "1-3": "33%",
         "1-4": "25%",
+        "slider-thumb-sm": "var(--slider-thumb-size-sm)",
         /* Separator thickness register (1px rides the default w-px). */
         "sep-md": "var(--border-width-thick)",
         "sep-lg": "var(--border-width-extra-thick)",
@@ -246,6 +251,8 @@ export default {
         xs: "var(--height-xs)",
         sm: "var(--height-sm)",
         md: "var(--height-md)",
+        /* The slider value column (the pre-catalog 2.5em, adaptive). */
+        "slider-value": "2.5em",
       },
       backgroundImage: {
         /* The fleet loading-shimmer sweep (LoadingSkeleton). */
@@ -344,6 +351,8 @@ export default {
       scale: {
         press: "var(--tactile-press-scale)",
         card: "var(--scale-card-press)",
+        /* The slider thumb's hover grow (the pre-catalog 1.15). */
+        "thumb-grow": "1.15",
       },
     },
   },
