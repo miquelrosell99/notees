@@ -9,6 +9,35 @@ predating this file.
 
 ## 2026-10-19
 
+- **refactor(web): the two scheduled composite migrations — ContextMenu
+  rebuilds on the Radix context-menu/sub composition; Dropdown on the
+  catalog combobox (popover + cmdk command).** The register's scheduled
+  slice, executed same day. **ContextMenu** (~13 call sites) composes
+  `ContextMenuPrimitive` (Root/Content/Item/Sub/SubContent/SubTrigger)
+  with a hidden Trigger driven by a synthetic contextmenu event as the
+  virtual anchor (position prop or anchorEl rect — the app drives menus
+  open itself), the overlay stack stays the single Escape authority
+  (Radix's own Escape disabled, the Modal-wrapper precedent; Escape
+  closes the active submenu first), the enter-only hover seam + the
+  pointer-fine gate stay synchronous on mouseEnter (Radix's 100ms
+  pointermove hover doesn't meet the ruling), the flyout SubContent
+  rides Radix's popper (flush edge, viewport flip) with focus-outside
+  dismissal prevented (a spawned confirmation modal must not collapse
+  the menu the row lives in), and sub-item selects fire onClick + the
+  onClose notification without self-unmounting (the menu is
+  caller-controlled). `@radix-ui/react-context-menu` joins the deps.
+  **Dropdown** (~20 call sites) composes the catalog `command` (cmdk)
+  inside a Radix popover: the popper owns portal/flip positioning (the
+  old imperative viewport-fit retires), the listbox/option ARIA + the
+  arrow-key walk + label-only filtering (custom renderers can't pollute
+  the match) are cmdk's, and the fleet register (menu surface, option
+  rows, group overlines, the boxed SelectTrigger, multi-select toggles)
+  is unchanged — options graduate from `<button>` rows to `role=option`
+  (the a11y upgrade the bridge prescribes; the drift gate's JS-scoped
+  list gains `--radix-popover-trigger-width`, Radix's trigger-width
+  var). Test suites updated where they drove the old mechanics (role
+  queries, pointer-down dismissal, macrotask wait for Radix's document
+  listener, jsdom `scrollIntoView` stub in the shared setup).
 - **refactor(web): the full-alignment leaf sweep — 12 catalog-covered
   leaves become thin wrappers; Dropdown/ContextMenu documented as the
   scheduled remainder.** Full alignment,
