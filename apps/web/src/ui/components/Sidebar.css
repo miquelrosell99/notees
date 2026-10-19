@@ -264,9 +264,8 @@
   }
 }
 
-/* Pinned bottom row: the user profile circle (owner 2026-10-19 — the
-   wide name/email bar + settings gear are gone; the popup carries the
-   identity, the gear's Settings entry lives there too). Horizontal padding
+/* Pinned bottom row: the user profile (avatar + name + email) and the
+   settings gear — three columns: circle | text | gear. Horizontal padding
    is zero (owner 2026-10-13): the row rides the sidebar's own padding like
    the nav list does. */
 .nt-sidebar-bottom {
@@ -330,12 +329,14 @@
 }
 
 /* Sync badge — the corner dot. A 10px disc ringed by the sidebar's surface
-   so it reads attached to the avatar, not floating; the state colors ride
-   the same tokens as the old top-bar dot. */
+   so it reads attached to the avatar, not floating; the offsets are against
+   the 30px AVATAR (the badge's parent), negative so the disc straddles the
+   circle's bottom-right rim — the 2026-10-19 restore briefly used the old
+   button-relative 5px, which parked the dot INSIDE the circle. */
 .nt-profile-sync {
   position: absolute;
-  right: 5px;
-  bottom: 5px;
+  right: -3px;
+  bottom: -3px;
   width: 10px;
   height: 10px;
   border-radius: var(--shape-full);
@@ -435,6 +436,18 @@
 .nt-account-item--danger,
 .nt-account-item--danger:hover {
   color: var(--md-sys-color-error);
+}
+
+/* Identity text column (the middle of the three footer columns). flex:1 +
+   min-width:0 make it the truncating buffer between the avatar and the
+   gear — without this block the name/email render INLINE and overflow the
+   gear (the 2026-10-19 restore shipped without it for a few hours). */
+.nt-profile-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
 }
 
 /* Identity text (header + reused by the popup). */
