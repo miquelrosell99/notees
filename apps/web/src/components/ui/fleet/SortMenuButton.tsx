@@ -10,7 +10,7 @@
  */
 
 import { ButtonWithPanel } from "./ButtonWithPanel.js";
-import { Icon } from "../../Icon.js";
+import { Icon } from "../../../ui/Icon.js";
 import "./SortMenuButton.css";
 
 export interface SortMenuOption {

@@ -14,11 +14,11 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { Icon } from "../../ui/Icon.js";
-import { Modal } from "../../ui/components/ui/Modal.js";
-import { Button } from "../../ui/components/ui/Button.js";
-import { Spinner } from "../../ui/components/ui/Spinner.js";
-import { EmptyState } from "../../ui/components/ui/EmptyState.js";
-import { InlineConfirmButton } from "../../ui/components/ui/InlineConfirmButton.js";
+import { Modal } from "../../components/ui/fleet/Modal.js";
+import { Button } from "../../components/ui/fleet/Button.js";
+import { Spinner } from "../../components/ui/fleet/Spinner.js";
+import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
+import { InlineConfirmButton } from "../../components/ui/fleet/InlineConfirmButton.js";
 import { copyToClipboard } from "../modals/clipboard.js";
 import { createShare, listShares, revokeShare, type ShareEntry } from "./shareApi.js";
 import "./SharePageModal.css";

@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useViewportPosition } from "../pickers/useViewportPosition.js";
-import { usePopupDismissal } from "../../ui/components/ui/usePopupDismissal.js";
+import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
 import { useCalendarMode, type CalendarMode } from "./calendar/useCalendarMode.js";
 import { CalendarHeader, DaysGrid, MonthsGrid, YearsGrid } from "./calendar/CalendarGrids.js";
 import "./CalendarPopup.css";

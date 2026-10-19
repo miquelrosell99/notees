@@ -15,12 +15,12 @@ import { useState } from "react";
 
 import type { AccountUser } from "@/core/auth-api.js";
 
-import { Button } from "../../ui/components/ui/Button.js";
-import { Card } from "../../ui/components/ui/Card.js";
-import { BooleanToggle } from "../../ui/components/ui/BooleanToggle.js";
-import { SelectionButton } from "../../ui/components/ui/SelectionButton.js";
-import { TextField } from "../../ui/components/ui/TextField.js";
-import { ConfirmationModal } from "../../ui/components/ui/ConfirmationModal.js";
+import { Button } from "../../components/ui/fleet/Button.js";
+import { Card } from "../../components/ui/fleet/Card.js";
+import { BooleanToggle } from "../../components/ui/fleet/BooleanToggle.js";
+import { SelectionButton } from "../../components/ui/fleet/SelectionButton.js";
+import { TextField } from "../../components/ui/fleet/TextField.js";
+import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
 import { Icon } from "../../ui/Icon.js";
 import { ApiKeysSection } from "../../ui/SettingsPanel.js";
 import {

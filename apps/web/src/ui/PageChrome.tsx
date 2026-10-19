@@ -37,9 +37,9 @@ import { BannerCard, CoverCard } from "../features/page-sections/PageBanner.js";
 import { PageFooter } from "../features/page-sections/PageFooter.js";
 import { BlockRow } from "./BlockRow.js";
 import { Icon } from "./Icon.js";
-import { AddPill } from "./components/ui/AddPill.js";
-import { Button } from "./components/ui/Button.js";
-import { TextField } from "./components/ui/TextField.js";
+import { AddPill } from "../components/ui/fleet/AddPill.js";
+import { Button } from "../components/ui/fleet/Button.js";
+import { TextField } from "../components/ui/fleet/TextField.js";
 import { displayNameForSettings, displayNameFromClient } from "./dateDisplay.js";
 
 type AnyClient = WorkspaceClient | WorkerClient;

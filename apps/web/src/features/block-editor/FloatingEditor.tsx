@@ -36,7 +36,7 @@ import { displayNameFromClient } from "../../ui/dateDisplay.js";
 import { nodeIcon } from "../../ui/iconFor.js";
 import { Icon } from "../../ui/Icon.js";
 import { NodeView } from "../../ui/NodeView.js";
-import { Button } from "../../ui/components/ui/Button.js";
+import { Button } from "../../components/ui/fleet/Button.js";
 import "./FloatingEditor.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;

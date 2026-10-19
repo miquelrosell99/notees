@@ -40,7 +40,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-import { EmptyState } from "../../ui/components/ui/index.js";
+import { EmptyState } from "../../components/ui/fleet/index.js";
 import { Icon } from "../../ui/Icon.js";
 import { displayNameForSettings } from "../../ui/dateDisplay.js";
 import { OutlinerContext, useOutlinerValue } from "../../ui/outliner-context.js";

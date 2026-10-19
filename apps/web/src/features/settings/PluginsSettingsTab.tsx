@@ -18,11 +18,11 @@ import {
   summarizeCapabilities,
 } from "@notees/protocol";
 
-import { Button } from "../../ui/components/ui/Button.js";
-import { CodeTextarea } from "../../ui/components/ui/CodeTextarea.js";
-import { EmptyState } from "../../ui/components/ui/EmptyState.js";
-import { InlineConfirmButton } from "../../ui/components/ui/InlineConfirmButton.js";
-import { ToggleSwitch } from "../../ui/components/ui/ToggleSwitch.js";
+import { Button } from "../../components/ui/fleet/Button.js";
+import { CodeTextarea } from "../../components/ui/fleet/CodeTextarea.js";
+import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
+import { InlineConfirmButton } from "../../components/ui/fleet/InlineConfirmButton.js";
+import { ToggleSwitch } from "../../components/ui/fleet/ToggleSwitch.js";
 import {
   installPlugin,
   listPlugins,

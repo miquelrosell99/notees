@@ -29,7 +29,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 
-import { EmptyState, ErrorBoundary, Spinner } from "../../ui/components/ui/index.js";
+import { EmptyState, ErrorBoundary, Spinner } from "../../components/ui/fleet/index.js";
 import { useSectionViews } from "./sectionViews.js";
 import { getViewDefinition } from "./registry.js";
 import { SECTION_DEFAULT_TAB, SectionViewTabs } from "./SectionViewTabs.js";

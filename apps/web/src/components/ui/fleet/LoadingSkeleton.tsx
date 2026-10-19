@@ -20,8 +20,8 @@
  */
 import type { CSSProperties } from 'react';
 
-import { Skeleton as CatalogSkeleton } from '@/components/ui/skeleton';
-import { cn } from './cn';
+import { Skeleton as CatalogSkeleton } from '@/components/ui/skeleton.js';
+import { cn } from './cn.js';
 
 export type SkeletonShape = 'text' | 'heading' | 'circle' | 'rect' | 'card';
 export type SkeletonWidth = 'full' | '3-4' | '2-3' | 'half' | '1-3' | '1-4';

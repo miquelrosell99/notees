@@ -20,8 +20,8 @@ import { Icon } from "../../ui/Icon.js";
 import { rawDateKeywordOf } from "../../ui/dateDisplay.js";
 import type { AnyClient } from "../../ui/components/Sidebar.js";
 import { addDaysIso, isoOfDateParts, todayIsoLocal } from "./calendarViewUtils.js";
-import { Button } from "../../ui/components/ui/Button.js";
-import { EmptyState } from "../../ui/components/ui/EmptyState.js";
+import { Button } from "../../components/ui/fleet/Button.js";
+import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
 import "./JournalsView.css";
 
 /** Entries mounted around today before the sentinels take over. */

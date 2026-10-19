@@ -21,7 +21,7 @@
 
 import { useEffect, useState } from "react";
 import { Spinner } from "./Spinner.js";
-import { Icon } from "../../Icon.js";
+import { Icon } from "../../../ui/Icon.js";
 import { Button } from "./Button.js";
 import type { SyncStatusSnapshot } from "@/core/workspace-client/index.js";
 import "./BackendUnavailableOverlay.css";

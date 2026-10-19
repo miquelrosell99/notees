@@ -20,7 +20,7 @@ import type { WorkerClient } from "@/core/worker-client.js";
 
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
 import { NodeResultItem } from "../pickers/NodeResultItem.js";
-import { usePopupDismissal } from "../../ui/components/ui/usePopupDismissal.js";
+import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";
 import type { HiddenLinkTarget } from "@/editor/condensed.js";
 import "./CondensedLinksPopup.css";
 

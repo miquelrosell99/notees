@@ -10,7 +10,7 @@
  */
 
 import { useState } from "react";
-import { Icon } from "../../Icon.js";
+import { Icon } from "../../../ui/Icon.js";
 import "./InProcessStoreBanner.css";
 
 export function InProcessStoreBanner({ reason }: { reason?: string | undefined }) {

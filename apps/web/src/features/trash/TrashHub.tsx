@@ -26,9 +26,9 @@ import type { TrashedEntry, WorkspaceClient } from "@/core/workspace-client/inde
 import { Icon } from "../../ui/Icon.js";
 import { nodeIcon } from "../../ui/iconFor.js";
 import { relativeTime } from "../page-sections/ActivityLogSection.js";
-import { Button } from "../../ui/components/ui/Button.js";
-import { ConfirmationModal } from "../../ui/components/ui/ConfirmationModal.js";
-import { EmptyState } from "../../ui/components/ui/EmptyState.js";
+import { Button } from "../../components/ui/fleet/Button.js";
+import { ConfirmationModal } from "../../components/ui/fleet/ConfirmationModal.js";
+import { EmptyState } from "../../components/ui/fleet/EmptyState.js";
 import "./TrashHub.css";
 
 type AnyClient = WorkspaceClient | WorkerClient;
