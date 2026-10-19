@@ -440,7 +440,7 @@ describe("tailwind class drift gate (the shadcn bridge half)", () => {
     for (const file of files) {
       const ts = fs.readFileSync(file, "utf8");
       for (const cls of collectClassStrings(ts)) {
-        const stripped = cls.replace(/rounded-(?:card|sheet|button|button-sm|input|item|popover|badge|full|menu|floating|none)\b/g, "");
+        const stripped = cls.replace(/rounded-(?:card|sheet|button|button-sm|input|item|popover|badge|full|menu|floating|shape-xs|shape-sm|none)\b/g, "");
         const match = stripped.match(RAW_RADIUS);
         if (match) {
           expect.fail(`${path.relative(SRC_DIR, file)} cites a raw radius utility "${match[0].trim()}" — use the fleet family (rounded-card, rounded-button, rounded-popover, …)`);
