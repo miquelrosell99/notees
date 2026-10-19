@@ -110,7 +110,7 @@ export abstract class WorkspaceClientBase {
    * journal before any derived field exists.
    */
   protected abstract buildUndoCaptureSource(): UndoCaptureSource;
-  /** Torn down by close() — implemented by the sync domain (client-sync.ts). */
+  /** Implemented by the sync domain (client-sync.ts); torn down by close(). */
   abstract stopRealtime(): void;
 
   protected constructor(store: Store, options: WorkspaceClientOptions) {
