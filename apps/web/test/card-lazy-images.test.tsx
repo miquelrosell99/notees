@@ -25,7 +25,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
-import { NodeCollection } from "../src/ui/views/index.js";
+import { NodeCollection } from "../src/features/collection/index.js";
 import { writeCardLayoutPref } from "../src/ui/viewPrefs.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000e1";

@@ -22,7 +22,7 @@ import { useEffect, useState } from "react";
 
 import { parseQueryAst, type QueryAst } from "@notees/query";
 
-import { Button, Modal, TextField } from "./ui/index.js";
+import { Button, Modal, TextField } from "../../ui/components/ui/index.js";
 
 import {
   DEFAULT_BUILDER_STATE,
@@ -31,7 +31,7 @@ import {
   describeBuilderState,
   extractBuilderState,
   type QueryBuilderState,
-} from "../queryBuilder.js";
+} from "../../ui/queryBuilder.js";
 import { QueryBuilderFields, useBuilderFacts, type BuilderFactsClient } from "./QueryBuilderFields.js";
 
 export interface FilterBuilderModalProps {

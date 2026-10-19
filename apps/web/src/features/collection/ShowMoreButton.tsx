@@ -6,7 +6,7 @@
  * button); renders nothing at zero remaining.
  */
 
-import { Button } from "../components/ui/index.js";
+import { Button } from "../../ui/components/ui/index.js";
 import "./ShowMoreButton.css";
 
 export function ShowMoreButton({

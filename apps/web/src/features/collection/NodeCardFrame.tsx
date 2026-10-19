@@ -39,16 +39,16 @@ import { useContext, useState } from "react";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client/index.js";
 
-import { Breadcrumbs } from "./Breadcrumbs.js";
-import { Icon } from "../Icon.js";
-import { NodeView } from "../NodeView.js";
+import { Breadcrumbs } from "../../ui/components/Breadcrumbs.js";
+import { Icon } from "../../ui/Icon.js";
+import { NodeView } from "../../ui/NodeView.js";
 import {
   WorkspaceDndHostContext,
   useWorkspaceDndHeader,
   useWorkspaceDndRailCard,
   workspaceCardHeaderDroppableId,
   workspaceRailCardDraggableId,
-} from "../useWorkspaceDnd.js";
+} from "../../ui/useWorkspaceDnd.js";
 
 export function NodeCardFrame({
   client,

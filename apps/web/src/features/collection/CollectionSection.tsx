@@ -23,8 +23,8 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 
-import type { AnyClient, NodeCollectionItem, NodeCollectionProps, ViewMode } from "../views/index.js";
-import { NodeCollection } from "../views/index.js";
+import type { AnyClient, NodeCollectionItem, NodeCollectionProps, ViewMode } from "./index.js";
+import { NodeCollection } from "./index.js";
 
 import { FilterBar } from "./FilterBar.js";
 import {
@@ -35,7 +35,7 @@ import {
   type FilterBarConfig,
   type FilterQuery,
 } from "./filterQuery.js";
-import { NodeViewSection } from "./NodeViewSection.js";
+import { NodeViewSection } from "../../ui/components/NodeViewSection.js";
 import { useSectionData, type SectionCtx, type SectionRowFilter } from "./useSectionData.js";
 import "./CollectionSection.css";
 

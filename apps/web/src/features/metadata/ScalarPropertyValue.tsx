@@ -3,7 +3,7 @@ import { rendersAsInlineBlock } from "@notees/domain";
 import type { EffectiveProperty } from "@/core/workspace-client/index.js";
 
 import { parentRenderFacts } from "../../ui/renderStateLabel.js";
-import { propertyLinkHref } from "../../ui/views/propertyDisplay.js";
+import { propertyLinkHref } from "../collection/propertyDisplay.js";
 import { Icon } from "../../ui/Icon.js";
 import { ReferenceSubtree } from "../../ui/components/ReferenceSubtree.js";
 import type { AnyClient } from "./shared.js";
