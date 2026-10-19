@@ -10,7 +10,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import { InlineTokens } from "../src/ui/InlineTokens.js";
-import { WorkspaceSettingsModal } from "../src/ui/components/modals/WorkspaceSettingsModal.js";
+import { WorkspaceSettingsModal } from "../src/features/workspaces/WorkspaceSettingsModal.js";
 import { WORKSPACE_FEATURE_MAP } from "@notees/domain";
 import type { AnyClient } from "../src/ui/components/Sidebar.js";
 

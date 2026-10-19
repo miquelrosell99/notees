@@ -17,17 +17,17 @@ import {
   type WorkspaceEntry,
 } from "@/core/auth-api.js";
 
-import { Icon } from "../Icon.js";
-import { Button } from "./ui/Button.js";
-import { Card } from "./ui/Card.js";
-import { ConfirmationModal } from "./ui/ConfirmationModal.js";
-import { ContextMenu } from "./ui/ContextMenu.js";
-import { DataStateView } from "./ui/DataStateView.js";
-import { Pill } from "./ui/Pill.js";
-import { downloadBlob } from "./modals/download.js";
-import { WorkspaceExportModal } from "./modals/WorkspaceExportModal.js";
-import { WorkspaceNameModal } from "./modals/WorkspaceNameModal.js";
-import { deleteWorkspace, exportWorkspace, renameWorkspace } from "./modals/workspaceApi.js";
+import { Icon } from "../../ui/Icon.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { Card } from "../../ui/components/ui/Card.js";
+import { ConfirmationModal } from "../../ui/components/ui/ConfirmationModal.js";
+import { ContextMenu } from "../../ui/components/ui/ContextMenu.js";
+import { DataStateView } from "../../ui/components/ui/DataStateView.js";
+import { Pill } from "../../ui/components/ui/Pill.js";
+import { downloadBlob } from "../../ui/components/modals/download.js";
+import { WorkspaceExportModal } from "./WorkspaceExportModal.js";
+import { WorkspaceNameModal } from "./WorkspaceNameModal.js";
+import { deleteWorkspace, exportWorkspace, renameWorkspace } from "./workspaceApi.js";
 import { localWorkspaceCopies, rememberedWorkspaceList, rememberWorkspaceList } from "@/core/workspace-registry.js";
 import "./WorkspacesView.css";
 
