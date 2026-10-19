@@ -2,12 +2,12 @@ import { useState } from "react";
 
 import type { EffectiveProperty } from "@/core/workspace-client.js";
 
-import { Icon } from "../../Icon.js";
-import { NodeViewSection } from "../NodeViewSection.js";
-import { ContextMenu } from "../ui/ContextMenu.js";
-import { PropertyView } from "../PropertyView.js";
-import { PropertyHistoryModal } from "../PropertyHistoryModal.js";
-import { AliasedNodeRow } from "../AliasedNodeRow.js";
+import { Icon } from "../../ui/Icon.js";
+import { NodeViewSection } from "../../ui/components/NodeViewSection.js";
+import { ContextMenu } from "../../ui/components/ui/ContextMenu.js";
+import { PropertyView } from "../../ui/components/PropertyView.js";
+import { PropertyHistoryModal } from "../../ui/components/PropertyHistoryModal.js";
+import { AliasedNodeRow } from "../../ui/components/AliasedNodeRow.js";
 import type { AnyClient } from "./shared.js";
 import { propertiesCountOf, propertyGroupsOf } from "./propertyGroups.js";
 import { AliasesRow } from "./AliasesRow.js";

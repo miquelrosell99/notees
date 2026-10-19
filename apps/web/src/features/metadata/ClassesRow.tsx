@@ -1,7 +1,7 @@
 import { parseDateNodeId } from "@notees/domain";
 
-import { ClassPillsList } from "../ClassPillsList.js";
-import { removeClassDissolvingLinks } from "../classRemoval.js";
+import { ClassPillsList } from "../../ui/components/ClassPillsList.js";
+import { removeClassDissolvingLinks } from "../../ui/components/classRemoval.js";
 import type { AnyClient } from "./shared.js";
 
 /**

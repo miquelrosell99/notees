@@ -2,10 +2,10 @@ import { rendersAsInlineBlock } from "@notees/domain";
 
 import type { EffectiveProperty } from "@/core/workspace-client.js";
 
-import { parentRenderFacts } from "../../renderStateLabel.js";
-import { propertyLinkHref } from "../../views/propertyDisplay.js";
-import { Icon } from "../../Icon.js";
-import { ReferenceSubtree } from "../ReferenceSubtree.js";
+import { parentRenderFacts } from "../../ui/renderStateLabel.js";
+import { propertyLinkHref } from "../../ui/views/propertyDisplay.js";
+import { Icon } from "../../ui/Icon.js";
+import { ReferenceSubtree } from "../../ui/components/ReferenceSubtree.js";
 import type { AnyClient } from "./shared.js";
 import { fromEditableText, toEditableText } from "./shared.js";
 

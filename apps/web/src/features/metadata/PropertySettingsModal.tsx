@@ -4,15 +4,15 @@ import { type DatePrecision } from "@notees/domain";
 
 import type { PropertyDisplay } from "@/core/workspace-client.js";
 
-import { Icon } from "../../Icon.js";
-import { IconPickerPopup } from "../IconPickerPopup.js";
-import { Modal } from "../ui/Modal.js";
-import { Button } from "../ui/Button.js";
-import { SelectionButton } from "../ui/SelectionButton.js";
-import { ToggleSwitch } from "../ui/ToggleSwitch.js";
-import { ColorButton } from "../ui/ColorButton.js";
-import { cssColorFor } from "../ui/colorPresets.js";
-import { PropertyConvertModal } from "../PropertyConvertModal.js";
+import { Icon } from "../../ui/Icon.js";
+import { IconPickerPopup } from "../../ui/components/IconPickerPopup.js";
+import { Modal } from "../../ui/components/ui/Modal.js";
+import { Button } from "../../ui/components/ui/Button.js";
+import { SelectionButton } from "../../ui/components/ui/SelectionButton.js";
+import { ToggleSwitch } from "../../ui/components/ui/ToggleSwitch.js";
+import { ColorButton } from "../../ui/components/ui/ColorButton.js";
+import { cssColorFor } from "../../ui/components/ui/colorPresets.js";
+import { PropertyConvertModal } from "../../ui/components/PropertyConvertModal.js";
 import type { AnyClient } from "./shared.js";
 
 /**

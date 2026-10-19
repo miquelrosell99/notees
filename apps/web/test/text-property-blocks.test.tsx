@@ -13,7 +13,7 @@ import { act, fireEvent, render } from "@testing-library/react";
 import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
-import { PropertiesTable } from "../src/ui/components/MetadataSection.js";
+import { PropertiesTable } from "../src/features/metadata/index.js";
 
 let sqlModule: SqlJsStatic;
 

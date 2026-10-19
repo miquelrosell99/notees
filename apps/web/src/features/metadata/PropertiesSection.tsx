@@ -1,5 +1,5 @@
-import { Icon } from "../../Icon.js";
-import { NodeViewSection } from "../NodeViewSection.js";
+import { Icon } from "../../ui/Icon.js";
+import { NodeViewSection } from "../../ui/components/NodeViewSection.js";
 import type { AnyClient } from "./shared.js";
 import { propertiesCountOf, propertyGroupsOf } from "./propertyGroups.js";
 import { AliasesRow } from "./AliasesRow.js";

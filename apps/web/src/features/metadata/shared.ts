@@ -11,7 +11,7 @@ import { SYSTEM_CLASS_UUIDS } from "@notees/domain";
 import type { WorkerClient } from "@/core/worker-client.js";
 import type { WorkspaceClient } from "@/core/workspace-client.js";
 
-import { resolveCssColor } from "../ui/colorPresets.js";
+import { resolveCssColor } from "../../ui/components/ui/colorPresets.js";
 
 /** The panel's client union — in-process or worker-backed. */
 export type AnyClient = WorkspaceClient | WorkerClient;

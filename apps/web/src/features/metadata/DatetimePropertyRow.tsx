@@ -9,16 +9,16 @@ import {
 
 import type { EffectiveProperty } from "@/core/workspace-client.js";
 
-import { displayNameFromClient, datetimeValueText } from "../../dateDisplay.js";
-import { AddPill } from "../ui/AddPill.js";
+import { displayNameFromClient, datetimeValueText } from "../../ui/dateDisplay.js";
+import { AddPill } from "../../ui/components/ui/AddPill.js";
 import {
   DatePickerPopup,
   type DatetimeCommitValue,
   type DatetimePickerSlot,
   type DatetimePickerValue,
-} from "../pickers/DatePickerPopup.js";
-import { collectMarkedDates } from "../pickers/DateSlotControl.js";
-import { RepeatPicker } from "../pickers/RepeatPicker.js";
+} from "../../ui/components/pickers/DatePickerPopup.js";
+import { collectMarkedDates } from "../../ui/components/pickers/DateSlotControl.js";
+import { RepeatPicker } from "../../ui/components/pickers/RepeatPicker.js";
 import { PropertySelectCell } from "./PropertySelectCell.js";
 import type { AnyClient } from "./shared.js";
 import { toEditableText } from "./shared.js";

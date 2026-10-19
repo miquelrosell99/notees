@@ -2,14 +2,14 @@ import { useRef, useState } from "react";
 
 import type { ClientNode } from "@/core/workspace-client.js";
 
-import { displayNameFromClient } from "../../dateDisplay.js";
-import { Icon } from "../../Icon.js";
-import { AddPill } from "../ui/AddPill.js";
-import { NodeSelector } from "../pickers/NodeSelector.js";
-import { NodeContextMenu } from "../NodeContextMenu.js";
+import { displayNameFromClient } from "../../ui/dateDisplay.js";
+import { Icon } from "../../ui/Icon.js";
+import { AddPill } from "../../ui/components/ui/AddPill.js";
+import { NodeSelector } from "../../ui/components/pickers/NodeSelector.js";
+import { NodeContextMenu } from "../../ui/components/NodeContextMenu.js";
 import type { AnyClient } from "./shared.js";
 import { contrastFor } from "./shared.js";
-import { cssColorFor } from "../ui/colorPresets.js";
+import { cssColorFor } from "../../ui/components/ui/colorPresets.js";
 
 /**
  * TagsRow — the "Tags:" metadata row (pages and blocks): any page can be
