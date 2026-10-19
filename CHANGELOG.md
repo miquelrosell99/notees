@@ -9,6 +9,32 @@ predating this file.
 
 ## 2026-10-19
 
+- **feat(web): the normalized shadcn catalog lands — 20 components under
+  `src/components/ui/`, tokens-only.** The second slice of the 2026-10-19
+  shadcn-alignment ruling: button, input, textarea, label, card, dialog,
+  alert-dialog, tabs, switch, checkbox, radio-group, badge, select,
+  dropdown-menu, popover, tooltip, separator, skeleton, scroll-area,
+  command — authored from the shadcn new-york sources and normalized per
+  the fleet bridge checklist (never imported unmodified, never an npm
+  dependency): theme-key utilities only (no default palette, raw radii,
+  arbitrary values, default shadows/durations), hover = state-layer
+  overlay through the `--accent` alias, focus ring from `--ring` and never
+  suppressed, menus on the 4px popover radius, modal chrome on the sheet
+  radius + level-3 elevation, chrome icons swapped from lucide to the
+  fleet `Icon` primitive (zero lucide dependency). Behavior rides Radix
+  primitives (+ cmdk for the command palette). The app's six fleet
+  primitives are NOT superseded by this slice — they migrate as thin
+  wrappers composing these components in the next slice; the fleet
+  variants (danger/danger-solid, MDI icon + badges + haptics + the loading
+  register, the dual-label switch, the sliding-indicator tabs) live in the
+  wrappers per the sourcing table. The Tailwind config grows the small
+  set of mappings the catalog cites (ring width, icon widths, panel/menu
+  widths, the 6px menu-item spacing token `--spacing-1-5`). **Verification:**
+  drift gate 12/12 (the registered-mapping check now proves every
+  theme-key utility resolves to a config key); `tailwindcss` CLI emits
+  every cited utility; typecheck adds zero new errors; full web suite
+  re-run in the migration slice.
+
 - **feat(web): the shadcn bridge lands — Tailwind wired to the tokens, the
   alias layer, and the class half of the drift gate.** ("full shadcn alignment and implementation") starts here: the
   catalog alignment program retires the custom-primitive-layer exception
