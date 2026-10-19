@@ -11,12 +11,32 @@
  * - Chevron icon that rotates when open
  * - Optional clear button (outside to the right)
  * - Keyboard navigation support
+ *
+ * Thin fleet wrapper over the normalized catalog button
+ * (src/components/ui/button.tsx — the boxed field register applied to a
+ * trigger, the Input family): the sm/md/lg row heights, the open/error
+ * states, the chevron, and the clear affordance are the app's and live
+ * here. The fleet field register overrides the button's default variant
+ * (no press scale, the 12px input corner, no hover wash) through the
+ * class merge.
+ *
+ * INTERACTION CONTRACT (bridge checklist #9 — documented override): the
+ * pre-catalog primitive fired onClick on Enter/Space KEYDOWN via a
+ * keydown shim; the catalog button uses the native button contract
+ * (Enter fires click, Space fires on keyup) — the shim is dropped, the
+ * aria-haspopup/aria-expanded surface is unchanged.
+ *
+ * Legacy hook classes: `select-trigger` (+ size/open/error/disabled
+ * variants), `select-trigger__content/value/chevron`, and
+ * `select-trigger-container` stay — feature CSS and tests compound on
+ * them.
  */
-import { type ReactNode, type KeyboardEvent, type MouseEvent } from 'react';
+import { type ReactNode, type MouseEvent } from 'react';
 
+import { Button as CatalogButton } from '@/components/ui/button';
 import { Button } from './Button.js';
-import './SelectTrigger.css';
 import { Icon } from '../../Icon.js';
+import { cn } from './cn';
 
 export type SelectTriggerSize = 'sm' | 'md' | 'lg';
 
@@ -51,6 +71,12 @@ export interface SelectTriggerProps {
   'aria-describedby'?: string | undefined;
 }
 
+const CONTENT_CLASSES: Record<SelectTriggerSize, string> = {
+  sm: 'min-h-md px-3',
+  md: 'min-h-lg px-4',
+  lg: 'min-h-xl px-5',
+};
+
 /**
  * SelectTrigger Component
  */
@@ -70,43 +96,21 @@ export function SelectTrigger({
   'aria-invalid': ariaInvalid,
   'aria-describedby': ariaDescribedby,
 }: SelectTriggerProps) {
-  const handleKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
-    if (disabled) return;
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onClick();
-    }
-  };
-
   const handleClearClick = (e: MouseEvent) => {
     e.stopPropagation();
     onClear?.(e);
   };
 
-  const containerClasses = [
-    'select-trigger-container',
-    clearable && hasValue && onClear && 'select-trigger-container--with-clear',
-  ]
-    .filter(Boolean)
-    .join(' ');
-
-  const triggerClasses = [
-    'select-trigger',
-    `select-trigger--${size}`,
-    isOpen && 'select-trigger--open',
-    error && 'select-trigger--error',
-    disabled && 'select-trigger--disabled',
-    className,
-  ]
-    .filter(Boolean)
-    .join(' ');
-
   return (
-    <div className={containerClasses}>
-      <button
+    <div
+      className={cn(
+        'select-trigger-container flex w-full items-center gap-1',
+        clearable && hasValue && onClear && 'select-trigger-container--with-clear',
+      )}
+    >
+      <CatalogButton
         type="button"
-        className={triggerClasses}
-        onClick={disabled ? undefined : onClick}
+        variant="ghost"
         disabled={disabled}
         tabIndex={disabled ? -1 : tabIndex}
         aria-haspopup="listbox"
@@ -114,24 +118,35 @@ export function SelectTrigger({
         aria-label={ariaLabel}
         aria-describedby={ariaDescribedby}
         data-invalid={ariaInvalid || undefined}
-        onKeyDown={handleKeyDown}
+        onClick={disabled ? undefined : onClick}
+        className={cn(
+          'select-trigger h-auto w-full cursor-pointer rounded-input border-outline-variant bg-surface font-normal text-on-surface',
+          'active:scale-100 hover:bg-surface',
+          'transition-[border-color,box-shadow] duration-short ease-standard',
+          CONTENT_CLASSES[size],
+          `select-trigger--${size}`,
+          isOpen && 'select-trigger--open border-primary',
+          error && 'select-trigger--error border-error',
+          disabled && 'select-trigger--disabled cursor-not-allowed opacity-50',
+          className,
+        )}
       >
-        <div className="select-trigger__content">
+        <span className="select-trigger__content flex w-full items-center justify-between gap-1">
           {/* Main content area */}
-          <div className="select-trigger__value">
+          <span className="select-trigger__value flex min-w-0 flex-1 items-center gap-1">
             {children}
-          </div>
+          </span>
 
           {/* Chevron icon */}
-          <div className="select-trigger__chevron">
+          <span className="select-trigger__chevron flex shrink-0 items-center text-on-surface-variant">
             <Icon
               path={"mdi mdi-chevron-down"}
               size={0.7}
-              className={isOpen ? 'select-trigger__chevron-icon--open' : ''}
+              className={cn('transition-transform duration-short ease-standard', isOpen && 'select-trigger__chevron-icon--open rotate-180')}
             />
-          </div>
-        </div>
-      </button>
+          </span>
+        </span>
+      </CatalogButton>
 
       {/* Clear button - outside the trigger */}
       {clearable && hasValue && onClear && (
@@ -141,7 +156,7 @@ export function SelectTrigger({
           size="sm"
           onClick={handleClearClick}
           aria-label="Clear selection"
-          className="select-trigger__clear-btn"
+          className="select-trigger__clear-btn shrink-0"
         />
       )}
     </div>
