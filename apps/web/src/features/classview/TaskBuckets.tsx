@@ -15,7 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from "@notees/domain";
 
-import type { AnyClient } from "../../ui/components/Sidebar.js";
+import type { AnyClient } from "../../ui/app/Sidebar.js";
 
 import { displayNameFromClient } from "../../ui/dateDisplay.js";
 import { Icon } from "../../ui/Icon.js";

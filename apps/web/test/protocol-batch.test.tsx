@@ -12,7 +12,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { InlineTokens } from "../src/ui/InlineTokens.js";
 import { WorkspaceSettingsModal } from "../src/features/workspaces/WorkspaceSettingsModal.js";
 import { WORKSPACE_FEATURE_MAP } from "@notees/domain";
-import type { AnyClient } from "../src/ui/components/Sidebar.js";
+import type { AnyClient } from "../src/ui/app/Sidebar.js";
 
 beforeAll(() => {
   // jsdom lacks ResizeObserver; Tabs.List uses it for the active indicator.
@@ -355,7 +355,7 @@ describe("feature chrome gates", () => {
   });
 
   it("the sidebar hides the Tasks hub entry while the tasks family is off", async () => {
-    const { Sidebar } = await import("../src/ui/components/Sidebar.js");
+    const { Sidebar } = await import("../src/ui/app/Sidebar.js");
     const baseMock = {
       getWorkspaceId: () => "ws1",
       subscribe: () => () => {},

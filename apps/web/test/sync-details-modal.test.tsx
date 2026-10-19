@@ -13,7 +13,7 @@ import type {
   SyncStatusSnapshot,
 } from "../src/core/workspace-client/index.js";
 import { SyncDetailsModal } from "../src/features/modals/SyncDetailsModal.js";
-import type { AnyClient } from "../src/ui/components/Sidebar.js";
+import type { AnyClient } from "../src/ui/app/Sidebar.js";
 
 const SNAPSHOT: SyncStatusSnapshot = {
   status: "idle",

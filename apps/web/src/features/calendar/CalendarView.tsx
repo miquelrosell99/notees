@@ -83,7 +83,7 @@ import { Pill } from "../../components/ui/fleet/Pill.js";
 import { Tabs } from "../../components/ui/fleet/Tabs.js";
 import { MonthCalendar } from "./MonthCalendar.js";
 import { WeekStrip } from "./WeekStrip.js";
-import type { AnyClient } from "../../ui/components/Sidebar.js";
+import type { AnyClient } from "../../ui/app/Sidebar.js";
 import "./CalendarView.css";
 
 type DayFilter = "all" | "daily" | "tasks" | "dated" | "created";

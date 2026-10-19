@@ -14,7 +14,7 @@ import { rememberWorkspaceName } from "@/core/workspace-registry.js";
 import { STORAGE_KEYS, readStored } from "./storage.js";
 import type { AnyClient } from "./clients.js";
 import type { WorkspaceConnection } from "./useWorkspaceConnection.js";
-import { TopBar } from "../components/TopBar.js";
+import { TopBar } from "./TopBar.js";
 import { Breadcrumbs } from "../../features/node-menu/Breadcrumbs.js";
 import { WorkspaceSwitcher } from "../../features/workspaces/WorkspaceSwitcher.js";
 import { createNodesWithClasses } from "../../features/templates/createNodesWithClasses.js";

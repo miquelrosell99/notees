@@ -22,7 +22,7 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import { EMPTY_UNDO_STATE } from "../src/core/undo-journal.js";
 import { historyKeyHandler } from "../src/ui/app/keymap.js";
-import { TopBar } from "../src/ui/components/TopBar.js";
+import { TopBar } from "../src/ui/app/TopBar.js";
 import { HistoryMenuPopup } from "../src/features/page-sections/HistoryMenuPopup.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000f1";

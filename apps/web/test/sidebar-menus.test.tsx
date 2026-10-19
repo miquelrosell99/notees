@@ -18,8 +18,8 @@ import { MemoryRelay, MemoryTransport } from "@notees/sync";
 
 import { WorkspaceClient } from "../src/core/workspace-client/index.js";
 import type { ClientNode } from "../src/core/workspace-client/index.js";
-import { Sidebar, recordRecent } from "../src/ui/components/Sidebar.js";
-import type { AnyClient } from "../src/ui/components/Sidebar.js";
+import { Sidebar, recordRecent } from "../src/ui/app/Sidebar.js";
+import type { AnyClient } from "../src/ui/app/Sidebar.js";
 import { resetNodePrefsForTests } from "../src/features/settings/nodePrefs.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";

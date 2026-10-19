@@ -51,7 +51,7 @@ import { logout } from "@/core/auth-api.js";
 import { displayNameForSettings } from "./dateDisplay.js";
 import type { ShareTarget } from "../features/node-menu/NodeMenuButton.js";
 import { rendersAsInlineBlock } from "@notees/domain";
-import { recordRecent, type NavKey } from "./components/Sidebar.js";
+import { recordRecent, type NavKey } from "./app/Sidebar.js";
 import { resolveAliasOpen } from "../features/metadata/aliasProperty.js";
 import { WorkspacesView } from "../features/workspaces/WorkspacesView.js";
 import {

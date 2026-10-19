@@ -18,7 +18,7 @@ import { SYSTEM_CLASS_UUIDS, parseDateNodeId } from "@notees/domain";
 import { PageView } from "../../ui/PageView.js";
 import { Icon } from "../../ui/Icon.js";
 import { rawDateKeywordOf } from "../../ui/dateDisplay.js";
-import type { AnyClient } from "../../ui/components/Sidebar.js";
+import type { AnyClient } from "../../ui/app/Sidebar.js";
 import { addDaysIso, isoOfDateParts, todayIsoLocal } from "./calendarViewUtils.js";
 import { Button } from "../../components/ui/fleet/Button.js";
 import { EmptyState } from "../../components/ui/fleet/EmptyState.js";

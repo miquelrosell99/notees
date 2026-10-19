@@ -18,7 +18,7 @@ import {
   recordNavPush,
   type NavStack,
 } from "../src/ui/app/routing.js";
-import { TopBar } from "../src/ui/components/TopBar.js";
+import { TopBar } from "../src/ui/app/TopBar.js";
 
 describe("the navigation stack tracker", () => {
   it("recordNavPush appends and truncates any forward tail", () => {

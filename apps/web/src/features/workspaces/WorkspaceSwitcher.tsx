@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { createWorkspace, listWorkspaces, type WorkspaceEntry } from "@/core/auth-api.js";
 import { localWorkspaceCopies, rememberedWorkspaceList } from "@/core/workspace-registry.js";
 
-import type { AnyClient } from "../../ui/components/Sidebar.js";
+import type { AnyClient } from "../../ui/app/Sidebar.js";
 import { Icon } from "../../ui/Icon.js";
 import { Separator } from "../../components/ui/fleet/Separator.js";
 import { usePopupDismissal } from "../../components/ui/fleet/usePopupDismissal.js";

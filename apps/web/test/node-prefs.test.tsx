@@ -30,8 +30,8 @@ import {
   toggleNodeFavorite,
   useNodePrefs,
 } from "../src/features/settings/nodePrefs.js";
-import { Sidebar, recordRecent, removeRecent } from "../src/ui/components/Sidebar.js";
-import type { AnyClient } from "../src/ui/components/Sidebar.js";
+import { Sidebar, recordRecent, removeRecent } from "../src/ui/app/Sidebar.js";
+import type { AnyClient } from "../src/ui/app/Sidebar.js";
 
 const WS = "0192a000-0000-7000-8000-000000000001";
 const ACTOR = "0192a000-0000-7000-8000-000000000002";
