@@ -50,4 +50,9 @@ export {
   type UserPrefs,
   type UserPrefsSource,
 } from "./prefs.js";
+export {
+  HOSTED_SECTION_KEYS,
+  type HostedSectionKey,
+  type SectionView,
+} from "./section-views.js";
 export * from "./client.js";
