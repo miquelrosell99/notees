@@ -401,8 +401,8 @@ export function CalendarView({
         checked={checked}
         disabled={statusSchema === undefined}
         aria-label={checked ? "Reopen task" : "Mark task done"}
-        onChange={(event) =>
-          void setTaskDone(client, statusSchema, row.id, event.target.checked, selectedIso)
+        onChange={(checked) =>
+          void setTaskDone(client, statusSchema, row.id, checked, selectedIso)
         }
       />
       <button
