@@ -3,7 +3,7 @@
  * pre-ruling workspace self-heal.
  *
  * getClassBindings read-synthesizes the designed system seeds for system
- * classes (workspace-client.ts "Seed-spec fallback"), so a workspace that
+ * classes (the workspace-client folder module ("Seed-spec fallback")), so a workspace that
  * received a system class NODE but never its class_property registry rows
  * LOOKS configured through every fallback read while the registry-only
  * effective-properties read (store effective.ts — binding rows + defaults)
