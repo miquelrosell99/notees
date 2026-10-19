@@ -196,12 +196,27 @@ function detectStoreMode(): StoreMode {
   const hasOpfs =
     typeof navigator !== "undefined" && navigator.storage?.getDirectory !== undefined;
   if (hasWorker && hasOpfs) return "worker";
+  const insecureHint =
+    typeof window !== "undefined" && !window.isSecureContext
+      ? " — this page is NOT a secure context (plain http on a non-localhost address), so the browser hides OPFS; open the app via its https address or http://localhost to get the background store"
+      : "";
   console.warn(
     `[notees] store mode: in-process (Worker: ${hasWorker ? "ok" : "MISSING"}, ` +
       "navigator.storage.getDirectory: " +
-      `${hasOpfs ? "ok" : "MISSING"}) — store reads run on the UI thread`,
+      `${hasOpfs ? "ok" : "MISSING"}${insecureHint}) — store reads run on the UI thread`,
   );
   return "in-process";
+}
+
+/** Why the in-process fallback happened, phrased for the UI banner. */
+function inProcessReason(): string {
+  if (typeof navigator !== "undefined" && navigator.storage?.getDirectory === undefined) {
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      return "plain http on a non-localhost address is not a secure context, so the browser hides the OPFS storage the background store needs — use the app's https address or http://localhost";
+    }
+    return "this browser does not expose OPFS storage (navigator.storage.getDirectory)";
+  }
+  return "the Web Worker API is unavailable in this browser";
 }
 
 function readStored(key: string): string {
@@ -932,6 +947,7 @@ export function App() {
       ? { serverUrl, credential: token }
       : undefined;
   const [storeMode, setStoreMode] = useState<StoreMode>("in-process");
+  const [storeReason, setStoreReason] = useState<string | undefined>(undefined);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(() => {
     // Deep link: /<uuid> in the address bar opens that node once synced.
     const match = /^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(
@@ -1419,6 +1435,7 @@ export function App() {
       setClient(nextClient);
       setOffline(options.isOffline);
       setStoreMode(mode);
+      setStoreReason(mode === "in-process" ? inProcessReason() : undefined);
       // The boot reached local bytes: this device now holds a copy of the
       // workspace, so the offline registry may offer it while the server
       // can't answer.
@@ -1731,7 +1748,20 @@ export function App() {
   async function handleWorkOffline() {
     let localId = readStored(STORAGE_KEYS.localWorkspaceId);
     if (localId === "") {
-      localId = crypto.randomUUID();
+      // crypto.randomUUID is secure-context-gated — unavailable on the
+      // plain-http LAN dev entry, where "Work offline" is a first-run path
+      // (audit 2026-10-19: the throw silently broke offline connect there).
+      // getRandomValues is NOT gated; build an RFC 4122 v4 id from it.
+      if (typeof crypto.randomUUID === "function") {
+        localId = crypto.randomUUID();
+      } else {
+        const bytes = new Uint8Array(16);
+        crypto.getRandomValues(bytes);
+        bytes[6] = (bytes[6] & 0x0f) | 0x40;
+        bytes[8] = (bytes[8] & 0x3f) | 0x80;
+        const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+        localId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+      }
       writeStored(STORAGE_KEYS.localWorkspaceId, localId);
     }
     await connect(readStored(STORAGE_KEYS.serverUrl), "", localId, {
@@ -2492,7 +2522,7 @@ export function App() {
           onClose={() => setPresentingId(null)}
         />
       )}
-      {storeMode === "in-process" && <InProcessStoreBanner />}
+      {storeMode === "in-process" && <InProcessStoreBanner reason={storeReason} />}
       {client !== null && (
         <SyncDetailsModal
           client={client}

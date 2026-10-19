@@ -4,15 +4,16 @@
  * Shown when detectStoreMode() falls back to WorkspaceClient (the Web Worker
  * store unavailable): every store read then runs synchronously on the UI
  * thread, so large workspaces can freeze the app (the profiled 75%-of-
- * capture jank). Session-local dismiss; detectStoreMode() also console.warns
- * with the specific missing capability for diagnosis.
+ * capture jank). Session-local dismiss; App passes the diagnosed cause
+ * (insecure context hiding OPFS, missing OPFS, or no Worker) so the banner
+ * says what to do, not just that something is wrong.
  */
 
 import { useState } from "react";
 import { Icon } from "../../Icon.js";
 import "./InProcessStoreBanner.css";
 
-export function InProcessStoreBanner() {
+export function InProcessStoreBanner({ reason }: { reason?: string }) {
   const [dismissed, setDismissed] = useState(false);
   if (dismissed) return null;
   return (
@@ -20,6 +21,7 @@ export function InProcessStoreBanner() {
       <Icon path="mdi-alert-outline" className="in-process-banner__icon" />
       <span className="in-process-banner__text">
         Background store unavailable — running in-process, so large workspaces may freeze the UI.
+        {reason !== undefined && <> Cause: {reason}.</>}
       </span>
       <button
         type="button"
