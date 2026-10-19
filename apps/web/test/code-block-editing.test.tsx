@@ -17,7 +17,7 @@ import type { ContentAst } from "@notees/protocol";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { PageView } from "../src/ui/PageView.js";
-import { SAVE_DEBOUNCE_MS } from "../src/ui/BlockTextEditor.js";
+import { SAVE_DEBOUNCE_MS } from "../src/features/block-editor/index.js";
 
 const WS = "0192a000-0000-7000-8000-0000000000e1";
 const ACTOR = "0192a000-0000-7000-8000-0000000000e2";
