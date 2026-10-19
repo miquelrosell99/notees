@@ -12,7 +12,7 @@ import {
   moveRailCardOrder,
   persistRailCardOrder,
   readRailCardOrder,
-} from "../src/ui/App.js";
+} from "../src/ui/app/railCardOrder.js";
 
 const KEY = "notees.sidebarCards";
 
