@@ -9,6 +9,17 @@ predating this file.
 
 ## 2026-10-19
 
+- **refactor(web): extract the code-block surface out of BlockTextEditor —
+  `features/block-editor/codeBlock.tsx` (Stage D, extraction 1 of 3).**
+  `codeTokenOf` (the single-code_block-token probe) and `CodeBlockEditor`
+  (the debounced CodeTextarea surface, blur/Esc flush, clean-draft
+  remote re-sync) move verbatim to their own module; BlockTextEditor
+  imports them back. The component loses 122 lines (2,449 → 2,328);
+  the only import churn is the CodeTextarea import following the
+  extraction. No behavior change.
+  **Verification:** `npx tsc --noEmit` clean; code-block-editing +
+  outliner-editor (30 tests) green.
+
 - **refactor(web): the block editor relocates to `src/features/block-editor/`
   — Stage D monolith split, move slice.** `ui/BlockTextEditor.tsx` (2,449
   lines, the last Stage D monolith) moves verbatim to the second
