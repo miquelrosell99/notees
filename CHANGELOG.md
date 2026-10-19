@@ -9,6 +9,23 @@ predating this file.
 
 ## 2026-10-19
 
+- **fix(web): the sidebar profile row wears the identity again; the
+  settings gear returns.** The
+  account-popup slice made the bottom-row trigger avatar-only; the owner
+  flagged the lost name/email read (and considered moving the button to
+  the top bar — rejected: the top bar's right cluster is already dense,
+  and the sidebar foot is the account's conventional home). The trigger
+  is the wide identity row again — avatar + display name + email — with
+  the sync badge re-anchored to the AVATAR's corner (it rode the button's
+  corner for one day). And the popup-only settings door lasted a day too:
+  the owner doesn't want a shortcut as the settings path, so the **gear
+  button is back** beside the profile (same `showSettings` gating as
+  always, same target as the popup's Settings entry; the Ctrl/Cmd+, chord
+  and the popup entry remain as alternates). **Verification:** web
+  suites green (sidebar-menus incl. the identity-row + badge-anchor
+  assertions, settings-modals incl. the gear's direct-open); docs
+  aligned; live screenshot check on the deployed stack.
+
 - **feat(web): picker recents, node-link icon alignment, the account popup
   (sync badge, Shares hub, Trash relocation).** Four
   ed UI slices in one pass. **(1) Node pickers open to your
