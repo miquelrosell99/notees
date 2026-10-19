@@ -21,7 +21,7 @@ import {
   type SettingsPageProps,
   type SettingsSection,
 } from "../src/ui/components/SettingsPage.js";
-import { popStateNavHandler, pushSettingsSection } from "../src/ui/App.js";
+import { popStateNavHandler, pushSettingsSection } from "../src/ui/app/routing.js";
 import { applyAppearance } from "../src/ui/components/modals/deviceSettings.js";
 import type { AccountUser } from "../src/core/auth-api.js";
 

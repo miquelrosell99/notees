@@ -8,7 +8,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import { App, navFromPath, pathForNav } from "../src/ui/App.js";
+import { App } from "../src/ui/App.js";
+import { navFromPath, pathForNav } from "../src/ui/app/routing.js";
 
 // connect() boots the in-process sql.js store; emscripten takes its NODE
 // loader under jsdom (process is defined) and fs-opens the wasm path that
