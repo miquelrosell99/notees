@@ -63,34 +63,32 @@ import {
 import { applyAppearance, readDeviceSetting, toggleFocusMode, useDeviceSetting } from "./components/modals/deviceSettings.js";
 import { useCondensedPreference } from "./viewPrefs.js";
 import {
+  AppBody,
+  AppModals,
+  AppOverlays,
+  AppTopBar,
+  BootForm,
+  HubView,
   STORAGE_KEYS,
   clearStored,
-  initialServerUrl,
-  readStored,
-} from "./app/storage.js";
-import "./app.css";
-import { HubView } from "./app/HubView.js";
-import { AppTopBar } from "./app/AppTopBar.js";
-import { AppBody } from "./app/AppBody.js";
-import { AppModals } from "./app/AppModals.js";
-import { AppOverlays } from "./app/AppOverlays.js";
-import { BootForm } from "./app/BootForm.js";
-import { useBootFlow } from "./app/useBootFlow.js";
-import { useWorkspaceConnection } from "./app/useWorkspaceConnection.js";
-import type { CredentialType } from "./app/store-connection.js";
-import { useGlobalGestures } from "./app/useGlobalGestures.js";
-import { useRailCards } from "./app/useRailCards.js";
-import { useUndoChrome } from "./app/useUndoChrome.js";
-import {
   currentNavUrl,
   initialNav,
+  initialServerUrl,
   popStateNavHandler,
   pushSettingsSection,
+  readStored,
   recordNavPop,
   recordNavPush,
   tabTitle,
+  type CredentialType,
   type NavStack,
-} from "./app/routing.js";
+  useBootFlow,
+  useGlobalGestures,
+  useRailCards,
+  useUndoChrome,
+  useWorkspaceConnection,
+} from "./app/index.js";
+import "./app.css";
 
 /** Footer status before the first status() snapshot arrives. */
 const INITIAL_SYNC_STATUS: SyncStatusSnapshot = {

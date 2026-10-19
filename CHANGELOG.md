@@ -9,6 +9,18 @@ predating this file.
 
 ## 2026-10-19
 
+- **refactor(web): `ui/app/` gains its public-surface barrel.**
+  `src/ui/app/index.ts` re-exports the family's public surface — the 16
+  modules App.tsx, BootForm, and the tests consume (storage, routing,
+  keymap, railCardOrder, HubView, store-connection, the connection/boot
+  hooks, BootForm, the gesture/rail/undo hooks, the four shell regions).
+  App.tsx imports the family through the barrel: 29 → 16 import
+  statements. Internal-only modules (`clients.ts`, `storeMode.ts`) stay
+  out of the barrel, and cross-imports inside the family stay direct so
+  the barrel can't become a cycle. No behavior change.
+  **Verification:** `npx tsc --noEmit` clean (no circular-import type
+  errors); app-smoke/banner/routing/settings suites green.
+
 - **refactor(web): the boot-flow hook monolith dissolves — `useBootFlow`
   composes `useServerProbe` + `useAuthFlow`.** The App.tsx split's own
   assessment flagged the 438-line `useBootFlow` (a ~25-member state bag) as
