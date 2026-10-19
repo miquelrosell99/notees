@@ -50,7 +50,6 @@ import { logout } from "@/core/auth-api.js";
 
 import { NodeView } from "./NodeView.js";
 import { SearchPage } from "./SearchPage.js";
-import { NodeCardFrame } from "./components/NodeCardFrame.js";
 import { displayNameForSettings } from "./dateDisplay.js";
 import { DeckView } from "./presentation/DeckView.js";
 import { CommandPalette } from "./components/CommandPalette.js";
@@ -58,18 +57,7 @@ import { PageCard } from "./components/PageCard.js";
 import type { ShareTarget } from "./components/NodeMenuButton.js";
 import { rendersAsInlineBlock, rendersWithDocumentChrome } from "@notees/domain";
 import { Sidebar, recordRecent, type NavKey } from "./components/Sidebar.js";
-import { NodeLinkMenuHost } from "./components/NodeLinkContextMenu.js";
-import { FloatingEditorHost } from "./components/FloatingEditor.js";
-import { NodeHoverPreviewHost } from "./components/NodeHoverPreview.js";
-import { WorkspaceDndHost } from "./useWorkspaceDnd.js";
 import { resolveAliasOpen } from "./components/aliasProperty.js";
-import { JournalsView } from "./components/JournalsView.js";
-import { CalendarView } from "./components/CalendarView.js";
-import { todayIsoLocal } from "./components/calendarViewUtils.js";
-import { QueriesHub } from "./components/QueriesHub.js";
-import { TrashHub } from "./components/TrashHub.js";
-import { SharesHub } from "./components/SharesHub.js";
-import { GraphView } from "./views/graph/GraphView.js";
 import { QuickAddModal } from "./components/modals/QuickAddModal.js";
 import { ClassCreateModal } from "./components/modals/ClassCreateModal.js";
 import { MergeNodesModal } from "./components/modals/MergeNodesModal.js";
@@ -101,6 +89,7 @@ import "./app.css";
 import { moveRailCardOrder, persistRailCardOrder, readRailCardOrder } from "./app/railCardOrder.js";
 import { HubView } from "./app/HubView.js";
 import { AppTopBar } from "./app/AppTopBar.js";
+import { AppBody } from "./app/AppBody.js";
 import { BootForm } from "./app/BootForm.js";
 import { useBootFlow } from "./app/useBootFlow.js";
 import { useWorkspaceConnection } from "./app/useWorkspaceConnection.js";
@@ -110,7 +99,6 @@ import {
   currentNavUrl,
   initialNav,
   navFromPath,
-  pathForNav,
   popStateNavHandler,
   pushSettingsSection,
   recordNavPop,
@@ -797,171 +785,44 @@ export function App() {
         setManagerOpen={setManagerOpen}
         setWorkspaceName={setWorkspaceName}
       />
-      <div className="nt-body">
-        <NodeLinkMenuHost
-          client={client}
-          openNode={openPage}
-          openInSidebar={openInSidebar}
-        >
-        <NodeHoverPreviewHost client={client} openNode={openPage}>
-        {/* The ONE workspace drag session: the host wraps the FloatingEditorHost
-            (which wraps the regions), so the main content card, the right
-            rail's workspace cards, and the floating editor windows (portals
-            keep the React context) all join the same drag — useWorkspaceDnd.ts.
-            The rail's card reorder rides the same session: the host reports
-            the gesture, the App owns the stack + its device-local order. */}
-        <WorkspaceDndHost onRailCardReorder={reorderSidebarCard}>
-        <FloatingEditorHost client={client} openNode={openPage}>
-        <Sidebar
-          client={client}
-          user={user}
-          offline={offline}
-          showSettings={sessionSignedIn && user !== null && !offline}
-          onOpenSettings={() => openSettingsSection("appearance")}
-          syncStatus={syncStatus}
-          onOpenSyncDetails={() => setSyncDetailsOpen(true)}
-          onOpenAdminSettings={
-            sessionSignedIn && user !== null && !offline && user.isAdmin
-              ? () => setAdminSettingsOpen(true)
-              : undefined
-          }
-          selectedPageId={selectedPageId}
-          activeNav={activeNav}
-          onSelectNav={(key) => {
-            // Today is a page, not a hub: ensure the chain and open the day page.
-            if (key === "today") {
-              const live = clientRef.current;
-              if (live !== null) {
-                void live.ensureDateChain(todayIsoLocal()).then(({ day }) => openPage(day));
-              }
-              return;
-            }
-            setSettingsSection(null);
-            setSearchOpen(false);
-            setActiveNav(key);
-            setSelectedPageId(null);
-            pushNav(pathForNav(key), { node: null, nav: key });
-          }}
-          onOpenPage={openPage}
-          onSignOut={() => void handleSignOut()}
-          onOpenInSidebar={openInSidebar}
-        />
-        <PageCard
-          accent={
-            selectedPageId !== null
-              ? (() => {
-                  const current = client.getNode(selectedPageId);
-                  return current === undefined ? null : client.effectiveNodeColor(current);
-                })()
-              : null
-          }
-        >
-          {selectedPageId !== null ? (
-            <NodeView
-              client={client}
-              nodeId={selectedPageId}
-              onOpenNode={openPage}
-              onOpenNodeRaw={openPageAt}
-              onOpenInSidebar={openInSidebar}
-              onDeleted={handleNodeDeleted}
-              onPresent={(id) => setPresentingId(id)}
-              cornerMenu
-              shareTarget={shareTarget}
-              sectionsLayout={sectionsLayout}
-            />
-          ) : searchOpen ? (
-            <SearchPage
-              client={client}
-              onOpenNode={openPage}
-              initialQuery={new URLSearchParams(window.location.search).get("q") ?? ""}
-            />
-          ) : settingsSection !== null && user !== null ? (
-            <SettingsPage
-              section={settingsSection}
-              onNavigate={openSettingsSection}
-              serverUrl={serverUrl}
-              token={token}
-              user={user}
-              onSignOut={() => void handleSignOut()}
-              syncConnected={syncStatus.status !== "error"}
-              onForgetServer={() => handleForgetServer()}
-              onConnectServer={(url) => handleConnectServer(url)}
-            />
-          ) : activeNav === "journal" ? (
-            <JournalsView client={client} onOpenPage={openPage} />
-          ) : activeNav === "calendar" ? (
-            <CalendarView client={client} onOpenPage={openPage} />
-          ) : activeNav === "queries" ? (
-            <QueriesHub client={client} onOpenNode={openPage} onOpenInSidebar={openInSidebar} />
-          ) : activeNav === "graph" ? (
-            /* The graph hub renders edge-to-edge in the main content card —
-               the canvas is the card's sole content (the whiteboard-surface
-               treatment; the card frame itself stays). */
-            <div className="nt-graph-surface">
-              <GraphView client={client} onNodeClick={openPage} />
-            </div>
-          ) : activeNav === "trash" ? (
-            /* The Trash hub: browse / restore / permanently delete trashed
-               subtrees (the data path always existed — this is the v1
-               sidebar surface restored for the web). Reached from the
-               account popup since 2026-10-19. */
-            <TrashHub client={client} onOpenNode={openPage} />
-          ) : activeNav === "shares" ? (
-            /* The Shares hub: the v1 SharesUnifiedView's
-               Shared-Out tab over the v2 public-link share register —
-               reached from the account popup. */
-            <SharesHub
-              client={client}
-              serverUrl={serverUrl}
-              credential={token}
-              onOpenNode={openPage}
-            />
-          ) : (
-            <HubView client={client} nav={activeNav} onOpenNode={openPage} onOpenInSidebar={openInSidebar} />
-          )}
-        </PageCard>
-        {rightPanelOpen && (
-          <aside className="nt-right-card" aria-label="Right sidebar">
-            {/* The cards-only rail: the node-relevant widgets
-                (graph/TOC/Activity/Comments) relocated into the page chrome's
-                context column; this rail hosts workspace cards exclusively —
-                the generic frame around NodeView. Fixed-height surfaced panel
-: it stretches the body height regardless
-                of the card count and scrolls internally when the stack
-                outgrows it. */}
-            {sidebarCards.length > 0 && (
-              <div className="nt-right-card__bar">
-                <span className="nt-right-card__bar-label">Peeked pages</span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setSidebarCards([]);
-                    setRightPanelOpen(false);
-                  }}
-                >
-                  Clear all
-                </Button>
-              </div>
-            )}
-            {sidebarCards.map((cardId) => (
-              <NodeCardFrame
-                key={cardId}
-                client={client}
-                nodeId={cardId}
-                onOpenNode={openPage}
-                onOpenNodeRaw={openPageAt}
-                onClose={() => closeSidebarCard(cardId)}
-              />
-            ))}
-          </aside>
-        )}
-        </FloatingEditorHost>
-        </WorkspaceDndHost>
-        </NodeHoverPreviewHost>
-        </NodeLinkMenuHost>
-      </div>
+      <AppBody
+        client={client}
+        clientRef={clientRef}
+        user={user}
+        offline={offline}
+        sessionSignedIn={sessionSignedIn}
+        syncStatus={syncStatus}
+        setSyncDetailsOpen={setSyncDetailsOpen}
+        setAdminSettingsOpen={setAdminSettingsOpen}
+        selectedPageId={selectedPageId}
+        activeNav={activeNav}
+        setActiveNav={setActiveNav}
+        setSettingsSection={setSettingsSection}
+        setSearchOpen={setSearchOpen}
+        setSelectedPageId={setSelectedPageId}
+        pushNav={pushNav}
+        openPage={openPage}
+        openPageAt={openPageAt}
+        openInSidebar={openInSidebar}
+        openSettingsSection={openSettingsSection}
+        handleNodeDeleted={handleNodeDeleted}
+        handleSignOut={handleSignOut}
+        handleForgetServer={handleForgetServer}
+        handleConnectServer={handleConnectServer}
+        searchOpen={searchOpen}
+        settingsSection={settingsSection}
+        serverUrl={serverUrl}
+        token={token}
+        shareTarget={shareTarget}
+        sectionsLayout={sectionsLayout}
+        setPresentingId={setPresentingId}
+        reorderSidebarCard={reorderSidebarCard}
+        rightPanelOpen={rightPanelOpen}
+        setRightPanelOpen={setRightPanelOpen}
+        sidebarCards={sidebarCards}
+        setSidebarCards={setSidebarCards}
+        closeSidebarCard={closeSidebarCard}
+      />
       <CommandPalette
         client={client}
         open={paletteOpen}
