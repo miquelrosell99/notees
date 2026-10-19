@@ -16,7 +16,7 @@ import type { ContentAst } from "@notees/protocol";
 
 import { WorkspaceClient } from "../src/core/workspace-client.js";
 import { PageView } from "../src/ui/PageView.js";
-import { SAVE_DEBOUNCE_MS } from "../src/ui/BlockTextEditor.js";
+import { SAVE_DEBOUNCE_MS } from "../src/features/block-editor/index.js";
 import { astFromProse, proseFromAst } from "../src/editor/prose.js";
 import { buildOutlinePositions } from "../src/editor/outline.js";
 import { writeViewModePref } from "../src/ui/viewPrefs.js";
