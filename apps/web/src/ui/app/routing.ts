@@ -8,7 +8,7 @@
  * routing/title/nav-stack suites.
  */
 
-import { NAV_ENTRIES, type NavKey } from "../components/Sidebar.js";
+import { NAV_ENTRIES, type NavKey } from "./Sidebar.js";
 import {
   SETTINGS_SECTIONS,
   pathForSettingsSection,
