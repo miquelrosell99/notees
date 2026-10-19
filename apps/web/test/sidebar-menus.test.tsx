@@ -371,17 +371,27 @@ describe("account popup — the user menu", () => {
     expect(within(menu).getByText("Sign out")).not.toBeNull();
   });
 
-  it("sync badge rides the profile circle's corner; absent without a snapshot", async () => {
+  it("sync badge rides the profile avatar's corner; absent without a snapshot", async () => {
     const client = await seedClient();
     const { container, unmount } = renderSidebar(client, {
       user,
       syncStatus: { ...syncStatus, status: "error" as const, error: "relay down" },
     });
     expect(container.querySelector(".nt-profile-sync--error")).not.toBeNull();
+    // The badge anchors inside the avatar span (not the row).
+    expect(container.querySelector(".nt-profile-avatar .nt-profile-sync")).not.toBeNull();
     unmount();
 
     const { container: bare } = renderSidebar(client, { user });
     expect(bare.querySelector(".nt-profile-sync")).toBeNull();
+  });
+
+  it("the bottom row wears the identity at rest: avatar + name + email, no popup needed", async () => {
+    const client = await seedClient();
+    const { container } = renderSidebar(client, { user });
+    const bottom = container.querySelector(".nt-sidebar-bottom")!;
+    expect(within(bottom as HTMLElement).getByText("Miquel Rosell")).not.toBeNull();
+    expect(within(bottom as HTMLElement).getByText("miquel@example.com")).not.toBeNull();
   });
 
   it("Trash left the sidebar nav list (the popup owns it now)", async () => {
