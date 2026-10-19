@@ -9,6 +9,22 @@ predating this file.
 
 ## 2026-10-19
 
+- **refactor(web): extract the value-column controls out of
+  FilterBlockBuilder — `components/filterBlockValueControls.tsx` (Stage D,
+  extraction 2 of 2).** The typed per-family pickers move verbatim to
+  their own module: the single/multi class picks, the family switch
+  (BlockValue) over node targets, containers, dates with the
+  relative-period picker, the property family's schema select + typed
+  value control, the node single/multi picks, and the property operator
+  label table (its only consumer went with it). FilterBlockBuilder keeps
+  only the builder composition — the root, GroupBlock, NotBlock, and the
+  condition row (1,255 → 601 lines; the monolith pair is now 601 + 872 +
+  676 across three modules). No behavior change.
+  **Verification:** `npx tsc --noEmit` clean; the filter/query/search
+  suites (filter-builder, filter-layer, filter-query, query-block,
+  query-builder-guard, search-page, search-palette, child-query — 115
+  tests) green.
+
 - **refactor(web): extract the condition model out of FilterBlockBuilder —
   `components/filterBlockModel.ts` (Stage D, extraction 1 of 2).** The
   v1/Odoo register ([type][operator][value][mode]) as pure functions
