@@ -104,14 +104,15 @@ export abstract class WorkspaceClientBase {
   /** Semantic conflict history for the sync details modal. */
   protected readonly conflictLog: ConflictHistoryEntry[] = [];
 
+  /** Implemented by the sync domain (client-sync.ts); torn down by close(). */
+  abstract stopRealtime(): void;
+
   /**
    * The pre-apply read seam behind the undo journal — implemented by the
    * undo domain (client-undo.ts); the base constructor wires it into the
-   * journal before any derived field exists.
+   * journal at construction time.
    */
   protected abstract buildUndoCaptureSource(): UndoCaptureSource;
-  /** Implemented by the sync domain (client-sync.ts); torn down by close(). */
-  abstract stopRealtime(): void;
 
   protected constructor(store: Store, options: WorkspaceClientOptions) {
     this.store = store;
